@@ -314,7 +314,7 @@ export function JsonInput({ id, value, onChange, rows = 4, describedBy, invalid,
         autoCorrect="off"
         aria-invalid={invalid || error !== null ? true : undefined}
         aria-describedby={[describedBy, error ? errorId : null].filter(Boolean).join(" ") || undefined}
-        className="font-mono text-sm"
+        className="font-mono"
         onChange={(event) => {
           const raw = event.target.value;
           if (raw.trim() === "") {

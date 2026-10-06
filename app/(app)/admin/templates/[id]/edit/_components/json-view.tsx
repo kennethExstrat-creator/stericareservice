@@ -82,7 +82,7 @@ export function JsonView({
           autoCorrect="off"
           aria-invalid={!check.ok ? true : undefined}
           aria-describedby="template-json-status"
-          className="max-h-[70vh] min-h-80 font-mono text-sm leading-relaxed fine:text-[13px]"
+          className="max-h-[70vh] min-h-80 font-mono leading-relaxed fine:text-[13px]"
           onChange={(event) => onTextChange(event.target.value === current ? null : event.target.value)}
         />
       </div>
