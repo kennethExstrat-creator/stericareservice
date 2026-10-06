@@ -7,8 +7,13 @@ import {
   labelOverrides,
   moduleConfig,
   moduleTitle,
+  seedConfig,
   TEMPLATE_CODES,
+  TEMPLATES,
+  type TemplateCode,
 } from "@/lib/coverage";
+import { lookupFrom, resolveTemplateOrThrow } from "@/lib/templates";
+import { MODULE_REGISTRY } from "@/modules/registry";
 import { TENSILE_DEFAULT_CONFIG, TENSILE_LABELS, TENSILE_TITLE, TensileConfigSchema } from "./config";
 import { emptyTensile, emptyTensileSize, TensileDataSchema } from "./schema";
 
@@ -72,6 +77,36 @@ describe("tensile config", () => {
 
   it("is on in SAFEDON_EG only, as BUILD_SPEC 11 has it", () => {
     expect(TEMPLATE_CODES.filter((code) => moduleConfig(code, "tensile") !== undefined)).toEqual(["SAFEDON_EG"]);
+  });
+
+  it("resolves SAFEDON_EG's seed down its extends chain into the template's config, with this schema", () => {
+    // Only the physical test modules are seeded; order_lots is on because per-size modules need it.
+    const definition = (code: TemplateCode, modules: readonly { key: "force_at_break" | "tensile"; include: boolean }[]) => {
+      const spec = TEMPLATES[code];
+      return {
+        code: spec.code,
+        name: spec.name,
+        ...(spec.extends === null ? {} : { extends: spec.extends }),
+        scope: { productType: spec.scope.productType, standard: spec.scope.standard },
+        unit: spec.unit,
+        sizes: spec.sizes.map((size) => ({ ...size })),
+        modules: [
+          { key: "order_lots", include: true },
+          ...modules.map(({ key, include }) => ({ key, include, ...(include ? { config: seedConfig(code, key) } : {}) })),
+        ],
+      };
+    };
+    const base = definition("STD_EG", [{ key: "force_at_break", include: true }]);
+    const child = definition("SAFEDON_EG", [
+      { key: "tensile", include: true },
+      { key: "force_at_break", include: false },
+    ]);
+    const template = resolveTemplateOrThrow(child, { getBase: lookupFrom([{ definition: base, version: 1 }]), registry: MODULE_REGISTRY });
+    expect(template.modules.find((entry) => entry.key === "tensile")).toMatchObject({
+      include: true,
+      config: moduleConfig("SAFEDON_EG", "tensile"),
+    });
+    expect(template.modules.find((entry) => entry.key === "force_at_break")?.include).toBe(false);
   });
 
   it("takes an empty standard label, which prints the caption alone", () => {

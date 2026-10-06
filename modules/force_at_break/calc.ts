@@ -86,8 +86,13 @@ export function calcForceAtBreak({
 
 /** Readings a size needs: the sampling plan's gloves for the physical test when entered, else config n. */
 export function readingsFor(context: InspectionContext, config: Pick<ForceAtBreakConfig, "n">, size: string): number {
+  return plannedReadings(context, size) ?? config.n;
+}
+
+/** The sampling plan's gloves for the physical test of a size, or null while it gives none. */
+export function plannedReadings(context: InspectionContext, size: string): number | null {
   const planned = samplingFor(context, size).physical;
-  return planned !== null && Number.isInteger(planned) && planned >= 0 ? planned : config.n;
+  return planned !== null && Number.isInteger(planned) && planned >= 0 ? planned : null;
 }
 
 /** A reading that can count: a force at break is always more than 0 N. */

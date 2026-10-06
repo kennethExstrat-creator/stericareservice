@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { dataKeys, defaultConfig, defaultLabels, moduleConfig, moduleTitle, TEMPLATE_CODES } from "@/lib/coverage";
+import {
+  dataKeys,
+  defaultConfig,
+  defaultLabels,
+  moduleConfig,
+  moduleTitle,
+  seedConfig,
+  TEMPLATE_CODES,
+  TEMPLATES,
+} from "@/lib/coverage";
+import { resolveTemplateOrThrow } from "@/lib/templates";
+import { MODULE_REGISTRY } from "@/modules/registry";
 import {
   FORCE_AT_BREAK_DEFAULT_CONFIG,
   FORCE_AT_BREAK_LABELS,
@@ -70,6 +81,26 @@ describe("force_at_break config", () => {
 
   it("is on in STD_EG only, as BUILD_SPEC 11 has it", () => {
     expect(TEMPLATE_CODES.filter((code) => moduleConfig(code, "force_at_break") !== undefined)).toEqual(["STD_EG"]);
+  });
+
+  it("resolves STD_EG's seed over its defaults into the template's config, with this schema", () => {
+    const spec = TEMPLATES.STD_EG;
+    // Only this module is seeded; order_lots is on because a per-size module needs it.
+    const definition = {
+      code: spec.code,
+      name: spec.name,
+      scope: { productType: spec.scope.productType, standard: spec.scope.standard },
+      unit: spec.unit,
+      sizes: spec.sizes.map((size) => ({ ...size })),
+      modules: [
+        { key: "order_lots", include: true },
+        { key: "force_at_break", include: true, config: seedConfig("STD_EG", "force_at_break") },
+      ],
+    };
+    const template = resolveTemplateOrThrow(definition, { getBase: () => undefined, registry: MODULE_REGISTRY });
+    expect(template.modules.find((entry) => entry.key === "force_at_break")?.config).toEqual(
+      moduleConfig("STD_EG", "force_at_break"),
+    );
   });
 
   it("takes a standard label to print with the spec", () => {
