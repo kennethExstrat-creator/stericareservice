@@ -3,15 +3,18 @@
 // the context); pass otherwise, but only with at least one item verified:
 // with every item not verified or NA there is no verdict (info), as a pass
 // would stand on nothing. Not done while an item on the checklist has no
-// status (6.2 rule 5). Items the template switches off are ignored.
+// status (6.2 rule 5). Items the template switches off are ignored. A file is
+// optional for every item; a kept file the inspection no longer holds warns.
 import type { ModuleStatus } from "@/lib/schemas/module-result";
 import {
+  heldFileState,
   labelFor,
   notDone,
   warningIssue,
   type CalcInput,
   type CalcIssue,
   type CalcOutput,
+  type HeldFileState,
   type Labels,
 } from "@/modules/_framework";
 import {
@@ -39,6 +42,12 @@ export type DocumentsComputed = {
   itemStatus: Record<string, ModuleStatus>;
   /** Items on the checklist per status; `open` have none yet. */
   counts: Record<DocumentStatus | "open", number>;
+  /**
+   * Per item on the checklist, its file: none kept, attached, or missing (the
+   * inspection no longer holds the file kept). Attached while the
+   * inspection's files are not known.
+   */
+  fileState: Record<string, HeldFileState>;
 };
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -69,6 +78,7 @@ export function calcDocuments({
   const expired: Record<string, boolean | null> = {};
   const itemStatus: Record<string, ModuleStatus> = {};
   const counts: DocumentsComputed["counts"] = { verified: 0, not_verified: 0, na: 0, open: 0 };
+  const fileState: Record<string, HeldFileState> = {};
 
   for (const item of items) {
     const { key } = item;
@@ -85,9 +95,19 @@ export function calcDocuments({
         ),
       );
     }
+    fileState[key] = heldFileState(context, entry.file);
+    if (fileState[key] === "missing") {
+      issues.push(
+        warningIssue(
+          "document_file_missing",
+          `${labelFor(labels, key)}: the ${labelFor(labels, "file").toLowerCase()} attached here is no longer with this inspection. Attach it again.`,
+          { path: ["items", key, "file"] },
+        ),
+      );
+    }
   }
 
-  const computed = { expired, itemStatus, counts };
+  const computed = { expired, itemStatus, counts, fileState };
   if (items.length === 0) {
     return { result: { status: "info", summary: "No documents are switched on." }, computed, issues };
   }

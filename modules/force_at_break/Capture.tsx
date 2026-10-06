@@ -4,14 +4,15 @@
 // SizeTabs (swipe on iPad, arrow keys on desktop), the readings of the
 // gloves tested in a MeasurementGrid (decimal keypad, Enter goes down, a
 // pasted column fills down) with the median, spec and verdict live in its
-// footer, and whether the lab report is attached. Wording is the template's
-// (6.2 rule 11); the median and the verdict are computed, never typed
-// (6.2 rule 2). Read-only shows the readings as text. Every write goes
+// footer, and the lab report: whether it is attached, and the screen's file
+// slot to attach it (the framework's file channel, BUILD_SPEC 8.1). Wording
+// is the template's (6.2 rule 11); the median and the verdict are computed,
+// never typed (6.2 rule 2). Read-only shows the readings as text. Every write goes
 // through useDataUpdater, from the latest data (docs/CAPTURE_KIT.md). A
 // pasted column that runs past the gloves tested keeps the rest as readings
 // past them, which calc reports, instead of losing them at the grid's end.
 import { useEffect, useEffectEvent, useRef, useState, type RefObject } from "react";
-import { FileCheckIcon, FileTextIcon } from "lucide-react";
+import { FileCheckIcon, FileTextIcon, FileXIcon } from "lucide-react";
 import {
   Figure,
   focusIssuePath,
@@ -32,10 +33,26 @@ import { Button } from "@/components/ui/button";
 import { formatNumber, formatSize, formatSpec } from "@/lib/format";
 import { formatReading } from "@/lib/stats";
 import { cn } from "@/lib/utils";
-import { labelFor, type CaptureProps, type ValidationIssue } from "@/modules/_framework";
+import {
+  heldFileState,
+  initialSize,
+  labelFor,
+  type CaptureProps,
+  type HeldFileState,
+  type ValidationIssue,
+} from "@/modules/_framework";
+import { ModuleFileSlot } from "@/modules/_framework/file-slot";
 import { forceSpec, plannedReadings, readingsFor, specCaption, type ForceAtBreakSizeComputed } from "./calc";
 import { MAX_READINGS } from "./config";
-import { pastedPastGrid, readingsBeyond, withGridEdits, withoutReadingsBeyond, withReadingsFrom } from "./edit";
+import {
+  pastedPastGrid,
+  readingsBeyond,
+  withGridEdits,
+  withLabReport,
+  withoutLabReport,
+  withoutReadingsBeyond,
+  withReadingsFrom,
+} from "./edit";
 import type { ForceAtBreakComputed, ForceAtBreakConfig, ForceAtBreakData } from ".";
 
 type Props = CaptureProps<ForceAtBreakData, ForceAtBreakConfig, ForceAtBreakComputed>;
@@ -56,12 +73,13 @@ export default function Capture({
   evaluation,
   focusPath,
   readOnly,
+  focus,
   onChange,
   onFocusChange,
 }: Props) {
   const root = useRef<HTMLDivElement>(null);
   const update = useDataUpdater(data, onChange);
-  const [selected, setSelected] = useState(context.sizes[0] ?? "");
+  const [selected, setSelected] = useState(() => initialSize(context, focus));
   // A size taken out of the order falls back to the first one ordered.
   const size = context.sizes.includes(selected) ? selected : (context.sizes[0] ?? "");
 
@@ -78,7 +96,26 @@ export default function Capture({
   return (
     // relative: screen-reader text inside never lays out against the page (docs/DESIGN.md).
     <div ref={root} data-slot="force-at-break" className="relative space-y-4">
-      <LabReportStatus label={labelFor(labels, "labReport")} attached={data.labReport !== null} />
+      <section
+        data-slot="lab-report"
+        {...issuePathProps(["labReport"])}
+        aria-label={labelFor(labels, "labReport")}
+        className="relative space-y-3 rounded-lg border border-border bg-card px-3 py-2.5"
+      >
+        <LabReportStatus
+          label={labelFor(labels, "labReport")}
+          state={heldFileState(context, data.labReport)}
+          message={evaluation?.issues.find((issue) => issue.code === "lab_report_missing")?.message}
+        />
+        <ModuleFileSlot
+          moduleKey="force_at_break"
+          kind="lab_report"
+          focus={size === "" ? null : { size }}
+          readOnly={readOnly}
+          onAdded={(file) => update((current) => withLabReport(current, file.id))}
+          onRemoved={(fileId) => update((current) => withoutLabReport(current, fileId))}
+        />
+      </section>
       <SizeTabs
         sizes={context.sizes}
         templateSizes={context.templateSizes}
@@ -295,21 +332,23 @@ function ReadingNotices({
 
 /**
  * Whether the lab report is attached ('Refer to attached where applicable':
- * optional here). The capture screen uploads it and records its file id
- * (edit.ts withLabReport); this line only shows the state.
+ * optional here). The file slot below it attaches the file and the module
+ * keeps its id (edit.ts withLabReport); a kept file the inspection no longer
+ * holds is missing, with calc's message.
  */
-function LabReportStatus({ label, attached }: { label: string; attached: boolean }) {
-  const Icon = attached ? FileCheckIcon : FileTextIcon;
+function LabReportStatus({ label, state, message }: { label: string; state: HeldFileState; message?: string }) {
+  const attached = state === "attached";
+  const Icon = attached ? FileCheckIcon : state === "missing" ? FileXIcon : FileTextIcon;
   return (
     <div
-      data-slot="lab-report"
       data-attached={attached || undefined}
-      {...issuePathProps(["labReport"])}
-      className="relative flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-card px-3 py-2 text-sm touch:py-2.5 touch:text-base"
+      data-state={state}
+      className="relative flex flex-wrap items-center gap-x-3 gap-y-1 text-sm touch:text-base"
     >
       <Icon aria-hidden className="size-5 shrink-0 text-muted-foreground" />
       <span className="font-medium text-foreground">{label}</span>
       <span className={attached ? "text-foreground" : "text-muted-foreground"}>{attached ? "Attached" : "Not attached"}</span>
+      {message && <span className="text-warn">{message}</span>}
     </div>
   );
 }

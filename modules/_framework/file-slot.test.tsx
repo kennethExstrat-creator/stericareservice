@@ -57,7 +57,12 @@ describe("ModuleFileSlot", () => {
   it("asks for no title and no focus when the module gives none, and ignores a removal it cannot handle", () => {
     const requests: FileSlotRequest[] = [];
     renderToStaticMarkup(
-      <FileSlotProvider render={(request) => (requests.push(request), null)}>
+      <FileSlotProvider
+        render={(request) => {
+          requests.push(request);
+          return null;
+        }}
+      >
         <ModuleFileSlot moduleKey="force_at_break" kind="lab_report" readOnly onAdded={() => {}} />
       </FileSlotProvider>,
     );

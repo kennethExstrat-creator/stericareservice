@@ -85,12 +85,17 @@ export function withoutReadingsBeyond(data: ForceAtBreakData, size: string, n: n
 }
 
 /**
- * The lab report the capture screen queued for this module: the id
- * `enqueueFile` returns, which becomes the inspection_files row id. Null
- * detaches it.
+ * The lab report the file slot attached for this module (ModuleFileSlot's
+ * onAdded): the id of its inspection_files row. The latest file attached is
+ * the module's lab report. Null detaches it.
  */
 export function withLabReport(data: ForceAtBreakData, fileId: string | null): ForceAtBreakData {
   return { ...data, labReport: fileId };
+}
+
+/** A file of the module was deleted: the lab report goes when it was that file; the same data otherwise. */
+export function withoutLabReport(data: ForceAtBreakData, fileId: string): ForceAtBreakData {
+  return data.labReport === fileId ? withLabReport(data, null) : data;
 }
 
 function withoutTrailingBlanks(values: Readings): (number | null)[] {

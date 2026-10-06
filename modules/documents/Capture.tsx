@@ -4,11 +4,13 @@
 // template switches on, in its order. Verified, not verified or NA is a tap;
 // the reference no. is typed; the expiry date comes from the date picker
 // (6.2 rule 3). The row being worked on is reported as the focus for photo
-// and file tags (BUILD_SPEC 8.1); lib/photos cannot tag by item yet, so the
-// screen promises no tag. Each row's chip, and the colour of its selected
+// and file tags (BUILD_SPEC 8.1), and a file added through the module's file
+// slot below the list is filed under it: the row keeps the file's id and
+// says it is attached. Each row's chip, and the colour of its selected
 // status, is calc's result for the item; every change goes through
 // useDataUpdater, built from the latest data (edit.ts).
 import { useId, useRef, useState } from "react";
+import { FileXIcon, PaperclipIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Status } from "@/lib/design/status";
 import { Badge } from "@/components/ui/badge";
@@ -26,15 +28,18 @@ import {
 } from "@/components/qc";
 import { SMALL_PILL_TOUCH } from "@/components/qc/status-pill";
 import {
+  heldFileState,
   labelFor,
-  type CaptureFocus,
   type CaptureProps,
+  type HeldFileState,
   type Labels,
   type ValidationIssue,
 } from "@/modules/_framework";
+import { ModuleFileSlot, useFileSlotRenderer } from "@/modules/_framework/file-slot";
 import type { DocumentsComputed } from "./calc";
 import {
   checklist,
+  DOCUMENT_FILE_KIND,
   DOCUMENT_STATUSES,
   DocumentStatusSchema,
   type DocumentItem,
@@ -42,20 +47,8 @@ import {
   type DocumentsConfig,
   type DocumentStatus,
 } from "./config";
-import { withItemValues } from "./edit";
+import { withItemValues, withoutFile } from "./edit";
 import type { DocumentEntry, DocumentsData } from "./schema";
-
-/**
- * The focus for photo and file tags. CaptureFocus has no slot yet for an
- * entry of a module's own list, so `item` rides along until the framework
- * and lib/photos take it (handed over as a follow-up); autoTag drops it today.
- */
-type ItemFocus = CaptureFocus & { readonly item: string };
-
-function itemFocus(item: DocumentItem): CaptureFocus {
-  const focus: ItemFocus = { item };
-  return focus;
-}
 
 /**
  * The selected status wears calc's result for the item, as the chip beside
@@ -75,6 +68,7 @@ export default function Capture({
   config,
   title,
   labels,
+  context,
   evaluation,
   focusPath,
   readOnly,
@@ -85,11 +79,12 @@ export default function Capture({
   const items = checklist(config);
   const root = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState<DocumentItem | null>(null);
+  const canAttach = useFileSlotRenderer() !== null;
   useIssueFocus(focusPath, { root });
 
   const focusItem = (key: DocumentItem) => {
     setActive(key);
-    onFocusChange?.(itemFocus(key));
+    onFocusChange?.({ item: key });
   };
   // Empty when the module could not be evaluated (invalid data or config), whatever its type says.
   const computed: Partial<DocumentsComputed> | undefined = evaluation?.computed;
@@ -98,38 +93,61 @@ export default function Capture({
     return <p className="text-sm text-muted-foreground touch:text-base">No documents are switched on for this template.</p>;
   }
 
+  // New files go under the row being worked on; one switched off since is not offered.
+  const filing = active !== null && items.some((item) => item.key === active) ? active : null;
+
   return (
-    <div
-      ref={root}
-      className="overflow-clip rounded-lg border border-border bg-card xl:grid xl:grid-cols-[minmax(12rem,1fr)_auto_minmax(9rem,12rem)_10.5rem] xl:gap-x-4"
-    >
-      {/* From 1280 px each item is one row: the columns get headings (each control has its own name). */}
-      <div
-        aria-hidden
-        className="hidden border-b border-border px-4 py-2 text-sm font-medium text-muted-foreground xl:col-span-full xl:grid xl:grid-cols-subgrid"
-      >
-        <span>{title}</span>
-        <span>{labelFor(labels, "status")}</span>
-        <span>{labelFor(labels, "referenceNo")}</span>
-        <span>{labelFor(labels, "expiryDate")}</span>
+    <div ref={root} className="space-y-4">
+      <div className="overflow-clip rounded-lg border border-border bg-card xl:grid xl:grid-cols-[minmax(12rem,1fr)_auto_minmax(9rem,12rem)_10.5rem] xl:gap-x-4">
+        {/* From 1280 px each item is one row: the columns get headings (each control has its own name). */}
+        <div
+          aria-hidden
+          className="hidden border-b border-border px-4 py-2 text-sm font-medium text-muted-foreground xl:col-span-full xl:grid xl:grid-cols-subgrid"
+        >
+          <span>{title}</span>
+          <span>{labelFor(labels, "status")}</span>
+          <span>{labelFor(labels, "referenceNo")}</span>
+          <span>{labelFor(labels, "expiryDate")}</span>
+        </div>
+        <ul className="divide-y divide-border xl:col-span-full xl:grid xl:grid-cols-subgrid">
+          {items.map((item) => (
+            <DocumentRow
+              key={item.key}
+              item={item}
+              entry={data.items[item.key]}
+              status={computed?.itemStatus?.[item.key] ?? "not_done"}
+              expired={computed?.expired?.[item.key] ?? null}
+              fileState={computed?.fileState?.[item.key] ?? heldFileState(context, data.items[item.key].file)}
+              labels={labels}
+              issues={evaluation?.issues}
+              active={active === item.key}
+              readOnly={readOnly}
+              onFocusItem={() => focusItem(item.key)}
+              onUpdate={(values) => update((current) => withItemValues(current, item.key, values))}
+            />
+          ))}
+        </ul>
       </div>
-      <ul className="divide-y divide-border xl:col-span-full xl:grid xl:grid-cols-subgrid">
-        {items.map((item) => (
-          <DocumentRow
-            key={item.key}
-            item={item}
-            entry={data.items[item.key]}
-            status={computed?.itemStatus?.[item.key] ?? "not_done"}
-            expired={computed?.expired?.[item.key] ?? null}
-            labels={labels}
-            issues={evaluation?.issues}
-            active={active === item.key}
-            readOnly={readOnly}
-            onFocusItem={() => focusItem(item.key)}
-            onUpdate={(values) => update((current) => withItemValues(current, item.key, values))}
-          />
-        ))}
-      </ul>
+      <div className="space-y-2">
+        {canAttach && !readOnly && (
+          <p className="text-sm text-muted-foreground touch:text-base">
+            {filing === null
+              ? "Tap a document above to attach its file."
+              : `New files are filed under ${labelFor(labels, filing)}.`}
+          </p>
+        )}
+        <ModuleFileSlot
+          moduleKey="documents"
+          kind={DOCUMENT_FILE_KIND[filing ?? items[0].key]}
+          title={title}
+          focus={filing === null ? null : { item: filing }}
+          readOnly={readOnly || filing === null}
+          onAdded={(file) => {
+            if (filing !== null) update((current) => withItemValues(current, filing, { file: file.id }));
+          }}
+          onRemoved={(fileId) => update((current) => withoutFile(current, fileId))}
+        />
+      </div>
     </div>
   );
 }
@@ -145,6 +163,7 @@ export function DocumentRow({
   entry,
   status,
   expired,
+  fileState = "none",
   labels,
   issues,
   active,
@@ -157,6 +176,8 @@ export function DocumentRow({
   /** calc's result for the item. */
   status: Status;
   expired: boolean | null;
+  /** The item's file: none kept, attached, or deleted since. */
+  fileState?: HeldFileState;
   labels: Labels;
   issues: readonly ValidationIssue[] | undefined;
   active: boolean;
@@ -168,6 +189,7 @@ export function DocumentRow({
   const name = labelFor(labels, item.key);
   const path = (field: keyof DocumentEntry): IssuePath => ["items", item.key, field];
   const expiryIssue = findIssue(issues, path("expiryDate"));
+  const fileIssue = findIssue(issues, path("file"));
   const tone = entry.status !== null && speaksOf(status, entry.status) ? SELECTED_TONE[status] : undefined;
 
   return (
@@ -191,6 +213,25 @@ export function DocumentRow({
         </div>
         <StatusPill size="sm" status={status} label={chipLabel(status, entry.status, labels)} className={SMALL_PILL_TOUCH} />
       </div>
+      {fileState !== "none" && (
+        <p
+          data-file-state={fileState}
+          {...issuePathProps(path("file"))}
+          className={cn(
+            "flex items-start gap-1.5 text-sm touch:text-base xl:col-start-1",
+            fileState === "missing" ? "text-warn" : "text-muted-foreground",
+          )}
+        >
+          {fileState === "missing" ? (
+            <FileXIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
+          ) : (
+            <PaperclipIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
+          )}
+          {fileState === "missing"
+            ? (fileIssue?.message ?? `${labelFor(labels, "file")} no longer with this inspection.`)
+            : `${labelFor(labels, "file")} attached`}
+        </p>
+      )}
 
       <div className="space-y-1.5" {...issuePathProps(path("status"))}>
         <span id={`${uid}-status`} className="text-sm font-medium touch:text-base xl:sr-only">

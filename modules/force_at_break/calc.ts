@@ -3,16 +3,21 @@
 // printed with, as lib/stats judges every statistic. Not done until each
 // ordered size has all its readings (6.2 rule 5). A reading of 0 N or less,
 // or one past the gloves tested, is wrong data: an error with its path. So
-// is a sampling plan that asks for more readings than a size can take.
+// is a sampling plan that asks for more readings than a size can take. The
+// lab report is optional here ('where applicable'): the module keeps the id
+// of the file attached through its file slot (the framework's file
+// channel), and says so when the inspection no longer holds that file.
 import type { PerSizeResult } from "@/lib/schemas/module-result";
 import { checkSpec, formatDecimal, median, roundTo, type Spec } from "@/lib/stats";
 import {
   errorIssue,
+  heldFileState,
   labelFor,
   perSizeResults,
   resultFromSizes,
   samplingFor,
   sizeLabel,
+  warningIssue,
   type CalcInput,
   type CalcIssue,
   type CalcOutput,
@@ -84,13 +89,24 @@ export function calcForceAtBreak({
     return { status: result, summary: medianText(shown, result, config, labels) };
   });
 
+  const report = heldFileState(context, data.labReport);
+  if (report === "missing") {
+    issues.push(
+      warningIssue(
+        "lab_report_missing",
+        `${labelFor(labels, "labReport")}: the file attached here is no longer with this inspection. Attach it again.`,
+        { path: ["labReport"] },
+      ),
+    );
+  }
+
   return {
     result: resultFromSizes(perSize, summarise(context, perSize, sizes, config, labels)),
     computed: {
       specMin: config.specMin,
       standardLabel: config.standardLabel,
       decimals: config.decimals,
-      labReportAttached: data.labReport !== null,
+      labReportAttached: report === "attached",
       sizes,
     },
     issues,

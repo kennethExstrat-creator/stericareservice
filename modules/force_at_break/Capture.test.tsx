@@ -5,6 +5,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { evaluateInspection, type CaptureProps, type InspectionContext, type ModuleEvaluation } from "@/modules/_framework";
+import { FileSlotProvider, type FileSlotRequest } from "@/modules/_framework/file-slot";
 import { makeSampling, makeTestContext, makeTestTemplate } from "@/modules/_framework/testing";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import type { ForceAtBreakComputed } from "./calc";
@@ -121,6 +122,47 @@ describe("force_at_break capture", () => {
     const attached = render({ data: { sizes: { M: { values: READINGS } }, labReport: LAB_REPORT_ID } });
     expect(attached).toContain('data-attached="true"');
     expect(attached).toContain(">Attached</span>");
+    const gone = render({
+      data: { sizes: { M: { values: READINGS } }, labReport: LAB_REPORT_ID },
+      context: makeTestContext({ ...CONTEXT, files: [] }),
+    });
+    expect(gone).toContain('data-state="missing"');
+    expect(gone).toContain("Lab report: the file attached here is no longer with this inspection. Attach it again.");
+  });
+
+  it("says where the lab report is attached when the screen gives no file slot (preview, review)", () => {
+    expect(render()).toContain("Attach files on the inspection screen.");
+  });
+
+  it("puts the screen's file slot for lab reports in the lab report's block, tagged with the size on screen", () => {
+    const requests: FileSlotRequest[] = [];
+    const data: ForceAtBreakData = { sizes: { M: { values: READINGS } }, labReport: null };
+    const html = renderToStaticMarkup(
+      <FileSlotProvider
+        render={(request) => {
+          requests.push(request);
+          return <span data-test="screen-slot" />;
+        }}
+      >
+        <Capture
+          data={data}
+          config={FORCE_AT_BREAK_DEFAULT_CONFIG}
+          title={FORCE_AT_BREAK_TITLE}
+          labels={FORCE_AT_BREAK_LABELS}
+          context={CONTEXT}
+          evaluation={evaluationOf(data, CONTEXT, FORCE_AT_BREAK_DEFAULT_CONFIG)}
+          focusPath={null}
+          readOnly={false}
+          focus={{ size: "L" }}
+          onChange={() => {}}
+        />
+      </FileSlotProvider>,
+    );
+    const block = html.slice(html.indexOf('data-slot="lab-report"'), html.indexOf("</section>"));
+    expect(block).toContain('<span data-test="screen-slot"></span>');
+    expect(requests).toEqual([
+      expect.objectContaining({ moduleKey: "force_at_break", kind: "lab_report", focus: { size: "L" }, readOnly: false }),
+    ]);
   });
 
   it("shows readings as text when read-only, with the computed footer", () => {

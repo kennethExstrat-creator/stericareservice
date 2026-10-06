@@ -4,7 +4,8 @@
 // the field, rows that keep their size when focus moves, and read-only.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { CaptureProps, ModuleEvaluation } from "@/modules/_framework";
+import type { CaptureProps, InspectionContext, ModuleEvaluation } from "@/modules/_framework";
+import { FileSlotProvider, type FileSlotRequest } from "@/modules/_framework/file-slot";
 import { makeTestContext } from "@/modules/_framework/testing";
 import { calcDocuments, type DocumentsComputed } from "./calc";
 import Capture, { DocumentRow } from "./Capture";
@@ -23,6 +24,8 @@ function render(
     config = DOCUMENTS_DEFAULT_CONFIG,
     broken = false,
     evaluated = data,
+    context = CONTEXT,
+    slots,
   }: {
     readOnly?: boolean;
     labels?: Record<string, string>;
@@ -30,6 +33,9 @@ function render(
     broken?: boolean;
     /** The data calc last saw, when it lags behind the data on screen. */
     evaluated?: DocumentsData;
+    context?: InspectionContext;
+    /** Renders inside a screen's file slot, collecting its requests. */
+    slots?: FileSlotRequest[];
   } = {},
 ): string {
   const output = calcDocuments({
@@ -37,7 +43,7 @@ function render(
     config,
     title: DOCUMENTS_TITLE,
     labels,
-    context: CONTEXT,
+    context,
     results: {},
     hasData: true,
   });
@@ -60,14 +66,84 @@ function render(
     config,
     title: DOCUMENTS_TITLE,
     labels,
-    context: CONTEXT,
+    context,
     evaluation,
     focusPath: null,
     readOnly,
     onChange: noop,
   };
-  return renderToStaticMarkup(<Capture {...props} />);
+  if (!slots) return renderToStaticMarkup(<Capture {...props} />);
+  return renderToStaticMarkup(
+    <FileSlotProvider
+      render={(request) => {
+        slots.push(request);
+        return <span data-test="screen-slot" />;
+      }}
+    >
+      <Capture {...props} />
+    </FileSlotProvider>,
+  );
 }
+
+const FILE = "00000000-0000-4000-8000-000000000501";
+
+describe("documents capture: files", () => {
+  it("says where files are attached when the screen gives no file slot (preview, review)", () => {
+    const html = render(emptyDocuments());
+    expect(html).toContain("Attach files on the inspection screen.");
+    expect(html).not.toContain("Tap a document above");
+  });
+
+  it("offers the screen's file slot once a document is chosen, for that document's kind", () => {
+    const slots: FileSlotRequest[] = [];
+    const html = render(emptyDocuments(), { slots });
+    expect(html).toContain('<span data-test="screen-slot"></span>');
+    expect(html).toContain("Tap a document above to attach its file.");
+    // Nothing chosen yet: nothing to file a new file under.
+    expect(slots).toEqual([
+      expect.objectContaining({ moduleKey: "documents", kind: "certificate", title: DOCUMENTS_TITLE, focus: null, readOnly: true }),
+    ]);
+  });
+
+  it("lets go of a deleted file wherever an item kept it", () => {
+    const data = emptyDocuments();
+    data.items.iso13485 = { ...data.items.iso13485, status: "verified", file: FILE };
+    const slots: FileSlotRequest[] = [];
+    const changes: DocumentsData[] = [];
+    renderToStaticMarkup(
+      <FileSlotProvider
+        render={(request) => {
+          slots.push(request);
+          return null;
+        }}
+      >
+        <Capture
+          data={data}
+          config={DOCUMENTS_DEFAULT_CONFIG}
+          title={DOCUMENTS_TITLE}
+          labels={DOCUMENTS_LABELS}
+          context={CONTEXT}
+          evaluation={null}
+          focusPath={null}
+          readOnly={false}
+          onChange={(next) => changes.push(next)}
+        />
+      </FileSlotProvider>,
+    );
+    slots[0].onRemoved(FILE);
+    expect(changes.at(-1)?.items.iso13485).toEqual({ ...data.items.iso13485, file: null });
+  });
+
+  it("says on the row that its file is attached, or gone since", () => {
+    const data = emptyDocuments();
+    data.items.iso13485 = { ...data.items.iso13485, status: "verified", file: FILE };
+    expect(render(data)).toContain('data-file-state="attached"');
+    expect(render(data)).toContain("File attached");
+    const gone = render(data, { context: makeTestContext({ ...CONTEXT, files: [] }) });
+    expect(gone).toContain('data-file-state="missing"');
+    expect(gone).toContain("ISO 13485: the file attached here is no longer with this inspection. Attach it again.");
+  });
+});
 
 /** Each pressed status button's words and the status colour it wears (null: none). */
 function selected(html: string): [string, string | null][] {
@@ -165,7 +241,7 @@ describe("documents capture", () => {
       renderToStaticMarkup(
         <DocumentRow
           item={{ key: "iso13485", include: true, required: true }}
-          entry={{ status: "verified", referenceNo: "CERT-0001", expiryDate: "2025-01-31" }}
+          entry={{ status: "verified", referenceNo: "CERT-0001", expiryDate: "2025-01-31", file: null }}
           status="warn"
           expired
           labels={DOCUMENTS_LABELS}

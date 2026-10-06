@@ -6,6 +6,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { evaluateInspection, type CaptureProps, type InspectionContext, type ModuleEvaluation } from "@/modules/_framework";
+import { FileSlotProvider, type FileSlotRequest } from "@/modules/_framework/file-slot";
 import { makeTestContext, makeTestTemplate } from "@/modules/_framework/testing";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import type { TensileComputed } from "./calc";
@@ -127,6 +128,50 @@ describe("tensile capture", () => {
     const attached = render();
     expect(attached).toContain(">Attached</span>");
     expect(attached).not.toContain("Required before this section is done.");
+  });
+
+  it("says where the lab report is attached when the screen gives no file slot (preview, review)", () => {
+    const html = render({ data: { ...EXAMPLE, labReport: null } });
+    expect(html).toContain('data-slot="module-file-slot"');
+    expect(html).toContain("Attach files on the inspection screen.");
+  });
+
+  it("puts the screen's file slot for lab reports in the lab report's block", () => {
+    const requests: FileSlotRequest[] = [];
+    const html = renderToStaticMarkup(
+      <FileSlotProvider
+        render={(request) => {
+          requests.push(request);
+          return <span data-test="screen-slot" />;
+        }}
+      >
+        <Capture
+          data={EXAMPLE}
+          config={TENSILE_DEFAULT_CONFIG}
+          title={TENSILE_TITLE}
+          labels={TENSILE_LABELS}
+          context={CONTEXT}
+          evaluation={evaluationOf(EXAMPLE, CONTEXT)}
+          focusPath={null}
+          readOnly
+          focus={{ size: "M" }}
+          onChange={() => {}}
+        />
+      </FileSlotProvider>,
+    );
+    const block = html.slice(html.indexOf('data-slot="lab-report"'), html.indexOf("</section>"));
+    expect(block).toContain('<span data-test="screen-slot"></span>');
+    // It opens on the size chosen in the last module, and tags new files with it.
+    expect(requests).toEqual([
+      expect.objectContaining({ moduleKey: "tensile", kind: "lab_report", focus: { size: "M" }, readOnly: true }),
+    ]);
+  });
+
+  it("says when the lab report kept here was deleted since", () => {
+    const context = makeTestContext({ ...CONTEXT, files: [] });
+    const html = render({ context });
+    expect(html).toContain('data-state="missing"');
+    expect(html).toContain("Lab report: the file attached here is no longer with this inspection. Attach it again.");
   });
 
   it("shows calc's error under the field it concerns", () => {
