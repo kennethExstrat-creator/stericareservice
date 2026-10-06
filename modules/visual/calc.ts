@@ -245,10 +245,14 @@ function calcClass({ size, cls, entry, split, aql, defects, labels, context, whe
     decision: null,
     result: "not_done",
   };
-  const found = `${counted.total} / ${inspected ?? "?"}${foundList(counted, defects)}`;
   const finish = (result: VisualClassComputed["result"], summary: string): ClassOutcome => {
     computed.result = result;
-    const brief = result === "not_done" ? `${name} not done` : `${name} ${counted.total} / ${inspected ?? "?"}`;
+    const brief =
+      result === "not_done"
+        ? `${name} not done`
+        : inspected === null || inspected < 2
+          ? `${name} ${counted.total} found`
+          : `${name} ${counted.total} / ${inspected}`;
     return { computed, summary, brief, issues };
   };
   // AQL 0 rejects at one defect whatever the sample: a critical defect fails before n is known.
@@ -306,6 +310,7 @@ function calcClass({ size, cls, entry, split, aql, defects, labels, context, whe
   computed.reject = plan.re;
   computed.decision = decision;
 
+  const found = `${counted.total} / ${inspected}${foundList(counted, defects)}`;
   if (decision === "incomplete") {
     return finish(
       "not_done",

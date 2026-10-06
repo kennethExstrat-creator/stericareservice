@@ -188,6 +188,9 @@ describe("visual", () => {
       expect(counted.computed.sizes.M.critical).toMatchObject({ accept: 0, reject: 1, total: 1, result: "fail" });
       expect(counted.result).toMatchObject({ status: "fail", perSize: { M: { status: "fail" } } });
       const early = calcVisual(input({ M: { critical: { counts: { embedded_metal: 1 } } } }));
+      expect(early.result.summary).toBe(
+        "Size M: Critical Defects 1 found, Major Defects not done, Minor Defects not done: Failed.",
+      );
       expect(early.result.perSize?.M).toEqual({
         status: "fail",
         summary:
