@@ -33,11 +33,21 @@ export const ReviewTargetSchema = z.object({
 });
 export type ReviewTarget = z.infer<typeof ReviewTargetSchema>;
 
+/**
+ * `\n` line ends. A form sends a textarea's line breaks as `\r\n`, while the
+ * field's own limit counted each as one character: normalised first, the
+ * limit here counts the same, and the audit log stores plain `\n`.
+ */
+export function normaliseLineBreaks(text: string): string {
+  return text.replace(/\r\n?/g, "\n");
+}
+
 /** An inspection to send back to its inspector, and what they should change. */
 export const ReopenInputSchema = z.object({
   inspectionId: ReviewTargetSchema.shape.inspectionId,
   reason: z
     .string({ error: REVIEW_MESSAGES.reasonMissing })
+    .overwrite(normaliseLineBreaks)
     .trim()
     .min(1, { error: REVIEW_MESSAGES.reasonMissing })
     .max(REOPEN_REASON_MAX, { error: REVIEW_MESSAGES.reasonTooLong }),
@@ -48,5 +58,5 @@ export type ReopenInput = z.infer<typeof ReopenInputSchema>;
 export function reopenReasonOf(changes: unknown): string | null {
   if (typeof changes !== "object" || changes === null || Array.isArray(changes)) return null;
   const reason = (changes as Record<string, unknown>).reason;
-  return typeof reason === "string" && reason.trim() !== "" ? reason.trim() : null;
+  return typeof reason === "string" && reason.trim() !== "" ? normaliseLineBreaks(reason.trim()) : null;
 }

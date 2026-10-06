@@ -202,6 +202,22 @@ describe("reopenInspection", () => {
     expect(refresh).toHaveBeenCalledOnce();
   });
 
+  it("takes a reason on several lines up to the field's limit, and logs it with plain line ends", async () => {
+    const { client } = useClient(() => ({ data: { ref_no: "INS-2026-0002" }, error: null }));
+    const lines = "Retest size M with new samples.\nAdd the photos of the burst gloves.\n";
+    // As long as the field allows: it counts a line break as one character.
+    const reason = lines + "x".repeat(REOPEN_REASON_MAX - lines.length);
+    // The browser sends each line break as CRLF.
+    const result = await reopenInspection(IDLE, reopenForm({ reason: reason.replaceAll("\n", "\r\n") }));
+
+    expect(result).toMatchObject({ status: "success" });
+    expect(client.rpc).toHaveBeenCalledWith("log_inspection_event", {
+      inspection_id: ID,
+      action: "review.reopened",
+      changes: { reason },
+    });
+  });
+
   it.each([
     ["empty", "", REVIEW_MESSAGES.reasonMissing],
     ["blank", "   ", REVIEW_MESSAGES.reasonMissing],
