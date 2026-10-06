@@ -308,6 +308,44 @@ export function defectName(moduleKey: string | null, defect: string, options: Ph
   );
 }
 
+export interface DefectChoice {
+  /** A defect code, or a one-off label. */
+  value: string;
+  label: string;
+}
+
+export interface DefectChoices {
+  /** The photo's own defect when the master list does not have it: a one-off label, kept as it is. */
+  oneOff: DefectChoice | null;
+  /** The module's own defects (those it words), by name, then the rest of the master list. Empty lists left out. */
+  groups: { key: "module" | "other"; items: DefectChoice[] }[];
+}
+
+/**
+ * What a photo in this module can be tagged with, for the edit dialog: the
+ * defects the module names, in the template's wording, before the rest of
+ * the master list, so a long list opens on the likely few.
+ */
+export function defectChoices(moduleKey: string | null, current: string, options: PhotoTagOptions): DefectChoices {
+  const wording = (moduleKey ? options.defectLabels[moduleKey] : undefined) ?? {};
+  const own: DefectChoice[] = [];
+  const other: DefectChoice[] = [];
+  for (const entry of options.defects) {
+    const label = wording[entry.code];
+    if (label) own.push({ value: entry.code, label });
+    else other.push({ value: entry.code, label: entry.name });
+  }
+  own.sort((a, b) => a.label.localeCompare(b.label, "en-GB"));
+  const known = current === "" || options.defects.some((entry) => entry.code === current);
+  return {
+    oneOff: known ? null : { value: current, label: defectName(moduleKey, current, options) },
+    groups: [
+      { key: "module" as const, items: own },
+      { key: "other" as const, items: other },
+    ].filter((group) => group.items.length > 0),
+  };
+}
+
 /* ------------------------------------------------------------------ *
  * Display tags
  * ------------------------------------------------------------------ */

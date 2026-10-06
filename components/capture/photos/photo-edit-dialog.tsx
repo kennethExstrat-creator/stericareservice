@@ -4,7 +4,7 @@
 // the size, hand, defect or box it shows, in the inspection's own wording.
 // A photo still on this device is retagged in the upload queue (works
 // offline); an uploaded one through the updatePhotoTags action.
-import { useActionState, useId, useState } from "react";
+import { Fragment, useActionState, useId, useState } from "react";
 import { OctagonXIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -21,13 +21,22 @@ import {
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { updatePhotoTags } from "@/lib/inspections/photos/actions";
 import { IDLE_PHOTO_ACTION, PHOTO_MESSAGES, type PhotoActionState } from "@/lib/inspections/photos/messages";
 import { CAPTION_MAX_LENGTH, parsePhotoTagForm } from "@/lib/inspections/photos/schemas";
-import { defectName, moduleOption, moduleTitle, type PhotoTagOptions } from "@/lib/inspections/photos/view";
+import { defectChoices, moduleOption, moduleTitle, type PhotoTagOptions } from "@/lib/inspections/photos/view";
 import { parseTarget, type PhotoTarget } from "@/lib/photos/target";
 import { mediaStore } from "./media-store";
 import type { SlotPhoto } from "./photo-model";
@@ -129,10 +138,7 @@ function EditForm({
   }
   const sizeItems = [...options.sizes];
   if (size && !sizeItems.some((entry) => entry.value === size)) sizeItems.push({ value: size, label: size });
-  const defectItems = options.defects.map((entry) => ({ value: entry.code, label: defectName(moduleKey, entry.code, options) }));
-  if (defect && !defectItems.some((entry) => entry.value === defect)) {
-    defectItems.unshift({ value: defect, label: `${defectName(moduleKey, defect, options)} (one-off label)` });
-  }
+  const defects = defectChoices(moduleKey, defect, options);
 
   const described = (field: string, error?: string) => (error ? `${id}-${field}-error` : undefined);
 
@@ -246,11 +252,24 @@ function EditForm({
               </SelectTrigger>
               <SelectContent position="popper" className="max-h-72">
                 <SelectItem value={NONE}>No defect</SelectItem>
-                {defectItems.length > 0 && <SelectSeparator />}
-                {defectItems.map((entry) => (
-                  <SelectItem key={entry.value} value={entry.value}>
-                    {entry.label}
-                  </SelectItem>
+                {defects.oneOff && (
+                  <SelectItem value={defects.oneOff.value}>{defects.oneOff.label} (one-off label)</SelectItem>
+                )}
+                {/* The module's own defects first, in its wording; headings only when there are both lists. */}
+                {defects.groups.map((group) => (
+                  <Fragment key={group.key}>
+                    <SelectSeparator />
+                    <SelectGroup>
+                      {defects.groups.length > 1 && (
+                        <SelectLabel>{group.key === "module" ? (chosen?.title ?? "This module") : "Other defects"}</SelectLabel>
+                      )}
+                      {group.items.map((entry) => (
+                        <SelectItem key={entry.value} value={entry.value}>
+                          {entry.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </Fragment>
                 ))}
               </SelectContent>
             </Select>
