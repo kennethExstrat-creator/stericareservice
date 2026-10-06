@@ -1,8 +1,9 @@
 // Per ordered size and included level: the defects found against Accept 0 /
 // Reject 1 (BUILD_SPEC 7: labelling, whatever the number inspected), so any
 // defect fails. A level is not done until the boxes inspected are recorded
-// (6.2 rule 5); fewer than the template plans is a warning. Box numbers are
-// optional, but a box must come from the size's carton list (6.2 rule 7).
+// (6.2 rule 5); fewer than the template plans is a warning, and so is a level
+// failed on a defect before the count is recorded. Box numbers are optional,
+// but a box must come from the size's carton list (6.2 rule 7).
 import { decide, labelingPlan } from "@/lib/aql";
 import type { ModuleStatus } from "@/lib/schemas";
 import {
@@ -184,6 +185,19 @@ function levelIssues(
       warningIssue(
         "labeling_below_plan",
         `${where}: ${countOf(inspected, "box", "boxes")} inspected; the plan is ${levelConfig.n}.`,
+        { size, path: [...at, "inspected"] },
+      ),
+    );
+  }
+
+  // A defect fails the level before the count is recorded, so the framework's
+  // "not done" does not flag the missing count: the report would print it empty.
+  const total = levelTotal(levelConfig, entry);
+  if (inspected === null && total > 0) {
+    issues.push(
+      warningIssue(
+        "labeling_inspected_missing",
+        `${where}: ${countOf(total, "defect", "defects")} found but the boxes inspected are not recorded.`,
         { size, path: [...at, "inspected"] },
       ),
     );

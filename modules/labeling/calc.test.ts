@@ -240,12 +240,40 @@ describe("labeling", () => {
       );
     });
 
-    it("fails on a defect even before the boxes inspected are recorded", () => {
+    it("fails on a defect even before the boxes inspected are recorded, and asks for the count", () => {
       const output = calcLabeling(input(sizeM({ inner: level({ defects: { lot_no: 1 } }) })));
       expect(output.result.perSize?.M).toEqual({
         status: "fail",
         summary: "Dispenser Box: 1 defect, boxes inspected not recorded; Carton Box: 0 defects in 1.",
       });
+      // Failed, so not "not done": without this the empty count would reach the report unflagged.
+      expect(output.issues).toEqual([
+        {
+          level: "warning",
+          code: "labeling_inspected_missing",
+          message: "Dispenser Box, size M: 1 defect found but the boxes inspected are not recorded.",
+          size: "M",
+          path: ["sizes", "M", "inner", "inspected"],
+        },
+      ]);
+      // Once recorded, the warning goes; a level with nothing found and no count is simply not done.
+      expect(calcLabeling(input(sizeM({ inner: level({ inspected: 3, defects: { lot_no: 1 } }) }))).issues).toEqual([]);
+      expect(calcLabeling(input(sizeM({ inner: level({}) }))).issues).toEqual([]);
+    });
+
+    it("flags the missing count through the engine too, on every failed level without one", () => {
+      const template = makeTestTemplate(MODULE_REGISTRY, [{ key: "header", include: false }, "labeling"]);
+      const data = {
+        modules: { labeling: { sizes: { M: { inner: { defects: { lot_no: 1 } }, carton: { defects: { carton_no: 2 } } } } } },
+        custom: {},
+      };
+      const evaluation = evaluateInspection({ template, data, context: makeTestContext({ sizes: ["M"] }) }, MODULE_REGISTRY);
+      const labeling = evaluation.modules.find((entry) => entry.key === "labeling")!;
+      expect(labeling.result.status).toBe("fail");
+      expect(labeling.issues.map((issue) => [issue.level, issue.code, issue.path])).toEqual([
+        ["warning", "labeling_inspected_missing", ["sizes", "M", "inner", "inspected"]],
+        ["warning", "labeling_inspected_missing", ["sizes", "M", "carton", "inspected"]],
+      ]);
     });
 
     it("reports failures before what is not recorded, and fails the module for the worst size", () => {
