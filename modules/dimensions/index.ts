@@ -21,6 +21,7 @@ export const definition = defineModule<DimensionsData, DimensionsConfig, Dimensi
   defaultConfig: DIMENSIONS_DEFAULT_CONFIG,
   perSize: true,
   calc: calcDimensions,
+  loadCapture: () => import("./Capture"),
 });
 
 export type { DimensionsData } from "./schema";
