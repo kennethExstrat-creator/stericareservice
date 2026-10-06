@@ -9,7 +9,7 @@ import { packingConfig, packingData } from "@/modules/packing_config/__fixtures_
 import { MODULE_REGISTRY } from "@/modules/registry";
 import { SAFEDON_EG_EXAMPLE, STD_EG_EXAMPLE } from "@/tests/fixtures/examples";
 import { orderData } from "./__fixtures__/examples";
-import Capture from "./Capture";
+import Capture, { rowFocus } from "./Capture";
 import type { OrderLotsComputed } from "./calc";
 import { ORDER_LOTS_LABELS, type OrderLotsConfig } from "./config";
 import { definition } from "./index";
@@ -153,5 +153,15 @@ describe("order_lots capture", () => {
     expect(html).toContain("Remove “m”");
     expect(html).toContain('data-issue-path="[&quot;sizes&quot;,&quot;m&quot;]"');
     expect(render(STD_EG_EXAMPLE)).not.toContain("Remove “");
+    // 16 px on touch, as the rest of the module.
+    const remove = tagsOf(html, "button").find((button) => button.includes('data-slot="button"'));
+    expect(remove).toContain("touch:text-base");
+  });
+
+  it("tags a photo with the size of the row in focus only once the size is ordered (6.2 rule 4)", () => {
+    const { context } = props(STD_EG_EXAMPLE);
+    expect(context.sizes).toEqual(["M"]);
+    expect(rowFocus("M", context.sizes)).toEqual({ size: "M" });
+    expect(rowFocus("XL", context.sizes)).toEqual({});
   });
 });

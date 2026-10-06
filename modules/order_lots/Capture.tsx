@@ -8,7 +8,16 @@
 // label is the template's (rule 11). Every change goes through
 // useDataUpdater, built from the latest data, so a pasted column keeps every
 // size's quantity.
-import { useId, useRef, useState, type ClipboardEvent, type FocusEvent, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useEffectEvent,
+  useId,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type FocusEvent,
+  type KeyboardEvent,
+} from "react";
 import { XIcon } from "lucide-react";
 import {
   EnterGroup,
@@ -25,7 +34,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { formatSize } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { labelFor, type CaptureProps, type Labels } from "@/modules/_framework";
+import { labelFor, type CaptureFocus, type CaptureProps, type Labels } from "@/modules/_framework";
 import { readOrder, type OrderLotsComputed } from "./calc";
 import type { OrderLotsConfig } from "./config";
 import {
@@ -87,10 +96,25 @@ export default function Capture({
       : [];
   });
 
-  // A photo taken while a row is in focus is tagged with its size (BUILD_SPEC 8.1).
-  const focusSize = (size: string) => (event: FocusEvent<HTMLTableRowElement>) => {
-    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) onFocusChange?.({ size });
+  // A photo taken while a row is in focus is tagged with its size (BUILD_SPEC
+  // 8.1) once the size is ordered: no module shows any other (6.2 rule 4). A
+  // quantity typed or cleared in the row in focus changes its tag with it.
+  const rowInFocus = useRef<string | null>(null);
+  const enterRow = (size: string) => (event: FocusEvent<HTMLTableRowElement>) => {
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+    rowInFocus.current = size;
+    onFocusChange?.(rowFocus(size, context.sizes));
   };
+  const leaveRow = (event: FocusEvent<HTMLTableRowElement>) => {
+    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) rowInFocus.current = null;
+  };
+  const retagRow = useEffectEvent(() => {
+    if (rowInFocus.current !== null) onFocusChange?.(rowFocus(rowInFocus.current, context.sizes));
+  });
+  const orderedSizes = context.sizes.join(" ");
+  useEffect(() => {
+    retagRow();
+  }, [orderedSizes]);
 
   return (
     <div ref={root} className="space-y-3">
@@ -130,7 +154,13 @@ export default function Capture({
               const line = lineFor(data, size);
               const ordered = line.qtyCases !== null && line.qtyCases > 0;
               return (
-                <tr key={size} className="group/row" onFocus={focusSize(size)} {...issuePathProps(dataPath(size))}>
+                <tr
+                  key={size}
+                  className="group/row"
+                  onFocus={enterRow(size)}
+                  onBlur={leaveRow}
+                  {...issuePathProps(dataPath(size))}
+                >
                   <th
                     scope="row"
                     className={cn(ROW_HEAD, ordered ? "bg-card text-foreground" : "bg-card text-muted-foreground")}
@@ -219,6 +249,11 @@ export default function Capture({
       />
     </div>
   );
+}
+
+/** The tag of a photo taken with the size's row in focus: the size once ordered, nothing before. */
+export function rowFocus(size: string, orderedSizes: readonly string[]): CaptureFocus {
+  return orderedSizes.includes(size) ? { size } : {};
 }
 
 type LeftOut = Pick<AddedLots, "skipped" | "tooLong">;
@@ -410,7 +445,13 @@ function StrayLines({
                 {parts.length > 0 && `: ${parts.join("; ")}`}
               </span>
               {!readOnly && (
-                <Button type="button" size="sm" variant="outline" onClick={() => onRemove(key)}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="touch:text-base"
+                  onClick={() => onRemove(key)}
+                >
                   Remove “{key}”
                 </Button>
               )}
