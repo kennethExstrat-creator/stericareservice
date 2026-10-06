@@ -118,6 +118,25 @@ describe("labeling capture", () => {
     expect(results).toEqual(["fail", "pass"]);
   });
 
+  it("takes the limits and the verdict from calc only: before the first evaluation it shows neither", () => {
+    const html = renderToStaticMarkup(
+      <Capture
+        data={RECORDED}
+        config={LABELING_DEFAULT_CONFIG}
+        title="Packaging Labeling Inspection"
+        labels={LABELING_LABELS}
+        context={makeTestContext({ sizes: ["M"] })}
+        evaluation={null}
+        focusPath={null}
+        readOnly={false}
+        onChange={noop}
+      />,
+    );
+    expect(html).not.toContain("Ac 0 / Re 1");
+    const results = tagsWith(html, 'data-slot="status-pill"').map((pill) => /data-status="([a-z_]+)"/.exec(pill)?.[1]);
+    expect(results).toEqual(["not_done", "not_done"]);
+  });
+
   it("picks boxes from the carton list, flags one that is not in it, and offers the next pick", () => {
     const html = render(RECORDED);
     const pickers = tagsWith(html, 'role="combobox"');
