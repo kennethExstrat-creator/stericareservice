@@ -109,6 +109,18 @@ describe("dispensing_safedon capture", () => {
     expect(count(html, 'aria-label="Box #, column ')).toBe(5);
     for (const box of EXAMPLE.perSize.XS!.boxes) expect(html).toContain(`>${box}</span>`);
     expect(html).toContain('data-issue-path="[&quot;sizes&quot;,&quot;XS&quot;,&quot;boxes&quot;,4,&quot;boxNo&quot;]"');
+    // Each box as a whole too, for links to a box without a cell of their own.
+    expect(html).toContain('data-issue-path="[&quot;sizes&quot;,&quot;XS&quot;,&quot;boxes&quot;,4]"');
+  });
+
+  it("flags a box that is not in the size's carton list (6.2 rule 7)", () => {
+    const data = safedonData();
+    const stray = Math.max(...cartonList(SAFEDON_EG_EXAMPLE.cartons.XS!)) + 1;
+    const boxes = data.sizes.XS.boxes.map((box, index) => (index === 1 ? { ...box, boxNo: stray } : box));
+    const html = render({ data: { sizes: { ...data.sizes, XS: { boxes } } } });
+    const picker = (column: number) => new RegExp(`<button[^>]*aria-label="Box #, column ${column}"[^>]*>`).exec(html)?.[0];
+    expect(picker(2)).toContain('aria-invalid="true"');
+    expect(picker(1)).not.toContain('aria-invalid="true"');
   });
 
   it("counts the six defects by tapping, with the app's definitions as hints", () => {

@@ -166,7 +166,10 @@ function PackingSizePanel({ size, props, update, requested, onRequest, rejected,
             <col className="w-20 touch:w-24" />
             <col />
           </colgroup>
-          <thead>
+          {/* The column headings stay below the size bar while the 13 rows scroll
+              (the frame clips rather than scrolls, so sticky still works); a
+              cell reached with Enter or Shift+Enter scrolls clear of both. */}
+          <thead className="sticky top-[calc(var(--capture-sticky-top,0px)_+_var(--size-tabs-bar,0px))] z-[4]">
             <tr>
               <th scope="col" className={cn(HEAD, "text-center")}>
                 {labelFor(labels, "itemColumn")}
@@ -188,7 +191,7 @@ function PackingSizePanel({ size, props, update, requested, onRequest, rejected,
               </th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="[&_:is(input,select,button)]:scroll-mt-[calc(var(--size-tabs-bar,0px)_+_3rem)]">
             {Array.from({ length: rows }, (_, index) => (
               <PackingRow
                 key={index}

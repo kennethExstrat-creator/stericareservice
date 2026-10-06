@@ -97,6 +97,18 @@ describe("dispensing_packing capture", () => {
     expect(html).toContain("Glove Packing Check (Sampling code letter E) : min. 70% layering &amp; 80% dispensing");
   });
 
+  it("keeps the column headings stuck below the size bar while the rows scroll", () => {
+    const html = render();
+    expect(/<thead[^>]*>/.exec(html)?.[0]).toContain(
+      "sticky top-[calc(var(--capture-sticky-top,0px)_+_var(--size-tabs-bar,0px))]",
+    );
+    // The table's frame clips instead of scrolling: a scroller would unstick the headings
+    // and, on iPad, take the swipe that turns the size.
+    const frame = /<div[^>]*>(?=<table)/.exec(html)?.[0];
+    expect(frame).toContain("overflow-clip");
+    expect(frame).not.toContain("overflow-x-auto");
+  });
+
   it("uses the template's labels and its rows per size when the sampling plan is silent", () => {
     const labels = { ...DISPENSING_PACKING_LABELS, itemColumn: "No.", boxNo: "Box Number", layeringPct: "Layering (%)" };
     const config = { ...DISPENSING_PACKING_DEFAULT_CONFIG, boxesPerSize: { default: 13, bySize: { XL: 5 } } };

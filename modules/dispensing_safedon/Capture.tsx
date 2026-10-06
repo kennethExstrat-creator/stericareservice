@@ -15,6 +15,7 @@ import { ChevronLeftIcon, ChevronRightIcon, PlusIcon } from "lucide-react";
 import {
   BoxPicker,
   CounterTable,
+  issuePathProps,
   ModuleSection,
   RequirementList,
   SizeTabs,
@@ -177,6 +178,9 @@ function SafedonSizePanel({ size, props, update, active, onActive, requested, on
             <li
               key={index}
               data-active={index === counted || undefined}
+              // A link to anything about this box without a cell of its own (a count under a
+              // defect the template does not list) lands here.
+              {...issuePathProps(["sizes", size, "boxes", index])}
               className="flex min-w-0 items-center gap-1 rounded-lg border border-border bg-card p-0.5 data-active:border-primary data-active:bg-brand-50"
             >
               <button
