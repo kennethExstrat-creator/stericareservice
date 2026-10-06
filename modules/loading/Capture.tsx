@@ -4,7 +4,8 @@
 // on, with the cartons loaded next to the order's total cartons, which flow
 // forward from order_lots and are never typed (6.2 rule 2). The loading
 // stage picked here is reported as the focus, so the photos taken at each
-// stage are tagged with it (BUILD_SPEC 8.1).
+// stage are tagged with it (BUILD_SPEC 8.1). Every change goes through
+// useDataUpdater, built from the latest data (edit.ts).
 import { useId, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -18,12 +19,14 @@ import {
   issuePathProps,
   ModuleSection,
   NumberField,
+  useDataUpdater,
   useIssueFocus,
 } from "@/components/qc";
 import { formatCount } from "@/lib/format";
 import { labelFor, type CaptureFocus, type CaptureProps } from "@/modules/_framework";
 import { cartonsOrdered, type LoadingComputed } from "./calc";
 import { LOADING_STAGES, type LoadingConfig, type LoadingStage } from "./config";
+import { withLoadingValues } from "./edit";
 import type { LoadingData } from "./schema";
 
 /**
@@ -43,6 +46,9 @@ const isStage = (value: string): value is LoadingStage => (LOADING_STAGES as rea
 /** An emptied field is not entered; calc reads blank text the same way. */
 const textOrNull = (value: string) => (value === "" ? null : value);
 
+/** calc's checks here are warnings (amber); an error stays red. */
+const issueTone = (issue: { readonly level: string }) => (issue.level === "error" ? "text-fail" : "text-warn");
+
 export default function Capture({
   data,
   config,
@@ -54,6 +60,7 @@ export default function Capture({
   onChange,
   onFocusChange,
 }: CaptureProps<LoadingData, LoadingConfig, LoadingComputed>) {
+  const update = useDataUpdater(data, onChange);
   const uid = useId();
   const root = useRef<HTMLDivElement>(null);
   const [stage, setStage] = useState<LoadingStage | null>(null);
@@ -62,7 +69,7 @@ export default function Capture({
   const { fields } = config;
   const anyField = fields.containerNo || fields.sealNo || fields.cartonsLoaded || fields.cartonCondition;
   const ordered = evaluation?.computed.cartonsOrdered ?? cartonsOrdered(context);
-  const set = (values: Partial<LoadingData>) => onChange({ ...data, ...values });
+  const set = (values: Partial<LoadingData>) => update((current) => withLoadingValues(current, values));
   const containerIssue = findIssue(evaluation?.issues, ["containerNo"]);
   const quantityIssue = findIssue(evaluation?.issues, ["cartonsLoaded"]);
   const pickStage = (value: string) => {
@@ -95,7 +102,7 @@ export default function Capture({
                 className={cn("tabular-nums", containerIssue && "border-warn-solid")}
               />
               {containerIssue && (
-                <p id={`${uid}-container-issue`} className="text-sm text-warn touch:text-base">
+                <p id={`${uid}-container-issue`} className={cn("text-sm touch:text-base", issueTone(containerIssue))}>
                   {containerIssue.message}
                 </p>
               )}
@@ -127,17 +134,26 @@ export default function Capture({
                 integer
                 min={0}
                 issuePath={["cartonsLoaded"]}
+                // The hint describes the field, so the mismatch warning is read out with it.
                 hint={
-                  <span className="inline-flex flex-wrap gap-x-1.5">
-                    {labelFor(labels, "cartonsOrdered")}:
-                    <Figure value={ordered} grouping className="font-semibold text-foreground" />
-                  </span>
+                  <>
+                    <span className="inline-flex flex-wrap gap-x-1.5">
+                      {labelFor(labels, "cartonsOrdered")}:
+                      <Figure value={ordered} grouping className="font-semibold text-foreground" />
+                    </span>
+                    {quantityIssue && <span className={cn("block", issueTone(quantityIssue))}>{quantityIssue.message}</span>}
+                  </>
                 }
                 readOnly={readOnly}
               />
-              {quantityIssue && <p className="text-sm text-warn touch:text-base">{quantityIssue.message}</p>}
               {!readOnly && data.cartonsLoaded === null && ordered !== null && (
-                <Button type="button" variant="outline" size="sm" onClick={() => set({ cartonsLoaded: ordered })}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="touch:text-base"
+                  onClick={() => set({ cartonsLoaded: ordered })}
+                >
                   All {formatCount(ordered)} loaded
                 </Button>
               )}
@@ -183,7 +199,7 @@ export default function Capture({
               <ToggleGroupItem
                 key={value}
                 value={value}
-                className="rounded-full px-4 data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                className="rounded-full px-4 touch:text-base data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
               >
                 {labelFor(labels, value)}
               </ToggleGroupItem>
