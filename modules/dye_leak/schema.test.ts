@@ -112,8 +112,8 @@ describe("dye_leak config", () => {
 });
 
 describe("dye_leak wording", () => {
-  it("defaults to the data dictionary's title and labels", () => {
+  it("defaults to the data dictionary's title and labels, with a caption for the plan", () => {
     expect(DYE_LEAK_TITLE).toBe(moduleTitle("STD_SG", "dye_leak"));
-    expect(DYE_LEAK_LABELS).toEqual(defaultLabels("dye_leak"));
+    expect(DYE_LEAK_LABELS).toEqual({ ...defaultLabels("dye_leak"), pouchesPlanned: "Pouches planned" });
   });
 });

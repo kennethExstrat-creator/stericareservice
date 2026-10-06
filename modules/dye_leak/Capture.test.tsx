@@ -27,9 +27,16 @@ function render(
     labels = DYE_LEAK_LABELS,
     config = DYE_LEAK_DEFAULT_CONFIG,
     broken = false,
-  }: { readOnly?: boolean; labels?: Record<string, string>; config?: DyeLeakConfig; broken?: boolean } = {},
+    context = CONTEXT,
+  }: {
+    readOnly?: boolean;
+    labels?: Record<string, string>;
+    config?: DyeLeakConfig;
+    broken?: boolean;
+    context?: InspectionContext;
+  } = {},
 ): string {
-  const output = calcDyeLeak({ data, config, title: DYE_LEAK_TITLE, labels, context: CONTEXT, results: {}, hasData: true });
+  const output = calcDyeLeak({ data, config, title: DYE_LEAK_TITLE, labels, context, results: {}, hasData: true });
   const evaluation: ModuleEvaluation<DyeLeakComputed> = {
     key: "dye_leak",
     title: DYE_LEAK_TITLE,
@@ -49,7 +56,7 @@ function render(
     config,
     title: DYE_LEAK_TITLE,
     labels,
-    context: CONTEXT,
+    context,
     evaluation,
     focusPath: null,
     readOnly,
@@ -78,7 +85,7 @@ describe("dye_leak capture", () => {
 
   it("offers the plan and a one-tap clean result before anything is entered, never a 0", () => {
     const html = render({ sizes: {} });
-    expect(html).toContain("13 pouches planned.");
+    expect(html).toMatch(/Pouches planned:<span data-slot="figure"[^>]*>13<\/span>/);
     expect(html).toContain("13 as planned");
     expect(html).toContain("No leaks");
     expect(html).not.toContain('role="spinbutton"');
@@ -100,13 +107,23 @@ describe("dye_leak capture", () => {
     expect(html).toContain("Leaking pouches");
     expect(html).toContain("Remarks");
     expect(html).not.toContain("Pouches tested");
+    const planned = render({ sizes: {} }, { labels: { ...DYE_LEAK_LABELS, pouchesPlanned: "Pouches to dye" } });
+    expect(planned).toContain("Pouches to dye:");
+    expect(planned).not.toContain("Pouches planned");
   });
 
-  it("shows the plan from config n when the sampling plan has none", () => {
-    const html = render({ sizes: {} }, { config: { n: 5 } });
+  it("shows the plan from the sampling plan, else config n, else none", () => {
+    const planned = (html: string) =>
+      Array.from(html.matchAll(/Pouches planned:<span data-slot="figure"([^>]*)>(.*?)<\/span>/g), (match) =>
+        match[1].includes("data-empty") ? null : match[2],
+      );
     // The sampling plan's 13 wins where it is set.
-    expect(html).toContain("13 pouches planned.");
-    expect(html).not.toContain("5 pouches planned.");
+    expect(planned(render({ sizes: {} }, { config: { n: 5 } }))).toEqual(["13", "13"]);
+    const unplanned: InspectionContext = { ...CONTEXT, sampling: { "6.5": makeSampling({ pouchesDyeLeak: 13 }) } };
+    expect(planned(render({ sizes: {} }, { config: { n: 5 }, context: unplanned }))).toEqual(["13", "5"]);
+    const html = render({ sizes: {} }, { context: unplanned });
+    expect(planned(html)).toEqual(["13", null]);
+    expect(html).toContain("Start counting");
   });
 
   it("shows an error from calc under the count it points at", () => {
@@ -117,7 +134,7 @@ describe("dye_leak capture", () => {
 
   it("still renders, with the plan from the context, when calc could not run", () => {
     const html = render({ sizes: {} }, { broken: true });
-    expect(html).toContain("13 pouches planned.");
+    expect(html).toMatch(/Pouches planned:<span data-slot="figure"[^>]*>13<\/span>/);
     expect(html).toContain("No value");
   });
 

@@ -4,7 +4,8 @@
 // ordered size (tabs on iPad, side by side from 1280 px). Counts are tapped,
 // never typed: the pouches tested start from the plan (sampling plan, else
 // config n), "No leaks" records a clean size in one tap, and the stepper
-// counts leaking pouches. Every size tab carries calc's result.
+// counts leaking pouches. Every size tab carries calc's result. Every change
+// goes through useDataUpdater, built from the latest data (edit.ts).
 import { useId, useRef, useState, type ReactNode } from "react";
 import { XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -18,6 +19,7 @@ import {
   SizeTabs,
   StatusPill,
   Stepper,
+  useDataUpdater,
   useIssueFocus,
   type IssuePath,
 } from "@/components/qc";
@@ -25,6 +27,7 @@ import { formatSize } from "@/lib/format";
 import { labelFor, type CaptureProps } from "@/modules/_framework";
 import { plannedPouches, type DyeLeakComputed } from "./calc";
 import type { DyeLeakConfig } from "./config";
+import { withNoLeaks, withSizeValues } from "./edit";
 import { emptyDyeLeakSize, type DyeLeakData, type DyeLeakSize } from "./schema";
 
 export default function Capture({
@@ -38,6 +41,8 @@ export default function Capture({
   onChange,
   onFocusChange,
 }: CaptureProps<DyeLeakData, DyeLeakConfig, DyeLeakComputed>) {
+  const update = useDataUpdater(data, onChange);
+  // SizeTabs corrects a size that is not ordered (or set before sizes were).
   const [size, setSize] = useState(context.sizes[0] ?? "");
   const root = useRef<HTMLDivElement>(null);
   useIssueFocus(focusPath, {
@@ -49,10 +54,10 @@ export default function Capture({
 
   const testedLabel = labelFor(labels, "pouchesTested");
   const failedLabel = labelFor(labels, "pouchesFailed");
+  // Reads what is on screen; writes go through `update`.
   const entryOf = (key: string): DyeLeakSize => data.sizes[key] ?? emptyDyeLeakSize();
-  // The whole data goes back, sizes no longer ordered included (MODULES.md section 10).
-  const update = (key: string, values: Partial<DyeLeakSize>) =>
-    onChange({ ...data, sizes: { ...data.sizes, [key]: { ...entryOf(key), ...values } } });
+  const setValues = (key: string, values: Partial<DyeLeakSize>) =>
+    update((current) => withSizeValues(current, key, values));
   const selectSize = (next: string) => {
     setSize(next);
     onFocusChange?.({ size: next });
@@ -100,8 +105,9 @@ export default function Capture({
               {...issuePathProps(["sizes", key])}
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm text-muted-foreground touch:text-base">
-                  {planned === null ? "No pouches planned." : `${planned} pouches planned.`}
+                <p className="flex gap-1.5 text-sm text-muted-foreground touch:text-base">
+                  {labelFor(labels, "pouchesPlanned")}:
+                  <Figure value={planned} className="font-semibold text-foreground" />
                 </p>
                 <StatusPill size="sm" status={result?.status ?? "not_done"} />
               </div>
@@ -109,7 +115,7 @@ export default function Capture({
                 label={testedLabel}
                 name={`${testedLabel}, ${sizeName}`}
                 value={entry.pouchesTested}
-                onValueChange={(pouchesTested) => update(key, { pouchesTested })}
+                onValueChange={(pouchesTested) => setValues(key, { pouchesTested })}
                 start={planned ?? 0}
                 startLabel={planned === null ? "Start counting" : `${planned} as planned`}
                 issuePath={path("pouchesTested")}
@@ -120,15 +126,9 @@ export default function Capture({
                 label={failedLabel}
                 name={`${failedLabel}, ${sizeName}`}
                 value={entry.pouchesFailed}
-                onValueChange={(pouchesFailed) => update(key, { pouchesFailed })}
+                onValueChange={(pouchesFailed) => setValues(key, { pouchesFailed })}
                 start={0}
-                // A clean size in one tap: no leaks, and the plan as the pouches tested if none are entered.
-                onStart={() =>
-                  update(key, {
-                    pouchesFailed: 0,
-                    ...(entry.pouchesTested === null && planned !== null ? { pouchesTested: planned } : {}),
-                  })
-                }
+                onStart={() => update((current) => withNoLeaks(current, key, planned))}
                 startLabel="No leaks"
                 max={entry.pouchesTested ?? undefined}
                 issuePath={path("pouchesFailed")}
@@ -139,7 +139,7 @@ export default function Capture({
                 label={labelFor(labels, "notes")}
                 name={`${labelFor(labels, "notes")}, ${sizeName}`}
                 value={entry.notes}
-                onValueChange={(notes) => update(key, { notes })}
+                onValueChange={(notes) => setValues(key, { notes })}
                 issuePath={path("notes")}
                 readOnly={readOnly}
               />
@@ -200,6 +200,7 @@ function CountField({
             type="button"
             variant="outline"
             size="sm"
+            className="touch:text-base"
             aria-describedby={labelId}
             onClick={() => (onStart ? onStart() : onValueChange(start))}
           >
