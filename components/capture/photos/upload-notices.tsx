@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { LOGIN_PATH } from "@/lib/auth/routes";
 import { cn } from "@/lib/utils";
 import { usePhotoQueue } from "./hooks";
-import { describeItems } from "./photo-model";
+import { describeItems, retagFailureText } from "./photo-model";
 import { photoQueueStore } from "./queue-store";
 
 const WARN = "border-warn-border bg-warn-tint text-warn *:data-[slot=alert-description]:text-warn";
@@ -93,7 +93,7 @@ export function UploadNotices({ inspectionId, className }: { inspectionId: strin
           </Button>
         }
       >
-        The photo uploaded with its earlier tag and caption: {failure.error.message}
+        The photo uploaded with its earlier tag and caption. {retagFailureText(failure.error)}
       </Notice>,
     );
   }

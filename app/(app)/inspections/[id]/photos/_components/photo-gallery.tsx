@@ -190,7 +190,8 @@ export function PhotoGallery({ inspectionId }: { inspectionId: string }) {
           access.isAdmin
             ? (photo) => {
                 const shown = ordered.find((entry) => entry.id === photo.id);
-                return shown && shown.state === "uploaded" ? (
+                // The report choice needs the photo's row: not while it is read after the upload.
+                return shown && shown.state === "uploaded" && !shown.pendingRow ? (
                   <ReportSwitch
                     key={shown.id}
                     inspectionId={inspectionId}

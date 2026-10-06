@@ -4,7 +4,7 @@
 // navigation"): the left and right arrow keys, or the buttons beside the
 // photo, step through the list it was opened from; Escape closes. Light
 // like the rest of the app: the photo sits on a slate-100 well.
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ChevronLeftIcon, ChevronRightIcon, FileWarningIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -14,7 +14,7 @@ export interface ViewerPhoto {
   id: string;
   /** What the photo shows: its caption, else its tags. */
   alt: string;
-  /** The full photo, else its preview. Null: nothing a browser can show (an unconverted HEIC). */
+  /** The full photo, else its preview. Null: nothing a browser can show (an unconverted HEIC). Falls back to "No preview" if it does not load. */
   src: string | null;
   /** "Dimensions · Size M · Box 253". */
   tagLine: string;
@@ -51,6 +51,9 @@ export function PhotoViewer({ photos, openId, onOpenIdChange, actions }: PhotoVi
   const index = openId === null ? -1 : photos.findIndex((photo) => photo.id === openId);
   const photo = index >= 0 ? photos[index] : null;
   const count = photos.length;
+  // An image the browser could not load or decode (an expired link, a type it cannot read): "No preview", not a broken icon.
+  const [brokenSrc, setBrokenSrc] = useState<string | null>(null);
+  const src = photo?.src && photo.src !== brokenSrc ? photo.src : null;
 
   const step = (by: number) => {
     if (count === 0 || index < 0) return;
@@ -93,13 +96,14 @@ export function PhotoViewer({ photos, openId, onOpenIdChange, actions }: PhotoVi
           </DialogHeader>
 
           <div className="relative flex min-h-[40dvh] items-center justify-center overflow-hidden rounded-lg bg-slate-100 ring-1 ring-border">
-            {photo.src ? (
+            {src ? (
               // Signed or blob URLs of photos already resized at capture: nothing for next/image to do.
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 key={photo.id}
-                src={photo.src}
+                src={src}
                 alt={photo.alt}
+                onError={() => setBrokenSrc(src)}
                 className="max-h-[calc(100dvh-16rem)] w-auto max-w-full object-contain"
               />
             ) : (

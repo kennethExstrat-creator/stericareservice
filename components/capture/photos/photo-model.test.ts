@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { InspectionMedia } from "@/lib/inspections/photos/queries";
 import { EMPTY_TAG_OPTIONS, type MediaFile, type MediaPhoto } from "@/lib/inspections/photos/view";
 import type { UploadItem } from "@/lib/photos/upload-queue";
-import { describeItems, slotFiles, slotPhotos, uploadStatusFor } from "./photo-model";
+import { describeItems, failureText, retagFailureText, slotFiles, slotPhotos, uploadStatusFor } from "./photo-model";
 import {
   bumpPreparing,
   EMPTY_QUEUE_SNAPSHOT,
@@ -149,14 +149,98 @@ describe("slotPhotos", () => {
     expect(slotPhotos({ ...input, moduleKey: undefined }).map((photo) => photo.id)).toEqual(["a", "b", "c"]);
   });
 
-  it("carries a failed upload's reason", () => {
+  it("says why an upload stopped in words the inspector can act on, never the database's", () => {
+    const rls = { reason: "forbidden" as const, message: "new row violates row-level security policy" };
     const [photo] = slotPhotos({
       media: null,
-      queue: state({ items: [queued("a", { state: "failed", error: { reason: "forbidden", message: "Not allowed now." } })] }),
+      queue: state({ items: [queued("a", { state: "failed", error: rls })] }),
       inspectionId: INSPECTION,
       moduleKey: "dimensions",
     });
-    expect(photo).toMatchObject({ state: "failed", error: "Not allowed now." });
+    expect(photo).toMatchObject({
+      state: "failed",
+      error: "This inspection can no longer be changed from this account. Ask an admin to reopen it, then try again.",
+    });
+    // A retry under way is not a stopped upload: nothing to say on the tile.
+    const [retrying] = slotPhotos({
+      media: null,
+      queue: state({ items: [queued("a", { error: { reason: "network", message: "No connection." } })] }),
+      inspectionId: INSPECTION,
+      moduleKey: "dimensions",
+    });
+    expect(retrying).toMatchObject({ state: "waiting", error: null });
+  });
+
+  it("keeps a finished upload on screen, as uploaded with its local preview, until its row is read", () => {
+    const finished = queued("b", { state: "uploading", progress: 1, caption: "Tear at cuff" });
+    const input = {
+      queue: state({ items: [queued("c")], previews: { b: "blob:b" }, settled: { b: finished } }),
+      inspectionId: INSPECTION,
+      moduleKey: "dimensions",
+    };
+    const photos = slotPhotos({ ...input, media: media([uploaded("a")]) });
+    expect(photos.map(({ id, queued: isQueued, state: upload, pendingRow }) => [id, isQueued, upload, pendingRow])).toEqual([
+      ["a", false, "uploaded", false],
+      ["b", false, "uploaded", true],
+      ["c", true, "waiting", false],
+    ]);
+    expect(photos[1]).toMatchObject({ caption: "Tear at cuff", thumbUrl: "blob:b", fullUrl: null, includeInReport: false, error: null });
+
+    // Once the row is in, it shows once, from the media.
+    const read = slotPhotos({ ...input, media: media([uploaded("a"), uploaded("b")]) });
+    expect(read.map(({ id, pendingRow }) => [id, pendingRow])).toEqual([
+      ["a", false],
+      ["b", false],
+      ["c", false],
+    ]);
+    // Another module's or another inspection's finished upload is not this slot's.
+    const elsewhere = { b: { ...finished, moduleKey: "visual" }, x: queued("x", { inspectionId: OTHER_INSPECTION }) };
+    expect(slotPhotos({ ...input, media: null, queue: state({ settled: elsewhere }) })).toEqual([]);
+  });
+
+  it("offers the full size only where a browser can show it: never an original kept unconverted (HEIC)", () => {
+    const heic = uploaded("h", { flagged: true, storagePath: `${INSPECTION}/h.heic`, thumbPath: null, thumbUrl: null });
+    const png = uploaded("p", { flagged: true, storagePath: `${INSPECTION}/p.png`, thumbPath: null });
+    const photos = slotPhotos({
+      media: media([uploaded("a"), heic, png]),
+      queue: state({ items: [queued("h", { flagged: true, caption: "Retag on its way" })] }),
+      inspectionId: INSPECTION,
+      moduleKey: undefined,
+    });
+    expect(photos.map(({ id, fullUrl }) => [id, fullUrl])).toEqual([
+      ["a", "https://signed/full/a"],
+      ["p", "https://signed/full/p"],
+      ["h", null],
+    ]);
+  });
+});
+
+describe("failureText", () => {
+  const fail = (reason: "forbidden" | "too_large" | "invalid" | "not_found" | "network", message = "raw server text") => ({ reason, message });
+
+  it("maps refusals to what to do next, and names the limits", () => {
+    expect(failureText(fail("too_large"), "photo")).toBe("The photo is larger than the 25 MB the server accepts. Remove it, and add a smaller one.");
+    expect(failureText(fail("too_large"), "file")).toBe("The file is larger than the 50 MB the server accepts. Remove it, and add a smaller one.");
+    expect(failureText(fail("invalid"), "photo")).toContain("Photos must be JPEG, PNG, WebP or HEIC");
+    expect(failureText(fail("invalid"), "file")).toContain("Lab reports and certificates must be PDF, JPEG, PNG, WebP or HEIC");
+    expect(failureText(fail("not_found", 'insert or update on table "inspection_photos" violates foreign key constraint'), "file")).toBe(
+      "The inspection no longer exists, so the file cannot upload. Remove it.",
+    );
+    expect(failureText(null, "photo")).toBeNull();
+  });
+
+  it("keeps the queue's own words about this device, and those of failures that retry by themselves", () => {
+    const gone = "This file is no longer stored on this device. Remove it and add it again.";
+    expect(failureText(fail("not_found", gone), "photo")).toBe(gone);
+    expect(failureText(fail("network", "No connection. Changes are kept on this device."), "photo")).toBe(
+      "No connection. Changes are kept on this device.",
+    );
+  });
+
+  it("words a retag the server refused for the notice", () => {
+    expect(retagFailureText(fail("forbidden"))).toBe("This inspection can no longer be changed from this account.");
+    expect(retagFailureText(fail("not_found"))).toBe("The photo or its inspection no longer exists.");
+    expect(retagFailureText(fail("invalid"))).toBe("The server did not accept the new tag or caption.");
   });
 });
 
@@ -189,6 +273,26 @@ describe("slotFiles", () => {
       ["f1", false, "Tensile.pdf", "uploaded", "https://signed/f1"],
       ["f3", true, "Second.pdf", "uploading", null],
     ]);
+  });
+
+  it("keeps a finished file listed as uploaded, without its link, until its row is read", () => {
+    const finished = queued("f4", { kind: "file", moduleKey: "tensile", name: "Third.pdf" });
+    const input = { queue: state({ settled: { f4: finished } }), inspectionId: INSPECTION, moduleKey: "tensile" };
+    expect(slotFiles({ ...input, files: [file] }).map(({ id, queued: isQueued, state: upload, url }) => [id, isQueued, upload, url])).toEqual([
+      ["f1", false, "uploaded", "https://signed/f1"],
+      ["f4", false, "uploaded", null],
+    ]);
+    expect(slotFiles({ ...input, files: [file, { ...file, id: "f4", name: "Third.pdf" }] }).map((entry) => entry.id)).toEqual(["f1", "f4"]);
+  });
+
+  it("says why a file's upload stopped in plain words", () => {
+    const [stopped] = slotFiles({
+      files: [],
+      queue: state({ items: [queued("f5", { kind: "file", moduleKey: "tensile", state: "failed", error: { reason: "too_large", message: "Payload too large" } })] }),
+      inspectionId: INSPECTION,
+      moduleKey: "tensile",
+    });
+    expect(stopped.error).toBe("The file is larger than the 50 MB the server accepts. Remove it, and add a smaller one.");
   });
 });
 

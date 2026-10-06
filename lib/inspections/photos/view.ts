@@ -94,6 +94,15 @@ export function previewPath(row: Pick<PhotoRow, "storage_path" | "thumb_path">):
   return VIEWABLE_ORIGINAL.test(row.storage_path) ? row.storage_path : null;
 }
 
+/**
+ * Whether a browser shows the stored photo full size: every converted
+ * photo, and a flagged original only in a type all browsers read (an
+ * unconverted HEIC breaks in Chrome, Edge and Firefox).
+ */
+export function showsFullSize(photo: { flagged: boolean; storagePath: string }): boolean {
+  return !photo.flagged || VIEWABLE_ORIGINAL.test(photo.storagePath);
+}
+
 export function toMediaPhoto(row: PhotoRow, urls: ReadonlyMap<string, string>): MediaPhoto {
   const preview = previewPath(row);
   return {

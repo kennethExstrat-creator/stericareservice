@@ -5,9 +5,10 @@
 import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { tagOptionsFromTemplate } from "@/lib/inspections/photos/view";
+import { EMPTY_TAG_OPTIONS, tagOptionsFromTemplate } from "@/lib/inspections/photos/view";
 import { FileSlot } from "../files";
-import { nextTagLine } from "./module-photos";
+import { nextTagLine, toViewerPhoto } from "./module-photos";
+import type { SlotPhoto } from "./photo-model";
 import { PhotoSlot } from "./photo-slot";
 
 const INSPECTION = "0b5c7d1e-2f3a-4b5c-8d9e-0f1a2b3c4d5e";
@@ -135,5 +136,30 @@ describe("FileSlot", () => {
     expect(html).toContain("No certificates yet.");
     expect(html).not.toContain("Add certificate");
     expect(html).not.toContain("data-file-input");
+  });
+});
+
+describe("toViewerPhoto", () => {
+  const photo: SlotPhoto = {
+    id: "1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f",
+    queued: false,
+    moduleKey: "watertight",
+    target: null,
+    caption: null,
+    takenAt: null,
+    flagged: false,
+    includeInReport: false,
+    state: "uploaded",
+    progress: 1,
+    error: null,
+    thumbUrl: "https://signed/thumb",
+    fullUrl: "https://signed/full",
+    pendingRow: false,
+  };
+
+  it("shows the full photo, else its preview, else the 'No preview' panel (an unconverted HEIC has neither)", () => {
+    expect(toViewerPhoto(photo, EMPTY_TAG_OPTIONS).src).toBe("https://signed/full");
+    expect(toViewerPhoto({ ...photo, fullUrl: null, thumbUrl: "blob:local" }, EMPTY_TAG_OPTIONS).src).toBe("blob:local");
+    expect(toViewerPhoto({ ...photo, flagged: true, fullUrl: null, thumbUrl: null }, EMPTY_TAG_OPTIONS)).toMatchObject({ src: null, flagged: true });
   });
 });

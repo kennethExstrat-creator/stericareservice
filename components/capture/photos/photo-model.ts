@@ -3,8 +3,10 @@
 // state of an inspection, for the pending badge and the submit button. Pure,
 // so the rules are unit-tested without a browser.
 import type { InspectionMedia } from "@/lib/inspections/photos/queries";
-import type { MediaFile } from "@/lib/inspections/photos/view";
+import { showsFullSize, type MediaFile } from "@/lib/inspections/photos/view";
+import type { Failure } from "@/lib/offline/failures";
 import type { InspectionFileKind } from "@/lib/photos/files";
+import { FILE_SIZE_LIMIT, PHOTO_SIZE_LIMIT } from "@/lib/photos/paths";
 import type { UploadItem } from "@/lib/photos/upload-queue";
 import { NOTHING_PREPARING, QUEUE_PROBLEMS, type PhotoQueueState } from "./queue-state";
 
@@ -24,12 +26,21 @@ export interface SlotPhoto {
   state: PhotoUploadState;
   /** 0 to 1. */
   progress: number;
-  /** Why the upload stopped. */
+  /** Why the upload stopped, in words the inspector can act on. */
   error: string | null;
   /** Local preview or signed thumbnail. Undefined while a local preview is still being read. */
   thumbUrl: string | null | undefined;
-  /** Signed URL of the full photo; null while queued. */
+  /**
+   * Signed URL of the full photo, where a browser can show it: null while
+   * queued, and for an original kept unconverted (HEIC).
+   */
   fullUrl: string | null;
+  /**
+   * Uploaded, but this page has not read its row yet (a slow or dropped
+   * connection right after the upload): shown from what the queue knew,
+   * without the report choice until the row is in.
+   */
+  pendingRow: boolean;
 }
 
 /** Which photos a slot shows: one module's, the untagged ones (null), or all of them (undefined). */
@@ -41,9 +52,73 @@ function queueState(item: UploadItem): PhotoUploadState {
   return item.state;
 }
 
+/** Words the queue writes itself about this device ("no longer stored on this device"): already plain. */
+const DEVICE_WORDS = /\bthis device\b/i;
+
+const megabytes = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`;
+
 /**
- * Uploaded photos (oldest first), then queued ones in upload order. A photo
- * in both (its row is in, a retag still on its way) shows as queued, with
+ * Why an upload stopped, in words the inspector can act on. Storage and the
+ * database answer in developer terms ("new row violates row-level security
+ * policy"); the reasons map to what to do next. Failures that retry by
+ * themselves (network, server, an ended session) keep the queue's own words.
+ */
+export function failureText(error: Failure | null, kind: "photo" | "file"): string | null {
+  if (!error) return null;
+  switch (error.reason) {
+    case "forbidden":
+      return "This inspection can no longer be changed from this account. Ask an admin to reopen it, then try again.";
+    case "too_large":
+      return kind === "photo"
+        ? `The photo is larger than the ${megabytes(PHOTO_SIZE_LIMIT)} the server accepts. Remove it, and add a smaller one.`
+        : `The file is larger than the ${megabytes(FILE_SIZE_LIMIT)} the server accepts. Remove it, and add a smaller one.`;
+    case "invalid":
+      return kind === "photo"
+        ? "The server did not accept this photo. Photos must be JPEG, PNG, WebP or HEIC: remove it, and add it again."
+        : "The server did not accept this file. Lab reports and certificates must be PDF, JPEG, PNG, WebP or HEIC: remove it, and add it again.";
+    case "not_found":
+      if (DEVICE_WORDS.test(error.message)) return error.message;
+      return `The inspection no longer exists, so the ${kind} cannot upload. Remove it.`;
+    default:
+      return error.message;
+  }
+}
+
+/** Why a retag or caption of an uploaded photo did not stick, for the notice above the photos. */
+export function retagFailureText(error: Failure): string {
+  switch (error.reason) {
+    case "forbidden":
+      return "This inspection can no longer be changed from this account.";
+    case "not_found":
+      return "The photo or its inspection no longer exists.";
+    case "invalid":
+    case "too_large":
+      return "The server did not accept the new tag or caption.";
+    default:
+      return error.message;
+  }
+}
+
+/** Finished uploads of one inspection whose rows are not read yet, oldest first. */
+function settledItems(
+  settled: PhotoQueueState["settled"],
+  kind: UploadItem["kind"],
+  inspectionId: string,
+  moduleKey: ModuleFilter,
+  shown: ReadonlySet<string>,
+): UploadItem[] {
+  return Object.values(settled)
+    .filter(
+      (item) =>
+        item.kind === kind && item.inspectionId === inspectionId && matches(moduleKey, item.moduleKey) && !shown.has(item.id),
+    )
+    .sort((a, b) => a.createdAt - b.createdAt);
+}
+
+/**
+ * Uploaded photos (oldest first), then finished uploads whose rows are not
+ * read yet, then queued ones in upload order. A photo in both the media and
+ * the queue (its row is in, a retag still on its way) shows as queued, with
  * the newer tags. Local previews win over signed thumbnails: no flash when a
  * photo finishes.
  */
@@ -54,7 +129,7 @@ export function slotPhotos({
   moduleKey,
 }: {
   media: InspectionMedia | null;
-  queue: Pick<PhotoQueueState, "queue" | "previews">;
+  queue: Pick<PhotoQueueState, "queue" | "previews" | "settled">;
   inspectionId: string;
   moduleKey: ModuleFilter;
 }): SlotPhoto[] {
@@ -62,8 +137,9 @@ export function slotPhotos({
   const queued = inspectionPhotos.filter((item) => matches(moduleKey, item.moduleKey));
   // Shown once, as queued: also when a retag moved it away from the module its row still names.
   const queuedIds = new Set(inspectionPhotos.map((item) => item.id));
+  const mediaPhotos = media?.photos ?? [];
 
-  const uploaded: SlotPhoto[] = (media?.photos ?? [])
+  const uploaded: SlotPhoto[] = mediaPhotos
     .filter((photo) => matches(moduleKey, photo.moduleKey) && !queuedIds.has(photo.id))
     .map((photo) => ({
       id: photo.id,
@@ -78,11 +154,31 @@ export function slotPhotos({
       progress: 1,
       error: null,
       thumbUrl: queue.previews[photo.id] ?? photo.thumbUrl,
-      fullUrl: photo.fullUrl,
+      fullUrl: showsFullSize(photo) ? photo.fullUrl : null,
+      pendingRow: false,
     }));
 
+  // Uploaded, row not read yet: shown from what the queue knew, never missing from the list.
+  const shown = new Set([...queuedIds, ...mediaPhotos.map((photo) => photo.id)]);
+  const finishing: SlotPhoto[] = settledItems(queue.settled, "photo", inspectionId, moduleKey, shown).map((item) => ({
+    id: item.id,
+    queued: false,
+    moduleKey: item.moduleKey,
+    target: item.target,
+    caption: item.caption,
+    takenAt: item.takenAt,
+    flagged: item.flagged,
+    includeInReport: false,
+    state: "uploaded",
+    progress: 1,
+    error: null,
+    thumbUrl: item.id in queue.previews ? queue.previews[item.id] : undefined,
+    fullUrl: null,
+    pendingRow: true,
+  }));
+
   const waiting: SlotPhoto[] = queued.map((item) => {
-    const uploadedCopy = media?.photos.find((photo) => photo.id === item.id);
+    const uploadedCopy = mediaPhotos.find((photo) => photo.id === item.id);
     return {
       id: item.id,
       queued: true,
@@ -94,13 +190,14 @@ export function slotPhotos({
       includeInReport: uploadedCopy?.includeInReport ?? false,
       state: queueState(item),
       progress: item.progress,
-      error: item.error?.message ?? null,
+      error: item.state === "failed" ? failureText(item.error, "photo") : null,
       thumbUrl: item.id in queue.previews ? queue.previews[item.id] : (uploadedCopy?.thumbUrl ?? undefined),
-      fullUrl: uploadedCopy?.fullUrl ?? null,
+      fullUrl: uploadedCopy && showsFullSize(uploadedCopy) ? uploadedCopy.fullUrl : null,
+      pendingRow: false,
     };
   });
 
-  return [...uploaded, ...waiting];
+  return [...uploaded, ...finishing, ...waiting];
 }
 
 /** One lab report or certificate on screen, uploaded or still queued. */
@@ -116,7 +213,7 @@ export interface SlotFile {
   url: string | null;
 }
 
-/** Uploaded files, then queued ones, for one module (or all). */
+/** Uploaded files, then finished uploads whose rows are not read yet, then queued ones, for one module (or all). */
 export function slotFiles({
   files,
   queue,
@@ -124,7 +221,7 @@ export function slotFiles({
   moduleKey,
 }: {
   files: readonly MediaFile[];
-  queue: Pick<PhotoQueueState, "queue">;
+  queue: Pick<PhotoQueueState, "queue" | "settled">;
   inspectionId: string;
   moduleKey: ModuleFilter;
 }): SlotFile[] {
@@ -132,6 +229,7 @@ export function slotFiles({
     (item) => item.kind === "file" && item.inspectionId === inspectionId && matches(moduleKey, item.moduleKey),
   );
   const queuedIds = new Set(queued.map((item) => item.id));
+  const shown = new Set([...queuedIds, ...files.map((file) => file.id)]);
   return [
     ...files
       .filter((file) => matches(moduleKey, file.moduleKey) && !queuedIds.has(file.id))
@@ -148,6 +246,20 @@ export function slotFiles({
           url: file.url,
         }),
       ),
+    // Uploaded, row not read yet: listed as uploaded, without its link until the row is in.
+    ...settledItems(queue.settled, "file", inspectionId, moduleKey, shown).map(
+      (item): SlotFile => ({
+        id: item.id,
+        queued: false,
+        moduleKey: item.moduleKey,
+        kind: null,
+        name: item.name ?? "Document",
+        state: "uploaded",
+        progress: 1,
+        error: null,
+        url: null,
+      }),
+    ),
     ...queued.map(
       (item): SlotFile => ({
         id: item.id,
@@ -157,7 +269,7 @@ export function slotFiles({
         name: item.name ?? "Document",
         state: queueState(item),
         progress: item.progress,
-        error: item.error?.message ?? null,
+        error: item.state === "failed" ? failureText(item.error, "file") : null,
         url: null,
       }),
     ),
