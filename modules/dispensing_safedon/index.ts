@@ -21,6 +21,7 @@ export const definition = defineModule<DispensingSafedonData, DispensingSafedonC
   defaultConfig: DISPENSING_SAFEDON_DEFAULT_CONFIG,
   perSize: true,
   calc: calcDispensingSafedon,
+  loadCapture: () => import("./Capture"),
 });
 
 export type { DispensingSafedonData } from "./schema";

@@ -1,0 +1,317 @@
+"use client";
+
+// Glove Dispensing Inspection capture (BUILD_SPEC 6.1, 8 "Speed"): one size
+// at a time (swipe on iPad, arrow keys on desktop). Each box column takes its
+// box number from the size's carton list (6.2 rule 7); its defects are
+// counted by tapping, never typed. On iPad the counts show one box at a time,
+// stepped through with Previous and Next or by tapping the box's column
+// number; from 1280 px every box sits side by side, as on the sheet. The per
+// box "1/125" and rate, the size total "3 / 625 (0.48%)" and its result
+// against the maximum come from calc as you tap (rule 2).
+import { useEffect, useRef, useState } from "react";
+import { ChevronLeftIcon, ChevronRightIcon, PlusIcon } from "lucide-react";
+import { BoxPicker, CounterTable, ModuleSection, RequirementList, SizeTabs, useIssueFocus } from "@/components/qc";
+import { Button } from "@/components/ui/button";
+import { formatRatio, formatRatioDecimal, formatSize } from "@/lib/format";
+import { cartonsFor, labelFor, type CaptureProps } from "@/modules/_framework";
+import type { DispensingSafedonComputed, DispensingSafedonConfig, DispensingSafedonData } from ".";
+import { plannedBoxes, safedonHeading } from "./calc";
+import { MAX_BOXES_PER_SIZE } from "./config";
+import { boxesOf, columnsShown, setSafedonBoxNo, setSafedonCount } from "./edit";
+import { formatSizeRate } from "./text";
+
+type Props = CaptureProps<DispensingSafedonData, DispensingSafedonConfig, DispensingSafedonComputed>;
+type Update = (current: DispensingSafedonData) => DispensingSafedonData;
+
+export default function Capture({
+  data,
+  config,
+  title,
+  labels,
+  context,
+  evaluation,
+  focusPath,
+  readOnly,
+  onChange,
+  onFocusChange,
+}: Props) {
+  const root = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState(context.sizes[0] ?? "");
+  // The box column being counted, per size (the one shown on iPad).
+  const [active, setActive] = useState<Record<string, number>>({});
+  // Columns asked for with "Add box", per size, beyond the plan.
+  const [requested, setRequested] = useState<Record<string, number>>({});
+
+  // A held stepper repeats faster than the screen may render: every change
+  // builds on the last one.
+  const latest = useRef(data);
+  useEffect(() => {
+    latest.current = data;
+  }, [data]);
+  const change = (update: Update) => {
+    const next = update(latest.current);
+    latest.current = next;
+    onChange(next);
+  };
+
+  useIssueFocus(focusPath, {
+    root,
+    reveal: (path) => {
+      const target = path[1];
+      if (path[0] !== "sizes" || typeof target !== "string" || !context.sizes.includes(target)) return;
+      setSize(target);
+      const column = path[3];
+      if (path[2] === "boxes" && typeof column === "number") setActive((current) => ({ ...current, [target]: column }));
+    },
+  });
+
+  const selectSize = (next: string) => {
+    setSize(next);
+    onFocusChange?.({ size: next });
+  };
+
+  return (
+    <div ref={root} className="min-w-0 space-y-4">
+      <p className="text-sm text-muted-foreground touch:text-base">
+        {safedonHeading(labels, evaluation?.computed.codeLetters ?? [])}
+      </p>
+      <SizeTabs
+        sizes={context.sizes}
+        templateSizes={context.templateSizes}
+        value={size}
+        onValueChange={selectSize}
+        results={evaluation?.result.perSize}
+        label={`${title}: sizes`}
+      >
+        {(shown) => (
+          <SafedonSizePanel
+            size={shown}
+            props={{ data, config, title, labels, context, evaluation, readOnly, onFocusChange }}
+            change={change}
+            active={active[shown] ?? 0}
+            onActive={(column) => setActive((current) => ({ ...current, [shown]: column }))}
+            requested={requested[shown] ?? 0}
+            onRequest={(columns) => setRequested((current) => ({ ...current, [shown]: columns }))}
+          />
+        )}
+      </SizeTabs>
+    </div>
+  );
+}
+
+type PanelProps = {
+  size: string;
+  props: Pick<Props, "data" | "config" | "title" | "labels" | "context" | "evaluation" | "readOnly" | "onFocusChange">;
+  change: (update: Update) => void;
+  active: number;
+  onActive: (column: number) => void;
+  requested: number;
+  onRequest: (columns: number) => void;
+};
+
+function SafedonSizePanel({ size, props, change, active, onActive, requested, onRequest }: PanelProps) {
+  const { data, config, title, labels, context, evaluation, readOnly, onFocusChange } = props;
+  const boxes = boxesOf(data, size);
+  const planned = plannedBoxes(context, config, size);
+  const columns = columnsShown(planned, boxes.length, requested);
+  const current = Math.min(Math.max(active, 0), Math.max(columns - 1, 0));
+  const cartons = cartonsFor(context, size);
+  const used = boxes.map((box) => box.boxNo);
+  // A module whose config or data is broken comes back with no computed values.
+  const computed = evaluation?.computed.sizes?.[size];
+  const result = evaluation?.result.perSize?.[size];
+  const sizeName = formatSize(size, { sizes: context.templateSizes, prefix: true });
+  const boxLabel = labelFor(labels, "boxNo");
+  const indices = Array.from({ length: columns }, (_, index) => index);
+  const boxNoAt = (index: number) => boxes[index]?.boxNo ?? null;
+  // A column without a box number yet shows its place in brackets, never a number that reads as a box.
+  const columnLabel = (index: number) => {
+    const boxNo = boxNoAt(index);
+    return boxNo === null ? `(${index + 1})` : String(boxNo);
+  };
+  const tag = (index: number, defect?: string) => {
+    const boxNo = boxNoAt(index);
+    onFocusChange?.({ size, ...(boxNo === null ? {} : { box: boxNo }), ...(defect === undefined ? {} : { defect }) });
+  };
+  const select = (index: number) => {
+    onActive(index);
+    tag(index);
+  };
+
+  return (
+    <div className="min-w-0 space-y-5">
+      {planned === 0 && (
+        <p className="rounded-lg border border-dashed border-not-done-border bg-not-done-tint px-4 py-3 text-sm text-not-done touch:text-base">
+          {result?.summary}
+        </p>
+      )}
+
+      <ModuleSection
+        title={boxLabel}
+        actions={
+          !readOnly && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="border border-dashed border-input"
+              disabled={columns >= MAX_BOXES_PER_SIZE}
+              onClick={() => {
+                onRequest(columns + 1);
+                onActive(columns);
+              }}
+            >
+              <PlusIcon aria-hidden />
+              Add box
+            </Button>
+          )
+        }
+      >
+        <ol
+          aria-label={`${boxLabel}, ${sizeName}`}
+          className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-7"
+        >
+          {indices.map((index) => (
+            <li
+              key={index}
+              data-active={index === current || undefined}
+              className="flex min-w-0 items-center gap-1 rounded-lg border border-border bg-card p-0.5 data-active:border-primary data-active:bg-brand-50"
+            >
+              <button
+                type="button"
+                aria-pressed={index === current}
+                aria-label={`Count column ${index + 1}`}
+                onClick={() => select(index)}
+                className="inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-md px-1 text-sm font-semibold text-muted-foreground tabular-nums outline-none hover:bg-accent focus-ring-inset aria-pressed:bg-primary aria-pressed:text-primary-foreground touch:h-11 touch:min-w-11 touch:text-base"
+              >
+                {index + 1}
+              </button>
+              <BoxPicker
+                variant="cell"
+                className="min-w-0 flex-1"
+                label={`${boxLabel}, column ${index + 1}`}
+                sizeLabel={sizeName.toLowerCase()}
+                value={boxNoAt(index)}
+                cartons={cartons}
+                used={used}
+                onValueChange={(boxNo) => {
+                  change((current) => setSafedonBoxNo(current, size, index, boxNo));
+                  onActive(index);
+                  onFocusChange?.({ size, ...(boxNo === null ? {} : { box: boxNo }) });
+                }}
+                onFocus={() => select(index)}
+                issuePath={["sizes", size, "boxes", index, "boxNo"]}
+                readOnly={readOnly}
+              />
+            </li>
+          ))}
+        </ol>
+      </ModuleSection>
+
+      <ModuleSection
+        title={labelFor(labels, "counts")}
+        actions={
+          columns > 1 && (
+            <div className="flex items-center gap-1 xl:hidden">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                aria-label="Previous box"
+                disabled={current === 0}
+                onClick={() => select(current - 1)}
+              >
+                <ChevronLeftIcon aria-hidden />
+              </Button>
+              <span className="min-w-24 text-center text-sm tabular-nums touch:text-base" aria-live="polite">
+                {`${boxLabel} ${columnLabel(current)} · ${current + 1} / ${columns}`}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                aria-label="Next box"
+                disabled={current >= columns - 1}
+                onClick={() => select(current + 1)}
+              >
+                <ChevronRightIcon aria-hidden />
+              </Button>
+            </div>
+          )
+        }
+      >
+        <CounterTable
+          caption={`${labelFor(labels, "counts")}, ${sizeName}`}
+          rows={config.defects.map((defect) => ({
+            key: defect.code,
+            label: defect.label,
+            ...(defect.hint.trim() === "" ? {} : { hint: defect.hint }),
+          }))}
+          columns={indices.map((index) => {
+            const boxNo = boxNoAt(index);
+            return {
+              key: String(index),
+              label: columnLabel(index),
+              name: boxNo === null ? `column ${index + 1}` : `box ${boxNo}`,
+            };
+          })}
+          activeColumn={String(current)}
+          getCount={({ row, column }) => boxes[Number(column)]?.counts[row] ?? 0}
+          onCountChange={({ row, column }, count) =>
+            change((current) => setSafedonCount(current, size, Number(column), row, count))
+          }
+          labels={{ rowHeader: boxLabel, total: labelFor(labels, "totalGroup") }}
+          summaryRows={[
+            {
+              key: "perPack",
+              label: labelFor(labels, "boxDefects"),
+              render: (_, total) => formatRatio(total, config.glovesPerPack),
+            },
+            {
+              key: "rate",
+              label: labelFor(labels, "boxRatePct"),
+              render: (_, total) => formatRatioDecimal(total, config.glovesPerPack),
+            },
+          ]}
+          onCellFocus={({ column, row }) => {
+            onActive(Number(column));
+            tag(Number(column), row);
+          }}
+          cellIssuePath={({ column, row }) => ["sizes", size, "boxes", Number(column), "counts", row]}
+          readOnly={readOnly}
+        />
+      </ModuleSection>
+
+      {result?.status === "not_done" && planned > 0 && (
+        <p className="text-sm text-muted-foreground touch:text-base">{result.summary}</p>
+      )}
+
+      <RequirementList
+        caption={`${title}, ${sizeName}`}
+        labels={{
+          value: labelFor(labels, "totalGroup"),
+          spec: labelFor(labels, "specRow"),
+          result: labelFor(labels, "result"),
+        }}
+        items={[
+          {
+            key: "rate",
+            label: labelFor(labels, "ratePct"),
+            value: computed?.ratePct ?? null,
+            valueText:
+              computed && computed.boxesTested > 0
+                ? formatSizeRate(computed.totalDefects, computed.glovesInspected)
+                : undefined,
+            unit: "%",
+            spec: { kind: "max", max: config.maxRatePct },
+            status: computed?.result ?? "not_done",
+            note: computed
+              ? `${labelFor(labels, "boxesTested")}: ${computed.boxesTested} / ${computed.boxesExpected}`
+              : undefined,
+            issuePath: ["sizes", size],
+          },
+        ]}
+      />
+    </div>
+  );
+}
