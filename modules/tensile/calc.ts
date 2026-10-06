@@ -159,7 +159,7 @@ function sizeStatus(outcomes: TensileSizeComputed): ModuleStatus {
   return values.includes("not_done") ? "not_done" : "pass";
 }
 
-/** "34.18 MPa / 536%"; "12.50 MPa (below ≥ 14.00 MPa) / 536%"; "not entered". */
+/** "34.18 MPa / 536%"; "12.50 MPa (below 14.00 MPa) / 536%"; "32.99 MPa / not entered". */
 function sizeSummary(entry: TensileSize, outcomes: TensileSizeComputed, config: TensileConfig): string {
   if (entry.tensileStrength === null && entry.elongationAtBreak === null) return "not entered";
   return TENSILE_MEASURES.map((measure) => {
@@ -167,7 +167,8 @@ function sizeSummary(entry: TensileSize, outcomes: TensileSizeComputed, config: 
     if (value === null) return "not entered";
     const text = formatAverage(value, config, measure);
     if (value <= 0) return `${text} (not valid)`;
-    return outcomes[MEASURE_RULES[measure].result] === "fail" ? `${text} (below ${formatAverage(MEASURE_RULES[measure].minimum(config), config, measure)})` : text;
+    if (outcomes[MEASURE_RULES[measure].result] !== "fail") return text;
+    return `${text} (below ${formatAverage(MEASURE_RULES[measure].minimum(config), config, measure)})`;
   }).join(" / ");
 }
 
@@ -185,11 +186,12 @@ function summarise(
   labels: Labels,
 ): string {
   const lines: string[] = [];
-  if (context.sizes.length === 0) lines.push("No sizes ordered yet.");
-  else {
+  if (context.sizes.length === 0) {
+    lines.push("No sizes ordered yet.");
+  } else {
     const parts = context.sizes.map((size) => `Size ${sizeLabel(context, size)}: ${perSize[size]?.summary ?? ""}`);
-    const judged = Object.values(sizes).some((outcomes) => Object.values(outcomes).some((outcome) => outcome !== "not_done"));
     lines.push(`${parts.join("; ")}.`);
+    const judged = Object.values(sizes).some((outcomes) => Object.values(outcomes).some((outcome) => outcome !== "not_done"));
     if (judged) lines.push(`${specText(config, labels)}.`);
   }
   if (!attached) lines.push(`${labelFor(labels, "labReport")} not attached.`);

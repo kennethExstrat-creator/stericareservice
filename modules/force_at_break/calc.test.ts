@@ -67,8 +67,12 @@ describe("force_at_break", () => {
       ordered,
       Object.fromEntries(ordered.map((size) => [size, report.sampling[size]?.physicalTestGloves ?? null])),
     );
+    // The fixture holds the printed median; n is the sampling plan's gloves for FAB.
     const exampleData = Object.fromEntries(
-      ordered.map((size) => [size, { values: readingsWithMedian(report.forceAtBreak[size]!.medianN, readingsFor(exampleContext, FORCE_AT_BREAK_DEFAULT_CONFIG, size)) }]),
+      ordered.map((size) => {
+        const n = readingsFor(exampleContext, FORCE_AT_BREAK_DEFAULT_CONFIG, size);
+        return [size, { values: readingsWithMedian(report.forceAtBreak[size]!.medianN, n) }];
+      }),
     );
 
     it("computes size M's median of 6.537 N from 13 readings: pass at 6 N or more", () => {
