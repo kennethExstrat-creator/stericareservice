@@ -5,6 +5,7 @@ export { StatusIcon, STATUS_ICON } from "./status-icon";
 export { ResultChip } from "./result-chip";
 export { SaveStatus, type SaveState } from "./save-status";
 export { Stepper } from "./stepper";
+export { CountField } from "./count-field";
 export { DefectChip } from "./defect-chip";
 export { DefectChipGroup, type DefectChipItem } from "./defect-chip-group";
 export { NumericCell, type InvalidEntry } from "./numeric-cell";

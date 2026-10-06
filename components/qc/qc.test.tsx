@@ -6,6 +6,7 @@ import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { STATUSES } from "@/lib/design/status";
+import { CountField } from "./count-field";
 import { DefectChip } from "./defect-chip";
 import { DefectChipGroup } from "./defect-chip-group";
 import { MeasurementGrid, type Measure } from "./measurement-grid";
@@ -191,6 +192,44 @@ describe("Stepper", () => {
     const html = renderToStaticMarkup(<Stepper label="Count" value={0} onValueChange={noop} />);
     expect(html).toMatch(/aria-disabled="true"[^>]*aria-label="Decrease Count"|aria-label="Decrease Count"[^>]*aria-disabled="true"/);
     expect(html).not.toMatch(/<button[^>]*disabled=""/);
+  });
+});
+
+describe("CountField", () => {
+  const render = (props: Partial<Parameters<typeof CountField>[0]> = {}) =>
+    renderToStaticMarkup(
+      <CountField label="Pouches failed" name="Pouches failed, Size 7.0" value={null} onValueChange={noop} {...props} />,
+    );
+
+  it("asks for the count with one button while it is not entered, never showing 0", () => {
+    const html = render({ startLabel: "No leaks" });
+    expect(html).toContain('aria-label="No leaks, Pouches failed, Size 7.0"');
+    expect(html).not.toContain('role="spinbutton"');
+    expect(render()).toContain(">Start counting<");
+  });
+
+  it("is a stepper with a way back to not entered once it is", () => {
+    const html = render({ value: 2, max: 13 });
+    expect(html).toContain('role="spinbutton"');
+    expect(html).toContain('aria-valuenow="2"');
+    expect(html).toContain('aria-valuemax="13"');
+    expect(html).toContain('aria-label="Clear Pouches failed, Size 7.0"');
+  });
+
+  it("drops a maximum below the stored count, so the count can still be lowered", () => {
+    expect(render({ value: 5, max: 3 })).not.toContain("aria-valuemax");
+  });
+
+  it("is the number, or a dash, read-only", () => {
+    expect(render({ value: 2, readOnly: true })).not.toContain("<button");
+    expect(render({ value: null, readOnly: true })).toContain("No value");
+  });
+
+  it("shows calc's error in red and warnings in amber, and marks itself for issue links", () => {
+    const html = render({ value: 3, error: "More failed than tested.", warning: "Fewer than planned.", issuePath: ["sizes", "7.0"] });
+    expect(html).toMatch(/class="[^"]*text-fail[^"]*">More failed than tested\./);
+    expect(html).toMatch(/text-warn[\s\S]*<span>Fewer than planned\.<\/span>/);
+    expect(html).toContain('data-issue-path="[&quot;sizes&quot;,&quot;7.0&quot;]"');
   });
 });
 
