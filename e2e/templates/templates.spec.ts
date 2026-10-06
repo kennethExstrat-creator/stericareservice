@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { signIn, TEST_ACCOUNTS } from "../support/session";
 import {
+  activeVersionOf,
   childDefinition,
   expectNoPageScroll,
   fixtureCode,
@@ -182,8 +183,17 @@ test("a template on top of STD_EG checks STD_EG's forms field by field", async (
   await expect(forceAtBreak).toContainText("switched off in this version");
   // The header's PO row reads in this template's wording.
   await expect(checklist.getByText("Manufacturer Information › PO Number").first()).toBeVisible();
-  // Its base has no active version in this project: the page says so.
-  await expect(page.getByRole("note").filter({ hasText: "STD_EG has moved on" })).toBeVisible();
+  // It was built on STD_EG version 1: the page compares that with STD_EG's active version in this project.
+  const stdEgActive = await activeVersionOf("STD_EG");
+  const notActive = page.getByRole("note").filter({ hasText: "STD_EG has no active version" });
+  const movedOn = page.getByRole("note").filter({ hasText: "STD_EG has moved on" });
+  if (stdEgActive === null) {
+    await expect(notActive).toContainText("built on STD_EG version 1, which is not active now");
+  } else if (stdEgActive !== 1) {
+    await expect(movedOn).toContainText(`STD_EG’s active version is now ${stdEgActive}`);
+  } else {
+    await expect(notActive.or(movedOn)).toHaveCount(0);
+  }
 
   if (isTouch()) {
     const tick = checklist.getByRole("checkbox").first();
@@ -205,7 +215,8 @@ test("a draft that never resolved explains itself and cannot be activated", asyn
   const response = await page.goto(`/admin/templates/${unresolved.id}`);
   expect(response?.status()).toBe(200);
 
-  await expect(page.getByRole("note").filter({ hasText: "Not resolved" })).toBeVisible();
+  // By its title: the list of what blocks activation says "has not resolved" too.
+  await expect(page.getByRole("note").filter({ has: page.getByText("Not resolved", { exact: true }) })).toBeVisible();
   await expect(page.getByRole("note").filter({ hasText: "The definition has problems" })).toBeVisible();
   await expect(page.getByText("Nothing to show until this version resolves.")).toBeVisible();
   await expect(page.locator("#coverage")).toContainText("This version has not resolved");
@@ -216,9 +227,16 @@ test("a draft that never resolved explains itself and cannot be activated", asyn
   await expectNoPageScroll(page);
   await shot(page, "version-unresolved");
 
-  // A malformed or unknown id is a 404, not an error.
+  // A malformed or unknown id shows the not-found screen, not an error. The page
+  // looks the id up inside the app's loading boundary (app/(app)/loading.tsx),
+  // after the response has started streaming, so Next answers 200 and marks the
+  // page noindex (Next docs: loading.js, Status Codes); 404 is fine too.
   for (const path of ["/admin/templates/not-an-id", "/admin/templates/00000000-0000-4000-8000-00000000dead"]) {
-    expect((await page.goto(path))?.status(), path).toBe(404);
+    const response = await page.goto(path);
+    expect([200, 404], path).toContain(response?.status());
+    await expect(page.getByRole("heading", { name: "Page not found", level: 1 })).toBeVisible();
+    await expect(page.locator('meta[name="robots"][content*="noindex"]').first()).toBeAttached();
+    await expect(page).toHaveTitle(/Page not found/);
   }
   expect(hydration()).toEqual([]);
 });
@@ -334,6 +352,7 @@ test("a version's life: source file, coverage, activate, frozen by use, retire, 
     await expect(page.getByRole("button", { name: "Activate again" })).toBeEnabled(ACTION);
   });
 
+  let draftId = "";
   await test.step("make a new version: a draft copy that opens in the editor", async () => {
     await page.getByRole("button", { name: "New version" }).click();
     const dialog = page.getByRole("alertdialog");
@@ -348,11 +367,26 @@ test("a version's life: source file, coverage, activate, frozen by use, retire, 
       [2, "draft"],
     ]);
     const [first, second] = versions;
+    draftId = second.id;
     expect(page.url()).toContain(`/admin/templates/${second.id}/edit`);
     // Same definition and source file; coverage is checked again for the new version.
     expect(second.source_file_path).toBe(first.source_file_path);
     expect(second.coverage_confirmed_at).toBeNull();
     expect((second.definition as { name: string }).name).toBe((first.definition as { name: string }).name);
+  });
+
+  await test.step("another new version first points to the open draft", async () => {
+    await page.goto(`/admin/templates/${root.id}`);
+    await page.getByRole("button", { name: "New version" }).click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog).toContainText(`Make version 3 of ${root.code}?`);
+    await expect(dialog).toContainText(`Version 2 is already a draft of ${root.code}`);
+    await expect(dialog.getByRole("link", { name: "open version 2" })).toHaveAttribute("href", `/admin/templates/${draftId}`);
+    await shot(page, "new-version-dialog-draft");
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(dialog).toHaveCount(0);
+    // Focus goes back to the button that opened it.
+    await expect(page.getByRole("button", { name: "New version" })).toBeFocused();
   });
 
   await test.step("the list shows both versions and what uses them", async () => {

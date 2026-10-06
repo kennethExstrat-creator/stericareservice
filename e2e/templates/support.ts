@@ -216,6 +216,18 @@ export async function templatesOfCode(code: string) {
   return data;
 }
 
+/** A code's active version in the live project, or null when it has none. */
+export async function activeVersionOf(code: string): Promise<number | null> {
+  const { data, error } = await createTestAdminClient()
+    .from("templates")
+    .select("version")
+    .eq("code", code)
+    .eq("status", "active")
+    .maybeSingle();
+  if (error) fail(`reading the active version of ${code}`, error);
+  return data?.version ?? null;
+}
+
 /** An inspection by the test inspector that uses the template: the version is frozen from then on. */
 export async function insertInspection(templateId: string): Promise<{ id: string; ref_no: string }> {
   const admin = createTestAdminClient();
