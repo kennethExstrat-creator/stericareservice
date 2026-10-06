@@ -27,6 +27,7 @@ import { Spinner } from "@/components/ui/spinner";
 import {
   chooseTemplate,
   fieldErrorsOf,
+  headerHidesProductName,
   NewInspectionInputSchema,
   NO_CLIENT,
   previousFor,
@@ -117,6 +118,9 @@ export function NewInspectionForm({ role, clients, manufacturers, templates, pre
       : "";
   const choice = picks ? chooseTemplate(templates, { ...picks, templateId: overrideId || undefined }, role) : null;
   const chosen = choice?.ok ? (templates.find((template) => template.id === choice.template.id) ?? null) : null;
+  // The row keeps the header's product name (BUILD_SPEC 6.2 rule 10): a template whose
+  // header has none keeps no name, so the field says so instead of taking one.
+  const nameOff = chosen !== null && chosen.ready && headerHidesProductName(chosen);
 
   /** Field errors and the message from one attempt; the effect below moves focus to them. */
   function settle(result: CreateInspectionState): CreateInspectionState {
@@ -303,7 +307,9 @@ export function NewInspectionForm({ role, clients, manufacturers, templates, pre
                 <Input
                   id={`${id}-product`}
                   name="productName"
-                  value={productName}
+                  // What was typed is kept for a template that has the field again.
+                  value={nameOff ? "" : productName}
+                  disabled={nameOff}
                   onChange={(event) => {
                     setTypedName(event.target.value);
                     setNameFrom(null);
@@ -318,8 +324,10 @@ export function NewInspectionForm({ role, clients, manufacturers, templates, pre
                 {errors.productName ? (
                   <FieldError id={`${id}-product-error`}>{errors.productName}</FieldError>
                 ) : (
-                  <FieldDescription id={`${id}-product-hint`}>
-                    Brand, product code and description, as on the order. You can change it in the header later.
+                  <FieldDescription id={`${id}-product-hint`} data-testid="product-name-hint">
+                    {nameOff
+                      ? "This template's header has no product name, so none is recorded."
+                      : "Brand, product code and description, as on the order. You can change it in the header later."}
                   </FieldDescription>
                 )}
               </Field>

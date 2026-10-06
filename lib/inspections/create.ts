@@ -257,6 +257,15 @@ export function copiedFieldsOff(template: ResolvedTemplate): PreviousCopies {
 }
 
 /**
+ * Whether a template's header switches the product name off (copiedFieldsOff,
+ * as the form gets it). The row repeats the header's product name, so such an
+ * inspection records none, whatever the form says.
+ */
+export function headerHidesProductName(template: { fieldsOff: PreviousCopies }): boolean {
+  return template.fieldsOff.header?.includes("productName") ?? false;
+}
+
+/**
  * What a copy from an earlier inspection puts into a template, as the form
  * shows it before Create: for each copied module the template includes, the
  * fields holding a value that it does not switch off. Without a template,
