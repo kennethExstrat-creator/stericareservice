@@ -75,7 +75,8 @@ export default function Capture({
   const pickStage = (value: string) => {
     const next = isStage(value) ? value : null;
     setStage(next);
-    if (next) onFocusChange?.(stageFocus(next));
+    // A stage picked again is let go: photos taken now are no longer tagged with it.
+    onFocusChange?.(next ? stageFocus(next) : {});
   };
 
   return (

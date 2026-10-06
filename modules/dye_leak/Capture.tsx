@@ -6,7 +6,7 @@
 // config n), "No leaks" records a clean size in one tap, and the stepper
 // counts leaking pouches. Every size tab carries calc's result. Every change
 // goes through useDataUpdater, built from the latest data (edit.ts).
-import { useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -187,13 +187,24 @@ function CountField({
   message?: Issue;
   readOnly: boolean;
 }) {
-  const labelId = useId();
+  const box = useRef<HTMLDivElement>(null);
+  // The start and clear buttons each replace themselves with the other
+  // control: a keyboard user's focus moves on to it instead of being dropped.
+  const refocus = useRef(false);
+  const holdFocus = () => {
+    refocus.current = box.current?.contains(document.activeElement) ?? false;
+  };
+  const entered = value !== null;
+  useEffect(() => {
+    if (!refocus.current) return;
+    refocus.current = false;
+    box.current?.querySelector<HTMLElement>(entered ? '[role="spinbutton"]' : "button")?.focus();
+  }, [entered]);
+
   return (
-    <div className="space-y-1.5" {...issuePathProps(issuePath)}>
+    <div ref={box} className="space-y-1.5" {...issuePathProps(issuePath)}>
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        <span id={labelId} className="text-sm font-medium touch:text-base">
-          {label}
-        </span>
+        <span className="text-sm font-medium touch:text-base">{label}</span>
         {readOnly ? (
           <Figure value={value} className="text-base font-semibold touch:text-lg" />
         ) : value === null ? (
@@ -202,8 +213,12 @@ function CountField({
             variant="outline"
             size="sm"
             className="touch:text-base"
-            aria-describedby={labelId}
-            onClick={() => (onStart ? onStart() : onValueChange(start))}
+            aria-label={`${startLabel}, ${name}`}
+            onClick={() => {
+              holdFocus();
+              if (onStart) onStart();
+              else onValueChange(start);
+            }}
           >
             {startLabel}
           </Button>
@@ -215,7 +230,16 @@ function CountField({
               onValueChange={onValueChange}
               max={max !== undefined && max >= value ? max : undefined}
             />
-            <Button type="button" variant="ghost" size="icon-sm" aria-label={`Clear ${name}`} onClick={() => onValueChange(null)}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`Clear ${name}`}
+              onClick={() => {
+                holdFocus();
+                onValueChange(null);
+              }}
+            >
               <XIcon aria-hidden />
             </Button>
           </div>

@@ -89,6 +89,9 @@ describe("dye_leak capture", () => {
     expect(html).toContain("13 as planned");
     expect(html).toContain("No leaks");
     expect(html).not.toContain('role="spinbutton"');
+    // Named with the count and the size, since every size's buttons may be on screen at once.
+    expect(html).toContain('aria-label="13 as planned, Pouches tested, Size 6.5"');
+    expect(html).toContain('aria-label="No leaks, Pouches failed, Size 7.0"');
   });
 
   it("counts entered values with steppers named by size, and lists the totals", () => {
