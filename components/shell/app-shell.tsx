@@ -14,6 +14,7 @@ import type { ReactNode } from "react";
 import { Logo } from "@/components/brand/logo";
 import { HOME_PATH } from "@/lib/auth/routes";
 import { cn } from "@/lib/utils";
+import { LOGO_TOUCH_TARGET } from "./logo-link";
 import type { NavSection } from "./nav";
 import { SidebarNav, TabNav } from "./nav-list";
 import type { ShellUser } from "./user";
@@ -74,7 +75,7 @@ function TopBar({ user, nav }: { user: ShellUser; nav: readonly NavSection[] }) 
       className="sticky top-0 z-40 border-b border-border bg-card pt-[env(safe-area-inset-top)] xl:hidden"
     >
       <div className="flex h-16 items-center gap-4 pr-[max(1rem,env(safe-area-inset-right))] pl-[max(1.5rem,env(safe-area-inset-left))]">
-        <Logo variant="horizontal" href={HOME_PATH} loading="eager" />
+        <Logo variant="horizontal" href={HOME_PATH} loading="eager" className={LOGO_TOUCH_TARGET} />
         <span aria-hidden className="h-7 w-px shrink-0 bg-border" />
         <TabNav sections={nav} className="min-w-0 flex-1" />
         <UserMenu user={user} variant="bar" />
@@ -90,7 +91,7 @@ function Sidebar({ user, nav }: { user: ShellUser; nav: readonly NavSection[] })
     <div className="hidden w-64 shrink-0 border-r border-border bg-card xl:block">
       <header data-testid="shell-sidebar" className="sticky top-0 flex h-dvh flex-col pt-[env(safe-area-inset-top)]">
         <div className="flex h-16 shrink-0 items-center px-5">
-          <Logo variant="horizontal" href={HOME_PATH} loading="eager" />
+          <Logo variant="horizontal" href={HOME_PATH} loading="eager" className={LOGO_TOUCH_TARGET} />
         </div>
         <SidebarNav sections={nav} className="flex-1 overflow-y-auto px-3 pt-4 pb-6" />
         <div className="shrink-0 border-t border-border p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">

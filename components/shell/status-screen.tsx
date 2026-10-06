@@ -7,6 +7,7 @@ import { Logo } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
 import { HOME_PATH } from "@/lib/auth/routes";
 import { cn } from "@/lib/utils";
+import { LOGO_TOUCH_TARGET } from "./logo-link";
 
 type StatusScreenProps = {
   icon: LucideIcon;
@@ -66,7 +67,7 @@ export function StandaloneFrame({ children }: { children: ReactNode }) {
     <div className="flex min-h-dvh flex-1 flex-col">
       <header className="border-b border-border bg-card pt-[env(safe-area-inset-top)]">
         <div className="flex h-16 items-center pr-[max(1.5rem,env(safe-area-inset-right))] pl-[max(1.5rem,env(safe-area-inset-left))]">
-          <Logo variant="horizontal" href={HOME_PATH} loading="eager" />
+          <Logo variant="horizontal" href={HOME_PATH} loading="eager" className={LOGO_TOUCH_TARGET} />
         </div>
       </header>
       <main
