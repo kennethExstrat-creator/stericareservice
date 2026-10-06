@@ -1,0 +1,129 @@
+// The contract every module implements (BUILD_SPEC 6). A module is plain
+// data and pure functions; its capture UI is loaded separately, so server
+// code, tests and the export never pull in React. docs/MODULES.md explains
+// each member with a worked example.
+import type { ReactNode } from "react";
+import type { z } from "zod";
+import type { FieldType, JsonValue, Unit } from "@/lib/schemas/common";
+import type { ModuleKey, ModuleResult } from "@/lib/schemas/module-result";
+import type { CalcIssue, IssuePath } from "@/lib/validation/issues";
+import type { ContextContribution, InspectionContext } from "./context";
+import type { ModuleEvaluation } from "./evaluate";
+import type { Hand } from "./hands";
+
+export type JsonObject = { [key: string]: JsonValue };
+
+/** A module's saved data, config and labels as calc receives them. */
+export interface CalcInput<TData, TConfig> {
+  /** Saved data parsed by the module's schema; for per-size modules only ordered sizes remain. */
+  readonly data: TData;
+  /** Effective config: module defaults, then the template chain, validated. */
+  readonly config: TConfig;
+  /** Heading and labels in the template's wording, for summaries and messages. */
+  readonly title: string;
+  readonly labels: Readonly<Record<string, string>>;
+  /** Numbers that flow forward: sizes, header, packing, sampling, cartons, indicative weight, AQL. */
+  readonly context: InspectionContext;
+  /** Results of the modules named in `dependsOn` that the inspection includes. */
+  readonly results: Readonly<Partial<Record<ModuleKey, ModuleResult>>>;
+  /** Anything is saved for the module. Without data the framework reports "not done" anyway. */
+  readonly hasData: boolean;
+}
+
+export interface CalcOutput<TComputed extends JsonObject = JsonObject> {
+  /** pass, fail, warn, info or not_done, with a one-line summary and per-size results. */
+  readonly result: ModuleResult;
+  /** Totals, statistics, code letters, limits: never typed by the inspector (6.2 rule 2). Exported. */
+  readonly computed: TComputed;
+  /** Errors block submit; warnings go into the export. The framework adds the module key. */
+  readonly issues: readonly CalcIssue[];
+}
+
+export interface ContributeInput<TData, TConfig> {
+  readonly data: TData;
+  readonly config: TConfig;
+}
+
+/** An entered value a custom field may map to (Field.mapsTo): `modules.<key>.<path>`. */
+export interface CanonicalPath {
+  /** Dot path inside the module's data, e.g. "indicativeWeight". */
+  readonly path: string;
+  readonly label: string;
+  readonly type: FieldType;
+  readonly unit?: Unit;
+}
+
+/** What the inspector has in focus, so a photo taken now is tagged with it (BUILD_SPEC 8.1). */
+export interface CaptureFocus {
+  readonly size?: string;
+  readonly hand?: Hand;
+  /** Defect code. */
+  readonly defect?: string;
+  /** Carton or box number. */
+  readonly box?: number;
+}
+
+/** Props of `modules/<key>/Capture.tsx`. */
+export interface CaptureProps<TData = unknown, TConfig = unknown, TComputed extends JsonObject = JsonObject> {
+  readonly data: TData;
+  readonly config: TConfig;
+  /** Read-only on screen: section and result labels come from the template (6.2 rule 11). */
+  readonly title: string;
+  readonly labels: Readonly<Record<string, string>>;
+  readonly context: InspectionContext;
+  /** The latest result, computed values and issues: live totals, chips and inline errors. */
+  readonly evaluation: ModuleEvaluation<TComputed> | null;
+  /** A data path to scroll to and focus, from a link in the issue list. */
+  readonly focusPath: IssuePath | null;
+  /** Approved, or not the user's to edit. */
+  readonly readOnly: boolean;
+  /** Replace the module's data; the screen saves it. Never store text in a numeric cell. */
+  onChange(next: TData): void;
+  /** Report what is in focus, for photo tags. */
+  onFocusChange?(focus: CaptureFocus): void;
+}
+
+// Method syntax keeps the props parameter bivariant, so a module's own
+// Capture fits the registry's erased type (the React event-handler trick).
+export type CaptureComponent<TData = unknown, TConfig = unknown, TComputed extends JsonObject = JsonObject> = {
+  bivarianceHack(props: CaptureProps<TData, TConfig, TComputed>): ReactNode;
+}["bivarianceHack"];
+
+export interface ModuleDefinition<TData = unknown, TConfig = unknown, TComputed extends JsonObject = JsonObject> {
+  /** Module key (BUILD_SPEC 6.1): the folder name and the key in `data.modules`. */
+  readonly key: ModuleKey;
+  /** Default heading; a template's title replaces it (4.2 rule 3). */
+  readonly title: string;
+  /** Default field labels by canonical key; a template's labels replace them key by key. */
+  readonly labels: Readonly<Record<string, string>>;
+  /** Saved data in `data.modules.<key>`. Draft-tolerant: every value may still be missing. */
+  readonly dataSchema: z.ZodType<TData>;
+  /** A new empty record on every call. */
+  emptyData(): TData;
+  /** Template config. Strict objects, so a mistyped key fails when the template is saved. */
+  readonly configSchema: z.ZodType<TConfig>;
+  /** Config when a template says nothing; templates deep-merge over it. */
+  readonly defaultConfig: TConfig;
+  /** Data is kept per ordered size under `sizes` (only sizes in order_lots, 6.2 rule 4). */
+  readonly perSize: boolean;
+  /** Can record right and left hands apart, switched on by `config.handSplit`. */
+  readonly handSplit: boolean;
+  /** Modules whose results calc reads (`input.results`), computed first; "all" for the conclusion. */
+  readonly dependsOn: readonly ModuleKey[] | "all";
+  /** Entered values a custom field may map to. */
+  readonly canonicalPaths: readonly CanonicalPath[];
+  /** A placeholder from the framework: calc says "Not built yet". */
+  readonly stub: boolean;
+  /** Pure: result, computed values and issues from data, config and context. */
+  calc(input: CalcInput<TData, TConfig>): CalcOutput<TComputed>;
+  /** Pure: what this module adds to the shared context. Only the fields it owns (CONTEXT_SOURCES). */
+  contribute?(input: ContributeInput<TData, TConfig>): ContextContribution;
+  /** The capture UI, loaded on demand: `loadCapture: () => import("./Capture")`. */
+  loadCapture?(): Promise<{ default: CaptureComponent<TData, TConfig, TComputed> }>;
+}
+
+/** A definition with its types erased, as the registry holds it. */
+export type AnyModuleDefinition = ModuleDefinition<unknown, unknown, JsonObject>;
+
+/** Every module key mapped to its definition (modules/registry.ts). */
+export type ModuleRegistry = { readonly [K in ModuleKey]: AnyModuleDefinition };
