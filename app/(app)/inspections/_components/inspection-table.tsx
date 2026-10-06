@@ -1,12 +1,15 @@
 // The list itself. Compact 36 px rows with a mouse, 44 px rows and 16 px text
-// on touch (docs/DESIGN.md). Columns come from lib/inspections/columns.ts:
-// in iPad portrait the PO folds under the ref and the manufacturer under the
-// client; on the iPad the inspector's name (admins only) folds under the date.
+// on touch (docs/DESIGN.md). Columns come from lib/inspections/columns.ts. On
+// the iPad, values without a column of their own fold under another one: the
+// inspector's name (admins only) under the date, the product under the
+// manufacturer; in portrait also the PO under the ref, and the manufacturer
+// and product under the client.
 //
 // The table never scrolls sideways: its layout is fixed, the columns with
 // content of a known size (ref, date, PO, the two pills, inspector) get set
-// widths, and client, manufacturer and product share the rest, truncating
-// long names (the full text is in the tooltip).
+// widths, and client, manufacturer and product share the rest. With a mouse a
+// long name stays on one line with the full text in the tooltip; on touch,
+// where nothing hovers, it wraps onto a second line.
 //
 // Rows are not links yet: /inspections/[id] arrives with capture in Phase 2,
 // which makes the ref open the inspection.
@@ -48,10 +51,17 @@ function Missing({ label }: { label: string }) {
   );
 }
 
+/**
+ * One line and a tooltip with a mouse; up to two lines on touch. Never on an
+ * element that a breakpoint hides: `touch:line-clamp-2` sets `display` and
+ * would show it again.
+ */
+const LONG_TEXT = "block truncate touch:line-clamp-2 touch:whitespace-normal touch:break-words";
+
 function Text({ value, missing }: { value: string | null; missing: string }) {
   if (!value) return <Missing label={missing} />;
   return (
-    <span className="block truncate" title={value}>
+    <span className={LONG_TEXT} title={value}>
       {value}
     </span>
   );
@@ -60,11 +70,10 @@ function Text({ value, missing }: { value: string | null; missing: string }) {
 /** A second line, on screens where the value has no column of its own. */
 function Folded({ until, children }: { until: "lg" | "xl"; children: string }) {
   return (
-    <span
-      className={cn("mt-0.5 block truncate text-sm text-muted-foreground", until === "lg" ? "lg:hidden" : "xl:hidden")}
-      title={children}
-    >
-      {children}
+    <span className={cn("mt-0.5 block text-sm text-muted-foreground", until === "lg" ? "lg:hidden" : "xl:hidden")}>
+      <span className={LONG_TEXT} title={children}>
+        {children}
+      </span>
     </span>
   );
 }
@@ -88,14 +97,22 @@ function cell(key: InspectionColumnKey, row: InspectionListRow): ReactNode {
         </>
       );
     case "client":
+      // iPad portrait: the manufacturer and product columns are hidden.
       return (
         <>
           <Text value={row.client} missing="No client yet" />
           {row.manufacturer && <Folded until="lg">{row.manufacturer}</Folded>}
+          {row.product && <Folded until="lg">{row.product}</Folded>}
         </>
       );
     case "manufacturer":
-      return <Text value={row.manufacturer} missing="No manufacturer yet" />;
+      // iPad landscape: the product column is hidden.
+      return (
+        <>
+          <Text value={row.manufacturer} missing="No manufacturer yet" />
+          {row.product && <Folded until="xl">{row.product}</Folded>}
+        </>
+      );
     case "product":
       return <Text value={row.product} missing="No product yet" />;
     case "po":

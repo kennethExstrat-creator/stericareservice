@@ -1,8 +1,10 @@
 // Where an inspection is in its workflow: draft, submitted, approved,
 // reopened. Deliberately not a StatusPill: the result colours (green, red,
-// amber) stay with the Result column, so an approved inspection that failed
-// never shows a green tick. Shapes differ as well as tones, and every state is
-// spelled out.
+// amber, and the slate dashed ring of Not done) stay with the Result column,
+// so an approved inspection that failed never shows a green tick and a
+// reopened one on hold never shows two amber pills side by side. Workflow
+// states use brand blue and plain slate only; shapes differ as well as tones,
+// and every state is spelled out.
 import { LockIcon, PencilLineIcon, RotateCcwIcon, SendIcon, type LucideIcon } from "lucide-react";
 import { INSPECTION_STATUS_LABEL } from "@/lib/inspections/format";
 import type { InspectionStatus } from "@/lib/schemas/common";
@@ -11,12 +13,12 @@ import { cn } from "@/lib/utils";
 const LOOK: Readonly<Record<InspectionStatus, { icon: LucideIcon; className: string }>> = {
   // Unfinished: dashed, like every other "not done yet" in the app.
   draft: { icon: PencilLineIcon, className: "border-dashed border-slate-400 bg-card text-slate-700" },
-  // Waiting for an admin: the one state that asks for review, in brand blue.
+  // Waiting for an admin to review: brand blue, filled.
   submitted: { icon: SendIcon, className: "border-brand-200 bg-brand-50 text-brand-700" },
   // Final and read-only: quiet, since most rows end up here.
   approved: { icon: LockIcon, className: "border-slate-200 bg-slate-100 text-slate-700" },
-  // Sent back to the inspector: needs attention.
-  reopened: { icon: RotateCcwIcon, className: "border-warn-border bg-warn-tint text-warn" },
+  // Sent back to the inspector to change: brand blue, outlined on white.
+  reopened: { icon: RotateCcwIcon, className: "border-brand-300 bg-card text-brand-700" },
 };
 
 export function InspectionStatusBadge({ status, className }: { status: InspectionStatus; className?: string }) {

@@ -23,6 +23,18 @@ function headers(html: string): string[] {
   return [...html.matchAll(/<th[^>]*scope="col"[^>]*>([^<]*)<\/th>/g)].map((match) => match[1]);
 }
 
+/** The body cells of the first row, in column order. */
+function cells(html: string): string[] {
+  const row = /<tbody[^>]*>(.*?)<\/tbody>/.exec(html)?.[1] ?? "";
+  return [...row.matchAll(/<t[hd]\b[^>]*>(.*?)<\/t[hd]>/g)].map((match) => match[0]);
+}
+
+/** A value folded under another one, shown below the breakpoint `until`. */
+function folded(until: "lg" | "xl", text: string): RegExp {
+  const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`<span class="[^"]*\\b${until}:hidden\\b[^"]*"><span class="[^"]*" title="${escaped}">${escaped}</span></span>`);
+}
+
 describe("InspectionTable", () => {
   it("gives inspectors no Inspector column", () => {
     const html = renderToStaticMarkup(
@@ -36,7 +48,8 @@ describe("InspectionTable", () => {
     const html = renderToStaticMarkup(<InspectionTable rows={[ROW]} role="admin" caption="All inspections" />);
     expect(headers(html).at(-1)).toBe("Inspector");
     expect(html).toMatch(/<th[^>]*class="[^"]*hidden xl:table-cell[^"]*"[^>]*>Inspector<\/th>/);
-    expect(html).toMatch(/class="[^"]*xl:hidden[^"]*" title="Test Inspector">Test Inspector</);
+    const [, date] = cells(html);
+    expect(date).toMatch(folded("xl", "Test Inspector"));
   });
 
   it("makes the ref the row header and writes the date the British way", () => {
@@ -47,12 +60,35 @@ describe("InspectionTable", () => {
     expect(html).toContain('<caption class="sr-only">Your inspections</caption>');
   });
 
-  it("folds the PO and manufacturer under the ref and client for iPad portrait", () => {
+  it("folds the PO, manufacturer and product under the ref and client for iPad portrait", () => {
     const html = renderToStaticMarkup(<InspectionTable rows={[ROW]} role="inspector" caption="Your inspections" />);
-    expect(html).toMatch(/class="[^"]*lg:hidden[^"]*" title="PO PO-0001">PO PO-0001</);
-    expect(html).toMatch(/class="[^"]*lg:hidden[^"]*" title="Manufacturer B · Factory 1">Manufacturer B · Factory 1</);
+    const [ref, , client] = cells(html);
+    expect(ref).toMatch(folded("lg", "PO PO-0001"));
+    expect(client).toMatch(folded("lg", "Manufacturer B · Factory 1"));
+    expect(client).toMatch(folded("lg", "Nitrile examination gloves"));
     expect(html.match(/hidden lg:table-cell/g)).toHaveLength(4); // manufacturer and PO: header and cell
     expect(html.match(/hidden xl:table-cell/g)).toHaveLength(2); // product: header and cell
+  });
+
+  it("folds the product under the manufacturer for iPad landscape, so it shows at every size", () => {
+    const html = renderToStaticMarkup(<InspectionTable rows={[ROW]} role="inspector" caption="Your inspections" />);
+    const [, , , manufacturer, product] = cells(html);
+    expect(manufacturer).toMatch(/^<td[^>]*class="[^"]*hidden lg:table-cell/);
+    expect(manufacturer).toMatch(folded("xl", "Nitrile examination gloves"));
+    expect(product).toMatch(/^<td[^>]*class="[^"]*hidden xl:table-cell/);
+    expect(product).toContain('title="Nitrile examination gloves">Nitrile examination gloves</span>');
+  });
+
+  it("wraps long names onto a second line on touch and keeps one line with a tooltip for a mouse", () => {
+    const html = renderToStaticMarkup(<InspectionTable rows={[ROW]} role="admin" caption="x" />);
+    const [, , client, manufacturer, product, po, , , inspector] = cells(html);
+    for (const cell of [client, manufacturer, product, po, inspector]) {
+      expect(cell).toMatch(
+        /<span class="block truncate touch:line-clamp-2 touch:whitespace-normal touch:break-words" title="[^"]+">/,
+      );
+    }
+    // A breakpoint never hides the element that wraps: touch:line-clamp-2 sets display and would win.
+    expect(html).not.toMatch(/class="[^"]*(lg|xl):hidden[^"]*line-clamp|class="[^"]*line-clamp[^"]*(lg|xl):hidden/);
   });
 
   it("lays the table out at fixed widths so it never scrolls sideways", () => {
@@ -98,9 +134,18 @@ describe("InspectionStatusBadge", () => {
     expect(html).toContain(`<span>${label}</span>`);
   });
 
-  it("keeps the pass, fail and hold colours for results", () => {
-    for (const status of ["draft", "submitted", "approved"] as const) {
-      expect(renderToStaticMarkup(<InspectionStatusBadge status={status} />)).not.toMatch(/(pass|fail|hold)-/);
-    }
+  it.each(["draft", "submitted", "approved", "reopened"] as const)(
+    "keeps the result colours for results: %s uses none of them",
+    (status) => {
+      const html = renderToStaticMarkup(<InspectionStatusBadge status={status} />);
+      expect(html).not.toMatch(/\b(?:text|bg|border|ring|outline|fill|stroke)-(?:pass|fail|warn|hold|info|not-done)\b/);
+    },
+  );
+
+  it("tells the four states apart by look as well as by word", () => {
+    const looks = (["draft", "submitted", "approved", "reopened"] as const).map(
+      (status) => /<span[^>]*class="([^"]*)"/.exec(renderToStaticMarkup(<InspectionStatusBadge status={status} />))?.[1],
+    );
+    expect(new Set(looks).size).toBe(4);
   });
 });
