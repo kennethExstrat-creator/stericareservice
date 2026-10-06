@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { makeStdEgExport } from "@/lib/ai/__fixtures__/std-eg-export";
 import { AiReportResponseSchema } from "@/lib/ai/report";
 import { signWebhookBody, WEBHOOK_HEADERS } from "@/lib/ai/webhook";
@@ -7,6 +7,13 @@ import { GET, POST } from "./route";
 const ORIGIN = "http://localhost:3000";
 const SECRET = "whsec_test_0123456789abcdef";
 const BODY = JSON.stringify(makeStdEgExport());
+
+// The handlers read process.env; start every test from a known state, whatever the shell exports.
+beforeEach(() => {
+  vi.stubEnv("NODE_ENV", "test");
+  vi.stubEnv("ENABLE_MOCK_AI", "");
+  vi.stubEnv("AI_WEBHOOK_SECRET", "");
+});
 
 afterEach(() => {
   vi.unstubAllEnvs();

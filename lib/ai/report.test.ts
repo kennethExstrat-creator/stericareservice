@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as mockReportReceiver } from "@/app/api/dev/mock-ai-report/route";
 import { makeStdEgExport } from "./__fixtures__/std-eg-export";
 import { requestAiReport } from "./report";
@@ -6,6 +6,13 @@ import { WEBHOOK_HEADERS } from "./webhook";
 
 const SECRET = "whsec_test_0123456789abcdef";
 const REPORT_ENV = { AI_REPORT_WEBHOOK_URL: "https://reports.example.com/hook", AI_WEBHOOK_SECRET: SECRET };
+
+// requestAiReport gets its env explicitly; the mock receiver reads process.env, so pin it.
+beforeEach(() => {
+  vi.stubEnv("NODE_ENV", "test");
+  vi.stubEnv("ENABLE_MOCK_AI", "");
+  vi.stubEnv("AI_WEBHOOK_SECRET", "");
+});
 
 afterEach(() => {
   vi.unstubAllEnvs();
