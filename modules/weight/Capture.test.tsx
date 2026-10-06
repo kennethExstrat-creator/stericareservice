@@ -58,7 +58,22 @@ describe("weight capture, 13 gloves per size (STD_EG)", () => {
     expect(tabs[0]).toContain('data-size="M"');
     expect(tags(html, 'data-slot="numeric-cell"')).toHaveLength(13);
     expect(tags(html, 'aria-label="Weight \\(g\\), No. 1"')[0]).toContain('value="2.90"');
-    for (const label of ["Weight (g)", "Average", "Remark"]) expect(html).toContain(`>${label}<`);
+    for (const label of ["Weight (g)", "Average"]) expect(html).toContain(`>${label}<`);
+  });
+
+  it("puts the template's Remark beside the size's result, not on the grid's spec verdict", () => {
+    const footer = /<tfoot[\s\S]*<\/tfoot>/.exec(html)?.[0] ?? "";
+    expect(footer).toContain(">P/F<");
+    expect(footer).not.toContain("Remark");
+    const header = /<header[\s\S]*?<\/header>/.exec(html)?.[0] ?? "";
+    expect(header).toMatch(/>Remark<\/span><span data-slot="status-pill" data-status="warn"/);
+  });
+
+  it("keeps the one column of weights beside its glove numbers", () => {
+    const grid = tags(html, 'data-slot="measurement-grid"')[0];
+    // Narrow, and without the table's 36rem floor, so it cannot scroll sideways.
+    expect(grid).toContain("max-w-md");
+    expect(grid).toContain("[&amp;_table]:min-w-0");
   });
 
   it("shows the deviation from the indicative weight as a warning", () => {
@@ -98,6 +113,13 @@ describe("weight capture, one value per size (SAFEDON_EG)", () => {
     expect(cells.every((cell) => cell.includes('data-enter-group="values"'))).toBe(true);
   });
 
+  it("edges each value cell as MeasurementGrid edges its cells, so an empty one shows where the weight goes", () => {
+    const empty = render("SAFEDON_EG", { sizes: {} }, exampleContext(SAFEDON_EG_EXAMPLE));
+    const cells = Array.from(empty.matchAll(/<td class="([^"]*)"><div data-slot="number-field"/g), (match) => match[1].split(" "));
+    expect(cells).toHaveLength(4);
+    expect(cells.every((classes) => classes.includes("border-x") && classes.includes("border-border"))).toBe(true);
+  });
+
   it("marks the value calc refuses, and lists the problem as a link", () => {
     const zero = render("SAFEDON_EG", { sizes: { ...data.sizes, S: { values: [0] } } }, exampleContext(SAFEDON_EG_EXAMPLE));
     // The cell is drawn in fail red and described by calc's message.
@@ -118,11 +140,27 @@ describe("weight capture, one value per size (SAFEDON_EG)", () => {
     expect(pills.every((pill) => pill.includes("touch:text-base"))).toBe(true);
   });
 
-  it("compares size M with the indicative weight: within the threshold", () => {
+  it("compares size M with the indicative weight: within the threshold, which is no verdict", () => {
     const note = html.slice(html.indexOf('data-slot="weight-deviation"'));
     expect(note).toContain("-0.6");
-    expect(tags(note, 'data-slot="status-pill"')[0]).toContain('data-status="pass"');
+    // A neutral note, not a green Passed beside the size's "A".
+    expect(tags(note, 'data-slot="status-pill"')[0]).toContain('data-status="info"');
+    expect(note).toContain("<span>Within 10%</span>");
+    expect(note).not.toContain("Passed");
     expect(html.match(/data-slot="weight-deviation"/g)).toHaveLength(1);
+  });
+
+  it("offers to remove the values past n, which have no cell, unless read-only", () => {
+    const extra = { sizes: { ...data.sizes, M: { values: [3.18, 3.2] } } };
+    const action = "Remove the values that are not counted";
+    const shown = render("SAFEDON_EG", extra, exampleContext(SAFEDON_EG_EXAMPLE));
+    expect(shown).toContain(`>${action}</button>`);
+    // The button is described by its warning, which names the size.
+    const button = tags(shown, 'data-slot="button"[^>]*aria-describedby')[0];
+    const describedBy = /aria-describedby="([^"]*)"/.exec(button)?.[1];
+    expect(shown).toContain(`<span id="${describedBy}">Size M: values for No. 2 are not counted`);
+    expect(render("SAFEDON_EG", data, exampleContext(SAFEDON_EG_EXAMPLE))).not.toContain(action);
+    expect(render("SAFEDON_EG", extra, exampleContext(SAFEDON_EG_EXAMPLE), { readOnly: true })).not.toContain(action);
   });
 
   it("leaves out the Spec. column when no size has a spec", () => {

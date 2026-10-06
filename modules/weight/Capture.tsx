@@ -7,7 +7,8 @@
 // size of the indicative weight shows its deviation and the warning beyond
 // the threshold (BUILD_SPEC 6.2 rule 9). Every write goes through
 // useDataUpdater, so a column pasted down the sizes, or two commits in one
-// event, all land. Issue links focus the value; photos are tagged with the
+// event, all land. Issue links focus the value; values past n, which have
+// no cell, can be removed from their warning. Photos are tagged with the
 // size in focus.
 import { useId, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import {
@@ -30,12 +31,15 @@ import {
   type InvalidEntry,
   type MeasurementValues,
 } from "@/components/qc";
+// The kit's own touch size for small pills; @/components/qc does not export it yet.
+import { SMALL_PILL_TOUCH } from "@/components/qc/status-pill";
+import { Button } from "@/components/ui/button";
 import { formatNumber, formatSpec } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { ModuleStatus } from "@/lib/schemas";
 import { labelFor, sizeLabel, type CaptureProps, type Labels, type ValidationIssue } from "@/modules/_framework";
 import { indicativeFor, specFor, type WeightComputed } from "./calc";
-import { firstValues, valueChanges, withValues } from "./capture-data";
+import { firstValues, valueChanges, withoutValuesPast, withValues } from "./capture-data";
 import type { WeightConfig } from "./config";
 import type { WeightData } from "./schema";
 
@@ -50,9 +54,10 @@ const READ_ONLY_FRAME = cn(
   "[&_input:disabled]:text-foreground [&_input:disabled]:opacity-100 [&_input:disabled]:[-webkit-text-fill-color:currentColor]",
 );
 
-// A small pill at the touch size (16 px text on iPad), as the kit sizes its
-// own (SMALL_PILL_TOUCH in components/qc/status-pill.tsx, not exported).
-const PILL_TOUCH = "touch:h-8 touch:gap-1.5 touch:px-3 touch:text-base touch:[&>svg]:size-4";
+// MeasurementGrid's table is at least 36rem wide, room for five measures. One
+// column of weights needs far less: without that floor the grid stays beside
+// its glove numbers instead of spreading across a desktop screen.
+const ONE_COLUMN_GRID = "max-w-md [&_table]:min-w-0";
 
 const HEAD = "border-b border-border bg-slate-50 px-3 py-2 font-semibold text-foreground";
 const CELL = "border-b border-border px-3 py-1.5 align-middle touch:py-2";
@@ -85,7 +90,8 @@ function OneValuePerSize({
   const [rejected, setRejected] = useState<Readonly<Record<string, InvalidEntry>>>({});
   useIssueFocus(focusPath, { root });
 
-  if (context.sizes.length === 0) return <NoSizes />;
+  // No size ordered yet: SizeTabs says so, in the kit's words (6.2 rule 4).
+  if (context.sizes.length === 0) return <SizeTabs sizes={context.sizes} value="" onValueChange={() => undefined} />;
   const withSpecs = context.sizes.some((size) => specFor(config, size) !== undefined);
   const inputId = (size: string) => `${idBase}-${size}`;
   const valueOf = (size: string) => data.sizes[size]?.values[0] ?? null;
@@ -139,7 +145,8 @@ function OneValuePerSize({
                   <th scope="row" className={cn(CELL, "text-left font-semibold tabular-nums")}>
                     {sizeLabel(context, size)}
                   </th>
-                  <td className={cn(CELL, "w-40 p-0 touch:py-0")}>
+                  {/* Edged like MeasurementGrid's cells, so an empty value still shows where it goes. */}
+                  <td className={cn(CELL, "w-40 border-x p-0 touch:py-0")}>
                     <NumberField
                       variant="cell"
                       // One column: Enter runs down the sizes, a pasted column fills them.
@@ -177,7 +184,11 @@ function OneValuePerSize({
       {context.sizes.map((size) => (
         <DeviationNote key={size} size={size} config={config} labels={labels} context={context} evaluation={evaluation} />
       ))}
-      <IssueLinks issues={context.sizes.flatMap((size) => inlineIssues(evaluation, size))} root={root} />
+      <IssueLinks
+        issues={context.sizes.flatMap((size) => inlineIssues(evaluation, size))}
+        root={root}
+        onRemoveUncounted={readOnly ? undefined : (size) => update((current) => withoutValuesPast(current, size, config.n))}
+      />
     </div>
   );
 }
@@ -251,6 +262,8 @@ function SizeGrid({
       description={`${labelFor(labels, "average")} of ${config.n} gloves`}
       status={status}
       statusLabel={statusWord(status, labels)}
+      // The template's caption for the size's result ("Remark"), beside it.
+      actions={status && <span className="text-sm text-muted-foreground touch:text-base">{labelFor(labels, "result")}</span>}
       issuePath={["sizes", size]}
     >
       <div
@@ -279,17 +292,23 @@ function SizeGrid({
             values={{ values: shown }}
             onValuesChange={write}
             statistic="average"
+            // The grid's last row is the spec's verdict alone, so it keeps the
+            // kit's "P/F": the template's "Remark" is the size's result.
             labels={{
               row: labelFor(labels, "rowNo"),
               statistic: labelFor(labels, "average"),
               spec: labelFor(labels, "specRow"),
-              result: labelFor(labels, "result"),
             }}
+            className={ONE_COLUMN_GRID}
           />
         </fieldset>
       </div>
       <DeviationNote size={size} config={config} labels={labels} context={context} evaluation={evaluation} />
-      <IssueLinks issues={inlineIssues(evaluation, size)} root={root} />
+      <IssueLinks
+        issues={inlineIssues(evaluation, size)}
+        root={root}
+        onRemoveUncounted={readOnly ? undefined : () => update((current) => withoutValuesPast(current, size, config.n))}
+      />
     </ModuleSection>
   );
 }
@@ -315,10 +334,14 @@ function statusWord(status: ModuleStatus | undefined, labels: Labels): string | 
 
 function ResultPill({ status, labels }: { status: ModuleStatus | undefined; labels: Labels }) {
   const shown = status ?? "not_done";
-  return <StatusPill size="sm" status={shown} label={statusWord(shown, labels)} className={PILL_TOUCH} />;
+  return <StatusPill size="sm" status={shown} label={statusWord(shown, labels)} className={SMALL_PILL_TOUCH} />;
 }
 
-/** "Deviation from indicative weight −17.1% · indicative 3.5 g, threshold 10% · Warning", for that size only. */
+/**
+ * "Deviation from indicative weight −17.1% · indicative 3.5 g, threshold 10% ·
+ * Warning", for that size only. Within the threshold the note says so in a
+ * neutral pill: the deviation is no verdict on the weight, only a spec is.
+ */
 function DeviationNote({
   size,
   config,
@@ -330,6 +353,7 @@ function DeviationNote({
   const deviation = evaluation?.computed.deviationPct?.[size];
   if (!indicative || deviation === undefined) return null;
   const beyond = Math.abs(deviation) > config.warnThresholdPct;
+  const threshold = formatNumber(config.warnThresholdPct, { unit: "%" });
   return (
     <p
       data-slot="weight-deviation"
@@ -340,9 +364,14 @@ function DeviationNote({
       </span>
       <Figure value={deviation} decimals={1} unit="%" className="font-semibold text-foreground" />
       <span className="text-muted-foreground tabular-nums">
-        {`indicative ${formatNumber(indicative.grams, { unit: "g" })}, threshold ${formatNumber(config.warnThresholdPct, { unit: "%" })}`}
+        {`indicative ${formatNumber(indicative.grams, { unit: "g" })}, threshold ${threshold}`}
       </span>
-      <StatusPill size="sm" status={beyond ? "warn" : "pass"} className={PILL_TOUCH} />
+      <StatusPill
+        size="sm"
+        status={beyond ? "warn" : "info"}
+        label={beyond ? undefined : `Within ${threshold}`}
+        className={SMALL_PILL_TOUCH}
+      />
     </p>
   );
 }
@@ -362,36 +391,56 @@ function inlineIssues(evaluation: Props["evaluation"], size: string): Validation
   );
 }
 
-function IssueLinks({ issues, root }: { issues: readonly ValidationIssue[]; root: RefObject<HTMLElement | null> }) {
+function IssueLinks({
+  issues,
+  root,
+  onRemoveUncounted,
+}: {
+  issues: readonly ValidationIssue[];
+  root: RefObject<HTMLElement | null>;
+  /**
+   * Removes a size's values past n. The screen has no cell for them, so this
+   * is the only way to clear calc's warning that they are not counted.
+   */
+  onRemoveUncounted?: (size: string) => void;
+}) {
+  const idBase = useId();
   if (issues.length === 0) return null;
   return (
     <ul className="space-y-1.5" aria-label="Problems with the weights">
-      {issues.map((issue, index) => (
-        <li key={`${issue.code}-${index}`}>
-          <button
-            type="button"
-            onClick={() => root.current && focusIssuePath(root.current, issue.path)}
-            className={cn(
-              "flex min-h-9 w-full items-start gap-2 rounded-md border px-3 py-2 text-left text-sm outline-none focus-ring-inset touch:min-h-11 touch:text-base",
-              issue.level === "error"
-                ? "border-fail-border bg-fail-tint text-fail"
-                : "border-warn-border bg-warn-tint text-warn",
+      {issues.map((issue, index) => {
+        const size = issue.size;
+        const messageId = `${idBase}-${index}`;
+        return (
+          <li key={`${issue.code}-${index}`} className="space-y-1.5">
+            <button
+              type="button"
+              onClick={() => root.current && focusIssuePath(root.current, issue.path)}
+              className={cn(
+                "flex min-h-9 w-full items-start gap-2 rounded-md border px-3 py-2 text-left text-sm outline-none focus-ring-inset touch:min-h-11 touch:text-base",
+                issue.level === "error"
+                  ? "border-fail-border bg-fail-tint text-fail"
+                  : "border-warn-border bg-warn-tint text-warn",
+              )}
+            >
+              <StatusIcon status={issue.level === "error" ? "fail" : "warn"} className="mt-0.5 size-4 shrink-0" />
+              <span id={messageId}>{issue.message}</span>
+            </button>
+            {issue.code === "weight_beyond_n" && size !== undefined && onRemoveUncounted && (
+              // Described by the warning, which names the size and the values.
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-describedby={messageId}
+                onClick={() => onRemoveUncounted(size)}
+              >
+                Remove the values that are not counted
+              </Button>
             )}
-          >
-            <StatusIcon status={issue.level === "error" ? "fail" : "warn"} className="mt-0.5 size-4 shrink-0" />
-            <span>{issue.message}</span>
-          </button>
-        </li>
-      ))}
+          </li>
+        );
+      })}
     </ul>
-  );
-}
-
-/** As SizeTabs says it when no size is ordered (6.2 rule 4). */
-function NoSizes() {
-  return (
-    <p className="rounded-lg border border-dashed border-not-done-border bg-not-done-tint px-4 py-3 text-sm text-not-done touch:text-base">
-      No sizes ordered yet. Add them to the order table first.
-    </p>
   );
 }

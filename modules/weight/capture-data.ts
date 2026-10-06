@@ -1,6 +1,7 @@
 // What the capture screen reads from and writes to the saved data, kept pure
 // so it is tested without a browser: a size's first n values, the values a
-// change touched, and the data with them written in. Writes go through
+// change touched, the data with them written in, and the data without the
+// values past n. Writes go through
 // useDataUpdater (docs/CAPTURE_KIT.md), so each starts from the latest data,
 // never from the data the screen rendered with.
 import type { WeightData } from "./schema";
@@ -47,6 +48,20 @@ export function withValues(current: WeightData, size: string, changes: readonly 
     while (values.length <= index) values.push(null);
     values[index] = value;
   }
+  while (values.length > 0 && values[values.length - 1] === null) values.pop();
+  return { ...current, sizes: { ...current.sizes, [size]: { ...entry, values } } };
+}
+
+/**
+ * The whole data with the size's values past `n` removed, built on `current`:
+ * the values calc says are not counted (weight_beyond_n), which the screen has
+ * no cell for. Empty values at the end go too. Returns `current` itself when
+ * there are none.
+ */
+export function withoutValuesPast(current: WeightData, size: string, n: number): WeightData {
+  const entry = current.sizes[size];
+  if (!entry || entry.values.length <= n) return current;
+  const values = entry.values.slice(0, n);
   while (values.length > 0 && values[values.length - 1] === null) values.pop();
   return { ...current, sizes: { ...current.sizes, [size]: { ...entry, values } } };
 }

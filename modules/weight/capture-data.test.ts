@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { batchDataChanges, createDataUpdater } from "@/components/qc/data-updater";
-import { firstValues, valueChanges, withValues } from "./capture-data";
+import { firstValues, valueChanges, withoutValuesPast, withValues } from "./capture-data";
 import { emptyWeight, WeightDataSchema, type WeightData } from "./schema";
 
 const saved: WeightData = {
@@ -57,6 +57,18 @@ describe("weight capture data", () => {
     expect(withValues(saved, "M", [])).toBe(saved);
     expect(withValues(saved, "M", [{ index: 0, value: 2.9 }])).toBe(saved);
     expect(withValues(saved, "S", [{ index: 0, value: null }])).toBe(saved);
+  });
+
+  it("removes the values past n, which have no cell, and nothing else", () => {
+    const extra: WeightData = { sizes: { ...saved.sizes, M: { values: [3.18, 3.2, null, 3.1] } } };
+    const cut = withoutValuesPast(extra, "M", 1);
+    expect(cut.sizes.M.values).toEqual([3.18]);
+    expect(cut.sizes.XL).toBe(saved.sizes.XL);
+    expect(WeightDataSchema.parse(cut)).toEqual(cut);
+    // Empty values left at the end go too; with nothing past n the data is the same object.
+    expect(withoutValuesPast({ sizes: { M: { values: [null, 3.2] } } }, "M", 1).sizes.M.values).toEqual([]);
+    expect(withoutValuesPast(extra, "M", 4)).toBe(extra);
+    expect(withoutValuesPast(extra, "S", 1)).toBe(extra);
   });
 
   describe("through useDataUpdater (docs/CAPTURE_KIT.md)", () => {
