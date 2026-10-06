@@ -1,15 +1,16 @@
 "use client"
 
-import { useTheme } from "next-themes"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
 
+// The app is light only (docs/DESIGN.md), so the theme is fixed rather than
+// read from next-themes. Rich colours come from the status tokens, never
+// sonner's own palette.
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
-
   return (
     <Sonner
-      theme={theme as ToasterProps["theme"]}
+      theme="light"
+      richColors
       className="toaster group"
       icons={{
         success: (
@@ -34,11 +35,23 @@ const Toaster = ({ ...props }: ToasterProps) => {
           "--normal-text": "var(--popover-foreground)",
           "--normal-border": "var(--border)",
           "--border-radius": "var(--radius)",
+          "--success-bg": "var(--color-pass-tint)",
+          "--success-text": "var(--color-pass)",
+          "--success-border": "var(--color-pass-border)",
+          "--error-bg": "var(--color-fail-tint)",
+          "--error-text": "var(--color-fail)",
+          "--error-border": "var(--color-fail-border)",
+          "--warning-bg": "var(--color-warn-tint)",
+          "--warning-text": "var(--color-warn)",
+          "--warning-border": "var(--color-warn-border)",
+          "--info-bg": "var(--color-info-tint)",
+          "--info-text": "var(--color-info)",
+          "--info-border": "var(--color-info-border)",
         } as React.CSSProperties
       }
       toastOptions={{
         classNames: {
-          toast: "cn-toast",
+          toast: "font-sans text-sm",
         },
       }}
       {...props}
