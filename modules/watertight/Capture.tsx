@@ -331,7 +331,7 @@ function TestedField({
         integer
         min={2}
         error={error}
-        hint={warnings.length > 0 ? <WarningNotes messages={warnings} /> : undefined}
+        warning={warnings}
         issuePath={[...path, "tested"]}
         readOnly={readOnly}
         onFocus={onFocus}
@@ -355,15 +355,6 @@ function TestedField({
       )}
     </div>
   );
-}
-
-/** calc's warnings about a field, in amber: NumberField's hint, so they describe the field. */
-function WarningNotes({ messages }: { messages: readonly string[] }) {
-  return messages.map((message) => (
-    <span key={message} className="block text-warn">
-      {message}
-    </span>
-  ));
 }
 
 /** Where the holes counted under "Other :" were, for one size (and hand). */

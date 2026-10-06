@@ -318,7 +318,7 @@ function ClassSection({
                 integer
                 min={2}
                 error={messagesAt(path, "error")[0] ?? null}
-                hint={warnings.length > 0 ? <WarningNotes messages={warnings} /> : undefined}
+                warning={warnings}
                 issuePath={path}
                 readOnly={readOnly}
                 onFocus={() => onFocusChange?.({ size: entry })}
@@ -366,13 +366,4 @@ function ClassSection({
       />
     </ModuleSection>
   );
-}
-
-/** calc's warnings about a field, in amber: NumberField's hint, so they describe the field. */
-function WarningNotes({ messages }: { messages: readonly string[] }) {
-  return messages.map((message) => (
-    <span key={message} className="block text-warn">
-      {message}
-    </span>
-  ));
 }

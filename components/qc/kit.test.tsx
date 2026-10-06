@@ -480,6 +480,42 @@ describe("NumberField", () => {
     expect(html).toContain("border-destructive");
   });
 
+  it("shows calc's warnings in amber below, one line each, and describes the field with them", () => {
+    const html = renderToStaticMarkup(
+      <NumberField
+        id="tested"
+        label="No. of sample tested"
+        value={315}
+        warning={["315 is below the plan's 500.", "Too small for AQL 0.65."]}
+        onValueChange={noop}
+      />,
+    );
+    expect(html).toContain('aria-describedby="tested-calc-warning"');
+    const block = /<div id="tested-calc-warning"[\s\S]*?<\/div>/.exec(html)?.[0] ?? "";
+    expect(block).toContain("text-warn");
+    expect(block.match(/<p /g)).toHaveLength(2);
+    expect(block.match(/lucide-triangle-alert/g)).toHaveLength(2);
+    expect(html).toContain("border-warn-solid");
+    expect(html).not.toMatch(/[\s"]border-destructive[\s"]/);
+  });
+
+  it("puts an error before the warnings, and its red edge wins", () => {
+    const html = renderToStaticMarkup(
+      <NumberField id="w" label="Weight" value={0} error="Must be more than 0 g." warning="Far from the indicative weight." onValueChange={noop} />,
+    );
+    expect(html).toContain('aria-describedby="w-calc-error w-calc-warning"');
+    expect(html).toMatch(/[\s"]border-destructive[\s"]/);
+    expect(html).not.toContain("border-warn-solid");
+  });
+
+  it("keeps a warning in a cell for screen readers, on an amber tint", () => {
+    const html = renderToStaticMarkup(
+      <NumberField id="q" variant="cell" label="Qty, size M" value={12} warning="More than ordered." onValueChange={noop} />,
+    );
+    expect(html).toContain('<span id="q-calc-warning" class="sr-only">More than ordered.</span>');
+    expect(html).toContain("bg-warn-tint");
+  });
+
   it("names a table cell for screen readers, with its unit", () => {
     const html = renderToStaticMarkup(
       <NumberField variant="cell" label="Weight, glove 3" unit="g" value={null} onValueChange={noop} />,

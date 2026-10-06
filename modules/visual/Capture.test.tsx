@@ -161,10 +161,11 @@ describe("visual capture", () => {
 
   it("says under a class's gloves inspected what calc found there, warnings in amber", () => {
     const html = render({ sizes: { M: { ...inspectedAll(500), minor: { inspected: 315 } } }, context: M_500() });
-    expect(html).toContain(
-      '<span class="block text-warn">Size M, Minor Defects: No. of sample inspected is 315, but the sampling plan has 500 gloves for watertight and visual.</span>',
+    const blocks = Array.from(html.matchAll(/<div id="[^"]*-calc-warning"[^>]*text-warn[^>]*>[\s\S]*?<\/div>/g), (match) => match[0]);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toContain(
+      "<span>Size M, Minor Defects: No. of sample inspected is 315, but the sampling plan has 500 gloves for watertight and visual.</span>",
     );
-    expect(html.match(/block text-warn/g)).toHaveLength(1);
   });
 
   it("shows the tab's fields, and every size's only where SizeTabs puts the sizes side by side", () => {

@@ -149,11 +149,14 @@ describe("watertight capture", () => {
   it("says under the gloves tested what calc found: errors in red, warnings in amber", () => {
     const context = makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ watertightVisual: 50 }) } });
     const short = render({ sizes: { M: { tested: 50 } }, context, config: { ...WATERTIGHT_DEFAULT_CONFIG, aql: 0.65 } });
-    expect(short).toMatch(/<span class="block text-warn">Size M: A sample of 50 is too small for AQL 0\.65/);
+    const warnings = (html: string) => /<div id="[^"]*-calc-warning"[^>]*text-warn[^>]*>[\s\S]*?<\/div>/.exec(html)?.[0] ?? "";
+    expect(warnings(short)).toMatch(/<span>Size M: A sample of 50 is too small for AQL 0\.65/);
     const unplanned = render({ sizes: { M: { tested: 315 } }, context: M_500() });
-    expect(unplanned).toContain(
-      '<span class="block text-warn">Size M: No. of sample tested is 315, but the sampling plan has 500 gloves for watertight and visual.</span>',
+    expect(warnings(unplanned)).toContain(
+      "<span>Size M: No. of sample tested is 315, but the sampling plan has 500 gloves for watertight and visual.</span>",
     );
+    // The field is described by them.
+    expect(unplanned).toMatch(/<input[^>]*aria-describedby="[^"]*-calc-warning"/);
     const tooFew = render({ sizes: { M: { tested: 1 } }, context: M_500() });
     expect(tooFew).toMatch(/class="text-sm text-fail[^"]*">Size M: No\. of sample tested must be at least 2 for an AQL plan\.</);
   });

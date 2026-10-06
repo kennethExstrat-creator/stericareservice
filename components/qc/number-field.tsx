@@ -4,8 +4,8 @@
 // "Speed"), built on NumericCell: the numeric keypad (inputmode=decimal),
 // strict parsing through lib/stats ("2 42" and text are rejected and never
 // stored: the value becomes null and the text stays on screen with its
-// error), min/max, a unit suffix, whole numbers only with `integer`, and an
-// error from calc below the field. Fields inside one EnterGroup (or sharing
+// error), min/max, a unit suffix, whole numbers only with `integer`, and
+// calc's error (red) or warnings (amber) below the field. Fields inside one EnterGroup (or sharing
 // a `group` name) work as a run: Enter moves to the next field, Shift+Enter
 // back, and pasting a column of values fills this field and the ones after.
 // A paste is one change: each field stores its value by its own rules inside
@@ -40,6 +40,7 @@ import {
 import { issuePathProps, type IssuePath } from "./issue-path";
 import { NumericCell, type InvalidEntry } from "./numeric-cell";
 import { readEntry } from "./numeric-entry";
+import { StatusIcon } from "./status-icon";
 import { useAnnouncement } from "./use-announcement";
 
 const InGroup = createContext(false);
@@ -76,6 +77,12 @@ export type NumberFieldProps = {
   hint?: ReactNode;
   /** A problem calc found with the stored value, e.g. "Below the 70% minimum." */
   error?: string | null;
+  /**
+   * calc's warnings about the stored value, in amber below the field (one
+   * line each) and in its description: allowed, but the reviewer must see
+   * them, e.g. a packing count that does not match or a sample below the plan.
+   */
+  warning?: string | readonly string[] | null;
   /** "field" has its label above; "cell" sits in a table cell (label for screen readers). */
   variant?: "field" | "cell";
   /** Fields with the same name form a run inside the nearest EnterGroup, e.g. one table column. */
@@ -110,6 +117,7 @@ export function NumberField({
   decimals,
   hint,
   error,
+  warning,
   variant = "field",
   group,
   readOnly = false,
@@ -124,6 +132,7 @@ export function NumberField({
   const inputId = id ?? fallbackId;
   const hintId = `${inputId}-hint`;
   const errorId = `${inputId}-calc-error`;
+  const warningId = `${inputId}-calc-warning`;
   const inGroup = useContext(InGroup) || group !== undefined;
   const input = useRef<HTMLInputElement>(null);
   const [ownInvalid, setOwnInvalidState] = useState<InvalidEntry | null>(null);
@@ -136,6 +145,8 @@ export function NumberField({
   // A rejected entry leaves the value null; a value set later (a prefill) supersedes it.
   const invalid = value === null ? ownInvalid : null;
   const calcError = !invalid && error ? error : null;
+  // About the stored value, so they wait while a rejected entry shows instead.
+  const warnings = invalid ? [] : (typeof warning === "string" ? [warning] : (warning ?? [])).filter((text) => text !== "");
 
   const read = (raw: string): ParseDecimalResult => {
     const parsed = readEntry(raw, { min, max, minExclusive });
@@ -217,7 +228,11 @@ export function NumberField({
 
   const name = labelText(label, unit);
 
-  const describedBy = [hint && variant === "field" ? hintId : null, calcError ? errorId : null]
+  const describedBy = [
+    hint && variant === "field" ? hintId : null,
+    calcError ? errorId : null,
+    warnings.length > 0 ? warningId : null,
+  ]
     .filter(Boolean)
     .join(" ");
 
@@ -247,10 +262,11 @@ export function NumberField({
       data-enter-field=""
       data-enter-group={group ?? ""}
       className={cn(
-        calcError &&
-          (variant === "field"
+        calcError
+          ? variant === "field"
             ? "border-destructive ring-3 ring-destructive/20"
-            : "bg-fail-tint text-fail ring-2 ring-fail ring-inset"),
+            : "bg-fail-tint text-fail ring-2 ring-fail ring-inset"
+          : warnings.length > 0 && (variant === "field" ? "border-warn-solid" : "bg-warn-tint"),
       )}
     />
   );
@@ -282,6 +298,11 @@ export function NumberField({
             {calcError}
           </span>
         )}
+        {warnings.length > 0 && (
+          <span id={warningId} className="sr-only">
+            {warnings.join(" ")}
+          </span>
+        )}
         {live}
       </div>
     );
@@ -302,6 +323,16 @@ export function NumberField({
         <p id={errorId} className="text-sm text-fail touch:text-base">
           {calcError}
         </p>
+      )}
+      {warnings.length > 0 && (
+        <div id={warningId} data-slot="field-warnings" className="space-y-1 text-sm text-warn touch:text-base">
+          {warnings.map((message) => (
+            <p key={message} className="flex items-start gap-1.5">
+              <StatusIcon status="warn" className="mt-0.5 size-4 shrink-0 touch:mt-1" />
+              <span>{message}</span>
+            </p>
+          ))}
+        </div>
       )}
       {live}
     </div>
