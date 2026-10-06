@@ -100,6 +100,20 @@ describe("dimensions capture", () => {
     expect(tags(html, 'aria-label="Problems in this size"')).toHaveLength(1);
   });
 
+  it("offers to remove the readings past the planned gloves, which have no row, unless read-only", () => {
+    // The sampling plan went down to 10 gloves after 13 were measured.
+    const planned = makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ dimensions: 10 }) } });
+    const action = "Remove the readings that are not counted";
+    const html = render("STD_EG", stdEg, planned);
+    expect(html).toContain(`>${action}</button>`);
+    // The button is described by its warning, which names the size and the gloves.
+    const button = tags(html, 'data-slot="button"[^>]*aria-describedby')[0];
+    const describedBy = /aria-describedby="([^"]*)"/.exec(button)?.[1];
+    expect(html).toContain(`<span id="${describedBy}">Size M: readings for No. 11 to 13 are not counted`);
+    expect(render("STD_EG", stdEg, exampleContext(STD_EG_EXAMPLE))).not.toContain(action);
+    expect(render("STD_EG", stdEg, planned, { readOnly: true })).not.toContain(action);
+  });
+
   it("stops every edit when read-only", () => {
     const fieldset = (readOnly: boolean) =>
       /<fieldset[^>]*>/.exec(render("STD_EG", stdEg, exampleContext(STD_EG_EXAMPLE), { readOnly }))?.[0];

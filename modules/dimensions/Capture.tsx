@@ -7,8 +7,9 @@
 // type. Enter walks down a column and a pasted column fills down (the grid's
 // own rules); every write goes through useDataUpdater, so a paste or two
 // commits in one event all land. Issue links switch to the size and focus
-// the cell; photos are tagged with the size in view.
-import { useLayoutEffect, useRef, useState, type RefObject } from "react";
+// the cell; readings past the planned gloves, which have no row, can be
+// removed from their warning. Photos are tagged with the size in view.
+import { useId, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import {
   focusIssuePath,
   issuePathProps,
@@ -22,10 +23,11 @@ import {
   type Measure as GridMeasure,
   type MeasurementValues,
 } from "@/components/qc";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { labelFor, sizeLabel, type CaptureProps, type Labels, type ValidationIssue } from "@/modules/_framework";
 import { rowsFor, specFor, type DimensionsComputed } from "./calc";
-import { cellPath, gridChanges, gridColumns, sizeHeading, withReadings } from "./capture-data";
+import { cellPath, gridChanges, gridColumns, sizeHeading, withoutGlovesPast, withReadings } from "./capture-data";
 import type { DimensionsConfig, Measure } from "./config";
 import type { DimensionsData } from "./schema";
 
@@ -145,7 +147,11 @@ function SizeGrid({
           />
         </fieldset>
       </div>
-      <IssueLinks issues={issues} root={root} />
+      <IssueLinks
+        issues={issues}
+        root={root}
+        onRemoveUncounted={readOnly ? undefined : () => update((current) => withoutGlovesPast(current, size, rows))}
+      />
     </ModuleSection>
   );
 }
@@ -176,12 +182,26 @@ function useCellIssuePaths(grid: RefObject<HTMLElement | null>, size: string, me
 }
 
 /** calc's issues for the size in view, each a link back to its cell. */
-function IssueLinks({ issues, root }: { issues: readonly ValidationIssue[]; root: RefObject<HTMLElement | null> }) {
+function IssueLinks({
+  issues,
+  root,
+  onRemoveUncounted,
+}: {
+  issues: readonly ValidationIssue[];
+  root: RefObject<HTMLElement | null>;
+  /**
+   * Removes the gloves past the grid's rows. The grid has no row for them
+   * (the sampling plan's n went down), so this is the only way to clear
+   * calc's warning that they are not counted.
+   */
+  onRemoveUncounted?: () => void;
+}) {
+  const idBase = useId();
   if (issues.length === 0) return null;
   return (
     <ul className="space-y-1.5" aria-label="Problems in this size">
       {issues.map((issue, index) => (
-        <li key={`${issue.code}-${index}`}>
+        <li key={`${issue.code}-${index}`} className="space-y-1.5">
           <button
             type="button"
             onClick={() => root.current && focusIssuePath(root.current, issue.path)}
@@ -193,8 +213,20 @@ function IssueLinks({ issues, root }: { issues: readonly ValidationIssue[]; root
             )}
           >
             <StatusIcon status={issue.level === "error" ? "fail" : "warn"} className="mt-0.5 size-4 shrink-0" />
-            <span>{issue.message}</span>
+            <span id={`${idBase}-${index}`}>{issue.message}</span>
           </button>
+          {issue.code === "dimension_beyond_sample" && onRemoveUncounted && (
+            // Described by the warning, which names the size and the gloves.
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-describedby={`${idBase}-${index}`}
+              onClick={onRemoveUncounted}
+            >
+              Remove the readings that are not counted
+            </Button>
+          )}
         </li>
       ))}
     </ul>

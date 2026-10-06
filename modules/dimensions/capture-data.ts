@@ -1,6 +1,7 @@
 // What the capture screen reads from and writes to the saved data, kept pure
 // so it is tested without a browser: a size's readings as grid columns, the
-// readings a grid change touched, and the data with them written in. Writes
+// readings a grid change touched, the data with them written in, and the data
+// without the gloves past the grid's rows. Writes
 // go through useDataUpdater (docs/CAPTURE_KIT.md), so each starts from the
 // latest data, never from the data the grid rendered with.
 import type { Measure } from "./config";
@@ -59,6 +60,20 @@ export function withReadings(current: DimensionsData, size: string, changes: rea
     while (gloves.length <= row) gloves.push(emptyGlove());
     gloves[row] = { ...gloves[row], [measure]: value };
   }
+  while (gloves.length > 0 && isEmpty(gloves[gloves.length - 1])) gloves.pop();
+  return { ...current, sizes: { ...current.sizes, [size]: { ...entry, gloves } } };
+}
+
+/**
+ * The whole data with the size's gloves past `rows` removed, built on
+ * `current`: the readings calc says are not counted (dimension_beyond_sample),
+ * which the grid has no row for, on every measure. Empty gloves at the end go
+ * too. Returns `current` itself when there are none.
+ */
+export function withoutGlovesPast(current: DimensionsData, size: string, rows: number): DimensionsData {
+  const entry = current.sizes[size];
+  if (!entry || entry.gloves.length <= rows) return current;
+  const gloves = entry.gloves.slice(0, rows);
   while (gloves.length > 0 && isEmpty(gloves[gloves.length - 1])) gloves.pop();
   return { ...current, sizes: { ...current.sizes, [size]: { ...entry, gloves } } };
 }

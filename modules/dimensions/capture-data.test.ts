@@ -1,8 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { batchDataChanges, createDataUpdater } from "@/components/qc/data-updater";
-import { makeTestContext } from "@/modules/_framework/testing";
+import { makeSampling, makeTestContext } from "@/modules/_framework/testing";
 import { calcDimensions } from "./calc";
-import { cellPath, gridChanges, gridColumns, sizeHeading, withReadings, type GridColumns } from "./capture-data";
+import {
+  cellPath,
+  gridChanges,
+  gridColumns,
+  sizeHeading,
+  withoutGlovesPast,
+  withReadings,
+  type GridColumns,
+} from "./capture-data";
 import { DIMENSIONS_DEFAULT_CONFIG, DIMENSIONS_LABELS, MEASURES, type Measure } from "./config";
 import { DimensionsDataSchema, emptyDimensions, emptyGlove, type DimensionsData } from "./schema";
 
@@ -94,6 +102,38 @@ describe("dimensions capture data", () => {
     expect(withReadings(saved, "M", [])).toBe(saved);
     expect(withReadings(saved, "M", [{ row: 0, measure: "length", value: 245 }])).toBe(saved);
     expect(withReadings(saved, "S", [{ row: 4, measure: "width", value: null }])).toBe(saved);
+  });
+
+  it("removes the gloves past the grid's rows, every measure of them, and nothing else", () => {
+    const thirteen: DimensionsData = {
+      sizes: {
+        ...saved.sizes,
+        M: { gloves: Array.from({ length: 13 }, (_, row) => ({ ...emptyGlove(), length: 240 + row, cuffThickness: 0.04 })) },
+      },
+    };
+    const cut = withoutGlovesPast(thirteen, "M", 10);
+    expect(cut.sizes.M.gloves).toEqual(thirteen.sizes.M.gloves.slice(0, 10));
+    expect(cut.sizes.XL).toBe(saved.sizes.XL);
+    expect(DimensionsDataSchema.parse(cut)).toEqual(cut);
+    // calc's warning about them goes with them.
+    const planned = makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ dimensions: 10 }) } });
+    const codes = (data: DimensionsData) =>
+      calcDimensions({
+        data,
+        config: DIMENSIONS_DEFAULT_CONFIG,
+        title: "Dimension",
+        labels: DIMENSIONS_LABELS,
+        context: planned,
+        results: {},
+        hasData: true,
+      }).issues.map((issue) => issue.code);
+    expect(codes(thirteen)).toEqual(["dimension_beyond_sample"]);
+    expect(codes(cut)).toEqual([]);
+    // Empty gloves left at the end go too; with nothing past the rows the data is the same object.
+    const gap = { sizes: { M: { gloves: [{ ...emptyGlove(), length: 245 }, emptyGlove(), { ...emptyGlove(), length: 250 }] } } };
+    expect(withoutGlovesPast(gap, "M", 2).sizes.M.gloves).toEqual([{ ...emptyGlove(), length: 245 }]);
+    expect(withoutGlovesPast(thirteen, "M", 13)).toBe(thirteen);
+    expect(withoutGlovesPast(thirteen, "S", 0)).toBe(thirteen);
   });
 
   describe("through useDataUpdater (docs/CAPTURE_KIT.md)", () => {
