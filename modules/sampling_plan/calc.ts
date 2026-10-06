@@ -178,12 +178,13 @@ function checkSize({ size, row, config, level, labels, context }: SizeCheckInput
     });
   }
 
+  // The sample's issues carry lib/aql's codes, as watertight and visual pass them on for their own n.
   const sample = value("glovesWatertightVisual");
   let sampleCodeLetter: CodeLetter | null = null;
   if (sample !== null && sample < MIN_SAMPLE) {
     findings.push({
       level: "error",
-      code: "sample_size_invalid",
+      code: "invalid_sample_size",
       column: "glovesWatertightVisual",
       brief: `${label("glovesWatertightVisual")} ${sample} is below ${MIN_SAMPLE}`,
       detail: `${counted(sample, "glove")} sampled; an ISO 2859-1 sample has at least ${MIN_SAMPLE}.`,
@@ -194,7 +195,7 @@ function checkSize({ size, row, config, level, labels, context }: SizeCheckInput
       const standard = formatCount(SAMPLE_SIZES[sampleCodeLetter]);
       findings.push({
         level: "warning",
-        code: "sample_nonstandard",
+        code: "nonstandard_sample",
         column: "glovesWatertightVisual",
         brief: `${formatCount(sample)} is not a standard sample size (read as code ${sampleCodeLetter}, n ${standard})`,
         detail: `${formatCount(sample)} is not a standard sample size, so it is read as code letter ${sampleCodeLetter} (n ${standard}), the largest standard sample size below it.`,

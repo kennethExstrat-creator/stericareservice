@@ -255,7 +255,7 @@ describe("sampling_plan", () => {
     expect(output.issues).toEqual([
       {
         level: "warning",
-        code: "sample_nonstandard",
+        code: "nonstandard_sample",
         message:
           "Size M, # gloves for watertight & Visual: 100 is not a standard sample size, so it is read as code letter J (n 80), the largest standard sample size below it.",
         size: "M",
@@ -264,7 +264,7 @@ describe("sampling_plan", () => {
     ]);
     // Below a level's plan too: both are flagged.
     const both = calcSamplingPlan(input({ M: { ...ROW_M, glovesWatertightVisual: 400 } }, LEVEL_I));
-    expect(both.issues.map((issue) => issue.code)).toEqual(["sample_nonstandard", "sample_below_plan"]);
+    expect(both.issues.map((issue) => issue.code)).toEqual(["nonstandard_sample", "sample_below_plan"]);
     expect(calcSamplingPlan(input({ M: { ...ROW_M, glovesWatertightVisual: 2500 } })).computed.sizes.M.sampleCodeLetter).toBe("R");
   });
 
@@ -284,7 +284,7 @@ describe("sampling_plan", () => {
       },
       {
         level: "error",
-        code: "sample_size_invalid",
+        code: "invalid_sample_size",
         message: "Size M, # gloves for watertight & Visual: 1 glove sampled; an ISO 2859-1 sample has at least 2.",
         size: "M",
         path: ["sizes", "M", "glovesWatertightVisual"],
