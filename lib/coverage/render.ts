@@ -7,8 +7,9 @@ import { formatSpec } from "@/lib/stats/spec";
 import { SAFEDON_DISPENSING_DEFECTS, STICKINESS_CODES, VISUAL_DEFECTS, WATERTIGHT_LOCATIONS } from "./defects";
 import { moduleSpec, moduleTitle, VALIDATION_RULES } from "./fields";
 import { DEFECT_CLASSES, MEASURES } from "./keys";
+import { diffPaths } from "./merge";
 import { SOURCE_DOCUMENTS, sourceFields } from "./sources";
-import { labelOverrides, TEMPLATES, type TemplateModule, type TemplateSpec } from "./templates";
+import { labelOverrides, seedConfig, TEMPLATES, type TemplateModule, type TemplateSpec } from "./templates";
 import {
   isConfigTarget,
   isCustomTarget,
@@ -120,7 +121,7 @@ function moduleSection(key: ModuleKey): string {
         spec.config.map((config) => [
           code(config.key),
           cell(config.type),
-          config.default === undefined ? "" : json(config.default),
+          config.defaultNote === undefined ? json(config.default) : cell(config.defaultNote),
           cell(config.meaning),
         ]),
       ),
@@ -178,13 +179,11 @@ function configSummary(module: TemplateModule): string {
     case "sampling_plan":
       return `columns off: ${onOff(module.config.columns, false).join(", ") || "none"}; inspection level ${module.config.inspectionLevel ?? "none (to confirm)"}`;
     case "dimensions": {
-      const decimals = Object.entries(module.config.decimals)
-        .map(([measure, places]) => `${measure} ${places}`)
-        .join(", ");
-      return `${module.config.statistic ?? "statistic to confirm"} of ${module.config.rows} gloves; measures ${module.config.measures.join(", ")}; decimals ${decimals || "to confirm"}; specs ${module.config.specs ? "below" : "to confirm"}`;
+      const decimals = module.config.measures.map((measure) => `${measure} ${module.config.decimals[measure]}`).join(", ");
+      return `${module.config.statistic} of ${module.config.rows} gloves; measures ${module.config.measures.join(", ")}; decimals ${decimals}; specs ${module.config.specs.length ? `for ${module.config.specs.map((row) => row.size).join(", ")}, below` : "none"}`;
     }
     case "weight":
-      return `${count(module.config.n, "value", "values")} per size; spec ${module.config.specs ? "per size, below" : "none (info)"}; warn beyond ${module.config.warnThresholdPct}%; ${module.config.decimals} decimals`;
+      return `${count(module.config.n, "value", "values")} per size; spec ${module.config.specs.length ? "per size, below" : "none (info)"}; warn beyond ${module.config.warnThresholdPct}%; ${module.config.decimals} decimals`;
     case "force_at_break":
       return `${module.config.n} readings per size; median ≥ ${module.config.specMin} N; ${module.config.decimals} decimals; standard label ${module.config.standardLabel ?? "none"}`;
     case "tensile":
@@ -229,9 +228,9 @@ function configSummary(module: TemplateModule): string {
 
 function specTable(template: TemplateSpec): string | null {
   const dimensions = template.modules.find((module) => module.key === "dimensions");
-  if (!dimensions || dimensions.key !== "dimensions" || !dimensions.config.specs) return null;
+  if (!dimensions || dimensions.key !== "dimensions" || dimensions.config.specs.length === 0) return null;
   const measures = MEASURES.filter((measure) => dimensions.config.measures.includes(measure));
-  const rows = Object.entries(dimensions.config.specs).map(([size, specs]) => [
+  const rows = dimensions.config.specs.map(({ size, specs }) => [
     size,
     ...measures.map((measure) => {
       const spec = specs[measure];
@@ -240,12 +239,12 @@ function specTable(template: TemplateSpec): string | null {
   ]);
   const weight = template.modules.find((module) => module.key === "weight");
   const lines = [
-    `Dimension specs (mm, ${dimensions.config.statistic}):`,
+    `Dimension specs (mm, ${dimensions.config.statistic}; a size without a row is not judged):`,
     "",
     table(["Size", ...measures], rows),
   ];
-  if (weight && weight.key === "weight" && weight.config.specs) {
-    const specs = Object.entries(weight.config.specs).map(([size, spec]) => `${size} ${formatSpec(spec)}`);
+  if (weight && weight.key === "weight" && weight.config.specs.length) {
+    const specs = weight.config.specs.map(({ size, spec }) => `${size} ${formatSpec(spec)}`);
     lines.push("", `Weight specs: ${specs.join(", ")}.`);
   }
   return lines.join("\n");
@@ -258,17 +257,14 @@ function differences(template: TemplateSpec, base: TemplateSpec): string[] {
   const removed = baseKeys.filter((key) => !keys.includes(key));
   const added = keys.filter((key) => !baseKeys.includes(key));
   if (removed.length || added.length) {
-    lines.push(`Modules: ${added.map(code).join(", ")} instead of ${removed.map(code).join(", ")}, in the same places.`);
+    lines.push(
+      `Modules: ${added.map(code).join(", ")} instead of ${removed.map(code).join(", ")}, in the same places; the added modules' config is written whole.`,
+    );
   }
   for (const entry of template.modules) {
-    const parent = base.modules.find((item) => item.key === entry.key);
-    if (!parent) continue;
-    const changed = Object.keys(entry.config).filter(
-      (key) =>
-        JSON.stringify((entry.config as Record<string, unknown>)[key]) !==
-        JSON.stringify((parent.config as Record<string, unknown>)[key]),
-    );
-    if (changed.length) lines.push(`${code(entry.key)} config: ${changed.map(code).join(", ")}.`);
+    if (!baseKeys.includes(entry.key)) continue;
+    const paths = diffPaths(seedConfig(template.code, entry.key) ?? {});
+    if (paths.length) lines.push(`${code(entry.key)} config: ${paths.map(code).join(", ")}.`);
   }
   for (const key of keys) {
     const own = labelOverrides(template.code, key);
@@ -326,7 +322,11 @@ function templateSection(code_: TemplateCode): string {
   const specs = specTable(template);
   if (specs) lines.push("", specs);
   if (template.extends) {
-    lines.push("", `Differences from ${code(template.extends)}:`, "");
+    lines.push(
+      "",
+      `Differences from ${code(template.extends)}: its seed writes only these config values (\`seedConfig\`). Objects merge key by key and lists replace whole (\`merge.ts\`), so the spec rows are lists and \`templates.test.ts\` checks that merging them over ${code(template.extends)} gives the config above.`,
+      "",
+    );
     for (const line of differences(template, TEMPLATES[template.extends])) lines.push(`- ${line}`);
   } else if (template.code !== "STD_EG") {
     const wording = template.modules

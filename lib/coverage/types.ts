@@ -102,8 +102,14 @@ export type ConfigFieldSpec = {
   readonly key: string;
   /** The value's shape, in TypeScript notation. */
   readonly type: string;
-  /** BUILD_SPEC's default, when it gives one. */
-  readonly default?: unknown;
+  /**
+   * The module's default: complete, in the shape of `type`, so a module's
+   * defaultConfig is these values (BUILD_SPEC's defaults, else STD_EG's).
+   * templates.ts checks each default against the config type at compile time.
+   */
+  readonly default: unknown;
+  /** How docs/DATA_DICTIONARY.md describes a default too long to print. */
+  readonly defaultNote?: string;
   readonly meaning: string;
 };
 

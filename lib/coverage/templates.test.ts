@@ -1,19 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { ALWAYS_ON_MODULE_KEYS, isModuleKey, type ModuleKey } from "@/lib/schemas/module-result";
+import { ALWAYS_ON_MODULE_KEYS, isModuleKey, MODULE_KEYS, type ModuleKey } from "@/lib/schemas/module-result";
 import { formatSpec } from "@/lib/stats/spec";
-import { moduleSpec } from "./fields";
-import { DEFECT_CLASSES, LABELLING_CHECKS, type Measure } from "./keys";
+import { defaultLabels, DIMENSION_DECIMALS, moduleSpec } from "./fields";
+import { DEFECT_CLASSES, LABELLING_CHECKS, MEASURES } from "./keys";
+import { configEqual, droppedKeys, mergeConfig, type ConfigObject } from "./merge";
 import {
+  defaultConfig,
   fieldShown,
   labelOverrides,
   moduleConfig,
+  SAFEDON_EG_DIMENSION_SPECS,
+  seedConfig,
   seedModuleConfigs,
   templateModuleKeys,
   templateOfSource,
   TEMPLATES,
-  type SizeSpecs,
+  type DimensionSpecRow,
 } from "./templates";
-import { SOURCE_IDS, TEMPLATE_CODES, TEMPLATE_PROPERTIES } from "./types";
+import { SOURCE_IDS, TEMPLATE_CODES, TEMPLATE_PROPERTIES, type TemplateCode } from "./types";
 
 /** phase2/framework, lib/schemas/template.ts: FIELD_KEY_PATTERN (ModuleConfig.labels and Field keys). */
 const FRAMEWORK_FIELD_KEY = /^[A-Za-z][A-Za-z0-9_]*$/;
@@ -69,15 +73,40 @@ const BUILD_SPEC_11_ORDER: Readonly<Record<(typeof TEMPLATE_CODES)[number], read
 };
 
 /** Specs as each report prints them, size by size. */
-function printedSpecs(specs: SizeSpecs<Measure> | null | undefined) {
-  if (!specs) return null;
+function printedSpecs(rows: readonly DimensionSpecRow[] | undefined) {
   return Object.fromEntries(
-    Object.entries(specs).map(([size, bySize]) => [
+    (rows ?? []).map(({ size, specs }) => [
       size,
-      Object.fromEntries(Object.entries(bySize).map(([measure, spec]) => [measure, spec ? formatSpec(spec) : null])),
+      Object.fromEntries(Object.entries(specs).map(([measure, spec]) => [measure, spec ? formatSpec(spec) : null])),
     ]),
   );
 }
+
+/** The template's chain from the root down: [STD_EG, SAFEDON_EG]. */
+function chainOf(code: TemplateCode): TemplateCode[] {
+  const chain: TemplateCode[] = [];
+  for (let at: TemplateCode | null = code; at !== null; at = TEMPLATES[at].extends) chain.unshift(at);
+  return chain;
+}
+
+type SeedOf = (code: TemplateCode, key: ModuleKey) => ConfigObject | undefined;
+
+/** What lib/templates resolves: the module's defaults, then each template's seed from the root down. */
+function resolveConfig(code: TemplateCode, key: ModuleKey, seedOf: SeedOf): ConfigObject {
+  return chainOf(code).reduce((config, at) => {
+    const seed = seedOf(at, key);
+    return seed === undefined ? config : mergeConfig(config, seed);
+  }, defaultConfig(key) as ConfigObject);
+}
+
+/** A seed that writes every top-level config key that differs from the base, with its whole value. */
+const topLevelSeed: SeedOf = (code, key) => {
+  const own = moduleConfig(code, key) as ConfigObject | undefined;
+  const parent = TEMPLATES[code].extends;
+  const base = parent === null ? undefined : (moduleConfig(parent, key) as ConfigObject | undefined);
+  if (own === undefined || base === undefined) return own;
+  return Object.fromEntries(Object.entries(own).filter(([name, value]) => !configEqual(base[name], value)));
+};
 
 describe("module order (BUILD_SPEC 11)", () => {
   it.each(TEMPLATE_CODES)("%s switches on the modules of BUILD_SPEC 11, in its order", (code) => {
@@ -181,12 +210,25 @@ describe("what the reports fix", () => {
       M: { length: "≥ 230", width: "98 ± 4", ...thickness },
       L: { length: "≥ 230", width: "107 ± 4", ...thickness },
     });
-    expect(Object.values(moduleConfig("SAFEDON_EG", "weight")?.specs ?? {}).map((spec) => formatSpec(spec))).toEqual([
-      "NA",
-      "NA",
-      "NA",
-      "NA",
+    expect(moduleConfig("SAFEDON_EG", "weight")?.specs.map(({ size, spec }) => `${size} ${formatSpec(spec)}`)).toEqual([
+      "XS NA",
+      "S NA",
+      "M NA",
+      "L NA",
     ]);
+  });
+
+  it("takes provisional dimension values for STD_SG, each listed to confirm", () => {
+    expect(moduleConfig("STD_SG", "dimensions")).toEqual({
+      measures: [...MEASURES],
+      statistic: "median",
+      specs: [],
+      decimals: DIMENSION_DECIMALS,
+      rows: 13,
+    });
+    expect(TEMPLATES.STD_SG.toConfirm.map((item) => item.path)).toEqual(
+      expect.arrayContaining(["dimensions.measures", "dimensions.statistic", "dimensions.specs", "dimensions.decimals"]),
+    );
   });
 
   it("shows the statistic with the decimals the reports print", () => {
@@ -203,7 +245,7 @@ describe("what the reports fix", () => {
   });
 
   it("weighs 13 gloves in STD_EG with no spec, one value with NA in SAFEDON_EG, warning beyond 10%", () => {
-    expect(moduleConfig("STD_EG", "weight")).toMatchObject({ n: 13, specs: null, warnThresholdPct: 10 });
+    expect(moduleConfig("STD_EG", "weight")).toMatchObject({ n: 13, specs: [], warnThresholdPct: 10 });
     expect(moduleConfig("SAFEDON_EG", "weight")).toMatchObject({ n: 1, warnThresholdPct: 10 });
   });
 
@@ -380,6 +422,67 @@ describe("custom modules", () => {
   });
 });
 
+describe("module defaults (fields.ts) and how config resolves (BUILD_SPEC 4.2 rule 9)", () => {
+  it("takes STD_EG's lists as the defaults of the lists BUILD_SPEC leaves to the template", () => {
+    expect(defaultConfig("watertight").locations).toEqual(moduleConfig("STD_EG", "watertight")?.locations);
+    expect(defaultConfig("visual").classes).toEqual(moduleConfig("STD_EG", "visual")?.classes);
+    expect(defaultConfig("labeling").levels).toEqual(moduleConfig("STD_EG", "labeling")?.levels);
+    expect(defaultConfig("dispensing_packing").stickinessCodes).toEqual(
+      moduleConfig("STD_EG", "dispensing_packing")?.stickinessCodes,
+    );
+    expect(defaultConfig("dispensing_safedon").defects).toEqual(moduleConfig("SAFEDON_EG", "dispensing_safedon")?.defects);
+    expect(defaultConfig("dimensions")).toMatchObject({ statistic: "median", specs: [], decimals: DIMENSION_DECIMALS });
+    expect(defaultConfig("weight").specs).toEqual([]);
+  });
+
+  it("never needs a merge to remove a key: each template keeps every key of the module defaults and of its base", () => {
+    for (const code of TEMPLATE_CODES) {
+      const parent = TEMPLATES[code].extends;
+      for (const key of templateModuleKeys(code)) {
+        const own = moduleConfig(code, key) as ConfigObject;
+        expect(droppedKeys(defaultConfig(key) as ConfigObject, own), `${code} ${key} against the defaults`).toEqual([]);
+        const base = parent === null ? undefined : (moduleConfig(parent, key) as ConfigObject | undefined);
+        if (base !== undefined) expect(droppedKeys(base, own), `${code} ${key} against ${parent}`).toEqual([]);
+      }
+    }
+  });
+
+  it.each(TEMPLATE_CODES)("resolves %s from the module defaults and the seeds (seedConfig) to its config", (code) => {
+    for (const key of templateModuleKeys(code)) {
+      expect(resolveConfig(code, key, seedConfig), `${code} ${key}`).toEqual(moduleConfig(code, key));
+    }
+  });
+
+  it.each(TEMPLATE_CODES)("resolves %s the same when a child's seed writes whole top-level values", (code) => {
+    for (const key of templateModuleKeys(code)) {
+      expect(resolveConfig(code, key, topLevelSeed), `${code} ${key}`).toEqual(moduleConfig(code, key));
+    }
+  });
+
+  it("writes SAFEDON_EG's seed as what differs from STD_EG, the spec rows replaced whole", () => {
+    expect(seedConfig("SAFEDON_EG", "dimensions")).toEqual({
+      measures: ["length", "width", "fingerThickness", "palmThickness"],
+      statistic: "average",
+      specs: SAFEDON_EG_DIMENSION_SPECS,
+    });
+    expect(seedConfig("SAFEDON_EG", "header")).toEqual({
+      fields: { client: false, factoryGloveCode: false },
+      mfgExpiryPrecision: "month",
+    });
+    expect(seedConfig("SAFEDON_EG", "glove_info")).toEqual({});
+    expect(seedConfig("SAFEDON_EG", "tensile")).toEqual(moduleConfig("SAFEDON_EG", "tensile"));
+    expect(seedConfig("STD_EG", "dimensions")).toEqual(moduleConfig("STD_EG", "dimensions"));
+    expect(seedConfig("STD_EG", "tensile")).toBeUndefined();
+  });
+
+  it("would catch specs kept in an object keyed by size: the merge mixes two specs into one", () => {
+    const stdEg = { XS: { width: { kind: "max", max: 80 } } };
+    const safedon = { XS: { width: { kind: "tolerance", nominal: 76, tolerance: 4 } } };
+    expect(mergeConfig(stdEg, safedon)).toEqual({ XS: { width: { kind: "tolerance", max: 80, nominal: 76, tolerance: 4 } } });
+    expect(droppedKeys(stdEg, safedon)).toEqual(["XS.width.max"]);
+  });
+});
+
 describe("sources and seeds", () => {
   it("knows which template each source document seeds", () => {
     expect(SOURCE_IDS.map((source) => templateOfSource(source))).toEqual([
@@ -402,12 +505,37 @@ describe("sources and seeds", () => {
       cartonLevel: "Carton Boxes",
       defectLimit: "Limit : Accept / Reject",
     });
-    expect(labelOverrides("STD_SG", "visual")).toMatchObject({ "counts.major": "Major defect", "total.minor": "Total Minor" });
+    expect(labelOverrides("STD_SG", "visual")).toMatchObject({ majorCounts: "Major defect", minorTotal: "Total Minor" });
   });
 
-  it("produces BUILD_SPEC 4.3 ModuleConfig values for a seed", () => {
-    const [header] = seedModuleConfigs("SAFEDON_EG");
-    expect(header).toMatchObject({ key: "header", include: true, title: "Manufacturer Information" });
-    expect(seedModuleConfigs("STD_SG").find((module) => module.key === "watertight")?.title).toBe("Watertight Inspection");
+  it("keys every label as the framework's ModuleConfig.labels accepts, and only with keys the module's defaults have", () => {
+    for (const key of MODULE_KEYS) {
+      for (const label of Object.keys(defaultLabels(key))) expect(label, key).toMatch(FRAMEWORK_FIELD_KEY);
+    }
+    for (const code of TEMPLATE_CODES) {
+      for (const key of templateModuleKeys(code)) {
+        const defaults = Object.keys(defaultLabels(key));
+        for (const label of Object.keys(labelOverrides(code, key))) {
+          expect(label, `${code} ${key}`).toMatch(FRAMEWORK_FIELD_KEY);
+          expect(defaults, `${code} ${key}`).toContain(label);
+        }
+      }
+    }
+  });
+
+  it("produces BUILD_SPEC 4.3 ModuleConfig values for a seed: whole config for a root, the diff for a child", () => {
+    const seed = seedModuleConfigs("SAFEDON_EG");
+    expect(seed.find((module) => module.key === "header")).toEqual({
+      key: "header",
+      include: true,
+      title: "Manufacturer Information",
+      labels: { poNo: "PO Number", productName: "Product Name (Brand & code)" },
+      config: { fields: { client: false, factoryGloveCode: false }, mfgExpiryPrecision: "month" },
+    });
+    expect(seed.find((module) => module.key === "glove_info")?.config).toEqual({});
+    expect(seed.find((module) => module.key === "tensile")?.config).toEqual(moduleConfig("SAFEDON_EG", "tensile"));
+    const sg = seedModuleConfigs("STD_SG");
+    expect(sg.find((module) => module.key === "watertight")?.title).toBe("Watertight Inspection");
+    expect(sg.find((module) => module.key === "visual")?.config).toEqual(moduleConfig("STD_SG", "visual"));
   });
 });

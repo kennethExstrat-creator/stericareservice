@@ -2,6 +2,12 @@
 // sizes, unit, report title, and every module's config in the keys of the
 // dictionary (fields.ts), with the values the reports print. STD_SG has no
 // filled report: what the SG onsite form does not fix is in `toConfirm`.
+//
+// Config shapes follow the framework's merge (merge.ts): a value a child
+// template replaces whole is a list (spec rows, defect lists), and an object
+// keeps every key its base has. templates.test.ts resolves each template from
+// the module defaults down its extends chain and checks it gives the config
+// below.
 import type { FieldType, ProductType, Standard } from "@/lib/schemas/common";
 import type { ModuleKey } from "@/lib/schemas/module-result";
 import type { Spec } from "@/lib/stats/spec";
@@ -18,7 +24,16 @@ import {
   type SafedonDefectConfig,
   type StickinessCode,
 } from "./defects";
-import { captionLabel, fieldLabel, moduleSpec, moduleTitle, type ConfigKey } from "./fields";
+import {
+  captionLabel,
+  DIMENSION_DECIMALS,
+  fieldLabel,
+  groupLabelKey,
+  moduleSpec,
+  moduleTitle,
+  type ConfigKey,
+  type Dictionary,
+} from "./fields";
 import {
   DEFECT_CLASSES,
   GLOVE_INFO_FIELDS,
@@ -35,6 +50,7 @@ import {
   type Measure,
   type SamplingColumn,
 } from "./keys";
+import { configDiff, type ConfigObject } from "./merge";
 import type { FieldTarget, SourceId, TemplateCode } from "./types";
 
 /* ------------------------------------------------------------------ *
@@ -43,7 +59,9 @@ import type { FieldTarget, SourceId, TemplateCode } from "./types";
 
 type EmptyConfig = Record<never, never>;
 
-export type SizeSpecs<K extends string> = Readonly<Record<string, Readonly<Partial<Record<K, Spec>>>>>;
+/** One size's spec of each measure, as the report's spec row prints it. A measure left out has no spec. */
+export type DimensionSpecRow = { readonly size: string; readonly specs: Readonly<Partial<Record<Measure, Spec>>> };
+export type WeightSpecRow = { readonly size: string; readonly spec: Spec };
 export type RowCount = { readonly default: number; readonly bySize?: Readonly<Record<string, number>> };
 export type ClassConfig = { readonly include: boolean; readonly aql: number; readonly defects: readonly ListItem[] };
 export type LevelConfig = {
@@ -70,16 +88,14 @@ export type ModuleConfigValues = {
   readonly carton_sampling: EmptyConfig;
   readonly dimensions: {
     readonly measures: readonly Measure[];
-    /** null: to confirm. */
-    readonly statistic: StatisticKind | null;
-    /** null: to confirm. */
-    readonly specs: SizeSpecs<Measure> | null;
-    readonly decimals: Readonly<Partial<Record<Measure, number>>>;
+    readonly statistic: StatisticKind;
+    readonly specs: readonly DimensionSpecRow[];
+    readonly decimals: Readonly<Record<Measure, number>>;
     readonly rows: number;
   };
   readonly weight: {
     readonly n: number;
-    readonly specs: Readonly<Record<string, Spec>> | null;
+    readonly specs: readonly WeightSpecRow[];
     readonly warnThresholdPct: number;
     readonly decimals: number;
   };
@@ -148,6 +164,47 @@ export const CONFIG_KEYS_MATCH_DICTIONARY: {
   documents: true,
   loading: true,
 };
+
+/** The defaults of fields.ts, typed as written there: one entry per config key. */
+type DictionaryDefaults<M extends ModuleKey> = {
+  [K in ConfigKey<M>]: Extract<Dictionary[M]["config"][number], { readonly key: K }>["default"];
+};
+
+/**
+ * Compile-time check: every module's defaults in fields.ts are a complete
+ * config of its type, so a module's defaultConfig is exactly them and parses
+ * with its config schema. An incomplete default turns the entry into `false`.
+ */
+export const DEFAULTS_FIT_CONFIG_TYPES: {
+  readonly [M in ModuleKey]: DictionaryDefaults<M> extends ModuleConfigValues[M] ? true : false;
+} = {
+  header: true,
+  glove_info: true,
+  order_lots: true,
+  packing_config: true,
+  sampling_plan: true,
+  carton_sampling: true,
+  dimensions: true,
+  weight: true,
+  force_at_break: true,
+  tensile: true,
+  watertight: true,
+  visual: true,
+  dispensing_packing: true,
+  dispensing_safedon: true,
+  labeling: true,
+  conclusion: true,
+  dye_leak: true,
+  documents: true,
+  loading: true,
+};
+
+/** A module's default config: the defaults of fields.ts (checked by DEFAULTS_FIT_CONFIG_TYPES). */
+export function defaultConfig<M extends ModuleKey>(module: M): ModuleConfigValues[M] {
+  return Object.fromEntries(
+    moduleSpec(module).config.map((field) => [field.key, field.default]),
+  ) as unknown as ModuleConfigValues[M];
+}
 
 /* ------------------------------------------------------------------ *
  * Templates
@@ -283,14 +340,16 @@ const SAFEDON_DISPENSING_NOTES: CustomModuleSpec = {
  * STD_EG: reports/STD_EG.md, onsite/EG.md
  * ------------------------------------------------------------------ */
 
+const STD_EG_THICKNESS = { fingerThickness: NA, palmThickness: NA, cuffThickness: NA };
+
 /** Dimension specs printed on the STD_EG report (page 2). */
-export const STD_EG_DIMENSION_SPECS: SizeSpecs<Measure> = {
-  XS: { length: min(240), width: max(80), fingerThickness: NA, palmThickness: NA, cuffThickness: NA },
-  S: { length: min(240), width: tol(80, 10), fingerThickness: NA, palmThickness: NA, cuffThickness: NA },
-  M: { length: min(240), width: tol(95, 10), fingerThickness: NA, palmThickness: NA, cuffThickness: NA },
-  L: { length: min(240), width: tol(110, 10), fingerThickness: NA, palmThickness: NA, cuffThickness: NA },
-  XL: { length: min(240), width: min(110), fingerThickness: NA, palmThickness: NA, cuffThickness: NA },
-};
+export const STD_EG_DIMENSION_SPECS: readonly DimensionSpecRow[] = [
+  { size: "XS", specs: { length: min(240), width: max(80), ...STD_EG_THICKNESS } },
+  { size: "S", specs: { length: min(240), width: tol(80, 10), ...STD_EG_THICKNESS } },
+  { size: "M", specs: { length: min(240), width: tol(95, 10), ...STD_EG_THICKNESS } },
+  { size: "L", specs: { length: min(240), width: tol(110, 10), ...STD_EG_THICKNESS } },
+  { size: "XL", specs: { length: min(240), width: min(110), ...STD_EG_THICKNESS } },
+];
 
 const STD_EG: TemplateSpec = {
   code: "STD_EG",
@@ -317,12 +376,12 @@ const STD_EG: TemplateSpec = {
         measures: MEASURES,
         statistic: "median",
         specs: STD_EG_DIMENSION_SPECS,
-        decimals: { length: 0, width: 0, fingerThickness: 2, palmThickness: 2, cuffThickness: 2 },
+        decimals: DIMENSION_DECIMALS,
         rows: 13,
       },
     },
     { key: "force_at_break", config: { n: 13, specMin: 6, standardLabel: null, decimals: 3 } },
-    { key: "weight", config: { n: 13, specs: null, warnThresholdPct: 10, decimals: 2 } },
+    { key: "weight", config: { n: 13, specs: [], warnThresholdPct: 10, decimals: 2 } },
     {
       key: "watertight",
       config: { aql: WATERTIGHT_AQL, locations: listItems(WATERTIGHT_LOCATIONS.STD_EG), handSplit: false },
@@ -382,13 +441,15 @@ const STD_EG: TemplateSpec = {
  * SAFEDON_EG: reports/SAFEDON_EG.md, onsite/SAFEDON_EG.md (extends STD_EG)
  * ------------------------------------------------------------------ */
 
-/** Dimension specs printed on the SAFEDON_EG report (page 2): XS to L, the sizes ordered. */
-export const SAFEDON_EG_DIMENSION_SPECS: SizeSpecs<Measure> = {
-  XS: { length: min(230), width: tol(76, 4), fingerThickness: tol(0.18, 0.04), palmThickness: tol(0.14, 0.04) },
-  S: { length: min(230), width: tol(86, 4), fingerThickness: tol(0.18, 0.04), palmThickness: tol(0.14, 0.04) },
-  M: { length: min(230), width: tol(98, 4), fingerThickness: tol(0.18, 0.04), palmThickness: tol(0.14, 0.04) },
-  L: { length: min(230), width: tol(107, 4), fingerThickness: tol(0.18, 0.04), palmThickness: tol(0.14, 0.04) },
-};
+const SAFEDON_EG_THICKNESS = { fingerThickness: tol(0.18, 0.04), palmThickness: tol(0.14, 0.04) };
+
+/** Dimension specs printed on the SAFEDON_EG report (page 2): XS to L, the sizes ordered. No XL row. */
+export const SAFEDON_EG_DIMENSION_SPECS: readonly DimensionSpecRow[] = [
+  { size: "XS", specs: { length: min(230), width: tol(76, 4), ...SAFEDON_EG_THICKNESS } },
+  { size: "S", specs: { length: min(230), width: tol(86, 4), ...SAFEDON_EG_THICKNESS } },
+  { size: "M", specs: { length: min(230), width: tol(98, 4), ...SAFEDON_EG_THICKNESS } },
+  { size: "L", specs: { length: min(230), width: tol(107, 4), ...SAFEDON_EG_THICKNESS } },
+];
 
 function stdEgConfig<M extends ModuleKey>(key: M): ModuleConfigValues[M] {
   const found = STD_EG.modules.find((module) => module.key === key);
@@ -427,7 +488,7 @@ const SAFEDON_EG: TemplateSpec = {
         measures: ["length", "width", "fingerThickness", "palmThickness"],
         statistic: "average",
         specs: SAFEDON_EG_DIMENSION_SPECS,
-        decimals: { length: 0, width: 0, fingerThickness: 2, palmThickness: 2 },
+        decimals: DIMENSION_DECIMALS,
         rows: 13,
       },
     },
@@ -440,7 +501,15 @@ const SAFEDON_EG: TemplateSpec = {
         decimals: { tensileStrength: 2, elongationAtBreak: 0 },
       },
     },
-    { key: "weight", config: { n: 1, specs: { XS: NA, S: NA, M: NA, L: NA }, warnThresholdPct: 10, decimals: 2 } },
+    {
+      key: "weight",
+      config: {
+        n: 1,
+        specs: ["XS", "S", "M", "L"].map((size) => ({ size, spec: NA })),
+        warnThresholdPct: 10,
+        decimals: 2,
+      },
+    },
     {
       key: "watertight",
       config: { aql: WATERTIGHT_AQL, locations: listItems(WATERTIGHT_LOCATIONS.SAFEDON_EG), handSplit: false },
@@ -476,8 +545,11 @@ const SAFEDON_EG: TemplateSpec = {
       path: "sampling_plan.inspectionLevel",
       note: "Level I raises the below-plan notice of expected-results A; the example sampled 80 and 200 where level I gives 200 and 500. BUILD_SPEC 13.",
     },
-    { path: "dimensions.specs", note: "The example's specs, XS to L: no XL spec is printed. BUILD_SPEC 13: spec limits per product." },
-    { path: "weight.specs", note: "NA as printed for XS to L; XL is not printed." },
+    {
+      path: "dimensions.specs",
+      note: "The example's specs, XS to L: no XL row is printed, so XL is not judged. BUILD_SPEC 13: spec limits per product.",
+    },
+    { path: "weight.specs", note: "NA as printed for XS to L; XL has no row (not printed)." },
     { path: "header.mfgExpiryPrecision", note: "The report prints month and year only: confirm month precision." },
     { path: "visual.classes", note: "BUILD_SPEC 13: final defect lists and severities per client." },
     {
@@ -532,7 +604,10 @@ const STD_SG: TemplateSpec = {
       config: { aql: WATERTIGHT_AQL, locations: listItems(WATERTIGHT_LOCATIONS.STD_SG), handSplit: true },
     },
     { key: "visual", config: { handSplit: true, classes: visualClasses("STD_SG") } },
-    { key: "dimensions", config: { measures: MEASURES, statistic: null, specs: null, decimals: {}, rows: 13 } },
+    {
+      key: "dimensions",
+      config: { measures: MEASURES, statistic: "median", specs: [], decimals: DIMENSION_DECIMALS, rows: 13 },
+    },
     { key: "dye_leak", config: { n: null } },
     { key: "conclusion", config: {} },
   ],
@@ -560,8 +635,10 @@ const STD_SG: TemplateSpec = {
       path: "visual.classes",
       note: "Blank rows on the form: STD_EG's lists and the default AQLs until confirmed. The form has no critical class; it is on as in both reports.",
     },
-    { path: "dimensions.statistic", note: "Planned only on the form: measures, statistic, specs and decimals to confirm." },
-    { path: "dimensions.specs", note: "No SG spec yet. BUILD_SPEC 13." },
+    { path: "dimensions.measures", note: "Planned only on the form ('# Gloves dimension'): STD_EG's five measures until confirmed." },
+    { path: "dimensions.statistic", note: "Median (EN 455 style) until confirmed." },
+    { path: "dimensions.specs", note: "None yet, so nothing is judged: no SG spec (BUILD_SPEC 13)." },
+    { path: "dimensions.decimals", note: "The reports' decimals until confirmed." },
     { path: "dye_leak.n", note: "Planned only on the form ('# pouches (dye leak test)')." },
     {
       path: "modules",
@@ -648,8 +725,9 @@ export function fieldShown(template: TemplateCode, target: Pick<FieldTarget, "mo
 
 /**
  * Label overrides of one module in one template, against the module's
- * defaults (STD_EG wording): data field keys, `<field>.<group>` for class
- * or level labels, and caption keys. Empty for STD_EG by construction.
+ * defaults (STD_EG wording, `defaultLabels`): data field keys, class and
+ * level keys (`groupLabelKey`: `majorTotal`), and caption keys. Empty for
+ * STD_EG by construction.
  */
 export function labelOverrides(template: TemplateCode, module: ModuleKey): Record<string, string> {
   const spec = moduleSpec(module);
@@ -659,7 +737,7 @@ export function labelOverrides(template: TemplateCode, module: ModuleKey): Recor
     if (label !== undefined && label !== field.label) overrides[field.key] = label;
     for (const [group, groupLabel] of Object.entries(field.groupLabels ?? {})) {
       const value = fieldLabel(template, module, field.key, group);
-      if (value !== undefined && value !== groupLabel.label) overrides[`${field.key}.${group}`] = value;
+      if (value !== undefined && value !== groupLabel.label) overrides[groupLabelKey(field.key, group)] = value;
     }
   }
   for (const caption of spec.labels) {
@@ -670,8 +748,22 @@ export function labelOverrides(template: TemplateCode, module: ModuleKey): Recor
 }
 
 /**
- * The template's modules as BUILD_SPEC 4.3 ModuleConfig values, resolved
- * (no inheritance): what a seed writes, before diffing against `extends`.
+ * The config a template's seed writes for a module: the whole config for a
+ * root template; for a child, only what differs from its base (configDiff),
+ * which the framework merges over the base's config.
+ */
+export function seedConfig(template: TemplateCode, key: ModuleKey): ConfigObject | undefined {
+  const own = moduleConfig(template, key) as ConfigObject | undefined;
+  if (own === undefined) return undefined;
+  const parent = TEMPLATES[template].extends;
+  const base = parent === null ? undefined : (moduleConfig(parent, key) as ConfigObject | undefined);
+  return base === undefined ? own : configDiff(base, own);
+}
+
+/**
+ * The template's modules as BUILD_SPEC 4.3 ModuleConfig values: title,
+ * label overrides against the module defaults, and the config the seed
+ * writes (`seedConfig`: whole for a root template, the diff for a child).
  */
 export function seedModuleConfigs(template: TemplateCode) {
   return TEMPLATES[template].modules.map((module) => ({
@@ -679,6 +771,6 @@ export function seedModuleConfigs(template: TemplateCode) {
     include: true,
     title: moduleTitle(template, module.key),
     labels: labelOverrides(template, module.key),
-    config: module.config,
+    config: seedConfig(template, module.key) ?? {},
   }));
 }

@@ -1,9 +1,18 @@
 // The data dictionary (BUILD_SPEC 4.2 rules 3 and 5, 6.1, 6.2): for every
-// module, its canonical data fields, its config fields and its captions,
-// with STD_EG's wording as the default label and the other templates'
-// wording as overrides. Module schemas (modules/<key>/schema.ts, config.ts)
-// are written from this. docs/DATA_DICTIONARY.md renders it.
+// module, its canonical data fields, its config fields with their complete
+// defaults, and its captions, with STD_EG's wording as the default label and
+// the other templates' wording as overrides. Module schemas
+// (modules/<key>/schema.ts, config.ts) are written from this.
+// docs/DATA_DICTIONARY.md renders it.
 import type { ModuleKey } from "@/lib/schemas/module-result";
+import {
+  LABELLING_CHECK_LISTS,
+  listItems,
+  safedonDefectItems,
+  stickinessCodes,
+  VISUAL_DEFECTS,
+  WATERTIGHT_LOCATIONS,
+} from "./defects";
 import {
   CODE_LETTERS,
   DOCUMENT_ITEMS,
@@ -13,7 +22,7 @@ import {
   MEASURES,
   SAMPLING_COLUMNS,
 } from "./keys";
-import type { DataFieldSpec, LabelSpec, ModuleSpec, RuleNumber, TemplateCode } from "./types";
+import type { DataFieldSpec, Entry, LabelSpec, ModuleSpec, RuleNumber, TemplateCode } from "./types";
 
 /** BUILD_SPEC 6.2, in short. Every module follows them; `rules` on a module or field cites them. */
 export const VALIDATION_RULES: Readonly<Record<RuleNumber, string>> = {
@@ -38,6 +47,9 @@ const allOn = <K extends string>(keys: readonly K[]) =>
   Object.fromEntries(keys.map((key) => [key, true])) as Record<K, true>;
 
 const RESULT = ["pass", "fail", "not_done"] as const;
+
+/** Decimals both reports print a dimension statistic with: length and width 0, thickness 2. */
+export const DIMENSION_DECIMALS = { length: 0, width: 0, fingerThickness: 2, palmThickness: 2, cuffThickness: 2 } as const;
 
 /* ------------------------------------------------------------------ *
  * Report modules, in BUILD_SPEC 6.1 order
@@ -397,7 +409,7 @@ const samplingPlan = defineModule({
   captures:
     "Per size: sampled cases, inner units and gloves; gloves for watertight and visual, for dimensions and for the physical test; inner units for packaging and dispensing; pouches and dye leak pouches (surgical).",
   result: "warn when a size's watertight and visual sample is below the AQL plan of config inspectionLevel; info otherwise.",
-  rules: [1, 2, 4, 8],
+  rules: [1, 2, 4, 6, 8],
   data: [
     {
       key: "cases",
@@ -588,7 +600,7 @@ const dimensions = defineModule({
   title: "Dimension",
   captures: "Per size, per glove (default 13): the measures on, from length, width, finger, palm and cuff thickness (mm).",
   result:
-    "Per size and measure: the statistic against the spec (pass, fail, na for an NA spec). Fail if any measure fails; not_done until every glove row of every ordered size is complete.",
+    "Per size and measure: the statistic against the spec (pass, fail, na for an NA or missing spec). Fail if any measure fails; not_done until every glove row of every ordered size is complete.",
   rules: [1, 2, 4, 5],
   data: [
     { key: "length", label: "Length", type: "decimal", unit: "mm", per: ["size", "glove"], entry: "entered", rules: [1] },
@@ -641,7 +653,8 @@ const dimensions = defineModule({
       per: ["size"],
       keyedBy: "measure",
       entry: "computed",
-      formula: "statistic against config specs[size][measure] (lib/stats summarizeColumn); an NA spec gives na.",
+      formula:
+        "statistic against the measure's spec in the size's row of config specs (lib/stats summarizeColumn); an NA or missing spec gives na.",
       rules: [2, 5],
     },
   ],
@@ -655,18 +668,22 @@ const dimensions = defineModule({
     {
       key: "statistic",
       type: '"median" | "average"',
+      default: "median",
       meaning: "Median (EN 455 style, STD_EG) or average (ASTM style, SAFEDON_EG).",
     },
     {
       key: "specs",
-      type: "Record<size, Partial<Record<Measure, Spec>>>",
+      type: "{ size: string; specs: Partial<Record<Measure, Spec>> }[]",
+      default: [],
       meaning:
-        "Spec per size per measure, as lib/stats Spec: min (≥), max (≤), range, tolerance (nominal ± tolerance) or na.",
+        "One row per size with the spec of each measure, as lib/stats Spec: min (≥), max (≤), range, tolerance (nominal ± tolerance) or na. A list, so a child template replaces it whole; a size or measure with no spec is not judged. Empty by default: specs belong to the product (BUILD_SPEC 13).",
     },
     {
       key: "decimals",
-      type: "Partial<Record<Measure, number>>",
-      meaning: "Decimals the statistic is shown with, as the reports print it. lib/stats judges the shown value.",
+      type: "Record<Measure, number>",
+      default: DIMENSION_DECIMALS,
+      meaning:
+        "Decimals the statistic is shown with, as the reports print it, for every measure (on or off). lib/stats judges the shown value.",
     },
     {
       key: "rows",
@@ -735,7 +752,8 @@ const weight = defineModule({
       options: ["pass", "fail", "warn", "info", "not_done"],
       per: ["size"],
       entry: "computed",
-      formula: "Against config specs[size] when set; warn when |deviationPct| > config warnThresholdPct; info otherwise.",
+      formula:
+        "Against the size's row of config specs when there is one; warn when |deviationPct| > config warnThresholdPct; info otherwise.",
       rules: [2, 5, 9],
     },
   ],
@@ -743,9 +761,10 @@ const weight = defineModule({
     { key: "n", type: "number", default: 13, meaning: "Gloves weighed per size: 13 one by one, or 1 value." },
     {
       key: "specs",
-      type: "Record<size, Spec> | null",
-      default: null,
-      meaning: "Optional spec per size (BUILD_SPEC: optional spec). null: no spec row, the result is info.",
+      type: "{ size: string; spec: Spec }[]",
+      default: [],
+      meaning:
+        "Optional spec per size (BUILD_SPEC: optional spec), one row per size; a list, so a child template replaces it whole. A size with no row has no spec row and its result is info.",
     },
     {
       key: "warnThresholdPct",
@@ -830,7 +849,7 @@ const tensile = defineModule({
   title: "Physical Properties average (Refer to attached lab. reports)",
   captures: "Per size: tensile strength average (MPa) and elongation at break average (%) from the lab report; the lab report file.",
   result: "Per size: both averages against their minimums; fail if either fails. not_done until both values and the lab report are in.",
-  rules: [1, 4, 5],
+  rules: [1, 2, 4, 5],
   data: [
     {
       key: "tensileStrength",
@@ -1003,6 +1022,8 @@ const watertight = defineModule({
     {
       key: "locations",
       type: "{ code: string; label: string }[]",
+      default: listItems(WATERTIGHT_LOCATIONS.STD_EG),
+      defaultNote: "STD_EG's five locations (see Defects)",
       meaning:
         "Hole locations in the template's order and wording, each mapped to a defect code (BUILD_SPEC: between fingers/crotch, palm, finger, cuff, glove burst, other).",
     },
@@ -1141,10 +1162,11 @@ const visual = defineModule({
       key: "classes",
       type: "Record<DefectClass, { include: boolean; aql: number; defects: { code: string; label: string }[] }>",
       default: {
-        critical: { include: true, aql: 0 },
-        major: { include: true, aql: 2.5 },
-        minor: { include: true, aql: 4 },
+        critical: { include: true, aql: 0, defects: listItems(VISUAL_DEFECTS.STD_EG.critical) },
+        major: { include: true, aql: 2.5, defects: listItems(VISUAL_DEFECTS.STD_EG.major) },
+        minor: { include: true, aql: 4, defects: listItems(VISUAL_DEFECTS.STD_EG.minor) },
       },
+      defaultNote: "all three classes on, AQL 0, 2.5 and 4.0, with STD_EG's defect lists (see Defects)",
       meaning:
         "Classes on or off with their AQL, and each class's defect list in the template's order and wording, mapped to defect codes. Severity is the class the template puts a code in (rule 4.2.4).",
     },
@@ -1311,13 +1333,8 @@ const dispensingPacking = defineModule({
     {
       key: "stickinessCodes",
       type: "{ code: string; label: string; pass: boolean }[]",
-      default: [
-        { code: "A", pass: true },
-        { code: "B", pass: true },
-        { code: "B1", pass: true },
-        { code: "C", pass: true },
-        { code: "D", pass: false },
-      ],
+      default: stickinessCodes(),
+      defaultNote: "STD_EG's legend: A, B, B1 and C pass, D fails (see Defects)",
       meaning: "Codes from least to most sticky, with their legend and whether they pass.",
     },
     {
@@ -1461,6 +1478,8 @@ const dispensingSafedon = defineModule({
     {
       key: "defects",
       type: "{ code: string; label: string; hint: string }[]",
+      default: safedonDefectItems(),
+      defaultNote: "the six Safedon dispensing defects with the app's hints (see Defects)",
       meaning: "The six defects in the template's order and wording, mapped to defect codes, with the definition shown as a hint.",
     },
     {
@@ -1572,7 +1591,11 @@ const labeling = defineModule({
     {
       key: "levels",
       type: "Record<LabellingLevel, { include: boolean; n: number; checks: { code: LabellingCheck; label: string }[] }>",
-      default: { inner: { include: true, n: 3 }, carton: { include: true, n: 1 } },
+      default: {
+        inner: { include: true, n: 3, checks: LABELLING_CHECK_LISTS.STD_EG.inner },
+        carton: { include: true, n: 1, checks: LABELLING_CHECK_LISTS.STD_EG.carton },
+      },
+      defaultNote: "both levels on, 3 inner units and 1 carton, with STD_EG's checks",
       meaning: "Levels on or off, boxes inspected per level, and each level's checks in the template's order and wording.",
     },
   ],
@@ -1719,7 +1742,7 @@ const documents = defineModule({
   title: "Documents",
   captures: "Checklist of certificates and reports: verified, not verified or NA; reference no.; expiry date; file.",
   result: "fail if a required item is not verified; warn if an item has expired; pass otherwise.",
-  rules: [3, 5],
+  rules: [2, 3, 5],
   data: [
     {
       key: "status",
@@ -1841,7 +1864,18 @@ export const MODULE_DICTIONARY = {
 } satisfies { readonly [K in ModuleKey]: ModuleSpec & { readonly key: K } };
 
 export type Dictionary = typeof MODULE_DICTIONARY;
-export type DataKey<M extends ModuleKey> = Dictionary[M]["data"][number]["key"];
+type DataFieldOf<M extends ModuleKey> = Dictionary[M]["data"][number];
+/** Every data field key of a module: entered, system and computed. */
+export type DataKey<M extends ModuleKey> = DataFieldOf<M>["key"];
+/**
+ * Keys the inspector enters: what the module's zod data schema holds
+ * (`file` fields are inspection_files rows, `signature` a drawn image).
+ */
+export type EnteredKey<M extends ModuleKey> = Extract<DataFieldOf<M>, { readonly entry: "entered" }>["key"];
+/** Keys the app records itself (the inspector): never typed, not in the module's data. */
+export type SystemKey<M extends ModuleKey> = Extract<DataFieldOf<M>, { readonly entry: "system" }>["key"];
+/** Keys the app computes (rule 6.2.2): the module's `computed` values, never its data. */
+export type ComputedKey<M extends ModuleKey> = Extract<DataFieldOf<M>, { readonly entry: "computed" }>["key"];
 export type ConfigKey<M extends ModuleKey> = Dictionary[M]["config"][number]["key"];
 /** Caption keys of a module; `title` is the module title. */
 export type LabelKey<M extends ModuleKey> = Dictionary[M]["labels"][number]["key"] | "title";
@@ -1852,6 +1886,41 @@ export function moduleSpec(module: ModuleKey): ModuleSpec {
 
 export function dataField(module: ModuleKey, key: string): DataFieldSpec | undefined {
   return moduleSpec(module).data.find((field) => field.key === key);
+}
+
+/** A module's data field keys with the given entry, in dictionary order. */
+export function dataKeys(module: ModuleKey, entry: Entry): string[] {
+  return moduleSpec(module)
+    .data.filter((field) => field.entry === entry)
+    .map((field) => field.key);
+}
+
+/**
+ * The label key of a class or level wording: the group, then the field
+ * (`majorTotal`, `innerResult`), like the captions `majorHeading` and
+ * `innerLevel`. camelCase, so it fits the framework's label keys and never
+ * meets a snake_case defect code.
+ */
+export function groupLabelKey(field: string, group: string): string {
+  return `${group}${field.charAt(0).toUpperCase()}${field.slice(1)}`;
+}
+
+/**
+ * A module's default labels (STD_EG's wording), keyed as ModuleConfig.labels
+ * and a module definition's `labels` are: data field keys, class and level
+ * keys (`groupLabelKey`) and caption keys. The title is separate.
+ */
+export function defaultLabels(module: ModuleKey): Record<string, string> {
+  const spec = moduleSpec(module);
+  const labels: Record<string, string> = {};
+  for (const field of spec.data) {
+    labels[field.key] = field.label;
+    for (const [group, wording] of Object.entries(field.groupLabels ?? {})) {
+      labels[groupLabelKey(field.key, group)] = wording.label;
+    }
+  }
+  for (const caption of spec.labels) labels[caption.key] = caption.label;
+  return labels;
 }
 
 function captionSpec(module: ModuleKey, key: string): LabelSpec | undefined {

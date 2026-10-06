@@ -1,8 +1,21 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import { UnitSchema } from "@/lib/schemas/common";
 import { ALWAYS_ON_MODULE_KEYS, MODULE_KEYS, OPTIONAL_MODULE_KEYS, isModuleKey } from "@/lib/schemas/module-result";
-import { captionLabel, dataField, fieldLabel, MODULE_DICTIONARY, moduleSpec, moduleTitle } from "./fields";
-import { GLOVE_INFO_FIELDS, HEADER_FIELDS, LOADING_FIELDS, MEASURES, SAMPLING_COLUMNS } from "./keys";
+import {
+  captionLabel,
+  dataField,
+  dataKeys,
+  defaultLabels,
+  fieldLabel,
+  groupLabelKey,
+  MODULE_DICTIONARY,
+  moduleSpec,
+  moduleTitle,
+  type ComputedKey,
+  type EnteredKey,
+  type SystemKey,
+} from "./fields";
+import { DEFECT_CLASSES, GLOVE_INFO_FIELDS, HEADER_FIELDS, LABELLING_LEVELS, LOADING_FIELDS, MEASURES, SAMPLING_COLUMNS } from "./keys";
 import { TEMPLATE_CODES, type Nesting } from "./types";
 
 const modules = MODULE_KEYS.map((key) => moduleSpec(key));
@@ -66,6 +79,39 @@ describe("canonical keys", () => {
     }
   });
 
+  it("keys class and level wording apart from data and caption keys (one ModuleConfig.labels namespace)", () => {
+    for (const spec of modules) {
+      const groupKeys = spec.data.flatMap((field) =>
+        Object.keys(field.groupLabels ?? {}).map((group) => groupLabelKey(field.key, group)),
+      );
+      const all = [...spec.data.map((field) => field.key), ...spec.labels.map((label) => label.key), ...groupKeys];
+      expect(duplicates(all), spec.key).toEqual([]);
+      expect(Object.keys(defaultLabels(spec.key)).sort(), spec.key).toEqual([...all].sort());
+      for (const key of groupKeys) expect(key, spec.key).toMatch(/^[a-z][a-zA-Z0-9]*$/);
+    }
+    expect(groupLabelKey("total", "major")).toBe("majorTotal");
+    expect(defaultLabels("visual")).toMatchObject({
+      majorTotal: 'Total number of "Major Defects" found',
+      criticalResult: "Disposition - Visual Critical (Passed / Failed)",
+      minorCounts: "Minor Defects",
+    });
+    expect(defaultLabels("labeling")).toMatchObject({ cartonResult: "Disposition - Carton Box (Passed / Failed)" });
+  });
+
+  it("types the keys by entry, so a module's data never holds a computed key", () => {
+    expectTypeOf<EnteredKey<"order_lots">>().toEqualTypeOf<"qtyCases" | "lotNumbers" | "packingSite">();
+    expectTypeOf<ComputedKey<"order_lots">>().toEqualTypeOf<"lotSizeGloves" | "totalCartons" | "totalGloves">();
+    expectTypeOf<SystemKey<"header">>().toEqualTypeOf<"inspector">();
+    expectTypeOf<SystemKey<"order_lots">>().toEqualTypeOf<never>();
+    expect(dataKeys("order_lots", "entered")).toEqual(["qtyCases", "lotNumbers", "packingSite"]);
+    expect(dataKeys("order_lots", "computed")).toEqual(["lotSizeGloves", "totalCartons", "totalGloves"]);
+    expect(dataKeys("header", "system")).toEqual(["inspector"]);
+    for (const spec of modules) {
+      const keys = (["entered", "system", "computed"] as const).flatMap((entry) => dataKeys(spec.key, entry));
+      expect(keys.sort(), spec.key).toEqual(spec.data.map((field) => field.key).sort());
+    }
+  });
+
   it("matches the closed key lists in keys.ts", () => {
     const keysOf = (module: Parameters<typeof moduleSpec>[0], filter?: (per: readonly Nesting[]) => boolean) =>
       moduleSpec(module)
@@ -109,6 +155,13 @@ describe("field definitions", () => {
       expect(field.entry, name).toBe("computed");
     }
     expect(matched).toEqual(expect.arrayContaining(["watertight.totalDefects", "dispensing_safedon.ratePct", "visual.accept"]));
+  });
+
+  it("lists on each module every 6.2 rule its fields cite", () => {
+    for (const spec of modules) {
+      const cited = new Set(spec.data.flatMap((field) => field.rules ?? []));
+      for (const rule of cited) expect(spec.rules, `${spec.key}: a field cites rule ${rule}`).toContain(rule);
+    }
   });
 
   it("explains every computed field and cites rule 6.2.2 exactly on computed fields", () => {
@@ -218,14 +271,21 @@ describe("config defaults (BUILD_SPEC 6.1 and 7)", () => {
   const defaultOf = (module: Parameters<typeof moduleSpec>[0], key: string) =>
     moduleSpec(module).config.find((field) => field.key === key)?.default;
 
+  it("gives every config field a default, so a module's defaultConfig is complete", () => {
+    for (const spec of modules) {
+      for (const config of spec.config) expect(config.default, `${spec.key}.${config.key}`).not.toBeUndefined();
+    }
+  });
+
   it("carries the defaults BUILD_SPEC gives", () => {
     expect(defaultOf("watertight", "aql")).toBe(1.5);
     expect(defaultOf("watertight", "handSplit")).toBe(false);
-    expect(defaultOf("visual", "classes")).toEqual({
-      critical: { include: true, aql: 0 },
-      major: { include: true, aql: 2.5 },
-      minor: { include: true, aql: 4 },
-    });
+    const classes = defaultOf("visual", "classes") as Record<string, { include: boolean; aql: number; defects: unknown[] }>;
+    expect(DEFECT_CLASSES.map((cls) => [cls, classes[cls].include, classes[cls].aql, classes[cls].defects.length > 0])).toEqual([
+      ["critical", true, 0, true],
+      ["major", true, 2.5, true],
+      ["minor", true, 4, true],
+    ]);
     expect(defaultOf("force_at_break", "specMin")).toBe(6);
     expect(defaultOf("force_at_break", "n")).toBe(13);
     expect(defaultOf("tensile", "tensileMin")).toBe(14);
@@ -236,7 +296,14 @@ describe("config defaults (BUILD_SPEC 6.1 and 7)", () => {
     expect(defaultOf("dispensing_packing", "minDispensingPct")).toBe(80);
     expect(defaultOf("dispensing_safedon", "glovesPerPack")).toBe(125);
     expect(defaultOf("dispensing_safedon", "maxRatePct")).toBe(5);
-    expect(defaultOf("labeling", "levels")).toEqual({ inner: { include: true, n: 3 }, carton: { include: true, n: 1 } });
+    const levels = defaultOf("labeling", "levels") as Record<string, { include: boolean; n: number; checks: unknown[] }>;
+    expect(LABELLING_LEVELS.map((level) => [level, levels[level].include, levels[level].n, levels[level].checks.length > 0])).toEqual([
+      ["inner", true, 3, true],
+      ["carton", true, 1, true],
+    ]);
+    const codes = defaultOf("dispensing_packing", "stickinessCodes") as { code: string; label: string; pass: boolean }[];
+    expect(codes.map(({ code, pass }) => `${code}:${pass}`)).toEqual(["A:true", "B:true", "B1:true", "C:true", "D:false"]);
+    for (const code of codes) expect(code.label, code.code).not.toBe("");
   });
 
   it("switches every header and glove information field on by default", () => {

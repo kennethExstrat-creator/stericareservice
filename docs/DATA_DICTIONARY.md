@@ -14,10 +14,11 @@ UPDATE_DATA_DICTIONARY=1 npx vitest run lib/coverage/doc.test.ts
 
 | File | Holds | Used by |
 |---|---|---|
-| `lib/coverage/fields.ts` | Per module: data fields, config fields, captions, default labels (STD_EG wording), other templates' wording | Module engineers: `modules/<key>/schema.ts` and `config.ts` |
-| `lib/coverage/templates.ts` | Per template: modules on and their order, sizes, unit, report title, every module's config values, custom modules, what is still to confirm. `seedModuleConfigs(code)` gives BUILD_SPEC 4.3 `ModuleConfig` values; `fieldShown` says whether a template shows a field | Template seeds `STD_EG`, `SAFEDON_EG`, `STD_SG` |
+| `lib/coverage/fields.ts` | Per module: data fields, config fields with complete defaults, captions, default labels (STD_EG wording, `defaultLabels`), other templates' wording; key types `EnteredKey`, `SystemKey`, `ComputedKey` | Module engineers: `modules/<key>/schema.ts` and `config.ts` |
+| `lib/coverage/templates.ts` | Per template: modules on and their order, sizes, unit, report title, every module's config values, custom modules, what is still to confirm. `defaultConfig(module)` is a module's default config; `seedConfig(code, module)` the config a seed writes (whole for a root template, the diff for a child); `seedModuleConfigs(code)` gives BUILD_SPEC 4.3 `ModuleConfig` values; `fieldShown` says whether a template shows a field | Template seeds `STD_EG`, `SAFEDON_EG`, `STD_SG` |
 | `lib/coverage/defects.ts` | Defect labels per template and class in report order, mapped to the codes of `supabase/seed.sql`; hole locations; the Safedon dispensing defects; stickiness codes; labelling checks per level | Template seeds, defect mapping screen |
 | `lib/coverage/sources.ts` | Every field of every source document, verbatim, with stable ids and where it goes | Coverage checklist (rule 4.2.10) |
+| `lib/coverage/merge.ts` | How module config merges down an extends chain, as the framework's `lib/templates/merge.ts` does it, with `configDiff` | The tests; template seeds |
 | `lib/coverage/keys.ts` | Closed key lists: measures, sampling columns, header fields, labelling levels and checks, inner units, inspection levels, code letters | All of the above |
 
 The tests check that every source field has a target and every target exists in a field the
@@ -25,8 +26,10 @@ template shows; that every cell someone fills in on a source lands on an entered
 field; that no module has duplicate keys; that every module key is a `ModuleKey`; that every defect
 code is in `seed.sql` (and every seeded code is used); that each template's module order is BUILD_SPEC
 11's; that `[sic]` labels are corrected; and that every label printed on the reports and on the SG
-form is the label the template shows. Config keys are also checked at compile time against the
-dictionary.
+form is the label the template shows. They also resolve every template from the module defaults down
+its extends chain, merged as the framework merges, and check the result is the template's config;
+and they check every label key fits the framework's `ModuleConfig.labels`. Config keys and the
+completeness of every module's defaults are checked at compile time against the dictionary.
 
 ## Conventions
 
@@ -55,17 +58,33 @@ not in the template's list (saved unmapped, flagged for an admin: BUILD_SPEC 4.2
 **Entry.** `entered`: typed or tapped by the inspector, possibly prefilled (numbers flow forward,
 BUILD_SPEC 8). `system`: recorded by the app, never typed (the inspector). **`computed`**: derived by
 the app, never typed (rule 6.2.2); it belongs in the export's `computed`, not in `data`. Every
-computed field gives its formula.
+computed field gives its formula. The types `EnteredKey<M>`, `SystemKey<M>` and `ComputedKey<M>`
+(and `dataKeys(module, entry)` at run time) split a module's keys this way: a module's zod data
+schema holds its `EnteredKey`s (a `file` field is an `inspection_files` row instead), its `computed`
+holds its `ComputedKey`s. `DataKey<M>` is all three.
 
 **Units** (rule 4.2.5): mm, g, N, MPa, %, pcs. Percentages are numbers in % (88, not 0.88), rates
 included. Counts of cases, inner units, pouches, boxes and cartons say what they count.
 
 **Labels** (rule 4.2.3). The default label of a field or caption is STD_EG's wording with `[sic]`
 typos fixed, or the source's wording where STD_EG lacks it; other templates override only what
-differs. `labelOverrides(template, module)` lists the overrides as `ModuleConfig.labels`, with class
-and level labels keyed `<field>.<group>` (`total.major`). Captions may hold placeholders the app
-fills in: `{size}`, `{codeLetters}` (the code letters of the ordered sizes, as the headings print
-them), `{aql}` (one decimal: 0.0, 2.5), `{minLayeringPct}`, `{minDispensingPct}`, `{standardLabel}`.
+differs. `defaultLabels(module)` gives a module's default labels and `labelOverrides(template,
+module)` a template's overrides, both keyed as `ModuleConfig.labels` is: data field keys, caption
+keys, and class or level wording keyed group first, then field (`groupLabelKey`: `majorTotal`,
+`criticalResult`, `innerResult`), like the captions `majorHeading` and `innerLevel`. All are
+camelCase, so they fit the framework's label keys (letters, digits and `_`) and never meet a
+snake_case defect code. Captions may hold placeholders the app fills in: `{size}`, `{codeLetters}`
+(the code letters of the ordered sizes, as the headings print them), `{aql}` (one decimal: 0.0,
+2.5), `{minLayeringPct}`, `{minDispensingPct}`, `{standardLabel}`.
+
+**Config** (BUILD_SPEC 4.2 rule 9). Every config field has a complete default, BUILD_SPEC's where it
+gives one and otherwise STD_EG's (its lists and wording), so a module's `defaultConfig` is exactly
+these defaults (`defaultConfig(module)`). Specs are the exception: they belong to the product
+(BUILD_SPEC 13), so a module has none by default. A template's config merges over the defaults and
+down its extends chain as the framework merges it (`merge.ts`): objects key by key, lists and values
+whole. So whatever a child template must replace whole is a list (the dimension and weight spec
+rows, the defect lists), and an object keeps every key its base has (`decimals` covers every measure,
+on or off), because a merge can add or change a key but never remove one.
 
 **Every module** also carries an inspector comment and photos (BUILD_SPEC 4.2 rule 7) and returns
 `{ status, summary, perSize? }` (`lib/schemas/module-result.ts`); the dictionary does not repeat
@@ -79,11 +98,11 @@ column.
 | Rule | BUILD_SPEC 6.2 | Modules that apply it |
 |---|---|---|
 | 1 | Numeric cells accept numbers only: '2 42' is rejected, not stored as text. | `glove_info`, `order_lots`, `packing_config`, `sampling_plan`, `carton_sampling`, `dimensions`, `weight`, `force_at_break`, `tensile`, `watertight`, `visual`, `dispensing_packing`, `dispensing_safedon`, `labeling`, `dye_leak`, `loading` |
-| 2 | Totals, averages, medians, rates, code letters and accept/reject limits are computed, never typed. | `order_lots`, `packing_config`, `sampling_plan`, `carton_sampling`, `dimensions`, `weight`, `force_at_break`, `watertight`, `visual`, `dispensing_packing`, `dispensing_safedon`, `labeling`, `conclusion`, `dye_leak`, `loading` |
+| 2 | Totals, averages, medians, rates, code letters and accept/reject limits are computed, never typed. | `order_lots`, `packing_config`, `sampling_plan`, `carton_sampling`, `dimensions`, `weight`, `force_at_break`, `tensile`, `watertight`, `visual`, `dispensing_packing`, `dispensing_safedon`, `labeling`, `conclusion`, `dye_leak`, `documents`, `loading` |
 | 3 | Counts never turn into dates; dates use date pickers. | `header`, `conclusion`, `documents` |
 | 4 | Sizes not in order_lots appear in no module. | `order_lots`, `sampling_plan`, `carton_sampling`, `dimensions`, `weight`, `force_at_break`, `tensile`, `watertight`, `visual`, `dispensing_packing`, `dispensing_safedon`, `labeling`, `dye_leak` |
 | 5 | A module with missing data shows Not done, never Passed. | `dimensions`, `weight`, `force_at_break`, `tensile`, `watertight`, `visual`, `dispensing_packing`, `dispensing_safedon`, `labeling`, `dye_leak`, `documents` |
-| 6 | Carton numbers are unique per size, from 1 to the order quantity, as many as the sampled cases. | `carton_sampling` |
+| 6 | Carton numbers are unique per size, from 1 to the order quantity, as many as the sampled cases. | `sampling_plan`, `carton_sampling` |
 | 7 | Box numbers in dispensing_packing, dispensing_safedon and labeling are picked from the size's carton list. | `dispensing_packing`, `dispensing_safedon`, `labeling` |
 | 8 | The sample size sets the code letter and limits; a plan that does not match the sample size cannot be saved. | `sampling_plan`, `watertight`, `visual` |
 | 9 | Measured weight more than the threshold away from the indicative weight raises a warning. | `glove_info`, `weight` |
@@ -176,7 +195,7 @@ Report module. Captures: Gloves per inner unit, inner units per case, gloves per
 
 ### `sampling_plan`: Sampling Plan
 
-Report module. Captures: Per size: sampled cases, inner units and gloves; gloves for watertight and visual, for dimensions and for the physical test; inner units for packaging and dispensing; pouches and dye leak pouches (surgical). Result: warn when a size's watertight and visual sample is below the AQL plan of config inspectionLevel; info otherwise. Rules (6.2): 1, 2, 4, 8.
+Report module. Captures: Per size: sampled cases, inner units and gloves; gloves for watertight and visual, for dimensions and for the physical test; inner units for packaging and dispensing; pouches and dye leak pouches (surgical). Result: warn when a size's watertight and visual sample is below the AQL plan of config inspectionLevel; info otherwise. Rules (6.2): 1, 2, 4, 6, 8.
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
@@ -220,7 +239,7 @@ No config.
 
 ### `dimensions`: Dimension
 
-Report module. Captures: Per size, per glove (default 13): the measures on, from length, width, finger, palm and cuff thickness (mm). Result: Per size and measure: the statistic against the spec (pass, fail, na for an NA spec). Fail if any measure fails; not_done until every glove row of every ordered size is complete. Rules (6.2): 1, 2, 4, 5.
+Report module. Captures: Per size, per glove (default 13): the measures on, from length, width, finger, palm and cuff thickness (mm). Result: Per size and measure: the statistic against the spec (pass, fail, na for an NA or missing spec). Fail if any measure fails; not_done until every glove row of every ordered size is complete. Rules (6.2): 1, 2, 4, 5.
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
@@ -230,14 +249,14 @@ Report module. Captures: Per size, per glove (default 13): the measures on, from
 | `palmThickness` | Palm Thickness |  | decimal | mm | size › glove | entered | 1 |  |
 | `cuffThickness` | Cuff Thickness |  | decimal | mm | size › glove | entered | 1 |  |
 | `statistic` | Median | SAFEDON_EG: Average | decimal | mm | size | **computed** | 2 | Median or average (config statistic) of the measure's glove values, shown at config decimals. Map keyed by measure. |
-| `measureResult` | P/F \* | SAFEDON_EG: A / Rej. | select |  | size | **computed** | 2, 5 | statistic against config specs[size][measure] (lib/stats summarizeColumn); an NA spec gives na. Map keyed by measure. Values: pass, fail, na, not_done. |
+| `measureResult` | P/F \* | SAFEDON_EG: A / Rej. | select |  | size | **computed** | 2, 5 | statistic against the measure's spec in the size's row of config specs (lib/stats summarizeColumn); an NA or missing spec gives na. Map keyed by measure. Values: pass, fail, na, not_done. |
 
 | Config key | Type | Default | Meaning |
 |---|---|---|---|
 | `measures` | Measure[] | `["length","width","fingerThickness","palmThickness","cuffThickness"]` | The measures on, in column order (BUILD_SPEC: measures on/off). |
-| `statistic` | "median" \| "average" |  | Median (EN 455 style, STD_EG) or average (ASTM style, SAFEDON_EG). |
-| `specs` | Record&lt;size, Partial&lt;Record&lt;Measure, Spec>>> |  | Spec per size per measure, as lib/stats Spec: min (≥), max (≤), range, tolerance (nominal ± tolerance) or na. |
-| `decimals` | Partial&lt;Record&lt;Measure, number>> |  | Decimals the statistic is shown with, as the reports print it. lib/stats judges the shown value. |
+| `statistic` | "median" \| "average" | `"median"` | Median (EN 455 style, STD_EG) or average (ASTM style, SAFEDON_EG). |
+| `specs` | { size: string; specs: Partial&lt;Record&lt;Measure, Spec>> }[] | `[]` | One row per size with the spec of each measure, as lib/stats Spec: min (≥), max (≤), range, tolerance (nominal ± tolerance) or na. A list, so a child template replaces it whole; a size or measure with no spec is not judged. Empty by default: specs belong to the product (BUILD_SPEC 13). |
+| `decimals` | Record&lt;Measure, number> | `{"length":0,"width":0,"fingerThickness":2,"palmThickness":2,"cuffThickness":2}` | Decimals the statistic is shown with, as the reports print it, for every measure (on or off). lib/stats judges the shown value. |
 | `rows` | number | `13` | Gloves per size. sampling_plan.glovesDimensions sets it when entered. |
 
 | Caption key | Label (STD_EG) | Other wording | Meaning |
@@ -257,12 +276,12 @@ Report module. Captures: Per size: the gloves weighed (1 or 13 values) and their
 | `values` | Weight (g) |  | decimal_list | g | size | entered | 1 | config n values per size: 13 gloves weighed one by one (STD_EG) or one value per size (SAFEDON_EG, printed as a merged column of the dimension table). |
 | `average` | Average |  | decimal | g | size | **computed** | 2 | Mean of values (the value itself when n is 1), shown at config decimals. |
 | `deviationPct` | Deviation from indicative weight |  | decimal | % | size | **computed** | 2, 9 | (average − glove_info.indicativeWeight) / glove_info.indicativeWeight × 100, for the size in glove_info config indicativeWeightSize only. |
-| `result` | Remark | SAFEDON_EG: A / Rej. | select |  | size | **computed** | 2, 5, 9 | Against config specs[size] when set; warn when \|deviationPct\| > config warnThresholdPct; info otherwise. Values: pass, fail, warn, info, not_done. |
+| `result` | Remark | SAFEDON_EG: A / Rej. | select |  | size | **computed** | 2, 5, 9 | Against the size's row of config specs when there is one; warn when \|deviationPct\| > config warnThresholdPct; info otherwise. Values: pass, fail, warn, info, not_done. |
 
 | Config key | Type | Default | Meaning |
 |---|---|---|---|
 | `n` | number | `13` | Gloves weighed per size: 13 one by one, or 1 value. |
-| `specs` | Record&lt;size, Spec> \| null | `null` | Optional spec per size (BUILD_SPEC: optional spec). null: no spec row, the result is info. |
+| `specs` | { size: string; spec: Spec }[] | `[]` | Optional spec per size (BUILD_SPEC: optional spec), one row per size; a list, so a child template replaces it whole. A size with no row has no spec row and its result is info. |
 | `warnThresholdPct` | number | `10` | Deviation from the indicative weight, in %, above which the module warns (rule 9). |
 | `decimals` | number | `2` | Decimals the average is shown with (both reports print 2). |
 
@@ -294,7 +313,7 @@ Report module. Captures: Per size, per glove (default 13): force at break (N), i
 
 ### `tensile`: Physical Properties average (Refer to attached lab. reports)
 
-Report module. Captures: Per size: tensile strength average (MPa) and elongation at break average (%) from the lab report; the lab report file. Result: Per size: both averages against their minimums; fail if either fails. not_done until both values and the lab report are in. Rules (6.2): 1, 4, 5.
+Report module. Captures: Per size: tensile strength average (MPa) and elongation at break average (%) from the lab report; the lab report file. Result: Per size: both averages against their minimums; fail if either fails. not_done until both values and the lab report are in. Rules (6.2): 1, 2, 4, 5.
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
@@ -334,7 +353,7 @@ Report module. Captures: Per size (R and L when handSplit): gloves tested and ho
 | Config key | Type | Default | Meaning |
 |---|---|---|---|
 | `aql` | number | `1.5` | AQL of the watertight test. |
-| `locations` | { code: string; label: string }[] |  | Hole locations in the template's order and wording, each mapped to a defect code (BUILD_SPEC: between fingers/crotch, palm, finger, cuff, glove burst, other). |
+| `locations` | { code: string; label: string }[] | STD_EG's five locations (see Defects) | Hole locations in the template's order and wording, each mapped to a defect code (BUILD_SPEC: between fingers/crotch, palm, finger, cuff, glove burst, other). |
 | `handSplit` | boolean | `false` | Record R and L separately (surgical). Holes are per hand; tested and the limits stay per size. |
 
 | Caption key | Label (STD_EG) | Other wording | Meaning |
@@ -360,7 +379,7 @@ Report module. Captures: Per size (R and L when handSplit), per class: gloves in
 | Config key | Type | Default | Meaning |
 |---|---|---|---|
 | `handSplit` | boolean | `false` | Record R and L separately (surgical). Counts are per hand; inspected and the limits stay per size. |
-| `classes` | Record&lt;DefectClass, { include: boolean; aql: number; defects: { code: string; label: string }[] }> | `{"critical":{"include":true,"aql":0},"major":{"include":true,"aql":2.5},"minor":{"include":true,"aql":4}}` | Classes on or off with their AQL, and each class's defect list in the template's order and wording, mapped to defect codes. Severity is the class the template puts a code in (rule 4.2.4). |
+| `classes` | Record&lt;DefectClass, { include: boolean; aql: number; defects: { code: string; label: string }[] }> | all three classes on, AQL 0, 2.5 and 4.0, with STD_EG's defect lists (see Defects) | Classes on or off with their AQL, and each class's defect list in the template's order and wording, mapped to defect codes. Severity is the class the template puts a code in (rule 4.2.4). |
 
 | Caption key | Label (STD_EG) | Other wording | Meaning |
 |---|---|---|---|
@@ -394,7 +413,7 @@ Report module. Captures: Per size, per box (picked from the carton list): layeri
 |---|---|---|---|
 | `minLayeringPct` | number (%) | `70` | Minimum average layering. |
 | `minDispensingPct` | number (%) | `80` | Minimum average dispensing. |
-| `stickinessCodes` | { code: string; label: string; pass: boolean }[] | `[{"code":"A","pass":true},{"code":"B","pass":true},{"code":"B1","pass":true},{"code":"C","pass":true},{"code":"D","pass":false}]` | Codes from least to most sticky, with their legend and whether they pass. |
+| `stickinessCodes` | { code: string; label: string; pass: boolean }[] | STD_EG's legend: A, B, B1 and C pass, D fails (see Defects) | Codes from least to most sticky, with their legend and whether they pass. |
 | `boxesPerSize` | { default: number; bySize?: Record&lt;size, number> } | `{"default":13}` | Box rows per size. sampling_plan.innerUnitsDispensing sets them when entered. |
 
 | Caption key | Label (STD_EG) | Other wording | Meaning |
@@ -423,7 +442,7 @@ Report module. Captures: Per size, per box (picked from the carton list): counts
 
 | Config key | Type | Default | Meaning |
 |---|---|---|---|
-| `defects` | { code: string; label: string; hint: string }[] |  | The six defects in the template's order and wording, mapped to defect codes, with the definition shown as a hint. |
+| `defects` | { code: string; label: string; hint: string }[] | the six Safedon dispensing defects with the app's hints (see Defects) | The six defects in the template's order and wording, mapped to defect codes, with the definition shown as a hint. |
 | `glovesPerPack` | number (pcs) | `125` | Gloves dispensed per box, the denominator of the rates. |
 | `maxRatePct` | number (%) | `5` | Maximum defect rate per size (≤, inclusive). |
 | `boxesPerSize` | { default: number; bySize?: Record&lt;size, number> } | `{"default":13}` | Box columns per size (13 on the onsite sheet; more can be added). sampling_plan.innerUnitsDispensing sets them when entered. |
@@ -450,7 +469,7 @@ Report module. Captures: Per size, per level (inner unit, carton): boxes inspect
 
 | Config key | Type | Default | Meaning |
 |---|---|---|---|
-| `levels` | Record&lt;LabellingLevel, { include: boolean; n: number; checks: { code: LabellingCheck; label: string }[] }> | `{"inner":{"include":true,"n":3},"carton":{"include":true,"n":1}}` | Levels on or off, boxes inspected per level, and each level's checks in the template's order and wording. |
+| `levels` | Record&lt;LabellingLevel, { include: boolean; n: number; checks: { code: LabellingCheck; label: string }[] }> | both levels on, 3 inner units and 1 carton, with STD_EG's checks | Levels on or off, boxes inspected per level, and each level's checks in the template's order and wording. |
 
 | Caption key | Label (STD_EG) | Other wording | Meaning |
 |---|---|---|---|
@@ -498,7 +517,7 @@ Note: The SG onsite form plans the pouches ('# pouches (dye leak test)') but has
 
 ### `documents`: Documents
 
-Optional module. Captures: Checklist of certificates and reports: verified, not verified or NA; reference no.; expiry date; file. Result: fail if a required item is not verified; warn if an item has expired; pass otherwise. Rules (6.2): 3, 5.
+Optional module. Captures: Checklist of certificates and reports: verified, not verified or NA; reference no.; expiry date; file. Result: fail if a required item is not verified; warn if an item has expired; pass otherwise. Rules (6.2): 2, 3, 5.
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
@@ -567,7 +586,7 @@ Note: Not on any current form: the website's QC scope. Loading-stage photos are 
 | 4 | `packing_config` | Packing configuration | inner unit inner_box; packing mode text on |
 | 5 | `sampling_plan` | Sampling Plan | columns off: pouches, pouchesDyeLeak; inspection level I |
 | 6 | `carton_sampling` | Finished Goods Sampling Information (carton number) | none |
-| 7 | `dimensions` | Dimension | median of 13 gloves; measures length, width, fingerThickness, palmThickness, cuffThickness; decimals length 0, width 0, fingerThickness 2, palmThickness 2, cuffThickness 2; specs below |
+| 7 | `dimensions` | Dimension | median of 13 gloves; measures length, width, fingerThickness, palmThickness, cuffThickness; decimals length 0, width 0, fingerThickness 2, palmThickness 2, cuffThickness 2; specs for XS, S, M, L, XL, below |
 | 8 | `force_at_break` | Force At Break in Newton (Refer to attached where applicable) | 13 readings per size; median ≥ 6 N; 3 decimals; standard label none |
 | 9 | `weight` | Weight (g) - average of 13 gloves per size | 13 values per size; spec none (info); warn beyond 10%; 2 decimals |
 | 10 | `watertight` | Freedom from Holes by watertight test | AQL 1.5; hand split off; locations: Between fingers (crotch) (hole_crotch), Palm (hole_palm), Finger (hole_finger), Cuff (hole_cuff), Other : (hole_other) |
@@ -576,7 +595,7 @@ Note: Not on any current form: the website's QC scope. Loading-stage photos are 
 | 13 | `labeling` | Packaging Labeling Inspection | inner: 3 boxes, checks lot_no, mfg_date, artwork; carton: 1 box, checks lot_no, mfg_date, artwork, carton_no |
 | 14 | `conclusion` | Conclusion | none |
 
-Dimension specs (mm, median):
+Dimension specs (mm, median; a size without a row is not judged):
 
 | Size | length | width | fingerThickness | palmThickness | cuffThickness |
 |---|---|---|---|---|---|
@@ -616,7 +635,7 @@ To confirm:
 | 4 | `packing_config` | Packing configuration | inner unit plastic_pack; packing mode text on |
 | 5 | `sampling_plan` | Sampling Plan | columns off: pouches, pouchesDyeLeak; inspection level I |
 | 6 | `carton_sampling` | Finished Goods Sampling Information (carton number) | none |
-| 7 | `dimensions` | Dimension | average of 13 gloves; measures length, width, fingerThickness, palmThickness; decimals length 0, width 0, fingerThickness 2, palmThickness 2; specs below |
+| 7 | `dimensions` | Dimension | average of 13 gloves; measures length, width, fingerThickness, palmThickness; decimals length 0, width 0, fingerThickness 2, palmThickness 2; specs for XS, S, M, L, below |
 | 8 | `tensile` | Physical Properties average (Refer to attached lab. reports) | tensile ≥ 14 MPa; elongation ≥ 500%; Spec. (ASTM D6319); decimals 2 and 0 |
 | 9 | `weight` | Weight (g) | 1 value per size; spec per size, below; warn beyond 10%; 2 decimals |
 | 10 | `watertight` | Freedom from Holes by watertight test | AQL 1.5; hand split off; locations: Between fingers (hole_crotch), Palm (hole_palm), Cuff (hole_cuff), Finger (hole_finger), Glove burst (glove_burst), Other : (hole_other) |
@@ -625,7 +644,7 @@ To confirm:
 | 13 | `labeling` | Packaging Labeling Inspection | inner: 3 boxes, checks lot_no, mfg_date, expiry_date, artwork; carton: 1 box, checks lot_no, mfg_date, expiry_date, artwork, carton_no |
 | 14 | `conclusion` | Conclusion | none |
 
-Dimension specs (mm, average):
+Dimension specs (mm, average; a size without a row is not judged):
 
 | Size | length | width | fingerThickness | palmThickness |
 |---|---|---|---|---|
@@ -636,17 +655,17 @@ Dimension specs (mm, average):
 
 Weight specs: XS NA, S NA, M NA, L NA.
 
-Differences from `STD_EG`:
+Differences from `STD_EG`: its seed writes only these config values (`seedConfig`). Objects merge key by key and lists replace whole (`merge.ts`), so the spec rows are lists and `templates.test.ts` checks that merging them over `STD_EG` gives the config above.
 
-- Modules: `tensile`, `dispensing_safedon` instead of `force_at_break`, `dispensing_packing`, in the same places.
-- `header` config: `fields`, `mfgExpiryPrecision`.
-- `order_lots` config: `fields`.
+- Modules: `tensile`, `dispensing_safedon` instead of `force_at_break`, `dispensing_packing`, in the same places; the added modules' config is written whole.
+- `header` config: `fields.client`, `fields.factoryGloveCode`, `mfgExpiryPrecision`.
+- `order_lots` config: `fields.packingSite`.
 - `packing_config` config: `innerUnit`.
-- `dimensions` config: `measures`, `statistic`, `specs`, `decimals`.
+- `dimensions` config: `measures`, `statistic`, `specs`.
 - `weight` config: `n`, `specs`.
 - `watertight` config: `locations`.
-- `visual` config: `classes`.
-- `labeling` config: `levels`.
+- `visual` config: `classes.major.defects`, `classes.minor.defects`.
+- `labeling` config: `levels.inner.checks`, `levels.carton.checks`.
 - `header` wording: `poNo` "PO Number", `productName` "Product Name (Brand & code)".
 - `packing_config` wording: `glovesPerInner` "# glove per plastic pack", `innersPerCase` "# packs per case".
 - `sampling_plan` wording: `innerUnits` "Inner pack", `glovesPhysical` "# gloves for Tensile", `innerUnitsDispensing` "# inner packs for packaging & dispensing inspection".
@@ -661,8 +680,8 @@ To confirm:
 
 - `scope.clientScoped`: BUILD_SPEC 13: confirm the client (the report carries its logo) and whether the Safedon dispensing check applies to all its products.
 - `sampling_plan.inspectionLevel`: Level I raises the below-plan notice of expected-results A; the example sampled 80 and 200 where level I gives 200 and 500. BUILD_SPEC 13.
-- `dimensions.specs`: The example's specs, XS to L: no XL spec is printed. BUILD_SPEC 13: spec limits per product.
-- `weight.specs`: NA as printed for XS to L; XL is not printed.
+- `dimensions.specs`: The example's specs, XS to L: no XL row is printed, so XL is not judged. BUILD_SPEC 13: spec limits per product.
+- `weight.specs`: NA as printed for XS to L; XL has no row (not printed).
 - `header.mfgExpiryPrecision`: The report prints month and year only: confirm month precision.
 - `visual.classes`: BUILD_SPEC 13: final defect lists and severities per client.
 - `dispensing_safedon.glovesPerPack`: 125, the same number as packing_config glovesPerInner (125 per plastic pack): confirm which one the rate uses if they differ.
@@ -687,7 +706,7 @@ To confirm:
 | 4 | `sampling_plan` | Sampling Plan | columns off: gloves, innerUnitsDispensing; inspection level none (to confirm) |
 | 5 | `watertight` | Watertight Inspection | AQL 1.5; hand split on; locations: Between fingers (crotch) (hole_crotch), Palm (hole_palm), Finger (hole_finger), Cuff (hole_cuff), Other : (hole_other) |
 | 6 | `visual` | Visual Inspection | hand split on; critical AQL 0.0, 2 defects; major AQL 2.5, 9 defects; minor AQL 4.0, 6 defects |
-| 7 | `dimensions` | Dimension | statistic to confirm of 13 gloves; measures length, width, fingerThickness, palmThickness, cuffThickness; decimals to confirm; specs to confirm |
+| 7 | `dimensions` | Dimension | median of 13 gloves; measures length, width, fingerThickness, palmThickness, cuffThickness; decimals length 0, width 0, fingerThickness 2, palmThickness 2, cuffThickness 2; specs none |
 | 8 | `dye_leak` | Dye leak test | pouches per size: from the sampling plan |
 | 9 | `conclusion` | Conclusion | none |
 
@@ -697,7 +716,7 @@ Wording that differs from the defaults:
 - `order_lots`: `qtyCases` "Qty (case)"
 - `sampling_plan`: `glovesWatertightVisual` "# gloves", `glovesDimensions` "# Gloves dimension", `glovesPhysical` "# Gloves (FAB)", `samplingQuantity` "Sampling Quantity (WTT & Visual)", `orderQty` "Qty (case)"
 - `watertight`: `holes` "Defect", `totalDefects` "Total WTT", `heading` "Watertight Inspection"
-- `visual`: `counts.major` "Major defect", `counts.minor` "Minor defect", `total.major` "Total Major", `total.minor` "Total Minor", `heading` "Visual Inspection", `majorHeading` "Major defect", `minorHeading` "Minor defect"
+- `visual`: `majorCounts` "Major defect", `minorCounts` "Minor defect", `majorTotal` "Total Major", `minorTotal` "Total Minor", `heading` "Visual Inspection", `majorHeading` "Major defect", `minorHeading` "Minor defect"
 
 To confirm:
 
@@ -711,8 +730,10 @@ To confirm:
 - `watertight.locations`: The form has 7 blank rows: STD_EG's locations until confirmed. AQL 1.5 is the default.
 - `watertight.handSplit`: R and L per size as on the form; tested and the limits per size (the sampling plan has one '# gloves' per size).
 - `visual.classes`: Blank rows on the form: STD_EG's lists and the default AQLs until confirmed. The form has no critical class; it is on as in both reports.
-- `dimensions.statistic`: Planned only on the form: measures, statistic, specs and decimals to confirm.
-- `dimensions.specs`: No SG spec yet. BUILD_SPEC 13.
+- `dimensions.measures`: Planned only on the form ('# Gloves dimension'): STD_EG's five measures until confirmed.
+- `dimensions.statistic`: Median (EN 455 style) until confirmed.
+- `dimensions.specs`: None yet, so nothing is judged: no SG spec (BUILD_SPEC 13).
+- `dimensions.decimals`: The reports' decimals until confirmed.
 - `dye_leak.n`: Planned only on the form ('# pouches (dye leak test)').
 - `modules`: BUILD_SPEC 11 does not switch force_at_break on, although the form plans '# Gloves (FAB)'.
 
@@ -859,7 +880,7 @@ Where the sources or BUILD_SPEC leave a choice, the dictionary takes one. Each i
 10. **STD_SG** has no filled report. Values the SG form does not fix are provisional and listed
     under "To confirm": the standard (`custom`, since the template schema requires one), STD_EG's
     defect lists and hole locations, the default AQLs, sizes 5.5 to 9.0 (8 blank columns), unit
-    pairs, dimensions with no spec or statistic.
+    pairs, STD_EG's dimension measures, median and decimals, and no dimension specs yet.
 11. **Decimals** are the reports' printed decimals (length and width 0, thickness 2, force 3, weight
     2, tensile 2, elongation 0). `lib/stats` judges the statistic as shown, so the decimals decide
     borderline results (question 9).
@@ -918,6 +939,11 @@ Values that wait on Kenneth. BUILD_SPEC 13 first.
     (pouch, BUILD_SPEC 11). A second packing level may be needed.
 17. **Safedon** is called the manufacturer in onsite/SAFEDON_EG.md and the product line in
     reports/SAFEDON_EG.md. The dictionary treats it as the product line.
+18. **AQL per client.** The templates set the AQLs their reports print (watertight 1.5; 0, 2.5 and
+    4.0). The module framework (phase2/framework) ranks a template's AQL above a client's (template,
+    then client, then BUILD_SPEC 7), so a client AQL would never apply to these templates. Should the
+    standard templates leave the AQLs unset so per-client values apply? If so, `watertight.aql` and
+    the class AQLs become nullable, falling back to the context's AQL as the framework suggests.
 
 ## Coverage matrix
 
