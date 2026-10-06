@@ -22,6 +22,7 @@ export const definition = defineModule<WatertightData, WatertightConfig, Waterti
   perSize: true,
   handSplit: true,
   calc: calcWatertight,
+  loadCapture: () => import("./Capture"),
 });
 
 export type { WatertightData } from "./schema";
