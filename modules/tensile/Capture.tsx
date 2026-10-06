@@ -1,0 +1,155 @@
+"use client";
+
+// Physical properties capture (BUILD_SPEC 6.1, 8 "Speed"): per size the lab
+// report's two averages in NumberFields (decimal keypad; Enter moves on, and
+// across sizes on desktop; a pasted block of averages fills the fields in
+// reading order), each with its spec and live verdict; sizes as SizeTabs on
+// iPad (swipe, arrow keys) and side by side on desktop; and whether the lab
+// report, which this module requires, is attached. Wording is the
+// template's (6.2 rule 11); verdicts are computed, never typed. Every write
+// goes through useDataUpdater, from the latest data, so a pasted block lands
+// whole in one change (docs/CAPTURE_KIT.md).
+import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
+import { FileCheckIcon, FileTextIcon } from "lucide-react";
+import {
+  EnterGroup,
+  findIssue,
+  issuePathProps,
+  NumberField,
+  SizeTabs,
+  StatusPill,
+  useDataUpdater,
+  useIssueFocus,
+} from "@/components/qc";
+// The kit's touch size for small pills; not exported from @/components/qc yet.
+import { SMALL_PILL_TOUCH } from "@/components/qc/status-pill";
+import { labelFor, type CaptureProps } from "@/modules/_framework";
+import { formatMinimum, judgeAverage, MEASURE_RULES, specCaption, type TensileOutcome } from "./calc";
+import { TENSILE_MEASURES } from "./config";
+import { withAverage } from "./edit";
+import type { TensileComputed, TensileConfig, TensileData } from ".";
+
+export default function Capture({
+  data,
+  config,
+  title,
+  labels,
+  context,
+  evaluation,
+  focusPath,
+  readOnly,
+  onChange,
+  onFocusChange,
+}: CaptureProps<TensileData, TensileConfig, TensileComputed>) {
+  const root = useRef<HTMLDivElement>(null);
+  const baseId = useId();
+  const update = useDataUpdater(data, onChange);
+  const [selected, setSelected] = useState(context.sizes[0] ?? "");
+  // A size taken out of the order falls back to the first one ordered.
+  const size = context.sizes.includes(selected) ? selected : (context.sizes[0] ?? "");
+
+  // The size on screen tags the photos taken now (BUILD_SPEC 8.1).
+  const reportSize = useEffectEvent((shown: string) => onFocusChange?.({ size: shown }));
+  useEffect(() => {
+    if (size !== "") reportSize(size);
+  }, [size]);
+
+  useIssueFocus(focusPath, {
+    root,
+    reveal: (path) => {
+      if (path[0] === "sizes" && typeof path[1] === "string" && context.sizes.includes(path[1])) setSelected(path[1]);
+    },
+  });
+
+  const caption = specCaption(labelFor(labels, "specRow"), config.standardLabel);
+
+  return (
+    // relative: screen-reader text inside never lays out against the page (docs/DESIGN.md).
+    <div ref={root} data-slot="tensile" className="relative space-y-4">
+      <LabReportStatus label={labelFor(labels, "labReport")} attached={data.labReport !== null} />
+      {/* One run for Enter and paste: one size's two fields on iPad, every size in reading order on desktop. */}
+      <EnterGroup>
+        <SizeTabs
+          sizes={context.sizes}
+          templateSizes={context.templateSizes}
+          value={size}
+          onValueChange={setSelected}
+          results={evaluation?.result.perSize}
+          wide="all"
+          label={`${title}: sizes`}
+        >
+          {(shown) => (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+              {TENSILE_MEASURES.map((measure) => {
+                const value = data.sizes[shown]?.[measure] ?? null;
+                const path = ["sizes", shown, measure];
+                // calc's own rule on the value on screen: live as it is typed, never behind an evaluation.
+                const outcome = judgeAverage(value, config, measure);
+                return (
+                  <NumberField
+                    key={measure}
+                    id={`${baseId}-${shown}-${measure}`}
+                    label={labelFor(labels, measure)}
+                    unit={MEASURE_RULES[measure].unit}
+                    decimals={config.decimals[measure]}
+                    min={0}
+                    value={value}
+                    onValueChange={(next) => update((current) => withAverage(current, shown, measure, next))}
+                    hint={<SpecHint caption={caption} minimum={formatMinimum(config, measure)} outcome={outcome} />}
+                    error={findIssue(evaluation?.issues, path)?.message}
+                    issuePath={path}
+                    onFocus={() => {
+                      setSelected(shown);
+                      onFocusChange?.({ size: shown });
+                    }}
+                    readOnly={readOnly}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </SizeTabs>
+      </EnterGroup>
+    </div>
+  );
+}
+
+/**
+ * Whether the lab report is attached; it is required, so until it is the
+ * module is not done. The capture screen uploads it and records its file id
+ * (edit.ts withLabReport); this line only shows the state.
+ */
+function LabReportStatus({ label, attached }: { label: string; attached: boolean }) {
+  const Icon = attached ? FileCheckIcon : FileTextIcon;
+  return (
+    <div
+      data-slot="lab-report"
+      data-attached={attached || undefined}
+      {...issuePathProps(["labReport"])}
+      className="relative flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-card px-3 py-2 text-sm touch:py-2.5 touch:text-base"
+    >
+      <Icon aria-hidden className="size-5 shrink-0 text-muted-foreground" />
+      <span className="font-medium text-foreground">{label}</span>
+      {attached ? (
+        <span className="text-foreground">Attached</span>
+      ) : (
+        <>
+          <StatusPill size="sm" status="not_done" label="Not attached" className={SMALL_PILL_TOUCH} />
+          <span className="text-muted-foreground">Required before this section is done.</span>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** "Spec. (ASTM D6319) ≥ 14.00 MPa" and the verdict, read with the field. */
+function SpecHint({ caption, minimum, outcome }: { caption: string; minimum: string; outcome: TensileOutcome }) {
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+      <span className="tabular-nums">
+        {caption} {minimum}
+      </span>
+      <StatusPill size="sm" status={outcome} className={SMALL_PILL_TOUCH} />
+    </span>
+  );
+}
