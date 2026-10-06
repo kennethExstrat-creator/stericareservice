@@ -6,10 +6,8 @@
 import { useActionState } from "react";
 import { OctagonXIcon } from "lucide-react";
 import { toast } from "sonner";
-import { mediaStore } from "@/components/capture/photos/media-store";
+import { deleteSlotFile } from "@/components/capture/photos/edit-flows";
 import type { SlotFile } from "@/components/capture/photos/photo-model";
-import { photoQueueStore } from "@/components/capture/photos/queue-store";
-import { unreachable } from "@/components/capture/photos/unreachable";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -22,10 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { deleteInspectionFile } from "@/lib/inspections/photos/actions";
 import { IDLE_PHOTO_ACTION, type PhotoActionState } from "@/lib/inspections/photos/messages";
-
-const REMOVED_HERE = "File removed from this device.";
 
 export function FileDeleteDialog({
   inspectionId,
@@ -38,14 +33,8 @@ export function FileDeleteDialog({
 }) {
   const [state, formAction, pending] = useActionState(
     async (previous: PhotoActionState, formData: FormData): Promise<PhotoActionState> => {
-      if (file.queued && (await photoQueueStore.remove(file.id))) {
-        toast.success(REMOVED_HERE);
-        onClose();
-        return { status: "success", message: REMOVED_HERE, removedId: file.id };
-      }
-      const result = await deleteInspectionFile(previous, formData).catch(unreachable);
+      const result = await deleteSlotFile(inspectionId, file, previous, formData);
       if (result.status === "success") {
-        mediaStore(inspectionId).removeFile(file.id);
         toast.success(result.message);
         onClose();
       }

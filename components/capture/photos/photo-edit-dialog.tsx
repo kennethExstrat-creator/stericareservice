@@ -3,8 +3,13 @@
 // Retag and caption one photo (BUILD_SPEC 8.1): the module it belongs to and
 // the size, hand, defect or box it shows, in the inspection's own wording.
 // A photo still on this device is retagged in the upload queue (works
-// offline); an uploaded one through the updatePhotoTags action.
-import { Fragment, useActionState, useId, useState } from "react";
+// offline); an uploaded one through the updatePhotoTags action. A refused
+// save (a field error, no connection) keeps everything chosen and typed:
+// every field is controlled, and the form is submitted by hand rather than
+// through its action prop, because React resets a form after each form
+// action and Radix Select and RadioGroup answer that reset by going back to
+// their first value, controlled or not.
+import { Fragment, startTransition, useActionState, useEffect, useId, useRef, useState } from "react";
 import { OctagonXIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -33,18 +38,17 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import { updatePhotoTags } from "@/lib/inspections/photos/actions";
-import { IDLE_PHOTO_ACTION, PHOTO_MESSAGES, type PhotoActionState } from "@/lib/inspections/photos/messages";
-import { CAPTION_MAX_LENGTH, parsePhotoTagForm } from "@/lib/inspections/photos/schemas";
+import { IDLE_PHOTO_ACTION, type PhotoActionState } from "@/lib/inspections/photos/messages";
+import { CAPTION_MAX_LENGTH } from "@/lib/inspections/photos/schemas";
 import { defectChoices, moduleOption, moduleTitle, type PhotoTagOptions } from "@/lib/inspections/photos/view";
 import { parseTarget, type PhotoTarget } from "@/lib/photos/target";
-import { mediaStore } from "./media-store";
+import { savePhotoEdit } from "./edit-flows";
 import type { SlotPhoto } from "./photo-model";
-import { photoQueueStore } from "./queue-store";
-import { unreachable } from "./unreachable";
 
 /** Select items cannot have an empty value; this one stands for "none". */
 const NONE = "__none__";
+
+const FOCUSABLE = "button, input, textarea, select, [tabindex]:not([tabindex='-1'])";
 
 type PhotoEditDialogProps = {
   inspectionId: string;
@@ -96,25 +100,18 @@ function EditForm({
   const [size, setSize] = useState(start.size ?? "");
   const [hand, setHand] = useState(start.hand ?? "");
   const [defect, setDefect] = useState(start.defect ?? "");
+  const [box, setBox] = useState(start.box !== undefined ? String(start.box) : "");
+  const [caption, setCaption] = useState(photo.caption ?? "");
+  const formRef = useRef<HTMLFormElement>(null);
+  /** Where focus was when Save was pressed (Save itself, or a field submitted with Enter). */
+  const submittedFrom = useRef<HTMLElement | null>(null);
 
   const [state, formAction, pending] = useActionState(
     async (previous: PhotoActionState, formData: FormData): Promise<PhotoActionState> => {
       onPendingChange(true);
       try {
-        const parsed = parsePhotoTagForm(formData);
-        if (!parsed.ok) return { status: "error", message: PHOTO_MESSAGES.checkFields, fieldErrors: parsed.fieldErrors };
-        if (photo.queued) {
-          const { moduleKey: key, target, caption } = parsed.data;
-          // False once it has left the queue: its row is in, so the server takes the change.
-          if (await photoQueueStore.retag(photo.id, { tag: { moduleKey: key, target }, caption })) {
-            toast.success(PHOTO_MESSAGES.updated);
-            onDone();
-            return { status: "success", message: PHOTO_MESSAGES.updated };
-          }
-        }
-        const result = await updatePhotoTags(previous, formData).catch(unreachable);
+        const result = await savePhotoEdit(inspectionId, photo, previous, formData);
         if (result.status === "success") {
-          if (result.photo) mediaStore(inspectionId).applyPhoto(result.photo);
           toast.success(result.message);
           onDone();
         }
@@ -125,6 +122,19 @@ function EditForm({
     },
     IDLE_PHOTO_ACTION,
   );
+
+  // A refused save: focus the first field to fix, else back where Save was pressed (it was disabled
+  // meanwhile, which drops focus to the dialog), so the keyboard carries on from there.
+  useEffect(() => {
+    if (state.status !== "error") return;
+    const form = formRef.current;
+    if (!form) return;
+    const invalid = form.querySelector<HTMLElement>('[aria-invalid="true"]');
+    const field = invalid && (invalid.matches(FOCUSABLE) ? invalid : invalid.querySelector<HTMLElement>(FOCUSABLE));
+    const from = submittedFrom.current;
+    const back = from && from.isConnected && !from.matches(":disabled") ? from : null;
+    (field ?? back ?? form.querySelector<HTMLElement>('button[type="submit"]'))?.focus();
+  }, [state]);
 
   const errors = state.status === "error" ? (state.fieldErrors ?? {}) : {};
   const formError = state.status === "error" && !state.fieldErrors ? state.message : (errors.form ?? errors.photoId ?? null);
@@ -143,7 +153,19 @@ function EditForm({
   const described = (field: string, error?: string) => (error ? `${id}-${field}-error` : undefined);
 
   return (
-    <form action={formAction} noValidate className="grid gap-6">
+    <form
+      ref={formRef}
+      onSubmit={(event) => {
+        // No action prop: see the note at the top of this file.
+        event.preventDefault();
+        if (pending) return;
+        submittedFrom.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        const formData = new FormData(event.currentTarget);
+        startTransition(() => formAction(formData));
+      }}
+      noValidate
+      className="grid gap-6"
+    >
       <DialogHeader>
         <DialogTitle className="text-lg font-bold">
           Edit photo<span className="sr-only">: {alt}</span>
@@ -219,6 +241,7 @@ function EditForm({
             <RadioGroup
               value={hand || NONE}
               onValueChange={(value) => setHand(value === NONE ? "" : value)}
+              aria-invalid={errors.hand ? true : undefined}
               className="flex flex-wrap gap-x-6 gap-y-3"
             >
               {[
@@ -285,7 +308,8 @@ function EditForm({
               name="box"
               inputMode="numeric"
               autoComplete="off"
-              defaultValue={start.box !== undefined ? String(start.box) : ""}
+              value={box}
+              onChange={(event) => setBox(event.target.value)}
               className="max-w-40"
               aria-invalid={errors.box ? true : undefined}
               aria-describedby={described("box", errors.box)}
@@ -301,7 +325,8 @@ function EditForm({
             name="caption"
             rows={3}
             maxLength={CAPTION_MAX_LENGTH}
-            defaultValue={photo.caption ?? ""}
+            value={caption}
+            onChange={(event) => setCaption(event.target.value)}
             placeholder="What the photo shows, for the report"
             aria-invalid={errors.caption ? true : undefined}
             aria-describedby={errors.caption ? `${id}-caption-error` : `${id}-caption-hint`}

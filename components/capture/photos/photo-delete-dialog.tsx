@@ -18,12 +18,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { deletePhoto } from "@/lib/inspections/photos/actions";
 import { IDLE_PHOTO_ACTION, type PhotoActionState } from "@/lib/inspections/photos/messages";
-import { mediaStore } from "./media-store";
+import { deleteSlotPhoto } from "./edit-flows";
 import type { SlotPhoto } from "./photo-model";
-import { photoQueueStore } from "./queue-store";
-import { unreachable } from "./unreachable";
 
 type PhotoDeleteDialogProps = {
   inspectionId: string;
@@ -32,21 +29,11 @@ type PhotoDeleteDialogProps = {
   onClose: () => void;
 };
 
-const REMOVED_HERE = "Photo removed from this device.";
-
 export function PhotoDeleteDialog({ inspectionId, photo, alt, onClose }: PhotoDeleteDialogProps) {
   const [state, formAction, pending] = useActionState(
     async (previous: PhotoActionState, formData: FormData): Promise<PhotoActionState> => {
-      if (photo.queued && (await photoQueueStore.remove(photo.id))) {
-        toast.success(REMOVED_HERE);
-        onClose();
-        return { status: "success", message: REMOVED_HERE, removedId: photo.id };
-      }
-      // Uploaded, or it finished while the dialog was open: delete the row and its files.
-      const result = await deletePhoto(previous, formData).catch(unreachable);
+      const result = await deleteSlotPhoto(inspectionId, photo, previous, formData);
       if (result.status === "success") {
-        mediaStore(inspectionId).removePhoto(photo.id);
-        photoQueueStore.forgetPreview(photo.id);
         toast.success(result.message);
         onClose();
       }
