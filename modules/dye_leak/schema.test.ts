@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { dataKeys, defaultConfig, defaultLabels, moduleConfig, moduleTitle, seedConfig, TEMPLATES } from "@/lib/coverage";
+import {
+  dataKeys,
+  defaultConfig,
+  defaultLabels,
+  moduleConfig,
+  moduleTitle,
+  seedConfig,
+  seedModuleConfigs,
+  TEMPLATES,
+} from "@/lib/coverage";
+import { lookupFrom, resolveTemplate } from "@/lib/templates";
+import { MODULE_REGISTRY } from "@/modules/registry";
 import { SAFEDON_EG_EXAMPLE, SAFEDON_EG_EXPECTED } from "@/tests/fixtures/examples";
 import { DYE_LEAK_DEFAULT_CONFIG, DYE_LEAK_FIELDS, DYE_LEAK_LABELS, DYE_LEAK_TITLE, DyeLeakConfigSchema } from "./config";
 import { DyeLeakDataSchema, DyeLeakSizeSchema, emptyDyeLeak, emptyDyeLeakSize } from "./schema";
@@ -66,6 +77,37 @@ describe("dye_leak config", () => {
   it("becomes JSON Schema with a description, for the template editor's form", () => {
     const schema = z.toJSONSchema(DyeLeakConfigSchema) as { properties: Record<string, { description?: string }> };
     expect(schema.properties.n.description).toContain("sampling plan");
+  });
+
+  it("resolves in a template built from the STD_SG seed, and in a child that sets n", () => {
+    const seed = seedModuleConfigs("STD_SG").find((entry) => entry.key === "dye_leak");
+    const base = {
+      code: "STD_SG",
+      name: TEMPLATES.STD_SG.name,
+      scope: { productType: "surgical", standard: "custom" },
+      unit: "pairs",
+      sizes: TEMPLATES.STD_SG.sizes,
+      modules: [{ key: "order_lots", include: true }, seed],
+    };
+    const child = (n: unknown) => ({
+      ...base,
+      code: "CLIENT_SG",
+      extends: "STD_SG",
+      modules: [{ key: "dye_leak", include: true, config: { n } }],
+    });
+    const resolve = (definition: unknown) =>
+      resolveTemplate(definition, { getBase: lookupFrom([{ definition: base, version: 1 }]), registry: MODULE_REGISTRY });
+    const dyeLeakOf = (resolution: ReturnType<typeof resolve>) =>
+      resolution.ok ? resolution.template.modules.find((entry) => entry.key === "dye_leak") : undefined;
+
+    expect(dyeLeakOf(resolve(base))).toMatchObject({ include: true, title: "Dye leak test", config: { n: null } });
+    expect(dyeLeakOf(resolve(child(13)))?.config).toEqual({ n: 13 });
+    const refused = resolve(child(0));
+    expect(refused.ok).toBe(false);
+    expect(refused.ok ? [] : refused.problems.map((problem) => problem.path.slice(0, 2))).toContainEqual([
+      "modules",
+      "dye_leak",
+    ]);
   });
 });
 

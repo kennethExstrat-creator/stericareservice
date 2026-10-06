@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { dataKeys, defaultConfig, defaultLabels, LOADING_FIELDS as DICTIONARY_FIELDS, moduleTitle, TEMPLATES } from "@/lib/coverage";
+import { lookupFrom, resolveTemplate } from "@/lib/templates";
+import { MODULE_REGISTRY } from "@/modules/registry";
 import { SAFEDON_EG_EXAMPLE, SAFEDON_EG_EXPECTED } from "@/tests/fixtures/examples";
 import { LOADING_DEFAULT_CONFIG, LOADING_FIELDS, LOADING_LABELS, LOADING_STAGES, LOADING_TITLE, LoadingConfigSchema } from "./config";
 import { emptyLoading, LoadingDataSchema } from "./schema";
@@ -52,6 +54,28 @@ describe("loading config", () => {
     expect(LoadingConfigSchema.safeParse(typo).success).toBe(false);
     const withoutSeal = Object.fromEntries(Object.entries(LOADING_DEFAULT_CONFIG.fields).filter(([key]) => key !== "sealNo"));
     expect(LoadingConfigSchema.safeParse({ fields: withoutSeal }).success).toBe(false);
+  });
+
+  it("resolves in a template that switches one field off, the others kept from the defaults", () => {
+    const definition = {
+      code: "LOADING_EG",
+      name: TEMPLATES.STD_EG.name,
+      scope: { productType: "examination", standard: "EN455" },
+      unit: "pcs",
+      sizes: TEMPLATES.STD_EG.sizes,
+      modules: [
+        { key: "order_lots", include: true },
+        { key: "loading", include: true, config: { fields: { sealNo: false } } },
+      ],
+    };
+    const resolution = resolveTemplate(definition, { getBase: lookupFrom([]), registry: MODULE_REGISTRY });
+    const found = resolution.ok ? resolution.template.modules.find((entry) => entry.key === "loading") : undefined;
+    expect(found).toMatchObject({
+      title: "Loading",
+      config: { fields: { containerNo: true, sealNo: false, cartonsLoaded: true, cartonCondition: true } },
+    });
+    const typo = { ...definition, modules: [{ key: "loading", include: true, config: { fields: { sealNumber: false } } }] };
+    expect(resolveTemplate(typo, { getBase: lookupFrom([]), registry: MODULE_REGISTRY }).ok).toBe(false);
   });
 
   it("becomes JSON Schema with descriptions, for the template editor's form", () => {

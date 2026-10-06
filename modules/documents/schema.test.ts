@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { DOCUMENT_ITEMS as DICTIONARY_ITEMS, dataField, dataKeys, defaultConfig, defaultLabels, moduleTitle, TEMPLATES } from "@/lib/coverage";
+import { lookupFrom, resolveTemplate } from "@/lib/templates";
+import { MODULE_REGISTRY } from "@/modules/registry";
 import { STD_EG_EXAMPLE } from "@/tests/fixtures/examples";
 import {
   DOCUMENT_FIELDS,
@@ -98,6 +100,38 @@ describe("documents config", () => {
       false,
     );
     expect(DocumentsConfigSchema.safeParse({ items: [{ key: "fdaCe", include: true, mandatory: true }] }).success).toBe(false);
+  });
+
+  it("resolves in a template, a child replacing the item list whole", () => {
+    const base = {
+      code: "BASE_EG",
+      name: TEMPLATES.STD_EG.name,
+      scope: { productType: "examination", standard: "EN455" },
+      unit: "pcs",
+      sizes: TEMPLATES.STD_EG.sizes,
+      modules: [{ key: "documents", include: true }],
+    };
+    const child = (items: unknown) => ({
+      ...base,
+      code: "CLIENT_EG",
+      extends: "BASE_EG",
+      modules: [{ key: "documents", include: true, labels: { fdaCe: "CE certificate" }, config: { items } }],
+    });
+    const resolve = (definition: unknown) =>
+      resolveTemplate(definition, { getBase: lookupFrom([{ definition: base, version: 1 }]), registry: MODULE_REGISTRY });
+    const documentsOf = (resolution: ReturnType<typeof resolve>) =>
+      resolution.ok ? resolution.template.modules.find((entry) => entry.key === "documents") : undefined;
+
+    expect(documentsOf(resolve(base))?.config).toEqual(DOCUMENTS_DEFAULT_CONFIG);
+    const items = [
+      { key: "fdaCe", include: true, required: true },
+      { key: "certificateOfAnalysis", include: true, required: false },
+    ];
+    expect(documentsOf(resolve(child(items)))).toMatchObject({
+      config: { items },
+      labels: { fdaCe: "CE certificate", iso13485: "ISO 13485" },
+    });
+    expect(resolve(child([...items, items[0]])).ok).toBe(false);
   });
 
   it("becomes JSON Schema with descriptions, for the template editor's form", () => {
