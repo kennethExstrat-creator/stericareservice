@@ -223,6 +223,21 @@ describe("RLS: inspector", { timeout: 30_000 }, () => {
     expect(pick.code).toBe("42501");
   });
 
+  it("attaches lab reports to their draft only, in their own name", async () => {
+    const insertFile = (inspectionId: string, createdBy?: string) =>
+      asUser(db, people.inspector, (tx) =>
+        tx.query(
+          `insert into public.inspection_files (inspection_id, module_key, kind, storage_path, name, created_by)
+           values ($1, 'tensile', 'lab_report', $2, 'tensile.pdf', coalesce($3::uuid, auth.uid()))`,
+          [inspectionId, `${inspectionId}/${randomUUID()}.pdf`, createdBy ?? null],
+        ),
+      );
+    expect((await insertFile(own.id)).affectedRows).toBe(1);
+    const foreign = await pgError(insertFile(others.id));
+    const impersonated = await pgError(insertFile(own.id, people.otherInspector));
+    expect([foreign.code, impersonated.code]).toEqual(["42501", "42501"]);
+  });
+
   it("cannot file a photo outside the inspection's folder or under someone else's name", async () => {
     const misfiled = await pgError(
       asUser(db, people.inspector, (tx) =>
