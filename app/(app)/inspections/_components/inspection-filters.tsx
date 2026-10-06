@@ -7,7 +7,9 @@
 // the list is not re-queried on every keystroke. While the new list loads the
 // form carries [data-pending], which dims the results (see page.tsx).
 //
-// Without JavaScript the form still works as a plain GET form.
+// Without JavaScript the form still works as a plain GET form. Long client and
+// manufacturer names truncate in the pickers (the label span is what the
+// picker shows once chosen).
 import { SearchIcon, XIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useId, useOptimistic, useState, useTransition, type FormEvent } from "react";
@@ -167,7 +169,7 @@ export function InspectionFilters({
             <SelectItem value={ALL}>All clients</SelectItem>
             {clients.map((client) => (
               <SelectItem key={client.id} value={client.id}>
-                {client.label}
+                <span className="truncate">{client.label}</span>
               </SelectItem>
             ))}
           </SelectContent>
@@ -188,7 +190,7 @@ export function InspectionFilters({
             <SelectItem value={ALL}>All manufacturers</SelectItem>
             {manufacturers.map((manufacturer) => (
               <SelectItem key={manufacturer.id} value={manufacturer.id}>
-                {manufacturer.label}
+                <span className="truncate">{manufacturer.label}</span>
               </SelectItem>
             ))}
           </SelectContent>
