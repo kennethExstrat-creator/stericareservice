@@ -20,16 +20,9 @@ import {
   type MeasurementValues,
 } from "@/components/qc";
 import { cn } from "@/lib/utils";
-import {
-  labelFor,
-  sizeLabel,
-  type CaptureProps,
-  type IssuePath,
-  type Labels,
-  type ValidationIssue,
-} from "@/modules/_framework";
+import { labelFor, sizeLabel, type CaptureProps, type Labels, type ValidationIssue } from "@/modules/_framework";
 import { rowsFor, specFor, type DimensionsComputed } from "./calc";
-import { gridColumns, sizeHeading, withGridColumns } from "./capture-data";
+import { cellPath, gridColumns, sizeHeading, withGridColumns } from "./capture-data";
 import type { DimensionsConfig, Measure } from "./config";
 import type { DimensionsData } from "./schema";
 
@@ -162,8 +155,7 @@ function useCellIssuePaths(grid: RefObject<HTMLElement | null>, size: string, me
   useLayoutEffect(() => {
     const cells = grid.current?.querySelectorAll<HTMLInputElement>("tbody input") ?? [];
     cells.forEach((cell, index) => {
-      const path: IssuePath = ["sizes", size, "gloves", Math.floor(index / measures.length), measures[index % measures.length]];
-      for (const [name, value] of Object.entries(issuePathProps(path))) {
+      for (const [name, value] of Object.entries(issuePathProps(cellPath(size, measures, index)))) {
         if (value !== undefined) cell.setAttribute(name, value);
       }
     });

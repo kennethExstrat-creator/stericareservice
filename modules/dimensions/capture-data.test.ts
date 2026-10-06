@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { gridColumns, sizeHeading, withGridColumns } from "./capture-data";
-import { DIMENSIONS_LABELS, MEASURES } from "./config";
+import { makeTestContext } from "@/modules/_framework/testing";
+import { calcDimensions } from "./calc";
+import { cellPath, gridColumns, sizeHeading, withGridColumns } from "./capture-data";
+import { DIMENSIONS_DEFAULT_CONFIG, DIMENSIONS_LABELS, MEASURES } from "./config";
 import { DimensionsDataSchema, emptyDimensions, emptyGlove, type DimensionsData } from "./schema";
 
 const SAFEDON_MEASURES = ["length", "width", "fingerThickness", "palmThickness"] as const;
@@ -59,6 +61,23 @@ describe("dimensions capture data", () => {
   it("starts a size that has nothing saved", () => {
     const next = withGridColumns(emptyDimensions(), "S", { length: [null, 243] }, ["length"], 2);
     expect(next).toEqual({ sizes: { S: { gloves: [emptyGlove(), { ...emptyGlove(), length: 243 }] } } });
+  });
+
+  it("marks each grid cell with the path calc's issues point at", () => {
+    const list = Array.from({ length: 13 }, (_, row) => ({ ...emptyGlove(), length: 245, width: row === 3 ? 0 : 95 }));
+    const output = calcDimensions({
+      data: { sizes: { M: { gloves: list } } },
+      config: { ...DIMENSIONS_DEFAULT_CONFIG, measures: ["length", "width"] },
+      title: "Dimension",
+      labels: DIMENSIONS_LABELS,
+      context: makeTestContext({ sizes: ["M"] }),
+      results: {},
+      hasData: true,
+    });
+    // Glove 4's width is the 8th cell: row 3, column 1 of two.
+    expect(output.issues.map((issue) => issue.path)).toEqual([cellPath("M", ["length", "width"], 3 * 2 + 1)]);
+    expect(cellPath("M", MEASURES, 0)).toEqual(["sizes", "M", "gloves", 0, "length"]);
+    expect(cellPath("M", MEASURES, 64)).toEqual(["sizes", "M", "gloves", 12, "cuffThickness"]);
   });
 
   it("fills the size into the template's heading", () => {

@@ -45,6 +45,14 @@ function isEmpty(glove: DimensionGlove): boolean {
   return Object.values(glove).every((value) => value === null);
 }
 
+/**
+ * The data path of the grid's `index`th cell, as calc's issues point at it:
+ * MeasurementGrid lays its cells out row by row (a glove), a column per measure.
+ */
+export function cellPath(size: string, measures: readonly Measure[], index: number): ["sizes", string, "gloves", number, Measure] {
+  return ["sizes", size, "gloves", Math.floor(index / measures.length), measures[index % measures.length]];
+}
+
 /** The size heading in the template's wording: "Dimension - Size {size}". */
 export function sizeHeading(template: string, size: string): string {
   return template.replaceAll("{size}", size);
