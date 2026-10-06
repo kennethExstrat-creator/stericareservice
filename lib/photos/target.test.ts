@@ -98,10 +98,7 @@ describe("autoTag", () => {
 });
 
 describe("storage paths", () => {
-  // public.storage_folder_uuid in supabase/migrations/20261006000100_enums_and_helpers.sql.
-  const DB_NAME = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(\/[A-Za-z0-9_.-]+)+$/;
-  const DB_DOTS = /\/\.+(\/|$)/;
-
+  // paths.db.test.ts checks these names, and storageInspectionId, against the database's own function.
   it("names photos, thumbnails and files inside the inspection's folder, as the policies require", () => {
     const names = [photoPath(INSPECTION, PHOTO), photoPath(INSPECTION, PHOTO, "heic"), thumbPath(INSPECTION, PHOTO), filePath(INSPECTION, PHOTO, "pdf")];
     expect(names).toEqual([
@@ -110,11 +107,7 @@ describe("storage paths", () => {
       `${INSPECTION}/thumbs/${PHOTO}.jpg`,
       `${INSPECTION}/${PHOTO}.pdf`,
     ]);
-    for (const name of names) {
-      expect(name).toMatch(DB_NAME);
-      expect(name).not.toMatch(DB_DOTS);
-      expect(storageInspectionId(name)).toBe(INSPECTION);
-    }
+    for (const name of names) expect(storageInspectionId(name)).toBe(INSPECTION);
   });
 
   it("refuses ids and extensions that would escape the folder rule", () => {
