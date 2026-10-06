@@ -144,7 +144,21 @@ describe("header capture", () => {
     const fields = [...tagsOf(html, "input"), ...tagsOf(html, "textarea")];
     expect(fields.length).toBeGreaterThan(0);
     for (const field of fields) expect(field).toContain('readOnly=""');
-    const month = render({ readOnly: true, config: SAFEDON_CONFIG, data: headerData(SAFEDON_EG_EXAMPLE.header) });
-    for (const trigger of tagsWith(month, 'aria-label="[^"]*: (month|year)"')) expect(trigger).toContain("disabled");
+  });
+
+  it("shows a read-only month and year as text, at full contrast like the other read-only fields", () => {
+    const html = render({
+      readOnly: true,
+      data: headerData(SAFEDON_EG_EXAMPLE.header),
+      config: SAFEDON_CONFIG,
+      context: baseContext({ template: TEMPLATE, meta: headerMeta(SAFEDON_EG_EXAMPLE.header) }),
+    });
+    // No disabled select, which would fade the date to half opacity.
+    expect(html).not.toContain(": month");
+    expect(tagsWith(html, ' disabled=""')).toEqual([]);
+    const dates = ["Feb 2025", "Jan 2030"].map((text) => tagsOf(html, "input").find((input) => input.includes(`value="${text}"`)));
+    for (const input of dates) expect(input).toContain('readOnly=""');
+    expect(html).toContain(">Manufacturing date</label>");
+    expect(html).toContain(">Expiry date</label>");
   });
 });

@@ -197,6 +197,27 @@ function MonthPicker({
   const month = saved?.month ?? draft.month;
   const year = saved?.year ?? draft.year;
 
+  // Read-only, the date reads as text like every other read-only field:
+  // disabled selects would fade it below the contrast floor.
+  if (readOnly) {
+    return (
+      <>
+        <Label htmlFor={id} className="leading-snug touch:text-base">
+          {label}
+        </Label>
+        <Input
+          id={id}
+          value={saved === null ? "" : monthYearText(saved)}
+          onKeyDown={nextOnEnter}
+          enterKeyHint="next"
+          readOnly
+          aria-describedby={describedBy}
+          data-header-field=""
+        />
+      </>
+    );
+  }
+
   const choose = (next: { month: number | null; year: number | null }) => {
     if (next.month !== null && next.year !== null) {
       setDraft({ month: null, year: null });
@@ -215,7 +236,6 @@ function MonthPicker({
         <Select
           value={month === null ? "" : String(month)}
           onValueChange={(next) => choose({ month: Number(next), year })}
-          disabled={readOnly}
         >
           <SelectTrigger id={id} aria-label={`${label}: month`} className="w-full" data-header-field="">
             <SelectValue placeholder="Month" />
@@ -231,7 +251,6 @@ function MonthPicker({
         <Select
           value={year === null ? "" : String(year)}
           onValueChange={(next) => choose({ month, year: Number(next) })}
-          disabled={readOnly}
         >
           <SelectTrigger aria-label={`${label}: year`} className="w-full" data-header-field="">
             <SelectValue placeholder="Year" />
@@ -247,6 +266,11 @@ function MonthPicker({
       </div>
     </fieldset>
   );
+}
+
+/** "Feb 2025": the month as the picker names it, and the year. */
+function monthYearText({ year, month }: { year: number; month: number }): string {
+  return `${MONTHS[month - 1] ?? month} ${year}`;
 }
 
 function factsHint(facts: readonly FromInspection[]): string {
