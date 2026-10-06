@@ -65,8 +65,6 @@ export type ModuleFileSlotProps = {
   onAdded: (file: AttachedFile) => void;
   /** Drop the id when the module keeps it. Without it, a deleted file stays kept until replaced. */
   onRemoved?: (fileId: string) => void;
-  /** Said where files cannot be attached, after "Attach files on the inspection screen". */
-  hint?: string;
   className?: string;
 };
 
@@ -83,7 +81,6 @@ export function ModuleFileSlot({
   readOnly,
   onAdded,
   onRemoved,
-  hint,
   className,
 }: ModuleFileSlotProps) {
   const render = useFileSlotRenderer();
@@ -115,7 +112,7 @@ export function ModuleFileSlot({
       <PaperclipIcon aria-hidden className="mt-0.5 size-4 shrink-0 touch:size-5" />
       <span>
         {title ? <span className="font-medium text-foreground">{title}: </span> : null}
-        Attach files on the inspection screen.{hint ? ` ${hint}` : ""}
+        Attach files on the inspection screen.
       </span>
     </p>
   );

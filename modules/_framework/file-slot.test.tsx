@@ -14,13 +14,6 @@ describe("ModuleFileSlot", () => {
     expect(html).toContain("Lab report: </span>Attach files on the inspection screen.");
   });
 
-  it("adds the module's own hint to that note", () => {
-    const html = renderToStaticMarkup(
-      <ModuleFileSlot moduleKey="documents" kind="certificate" readOnly onAdded={() => {}} hint="Choose a document first." />,
-    );
-    expect(html).toContain("Attach files on the inspection screen. Choose a document first.");
-  });
-
   it("renders the screen's slot with the module's request, and passes files back", () => {
     const requests: FileSlotRequest[] = [];
     const added: string[] = [];
