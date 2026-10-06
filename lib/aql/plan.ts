@@ -68,7 +68,11 @@ export function planFromSampleSize({ sampleSize, aql }: SampleSizeInput): AqlRes
   return { ok: true, plan: { codeLetter, ...plan, aql, sampleSize, warnings } };
 }
 
-/** Table 1 alone: the code letter and sample size an inspection level asks of a lot. */
+/**
+ * Table 1 alone: the code letter and sample size an inspection level asks of
+ * a lot. It does not see an AQL's arrow down, which can need a larger sample;
+ * planFromLotSize does, so the sample a template's AQLs need comes from that.
+ */
 export function sampleSizeFromLotSize(input: LotSizeInput): AqlResult<LotSample> {
   const sampleSize = input.sampleSize ?? null;
   const invalid = checkLot(input.lotSize, input.level, sampleSize);

@@ -307,6 +307,34 @@ describe("planFromLotSize and sampleSizeFromLotSize", () => {
     expect(codes(lotSample(2, "III"))).toEqual(["sample_exceeds_lot"]);
   });
 
+  it("planFromLotSize flags a sample below the AQL's plan, which Table 1 alone misses (BUILD_SPEC 6.1)", () => {
+    // Lot 1,000 at level I is code G (n 32); AQL 1.0 points down to H (n 50).
+    expect(lotSample(1_000, "I", 32)).toMatchObject({ codeLetter: "G", n: 32, warnings: [] });
+    const plan = fromLot(1_000, "I", 1.0, 32);
+    expect(plan).toMatchObject({ codeLetter: "G", usedLetter: "H", n: 50, ac: 1, re: 2, arrow: "down" });
+    expect(plan.warnings).toEqual([
+      {
+        code: "sample_below_plan",
+        message: "Inspection level I at AQL 1.0 needs a sample of 50 (code letter H) for a lot of 1,000, but the sample is 32.",
+      },
+    ]);
+    // Special levels: S-3 gives 120,000 code G (n 32) and 1,700,000 code H (n 50).
+    expect(codes(lotSample(120_000, "S-3", 32))).toEqual([]);
+    expect(fromLot(120_000, "S-3", 1.0, 32)).toMatchObject({ usedLetter: "H", n: 50 });
+    expect(codes(fromLot(120_000, "S-3", 1.0, 32))).toEqual(["sample_below_plan"]);
+    expect(codes(lotSample(1_700_000, "S-3", 50))).toEqual([]);
+    expect(fromLot(1_700_000, "S-3", 0.65, 50)).toMatchObject({ usedLetter: "J", n: 80 });
+    expect(codes(fromLot(1_700_000, "S-3", 0.65, 50))).toEqual(["sample_below_plan"]);
+  });
+
+  it("give sampling_plan the sample a template's AQLs need: the largest n, critical (0) at Table 1's", () => {
+    // Watertight 1.0, major 2.5, minor 4.0 and critical 0 on lot 1,000 at level I: code G, but 1.0 needs H.
+    const plans = ([1.0, 2.5, 4.0, 0] as const).map((aql) => fromLot(1_000, "I", aql, 32));
+    expect(plans.map(({ n }) => n)).toEqual([50, 32, 32, 32]);
+    expect(Math.max(...plans.map(({ n }) => n))).toBe(50);
+    expect(plans.map(codes)).toEqual([["sample_below_plan"], [], [], []]);
+  });
+
   it("accept a sample of 0 or 1 to compare with the plan", () => {
     expect(codes(lotSample(5_000, "I", 0))).toEqual(["sample_below_plan"]);
     expect(codes(lotSample(5_000, "I", 1))).toEqual(["sample_below_plan"]);

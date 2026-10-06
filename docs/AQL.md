@@ -11,8 +11,8 @@ ISO 2859-1 Tables 1 and 2-A are identical to ANSI/ASQ Z1.4 Tables I and II-A, wh
 | Function | Takes | Gives |
 |---|---|---|
 | `planFromSampleSize` | sample inspected, AQL | code letter of the sample, the plan after arrows, warnings |
-| `sampleSizeFromLotSize` | lot size, inspection level, sample taken (optional) | Table 1 code letter and its n; flags a sample below the plan |
-| `planFromLotSize` | lot size, inspection level, AQL, sample taken (optional) | Table 1, then Table 2-A after arrows; `n` is the sample to take |
+| `sampleSizeFromLotSize` | lot size, inspection level, sample taken (optional) | Table 1 only: the code letter and its n, with no AQL and so no arrows; flags a sample below that n |
+| `planFromLotSize` | lot size, inspection level, AQL, sample taken (optional) | Table 1, then Table 2-A after arrows; `n` is the sample to take; flags a sample below it |
 | `decide` | defects found, plan | `reject` at Re or more; `accept` at Ac or fewer once the sample inspected reaches the plan's `n`; `incomplete` otherwise (rule 4) |
 | `planMatchesSample`, `planMatchesLot` | a stored or posted plan; optionally the module's own inputs (sample size and AQL, or lot size, level, AQL and sample taken) | whether the tables give that plan for those inputs (BUILD_SPEC 6.2 rule 8) |
 | `labelingPlan` | nothing | Accept 0 / Reject 1 |
@@ -59,7 +59,7 @@ const WatertightSizeSchema = z
 ## Rules
 
 1. **From the sample size.** The example reports set n directly. n maps to its code letter: 2 A, 3 B, 5 C, 8 D, 13 E, 20 F, 32 G, 50 H, 80 J, 125 K, 200 L, 315 M, 500 N, 800 P, 1250 Q, 2000 R. Any other n is read as the largest standard n below it, with `nonstandard_sample` (100 reads as J, n 80; anything above 2000 as R). n below 2 is an error.
-2. **From the lot size.** Table 1 gives the code letter for the lot and the template's inspection level. Ranges include both ends; a lot has at least 2 items. `sample_below_plan` gives the n required when the sample taken is smaller.
+2. **From the lot size.** Table 1 gives the code letter for the lot and the template's inspection level. Ranges include both ends; a lot has at least 2 items. `sample_below_plan` gives the n required when the sample taken is smaller. `sampleSizeFromLotSize` stops at Table 1. `planFromLotSize` follows the AQL's arrow, so it can ask for more: lot 1,000 at level I is code G (n 32), but AQL 1.0 points down to code H (n 50).
 3. **Arrows.** An arrow up leads to the first plan above it in the same column (a smaller sample); that plan's Ac and Re apply. An arrow down leads to the first plan below it: from a sample size this raises `sample_too_small` with the n required, and the result still carries that plan's Ac and Re so the screen can explain. `usedLetter` names the letter whose plan was used. The smaller sample never accepts (rule 4).
 4. **Decisions.** `decide(defects, plan)` rejects at Re or more. It accepts at Ac or fewer only when the sample inspected reaches the plan's `n`, or covers the whole lot when the lot is not larger than `n`. Otherwise the answer is `incomplete`: the items not inspected may hold more defects. This covers an arrow down from a sample size, a sample below a lot plan, and a lot plan with no sample yet. A reject on a short sample stands, because defects only add up. Limits alone, such as `labelingPlan()`, decide on Ac and Re. For example, a sample of 50 at AQL 0.65 needs code J (n 80, 1 / 2): 0 or 1 holes are `incomplete`, and 2 are `reject`.
 5. **One sample for every class.** ISO 2859-1 10.3 says the new letter gives the sample size after an arrow, and lets the responsible authority use the largest sample for all classes. The app inspects one sample per size and applies the arrow's plan to it, as BUILD_SPEC 7 and the expected results specify: in the STD_EG example, minor defects at AQL 4.0 and code N follow the arrow up to code M and use 21 / 22 on the 500 gloves inspected.
@@ -72,7 +72,7 @@ const WatertightSizeSchema = z
 
 ## How the modules use it
 
-- `sampling_plan`: per size, lot size = cases ordered x gloves per case. With an inspection level set, `sampleSizeFromLotSize({ lotSize, level, sampleSize })` suggests n and flags a sample below the plan. In the SAFEDON_EG example at level I, the 80-glove samples of 120,000-glove lots need 200 and the 200-glove samples of lots over 500,000 need 500.
+- `sampling_plan`: per size, lot size = cases ordered x gloves per case. With an inspection level set, call `planFromLotSize({ lotSize, level, aql, sampleSize })` for each AQL the template checks on the watertight and visual sample: watertight, major, minor, and 0 for critical, which needs Table 1's n. Suggest the largest `n` among them. When the sample is below it, pass on the `sample_below_plan` warning of the plan that needs it; the warning names its AQL. This is the BUILD_SPEC 6.1 warning "below the AQL plan". `sampleSizeFromLotSize` gives Table 1's n only and would miss an arrow down. In the SAFEDON_EG example at level I, the 80-glove samples of 120,000-glove lots need 200 and the 200-glove samples of lots over 500,000 need 500.
 - `watertight`: per size (and hand), `planFromSampleSize({ sampleSize: tested, aql })`, then `decide(holes, plan)`. `accept` is pass and `reject` is fail. `incomplete` is never shown as passed: the module shows not done (BUILD_SPEC 6.2 rule 5, since the rest of the sample is missing) with the plan's `sample_too_small` warning, which names the n required.
 - `visual`: the same per class, with the class's AQL; critical is AQL 0.
 - `labeling`: `decide(defects, labelingPlan())` per level. Limits alone only give `accept` or `reject`.
