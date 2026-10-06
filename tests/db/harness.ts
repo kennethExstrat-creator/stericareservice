@@ -116,6 +116,12 @@ export interface NewAuthUser {
   email: string;
   fullName?: string;
   metadata?: Record<string, unknown>;
+  /**
+   * New accounts start inactive (migration 20261006000600); like an admin's
+   * invite, the helper activates them unless told not to. Pass false to see
+   * the raw trigger result, and for users created before the migrations run.
+   */
+  active?: boolean;
 }
 
 /** Inserts into auth.users the way Supabase Auth does, firing the profile trigger. */
@@ -137,6 +143,9 @@ export async function createAuthUser(db: Db, user: NewAuthUser): Promise<string>
       [id, user.email, JSON.stringify(metadata)],
     );
   });
+  if (user.active !== false) {
+    await asOwner(db, (tx) => tx.query("update public.profiles set active = true where id = $1", [id]));
+  }
   return id;
 }
 
