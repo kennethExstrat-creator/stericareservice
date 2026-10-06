@@ -39,6 +39,9 @@ test("an inspector gets a 404 for /admin/users", async ({ page, context, baseURL
   await expect(page.getByText(/page not found|could not be found/i).first()).toBeVisible();
   await expect(page.getByRole("heading", { name: "Users", level: 1 })).toHaveCount(0);
   await expect(page.getByText(TEST_ACCOUNTS.admin)).toHaveCount(0);
+  // Nothing names the page: not the tab title, not the HTML.
+  expect(await page.locator("title").allTextContents()).not.toContainEqual(expect.stringContaining("Users"));
+  expect(await response?.text()).not.toContain("Users · SteriCare QC");
   await shot(page, "inspector-404");
 });
 

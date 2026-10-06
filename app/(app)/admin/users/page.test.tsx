@@ -19,7 +19,7 @@ vi.mock("./actions", () => ({
 
 import { requireAdmin } from "@/lib/auth/session";
 import { getUserDirectory } from "@/lib/auth/users";
-import UsersPage from "./page";
+import UsersPage, { generateMetadata } from "./page";
 
 const ME = "7c2d4e1a-0b3f-4a5c-9d8e-1f2a3b4c5d6e";
 
@@ -48,7 +48,21 @@ function inviteButton(html: string): string | null {
 
 describe("/admin/users", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.mocked(requireAdmin).mockResolvedValue({ id: ME, email: "admin@test.local", fullName: "Test Admin", role: "admin" });
+  });
+
+  it("names the page only for an admin", async () => {
+    expect(await generateMetadata()).toEqual({ title: "Users" });
+    expect(requireAdmin).toHaveBeenCalledOnce();
+  });
+
+  it("names nothing for anyone else: the 404 from requireAdmin() wins over the title", async () => {
+    // Next resolves metadata apart from the page, so a static title would
+    // still say "Users" on an inspector's 404.
+    const notFound = Object.assign(new Error("NEXT_HTTP_ERROR_FALLBACK;404"), { digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
+    vi.mocked(requireAdmin).mockRejectedValue(notFound);
+    await expect(generateMetadata()).rejects.toBe(notFound);
   });
 
   it("checks for an admin first and lists the directory for that admin", async () => {

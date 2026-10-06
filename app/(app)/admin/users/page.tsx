@@ -8,7 +8,16 @@ import { getUserDirectory } from "@/lib/auth/users";
 import { InviteUserDialog } from "./_components/invite-user-dialog";
 import { UsersTable } from "./_components/users-table";
 
-export const metadata: Metadata = { title: "Users" };
+/**
+ * The title checks the role too. Next resolves metadata apart from the page,
+ * so a static title would still name this page on an inspector's 404 (in the
+ * tab and the HTML); notFound() here swaps in the 404 page's metadata. The
+ * session is cached per request, so this adds no query.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  await requireAdmin();
+  return { title: "Users" };
+}
 
 /**
  * /admin/users (BUILD_SPEC 3 and 10): everyone with an account, invites,
