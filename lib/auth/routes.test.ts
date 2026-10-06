@@ -43,6 +43,13 @@ describe("safeNextPath", () => {
     ["/\\evil.example"],
     ["\\\\evil.example"],
     ["javascript:alert(1)"],
+    // Dot segments collapse during parsing into a protocol-relative URL.
+    ["/.//evil.example"],
+    ["/..//evil.example"],
+    ["/%2e//evil.example"],
+    ["/%2e%2e//evil.example"],
+    ["/x/..//evil.example"],
+    ["/x/../..//evil.example/path?q=1"],
   ])("falls back for %s", (raw) => {
     expect(safeNextPath(raw)).toBe(HOME_PATH);
   });

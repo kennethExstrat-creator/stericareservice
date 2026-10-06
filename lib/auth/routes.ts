@@ -46,7 +46,15 @@ export function safeNextPath(raw: string | null | undefined, fallback: string = 
   }
   if (url.origin !== "http://internal.invalid") return fallback;
 
+  // The parser collapses dot segments, so "/.//evil.example" arrives here as
+  // "//evil.example": check the normalised path, not just the raw string.
   const path = url.pathname;
+  if (path.startsWith("//")) return fallback;
   if (classifyPath(path) === "guest" || matches(path, "/auth")) return fallback;
-  return `${path}${url.search}${url.hash}`;
+
+  const next = `${path}${url.search}${url.hash}`;
+  // Last line of defence: the result must stay on our origin when a browser
+  // resolves it as a relative URL.
+  if (new URL(next, "http://internal.invalid").origin !== "http://internal.invalid") return fallback;
+  return next;
 }
