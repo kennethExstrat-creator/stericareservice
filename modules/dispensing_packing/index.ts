@@ -21,6 +21,7 @@ export const definition = defineModule<DispensingPackingData, DispensingPackingC
   defaultConfig: DISPENSING_PACKING_DEFAULT_CONFIG,
   perSize: true,
   calc: calcDispensingPacking,
+  loadCapture: () => import("./Capture"),
 });
 
 export type { DispensingPackingData } from "./schema";
