@@ -1,13 +1,16 @@
 "use client";
 
 // One field of a plain form (fields.ts): the control its type calls for,
-// from the design system. Numbers go through NumericCell, so text such as
-// "2 42" is rejected and never stored (BUILD_SPEC 6.2 rule 1); counts are a
-// Stepper, never typed (8); dates use the date picker (rule 3). Values are
-// stored as lib/validation/custom.ts reads them: text, numbers, booleans and
-// `YYYY-MM-DD`, or null when blank.
+// from the design system and the capture kit (docs/CAPTURE_KIT.md). Numbers
+// are the kit's NumberField, so text such as "2 42" is rejected and never
+// stored (BUILD_SPEC 6.2 rule 1), Enter moves on and a pasted column fills
+// down inside an EnterGroup; counts are a Stepper, never typed (8); dates
+// use the date picker (rule 3). Values are stored as
+// lib/validation/custom.ts reads them: text, numbers, booleans and
+// `YYYY-MM-DD`, or null when blank. Every control is marked for issue links
+// with the kit's issuePathProps.
 import { useId, type ReactNode } from "react";
-import { NumericCell, Stepper } from "@/components/qc";
+import { issuePathProps, NumberField, Stepper } from "@/components/qc";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -22,7 +25,6 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { dateValue, textValue, type FormField } from "@/lib/inspections/capture/fields";
 import type { IssuePath } from "@/lib/validation";
 import { cn } from "@/lib/utils";
-import { issuePathAttribute } from "./issue-focus";
 
 type FieldControlProps = {
   field: FormField;
@@ -37,6 +39,11 @@ type FieldControlProps = {
   variant?: "field" | "cell";
   /** Read by screen readers in a cell: "Size M, Conclusion". */
   cellLabel?: string;
+  /**
+   * Number cells with the same group form one column inside the nearest
+   * EnterGroup: Enter walks down it and a pasted column fills it.
+   */
+  group?: string;
   onFocus?: () => void;
 };
 
@@ -51,6 +58,7 @@ export function FieldControl({
   error,
   variant = "field",
   cellLabel,
+  group,
   onFocus,
 }: FieldControlProps) {
   const id = useId();
@@ -61,24 +69,30 @@ export function FieldControl({
   const label = cell ? (cellLabel ?? field.label) : field.label;
   const describedBy = [!cell && field.hint ? hintId : null, error ? errorId : null].filter(Boolean).join(" ") || undefined;
 
+  if (field.type === "number") {
+    // The kit's field draws its own label, hint, error and issue mark.
+    return (
+      <NumberField
+        id={inputId}
+        variant={variant}
+        label={cell ? label : <LabelText label={field.label} required={field.required} />}
+        value={typeof value === "number" ? value : null}
+        onValueChange={(next) => onChange(next)}
+        unit={field.unit}
+        min={field.min}
+        max={field.max}
+        hint={cell ? undefined : field.hint}
+        error={error}
+        group={group}
+        readOnly={readOnly}
+        issuePath={issuePath}
+        onFocus={onFocus}
+      />
+    );
+  }
+
   const control = (() => {
     switch (field.type) {
-      case "number":
-        return (
-          <NumericCell
-            id={inputId}
-            variant="field"
-            value={typeof value === "number" ? value : null}
-            onValueChange={(next) => onChange(next)}
-            min={field.min}
-            max={field.max}
-            unit={field.unit}
-            readOnly={readOnly}
-            aria-label={cell ? label : undefined}
-            aria-describedby={describedBy}
-            onFocus={onFocus}
-          />
-        );
       case "counter": {
         const count = typeof value === "number" ? value : null;
         return (
@@ -92,7 +106,7 @@ export function FieldControl({
               max={field.max}
               disabled={readOnly}
             />
-            {count === null && <span className="text-sm text-muted-foreground">Not counted yet</span>}
+            {count === null && <span className="text-sm text-muted-foreground touch:text-base">Not counted yet</span>}
           </div>
         );
       }
@@ -220,14 +234,14 @@ export function FieldControl({
   })();
 
   const errorLine = error ? (
-    <p id={errorId} className="text-sm text-fail">
+    <p id={errorId} className="text-sm text-fail touch:text-base">
       {error}
     </p>
   ) : null;
 
   if (cell) {
     return (
-      <div data-field={field.key} className="min-w-0 space-y-1" {...issuePathAttribute(issuePath)}>
+      <div data-field={field.key} className="min-w-0 space-y-1" {...issuePathProps(issuePath)}>
         {control}
         {errorLine}
       </div>
@@ -237,14 +251,13 @@ export function FieldControl({
   // Grouped controls (a stepper, a choice) are named by their own label; the rest by <label for>.
   const grouped = field.type === "counter" || field.type === "yes_no" || (field.type === "select" && (field.options?.length ?? 0) <= 4);
   return (
-    <div data-field={field.key} className="min-w-0 space-y-1.5" {...issuePathAttribute(issuePath)}>
-      <FieldLabel htmlFor={grouped || field.type === "photo" ? undefined : inputId} required={field.required}>
-        {field.label}
-        {field.unit && field.type !== "number" ? ` (${field.unit})` : ""}
+    <div data-field={field.key} className="min-w-0 space-y-1.5" {...issuePathProps(issuePath)}>
+      <FieldLabel htmlFor={grouped || field.type === "photo" ? undefined : inputId}>
+        <LabelText label={field.label} unit={field.unit} required={field.required} />
       </FieldLabel>
       {control}
       {field.hint && (
-        <p id={hintId} className="text-sm text-muted-foreground">
+        <p id={hintId} className="text-sm text-muted-foreground touch:text-base">
           {field.hint}
         </p>
       )}
@@ -253,24 +266,24 @@ export function FieldControl({
   );
 }
 
-function FieldLabel({ htmlFor, required, children }: { htmlFor?: string; required?: boolean; children: ReactNode }) {
-  const content = (
+/** "Container seal intact (required)", "Length (mm)". */
+function LabelText({ label, unit, required }: { label: string; unit?: string; required?: boolean }) {
+  return (
     <>
-      {children}
-      {required && (
-        <span className="font-normal text-muted-foreground">
-          {" "}
-          (required)
-        </span>
-      )}
+      {label}
+      {unit ? ` (${unit})` : ""}
+      {required && <span className="font-normal text-muted-foreground"> (required)</span>}
     </>
   );
+}
+
+function FieldLabel({ htmlFor, children }: { htmlFor?: string; children: ReactNode }) {
   if (htmlFor) {
     return (
       <Label htmlFor={htmlFor} className="leading-snug touch:text-base">
-        {content}
+        {children}
       </Label>
     );
   }
-  return <p className="text-sm leading-snug font-medium text-foreground touch:text-base">{content}</p>;
+  return <p className="text-sm leading-snug font-medium text-foreground touch:text-base">{children}</p>;
 }

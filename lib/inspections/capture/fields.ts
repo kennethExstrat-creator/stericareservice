@@ -90,6 +90,37 @@ export function gridColumnCount(custom: CustomModule, record: unknown): number {
   return widest;
 }
 
+/**
+ * A grid record with one cell set: `{ <field>: [value per column] }`. The
+ * row grows with nulls up to the column; other fields and columns are kept.
+ * Never changes `record`.
+ */
+export function withGridCell(
+  record: Readonly<Record<string, unknown>>,
+  fieldKey: string,
+  column: number,
+  value: unknown,
+): Record<string, unknown> {
+  const stored = record[fieldKey];
+  const row: unknown[] = Array.isArray(stored) ? [...stored] : [];
+  while (row.length <= column) row.push(null);
+  row[column] = value;
+  return { ...record, [fieldKey]: row };
+}
+
+/** A grid record with one more, empty, column in every row of its own fields. Never changes `record`. */
+export function withGridColumn(custom: CustomModule, record: Readonly<Record<string, unknown>>): Record<string, unknown> {
+  const count = gridColumnCount(custom, record) + 1;
+  const next: Record<string, unknown> = { ...record };
+  for (const field of ownCustomFields(custom)) {
+    const stored = record[field.key];
+    const row: unknown[] = Array.isArray(stored) ? [...stored] : [];
+    while (row.length < count) row.push(null);
+    next[field.key] = row;
+  }
+  return next;
+}
+
 /** Custom fields that keep their own value (a field mapped to a module keeps none here). */
 export function ownCustomFields(custom: CustomModule): Field[] {
   return custom.fields.filter((field) => field.mapsTo === undefined);

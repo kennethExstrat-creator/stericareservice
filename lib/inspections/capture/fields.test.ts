@@ -10,6 +10,8 @@ import {
   isSwitchedOffField,
   ownCustomFields,
   textValue,
+  withGridCell,
+  withGridColumn,
 } from "./fields";
 
 describe("fallbackFields", () => {
@@ -75,6 +77,32 @@ describe("custom fields", () => {
     expect(gridColumnCount(grid, {})).toBe(3);
     expect(gridColumnCount(grid, { weather: ["a", "b", "c", "d", "e"] })).toBe(5);
     expect(gridColumnCount(grid, null)).toBe(3);
+  });
+
+  it("sets one grid cell, growing the row with blanks and keeping the rest", () => {
+    const record = { weather: ["Dry"], other: "kept" };
+    const next = withGridCell(record, "weather", 2, "Wet");
+    expect(next).toEqual({ weather: ["Dry", null, "Wet"], other: "kept" });
+    expect(record).toEqual({ weather: ["Dry"], other: "kept" });
+    expect(withGridCell({}, "sealIntact", 0, true)).toEqual({ sealIntact: [true] });
+    expect(withGridCell({ weather: ["a", "b"] }, "weather", 0, null)).toEqual({ weather: [null, "b"] });
+  });
+
+  it("adds an empty column to every row of the grid's own fields", () => {
+    const grid = {
+      ...SITE_NOTES,
+      layout: "grid" as const,
+      grid: { columns: { label: "Box", default: 2, addable: true } },
+    };
+    const record = { weather: ["Dry", "Wet"], sizes: "kept" };
+    expect(withGridColumn(grid, record)).toEqual({
+      weather: ["Dry", "Wet", null],
+      sealIntact: [null, null, null],
+      sizes: "kept",
+    });
+    expect(record).toEqual({ weather: ["Dry", "Wet"], sizes: "kept" });
+    // The mapped field keeps no row of its own.
+    expect(withGridColumn(grid, {})).not.toHaveProperty("colourAgain");
   });
 });
 

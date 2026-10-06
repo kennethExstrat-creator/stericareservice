@@ -4,9 +4,13 @@
 // custom modules in their three layouts, and the simplified form of a built
 // module that has no capture form of its own yet. Labels come from the
 // template (6.2 rule 11); values are stored where lib/validation reads
-// them; every control is marked for issue links.
+// them; every control is marked for issue links. Like a module's Capture,
+// every write goes through the kit's useDataUpdater (docs/CAPTURE_KIT.md):
+// each change starts from the latest value, so a pasted column of numbers
+// or a value committed on blur as the section turns is never cut short.
 import { useRef, type ReactNode } from "react";
 import { PlusIcon } from "lucide-react";
+import { EnterGroup, findIssue, useDataUpdater, useIssueFocus } from "@/components/qc";
 import { Button } from "@/components/ui/button";
 import {
   customFormField,
@@ -14,6 +18,8 @@ import {
   gridColumnCount,
   isPerSizeCustom,
   ownCustomFields,
+  withGridCell,
+  withGridColumn,
   type FormField,
 } from "@/lib/inspections/capture/fields";
 import type { CustomModule } from "@/lib/schemas/template";
@@ -28,9 +34,10 @@ import {
   type Labels,
 } from "@/modules/_framework";
 import { FieldControl } from "./field-control";
-import { useFocusPath } from "./issue-focus";
 
 type Record_ = Record<string, unknown>;
+type RecordChange = (current: Record_) => Record_;
+type Update = (change: RecordChange) => void;
 
 function asRecord(value: unknown): Record_ {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record_) : {};
@@ -38,9 +45,16 @@ function asRecord(value: unknown): Record_ {
 
 /** The message of the issue that points exactly at `path`, errors first. */
 function messageAt(issues: readonly ValidationIssue[], path: IssuePath): string | null {
-  const key = JSON.stringify(path);
-  const matching = issues.filter((issue) => JSON.stringify(issue.path) === key);
-  return (matching.find((issue) => issue.level === "error") ?? matching[0])?.message ?? null;
+  return findIssue(issues, path)?.message ?? null;
+}
+
+/** Changes to one size's record inside `{ sizes: { <size>: record } }`. */
+function sizeScope(update: Update, size: string): Update {
+  return (change) =>
+    update((current) => {
+      const sizes = asRecord(current.sizes);
+      return { ...current, sizes: { ...sizes, [size]: change(asRecord(sizes[size])) } };
+    });
 }
 
 /* ------------------------------------------------------------------ *
@@ -67,27 +81,28 @@ export function FallbackModuleForm({
   onChange: (next: Record_) => void;
 }) {
   const root = useRef<HTMLDivElement>(null);
-  useFocusPath(focusPath, root);
-  const fields = fallbackFields(definition, config, labels);
+  useIssueFocus(focusPath, { root });
   const record = asRecord(data);
+  const update = useDataUpdater(record, onChange);
+  const fields = fallbackFields(definition, config, labels);
   if (fields.length === 0) {
     return <Hint>This section has no form yet. It arrives in a later build.</Hint>;
   }
   return (
     <div ref={root} className="space-y-5">
-      <div className="grid gap-5 md:grid-cols-2">
+      <EnterGroup className="grid gap-5 md:grid-cols-2">
         {fields.map((field) => (
           <FieldControl
             key={field.key}
             field={field}
             value={readPath(record, field.segments) ?? null}
-            onChange={(value) => onChange(asRecord(writePath(record, field.segments, value)))}
+            onChange={(value) => update((current) => asRecord(writePath(current, field.segments, value)))}
             readOnly={readOnly}
             issuePath={field.segments}
             error={messageAt(issues, field.segments)}
           />
         ))}
-      </div>
+      </EnterGroup>
       <Hint>A simplified form: this section&apos;s full form arrives in a later build.</Hint>
     </div>
   );
@@ -124,13 +139,14 @@ export function CustomModuleForm({
   onFocusChange: (focus: CaptureFocus) => void;
 }) {
   const root = useRef<HTMLDivElement>(null);
-  useFocusPath(focusPath, root);
+  useIssueFocus(focusPath, { root });
   const record = asRecord(value);
+  const update = useDataUpdater(record, onChange);
 
   let body: ReactNode;
   if (custom.layout === "fields") {
     body = (
-      <div className="grid gap-5 md:grid-cols-2">
+      <EnterGroup className="grid gap-5 md:grid-cols-2">
         {custom.fields.map((field) => {
           const form = customFormField(field);
           const mapped = field.mapsTo;
@@ -140,7 +156,7 @@ export function CustomModuleForm({
               field={form}
               value={mapped ? (mappedValues[field.key] ?? null) : (record[field.key] ?? null)}
               onChange={(next) =>
-                mapped ? onMappedChange(mapped, next) : onChange({ ...record, [field.key]: next })
+                mapped ? onMappedChange(mapped, next) : update((current) => ({ ...current, [field.key]: next }))
               }
               readOnly={readOnly}
               issuePath={[field.key]}
@@ -148,7 +164,7 @@ export function CustomModuleForm({
             />
           );
         })}
-      </div>
+      </EnterGroup>
     );
   } else if (custom.layout === "table") {
     body = (
@@ -161,7 +177,7 @@ export function CustomModuleForm({
             record={record}
             issues={issues}
             readOnly={readOnly}
-            onChange={onChange}
+            update={update}
             onFocusChange={onFocusChange}
           />
         )}
@@ -183,7 +199,7 @@ export function CustomModuleForm({
                   size={size}
                   issues={issues}
                   readOnly={readOnly}
-                  onChange={(next) => onChange({ ...record, sizes: { ...sizes, [size]: next } })}
+                  update={sizeScope(update, size)}
                   onFocusChange={onFocusChange}
                 />
               </section>
@@ -201,7 +217,7 @@ export function CustomModuleForm({
         size={undefined}
         issues={issues}
         readOnly={readOnly}
-        onChange={onChange}
+        update={update}
         onFocusChange={onFocusChange}
       />
     );
@@ -222,7 +238,7 @@ function PerSize({ context, children }: { context: InspectionContext; children: 
   return <>{children(context.sizes)}</>;
 }
 
-/** A row per ordered size, a column per field. */
+/** A row per ordered size, a column per field. Enter walks down a column of numbers. */
 function SizeTable({
   custom,
   sizes,
@@ -230,7 +246,7 @@ function SizeTable({
   record,
   issues,
   readOnly,
-  onChange,
+  update,
   onFocusChange,
 }: {
   custom: CustomModule;
@@ -239,13 +255,13 @@ function SizeTable({
   record: Record_;
   issues: readonly ValidationIssue[];
   readOnly: boolean;
-  onChange: (next: Record_) => void;
+  update: Update;
   onFocusChange: (focus: CaptureFocus) => void;
 }) {
   const fields = ownCustomFields(custom).map(customFormField);
   const bySize = asRecord(record.sizes);
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
+    <EnterGroup className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full min-w-max border-collapse text-sm touch:text-base">
         <caption className="sr-only">{custom.title}, one row per size</caption>
         <thead className="bg-slate-50 text-left">
@@ -256,6 +272,7 @@ function SizeTable({
             {fields.map((field) => (
               <th key={field.key} scope="col" className="px-3 py-2 font-semibold text-foreground">
                 {field.label}
+                {field.unit && field.type !== "number" ? ` (${field.unit})` : ""}
                 {field.required && <span className="font-normal text-muted-foreground"> (required)</span>}
               </th>
             ))}
@@ -264,6 +281,7 @@ function SizeTable({
         <tbody>
           {sizes.map((size) => {
             const row = asRecord(bySize[size]);
+            const updateRow = sizeScope(update, size);
             return (
               <tr key={size} className="border-t border-border align-top">
                 <th scope="row" className="px-3 py-2.5 text-left font-semibold whitespace-nowrap text-foreground">
@@ -276,12 +294,11 @@ function SizeTable({
                       cellLabel={`Size ${sizeLabel(context, size)}, ${field.label}`}
                       field={field}
                       value={row[field.key] ?? null}
-                      onChange={(next) =>
-                        onChange({ ...record, sizes: { ...bySize, [size]: { ...row, [field.key]: next } } })
-                      }
+                      onChange={(next) => updateRow((current) => ({ ...current, [field.key]: next }))}
                       readOnly={readOnly}
                       issuePath={["sizes", size, field.key]}
                       error={messageAt(issues, ["sizes", size, field.key])}
+                      group={field.key}
                       onFocus={() => onFocusChange({ size })}
                     />
                   </td>
@@ -291,11 +308,11 @@ function SizeTable({
           })}
         </tbody>
       </table>
-    </div>
+    </EnterGroup>
   );
 }
 
-/** A row per field, repeated columns (boxes). */
+/** A row per field, repeated columns (boxes). Enter walks along a row of numbers. */
 function Grid({
   custom,
   record,
@@ -303,7 +320,7 @@ function Grid({
   size,
   issues,
   readOnly,
-  onChange,
+  update,
   onFocusChange,
 }: {
   custom: CustomModule;
@@ -312,18 +329,21 @@ function Grid({
   size: string | undefined;
   issues: readonly ValidationIssue[];
   readOnly: boolean;
-  onChange: (next: Record_) => void;
+  update: Update;
   onFocusChange: (focus: CaptureFocus) => void;
 }) {
   const fields = ownCustomFields(custom).map(customFormField);
   const columns = custom.grid?.columns;
   const count = gridColumnCount(custom, record);
   const columnLabel = columns?.label ?? "Column";
-  const cells = (field: FormField): unknown[] => (Array.isArray(record[field.key]) ? [...(record[field.key] as unknown[])] : []);
+  const cells = (field: FormField): readonly unknown[] => {
+    const stored = record[field.key];
+    return Array.isArray(stored) ? stored : [];
+  };
 
   return (
     <div className="space-y-3">
-      <div className="overflow-x-auto rounded-lg border border-border">
+      <EnterGroup className="overflow-x-auto rounded-lg border border-border">
         <table className="w-full min-w-max border-collapse text-sm touch:text-base">
           <caption className="sr-only">
             {custom.title}
@@ -346,6 +366,7 @@ function Grid({
               <tr key={field.key} className="border-t border-border align-top">
                 <th scope="row" className="px-3 py-2.5 text-left font-semibold text-foreground">
                   {field.label}
+                  {field.unit && field.type !== "number" ? ` (${field.unit})` : ""}
                 </th>
                 {Array.from({ length: count }, (_, column) => {
                   const path = [...root, field.key, column];
@@ -356,15 +377,11 @@ function Grid({
                         cellLabel={`${field.label}, ${columnLabel} ${column + 1}${size ? `, size ${size}` : ""}`}
                         field={field}
                         value={cells(field)[column] ?? null}
-                        onChange={(next) => {
-                          const updated = cells(field);
-                          while (updated.length <= column) updated.push(null);
-                          updated[column] = next;
-                          onChange({ ...record, [field.key]: updated });
-                        }}
+                        onChange={(next) => update((current) => withGridCell(current, field.key, column, next))}
                         readOnly={readOnly}
                         issuePath={path}
                         error={messageAt(issues, path)}
+                        group={field.key}
                         onFocus={() => onFocusChange(size ? { size } : {})}
                       />
                     </td>
@@ -374,21 +391,13 @@ function Grid({
             ))}
           </tbody>
         </table>
-      </div>
+      </EnterGroup>
       {columns?.addable && !readOnly && (
         <Button
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => {
-            const next: Record_ = { ...record };
-            for (const field of fields) {
-              const updated = cells(field);
-              while (updated.length < count + 1) updated.push(null);
-              next[field.key] = updated;
-            }
-            onChange(next);
-          }}
+          onClick={() => update((current) => withGridColumn(custom, current))}
         >
           <PlusIcon aria-hidden />
           Add {columnLabel.toLowerCase()}
