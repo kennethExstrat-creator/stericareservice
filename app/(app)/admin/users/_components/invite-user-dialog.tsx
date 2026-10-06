@@ -31,6 +31,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Spinner } from "@/components/ui/spinner";
 import type { InviteField, UserRole } from "@/lib/auth/users";
 import { inviteUser, type ActionResult } from "../actions";
+import { unreachable } from "./unreachable";
 
 const ROLE_OPTIONS: { value: UserRole; label: string; description: string }[] = [
   { value: "inspector", label: "Inspector", description: "Records inspections and sees their own." },
@@ -101,7 +102,7 @@ function InviteForm({ onDone, onPendingChange }: { onDone: () => void; onPending
   const [state, formAction, pending] = useActionState(async (previous: ActionResult, formData: FormData) => {
     onPendingChange(true);
     try {
-      const result = await inviteUser(previous, formData);
+      const result = await inviteUser(previous, formData).catch(unreachable);
       const errors = result.status === "error" ? (result.fieldErrors ?? {}) : {};
       setFieldErrors(errors);
       if (errors.fullName) nameRef.current?.focus();
@@ -140,6 +141,7 @@ function InviteForm({ onDone, onPendingChange }: { onDone: () => void; onPending
             id={`${id}-name`}
             name="fullName"
             autoComplete="off"
+            autoCapitalize="words"
             value={fullName}
             onChange={(event) => {
               setFullName(event.target.value);

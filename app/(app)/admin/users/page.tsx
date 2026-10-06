@@ -14,6 +14,8 @@ export const metadata: Metadata = { title: "Users" };
  * /admin/users (BUILD_SPEC 3 and 10): everyone with an account, invites,
  * roles, deactivation. Inspectors get a 404 from requireAdmin(); the layout
  * above is not a security boundary, so this page checks for itself.
+ *
+ * No outer padding or width: the app shell's main area provides both.
  */
 export default async function UsersPage() {
   const viewer = await requireAdmin();
@@ -22,7 +24,7 @@ export default async function UsersPage() {
   const onlyYou = users.every((user) => user.isSelf);
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 md:px-6 md:py-8 xl:px-8">
+    <div className="flex flex-col gap-6">
       <PageHeader
         eyebrow="Admin"
         title="Users"

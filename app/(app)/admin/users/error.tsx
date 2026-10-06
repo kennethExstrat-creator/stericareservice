@@ -6,14 +6,17 @@ import { PageHeader } from "@/components/qc";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 
-/** When the user list cannot be loaded (Supabase unreachable, an unexpected error). */
+/**
+ * When the user list cannot be loaded (Supabase unreachable, an unexpected
+ * error). Renders inside the app shell, which provides the page padding.
+ */
 export default function UsersError({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {
   useEffect(() => {
     console.error(error);
   }, [error]);
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 md:px-6 md:py-8 xl:px-8">
+    <div className="flex flex-col gap-6">
       <PageHeader eyebrow="Admin" title="Users" />
       <Empty className="border border-border bg-card shadow-sm">
         <EmptyHeader>

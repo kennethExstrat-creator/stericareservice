@@ -33,7 +33,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Spinner } from "@/components/ui/spinner";
-import type { AccountStatus, UserRole } from "@/lib/auth/users";
 import {
   changeRole,
   deactivateUser,
@@ -41,17 +40,8 @@ import {
   sendPasswordLink,
   type ActionResult,
 } from "../actions";
-
-export type UserActionsTarget = {
-  id: string;
-  name: string;
-  email: string;
-  role: UserRole;
-  status: AccountStatus;
-  isSelf: boolean;
-};
-
-type Kind = "make-admin" | "make-inspector" | "send-link" | "deactivate" | "reactivate" | "activate";
+import { unreachable } from "./unreachable";
+import { menuGroups, type MenuAction as Kind, type UserActionsTarget } from "./user-menu";
 
 type ServerAction = (previous: ActionResult, formData: FormData) => Promise<ActionResult>;
 
@@ -73,24 +63,6 @@ const MENU_ITEM: Record<Kind, { label: string; icon: LucideIcon }> = {
   reactivate: { label: "Reactivate", icon: UserCheckIcon },
   activate: { label: "Activate", icon: UserCheckIcon },
 };
-
-/**
- * What an admin can do to this person, in menu groups. Nobody can demote or
- * deactivate themselves (the actions refuse it too), and password links only
- * go to accounts that can sign in.
- */
-function menuGroups(user: UserActionsTarget): Kind[][] {
-  if (user.isSelf) return user.status === "active" ? [["send-link"]] : [];
-  const roleChange: Kind = user.role === "admin" ? "make-inspector" : "make-admin";
-  switch (user.status) {
-    case "active":
-      return [[roleChange, "send-link"], ["deactivate"]];
-    case "pending":
-      return [["activate", roleChange]];
-    case "deactivated":
-      return [["reactivate", roleChange]];
-  }
-}
 
 function confirmation(kind: Kind, user: UserActionsTarget): Confirmation {
   const target = { userId: user.id };
@@ -242,7 +214,7 @@ function ConfirmDialog({
   returnFocusTo: RefObject<HTMLButtonElement | null>;
 }) {
   const [state, formAction, pending] = useActionState(async (previous: ActionResult, formData: FormData) => {
-    const result = await confirmation.action(previous, formData);
+    const result = await confirmation.action(previous, formData).catch(unreachable);
     if (result.status === "success") {
       toast.success(result.message);
       onClose();
