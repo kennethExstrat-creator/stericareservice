@@ -67,6 +67,8 @@ export type DetailsView = {
   unit: string | null;
   reportTitle: string | null;
   clientLogo: boolean | null;
+  /** Whether submitting asks for an AI second opinion (BUILD_SPEC 9.2); null until the version resolves. */
+  aiOnSubmit: boolean | null;
   confirmedText: string | null;
   createdText: string;
   updatedText: string;
@@ -131,6 +133,9 @@ export function DetailsPanel({ view }: { view: DetailsView }) {
               </span>
             )}
           </Row>
+        )}
+        {view.aiOnSubmit !== null && (
+          <Row term="AI second opinion">{view.aiOnSubmit ? "On submit, and when an admin asks" : "Only when an admin asks"}</Row>
         )}
         <Row term="Used by">{usageText(detail.usage)}</Row>
         <Row term="Coverage">

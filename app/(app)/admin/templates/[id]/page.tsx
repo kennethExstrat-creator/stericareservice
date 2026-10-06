@@ -36,6 +36,7 @@ import {
   type SourceFileInfo,
 } from "@/lib/admin/templates";
 import { requireAdmin } from "@/lib/auth/session";
+import { aiReviewOnSubmit } from "@/lib/schemas/template";
 import { createClient } from "@/lib/supabase/server";
 import { MODULE_REGISTRY } from "@/modules";
 import { TemplateStatusBadge } from "../_components/template-status-badge";
@@ -173,6 +174,7 @@ export default async function TemplateVersionPage({ params }: PageProps<"/admin/
               unit: template ? UNIT_LABEL[template.unit] : null,
               reportTitle: template?.report.title ?? null,
               clientLogo: template ? template.report.showClientLogo : null,
+              aiOnSubmit: template ? aiReviewOnSubmit(template) : null,
               confirmedText,
               createdText: formatDateTime(detail.createdAt),
               updatedText: formatDateTime(detail.updatedAt),

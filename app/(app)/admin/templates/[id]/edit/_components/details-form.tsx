@@ -2,14 +2,19 @@
 
 // The template's own facts (BUILD_SPEC 4.3): name, unit, sizes and the AI
 // report settings, as a form generated from the template schema's parts;
+// the AI second opinion on submit (9.2), on or off or as the base has it;
 // where it applies (scope, 4.4), picked from the clients and manufacturers;
 // and what is fixed for a version: its code and its base template.
 import { useMemo } from "react";
+import { RotateCcwIcon } from "lucide-react";
 import { z } from "zod";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { ProductTypeSchema, StandardSchema } from "@/lib/schemas/common";
 import {
+  TemplateAiSchema,
   TemplateReportSchema,
   TemplateSizeSchema,
   TemplateUnitSchema,
@@ -25,7 +30,10 @@ import type { EditorApi } from "./editor-api";
 const DETAIL_KEYS = ["name", "unit", "sizes", "report"] as const;
 
 /** Template paths the Details tab shows; the rest belong to the JSON tab. */
-const DETAIL_AREAS: readonly unknown[] = [...DETAIL_KEYS, "scope", "code", "extends"];
+const DETAIL_AREAS: readonly unknown[] = [...DETAIL_KEYS, "ai", "scope", "code", "extends"];
+
+/** The AI second opinion switch: the problem list links here. */
+export const AI_ON_SUBMIT_ID = fieldId("details", ["ai", "reviewOnSubmit"]);
 
 const DetailsSchema = z.strictObject({
   name: z.string().trim().min(1).meta({ title: "Name", description: "How admins and inspectors know this template." }),
@@ -99,8 +107,109 @@ export function DetailsForm({ api }: { api: EditorApi }) {
           }
         />
       </div>
+      <AiFields api={api} />
       <ScopeFields api={api} />
       <FixedFields api={api} />
+    </section>
+  );
+}
+
+/**
+ * The AI second opinion on submit (BUILD_SPEC 9.2): the switch shows what
+ * the template will do, its own setting or the one it inherits; turning it
+ * writes this template's own, and the reset gives the inherited one back.
+ */
+function AiFields({ api }: { api: EditorApi }) {
+  const own = TemplateAiSchema.safeParse(api.draft.ai);
+  const inherited = api.context.inheritance.ai;
+  const base = api.context.inheritance.bases[0];
+  const setsOwn = api.draft.ai !== undefined;
+  const on = own.success ? own.data.reviewOnSubmit : (inherited?.reviewOnSubmit ?? false);
+  const word = (value: boolean | undefined) => (value ? "on" : "off");
+  const messages = api.problems
+    .filter((problem) => problem.place.area === "template" && problem.place.path[0] === "ai")
+    .map((problem) => problem.message);
+  const hintId = `${AI_ON_SUBMIT_ID}-hint`;
+  const errorsId = `${AI_ON_SUBMIT_ID}-errors`;
+  const label = "AI second opinion on submit";
+  // Where the switch's state comes from, when it is not this template's own.
+  const source = base
+    ? setsOwn
+      ? `${base.code} has it ${word(inherited?.reviewOnSubmit)}.`
+      : `Now as ${base.code} has it: ${word(inherited?.reviewOnSubmit)}.`
+    : setsOwn
+      ? ""
+      : "Off unless switched on here.";
+
+  return (
+    <section
+      // A problem with the whole setting (JSON-edited) links here.
+      id={fieldId("details", ["ai"])}
+      tabIndex={-1}
+      aria-labelledby="details-ai-heading"
+      className="grid min-w-0 gap-4 rounded-xl bg-card p-4 shadow-sm ring-1 ring-border outline-none sm:p-5"
+      data-testid="template-ai"
+    >
+      <h3 id="details-ai-heading" className="text-base font-bold text-foreground">
+        AI second opinion
+      </h3>
+      <div className="flex items-start gap-3">
+        <Switch
+          id={AI_ON_SUBMIT_ID}
+          checked={on}
+          disabled={!api.editable}
+          onCheckedChange={(checked) => api.update((draft) => ({ ...draft, ai: { reviewOnSubmit: checked } }))}
+          aria-describedby={[hintId, messages.length > 0 ? errorsId : null].filter(Boolean).join(" ")}
+          aria-invalid={messages.length > 0 ? true : undefined}
+          className="mt-0.5 touch:mt-0"
+        />
+        <div className="grid min-w-0 flex-1 gap-1">
+          <div className="flex min-h-6 flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <Label htmlFor={AI_ON_SUBMIT_ID} className="leading-snug">
+              {label}
+            </Label>
+            {setsOwn && (
+              <span className="flex items-center gap-1">
+                <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">Changed</span>
+                {api.editable && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    aria-label={`${api.resetLabel}: ${label}`}
+                    onClick={() => {
+                      api.update((draft) => {
+                        const next: Record<string, unknown> = { ...draft };
+                        delete next.ai;
+                        return next as Draft;
+                      });
+                      // The button goes with the template's own setting: the keyboard stays on the switch.
+                      requestAnimationFrame(() => document.getElementById(AI_ON_SUBMIT_ID)?.focus());
+                    }}
+                  >
+                    <RotateCcwIcon aria-hidden />
+                    {api.resetLabel}
+                  </Button>
+                )}
+              </span>
+            )}
+          </div>
+          <p id={hintId} className="text-sm text-muted-foreground">
+            When an inspection from this template is submitted, an AI reviews it next to the inspector&apos;s results
+            and suggests; it never changes a result. Admins can always ask for one from the review screen.
+            {source && ` ${source}`}
+          </p>
+        </div>
+      </div>
+      {messages.length > 0 && (
+        <div id={errorsId} className="grid gap-1">
+          {messages.map((message) => (
+            <p key={message} className="text-sm text-destructive">
+              {message}
+            </p>
+          ))}
+        </div>
+      )}
     </section>
   );
 }

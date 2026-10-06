@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  aiReviewOnSubmit,
   CustomModuleSchema,
   FieldSchema,
   ModuleOverridesSchema,
@@ -126,6 +127,22 @@ describe("TemplateDefinitionSchema", () => {
     const definition = { ...baseDefinition(), customModules: [customModule(), customModule()] };
     expect(issuePaths(TemplateDefinitionSchema, definition)).toEqual(["customModules.1.key"]);
   });
+
+  it("takes the AI second opinion setting, optional, as a switch and nothing else (BUILD_SPEC 9.2)", () => {
+    // Left out: the base's setting, else off. A definition without it parses as it is, with nothing added.
+    expect(TemplateDefinitionSchema.parse(baseDefinition())).not.toHaveProperty("ai");
+    for (const reviewOnSubmit of [true, false]) {
+      const definition = { ...baseDefinition(), ai: { reviewOnSubmit } };
+      expect(TemplateDefinitionSchema.parse(definition)).toEqual(definition);
+    }
+    expect(issuePaths(TemplateDefinitionSchema, { ...baseDefinition(), ai: {} })).toEqual(["ai.reviewOnSubmit"]);
+    expect(issuePaths(TemplateDefinitionSchema, { ...baseDefinition(), ai: { reviewOnSubmit: "yes" } })).toEqual([
+      "ai.reviewOnSubmit",
+    ]);
+    expect(issuePaths(TemplateDefinitionSchema, { ...baseDefinition(), ai: { reviewOnSubmit: true, model: "x" } })).toEqual([
+      "ai",
+    ]);
+  });
 });
 
 describe("FieldSchema", () => {
@@ -249,6 +266,16 @@ describe("ResolvedTemplateSchema", () => {
 
   it("rejects another format, such as format 1 without base versions", () => {
     expect(issuePaths(ResolvedTemplateSchema, { ...resolved(), format: 1 })).toEqual(["format"]);
+  });
+
+  it("reads a resolution stored before the AI setting existed as off, and one that sets it as set", () => {
+    const before = ResolvedTemplateSchema.parse(JSON.parse(JSON.stringify(resolved())));
+    expect(before).not.toHaveProperty("ai");
+    expect(aiReviewOnSubmit(before)).toBe(false);
+    const on = ResolvedTemplateSchema.parse({ ...resolved(), ai: { reviewOnSubmit: true } });
+    expect(aiReviewOnSubmit(on)).toBe(true);
+    expect(aiReviewOnSubmit({ ai: { reviewOnSubmit: false } })).toBe(false);
+    expect(issuePaths(ResolvedTemplateSchema, { ...resolved(), ai: { reviewOnSubmit: 1 } })).toEqual(["ai.reviewOnSubmit"]);
   });
 
   it("records the version of each base, in chain order", () => {

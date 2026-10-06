@@ -191,6 +191,17 @@ export const TemplateReportSchema = z.strictObject({
 });
 export type TemplateReport = z.infer<typeof TemplateReportSchema>;
 
+/**
+ * The AI second opinion (BUILD_SPEC 9.2): its trigger is "on submit
+ * (template setting) or by an admin button". A template that leaves `ai` out
+ * takes its base's setting; with none in the chain it is off.
+ */
+export const TemplateAiSchema = z.strictObject({
+  /** Ask for an AI second opinion when an inspector submits an inspection from this template. */
+  reviewOnSubmit: z.boolean(),
+});
+export type TemplateAi = z.infer<typeof TemplateAiSchema>;
+
 export const TemplateDefinitionSchema = z
   .strictObject({
     code: TemplateCodeSchema,
@@ -204,6 +215,8 @@ export const TemplateDefinitionSchema = z
     modules: z.array(ModuleConfigSchema),
     customModules: z.array(CustomModuleSchema).optional(),
     report: TemplateReportSchema.optional(),
+    /** Inherited when absent, like `report`. */
+    ai: TemplateAiSchema.optional(),
     /** Object name of the original form or report in the template-sources bucket. */
     sourceFile: z.string().trim().min(1).optional(),
   })
@@ -322,6 +335,11 @@ export const ResolvedTemplateSchema = z
     modules: z.array(ResolvedModuleSchema).min(2),
     customModules: z.array(CustomModuleSchema),
     report: TemplateReportSchema,
+    /**
+     * As the nearest template in the chain sets it. Absent when none does,
+     * which is off: resolutions stored before the setting existed read the same.
+     */
+    ai: TemplateAiSchema.optional(),
     sourceFile: z.string().min(1).nullable(),
   })
   .superRefine((template, ctx) => {
@@ -331,6 +349,15 @@ export const ResolvedTemplateSchema = z
     }
   });
 export type ResolvedTemplate = z.infer<typeof ResolvedTemplateSchema>;
+
+/**
+ * Whether submitting an inspection made from this template version asks for
+ * an AI second opinion (BUILD_SPEC 9.2): `templates.resolved.ai.reviewOnSubmit`,
+ * off when the template and its bases leave it out.
+ */
+export function aiReviewOnSubmit(template: Pick<ResolvedTemplate, "ai">): boolean {
+  return template.ai?.reviewOnSubmit === true;
+}
 
 function isAlwaysOn(key: ModuleKey): boolean {
   return (ALWAYS_ON_MODULE_KEYS as readonly ModuleKey[]).includes(key);
