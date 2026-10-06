@@ -176,6 +176,7 @@ describe("loadReview", () => {
       manufacturer: "Manufacturer A · Plant 1",
       inspector: { id: INSPECTOR_ID, name: "Inspector A" },
       approver: { kind: "person", name: "Admin B" },
+      result: "fail",
       remarks: "Critical defect in size L.",
     });
     expect(loaded.review.template).toEqual({
@@ -185,6 +186,24 @@ describe("loadReview", () => {
       name: "Test examination gloves",
     });
     expect(loaded.review.evaluation.ok).toBe(true);
+  });
+
+  it("takes the final result and remark from the conclusion while the row's columns are empty", async () => {
+    const data = savedData();
+    const { client } = fakeClient(
+      database({
+        inspections: {
+          data: inspectionRow({
+            result: null,
+            remarks: null,
+            data: { ...data, modules: { ...data.modules, conclusion: { finalResult: "hold", remark: "Lab report pending." } } },
+          }),
+        },
+      }),
+    );
+    const loaded = await loadReview(client, INSPECTION_ID, admin);
+    if (loaded.kind !== "ok") throw new Error("expected a review");
+    expect(loaded.review.inspection).toMatchObject({ result: "hold", remarks: "Lab report pending." });
   });
 
   it("signs report photos for an hour, and names defects the module does not label", async () => {

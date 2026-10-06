@@ -3,13 +3,14 @@
 // admin's per-inspection overrides applied (BUILD_SPEC 4.4, 6.2). The same
 // calls the capture screen and the export make (docs/MODULES.md section 13),
 // so the three agree. Pure: the page loads the row, this computes.
-import type { EntityRef } from "@/lib/schemas/common";
+import { InspectionResultSchema, type EntityRef, type InspectionResult } from "@/lib/schemas/common";
 import { ResolvedTemplateSchema, type ResolvedTemplate } from "@/lib/schemas/template";
 import { applyModuleOverrides, parseModuleOverrides } from "@/lib/templates";
 import { validateInspection, type ValidationIssue, type ValidationReport } from "@/lib/validation";
 import {
   buildInspectionContext,
   InspectionDataSchema,
+  readPath,
   type InspectionContext,
   type InspectionData,
   type ModuleRegistry,
@@ -109,6 +110,31 @@ export function evaluateStoredInspection(
   );
   const report = validateInspection(data, template, context, registry);
   return { ok: true, template, context, report, summary: summariseIssues(report) };
+}
+
+/** The inspector's final result and remark. */
+export type InspectorDecision = { result: InspectionResult | null; remarks: string | null };
+
+/**
+ * The inspector's final result and remark: the row's `result` and `remarks`,
+ * which lists and approval read, else what the conclusion saved
+ * (docs/DATA_DICTIONARY.md: `conclusion.finalResult` and `conclusion.remark`
+ * are those columns) as the evaluation parsed it. Capture copies them into
+ * the row; until it has, the conclusion's own values stand in. The export's
+ * conclusion block takes them the same way, so the review and the export
+ * (and the AI second opinion fed from it) never disagree.
+ */
+export function inspectorDecision(row: InspectorDecision, evaluation: ReviewEvaluation): InspectorDecision {
+  const saved = evaluation.ok ? evaluation.report.modules.find((entry) => entry.key === "conclusion")?.data : undefined;
+  return {
+    result: row.result ?? InspectionResultSchema.safeParse(readPath(saved, ["finalResult"])).data ?? null,
+    remarks: textOrNull(row.remarks) ?? textOrNull(readPath(saved, ["remark"])),
+  };
+}
+
+/** Trimmed text, or null when there is none. */
+function textOrNull(value: unknown): string | null {
+  return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
 }
 
 /** `{ modules, custom }`; a missing namespace is empty, anything else that is not an object is unreadable. */

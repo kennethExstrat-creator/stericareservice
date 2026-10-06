@@ -7,7 +7,7 @@ import type { ModuleKey } from "@/lib/schemas/module-result";
 import type { Database } from "@/lib/supabase/database.types";
 import { actorOf, type Actor, type KnownPeople } from "./actor";
 import { buildAuditTrail, type AuditEntry } from "./audit";
-import { evaluateStoredInspection, type ReviewEvaluation } from "./evaluate";
+import { evaluateStoredInspection, inspectorDecision, type ReviewEvaluation } from "./evaluate";
 import { describePhoto, sectionWording, unlabelledDefects, type PhotoRow, type ReviewPhoto } from "./photos";
 
 /**
@@ -50,7 +50,7 @@ export type ReviewInspection = {
   approvedAt: string | null;
   /** Who approved it, as the viewer may know them. */
   approver: Actor | null;
-  /** The inspector's final result and remark. */
+  /** The inspector's final result and remark: the row's columns, else the conclusion's own (inspectorDecision). */
   result: InspectionResult | null;
   remarks: string | null;
   /** The suggestion saved with the inspection, which the app worked out when it was last saved. */
@@ -128,6 +128,7 @@ export async function loadReview(supabase: Client, inspectionId: string, viewer:
     manufacturer: found.manufacturer ? { id: found.manufacturer.id, name: found.manufacturer.name } : null,
   });
   const header = evaluation.ok ? evaluation.context.header : null;
+  const decision = inspectorDecision({ result: found.result, remarks: found.remarks }, evaluation);
 
   const inspection: ReviewInspection = {
     id: found.id,
@@ -146,8 +147,8 @@ export async function loadReview(supabase: Client, inspectionId: string, viewer:
     submittedAt: found.submitted_at,
     approvedAt: found.approved_at,
     approver: found.approved_by ? actorOf(found.approved_by, found.approver, people) : null,
-    result: found.result,
-    remarks: found.remarks?.trim() ? found.remarks.trim() : null,
+    result: decision.result,
+    remarks: decision.remarks,
     savedSuggestion: found.suggested_result,
   };
 
