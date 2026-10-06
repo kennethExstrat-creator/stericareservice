@@ -107,7 +107,17 @@ const header = defineModule({
       column: "inspections.product_name",
       rules: [10],
       notes:
-        "Brand, product code and description in one value, as printed (up to two lines). The product code lives here, entered once and reused in the export (rule 10).",
+        "Brand, product code and description in one value, as printed (up to two lines), so the report keeps the source's wording.",
+    },
+    {
+      key: "productCode",
+      label: "Product code",
+      type: "text",
+      per: [],
+      entry: "entered",
+      rules: [10],
+      notes:
+        "The product code on its own, entered once and reused everywhere: export, report header, file names (rule 10). The STD_EG example printed HN91 in the report but GN91 in the file name; one field prevents that. Feeds HeaderValues.productCode in the inspection context.",
     },
     {
       key: "client",

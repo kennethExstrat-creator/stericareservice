@@ -24,6 +24,7 @@ export const HEADER_FIELDS = [
   "factoryAddress",
   "poNo",
   "productName",
+  "productCode",
   "client",
   "factoryGloveCode",
   "inspectionDate",

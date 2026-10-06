@@ -80,8 +80,10 @@ export type SamplingValues = {
   /** Force at break or tensile. */
   physical: number | null;
   packagingDispensing: number | null;
-  /** Surgical gloves: pouches for the dye leak test. */
+  /** Surgical gloves: sampled pouches (the SG form's 'Pouches' under Sampling Quantity). */
   pouches: number | null;
+  /** Surgical gloves: pouches for the dye leak test (a separate column on the SG form). */
+  pouchesDyeLeak: number | null;
 };
 
 export type IndicativeWeight = { grams: number; size: string };
@@ -162,6 +164,7 @@ export const EMPTY_SAMPLING: Readonly<SamplingValues> = {
   physical: null,
   packagingDispensing: null,
   pouches: null,
+  pouchesDyeLeak: null,
 };
 
 const EMPTY_PACKING: Readonly<PackingValues> = {

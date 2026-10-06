@@ -124,7 +124,8 @@ Report module, always on. Captures: Manufacturer and factory address, PO, produc
 | `manufacturer` | Manufacturer / Supplier | STD_SG: Manufacturer Name | reference |  | inspection | entered |  | Column `inspections.manufacturer_id`. Picked on /inspections/new, where it resolves the template (BUILD_SPEC 4.4). Shown as the manufacturer's name with the factory name in brackets, as the reports print it (manufacturers.name, factory_name). |
 | `factoryAddress` | Supplier Factory Address / Location |  | textarea |  | inspection | entered |  | Prefilled from manufacturers.address of the picked manufacturer. |
 | `poNo` | PO / SO Number | SAFEDON_EG: PO Number<br>STD_SG: Purchase/Sales Order No. | text |  | inspection | entered | 10 | Column `inspections.po_no`. One text value as printed: the PO with the SO or the client's own reference in brackets. Entered once, reused everywhere (rule 10). |
-| `productName` | Product Name (Brand, code & description) | SAFEDON_EG: Product Name (Brand & code)<br>STD_SG: Product Name | textarea |  | inspection | entered | 10 | Column `inspections.product_name`. Brand, product code and description in one value, as printed (up to two lines). The product code lives here, entered once and reused in the export (rule 10). |
+| `productName` | Product Name (Brand, code & description) | SAFEDON_EG: Product Name (Brand & code)<br>STD_SG: Product Name | textarea |  | inspection | entered | 10 | Column `inspections.product_name`. Brand, product code and description in one value, as printed (up to two lines), so the report keeps the source's wording. |
+| `productCode` | Product code |  | text |  | inspection | entered | 10 | The product code on its own, entered once and reused everywhere: export, report header, file names (rule 10). The STD_EG example printed HN91 in the report but GN91 in the file name; one field prevents that. Feeds HeaderValues.productCode in the inspection context. |
 | `client` | Client Name |  | reference |  | inspection | entered | 10 | Column `inspections.client_id`. Picked on /inspections/new; may be empty. SAFEDON_EG prints the client as the report logo (clients.logo_path) instead of a row. |
 | `factoryGloveCode` | Factory glove code |  | text |  | inspection | entered |  | Printed 'Factrory glove code' [sic]. |
 | `inspectionDate` | Inspection date | STD_SG: Date | date |  | inspection | entered | 3 | Prefilled from today in Malaysia (the column default). Column `inspections.inspection_date`. |
@@ -134,7 +135,7 @@ Report module, always on. Captures: Manufacturer and factory address, PO, produc
 
 | Config key | Type | Default | Meaning |
 |---|---|---|---|
-| `fields` | Record&lt;HeaderField, boolean> | `{"manufacturer":true,"factoryAddress":true,"poNo":true,"productName":true,"client":true,"factoryGloveCode":true,"inspectionDate":true,"mfgDate":true,"expiryDate":true,"inspector":true}` | Which header fields show (BUILD_SPEC: fields on/off). The inspector is recorded even when its row is off. |
+| `fields` | Record&lt;HeaderField, boolean> | `{"manufacturer":true,"factoryAddress":true,"poNo":true,"productName":true,"productCode":true,"client":true,"factoryGloveCode":true,"inspectionDate":true,"mfgDate":true,"expiryDate":true,"inspector":true}` | Which header fields show (BUILD_SPEC: fields on/off). The inspector is recorded even when its row is off. |
 | `mfgExpiryPrecision` | "day" \| "month" | `"day"` | Manufacturing and expiry dates as a full date or as month and year. SAFEDON_EG prints month and year; stored as the first of the month (open question). |
 
 Note: BUILD_SPEC 6.1 lists 'report date' here. Both reports print that date once, in the conclusion block: it is conclusion.date.

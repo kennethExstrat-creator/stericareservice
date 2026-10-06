@@ -186,6 +186,8 @@ export const TemplateReportSchema = z.strictObject({
   /** Title of the AI report, e.g. "Preshipment Inspection: Nitrile Disposable Examination Gloves". */
   title: z.string().trim().min(1),
   showClientLogo: z.boolean(),
+  /** Running header on pages after the first, e.g. "Pre-shipment Inspection : {po} {product}". */
+  pageHeader: z.string().trim().min(1).optional(),
 });
 export type TemplateReport = z.infer<typeof TemplateReportSchema>;
 

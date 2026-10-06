@@ -202,7 +202,7 @@ Values entered once and read by every module that needs them (BUILD_SPEC 8, 6.2 
 | `order[size]` | `{ qtyCases, lotNumbers }` | `order_lots` |
 | `header` | `client`, `manufacturer`, `poNo`, `productName`, `productCode`, `inspectionDate`, `mfgDate`, `expiryDate` (blank header fields fall back to the inspection row) | `header` |
 | `packing` | `innerUnit`, `glovesPerInner`, `innersPerCase`, `glovesPerCase` | `packing_config` |
-| `sampling[size]` | `cases`, `innerUnits`, `gloves`, `watertightVisual`, `dimensions`, `physical`, `packagingDispensing`, `pouches`: n for the modules that follow | `sampling_plan` |
+| `sampling[size]` | `cases`, `innerUnits`, `gloves`, `watertightVisual`, `dimensions`, `physical`, `packagingDispensing`, `pouches`, `pouchesDyeLeak`: n for the modules that follow | `sampling_plan` |
 | `cartons[size]` | Sampled carton numbers, unique: what box pickers offer (rule 7) | `carton_sampling` |
 | `indicativeWeight` | `{ grams, size }` (rule 9) | `glove_info` |
 | `aql` | `watertight`, `critical`, `major`, `minor`, `inspectionLevel` | defaults, per client, `sampling_plan` config |
