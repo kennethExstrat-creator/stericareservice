@@ -39,8 +39,8 @@ describe("SidebarNav", () => {
 
   it("shows the Phase 3 screens to admins as text, not links", () => {
     const html = render("/admin", <SidebarNav sections={navForRole("admin")} />);
-    expect(linkHrefs(html)).toEqual(["/inspections", "/admin", "/admin/users"]);
-    for (const label of ["Manufacturers", "Clients", "Defects", "Templates"]) expect(html).toContain(label);
+    expect(linkHrefs(html)).toEqual(["/inspections", "/admin", "/admin/users", "/admin/manufacturers", "/admin/clients"]);
+    for (const label of ["Defects", "Templates"]) expect(html).toContain(label);
     expect(html).toContain("coming in</span>");
     expect(html).toContain("Phase 3");
   });
@@ -88,9 +88,9 @@ describe("SectionNav", () => {
     const admin = navForRole("admin").find((section) => section.key === "admin")!;
     const html = render("/admin/users", <SectionNav section={admin} />);
     expect(html).toContain('aria-label="Admin"');
-    expect(linkHrefs(html)).toEqual(["/admin", "/admin/users"]);
+    expect(linkHrefs(html)).toEqual(["/admin", "/admin/users", "/admin/manufacturers", "/admin/clients"]);
     expect(currentLinks(html)).toEqual([["Users", "page"]]);
     // One line for what is planned; screen readers hear "Coming in Phase 3: ...".
-    expect(html).toContain('<span class="sr-only">Coming in Phase 3: </span>Manufacturers, Clients, Defects and Templates');
+    expect(html).toContain('<span class="sr-only">Coming in Phase 3: </span>Defects and Templates');
   });
 });

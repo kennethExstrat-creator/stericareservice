@@ -94,8 +94,8 @@ export const NAV: readonly NavSection[] = [
       { kind: "link", key: "overview", label: "Overview", href: ADMIN_PATH, match: "exact", icon: "overview", roles: ADMINS },
       { kind: "link", key: "users", label: "Users", href: ADMIN_USERS_PATH, match: "prefix", icon: "users", roles: ADMINS },
       // The rest of BUILD_SPEC 10's admin screens, so admins can see what is coming.
-      { kind: "planned", key: "manufacturers", label: "Manufacturers", icon: "manufacturers", phase: PHASE_3, roles: ADMINS },
-      { kind: "planned", key: "clients", label: "Clients", icon: "clients", phase: PHASE_3, roles: ADMINS },
+      { kind: "link", key: "manufacturers", label: "Manufacturers", href: "/admin/manufacturers", match: "prefix", icon: "manufacturers", roles: ADMINS },
+      { kind: "link", key: "clients", label: "Clients", href: "/admin/clients", match: "prefix", icon: "clients", roles: ADMINS },
       { kind: "planned", key: "defects", label: "Defects", icon: "defects", phase: PHASE_3, roles: ADMINS },
       { kind: "planned", key: "templates", label: "Templates", icon: "templates", phase: PHASE_3, roles: ADMINS },
     ],

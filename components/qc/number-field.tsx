@@ -8,7 +8,9 @@
 // error from calc below the field. Fields inside one EnterGroup (or sharing
 // a `group` name) work as a run: Enter moves to the next field, Shift+Enter
 // back, and pasting a column of values fills this field and the ones after.
-// PercentField is the same with "%" and 0 to 100.
+// A paste is one change: each field stores its value by its own rules inside
+// batchDataChanges, so a module that writes through useDataUpdater receives
+// one onChange with every value. PercentField is the same with "%" and 0 to 100.
 import {
   createContext,
   useContext,
@@ -24,14 +26,20 @@ import {
 import { cn } from "@/lib/utils";
 import { formatReading, readDecimal, type ParseDecimalResult } from "@/lib/stats";
 import { Label } from "@/components/ui/label";
+import { batchDataChanges } from "./data-updater";
 import {
   FILL_EVENT,
+  fillRun,
   groupFields,
   neighbour,
-  splitPastedValues,
+  pasteNotice,
+  planFieldPaste,
+  type FillRequest,
+  type PasteResult,
 } from "./field-navigation";
 import { issuePathProps, type IssuePath } from "./issue-path";
 import { NumericCell, type InvalidEntry } from "./numeric-cell";
+import { useAnnouncement } from "./use-announcement";
 
 const InGroup = createContext(false);
 
@@ -48,7 +56,7 @@ export function EnterGroup({ className, children, ...props }: ComponentProps<"di
 }
 
 export type NumberFieldProps = {
-  /** In the template's wording. */
+  /** In the template's wording. Plain text gives a cell its accessible name directly. */
   label: ReactNode;
   /** Keep the label for screen readers only, e.g. in a table with column headings. */
   hideLabel?: boolean;
@@ -119,7 +127,8 @@ export function NumberField({
     setOwnInvalidState(entry);
     onInvalidChange?.(entry);
   };
-  const [notice, setNotice] = useState("");
+  // Said again when the same paste repeats.
+  const [notice, announce] = useAnnouncement();
   // A rejected entry leaves the value null; a value set later (a prefill) supersedes it.
   const invalid = value === null ? ownInvalid : null;
   const calcError = !invalid && error ? error : null;
@@ -132,16 +141,20 @@ export function NumberField({
     return parsed;
   };
 
-  /** Stores raw text the way NumericCell would: a number, or null and the rejected text. */
-  const store = (raw: string) => {
+  /**
+   * Stores raw text the way NumericCell would: a number, or null and the
+   * rejected text kept on screen. True when the text was stored.
+   */
+  const store = (raw: string): boolean => {
     const parsed = read(raw);
     if (parsed.ok) {
       setOwnInvalid(null);
       if (parsed.value !== value) onValueChange(parsed.value);
-    } else {
-      setOwnInvalid({ raw, error: parsed.error });
-      if (value !== null) onValueChange(null);
+      return true;
     }
+    setOwnInvalid({ raw, error: parsed.error });
+    if (value !== null) onValueChange(null);
+    return false;
   };
 
   // NumericCell has parsed and range-checked; whole numbers are checked here.
@@ -154,12 +167,15 @@ export function NumberField({
     onValueChange(next);
   };
 
-  // Another field of the group pasted a column and hands this one its value.
-  const onFill = useEffectEvent((raw: string) => store(raw));
+  // Another field of the group pasted a column and hands this one its value,
+  // judged by this field's own min, max and whole-number rule.
+  const onFill = useEffectEvent((request: FillRequest) => {
+    request.stored = store(request.raw);
+  });
   useEffect(() => {
     const element = input.current;
     if (!element) return;
-    const listener = (event: Event) => onFill((event as CustomEvent<string>).detail);
+    const listener = (event: Event) => onFill((event as CustomEvent<FillRequest>).detail);
     element.addEventListener(FILL_EVENT, listener);
     return () => element.removeEventListener(FILL_EVENT, listener);
   }, []);
@@ -173,29 +189,29 @@ export function NumberField({
     next?.focus();
   };
 
+  const fill = (field: HTMLInputElement, raw: string): boolean => {
+    if (field === input.current) return store(raw);
+    const request: FillRequest = { raw };
+    field.dispatchEvent(new CustomEvent<FillRequest>(FILL_EVENT, { detail: request }));
+    return request.stored === true;
+  };
+
   const onPasteText = (text: string) => {
-    const values = splitPastedValues(text);
-    if (values.length < 2 || !input.current) return false;
-    const fields = inGroup ? groupFields(input.current) : [input.current];
-    const start = fields.indexOf(input.current);
-    let filled = 0;
-    let rejected = 0;
-    values.forEach((raw, offset) => {
-      const field = fields[start + offset];
-      if (!field) return;
-      filled += 1;
-      if (!read(raw).ok) rejected += 1;
-      if (field === input.current) store(raw);
-      else field.dispatchEvent(new CustomEvent(FILL_EVENT, { detail: raw }));
+    const own = input.current;
+    // A named group is one column: a spreadsheet block fills it from its first column only.
+    const plan = own ? planFieldPaste(text, { column: Boolean(group) }) : null;
+    if (!own || !plan) return false;
+    const fields = inGroup ? groupFields(own) : [own];
+    let result: PasteResult = { filled: 0, rejected: 0, skipped: 0 };
+    // One change for the whole paste (useDataUpdater): every value lands, not just the last.
+    batchDataChanges(() => {
+      result = fillRun(plan.values, fields, fields.indexOf(own), fill);
     });
-    const skipped = values.length - filled;
-    setNotice(
-      [`Pasted ${filled} values.`, rejected > 0 && `${rejected} not stored.`, skipped > 0 && `${skipped} did not fit.`]
-        .filter(Boolean)
-        .join(" "),
-    );
+    announce(pasteNotice({ ...result, leftOut: plan.leftOut }));
     return true;
   };
+
+  const name = labelText(label, unit);
 
   const describedBy = [hint && variant === "field" ? hintId : null, calcError ? errorId : null]
     .filter(Boolean)
@@ -217,7 +233,7 @@ export function NumberField({
       readOnly={readOnly}
       placeholder={placeholder}
       enterKeyHint={inGroup ? "next" : "done"}
-      aria-label={variant === "cell" ? labelText(label, unit) : undefined}
+      aria-label={variant === "cell" ? name : undefined}
       aria-describedby={describedBy || undefined}
       onKeyDown={onKeyDown}
       onPasteText={readOnly ? undefined : onPasteText}
@@ -242,7 +258,19 @@ export function NumberField({
 
   if (variant === "cell") {
     return (
-      <div data-slot="number-field" data-variant="cell" className={cn("min-w-0", className)} {...issuePathProps(issuePath)}>
+      <div
+        data-slot="number-field"
+        data-variant="cell"
+        className={cn("relative min-w-0", className)}
+        {...issuePathProps(issuePath)}
+      >
+        {/* A label that is not plain text cannot be an aria-label: name the cell with a hidden label. */}
+        {name === undefined && (
+          <label htmlFor={inputId} className="sr-only">
+            {label}
+            {unit && ` (${unit})`}
+          </label>
+        )}
         {cell}
         {calcError && (
           <span id={errorId} className="sr-only">
@@ -261,12 +289,12 @@ export function NumberField({
       </Label>
       {cell}
       {hint && (
-        <p id={hintId} className="text-sm text-muted-foreground">
+        <p id={hintId} className="text-sm text-muted-foreground touch:text-base">
           {hint}
         </p>
       )}
       {calcError && (
-        <p id={errorId} className="text-sm text-fail">
+        <p id={errorId} className="text-sm text-fail touch:text-base">
           {calcError}
         </p>
       )}

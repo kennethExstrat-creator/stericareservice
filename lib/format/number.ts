@@ -36,9 +36,21 @@ function trimZeros(text: string): string {
 }
 
 /**
+ * A value without binary noise: 12 significant digits, as toPercent and
+ * lib/stats' spec check use. 0.1 + 0.2 is 0.3 and (2.9 + 3.1 + 2.8) / 3 is
+ * 2.93333333333; anything typed or read from a report keeps every digit.
+ */
+function clean(value: number): number {
+  const rounded = Number(value.toPrecision(12));
+  return Object.is(rounded, -0) ? 0 : rounded;
+}
+
+/**
  * A number as the app prints it. Without `decimals` or `maxDecimals` the value
- * is printed as stored (0.105 stays 0.105); with them it is rounded like
- * Excel's ROUND, so the screen agrees with the report.
+ * is printed as stored (0.105 stays 0.105), less binary noise from a
+ * calculation (0.1 + 0.2 prints 0.3); with them it is rounded like Excel's
+ * ROUND, so the screen agrees with the report. Give computed values their
+ * template's `decimals` where the report fixes them.
  */
 export function formatNumber(value: number | null | undefined, format: NumberFormat = {}): string {
   const { decimals, maxDecimals, grouping = false, unit, empty = "" } = format;
@@ -47,12 +59,16 @@ export function formatNumber(value: number | null | undefined, format: NumberFor
   let text: string;
   if (decimals !== undefined) text = formatDecimal(value, decimals);
   else if (maxDecimals !== undefined) text = trimZeros(roundTo(value, maxDecimals).toFixed(maxDecimals));
-  else text = String(Object.is(value, -0) ? 0 : value);
+  else text = String(clean(value));
 
   return withUnit(grouping ? group(text) : text, unit);
 }
 
-/** A whole count with thousands separators: 5800000 as "5,800,000". */
+/**
+ * A whole count with thousands separators: 5800000 as "5,800,000". The same
+ * text as lib/aql's formatCount for every count, and it also takes a missing
+ * value (`empty`). Display code imports this one; calc keeps lib/aql's.
+ */
 export function formatCount(value: number | null | undefined, empty = ""): string {
   return formatNumber(value, { grouping: true, empty });
 }
