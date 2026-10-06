@@ -20,7 +20,16 @@ export function baseEg(): TemplateDefinition {
       { key: "packing_config", include: true },
       { key: "sampling_plan", include: true },
       { key: "carton_sampling", include: true },
-      { key: "dimensions", include: true },
+      {
+        key: "dimensions",
+        include: true,
+        config: {
+          specs: {
+            XS: { length: { kind: "min", min: 240 }, width: { kind: "max", max: 80 } },
+            M: { length: { kind: "min", min: 240 }, width: { kind: "tolerance", nominal: 95, tolerance: 10 } },
+          },
+        },
+      },
       { key: "force_at_break", include: true },
       { key: "weight", include: true, title: "Weight (g) - average of 13 gloves per size" },
       { key: "watertight", include: true },
@@ -45,6 +54,12 @@ export function clientEg(): TemplateDefinition {
     modules: [
       { key: "header", include: true, labels: { poNo: "PO Number" } },
       { key: "packing_config", include: true, config: { innerUnit: "plastic pack" } },
+      // Average instead of median; XS width 76 ± 4 where the base has ≤ 80.
+      {
+        key: "dimensions",
+        include: true,
+        config: { statistic: "average", specs: { XS: { width: { kind: "tolerance", nominal: 76, tolerance: 4 } } } },
+      },
       { key: "weight", include: true, title: "Weight (g)", config: { n: 1 } },
       { key: "tensile", include: true },
       { key: "force_at_break", include: false },

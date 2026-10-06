@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { isJsonObject, mergeConfig } from "./merge";
+import { checkSpec, type Spec } from "@/lib/stats";
+import { isJsonObject, isTagged, mergeConfig } from "./merge";
 
 describe("mergeConfig", () => {
   it("merges objects key by key, recursively", () => {
@@ -22,6 +23,30 @@ describe("mergeConfig", () => {
       spec: null,
     });
     expect(mergeConfig({ spec: null }, { spec: { min: 6 } })).toEqual({ spec: { min: 6 } });
+  });
+
+  it("replaces a tagged object whole: a spec that changes kind keeps no old limit", () => {
+    const xsWidth: Spec = { kind: "max", max: 80 };
+    const safedon: Spec = { kind: "tolerance", nominal: 76, tolerance: 4 };
+    const base = { statistic: "median", specs: { XS: { width: xsWidth, length: { kind: "min", min: 240 } } } };
+    const merged = mergeConfig(base, { statistic: "average", specs: { XS: { width: safedon } } });
+    expect(merged).toEqual({
+      statistic: "average",
+      specs: { XS: { width: { kind: "tolerance", nominal: 76, tolerance: 4 }, length: { kind: "min", min: 240 } } },
+    });
+    const width = (merged.specs as { XS: { width: Spec } }).XS.width;
+    expect(checkSpec(81, width)).toBe("fail");
+    expect(checkSpec(79, width)).toBe("pass");
+  });
+
+  it("replaces a tagged object even with the same kind, and an untagged object over a tagged one", () => {
+    expect(mergeConfig({ spec: { kind: "tolerance", nominal: 95, tolerance: 10 } }, { spec: { kind: "tolerance", nominal: 98, tolerance: 4 } })).toEqual({
+      spec: { kind: "tolerance", nominal: 98, tolerance: 4 },
+    });
+    // Not merged into a hybrid: the module's schema then reports the missing kind.
+    expect(mergeConfig({ spec: { kind: "max", max: 80 } }, { spec: { max: 75 } })).toEqual({ spec: { max: 75 } });
+    expect(isTagged({ kind: "na" })).toBe(true);
+    expect(isTagged({ min: 6 })).toBe(false);
   });
 
   it("adds keys the base lacks and keeps keys the override leaves out", () => {

@@ -16,6 +16,7 @@ export type {
   ModuleRegistry,
 } from "./contract";
 export { defineModule, stubModule, NOT_BUILT_SUMMARY, type ModuleSpec, type StubSpec } from "./define";
+export { SpecSchema } from "./config-schemas";
 export {
   AQL_DEFAULTS,
   CONTEXT_SOURCES,

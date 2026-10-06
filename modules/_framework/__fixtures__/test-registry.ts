@@ -4,7 +4,8 @@
 // tests keep testing the framework only.
 import { z } from "zod";
 import { MODULE_KEYS, type ModuleKey } from "@/lib/schemas/module-result";
-import { mean } from "@/lib/stats";
+import { CanonicalSizeSchema } from "@/lib/sizes";
+import { checkSpec, mean, statistic } from "@/lib/stats";
 import {
   CartonNumberCellSchema,
   resultFromSizes,
@@ -16,6 +17,7 @@ import {
   notDone,
   perSizeData,
   perSizeResults,
+  SpecSchema,
   stubModule,
   suggestResult,
   TextCellSchema,
@@ -228,6 +230,35 @@ const cartons = defineModule({
   }),
 });
 
+// A spec per size and measure, as dimensions keeps them: a child template
+// replaces a spec whole when it sets one (lib/templates/merge.ts).
+const MeasureSpecsSchema = z.strictObject({ length: SpecSchema, width: SpecSchema }).partial();
+
+const dimensions = defineModule({
+  key: "dimensions",
+  title: TITLES.dimensions,
+  perSize: true,
+  labels: { length: "Length", width: "Width" },
+  dataSchema: perSizeData(z.strictObject({ width: z.array(DecimalCellSchema).default([]) })),
+  emptyData: () => ({ sizes: {} }),
+  configSchema: z.strictObject({
+    statistic: z.enum(["median", "average"]),
+    specs: z.record(CanonicalSizeSchema, MeasureSpecsSchema),
+  }),
+  defaultConfig: { statistic: "median", specs: {} },
+  calc: ({ data, config, context }): CalcOutput => {
+    const perSize = perSizeResults(context.sizes, (size) => {
+      const values = (data.sizes[size]?.width ?? []).filter((value) => value !== null);
+      const value = statistic(config.statistic, values);
+      const spec = config.specs[size]?.width;
+      if (value === null || !spec) return { status: "not_done" };
+      const outcome = checkSpec(value, spec);
+      return { status: outcome === "na" ? "info" : outcome };
+    });
+    return { result: resultFromSizes(perSize, "Dimension."), computed: {}, issues: [] };
+  },
+});
+
 const weight = defineModule({
   key: "weight",
   title: TITLES.weight,
@@ -332,6 +363,7 @@ export const TEST_REGISTRY: ModuleRegistry = {
   packing_config: packing,
   sampling_plan: sampling,
   carton_sampling: cartons,
+  dimensions,
   weight,
   visual,
   conclusion,

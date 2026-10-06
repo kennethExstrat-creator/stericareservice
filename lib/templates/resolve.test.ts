@@ -151,6 +151,30 @@ describe("resolveTemplate: extends", () => {
     expect(moduleOf(template, "packing_config").config).toEqual({ innerUnit: "plastic pack" });
   });
 
+  it("replaces a spec the child changes to another kind instead of merging it (XS width ≤ 80 becomes 76 ± 4)", () => {
+    expect(moduleOf(resolved(baseEg()), "dimensions").config).toMatchObject({
+      statistic: "median",
+      specs: { XS: { width: { kind: "max", max: 80 } } },
+    });
+    expect(moduleOf(resolved(clientEg()), "dimensions").config).toEqual({
+      statistic: "average",
+      specs: {
+        XS: { length: { kind: "min", min: 240 }, width: { kind: "tolerance", nominal: 76, tolerance: 4 } },
+        M: { length: { kind: "min", min: 240 }, width: { kind: "tolerance", nominal: 95, tolerance: 10 } },
+      },
+    });
+  });
+
+  it("reports a spec the child gives without its kind, instead of keeping the base's limit", () => {
+    const child = clientEg();
+    const dimensions = child.modules.find((entry) => entry.key === "dimensions");
+    if (!dimensions) throw new Error("fixture");
+    dimensions.config = { specs: { XS: { width: { nominal: 76, tolerance: 4 } } } };
+    expect(problemsOf(child).map((problem) => problem.path.join("."))).toEqual([
+      "modules.dimensions.config.specs.XS.width.kind",
+    ]);
+  });
+
   it("takes each value from the nearest template that sets it", () => {
     const template = resolved(clientEg());
     expect(moduleOf(template, "weight").title).toBe("Weight (g)");
@@ -254,8 +278,8 @@ describe("resolveTemplate: problems", () => {
 
   it("keeps header and conclusion on", () => {
     const child = clientEg();
-    child.modules.push({ key: "conclusion", include: false });
-    expect(problemsOf(child)).toEqual([expect.objectContaining({ template: "CLIENT_EG", path: ["modules", 9, "include"] })]);
+    const index = child.modules.push({ key: "conclusion", include: false }) - 1;
+    expect(problemsOf(child)).toEqual([expect.objectContaining({ template: "CLIENT_EG", path: ["modules", index, "include"] })]);
   });
 
   it("checks that a custom module follows a module of the template", () => {

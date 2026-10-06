@@ -148,10 +148,10 @@ describe("evaluateInspection: framework rules for every module", () => {
   });
 
   it("shows a placeholder module as not built yet", () => {
-    const evaluation = evaluate(exampleB(), makeTestTemplate(TEST_REGISTRY, ["order_lots", "dimensions"]));
-    const dimensions = moduleOf(evaluation, "dimensions");
-    expect(dimensions).toMatchObject({ stub: true, result: { status: "not_done", summary: NOT_BUILT_SUMMARY } });
-    expect(dimensions.result.perSize).toEqual({ M: { status: "not_done" } });
+    const evaluation = evaluate(exampleB(), makeTestTemplate(TEST_REGISTRY, ["order_lots", "tensile"]));
+    const tensile = moduleOf(evaluation, "tensile");
+    expect(tensile).toMatchObject({ stub: true, result: { status: "not_done", summary: NOT_BUILT_SUMMARY } });
+    expect(tensile.result.perSize).toEqual({ M: { status: "not_done" } });
   });
 
   it("reports saved data its schema rejects, such as text in a numeric cell (6.2 rule 1)", () => {
