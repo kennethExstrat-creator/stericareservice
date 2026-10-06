@@ -65,6 +65,7 @@ const SELECTED_STATUS: Readonly<Record<DocumentStatus, string>> = {
 export default function Capture({
   data,
   config,
+  title,
   labels,
   evaluation,
   focusPath,
@@ -90,8 +91,21 @@ export default function Capture({
   }
 
   return (
-    <div ref={root}>
-      <ul className="divide-y divide-border rounded-lg border border-border bg-card">
+    <div
+      ref={root}
+      className="overflow-clip rounded-lg border border-border bg-card xl:grid xl:grid-cols-[minmax(12rem,1fr)_auto_minmax(9rem,12rem)_10.5rem] xl:gap-x-4"
+    >
+      {/* From 1280 px each item is one row: the columns get headings (each control has its own name). */}
+      <div
+        aria-hidden
+        className="hidden border-b border-border px-4 py-2 text-sm font-medium text-muted-foreground xl:col-span-full xl:grid xl:grid-cols-subgrid"
+      >
+        <span>{title}</span>
+        <span>{labelFor(labels, "status")}</span>
+        <span>{labelFor(labels, "referenceNo")}</span>
+        <span>{labelFor(labels, "expiryDate")}</span>
+      </div>
+      <ul className="divide-y divide-border xl:col-span-full xl:grid xl:grid-cols-subgrid">
         {items.map((item) => (
           <DocumentRow
             key={item.key}
@@ -144,7 +158,7 @@ function DocumentRow({
   return (
     <li
       data-active={active || undefined}
-      className="space-y-3 px-4 py-3 data-active:bg-accent xl:grid xl:grid-cols-[minmax(12rem,1fr)_auto_minmax(9rem,12rem)_10.5rem] xl:items-start xl:gap-4 xl:space-y-0 xl:py-2.5"
+      className="space-y-3 px-4 py-3 data-active:bg-accent xl:col-span-full xl:grid xl:grid-cols-subgrid xl:items-start xl:gap-y-2 xl:space-y-0 xl:py-2.5"
       onFocus={onFocusItem}
       onPointerDown={onFocusItem}
       {...issuePathProps(["items", item.key])}

@@ -83,6 +83,18 @@ const REQUIRED_ISO: DocumentsConfig = {
 };
 
 describe("documents capture", () => {
+  it("heads the desktop columns in the template's wording", () => {
+    const labels = { ...DOCUMENTS_LABELS, referenceNo: "Certificate no.", expiryDate: "Valid until" };
+    const html = render(emptyDocuments(), { labels });
+    const headings = /<div aria-hidden="true"[^>]*>(.*?)<\/div>/.exec(html)?.[1];
+    expect(Array.from(headings?.matchAll(/<span>([^<]*)<\/span>/g) ?? [], (match) => match[1])).toEqual([
+      "Documents",
+      "Status",
+      "Certificate no.",
+      "Valid until",
+    ]);
+  });
+
   it("lists the template's items in its order, and only those", () => {
     const html = render(emptyDocuments(), { config: REQUIRED_ISO });
     const iso = html.indexOf("ISO 13485");
