@@ -23,6 +23,7 @@ export const definition = defineModule<SamplingPlanData, SamplingPlanConfig, Sam
   perSize: true,
   calc: calcSamplingPlan,
   contribute: contributeSamplingPlan,
+  loadCapture: () => import("./Capture"),
 });
 
 export type { SamplingPlanData, SamplingSize } from "./schema";
