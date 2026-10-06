@@ -29,7 +29,7 @@ export function codeFor(project: string, suffix = ""): string {
  * Until the report modules land most are stubs, which take any settings; the
  * worked example, glove_info, has real labels and settings.
  */
-export function definitionFor(code: string, name = TEMPLATE_NAME) {
+export function definitionFor(code: string, name = TEMPLATE_NAME, extraModules: readonly string[] = []) {
   return {
     code,
     name,
@@ -44,6 +44,7 @@ export function definitionFor(code: string, name = TEMPLATE_NAME) {
       { key: "sampling_plan", include: true },
       { key: "watertight", include: true },
       { key: "visual", include: true },
+      ...extraModules.map((key) => ({ key, include: true })),
       { key: "conclusion", include: true },
     ],
   };
@@ -72,8 +73,13 @@ export type EditorFixture = { id: string; code: string; cleanup: () => Promise<v
  * A draft no inspection uses, with no resolution yet: the editor resolves it
  * and Save stores it. `retired` instead makes a version that reads only and
  * that no inspection can start from, so it never meets other specs.
+ * `extraModules` go in before the conclusion.
  */
-export async function createDraftTemplate(code: string, status: "draft" | "retired" = "draft"): Promise<EditorFixture> {
+export async function createDraftTemplate(
+  code: string,
+  status: "draft" | "retired" = "draft",
+  extraModules: readonly string[] = [],
+): Promise<EditorFixture> {
   const admin = createTestAdminClient();
   await removeTemplates(admin, code);
   const { data, error } = await admin
@@ -84,7 +90,7 @@ export async function createDraftTemplate(code: string, status: "draft" | "retir
       product_type: "examination",
       standard: "EN455",
       status,
-      definition: definitionFor(code) as NonNullable<Json>,
+      definition: definitionFor(code, TEMPLATE_NAME, extraModules) as NonNullable<Json>,
     })
     .select("id")
     .single();

@@ -188,8 +188,10 @@ test("the admin edits a draft: switches, order, wording, settings, a custom fiel
   await expect.poll(moduleOrder(page)).toEqual(INITIAL_ORDER);
   const saveState = page.getByTestId("save-state");
   const save = page.getByRole("button", { name: "Save", exact: true });
-  await expect(saveState).toHaveText("No changes");
-  await expect(save).toBeDisabled();
+  // The draft has no stored resolution yet: Save resolves and stores it, changed or not.
+  await expect(saveState).toHaveText("Not resolved yet");
+  await expect(save).toBeEnabled();
+  await expect(page.getByTestId("resolve-due")).toContainText("Not resolved yet");
   await expectNoPageScroll(page);
   if (isTouch()) {
     // 44 px targets on the iPad: the drag handle and the switch's hit area.
@@ -231,6 +233,19 @@ test("the admin edits a draft: switches, order, wording, settings, a custom fiel
     await closeDetails(page);
   }
   await expect.poll(moduleOrder(page)).toEqual(expectedOrder);
+
+  if (test.info().project.name === "ipad-portrait") {
+    // The module sheet hands the focus back to the Edit button that opened it, by keyboard too.
+    const edit = row(page, "glove_info").getByRole("button", { name: /^Edit / });
+    await edit.focus();
+    await page.keyboard.press("Enter");
+    const sheet = page.getByRole("dialog");
+    await expect(sheet).toBeVisible();
+    await expect(sheet.locator("#module-sheet-heading")).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(sheet).toBeHidden();
+    await expect(edit).toBeFocused();
+  }
 
   // Wording and settings of glove_info, the module that is built.
   const details = await openDetails(page, "glove_info");
@@ -286,11 +301,41 @@ test("the admin edits a draft: switches, order, wording, settings, a custom fiel
   await press(page.getByRole("option", { name: "Number", exact: true }));
   await press(form.locator("#custom-0-fields-1-unit"));
   await press(page.getByRole("option", { name: "mm", exact: true }));
-  await form.locator("#custom-0-fields-1-min").fill("2 40");
-  await expect(form.getByText("“2 40” is not stored.")).toBeVisible();
+  const min = form.locator("#custom-0-fields-1-min");
+  await min.fill("2 40");
+  const notANumber = "“2 40” is not a number. Remove the space: one number only, e.g. 2.42.";
+  await expect(form.getByText(notANumber)).toHaveCount(1);
+  await expect(min).toHaveAttribute("aria-describedby", "custom-0-fields-1-min-errors");
   await expect(save).toBeDisabled();
-  await form.locator("#custom-0-fields-1-min").fill("240");
+  // Closed, the entry stays a problem; its link opens the field again, entry and all.
+  await press(page.getByRole("button", { name: "Close Glove type" }));
+  await expect(form).toBeHidden();
+  const entryProblem = page.getByTestId("problems");
+  await expect(entryProblem).toContainText(notANumber);
+  await expect(save).toBeDisabled();
+  await shot(page, "5a-closed-with-problem");
+  await press(entryProblem.getByRole("button", { name: /Custom module Glove type/ }));
+  await expect(min).toHaveValue("2 40");
+  await expect(min).toBeFocused();
+  await min.fill("240");
   await expect(page.getByTestId("problems")).toBeHidden();
+
+  // A required number emptied is empty, and asked for; typing goes on from nothing: 13, emptied, then 5, is 5.
+  await press(form.getByRole("radio", { name: /^Grid/ }));
+  const columns = form.locator("#custom-0-grid-columns-default");
+  await expect(columns).toHaveValue("13");
+  await columns.click();
+  await columns.press("End");
+  await columns.press("Backspace");
+  await columns.press("Backspace");
+  await expect(columns).toHaveValue("");
+  await expect(form.locator("#custom-0-grid-columns-default-errors")).toHaveText("Enter a number.");
+  await expect(save).toBeDisabled();
+  await columns.pressSequentially("5");
+  await expect(columns).toHaveValue("5");
+  await expect(page.getByTestId("problems")).toBeHidden();
+  await press(form.getByRole("radio", { name: /^Fields/ }));
+  await expect(columns).toHaveCount(0);
   await shot(page, "5-custom-module");
 
   // Details: name, sizes, report, where it applies, and the fixed code.
@@ -328,13 +373,40 @@ test("the admin edits a draft: switches, order, wording, settings, a custom fiel
   await expectNoPageScroll(page);
   await shot(page, "8-preview");
 
-  // Leaving with unsaved changes asks first.
-  await press(page.getByRole("link", { name: "All templates" }));
+  // Leaving with unsaved changes asks first, and Keep editing hands the focus back to the link.
+  const allTemplates = page.getByRole("link", { name: "All templates" });
+  await press(allTemplates);
   const leave = page.getByRole("alertdialog", { name: "Leave without saving?" });
   await expect(leave).toBeVisible();
   await press(leave.getByRole("button", { name: "Keep editing" }));
   await expect(leave).toBeHidden();
   await expect(page).toHaveURL(new RegExp(`/admin/templates/${draft.id}/edit$`));
+  await expect(allTemplates).toBeFocused();
+  // So does a link in the shell: the sidebar on the desktop, the top bar on the iPad.
+  const shellLink = page
+    .getByRole("navigation", { name: "Main" })
+    .getByRole("link", { name: "Inspections" })
+    .filter({ visible: true })
+    .first();
+  await press(shellLink);
+  await expect(leave).toBeVisible();
+  await shot(page, "8b-leave-from-shell");
+  await press(leave.getByRole("button", { name: "Keep editing" }));
+  await expect(leave).toBeHidden();
+  await expect(page).toHaveURL(new RegExp(`/admin/templates/${draft.id}/edit$`));
+  await expect(shellLink).toBeFocused();
+
+  // A reload (or an iPad that dropped the page) keeps the changes on the device, and offers them back.
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.reload();
+  const offer = page.getByTestId("restore-offer");
+  await expect(offer).toBeVisible();
+  await expect.poll(moduleOrder(page)).toEqual(INITIAL_ORDER);
+  await shot(page, "8c-restore-offer");
+  await press(offer.getByRole("button", { name: "Restore changes" }));
+  await expect(offer).toHaveCount(0);
+  await expect.poll(moduleOrder(page)).toEqual(expectedOrder);
+  await expect(row(page, "glove_info")).toContainText("Glove Details");
 
   // Save, and what it stored.
   await expect(saveState).toHaveText("Unsaved changes");
@@ -361,10 +433,12 @@ test("the admin edits a draft: switches, order, wording, settings, a custom fiel
   });
   await shot(page, "9-saved");
 
-  // Reload: it is all still there, and nothing is unsaved.
+  // Reload: it is all still there, nothing is unsaved, and no copy is offered.
   await page.reload();
   await expect.poll(moduleOrder(page)).toEqual(expectedOrder);
   await expect(saveState).toHaveText("No changes");
+  await expect(page.getByTestId("resolve-due")).toHaveCount(0);
+  await expect(page.getByTestId("restore-offer")).toHaveCount(0);
   const again = await openDetails(page, "glove_info");
   await expect(again.locator("#label-glove_info-colour")).toHaveValue("Colour of glove");
   await expect(again.locator("#config-glove_info-fields-length")).toHaveAttribute("aria-checked", "false");
@@ -373,6 +447,45 @@ test("the admin edits a draft: switches, order, wording, settings, a custom fiel
   await expect(page.locator('[data-custom-key="glove_type"]')).toContainText("Cuff length");
   await shot(page, "10-reloaded");
   expect(hydration()).toEqual([]);
+});
+
+test("a number setting emptied and typed again keeps what is typed, not what it inherits", async ({
+  page,
+  context,
+  baseURL,
+}, testInfo) => {
+  const numbers = await createDraftTemplate(codeFor(testInfo.project.name, "_NUMBERS"), "draft", ["weight"]);
+  try {
+    await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
+    await page.goto(`/admin/templates/${numbers.id}/edit`);
+    await expect(row(page, "weight")).toBeVisible();
+    test.skip(
+      await row(page, "weight").getByText("Not built yet").isVisible(),
+      "weight is still a stub on this branch: its settings are JSON until the module lands.",
+    );
+    const details = await openDetails(page, "weight");
+    const n = details.locator("#config-weight-n");
+    await expect(n).toHaveValue("13");
+    // Emptied as on the iPad keypad, then typed: the inherited 13 never comes back under the caret.
+    await n.click();
+    await n.press("End");
+    await n.press("Backspace");
+    await n.press("Backspace");
+    await expect(n).toHaveValue("");
+    await expect(details.locator("#config-weight-n-errors")).toHaveText("Enter a number.");
+    await n.pressSequentially("5");
+    await expect(n).toHaveValue("5");
+    await expect(details.locator("#config-weight-n-errors")).toHaveCount(0);
+    await n.blur();
+    await expect(n).toHaveValue("5");
+    await expect(page.getByTestId("save-state")).toHaveText("Unsaved changes");
+    await shot(page, "13-number-retyped");
+    // Use default goes back to the inherited value.
+    await press(details.getByRole("button", { name: /^Use default: / }).first());
+    await expect(n).toHaveValue("13");
+  } finally {
+    await numbers.cleanup();
+  }
 });
 
 test("a retired version reads only and offers a new version", async ({ page, context, baseURL }, testInfo) => {
