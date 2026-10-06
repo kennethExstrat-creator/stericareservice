@@ -26,6 +26,7 @@ export const definition = defineModule<PackingConfigData, PackingConfigConfig, P
   ],
   calc: calcPackingConfig,
   contribute: contributePackingConfig,
+  loadCapture: () => import("./Capture"),
 });
 
 export type { PackingConfigData } from "./schema";
