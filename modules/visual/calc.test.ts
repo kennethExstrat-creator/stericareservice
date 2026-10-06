@@ -189,6 +189,7 @@ describe("visual", () => {
       expect(counted.computed.sizes.M.critical).toMatchObject({ accept: 0, reject: 1, total: 1, result: "fail" });
       expect(counted.result).toMatchObject({ status: "fail", perSize: { M: { status: "fail" } } });
       const early = calcVisual(input({ M: { critical: { counts: { embedded_metal: 1 } } } }));
+      expect(early.computed.sizes.M.critical).toMatchObject({ inspected: null, accept: 0, reject: 1, total: 1, result: "fail" });
       expect(early.result.summary).toBe(
         "Size M: Critical Defects 1 found, Major Defects not done, Minor Defects not done: Failed.",
       );
@@ -197,6 +198,16 @@ describe("visual", () => {
         summary:
           "Critical Defects 1 found (Embedded metal debris 1): Failed (any critical defect fails); Major Defects: No. of sample inspected missing (sampling plan: 500); Minor Defects: No. of sample inspected missing (sampling plan: 500).",
       });
+    });
+
+    it("sets the critical limits before the gloves inspected are entered: AQL 0 is Accept 0 / Reject 1 whatever n", () => {
+      const empty = calcVisual(input({ M: {} })).computed.sizes.M;
+      expect(empty.critical).toMatchObject({ inspected: null, codeLetter: null, accept: 0, reject: 1, result: "not_done" });
+      // Major and minor take their limits from the plan for n.
+      expect(empty.major).toMatchObject({ accept: null, reject: null, result: "not_done" });
+      expect(empty.minor).toMatchObject({ accept: null, reject: null, result: "not_done" });
+      const tooFew = calcVisual(input({ M: { critical: { inspected: 1 } } })).computed.sizes.M.critical;
+      expect(tooFew).toMatchObject({ accept: 0, reject: 1, result: "not_done" });
     });
 
     it("rejects a major or minor class at Re and accepts at Ac", () => {

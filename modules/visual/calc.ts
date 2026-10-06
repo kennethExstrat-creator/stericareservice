@@ -54,6 +54,7 @@ export type VisualClassComputed = {
   usedLetter: CodeLetter | null;
   n: number | null;
   arrow: "up" | "down" | null;
+  /** The plan's Accept / Reject; AQL 0 (critical) is always 0 / 1, set before n is known. */
   accept: number | null;
   reject: number | null;
   /** Defects per code, both hands: every listed defect in the template's order, then codes it lacks. */
@@ -245,6 +246,12 @@ function calcClass({ size, cls, entry, split, aql, defects, labels, context, whe
     decision: null,
     result: "not_done",
   };
+  // AQL 0 (critical) is Accept 0 / Reject 1 whatever n (BUILD_SPEC 7): the
+  // limits are known, and a critical defect fails, before n is entered.
+  if (aql === 0) {
+    computed.accept = 0;
+    computed.reject = 1;
+  }
   const finish = (result: VisualClassComputed["result"], summary: string): ClassOutcome => {
     computed.result = result;
     const brief =

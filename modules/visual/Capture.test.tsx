@@ -57,6 +57,9 @@ const totals = (html: string) => Array.from(html.matchAll(/font-bold touch:text-
 
 const headings = (html: string) => Array.from(html.matchAll(/<h3[^>]*>([^<]+)<\/h3>/g), (match) => match[1]);
 
+const statuses = (html: string) =>
+  tagsWith(html, 'data-slot="status-pill"').map((pill) => /data-status="(\w+)"/.exec(pill)?.[1]);
+
 const M_500 = () => makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ watertightVisual: 500 }) } });
 
 const inspectedAll = (n: number) => Object.fromEntries(DEFECT_CLASSES.map((cls) => [cls, { inspected: n }]));
@@ -120,6 +123,14 @@ describe("visual capture", () => {
     expect(empty).toMatch(/Use 500 for every class<span class="sr-only"> of size M<\/span>/);
     expect(empty.match(/placeholder="500"/g)).toHaveLength(3);
     expect(render({ sizes: { M: inspectedAll(500) }, context: M_500() })).not.toContain("for every class");
+  });
+
+  it("shows the critical limit Ac 0 / Re 1 before the gloves inspected are entered, beside a critical defect's failure", () => {
+    const html = render({ sizes: { M: { critical: { counts: { embedded_metal: 1 } } } }, context: M_500() });
+    expect(html.match(/Ac 0 \/ Re 1/g)).toHaveLength(1);
+    expect(statuses(html)).toEqual(["fail", "not_done", "not_done"]);
+    // Major and minor need n for their limits.
+    expect(render({ sizes: {}, context: M_500() }).match(/Ac \d+ \/ Re \d+/g)).toEqual(["Ac 0 / Re 1"]);
   });
 
   it("says under a class's gloves inspected what calc found there, warnings in amber", () => {
