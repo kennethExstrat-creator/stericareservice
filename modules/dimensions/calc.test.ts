@@ -268,6 +268,34 @@ describe("dimensions", () => {
   });
 
   describe("specs", () => {
+    it("judges every kind of spec STD_EG prints: XS width ≤ 80, XL width ≥ 110", () => {
+      const context = makeTestContext({ sizes: ["XS", "XL"] });
+      const data = {
+        sizes: { XS: { gloves: gloves(13, { ...STD_GLOVE, width: 81 }) }, XL: { gloves: gloves(13, { ...STD_GLOVE, width: 112 }) } },
+      };
+      const output = calcDimensions(input(data, STD_EG, context));
+      expect(output.computed.spec.XS.width).toEqual({ kind: "max", max: 80 });
+      expect(output.computed.measureResult.XS.width).toBe("fail");
+      expect(output.computed.measureResult.XL.width).toBe("pass");
+      expect(output.result.summary).toBe("Out of spec: size XS Width 81 (≤ 80). Median within spec for size XL.");
+    });
+
+    it("judges a range, limits included", () => {
+      const range = (min: number, max: number): DimensionsConfig => ({
+        ...STD_EG,
+        specs: [{ size: "M", specs: { length: { kind: "range", min, max } } }],
+      });
+      expect(calcDimensions(input(sizeM(gloves(13)), range(240, 245))).computed.measureResult.M.length).toBe("pass");
+      expect(calcDimensions(input(sizeM(gloves(13)), range(246, 250))).computed.measureResult.M.length).toBe("fail");
+    });
+
+    it("words its summaries in the template's labels", () => {
+      const labels = { ...DIMENSIONS_LABELS, width: "Glove width", fail: "F" };
+      const output = calcDimensions(input(sizeM(gloves(13, { ...STD_GLOVE, width: 106 })), STD_EG, undefined, labels));
+      expect(output.result.summary).toBe("Out of spec: size M Glove width 106 (95 ± 10).");
+      expect(output.result.perSize?.M?.summary).toContain("Glove width 106 F (95 ± 10)");
+    });
+
     it("records a size without a spec row without judging it", () => {
       const context = makeTestContext({ sizes: ["7.0"] });
       const output = calcDimensions(input({ sizes: { "7.0": { gloves: gloves(13) } } }, templateConfig("STD_SG"), context));
