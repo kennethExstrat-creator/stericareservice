@@ -85,6 +85,14 @@ describe("carton_sampling Capture", () => {
     expect(html).toContain("XS (Carton #)");
   });
 
+  it("shows each size's result at the kit's touch size: 16 px text on iPad", () => {
+    for (const html of [render(props(STD_EG_EXAMPLE)), render(props(SAFEDON_EG_EXAMPLE))]) {
+      const pills = tagsWith(html, 'data-slot="status-pill"');
+      expect(pills.length).toBeGreaterThan(0);
+      for (const pill of pills) expect(pill).toContain("touch:text-base");
+    }
+  });
+
   it("marks both cells of the carton entered twice red, with the message linked below (expected result B)", () => {
     const html = render(props(STD_EG_EXAMPLE));
     const red = redCells(html);

@@ -108,6 +108,17 @@ describe("sampling_plan Capture", () => {
     expect(red[0]).toContain('aria-label="Case, size M"');
   });
 
+  it("shows each size's result at the kit's touch size: 16 px text on iPad", () => {
+    const html = render(props(SAFEDON_EG_EXAMPLE));
+    const pills = tagsWith(html, 'data-slot="status-pill"');
+    expect(pills).toHaveLength(4);
+    for (const pill of pills) expect(pill).toContain("touch:text-base");
+    // An empty size says so in a few words.
+    const empty = render(props(SAFEDON_EG_EXAMPLE, LEVEL_I, SAMPLING_PLAN_LABELS, exampleData(SAFEDON_EG_EXAMPLE, { sampling_plan: { sizes: {} } })));
+    expect(empty.match(/Not started\./g)).toHaveLength(4);
+    expect(empty).not.toContain("Missing:");
+  });
+
   it("totals the columns over the sizes, as the onsite forms' Total: row", () => {
     const html = render(props(SAFEDON_EG_EXAMPLE));
     expect(html).toContain("Total:");
