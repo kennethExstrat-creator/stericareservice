@@ -74,7 +74,13 @@ export function PhotoGallery({ inspectionId }: { inspectionId: string }) {
       <div className="flex flex-col gap-6">
         <div className="flex flex-wrap items-center gap-3">
           {/* A focus target, not a control: no ring (as StatusScreen's title). */}
-          <p ref={summary} tabIndex={-1} className="text-sm text-muted-foreground tabular-nums outline-none" aria-live="polite">
+          <p
+            ref={summary}
+            tabIndex={-1}
+            data-slot="gallery-summary"
+            className="text-sm text-muted-foreground tabular-nums outline-none"
+            aria-live="polite"
+          >
             {countPhotos(photos.length)}
             {moduleCount > 0 ? ` in ${moduleCount} ${moduleCount === 1 ? "module" : "modules"}` : ""} ·{" "}
             {countFiles(files.length)}

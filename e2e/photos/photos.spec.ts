@@ -233,6 +233,8 @@ test("the inspector adds photos and a lab report, then retags, captions, views a
     await expect(confirm).toBeHidden();
     await expect(page.locator(`[data-photo-id="${smallId}"]`)).toHaveCount(0);
     await expect(dimensions).toHaveCount(0);
+    // Its section went with it: keyboard focus lands on the gallery's summary, not on the page.
+    await expect(page.locator('[data-slot="gallery-summary"]')).toBeFocused();
     expect((await photoRows(fixture.inspectionId)).map((row) => row.id)).toEqual([bigId]);
     const objects = (await listObjects(fixture.inspectionId)).map((object) => object.path);
     expect(objects.filter((path) => path.includes(smallId))).toEqual([]);
