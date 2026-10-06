@@ -75,7 +75,8 @@ const radios = (html: string) =>
 
 const buttons = (html: string) =>
   [...html.matchAll(/<button[^>]*>(?:<svg[\s\S]*?<\/svg>)?([^<]*)<\/button>/g)].map(
-    ([tag, text]) => `${text}${/\sdisabled=""/.test(tag) ? " (disabled)" : ""}`,
+    ([tag, text]) =>
+      `${text}${/\saria-disabled="true"/.test(tag) ? " (unavailable)" : ""}${/\sdisabled=""/.test(tag) ? " (disabled)" : ""}`,
   );
 
 describe("conclusion capture", () => {
@@ -188,9 +189,16 @@ describe("SignaturePad", () => {
   });
 
   it("offers undo, redo and clear only when there is something to take back", () => {
-    expect(buttons(renderPad())).toEqual(["Undo (disabled)", "Redo (disabled)", "Clear (disabled)"]);
-    expect(buttons(renderPad({ value: SIGNED }))).toEqual(["Undo", "Redo (disabled)", "Clear"]);
+    // Unavailable, not disabled: a button that greys out under the keyboard keeps the focus.
+    expect(buttons(renderPad())).toEqual(["Undo (unavailable)", "Redo (unavailable)", "Clear (unavailable)"]);
+    expect(buttons(renderPad({ value: SIGNED }))).toEqual(["Undo", "Redo (unavailable)", "Clear"]);
     expect(renderPad()).toContain("Sign in the box with a finger, a pen or the mouse.");
+  });
+
+  it("sets Undo, Redo and Clear at 16 px on iPad", () => {
+    const tags = renderPad({ value: SIGNED }).match(/<button[^>]*>/g) ?? [];
+    expect(tags).toHaveLength(3);
+    for (const tag of tags) expect(tag).toMatch(/class="[^"]*touch:text-base/);
   });
 
   it("is named by the template's label and takes every touch for drawing", () => {

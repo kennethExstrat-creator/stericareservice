@@ -227,6 +227,14 @@ export default function Capture({
 /** Line width in signature units: about 3 px on an iPad. */
 const STROKE_WIDTH = 2.5;
 
+/**
+ * Undo, Redo and Clear: 16 px text on iPad (the small button stays at 14 px).
+ * With nothing to take back they grey out but stay focusable (aria-disabled),
+ * as the kit's Stepper does, so keyboard focus is never dropped (docs/DESIGN.md).
+ */
+const PAD_ACTION =
+  "touch:text-base aria-disabled:cursor-not-allowed aria-disabled:text-slate-400 aria-disabled:hover:border-input aria-disabled:hover:bg-card aria-disabled:hover:text-slate-400";
+
 /** A stroke taken back with Undo, with the box it was drawn in. */
 type UndoneStroke = { readonly stroke: number[]; readonly box: SignatureBox };
 
@@ -322,8 +330,8 @@ export function SignaturePad({ value, onChange, label, signer, readOnly = false,
   };
 
   const undo = () => {
-    if (!value) return;
-    setUndone([...undone, { stroke: value.strokes[value.strokes.length - 1], box }]);
+    if (strokes.length === 0) return;
+    setUndone([...undone, { stroke: strokes[strokes.length - 1], box }]);
     onChange(withoutLastStroke);
     setAnnouncement("Last stroke removed.");
   };
@@ -337,6 +345,8 @@ export function SignaturePad({ value, onChange, label, signer, readOnly = false,
   };
 
   const clear = () => {
+    // Nothing to clear: the strokes taken back with Undo stay for Redo.
+    if (strokes.length === 0) return;
     setUndone([]);
     onChange(() => null);
     setAnnouncement(`${label} cleared.`);
@@ -358,15 +368,36 @@ export function SignaturePad({ value, onChange, label, signer, readOnly = false,
         </span>
         {!readOnly && (
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={undo} disabled={strokes.length === 0}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={PAD_ACTION}
+              onClick={undo}
+              aria-disabled={strokes.length === 0}
+            >
               <Undo2Icon aria-hidden />
               Undo
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={redo} disabled={undone.length === 0}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={PAD_ACTION}
+              onClick={redo}
+              aria-disabled={undone.length === 0}
+            >
               <Redo2Icon aria-hidden />
               Redo
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={clear} disabled={strokes.length === 0}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={PAD_ACTION}
+              onClick={clear}
+              aria-disabled={strokes.length === 0}
+            >
               <EraserIcon aria-hidden />
               Clear
             </Button>
