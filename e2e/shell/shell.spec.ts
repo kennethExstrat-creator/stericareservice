@@ -165,12 +165,12 @@ test.describe("as the admin", () => {
       await expect(topBar).toBeHidden();
       await expect(sidebar.getByRole("link", { name: "SteriCare home" })).toBeVisible();
       await expect(nav.getByText("Admin", { exact: true })).toBeVisible();
-      await expect(nav.getByRole("link")).toHaveText(["Inspections", "Overview", "Users"]);
+      await expect(nav.getByRole("link")).toHaveText(["Inspections", "Overview", "Users", "Manufacturers", "Clients"]);
       await expect(nav.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
-      for (const planned of ["Manufacturers", "Clients", "Defects", "Templates"]) {
+      for (const planned of ["Defects", "Templates"]) {
         await expect(nav.getByText(planned, { exact: true })).toBeVisible();
       }
-      await expect(nav.getByText("Phase 3")).toHaveCount(4);
+      await expect(nav.getByText("Phase 3")).toHaveCount(2);
       // The sidebar stays put while the page scrolls.
       const box = await sidebar.boundingBox();
       expect(box?.height).toBe(page.viewportSize()?.height);
@@ -188,9 +188,9 @@ test.describe("as the admin", () => {
       expect((await topBar.getByRole("link", { name: "SteriCare home" }).boundingBox())?.height).toBeGreaterThanOrEqual(44);
       // No sidebar, so the admin pages are listed at the top of the page.
       const section = page.getByRole("navigation", { name: "Admin" });
-      await expect(section.getByRole("link")).toHaveText(["Overview", "Users"]);
+      await expect(section.getByRole("link")).toHaveText(["Overview", "Users", "Manufacturers", "Clients"]);
       await expect(section.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
-      await expect(section.getByText("Manufacturers, Clients, Defects and Templates")).toBeVisible();
+      await expect(section.getByText("Defects and Templates")).toBeVisible();
       // The top bar sticks while the page scrolls.
       await page.mouse.wheel(0, 600);
       await expect.poll(async () => (await topBar.boundingBox())?.y).toBe(0);

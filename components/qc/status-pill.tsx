@@ -5,6 +5,9 @@ import { cn } from "@/lib/utils";
 import { STATUS_LABEL, STATUS_SOLID_CLASS, STATUS_TINT_CLASS, type Status } from "@/lib/design/status";
 import { StatusIcon } from "./status-icon";
 
+/** A small pill at the touch size: 16 px text on iPad (docs/DESIGN.md), as the kit's tables use it. */
+export const SMALL_PILL_TOUCH = "touch:h-8 touch:gap-1.5 touch:px-3 touch:text-base touch:[&>svg]:size-4";
+
 type StatusPillProps = Omit<ComponentProps<"span">, "children"> & {
   status: Status;
   /** Replaces the default label, e.g. the template's "Accept" or "P". */
