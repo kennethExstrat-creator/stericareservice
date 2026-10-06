@@ -431,6 +431,42 @@ describe("service role", { timeout: 30_000 }, () => {
     expect(pick.affectedRows).toBe(1);
   });
 
+  // Deliberate cleanup, such as end-to-end test teardown. Signed-in admins cannot (see above).
+  it.each([
+    ["the service role", asService],
+    ["the database owner", asOwner],
+  ])("lets %s delete an approved inspection with its evidence, and records it", async (_who, as) => {
+    const approved = await approvedInspection();
+    const deleted = await as(db, (tx) => tx.query("delete from public.inspections where id = $1", [approved.id]));
+    expect(deleted.affectedRows).toBe(1);
+
+    const left = await asOwner(db, async (tx) => {
+      const ids = (table: string) =>
+        column<string>(tx, `select id::text from public.${table} where inspection_id = $1`, [approved.id]);
+      const deletion = await tx.query<Pick<AuditRow, "actor_id" | "changes">>(
+        `select actor_id, changes from public.audit_log
+          where action = 'deleted' and changes ->> 'inspection_id' = $1`,
+        [approved.id],
+      );
+      return {
+        photos: await ids("inspection_photos"),
+        files: await ids("inspection_files"),
+        reviews: await ids("ai_reviews"),
+        audit: await ids("audit_log"),
+        deletion: deletion.rows,
+      };
+    });
+    expect(left).toEqual({
+      photos: [],
+      files: [],
+      reviews: [],
+      audit: [],
+      deletion: [
+        { actor_id: null, changes: { inspection_id: approved.id, ref_no: approved.ref_no, status: "approved" } },
+      ],
+    });
+  });
+
   it("stores photo rows for any inspection", async () => {
     const draft = await createInspection(db, people.inspector, templateId);
     const path = `${draft.id}/${randomUUID()}.jpg`;

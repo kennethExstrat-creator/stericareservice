@@ -27,6 +27,7 @@ function names(tx: Tx, bucket: string): Promise<string[]> {
 describe("storage policies", { timeout: 30_000 }, () => {
   let db: Db;
   let people: People;
+  let templateId: string;
   let draft: InspectionRow;
   let submitted: InspectionRow;
   let others: InspectionRow;
@@ -38,7 +39,7 @@ describe("storage policies", { timeout: 30_000 }, () => {
   beforeAll(async () => {
     db = await createTestDb();
     people = await createPeople(db);
-    const templateId = await createTemplate(db);
+    templateId = await createTemplate(db);
     draft = await createInspection(db, people.inspector, templateId);
     submitted = await createInspection(db, people.inspector, templateId);
     others = await createInspection(db, people.otherInspector, templateId);
@@ -156,6 +157,39 @@ describe("storage policies", { timeout: 30_000 }, () => {
           (await tx.query("delete from storage.objects where name like $1", [`${approved.id}/%`])).affectedRows,
         ]);
         expect(changed, userId).toEqual([0, 0]);
+      }
+    });
+
+    it("never gives the folder of a deleted inspection to a new one", async () => {
+      const gone = await createInspection(db, people.inspector, templateId);
+      const leftover = `${gone.id}/${randomUUID()}.jpg`;
+      await asUser(db, people.inspector, (tx) => upload(tx, "inspection-photos", leftover));
+      // The app removes the folder first; here the file stays behind.
+      await asUser(db, people.admin, (tx) => tx.query("delete from public.inspections where id = $1", [gone.id]));
+
+      const reuse = (tx: Tx, inspectorId: string) =>
+        tx.query("insert into public.inspections (id, template_id, inspector_id) values ($1, $2, $3)", [
+          gone.id,
+          templateId,
+          inspectorId,
+        ]);
+      const attempts = [
+        () => asUser(db, people.otherInspector, (tx) => reuse(tx, people.otherInspector)),
+        () => asUser(db, people.admin, (tx) => reuse(tx, people.inspector)),
+        () => asService(db, (tx) => reuse(tx, people.otherInspector)),
+      ];
+      for (const attempt of attempts) {
+        expect(await pgError(attempt())).toMatchObject({
+          code: "23505",
+          message: `inspection id ${gone.id} belonged to a deleted inspection`,
+        });
+      }
+
+      for (const userId of [people.inspector, people.otherInspector, people.admin]) {
+        const seen = await asUser(db, userId, (tx) =>
+          column<string>(tx, "select name from storage.objects where name = $1", [leftover]),
+        );
+        expect(seen, userId).toEqual([]);
       }
     });
   });

@@ -28,16 +28,16 @@ describe("auth.users -> profiles", { timeout: 30_000 }, () => {
     await db?.close();
   });
 
-  it("creates an inspector profile even when user metadata claims admin", async () => {
+  it("creates an inactive inspector profile, even when user metadata claims admin", async () => {
     const id = await createAuthUser(db, {
       email: "mallory@test.local",
       fullName: "  Mallory  ",
-      metadata: { role: "admin", is_admin: true },
+      metadata: { role: "admin", is_admin: true, active: true },
     });
     const profile = await profileAsOwner(db, id);
     expect(profile).toMatchObject({
       role: "inspector",
-      active: true,
+      active: false,
       email: "mallory@test.local",
       full_name: "Mallory",
     });
@@ -48,11 +48,13 @@ describe("auth.users -> profiles", { timeout: 30_000 }, () => {
     expect((await profileAsOwner(db, id)).full_name).toBeNull();
   });
 
-  it("gives users created before the migration a profile", async () => {
-    const emails = await asOwner(db, (tx) =>
-      column<string>(tx, "select email from public.profiles where email = 'early@test.local'"),
+  it("gives users created before the migration an inactive profile", async () => {
+    const profiles = await asOwner(db, (tx) =>
+      tx.query<Pick<Profile, "email" | "role" | "active">>(
+        "select email, role, active from public.profiles where email = 'early@test.local'",
+      ),
     );
-    expect(emails).toEqual(["early@test.local"]);
+    expect(profiles.rows).toEqual([{ email: "early@test.local", role: "inspector", active: false }]);
   });
 
   it("keeps profiles.email in sync with auth.users", async () => {
