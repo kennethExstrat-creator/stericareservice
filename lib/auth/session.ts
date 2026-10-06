@@ -34,7 +34,9 @@ export const DEACTIVATED_PATH = "/auth/sign-out?reason=deactivated";
  * Resolves the session once per request (React `cache`): the JWT is verified by
  * getClaims(), then my_profile_status() reports role and active flag. That
  * function is security definer, so it still answers for a deactivated user,
- * whose RLS-protected profile row is otherwise invisible.
+ * whose RLS-protected profile row is otherwise invisible. The name and email
+ * come from that row, read in parallel; RLS only returns it to active users,
+ * the only ones who need it.
  */
 export const getSession = cache(async (): Promise<SessionState> => {
   if (!isSupabaseConfigured()) return { status: "unconfigured" };
@@ -44,20 +46,26 @@ export const getSession = cache(async (): Promise<SessionState> => {
   if (authError || !auth) return { status: "signed-out" };
 
   const userId = auth.claims.sub;
-  const { data: rows, error } = await supabase.rpc("my_profile_status");
-  if (error) throw new Error(`Could not load the profile for ${userId}: ${error.message}`);
+  const [statusResult, profileResult] = await Promise.all([
+    supabase.rpc("my_profile_status"),
+    supabase.from("profiles").select("full_name, email").eq("id", userId).maybeSingle(),
+  ]);
+  if (statusResult.error) {
+    throw new Error(`Could not load the profile status for ${userId}: ${statusResult.error.message}`);
+  }
 
-  const profile = Array.isArray(rows) ? rows[0] : rows;
+  const status = statusResult.data?.[0];
   // No profile row means the account was never set up: block it like a deactivated one.
-  if (!profile || !profile.active) return { status: "deactivated", userId };
+  if (!status || !status.active) return { status: "deactivated", userId };
 
+  const profile = profileResult.data;
   return {
     status: "active",
     user: {
       id: userId,
-      email: profile.email ?? auth.claims.email ?? "",
-      fullName: profile.full_name ?? null,
-      role: profile.role,
+      email: profile?.email ?? auth.claims.email ?? "",
+      fullName: profile?.full_name ?? null,
+      role: status.role,
     },
   };
 });
