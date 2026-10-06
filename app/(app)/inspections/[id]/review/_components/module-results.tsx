@@ -155,10 +155,11 @@ function ModuleRow({ entry, issues, context }: { entry: ModuleEvaluation; issues
                 if (!own) return null;
                 return (
                   <li key={size} data-size={size} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    {/* Spaces between the parts for screen readers; the gap spaces them on screen. */}
                     <span className={cn("min-w-18 font-medium text-foreground", TEXT)}>
                       {formatSize(size, { sizes: context.templateSizes, prefix: true })}
-                    </span>
-                    <StatusPill status={own.status} size="sm" className={SMALL_PILL_TOUCH} />
+                    </span>{" "}
+                    <StatusPill status={own.status} size="sm" className={SMALL_PILL_TOUCH} />{" "}
                     {own.summary && <span className={cn("text-muted-foreground", TEXT)}>{own.summary}</span>}
                   </li>
                 );

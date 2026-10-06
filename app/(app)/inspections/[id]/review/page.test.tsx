@@ -95,6 +95,13 @@ describe("/inspections/[id]/review", () => {
     expect(link(html, "Open inspection")).toBe(false);
   });
 
+  it("keeps the status apart from the client and product when read out", async () => {
+    const html = await render(reviewData());
+    // As textContent reads it: tags dropped without adding spaces.
+    const plain = html.replace(/<[^>]+>/g, "").replace(/\s+/g, " ");
+    expect(plain).toContain("Submitted Client A · Product A");
+  });
+
   it("lays out every part of the review in order, the AI's slot after the result", async () => {
     const html = await render(reviewData());
     const order = ["review-status", "inspection-facts", 'id="result"', 'data-slot="ai-panel"', 'id="modules"', 'id="photos"', 'id="history"'].map(

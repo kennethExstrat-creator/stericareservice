@@ -25,6 +25,15 @@ function text(html: string): string {
   return html.replace(/<[^>]+>/g, " ").replace(/&#x27;/g, "'").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
 }
 
+/**
+ * The text as textContent has it, which is what a screen reader reads and a
+ * copy takes: tags dropped without adding spaces, so words in neighbouring
+ * elements run together unless the markup spaces them.
+ */
+function plain(html: string): string {
+  return html.replace(/<[^>]+>/g, "").replace(/&#x27;/g, "'").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
+}
+
 /** The markup of one module row; rows hold lists of their own, so <li> depth is counted. */
 function row(html: string, id: string): string {
   const start = html.indexOf(`<li id="${id}"`);
@@ -64,6 +73,10 @@ describe("ModuleResults", () => {
     expect(text(visual)).toContain("Visual Inspection (AQL)");
     // lib/format's size names: the template labels M "Medium" and L "L".
     expect(text(visual)).toMatch(/Size Medium Passed .*Size L Failed/);
+  });
+
+  it("keeps a size, its result and its summary apart when read out", () => {
+    expect(plain(row(html, "module-visual"))).toMatch(/Size Medium Passed .*Size L Failed/);
   });
 
   it("sizes every result pill like the capture kit's: 16 px text on the iPad", () => {
@@ -196,6 +209,19 @@ describe("InspectionFacts", () => {
     expect(html).toContain("Template TEST_EG version 3 Test examination gloves");
   });
 
+  it("keeps the second line of a fact apart from the first when read out", () => {
+    const html = plain(
+      renderToStaticMarkup(
+        <InspectionFacts
+          inspection={reviewInspection({ status: "approved", approvedAt: "2026-10-06T07:00:00+00:00", approver: { kind: "admin" } })}
+          template={{ id: "t", code: "TEST_EG", version: 3, name: "Test examination gloves" }}
+        />,
+      ),
+    );
+    expect(html).toContain("6 Oct 2026, 15:00 by an admin");
+    expect(html).toContain("TEST_EG version 3 Test examination gloves");
+  });
+
   it("says what is missing instead of leaving gaps", () => {
     const html = text(
       renderToStaticMarkup(
@@ -283,6 +309,12 @@ describe("History", () => {
     const html = text(renderToStaticMarkup(<History history={{ entries, failed: false }} />));
     expect(html).toContain("Created by the system · 5 Oct 2026, 09:00");
     expect(html).toContain("Reopened by an admin · 6 Oct 2026, 10:00 Reason: Retest size M.");
+  });
+
+  it("keeps what happened apart from who did it when read out", () => {
+    const html = plain(renderToStaticMarkup(<History history={{ entries, failed: false }} />));
+    expect(html).toContain("Created by the system · 5 Oct 2026, 09:00");
+    expect(html).toContain("Reopened by an admin");
   });
 
   it("says when the history could not be loaded", () => {

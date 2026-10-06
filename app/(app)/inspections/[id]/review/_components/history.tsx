@@ -56,6 +56,7 @@ export function History({ history }: { history: { entries: AuditEntry[]; failed:
                   <div className="min-w-0 flex-1">
                     <p className="flex flex-wrap items-baseline gap-x-2 text-base fine:text-sm">
                       <span className="font-semibold text-foreground">{entry.title}</span>
+                      {/* A space for screen readers and copying; the gap spaces them on screen. */}{" "}
                       <span className="text-muted-foreground">
                         by {actorText(entry.actor)} · <time dateTime={entry.at}>{formatDateTime(entry.at)}</time>
                       </span>

@@ -47,8 +47,12 @@ export function InspectionFacts({
         {inspection.status === "approved" && inspection.approvedAt && (
           <Fact label="Approved">
             <When iso={inspection.approvedAt} />
+            {/* Spaces before the second lines, so the words stay apart when read out or copied. */}
             {inspection.approver && (
-              <span className="block font-normal text-muted-foreground">by {actorText(inspection.approver)}</span>
+              <>
+                {" "}
+                <span className="block font-normal text-muted-foreground">by {actorText(inspection.approver)}</span>
+              </>
             )}
           </Fact>
         )}
@@ -56,7 +60,12 @@ export function InspectionFacts({
           {template ? (
             <>
               {template.code} version {template.version}
-              {template.name && <span className="block font-normal text-muted-foreground">{template.name}</span>}
+              {template.name && (
+                <>
+                  {" "}
+                  <span className="block font-normal text-muted-foreground">{template.name}</span>
+                </>
+              )}
             </>
           ) : (
             <Missing label="Template not readable" />

@@ -103,6 +103,7 @@ function HeaderLine({ inspection }: { inspection: ReviewInspection }) {
   return (
     <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-2">
       <InspectionStatusBadge status={inspection.status} />
+      {/* A space for screen readers; the gap spaces them on screen. */}{" "}
       {about && <span className="[overflow-wrap:anywhere]">{about}</span>}
     </span>
   );

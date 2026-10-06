@@ -24,8 +24,9 @@ import {
 /**
  * /inspections/[id]/review against the live project, at the three sizes in
  * playwright.config.ts: the admin approves one submitted inspection and
- * reopens another, the inspector reads both, and the audit log records each
- * step. Screenshots go to screenshots/review/.
+ * reopens another, the inspector reads both and submits the reopened one
+ * again, and the audit log records each step. Screenshots go to
+ * screenshots/review/.
  */
 
 const REOPEN_REASON = "Size M watertight: retest the two burst gloves with new samples and add the photos.";
@@ -286,6 +287,32 @@ test.describe("reviewing inspections", () => {
     await expectTouchTarget(makeChanges);
     await expectNoPageScroll(page);
     await shot(page, "inspector-reopened");
+  });
+
+  test("once the inspector submits it again, it waits for review again", async ({ page, context, baseURL }) => {
+    // What the capture screen's submit does: a plain status update in the
+    // inspector's own session, checked by row level security and the guard.
+    const inspector = await as.client("inspector");
+    const { data: resubmitted, error } = await inspector
+      .from("inspections")
+      .update({ status: "submitted" })
+      .eq("id", fixture.B.id)
+      .select("status")
+      .single();
+    expect(error).toBeNull();
+    expect(resubmitted?.status).toBe("submitted");
+
+    await as.signIn(context, baseURL!, "admin");
+    await page.goto(reviewPath(fixture.B.id));
+    await expect(page.getByRole("heading", { name: "Waiting for your review" })).toBeVisible();
+    await expect(page.getByText("Test Inspector submitted it on")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Approve" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Reopen" })).toBeVisible();
+    // The history keeps the reopen and its reason, then the new submit.
+    const history = page.getByRole("region", { name: "History" });
+    await expect(history.locator("li[data-kind=reopened]")).toContainText(REOPEN_REASON);
+    await expect(history.locator("li[data-kind=resubmitted]")).toContainText("Submitted again by Test Inspector");
+    await shot(page, "admin-resubmitted");
   });
 
   test("the admin's own draft says it is not submitted, and offers to go on with it", async ({ page, context, baseURL }) => {
