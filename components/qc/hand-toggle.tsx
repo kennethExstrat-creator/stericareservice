@@ -93,7 +93,7 @@ export function HandToggle({
               onKeyDown={onKeyDown(index)}
               className={cn(
                 "inline-flex h-7 min-w-9 items-center justify-center rounded-full px-2.5 text-sm font-bold outline-none transition-colors",
-                "text-slate-700 hover:bg-card hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+                "text-slate-700 hover:bg-card hover:text-foreground focus-ring-inset",
                 "data-active:bg-card data-active:text-brand-700 data-active:shadow-sm data-active:ring-1 data-active:ring-brand-300",
                 "touch:h-11 touch:min-w-12 touch:px-3.5 touch:text-base",
               )}

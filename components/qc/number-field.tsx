@@ -321,7 +321,7 @@ export function EntryProblems({ problems, className }: { problems: readonly Entr
             <button
               type="button"
               onClick={() => document.getElementById(inputId)?.focus()}
-              className="rounded-sm font-semibold underline underline-offset-2 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 touch:min-h-11"
+              className="rounded-sm font-semibold underline underline-offset-2 focus-ring touch:min-h-11"
             >
               {label}
             </button>
