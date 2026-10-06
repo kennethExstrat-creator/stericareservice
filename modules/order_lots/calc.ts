@@ -5,6 +5,7 @@
 // context. Totals are computed, never typed (rule 2): cartons from the
 // quantities, gloves with the gloves per case that packing_config puts in the
 // context.
+import { formatCount } from "@/lib/format";
 import { normaliseSize, orderSizes, SIZE_HINT } from "@/lib/sizes";
 import {
   errorIssue,
@@ -255,17 +256,12 @@ function summarise(
   context: InspectionContext,
 ): string {
   const sizes = `Size${ordered.length > 1 ? "s" : ""} ${ordered.map((row) => sizeLabel(context, row.size)).join(", ")}`;
-  const cartons = `${labelFor(labels, "totalCartons")} ${formatCount(computed.totalCartons ?? 0)}`;
+  const cartons = `${labelFor(labels, "totalCartons")} ${formatCount(computed.totalCartons)}`;
   const gloves =
     computed.totalGloves === null
       ? `${labelFor(labels, "totalGloves")}: waiting for the gloves per case`
       : `${labelFor(labels, "totalGloves")} ${formatCount(computed.totalGloves)}`;
   return `${sizes}. ${cartons}; ${gloves}.`;
-}
-
-/** 5800000 as "5,800,000". */
-function formatCount(value: number): string {
-  return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
 /** One full stop at the end, also after a label or value that has its own ("Lot No.", "Sdn. Bhd."). */

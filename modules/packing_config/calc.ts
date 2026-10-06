@@ -3,6 +3,7 @@
 // not the gloves per inner unit times the inner units per case (6.1): that
 // check is computed, never typed (rule 2). The counts reach order_lots and
 // the sampling plan through the context.
+import { formatCount } from "@/lib/format";
 import {
   errorIssue,
   labelFor,
@@ -106,11 +107,6 @@ function mismatchMessage({ perInner, perCase, total }: Case, labels: Labels): st
 /** "# gloves per case 2,000 = # glove per inner box 200 × # inners per case 10." */
 function summarise({ perInner, perCase, total }: Case, labels: Labels): string {
   return `${labelFor(labels, "glovesPerCase")} ${formatCount(total)} = ${labelFor(labels, "glovesPerInner")} ${formatCount(perInner)} × ${labelFor(labels, "innersPerCase")} ${formatCount(perCase)}.`;
-}
-
-/** 2000 as "2,000". */
-function formatCount(value: number): string {
-  return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
 /** One full stop at the end, also after a label that has its own ("# pcs per ctn."). */
