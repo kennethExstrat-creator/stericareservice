@@ -18,6 +18,19 @@ export const DOCUMENT_ITEMS = [
 export type DocumentItem = (typeof DOCUMENT_ITEMS)[number];
 export const DocumentItemSchema = z.enum(DOCUMENT_ITEMS);
 
+/**
+ * The inspection_files kind (BUILD_SPEC 5) of a file attached to an item, for
+ * the screen that uploads it while the item is in focus.
+ */
+export const DOCUMENT_FILE_KIND: Readonly<Record<DocumentItem, "lab_report" | "certificate" | "other">> = {
+  certificateOfAnalysis: "certificate",
+  labTestReports: "lab_report",
+  sterilisation: "certificate",
+  iso13485: "certificate",
+  fdaCe: "certificate",
+  declarationOfOrigin: "certificate",
+};
+
 /** What the inspector found for an item. Codes, labelled `status.<code>`. */
 export const DOCUMENT_STATUSES = ["verified", "not_verified", "na"] as const;
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];

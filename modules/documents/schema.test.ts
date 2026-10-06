@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { DOCUMENT_ITEMS as DICTIONARY_ITEMS, dataField, dataKeys, defaultConfig, defaultLabels, moduleTitle, TEMPLATES } from "@/lib/coverage";
+import { Constants } from "@/lib/supabase/database.types";
 import { lookupFrom, resolveTemplate } from "@/lib/templates";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import { STD_EG_EXAMPLE } from "@/tests/fixtures/examples";
 import {
   DOCUMENT_FIELDS,
+  DOCUMENT_FILE_KIND,
   DOCUMENT_ITEMS,
   DOCUMENT_STATUSES,
   DOCUMENTS_DEFAULT_CONFIG,
@@ -34,6 +36,13 @@ describe("documents data", () => {
     expect(Object.keys(DocumentEntrySchema.shape)).toEqual([...DOCUMENT_FIELDS]);
     expect(dataKeys("documents", "entered")).toEqual([...DOCUMENT_FIELDS, "file"]);
     expect(dataField("documents", "status")?.options).toEqual([...DOCUMENT_STATUSES]);
+  });
+
+  it("files each item's attachment as a certificate or a lab report (dictionary: file)", () => {
+    const kinds: readonly string[] = Constants.public.Enums.inspection_file_kind;
+    for (const item of DOCUMENT_ITEMS) expect(kinds).toContain(DOCUMENT_FILE_KIND[item]);
+    expect(DOCUMENT_FILE_KIND.labTestReports).toBe("lab_report");
+    expect(DOCUMENT_FILE_KIND.iso13485).toBe("certificate");
   });
 
   it("takes verified, not verified or NA, and nothing else", () => {
