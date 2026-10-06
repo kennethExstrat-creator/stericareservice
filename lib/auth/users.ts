@@ -24,8 +24,15 @@ export const USER_ROLES = ["inspector", "admin"] as const satisfies readonly Use
 
 export const RoleSchema = z.enum(USER_ROLES, { error: "Choose Inspector or Admin." });
 
-/** A user id sent back by the page. The action re-reads everything else. */
-export const UserIdSchema = z.uuid({ error: "That user could not be found. Reload the page and try again." });
+/**
+ * A user id sent back by the page. The action re-reads everything else.
+ * Lower-cased, the form Supabase gives ids in: Postgres and Supabase Auth
+ * match an id in any case, so an upper-case copy of your own id would
+ * otherwise slip past the actions' "not yourself" checks.
+ */
+export const UserIdSchema = z
+  .uuid({ error: "That user could not be found. Reload the page and try again." })
+  .toLowerCase();
 
 export const InviteUserSchema = z.object({
   email: z

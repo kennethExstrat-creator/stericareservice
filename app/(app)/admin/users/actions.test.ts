@@ -331,12 +331,24 @@ describe("changeRole", () => {
     expect(refresh).toHaveBeenCalledOnce();
   });
 
-  it("refuses to let admins demote themselves", async () => {
-    expect(await changeRole(IDLE, form({ userId: SELF, role: "inspector" }))).toEqual({
+  // Postgres and Supabase Auth match ids in any case: an upper-case copy of
+  // your own id must not slip past the check.
+  it.each([
+    ["as the page sends it", SELF],
+    ["in upper case", SELF.toUpperCase()],
+  ])("refuses to let admins demote themselves (their id %s)", async (_case, userId) => {
+    expect(await changeRole(IDLE, form({ userId, role: "inspector" }))).toEqual({
       status: "error",
       message: MESSAGES.selfDemote,
     });
     expect(createClient).not.toHaveBeenCalled();
+  });
+
+  it("changes the account with the id in the form Supabase stores it", async () => {
+    useClients(() => ({ data: profile(OTHER), error: null }));
+
+    expect(await changeRole(IDLE, form({ userId: OTHER.toUpperCase(), role: "admin" }))).toMatchObject({ status: "success" });
+    expect(hasCall(userClient.queries.find(isUpdate), "eq", "id", OTHER)).toBe(true);
   });
 
   it("surfaces the database's last-admin rule in plain words", async () => {
@@ -378,13 +390,24 @@ describe("deactivateUser", () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 
-  it("refuses to let admins deactivate themselves", async () => {
-    expect(await deactivateUser(IDLE, form({ userId: SELF }))).toEqual({
+  it.each([
+    ["as the page sends it", SELF],
+    ["in upper case", SELF.toUpperCase()],
+  ])("refuses to let admins deactivate themselves (their id %s)", async (_case, userId) => {
+    expect(await deactivateUser(IDLE, form({ userId }))).toEqual({
       status: "error",
       message: MESSAGES.selfDeactivate,
     });
     expect(createClient).not.toHaveBeenCalled();
     expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("deactivates and bans with the id in the form Supabase stores it", async () => {
+    useClients(() => ({ data: profile(OTHER), error: null }));
+
+    expect(await deactivateUser(IDLE, form({ userId: OTHER.toUpperCase() }))).toMatchObject({ status: "success" });
+    expect(hasCall(userClient.queries.find(isUpdate), "eq", "id", OTHER)).toBe(true);
+    expect(adminClient.client.auth.admin.updateUserById).toHaveBeenCalledWith(OTHER, { ban_duration: "876000h" });
   });
 
   it("surfaces the last-admin rule and never bans", async () => {

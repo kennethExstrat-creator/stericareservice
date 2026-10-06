@@ -69,6 +69,14 @@ describe("role and target schemas", () => {
     expect(UserTargetSchema.parse({ userId: OTHER })).toEqual({ userId: OTHER });
   });
 
+  it("lower-case the id, so an upper-case copy compares equal to the session's", () => {
+    expect(UserTargetSchema.parse({ userId: VIEWER.toUpperCase() })).toEqual({ userId: VIEWER });
+    expect(ChangeRoleSchema.parse({ userId: "7C2D4E1A-0b3f-4A5C-9d8e-1F2A3B4C5D6E", role: "inspector" })).toEqual({
+      userId: VIEWER,
+      role: "inspector",
+    });
+  });
+
   it("refuse anything that is not a user id", () => {
     for (const userId of ["", "42", "not-a-uuid", null, `${OTHER}' or 1=1`]) {
       expect(UserTargetSchema.safeParse({ userId }).success).toBe(false);
