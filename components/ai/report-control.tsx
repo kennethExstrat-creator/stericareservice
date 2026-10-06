@@ -1,12 +1,14 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { DownloadIcon, ExternalLinkIcon, SendIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { sendToAiReport } from "@/lib/inspections/ai/actions";
 import { AI_ACTION_IDLE, type AiActionState } from "@/lib/inspections/ai/types";
+import { focusIfLost } from "./focus-handoff";
+import { unreachable } from "./unreachable";
 
 /**
  * The AI report hand-off (BUILD_SPEC 9.1): "Send to AI report" for admins
@@ -28,11 +30,18 @@ export function ReportControl({
   /** An admin, a submitted or approved inspection, and a report service. */
   canSend: boolean;
 }) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const sendRef = useRef<HTMLButtonElement>(null);
   const [state, formAction, pending] = useActionState(async (previous: AiActionState, formData: FormData) => {
-    const result = await sendToAiReport(previous, formData);
+    const result = await sendToAiReport(previous, formData).catch(unreachable);
     if (result.status === "success") toast.success(result.message);
     return result;
   }, AI_ACTION_IDLE);
+
+  // The button is disabled while the export is sent; its answer puts focus back on it.
+  useEffect(() => {
+    if (state.status !== "idle") focusIfLost(sendRef.current, formRef.current);
+  }, [state]);
 
   return (
     <div className="space-y-2">
@@ -53,9 +62,9 @@ export function ReportControl({
           </a>
         </Button>
         {connected && canSend && (
-          <form action={formAction}>
+          <form ref={formRef} action={formAction}>
             <input type="hidden" name="inspectionId" value={inspectionId} />
-            <Button type="submit" disabled={pending}>
+            <Button ref={sendRef} type="submit" disabled={pending}>
               {pending ? <Spinner aria-hidden /> : <SendIcon aria-hidden />}
               {pending ? "Sending to the AI report" : reportUrl ? "Send to AI report again" : "Send to AI report"}
             </Button>

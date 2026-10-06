@@ -5,6 +5,15 @@ import type { FindingModel, PhotoEvidenceModel, QuestionModel } from "@/lib/insp
 import { DecisionControl } from "./decision-control";
 import { SeverityPill } from "./pills";
 
+/**
+ * The React key of a finding's card. Finding ids repeat from one review to
+ * the next, so the key names the review: a new review never inherits a
+ * half-made decision on the finding with the same id in another review.
+ */
+export function findingKey(reviewId: string, findingId: string): string {
+  return `${reviewId}:${findingId}`;
+}
+
 export function FindingCard({
   finding,
   reviewId,

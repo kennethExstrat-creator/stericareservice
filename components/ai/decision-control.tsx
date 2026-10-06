@@ -13,6 +13,8 @@ import { DECISION_LABEL, DECISION_VERB } from "@/lib/inspections/ai/format";
 import { AI_ACTION_IDLE, type AiActionState, type DecisionModel } from "@/lib/inspections/ai/types";
 import { AI_REVIEW_ACTIONS, type AiReviewActionKind } from "@/lib/schemas/ai-review";
 import { cn } from "@/lib/utils";
+import { focusIfLost } from "./focus-handoff";
+import { unreachable } from "./unreachable";
 
 const DECISION_ICON: Readonly<Record<AiReviewActionKind, LucideIcon>> = {
   agree: ThumbsUpIcon,
@@ -24,6 +26,9 @@ const DECISION_ICON: Readonly<Record<AiReviewActionKind, LucideIcon>> = {
  * The admin's decision on one finding (BUILD_SPEC 9.2): agree, disagree (a
  * note is required) or fixed. The latest decision shows with who made it;
  * "Change" records a new one and keeps the old in the history.
+ *
+ * The finding card that renders this is keyed by its review, so a form is
+ * never handed on to another review's finding with the same id.
  */
 export function DecisionControl({
   reviewId,
@@ -38,6 +43,14 @@ export function DecisionControl({
 }) {
   const [editing, setEditing] = useState(false);
   const changeRef = useRef<HTMLButtonElement>(null);
+  // Saved: focus goes to "Change" once the saved decision is on screen
+  // (with the refresh, which can come before or after the action's answer).
+  const focusChange = useRef(false);
+  useEffect(() => {
+    if (!focusChange.current || !changeRef.current) return;
+    focusChange.current = false;
+    focusIfLost(changeRef.current);
+  });
 
   if (decision && !editing) {
     return (
@@ -87,7 +100,15 @@ export function DecisionControl({
             }
           : undefined
       }
-      onSaved={() => setEditing(false)}
+      onSaved={() => {
+        focusChange.current = true;
+        setEditing(false);
+        // The refreshed decision may be on screen already.
+        if (changeRef.current) {
+          focusChange.current = false;
+          focusIfLost(changeRef.current);
+        }
+      }}
     />
   );
 }
@@ -124,8 +145,10 @@ function DecisionForm({
   onSaved: () => void;
 }) {
   const id = useId();
+  const formRef = useRef<HTMLFormElement>(null);
   const noteRef = useRef<HTMLTextAreaElement>(null);
   const groupRef = useRef<HTMLDivElement>(null);
+  const saveRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (focusOnMount) groupRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
   }, [focusOnMount]);
@@ -134,23 +157,42 @@ function DecisionForm({
   const [noteError, setNoteError] = useState<string | null>(null);
 
   const [state, formAction, pending] = useActionState(async (previous: AiActionState, formData: FormData) => {
-    const result = await recordAiFindingDecision(previous, formData);
+    // A dropped connection answers here, on the form, with the note kept.
+    const result = await recordAiFindingDecision(previous, formData).catch(unreachable);
     if (result.status === "success") {
       toast.success(result.message);
       setNoteError(null);
       onSaved();
     } else if (result.status === "error") {
       setNoteError(result.fieldErrors?.note ?? null);
-      if (result.fieldErrors?.note) noteRef.current?.focus();
     }
     return result;
   }, AI_ACTION_IDLE);
+
+  // After a refusal, focus goes where the fix is: the note, the choice, or
+  // "Save decision" to try again. Not before: the fields are disabled while
+  // the decision is being saved, and a disabled field cannot take focus.
+  useEffect(() => {
+    if (state.status !== "error") return;
+    const target = state.fieldErrors?.note
+      ? noteRef.current
+      : state.fieldErrors?.action
+        ? groupRef.current?.querySelector<HTMLButtonElement>("button")
+        : saveRef.current;
+    focusIfLost(target, formRef.current);
+  }, [state]);
 
   const formError = state.status === "error" && !state.fieldErrors?.note ? state.message : null;
   const noteRequired = choice === "disagree";
 
   return (
-    <form action={formAction} noValidate className="space-y-3" aria-label={`Your decision on finding ${findingId}`}>
+    <form
+      ref={formRef}
+      action={formAction}
+      noValidate
+      className="space-y-3"
+      aria-label={`Your decision on finding ${findingId}`}
+    >
       <input type="hidden" name="reviewId" value={reviewId} />
       <input type="hidden" name="findingId" value={findingId} />
       <input type="hidden" name="action" value={choice} />
@@ -221,7 +263,7 @@ function DecisionForm({
       )}
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="submit" size="sm" disabled={!choice || pending}>
+        <Button ref={saveRef} type="submit" size="sm" disabled={!choice || pending}>
           {pending ? <Spinner aria-hidden /> : <CheckIcon aria-hidden />}
           {pending ? "Saving" : "Save decision"}
         </Button>

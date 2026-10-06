@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { SparklesIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,9 @@ import { Spinner } from "@/components/ui/spinner";
 import { requestAiSecondOpinion } from "@/lib/inspections/ai/actions";
 import { AI_ACTION_IDLE, type AiActionState } from "@/lib/inspections/ai/types";
 import { cn } from "@/lib/utils";
+import { focusIfLost, moveFocusTo } from "./focus-handoff";
+import { AI_FOCUS } from "./focus-targets";
+import { unreachable } from "./unreachable";
 
 /** "Request AI second opinion" (admins): a pending review of the current version, written in the background. */
 export function RequestReviewButton({
@@ -21,16 +24,27 @@ export function RequestReviewButton({
   variant?: "default" | "outline";
   className?: string;
 }) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const [state, formAction, pending] = useActionState(async (previous: AiActionState, formData: FormData) => {
-    const result = await requestAiSecondOpinion(previous, formData);
-    if (result.status === "success") toast.success(result.message);
+    const result = await requestAiSecondOpinion(previous, formData).catch(unreachable);
+    if (result.status === "success") {
+      toast.success(result.message);
+      // This button goes while the opinion is written: focus moves to the notice that says so.
+      moveFocusTo(AI_FOCUS.attempt);
+    }
     return result;
   }, AI_ACTION_IDLE);
 
+  // Refused or unreachable: back to the button, to try again.
+  useEffect(() => {
+    if (state.status === "error") focusIfLost(buttonRef.current, formRef.current);
+  }, [state]);
+
   return (
-    <form action={formAction} className={cn("flex flex-col items-start gap-2", className)}>
+    <form ref={formRef} action={formAction} className={cn("flex flex-col items-start gap-2", className)}>
       <input type="hidden" name="inspectionId" value={inspectionId} />
-      <Button type="submit" variant={variant} disabled={pending}>
+      <Button ref={buttonRef} type="submit" variant={variant} disabled={pending}>
         {pending ? <Spinner aria-hidden /> : <SparklesIcon aria-hidden />}
         {pending ? "Requesting" : label}
       </Button>

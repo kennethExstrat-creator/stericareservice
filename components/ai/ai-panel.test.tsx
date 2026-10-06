@@ -1,6 +1,8 @@
 // Server-rendered markup of the AI panel for each state it can be in: the
 // three columns, decisions for admins only, the not-connected states, a
 // review being written, and screen-reader text kept inside its component.
+// The element tree for the keys that keep decision forms with their review.
+import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -21,6 +23,8 @@ import {
   storedReview,
 } from "@/lib/inspections/ai/__fixtures__/panel";
 import { buildAiPanelModel, type PanelModelInput } from "@/lib/inspections/ai/panel-model";
+import { Comparison } from "./comparison";
+import { FindingCard, findingKey } from "./finding";
 import { AiReviewPanelView } from "./review-panel-view";
 
 let record: InspectionRecord;
@@ -30,8 +34,8 @@ beforeAll(async () => {
   ({ record, evaluated } = await loadFixture());
 });
 
-function render(overrides: Partial<PanelModelInput> = {}): string {
-  const model = buildAiPanelModel({
+function model(overrides: Partial<PanelModelInput> = {}) {
+  return buildAiPanelModel({
     record,
     evaluated,
     reviews: reviewHistory(),
@@ -42,7 +46,17 @@ function render(overrides: Partial<PanelModelInput> = {}): string {
     now: NOW,
     ...overrides,
   });
-  return renderToStaticMarkup(<AiReviewPanelView model={model} />);
+}
+
+function render(overrides: Partial<PanelModelInput> = {}): string {
+  return renderToStaticMarkup(<AiReviewPanelView model={model(overrides)} />);
+}
+
+/** Every element in a tree as returned (components are not called). */
+function elementsOf(node: ReactNode): ReactElement[] {
+  if (Array.isArray(node)) return node.flatMap(elementsOf);
+  if (!isValidElement(node)) return [];
+  return [node, ...elementsOf((node.props as { children?: ReactNode }).children)];
 }
 
 /** Text content, tags dropped, entities decoded enough for the checks below. */
@@ -168,6 +182,38 @@ describe("AiReviewPanelView for an admin", () => {
     expect(unanchoredSrOnly(render())).toEqual([]);
     expect(unanchoredSrOnly(render({ isAdmin: false, decisions: [] }))).toEqual([]);
   });
+
+  it("keys the opinion and its finding cards by the review, so a newer opinion starts with empty decision forms", () => {
+    const panel = model();
+    const current = panel.current!;
+    // The opinion's block remounts when another review becomes the current one ...
+    const opinion = elementsOf(AiReviewPanelView({ model: panel })).find((element) => element.key === current.id);
+    expect(opinion).toBeDefined();
+    // ... and each finding card names its review: F1 of one review is never F1 of another.
+    const comparison = elementsOf(opinion).find((element) => element.type === Comparison);
+    expect(comparison).toBeDefined();
+    const findingLists = elementsOf(Comparison(comparison!.props as Parameters<typeof Comparison>[0])).filter(
+      (element) => typeof element.type === "function" && "findings" in (element.props as object),
+    );
+    const cards = findingLists.flatMap((list) =>
+      elementsOf((list.type as (props: unknown) => ReactNode)(list.props)).filter((element) => element.type === FindingCard),
+    );
+    expect(cards.map((card) => card.key).sort()).toEqual(current.findings.map((finding) => findingKey(current.id, finding.id)).sort());
+    expect(findingKey(current.id, "F1")).not.toBe(findingKey(REVIEW_IDS.older, "F1"));
+  });
+
+  it("gives keyboard focus somewhere to go when a request turns into a notice, and the notice into an opinion", () => {
+    const running = storedReview({
+      id: REVIEW_IDS.running,
+      status: "pending",
+      findings: [],
+      questions: [],
+      createdAt: new Date(NOW - 30_000).toISOString(),
+    });
+    const html = render({ reviews: [running, storedReview()] });
+    expect(html).toMatch(/<div tabindex="-1" class="[^"]*focus-ring[^"]*" data-testid="ai-review-pending">/);
+    expect(html).toMatch(/<div tabindex="-1" class="[^"]*focus-ring[^"]*" data-testid="ai-review-meta">/);
+  });
 });
 
 describe("AiReviewPanelView for the inspector", () => {
@@ -189,6 +235,8 @@ describe("AiReviewPanelView states", () => {
     const content = text(render({ aiStatus: OFF_STATUS, reviews: [], decisions: [] }));
     expect(content).toContain("AI second opinion not connected");
     expect(content).toContain("set ANTHROPIC_API_KEY or AI_REVIEW_WEBHOOK_URL");
+    // "off" is also AI_REVIEW_PROVIDER=off, which wins over both.
+    expect(content).toContain("If AI_REVIEW_PROVIDER is set to off, change it to auto.");
     expect(content).not.toContain("System (computed)");
     expect(content).not.toMatch(/Request (AI|a new) second opinion/);
   });

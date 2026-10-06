@@ -10,6 +10,8 @@ import { Spinner } from "@/components/ui/spinner";
 import type { AiPanelModel, ReviewModel } from "@/lib/inspections/ai/types";
 import { cn } from "@/lib/utils";
 import { Comparison } from "./comparison";
+import { FocusTarget } from "./focus-handoff";
+import { AI_FOCUS } from "./focus-targets";
 import { ReviewHistory } from "./history";
 import { ReportControl } from "./report-control";
 import { RequestReviewButton } from "./request-review";
@@ -53,8 +55,17 @@ export function AiReviewPanelView({ model, className }: { model: AiPanelModel; c
       {model.pendingIds.length > 0 && <ReviewPoller inspectionId={model.inspection.id} pendingIds={model.pendingIds} />}
 
       {current && (
-        <div className="space-y-3">
-          <p className="text-sm text-muted-foreground" data-testid="ai-review-meta">
+        // Keyed by the opinion: when a newer one lands, its findings get fresh
+        // decision forms, so a half-made decision never moves to the finding
+        // with the same id in another opinion.
+        <div key={current.id} className="space-y-3">
+          {/* Where focus goes when this opinion lands while its notice had focus. */}
+          <FocusTarget
+            name={AI_FOCUS.opinion}
+            passTo={AI_FOCUS.opinion}
+            className="rounded-sm text-sm text-muted-foreground"
+            data-testid="ai-review-meta"
+          >
             {[
               current.source,
               `requested ${current.requestedAt}`,
@@ -62,7 +73,7 @@ export function AiReviewPanelView({ model, className }: { model: AiPanelModel; c
             ]
               .filter(Boolean)
               .join(" · ")}
-          </p>
+          </FocusTarget>
           {!current.isCurrentVersion && (
             <Notice tone="warn" title="The inspection has changed since this opinion">
               It was saved again at {model.inspection.savedAt} (an edit, a status change or a report link all count).
@@ -99,8 +110,9 @@ function NotConnected({ model }: { model: AiPanelModel }) {
           <p className="text-sm break-words text-fail">{review.detail}</p>
         ) : (
           <p className="text-sm text-muted-foreground">
+            {/* Not connected is both "nothing set" and AI_REVIEW_PROVIDER=off: the hint covers both. */}
             {viewer.isAdmin
-              ? "To connect it, set ANTHROPIC_API_KEY or AI_REVIEW_WEBHOOK_URL on the server. The admin overview shows the set-up."
+              ? "To connect it, set ANTHROPIC_API_KEY or AI_REVIEW_WEBHOOK_URL on the server. If AI_REVIEW_PROVIDER is set to off, change it to auto. The admin overview shows the set-up."
               : "An admin can connect it."}
           </p>
         )}
@@ -112,11 +124,18 @@ function NotConnected({ model }: { model: AiPanelModel }) {
   );
 }
 
+/**
+ * The newest request when it has no opinion yet. "Request AI second opinion"
+ * hands focus to it, and it hands focus on to the opinion when that lands.
+ * The same focus target in every state, so a request that fails keeps focus.
+ */
 function AttemptNotice({ attempt, current }: { attempt: ReviewModel; current: ReviewModel | null }) {
   const earlier = current ? ` The opinion below is from ${current.requestedAt}.` : "";
   if (attempt.state === "pending") {
     return (
-      <div
+      <FocusTarget
+        name={AI_FOCUS.attempt}
+        passTo={AI_FOCUS.opinion}
         className="flex items-start gap-3 rounded-xl border border-brand-200 bg-brand-50 p-4 touch:p-5"
         data-testid="ai-review-pending"
       >
@@ -127,19 +146,26 @@ function AttemptNotice({ attempt, current }: { attempt: ReviewModel; current: Re
             Requested {attempt.requestedAt}. It can take a few minutes; this panel updates by itself.{earlier}
           </p>
         </div>
-      </div>
+      </FocusTarget>
     );
   }
+  const failed = attempt.state === "failed";
   return (
-    <Notice
-      tone={attempt.state === "failed" ? "fail" : "warn"}
-      title={attempt.state === "failed" ? "The last request failed" : "The last request stopped"}
+    <FocusTarget
+      name={AI_FOCUS.attempt}
+      passTo={AI_FOCUS.opinion}
+      className={cn(NOTICE_BOX, NOTICE_TONE[failed ? "fail" : "warn"])}
+      data-testid="ai-review-attempt"
     >
-      {attempt.problem}
-      {earlier}
-    </Notice>
+      <NoticeText tone={failed ? "fail" : "warn"} title={failed ? "The last request failed" : "The last request stopped"}>
+        {attempt.problem}
+        {earlier}
+      </NoticeText>
+    </FocusTarget>
   );
 }
+
+const NOTICE_BOX = "space-y-1 rounded-xl border p-4 touch:p-5";
 
 const NOTICE_TONE = {
   neutral: "border-dashed border-not-done-border bg-card",
@@ -147,14 +173,26 @@ const NOTICE_TONE = {
   fail: "border-fail-border bg-fail-tint",
 } as const;
 
-function Notice({ tone, title, children }: { tone: keyof typeof NOTICE_TONE; title: string; children: ReactNode }) {
+type NoticeTone = keyof typeof NOTICE_TONE;
+
+function Notice({ tone, title, children }: { tone: NoticeTone; title: string; children: ReactNode }) {
   return (
-    <div className={cn("space-y-1 rounded-xl border p-4 touch:p-5", NOTICE_TONE[tone])}>
+    <div className={cn(NOTICE_BOX, NOTICE_TONE[tone])}>
+      <NoticeText tone={tone} title={title}>
+        {children}
+      </NoticeText>
+    </div>
+  );
+}
+
+function NoticeText({ tone, title, children }: { tone: NoticeTone; title: string; children: ReactNode }) {
+  return (
+    <>
       <p className={cn("font-semibold", tone === "fail" ? "text-fail" : tone === "warn" ? "text-warn" : "text-foreground")}>
         {title}
       </p>
       <p className="text-sm break-words text-foreground">{children}</p>
-    </div>
+    </>
   );
 }
 

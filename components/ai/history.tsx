@@ -4,7 +4,7 @@
 import { HistoryIcon } from "lucide-react";
 import { StatusPill } from "@/components/qc/status-pill";
 import type { ReviewModel } from "@/lib/inspections/ai/types";
-import { FindingCard, QuestionItem } from "./finding";
+import { FindingCard, findingKey, QuestionItem } from "./finding";
 import { Quiet, ResultPill } from "./pills";
 
 export function ReviewHistory({ reviews, canDecide }: { reviews: ReviewModel[]; canDecide: boolean }) {
@@ -59,7 +59,12 @@ function HistoryEntry({ review, canDecide }: { review: ReviewModel; canDecide: b
             {review.summary && <p className="text-sm break-words text-foreground">{review.summary}</p>}
             {!review.readable && <Quiet>Its findings could not be read.</Quiet>}
             {review.findings.map((finding) => (
-              <FindingCard key={finding.id} finding={finding} reviewId={review.id} canDecide={canDecide} />
+              <FindingCard
+                key={findingKey(review.id, finding.id)}
+                finding={finding}
+                reviewId={review.id}
+                canDecide={canDecide}
+              />
             ))}
             {review.questions.length > 0 && (
               <ul className="space-y-2" aria-label="Questions for the inspector">

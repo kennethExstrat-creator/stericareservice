@@ -9,7 +9,7 @@ import { StatusPill } from "@/components/qc/status-pill";
 import { STATUS_LABEL } from "@/lib/design/status";
 import type { AiPanelModel, FindingModel, QuestionModel, ReviewModel, SectionModel } from "@/lib/inspections/ai/types";
 import { cn } from "@/lib/utils";
-import { FindingCard, QuestionItem } from "./finding";
+import { FindingCard, findingKey, QuestionItem } from "./finding";
 import { CellLabel, Quiet, ResultPill } from "./pills";
 
 const COLUMNS = "@4xl/ai:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)] @4xl/ai:gap-6";
@@ -23,7 +23,11 @@ export const COLUMN_TITLES = {
 export function Comparison({ model, review }: { model: AiPanelModel; review: ReviewModel }) {
   const canDecide = model.viewer.isAdmin;
   return (
-    <div className="overflow-clip rounded-xl bg-card shadow-sm ring-1 ring-border" data-testid="ai-comparison">
+    <div
+      className="overflow-clip rounded-xl bg-card shadow-sm ring-1 ring-border"
+      data-testid="ai-comparison"
+      data-review={review.id}
+    >
       <div
         aria-hidden
         className={cn(
@@ -257,7 +261,7 @@ function AiFindings({
   return (
     <div className="space-y-3">
       {findings.map((finding) => (
-        <FindingCard key={finding.id} finding={finding} reviewId={reviewId} canDecide={canDecide} />
+        <FindingCard key={findingKey(reviewId, finding.id)} finding={finding} reviewId={reviewId} canDecide={canDecide} />
       ))}
       {questions.length > 0 && (
         <div className="space-y-1.5">

@@ -5,7 +5,7 @@ export { AiReviewPanel } from "./ai-review-panel";
 export { AiReviewPanelView } from "./review-panel-view";
 export { Comparison, COLUMN_TITLES } from "./comparison";
 export { DecisionControl } from "./decision-control";
-export { FindingCard, QuestionItem } from "./finding";
+export { FindingCard, findingKey, QuestionItem } from "./finding";
 export { ReviewHistory } from "./history";
 export { ReportControl } from "./report-control";
 export { RequestReviewButton } from "./request-review";

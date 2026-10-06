@@ -398,6 +398,9 @@ export async function shot(page: Page, name: string): Promise<void> {
   // Let toasts finish their entrance.
   await page.waitForTimeout(250);
   if (!isTouch()) {
+    // From the top: sticky parts (the sidebar, the column headings) are drawn
+    // where the page is scrolled to, e.g. after focus moved down to a field.
+    await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({ ...options, path: path(), fullPage: true });
     return;
   }
