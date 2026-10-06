@@ -24,6 +24,7 @@ export const definition = defineModule<HeaderData, HeaderConfig, HeaderComputed>
   ],
   calc: calcHeader,
   contribute: contributeHeader,
+  loadCapture: () => import("./Capture"),
 });
 
 export type { HeaderData } from "./schema";
