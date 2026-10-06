@@ -190,13 +190,89 @@ export const PREVIOUS_COPY_SUMMARY = {
     glove_info: "Glove Information",
     packing_config: "Packing configuration",
   } satisfies Record<CopiedModuleKey, string>,
-  copied: {
-    header: "product name and code, factory address and factory glove code",
-    glove_info: "every field",
-    packing_config: "every field",
-  } satisfies Record<CopiedModuleKey, string>,
+  /** The header's copied fields, in words. */
+  headerFields: {
+    factoryAddress: "factory address",
+    productName: "product name",
+    productCode: "product code",
+    factoryGloveCode: "factory glove code",
+  } satisfies Record<(typeof PREVIOUS_COPY.header)[number], string>,
+  /** A module copied whole. */
+  everyField: "every field",
   notCopied: "PO number, dates, lots, sampling, test results, comments and photos",
 };
+
+/** "a", "a and b", "a, b and c". */
+function listInWords(words: readonly string[]): string {
+  return words.length <= 1 ? (words[0] ?? "") : `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`;
+}
+
+/** What a copy takes from one module, for the screen: "product name and factory address", "every field". */
+export function copiedInWords(key: CopiedModuleKey, fields: readonly string[]): string {
+  const listed = PREVIOUS_COPY[key];
+  if (listed === "all") return PREVIOUS_COPY_SUMMARY.everyField;
+  return listInWords(listed.filter((field) => fields.includes(field)).map((field) => PREVIOUS_COPY_SUMMARY.headerFields[field]));
+}
+
+/** For each copied module, the copied fields that hold a value: what a copy can take. */
+export type PreviousCopies = Partial<Record<CopiedModuleKey, string[]>>;
+
+/** The fields "start from previous" takes from a module's saved values (its comment never). */
+function copiedFields(key: CopiedModuleKey, value: Readonly<Record<string, unknown>>): string[] {
+  const fields = PREVIOUS_COPY[key];
+  return fields === "all" ? Object.keys(value) : fields.filter((field) => field in value);
+}
+
+/**
+ * What an earlier inspection holds to copy: for each copied module, the
+ * copied fields with a value. A module with none is left out, so the form
+ * never promises a copy of nothing.
+ */
+export function copiesOf(previous: InspectionData): PreviousCopies {
+  const copies: PreviousCopies = {};
+  for (const key of COPIED_MODULE_KEYS) {
+    const { value, hasData } = readModuleEntry(previous, "modules", key);
+    if (!hasData || !isRecord(value)) continue;
+    const filled = copiedFields(key, value).filter((field) => hasValue(value[field]));
+    if (filled.length > 0) copies[key] = filled;
+  }
+  return copies;
+}
+
+/**
+ * The fields a template switches off in the copied modules it includes
+ * (templateShowsField's rule), so the form can tell what a copy leaves
+ * behind without the whole template.
+ */
+export function copiedFieldsOff(template: ResolvedTemplate): PreviousCopies {
+  const off: PreviousCopies = {};
+  for (const key of COPIED_MODULE_KEYS) {
+    const entry = template.modules.find((candidate) => candidate.key === key && candidate.include);
+    const fields = entry && isRecord(entry.config) ? entry.config.fields : undefined;
+    if (!isRecord(fields)) continue;
+    const hidden = Object.keys(fields).filter((field) => fields[field] === false);
+    if (hidden.length > 0) off[key] = hidden;
+  }
+  return off;
+}
+
+/**
+ * What a copy from an earlier inspection puts into a template, as the form
+ * shows it before Create: for each copied module the template includes, the
+ * fields holding a value that it does not switch off. Without a template,
+ * every module with a value. copyFromPrevious makes the copy itself.
+ */
+export function plannedCopy(
+  copies: PreviousCopies,
+  template: { titles: Readonly<Record<string, string>>; fieldsOff: PreviousCopies } | null,
+): { key: CopiedModuleKey; fields: string[] }[] {
+  return COPIED_MODULE_KEYS.flatMap((key) => {
+    if (template !== null && !(key in template.titles)) return [];
+    const off = template?.fieldsOff[key] ?? [];
+    const fields = (copies[key] ?? []).filter((field) => !off.includes(field));
+    return fields.length > 0 ? [{ key, fields }] : [];
+  });
+}
 
 /** An earlier inspection the user can see, as the page lists them (newest first). */
 export type PreviousInspectionRow = {
@@ -209,6 +285,10 @@ export type PreviousInspectionRow = {
   manufacturer_id: string | null;
   product_name: string | null;
   template: { code: string; version: number; product_type: ProductType } | null;
+  /** The copied modules' saved data (data->modules-><key>), when the query reads it. */
+  header?: unknown;
+  glove_info?: unknown;
+  packing_config?: unknown;
 };
 
 /** The latest inspection of one product for one client, manufacturer and product type. */
@@ -223,6 +303,8 @@ export type PreviousProduct = {
   productName: string | null;
   templateCode: string;
   templateVersion: number;
+  /** What it holds to copy (copiesOf). */
+  copies: PreviousCopies;
 };
 
 /** Product names match whatever their case and spacing: "Nitrile  blue" is "nitrile blue". */
@@ -253,6 +335,7 @@ export function latestPerProduct(rows: readonly PreviousInspectionRow[]): Previo
       productName: row.product_name?.trim() ? row.product_name.trim() : null,
       templateCode: row.template.code,
       templateVersion: row.template.version,
+      copies: copiesOf({ modules: Object.fromEntries(COPIED_MODULE_KEYS.map((key) => [key, row[key]])), custom: {} }),
     });
   }
   return products;
@@ -270,6 +353,20 @@ export function previousFor(
       product.manufacturerId === picks.manufacturerId &&
       product.productType === picks.productType,
   );
+}
+
+/**
+ * The product name field with "start from previous": a picked product's name
+ * fills it until the user edits it. Start blank, a product without a name, or
+ * a pick that no longer applies after the picks change gives back what the
+ * user typed, so one product's name never goes with another's data.
+ */
+export function productNameField(
+  typed: string,
+  filledFrom: string | null,
+  picked: Pick<PreviousProduct, "inspectionId" | "productName"> | null,
+): string {
+  return picked !== null && filledFrom === picked.inspectionId && picked.productName !== null ? picked.productName : typed;
 }
 
 /** Whether an earlier inspection may be started from for these picks: same client, manufacturer and product type. */
@@ -368,11 +465,11 @@ export function copyFromPrevious(
     // readModuleEntry leaves the inspector's comment behind.
     const { value, hasData } = readModuleEntry(previous, "modules", key);
     if (!hasData || !isRecord(value)) continue;
-    const fields = PREVIOUS_COPY[key];
-    const listed = fields === "all" ? Object.keys(value) : fields.filter((field) => field in value);
     // A field the new template switches off stays behind.
     const picked = Object.fromEntries(
-      listed.filter((field) => templateShowsField(template, key, field)).map((field) => [field, value[field]]),
+      copiedFields(key, value)
+        .filter((field) => templateShowsField(template, key, field))
+        .map((field) => [field, value[field]]),
     );
     const definition = registry[key];
     const data = withValues(definition, definition.emptyData(), picked);

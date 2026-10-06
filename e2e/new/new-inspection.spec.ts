@@ -118,6 +118,19 @@ function templatePanel(page: Page) {
 }
 
 /**
+ * The connection drops: Create's Server Action request (a POST to this page)
+ * never reaches the server. Page loads go through.
+ */
+async function dropCreateRequests(page: Page) {
+  await page.route(
+    (url) => url.pathname === "/inspections/new",
+    (route) => (route.request().method() === "POST" ? route.abort("internetdisconnected") : route.fallback()),
+  );
+}
+
+const UNREACHABLE = "Could not reach the server. Check the connection, then try again.";
+
+/**
  * The values given, and nothing else: every other key is empty. Module data
  * lists every field once a module is built, as null until entered.
  */
@@ -178,12 +191,22 @@ test("the template follows the client, manufacturer and product type", async ({ 
     await shot(page, "no-template");
   }
 
-  // Back at Hartalega, start from the earlier inspection: its product name comes along.
+  // Back at Hartalega, start from the earlier inspection: its product name comes along,
+  // and goes again with Start blank, giving back what was typed.
   await choose(page, "Manufacturer", HARTALEGA.label);
+  const productName = page.getByRole("textbox", { name: /Product name/ });
+  await productName.fill("E2E typed name");
+  await press(page.getByRole("radio", { name: new RegExp(PREVIOUS.productName) }));
+  await expect(productName).toHaveValue(PREVIOUS.productName);
+  await press(page.getByRole("radio", { name: "Start blank" }));
+  await expect(productName).toHaveValue("E2E typed name");
+  await expect(page.getByTestId("copy-summary")).toHaveCount(0);
   await press(page.getByRole("radio", { name: new RegExp(PREVIOUS.productName) }));
   const summary = page.getByTestId("copy-summary");
   await expect(summary).toContainText(`Copied from ${fixture.previousRef}`);
-  await expect(summary).toContainText("Manufacturer Information: product name and code, factory address and factory glove code");
+  await expect(summary).toContainText(
+    "Manufacturer Information: factory address, product name, product code and factory glove code",
+  );
   await expect(summary).toContainText("Glove Information: every field");
   await expect(summary).toContainText("Packing configuration: every field");
   await expect(summary).toContainText("Never copied: PO number, dates, lots, sampling, test results, comments and photos.");
@@ -225,6 +248,32 @@ test("Create asks for what is missing, and focuses the first", async ({ page, co
   // Choosing clears that field's error.
   await choose(page, "Client", "No client");
   await expect(page.getByText("Choose the client, or No client.")).toHaveCount(0);
+});
+
+test("a failed Create keeps every choice and says why", async ({ page, context, baseURL }) => {
+  await signIn(context, baseURL!, TEST_ACCOUNTS.inspector);
+  await page.goto("/inspections/new");
+  await pickFixtureOrder(page);
+  await press(page.getByRole("radio", { name: new RegExp(PREVIOUS.productName) }));
+  await expect(page.getByTestId("chosen-template")).toHaveAttribute("data-code", FIXTURE_TEMPLATE_CODE);
+
+  await dropCreateRequests(page);
+  await press(page.getByRole("button", { name: "Create inspection" }));
+
+  const message = page.getByTestId("form-error");
+  await expect(message).toContainText(UNREACHABLE);
+  await expect(message).toBeFocused();
+  // Nothing was reset: the next try needs no new choices.
+  await expect(page.getByRole("combobox", { name: "Client" })).toHaveText(fixture.clientName);
+  await expect(page.getByRole("combobox", { name: "Manufacturer" })).toHaveText(HARTALEGA.label);
+  await expect(page.getByRole("radio", { name: /Examination gloves/ })).toBeChecked();
+  await expect(page.getByRole("radio", { name: new RegExp(PREVIOUS.productName) })).toBeChecked();
+  await expect(page.getByRole("textbox", { name: /Product name/ })).toHaveValue(PREVIOUS.productName);
+  await expect(page.getByTestId("chosen-template")).toHaveAttribute("data-code", FIXTURE_TEMPLATE_CODE);
+  await expect(page.getByRole("button", { name: "Create inspection" })).toBeEnabled();
+  await expectNoPageScroll(page);
+  await shot(page, "offline");
+  await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
 test("the inspector creates an inspection and lands on it", async ({ page, context, baseURL }) => {
@@ -316,4 +365,13 @@ test("an admin can choose another template", async ({ page, context, baseURL }) 
   await expect(page.getByRole("radio", { name: new RegExp(PREVIOUS.productName) })).toBeVisible();
   await expectNoPageScroll(page);
   await shot(page, "admin");
+
+  // A failed Create keeps the admin's choice.
+  await dropCreateRequests(page);
+  await press(page.getByRole("button", { name: "Create inspection" }));
+  await expect(page.getByTestId("form-error")).toContainText(UNREACHABLE);
+  await expect(page.getByTestId("form-error")).toBeFocused();
+  await expect(picker).toHaveText(`${FIXTURE_TEMPLATE_CODE} version 1`);
+  await expect(page.getByTestId("chosen-template")).toContainText("Chosen by an admin");
+  await page.unrouteAll({ behavior: "ignoreErrors" });
 });

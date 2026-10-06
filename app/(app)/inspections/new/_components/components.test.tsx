@@ -1,8 +1,8 @@
 // The form's panels as the server renders them, in the states the live
 // database cannot show on demand: a draft or unreadable template, ties, an
-// admin's choice, a long list of earlier products, and a copy into a
-// template that lacks some of the copied sections. The page and its flows
-// run end to end in e2e/new.
+// admin's choice, a long list of earlier products, a copy into a template
+// that lacks some of the copied sections, and an earlier inspection with
+// nothing to copy. The page and its flows run end to end in e2e/new.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { chooseTemplate, type PreviousProduct, type TemplateChoice } from "@/lib/inspections/create";
@@ -143,6 +143,13 @@ describe("the template panel", () => {
   });
 });
 
+/** An earlier inspection that holds every copied field. */
+const COPIES: PreviousProduct["copies"] = {
+  header: ["factoryAddress", "productName", "productCode", "factoryGloveCode"],
+  glove_info: ["surfaceTexture", "indicativeWeight", "colour", "length"],
+  packing_config: ["glovesPerInner", "innersPerCase", "glovesPerCase", "packingMode"],
+};
+
 function product(index: number, extra: Partial<PreviousProduct> = {}): PreviousProduct {
   return {
     inspectionId: `30000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
@@ -155,6 +162,7 @@ function product(index: number, extra: Partial<PreviousProduct> = {}): PreviousP
     productName: `Nitrile ${index}`,
     templateCode: "STD_EG",
     templateVersion: 1,
+    copies: COPIES,
     ...extra,
   };
 }
@@ -197,7 +205,7 @@ describe("start from previous", () => {
     const chosen = product(7, { templateVersion: 1 });
     const html = picker({ products: [chosen], value: chosen.inspectionId, template: option("STD_EG") });
     expect(html).toContain("Copied from INS-2026-0007");
-    expect(html).toContain("Manufacturer Information: product name and code, factory address and factory glove code");
+    expect(html).toContain("Manufacturer Information: factory address, product name, product code and factory glove code");
     expect(html).toContain("Glove Information: every field");
     expect(html).toContain("Packing configuration: every field");
     expect(html).toContain("Never copied: PO number, dates, lots, sampling, test results, comments and photos.");
@@ -207,10 +215,39 @@ describe("start from previous", () => {
   it("names only the sections the new template has, in its wording", () => {
     const chosen = product(8, { productType: "surgical", templateCode: "STD_SG", templateVersion: 1 });
     const html = picker({ products: [chosen], value: chosen.inspectionId, template: option("STD_SG", { version: 2 }) });
-    // STD_SG has no glove information; its header is worded from the SG form.
+    // STD_SG has no glove information, factory address or factory glove code; its header is worded from the SG form.
     expect(html).not.toContain("Glove Information");
-    expect(html).toContain("Purchase Order / Shipment Information: product name and code");
+    expect(html).toContain("Purchase Order / Shipment Information: product name and product code<");
     expect(html).toContain("Last time used version 1. This inspection uses version 2, with its specs and AQL.");
+  });
+
+  it("lists only the sections the earlier inspection has something in", () => {
+    const chosen = product(9, { copies: { header: ["productName"] } });
+    const html = picker({ products: [chosen], value: chosen.inspectionId, template: option("SAFEDON_EG") });
+    expect(html).toContain("Copied from INS-2026-0009");
+    expect(html).toContain("Manufacturer Information: product name<");
+    expect(html).not.toContain("Glove Information");
+    expect(html).not.toContain("Packing configuration");
+  });
+
+  it("says when an earlier inspection has nothing to copy", () => {
+    const chosen = product(10, { copies: {}, productName: null });
+    const html = picker({ products: [chosen], value: chosen.inspectionId, template: option("STD_EG") });
+    expect(html).toContain("Nothing to copy from INS-2026-0010");
+    expect(html).toContain("It holds no product details this template uses, so nothing is copied.");
+    expect(html).not.toContain("Copied from");
+    expect(html).not.toContain("Never copied");
+    // Specs and AQL still come with the template.
+    expect(html).toContain("Same template as last time (STD_EG version 1): its specs and AQL carry over.");
+    // A factory glove code alone is nothing to copy into a template without one.
+    const glove = product(11, { copies: { header: ["factoryGloveCode"] } });
+    expect(picker({ products: [glove], value: glove.inspectionId, template: option("SAFEDON_EG") })).toContain(
+      "Nothing to copy from INS-2026-0011",
+    );
+    // Before a template is chosen: what it holds.
+    expect(picker({ products: [glove], value: glove.inspectionId })).toContain(
+      "Manufacturer Information: factory glove code<",
+    );
   });
 
   it("shows an error under the list", () => {

@@ -2,14 +2,15 @@
 
 // "Start from previous" (BUILD_SPEC 8): the latest inspection of each product
 // for the chosen client, manufacturer and product type, and exactly what it
-// copies (lib/inspections/create.ts PREVIOUS_COPY). Specs and AQL come with
-// the template, so the panel says whether the template is the one used last
-// time.
+// copies (lib/inspections/create.ts PREVIOUS_COPY): only what the earlier
+// inspection holds and this template shows. Specs and AQL come with the
+// template, so the panel says whether the template is the one used last time.
 import { CopyIcon, HistoryIcon, InfoIcon } from "lucide-react";
 import { FieldError } from "@/components/ui/field";
 import { RadioGroup } from "@/components/ui/radio-group";
 import {
-  COPIED_MODULE_KEYS,
+  copiedInWords,
+  plannedCopy,
   PREVIOUS_COPY_SUMMARY,
   type CopiedModuleKey,
   type PreviousProduct,
@@ -119,24 +120,33 @@ export function PreviousPicker({
 }
 
 function CopySummary({ product, template }: { product: PreviousProduct; template: TemplateOption | null }) {
-  const titles: Readonly<Record<string, string>> = template?.titles ?? {};
-  // Only modules this inspection's template has; before one is chosen, all of them.
-  const copied = COPIED_MODULE_KEYS.filter((key) => template === null || key in titles);
-  const title = (key: CopiedModuleKey) => titles[key] ?? PREVIOUS_COPY_SUMMARY.titles[key];
+  // What the earlier inspection holds, in the modules and fields this inspection's template shows;
+  // before a usable template is known, everything it holds.
+  const known = template?.ready ? template : null;
+  const copied = plannedCopy(product.copies, known);
+  const title = (key: CopiedModuleKey) => known?.titles[key] ?? PREVIOUS_COPY_SUMMARY.titles[key];
   return (
     <div data-testid="copy-summary" className="flex flex-col gap-3 rounded-lg bg-muted p-4 text-sm touch:text-base">
       <p className="flex items-center gap-2 font-semibold text-foreground">
         <CopyIcon aria-hidden className="size-4 shrink-0" />
-        Copied from {product.refNo}
+        {copied.length > 0 ? `Copied from ${product.refNo}` : `Nothing to copy from ${product.refNo}`}
       </p>
-      <ul className="flex list-disc flex-col gap-1 pl-6 text-foreground">
-        {copied.map((key) => (
-          <li key={key}>
-            {title(key)}: {PREVIOUS_COPY_SUMMARY.copied[key]}
-          </li>
-        ))}
-      </ul>
-      <p className="text-muted-foreground">Never copied: {PREVIOUS_COPY_SUMMARY.notCopied}.</p>
+      {copied.length > 0 ? (
+        <>
+          <ul className="flex list-disc flex-col gap-1 pl-6 text-foreground">
+            {copied.map(({ key, fields }) => (
+              <li key={key}>
+                {title(key)}: {copiedInWords(key, fields)}
+              </li>
+            ))}
+          </ul>
+          <p className="text-muted-foreground">Never copied: {PREVIOUS_COPY_SUMMARY.notCopied}.</p>
+        </>
+      ) : (
+        <p className="text-foreground">
+          It holds no product details{known ? " this template uses" : ""}, so nothing is copied.
+        </p>
+      )}
       {template && (
         <p className="flex gap-2 text-foreground">
           <InfoIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-brand-600" />

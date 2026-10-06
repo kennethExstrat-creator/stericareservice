@@ -9,6 +9,9 @@ import { MODULE_REGISTRY } from "@/modules/registry";
 import {
   choiceReason,
   chooseTemplate,
+  copiedFieldsOff,
+  copiedInWords,
+  copiesOf,
   copyFromPrevious,
   describeCreateError,
   fieldErrorsOf,
@@ -17,9 +20,11 @@ import {
   newInspectionData,
   NewInspectionInputSchema,
   NO_CLIENT,
+  plannedCopy,
   previousFor,
   previousMatches,
   productKey,
+  productNameField,
   readNewInspectionForm,
   templateShowsField,
   todayInMalaysia,
@@ -223,6 +228,32 @@ describe("start from previous: which inspection", () => {
     expect(productKey(" Nitrile   Blue ")).toBe("nitrile blue");
   });
 
+  it("notes what each product's latest inspection holds to copy", () => {
+    const [product] = latestPerProduct([
+      row("0001", {
+        header: { poNo: "PO-1", productName: "Nitrile blue", factoryAddress: " ", comment: "Checked." },
+        glove_info: { colour: null, comment: "Nothing yet." },
+        packing_config: { glovesPerInner: 100 },
+      }),
+    ]);
+    expect(product.copies).toEqual({ header: ["productName"], packing_config: ["glovesPerInner"] });
+    // A row read without its modules has nothing to copy.
+    expect(latestPerProduct([row("0002")])[0].copies).toEqual({});
+  });
+
+  it("fills the product name from a picked product until it is edited, and gives back what was typed", () => {
+    const named = { inspectionId: "i1", productName: "Nitrile blue" };
+    const unnamed = { inspectionId: "i2", productName: null };
+    // Picked: the product's name.
+    expect(productNameField("typed", "i1", named)).toBe("Nitrile blue");
+    // Start blank, an unnamed product, or a pick the changed choices no longer offer: what was typed.
+    expect(productNameField("typed", "i1", null)).toBe("typed");
+    expect(productNameField("typed", null, unnamed)).toBe("typed");
+    expect(productNameField("", "i1", unnamed)).toBe("");
+    // Edited after the pick: the edit stands.
+    expect(productNameField("Nitrile blue, 240 mm", null, named)).toBe("Nitrile blue, 240 mm");
+  });
+
   it("offers only the products of the same client, manufacturer and product type", () => {
     const products = latestPerProduct([
       row("0001"),
@@ -326,6 +357,42 @@ describe("start from previous: what is copied", () => {
       glove_info: { indicativeWeight: 3.5, colour: "Blue" },
       packing_config: { glovesPerInner: 100, innersPerCase: 10, glovesPerCase: 1000 },
     });
+  });
+
+  it("knows what an earlier inspection holds to copy: copied fields with a value, never the comment", () => {
+    expect(copiesOf(previous)).toEqual({
+      header: ["factoryAddress", "productName", "productCode", "factoryGloveCode"],
+      glove_info: ["surfaceTexture", "indicativeWeight", "colour", "length"],
+      packing_config: ["glovesPerInner", "innersPerCase", "glovesPerCase", "packingMode"],
+    });
+    const empty = { modules: { glove_info: { colour: null, comment: "Nothing yet." }, header: { poNo: "PO-1" } }, custom: {} };
+    expect(copiesOf(empty)).toEqual({});
+    expect(copiesOf({ modules: {}, custom: {} })).toEqual({});
+  });
+
+  it("plans the copy a template takes, and says it in words", () => {
+    const copies = copiesOf(previous);
+    const option = (template: ResolvedTemplate) => ({
+      titles: Object.fromEntries(template.modules.filter((entry) => entry.include).map((entry) => [entry.key, entry.title])),
+      fieldsOff: copiedFieldsOff(template),
+    });
+    expect(copiedFieldsOff(STD_EG)).toEqual({});
+    expect([...(copiedFieldsOff(STD_SG).header ?? [])].sort()).toEqual(["client", "factoryAddress", "factoryGloveCode"]);
+
+    expect(plannedCopy(copies, option(STD_EG)).map(({ key, fields }) => `${key}: ${copiedInWords(key, fields)}`)).toEqual([
+      "header: factory address, product name, product code and factory glove code",
+      "glove_info: every field",
+      "packing_config: every field",
+    ]);
+    // STD_SG has no glove information, factory address or factory glove code: the copy leaves them behind.
+    expect(plannedCopy(copies, option(STD_SG)).map(({ key, fields }) => `${key}: ${copiedInWords(key, fields)}`)).toEqual([
+      "header: product name and product code",
+      "packing_config: every field",
+    ]);
+    // Before a template is known: everything held.
+    expect(plannedCopy({ header: ["productName"] }, null)).toEqual([{ key: "header", fields: ["productName"] }]);
+    expect(plannedCopy({}, option(STD_EG))).toEqual([]);
+    expect(copiedInWords("header", ["productCode"])).toBe("product code");
   });
 
   it("starts a module empty when none of its saved values fit any more", () => {

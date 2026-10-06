@@ -1,7 +1,7 @@
 // What the server hands the new-inspection form: small, display-ready
 // summaries, never whole template rows (the resolved templates stay on the
 // server, where the Server Action reads them again).
-import type { PreviousProduct } from "@/lib/inspections/create";
+import type { PreviousCopies, PreviousProduct } from "@/lib/inspections/create";
 import type { ProductType, Standard } from "@/lib/schemas/common";
 import type { TemplateCandidate, TemplateStatus } from "@/lib/templates/select";
 
@@ -20,6 +20,8 @@ export type TemplateOption = TemplateCandidate & {
   sections: string[];
   /** The included modules' titles by module key, in the template's wording. */
   titles: Record<string, string>;
+  /** The fields it switches off in the modules "start from previous" copies. */
+  fieldsOff: PreviousCopies;
 };
 
 export type NewInspectionOptions = {

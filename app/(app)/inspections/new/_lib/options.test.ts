@@ -4,7 +4,8 @@
 import { describe, expect, it } from "vitest";
 import { buildSeedBundle, SEED_TEMPLATES } from "@/lib/templates/definitions";
 import { MODULE_REGISTRY } from "@/modules/registry";
-import { loadNewInspectionOptions, PREVIOUS_SCAN_LIMIT, toTemplateOption } from "./options";
+import { COPIED_MODULE_KEYS } from "@/lib/inspections/create";
+import { loadNewInspectionOptions, PREVIOUS_SCAN_LIMIT, PREVIOUS_SELECT, toTemplateOption } from "./options";
 import { specsNote, templateLabel } from "./text";
 
 const bundle = new Map(buildSeedBundle(SEED_TEMPLATES, MODULE_REGISTRY).templates.map((entry) => [entry.code, entry]));
@@ -46,6 +47,11 @@ describe("a template as the form shows it", () => {
     expect(option.sections).toHaveLength(15);
     expect(option.titles.header).toBe("Manufacturer Information");
     expect(Object.keys(option.titles)).not.toContain("tensile");
+    expect(option.fieldsOff).toEqual({});
+  });
+
+  it("says which copied fields it switches off", () => {
+    expect([...(toTemplateOption(templateRow("SAFEDON_EG"))!.fieldsOff.header ?? [])].sort()).toEqual(["client", "factoryGloveCode"]);
   });
 
   it("leaves out the modules a child switches off", () => {
@@ -57,7 +63,7 @@ describe("a template as the form shows it", () => {
 
   it("keeps a template whose resolution does not read, marked not ready", () => {
     const option = toTemplateOption(templateRow("STD_SG", { resolved: { code: "STD_SG" } }))!;
-    expect(option).toMatchObject({ code: "STD_SG", ready: false, name: "STD_SG", sizes: [], sections: [], titles: {} });
+    expect(option).toMatchObject({ code: "STD_SG", ready: false, name: "STD_SG", sizes: [], sections: [], titles: {}, fieldsOff: {} });
   });
 
   it("drops a retired version", () => {
@@ -111,6 +117,9 @@ const PREVIOUS_ROW = {
   manufacturer_id: "m1",
   product_name: "Nitrile blue",
   template: { code: "STD_EG", version: 1, product_type: "examination" },
+  header: { poNo: "PO-1", productName: "Nitrile blue", comment: "Checked." },
+  glove_info: null,
+  packing_config: { glovesPerInner: 100, packingMode: "" },
 };
 
 describe("loading the page's lists", () => {
@@ -128,13 +137,18 @@ describe("loading the page's lists", () => {
       { id: "m2", label: "Terang Nusa Sdn. Bhd. · TG Factory 40" },
     ]);
     expect(options?.templates.map((template) => template.code)).toEqual(["STD_EG"]);
-    // The latest inspection of each product.
+    // The latest inspection of each product, and what it holds to copy.
     expect(options?.previous.map((product) => product.refNo)).toEqual(["INS-2026-0001"]);
+    expect(options?.previous[0].copies).toEqual({ header: ["productName"], packing_config: ["glovesPerInner"] });
 
     const templates = queries.find((query) => query.table === "templates")!;
     expect(templates.calls).toContainEqual(["eq", ["status", "active"]]);
     const inspections = queries.find((query) => query.table === "inspections")!;
     expect(inspections.calls).toContainEqual(["limit", [PREVIOUS_SCAN_LIMIT]]);
+    // Only the modules a copy takes, never the whole data.
+    expect(inspections.calls[0]).toEqual(["select", [PREVIOUS_SELECT]]);
+    for (const key of COPIED_MODULE_KEYS) expect(PREVIOUS_SELECT).toContain(`${key}:data->modules->${key}`);
+    expect(PREVIOUS_SELECT).not.toMatch(/(^|, )data(,|$)/);
   });
 
   it("offers an admin the drafts as well, never a retired version", async () => {

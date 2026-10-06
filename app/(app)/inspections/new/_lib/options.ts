@@ -1,6 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { latestPerProduct, type PreviousInspectionRow } from "@/lib/inspections/create";
+import { copiedFieldsOff, latestPerProduct, type PreviousInspectionRow } from "@/lib/inspections/create";
 import { manufacturerLabel } from "@/lib/inspections/format";
 import { ResolvedTemplateSchema } from "@/lib/schemas/template";
 import type { Database } from "@/lib/supabase/database.types";
@@ -27,8 +27,13 @@ export const PREVIOUS_SCAN_LIMIT = 1000;
 export const TEMPLATE_SELECT =
   "id, code, version, status, product_type, standard, client_id, manufacturer_id, resolved" as const;
 
+/**
+ * Each earlier inspection with the three modules "start from previous" copies
+ * (lib/inspections/create.ts PREVIOUS_COPY), not its whole data: the form
+ * says what a copy would take.
+ */
 export const PREVIOUS_SELECT =
-  "id, ref_no, inspection_date, status, created_at, client_id, manufacturer_id, product_name, template:templates(code, version, product_type)" as const;
+  "id, ref_no, inspection_date, status, created_at, client_id, manufacturer_id, product_name, template:templates(code, version, product_type), header:data->modules->header, glove_info:data->modules->glove_info, packing_config:data->modules->packing_config" as const;
 
 type TemplateRow = Pick<
   Database["public"]["Tables"]["templates"]["Row"],
@@ -41,7 +46,17 @@ export function toTemplateOption(row: TemplateRow): TemplateOption | null {
   const candidate = templateCandidateFromRow(row);
   const resolved = ResolvedTemplateSchema.safeParse(row.resolved);
   if (!resolved.success) {
-    return { ...candidate, status: row.status, name: row.code, ready: false, unit: "pcs", sizes: [], sections: [], titles: {} };
+    return {
+      ...candidate,
+      status: row.status,
+      name: row.code,
+      ready: false,
+      unit: "pcs",
+      sizes: [],
+      sections: [],
+      titles: {},
+      fieldsOff: {},
+    };
   }
   const template = resolved.data;
   return {
@@ -55,6 +70,7 @@ export function toTemplateOption(row: TemplateRow): TemplateOption | null {
       section.kind === "module" ? section.module.title : section.custom.title,
     ),
     titles: Object.fromEntries(template.modules.filter((entry) => entry.include).map((entry) => [entry.key, entry.title])),
+    fieldsOff: copiedFieldsOff(template),
   };
 }
 

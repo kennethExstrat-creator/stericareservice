@@ -8,10 +8,15 @@
 //
 // iPad: one column, 44 px targets, 16 px text. From 1024 px the template and
 // the Create button sit in a column on the right that stays in view.
+//
+// Create runs from onSubmit, not from the form's action prop: React resets a
+// form after every action, and the pickers (Radix Select and RadioGroup) go
+// back to empty on a reset, so a failed attempt would lose the choices and
+// the message saying why.
 import { ClipboardListIcon, OctagonXIcon, PlusIcon } from "lucide-react";
 import Link from "next/link";
 import { unstable_rethrow } from "next/navigation";
-import { useActionState, useEffect, useId, useRef, useState } from "react";
+import { startTransition, useActionState, useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
@@ -26,6 +31,7 @@ import {
   NO_CLIENT,
   previousFor,
   PRODUCT_NAME_MAX,
+  productNameField,
   PRODUCT_TYPE_LABEL,
   readNewInspectionForm,
   type NewInspectionField,
@@ -86,7 +92,10 @@ export function NewInspectionForm({ role, clients, manufacturers, templates, pre
   const [clientId, setClientId] = useState("");
   const [manufacturerId, setManufacturerId] = useState("");
   const [productType, setProductType] = useState<ProductType | null>(null);
-  const [productName, setProductName] = useState("");
+  /** The product name as the user typed it. */
+  const [typedName, setTypedName] = useState("");
+  /** The earlier inspection whose product name fills the field, until the user edits it. */
+  const [nameFrom, setNameFrom] = useState<string | null>(null);
   const [previousId, setPreviousId] = useState("");
   const [templateId, setTemplateId] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -101,6 +110,7 @@ export function NewInspectionForm({ role, clients, manufacturers, templates, pre
       : null;
   const products = picks ? previousFor(previous, picks) : [];
   const fromPrevious = products.find((product) => product.inspectionId === previousId) ?? null;
+  const productName = productNameField(typedName, nameFrom, fromPrevious);
   const overrideId =
     role === "admin" && templates.some((template) => template.id === templateId && template.productType === productType)
       ? templateId
@@ -140,6 +150,13 @@ export function NewInspectionForm({ role, clients, manufacturers, templates, pre
     IDLE,
   );
 
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (pending) return;
+    const formData = new FormData(event.currentTarget);
+    startTransition(() => formAction(formData));
+  }
+
   // After a failed attempt: focus the first field that needs attention, else the message.
   useEffect(() => {
     if (state.status !== "error") return;
@@ -160,7 +177,7 @@ export function NewInspectionForm({ role, clients, manufacturers, templates, pre
   };
 
   return (
-    <form action={formAction} noValidate aria-busy={pending || undefined} data-testid="new-inspection-form">
+    <form onSubmit={submit} noValidate aria-busy={pending || undefined} data-testid="new-inspection-form">
       <fieldset disabled={pending} className="relative m-0 min-w-0 border-0 p-0">
         <legend className="sr-only">New inspection</legend>
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,26rem)] lg:items-start">
@@ -288,7 +305,8 @@ export function NewInspectionForm({ role, clients, manufacturers, templates, pre
                   name="productName"
                   value={productName}
                   onChange={(event) => {
-                    setProductName(event.target.value);
+                    setTypedName(event.target.value);
+                    setNameFrom(null);
                     changed("productName");
                   }}
                   maxLength={PRODUCT_NAME_MAX}
@@ -316,7 +334,8 @@ export function NewInspectionForm({ role, clients, manufacturers, templates, pre
               onValueChange={(value) => {
                 const product = products.find((entry) => entry.inspectionId === value) ?? null;
                 setPreviousId(product?.inspectionId ?? "");
-                if (product?.productName) setProductName(product.productName);
+                // A named product fills in its name; Start blank or an unnamed one gives back what was typed.
+                setNameFrom(product?.productName ? product.inspectionId : null);
                 changed("previousId");
               }}
               template={chosen}
