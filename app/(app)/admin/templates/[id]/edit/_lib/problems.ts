@@ -150,7 +150,7 @@ export function scopeProblems(
   draft: Draft,
   options: { clients: readonly { id: string }[]; manufacturers: readonly { id: string }[] },
 ): EditorProblem[] {
-  const scope = isRecord(draft.scope) ? draft.scope : {};
+  const scope: Record<string, unknown> = isRecord(draft.scope) ? draft.scope : {};
   const checks = [
     { key: "clientId", list: options.clients, message: "Not one of the clients: choose a client, or Any client." },
     {

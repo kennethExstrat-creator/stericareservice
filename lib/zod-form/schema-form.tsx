@@ -51,9 +51,9 @@ export type SchemaFormHooks = {
   /** Text that is not a value yet (a number typed as "2 42"), or null once it is. */
   onDraftError?: (path: FormPath, message: string | null) => void;
   /** Suggestions while typing into a text field, e.g. the defect codes for a `code`. */
-  suggestionsFor?: (path: FormPath) => readonly KeyOption[] | undefined;
+  suggestionsFor?: (path: FormPath, node: FormNode) => readonly KeyOption[] | undefined;
   /** A note under a field that is valid but worth a look, e.g. a code that is not in the list. */
-  noteFor?: (path: FormPath, value: unknown) => string | undefined;
+  noteFor?: (path: FormPath, value: unknown, node: FormNode) => string | undefined;
 };
 
 type FormContextValue = {
@@ -338,7 +338,7 @@ function ScalarField({ node, value, onChange, path, label, required, onRemove, h
           onChange={onChange}
           emptyAs={emptyAs}
           maxLength={node.maxLength}
-          suggestions={hooks.suggestionsFor?.(path)}
+          suggestions={hooks.suggestionsFor?.(path, node)}
           describedBy={describedBy}
           invalid={errors.length > 0}
           readOnly={readOnly}
@@ -381,7 +381,7 @@ function ScalarField({ node, value, onChange, path, label, required, onRemove, h
       );
   }
 
-  const note = hooks.noteFor?.(path, value);
+  const note = hooks.noteFor?.(path, value, node);
   return (
     <div className="grid gap-1.5" data-slot="form-field" data-kind={node.kind}>
       <FieldHeader
