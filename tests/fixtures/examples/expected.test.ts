@@ -95,6 +95,19 @@ describe("expected results", () => {
     expect(STD_EG_EXPECTED.warnings.map((warning) => warning.code)).toEqual(["weight_deviation"]);
   });
 
+  it("STD_EG: the duplicate fails carton_sampling; the stray box blocks submit but leaves dispensing_packing passing", () => {
+    // BUILD_SPEC 6.1: carton_sampling fails on validation errors, while
+    // dispensing_packing is judged on its averages and stickiness codes.
+    // 6.2 rule 7 makes the stray box a validation error, not a result.
+    expect(STD_EG_EXPECTED.cartonList.status).toBe("fail");
+    expect(STD_EG_EXPECTED.dispensingBox.validation).toBe("error");
+    expect(STD_EG_EXPECTED.dispensing.M!.status).toBe("pass");
+    expect(STD_EG_EXPECTED.errors.map(({ level, module, size }) => [level, module, size])).toEqual([
+      ["error", "carton_sampling", "M"],
+      ["error", "dispensing_packing", "M"],
+    ]);
+  });
+
   it("STD_EG: the corrections clear both errors", () => {
     const { duplicateCarton, strayBox } = STD_EG_EXPECTED.corrections;
     const rows = STD_EG_EXAMPLE.cartons.M!.rows.map((row) => [...row]);

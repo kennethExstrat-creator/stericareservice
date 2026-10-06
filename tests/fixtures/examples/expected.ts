@@ -469,6 +469,7 @@ export type StdEgExpected = {
     readonly entries: number;
     readonly unique: number;
     readonly duplicate: { readonly carton: number; readonly cells: readonly GridCell[] };
+    /** The `carton_sampling` result, which fails on validation errors (BUILD_SPEC 6.1). */
     readonly status: ModuleStatus;
   };
   readonly dispensingBox: ExpectedRow & {
@@ -478,7 +479,12 @@ export type StdEgExpected = {
     readonly box: number;
     /** The listed carton one digit away, as the original box was from its carton. */
     readonly likelyIntended: number;
-    readonly status: ModuleStatus;
+    /**
+     * A validation error that blocks submit (BUILD_SPEC 6.2 rule 7; `errors`),
+     * not a module result: the `dispensing_packing` result for the size is
+     * `dispensing.M.status`, from the averages and stickiness codes (6.1).
+     */
+    readonly validation: "error";
   };
   readonly watertight: PerSize<ExpectedWatertight>;
   readonly visual: Readonly<Record<VisualClass, PerSize<ExpectedVisual>>>;
@@ -572,7 +578,7 @@ export const STD_EG_EXPECTED = deepFreeze<StdEgExpected>({
     item: 12,
     box: 2336,
     likelyIntended: 2236,
-    status: "fail",
+    validation: "error",
     originalReport: "accepted (likely 2236)",
   },
 

@@ -222,7 +222,11 @@ the thickness values in `safedon-eg.ts` and set `averageOfPrintedReadings` to th
 2. The data is entered on the iPad viewports (Playwright, see `e2e/README.md`) or passed to the
    modules' calculations directly.
 3. Each module result is compared with `expected.ts`: values, code letters, limits and status
-   per size. Dimension thickness averages compare with `averageOfPrintedReadings`.
+   per size. Dimension thickness averages compare with `averageOfPrintedReadings`. For STD_EG
+   size M, `carton_sampling` is "fail" (`cartonList.status`: it fails on validation errors,
+   BUILD_SPEC 6.1) and `dispensing_packing` is "pass" (`dispensing.M.status`: averages and
+   stickiness codes). The stray box is a validation error that blocks submit
+   (`dispensingBox.validation`), not a `dispensing_packing` result.
 4. STD_EG shows exactly the two errors in `errors` and cannot be submitted. Applying
    `corrections` clears them; the suggested result is then pass.
 5. The warnings in `warnings` appear and go into the export; the SAFEDON_EG sampling warnings
