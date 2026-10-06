@@ -1,4 +1,5 @@
 import { mockReceiversEnabled, receiveExport } from "@/lib/ai/dev-receiver";
+import { AiReportResponseSchema } from "@/lib/schemas";
 
 // Mock AI report service for local runs and tests: set
 // AI_REPORT_WEBHOOK_URL=http://localhost:3000/api/dev/mock-ai-report.
@@ -10,7 +11,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!received.ok) return received.response;
   const reportUrl = new URL("/api/dev/mock-ai-report", request.url);
   reportUrl.searchParams.set("ref", received.exportDoc.refNo);
-  return Response.json({ reportUrl: reportUrl.toString() });
+  return Response.json(AiReportResponseSchema.parse({ reportUrl: reportUrl.toString() }));
 }
 
 export async function GET(request: Request): Promise<Response> {
