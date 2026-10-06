@@ -1,0 +1,283 @@
+@import "tailwindcss";
+
+/* =========================================================================
+   SteriCare design system
+   Structure, rhythm, motion and typography adapted from the INFII marketing
+   codebase. The palette is built from the SteriCare logo: its shield runs from
+   logo blue #0157A2 to logo teal #1F9D8E, and that gradient is the theme.
+   The UI uses vivid versions of those two hues (same OKLCH hue, maximum
+   chroma); the exact colours live in the logo artwork and brand-600.
+   ========================================================================= */
+
+/* Short landscape phones: the hero compacts instead of overflowing. */
+@custom-variant short {
+  @media (max-height: 500px) and (orientation: landscape) {
+    @slot;
+  }
+}
+
+@theme {
+  /* ---- Typefaces (loaded via next/font in app/layout.tsx) ---- */
+  --font-sans: var(--font-outfit), ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: var(--font-redhat), ui-sans-serif, system-ui, sans-serif;
+
+  /* ---- Brand: vivid logo blue. Same hue as the logo (OKLCH 253) pushed to
+     the sRGB chroma limit at each step; 600 is the exact logo blue.
+     500 carries white text at 4.7:1. On ink, text uses 400 (6.6:1). ---- */
+  --color-brand-50: #f4f7fb;
+  --color-brand-100: #e5eef8;
+  --color-brand-200: #c9ddf4;
+  --color-brand-300: #9bc5f6;
+  --color-brand-400: #3b9aff;
+  --color-brand-500: #0074d6;
+  --color-brand-600: #0157a2;
+  --color-brand-700: #084884;
+  --color-brand-800: #0a3867;
+  --color-brand-900: #08294c;
+  --color-brand-950: #051930;
+
+  /* ---- Accent: vivid logo teal (OKLCH hue 182.6). The exact logo teal
+     #1F9D8E sits between 500 and 600. Teal cannot be both bright and hold
+     white text: 400/500 are for surfaces, glows and dark grounds; 600 pairs
+     with brand-500 at equal lightness for buttons (4.43:1). ---- */
+  --color-accent-50: #edfbf9;
+  --color-accent-100: #d0f9f1;
+  --color-accent-200: #7ff7e4;
+  --color-accent-300: #52e5d2;
+  --color-accent-400: #00beac;
+  --color-accent-500: #00a292;
+  --color-accent-600: #008779;
+  --color-accent-700: #007368;
+  --color-accent-800: #0c5d53;
+  --color-accent-900: #0e4740;
+  --color-accent-950: #092d28;
+
+  /* ---- Ink: dark "cinematic" grounds, low-chroma logo-blue (hue 253) ---- */
+  --color-ink-950: #030911;
+  --color-ink-900: #06101c;
+  --color-ink-800: #0a1828;
+  --color-ink-700: #112337;
+
+  /* ---- Mist: the muted ground, off-white tinted toward the logo blue ---- */
+  --color-mist: #f5f9fc;
+
+  /* ---- Motion. Timings match INFII's tailwind.config. ---- */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-aurora: aurora 10s ease infinite;
+  --animate-pulse-slow: pulse-slow 6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-blob: blob 18s ease-in-out infinite;
+  --animate-bob: bob 1.8s ease-in-out infinite;
+}
+
+@keyframes aurora {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Same curve as Tailwind's built-in `pulse`, which INFII's pulse-slow reuses. */
+@keyframes pulse-slow {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* INFII references `animate-blob` but never defines it, so its orbs are
+   static. Defined here so they actually drift. */
+@keyframes blob {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(28px, -34px) scale(1.08);
+  }
+  66% {
+    transform: translate(-22px, 20px) scale(0.94);
+  }
+}
+
+@keyframes bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(6px);
+  }
+}
+
+/* Hero entrance. Transform only — no opacity. The hero headline is the LCP
+   element, and an element at opacity 0 is ignored by LCP until it becomes
+   visible; animating transform keeps it painted and LCP-eligible from the
+   first frame of the server HTML. (Same reasoning as INFII's Hero.tsx.) */
+@keyframes hero-rise {
+  from {
+    transform: translateY(28px);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---- The logo gradient as text ---------------------------------------------
+   For display type only. On light grounds it ends on accent-600, which keeps
+   large text above 3:1 at every point; on dark grounds it uses the 400 steps,
+   because the exact logo blue is too dark to read on ink.
+   The gradient spans the element's box: give block elements w-fit, or short
+   text only picks up the blue start. Inline spans wrap across lines fine. */
+@utility text-gradient-brand {
+  background-image: linear-gradient(90deg, var(--color-brand-500), var(--color-accent-600));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+@utility text-gradient-light {
+  background-image: linear-gradient(90deg, var(--color-brand-400), var(--color-accent-400));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.animation-delay-2000 {
+  animation-delay: 2s;
+}
+.animation-delay-4000 {
+  animation-delay: 4s;
+}
+
+@layer base {
+  /* Dark canvas so overscroll above the hero and below the footer stays seamless.
+     Every section paints its own ground. */
+  html {
+    background-color: var(--color-ink-950);
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-ink-950);
+    color: #0f172a;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Every heading uses the display face, as INFII's globals.css does. */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-display);
+  }
+
+  :target {
+    scroll-margin-top: 8rem;
+  }
+
+  ::selection {
+    background-color: var(--color-brand-500);
+    color: #ffffff;
+  }
+}
+
+@layer components {
+  /* The canonical inner container — 1280px cap with a 16/24/32px gutter ramp. */
+  .shell {
+    width: 100%;
+    max-width: 80rem;
+    margin-inline: auto;
+    padding-inline: 1rem;
+  }
+  @media (min-width: 640px) {
+    .shell {
+      padding-inline: 1.5rem;
+    }
+  }
+  @media (min-width: 1024px) {
+    .shell {
+      padding-inline: 2rem;
+    }
+  }
+
+  .hero-rise {
+    animation: hero-rise 0.9s var(--ease-out-expo) both;
+  }
+}
+
+/* ---- Scroll reveal ------------------------------------------------------
+   Components opt in with a `data-reveal` attribute; one IntersectionObserver
+   in components/interactions.tsx adds `.is-revealed`. The hidden state only
+   applies once an inline script has put `js` on <html> before first paint, so
+   visitors without JavaScript — and crawlers — always see the content. */
+html.js [data-reveal]:not(.is-revealed) {
+  opacity: 0;
+}
+[data-reveal].is-revealed {
+  animation: reveal-up 0.7s var(--ease-out-expo) both;
+  animation-delay: var(--reveal-delay, 0ms);
+}
+/* Siblings in a grid stagger by position. */
+[data-reveal]:nth-child(2) {
+  --reveal-delay: 80ms;
+}
+[data-reveal]:nth-child(3) {
+  --reveal-delay: 160ms;
+}
+[data-reveal]:nth-child(4) {
+  --reveal-delay: 240ms;
+}
+[data-reveal]:nth-child(n + 5) {
+  --reveal-delay: 320ms;
+}
+
+/* Lenis smooths the scroll itself; CSS smooth-scroll on top of it double-eases
+   every frame. Lenis only runs on fine-pointer devices, so touch keeps it. */
+html.lenis {
+  scroll-behavior: auto !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.js [data-reveal]:not(.is-revealed) {
+    opacity: 1;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,479 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { Logo } from "./logo";
+import { ButtonLink } from "./ui";
+import { nav, company, platform } from "@/lib/site";
+
+/* ------------------------------------------------------------------ *
+ * Menu model
+ * ------------------------------------------------------------------ */
+
+const productsMenu = [
+  {
+    label: "Sterile Procedure Packs",
+    description: "Woundcare, catheterization, suture removal and more.",
+    href: "/products/procedure-packs",
+  },
+  {
+    label: "Sterile Gloves & Dressing Aids",
+    description: "Examination gloves and dressing aids in latex, nitrile and vinyl.",
+    href: "/products/gloves-and-dressing-aids",
+  },
+  {
+    label: "Customized Procedure Packs",
+    description: "Packs built to your component types and specifications.",
+    href: "/products/procedure-packs#customized-procedure-packs",
+  },
+  {
+    label: "All products",
+    description: "The complete catalogue at a glance.",
+    href: "/products",
+  },
+];
+
+type NavItem = { label: string; href: string; menu?: typeof productsMenu };
+
+/** Items in the desktop pill. Products opens the mega-menu. */
+const pillItems: NavItem[] = nav.map((item) =>
+  item.href === "/products" ? { ...item, menu: productsMenu } : item,
+);
+
+/** Rows in the mobile panel. */
+const mobileItems: NavItem[] = [
+  { label: "Home", href: "/" },
+  ...pillItems,
+  { label: "Contact", href: "/contact" },
+];
+
+/* ------------------------------------------------------------------ *
+ * Background sampling
+ * ------------------------------------------------------------------ */
+
+/**
+ * Normalises any CSS colour to sRGB via a 1x1 canvas. INFII parses `rgb()`
+ * with a regex, which works on Tailwind v3; Tailwind v4 computes stock
+ * colours such as slate-50 to `oklch()`, which that regex silently misses.
+ */
+const toRgba = (() => {
+  const cache = new Map<string, [number, number, number, number]>();
+  let ctx: CanvasRenderingContext2D | null = null;
+  return (color: string): [number, number, number, number] => {
+    const hit = cache.get(color);
+    if (hit) return hit;
+    ctx ??= document.createElement("canvas").getContext("2d", {
+      willReadFrequently: true,
+    });
+    if (!ctx) return [0, 0, 0, 0];
+    ctx.clearRect(0, 0, 1, 1);
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, 1, 1);
+    const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+    const out: [number, number, number, number] = [r, g, b, a / 255];
+    cache.set(color, out);
+    return out;
+  };
+})();
+
+/** Walk up from `start` to the first solid background; return its luminance. */
+function backgroundLuminance(start: Element | null) {
+  for (let node = start as HTMLElement | null; node; node = node.parentElement) {
+    const [r, g, b, a] = toRgba(getComputedStyle(node).backgroundColor);
+    if (a >= 0.5) return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  }
+  return 0; // nothing solid: the page canvas is dark
+}
+
+/* ------------------------------------------------------------------ *
+ * Icons
+ * ------------------------------------------------------------------ */
+
+function Chevron({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden className={`h-4 w-4 ${className}`}>
+      <path d="m5 7.5 5 5 5-5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function HomeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden className="h-4 w-4">
+      <path d="M4 10.5 12 4l8 6.5V20h-5.5v-5h-5v5H4z" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * Header
+ * ------------------------------------------------------------------ */
+
+/**
+ * Fixed, transparent header, after INFII's Header.tsx:
+ * - hides while scrolling down, returns on scroll up
+ * - on desktop, samples the section behind it and switches to dark text and
+ *   logo over light grounds; the bar itself stays transparent
+ * - on mobile, paints a white bar once the page scrolls
+ * - Products opens a mega-menu; mobile gets a white, corporate row menu
+ *
+ * The bar is pointer-events-none so the hero reads through it; each cluster
+ * re-enables pointer events.
+ */
+export function SiteHeader() {
+  const pathname = usePathname();
+  const headerRef = useRef<HTMLElement>(null);
+
+  const [scrolled, setScrolled] = useState(false);
+  const [hidden, setHidden] = useState(false);
+  const [overLight, setOverLight] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  // Menus remember the path they were opened on, so navigating closes them
+  // without an effect that sets state.
+  const [mobileAt, setMobileAt] = useState<string | null>(null);
+  const [megaAt, setMegaAt] = useState<string | null>(null);
+  const [productsOpen, setProductsOpen] = useState(false);
+  const mobileOpen = mobileAt === pathname;
+  const megaOpen = megaAt === pathname;
+
+  const megaTrigger = useRef<HTMLButtonElement>(null);
+  const megaWrap = useRef<HTMLLIElement>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Scroll direction → hide/show; any offset → mobile white bar.
+  useEffect(() => {
+    let lastY = window.scrollY;
+    const onScroll = () => {
+      const y = window.scrollY;
+      setScrolled(y > 0);
+      setHidden(y > lastY && y > 100);
+      lastY = y;
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const sync = () => setIsDesktop(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  // Adaptive colour: read the ground behind the centre of the header.
+  useEffect(() => {
+    if (!isDesktop) return;
+    let raf = 0;
+    const sample = () => {
+      const stack = document.elementsFromPoint(window.innerWidth / 2, 40);
+      const behind = stack.find((el) => !headerRef.current?.contains(el)) ?? null;
+      setOverLight(backgroundLuminance(behind) > 0.5);
+    };
+    const schedule = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(sample);
+    };
+    sample();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+    };
+  }, [isDesktop, pathname]);
+
+  // Lock page scroll behind the mobile panel.
+  useEffect(() => {
+    document.body.style.overflow = mobileOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mobileOpen]);
+
+  // Escape closes either menu; a click outside closes the mega-menu.
+  useEffect(() => {
+    if (!mobileOpen && !megaOpen) return;
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (megaOpen) megaTrigger.current?.focus();
+      setMegaAt(null);
+      setMobileAt(null);
+    };
+    const onDown = (e: PointerEvent) => {
+      if (megaOpen && !megaWrap.current?.contains(e.target as Node)) setMegaAt(null);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onDown);
+    };
+  }, [mobileOpen, megaOpen]);
+
+  const openMega = () => {
+    clearTimeout(closeTimer.current);
+    setMegaAt(pathname);
+  };
+  const closeMegaSoon = () => {
+    clearTimeout(closeTimer.current);
+    closeTimer.current = setTimeout(() => setMegaAt(null), 140);
+  };
+
+  // Dark text/logo whenever the header sits over something light.
+  const light = mobileOpen || (isDesktop ? overLight : scrolled);
+  const isActive = (href: string) =>
+    href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
+
+  return (
+    <>
+      <header
+        ref={headerRef}
+        className={[
+          "pointer-events-none fixed inset-x-0 top-0 z-50 flex items-center justify-between px-4 py-4 transition-[translate,background-color,box-shadow] duration-500 lg:px-8",
+          hidden && !mobileOpen && !megaOpen ? "-translate-y-full" : "",
+          scrolled && !mobileOpen ? "bg-white shadow-sm lg:bg-transparent lg:shadow-none" : "",
+        ].join(" ")}
+      >
+        <div className="pointer-events-auto relative z-50">
+          <Logo tone={light ? "dark" : "light"} />
+        </div>
+
+        {/* Centre pill — desktop */}
+        <nav aria-label="Main" className="pointer-events-auto absolute left-1/2 top-4 z-40 hidden -translate-x-1/2 lg:block">
+          <div className="relative">
+            {/* A solid logo-gradient pill: opaque, so nothing behind it smears
+                through, and no glow. White labels hold 4.4-4.7:1 on it, and
+                the active item is a white chip (7.3:1). */}
+            <ul className="relative flex items-center gap-1 rounded-full border border-white/20 bg-gradient-to-r from-brand-500 to-accent-600 px-2 py-1.5 shadow-md shadow-ink-950/25">
+
+              <li>
+                <Link
+                  href="/"
+                  aria-label="Home"
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-white outline-none transition-colors hover:bg-white/15 focus-visible:bg-white/15"
+                >
+                  <HomeIcon />
+                </Link>
+              </li>
+
+              {pillItems.map((item) =>
+                item.menu ? (
+                  <li
+                    key={item.href}
+                    ref={megaWrap}
+                    onPointerEnter={(e) => e.pointerType === "mouse" && openMega()}
+                    onPointerLeave={(e) => e.pointerType === "mouse" && closeMegaSoon()}
+                  >
+                    <button
+                      ref={megaTrigger}
+                      type="button"
+                      aria-expanded={megaOpen}
+                      aria-controls="products-menu"
+                      onClick={() => (megaOpen ? setMegaAt(null) : openMega())}
+                      className={[
+                        "flex h-9 items-center gap-1 rounded-full px-3 text-sm font-semibold outline-none transition-colors focus-visible:bg-white/10 xl:px-4",
+                        megaOpen || isActive(item.href)
+                          ? "bg-white text-brand-600"
+                          : "text-white hover:bg-white/15",
+                      ].join(" ")}
+                    >
+                      {item.label}
+                      <Chevron className={`transition-transform duration-300 ${megaOpen ? "rotate-180" : ""}`} />
+                    </button>
+
+                    {/* Positioned against the pill (the relative <ul>), but a DOM
+                        child of this item — so moving the pointer onto the panel
+                        never "leaves". The pt-3 is a hover bridge over the gap. */}
+                    {megaOpen && (
+                      <div id="products-menu" className="absolute left-1/2 top-full -translate-x-1/2 pt-3">
+                        <div className="w-[640px] animate-[menu-in_0.25s_var(--ease-out-expo)_both] rounded-2xl border border-slate-100 bg-white p-6 shadow-xl">
+                          <p className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-brand-600">
+                            <svg viewBox="0 0 24 24" fill="none" aria-hidden className="h-4 w-4">
+                              <path d="M12 3 4 7v10l8 4 8-4V7l-8-4zm-8 4 8 4 8-4m-8 4v10" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+                            </svg>
+                            Products
+                          </p>
+                          <ul className="grid grid-cols-2 gap-2">
+                            {item.menu.map((sub) => (
+                              <li key={sub.href}>
+                                <Link
+                                  href={sub.href}
+                                  onClick={() => setMegaAt(null)}
+                                  className="group/item block rounded-xl p-3 outline-none transition-colors hover:bg-brand-50/70 focus-visible:bg-brand-50/70"
+                                >
+                                  <span className="block text-sm font-bold text-slate-800 transition-colors group-hover/item:text-brand-600">
+                                    {sub.label}
+                                  </span>
+                                  <span className="mt-1 block text-xs leading-relaxed text-slate-500">
+                                    {sub.description}
+                                  </span>
+                                </Link>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    )}
+                  </li>
+                ) : (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      className={[
+                        "block rounded-full px-3 py-2 text-sm font-semibold outline-none transition-colors focus-visible:bg-white/10 xl:px-4",
+                        isActive(item.href)
+                          ? "bg-white text-brand-600"
+                          : "text-white hover:bg-white/15",
+                      ].join(" ")}
+                    >
+                      {item.label}
+                    </Link>
+                  </li>
+                ),
+              )}
+            </ul>
+          </div>
+        </nav>
+
+        {/* Right cluster */}
+        <div className="pointer-events-auto relative z-50 flex items-center gap-2">
+          <a
+            href={`tel:${company.telHref}`}
+            className={[
+              // Widest screens only: "Log in" has no other home in the header,
+              // while the number is in the footer and on the contact page.
+              "hidden rounded-full px-4 py-2 text-sm font-medium transition-colors 2xl:block",
+              light ? "text-slate-700 hover:bg-slate-900/5" : "text-white hover:bg-white/15",
+            ].join(" ")}
+          >
+            {company.tel}
+          </a>
+          <a
+            href={platform.signInUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={[
+              "hidden rounded-full px-4 py-2 text-sm font-medium transition-colors xl:block",
+              light ? "text-slate-700 hover:bg-slate-900/5" : "text-white hover:bg-white/15",
+            ].join(" ")}
+          >
+            Log in
+          </a>
+          {/* Wrapped rather than given `hidden sm:inline-flex`, which would
+              collide with the button's own `inline-flex` display utility. */}
+          <span className="hidden lg:block">
+            <ButtonLink href="/contact">Request a quote</ButtonLink>
+          </span>
+
+          <button
+            type="button"
+            onClick={() => setMobileAt(mobileOpen ? null : pathname)}
+            aria-label={mobileOpen ? "Close menu" : "Open menu"}
+            aria-expanded={mobileOpen}
+            aria-controls="mobile-menu"
+            className={[
+              "flex h-10 w-10 items-center justify-center rounded-full border border-white/25 bg-gradient-to-br from-brand-500 to-accent-600 text-white shadow-md shadow-ink-950/25 transition-transform active:scale-95 lg:hidden",
+            ].join(" ")}
+          >
+            <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden>
+              {mobileOpen ? (
+                <path d="m6 6 12 12M18 6 6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              ) : (
+                <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              )}
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      {/* Mobile panel — white, corporate rows, as INFII's */}
+      {mobileOpen && (
+        <div
+          id="mobile-menu"
+          className="fixed inset-0 z-40 flex animate-[menu-in_0.3s_var(--ease-out-expo)_both] flex-col overflow-y-auto bg-white px-5 pb-6 pt-24 lg:hidden"
+        >
+          <nav aria-label="Main" className="flex flex-col border-t border-slate-100">
+            {mobileItems.map((item, i) => {
+              const rowCls = (active: boolean) =>
+                [
+                  "flex w-full items-center justify-between border-b border-slate-100 py-[18px] text-[17px] tracking-tight transition-colors",
+                  active ? "font-semibold text-brand-600" : "font-medium text-slate-900 hover:text-brand-600",
+                ].join(" ");
+              const stagger = { animationDelay: `${30 + i * 40}ms` };
+
+              if (item.menu) {
+                return (
+                  <div key={item.href} className="animate-[menu-in_0.4s_var(--ease-out-expo)_both]" style={stagger}>
+                    <button
+                      type="button"
+                      aria-expanded={productsOpen}
+                      aria-controls="mobile-products"
+                      onClick={() => setProductsOpen((v) => !v)}
+                      className={rowCls(productsOpen)}
+                    >
+                      {item.label}
+                      <Chevron className={`text-slate-400 transition-transform duration-300 ${productsOpen ? "rotate-180 text-brand-600" : ""}`} />
+                    </button>
+                    <div
+                      id="mobile-products"
+                      inert={!productsOpen}
+                      className={`grid transition-[grid-template-rows] duration-300 ease-out ${productsOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+                    >
+                      <div className="overflow-hidden">
+                        <div className="ml-0.5 flex flex-col border-l border-slate-200 py-1.5 pl-4">
+                          {item.menu.map((sub) => (
+                            <Link
+                              key={sub.href}
+                              href={sub.href}
+                              onClick={() => setMobileAt(null)}
+                              className="py-2.5 text-[15px] text-slate-500 transition-colors hover:text-brand-600"
+                            >
+                              {sub.label}
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div key={item.href} className="animate-[menu-in_0.4s_var(--ease-out-expo)_both]" style={stagger}>
+                  <Link href={item.href} onClick={() => setMobileAt(null)} className={rowCls(isActive(item.href))}>
+                    {item.label}
+                  </Link>
+                </div>
+              );
+            })}
+          </nav>
+
+          <div className="mt-auto space-y-3 border-t border-slate-100 pt-6">
+            <a
+              href={platform.signInUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex h-12 w-full items-center justify-center rounded-full border border-slate-300 text-base font-semibold text-slate-900"
+            >
+              Log in
+            </a>
+            <a
+              href={`tel:${company.telHref}`}
+              className="flex h-12 w-full items-center justify-center text-base font-semibold text-slate-600"
+            >
+              {company.tel}
+            </a>
+            <ButtonLink href="/contact" size="lg" className="h-12 w-full" onClick={() => setMobileAt(null)}>
+              Request a quote
+            </ButtonLink>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

@@ -1,0 +1,488 @@
+# SteriCare Inspection System: Build Spec
+
+For an AI coding agent in VS Code (Claude Code, Codex or Copilot). Build one phase at a time and stop after each phase for review.
+
+**Start prompt:** `Read docs/BUILD_SPEC.md and build Phase 1. Stop when its acceptance checks pass.`
+
+Paths below are relative to the project root (`SteriCare Service Platform/`). Everything you need is inside `docs/`. Do not read or write outside this folder.
+
+```
+docs/
+├── BUILD_SPEC.md              this file
+├── forms/
+│   ├── README.md              how the sources relate + module coverage matrix (read first)
+│   ├── reports/               PRIMARY: the finished 4-page preshipment reports, field by field
+│   │   ├── STD_EG.md          EN 455 style (median, force at break)
+│   │   └── SAFEDON_EG.md      ASTM D6319 style (average, tensile), client-branded
+│   └── onsite/                SECONDARY: the Word forms used on site (SG, EG, Safedon EG) + PDFs
+├── examples/                  filled example reports (PDF) + expected-results.md. Client data: never commit
+└── design-reference/          read-only snapshot of the SteriCare website styling (section 2.1)
+```
+
+---
+
+## 1. What we are building
+
+A web app for iPad and desktop where SteriCare QC inspectors log in, record preshipment glove inspections at manufacturer sites and take photos as evidence. It replaces the Excel reports and Word forms.
+
+- **iPad for capture, desktop for the rest.** Inspectors fill inspections and take photos on an iPad at the factory. The same app on a desktop browser is used to finish entry, review, approve, upload photos and run admin. One codebase, one responsive layout. No phone layout.
+- **Built from modules.** Every section of an inspection (watertight, visual, dimensions, labelling and so on) is a module. A template switches modules on or off and configures them. Different manufacturers, clients and standards get different templates from the same modules.
+- **Report first.** The modules mirror the finished preshipment reports in `docs/forms/reports/`. What those reports lack comes in as optional modules.
+- **Capture first.** Screens are built for fast data entry, not to look like a report.
+- **Structured output.** Every inspection produces one clean JSON document. A separate AI step turns it into the client report. Later, a second AI gives a second opinion on the results and the inspector's comments (section 9.2). This app does not lay out reports.
+
+---
+
+## 2. Stack and agent rules
+
+Match the stack of Kenneth's other projects:
+
+- Next.js 16 (App Router), TypeScript, Tailwind CSS 4, shadcn/ui
+- Supabase: Postgres, Auth, Storage, Row Level Security
+- `@supabase/ssr`, `@supabase/supabase-js`, `zod` 4
+- Vitest for tests
+- Supabase CLI layout: `supabase/config.toml`, `supabase/migrations/`, `supabase/seed.sql`
+- Hosting: Vercel (later)
+
+Rules:
+
+1. Next.js 16 differs from your training data. Read `node_modules/next/dist/docs/` before writing routing, auth, proxy/middleware or server action code.
+2. No libraries beyond the list unless you state why first.
+3. zod schemas in `lib/schemas/` are the single source of truth for module data, module config, template definitions, the export and AI review payloads. Forms, server actions and the export all use them.
+4. Secret keys stay server-side. Never import the admin client into client components.
+5. `git init` at the start. Commit after each working feature.
+6. The folder already contains `docs/`. If `create-next-app` refuses a non-empty folder, scaffold into a temp folder and move everything up without touching `docs/`.
+7. Add `docs/examples/` to `.gitignore`. Test fixtures copied from it keep the measurements but replace client, manufacturer, PO, lot and carton identifiers with placeholders.
+
+Env (`.env.local`, plus a committed `.env.example`):
+
+```
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=   # publishable (anon) key
+SUPABASE_SECRET_KEY=                    # secret (service_role) key, server only
+AI_REPORT_WEBHOOK_URL=                  # optional, section 9.1
+AI_REVIEW_WEBHOOK_URL=                  # optional, section 9.2
+```
+
+### 2.1 Design: light theme from the SteriCare website
+
+The app must look like SteriCare. Before building any screen, study the website styling snapshot in `docs/design-reference/` and derive a **light theme** from it. The snapshot is reference only: copy values out of it, never import from it. The `.tsx` files carry a `.txt` suffix so the build ignores them; also exclude `docs/` in `tsconfig.json` and the ESLint config.
+
+**Study these files in `docs/design-reference/`:**
+
+| File | What to take from it |
+|---|---|
+| `globals.css` | The `@theme` tokens: brand blue scale (logo blue `#0157A2` is brand-600), accent teal scale (logo teal `#1F9D8E`), mist ground `#f5f9fc`, `ease-out-expo`, the `text-gradient-brand` utility, selection colour. Read the comments: they record which steps pass contrast with white text. |
+| `layout.tsx.txt` | Fonts via `next/font`: Outfit for body text, Red Hat Display for headings. |
+| `ui.tsx.txt` | Component feel: radius, borders, shadows, spacing, Card, Badge, Eyebrow, button styles. |
+| `site-header.tsx.txt`, `site-footer.tsx.txt` | Navigation patterns and logo placement. |
+| `logo.tsx.txt` and `brand/` | Logo files for light backgrounds: `stericare-horizontal.png` (header), `stericare-lockup.png` (login), `stericare-mark.png` (icon, favicon, home screen icon). |
+
+**Keep from the website:**
+
+- The same two fonts and the same brand, accent and mist tokens. Copy the token values exactly.
+- Logo blue to logo teal is the signature gradient. Use it sparingly: logo, login screen, page title accents, the active progress indicator.
+- Card style: white surface, `slate-200` border, rounded corners, soft shadow.
+- Brand-500 as the primary button colour with white text, brand-500 focus rings.
+
+**Change for the app:**
+
+- **Light only.** The website uses dark ink backgrounds; the app does not. Page background mist `#f5f9fc`, surfaces white, borders `slate-200`, text `slate-900`, secondary text no lighter than `slate-600`. No dark mode for now.
+- **No marketing motion.** Drop aurora, blobs, orbs, scroll reveals, hero animations, hover lifts and Lenis. Only short state transitions (150 to 200 ms, `ease-out-expo`). Data entry must feel instant.
+- **Status colours separate from the brand.** Pass green, fail red, warning amber, hold amber, not done slate. Do not use brand teal for "pass": teal is the brand, not a result. All status text at least 4.5:1 contrast.
+- **Built for factory light.** High contrast everywhere. No text on gradients except large headings.
+- **Density by device.** iPad: 44 px touch targets. Desktop: compact table rows.
+- **shadcn/ui wiring.** Map the shadcn CSS variables (`--background`, `--foreground`, `--primary`, `--secondary`, `--muted`, `--accent`, `--destructive`, `--border`, `--ring`, `--radius`) to these tokens so every component inherits the theme without per-component overrides.
+- Copy the logo PNGs from `docs/design-reference/brand/` into `public/brand/`.
+
+**Output before any screen work:**
+
+1. `docs/DESIGN.md`: one page listing the tokens, type scale, status colours and component rules you settled on, with the website file each came from.
+2. The theme in `app/globals.css`.
+3. A `/design` page (dev only, hidden in production) showing logo, type scale, buttons, inputs, steppers, defect chips, a sample grid, status pills, a module card and a photo tile. Kenneth signs this off at iPad and desktop widths before Phase 1 continues.
+
+---
+
+## 3. Users and login
+
+Supabase Auth, email and password. No public sign-up.
+
+| Role | Can |
+|---|---|
+| `inspector` | Log in, create inspections, edit own drafts, submit, view own inspections |
+| `admin` | All of the above, plus: invite and deactivate users, set roles, manage manufacturers, clients, templates and defect codes, switch modules on or off, view and edit all inspections, approve or reopen, send to AI report, act on AI reviews |
+
+- Admin invites users by email (server action using the secret key). The invitee sets a password from the email link.
+- Forgot password and reset password flow.
+- Deactivated users cannot log in or read data. Enforce in RLS (`profiles.active`) and in the session guard.
+- Session refresh with `@supabase/ssr`, following the Next 16 docs. Signed-out users go to `/login`. Non-admins get a 404 on `/admin/*`.
+- First admin: Kenneth signs up through the Supabase dashboard, then one SQL line in `README.md` sets his role to `admin`.
+
+---
+
+## 4. Modules and templates
+
+This is the central design. Get it right before building screens.
+
+### 4.1 Three layers
+
+| Layer | What it is | Who changes it |
+|---|---|---|
+| **Module** | One section of an inspection, built in code: its data schema, config schema, capture UI, calculations and result. The library is in section 6. | Developers |
+| **Template** | Which modules are on, in what order, and how each is configured: sizes, labels in the client's or manufacturer's wording, specs, defect lists, AQL, standard profile. Plus custom modules for one-off fields. Stored as data and versioned. | Admin |
+| **Inspection** | `data = { modules: { <key>: {...} }, custom: { <key>: {...} } }`, each validated by that module's schema. | Inspectors |
+
+Every module can be included or excluded per template. `header` and `conclusion` are always on; their fields still switch on and off.
+
+### 4.2 Rules
+
+1. **Report first.** Modules and their defaults follow `docs/forms/reports/`. Onsite forms and new needs come in as config or optional modules.
+2. **Nothing lost.** Every field on a source form exists in its template, as a module field or in a custom module. Nothing is dropped or merged on entry.
+3. **Their wording, our keys.** Labels can be overridden per template so the screen reads like the client's or manufacturer's form. Data is stored under canonical keys.
+4. **Defects map to canonical codes; severity belongs to the template.** Each label maps to a code in `defect_codes`, so "Stain" at one client and "Oil stain" at another count together. The same defect can be major in one template and minor in another (the STD_EG report lists "Defective bead" as major and "Defective beads" as minor). Unmapped labels are allowed and flagged for an admin.
+5. **Canonical units and sizes.** mm, g, N, MPa and %. Sizes are normalised (`7` becomes `7.0`).
+6. **One rule book.** AQL, totals, statistics, validations (section 6.2) and module results are computed the same way in every template.
+7. **Every module returns a result** `{ status: pass | fail | warn | info | not_done, summary, perSize? }`, carries an inspector comment and photos. Results feed the suggested overall result, the export and the AI second opinion.
+8. **Versioned and immutable once used.** An edit creates a new template version. An inspection keeps the version it started with.
+9. **Inheritance.** A template `extends` another and lists only what differs: modules added, removed, reordered or reconfigured.
+10. **Traceability.** A template stores its original form file, and an admin confirms a field coverage checklist before activating it.
+
+### 4.3 Template definition (validated by `TemplateDefinitionSchema`)
+
+```ts
+type TemplateDefinition = {
+  code: string;                       // "STD_EG", "SAFEDON_EG", "STD_SG"
+  name: string;
+  extends?: string;                   // base template code
+  scope: {
+    productType: "examination" | "surgical";
+    standard: "EN455" | "ASTM_D6319" | "ASTM_D3578" | "ASTM_D3577" | "custom";
+    clientId?: string;
+    manufacturerId?: string;
+  };
+  unit: "pcs" | "pairs";
+  sizes: { value: string; label?: string }[];
+  modules: ModuleConfig[];            // in report order
+  customModules?: CustomModule[];
+  report?: { title: string; showClientLogo: boolean };   // for the AI report
+  sourceFile?: string;                // storage path of the original form or report
+};
+
+type ModuleConfig = {
+  key: ModuleKey;                     // section 6
+  include: boolean;
+  title?: string;                     // heading in the source's wording
+  labels?: Record<string, string>;    // field label overrides
+  config?: unknown;                   // validated by that module's ConfigSchema
+};
+
+type CustomModule = {
+  key: string;
+  title: string;
+  after: ModuleKey;                   // position
+  layout: "fields" | "table" | "grid";
+  fields: Field[];
+  grid?: { repeatPer?: "size"; columns: { label: string; default: number; addable: boolean } };
+};
+
+type Field = {
+  key: string;
+  label: string;
+  type: "counter" | "number" | "text" | "textarea" | "select" | "yes_no" | "date" | "photo";
+  unit?: "mm" | "g" | "N" | "MPa" | "%" | "pcs";
+  options?: string[];
+  min?: number; max?: number;
+  required?: boolean;
+  hint?: string;
+  mapsTo?: string;                    // canonical path, e.g. "modules.weight.indicative"
+};
+```
+
+### 4.4 Choosing a template
+
+The inspector picks client, manufacturer and product type. The most specific active template wins: client and manufacturer, then client, then manufacturer, then the standard template for the product type. Admin can override. Admin can also switch a module off for one inspection, with a reason that is logged and exported.
+
+### 4.5 Adding a new form (admin flow)
+
+1. Upload the original form or report (Excel, Word, PDF or photo) to the template record.
+2. Create a template that extends the closest existing one.
+3. Switch modules on or off, set labels, specs, defect lists and AQL until every field on the source is covered. Add a custom module for anything left.
+4. Preview the capture screen, tick the coverage checklist, then activate.
+
+---
+
+## 5. Data model
+
+All tables have `created_at` and `updated_at`.
+
+| Table | Columns |
+|---|---|
+| `profiles` | id (= auth.users.id), full_name, role (`inspector`, `admin`), active, signature_path |
+| `manufacturers` | id, name, factory_name, address, country, notes |
+| `clients` | id, name, logo_path, notes |
+| `defect_codes` | code (pk), name, description, active. Severity is set per template, not here. |
+| `templates` | id, code, version, extends_code, product_type, standard, client_id, manufacturer_id, status (`draft`, `active`, `retired`), definition (jsonb), resolved (jsonb, inheritance applied), source_file_path, coverage_confirmed_by, coverage_confirmed_at. Unique (code, version). |
+| `inspections` | id, ref_no (`INS-2026-0001` from a sequence), template_id (exact version), client_id, manufacturer_id, po_no, product_name, lot_numbers (text[], copied from `order_lots` for search), inspection_date, inspector_id, status (`draft`, `submitted`, `approved`, `reopened`), data (jsonb `{ modules, custom }`), module_overrides (jsonb: modules switched off for this inspection, with reason), suggested_result, result (`pass`, `fail`, `hold`), remarks, submitted_at, approved_by, approved_at, report_url |
+| `inspection_photos` | id, inspection_id, module_key, target (e.g. `size:M/hand:R/defect:thin_spot/box:253`), storage_path, thumb_path, caption, taken_at, width, height, flagged (bool, file needs conversion), include_in_report (bool), created_by |
+| `inspection_files` | id, inspection_id, module_key, kind (`lab_report`, `certificate`, `other`), storage_path, name, created_by |
+| `ai_reviews` | id, inspection_id, inspection_updated_at, status (`pending`, `done`, `failed`), model, suggested_result, confidence, summary, findings (jsonb), questions (jsonb), created_at |
+| `ai_review_actions` | id, ai_review_id, finding_id, actor_id, action (`agree`, `disagree`, `fixed`), note, at |
+| `audit_log` | id, inspection_id, actor_id, action, changes (jsonb), at |
+
+RLS:
+
+- Helpers `is_admin()` and `is_active()` (security definer).
+- Reference tables (`manufacturers`, `clients`, `defect_codes`, `templates`): read for active users, write for admins.
+- `inspections`: inspectors read their own, insert with `inspector_id = auth.uid()`, and update their own only while `draft` or `reopened`. Admins have full access.
+- `inspection_photos`, `inspection_files` and the private storage buckets `inspection-photos` and `inspection-files` follow the parent inspection. Show files through signed URLs.
+- `ai_reviews` and `ai_review_actions`: admins read and write; inspectors read reviews of their own inspections.
+- Status changes go through server actions that check the transition and write `audit_log`.
+
+Status flow: `draft` to `submitted` to `approved`. Admin can reopen a submitted inspection (`reopened`), which goes back to `submitted`. `approved` is read-only.
+
+---
+
+## 6. Module library
+
+Each module lives in `modules/<key>/` with `schema.ts` (data), `config.ts` (config schema and defaults), `calc.ts` (pure calculations and result), `Capture.tsx` and tests. Per-size modules show only the sizes in `order_lots`. Every module has an inspector comment and photos.
+
+### 6.1 Modules
+
+**Report modules: build these first, in report order.** Source column: where they appear (see `docs/forms/README.md`).
+
+| Key | Captures | Config | Result | Source |
+|---|---|---|---|---|
+| `header` (always on) | Manufacturer / supplier, factory address, PO / SO no., product name (brand, code, description), client, factory glove code, inspection date, mfg date, expiry date, inspector (automatic), report date | fields on/off, labels | info; warn if expiry is not after mfg date | both reports |
+| `glove_info` | Surface texture, indicative weight (size M, g), colour, length | fields on/off | info | both reports |
+| `order_lots` | Per size: qty (cases), lot numbers, packing site. Totals: cartons and gloves (from `packing_config`) | sizes, packing site on/off | info | both reports |
+| `packing_config` | Gloves per inner unit, inner units per case, gloves per case; inner unit name (inner box, plastic pack, dispenser box, pouch) | unit names | warn if gloves per case ≠ inner x per case | both reports |
+| `sampling_plan` | Per size: sampled cases, inner units, gloves; gloves for watertight and visual; gloves for dimensions; gloves for physical test; inner units for packaging and dispensing; pouches (surgical) | columns on/off, inspection level | warn when below the AQL plan (section 7) | both reports, onsite |
+| `carton_sampling` | Per size: sampled carton numbers | none | fail on validation errors (6.2) | both reports |
+| `dimensions` | Per size, per glove (default 13): chosen measures from length, width, finger, palm and cuff thickness | measures on/off; statistic `average` or `median`; spec per size per measure (min, max, nominal ± tolerance, or NA); decimals | pass/fail per measure on the statistic; fail if any fails | both reports |
+| `weight` | Per size: gloves weighed (1 or 13), values, average; compared with indicative weight | n; optional spec; warn threshold (default 10%) | pass/fail if spec set; warn on deviation | both reports |
+| `force_at_break` | Per size, per glove (default 13): force (N); median; lab report file | n, spec minimum (default 6 N), standard label | pass/fail per size | STD_EG |
+| `tensile` | Per size: tensile strength average (MPa), elongation at break average (%); lab report file required | specs (default ≥ 14 MPa, ≥ 500%), standard label | pass/fail per size | SAFEDON_EG |
+| `watertight` | Per size (R/L optional): n tested, holes by location | AQL (default 1.5), locations and labels (between fingers/crotch, palm, finger, cuff, glove burst, other), `handSplit` | accept/reject per size from the AQL engine | both reports, onsite |
+| `visual` | Per size (R/L optional), per class: n inspected, defect counts | classes on/off: critical (AQL 0), major (default 2.5), minor (default 4.0); defect list per class with labels; `handSplit` | per class per size; any critical defect fails | both reports, onsite |
+| `dispensing_packing` | Per size, per box: box no. (picked from carton list), layering %, dispensing %, stickiness code | min layering (default 70%), min dispensing (default 80%), stickiness codes with pass/fail (A, B, B1, C pass; D fail), boxes per size | averages against minimums; any failing code fails | STD_EG, EG onsite |
+| `dispensing_safedon` | Per size, per box: counts for 6 defects; per box defects / gloves and rate; size total and % | defect list and hints, gloves per pack, max rate (default 5%), boxes per size | size rate against max | SAFEDON_EG, Safedon onsite |
+| `labeling` | Per size, per level (inner unit, carton): n inspected, defects per check | levels on/off; checks on/off (lot no., mfg date, expiry date, artwork, carton no.); n per level (default 3 inner, 1 carton) | any defect fails (Accept 0 / Reject 1) | both reports |
+| `conclusion` (always on) | Suggested result (computed from module results), final result (pass, fail, hold), remark, inspector, date, signature drawn on the iPad | none | final result | both reports |
+
+**Optional modules: not in the current reports.** Build after the report modules.
+
+| Key | Captures | Config | Result | Source |
+|---|---|---|---|---|
+| `dye_leak` | Per size: pouches tested, pouches failed, notes | n per size | any failure fails | SG onsite (planned only) |
+| `documents` | Checklist: certificate of analysis, lab test reports, sterilisation certificate and records, ISO 13485, FDA / CE certificates, declaration of origin. Each: verified, not verified or NA; reference no.; expiry date; file | items on/off and required | fail if a required item is not verified; warn if expired | QC scope on the website |
+| `loading` | Container no., seal no., cartons loaded vs PO, carton condition, photos at each loading stage | fields on/off | warn on quantity mismatch | QC scope on the website |
+
+`handSplit` (record R and L separately) is a config option on `watertight` and `visual`, used by surgical templates.
+
+### 6.2 Validation rules
+
+Learned from checking the two example reports (`docs/examples/expected-results.md`). Every module follows them.
+
+1. Numeric cells accept numbers only. A reading like "2 42" is rejected, not stored as text.
+2. Totals, averages, medians, rates, code letters and accept/reject limits are always computed, never typed.
+3. Counts can never turn into dates. Dates use date pickers.
+4. Sizes not in `order_lots` do not appear in any module.
+5. A module with missing data shows "Not done", never "Passed".
+6. Carton numbers are unique per size, between 1 and the order quantity, and their count equals the sampled cases.
+7. Box numbers in `dispensing_packing`, `dispensing_safedon` and `labeling` are picked from that size's carton list.
+8. The sample size sets the code letter and limits (section 7). A plan that does not match the sample size cannot be saved.
+9. Measured weight more than the threshold away from the indicative weight raises a warning.
+10. Client, product code and PO are entered once in `header` and reused everywhere, including the export.
+11. The inspector is always recorded. Section and result labels come from the template and cannot be edited on the capture screen.
+
+Errors block submit and list each problem with a link. Warnings are allowed but go into the export.
+
+---
+
+## 7. AQL engine
+
+`lib/aql/`: pure functions, no I/O.
+
+- ISO 2859-1 single sampling, normal inspection. Table 1 (lot size and inspection level to code letter) and Table 2-A (code letter and AQL to n, Ac, Re). Levels S-1 to S-4, I, II, III. Every AQL column in Table 2-A.
+- **From lot size:** when the template sets an inspection level, suggest n per size and flag a sample below the plan.
+- **From sample size:** the example reports set n directly. Map n to its code letter (2 A, 3 B, 5 C, 8 D, 13 E, 20 F, 32 G, 50 H, 80 J, 125 K, 200 L, 315 M, 500 N, 800 P, 1250 Q, 2000 R). A non-standard n uses the largest standard n below it, with a warning.
+- **Arrows:** if the Table 2-A cell is an arrow, follow it. An arrow up (smaller plan) uses that plan's Ac/Re. An arrow down (larger plan) means the sample is too small for this AQL: flag it and show the n required.
+- **Critical:** AQL 0 is always Accept 0 / Reject 1. Labelling is always Accept 0 / Reject 1.
+- Defaults (overridable per template and per client): watertight AQL 1.5, major 2.5, minor 4.0, critical 0.
+- Before go-live, the QC team checks every table cell against SteriCare's licensed copy of ISO 2859-1.
+
+Tests that must pass:
+
+| Input | Expected |
+|---|---|
+| lot 5,000, level I | J, n 80; AQL 1.5: 3 / 4; AQL 2.5: 5 / 6 |
+| lot 20,000, level I | K, n 125; AQL 1.5: 5 / 6; AQL 2.5: 7 / 8 |
+| lot 50,000, level I | L, n 200; AQL 1.5: 7 / 8; AQL 2.5: 10 / 11 |
+| lot 120,000, level I | L, n 200 |
+| lot 1,700,000 or 5,800,000, level I | N, n 500 |
+| lot 20,000, level II | M, n 315; AQL 1.5: 10 / 11; AQL 2.5: 14 / 15 |
+| n 80 | AQL 4.0: 7 / 8 |
+| n 200 | AQL 4.0: 14 / 15 |
+| n 500 | AQL 1.5: 14 / 15; AQL 2.5: 21 / 22; AQL 4.0: arrow up to M, 21 / 22 |
+| lot 100, level I (D) | AQL 1.5: n 8, 0 / 1; AQL 2.5: arrow up, n 5, 0 / 1; AQL 4.0: arrow down, n 13, 1 / 2 |
+| any n, AQL 0 | 0 / 1 |
+
+---
+
+## 8. Devices and speed
+
+Devices:
+
+- **iPad** (Safari, current iPadOS, portrait and landscape): primary capture device. Touch targets at least 44 px. Works with or without a keyboard.
+- **Desktop** (Chrome, Safari, Edge at 1280 px and wider): review, approval, admin, photo upload, and finishing entry. Keyboard navigation through grids (Tab, Enter, arrow keys).
+- Layout: on iPad, modules show as a top tab bar with the grid full width. On desktop, modules show in a left sidebar with wider grids and photos alongside.
+- Web app manifest so the app can be added to the iPad home screen and opens full screen.
+- Test every screen at iPad portrait (820 x 1180), iPad landscape (1180 x 820) and desktop (1440 x 900).
+
+Speed:
+
+- Counts by tapping: +/- steppers and tap-to-add defect chips. No typing for counts.
+- Measurements use the numeric keypad (`inputmode="decimal"`). Enter moves to the next cell. Pasting a column of values (from a caliper app or spreadsheet) fills down.
+- Size tabs (swipe on iPad, arrow keys on desktop). Sticky size and hand headers.
+- Numbers flow forward: sampling sets n in later modules; the carton list feeds box pickers.
+- Live totals and green/red accept chips update as you tap.
+- Autosave on every change (debounced about 800 ms) to Supabase, with a local IndexedDB copy. Status pill: Saved, Saving, or Offline (will sync). A dropped signal never loses data.
+- "Start from previous": prefill header, glove info, packing, specs and AQL from the last inspection for the same client, manufacturer and product.
+- Defect picker shows the most-used defects first. An inspector can add a one-off defect label; it is saved unmapped and flagged for an admin.
+- Progress tracker across modules.
+
+### 8.1 Photos and files
+
+- **iPad:** two buttons on every module. "Take photo" opens the rear camera (`<input type="file" accept="image/*" capture="environment">`). "Add from library" picks several photos at once (`accept="image/*" multiple`).
+- **Desktop:** drag and drop or file picker, several files at once.
+- **Auto-tagged:** a photo taken inside a module is tagged with that module and, where relevant, the size, hand, defect or box in focus. Inspector can retag and add a caption.
+- **Processing in the browser:** convert to JPEG, resize to 2048 px on the long edge, quality about 0.8, keep capture time, strip GPS. If the browser cannot decode a file (for example some HEIC), upload the original and flag it.
+- **Background upload queue:** capture never waits for upload. Photos queue in IndexedDB, upload with progress, retry when the connection returns. A badge shows pending uploads; submit is blocked until the queue is empty.
+- **Gallery per inspection:** thumbnails grouped by module. Desktop shows full size with arrow-key navigation. Inspector can delete or retag photos while the inspection is a draft. Admin can mark photos "include in report".
+- **Lab reports and certificates** (`force_at_break`, `tensile`, `documents`): PDF or image upload to `inspection-files`.
+- **Storage:** private buckets `inspection-photos` (path `<inspection_id>/<uuid>.jpg`, plus a 400 px thumbnail) and `inspection-files`. Viewed through signed URLs.
+
+---
+
+## 9. AI hand-offs
+
+### 9.1 AI report
+
+- `GET /api/inspections/[id]/export` returns one JSON document validated by `ExportSchema`:
+  - `schemaVersion`, `refNo`, `status`, timestamps, inspector
+  - `template`: code, version, standard, client, manufacturer, report title, client logo URL, source file
+  - `modules`: for each included module in template order: title and labels as on the source form, data, computed values, result, warnings, inspector comment
+  - `excludedModules`: modules switched off for this inspection, with reason
+  - `custom`: every custom module with its labels and values
+  - `photos` and `files`: signed URLs (24 h) with module, target, caption and the "include in report" flag
+  - `conclusion`: suggested result, final result, remark
+- Owner or admin only.
+- Admin button "Send to AI report" on submitted or approved inspections: a server action POSTs the export to `AI_REPORT_WEBHOOK_URL` and stores the returned URL in `report_url`. If the variable is not set, show "AI not connected" and offer a JSON download.
+- The target layout for the AI report is the 4-page preshipment report in `docs/examples/`. This app does not render reports.
+
+### 9.2 AI second opinion (build the slot now, the AI later)
+
+An AI reviews each submitted inspection on top of the inspector's results and comments, and the admin decides.
+
+- **Input:** the export from 9.1: every module's data, results and warnings, the inspector's comment per module, the remark and the photos.
+- **Output** (validated by `AiReviewSchema`): suggested result (pass, fail, hold), confidence, summary, findings (each with module, size, severity, message and the evidence it points to: values, boxes, photos) and questions for the inspector.
+- **Never automatic.** The AI never changes a result. The review screen shows three columns: the system's computed results, the inspector's result and comments, and the AI's opinion. The admin records agree, disagree (with a note) or fixed for each finding.
+- **Trigger:** on submit (template setting) or by an admin button. A server action POSTs the export to `AI_REVIEW_WEBHOOK_URL` and stores the response in `ai_reviews`. A new review is kept for each version of the inspection.
+- **Build now:** tables, schema, webhook call, the review panel and a mock webhook for tests. With no URL set, the panel shows "AI second opinion not connected".
+
+---
+
+## 10. Screens
+
+- `/login`, `/forgot-password`, `/reset-password`
+- `/inspections`: own list (admins see all). Filter by status, client, manufacturer. Search by ref, PO, lot or carton.
+- `/inspections/new`: pick client, manufacturer and product type (template resolves), or start from previous
+- `/inspections/[id]`: capture screen, modules as tabs with progress and a result chip per module
+- `/inspections/[id]/review`: module results, inspector comments, photos, AI second opinion panel, approve or reopen
+- `/admin/users`, `/admin/manufacturers`, `/admin/clients` (with logo), `/admin/defects` (codes and label mapping)
+- `/admin/templates`: list and versions. Editor: module list with include switches, drag to reorder, label overrides, a config form per module (generated from its config schema), custom modules, a JSON view for advanced edits, live capture preview, coverage checklist, activate or retire.
+- Look and feel: light theme per section 2.1.
+
+---
+
+## 11. Seed data
+
+Build every seed template field for field from `docs/forms/reports/` first, then `docs/forms/onsite/`: every label verbatim (fix only the `[sic]` typos), every column, the same row counts as defaults.
+
+- **Manufacturers:** Hartalega NGC; Terang Nusa Sdn. Bhd. (TG Factory 40). Addresses from the example reports.
+- **Clients:** the client of `SAFEDON_EG` (the report carries the Polyco Healthline logo; confirm in section 13).
+- **Templates:**
+
+| Template | Scope | Built from | Modules on (in order) |
+|---|---|---|---|
+| `STD_EG` | examination, EN 455 | `reports/STD_EG.md`, `onsite/EG.md` | header (+ client, factory glove code), glove_info, order_lots, packing_config (inner box), sampling_plan, carton_sampling, dimensions (median; length, width, finger, palm, cuff), force_at_break (≥ 6 N), weight (13 gloves), watertight, visual (critical, major, minor), dispensing_packing, labeling (dispenser box: lot, mfg, artwork; carton: + carton no.), conclusion |
+| `SAFEDON_EG` | examination, ASTM D6319, client scoped; extends `STD_EG` | `reports/SAFEDON_EG.md`, `onsite/SAFEDON_EG.md` | as STD_EG, with: header + inspected by and client logo; order_lots + packing site; inner unit "plastic pack"; dimensions average (length, width, finger, palm, no cuff); weight 1 value; tensile instead of force_at_break; watertight + glove burst; dispensing_safedon instead of dispensing_packing (125 per pack, ≤ 5%); labeling + expiry date at both levels |
+| `STD_SG` | surgical | `onsite/SG.md` | header, order_lots, packing_config (pouch), sampling_plan (+ pouches), watertight (handSplit), visual (handSplit), dimensions, dye_leak, conclusion. No filled SG report yet: specs to confirm |
+
+- **Defect codes** (one master list; labels map per template; severity per template):
+
+| Code | Labels in the reports |
+|---|---|
+| `hole_crotch` | Between fingers (crotch); Between fingers |
+| `hole_palm`, `hole_finger`, `hole_cuff`, `hole_other` | Palm; Finger; Cuff; Other |
+| `glove_burst` | Glove burst |
+| `embedded_insect`, `embedded_metal` | Embedded insects; Embedded metal debris |
+| `thin_crotch_ring` | Ring-shaped thin area (crotch); Thin ring between fingers (crotch) |
+| `thin_crotch_area` | Thin area between fingers (crotch) |
+| `thin_body_area` | Thin area on glove body; Thin patch / area (body) |
+| `thin_spot` | Thin spot on glove body; Thin spot |
+| `dirt_nonremovable` | Non-removable dirt |
+| `stain` | Oil stain; Stain |
+| `foreign_matter` | Residue material / foreign matter |
+| `powder_mark`, `bead_blister` | Powder mark; Bead blister |
+| `bead_defective` | Defective bead (major); Defective beads (minor) |
+| `lump_big`, `lump_small` | Big Lumps (>2mm); Lumps (<2mm) |
+| `dirt_small`, `sticky_pleats` | Small dirt / stain; Sticky pleats (< 5mm) |
+| `bead_thin`, `bead_small_defect`, `bead_poor`, `bead_rolled` | Thin bead; Thin bead / small beading defect; Poor beading; Rolled bead |
+| `no_cuff`, `finger_out`, `multiple_out`, `stuck`, `sticky`, `faulty_cuff` | Safedon dispensing defects |
+
+- **Labelling checks:** `lot_no`, `mfg_date`, `expiry_date`, `artwork`, `carton_no`.
+- **Local test users** (local dev only): `inspector@test.local`, `admin@test.local`.
+
+---
+
+## 12. Phases
+
+**Phase 1: Foundation**
+- Scaffold, Tailwind, shadcn, Supabase clients (browser, server, admin), `.env.example`, `.gitignore` with `docs/examples/`
+- Design first (section 2.1): study the website, write `docs/DESIGN.md`, set the light theme, build `/design`. Stop for Kenneth's sign-off before the next item.
+- Migrations: all tables, enums, sequence, RLS, storage buckets and policies. Seed.
+- Login, logout, forgot and reset password, invite and deactivate users, role guard
+- App shell (iPad tab layout, desktop sidebar layout), web app manifest, and an empty inspections list
+- Done when: the `/design` page is signed off; login and the app shell use the light SteriCare theme; an inspector logs in on an iPad and on a desktop and sees only their own data; an inspector gets a 404 on `/admin`; a deactivated user is blocked; RLS tests pass for both roles.
+
+**Phase 2: Module engine and report modules**
+- Module framework (section 6 layout), template resolver (inheritance, versioning, include/exclude) with tests
+- AQL engine with the tests in section 7; validation rules in section 6.2 with tests
+- All report modules in section 6.1, rendered from the resolved template
+- Templates `STD_EG` and `SAFEDON_EG`
+- New inspection, start from previous, autosave with IndexedDB copy, review and submit
+- Photos and files (section 8.1)
+- Done when: both example reports are entered on an iPad and every result matches `docs/examples/expected-results.md`, including the corrected values and the validation errors; a module switched off in a template disappears from capture, validation and export; photos taken in at least three modules show correctly on desktop; reloading mid-entry or losing the connection loses nothing.
+
+**Phase 3: Optional modules, admin and AI slots**
+- Optional modules `dye_leak`, `documents`, `loading`; `handSplit`; template `STD_SG`
+- Template editor with module switches (section 10), defect mapping screen
+- Approve, reopen, per-inspection module overrides, audit log
+- Export endpoint and AI report webhook (9.1)
+- AI second opinion slot (9.2) tested against a mock webhook
+- Done when: an admin builds a new template by switching modules and setting labels, without code changes; an STD_SG inspection with R/L and dye leak works; the export validates and contains everything needed to write the report without opening the app; the AI review panel shows mock findings next to the inspector's results.
+
+**Later (not now):** full offline mode, client portal, defect trends by manufacturer and client, AI-drafted templates from uploaded forms, the AI second opinion service itself.
+
+---
+
+## 13. Open items for Kenneth
+
+- Client for `SAFEDON_EG`: the report carries the Polyco Healthline logo. Is the client Polyco, and does the Safedon dispensing check apply to all its products?
+- Inspection level per client. The SAFEDON_EG example sampled 80 and 200 where ISO 2859-1 level I gives 200 and 500; the STD_EG example matches level I.
+- Spec limits per product for dimensions, weight and physical tests
+- Final defect lists and severities per client
+- Surgical (SG) report format: no filled example yet
+- Signature drawn in the app: acceptable for clients?
+- Who else gets admin access

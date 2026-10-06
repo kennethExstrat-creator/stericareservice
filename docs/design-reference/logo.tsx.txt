@@ -1,0 +1,70 @@
+import Image from "next/image";
+import Link from "next/link";
+
+/**
+ * SteriCare logo, from the supplied brand artwork (public/logo/).
+ *
+ * The source is a stacked lockup; public/brand/ holds the variants the site
+ * needs, cut from it: a horizontal lockup for the header, and "light" versions
+ * with the wordmark in white for dark grounds — logo blue text is only 2.6:1
+ * on ink. The shield keeps its true colours in every variant.
+ *
+ * Both tones are rendered and crossfaded, so the header can switch as it
+ * passes over light and dark sections without a network round trip.
+ */
+const VARIANTS = {
+  horizontal: {
+    onDark: "/brand/stericare-horizontal-light.png",
+    onLight: "/brand/stericare-horizontal.png",
+    width: 1331,
+    height: 235,
+  },
+  stacked: {
+    onDark: "/brand/stericare-lockup-light.png",
+    onLight: "/brand/stericare-lockup.png",
+    width: 1044,
+    height: 698,
+  },
+} as const;
+
+export function Logo({
+  tone = "light",
+  variant = "horizontal",
+  className = "h-9 lg:h-8 xl:h-10",
+  sizes = "230px",
+}: {
+  /** "light" = for dark backgrounds. "dark" = for white backgrounds. */
+  tone?: "light" | "dark";
+  variant?: keyof typeof VARIANTS;
+  /** Sets the rendered height; width follows the artwork's aspect ratio. */
+  className?: string;
+  sizes?: string;
+}) {
+  const v = VARIANTS[variant];
+  const onDark = tone === "light";
+
+  return (
+    <Link
+      href="/"
+      aria-label="SteriCare — home"
+      className={`relative inline-flex shrink-0 transition-transform duration-300 hover:scale-[1.02] ${className}`}
+    >
+      <Image
+        src={v.onDark}
+        alt=""
+        width={v.width}
+        height={v.height}
+        sizes={sizes}
+        className={`h-full w-auto transition-opacity duration-300 ${onDark ? "opacity-100" : "opacity-0"}`}
+      />
+      <Image
+        src={v.onLight}
+        alt=""
+        width={v.width}
+        height={v.height}
+        sizes={sizes}
+        className={`absolute left-0 top-0 h-full w-auto transition-opacity duration-300 ${onDark ? "opacity-0" : "opacity-100"}`}
+      />
+    </Link>
+  );
+}

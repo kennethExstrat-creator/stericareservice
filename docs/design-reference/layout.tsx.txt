@@ -1,0 +1,171 @@
+import type { Metadata } from "next";
+import { Outfit, Red_Hat_Display } from "next/font/google";
+import "lenis/dist/lenis.css";
+import "./globals.css";
+import { SiteHeader } from "@/components/site-header";
+import { SiteFooter } from "@/components/site-footer";
+import { Interactions } from "@/components/interactions";
+import { JsonLd } from "@/components/json-ld";
+import { company } from "@/lib/site";
+
+const SITE = "https://www.stericare.com.my";
+
+const outfit = Outfit({
+  variable: "--font-outfit",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+const redHatDisplay = Red_Hat_Display({
+  variable: "--font-redhat",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+const description =
+  "SteriCare manufactures sterile procedure packs, examination gloves and dressing aids in a Class 100K cleanroom. ISO 9001 and ISO 13485 certified, CE marked to MDD 93/42/EEC, with private label programmes for hospitals and distributors.";
+const shareDescription =
+  "Sterile procedure packs, gloves and dressing aids, manufactured in a Class 100K cleanroom to ISO 9001 and ISO 13485.";
+
+export const metadata: Metadata = {
+  metadataBase: new URL(SITE),
+  title: {
+    default:
+      "SteriCare Sdn Bhd — Sterile Medical Disposables Manufacturer, Malaysia",
+    template: "%s | SteriCare Sdn Bhd",
+  },
+  description,
+  // No `keywords`, as in INFII's layout: Google ignores the tag, Bing treats it
+  // as a spam signal, and it hands competitors the target-term list.
+  authors: [{ name: company.legalName }],
+  // The og:image comes from app/opengraph-image.png; icons from app/icon.png,
+  // app/apple-icon.png and app/favicon.ico; the manifest from app/manifest.ts.
+  openGraph: {
+    type: "website",
+    url: SITE,
+    locale: "en_MY",
+    siteName: "SteriCare Sdn Bhd",
+    title: "SteriCare Sdn Bhd — Sterile Medical Disposables Manufacturer",
+    description: shareDescription,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "SteriCare Sdn Bhd",
+    description: shareDescription,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
+  // Set in the host's environment. An empty verification tag verifies nothing,
+  // so each is omitted entirely while its variable is unset.
+  verification: {
+    ...(process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION
+      ? { google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION }
+      : {}),
+    ...(process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION
+      ? { other: { "msvalidate.01": process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION } }
+      : {}),
+  },
+};
+
+/**
+ * Structured data. Answer engines use it to work out who SteriCare is, so
+ * every fact here must match what the site itself states. No `sameAs`: the
+ * site links to no social profiles, and an unverifiable one is worse than none.
+ */
+const structuredData = [
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "@id": `${SITE}/#organization`,
+    name: "SteriCare",
+    legalName: company.legalName,
+    identifier: `Company No. ${company.registrationNo}`,
+    description:
+      "Manufacturer and supplier of sterile medical disposable products, including sterile procedure packs, examination gloves and dressing aids.",
+    url: SITE,
+    logo: `${SITE}/brand/stericare-lockup.png`,
+    image: `${SITE}/opengraph-image.png`,
+    email: company.email,
+    telephone: company.tel,
+    faxNumber: company.fax,
+    address: {
+      "@type": "PostalAddress",
+      streetAddress: `${company.address.line1}, ${company.address.line2}`,
+      postalCode: "47100",
+      addressLocality: "Puchong",
+      addressRegion: company.address.state,
+      addressCountry: "MY",
+    },
+    contactPoint: {
+      "@type": "ContactPoint",
+      contactType: "sales",
+      email: company.email,
+      telephone: company.tel,
+      availableLanguage: ["en"],
+    },
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "@id": `${SITE}/#website`,
+    url: SITE,
+    name: "SteriCare Sdn Bhd",
+    inLanguage: "en",
+    publisher: { "@id": `${SITE}/#organization` },
+  },
+];
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    // suppressHydrationWarning: the inline script below adds `js` to this
+    // element's classes before React hydrates.
+    <html
+      lang="en"
+      className={`${outfit.variable} ${redHatDisplay.variable} h-full`}
+      suppressHydrationWarning
+    >
+      <head>
+        {/* Runs before first paint. Scroll-reveal only hides content once this
+            class exists, so visitors without JavaScript — and crawlers — never
+            get a blank page. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: "document.documentElement.classList.add('js')",
+          }}
+        />
+        {/* Speculation Rules, as INFII uses them: prerender only the two
+            highest-intent pages, only once a visitor shows intent. Next's
+            <Link> already prefetches payloads, so a broad rule would duplicate
+            that work. */}
+        <script
+          type="speculationrules"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              prerender: [{ urls: ["/contact", "/products"], eagerness: "moderate" }],
+            }),
+          }}
+        />
+        <JsonLd data={structuredData} />
+      </head>
+      <body className="flex min-h-full flex-col bg-ink-950 font-sans text-slate-900 antialiased">
+        <Interactions />
+        <SiteHeader />
+        <main className="flex flex-1 flex-col">{children}</main>
+        <SiteFooter />
+      </body>
+    </html>
+  );
+}
