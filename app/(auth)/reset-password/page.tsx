@@ -29,7 +29,10 @@ export async function generateMetadata({ searchParams }: PageProps<"/reset-passw
  * - No session: the link was used or has expired.
  * - A deactivated account leaves through requireUser's sign-out route.
  * - A session that no invite or reset link started in the last hour (a normal
- *   password sign-in) cannot choose a password here (../link-session.ts).
+ *   password sign-in) is not offered the form. That keeps the app's own
+ *   screens to the email-link flow; it is not a security boundary, since
+ *   Supabase Auth itself accepts a password change from any session
+ *   (../link-session.ts).
  *
  * ?flow=invite|recovery only picks the wording; updatePassword checks it all again.
  */
@@ -89,7 +92,7 @@ function UseEmailLink() {
     <div className="space-y-6">
       <AuthHeading
         title="Use your email link"
-        description="A new password can only be set from an invite or reset link opened in the last hour, so nobody can change yours on a device left signed in."
+        description="Passwords are set from an invite or reset link opened in the last hour."
       />
       <p className="text-sm text-muted-foreground">
         To get a new link, sign out, then choose “Forgot password?” on the sign-in screen.

@@ -59,7 +59,7 @@ export const MESSAGES = {
 
   linkExpired: "This link has expired or was already used.",
   linkSessionRequired:
-    "Passwords can only be set from an invite or reset link opened in the last hour. Sign out, then choose “Forgot password?”.",
+    "Passwords are set from an invite or reset link opened in the last hour. Sign out, then choose “Forgot password?”.",
   samePassword: "That is your current password. Choose a new one.",
   pwnedPassword: "This password has appeared in a data breach. Choose a different one.",
   weakPassword: "Choose a stronger password: make it longer and mix letters, digits and symbols.",

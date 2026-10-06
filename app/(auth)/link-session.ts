@@ -4,10 +4,20 @@ import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * Who may choose a new password on /reset-password: only a session that an
- * invite or reset link started within the last hour. A session signed in with
- * a password is not enough, or anyone holding a device left signed in could
- * change the owner's password and lock them out.
+ * Whom /reset-password offers the password form to: only a session that an
+ * invite or reset link started within the last hour, not one signed in with a
+ * password.
+ *
+ * This is hardening of the app's own screens, not a security boundary. Any
+ * signed-in session can still change its password straight through Supabase
+ * Auth (PUT /auth/v1/user with the session's access token, which page scripts
+ * can read from the @supabase/ssr cookie). Supabase's "secure password change"
+ * (secure_password_change, off in supabase/config.toml) would not close that:
+ * it asks for an emailed nonce only once a session is over 24 hours old.
+ * Supabase Auth's "require current password" setting
+ * (GOTRUE_SECURITY_UPDATE_PASSWORD_REQUIRE_CURRENT_PASSWORD) would enforce the
+ * idea server-side: it wants the current password unless the session came
+ * from an email link (amr otp, magiclink or recovery).
  */
 
 /** Matches the links themselves, which expire after an hour (otp_expiry). */

@@ -34,8 +34,9 @@ import { sessionStartedByRecentLink } from "./link-session";
  *
  * signIn and requestPasswordReset serve signed-out visitors, so there is no
  * session to authorise; the credentials and the email link are the check.
- * updatePassword calls authorizeAction() first and then also needs a session
- * that an invite or reset link started (./link-session.ts).
+ * updatePassword calls authorizeAction() first and then also wants a session
+ * that an invite or reset link started (./link-session.ts: hardening of this
+ * app's screens, not a boundary Supabase Auth enforces).
  */
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
@@ -231,8 +232,9 @@ export async function updatePassword(
     };
   }
 
-  // A password session, or a link opened over an hour ago, cannot set a password.
-  // refresh() re-renders the page, which then explains this and offers to sign out.
+  // This app sets passwords only from a link opened in the last hour, not from a
+  // password session (UI hardening: see ./link-session.ts). refresh() re-renders
+  // the page, which then explains this and offers to sign out.
   let fromRecentLink: boolean;
   try {
     fromRecentLink = await sessionStartedByRecentLink();

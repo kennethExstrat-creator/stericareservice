@@ -126,12 +126,16 @@ test("an invite link: welcome, then set a password", async ({ page, accounts }, 
   await expect(page).toHaveURL(/\/inspections$/);
 });
 
-test("a password sign-in cannot set a password here", async ({ page, context, baseURL }, testInfo) => {
-  // Someone holding a device left signed in must not be able to lock the owner out.
+test("a password sign-in is sent to the email link instead", async ({ page, context, baseURL }, testInfo) => {
+  // The app's own screens set passwords only from an email link. This is UI
+  // hardening: Supabase Auth would still take a change from this session.
   await signIn(context, baseURL!, TEST_ACCOUNTS.inspector);
   await open(page, "/reset-password?flow=recovery");
 
   await expect(page.getByRole("heading", { level: 1, name: "Use your email link" })).toBeVisible();
+  await expect(page.getByRole("main")).toContainText(
+    "Passwords are set from an invite or reset link opened in the last hour.",
+  );
   await expect(page.getByLabel("New password", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Back to inspections" })).toHaveAttribute("href", "/inspections");
   await expect(page).toHaveTitle("Use your email link · SteriCare QC");
