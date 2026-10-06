@@ -685,6 +685,25 @@ describe("createNewVersion", () => {
     expect(queries).toEqual([]);
   });
 
+  it("leaves a draft no inspection uses to be changed directly, the editor's rule", async () => {
+    fakeSupabase({ query: (query) => templateReads(row())(query) ?? OK });
+    expect(await createNewVersion(IDLE, form({ templateId: ID, seen: SEEN }))).toEqual({
+      status: "error",
+      message: "Version 1 is a draft no inspection uses: change it directly.",
+    });
+    expect(writes()).toEqual([]);
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("says when the version is gone", async () => {
+    fakeSupabase({ query: (query) => templateReads(null)(query) ?? OK });
+    expect(await createNewVersion(IDLE, form({ templateId: ID, seen: SEEN }))).toEqual({
+      status: "error",
+      message: MESSAGES.notFound,
+    });
+    expect(writes()).toEqual([]);
+  });
+
   it("copies a draft an inspection already uses: the way forward for a frozen draft", async () => {
     fakeSupabase({
       query: (query) => {
@@ -733,9 +752,9 @@ describe("createNewVersion", () => {
       expect(inserted.resolved?.bases).toEqual([{ code: "BASE_EG", version: 2 }]);
     });
 
-    it("falls back to the base's newest retired version", async () => {
+    it("stays unresolved when the base has no active version: a retired base is no base to build on", async () => {
       const inserted = await newVersionWith([base(3, "draft"), base(2, "retired"), base(1, "retired")]);
-      expect(inserted.resolved?.bases).toEqual([{ code: "BASE_EG", version: 2 }]);
+      expect(inserted.resolved).toBeNull();
     });
 
     it("stays unresolved when the base has only drafts, which can still change: the editor says why", async () => {

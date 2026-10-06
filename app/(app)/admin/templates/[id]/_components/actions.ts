@@ -11,15 +11,12 @@ import {
   coverageBlocker,
   coverageChecklist,
   countOf,
-  definitionForNewVersion,
   describeTemplateError,
   failed,
   isSourceOf,
-  loadBases,
   loadTemplateVersion,
+  makeNewVersion,
   MESSAGES,
-  newVersionRow,
-  nextVersionOf,
   parseResolution,
   removeUnusedSources,
   SOURCE_BUCKET,
@@ -42,7 +39,7 @@ import {
 } from "@/lib/admin/templates";
 import { authorizeAction } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
-import { MODULE_REGISTRY, resolveTemplate } from "@/modules";
+import { MODULE_REGISTRY } from "@/modules";
 
 /*
  * Actions of the template version page (BUILD_SPEC 4.2 rules 8 to 10, 4.5).
@@ -456,10 +453,11 @@ export async function retireVersion(_previous: ActionResult, formData: FormData)
 
 /**
  * Copies this version's definition into a new draft version (BUILD_SPEC 4.2
- * rule 8), resolved against the bases as they are now (each at its active
- * version, else its newest retired one: loadBases), and opens it in the
- * template editor. Any version can be copied, a draft an inspection already
- * uses included: that is the way forward for it.
+ * rule 8) and opens it in the template editor: lib/admin/templates
+ * makeNewVersion, the rule the editor's New version follows too (the source
+ * file comes along, coverage is confirmed again, bases at their active
+ * version). Any version that cannot change in place can be copied, a draft
+ * an inspection already uses included: that is the way forward for it.
  */
 export async function createNewVersion(_previous: ActionResult, formData: FormData): Promise<ActionResult> {
   const created = await guarded<{ status: "created"; id: string }>("createNewVersion", async () => {
@@ -470,31 +468,11 @@ export async function createNewVersion(_previous: ActionResult, formData: FormDa
     if (!parsed.success) return failed(MESSAGES.stale);
 
     const supabase = await createClient();
-    const row = await readRow(supabase, parsed.data.templateId);
-    if (!row) {
-      refresh();
-      return failed(MESSAGES.notFound);
-    }
-
-    const definition = definitionForNewVersion(row.definition, row.source_file_path);
-    const resolution = resolveTemplate(definition, await loadBases(supabase, definition));
-
-    // A version number someone else takes at the same moment is a duplicate (23505): count again.
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const { data: versions, error: readError } = await supabase.from("templates").select("version").eq("code", row.code);
-      if (readError) throw new Error(`Could not read the versions of ${row.code}: ${readError.message}`);
-      const version = nextVersionOf(versions);
-      const { data, error } = await supabase
-        .from("templates")
-        .insert(newVersionRow(row, definition, resolution.ok ? resolution.template : null, version))
-        .select("id")
-        .single();
-      if (!error) return { status: "created", id: data.id } as const;
-      if (error.code === "23505" && /code_version/i.test(error.message)) continue;
-      console.error("[admin/templates] could not make a new version", error.code, error.message);
-      return failed(describeTemplateError(error, row));
-    }
-    return failed(describeTemplateError({ code: "23505", message: "templates_code_version_key" }, row));
+    const outcome = await makeNewVersion(supabase, { id: parsed.data.templateId }, MODULE_REGISTRY);
+    if (outcome.ok) return { status: "created", id: outcome.id } as const;
+    // Gone, or a draft that can be edited after all: the page is out of date.
+    if (outcome.reason === "not_found" || outcome.reason === "editable") refresh();
+    return failed(outcome.message);
   });
   if (created.status !== "created") return created;
   // Outside the try: redirect() throws to navigate.
