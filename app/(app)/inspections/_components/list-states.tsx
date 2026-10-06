@@ -66,7 +66,7 @@ export function NoInspectionsYet({ role }: { role: UserRole }) {
           ? "Inspections from every inspector will appear here, newest first, with who carried each one out. Inspectors see only their own."
           : "Inspections you start will appear here, newest first. You see only your own; admins see everyone's."}
       </p>
-      <p className="mt-2">Inspection capture arrives in the next build.</p>
+      <p className="mt-2">Start one with New inspection.</p>
     </ListState>
   );
 }
