@@ -276,6 +276,77 @@ describe("MeasurementGrid", () => {
     expect(html).toContain("≥ 240");
     expect(html).toContain("95 ± 10");
   });
+
+  const FULL = [6.5, 0, 6.6, 6.7, 6.8];
+  const force: Measure = { key: "values", label: "Force at break (N)", decimals: 3, spec: { kind: "min", min: 6 } };
+  const renderWith = (props: Partial<Parameters<typeof MeasurementGrid>[0]>) =>
+    renderToStaticMarkup(
+      <MeasurementGrid
+        caption="Force at break, size M"
+        measures={[force]}
+        rows={5}
+        values={{ values: FULL }}
+        statistic="median"
+        {...props}
+      />,
+    );
+  const statuses = (html: string) => Array.from(html.matchAll(/data-status="(\w+)"/g), (match) => match[1]);
+
+  it("shows calc's figures when the module passes them: no median or verdict for a reading calc refuses", () => {
+    // Summarising its own cells, the grid would print 6.600 and Passed.
+    expect(renderWith({})).toContain(">6.600<");
+    expect(statuses(renderWith({}))).toEqual(["pass"]);
+    const html = renderWith({ measures: [{ ...force, summary: { statistic: null, outcome: "not_done", count: 4 } }] });
+    expect(html).not.toContain(">6.600<");
+    expect(statuses(html)).toEqual(["not_done", "not_done"]);
+  });
+
+  it("prints calc's statistic at the measure's decimals, with the count while short of the rows", () => {
+    const html = renderWith({
+      measures: [{ ...force, summary: { statistic: 6.54321, outcome: "not_done", count: 4 } }],
+    });
+    expect(html).toContain(">6.543<");
+    expect(html).toContain("4 of 5");
+    const done = renderWith({ measures: [{ ...force, summary: { statistic: 6.6, outcome: "pass", count: 5 } }] });
+    expect(done).not.toContain(" of 5");
+    expect(statuses(done)).toEqual(["pass"]);
+  });
+
+  it("words the verdict, NA and the captions as the template does", () => {
+    const html = renderWith({
+      measures: [force, { key: "cuff", label: "Cuff" }],
+      values: { values: [6.5, 6.4, 6.6, 6.7, 6.8], cuff: [0.1, 0.1, 0.1, 0.1, 0.1] },
+      labels: { result: "A / Rej.", pass: "A", fail: "Rej.", na: "N/A", statistic: "Average" },
+    });
+    expect(html).toContain(">A<");
+    expect(html).not.toContain(">Passed<");
+    expect(html).toContain(">N/A<");
+    expect(html).toContain(">A / Rej.<");
+    expect(html).toContain(">Average<");
+  });
+
+  it("sizes its label column to the longest caption", () => {
+    const html = renderWith({ labels: { result: "Passed / Failed" } });
+    expect(html).toContain("width:clamp(3.5rem, calc(15ch + 2rem), 16rem)");
+  });
+
+  it("marks each cell for issue links and keeps them focusable inputs when read-only", () => {
+    const html = renderWith({ readOnly: true, cellIssuePath: ({ row, measure }) => ["sizes", "M", measure, row] });
+    const inputs = html.match(/<input[^>]*>/g) ?? [];
+    expect(inputs).toHaveLength(5);
+    for (const input of inputs) {
+      expect(input).toContain('readOnly=""');
+      expect(input).not.toMatch(/\sdisabled=""/);
+    }
+    expect(inputs[1]).toContain('data-issue-path="[&quot;sizes&quot;,&quot;M&quot;,&quot;values&quot;,1]"');
+    expect(html).not.toContain("<fieldset");
+    expect(html).toContain('data-readonly="true"');
+  });
+
+  it("takes typing and pastes only when it is not read-only", () => {
+    const editable = (renderWith({}).match(/<input[^>]*>/g) ?? [])[0];
+    expect(editable).not.toContain("readOnly");
+  });
 });
 
 describe("PhotoTile", () => {

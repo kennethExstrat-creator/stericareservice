@@ -1,6 +1,5 @@
 // Keyboard and paste rules for MeasurementGrid, kept pure so they can be tested.
-import type { Limits } from "@/lib/stats";
-import { commitEntry, type InvalidEntry } from "./numeric-entry";
+import { commitEntry, type EntryLimits, type InvalidEntry } from "./numeric-entry";
 
 export type CellPosition = { row: number; col: number };
 export type GridSize = { rows: number; cols: number };
@@ -81,6 +80,12 @@ export function planPaste(text: string, from: CellPosition, { rows, cols }: Grid
 /** Values per measure key, one per row; null where nothing is entered. */
 export type MeasurementValues = Readonly<Record<string, readonly (number | null)[]>>;
 
+/** One cell of the grid: a glove (`row`, 0 is glove 1) and a measure's key. */
+export type MeasurementCell = { readonly row: number; readonly measure: string };
+
+/** A cell's new value: what MeasurementGrid's onCellsChange hands over. */
+export type MeasurementChange = MeasurementCell & { readonly value: number | null };
+
 /** Rejected entries by cell, keyed with cellKey. */
 export type InvalidCells = Readonly<Record<string, InvalidEntry>>;
 
@@ -90,6 +95,8 @@ export function cellKey(measure: string, row: number): string {
 
 export type PasteResult = {
   values: MeasurementValues;
+  /** Every cell the paste reached, with the value it now holds (null where the text was refused). */
+  changes: MeasurementChange[];
   invalid: InvalidCells;
   /** For the grid's live region, e.g. "Pasted 13 values. 1 not stored." */
   notice: string;
@@ -103,12 +110,13 @@ export type PasteResult = {
  */
 export function applyPaste(
   plan: PastePlan,
-  measures: readonly (Limits & { key: string })[],
+  measures: readonly (EntryLimits & { key: string })[],
   rows: number,
   values: MeasurementValues,
   invalid: InvalidCells,
 ): PasteResult {
   const columns: Record<string, (number | null)[]> = {};
+  const changes: MeasurementChange[] = [];
   const nextInvalid: Record<string, InvalidEntry> = { ...invalid };
   let rejected = 0;
   for (const cell of plan.cells) {
@@ -117,8 +125,9 @@ export function applyPaste(
       { length: rows },
       (_, row) => values[measure.key]?.[row] ?? null,
     ));
-    const entry = commitEntry(cell.raw, { min: measure.min, max: measure.max });
+    const entry = commitEntry(cell.raw, { min: measure.min, max: measure.max, minExclusive: measure.minExclusive });
     column[cell.row] = entry.value;
+    changes.push({ row: cell.row, measure: measure.key, value: entry.value });
     if (entry.invalid) {
       nextInvalid[cellKey(measure.key, cell.row)] = entry.invalid;
       rejected += 1;
@@ -134,5 +143,16 @@ export function applyPaste(
   ]
     .filter(Boolean)
     .join(" ");
-  return { values: { ...values, ...columns }, invalid: nextInvalid, notice };
+  return { values: { ...values, ...columns }, changes, invalid: nextInvalid, notice };
+}
+
+/**
+ * The width of the grid's label column: the glove numbers, then the footer's
+ * captions in the template's wording ("Passed / Failed", "Spec. (EN 455)").
+ * Wide enough for the longest caption on one line, up to 16 rem (longer
+ * wording wraps at its spaces), and never narrower than 3.5 rem.
+ */
+export function labelColumnWidth(captions: readonly string[]): string {
+  const longest = Math.max(0, ...captions.map((caption) => caption.trim().length));
+  return `clamp(3.5rem, calc(${longest}ch + 2rem), 16rem)`;
 }

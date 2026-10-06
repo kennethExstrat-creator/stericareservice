@@ -24,7 +24,7 @@ import {
   type ReactNode,
 } from "react";
 import { cn } from "@/lib/utils";
-import { formatReading, readDecimal, type ParseDecimalResult } from "@/lib/stats";
+import { formatReading, type ParseDecimalResult } from "@/lib/stats";
 import { Label } from "@/components/ui/label";
 import { batchDataChanges } from "./data-updater";
 import {
@@ -39,6 +39,7 @@ import {
 } from "./field-navigation";
 import { issuePathProps, type IssuePath } from "./issue-path";
 import { NumericCell, type InvalidEntry } from "./numeric-cell";
+import { readEntry } from "./numeric-entry";
 import { useAnnouncement } from "./use-announcement";
 
 const InGroup = createContext(false);
@@ -66,6 +67,8 @@ export type NumberFieldProps = {
   unit?: string;
   min?: number;
   max?: number;
+  /** Refuse `min` itself: the value must be more than it, e.g. a weight more than 0 g. */
+  minExclusive?: boolean;
   /** Reject decimals: counts typed as numbers, carton quantities. */
   integer?: boolean;
   /** Show at least this many decimals (0.1 as 0.10); never rounds what was entered. */
@@ -102,6 +105,7 @@ export function NumberField({
   unit,
   min,
   max,
+  minExclusive,
   integer = false,
   decimals,
   hint,
@@ -134,7 +138,7 @@ export function NumberField({
   const calcError = !invalid && error ? error : null;
 
   const read = (raw: string): ParseDecimalResult => {
-    const parsed = readDecimal(raw, { min, max });
+    const parsed = readEntry(raw, { min, max, minExclusive });
     if (integer && parsed.ok && parsed.value !== null && !Number.isInteger(parsed.value)) {
       return { ok: false, error: WHOLE_NUMBERS };
     }
@@ -228,6 +232,7 @@ export function NumberField({
       onInvalidChange={setOwnInvalid}
       min={min}
       max={max}
+      minExclusive={minExclusive}
       unit={variant === "field" ? unit : undefined}
       decimals={decimals}
       readOnly={readOnly}
