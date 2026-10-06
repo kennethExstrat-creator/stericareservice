@@ -14,6 +14,14 @@ export function ListCard({ children }: { children: ReactNode }) {
   return <div className="overflow-hidden rounded-xl bg-card shadow-sm ring-1 ring-border">{children}</div>;
 }
 
+/**
+ * Compact rows with a mouse or trackpad (docs/DESIGN.md, Density), as on
+ * /admin/users: a 36 px header and rows of about 35 px around the 32 px Edit
+ * button and logo. Touch keeps the table's own 44 px sizes.
+ */
+export const HEAD = "fine:h-9";
+export const CELL = "fine:py-px";
+
 /** An empty optional value: a dash for the eye, "None" for screen readers. */
 export function NoValue() {
   return (
@@ -26,10 +34,13 @@ export function NoValue() {
   );
 }
 
-/** "Not in use" in secondary text; counts in normal text, since they block deleting. */
+/**
+ * "Not in use" in secondary text; counts in normal text, since they block
+ * deleting. On one line: a long name wraps instead.
+ */
 export function UsageText({ usage }: { usage: Usage }) {
   return (
-    <span className={cn("whitespace-normal", !isInUse(usage) && "text-muted-foreground")}>{usageText(usage)}</span>
+    <span className={cn("whitespace-nowrap", !isInUse(usage) && "text-muted-foreground")}>{usageText(usage)}</span>
   );
 }
 

@@ -4,7 +4,7 @@ import { ImageOffIcon } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { oneLine, type ClientItem, type LogoPreview } from "@/lib/admin/reference";
 import { cn } from "@/lib/utils";
-import { EditButton, ListCard, NoValue, UsageText } from "../../manufacturers/_components/reference-list";
+import { CELL, EditButton, HEAD, ListCard, NoValue, UsageText } from "../../manufacturers/_components/reference-list";
 
 /**
  * The clients, with their logos. On iPad the notes drop out (the panel shows
@@ -25,11 +25,11 @@ export function ClientsTable({
         <caption className="sr-only">Clients</caption>
         <TableHeader className="bg-slate-50">
           <TableRow className="hover:bg-transparent">
-            <TableHead className="w-0 pl-4">Logo</TableHead>
-            <TableHead>Name</TableHead>
-            <TableHead className="hidden xl:table-cell">Notes</TableHead>
-            <TableHead>In use</TableHead>
-            <TableHead className="w-0 pr-4">
+            <TableHead className={cn("w-0 pl-4", HEAD)}>Logo</TableHead>
+            <TableHead className={HEAD}>Name</TableHead>
+            <TableHead className={cn("hidden xl:table-cell", HEAD)}>Notes</TableHead>
+            <TableHead className={HEAD}>In use</TableHead>
+            <TableHead className={cn("w-0 pr-4", HEAD)}>
               <span className="sr-only">Actions</span>
             </TableHead>
           </TableRow>
@@ -42,13 +42,13 @@ export function ClientsTable({
               className="cursor-pointer"
               onClick={() => onEdit(row.id)}
             >
-              <TableCell className="pl-4">
+              <TableCell className={cn("pl-4", CELL)}>
                 <LogoThumbnail logo={row.logo} />
               </TableCell>
-              <TableCell className="whitespace-normal">
+              <TableCell className={cn("whitespace-normal", CELL)}>
                 <span className="font-medium text-foreground [overflow-wrap:anywhere]">{row.name}</span>
               </TableCell>
-              <TableCell className="hidden xl:table-cell">
+              <TableCell className={cn("hidden xl:table-cell", CELL)}>
                 {row.notes ? (
                   <div className="max-w-md truncate text-muted-foreground" title={row.notes}>
                     {oneLine(row.notes)}
@@ -57,10 +57,10 @@ export function ClientsTable({
                   <NoValue />
                 )}
               </TableCell>
-              <TableCell>
+              <TableCell className={CELL}>
                 <UsageText usage={row.usage} />
               </TableCell>
-              <TableCell className="pr-4 text-right">
+              <TableCell className={cn("pr-4 text-right", CELL)}>
                 <EditButton name={row.name} onClick={() => onEdit(row.id)} />
               </TableCell>
             </TableRow>

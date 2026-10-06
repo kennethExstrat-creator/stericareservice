@@ -2,7 +2,8 @@
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { manufacturerLabel, oneLine, type ManufacturerItem } from "@/lib/admin/reference";
-import { EditButton, ListCard, NoValue, UsageText } from "./reference-list";
+import { cn } from "@/lib/utils";
+import { CELL, EditButton, HEAD, ListCard, NoValue, UsageText } from "./reference-list";
 
 /**
  * The manufacturers, one compact line each on desktop (1280 px and wider).
@@ -24,12 +25,12 @@ export function ManufacturersTable({
         <caption className="sr-only">Manufacturers</caption>
         <TableHeader className="bg-slate-50">
           <TableRow className="hover:bg-transparent">
-            <TableHead className="pl-4">Name</TableHead>
-            <TableHead className="hidden xl:table-cell">Factory</TableHead>
-            <TableHead>Country</TableHead>
-            <TableHead className="hidden xl:table-cell">Address</TableHead>
-            <TableHead>In use</TableHead>
-            <TableHead className="w-0 pr-4">
+            <TableHead className={cn("pl-4", HEAD)}>Name</TableHead>
+            <TableHead className={cn("hidden xl:table-cell", HEAD)}>Factory</TableHead>
+            <TableHead className={HEAD}>Country</TableHead>
+            <TableHead className={cn("hidden xl:table-cell", HEAD)}>Address</TableHead>
+            <TableHead className={HEAD}>In use</TableHead>
+            <TableHead className={cn("w-0 pr-4", HEAD)}>
               <span className="sr-only">Actions</span>
             </TableHead>
           </TableRow>
@@ -42,7 +43,7 @@ export function ManufacturersTable({
               className="cursor-pointer"
               onClick={() => onEdit(row.id)}
             >
-              <TableCell className="pl-4 whitespace-normal">
+              <TableCell className={cn("pl-4 whitespace-normal", CELL)}>
                 <div className="flex min-w-0 flex-col gap-0.5 py-0.5">
                   <span className="font-medium text-foreground [overflow-wrap:anywhere]">{row.name}</span>
                   {row.factoryName && (
@@ -50,11 +51,11 @@ export function ManufacturersTable({
                   )}
                 </div>
               </TableCell>
-              <TableCell className="hidden whitespace-normal xl:table-cell">
+              <TableCell className={cn("hidden whitespace-normal xl:table-cell", CELL)}>
                 {row.factoryName ? <span className="[overflow-wrap:anywhere]">{row.factoryName}</span> : <NoValue />}
               </TableCell>
-              <TableCell className="whitespace-normal">{row.country ?? <NoValue />}</TableCell>
-              <TableCell className="hidden xl:table-cell">
+              <TableCell className={cn("whitespace-normal", CELL)}>{row.country ?? <NoValue />}</TableCell>
+              <TableCell className={cn("hidden xl:table-cell", CELL)}>
                 {row.address ? (
                   <div className="max-w-xs truncate text-muted-foreground" title={row.address}>
                     {oneLine(row.address)}
@@ -63,10 +64,10 @@ export function ManufacturersTable({
                   <NoValue />
                 )}
               </TableCell>
-              <TableCell>
+              <TableCell className={CELL}>
                 <UsageText usage={row.usage} />
               </TableCell>
-              <TableCell className="pr-4 text-right">
+              <TableCell className={cn("pr-4 text-right", CELL)}>
                 <EditButton name={manufacturerLabel(row)} onClick={() => onEdit(row.id)} />
               </TableCell>
             </TableRow>
