@@ -10,6 +10,7 @@ import {
   type ExampleReport,
 } from "@/tests/fixtures/examples";
 import { ENGINE_REGISTRY, exampleData, samplingPlanData } from "./__fixtures__/examples";
+import { resolveSeed } from "./__fixtures__/seeds";
 import { calcSamplingPlan, contributeSamplingPlan, lotPlan, samplingValues, type SamplingPlanComputed } from "./calc";
 import { SAMPLING_PLAN_DEFAULT_CONFIG, SAMPLING_PLAN_LABELS, type SamplingPlanConfig } from "./config";
 import { definition } from "./index";
@@ -117,10 +118,38 @@ describe("sampling_plan", () => {
       perSize: { M: { status: "not_done", summary: "Missing: Inner pack, # gloves for Tensile." } },
     });
     expect(output.issues).toEqual([]);
-    expect(calcSamplingPlan(input({})).result.status).toBe("not_done");
-    expect(calcSamplingPlan(input({ M: {} })).result.perSize?.M.summary).toBe(
-      "Missing: Case, Inner Box, Gloves, # gloves for watertight & Visual, # gloves for dimension, # gloves for FAB, # inner box for packaging & dispensing inspection.",
+    expect(calcSamplingPlan(input({ M: { cases: 50 } })).result.perSize?.M.summary).toBe(
+      "Missing: Inner Box, Gloves, # gloves for watertight & Visual, # gloves for dimension, # gloves for FAB, # inner box for packaging & dispensing inspection.",
     );
+  });
+
+  it("says a size with nothing entered is not started, rather than listing every column (MODULES.md section 8)", () => {
+    expect(calcSamplingPlan(input({})).result).toEqual({
+      status: "not_done",
+      summary: "Size M: Not started.",
+      perSize: { M: { status: "not_done", summary: "Not started." } },
+    });
+    expect(calcSamplingPlan(input({ M: {} })).result.perSize?.M.summary).toBe("Not started.");
+    // A value in a column the template switches off does not start the size.
+    const noPouches = calcSamplingPlan(input({ M: { pouches: 4 } }));
+    expect(noPouches.result.perSize?.M.summary).toBe("Not started.");
+  });
+
+  it("names the sizes that share a summary together, in the order's order", () => {
+    const context = contextM({
+      sizes: ["XS", "S", "M", "L"],
+      order: {
+        XS: { qtyCases: 60, lotNumbers: [] },
+        S: { qtyCases: 850, lotNumbers: [] },
+        M: { qtyCases: 560, lotNumbers: [] },
+        L: { qtyCases: 60, lotNumbers: [] },
+      },
+    });
+    expect(calcSamplingPlan(input({}, SAMPLING_PLAN_DEFAULT_CONFIG, context)).result.summary).toBe(
+      "Size XS, S, M, L: Not started.",
+    );
+    const some = calcSamplingPlan(input({ XS: ROW_M, M: { ...ROW_M, gloves: null } }, SAMPLING_PLAN_DEFAULT_CONFIG, context));
+    expect(some.result.summary).toBe("Size S, L: Not started. Size M: Missing: Gloves.");
   });
 
   it("asks only for the columns the template shows: the surgical pouches, or no gloves column (STD_SG)", () => {
@@ -362,6 +391,9 @@ describe("sampling_plan with the example reports (docs/examples/expected-results
     const { context, evaluation } = evaluate(SAFEDON_EG_EXAMPLE, config);
 
     expect(evaluation.result.status).toBe("warn");
+    expect(evaluation.result.summary).toBe(
+      "Size XS, L: 80 sampled, inspection level I needs 200 (code L). Size S, M: 200 sampled, inspection level I needs 500 (code N).",
+    );
     expect(evaluation.result.perSize).toEqual({
       XS: { status: "warn", summary: "80 sampled, inspection level I needs 200 (code L)." },
       S: { status: "warn", summary: "200 sampled, inspection level I needs 500 (code N)." },
@@ -393,6 +425,27 @@ describe("sampling_plan with the example reports (docs/examples/expected-results
     expect(context.sampling.XS).toMatchObject({ cases: 5, watertightVisual: 80, dimensions: 13, physical: 13, packagingDispensing: 5 });
     expect(context.sampling.M).toMatchObject({ cases: 15, watertightVisual: 200, packagingDispensing: 8 });
     expect(evaluation.computed.totals).toMatchObject({ cases: 45, glovesWatertightVisual: 560, innerUnitsDispensing: 26 });
+  });
+
+  it("A. SAFEDON_EG before anything is entered: one short line on the module tab and in the issue list", () => {
+    const seed = resolveSeed("SAFEDON_EG").modules.find((entry) => entry.key === "sampling_plan");
+    if (!seed) throw new Error("SAFEDON_EG has no sampling plan");
+    const template = makeTestTemplate(ENGINE_REGISTRY, [
+      "order_lots",
+      "packing_config",
+      { key: "sampling_plan", title: seed.title, labels: seed.labels, config: seed.config },
+    ]);
+    // Nothing saved (a new inspection), and a saved plan with no size filled in yet.
+    for (const sampling of [undefined, { sizes: {} }]) {
+      const data = exampleData(SAFEDON_EG_EXAMPLE, { sampling_plan: sampling });
+      const context = buildInspectionContext({ template, data, meta: { inspector: TEST_INSPECTOR } }, ENGINE_REGISTRY);
+      const evaluation = evaluateInspection({ template, data, context }, ENGINE_REGISTRY);
+      const found = evaluation.modules.find((entry) => entry.key === "sampling_plan");
+      expect(found?.result).toMatchObject({ status: "not_done", summary: "Size XS, S, M, L: Not started." });
+      expect(evaluation.issues.filter((issue) => issue.moduleKey === "sampling_plan").map((issue) => issue.message)).toEqual([
+        `${seed.title} is not done: Size XS, S, M, L: Not started.`,
+      ]);
+    }
   });
 
   it("A. SAFEDON_EG without an inspection level: the samples are taken as entered, nothing flagged", () => {

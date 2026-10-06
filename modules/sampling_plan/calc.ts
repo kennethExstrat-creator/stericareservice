@@ -264,6 +264,8 @@ function sizeResult({ row, config, level, lot, plan, findings, label }: SizeResu
   const errors = findings.filter((finding) => finding.level === "error");
   if (errors.length > 0) return { status: "not_done", summary: sentence(errors.map((finding) => finding.brief)) };
   const missing = shown.filter((column) => row[column] === null);
+  // Listing every column of an empty size would repeat the whole table in the summary.
+  if (missing.length > 0 && missing.length === shown.length) return { status: "not_done", summary: "Not started." };
   if (missing.length > 0) return { status: "not_done", summary: `Missing: ${missing.map(label).join(", ")}.` };
   if (level !== null && lot === null) {
     return {
@@ -292,18 +294,27 @@ function summarise(
 ): string {
   const sizes = context.sizes;
   if (sizes.length === 0) return "No sizes ordered yet.";
-  const describe = (size: string) => `Size ${sizeLabel(context, size)}: ${perSize[size]?.summary ?? ""}`;
-  if (sizes.length === 1) return describe(sizes[0]);
   const worst = worstStatus(sizes.map((size) => perSize[size].status));
-  const names = sizes.map((size) => sizeLabel(context, size)).join(", ");
-  if (worst === "info") {
+  if (worst === "info" && sizes.length > 1) {
+    const names = sizes.map((size) => sizeLabel(context, size)).join(", ");
     if (level === null) return `Sampling plan entered for size ${names}.`;
     return `Samples meet inspection level ${level} for size ${names}.`;
   }
-  return sizes
-    .filter((size) => perSize[size].status === worst)
-    .map(describe)
-    .join(" ");
+  return bySummary(sizes.filter((size) => perSize[size].status === worst), perSize, context);
+}
+
+/** "Size XS, L: 80 sampled, ... Size S, M: 200 sampled, ...": sizes with the same summary named once, in order. */
+function bySummary(
+  sizes: readonly string[],
+  perSize: Readonly<Record<string, PerSizeResult>>,
+  context: InspectionContext,
+): string {
+  const groups = new Map<string, string[]>();
+  for (const size of sizes) {
+    const summary = perSize[size]?.summary ?? "";
+    groups.set(summary, [...(groups.get(summary) ?? []), sizeLabel(context, size)]);
+  }
+  return Array.from(groups, ([summary, names]) => `Size ${names.join(", ")}: ${summary}`).join(" ");
 }
 
 function totalsOf(

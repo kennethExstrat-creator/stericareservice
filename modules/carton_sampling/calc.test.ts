@@ -181,6 +181,29 @@ describe("carton_sampling", () => {
     expect(fixed.result.summary).toBe("Carton numbers complete, unique and within the order quantity for size S (2), M (2).");
   });
 
+  it("names the sizes that share a summary together, so an empty grid sums up in one short line", () => {
+    const order = {
+      XS: { qtyCases: 60, lotNumbers: [] },
+      S: { qtyCases: 850, lotNumbers: [] },
+      M: { qtyCases: 560, lotNumbers: [] },
+      L: { qtyCases: 60, lotNumbers: [] },
+    };
+    const waiting = makeTestContext({ sizes: ["XS", "S", "M", "L"], order, sampling: {} });
+    expect(calcCartonSampling(input({}, waiting)).result.summary).toBe(
+      "Size XS, S, M, L: Waiting for the sampled cases; 0 carton numbers entered.",
+    );
+    const sampling = {
+      XS: makeSampling({ cases: 5 }),
+      S: makeSampling({ cases: 20 }),
+      M: makeSampling({ cases: 15 }),
+      L: makeSampling({ cases: 5 }),
+    };
+    const planned = makeTestContext({ sizes: ["XS", "S", "M", "L"], order, sampling });
+    expect(calcCartonSampling(input({}, planned)).result.summary).toBe(
+      "Size XS, L: 0 of 5 carton numbers. Size S: 0 of 20 carton numbers. Size M: 0 of 15 carton numbers.",
+    );
+  });
+
   it("names grid cells as the report prints them: 10 to a row", () => {
     expect([0, 9, 10, 19, 20, 49, 50].map(gridCell)).toEqual([
       "row 1 column 1",
