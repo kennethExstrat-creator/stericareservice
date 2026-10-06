@@ -42,6 +42,7 @@ export {
   type CounterTableLabels,
 } from "./counter-table";
 export { columnTotal, type CounterCell, type CounterHand, type CountReader } from "./counter-model";
+export { ColumnSwitcher } from "./column-switcher";
 export {
   NumberField,
   PercentField,

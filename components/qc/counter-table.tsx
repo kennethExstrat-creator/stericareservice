@@ -60,6 +60,12 @@ export type CounterColumn = {
   key: string;
   /** Column heading: "M", "253". */
   label: string;
+  /**
+   * Shown in the heading cell instead of `label`, e.g. the box's BoxPicker,
+   * as the Safedon sheet has the box numbers over its columns. `label` and
+   * `name` still name the column for screen readers.
+   */
+  heading?: ReactNode;
   /** Accessible name in each stepper's label, e.g. "Size M" or "box 253". Defaults to the label. */
   name?: string;
   /** Samples inspected (from the sampling plan). Undefined hides the row for every column. */
@@ -293,7 +299,7 @@ export function CounterTable({
                   colSpan={span}
                   className={cn(HEAD, "border-l whitespace-nowrap touch:text-base", hidden(column))}
                 >
-                  {column.label}
+                  {column.heading ?? column.label}
                 </th>
               ))}
             </tr>

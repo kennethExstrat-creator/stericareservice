@@ -5,6 +5,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { BoxPicker } from "./box-picker";
+import { ColumnSwitcher } from "./column-switcher";
 import { CounterTable, type CounterColumn, type CounterRow } from "./counter-table";
 import type { CounterCell } from "./counter-model";
 import { Figure } from "./figure";
@@ -374,6 +375,13 @@ describe("CounterTable", () => {
     expect(render({ rows: added })).not.toContain("Remove Near thumb");
   });
 
+  it("puts a column's own heading, such as its box picker, over the column", () => {
+    const html = render({ columns: [{ ...columns[0], heading: <button type="button">Pick box</button> }, columns[1]] });
+    expect(html).toMatch(/<th[^>]*scope="col"[^>]*><button type="button">Pick box<\/button><\/th>/);
+    // The label still names the column's steppers.
+    expect(html).toContain('aria-label="Increase Palm, size S"');
+  });
+
   it("offers a one-off defect only with onAddRow", () => {
     expect(render()).not.toContain("Other defect");
     expect(render({ onAddRow: noop })).toContain("Other defect");
@@ -466,6 +474,34 @@ describe("CounterTable inside SizeTabs", () => {
       "sticky top-[calc(var(--capture-sticky-top,0px)_+_var(--size-tabs-bar,0px))]",
     );
     expect(/<tfoot[^>]*>/.exec(html)?.[0]).toContain("sticky bottom-[var(--capture-sticky-bottom,0px)]");
+  });
+});
+
+describe("ColumnSwitcher", () => {
+  const render = (props: Partial<Parameters<typeof ColumnSwitcher>[0]> = {}) =>
+    renderToStaticMarkup(
+      <ColumnSwitcher count={5} index={1} onIndexChange={noop} current="Box 253" previousLabel="Previous box" nextLabel="Next box" {...props} />,
+    );
+
+  it("says which column is on screen, between Previous and Next, and hides from 1280 px", () => {
+    const html = render();
+    expect(html).toContain("Box 253 · 2 / 5");
+    expect(html).toContain('aria-label="Previous box"');
+    expect(html).toContain('aria-label="Next box"');
+    expect(html).toMatch(/aria-live="polite"/);
+    expect(tagsWith(html, 'data-slot="column-switcher"')[0]).toContain("xl:hidden");
+    expect(tagsWith(render({ alwaysShown: true }), 'data-slot="column-switcher"')[0]).not.toContain("xl:hidden");
+  });
+
+  it("keeps its buttons focusable at the ends, marked disabled rather than removed", () => {
+    const first = render({ index: 0 });
+    expect(tagsWith(first, 'aria-label="Previous box"')[0]).toContain('aria-disabled="true"');
+    expect(first).not.toMatch(/<button[^>]*disabled=""/);
+    expect(tagsWith(render({ index: 4 }), 'aria-label="Next box"')[0]).toContain('aria-disabled="true"');
+  });
+
+  it("shows nothing for a single column", () => {
+    expect(render({ count: 1, index: 0 })).toBe("");
   });
 });
 
