@@ -267,7 +267,7 @@ export function MeasurementGrid({
                 <th key={measure.key} scope="col" className={cn(HEAD_CELL, "text-right")}>
                   {measure.label}
                   {measure.unit && (
-                    <span className="block text-xs font-normal text-muted-foreground">{measure.unit}</span>
+                    <span className="block text-xs font-normal text-muted-foreground touch:text-sm">{measure.unit}</span>
                   )}
                 </th>
               ))}
@@ -341,7 +341,7 @@ export function MeasurementGrid({
                     <span className="font-semibold tabular-nums">
                       {formatDecimal(footer.statistic, measures[col].decimals)}
                       {footer.short !== null && (
-                        <span className="block text-xs font-normal text-muted-foreground">
+                        <span className="block text-xs font-normal text-muted-foreground touch:text-sm">
                           {footer.short} of {rows}
                         </span>
                       )}

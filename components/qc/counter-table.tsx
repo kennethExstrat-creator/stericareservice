@@ -393,7 +393,7 @@ export function CounterTable({
                         className="-my-0.5 ml-auto text-muted-foreground"
                         onClick={() => remove(row)}
                       >
-                        <XIcon aria-hidden />
+                        <XIcon aria-hidden className="size-4 touch:size-5" />
                       </Button>
                     )}
                   </span>

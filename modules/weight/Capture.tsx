@@ -413,6 +413,7 @@ function IssueLinks({
                   type="button"
                   variant="outline"
                   size="sm"
+                  className="text-foreground touch:text-base"
                   aria-describedby={messageId}
                   onClick={() => onRemoveUncounted(size)}
                 >
