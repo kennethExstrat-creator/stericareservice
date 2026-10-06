@@ -4,20 +4,25 @@
 // rows in the template's wording (Median or Average, Spec., P/F). Enter walks
 // down a column, arrows move between cells, and pasting a column of values
 // fills down from the focused cell. Rejected entries are listed under the grid
-// with links back to their cells (BUILD_SPEC 6.2).
+// with links back to their cells (BUILD_SPEC 6.2). The keyboard and paste
+// rules are pure functions in grid-navigation.ts.
 import { useId, useRef, useState, type KeyboardEvent } from "react";
 import { cn } from "@/lib/utils";
+import { formatDecimal, formatSpec, summarizeColumn, type Spec, type StatisticKind } from "@/lib/stats";
 import {
-  formatDecimal,
-  formatSpec,
-  readDecimal,
-  summarizeColumn,
-  type Spec,
-  type StatisticKind,
-} from "@/lib/stats";
-import { caretOf, planPaste, targetCell, type CellPosition } from "./grid-navigation";
+  applyPaste,
+  caretOf,
+  cellKey,
+  planPaste,
+  targetCell,
+  type CellPosition,
+  type InvalidCells,
+  type MeasurementValues,
+} from "./grid-navigation";
 import { NumericCell, type InvalidEntry } from "./numeric-cell";
 import { StatusPill } from "./status-pill";
+
+export type { MeasurementValues } from "./grid-navigation";
 
 export type Measure = {
   /** Canonical key, e.g. "length". */
@@ -31,9 +36,6 @@ export type Measure = {
   min?: number;
   max?: number;
 };
-
-/** Values per measure key, one per row; null where nothing is entered. */
-export type MeasurementValues = Readonly<Record<string, readonly (number | null)[]>>;
 
 type GridLabels = { row: string; statistic: string; spec: string; result: string };
 
@@ -50,8 +52,6 @@ type MeasurementGridProps = {
   labels?: Partial<GridLabels>;
   className?: string;
 };
-
-const keyOf = (measure: string, row: number) => `${measure}:${row}`;
 
 const HEAD_CELL = "sticky top-0 z-10 border-b border-border bg-slate-50 px-2.5 py-2 align-bottom font-semibold";
 const ROW_HEAD = "sticky left-0 z-[1] border-r border-b border-border px-3 text-left font-normal tabular-nums";
@@ -75,7 +75,7 @@ export function MeasurementGrid({
     ...labels,
   };
   const idBase = useId();
-  const [invalid, setInvalid] = useState<Readonly<Record<string, InvalidEntry>>>({});
+  const [invalid, setInvalid] = useState<InvalidCells>({});
   const [notice, setNotice] = useState("");
   const inputs = useRef(new Map<string, HTMLInputElement>());
   const size = { rows, cols: measures.length };
@@ -84,11 +84,11 @@ export function MeasurementGrid({
   const columnOf = (measure: string) => Array.from({ length: rows }, (_, row) => valueAt(measure, row));
   // A rejected entry leaves its cell null; a value set later by the parent supersedes it.
   const invalidAt = (measure: string, row: number) =>
-    valueAt(measure, row) === null ? invalid[keyOf(measure, row)] : undefined;
+    valueAt(measure, row) === null ? invalid[cellKey(measure, row)] : undefined;
   const errorId = (measure: string, row: number) => `${idBase}-error-${measure}-${row}`;
 
   const focusCell = ({ row, col }: CellPosition) => {
-    inputs.current.get(keyOf(measures[col].key, row))?.focus();
+    inputs.current.get(cellKey(measures[col].key, row))?.focus();
   };
 
   const setValue = (measure: string, row: number, value: number | null) => {
@@ -100,8 +100,8 @@ export function MeasurementGrid({
   const setInvalidAt = (measure: string, row: number, entry: InvalidEntry | null) => {
     setInvalid((current) => {
       const next = { ...current };
-      if (entry) next[keyOf(measure, row)] = entry;
-      else delete next[keyOf(measure, row)];
+      if (entry) next[cellKey(measure, row)] = entry;
+      else delete next[cellKey(measure, row)];
       return next;
     });
   };
@@ -118,34 +118,10 @@ export function MeasurementGrid({
   const onCellPaste = (row: number, col: number) => (pasted: string) => {
     const plan = planPaste(pasted, { row, col }, size);
     if (!plan) return false;
-
-    const columns: Record<string, (number | null)[]> = {};
-    const nextInvalid = { ...invalid };
-    let rejected = 0;
-    for (const cell of plan.cells) {
-      const measure = measures[cell.col];
-      const column = (columns[measure.key] ??= columnOf(measure.key));
-      const result = readDecimal(cell.raw, measure);
-      if (result.ok) {
-        column[cell.row] = result.value;
-        delete nextInvalid[keyOf(measure.key, cell.row)];
-      } else {
-        column[cell.row] = null;
-        nextInvalid[keyOf(measure.key, cell.row)] = { raw: cell.raw, error: result.error };
-        rejected += 1;
-      }
-    }
-    onValuesChange({ ...values, ...columns });
-    setInvalid(nextInvalid);
-    setNotice(
-      [
-        `Pasted ${plan.cells.length} values.`,
-        rejected > 0 && `${rejected} not stored.`,
-        plan.skipped > 0 && `${plan.skipped} did not fit.`,
-      ]
-        .filter(Boolean)
-        .join(" "),
-    );
+    const result = applyPaste(plan, measures, rows, values, invalid);
+    onValuesChange(result.values);
+    setInvalid(result.invalid);
+    setNotice(result.notice);
     return true;
   };
 
@@ -205,8 +181,8 @@ export function MeasurementGrid({
                     >
                       <NumericCell
                         ref={(element) => {
-                          if (element) inputs.current.set(keyOf(measure.key, row), element);
-                          else inputs.current.delete(keyOf(measure.key, row));
+                          if (element) inputs.current.set(cellKey(measure.key, row), element);
+                          else inputs.current.delete(cellKey(measure.key, row));
                         }}
                         variant="cell"
                         value={valueAt(measure.key, row)}
@@ -282,7 +258,7 @@ export function MeasurementGrid({
       {problems.length > 0 && (
         <ul className="space-y-1 border-t border-fail-border bg-fail-tint px-3 py-2.5 text-sm text-fail">
           {problems.map(({ measure, row, col, entry }) => (
-            <li key={keyOf(measure.key, row)} id={errorId(measure.key, row)}>
+            <li key={cellKey(measure.key, row)} id={errorId(measure.key, row)}>
               <button
                 type="button"
                 onClick={() => focusCell({ row, col })}

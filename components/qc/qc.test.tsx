@@ -1,5 +1,7 @@
 // Server-rendered markup checks: accessible names, states and computed
-// footers. Interaction (keys, paste) is covered by grid-navigation.test.ts.
+// footers. The interaction rules are pure functions with their own tests:
+// numeric-entry (commit, Escape), grid-navigation (Enter, arrows, paste) and
+// stepper-keys.
 import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";

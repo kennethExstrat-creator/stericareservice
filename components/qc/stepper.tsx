@@ -2,9 +2,9 @@
 
 // +/- counter for defect counts (BUILD_SPEC 8: counts by tapping, never
 // typing). Holding a button repeats; Arrow, Page, Home and End keys work
-// anywhere in the group. Buttons stay focusable at the limits (aria-disabled)
-// so keyboard focus is never dropped; a disabled stepper (an approved
-// inspection) leaves the tab order.
+// anywhere in the group (stepper-keys.ts). Buttons stay focusable at the
+// limits (aria-disabled) so keyboard focus is never dropped; a disabled
+// stepper (an approved inspection) leaves the tab order.
 import {
   useEffect,
   useRef,
@@ -15,6 +15,7 @@ import {
 } from "react";
 import { MinusIcon, PlusIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { clampCount, stepperKeyValue } from "./stepper-keys";
 
 const REPEAT_DELAY_MS = 450;
 const REPEAT_INTERVAL_MS = 75;
@@ -61,7 +62,7 @@ export function Stepper({
     return () => clearTimeout(state.timer);
   }, []);
 
-  const clamp = (n: number) => Math.min(max ?? Number.POSITIVE_INFINITY, Math.max(min, n));
+  const clamp = (n: number) => clampCount(n, { min, max });
   const canDecrease = !disabled && value > min;
   const canIncrease = !disabled && (max === undefined || value < max);
 
@@ -104,19 +105,9 @@ export function Stepper({
     // A long press released off the button leaves no click to consume its flag.
     if (event.key === "Enter" || event.key === " ") press.current.fired = false;
     if (disabled) return;
-    const target: Record<string, number | undefined> = {
-      ArrowUp: value + step,
-      ArrowDown: value - step,
-      PageUp: value + step * 10,
-      PageDown: value - step * 10,
-      Home: min,
-      End: max,
-    };
-    if (!(event.key in target)) return;
+    const next = stepperKeyValue(event.key, value, { min, max, step });
+    if (next === null) return;
     event.preventDefault();
-    const wanted = target[event.key];
-    if (wanted === undefined) return;
-    const next = clamp(wanted);
     if (next === value) return;
     onValueChange(next);
     // The spinbutton announces its own value; from a button, say it.

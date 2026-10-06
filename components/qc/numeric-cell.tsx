@@ -3,7 +3,8 @@
 // Numeric entry for measurements (BUILD_SPEC 6.2 rule 1). Text is parsed when
 // the cell is left (blur, Enter, arrow keys): a number is committed; anything
 // else, such as "2 42", stays on screen with an error while the stored value
-// becomes null. Text is never stored. Escape restores the last value.
+// becomes null. Text is never stored. Escape restores the last value. The
+// rules are pure functions in numeric-entry.ts.
 import {
   useId,
   useRef,
@@ -15,10 +16,16 @@ import {
   type MouseEvent,
 } from "react";
 import { cn } from "@/lib/utils";
-import { formatReading, readDecimal } from "@/lib/stats";
+import {
+  commitChange,
+  entryKeyAction,
+  entryText,
+  rejectionMessage,
+  showsEntryError,
+  type InvalidEntry,
+} from "./numeric-entry";
 
-/** What was typed that is not a usable number, and why. */
-export type InvalidEntry = { raw: string; error: string };
+export type { InvalidEntry } from "./numeric-entry";
 
 type NumericCellProps = Omit<
   ComponentProps<"input">,
@@ -89,23 +96,18 @@ export function NumericCell({
     const raw = draftRef.current;
     if (raw === null) return;
     updateDraft(null);
-    const result = readDecimal(raw, { min, max });
-    if (!result.ok) {
-      if (value !== null) onValueChange(null);
-      setInvalid({ raw, error: result.error });
-      return;
-    }
-    if (invalid) setInvalid(null);
-    if (result.value !== value) onValueChange(result.value);
+    const change = commitChange(raw, { value, invalid }, { min, max });
+    if ("value" in change) onValueChange(change.value ?? null);
+    if ("invalid" in change) setInvalid(change.invalid ?? null);
   };
 
-  const display = draft ?? invalid?.raw ?? formatReading(value, decimals);
-  // Reward early: the error clears as soon as the edit becomes valid.
-  const showError = invalid !== null && (draft === null || !readDecimal(draft, { min, max }).ok);
+  const display = entryText(draft, invalid, value, decimals);
+  const showError = showsEntryError(invalid, draft, { min, max });
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") commit();
-    if (event.key === "Escape" && draftRef.current !== null) {
+    const action = entryKeyAction(event.key, draftRef.current !== null);
+    if (action === "commit") commit();
+    if (action === "revert") {
       event.preventDefault();
       updateDraft(null);
     }
@@ -195,7 +197,7 @@ export function NumericCell({
       </div>
       {showError && invalid && (
         <p id={errorId} className="text-sm text-fail">
-          “{invalid.raw}” is not stored. {invalid.error}
+          {rejectionMessage(invalid)}
         </p>
       )}
     </div>
