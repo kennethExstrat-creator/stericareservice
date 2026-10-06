@@ -16,6 +16,7 @@ export const definition = defineModule<WeightData, WeightConfig, WeightComputed>
   defaultConfig: WEIGHT_DEFAULT_CONFIG,
   perSize: true,
   calc: calcWeight,
+  loadCapture: () => import("./Capture"),
 });
 
 export type { WeightData } from "./schema";
