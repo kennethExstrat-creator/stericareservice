@@ -1,7 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { decide, labelingPlan } from "./decision";
-import { planFromLotSize, planFromSampleSize, sampleSizeFromLotSize, type AqlResult } from "./plan";
-import { LotSampleSchema, LotSizePlanSchema, SampleSizePlanSchema, type Aql } from "./schema";
+import {
+  planFromLotSize,
+  planFromSampleSize,
+  planMatchesLot,
+  planMatchesSample,
+  sampleSizeFromLotSize,
+  type AqlResult,
+} from "./plan";
+import {
+  LotSampleSchema,
+  LotSizePlanSchema,
+  SampleSizePlanSchema,
+  type Aql,
+  type LotSizePlan,
+  type SampleSizePlan,
+} from "./schema";
 import type { InspectionLevel } from "./tables";
 
 /** The plan of a result that must succeed; the error fails the test otherwise. */
@@ -326,5 +340,61 @@ describe("planFromLotSize and sampleSizeFromLotSize", () => {
       expect(copy).toEqual(plan);
       expect(LotSampleSchema.parse(copy)).toEqual(plan);
     }
+  });
+});
+
+describe("planMatchesSample and planMatchesLot (BUILD_SPEC 6.2 rule 8)", () => {
+  it("match the engine's plans, also after a JSON round trip", () => {
+    for (const plan of [fromSample(80, 1.5), fromSample(500, 4.0), fromSample(10, 4.0), fromSample(100, 0)]) {
+      expect(planMatchesSample(SampleSizePlanSchema.parse(JSON.parse(JSON.stringify(plan))))).toBe(true);
+    }
+    for (const plan of [fromLot(100, "I", 4.0, 8), fromLot(5_800_000, "I", 0), fromLot(8, "III", 0.65)]) {
+      expect(planMatchesLot(LotSizePlanSchema.parse(JSON.parse(JSON.stringify(plan))))).toBe(true);
+    }
+  });
+
+  it("refuse a plan the schema accepts but the tables do not give", () => {
+    const tampered = { codeLetter: "J", usedLetter: "R", n: 80, aql: 1.5, ac: 44, re: 45, arrow: null, sampleSize: 500, warnings: [] };
+    expect(planMatchesSample(SampleSizePlanSchema.parse(tampered))).toBe(false);
+
+    const plan = fromSample(500, 4.0);
+    const edits: Partial<SampleSizePlan>[] = [
+      { codeLetter: "M" },
+      { usedLetter: "N" },
+      { n: 500 },
+      { ac: 14, re: 15 },
+      { arrow: null },
+      { aql: 2.5 },
+      { sampleSize: 315 },
+    ];
+    for (const edit of edits) expect(planMatchesSample({ ...plan, ...edit }), JSON.stringify(edit)).toBe(false);
+    // Warnings are messages, recomputed with the plan.
+    expect(planMatchesSample({ ...plan, warnings: [] })).toBe(true);
+  });
+
+  it("refuse a plan left over after the sample size or AQL was edited", () => {
+    const plan = fromSample(80, 1.5);
+    expect(planMatchesSample(plan, { sampleSize: 80, aql: 1.5 })).toBe(true);
+    expect(planMatchesSample(plan, { sampleSize: 200, aql: 1.5 })).toBe(false);
+    expect(planMatchesSample(plan, { sampleSize: 80, aql: 2.5 })).toBe(false);
+    expect(planMatchesSample(plan, { sampleSize: 1, aql: 1.5 })).toBe(false);
+  });
+
+  it("refuse a lot plan the tables do not give for its own lot, level and AQL", () => {
+    const plan = fromLot(100, "I", 4.0, 8);
+    const edits: Partial<LotSizePlan>[] = [{ lotSize: 5_000 }, { level: "II" }, { aql: 2.5 }, { usedLetter: "D", n: 8, ac: 0, re: 1 }];
+    for (const edit of edits) expect(planMatchesLot({ ...plan, ...edit }), JSON.stringify(edit)).toBe(false);
+  });
+
+  it("refuse a lot plan made for another lot, level or sample than the module's", () => {
+    const plan = fromLot(100, "I", 4.0, 8);
+    const lot = { lotSize: 100, level: "I", aql: 4.0, sampleSize: 8 } as const;
+    expect(planMatchesLot(plan, lot)).toBe(true);
+    // A plan whose sample was changed to 13 is what the tables give for 13, but not for the 8 entered.
+    expect(planMatchesLot({ ...plan, sampleSize: 13 })).toBe(true);
+    expect(planMatchesLot({ ...plan, sampleSize: 13 }, lot)).toBe(false);
+    expect(planMatchesLot(plan, { ...lot, sampleSize: null })).toBe(false);
+    expect(planMatchesLot(plan, { ...lot, level: "S-1" })).toBe(false);
+    expect(planMatchesLot(plan, { ...lot, lotSize: 1 })).toBe(false);
   });
 });

@@ -99,6 +99,27 @@ export function planFromLotSize(input: LotSizeInput & { aql: Aql }): AqlResult<L
   return { ok: true, plan: { codeLetter, ...plan, aql, lotSize, level, sampleSize, warnings } };
 }
 
+// What the tables decide in a plan, and what it was made for. Warnings are
+// messages, so they are not compared.
+const SAMPLE_PLAN_KEYS = ["codeLetter", "usedLetter", "n", "aql", "ac", "re", "arrow", "sampleSize"] as const;
+const LOT_PLAN_KEYS = [...SAMPLE_PLAN_KEYS, "lotSize", "level"] as const;
+
+/**
+ * BUILD_SPEC 6.2 rule 8: true when a stored or posted plan is the one the
+ * tables give for the sample size and AQL (the plan's own unless given), so a
+ * stale or edited plan cannot be saved.
+ */
+export function planMatchesSample(plan: SampleSizePlan, input: SampleSizeInput = plan): boolean {
+  const expected = planFromSampleSize(input);
+  return expected.ok && SAMPLE_PLAN_KEYS.every((key) => plan[key] === expected.plan[key]);
+}
+
+/** planMatchesSample for a lot plan, which also holds the lot size, level and sample taken. */
+export function planMatchesLot(plan: LotSizePlan, input: LotSizeInput & { aql: Aql } = plan): boolean {
+  const expected = planFromLotSize(input);
+  return expected.ok && LOT_PLAN_KEYS.every((key) => plan[key] === expected.plan[key]);
+}
+
 /** AQL 0 (critical defects) is Accept 0 / Reject 1 at any code letter; other AQLs come from Table 2-A. */
 function planAt(codeLetter: CodeLetter, aql: Aql): TablePlan {
   if (aql === 0) return { usedLetter: codeLetter, n: SAMPLE_SIZES[codeLetter], ac: 0, re: 1, arrow: null };

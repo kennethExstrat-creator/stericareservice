@@ -14,12 +14,13 @@ ISO 2859-1 Tables 1 and 2-A are identical to ANSI/ASQ Z1.4 Tables I and II-A, wh
 | `sampleSizeFromLotSize` | lot size, inspection level, sample taken (optional) | Table 1 code letter and its n; flags a sample below the plan |
 | `planFromLotSize` | lot size, inspection level, AQL, sample taken (optional) | Table 1, then Table 2-A after arrows; `n` is the sample to take |
 | `decide` | defects found, plan | `reject` at Re or more; `accept` at Ac or fewer once the sample inspected reaches the plan's `n`; `incomplete` otherwise (rule 4) |
+| `planMatchesSample`, `planMatchesLot` | a stored or posted plan; optionally the module's own inputs (sample size and AQL, or lot size, level, AQL and sample taken) | whether the tables give that plan for those inputs (BUILD_SPEC 6.2 rule 8) |
 | `labelingPlan` | nothing | Accept 0 / Reject 1 |
 | `DEFAULT_AQL`, `resolveAqls` | the template's overrides | watertight 1.5, critical 0, major 2.5, minor 4.0, with overrides on top |
 | `describePlan`, `formatAql` | a plan, an AQL | one line of text; the AQL as printed (`0.010`, `4.0`) |
 | `lookupPlan`, `codeLetterForLotSize`, `codeLetterForSampleSize` | checked values | raw table lookups; they throw on bad input |
 
-Results are plain JSON. The zod schemas in `lib/aql/schema.ts` describe them (`SampleSizePlanSchema`, `LotSizePlanSchema`, `LotSampleSchema`, `DecisionSchema`) and the template config values (`InspectionLevelSchema`, `AqlSchema`).
+Results are plain JSON. The zod schemas in `lib/aql/schema.ts` describe them (`SampleSizePlanSchema`, `LotSizePlanSchema`, `LotSampleSchema`, `DecisionSchema`) and the template config values (`InspectionLevelSchema`, `AqlSchema`). The plan schemas check the shape and Re = Ac + 1 only; `planMatchesSample` and `planMatchesLot` check a plan against the tables.
 
 ```ts
 planFromSampleSize({ sampleSize: 500, aql: 4.0 });
@@ -67,6 +68,7 @@ const WatertightSizeSchema = z
 8. **Whole lot.** When the plan's n is not smaller than the lot, `sample_exceeds_lot` says to inspect every item (footnote to Table 2-A).
 9. **Defaults.** Watertight 1.5, major 2.5, minor 4.0, critical 0, overridable per template and per client.
 10. **Inspection level.** ISO 2859-1 10.1 uses level II unless one is specified; the template specifies it. The STD_EG example matches level I; the SAFEDON_EG example sampled below level I (BUILD_SPEC 13).
+11. **Stored plans.** A plan that does not match the sample size cannot be saved (BUILD_SPEC 6.2 rule 8). `planMatchesSample(plan, { sampleSize, aql })` and `planMatchesLot(plan, { lotSize, level, aql, sampleSize })` recompute the plan from the module's own values and compare the code letters, `n`, `aql`, Ac, Re, the arrow and the inputs. They do not compare warnings, which are messages. Without the second argument they check the plan against its own inputs only.
 
 ## How the modules use it
 
@@ -74,7 +76,7 @@ const WatertightSizeSchema = z
 - `watertight`: per size (and hand), `planFromSampleSize({ sampleSize: tested, aql })`, then `decide(holes, plan)`. `accept` is pass and `reject` is fail. `incomplete` is never shown as passed: the module shows not done (BUILD_SPEC 6.2 rule 5, since the rest of the sample is missing) with the plan's `sample_too_small` warning, which names the n required.
 - `visual`: the same per class, with the class's AQL; critical is AQL 0.
 - `labeling`: `decide(defects, labelingPlan())` per level. Limits alone only give `accept` or `reject`.
-- Modules store the plan in `computed`, composing its schema as shown under [API](#api), and copy its warnings into the export with the size.
+- Modules store the plan in `computed`, composing its schema as shown under [API](#api), and copy its warnings into the export with the size. A server action that saves a plan sent by the client either recomputes it or checks it with `planMatchesSample` or `planMatchesLot` against the module's own values (rule 11). The schemas alone do not catch a stale plan.
 
 `lib/aql/plan.test.ts` holds every row of the BUILD_SPEC 7 table and the AQL checks of `docs/examples/expected-results.md`, including the corrected STD_EG limits (code N: watertight 14 / 15, major 21 / 22, minor 21 / 22 via code M). `lib/aql/decision.test.ts` checks every Table 2-A cell: no arrow down accepts on the smaller sample.
 

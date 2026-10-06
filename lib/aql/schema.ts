@@ -92,7 +92,10 @@ export const SampleSizePlanShape = {
   warnings: z.array(AqlWarningSchema),
 };
 
-/** The plan for a sample already inspected (watertight, visual). */
+/**
+ * The plan for a sample already inspected (watertight, visual). It checks the
+ * shape and Re = Ac + 1; planMatchesSample checks the plan against the tables.
+ */
 export const SampleSizePlanSchema = z.object(SampleSizePlanShape).check(singleSamplingCheck);
 export type SampleSizePlan = z.infer<typeof SampleSizePlanSchema>;
 
@@ -107,7 +110,10 @@ const lotFields = {
 /** LotSizePlanSchema's fields without the Re = Ac + 1 check, for modules to compose from. */
 export const LotSizePlanShape = { ...planFields, ...lotFields, warnings: z.array(AqlWarningSchema) };
 
-/** The plan for a lot at an inspection level and AQL: Table 1, then Table 2-A. */
+/**
+ * The plan for a lot at an inspection level and AQL: Table 1, then Table 2-A.
+ * It checks the shape and Re = Ac + 1; planMatchesLot checks it against the tables.
+ */
 export const LotSizePlanSchema = z.object(LotSizePlanShape).check(singleSamplingCheck);
 export type LotSizePlan = z.infer<typeof LotSizePlanSchema>;
 

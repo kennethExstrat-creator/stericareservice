@@ -24,6 +24,8 @@ export {
 export {
   planFromLotSize,
   planFromSampleSize,
+  planMatchesLot,
+  planMatchesSample,
   sampleSizeFromLotSize,
   type AqlResult,
   type LotSizeInput,
