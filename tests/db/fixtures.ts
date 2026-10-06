@@ -45,18 +45,23 @@ export const UNSAFE_NAMES: [label: string, name: (folder: string, other: string)
   ["an uppercase folder id", (folder) => `${folder.toUpperCase()}/${randomUUID()}.jpg`],
 ];
 
-/** Ids of the people most suites need. Every one starts as an inspector. */
+/** Ids of the people most suites need, all active. */
 export interface People {
   admin: string;
   inspector: string;
   otherInspector: string;
 }
 
-/** Kenneth's first-admin step: one UPDATE in the SQL editor. */
+/** Kenneth's first-admin step: one UPDATE in the SQL editor (docs/DATABASE.md). */
 export async function promoteToAdmin(db: Db, userId: string): Promise<void> {
   await asOwner(db, (tx) =>
-    tx.query("update public.profiles set role = 'admin' where id = $1", [userId]),
+    tx.query("update public.profiles set role = 'admin', active = true where id = $1", [userId]),
   );
+}
+
+/** What the invite action does with the secret key once Auth has created the user. */
+export async function activate(db: Db, userId: string): Promise<void> {
+  await asService(db, (tx) => tx.query("update public.profiles set active = true where id = $1", [userId]));
 }
 
 export async function createPeople(db: Db): Promise<People> {

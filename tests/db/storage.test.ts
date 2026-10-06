@@ -9,7 +9,7 @@ import {
   type InspectionRow,
   type People,
 } from "./fixtures";
-import { asOwner, asService, asUser, column, createTestDb, pgError, type Db, type Tx } from "./harness";
+import { asService, asUser, column, createTestDb, pgError, type Db, type Tx } from "./harness";
 
 /** What the Storage API runs, as the caller, when a file is uploaded. */
 function upload(tx: Tx, bucket: string, name: string) {
@@ -27,6 +27,7 @@ function names(tx: Tx, bucket: string): Promise<string[]> {
 describe("storage policies", { timeout: 30_000 }, () => {
   let db: Db;
   let people: People;
+  let templateId: string;
   let draft: InspectionRow;
   let submitted: InspectionRow;
   let others: InspectionRow;
@@ -38,7 +39,7 @@ describe("storage policies", { timeout: 30_000 }, () => {
   beforeAll(async () => {
     db = await createTestDb();
     people = await createPeople(db);
-    const templateId = await createTemplate(db);
+    templateId = await createTemplate(db);
     draft = await createInspection(db, people.inspector, templateId);
     submitted = await createInspection(db, people.inspector, templateId);
     others = await createInspection(db, people.otherInspector, templateId);
@@ -126,6 +127,145 @@ describe("storage policies", { timeout: 30_000 }, () => {
         asUser(db, people.admin, (tx) => upload(tx, "inspection-photos", `${randomUUID()}/${randomUUID()}.jpg`)),
       );
       expect(error.code).toBe("42501");
+    });
+
+    it("hides a stored name that climbs out of its folder, from admins too", async () => {
+      for (const userId of [people.inspector, people.otherInspector, people.admin]) {
+        const seen = await asUser(db, userId, (tx) =>
+          column<string>(tx, "select name from storage.objects where name = $1", [planted]),
+        );
+        expect(seen, userId).toEqual([]);
+      }
+    });
+
+    it("keeps the files of an approved inspection readable but fixed, for admins too", async () => {
+      for (const userId of [people.otherInspector, people.admin]) {
+        const seen = await asUser(db, userId, async (tx) => [
+          ...(await names(tx, "inspection-photos")),
+          ...(await names(tx, "inspection-files")),
+        ]);
+        expect(seen.filter((name) => name.startsWith(`${approved.id}/`)), userId).toHaveLength(2);
+
+        const added = await pgError(
+          asUser(db, userId, (tx) => upload(tx, "inspection-photos", `${approved.id}/${randomUUID()}.jpg`)),
+        );
+        expect(added.code, userId).toBe("42501");
+
+        const changed = await asUser(db, userId, async (tx) => [
+          (await tx.query("update storage.objects set name = name || '.old' where name like $1", [`${approved.id}/%`]))
+            .affectedRows,
+          (await tx.query("delete from storage.objects where name like $1", [`${approved.id}/%`])).affectedRows,
+        ]);
+        expect(changed, userId).toEqual([0, 0]);
+      }
+    });
+
+    it("never gives the folder of a deleted inspection to a new one", async () => {
+      const gone = await createInspection(db, people.inspector, templateId);
+      const leftover = `${gone.id}/${randomUUID()}.jpg`;
+      await asUser(db, people.inspector, (tx) => upload(tx, "inspection-photos", leftover));
+      // The app removes the folder first; here the file stays behind.
+      await asUser(db, people.admin, (tx) => tx.query("delete from public.inspections where id = $1", [gone.id]));
+
+      const reuse = (tx: Tx, inspectorId: string) =>
+        tx.query("insert into public.inspections (id, template_id, inspector_id) values ($1, $2, $3)", [
+          gone.id,
+          templateId,
+          inspectorId,
+        ]);
+      const attempts = [
+        () => asUser(db, people.otherInspector, (tx) => reuse(tx, people.otherInspector)),
+        () => asUser(db, people.admin, (tx) => reuse(tx, people.inspector)),
+        () => asService(db, (tx) => reuse(tx, people.otherInspector)),
+      ];
+      for (const attempt of attempts) {
+        expect(await pgError(attempt())).toMatchObject({
+          code: "23505",
+          message: `inspection id ${gone.id} belonged to a deleted inspection`,
+        });
+      }
+
+      // Nor can an existing inspection take the id over: an id never changes.
+      const mine = await createInspection(db, people.otherInspector, templateId);
+      const renamed = await pgError(
+        asUser(db, people.otherInspector, (tx) =>
+          tx.query("update public.inspections set id = $2 where id = $1", [mine.id, gone.id]),
+        ),
+      );
+      expect(renamed).toMatchObject({ code: "42501", message: "inspections.id cannot change" });
+
+      for (const userId of [people.inspector, people.otherInspector, people.admin]) {
+        const seen = await asUser(db, userId, (tx) =>
+          column<string>(tx, "select name from storage.objects where name = $1", [leftover]),
+        );
+        expect(seen, userId).toEqual([]);
+      }
+    });
+  });
+
+  // supabase-js puts stored names into request URLs unencoded, where most of
+  // these resolve into another folder. The three uuid-folder buckets and every
+  // pointer column accept only '<lowercase uuid>/<segment>[/<segment>...]'.
+  describe.each(UNSAFE_NAMES)("a name with %s", (_label, unsafeName) => {
+    it("is refused in the inspection buckets, admins included", async () => {
+      const attempts: [userId: string, bucket: string][] = [
+        [people.inspector, "inspection-photos"],
+        [people.inspector, "inspection-files"],
+        [people.admin, "inspection-photos"],
+        [people.admin, "inspection-files"],
+      ];
+      for (const [userId, bucket] of attempts) {
+        const error = await pgError(asUser(db, userId, (tx) => upload(tx, bucket, unsafeName(draft.id, others.id))));
+        expect(error.code, `${userId} ${bucket}`).toBe("42501");
+      }
+    });
+
+    it("is refused in signatures", async () => {
+      const error = await pgError(
+        asUser(db, people.inspector, (tx) =>
+          upload(tx, "signatures", unsafeName(people.inspector, people.otherInspector)),
+        ),
+      );
+      expect(error.code).toBe("42501");
+    });
+
+    it("is refused as a photo, thumbnail, file or signature path", async () => {
+      const name = unsafeName(draft.id, others.id);
+      const errors = [
+        await pgError(
+          asUser(db, people.inspector, (tx) =>
+            tx.query("insert into public.inspection_photos (inspection_id, storage_path) values ($1, $2)", [
+              draft.id,
+              name,
+            ]),
+          ),
+        ),
+        await pgError(
+          asUser(db, people.inspector, (tx) =>
+            tx.query(
+              "insert into public.inspection_photos (inspection_id, storage_path, thumb_path) values ($1, $2, $3)",
+              [draft.id, `${draft.id}/${randomUUID()}.jpg`, name],
+            ),
+          ),
+        ),
+        await pgError(
+          asUser(db, people.inspector, (tx) =>
+            tx.query("insert into public.inspection_files (inspection_id, storage_path, name) values ($1, $2, 'x.pdf')", [
+              draft.id,
+              name,
+            ]),
+          ),
+        ),
+        await pgError(
+          asUser(db, people.inspector, (tx) =>
+            tx.query("update public.profiles set signature_path = $2 where id = $1", [
+              people.inspector,
+              unsafeName(people.inspector, people.otherInspector),
+            ]),
+          ),
+        ),
+      ];
+      expect(errors.map((error) => error.code)).toEqual(["23514", "23514", "23514", "23514"]);
     });
   });
 

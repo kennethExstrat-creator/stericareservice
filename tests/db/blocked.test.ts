@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  activate,
   addFile,
   addPhoto,
   addReview,
@@ -26,8 +27,8 @@ async function everythingVisible(tx: Tx): Promise<Record<string, number>> {
 
 const nothing = Object.fromEntries([...TABLES, "storage.objects"].map((table) => [table, 0]));
 
-// BUILD_SPEC 3: deactivated users cannot read data; no public access at all.
-describe("deactivated users and anon", { timeout: 30_000 }, () => {
+// BUILD_SPEC 3: deactivated users cannot read data; no public sign-up, no public access.
+describe("deactivated users, new accounts and anon", { timeout: 30_000 }, () => {
   let db: Db;
   let people: People;
   let secondAdmin: string;
@@ -139,6 +140,36 @@ describe("deactivated users and anon", { timeout: 30_000 }, () => {
       ),
     );
     expect(upload.code).toBe("42501");
+  });
+
+  it("keeps a new account inert until it is activated", async () => {
+    // What a public sign-up, an anonymous sign-in or the dashboard's Add user
+    // creates: the raw trigger result, before anyone activates it.
+    const stranger = await createAuthUser(db, { email: "stranger@example.com", active: false });
+    const status = await asUser(db, stranger, (tx) => tx.query("select * from public.my_profile_status()"));
+    expect(status.rows).toEqual([{ active: false, role: "inspector" }]);
+    expect(await asUser(db, stranger, everythingVisible)).toEqual(nothing);
+
+    const insert = await pgError(createInspection(db, stranger, templateId));
+    const upload = await pgError(
+      asUser(db, stranger, (tx) =>
+        tx.query("insert into storage.objects (bucket_id, name) values ('signatures', $1)", [
+          `${stranger}/signature.png`,
+        ]),
+      ),
+    );
+    expect(insert).toMatchObject({ code: "42501", message: "the account is not active" });
+    expect(upload.code).toBe("42501");
+
+    // The invite action activates the account it creates.
+    await activate(db, stranger);
+    const seen = await asUser(db, stranger, async (tx) => ({
+      manufacturers: await visibleRows(tx, "manufacturers"),
+      templates: await visibleRows(tx, "templates"),
+      inspections: await visibleRows(tx, "inspections"),
+    }));
+    expect(seen).toEqual({ manufacturers: 2, templates: 1, inspections: 0 });
+    expect((await createInspection(db, stranger, templateId)).inspector_id).toBe(stranger);
   });
 
   it("lets a reactivated inspector back in", async () => {
