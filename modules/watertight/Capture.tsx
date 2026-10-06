@@ -280,7 +280,11 @@ export default function WatertightCapture({
   );
 }
 
-/** No. of sample tested for one size, with the sampling plan's n one tap away. */
+/**
+ * No. of sample tested for one size, with the sampling plan's n one tap away.
+ * The field shows only what was entered (no placeholder): an empty field is a
+ * size not yet tested, never one that seems to hold the plan's n.
+ */
 function TestedField({
   label,
   sizeName,
@@ -314,16 +318,16 @@ function TestedField({
     <div className={cn("relative min-w-0 space-y-2", !onTab && OTHER_SIZE)} {...issuePathProps(path)}>
       <NumberField
         label={
-          <>
+          // One element: the Label is a flex row, and ", size XS" must follow the text without a gap.
+          <span>
             {label}
             <span className={SIZE_IN_LABEL}>, size {sizeName}</span>
-          </>
+          </span>
         }
         value={tested}
         onValueChange={onTestedChange}
         integer
         min={2}
-        placeholder={planned === null ? undefined : String(planned)}
         error={error}
         hint={warnings.length > 0 ? <WarningNotes messages={warnings} /> : undefined}
         issuePath={[...path, "tested"]}
@@ -334,7 +338,13 @@ function TestedField({
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground touch:text-base">
           <span>Sampling plan: {planned}</span>
           {!readOnly && tested === null && (
-            <Button type="button" variant="outline" size="sm" onClick={() => onUsePlanned(planned)}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="touch:text-base"
+              onClick={() => onUsePlanned(planned)}
+            >
               Use {planned}
               <span className="sr-only"> for size {sizeName}</span>
             </Button>

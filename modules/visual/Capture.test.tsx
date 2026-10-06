@@ -57,6 +57,9 @@ const totals = (html: string) => Array.from(html.matchAll(/font-bold touch:text-
 
 const headings = (html: string) => Array.from(html.matchAll(/<h3[^>]*>([^<]+)<\/h3>/g), (match) => match[1]);
 
+/** The gloves inspected inputs, class by class. */
+const numberInputs = (html: string) => tagsWith(html, 'data-slot="numeric-cell"');
+
 const statuses = (html: string) =>
   tagsWith(html, 'data-slot="status-pill"').map((pill) => /data-status="(\w+)"/.exec(pill)?.[1]);
 
@@ -120,9 +123,22 @@ describe("visual capture", () => {
 
   it("offers the sampling plan's n for every class still without one", () => {
     const empty = render({ sizes: {}, context: M_500() });
+    expect(empty).toContain("Sampling plan: 500");
     expect(empty).toMatch(/Use 500 for every class<span class="sr-only"> of size M<\/span>/);
-    expect(empty.match(/placeholder="500"/g)).toHaveLength(3);
+    // 16 px text on touch, as every field's; size sm alone keeps 14 px there.
+    expect(/<button[^>]*>Use 500 for every class/.exec(empty)?.[0]).toContain("touch:text-base");
+    // Offered beside the fields, never inside them: an empty field must not look filled (6.2 rule 5).
+    expect(numberInputs(empty)).toHaveLength(3);
+    expect(numberInputs(empty).every((field) => field.includes('value=""') && !field.includes(" placeholder="))).toBe(true);
     expect(render({ sizes: { M: inspectedAll(500) }, context: M_500() })).not.toContain("for every class");
+  });
+
+  it("shows a class not inspected as an empty field when read-only, never the sampling plan's n as if recorded", () => {
+    const html = render({ sizes: { M: { critical: { inspected: 500 } } }, context: M_500(), readOnly: true });
+    const fields = numberInputs(html);
+    expect(fields.map((field) => /value="([^"]*)"/.exec(field)?.[1])).toEqual(["500", "", ""]);
+    expect(fields.some((field) => field.includes(" placeholder="))).toBe(false);
+    expect(statuses(html)).toEqual(["pass", "not_done", "not_done"]);
   });
 
   it("shows the critical limit Ac 0 / Re 1 before the gloves inspected are entered, beside a critical defect's failure", () => {
@@ -152,6 +168,10 @@ describe("visual capture", () => {
     expect(fields[0]).toContain("hidden xl:in-data-[side-by-side]:block");
     expect(tagsWith(html, 'data-issue-path="\\[&quot;sizes&quot;,&quot;S&quot;,&quot;major&quot;\\]"')[0]).not.toContain("hidden");
     expect(tagsWith(html, 'data-slot="size-tabs"')[0]).toContain("data-side-by-side");
+    // One element in the flex Label, so ", size M" follows the text with no gap when it shows.
+    expect(html).toMatch(
+      /<label[^>]*><span>No\. of sample inspected<span class="sr-only">, Major Defects<\/span><span class="sr-only xl:in-data-\[side-by-side\]:not-sr-only">, size M<\/span><\/span><\/label>/,
+    );
   });
 
   it("shows only ordered sizes (6.2 rule 4)", () => {

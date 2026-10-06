@@ -57,6 +57,9 @@ const tagsWith = (html: string, attribute: string): string[] =>
 /** The footer totals, column by column. */
 const totals = (html: string) => Array.from(html.matchAll(/font-bold touch:text-lg[^"]*">(\d+)</g), (match) => Number(match[1]));
 
+/** The gloves tested inputs, size by size. */
+const numberInputs = (html: string) => tagsWith(html, 'data-slot="numeric-cell"');
+
 const M_500 = () => makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ watertightVisual: 500 }) } });
 
 describe("watertight capture", () => {
@@ -111,7 +114,12 @@ describe("watertight capture", () => {
     const empty = render({ sizes: {}, context: M_500() });
     expect(empty).toContain("Sampling plan: 500");
     expect(empty).toMatch(/Use 500<span class="sr-only"> for size M<\/span>/);
-    expect(empty).toContain('placeholder="500"');
+    // 16 px text on touch, as every field's; size sm alone keeps 14 px there.
+    expect(/<button[^>]*>Use 500/.exec(empty)?.[0]).toContain("touch:text-base");
+    // Offered beside the field, never inside it: an empty field must not look filled (6.2 rule 5).
+    expect(numberInputs(empty)).toHaveLength(1);
+    expect(numberInputs(empty)[0]).toContain('value=""');
+    expect(numberInputs(empty)[0]).not.toContain(" placeholder=");
     const entered = render({ sizes: { M: { tested: 500 } }, context: M_500() });
     expect(entered).not.toContain("Use 500");
     expect(entered).toContain('value="500"');
@@ -130,7 +138,10 @@ describe("watertight capture", () => {
     // From 1280 px SizeTabs marks itself data-side-by-side while the table fits; it keeps its tabs otherwise.
     expect(fields[1]).toContain("hidden xl:in-data-[side-by-side]:block");
     expect(tagsWith(html, 'data-slot="size-tabs"')[0]).toContain("data-side-by-side");
-    expect(html).toContain('No. of sample tested<span class="sr-only xl:in-data-[side-by-side]:not-sr-only">, size M</span>');
+    // One element in the flex Label, so ", size M" follows the text with no gap when it shows.
+    expect(html).toMatch(
+      /<label[^>]*><span>No\. of sample tested<span class="sr-only xl:in-data-\[side-by-side\]:not-sr-only">, size M<\/span><\/span><\/label>/,
+    );
   });
 
   it("says under the gloves tested what calc found: errors in red, warnings in amber", () => {
@@ -184,6 +195,28 @@ describe("watertight capture", () => {
     const inputs = html.match(/<input[^>]*>/g) ?? [];
     expect(inputs.length).toBeGreaterThan(0);
     expect(inputs.every((input) => /readOnly|readonly/.test(input))).toBe(true);
+  });
+
+  it("shows a size not tested as an empty field when read-only, never the sampling plan's n as if recorded", () => {
+    const sizes = ["XS", "S", "M", "L"];
+    const planned: Record<string, number> = { XS: 80, S: 200, M: 200, L: 80 };
+    const html = render({
+      sizes: { XS: { tested: 80, holes: { hole_finger: 1 } } },
+      context: makeTestContext({
+        sizes,
+        sampling: Object.fromEntries(sizes.map((size) => [size, makeSampling({ watertightVisual: planned[size] })])),
+      }),
+      readOnly: true,
+    });
+    const fields = numberInputs(html);
+    expect(fields.map((field) => /value="([^"]*)"/.exec(field)?.[1])).toEqual(["80", "", "", ""]);
+    expect(fields.some((field) => field.includes(" placeholder="))).toBe(false);
+    expect(tagsWith(html, 'data-slot="result-chip"').map((chip) => /data-status="(\w+)"/.exec(chip)?.[1])).toEqual([
+      "pass",
+      "not_done",
+      "not_done",
+      "not_done",
+    ]);
   });
 
   it("says so while no size is ordered", () => {

@@ -163,6 +163,7 @@ export default function VisualCapture({
                         type="button"
                         variant="outline"
                         size="sm"
+                        className="touch:text-base"
                         onClick={() => update((current) => fillInspected(current, entry, included, planned))}
                       >
                         Use {planned} for every class
@@ -295,7 +296,6 @@ function ClassSection({
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[repeat(auto-fill,minmax(14rem,1fr))]">
         {sizes.map((entry) => {
           const path: IssuePath = ["sizes", entry, cls, "inspected"];
-          const planned = samplingFor(context, entry).watertightVisual;
           const warnings = messagesAt(path, "warning");
           return (
             <div
@@ -303,19 +303,20 @@ function ClassSection({
               className={cn("relative min-w-0", entry !== size && OTHER_SIZE)}
               {...issuePathProps(["sizes", entry, cls])}
             >
+              {/* Only what was entered, no placeholder: an empty field is a class not yet inspected. */}
               <NumberField
                 label={
-                  <>
+                  // One element: the Label is a flex row, and ", size XS" must follow the text without a gap.
+                  <span>
                     {labelFor(labels, "inspected")}
                     <span className="sr-only">, {classLabel(labels, cls)}</span>
                     <span className={SIZE_IN_LABEL}>, size {formatSize(entry, { sizes: context.templateSizes })}</span>
-                  </>
+                  </span>
                 }
                 value={data.sizes[entry]?.[cls].inspected ?? null}
                 onValueChange={(inspected) => update((current) => setInspected(current, entry, cls, inspected))}
                 integer
                 min={2}
-                placeholder={planned === null ? undefined : String(planned)}
                 error={messagesAt(path, "error")[0] ?? null}
                 hint={warnings.length > 0 ? <WarningNotes messages={warnings} /> : undefined}
                 issuePath={path}
