@@ -48,7 +48,10 @@ export type FictionalDate = {
 /** An accept / reject pair as printed in a "Defect Limit" or "Limit" row. */
 export type Limit = { readonly accept: number; readonly reject: number };
 
-/** One printed row label and the canonical code it maps to (supabase/seed.sql). */
+/**
+ * One printed row label and the canonical code it maps to: from
+ * supabase/seed.sql (defects) or BUILD_SPEC 11 (labelling checks).
+ */
 export type CodedRow<C extends string> = { readonly code: C; readonly label: string };
 
 /* ------------------------------------------------------------------ *

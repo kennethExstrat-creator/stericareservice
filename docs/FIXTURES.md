@@ -37,7 +37,7 @@ schemas. An adapter maps each section into its module's data once the schemas ex
 - **Per size.** Each section lists only the sizes it filled in. What the report printed for sizes
   that were not ordered (pre-filled limits, `#VALUE!`, "Passed") is in `unorderedSizes`.
 - **Labels.** Row labels are verbatim, `[sic]` spellings included, each with its canonical code
-  from `supabase/seed.sql`.
+  from `supabase/seed.sql` (defects) or BUILD_SPEC 11 (labelling checks).
 
 | | STD_EG | SAFEDON_EG |
 |---|---|---|
