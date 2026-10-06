@@ -18,6 +18,8 @@ export const FRAMEWORK_ISSUE_CODES = {
   invalidConfig: "invalid_config",
   /** The module's calc threw. */
   calcFailed: "calc_failed",
+  /** The module's contribution to the context threw or named a part it does not own; it was left out. */
+  contributeFailed: "contribute_failed",
   /** The module's calc returned a result or computed values outside the contract. */
   invalidOutput: "invalid_output",
   /** 6.2.11: no inspector recorded. */
@@ -92,6 +94,16 @@ export function invalidConfigIssues(title: string, error: z.ZodError): CalcIssue
 export function calcFailedIssues(title: string, error: unknown): CalcIssue[] {
   const reason = error instanceof Error ? error.message : String(error);
   return [errorIssue(CODES.calcFailed, `${title} could not be calculated: ${reason}`)];
+}
+
+/** What other modules should have received from this one is missing: they may show not done because of it. */
+export function contributeFailedIssues(title: string, messages: readonly string[]): CalcIssue[] {
+  return messages.map((message) =>
+    errorIssue(
+      CODES.contributeFailed,
+      `${title} could not pass all its values to the other modules (${message}). Report this to a developer.`,
+    ),
+  );
 }
 
 export function invalidOutputIssues(title: string, what: string): CalcIssue[] {

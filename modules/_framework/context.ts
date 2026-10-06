@@ -8,6 +8,9 @@
 // own saved data (`contribute`), so every calc sees the complete context
 // whatever the template's module order. A source module that is switched
 // off or not filled in leaves its part empty; readers must cope with that.
+// A contribution that throws, or names a part another module owns, is left
+// out and recorded, and the engine reports it on that module: one module's
+// bug never stops the others.
 import type { EntityRef, ProductType, Standard } from "@/lib/schemas/common";
 import type { ModuleKey } from "@/lib/schemas/module-result";
 import type { ResolvedSize, ResolvedTemplate, TemplateUnit } from "@/lib/schemas/template";
@@ -92,6 +95,9 @@ export type InspectionMeta = {
   manufacturer?: EntityRef | null;
 };
 
+/** A source module whose contribution was left out, wholly or in part, and why. */
+export type ContributionError = { moduleKey: ModuleKey; message: string };
+
 export type InspectionContext = {
   template: {
     code: string;
@@ -119,6 +125,8 @@ export type InspectionContext = {
   cartons: Readonly<Record<string, readonly number[]>>;
   indicativeWeight: IndicativeWeight | null;
   aql: AqlSettings;
+  /** For the engine, which reports each as a `contribute_failed` error on that module. */
+  contributionErrors: readonly ContributionError[];
 };
 
 /** What a source module adds. Per-size maps may use any size spelling; the builder normalises. */
@@ -206,40 +214,61 @@ export function baseContext({ template, meta = {}, aqlDefaults = {} }: Omit<Buil
     cartons: {},
     indicativeWeight: null,
     aql: { ...AQL_DEFAULTS, ...withoutUndefined(aqlDefaults) },
+    contributionErrors: [],
   };
 }
 
 /**
  * Runs every included module's `contribute` on its saved data. Data or config
  * that fails its schema contributes nothing (the engine reports it). A
- * module contributing a part it does not own is a programming error.
+ * contribution that throws is left out, and so is a part the module does not
+ * own; both are recorded in `contributionErrors`.
  */
 export function buildInspectionContext(input: BuildContextInput, registry: ModuleRegistry): InspectionContext {
   let context = baseContext(input);
+  const errors: ContributionError[] = [];
   for (const resolved of input.template.modules) {
     if (!resolved.include) continue;
     const definition = registry[resolved.key];
     if (!definition.contribute) continue;
     const entry = readModuleEntry(input.data, "modules", resolved.key);
     if (!entry.hasData) continue;
-    const data = definition.dataSchema.safeParse(entry.value);
-    const config = definition.configSchema.safeParse(resolved.config);
-    if (!data.success || !config.success) continue;
-    const contribution = definition.contribute({ data: data.data, config: config.data });
-    assertOwnership(resolved.key, contribution);
-    context = applyContribution(context, contribution);
+    try {
+      const data = definition.dataSchema.safeParse(entry.value);
+      const config = definition.configSchema.safeParse(resolved.config);
+      if (!data.success || !config.success) continue;
+      const { owned, refused } = splitContribution(
+        resolved.key,
+        definition.contribute({ data: data.data, config: config.data }),
+      );
+      context = applyContribution(context, owned);
+      if (refused.length > 0) errors.push({ moduleKey: resolved.key, message: refused.join(" ") });
+    } catch (error) {
+      errors.push({ moduleKey: resolved.key, message: `contribute failed: ${messageOf(error)}` });
+    }
   }
-  return restrictToOrderedSizes(context);
+  return restrictToOrderedSizes({ ...context, contributionErrors: errors });
 }
 
-export function assertOwnership(key: ModuleKey, contribution: ContextContribution): void {
+/**
+ * The parts of a contribution that `key` owns (CONTEXT_SOURCES), and one line
+ * for each part it may not provide, which is left out.
+ */
+export function splitContribution(
+  key: ModuleKey,
+  contribution: ContextContribution,
+): { owned: ContextContribution; refused: string[] } {
   const owners: Partial<Record<string, ModuleKey>> = CONTEXT_SOURCES;
+  const owned: Record<string, unknown> = {};
+  const refused: string[] = [];
   for (const [part, value] of Object.entries(contribution)) {
     if (value === undefined) continue;
     const owner = owners[part];
-    if (owner === undefined) throw new Error(`${key} contributed "${part}", which is not part of the context.`);
-    if (owner !== key) throw new Error(`${key} contributed "${part}", which only ${owner} may provide.`);
+    if (owner === key) owned[part] = value;
+    else if (owner === undefined) refused.push(`${key} contributed "${part}", which is not part of the context.`);
+    else refused.push(`${key} contributed "${part}", which only ${owner} may provide.`);
   }
+  return { owned: owned as ContextContribution, refused };
 }
 
 export function applyContribution(context: InspectionContext, contribution: ContextContribution): InspectionContext {
@@ -331,6 +360,10 @@ function mapSizes<T, U>(record: Readonly<Record<string, T>>, map: (value: T) => 
     if (canonical !== null && (!(canonical in result) || size === canonical)) result[canonical] = map(value);
   }
   return result;
+}
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function finiteOrNull(value: number | null | undefined): number | null {

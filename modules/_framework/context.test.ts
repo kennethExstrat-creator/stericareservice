@@ -160,15 +160,40 @@ describe("buildInspectionContext: numbers flow forward", () => {
     expect(sizeLabel(build(exampleData(), template), "XL")).toBe("XL");
   });
 
-  it("refuses a contribution from a module that does not own that part", () => {
-    const rogue = defineModule({
-      ...stubModule({ key: "weight", title: "Weight (g)", perSize: true }),
-      contribute: () => ({ cartons: { M: [1] } }),
+  it("leaves out a part a module does not own, keeps the parts it owns, and records why", () => {
+    const greedy = defineModule({
+      ...stubModule({ key: "glove_info", title: "Glove Information" }),
+      contribute: () => ({ indicativeWeight: { grams: 3.5, size: "M" }, cartons: { M: [1] } }),
     });
-    const template = makeTestTemplate(TEST_REGISTRY, ["weight"]);
-    const data: InspectionData = { modules: { weight: { sizes: {} } }, custom: {} };
-    expect(() => buildInspectionContext({ template, data }, registryWith({ weight: rogue }))).toThrow(
-      'weight contributed "cartons", which only carton_sampling may provide.',
+    const registry = registryWith({ glove_info: greedy });
+    const context = buildInspectionContext(
+      { template: makeTestTemplate(registry, [...ALL]), data: exampleData(), meta: META },
+      registry,
     );
+    expect(context.indicativeWeight).toEqual({ grams: 3.5, size: "M" });
+    expect(context.cartons).toEqual({ M: [32, 578, 1186] });
+    expect(context.contributionErrors).toEqual([
+      { moduleKey: "glove_info", message: 'glove_info contributed "cartons", which only carton_sampling may provide.' },
+    ]);
+  });
+
+  it("records a contribution that throws and builds the rest of the context", () => {
+    const broken = defineModule({
+      ...stubModule({ key: "packing_config", title: "Packing configuration" }),
+      contribute: () => {
+        throw new Error("bug in contribute");
+      },
+    });
+    const registry = registryWith({ packing_config: broken });
+    const context = buildInspectionContext(
+      { template: makeTestTemplate(registry, [...ALL]), data: exampleData(), meta: META },
+      registry,
+    );
+    expect(context.packing.glovesPerCase).toBeNull();
+    expect(context.sizes).toEqual(["M"]);
+    expect(context.contributionErrors).toEqual([
+      { moduleKey: "packing_config", message: "contribute failed: bug in contribute" },
+    ]);
+    expect(build().contributionErrors).toEqual([]);
   });
 });

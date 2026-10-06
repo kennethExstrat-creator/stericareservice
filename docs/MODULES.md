@@ -213,7 +213,7 @@ Readers: `samplingFor(context, size)` (empty values when missing), `cartonsFor(c
 
 **Any part can be empty.** A source module that is switched off, not filled in, or not built yet leaves its part empty: no sizes, no n, no cartons, no indicative weight. Handle it: a per-size module with no ordered sizes is not done (the framework says so); with no n, it is not done; with no carton list, the box number is entered freely and not checked; with no indicative weight, `weight` has nothing to compare against.
 
-**Source modules contribute.** The six modules in the table implement `contribute({ data, config })` and return only the parts they own (`CONTEXT_SOURCES`); returning another module's part throws. Contributions read only their own saved data, and per-size maps may use any size spelling (the builder normalises and drops unordered sizes).
+**Source modules contribute.** The six modules in the table implement `contribute({ data, config })` and return only the parts they own (`CONTEXT_SOURCES`). Contributions read only their own saved data, and per-size maps may use any size spelling (the builder normalises and drops unordered sizes). A part another module owns is left out, and a `contribute` that throws gives nothing; either way the inspection still evaluates, without those values, and your module shows a `contribute_failed` error that blocks submit. `checkModuleContract` runs `contribute` on empty data only, so test it on filled data too.
 
 **Calculation order.** The context is built first, from every included module's `contribute`, so every calc sees the complete context whatever the template's order. Calcs then run in template order, except that a module runs after the modules in its `dependsOn` and sees only their results. The conclusion declares `"all"` and runs last. In practice only the conclusion reads other modules' results; everything else flows through the context.
 
@@ -249,7 +249,8 @@ Readers: `samplingFor(context, size)` (empty values when missing), `cartonsFor(c
 | `size_not_ordered` | warning | Data saved for a size not in the order; ignored (rule 4). |
 | `invalid_data` | error | Saved data fails your schema (text in a numeric cell, rule 1). |
 | `invalid_config` | error | The template's config fails your schema. |
-| `calc_failed` | error | Your calc threw. Only your module is affected. |
+| `calc_failed` | error | Your calc, or a refinement in your schemas, threw. Only your module is affected. |
+| `contribute_failed` | error | Your `contribute` threw, or gave a part of the context another module owns. That part is left out; other modules evaluate without it. |
 | `invalid_output` | error | Your calc returned a result, computed values or issues outside the contract. |
 | `inspector_missing` | error | No inspector recorded (rule 11), on `header`. |
 | `required`, `out_of_range`, `invalid_option`, `too_many_columns`, `mapped_value_ignored` | | Custom module fields. |
@@ -304,7 +305,7 @@ Follow `docs/DESIGN.md`: counts by tapping (steppers, defect chips), measurement
 ## 11. Testing
 
 - Vitest, files next to the code: `schema.test.ts`, `calc.test.ts`. Every rule in your brief has a test; every result in `docs/examples/expected-results.md` that your module produces has a test with placeholder identifiers.
-- `expect(checkModuleContract(definition)).toEqual([])`: defaults parse, empty data parses and is not done, the config becomes JSON Schema, canonical paths exist, contributions stay in your parts. `modules/registry.test.ts` runs it on every module too.
+- `expect(checkModuleContract(definition)).toEqual([])`: defaults parse, empty data parses and is not done, the config becomes JSON Schema, canonical paths exist, contributions stay in your parts. Calc runs on empty data with size M ordered, except that a source module's own parts come from its contribution on that empty data, as in the engine (an `order_lots` with nothing entered orders no size). `modules/registry.test.ts` runs it on every module too.
 - `makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ watertightVisual: 500 }) }, cartons: { M: [32, 578] } })` builds a context for calc tests (`@/modules/_framework/testing`).
 - Through the engine, with the real registry (a test may import it):
 

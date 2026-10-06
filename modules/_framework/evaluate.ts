@@ -2,8 +2,9 @@
 // framework's rules on top, so each result obeys BUILD_SPEC 6.2 whatever the
 // module returns. One pure pass gives the capture screen its chips, live
 // totals and issue list, submit its errors, and the export everything it
-// needs. A module whose data, config or calc is broken shows "not done" with
-// an error; it never takes the other modules down.
+// needs. A module whose data, config, calc or contribution is broken shows an
+// error, and "not done" where its own result cannot be trusted; it never
+// takes the other modules down.
 import { z } from "zod";
 import { ModuleResultSchema, type ModuleKey, type ModuleResult } from "@/lib/schemas/module-result";
 import { JsonObjectSchema, type CustomModule, type ResolvedModule, type ResolvedTemplate } from "@/lib/schemas/template";
@@ -14,6 +15,7 @@ import { sortIssues, stampIssues, ValidationIssueSchema, type CalcIssue, type Va
 import { enforceResultRules, notDone, perSizeResults } from "@/lib/validation/results";
 import {
   calcFailedIssues,
+  contributeFailedIssues,
   inspectorIssues,
   invalidConfigIssues,
   invalidDataIssues,
@@ -132,54 +134,67 @@ function evaluateModule(
     issues: stampIssues(key, issues),
   });
 
-  const config = definition.configSchema.safeParse(resolved.config);
-  if (!config.success) {
-    return broken(resolved.config, null, "Template settings are invalid.", invalidConfigIssues(title, config.error));
-  }
-  const parsed = definition.dataSchema.safeParse(entry.hasData ? entry.value : definition.emptyData());
-  if (!parsed.success) {
-    return broken(config.data, null, "Saved data could not be read.", invalidDataIssues(title, parsed.error));
-  }
+  const contributed = contributeFailedIssues(
+    title,
+    context.contributionErrors.filter((error) => error.moduleKey === key).map((error) => error.message),
+  );
 
-  const { data: moduleData, ignored } = definition.perSize
-    ? restrictToOrderedSizes(parsed.data, context.sizes)
-    : { data: parsed.data, ignored: [] };
-  const issues: CalcIssue[] = sizeNotOrderedIssues(ignored, title);
-
-  let output: ReturnType<AnyModuleDefinition["calc"]>;
+  // Module code runs in the schemas' refinements too, not only in calc.
   try {
-    output = definition.calc({
-      data: moduleData,
+    const config = definition.configSchema.safeParse(resolved.config);
+    if (!config.success) {
+      return broken(resolved.config, null, "Template settings are invalid.", invalidConfigIssues(title, config.error));
+    }
+    const parsed = definition.dataSchema.safeParse(entry.hasData ? entry.value : definition.emptyData());
+    if (!parsed.success) {
+      return broken(config.data, null, "Saved data could not be read.", invalidDataIssues(title, parsed.error));
+    }
+
+    const { data: moduleData, ignored } = definition.perSize
+      ? restrictToOrderedSizes(parsed.data, context.sizes)
+      : { data: parsed.data, ignored: [] };
+    const issues: CalcIssue[] = [...contributed, ...sizeNotOrderedIssues(ignored, title)];
+
+    let output: ReturnType<AnyModuleDefinition["calc"]>;
+    try {
+      output = definition.calc({
+        data: moduleData,
+        config: config.data,
+        title,
+        labels,
+        context,
+        results,
+        hasData: entry.hasData,
+      });
+    } catch (error) {
+      return broken(config.data, moduleData, "Could not be calculated.", [...issues, ...calcFailedIssues(title, error)]);
+    }
+
+    const result = ModuleResultSchema.safeParse(output.result);
+    if (!result.success) {
+      return broken(config.data, moduleData, "Could not be calculated.", [
+        ...issues,
+        ...invalidOutputIssues(title, "result"),
+      ]);
+    }
+    const computed = JsonObjectSchema.safeParse(output.computed);
+    if (!computed.success) issues.push(...invalidOutputIssues(title, "set of computed values"));
+    const own = CalcIssuesSchema.safeParse(output.issues);
+    issues.push(...(own.success ? own.data : invalidOutputIssues(title, "issue list")));
+
+    const final = enforceResultRules(result.data, rules);
+    issues.push(...notDoneIssues(title, final));
+    return {
+      ...base,
       config: config.data,
-      title,
-      labels,
-      context,
-      results,
-      hasData: entry.hasData,
-    });
+      data: moduleData,
+      computed: computed.success ? computed.data : {},
+      result: final,
+      issues: stampIssues(key, issues),
+    };
   } catch (error) {
-    return broken(config.data, moduleData, "Could not be calculated.", [...issues, ...calcFailedIssues(title, error)]);
+    return broken(resolved.config, null, "Could not be calculated.", [...contributed, ...calcFailedIssues(title, error)]);
   }
-
-  const result = ModuleResultSchema.safeParse(output.result);
-  if (!result.success) {
-    return broken(config.data, moduleData, "Could not be calculated.", [...issues, ...invalidOutputIssues(title, "result")]);
-  }
-  const computed = JsonObjectSchema.safeParse(output.computed);
-  if (!computed.success) issues.push(...invalidOutputIssues(title, "set of computed values"));
-  const own = CalcIssuesSchema.safeParse(output.issues);
-  issues.push(...(own.success ? own.data : invalidOutputIssues(title, "issue list")));
-
-  const final = enforceResultRules(result.data, rules);
-  issues.push(...notDoneIssues(title, final));
-  return {
-    ...base,
-    config: config.data,
-    data: moduleData,
-    computed: computed.success ? computed.data : {},
-    result: final,
-    issues: stampIssues(key, issues),
-  };
 }
 
 function evaluateCustomModule(

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import type { ModuleKey } from "@/lib/schemas/module-result";
 import type { CustomModule, ResolvedTemplate } from "@/lib/schemas/template";
+import { notDone } from "@/lib/validation/results";
 import { TEST_ADMIN_ID, TEST_REGISTRY, registryWith } from "./__fixtures__/test-registry";
 import { buildInspectionContext, type InspectionMeta } from "./context";
 import type { CalcOutput, ModuleRegistry } from "./contract";
@@ -8,7 +10,7 @@ import { emptyInspectionData, type InspectionData } from "./data";
 import { defineModule, NOT_BUILT_SUMMARY, stubModule } from "./define";
 import { evaluateInspection, type InspectionEvaluation } from "./evaluate";
 import { labelFor } from "./labels";
-import { makeTestTemplate } from "./testing";
+import { checkModuleContract, makeTestTemplate } from "./testing";
 
 const MODULES: ModuleKey[] = [
   "header",
@@ -195,6 +197,62 @@ describe("evaluateInspection: framework rules for every module", () => {
     const registry = registryWith({ dimensions: sloppy });
     const data: InspectionData = { modules: { dimensions: { anything: 1 } }, custom: {} };
     expect(codes(evaluate(data, makeTestTemplate(registry, ["dimensions"]), registry), "dimensions")).toEqual(["invalid_output"]);
+  });
+
+  it("contains a contribution that throws to its own module; the others still evaluate", () => {
+    const broken = defineModule({
+      ...stubModule({ key: "glove_info", title: "Glove Information" }),
+      calc: (): CalcOutput => ({ result: { status: "info", summary: "Glove information." }, computed: {}, issues: [] }),
+      contribute: () => {
+        throw new Error("bug in contribute");
+      },
+    });
+    const registry = registryWith({ glove_info: broken });
+    const evaluation = evaluate(exampleB(), makeTestTemplate(registry, MODULES), registry);
+    expect(evaluation.modules.map((module) => module.key)).toEqual(MODULES);
+    expect(moduleOf(evaluation, "glove_info").issues).toEqual([
+      expect.objectContaining({
+        level: "error",
+        code: "contribute_failed",
+        message:
+          "Glove Information could not pass all its values to the other modules (contribute failed: bug in contribute). Report this to a developer.",
+      }),
+    ]);
+    // No indicative weight reached weight, so it has nothing to compare against.
+    expect(moduleOf(evaluation, "weight").result.status).toBe("info");
+    expect(moduleOf(evaluation, "carton_sampling").result.status).toBe("fail");
+  });
+
+  it("reports a part a module may not provide even when only some data names it", () => {
+    const greedy = defineModule({
+      ...stubModule({ key: "glove_info", title: "Glove Information" }),
+      calc: (): CalcOutput => ({ result: notDone(), computed: {}, issues: [] }),
+      contribute: ({ data }) => (typeof data.colour === "string" ? { sizes: ["XL"] } : {}),
+    });
+    // Empty data names no part, so the contract check cannot see it.
+    expect(checkModuleContract(greedy)).toEqual([]);
+    const registry = registryWith({ glove_info: greedy });
+    const template = makeTestTemplate(registry, MODULES);
+    const context = buildInspectionContext({ template, data: exampleB(), meta: META }, registry);
+    expect(context.sizes).toEqual(["M"]);
+    const evaluation = evaluateInspection({ template, data: exampleB(), context }, registry);
+    expect(codes(evaluation, "glove_info")).toContain("contribute_failed");
+  });
+
+  it("contains a data schema whose own check throws", () => {
+    const fragile = defineModule({
+      ...stubModule({ key: "glove_info", title: "Glove Information" }),
+      dataSchema: z.record(z.string(), z.unknown()).superRefine(() => {
+        throw new Error("bug in a refinement");
+      }),
+    });
+    const registry = registryWith({ glove_info: fragile });
+    const evaluation = evaluate(exampleB(), makeTestTemplate(registry, MODULES), registry);
+    expect(moduleOf(evaluation, "glove_info")).toMatchObject({
+      result: { status: "not_done", summary: "Could not be calculated." },
+      issues: [expect.objectContaining({ code: "calc_failed", message: "Glove Information could not be calculated: bug in a refinement" })],
+    });
+    expect(moduleOf(evaluation, "carton_sampling").result.status).toBe("fail");
   });
 
   it("requires the inspector (6.2 rule 11)", () => {

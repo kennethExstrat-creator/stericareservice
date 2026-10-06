@@ -115,6 +115,32 @@ describe("checkModuleContract", () => {
     expect(checkModuleContract(broken)).toEqual(expect.arrayContaining([expect.stringContaining(message)]));
   });
 
+  it("gives a source module the part it provides as built from its own empty data", () => {
+    // Like order_lots: it reads the normalised sizes back from the context.
+    const source = (contribute: () => { sizes?: string[] }) =>
+      defineModule({
+        key: "order_lots",
+        title: "Order",
+        labels: {},
+        dataSchema: z.strictObject({ lots: z.array(z.strictObject({ size: z.string() })).default([]) }),
+        emptyData: () => ({ lots: [] }),
+        configSchema: z.strictObject({}),
+        defaultConfig: {},
+        calc: ({ context }): CalcOutput => ({
+          result: context.sizes.length > 0 ? { status: "info", summary: context.sizes.join(", ") } : { status: "not_done", summary: "" },
+          computed: {},
+          issues: [],
+        }),
+        contribute,
+      });
+    expect(checkModuleContract(source(() => ({ sizes: [] })))).toEqual([]);
+    expect(checkModuleContract(source(() => ({})))).toEqual([]);
+    // Other modules still see size M ordered, so a per-size pass on empty data is caught.
+    expect(checkModuleContract(source(() => ({ sizes: ["M"] })))).toEqual([
+      expect.stringContaining("missing data is not done"),
+    ]);
+  });
+
   it("accepts label keys for one class or level", () => {
     const labelled = { ...validModule(), labels: { bead_defective: "Defective bead", "minor.bead_defective": "Defective beads" } };
     expect(checkModuleContract(labelled)).toEqual([]);

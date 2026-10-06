@@ -11,7 +11,15 @@ import {
 } from "@/lib/schemas/template";
 import { ValidationIssueSchema } from "@/lib/validation/issues";
 import type { AnyModuleDefinition, ModuleRegistry } from "./contract";
-import { AQL_DEFAULTS, assertOwnership, EMPTY_SAMPLING, type InspectionContext } from "./context";
+import {
+  AQL_DEFAULTS,
+  applyContribution,
+  CONTEXT_SOURCES,
+  EMPTY_SAMPLING,
+  restrictToOrderedSizes,
+  splitContribution,
+  type InspectionContext,
+} from "./context";
 import { COMMENT_KEY } from "./data";
 import { readPath } from "./paths";
 
@@ -46,6 +54,7 @@ export function makeTestContext(overrides: Partial<InspectionContext> = {}): Ins
     cartons: {},
     indicativeWeight: null,
     aql: { ...AQL_DEFAULTS },
+    contributionErrors: [],
     ...overrides,
   };
 }
@@ -162,7 +171,7 @@ export function checkModuleContract(definition: AnyModuleDefinition): string[] {
         config: config.data,
         title: definition.title,
         labels: definition.labels,
-        context: makeTestContext({ sizes: ["M"] }),
+        context: contractContext(definition, data.data, config.data, add),
         results: {},
         hasData: false,
       });
@@ -173,12 +182,37 @@ export function checkModuleContract(definition: AnyModuleDefinition): string[] {
       }
       if (!JsonObjectSchema.safeParse(output.computed).success) add("calc returns computed values that are not a JSON object");
       if (!CalcIssuesSchema.safeParse(output.issues).success) add("calc returns malformed issues");
-      if (definition.contribute) assertOwnership(definition.key, definition.contribute({ data: data.data, config: config.data }));
     } catch (error) {
       add(`calc or contribute throws on empty data: ${messageOf(error)}`);
     }
   }
   return problems;
+}
+
+/**
+ * The context calc gets on empty data: size M ordered, except that the parts
+ * this module provides come from its own contribution on that data, as
+ * buildInspectionContext builds them. An order_lots with nothing entered
+ * orders no size, so its calc sees none.
+ */
+function contractContext(
+  definition: AnyModuleDefinition,
+  data: unknown,
+  config: unknown,
+  add: (message: string) => void,
+): InspectionContext {
+  const blank = makeTestContext();
+  const own = (Object.keys(CONTEXT_SOURCES) as (keyof typeof CONTEXT_SOURCES)[]).filter(
+    (part) => CONTEXT_SOURCES[part] === definition.key,
+  );
+  const context = {
+    ...makeTestContext({ sizes: ["M"] }),
+    ...(Object.fromEntries(own.map((part) => [part, blank[part]])) as Partial<InspectionContext>),
+  };
+  if (!definition.contribute) return context;
+  const { owned, refused } = splitContribution(definition.key, definition.contribute({ data, config }));
+  for (const line of refused) add(`on empty data, ${line}`);
+  return restrictToOrderedSizes(applyContribution(context, owned));
 }
 
 function firstIssue(error: z.ZodError): string {
