@@ -35,8 +35,10 @@ export const definition = defineModule<DocumentsData, DocumentsConfig, Documents
   defaultConfig: DOCUMENTS_DEFAULT_CONFIG,
   canonicalPaths,
   calc: calcDocuments,
+  loadCapture: () => import("./Capture"),
 });
 
+export { DOCUMENT_FILE_KIND } from "./config";
 export type { DocumentEntry, DocumentsData } from "./schema";
 export type { DocumentItem, DocumentItemConfig, DocumentsConfig, DocumentStatus } from "./config";
 export type { DocumentsComputed } from "./calc";
