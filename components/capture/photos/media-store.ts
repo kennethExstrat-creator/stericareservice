@@ -99,7 +99,12 @@ export class InspectionMediaStore {
   async takeUploaded(items: readonly UploadItem[]): Promise<void> {
     // A load running now may have read the rows just before these went in.
     if (this.loading) await this.loading;
-    if (!this.state.media) return;
+    if (!this.state.media) {
+      // Nothing loaded yet (the page opened offline): a full load brings these rows with the rest.
+      this.lastAttempt = 0;
+      this.ensureLoaded();
+      return;
+    }
     const photoIds = items.filter((item) => item.kind === "photo").map((item) => item.id);
     const fileIds = items.filter((item) => item.kind === "file").map((item) => item.id);
     const client = createClient();

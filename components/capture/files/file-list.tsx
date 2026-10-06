@@ -57,7 +57,8 @@ export function FileList({
               data-slot="file-row"
               data-file-id={file.id}
               data-upload-state={file.state}
-              className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5"
+              // relative: anchors the buttons' sr-only names (docs/DESIGN.md).
+              className="relative flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5"
             >
               <FileTextIcon aria-hidden className="size-5 shrink-0 text-brand-600" />
               <div className="min-w-0 flex-1">
