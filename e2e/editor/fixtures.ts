@@ -84,7 +84,7 @@ export async function createDraftTemplate(code: string, status: "draft" | "retir
       product_type: "examination",
       standard: "EN455",
       status,
-      definition: definitionFor(code) as Json,
+      definition: definitionFor(code) as NonNullable<Json>,
     })
     .select("id")
     .single();
