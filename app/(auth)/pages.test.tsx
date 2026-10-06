@@ -38,6 +38,7 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
+const { default: AuthError } = await import("./error");
 const { default: LoginPage } = await import("./login/page");
 const { default: ForgotPasswordPage } = await import("./forgot-password/page");
 const { default: ResetPasswordPage, generateMetadata: resetMetadata } = await import("./reset-password/page");
@@ -150,5 +151,18 @@ describe("/reset-password", () => {
   it("shows the setup notice while Supabase is not configured", async () => {
     mocks.getSession.mockResolvedValue({ status: "unconfigured" } satisfies SessionState);
     expect(await html(ResetPasswordPage(query()))).toContain("Connect Supabase");
+  });
+});
+
+describe("the sign-in error boundary", () => {
+  it("offers a retry and a code to quote, never the error message", () => {
+    const error = Object.assign(new Error("connection refused at 10.0.0.5"), { digest: "4242" });
+    const page = renderToStaticMarkup(<AuthError error={error} retry={() => {}} />);
+    expect(page).toContain("Something went wrong");
+    expect(page).toContain(">Try again<");
+    expect(page).toContain("quote code");
+    expect(page).toContain("4242");
+    expect(page).not.toContain("10.0.0.5");
+    expect(page).toContain('href="/login"');
   });
 });
