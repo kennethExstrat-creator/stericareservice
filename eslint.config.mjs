@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Reference material only: the website snapshot and forms (BUILD_SPEC 2.1).
+    "docs/**",
+    "supabase/**",
   ]),
 ]);
 
