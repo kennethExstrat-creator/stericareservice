@@ -1,6 +1,8 @@
 // Edits the capture screen makes, as pure functions: each returns the whole
-// new data for onChange, starting from the saved data so sizes taken out of
-// the order keep theirs (docs/MODULES.md section 10).
+// new data from the data it is given, never changing it, and keeps sizes
+// taken out of the order (docs/MODULES.md section 10). Capture applies them
+// to the latest data through useDataUpdater (docs/CAPTURE_KIT.md), so edits
+// made in one event build on each other.
 import type { LabelingCheck, LabelingLevel } from "./config";
 import { emptyLabelingSize, type LabelingData, type LabelingLevelData } from "./schema";
 
@@ -51,6 +53,11 @@ export function withBox(
   else if (index >= boxNos.length) boxNos.push(box);
   else boxNos[index] = box;
   return withLevel(data, size, level, { boxNos });
+}
+
+/** Appends a box after the boxes already picked (the next empty picker). */
+export function withAddedBox(data: LabelingData, size: string, level: LabelingLevel, box: number): LabelingData {
+  return withBox(data, size, level, levelEntry(data, size, level).boxNos.length, box);
 }
 
 /** Box pickers to show: one per box inspected (the planned n until it is recorded). */

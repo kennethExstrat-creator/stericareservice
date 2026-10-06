@@ -111,8 +111,10 @@ export function levelLabel(labels: Labels, level: LabelingLevel): string {
 
 /** A level's own wording of a field (`innerResult`), else the field's (`result`). */
 export function levelFieldLabel(labels: Labels, level: LabelingLevel, field: string): string {
-  const own = labels[`${level}${field.charAt(0).toUpperCase()}${field.slice(1)}`];
-  return own !== undefined && own.trim() !== "" ? own : labelFor(labels, field);
+  const key = `${level}${field.charAt(0).toUpperCase()}${field.slice(1)}`;
+  // labelFor gives the key back when no label is set.
+  const own = labelFor(labels, key);
+  return own === key ? labelFor(labels, field) : own;
 }
 
 /**
@@ -120,11 +122,8 @@ export function levelFieldLabel(labels: Labels, level: LabelingLevel, field: str
  * template sets one, else the label the template's config gives the check.
  */
 export function checkLabel(labels: Labels, level: LabelingLevel, check: LabelingCheckItem): string {
-  for (const key of [`${level}.${check.code}`, check.code]) {
-    const label = labels[key];
-    if (label !== undefined && label.trim() !== "") return label;
-  }
-  return check.label;
+  const label = labelFor(labels, level, check.code);
+  return label === check.code ? check.label : label;
 }
 
 /** Defects found over a level's checks; counts of checks the template does not list are ignored. */

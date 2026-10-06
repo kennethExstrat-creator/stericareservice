@@ -12,7 +12,7 @@ import {
   type LabelingSection,
   type ReportSize,
 } from "@/tests/fixtures/examples";
-import { calcLabeling, checkLabel, levelTotal } from "./calc";
+import { calcLabeling, checkLabel, levelFieldLabel, levelTotal } from "./calc";
 import { LABELING_DEFAULT_CONFIG, LABELING_LABELS, LabelingConfigSchema, type LabelingConfig } from "./config";
 import { definition } from "./index";
 import { emptyLabeling, emptyLabelingSize, type LabelingData, type LabelingLevelData, type LabelingSizeData } from "./schema";
@@ -398,6 +398,15 @@ describe("labeling", () => {
         "Carton lot no. wrong",
       );
       expect(checkLabel({ "carton.lot_no": " " }, "carton", check)).toBe("Wrong / No lot number");
+    });
+
+    it("words each level's disposition line its own way, else as the field", () => {
+      expect(levelFieldLabel(LABELING_LABELS, "inner", "result")).toBe("Disposition - Inner Box (Passed / Failed)");
+      expect(levelFieldLabel(LABELING_LABELS, "carton", "result")).toBe("Disposition - Carton Box (Passed / Failed)");
+      expect(levelFieldLabel({ ...LABELING_LABELS, cartonResult: " " }, "carton", "result")).toBe(
+        "Disposition (Passed / Failed)",
+      );
+      expect(levelFieldLabel({}, "inner", "result")).toBe("result");
     });
   });
 

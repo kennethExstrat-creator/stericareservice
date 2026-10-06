@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { boxSlots, levelEntry, withBox, withDefectCount, withInspected, withLevel } from "./edit";
+import { batchDataChanges, createDataUpdater } from "@/components/qc/data-updater";
+import { boxSlots, levelEntry, withAddedBox, withBox, withDefectCount, withInspected, withLevel } from "./edit";
 import { emptyLabeling, emptyLabelingSize, LabelingDataSchema, type LabelingData } from "./schema";
 
 const KEPT: LabelingData = {
@@ -44,6 +45,43 @@ describe("labeling edits", () => {
     expect(levelEntry(data, "M", "inner").boxNos).toEqual([13, 1039, 337]);
     data = withBox(data, "M", "inner", 0, null);
     expect(levelEntry(data, "M", "inner").boxNos).toEqual([1039, 337]);
+  });
+
+  it("append a box after the boxes already picked", () => {
+    let data = withAddedBox(emptyLabeling(), "M", "carton", 337);
+    data = withAddedBox(data, "M", "carton", 13);
+    expect(levelEntry(data, "M", "carton").boxNos).toEqual([337, 13]);
+  });
+
+  it("build on each other through the kit's updater, so edits in one event all survive", () => {
+    // Capture writes every edit as update((current) => ...) (docs/CAPTURE_KIT.md). Two
+    // edits before the screen renders again both land; built from the rendered data,
+    // the second would undo the first.
+    const changes: LabelingData[] = [];
+    const updater = createDataUpdater(KEPT, (next) => changes.push(next));
+    updater.update((current) => withInspected(current, "M", "inner", 3));
+    updater.update((current) => withAddedBox(current, "M", "inner", 13));
+    updater.update((current) => withAddedBox(current, "M", "inner", 299));
+    updater.update((current) => withDefectCount(current, "M", "carton", "carton_no", 1));
+    expect(changes).toHaveLength(4);
+    const latest = changes[3];
+    expect(latest.sizes.M).toEqual({
+      inner: { inspected: 3, boxNos: [13, 299], defects: {} },
+      carton: { inspected: null, boxNos: [], defects: { carton_no: 1 } },
+    });
+    expect(latest.sizes.XL).toBe(KEPT.sizes.XL);
+    expect(KEPT.sizes.M).toBeUndefined();
+  });
+
+  it("reach the screen as one change when the kit batches them", () => {
+    const changes: LabelingData[] = [];
+    const updater = createDataUpdater(emptyLabeling(), (next) => changes.push(next));
+    batchDataChanges(() => {
+      updater.update((current) => withDefectCount(current, "M", "inner", "lot_no", 1));
+      updater.update((current) => withDefectCount(current, "M", "inner", "artwork", 2));
+    });
+    expect(changes).toHaveLength(1);
+    expect(levelEntry(changes[0], "M", "inner").defects).toEqual({ lot_no: 1, artwork: 2 });
   });
 
   it("offer one box picker per box inspected, the plan until the count is recorded", () => {
