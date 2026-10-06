@@ -1,7 +1,7 @@
 // Full-page messages: not found, errors. Plain words, one clear way back.
 import Link from "next/link";
 import { CompassIcon, type LucideIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import { Eyebrow } from "@/components/brand/eyebrow";
 import { Logo } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,11 @@ type StatusScreenProps = {
   actions?: ReactNode;
   footer?: ReactNode;
   className?: string;
+  /**
+   * Makes the heading focusable from script (tabindex -1), for a screen that
+   * replaces what was on screen and moves focus to its title (ErrorScreen).
+   */
+  titleRef?: Ref<HTMLHeadingElement>;
 };
 
 export function StatusScreen({
@@ -30,6 +35,7 @@ export function StatusScreen({
   actions,
   footer,
   className,
+  titleRef,
 }: StatusScreenProps) {
   return (
     <section
@@ -47,7 +53,11 @@ export function StatusScreen({
       <Eyebrow className="mt-8">{eyebrow}</Eyebrow>
       <h1
         id="status-screen-title"
-        className="mt-3 text-3xl leading-tight font-bold tracking-tight text-balance text-foreground"
+        ref={titleRef}
+        tabIndex={titleRef ? -1 : undefined}
+        // A focus target, not a control: no ring. The scroll margin keeps it
+        // clear of the sticky top bar when focus scrolls it into view.
+        className="mt-3 scroll-mt-[calc(var(--shell-top,0px)_+_1.5rem)] text-3xl leading-tight font-bold tracking-tight text-balance text-foreground outline-none"
       >
         {title}
       </h1>
