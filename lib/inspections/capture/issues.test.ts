@@ -3,7 +3,7 @@ import type { ModuleOverrides } from "@/lib/schemas/template";
 import type { ValidationIssue } from "@/lib/validation";
 import { filledData, TEST_ADMIN_ID, TEST_META, TEST_REGISTRY, testTemplate } from "./__fixtures__/capture";
 import { evaluateCapture } from "./evaluate";
-import { countIssues, describeIssueCounts, groupIssues, issueKey, issueTarget } from "./issues";
+import { countIssues, describeIssueCounts, groupIssues, issueKey, issueTarget, unseenIssues } from "./issues";
 import { captureSections } from "./sections";
 
 function evaluated(overrides: ModuleOverrides = {}) {
@@ -61,5 +61,24 @@ describe("counts and links", () => {
     expect(issueTarget(issue)).toEqual({ sectionKey: "weight", path: ["sizes", "M", 3] });
     expect(issueKey(issue)).toBe(issueKey({ ...issue }));
     expect(issueKey(issue)).not.toBe(issueKey({ ...issue, path: ["sizes", "M", 4] }));
+  });
+});
+
+describe("unseenIssues", () => {
+  it("lists what the server found with a section switched back on elsewhere, and nothing once the screen follows", () => {
+    const off = { packing_config: { reason: "n/a", by: TEST_ADMIN_ID, at: "2026-10-06T08:00:00.000Z" } };
+    // The screen still has packing switched off; the server checked with it back on.
+    const onScreen = evaluated(off).report.issues;
+    const found = evaluated().report.issues;
+    const unseen = unseenIssues(found, onScreen);
+    expect(unseen.length).toBeGreaterThan(0);
+    expect(unseen.every((issue) => issue.moduleKey === "packing_config")).toBe(true);
+    // Once the screen takes the server's overrides over, it lists them itself.
+    expect(unseenIssues(found, evaluated().report.issues)).toEqual([]);
+  });
+
+  it("has nothing to add without a refused submit", () => {
+    expect(unseenIssues(null, [])).toEqual([]);
+    expect(unseenIssues([], evaluated().report.issues)).toEqual([]);
   });
 });

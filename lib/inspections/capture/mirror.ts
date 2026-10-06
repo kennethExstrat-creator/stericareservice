@@ -10,11 +10,12 @@
 // - suggested_result: the framework's suggestion over the included modules;
 // - result: the inspector's final result from the conclusion, whose status
 //   is pass for pass, fail for fail and warn for hold (docs/MODULES.md 14);
-//   empty until the conclusion is done.
+//   empty until the conclusion is done;
+// - remarks: the conclusion's remark (docs/DATA_DICTIONARY.md, conclusion
+//   `remark`), blank as empty.
 //
 // client_id and manufacturer_id are chosen when the inspection is created and
-// never change here. remarks waits for the conclusion module to name its
-// remark field.
+// never change here.
 import type { MirroredColumns } from "@/lib/offline/supabase-transport";
 import { IsoDateSchema, type InspectionResult } from "@/lib/schemas/common";
 import type { ModuleStatus } from "@/lib/schemas/module-result";
@@ -34,11 +35,21 @@ export function finalResultOf(evaluation: Pick<InspectionEvaluation, "modules">)
   return FINAL_RESULT[conclusion.result.status] ?? null;
 }
 
+/** The conclusion's remark as typed, trimmed; null when blank, unreadable or switched off. */
+export function remarksOf(evaluation: Pick<InspectionEvaluation, "modules">): string | null {
+  const conclusion = evaluation.modules.find((entry) => entry.key === "conclusion");
+  const data = conclusion?.data;
+  if (typeof data !== "object" || data === null || !("remark" in data)) return null;
+  const { remark } = data;
+  return typeof remark === "string" && remark.trim() !== "" ? remark.trim() : null;
+}
+
 export function mirroredColumns({ context, report }: Pick<CaptureEvaluation, "context" | "report">): MirroredColumns {
   const columns: MirroredColumns = {
     ...inspectionRowValues(context),
     suggested_result: report.suggested.result,
     result: finalResultOf(report),
+    remarks: remarksOf(report),
   };
   const date = context.header.inspectionDate;
   if (date !== null && IsoDateSchema.safeParse(date).success) columns.inspection_date = date;

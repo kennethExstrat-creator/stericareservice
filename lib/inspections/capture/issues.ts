@@ -60,3 +60,17 @@ export function issueTarget(issue: Pick<ValidationIssue, "moduleKey" | "path">):
 export function issueKey(issue: ValidationIssue): string {
   return `${issue.moduleKey}|${issue.level}|${issue.code}|${JSON.stringify(issue.path)}|${issue.size ?? ""}|${issue.message}`;
 }
+
+/**
+ * The issues the server found that the screen does not list: what it checked
+ * (sections switched on or off, the data saved) differs from what is on
+ * screen, because the inspection changed elsewhere.
+ */
+export function unseenIssues(
+  found: readonly ValidationIssue[] | null,
+  shown: readonly ValidationIssue[],
+): ValidationIssue[] {
+  if (!found || found.length === 0) return [];
+  const keys = new Set(shown.map(issueKey));
+  return found.filter((issue) => !keys.has(issueKey(issue)));
+}

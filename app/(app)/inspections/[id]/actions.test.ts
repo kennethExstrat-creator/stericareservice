@@ -186,12 +186,13 @@ describe("saveCaptureData", () => {
     await expect(saveCaptureData(request())).resolves.toMatchObject({ ok: false, reason: "not_found" });
   });
 
-  it("refuses a submitted inspection", async () => {
+  it("refuses a submitted inspection, saying it was submitted", async () => {
     useClient(() => ({ data: row({ status: "submitted" }), error: null }));
     await expect(saveCaptureData(request())).resolves.toEqual({
       ok: false,
       reason: "forbidden",
       message: "This inspection has been submitted and can no longer be changed here.",
+      state: { status: "submitted", overrides: {} },
     });
   });
 
@@ -202,6 +203,7 @@ describe("saveCaptureData", () => {
       ok: false,
       reason: "conflict",
       server: { data: stored, updatedAt: NEXT_VERSION },
+      state: { status: "draft", overrides: {} },
     });
     expect(client.queries.filter(isUpdate)).toHaveLength(0);
   });
@@ -219,7 +221,11 @@ describe("saveCaptureData", () => {
     useClient((query) =>
       isUpdate(query) ? { data: { updated_at: NEXT_VERSION }, error: null } : { data: row(), error: null },
     );
-    await expect(saveCaptureData(request())).resolves.toEqual({ ok: true, updatedAt: NEXT_VERSION });
+    await expect(saveCaptureData(request())).resolves.toEqual({
+      ok: true,
+      updatedAt: NEXT_VERSION,
+      state: { status: "draft", overrides: {} },
+    });
 
     const update = client.queries.find(isUpdate);
     expect(update && hasEq(update, "id", INSPECTION) && hasEq(update, "updated_at", VERSION)).toBe(true);
@@ -230,6 +236,7 @@ describe("saveCaptureData", () => {
       lot_numbers: [],
       inspection_date: "2026-10-06",
       result: "pass",
+      remarks: null,
       suggested_result: "hold",
     });
     expect(updatePayload(update)).not.toHaveProperty("status");
@@ -241,7 +248,36 @@ describe("saveCaptureData", () => {
     useClient((query) =>
       isUpdate(query) ? { data: { updated_at: NEXT_VERSION }, error: null } : { data: row(), error: null },
     );
-    await expect(saveCaptureData(request())).resolves.toEqual({ ok: true, updatedAt: NEXT_VERSION });
+    await expect(saveCaptureData(request())).resolves.toMatchObject({ ok: true, updatedAt: NEXT_VERSION });
+  });
+
+  it("answers the overrides it saved with, so a section switched off elsewhere leaves this screen too", async () => {
+    const overrides = { packing_config: { reason: "Not ordered.", by: ADMIN, at: "2026-10-06T08:00:00.000Z" } };
+    useClient((query) =>
+      isUpdate(query)
+        ? { data: { updated_at: NEXT_VERSION }, error: null }
+        : { data: row({ module_overrides: overrides }), error: null },
+    );
+    await expect(saveCaptureData(request())).resolves.toEqual({
+      ok: true,
+      updatedAt: NEXT_VERSION,
+      state: { status: "draft", overrides },
+    });
+  });
+
+  it("answers no state with a compare-and-set that missed after the read: it belongs to an older version", async () => {
+    let reads = 0;
+    useClient((query) => {
+      if (isUpdate(query)) return { data: null, error: null };
+      reads += 1;
+      // The capture read, then the transport's own read of the row that moved on.
+      return reads === 1
+        ? { data: row(), error: null }
+        : { data: { data: COMPLETE, updated_at: NEXT_VERSION, status: "draft" }, error: null };
+    });
+    const outcome = await saveCaptureData(request());
+    expect(outcome).toMatchObject({ ok: false, reason: "conflict", server: { updatedAt: NEXT_VERSION } });
+    expect(outcome).not.toHaveProperty("state");
   });
 
   it("turns an unexpected failure into a server error the autosave retries", async () => {
@@ -274,7 +310,7 @@ describe("submitInspection", () => {
     const data = { modules: { ...COMPLETE.modules, conclusion: { finalResult: null, remark: null } }, custom: {} };
     useClient(() => ({ data: row({ data }), error: null }));
     const result = await submit(data);
-    expect(result).toMatchObject({ status: "blocked", message: "Fix this error before submitting." });
+    expect(result).toMatchObject({ status: "blocked", message: "Fix this error before submitting.", overrides: {} });
     expect(result.status === "blocked" && result.errors.map((issue) => issue.moduleKey)).toEqual(["conclusion"]);
     expect(client.queries.filter(isUpdate)).toHaveLength(0);
   });

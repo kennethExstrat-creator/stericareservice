@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { filledData, TEST_ADMIN_ID, TEST_META, TEST_REGISTRY, testTemplate } from "./__fixtures__/capture";
 import { evaluateCapture, type CaptureMeta } from "./evaluate";
-import { finalResultOf, mirroredColumns } from "./mirror";
+import { finalResultOf, mirroredColumns, remarksOf } from "./mirror";
 
 function columnsFor(data = filledData(), meta: CaptureMeta = TEST_META) {
   return mirroredColumns(evaluateCapture({ template: testTemplate(), overrides: {}, data, meta }, TEST_REGISTRY));
@@ -58,6 +58,23 @@ describe("mirroredColumns", () => {
     expect(columnsFor(withFinal("pass")).result).toBe("pass");
     expect(columnsFor(withFinal("fail")).result).toBe("fail");
     expect(columnsFor(withFinal("hold")).result).toBe("hold");
+  });
+
+  it("copies the conclusion's remark into remarks, trimmed, blank as empty", () => {
+    const withRemark = (remark: string | null) => {
+      const data = filledData();
+      return { ...data, modules: { ...data.modules, conclusion: { finalResult: "pass", remark } } };
+    };
+    expect(columnsFor(withRemark("  Released after the recount. ")).remarks).toBe("Released after the recount.");
+    expect(columnsFor(withRemark("   ")).remarks).toBeNull();
+    expect(columnsFor(withRemark(null)).remarks).toBeNull();
+    expect(columnsFor().remarks).toBeNull();
+  });
+});
+
+describe("remarksOf", () => {
+  it("has no remark while the conclusion holds none or is not there", () => {
+    expect(remarksOf({ modules: [] })).toBeNull();
   });
 });
 

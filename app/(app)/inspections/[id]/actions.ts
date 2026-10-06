@@ -21,6 +21,7 @@ import {
 } from "@/lib/inspections/capture/schemas";
 import { FAILURE_MESSAGES, saveInspectionData, type SaveOutcome } from "@/lib/offline";
 import { contentHash } from "@/lib/offline/stable-json";
+import type { InspectionStatus } from "@/lib/schemas/common";
 import type { ModuleOverrides } from "@/lib/schemas/template";
 import { createClient } from "@/lib/supabase/server";
 import type { Json } from "@/lib/supabase/database.types";
@@ -46,18 +47,32 @@ import type { InspectionData } from "@/modules/_framework";
  * switching a module off, or a save whose answer was lost), and otherwise
  * stops and asks the inspector which version to keep. Nothing is merged and
  * nothing is overwritten silently.
+ *
+ * A save also answers the inspection's status and module overrides as it
+ * found them (`state`), when they belong to the version it answers: the
+ * screen follows a section switched off or on, or a submit, made elsewhere.
  */
 
 /* ------------------------------------------------------------------ *
  * Autosave
  * ------------------------------------------------------------------ */
 
+/** What the screen follows from the server besides the data: who changed what elsewhere. */
+export type CaptureServerState = { status: InspectionStatus; overrides: ModuleOverrides };
+
+/** lib/offline's save outcome, with the inspection's state where it belongs to the answered version. */
+export type CaptureSaveOutcome = SaveOutcome<InspectionData> & { state?: CaptureServerState };
+
+function stateOf(row: Pick<CaptureInspection, "status" | "overrides">): CaptureServerState {
+  return { status: row.status, overrides: row.overrides };
+}
+
 /**
  * The autosave transport (lib/offline). Saves the whole data of a draft or
  * reopened inspection, checks every changed entry against its module's
  * schema, and writes the columns that mirror the data in the same update.
  */
-export async function saveCaptureData(input: unknown): Promise<SaveOutcome<InspectionData>> {
+export async function saveCaptureData(input: unknown): Promise<CaptureSaveOutcome> {
   try {
     const auth = await authorizeAction();
     if (!auth.ok) return { ok: false, reason: "unauthorized", message: auth.error };
@@ -80,11 +95,11 @@ export async function saveCaptureData(input: unknown): Promise<SaveOutcome<Inspe
       userId: auth.user.id,
       inspectorId: row.inspectorId,
     });
-    if (!access.editable) return { ok: false, reason: "forbidden", message: readOnlyMessage(row) };
+    if (!access.editable) return { ok: false, reason: "forbidden", message: readOnlyMessage(row), state: stateOf(row) };
 
     // Someone saved in between: the device decides (see the note at the top).
     if (row.updatedAt !== request.baseUpdatedAt) {
-      return { ok: false, reason: "conflict", server: { data: row.data, updatedAt: row.updatedAt } };
+      return { ok: false, reason: "conflict", server: { data: row.data, updatedAt: row.updatedAt }, state: stateOf(row) };
     }
 
     const problems = changedEntryProblems(row.data, request.data, row.template.resolved);
@@ -96,7 +111,10 @@ export async function saveCaptureData(input: unknown): Promise<SaveOutcome<Inspe
       data: request.data,
       meta: row.meta,
     });
-    return await saveInspectionData(supabase, request, { columns: () => mirroredColumns(evaluation) });
+    const outcome = await saveInspectionData(supabase, request, { columns: () => mirroredColumns(evaluation) });
+    // Written on the version just read: its status and overrides are the row's. A missed
+    // compare-and-set answers a later read, which they may not match: none then.
+    return outcome.ok ? { ...outcome, state: stateOf(row) } : outcome;
   } catch (error) {
     unstable_rethrow(error);
     console.error("[capture] save failed", error);
@@ -110,8 +128,12 @@ export async function saveCaptureData(input: unknown): Promise<SaveOutcome<Inspe
 
 export type SubmitResult =
   | { status: "idle" }
-  /** Validation errors on the saved data: submit waits until they are fixed. */
-  | { status: "blocked"; message: string; errors: ValidationIssue[] }
+  /**
+   * Validation errors on the saved data: submit waits until they are fixed.
+   * With the overrides they were found with, which may have changed on
+   * another device since the screen loaded.
+   */
+  | { status: "blocked"; message: string; errors: ValidationIssue[]; overrides: ModuleOverrides }
   | { status: "error"; message: string };
 
 /**
@@ -170,6 +192,7 @@ export async function submitInspection(input: unknown): Promise<SubmitResult> {
           status: "blocked",
           message: `Fix ${errors.length === 1 ? "this error" : `these ${errors.length} errors`} before submitting.`,
           errors,
+          overrides: row.overrides,
         };
       }
 
