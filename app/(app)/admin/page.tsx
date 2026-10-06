@@ -163,8 +163,8 @@ function QuickLink({
       href={href}
       className={cn(
         // h-full: cards in one row match height when one description wraps.
-        "group flex h-full items-center gap-4 rounded-xl bg-card p-5 shadow-sm ring-1 ring-border outline-none transition-colors",
-        "hover:ring-brand-300 focus-visible:ring-3 focus-visible:ring-ring/50",
+        "group flex h-full items-center gap-4 rounded-xl bg-card p-5 shadow-sm ring-1 ring-border transition-colors",
+        "hover:ring-brand-300 focus-ring",
       )}
     >
       <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-accent text-brand-600">

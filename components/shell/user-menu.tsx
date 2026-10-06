@@ -52,7 +52,7 @@ export function UserMenu({ user, variant }: UserMenuProps) {
       ) : (
         <DropdownMenuTrigger
           aria-label={label}
-          className="flex w-full items-center gap-3 rounded-lg p-2 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 data-[state=open]:bg-muted touch:min-h-14"
+          className="flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-muted focus-ring-inset data-[state=open]:bg-muted touch:min-h-14"
         >
           <UserAvatar user={user} size="lg" />
           <span className="min-w-0 flex-1">
