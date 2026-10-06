@@ -37,24 +37,27 @@ describe("packing_config", () => {
   it("is info for the STD_EG example: 200 per inner box x 10 = 2,000 per case", () => {
     expect(calcPackingConfig(input(STD_EG))).toEqual({
       result: { status: "info", summary: "# gloves per case 2,000 = # glove per inner box 200 × # inners per case 10." },
-      computed: { glovesPerCaseCheck: 2000 },
+      computed: { glovesPerCaseCheck: 2000, innerUnit: "inner box" },
       issues: [],
     });
   });
 
   it("is info for the SAFEDON_EG example in its wording: 125 per plastic pack x 16 = 2,000 per case", () => {
-    expect(calcPackingConfig(input(SAFEDON, { labels: SAFEDON_LABELS })).result).toEqual({
-      status: "info",
-      summary: "# gloves per case 2,000 = # glove per plastic pack 125 × # packs per case 16.",
+    const config = packingConfig(SAFEDON_EG_EXAMPLE.packing);
+    expect(calcPackingConfig(input(SAFEDON, { config, labels: SAFEDON_LABELS }))).toEqual({
+      result: { status: "info", summary: "# gloves per case 2,000 = # glove per plastic pack 125 × # packs per case 16." },
+      computed: { glovesPerCaseCheck: 2000, innerUnit: "plastic pack" },
+      issues: [],
     });
   });
 
   it("warns when the gloves per case is not inner x per case, with a link to it (BUILD_SPEC 6.1)", () => {
-    const output = calcPackingConfig(input({ ...SAFEDON, glovesPerCase: 2500 }, { labels: SAFEDON_LABELS }));
+    const config = packingConfig(SAFEDON_EG_EXAMPLE.packing);
+    const output = calcPackingConfig(input({ ...SAFEDON, glovesPerCase: 2500 }, { config, labels: SAFEDON_LABELS }));
     const message = "# gloves per case 2,500 is not # glove per plastic pack × # packs per case: 125 × 16 = 2,000.";
     expect(output).toEqual({
       result: { status: "warn", summary: message },
-      computed: { glovesPerCaseCheck: 2000 },
+      computed: { glovesPerCaseCheck: 2000, innerUnit: "plastic pack" },
       issues: [{ level: "warning", code: "gloves_per_case_mismatch", message, path: ["glovesPerCase"] }],
     });
   });
@@ -62,7 +65,7 @@ describe("packing_config", () => {
   it("is not done until the three counts are entered, naming them in the template's wording (6.2 rule 5)", () => {
     expect(calcPackingConfig(input({ glovesPerInner: 125 }, { labels: SAFEDON_LABELS }))).toEqual({
       result: { status: "not_done", summary: "Missing: # packs per case, # gloves per case." },
-      computed: { glovesPerCaseCheck: null },
+      computed: { glovesPerCaseCheck: null, innerUnit: "inner box" },
       issues: [],
     });
     const noTotal = calcPackingConfig(input({ ...STD_EG, glovesPerCase: null }));
@@ -121,7 +124,7 @@ describe("packing_config", () => {
     const evaluation = evaluateInspection({ template, data, context }, MODULE_REGISTRY);
     expect(evaluation.modules.find((entry) => entry.key === "packing_config")).toMatchObject({
       result: { status: "info" },
-      computed: { glovesPerCaseCheck: 2000 },
+      computed: { glovesPerCaseCheck: 2000, innerUnit: "inner box" },
       issues: [],
     });
   });

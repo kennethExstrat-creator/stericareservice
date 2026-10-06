@@ -21,6 +21,8 @@ import type { PackingConfigData } from "./schema";
 export type PackingConfigComputed = {
   /** "Gloves per case (inner × per case)": gloves per inner unit x inner units per case. Null until both are entered. */
   glovesPerCaseCheck: number | null;
+  /** What one inner unit is ("plastic pack"), from the template: the export carries no config. */
+  innerUnit: string;
 };
 
 type Counts = Readonly<Record<PackingCount, number | null>>;
@@ -28,6 +30,7 @@ type Case = { perInner: number; perCase: number; total: number };
 
 export function calcPackingConfig({
   data,
+  config,
   labels,
 }: CalcInput<PackingConfigData, PackingConfigConfig>): CalcOutput<PackingConfigComputed> {
   const issues: CalcIssue[] = PACKING_COUNTS.filter((field) => data[field] === 0).map((field) =>
@@ -35,7 +38,7 @@ export function calcPackingConfig({
   );
   const counts = positiveCounts(data);
   const check = glovesPerCaseCheck(counts);
-  const computed: PackingConfigComputed = { glovesPerCaseCheck: check };
+  const computed: PackingConfigComputed = { glovesPerCaseCheck: check, innerUnit: INNER_UNIT_NAMES[config.innerUnit] };
 
   const { glovesPerInner: perInner, innersPerCase: perCase, glovesPerCase: total } = counts;
   const mismatch =
