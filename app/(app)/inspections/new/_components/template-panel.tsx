@@ -119,7 +119,9 @@ function Chosen({
           {template.status === "draft" && " · Draft"}
         </p>
       </div>
-      <p className="w-fit rounded-lg bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-700">{reason}</p>
+      <p data-testid="choice-reason" className="w-fit rounded-lg bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-700">
+        {reason}
+      </p>
       {template.status === "draft" && (
         <p className="flex gap-2 text-sm text-warn touch:text-base">
           <TriangleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
