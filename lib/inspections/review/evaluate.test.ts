@@ -142,25 +142,29 @@ describe("inspectorDecision", () => {
     return evaluated({ data: { ...savedData(), modules } });
   }
 
-  it("takes the row's final result and remark, which lists and approval read", () => {
-    expect(inspectorDecision({ result: "pass", remarks: "  Accepted after the retest.  " }, evaluated())).toEqual({
-      result: "pass",
-      remarks: "Accepted after the retest.",
-    });
-  });
-
-  it("takes what the conclusion saved while the row has none", () => {
+  it("takes what the conclusion saved, over the row's copies (the export's rule too)", () => {
     // The fixture's conclusion: final result fail, remark "Critical defect in size L."
+    expect(inspectorDecision({ result: "pass", remarks: "Accepted after the retest." }, evaluated())).toEqual({
+      result: "fail",
+      remarks: "Critical defect in size L.",
+    });
     expect(inspectorDecision({ result: null, remarks: null }, evaluated())).toEqual({
       result: "fail",
       remarks: "Critical defect in size L.",
     });
   });
 
-  it("reads a blank remark column as none, and keeps the row's final result", () => {
-    expect(inspectorDecision({ result: "hold", remarks: " \n " }, evaluated())).toEqual({
+  it("lets the row's copies stand in where the conclusion holds none, trimmed, a blank remark as none", () => {
+    const empty = withConclusion({ finalResult: null, remark: null });
+    expect(inspectorDecision({ result: "pass", remarks: "  Accepted after the retest.  " }, empty)).toEqual({
+      result: "pass",
+      remarks: "Accepted after the retest.",
+    });
+    expect(inspectorDecision({ result: "hold", remarks: " \n " }, empty)).toEqual({ result: "hold", remarks: null });
+    // A final result chosen without its date yet: the row has no copy until the conclusion is done.
+    expect(inspectorDecision({ result: null, remarks: null }, withConclusion({ finalResult: "hold", remark: "  " }))).toEqual({
       result: "hold",
-      remarks: "Critical defect in size L.",
+      remarks: null,
     });
   });
 

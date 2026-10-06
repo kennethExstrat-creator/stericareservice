@@ -133,6 +133,26 @@ describe("buildInspectionExport", () => {
     expect(weight.warnings.find((warning) => warning.code === "weight_deviation")).toMatchObject({ size: "M" });
   });
 
+  it("carries each module's settings from the template version: its config over the module's defaults", async () => {
+    const doc = await exportOf();
+    // The weight test module's defaults; the template sets none.
+    expect(moduleOf(doc, "weight").config).toEqual({ n: 13, warnThresholdPct: 10 });
+    expect(moduleOf(doc, "packing_config").config).toEqual({ innerUnit: "inner box" });
+    expect(moduleOf(doc, "carton_sampling").config).toEqual({});
+    expect(doc.modules.every((module) => module.config !== undefined)).toBe(true);
+  });
+
+  it("exports a config the module refuses as the template has it, beside the invalid_config error", async () => {
+    const resolved = makeResolvedTemplate();
+    const weight = resolved.modules.find((entry) => entry.key === "weight");
+    if (!weight) throw new Error("no weight module");
+    weight.config = { n: 0, warnThresholdPct: 10 };
+    const doc = await exportOf(setup({ tables: { ...makeTables(), inspections: [makeInspectionRow({}, { resolved })] } }));
+    const exported = moduleOf(doc, "weight");
+    expect(exported.config).toEqual({ n: 0, warnThresholdPct: 10 });
+    expect(exported.errors?.map((error) => error.code)).toContain("invalid_config");
+  });
+
   it("carries warnings and errors per module", async () => {
     const doc = await exportOf();
     expect(moduleOf(doc, "packing_config").warnings.map((warning) => warning.code)).toContain("gloves_per_case_mismatch");

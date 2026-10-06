@@ -3,14 +3,15 @@
 // admin's per-inspection overrides applied (BUILD_SPEC 4.4, 6.2). The same
 // calls the capture screen and the export make (docs/MODULES.md section 13),
 // so the three agree. Pure: the page loads the row, this computes.
-import { InspectionResultSchema, type EntityRef, type InspectionResult } from "@/lib/schemas/common";
+import { inspectorDecision as decide, type InspectorDecision } from "@/lib/export/conclusion";
+import { inspectionMeta, type InspectionFileMeta } from "@/lib/export/evaluate";
+import type { EntityRef } from "@/lib/schemas/common";
 import { ResolvedTemplateSchema, type ResolvedTemplate } from "@/lib/schemas/template";
 import { applyModuleOverrides, parseModuleOverrides } from "@/lib/templates";
 import { validateInspection, type ValidationIssue, type ValidationReport } from "@/lib/validation";
 import {
   buildInspectionContext,
   InspectionDataSchema,
-  readPath,
   type InspectionContext,
   type InspectionData,
   type ModuleRegistry,
@@ -30,6 +31,12 @@ export type StoredInspection = {
   inspector: EntityRef | null;
   client: EntityRef | null;
   manufacturer: EntityRef | null;
+  /**
+   * The inspection's lab reports and certificates (inspection_files), so a
+   * module can tell a file it keeps by id that has since been deleted. Null
+   * when they could not be read; left out, the same.
+   */
+  files?: readonly InspectionFileMeta[] | null;
 };
 
 export type ReviewEvaluation =
@@ -94,47 +101,35 @@ export function evaluateStoredInspection(
   }
 
   const template = applyModuleOverrides(resolved.data, parseModuleOverrides(stored.moduleOverrides));
-  const context = buildInspectionContext(
+  const meta = inspectionMeta(
     {
-      template,
-      data,
-      meta: {
-        refNo: stored.refNo,
-        inspectionDate: stored.inspectionDate,
-        inspector: stored.inspector,
-        client: stored.client,
-        manufacturer: stored.manufacturer,
-      },
+      refNo: stored.refNo,
+      inspectionDate: stored.inspectionDate,
+      inspector: stored.inspector,
+      client: stored.client,
+      manufacturer: stored.manufacturer,
     },
-    registry,
+    stored.files ?? null,
   );
+  const context = buildInspectionContext({ template, data, meta }, registry);
   const report = validateInspection(data, template, context, registry);
   return { ok: true, template, context, report, summary: summariseIssues(report) };
 }
 
-/** The inspector's final result and remark. */
-export type InspectorDecision = { result: InspectionResult | null; remarks: string | null };
+export type { InspectorDecision };
 
 /**
- * The inspector's final result and remark: the row's `result` and `remarks`,
- * which lists and approval read, else what the conclusion saved
- * (docs/DATA_DICTIONARY.md: `conclusion.finalResult` and `conclusion.remark`
- * are those columns) as the evaluation parsed it. Capture copies them into
- * the row; until it has, the conclusion's own values stand in. The export's
- * conclusion block takes them the same way, so the review and the export
- * (and the AI second opinion fed from it) never disagree.
+ * The inspector's final result and remark: what the conclusion saved
+ * (docs/DATA_DICTIONARY.md: `conclusion.finalResult` and `conclusion.remark`),
+ * as the evaluation parsed it, with the row's `result` and `remarks` standing
+ * in where it holds none (the capture screen copies them into the row for
+ * lists and search). The same rule as the export's conclusion block, so the
+ * review, its AI panel and the export never disagree. When the results
+ * cannot be worked out, the row's copies are all there is.
  */
 export function inspectorDecision(row: InspectorDecision, evaluation: ReviewEvaluation): InspectorDecision {
   const saved = evaluation.ok ? evaluation.report.modules.find((entry) => entry.key === "conclusion")?.data : undefined;
-  return {
-    result: row.result ?? InspectionResultSchema.safeParse(readPath(saved, ["finalResult"])).data ?? null,
-    remarks: textOrNull(row.remarks) ?? textOrNull(readPath(saved, ["remark"])),
-  };
-}
-
-/** Trimmed text, or null when there is none. */
-function textOrNull(value: unknown): string | null {
-  return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+  return decide(row, saved);
 }
 
 /** `{ modules, custom }`; a missing namespace is empty, anything else that is not an object is unreadable. */
