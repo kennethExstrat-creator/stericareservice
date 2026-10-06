@@ -93,7 +93,7 @@ export function LoginForm({ next, notice }: { next?: string; notice: LoginNotice
           </div>
           <Link
             href="/forgot-password"
-            className="col-start-2 row-start-1 rounded-sm text-sm font-medium text-brand-600 underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 touch:-my-3 touch:py-3"
+            className="col-start-2 row-start-1 rounded-sm text-sm font-medium text-brand-600 underline-offset-4 hover:underline focus-ring touch:-my-3 touch:py-3"
           >
             Forgot password?
           </Link>
