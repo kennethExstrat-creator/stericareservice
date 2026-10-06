@@ -171,7 +171,11 @@ describe("labeling", () => {
 
     it("counts 0 boxes inspected as not done: nothing was inspected", () => {
       const output = calcLabeling(input(sizeM({ inner: level({ inspected: 0 }) })));
-      expect(output.result.perSize?.M.status).toBe("not_done");
+      expect(output.result).toEqual({
+        status: "not_done",
+        summary: "No boxes inspected: size M (Dispenser Box).",
+        perSize: { M: { status: "not_done", summary: "Dispenser Box: no boxes inspected; Carton Box: 0 defects in 1." } },
+      });
       expect(output.computed.sizes.M.inner.result).toBe("not_done");
     });
 

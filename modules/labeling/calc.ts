@@ -241,9 +241,9 @@ function levelIssues(
 /** "Dispenser Box: 0 defects in 3", "Carton Box: not recorded". */
 function describeLevel(outcome: LevelOutcome): string {
   const { label, total, inspected, planned, disposition } = outcome;
-  if (disposition === "not_done") return `${label}: not recorded`;
+  if (disposition === "not_done") return `${label}: ${inspected === 0 ? "no boxes inspected" : "not recorded"}`;
   const defects = countOf(total, "defect", "defects");
-  if (inspected === null || inspected === 0) return `${label}: ${defects}, boxes inspected not recorded`;
+  if (inspected === null) return `${label}: ${defects}, boxes inspected not recorded`;
   const plan = inspected < planned ? ` (plan ${planned})` : "";
   return `${label}: ${defects} in ${inspected}${plan}`;
 }
@@ -252,14 +252,16 @@ function summarise(outcomes: ReadonlyMap<string, LevelOutcome[]>, context: Inspe
   const sizes = [...outcomes.keys()];
   if (sizes.length === 0) return "No sizes ordered yet.";
   const sizeText = (size: string) => `size ${sizeLabel(context, size)}`;
-  const withStatus = (status: ModuleStatus) =>
+  const where = (test: (outcome: LevelOutcome) => boolean) =>
     sizes.flatMap((size) => {
-      const matching = (outcomes.get(size) ?? []).filter((outcome) => outcome.status === status);
+      const matching = (outcomes.get(size) ?? []).filter(test);
       return matching.length > 0 ? [{ size, matching }] : [];
     });
+  const levelsBySize = (groups: ReturnType<typeof where>) =>
+    groups.map(({ size, matching }) => `${sizeText(size)} (${matching.map((outcome) => outcome.label).join(", ")})`).join("; ");
 
   const parts: string[] = [];
-  const failed = withStatus("fail");
+  const failed = where((outcome) => outcome.status === "fail");
   if (failed.length > 0) {
     const lines = failed.flatMap(({ size, matching }) =>
       matching.map((outcome) => {
@@ -269,17 +271,14 @@ function summarise(outcomes: ReadonlyMap<string, LevelOutcome[]>, context: Inspe
     );
     parts.push(`Failed: ${lines.join("; ")}.`);
   }
-  const missing = withStatus("not_done");
-  if (missing.length > 0) {
-    const lines = missing.map(
-      ({ size, matching }) => `${sizeText(size)} (${matching.map((outcome) => outcome.label).join(", ")})`,
-    );
-    parts.push(`Not recorded: ${lines.join("; ")}.`);
-  }
+  const unrecorded = where((outcome) => outcome.status === "not_done" && outcome.inspected === null);
+  if (unrecorded.length > 0) parts.push(`Not recorded: ${levelsBySize(unrecorded)}.`);
+  const none = where((outcome) => outcome.status === "not_done" && outcome.inspected === 0);
+  if (none.length > 0) parts.push(`No boxes inspected: ${levelsBySize(none)}.`);
   if (parts.length > 0) return parts.join(" ");
 
   const sizeList = `${sizes.length === 1 ? "size" : "sizes"} ${sizes.map((size) => sizeLabel(context, size)).join(", ")}`;
-  const short = withStatus("warn");
+  const short = where((outcome) => outcome.status === "warn");
   if (short.length === 0) return `No defects in ${sizeList}.`;
   const lines = short.flatMap(({ size, matching }) =>
     matching.map((outcome) => `${sizeText(size)} ${outcome.label} ${outcome.inspected} of ${outcome.planned}`),
