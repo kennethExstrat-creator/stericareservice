@@ -1,4 +1,5 @@
 import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
+import type { Json } from "../../lib/supabase/database.types";
 import { createTestAdminClient } from "../support/admin";
 import { signIn, TEST_ACCOUNTS } from "../support/session";
 import { createCaptureFixture, type CaptureFixture } from "./fixtures";
@@ -239,6 +240,68 @@ test("without a connection the pill says Offline (will sync), then saves", async
     .toMatchObject({ modules: { glove_info: { length: "240 mm minimum" } } });
 });
 
+test("a change kept on this device while saves fail comes back after a reload, and is saved", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  test.skip(!isDesktop(), "One size is enough: the local copy is the same everywhere.");
+  await signInAs(context, baseURL!, "inspector");
+  await page.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
+  const texture = page.getByLabel("Glove surface texture");
+  await expect(texture).toBeEditable();
+
+  // The signal drops for saves only (Server Actions are POSTs): the page itself still reloads.
+  await page.route("**/*", (route) =>
+    route.request().method() === "POST" ? route.abort("internetdisconnected") : route.continue(),
+  );
+  await texture.fill("Textured fingertips");
+  await expect(savePill(page)).toHaveAttribute("data-state", "offline", { timeout: 15_000 });
+  await page.unroute("**/*");
+
+  await page.reload();
+  await expect(page.getByText("Unsaved changes from this device were restored")).toBeVisible();
+  await expect(page.getByLabel("Glove surface texture")).toHaveValue("Textured fingertips");
+  await expect
+    .poll(async () => (await storedData(fixture.inspectionId)).data, { timeout: 15_000 })
+    .toMatchObject({ modules: { glove_info: { surfaceTexture: "Textured fingertips" } } });
+  await expect(savePill(page)).toHaveAttribute("data-state", "saved");
+});
+
+test("an edit saved on another device meanwhile asks which version to keep", async ({ page, context, baseURL }) => {
+  test.skip(!isDesktop(), "One size is enough: the question is the same everywhere.");
+  await signInAs(context, baseURL!, "inspector");
+  await page.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
+  const colour = page.getByLabel("Glove colour");
+  await expect(colour).toBeEditable();
+
+  // Another device saves a different colour (a plain update moves updated_at on).
+  const admin = createTestAdminClient();
+  const { data } = await storedData(fixture.inspectionId);
+  const stored = data as { modules: Record<string, Record<string, unknown>>; custom: Record<string, unknown> };
+  const elsewhere = {
+    ...stored,
+    modules: { ...stored.modules, glove_info: { ...stored.modules.glove_info, colour: "Green" } },
+  };
+  const { error } = await admin
+    .from("inspections")
+    .update({ data: elsewhere as unknown as NonNullable<Json> })
+    .eq("id", fixture.inspectionId);
+  if (error) throw new Error(error.message);
+
+  // This device changes it too: the save finds a version it never saw and stops to ask.
+  await colour.fill("Purple");
+  const dialog = page.getByRole("alertdialog", { name: "This inspection was changed on another device" });
+  await expect(dialog).toBeVisible({ timeout: 15_000 });
+  await viewportShot(page, "conflict");
+  await press(dialog.getByRole("button", { name: "Keep the changes on this device" }));
+  await expect(dialog).toBeHidden();
+  await expect
+    .poll(async () => (await storedData(fixture.inspectionId)).data, { timeout: 15_000 })
+    .toMatchObject({ modules: { glove_info: { colour: "Purple" } } });
+  await expect(savePill(page)).toHaveAttribute("data-state", "saved");
+});
+
 test("submit with errors is blocked, and each error links to its section", async ({ page, context, baseURL }) => {
   await signInAs(context, baseURL!, "inspector");
   await page.goto(`/inspections/${fixture.inspectionId}`);
@@ -295,6 +358,22 @@ test("an admin switches a section off for this inspection, and back on", async (
   await press(page.getByRole("button", { name: "Switch back on" }));
   await expect(page.getByRole("button", { name: "Switch off" })).toBeVisible();
   await expect.poll(async () => (await storedData(fixture.inspectionId)).module_overrides).toEqual({});
+
+  // Both changes are in the audit log, with the reason (log_inspection_event).
+  const { data: logged, error } = await createTestAdminClient()
+    .from("audit_log")
+    .select("action, changes")
+    .eq("inspection_id", fixture.inspectionId)
+    .eq("action", "module_override")
+    .order("id");
+  if (error) throw new Error(error.message);
+  expect(logged).toEqual([
+    { action: "module_override", changes: { module: "packing_config", include: false, reason: "Not part of this order (e2e)" } },
+    {
+      action: "module_override",
+      changes: { module: "packing_config", include: true, previousReason: "Not part of this order (e2e)" },
+    },
+  ]);
 });
 
 test("a submitted inspection is read-only for the inspector", async ({ page, context, baseURL }) => {
