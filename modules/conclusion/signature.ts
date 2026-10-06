@@ -18,6 +18,12 @@ export const MAX_POINTS_PER_STROKE = 400;
 export const MIN_STEP = 1.5;
 /** How far, in units, simplification may move the line: under a pixel on an iPad. */
 export const SIMPLIFY_TOLERANCE = 0.75;
+/**
+ * Most points a stroke is simplified from. Simplifying costs up to points x
+ * points kept, so a longer stroke (a scribble across the pad, several
+ * times) is first thinned evenly to this many.
+ */
+export const MAX_RAW_POINTS = 2000;
 
 const StrokeSchema = z
   .array(z.number().int().min(0))
@@ -77,20 +83,38 @@ export function simplify(points: readonly Point[], tolerance = SIMPLIFY_TOLERANC
 }
 
 /**
- * A drawn stroke as stored: simplified, rounded to whole units, kept inside
- * the box, repeats dropped, and at most MAX_POINTS_PER_STROKE points (the
- * tolerance doubles until it fits). Empty when nothing was drawn.
+ * A drawn stroke as stored: thinned, simplified, rounded to whole units,
+ * kept inside the box, repeats dropped, and at most MAX_POINTS_PER_STROKE
+ * points (the tolerance doubles until it fits). Empty when nothing was drawn.
  */
 export function encodeStroke(
   points: readonly Point[],
   box: { width: number; height: number } = { width: SIGNATURE_WIDTH, height: SIGNATURE_HEIGHT },
 ): number[] {
+  const thinned = thin(points);
   let tolerance = SIMPLIFY_TOLERANCE;
   for (;;) {
-    const encoded = roundPoints(simplify(points, tolerance), box);
+    const encoded = roundPoints(simplify(thinned, tolerance), box);
     if (encoded.length <= MAX_POINTS_PER_STROKE * 2) return encoded;
     tolerance *= 2;
   }
+}
+
+/**
+ * Points at least MIN_STEP apart, the stroke's last point kept, then at most
+ * MAX_RAW_POINTS of them, evenly spread. Linear time, whatever the input.
+ */
+export function thin(points: readonly Point[]): Point[] {
+  const spaced: Point[] = [];
+  for (const point of points) {
+    const last = spaced[spaced.length - 1];
+    if (last === undefined || Math.hypot(point.x - last.x, point.y - last.y) >= MIN_STEP) spaced.push(point);
+  }
+  const end = points[points.length - 1];
+  if (end !== undefined && spaced[spaced.length - 1] !== end) spaced.push(end);
+  if (spaced.length <= MAX_RAW_POINTS) return spaced;
+  const step = (spaced.length - 1) / (MAX_RAW_POINTS - 1);
+  return Array.from({ length: MAX_RAW_POINTS }, (_, index) => spaced[Math.round(index * step)]);
 }
 
 /** The points of a stored stroke. */

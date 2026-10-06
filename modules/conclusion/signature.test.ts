@@ -4,6 +4,7 @@ import {
   canAddStroke,
   encodeStroke,
   MAX_POINTS_PER_STROKE,
+  MAX_RAW_POINTS,
   MAX_STROKES,
   SIGNATURE_HEIGHT,
   SIGNATURE_WIDTH,
@@ -11,6 +12,7 @@ import {
   simplify,
   strokePath,
   strokePoints,
+  thin,
   withoutLastStroke,
   type Point,
   type Signature,
@@ -81,13 +83,40 @@ describe("simplify", () => {
     ]);
   });
 
-  it("keeps curves within the tolerance and copes with long strokes", () => {
+  it("keeps curves within the tolerance", () => {
     const points = wave(0, 600, 0);
     const kept = simplify(points);
     expect(kept.length).toBeLessThan(points.length / 4);
     expect(kept[0]).toEqual(points[0]);
     expect(kept.at(-1)).toEqual(points.at(-1));
-    expect(simplify(wave(0, 50_000, 0)).length).toBeGreaterThan(2);
+  });
+});
+
+describe("thin", () => {
+  it("drops pointer moves closer than MIN_STEP and keeps where the stroke ends", () => {
+    const points = [
+      { x: 0, y: 0 },
+      { x: 1, y: 0 },
+      { x: 2, y: 0 },
+      { x: 2.5, y: 0 },
+    ];
+    expect(thin(points)).toEqual([
+      { x: 0, y: 0 },
+      { x: 2, y: 0 },
+      { x: 2.5, y: 0 },
+    ]);
+    expect(thin([])).toEqual([]);
+  });
+
+  it("spreads a very long stroke over MAX_RAW_POINTS, first and last kept, so simplifying stays quick", () => {
+    const long = line({ x: 0, y: 0 }, { x: 600, y: 200 }, 100_000).map((point, index) => ({
+      x: point.x,
+      y: (point.y + 37 * index) % SIGNATURE_HEIGHT,
+    }));
+    const thinned = thin(long);
+    expect(thinned).toHaveLength(MAX_RAW_POINTS);
+    expect(thinned[0]).toEqual(long[0]);
+    expect(thinned.at(-1)).toEqual(long.at(-1));
   });
 });
 
