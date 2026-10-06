@@ -6,7 +6,9 @@
 // fills down from the focused cell. Rejected entries are announced and listed
 // under the grid as full-width buttons back to their cells (BUILD_SPEC 6.2).
 // The keyboard and paste rules are pure functions in grid-navigation.ts.
-import { useId, useRef, useState, type KeyboardEvent } from "react";
+// While the grid fits its width it leaves sideways moves to the page, so a
+// swipe on it turns SizeTabs' size; a grid that has to scroll sideways keeps them.
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { cn } from "@/lib/utils";
 import { formatDecimal, formatSpec, summarizeColumn, type Spec, type StatisticKind } from "@/lib/stats";
 import {
@@ -82,6 +84,21 @@ export function MeasurementGrid({
   const inputs = useRef(new Map<string, HTMLInputElement>());
   const size = { rows, cols: measures.length };
 
+  // A scroll container takes horizontal touch moves even when it has nothing
+  // to scroll sideways, which would stop SizeTabs' swipe on the grid. While
+  // the table fits, only vertical panning (and zoom) stays with the grid.
+  const scroller = useRef<HTMLDivElement>(null);
+  const [fitsWidth, setFitsWidth] = useState(true);
+  useEffect(() => {
+    const element = scroller.current;
+    if (!element || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => setFitsWidth(element.scrollWidth <= element.clientWidth + 1));
+    observer.observe(element);
+    const table = element.firstElementChild;
+    if (table) observer.observe(table);
+    return () => observer.disconnect();
+  }, []);
+
   const valueAt = (measure: string, row: number) => values[measure]?.[row] ?? null;
   const columnOf = (measure: string) => Array.from({ length: rows }, (_, row) => valueAt(measure, row));
   // A rejected entry leaves its cell null; a value set later by the parent supersedes it.
@@ -148,7 +165,13 @@ export function MeasurementGrid({
       className={cn("relative overflow-hidden rounded-lg border border-border bg-card", className)}
     >
       {/* Scroll padding keeps a focused cell clear of the sticky header and footer. */}
-      <div className="max-h-[75svh] scroll-pt-16 scroll-pb-28 overflow-auto overscroll-contain touch:scroll-pb-36">
+      <div
+        ref={scroller}
+        className={cn(
+          "max-h-[75svh] scroll-pt-16 scroll-pb-28 overflow-auto overscroll-contain touch:scroll-pb-36",
+          fitsWidth && "touch-pan-y touch-pinch-zoom",
+        )}
+      >
         <table className="w-full min-w-[36rem] table-fixed border-separate border-spacing-0 text-sm touch:text-base">
           <caption className="sr-only">{caption}</caption>
           <thead>
