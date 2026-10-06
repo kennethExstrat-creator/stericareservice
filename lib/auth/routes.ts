@@ -30,6 +30,39 @@ export function classifyPath(pathname: string): RouteKind {
   return "protected";
 }
 
+export type ProxyDecision = { action: "pass" } | { action: "redirect"; location: string };
+
+/**
+ * What proxy.ts does with one request. Only page navigations (GET and HEAD)
+ * are redirected: a Server Action is a POST, and a redirect in reply breaks it
+ * on the client ("An unexpected response was received from the server"), so
+ * actions pass through and answer for themselves through authorizeAction().
+ */
+export function proxyDecision(request: {
+  method: string;
+  pathname: string;
+  search: string;
+  next: string | null;
+  signedIn: boolean;
+}): ProxyDecision {
+  const { method, pathname, search, next, signedIn } = request;
+  if (method !== "GET" && method !== "HEAD") return { action: "pass" };
+
+  switch (classifyPath(pathname)) {
+    case "api":
+    case "open":
+      return { action: "pass" };
+    case "guest":
+      return signedIn ? { action: "redirect", location: safeNextPath(next) } : { action: "pass" };
+    case "protected": {
+      if (signedIn) return { action: "pass" };
+      if (pathname === "/") return { action: "redirect", location: LOGIN_PATH };
+      const login = new URLSearchParams({ next: `${pathname}${search}` });
+      return { action: "redirect", location: `${LOGIN_PATH}?${login}` };
+    }
+  }
+}
+
 /**
  * Only same-origin, relative destinations survive, so `?next=` can never send
  * someone to another site (`//evil.example`, `/\evil.example`, absolute URLs)

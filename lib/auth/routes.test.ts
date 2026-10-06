@@ -1,5 +1,52 @@
 import { describe, expect, it } from "vitest";
-import { classifyPath, HOME_PATH, safeNextPath } from "./routes";
+import { classifyPath, HOME_PATH, proxyDecision, safeNextPath } from "./routes";
+
+describe("proxyDecision", () => {
+  const request = (overrides: Partial<Parameters<typeof proxyDecision>[0]>) =>
+    proxyDecision({ method: "GET", pathname: "/", search: "", next: null, signedIn: false, ...overrides });
+
+  it("sends signed-out page visits to /login with the page as next", () => {
+    expect(request({ pathname: "/inspections", search: "?status=draft" })).toEqual({
+      action: "redirect",
+      location: "/login?next=%2Finspections%3Fstatus%3Ddraft",
+    });
+    expect(request({ pathname: "/" })).toEqual({ action: "redirect", location: "/login" });
+    expect(request({ method: "HEAD", pathname: "/admin" })).toEqual({
+      action: "redirect",
+      location: "/login?next=%2Fadmin",
+    });
+  });
+
+  it("sends signed-in visitors away from the sign-in screens, only to a safe next", () => {
+    expect(request({ pathname: "/login", signedIn: true })).toEqual({ action: "redirect", location: HOME_PATH });
+    expect(request({ pathname: "/login", signedIn: true, next: "/admin/users" })).toEqual({
+      action: "redirect",
+      location: "/admin/users",
+    });
+    expect(request({ pathname: "/login", signedIn: true, next: "/.//evil.example" })).toEqual({
+      action: "redirect",
+      location: HOME_PATH,
+    });
+  });
+
+  it("lets Server Actions and other non-navigation methods through to answer for themselves", () => {
+    for (const method of ["POST", "PUT", "PATCH", "DELETE", "OPTIONS"]) {
+      expect(request({ method, pathname: "/login", signedIn: true })).toEqual({ action: "pass" });
+      expect(request({ method, pathname: "/inspections/abc", signedIn: false })).toEqual({ action: "pass" });
+    }
+  });
+
+  it("never redirects API routes or open pages", () => {
+    expect(request({ pathname: "/api/inspections/1/export" })).toEqual({ action: "pass" });
+    expect(request({ pathname: "/auth/confirm", signedIn: true })).toEqual({ action: "pass" });
+    expect(request({ pathname: "/reset-password", signedIn: true })).toEqual({ action: "pass" });
+  });
+
+  it("passes signed-in page visits and signed-out sign-in screens", () => {
+    expect(request({ pathname: "/inspections", signedIn: true })).toEqual({ action: "pass" });
+    expect(request({ pathname: "/login" })).toEqual({ action: "pass" });
+  });
+});
 
 describe("classifyPath", () => {
   it.each([
