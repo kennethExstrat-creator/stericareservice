@@ -2,17 +2,18 @@
 
 // The Dimension body: one MeasurementGrid per ordered size, in size tabs.
 // Gloves are rows (the sampling plan's n, else the template's), the measures
-// on are columns in the template's wording; the footer shows the median or
-// average, the spec and the verdict at the printed precision, live as you
+// on are columns in the template's wording; the footer shows calc's median
+// or average, the spec and the verdict at the printed precision, as you
 // type. Enter walks down a column and a pasted column fills down (the grid's
 // own rules); every write goes through useDataUpdater, so a paste or two
 // commits in one event all land. Issue links switch to the size and focus
 // the cell; readings past the planned gloves, which have no row, can be
-// removed from their warning. Photos are tagged with the size in view.
-import { useId, useLayoutEffect, useRef, useState, type RefObject } from "react";
+// removed from their warning. Read-only, the readings stay focusable. Photos
+// are tagged with the size in view.
+import { useId, useRef, useState, type RefObject } from "react";
 import {
   focusIssuePath,
-  issuePathProps,
+  issueNoticeProps,
   MeasurementGrid,
   ModuleSection,
   SizeTabs,
@@ -21,24 +22,24 @@ import {
   useIssueFocus,
   type DataChange,
   type Measure as GridMeasure,
-  type MeasurementValues,
 } from "@/components/qc";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { labelFor, sizeLabel, type CaptureProps, type Labels, type ValidationIssue } from "@/modules/_framework";
 import { rowsFor, specFor, type DimensionsComputed } from "./calc";
-import { cellPath, gridChanges, gridColumns, sizeHeading, withoutGlovesPast, withReadings } from "./capture-data";
-import type { DimensionsConfig, Measure } from "./config";
+import {
+  cellPath,
+  gridColumns,
+  measureSummary,
+  readingChanges,
+  sizeHeading,
+  withoutGlovesPast,
+  withReadings,
+} from "./capture-data";
+import type { DimensionsConfig } from "./config";
 import type { DimensionsData } from "./schema";
 
 type Props = CaptureProps<DimensionsData, DimensionsConfig, DimensionsComputed>;
-
-// MeasurementGrid has no read-only mode yet: a disabled fieldset stops every
-// edit, and the readings keep full contrast instead of greying out.
-const READ_ONLY_FRAME = cn(
-  "m-0 min-w-0 border-0 p-0",
-  "[&_input:disabled]:text-foreground [&_input:disabled]:opacity-100 [&_input:disabled]:[-webkit-text-fill-color:currentColor]",
-);
 
 export default function Capture(props: Props) {
   const { data, context, evaluation, focusPath, onChange, onFocusChange } = props;
@@ -91,10 +92,11 @@ function SizeGrid({
   root: RefObject<HTMLDivElement | null>;
   update: (change: DataChange<DimensionsData>) => void;
 }) {
-  const grid = useRef<HTMLDivElement>(null);
   const { rows } = rowsFor(context, size, config);
   const heading = sizeHeading(labelFor(labels, "sizeHeading"), sizeLabel(context, size));
   const status = evaluation?.result.perSize?.[size]?.status;
+  // A module whose config or data is broken comes back with no computed values.
+  const computed: Partial<DimensionsComputed> | undefined = evaluation?.computed;
   // Issues about a reading of this size; the screen's issue list carries the rest.
   const issues = (evaluation?.issues ?? []).filter(
     (issue) => issue.size === size && issue.path[0] === "sizes" && issue.path[1] === size && issue.path.length > 2,
@@ -106,18 +108,11 @@ function SizeGrid({
     unit: "mm",
     decimals: config.decimals[measure],
     spec: specFor(config, size, measure),
+    // calc refuses a reading of 0 mm or less: so does the cell.
     min: 0,
+    minExclusive: true,
+    summary: measureSummary(computed, size, measure),
   }));
-  const columns = gridColumns(data, size, config.measures, rows);
-
-  useCellIssuePaths(grid, size, config.measures);
-
-  // Only the readings the grid changed are written, on the latest data.
-  const write = (next: MeasurementValues) => {
-    if (readOnly) return;
-    const changes = gridChanges(columns, next, config.measures, rows);
-    update((current) => withReadings(current, size, changes));
-  };
 
   return (
     <ModuleSection
@@ -128,24 +123,24 @@ function SizeGrid({
       issuePath={["sizes", size]}
     >
       <div
-        ref={grid}
         // Tag photos with the size when focus enters the grid, not on every move between its cells.
         onFocus={(event) => {
           if (!event.currentTarget.contains(event.relatedTarget)) onFocusChange?.({ size });
         }}
-        {...issuePathProps(["sizes", size, "gloves"])}
       >
-        <fieldset disabled={readOnly} className={READ_ONLY_FRAME}>
-          <MeasurementGrid
-            caption={heading}
-            measures={measures}
-            rows={rows}
-            values={columns}
-            onValuesChange={write}
-            statistic={config.statistic}
-            labels={gridLabels(labels)}
-          />
-        </fieldset>
+        <MeasurementGrid
+          caption={heading}
+          measures={measures}
+          rows={rows}
+          values={gridColumns(data, size, config.measures, rows)}
+          onCellsChange={(changes) =>
+            update((current) => withReadings(current, size, readingChanges(changes, config.measures)))
+          }
+          statistic={config.statistic}
+          labels={gridLabels(labels)}
+          readOnly={readOnly}
+          cellIssuePath={(cell) => cellPath(size, cell)}
+        />
       </div>
       <IssueLinks
         issues={issues}
@@ -162,26 +157,16 @@ function gridLabels(labels: Labels) {
     statistic: labelFor(labels, "statistic"),
     spec: labelFor(labels, "specRow"),
     result: labelFor(labels, "measureResult"),
+    pass: labelFor(labels, "pass"),
+    fail: labelFor(labels, "fail"),
   };
 }
 
 /**
- * Marks each grid cell with its data path (`["sizes", "M", "gloves", 3,
- * "width"]`), so an issue link reaches the exact cell. MeasurementGrid takes
- * no path per cell yet; its cells are row by row, a column per measure.
+ * calc's issues for the size in view: a reading's problem is a link back to
+ * its cell; readings past the planned gloves have no cell, so their warning
+ * is where an issue link lands, with the way to remove them.
  */
-function useCellIssuePaths(grid: RefObject<HTMLElement | null>, size: string, measures: readonly Measure[]) {
-  useLayoutEffect(() => {
-    const cells = grid.current?.querySelectorAll<HTMLInputElement>("tbody input") ?? [];
-    cells.forEach((cell, index) => {
-      for (const [name, value] of Object.entries(issuePathProps(cellPath(size, measures, index)))) {
-        if (value !== undefined) cell.setAttribute(name, value);
-      }
-    });
-  });
-}
-
-/** calc's issues for the size in view, each a link back to its cell. */
 function IssueLinks({
   issues,
   root,
@@ -198,37 +183,52 @@ function IssueLinks({
 }) {
   const idBase = useId();
   if (issues.length === 0) return null;
+  const tone = (issue: ValidationIssue) =>
+    issue.level === "error" ? "border-fail-border bg-fail-tint text-fail" : "border-warn-border bg-warn-tint text-warn";
+  const icon = (issue: ValidationIssue) => (
+    <StatusIcon status={issue.level === "error" ? "fail" : "warn"} className="mt-0.5 size-4 shrink-0" />
+  );
   return (
     <ul className="space-y-1.5" aria-label="Problems in this size">
-      {issues.map((issue, index) => (
-        <li key={`${issue.code}-${index}`} className="space-y-1.5">
-          <button
-            type="button"
-            onClick={() => root.current && focusIssuePath(root.current, issue.path)}
-            className={cn(
-              "flex min-h-9 w-full items-start gap-2 rounded-md border px-3 py-2 text-left text-sm outline-none focus-ring-inset touch:min-h-11 touch:text-base",
-              issue.level === "error"
-                ? "border-fail-border bg-fail-tint text-fail"
-                : "border-warn-border bg-warn-tint text-warn",
-            )}
-          >
-            <StatusIcon status={issue.level === "error" ? "fail" : "warn"} className="mt-0.5 size-4 shrink-0" />
-            <span id={`${idBase}-${index}`}>{issue.message}</span>
-          </button>
-          {issue.code === "dimension_beyond_sample" && onRemoveUncounted && (
-            // Described by the warning, which names the size and the gloves.
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              aria-describedby={`${idBase}-${index}`}
-              onClick={onRemoveUncounted}
+      {issues.map((issue, index) =>
+        issue.code === "dimension_beyond_sample" ? (
+          <li key={`${issue.code}-${index}`} className={cn("relative space-y-2 rounded-md border px-3 py-2", tone(issue))}>
+            <p
+              {...issueNoticeProps(issue.path)}
+              className="flex items-start gap-2 rounded-sm text-sm outline-none focus-ring touch:text-base"
             >
-              Remove the readings that are not counted
-            </Button>
-          )}
-        </li>
-      ))}
+              {icon(issue)}
+              <span id={`${idBase}-${index}`}>{issue.message}</span>
+            </p>
+            {onRemoveUncounted && (
+              // Described by the warning, which names the size and the gloves.
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-describedby={`${idBase}-${index}`}
+                onClick={onRemoveUncounted}
+              >
+                Remove the readings that are not counted
+              </Button>
+            )}
+          </li>
+        ) : (
+          <li key={`${issue.code}-${index}`}>
+            <button
+              type="button"
+              onClick={() => root.current && focusIssuePath(root.current, issue.path)}
+              className={cn(
+                "flex min-h-9 w-full items-start gap-2 rounded-md border px-3 py-2 text-left text-sm outline-none focus-ring-inset touch:min-h-11 touch:text-base",
+                tone(issue),
+              )}
+            >
+              {icon(issue)}
+              <span id={`${idBase}-${index}`}>{issue.message}</span>
+            </button>
+          </li>
+        ),
+      )}
     </ul>
   );
 }

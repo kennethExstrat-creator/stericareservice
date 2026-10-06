@@ -7,16 +7,18 @@
 // size of the indicative weight shows its deviation and the warning beyond
 // the threshold (BUILD_SPEC 6.2 rule 9). Every write goes through
 // useDataUpdater, so a column pasted down the sizes, or two commits in one
-// event, all land. Issue links focus the value; values past n, which have
-// no cell, can be removed from their warning. Photos are tagged with the
+// event, all land. Issue links focus the value, or the message for what has
+// no cell (the deviation, values past n, which can be removed from their
+// warning). Read-only, the values stay focusable. Photos are tagged with the
 // size in focus.
-import { useId, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { useId, useRef, useState, type RefObject } from "react";
 import {
   EnterGroup,
   EntryProblems,
   Figure,
   findIssue,
   focusIssuePath,
+  issueNoticeProps,
   issuePathProps,
   MeasurementGrid,
   ModuleSection,
@@ -29,7 +31,6 @@ import {
   type DataChange,
   type EntryProblem,
   type InvalidEntry,
-  type MeasurementValues,
 } from "@/components/qc";
 import { Button } from "@/components/ui/button";
 import { formatNumber, formatSpec } from "@/lib/format";
@@ -37,20 +38,20 @@ import { cn } from "@/lib/utils";
 import type { ModuleStatus } from "@/lib/schemas";
 import { labelFor, sizeLabel, type CaptureProps, type Labels, type ValidationIssue } from "@/modules/_framework";
 import { indicativeFor, specFor, type WeightComputed } from "./calc";
-import { firstValues, valueChanges, withoutValuesPast, withValues } from "./capture-data";
+import {
+  firstValues,
+  gridSummary,
+  valueChanges,
+  VALUES_COLUMN,
+  withoutValuesPast,
+  withValues,
+} from "./capture-data";
 import type { WeightConfig } from "./config";
 import type { WeightData } from "./schema";
 
 type Props = CaptureProps<WeightData, WeightConfig, WeightComputed>;
 /** Applies a change to the latest data (useDataUpdater). */
 type Update = (change: DataChange<WeightData>) => void;
-
-// MeasurementGrid has no read-only mode yet: a disabled fieldset stops every
-// edit, and the weights keep full contrast instead of greying out.
-const READ_ONLY_FRAME = cn(
-  "m-0 min-w-0 border-0 p-0",
-  "[&_input:disabled]:text-foreground [&_input:disabled]:opacity-100 [&_input:disabled]:[-webkit-text-fill-color:currentColor]",
-);
 
 // MeasurementGrid's table is at least 36rem wide, room for five measures. One
 // column of weights needs far less: without that floor the grid stays beside
@@ -156,7 +157,9 @@ function OneValuePerSize({
                       onInvalidChange={(entry) => track(size, entry)}
                       error={findIssue(evaluation?.issues, ["sizes", size, "values", 0])?.message}
                       decimals={config.decimals}
+                      // calc refuses a weight of 0 g or less: so does the cell.
                       min={0}
+                      minExclusive
                       readOnly={readOnly}
                       issuePath={["sizes", size, "values", 0]}
                       onFocus={() => onFocusChange?.({ size })}
@@ -239,20 +242,11 @@ function SizeGrid({
   readOnly,
   onFocusChange,
 }: Props & { size: string; root: RefObject<HTMLDivElement | null>; update: Update }) {
-  const grid = useRef<HTMLDivElement>(null);
   const name = sizeLabel(context, size);
   const status = evaluation?.result.perSize?.[size]?.status;
   const label = labelFor(labels, "values");
-  const shown = firstValues(data, size, config.n);
-
-  useCellIssuePaths(grid, size);
-
-  // Only the weights the grid changed are written, on the latest data.
-  const write = (next: MeasurementValues) => {
-    if (readOnly || !next.values) return;
-    const changes = valueChanges(shown, next.values, config.n);
-    update((current) => withValues(current, size, changes));
-  };
+  // A module whose config or data is broken comes back with no computed values.
+  const computed: Partial<WeightComputed> | undefined = evaluation?.computed;
 
   return (
     <ModuleSection
@@ -265,41 +259,44 @@ function SizeGrid({
       issuePath={["sizes", size]}
     >
       <div
-        ref={grid}
         // Tag photos with the size when focus enters the grid, not on every move between its cells.
         onFocus={(event) => {
           if (!event.currentTarget.contains(event.relatedTarget)) onFocusChange?.({ size });
         }}
-        {...issuePathProps(["sizes", size, "values"])}
       >
-        <fieldset disabled={readOnly} className={READ_ONLY_FRAME}>
-          <MeasurementGrid
-            caption={`${label}, size ${name}`}
-            measures={[
-              {
-                key: "values",
-                label,
-                // The reports' label already names the unit: "Weight (g)".
-                unit: /\(g\)/.test(label) ? undefined : "g",
-                decimals: config.decimals,
-                spec: specFor(config, size),
-                min: 0,
-              },
-            ]}
-            rows={config.n}
-            values={{ values: shown }}
-            onValuesChange={write}
-            statistic="average"
-            // The grid's last row is the spec's verdict alone, so it keeps the
-            // kit's "P/F": the template's "Remark" is the size's result.
-            labels={{
-              row: labelFor(labels, "rowNo"),
-              statistic: labelFor(labels, "average"),
-              spec: labelFor(labels, "specRow"),
-            }}
-            className={ONE_COLUMN_GRID}
-          />
-        </fieldset>
+        <MeasurementGrid
+          caption={`${label}, size ${name}`}
+          measures={[
+            {
+              key: VALUES_COLUMN,
+              label,
+              // The reports' label already names the unit: "Weight (g)".
+              unit: /\(g\)/.test(label) ? undefined : "g",
+              decimals: config.decimals,
+              spec: specFor(config, size),
+              // calc refuses a weight of 0 g or less: so does the cell.
+              min: 0,
+              minExclusive: true,
+              summary: gridSummary(computed, size),
+            },
+          ]}
+          rows={config.n}
+          values={{ [VALUES_COLUMN]: firstValues(data, size, config.n) }}
+          onCellsChange={(changes) => update((current) => withValues(current, size, valueChanges(changes)))}
+          statistic="average"
+          // The grid's last row is the spec's verdict alone, so it keeps the
+          // kit's "P/F": the template's "Remark" is the size's result.
+          labels={{
+            row: labelFor(labels, "rowNo"),
+            statistic: labelFor(labels, "average"),
+            spec: labelFor(labels, "specRow"),
+            pass: labelFor(labels, "pass"),
+            fail: labelFor(labels, "fail"),
+          }}
+          readOnly={readOnly}
+          cellIssuePath={({ row }) => ["sizes", size, "values", row]}
+          className={ONE_COLUMN_GRID}
+        />
       </div>
       <DeviationNote size={size} config={config} labels={labels} context={context} evaluation={evaluation} />
       <IssueLinks
@@ -309,18 +306,6 @@ function SizeGrid({
       />
     </ModuleSection>
   );
-}
-
-/** Marks each grid cell with its data path (`["sizes", "M", "values", 3]`), so an issue link reaches it. */
-function useCellIssuePaths(grid: RefObject<HTMLElement | null>, size: string) {
-  useLayoutEffect(() => {
-    const cells = grid.current?.querySelectorAll<HTMLInputElement>("tbody input") ?? [];
-    cells.forEach((cell, row) => {
-      for (const [name, value] of Object.entries(issuePathProps(["sizes", size, "values", row]))) {
-        if (value !== undefined) cell.setAttribute(name, value);
-      }
-    });
-  });
 }
 
 /* Shared pieces ---------------------------------------------------------- */
@@ -355,7 +340,9 @@ function DeviationNote({
   return (
     <p
       data-slot="weight-deviation"
-      className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-slate-50 px-3 py-2 text-sm touch:text-base"
+      // Where the deviation warning's issue link lands: it has no field of its own.
+      {...issueNoticeProps(["sizes", size, "values"])}
+      className="relative flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-slate-50 px-3 py-2 text-sm outline-none focus-ring touch:text-base"
     >
       <span className="text-muted-foreground">
         {labelFor(labels, "deviationPct")}, size {sizeLabel(context, size)}
@@ -399,38 +386,55 @@ function IssueLinks({
 }) {
   const idBase = useId();
   if (issues.length === 0) return null;
+  const tone = (issue: ValidationIssue) =>
+    issue.level === "error" ? "border-fail-border bg-fail-tint text-fail" : "border-warn-border bg-warn-tint text-warn";
+  const icon = (issue: ValidationIssue) => (
+    <StatusIcon status={issue.level === "error" ? "fail" : "warn"} className="mt-0.5 size-4 shrink-0" />
+  );
   return (
     <ul className="space-y-1.5" aria-label="Problems with the weights">
       {issues.map((issue, index) => {
         const size = issue.size;
         const messageId = `${idBase}-${index}`;
+        // Values past n have no cell: their warning is where an issue link lands, with the way to remove them.
+        if (issue.code === "weight_beyond_n") {
+          return (
+            <li key={`${issue.code}-${index}`} className={cn("relative space-y-2 rounded-md border px-3 py-2", tone(issue))}>
+              <p
+                {...issueNoticeProps(issue.path)}
+                className="flex items-start gap-2 rounded-sm text-sm outline-none focus-ring touch:text-base"
+              >
+                {icon(issue)}
+                <span id={messageId}>{issue.message}</span>
+              </p>
+              {size !== undefined && onRemoveUncounted && (
+                // Described by the warning, which names the size and the values.
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  aria-describedby={messageId}
+                  onClick={() => onRemoveUncounted(size)}
+                >
+                  Remove the values that are not counted
+                </Button>
+              )}
+            </li>
+          );
+        }
         return (
-          <li key={`${issue.code}-${index}`} className="space-y-1.5">
+          <li key={`${issue.code}-${index}`}>
             <button
               type="button"
               onClick={() => root.current && focusIssuePath(root.current, issue.path)}
               className={cn(
                 "flex min-h-9 w-full items-start gap-2 rounded-md border px-3 py-2 text-left text-sm outline-none focus-ring-inset touch:min-h-11 touch:text-base",
-                issue.level === "error"
-                  ? "border-fail-border bg-fail-tint text-fail"
-                  : "border-warn-border bg-warn-tint text-warn",
+                tone(issue),
               )}
             >
-              <StatusIcon status={issue.level === "error" ? "fail" : "warn"} className="mt-0.5 size-4 shrink-0" />
+              {icon(issue)}
               <span id={messageId}>{issue.message}</span>
             </button>
-            {issue.code === "weight_beyond_n" && size !== undefined && onRemoveUncounted && (
-              // Described by the warning, which names the size and the values.
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                aria-describedby={messageId}
-                onClick={() => onRemoveUncounted(size)}
-              >
-                Remove the values that are not counted
-              </Button>
-            )}
           </li>
         );
       })}
