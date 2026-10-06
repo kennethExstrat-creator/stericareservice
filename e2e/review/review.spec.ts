@@ -25,11 +25,13 @@ import {
  * /inspections/[id]/review against the live project, at the three sizes in
  * playwright.config.ts: the admin approves one submitted inspection and
  * reopens another, the inspector reads both and submits the reopened one
- * again, and the audit log records each step. Screenshots go to
- * screenshots/review/.
+ * again, and the audit log records each step. A third, whose results cannot
+ * be worked out, gets a caution before approving, not a clean confirmation.
+ * Screenshots go to screenshots/review/.
  */
 
-const REOPEN_REASON = "Size M watertight: retest the two burst gloves with new samples and add the photos.";
+/** On two lines: the browser sends the line break as CRLF, the audit log keeps it as LF. */
+const REOPEN_REASON = "Size M watertight: retest the two burst gloves with new samples.\nAdd the photos of the burst cuffs.";
 
 /**
  * An approve or reopen answers with the refreshed page, which reads the
@@ -77,7 +79,7 @@ test.describe("reviewing inspections", () => {
     await expect(facts).toContainText("5 Oct 2026");
     await expect(facts).toContainText("E2E_REVIEW version 1");
 
-    // The inspector's decision beside the app's suggestion.
+    // The inspector's decision beside the app's suggestion; the remark from the conclusion, the row has none yet.
     const result = page.getByRole("region", { name: "Result" });
     await expect(result.getByText("Passed")).toBeVisible();
     await expect(result.getByText(REMARK_A)).toBeVisible();
@@ -137,6 +139,9 @@ test.describe("reviewing inspections", () => {
     await expect(dialog).toBeVisible();
     await expect(dialog.getByText("An approved inspection is final")).toBeVisible();
     await expect(dialog.getByText("The checks found 1 error.", { exact: false })).toBeVisible();
+    // Read out as the dialog opens, cautions included, while focus waits on Cancel.
+    await expect(dialog).toHaveAccessibleDescription(/^An approved inspection is final: .*Final result Passed .*The checks found 1 error\./);
+    await expect(dialog.getByRole("button", { name: "Cancel" })).toBeFocused();
     await viewShot(page, "admin-approve-dialog");
 
     await press(dialog.getByRole("button", { name: "Approve" }));
@@ -315,11 +320,38 @@ test.describe("reviewing inspections", () => {
     await shot(page, "admin-resubmitted");
   });
 
+  test("results that cannot be worked out are a caution before approving, not a clean check", async ({ page, context, baseURL }) => {
+    const hydration = watchConsole(page);
+    await as.signIn(context, baseURL!, "admin");
+    await page.goto(reviewPath(fixture.D.id));
+
+    await expect(page.getByRole("heading", { name: "Waiting for your review" })).toBeVisible();
+    await expect(page.getByText("The template version this inspection uses could not be read").first()).toBeVisible();
+
+    await press(page.getByRole("button", { name: "Approve" }));
+    const dialog = page.getByRole("alertdialog", { name: `Approve ${fixture.D.refNo}?` });
+    await expect(dialog.getByText("The results could not be worked out, so nothing was checked.", { exact: false })).toBeVisible();
+    await expect(dialog).toHaveAccessibleDescription(
+      /Suggested result Could not be worked out The results could not be worked out, so nothing was checked\. Ask a developer before you approve it\.$/,
+    );
+    await viewShot(page, "admin-unreadable-approve-dialog");
+
+    // Nothing is approved: Cancel closes it and gives focus back to Approve.
+    await press(dialog.getByRole("button", { name: "Cancel" }));
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole("button", { name: "Approve" })).toBeFocused();
+    await shot(page, "admin-unreadable");
+    expect(hydration()).toEqual([]);
+  });
+
   test("the admin's own draft says it is not submitted, and offers to go on with it", async ({ page, context, baseURL }) => {
     await as.signIn(context, baseURL!, "admin");
     await page.goto(reviewPath(fixture.C.id));
 
     await expect(page.getByRole("heading", { name: "Not submitted yet" })).toBeVisible();
+    // The final result chosen in the conclusion stands in while the row has none.
+    const finalResult = page.getByRole("region", { name: "Result" }).getByText("Failed", { exact: true });
+    await expect(finalResult).toBeVisible();
     await expect(page.getByText("The results below show what you have saved so far.")).toBeVisible();
     await expect(page.getByRole("link", { name: "Continue inspection" })).toHaveAttribute("href", `/inspections/${fixture.C.id}`);
     await expect(page.getByRole("button", { name: "Approve" })).toHaveCount(0);

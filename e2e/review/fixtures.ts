@@ -14,16 +14,21 @@ import { TEST_ACCOUNTS } from "../support/session";
  *
  *   A  submitted, for the admin to approve: glove information filled in,
  *      comments on two modules, a custom section, weight switched off with a
- *      reason, and two report photos plus one that is not for the report;
+ *      reason, and two report photos plus one that is not for the report.
+ *      Its remark is only in the conclusion's data, not yet in the row;
  *   B  submitted, for the admin to reopen;
- *   C  a draft of admin@test.local's own, which the inspector must not see.
+ *   C  a draft of admin@test.local's own, which the inspector must not see,
+ *      its final result only in the conclusion's data;
+ *   D  submitted, on a template version whose resolved copy cannot be read,
+ *      so its results cannot be worked out.
  *
- * A and B belong to inspector@test.local. All three use a draft template no
- * inspector can start from. The template is resolved with the real modules, so its
- * config stays valid as the modules are built. Teardown removes the photos'
- * Storage objects, then each inspection through deleteTestInspection() (the
- * service role cannot delete an approved one), then the template. A run that
- * died half way is cleaned up by the next.
+ * A, B and D belong to inspector@test.local. All use draft templates no
+ * inspector can start from: version 1 of E2E_REVIEW, resolved with the real
+ * modules so its config stays valid as the modules are built, and for D a
+ * version 2 whose resolved copy is broken on purpose. Teardown removes the
+ * photos' Storage objects, then each inspection through
+ * deleteTestInspection() (the service role cannot delete an approved one),
+ * then the templates. A run that died half way is cleaned up by the next.
  */
 
 type AdminClient = ReturnType<typeof createTestAdminClient>;
@@ -80,6 +85,8 @@ export type ReviewFixture = {
   B: { id: string; refNo: string };
   /** The admin's own draft: an inspection the inspector must not see. */
   C: { id: string; refNo: string };
+  /** Submitted, but its template version cannot be read: nothing can be checked. */
+  D: { id: string; refNo: string };
   inspectorId: string;
   adminId: string;
   /** Changes B without a status change, as another admin's edit would: its version moves on. */
@@ -156,6 +163,14 @@ async function insertFixtureRows(admin: AdminClient, browser: Browser): Promise<
     .single();
   if (templateError) fail("creating the fixture template", templateError);
 
+  // The same definition, but a resolved copy the app cannot read.
+  const { data: broken, error: brokenError } = await admin
+    .from("templates")
+    .insert({ ...templateRowFields(DEFINITION, resolution.template), version: 2, status: "draft", resolved: { broken: true } })
+    .select("id")
+    .single();
+  if (brokenError) fail("creating the unreadable fixture template", brokenError);
+
   const common = {
     template_id: template.id,
     inspector_id: inspectorId,
@@ -170,10 +185,11 @@ async function insertFixtureRows(admin: AdminClient, browser: Browser): Promise<
       po_no: "E2E-REVIEW-PO-A",
       product_name: "Nitrile examination gloves, blue (E2E review)",
       lot_numbers: ["E2E-LOT-A1", "E2E-LOT-A2"],
+      // No remarks column: capture has not copied the conclusion's remark into the row yet.
       result: "pass",
-      remarks: REMARK_A,
       data: {
         modules: {
+          conclusion: { remark: REMARK_A },
           glove_info: {
             surfaceTexture: "Finger-textured",
             indicativeWeight: 3.5,
@@ -204,6 +220,15 @@ async function insertFixtureRows(admin: AdminClient, browser: Browser): Promise<
       inspector_id: adminId,
       po_no: "E2E-REVIEW-PO-C",
       product_name: "Nitrile examination gloves, black (E2E review)",
+      // No result column yet: the conclusion's final result stands in.
+      data: { modules: { conclusion: { finalResult: "fail" } }, custom: {} },
+    },
+    {
+      ...common,
+      template_id: broken.id,
+      po_no: "E2E-REVIEW-PO-D",
+      product_name: "Nitrile examination gloves, green (E2E review)",
+      result: "pass",
     },
   ];
   // defaultToNull: false, so a column one row leaves out takes its default, not null.
@@ -216,17 +241,19 @@ async function insertFixtureRows(admin: AdminClient, browser: Browser): Promise<
   const A = byPo("E2E-REVIEW-PO-A");
   const B = byPo("E2E-REVIEW-PO-B");
   const C = byPo("E2E-REVIEW-PO-C");
+  const D = byPo("E2E-REVIEW-PO-D");
 
   await addPhotos(admin, browser, A.id, inspectorId);
 
-  // Every inspection starts as a draft; the status flow moves A and B on.
-  const submitted = await admin.from("inspections").update({ status: "submitted" }).in("id", [A.id, B.id]);
-  if (submitted.error) fail("submitting A and B", submitted.error);
+  // Every inspection starts as a draft; the status flow moves A, B and D on.
+  const submitted = await admin.from("inspections").update({ status: "submitted" }).in("id", [A.id, B.id, D.id]);
+  if (submitted.error) fail("submitting A, B and D", submitted.error);
 
   return {
     A: { id: A.id, refNo: A.ref_no },
     B: { id: B.id, refNo: B.ref_no },
     C: { id: C.id, refNo: C.ref_no },
+    D: { id: D.id, refNo: D.ref_no },
     inspectorId,
     adminId,
     touchB: async () => {
