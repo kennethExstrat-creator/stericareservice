@@ -171,11 +171,24 @@ test("the inspector opens the inspection and moves between sections", async ({ p
   await expect(savePill(page)).toHaveAttribute("data-state", "saved");
   // The first section is open: the header.
   await expect(page.getByRole("heading", { level: 2, name: "Manufacturer Information" })).toBeVisible();
+  const frame = page.locator('[data-slot="section-frame"]');
   if (isDesktop()) {
     await expect(page.getByRole("navigation", { name: "Sections" })).toBeVisible();
     await expect(page.getByRole("tablist", { name: "Sections" })).toBeHidden();
+    // Beside the sidebar the open section is a region named by its title.
+    await expect(frame).not.toHaveAttribute("role", "tabpanel");
+    await expect(page.getByRole("region", { name: "Manufacturer Information" })).toBeVisible();
   } else {
     await expect(page.getByRole("tablist", { name: "Sections" })).toBeVisible();
+    // The open section is the selected tab's panel, named by that tab (WAI-ARIA tabs).
+    const tab = page.getByRole("tab", { selected: true });
+    await expect(frame).toHaveAttribute("role", "tabpanel");
+    await expect(frame).toHaveAttribute("id", (await tab.getAttribute("aria-controls"))!);
+    await expect(frame).toHaveAttribute("aria-labelledby", (await tab.getAttribute("id"))!);
+    // The header's actions take their own row under the title, which keeps the full width.
+    const title = await page.getByRole("heading", { level: 1 }).boundingBox();
+    const photos = await page.getByRole("link", { name: "Photos" }).boundingBox();
+    expect(photos!.y).toBeGreaterThanOrEqual(title!.y + title!.height);
   }
   await shot(page, "open");
 
@@ -221,6 +234,100 @@ test("typing into glove information saves, and the value is there after a reload
     .toMatchObject({ custom: { e2e_site_notes: { weather: "Dry, 31 °C" } } });
   await shot(page, "custom-section");
   expect(hydration()).toEqual([]);
+});
+
+test("a field mapped to the glove colour keeps fast typing and an edit mid-word", async ({ page, context, baseURL }) => {
+  const hydration = watchConsole(page);
+  await signInAs(context, baseURL!, "inspector");
+  await page.goto(`/inspections/${fixture.inspectionId}`);
+  await openSection(page, "Site notes");
+
+  const mapped = page.getByLabel("Colour for the report");
+  await expect(mapped).toBeEditable();
+  await mapped.fill("");
+  await mapped.pressSequentially("Midnight blue");
+  await expect(mapped).toHaveValue("Midnight blue");
+  // Back to the end of "Midnight", then two more characters: they land where the caret is.
+  for (let step = 0; step < " blue".length; step++) await mapped.press("ArrowLeft");
+  await mapped.pressSequentially("-x", { delay: 150 });
+  await expect(mapped).toHaveValue("Midnight-x blue");
+  await expect
+    .poll(async () => (await storedData(fixture.inspectionId)).data, { timeout: 15_000 })
+    .toMatchObject({ modules: { glove_info: { colour: "Midnight-x blue" } } });
+
+  // It is the glove information's own colour.
+  await openSection(page, "Glove Information");
+  await expect(page.getByLabel("Glove colour")).toHaveValue("Midnight-x blue");
+  expect(hydration()).toEqual([]);
+});
+
+test("a custom grid takes numbers in bordered cells, like the text cells beside them", async ({ page, context, baseURL }) => {
+  await signInAs(context, baseURL!, "inspector");
+  await page.goto(`/inspections/${fixture.inspectionId}`);
+  await openSection(page, "Box checks");
+
+  const weight = page.getByLabel("Box weight, Box 1");
+  const note = page.getByLabel("Box note, Box 1");
+  await expect(weight).toBeEditable();
+  // Something to tap: a bordered field as tall as the text field in the next row.
+  await expect(weight).toHaveCSS("border-top-style", "solid");
+  expect(Number.parseFloat(await weight.evaluate((input) => getComputedStyle(input).borderTopWidth))).toBeGreaterThan(0);
+  const [weightBox, noteBox] = await Promise.all([weight.boundingBox(), note.boundingBox()]);
+  expect(Math.abs(weightBox!.height - noteBox!.height)).toBeLessThanOrEqual(1);
+  if (isTouch()) expect(weightBox!.height).toBeGreaterThanOrEqual(44);
+
+  await weight.fill("12.5");
+  // Enter stores it and walks along the row of numbers.
+  await weight.press("Enter");
+  await expect(page.getByLabel("Box weight, Box 2")).toBeFocused();
+  await note.fill("Seal torn");
+  await expect
+    .poll(async () => (await storedData(fixture.inspectionId)).data, { timeout: 15_000 })
+    .toMatchObject({ custom: { e2e_box_checks: { boxWeight: [12.5], boxNote: ["Seal torn"] } } });
+  await shot(page, "custom-grid");
+});
+
+test("a number typed just before Photos is saved, though the tap leaves the focus in it", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  await signInAs(context, baseURL!, "inspector");
+  await page.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
+  const weight = page.getByLabel("Indicative weight (size M)");
+  await expect(weight).toBeEditable();
+  await weight.fill("4.2");
+  await expect(weight).toBeFocused();
+  // Safari on the iPad does not move focus on a tap: a script's click does the same here.
+  await page.evaluate(() => document.querySelector<HTMLAnchorElement>('a[href$="/photos"]')?.click());
+  await expect(page).toHaveURL(/\/photos$/);
+  await expect
+    .poll(async () => (await storedData(fixture.inspectionId)).data, { timeout: 15_000 })
+    .toMatchObject({ modules: { glove_info: { indicativeWeight: 4.2 } } });
+});
+
+test("a change made just before leaving the screen reaches the server", async ({ page, context, baseURL }) => {
+  await signInAs(context, baseURL!, "inspector");
+  // Into the inspection from the list inside the app, so Back leaves the screen at once, well
+  // inside the autosave's 800 ms wait.
+  await page.goto("/inspections");
+  await page.waitForLoadState("networkidle");
+  // Until the app has hydrated a push goes nowhere: push again until it lands.
+  await expect(async () => {
+    await page.evaluate(
+      (href) => (window as unknown as { next: { router: { push: (href: string) => void } } }).next.router.push(href),
+      `/inspections/${fixture.inspectionId}?module=glove_info`,
+    );
+    await expect(page).toHaveURL(/module=glove_info/, { timeout: 2_000 });
+  }).toPass({ timeout: 15_000 });
+  const colour = page.getByLabel("Glove colour");
+  await expect(colour).toBeEditable();
+  await colour.fill("Navy");
+  await page.goBack();
+  await expect(page).toHaveURL(/\/inspections$/);
+  await expect
+    .poll(async () => (await storedData(fixture.inspectionId)).data, { timeout: 10_000 })
+    .toMatchObject({ modules: { glove_info: { colour: "Navy" } } });
 });
 
 test("without a connection the pill says Offline (will sync), then saves", async ({ page, context, baseURL }) => {
@@ -302,6 +409,45 @@ test("an edit saved on another device meanwhile asks which version to keep", asy
   await expect(savePill(page)).toHaveAttribute("data-state", "saved");
 });
 
+test("a section switched off on another device leaves this screen at the next save", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  test.skip(!isDesktop(), "One size is enough: the save is the same everywhere.");
+  await signInAs(context, baseURL!, "inspector");
+  await page.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
+  const colour = page.getByLabel("Glove colour");
+  await expect(colour).toBeEditable();
+  const sections = page.getByRole("navigation", { name: "Sections" });
+  await expect(sections).not.toContainText("Switched off");
+
+  // An admin switches packing off elsewhere: only the overrides column moves, the data stays.
+  const admin = createTestAdminClient();
+  const { data: account, error: accountError } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("email", TEST_ACCOUNTS.admin)
+    .single();
+  if (accountError) throw new Error(accountError.message);
+  const switchedOff = { packing_config: { reason: "Not ordered (e2e)", by: account.id, at: new Date().toISOString() } };
+  const { error } = await admin.from("inspections").update({ module_overrides: switchedOff }).eq("id", fixture.inspectionId);
+  if (error) throw new Error(error.message);
+  try {
+    // The next save lands on top of that change and brings it back.
+    await colour.fill("Olive");
+    await expect(sections).toContainText("Switched off", { timeout: 15_000 });
+    await expect(sections.getByRole("button", { name: /^Packing configuration\s*, switched off/ })).toBeVisible();
+    await expect
+      .poll(async () => (await storedData(fixture.inspectionId)).data, { timeout: 15_000 })
+      .toMatchObject({ modules: { glove_info: { colour: "Olive" } } });
+    await expect(savePill(page)).toHaveAttribute("data-state", "saved");
+  } finally {
+    const restored = await admin.from("inspections").update({ module_overrides: {} }).eq("id", fixture.inspectionId);
+    if (restored.error) throw new Error(restored.error.message);
+  }
+});
+
 test("submit with errors is blocked, and each error links to its section", async ({ page, context, baseURL }) => {
   await signInAs(context, baseURL!, "inspector");
   await page.goto(`/inspections/${fixture.inspectionId}`);
@@ -345,6 +491,8 @@ test("an admin switches a section off for this inspection, and back on", async (
   await press(dialog.getByRole("button", { name: "Switch off" }));
   await expect(dialog).toBeHidden();
   await expect(page.getByText("Packing configuration is switched off for this inspection.").first()).toBeVisible();
+  // The Switch off button went with the section's controls: focus is on the section's title.
+  await expect(page.getByRole("heading", { level: 2, name: "Packing configuration" })).toBeFocused();
   await expect(page.getByText("Not part of this order (e2e)")).toBeVisible();
   await expect
     .poll(async () => (await storedData(fixture.inspectionId)).module_overrides)
@@ -357,6 +505,7 @@ test("an admin switches a section off for this inspection, and back on", async (
 
   await press(page.getByRole("button", { name: "Switch back on" }));
   await expect(page.getByRole("button", { name: "Switch off" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "Packing configuration" })).toBeFocused();
   await expect.poll(async () => (await storedData(fixture.inspectionId)).module_overrides).toEqual({});
 
   // Both changes are in the audit log, with the reason (log_inspection_event).
@@ -376,12 +525,68 @@ test("an admin switches a section off for this inspection, and back on", async (
   ]);
 });
 
-test("a submitted inspection is read-only for the inspector", async ({ page, context, baseURL }) => {
+test("a second tab on the same inspection is read-only, with no red save pill", async ({ page, context, baseURL }) => {
+  test.skip(!isDesktop(), "One size is enough: the lock is the same everywhere.");
+  await signInAs(context, baseURL!, "inspector");
+  await page.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
+  await expect(page.getByLabel("Glove colour")).toBeEditable();
+
+  const second = await context.newPage();
+  try {
+    await second.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
+    await expect(second.getByText("This inspection is open in another tab on this device.")).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(second.getByLabel("Glove colour")).not.toBeEditable();
+    // Nothing is wrong here: the notice says what to do, and no pill says "Not saved".
+    await expect(savePill(second)).toHaveCount(0);
+    await viewportShot(second, "second-tab");
+  } finally {
+    await second.close();
+  }
+});
+
+test("submitted on another device: the next save is refused, with the review and Reload to go on", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  await signInAs(context, baseURL!, "inspector");
+  await page.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
+  const colour = page.getByLabel("Glove colour");
+  await expect(colour).toBeEditable();
+
   await fixture.setStatus("submitted");
+  await colour.fill("Teal");
+  const notice = page.locator('[data-notice="save-error"]');
+  await expect(notice).toContainText("Not saved.", { timeout: 15_000 });
+  await expect(notice.getByRole("link", { name: "Open the review" })).toBeVisible();
+  await expect(notice.getByRole("button", { name: "Reload" })).toBeVisible();
+  await expect(notice.getByRole("button", { name: "Try again" })).toHaveCount(0);
+  await expect(colour).not.toBeEditable();
+  // The header follows what the save found.
+  await expect(page.getByRole("heading", { level: 1 }).locator('[data-status="submitted"]')).toBeVisible();
+  await shot(page, "refused-save");
+});
+
+test("a submitted inspection is read-only for the inspector", async ({ page, context, baseURL }) => {
+  if ((await storedData(fixture.inspectionId)).status !== "submitted") await fixture.setStatus("submitted");
   await signInAs(context, baseURL!, "inspector");
   await page.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
   await expect(page.getByText("Submitted for review: read-only.")).toBeVisible();
   await expect(page.getByLabel("Glove colour")).not.toBeEditable();
   await expect(page.getByRole("button", { name: "Submit", exact: true })).toHaveCount(0);
   await shot(page, "read-only");
+});
+
+test("an inspection that cannot be opened is not found, inside the shell", async ({ page, context, baseURL }) => {
+  await signInAs(context, baseURL!, "inspector");
+  await page.goto("/inspections/00000000-0000-4000-8000-000000000000");
+  await expect(page.getByRole("heading", { level: 1, name: "Page not found" })).toBeVisible();
+  await expect(page).toHaveTitle(/Page not found/);
+  // One frame: the shell's, with its navigation. Not the standalone page's logo bar inside it.
+  await expect(page.locator("main")).toHaveCount(1);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+  await expect(page.locator('nav[aria-label="Main"]:visible')).toHaveCount(1);
+  await shot(page, "not-found");
 });

@@ -25,7 +25,11 @@ const SEED = {
   hartalega: "10000000-0000-4000-8000-000000000001",
 } as const;
 
-/** header, glove_info, a custom section, order_lots, packing_config, weight and conclusion. */
+/**
+ * header, glove_info, the custom "Site notes" (one field mapped to the glove
+ * colour), order_lots, the custom grid "Box checks" (a number and a text row),
+ * packing_config, weight and conclusion.
+ */
 export function fixtureDefinition(): TemplateDefinition {
   return {
     code: FIXTURE_TEMPLATE_CODE,
@@ -50,6 +54,18 @@ export function fixtureDefinition(): TemplateDefinition {
         fields: [
           { key: "weather", label: "Weather at the site", type: "text" },
           { key: "sealIntact", label: "Container seal intact", type: "yes_no", required: true },
+          { key: "colourForReport", label: "Colour for the report", type: "text", mapsTo: "modules.glove_info.colour" },
+        ],
+      },
+      {
+        key: "e2e_box_checks",
+        title: "Box checks",
+        after: "order_lots",
+        layout: "grid",
+        grid: { columns: { label: "Box", default: 3, addable: true } },
+        fields: [
+          { key: "boxWeight", label: "Box weight", type: "number", unit: "g" },
+          { key: "boxNote", label: "Box note", type: "text" },
         ],
       },
     ],
