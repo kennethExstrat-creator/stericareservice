@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth/session";
 import { TemplateEditor } from "./_components/template-editor";
-import { loadActiveBases, loadDefectCodes, loadEditorTemplate } from "./_lib/load";
+import { loadActiveBases, loadDefectCodes, loadEditorTemplate, loadScopeOptions } from "./_lib/load";
 
 /** A template version by id, or nothing for an id that cannot be one. */
 async function templateFor(id: string) {
@@ -34,7 +34,11 @@ export default async function TemplateEditPage({ params }: PageProps<"/admin/tem
   const viewer = await requireAdmin();
   const template = await templateFor((await params).id);
   if (!template) notFound();
-  const [bases, defectCodes] = await Promise.all([loadActiveBases(), loadDefectCodes()]);
+  const [bases, defectCodes, scopeOptions] = await Promise.all([
+    loadActiveBases(),
+    loadDefectCodes(),
+    loadScopeOptions(),
+  ]);
 
   return (
     <TemplateEditor
@@ -42,6 +46,7 @@ export default async function TemplateEditPage({ params }: PageProps<"/admin/tem
       template={template}
       bases={bases}
       defectCodes={defectCodes}
+      scopeOptions={scopeOptions}
       viewer={{ id: viewer.id, name: viewer.fullName ?? viewer.email }}
     />
   );

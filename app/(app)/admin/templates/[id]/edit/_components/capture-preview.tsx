@@ -169,6 +169,7 @@ function PreviewModule({
         onCommentChange={noop}
         onFiles={noop}
         disabled
+        headingLevel={3}
       >
         {body}
       </ModuleCard>
@@ -202,7 +203,15 @@ class CaptureBoundary extends Component<{ children: ReactNode }, { error: Error 
 function PreviewCustom({ custom, context }: { custom: CustomModule; context: InspectionContext }) {
   return (
     <div data-preview-custom={custom.key}>
-      <ModuleCard title={custom.title} status="not_done" comment="" onCommentChange={noop} onFiles={noop} disabled>
+      <ModuleCard
+        title={custom.title}
+        status="not_done"
+        comment=""
+        onCommentChange={noop}
+        onFiles={noop}
+        disabled
+        headingLevel={3}
+      >
         {custom.layout === "fields" && <CustomFields custom={custom} />}
         {custom.layout === "table" && <CustomTable custom={custom} context={context} />}
         {custom.layout === "grid" && <CustomGrid custom={custom} context={context} />}

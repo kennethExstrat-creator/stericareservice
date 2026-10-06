@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { lookupFrom } from "@/lib/templates";
 import { asVersions, baseEg, clientEg, clientFactoryEg } from "@/lib/templates/__fixtures__/definitions";
-import { TEST_REGISTRY } from "@/modules/_framework/__fixtures__/test-registry";
+import { TEST_CLIENT_ID, TEST_MANUFACTURER_ID, TEST_REGISTRY } from "@/modules/_framework/__fixtures__/test-registry";
 import { pathKey } from "@/lib/zod-form";
 import { inheritanceOf } from "./inheritance";
 import { moveModule, setConfig, setInclude, type Draft, type EditorContext } from "./model";
-import { collectProblems, configIssues, isEditableShape, problemsOfModule } from "./problems";
+import { collectProblems, configIssues, isEditableShape, problemsOfModule, scopeProblems } from "./problems";
 
 const getBase = lookupFrom(asVersions([baseEg(), clientEg()]));
 
@@ -102,6 +102,29 @@ describe("collectProblems", () => {
       { place: { area: "module", moduleKey: "weight", part: "config", path: ["n"] }, message: "Numbers only, e.g. 2.42." },
     ] as never);
     expect(problems.map((problem) => problem.message)).toEqual(["Numbers only, e.g. 2.42."]);
+  });
+});
+
+describe("scopeProblems", () => {
+  const OTHER = "6f1d2c3b-4a5e-4f60-8a7b-9c0d1e2f3a4b";
+
+  it("accepts a client and a manufacturer the database has, or none", () => {
+    const options = { clients: [{ id: TEST_CLIENT_ID }], manufacturers: [{ id: TEST_MANUFACTURER_ID }] };
+    expect(scopeProblems(clientFactoryEg(), options)).toEqual([]);
+    expect(scopeProblems(baseEg(), { clients: [], manufacturers: [] })).toEqual([]);
+  });
+
+  it("puts one it does not have on the scope field, and leaves a malformed id to the schema", () => {
+    const draft = clientEg();
+    const problems = scopeProblems(draft, { clients: [{ id: OTHER }], manufacturers: [] });
+    expect(problems).toEqual([
+      expect.objectContaining({
+        place: { area: "template", path: ["scope", "clientId"] },
+        message: "Not one of the clients: choose a client, or Any client.",
+      }),
+    ]);
+    const malformed = { ...draft, scope: { ...draft.scope, clientId: "acme" } } as Draft;
+    expect(scopeProblems(malformed, { clients: [], manufacturers: [] })).toEqual([]);
   });
 });
 

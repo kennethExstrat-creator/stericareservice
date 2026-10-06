@@ -9,7 +9,7 @@ import { refresh } from "next/cache";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 import { authorizeAction } from "@/lib/auth/session";
-import { TemplateDefinitionSchema } from "@/lib/schemas/template";
+import { TemplateDefinitionSchema, type TemplateDefinition } from "@/lib/schemas/template";
 import { createClient } from "@/lib/supabase/server";
 import type { TablesInsert } from "@/lib/supabase/database.types";
 import { lookupFrom, planTemplateEdit, templateRowFields } from "@/lib/templates";
@@ -30,7 +30,11 @@ const SaveInputSchema = z.strictObject({
   definition: z.string().min(2).max(MAX_DEFINITION_CHARS),
 });
 
-const VersionInputSchema = z.strictObject({ id: z.uuid() });
+const VersionInputSchema = z.strictObject({
+  id: z.uuid(),
+  /** Unsaved changes to carry into the new version (a draft that was used while it was being edited). */
+  definition: z.string().min(2).max(MAX_DEFINITION_CHARS).optional(),
+});
 
 const UNEXPECTED = "Something went wrong on the server. Try again; if it keeps happening, reload the page.";
 
@@ -135,6 +139,12 @@ export async function saveTemplate(_previous: SaveResult, formData: FormData): P
           message: `Version ${row.version} has just been used by an inspection, so it can no longer be changed. Make a new version.`,
         };
       }
+      if (saveError.code === "23503") {
+        return {
+          status: "error",
+          message: "The client or manufacturer this template applies to no longer exists. Choose another in Details.",
+        };
+      }
       console.error("[admin/templates] save refused", saveError.code, saveError.message);
       return { status: "error", message: `The template was not saved: ${saveError.message}` };
     }
@@ -171,7 +181,7 @@ export async function createTemplateVersion(_previous: VersionResult, formData: 
     const auth = await authorizeAction("admin");
     if (!auth.ok) return { status: "error", message: auth.error };
 
-    const input = VersionInputSchema.safeParse({ id: field(formData, "id") });
+    const input = VersionInputSchema.safeParse({ id: field(formData, "id"), definition: field(formData, "definition") });
     if (!input.success) return { status: "error", message: "That template version was not found." };
 
     const supabase = await createClient();
@@ -185,6 +195,19 @@ export async function createTemplateVersion(_previous: VersionResult, formData: 
       return { status: "error", message: UNEXPECTED };
     }
     if (!row) return { status: "error", message: "That template version was not found." };
+
+    // The admin's unsaved changes, when the version was locked while they edited it.
+    let carried: TemplateDefinition | undefined;
+    if (input.data.definition !== undefined) {
+      const parsed = TemplateDefinitionSchema.safeParse(parseJson(input.data.definition));
+      if (!parsed.success || parsed.data.code !== row.code) {
+        return {
+          status: "error",
+          message: "Your changes have problems, so they cannot go into a new version. Reload to start from the saved version.",
+        };
+      }
+      carried = parsed.data;
+    }
 
     const { count, error: usageError } = await supabase
       .from("inspections")
@@ -205,7 +228,7 @@ export async function createTemplateVersion(_previous: VersionResult, formData: 
       if (plan.kind === "update") return "editable";
       const { data: created, error: insertError } = await supabase
         .from("templates")
-        .insert({ ...(await newVersionRow(row)), version: plan.version, status: "draft" })
+        .insert({ ...(await newVersionRow(row, carried)), version: plan.version, status: "draft" })
         .select("id")
         .single();
       return insertError ? { error: insertError } : created;
@@ -241,16 +264,44 @@ type CopiedRow = {
   source_file_path: string | null;
 };
 
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * The row of a copy: resolved again, so the new draft takes in its bases'
  * active versions. A definition that no longer resolves (a module's schema
  * moved on) is still copied, with no resolution, to be fixed in the editor.
+ * `carried` replaces the stored definition with the admin's unsaved one.
  */
-async function newVersionRow(row: CopiedRow): Promise<Omit<TablesInsert<"templates">, "version" | "status">> {
-  const parsed = TemplateDefinitionSchema.safeParse(row.definition);
+async function newVersionRow(
+  row: CopiedRow,
+  carried?: TemplateDefinition,
+): Promise<Omit<TablesInsert<"templates">, "version" | "status">> {
+  const parsed = carried ? { success: true as const, data: carried } : TemplateDefinitionSchema.safeParse(row.definition);
   if (parsed.success) {
-    const resolution = resolveTemplate(parsed.data, lookupFrom(await loadActiveBases()));
-    if (resolution.ok) return templateRowFields(parsed.data, resolution.template);
+    // The source file uploaded to the template record stays with it (4.2 rule 10).
+    const definition =
+      parsed.data.sourceFile === undefined && row.source_file_path
+        ? { ...parsed.data, sourceFile: row.source_file_path }
+        : parsed.data;
+    const resolution = resolveTemplate(definition, lookupFrom(await loadActiveBases()));
+    if (resolution.ok) return templateRowFields(definition, resolution.template);
+    return {
+      code: definition.code,
+      extends_code: definition.extends ?? null,
+      product_type: definition.scope.productType,
+      standard: definition.scope.standard,
+      client_id: definition.scope.clientId ?? null,
+      manufacturer_id: definition.scope.manufacturerId ?? null,
+      definition,
+      resolved: null,
+      source_file_path: definition.sourceFile ?? null,
+    };
   }
   return {
     code: row.code,

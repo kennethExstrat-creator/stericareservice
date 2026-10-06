@@ -141,6 +141,38 @@ export function placeId(place: ProblemPlace): string {
   }
 }
 
+/**
+ * A client or manufacturer in the scope that is not among the ones the
+ * database has: saving would fail on the reference, so it is a problem here,
+ * on the field. (An id that is not a UUID at all is the schema's problem.)
+ */
+export function scopeProblems(
+  draft: Draft,
+  options: { clients: readonly { id: string }[]; manufacturers: readonly { id: string }[] },
+): EditorProblem[] {
+  const scope = isRecord(draft.scope) ? draft.scope : {};
+  const checks = [
+    { key: "clientId", list: options.clients, message: "Not one of the clients: choose a client, or Any client." },
+    {
+      key: "manufacturerId",
+      list: options.manufacturers,
+      message: "Not one of the manufacturers: choose a manufacturer, or Any manufacturer.",
+    },
+  ] as const;
+  return checks.flatMap(({ key, list, message }) => {
+    const id = scope[key];
+    if (typeof id !== "string" || !UUID.test(id) || list.some((entry) => entry.id === id)) return [];
+    const place: ProblemPlace = { area: "template", path: ["scope", key] };
+    return [{ id: `${placeId(place)}:${message}`, place, message }];
+  });
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 /* ------------------------------------------------------------------ *
  * Problems by where they show
  * ------------------------------------------------------------------ */

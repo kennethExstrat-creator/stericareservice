@@ -6,10 +6,12 @@
 // writes the definition and its resolution (actions.ts). A version that is
 // in use, active or retired opens read only, with "New version".
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeftIcon, LoaderCircleIcon, OctagonXIcon, SaveIcon, Undo2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/qc";
+import { useMediaQuery } from "@/components/qc/use-media-query";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -30,12 +32,12 @@ import type { ResolvedTemplate } from "@/lib/schemas/template";
 import { normaliseSize } from "@/lib/sizes";
 import { lookupFrom, type TemplateBase } from "@/lib/templates";
 import { cn } from "@/lib/utils";
-import { deepEqual, type FormPath } from "@/lib/zod-form";
+import { deepEqual, isPlainObject, type FormPath } from "@/lib/zod-form";
 import { fieldId } from "@/lib/zod-form/schema-form";
 import { MODULE_REGISTRY } from "@/modules";
 import { saveTemplate } from "../actions";
 import { inheritanceOf } from "../_lib/inheritance";
-import type { DefectCodeOption, EditorTemplate } from "../_lib/load";
+import type { DefectCodeOption, EditorTemplate, ReferenceOption } from "../_lib/load";
 import {
   addModule,
   moduleOrder,
@@ -47,7 +49,15 @@ import {
   type Draft,
   type EditorContext,
 } from "../_lib/model";
-import { collectProblems, isEditableShape, placeId, problemsOfModule, type DraftError, type ProblemPlace } from "../_lib/problems";
+import {
+  collectProblems,
+  isEditableShape,
+  placeId,
+  problemsOfModule,
+  scopeProblems,
+  type DraftError,
+  type ProblemPlace,
+} from "../_lib/problems";
 import { lockedReason, SAVE_IDLE, type SaveResult } from "../_lib/results";
 import { CapturePreview } from "./capture-preview";
 import { configFieldPrefix } from "./config-form";
@@ -61,11 +71,13 @@ import { LockedNotice } from "./locked-notice";
 import { includeFieldId, ModuleDetails, titleFieldId } from "./module-details";
 import { ModuleList } from "./module-list";
 import { ProblemsSummary } from "./problems-summary";
-import { SIDE_BY_SIDE, useMediaQuery } from "./use-media-query";
 
 type Tab = "modules" | "custom" | "details" | "json" | "preview";
 
 export const TEMPLATES_PATH = "/admin/templates";
+
+/** Where the module list and its details sit side by side (Tailwind's lg: iPad landscape and wider). */
+const SIDE_BY_SIDE = "(min-width: 64rem)";
 
 const STATUS_WORD = { draft: "Draft", active: "Active", retired: "Retired" } as const;
 
@@ -77,11 +89,13 @@ export function TemplateEditor({
   template,
   bases,
   defectCodes,
+  scopeOptions,
   viewer,
 }: {
   template: EditorTemplate;
   bases: TemplateBase[];
   defectCodes: DefectCodeOption[];
+  scopeOptions: { clients: ReferenceOption[]; manufacturers: ReferenceOption[] };
   viewer: { id: string; name: string };
 }) {
   const lookup = useMemo(() => lookupFrom(bases), [bases]);
@@ -94,6 +108,8 @@ export function TemplateEditor({
   const [jsonText, setJsonText] = useState<string | null>(null);
   const [draftErrors, setDraftErrors] = useState<ReadonlyMap<string, DraftError>>(() => new Map());
   const [lockedByServer, setLockedByServer] = useState<string | null>(null);
+  const [leaving, setLeaving] = useState(false);
+  const router = useRouter();
   const sideBySide = useMediaQuery(SIDE_BY_SIDE);
   const rootRef = useRef<HTMLDivElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
@@ -112,18 +128,20 @@ export function TemplateEditor({
   );
   const jsonPending = jsonText !== null && jsonText !== JSON.stringify(draft, null, 2);
   const problems = useMemo(
-    () =>
-      jsonPending
+    () => [
+      ...report.problems,
+      ...scopeProblems(draft, scopeOptions),
+      ...(jsonPending
         ? [
-            ...report.problems,
             {
               id: "json-pending",
               place: { area: "template", path: ["json"] } satisfies ProblemPlace,
               message: "The JSON tab has changes that are not applied yet: apply them or undo them.",
             },
           ]
-        : report.problems,
-    [report.problems, jsonPending],
+        : []),
+    ],
+    [report.problems, draft, scopeOptions, jsonPending],
   );
 
   // The preview keeps the last version that resolved while the draft has problems.
@@ -165,6 +183,7 @@ export function TemplateEditor({
     reportDraftError,
     sizes,
     defectCodes,
+    scopeOptions,
     resetLabel: inheritance.bases[0] ? `Use ${inheritance.bases[0].code}'s` : "Use default",
   };
 
@@ -259,13 +278,19 @@ export function TemplateEditor({
   );
 
   const statusWord = STATUS_WORD[template.status];
+  // The scope as the draft has it, by name: it changes in the Details tab.
+  const scope: Record<string, unknown> = isPlainObject(draft.scope) ? draft.scope : {};
+  const nameOf = (options: readonly ReferenceOption[], id: unknown) =>
+    typeof id === "string" ? (options.find((option) => option.id === id)?.name ?? "Unknown") : null;
+  const clientName = nameOf(scopeOptions.clients, scope.clientId);
+  const manufacturerName = nameOf(scopeOptions.manufacturers, scope.manufacturerId);
   const meta = [
     template.code,
     `Version ${template.version}`,
     statusWord,
     inheritance.bases[0] ? `Extends ${inheritance.bases[0].code} v${inheritance.bases[0].version}` : null,
-    template.clientName ? `Client: ${template.clientName}` : null,
-    template.manufacturerName ? `Manufacturer: ${template.manufacturerName}` : null,
+    clientName ? `Client: ${clientName}` : null,
+    manufacturerName ? `Manufacturer: ${manufacturerName}` : null,
   ].filter(Boolean);
   const otherDraft = template.versions.find((entry) => entry.status === "draft" && entry.id !== template.id) ?? null;
 
@@ -277,15 +302,43 @@ export function TemplateEditor({
         description={<p data-testid="template-meta">{meta.join(" · ")}</p>}
         actions={
           <Button asChild variant="outline">
-            <Link href={TEMPLATES_PATH}>
+            <Link
+              href={TEMPLATES_PATH}
+              onClick={(event) => {
+                // Unsaved changes: ask first (a new tab or window leaves this one as it is).
+                if (!dirty || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                event.preventDefault();
+                setLeaving(true);
+              }}
+            >
               <ArrowLeftIcon aria-hidden />
               All templates
             </Link>
           </Button>
         }
       />
+      <AlertDialog open={leaving} onOpenChange={setLeaving}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Leave without saving?</AlertDialogTitle>
+            <AlertDialogDescription>Your changes to this draft are not saved yet. Leaving drops them.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction onClick={() => router.push(TEMPLATES_PATH)}>Leave</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-      {reason && <LockedNotice templateId={template.id} reason={reason} draft={otherDraft} />}
+      {reason && (
+        <LockedNotice
+          templateId={template.id}
+          reason={reason}
+          draft={otherDraft}
+          carry={lockedByServer && dirty && shapeOk && problems.length === 0 ? JSON.stringify(draft) : null}
+          stranded={Boolean(lockedByServer) && dirty && (!shapeOk || problems.length > 0)}
+        />
+      )}
 
       {template.stale.length > 0 && editable && (
         <Alert className="border-info-border bg-info-tint">

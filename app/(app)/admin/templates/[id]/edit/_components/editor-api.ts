@@ -1,6 +1,6 @@
 // What the editor's parts share: the draft, its context and problems, and
 // the one way to change it.
-import type { DefectCodeOption } from "../_lib/load";
+import type { DefectCodeOption, ReferenceOption } from "../_lib/load";
 import type { Draft, EditorContext } from "../_lib/model";
 import type { EditorProblem, ProblemPlace } from "../_lib/problems";
 
@@ -19,6 +19,8 @@ export type EditorApi = {
   /** The template's sizes, canonical, for size pickers in config. */
   sizes: readonly SizeOption[];
   defectCodes: readonly DefectCodeOption[];
+  /** Clients and manufacturers the template can be scoped to. */
+  scopeOptions: { clients: readonly ReferenceOption[]; manufacturers: readonly ReferenceOption[] };
   /** "Use default" for a template of its own, "Use STD_EG's" for one that extends STD_EG. */
   resetLabel: string;
 };

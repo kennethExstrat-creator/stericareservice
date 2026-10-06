@@ -29,33 +29,25 @@ export type EditorTemplate = {
   versions: VersionSummary[];
   /** The bases this version was last resolved against that have a newer active version since. */
   stale: StaleBase[];
-  clientName: string | null;
-  manufacturerName: string | null;
 };
 
 /** One template version, or null when there is none with that id. */
 export const loadEditorTemplate = cache(async (id: string): Promise<EditorTemplate | null> => {
   const supabase = await createClient();
-  const { data: row, error } = await supabase
-    .from("templates")
-    .select(
-      "id, code, version, status, definition, resolved, updated_at, client_id, manufacturer_id, coverage_confirmed_at, source_file_path",
-    )
-    .eq("id", id)
-    .maybeSingle();
+  const { data: row, error } = await readTwice(() =>
+    supabase
+      .from("templates")
+      .select("id, code, version, status, definition, resolved, updated_at, coverage_confirmed_at, source_file_path")
+      .eq("id", id)
+      .maybeSingle(),
+  );
   if (error) throw new Error(`Could not read template ${id}: ${error.message}`);
   if (!row) return null;
 
-  const [usage, versions, actives, client, manufacturer] = await Promise.all([
-    supabase.from("inspections").select("id", { count: "exact", head: true }).eq("template_id", id),
-    supabase.from("templates").select("id, version, status").eq("code", row.code).order("version"),
-    supabase.from("templates").select("code, version").eq("status", "active"),
-    row.client_id
-      ? supabase.from("clients").select("name").eq("id", row.client_id).maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
-    row.manufacturer_id
-      ? supabase.from("manufacturers").select("name, factory_name").eq("id", row.manufacturer_id).maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
+  const [usage, versions, actives] = await Promise.all([
+    readTwice(() => supabase.from("inspections").select("id", { count: "exact", head: true }).eq("template_id", id)),
+    readTwice(() => supabase.from("templates").select("id, version, status").eq("code", row.code).order("version")),
+    readTwice(() => supabase.from("templates").select("code, version").eq("status", "active")),
   ]);
   if (usage.error) throw new Error(`Could not count the inspections of template ${id}: ${usage.error.message}`);
   if (versions.error) throw new Error(`Could not read the versions of ${row.code}: ${versions.error.message}`);
@@ -80,10 +72,6 @@ export const loadEditorTemplate = cache(async (id: string): Promise<EditorTempla
     sourceFilePath: row.source_file_path,
     versions: versions.data,
     stale: stored.success ? staleBases(stored.data, (code) => activeVersion.get(code)) : [],
-    clientName: client.data?.name ?? null,
-    manufacturerName: manufacturer.data
-      ? [manufacturer.data.name, manufacturer.data.factory_name].filter(Boolean).join(" · ")
-      : null,
   };
 });
 
@@ -120,6 +108,28 @@ function isPassing(error: { code?: string; message: string }): boolean {
     /^(5|08|57)/.test(error.code) ||
     /internal server error|timeout|timed out|fetch failed|network/i.test(error.message)
   );
+}
+
+export type ReferenceOption = { id: string; name: string };
+
+/** Clients and manufacturers a template can be scoped to (BUILD_SPEC 4.4), by name. */
+export async function loadScopeOptions(
+  supabase?: Supabase,
+): Promise<{ clients: ReferenceOption[]; manufacturers: ReferenceOption[] }> {
+  const client = supabase ?? (await createClient());
+  const [clients, manufacturers] = await Promise.all([
+    readTwice(() => client.from("clients").select("id, name").order("name")),
+    readTwice(() => client.from("manufacturers").select("id, name, factory_name").order("name")),
+  ]);
+  if (clients.error) throw new Error(`Could not read the clients: ${clients.error.message}`);
+  if (manufacturers.error) throw new Error(`Could not read the manufacturers: ${manufacturers.error.message}`);
+  return {
+    clients: clients.data,
+    manufacturers: manufacturers.data.map((entry) => ({
+      id: entry.id,
+      name: [entry.name, entry.factory_name].filter(Boolean).join(" · "),
+    })),
+  };
 }
 
 export type DefectCodeOption = { code: string; name: string; active: boolean };
