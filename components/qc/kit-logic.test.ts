@@ -22,7 +22,14 @@ import {
   splitPastedValues,
 } from "./field-navigation";
 import { handsOf, shownHandView } from "./hand-toggle";
-import { findIssue, issuePathCandidates, issuePathKey, issuePathProps } from "./issue-path";
+import {
+  findIssue,
+  issueNoticeProps,
+  issuePathCandidates,
+  issuePathKey,
+  issuePathProps,
+  issueTargetIndex,
+} from "./issue-path";
 import { specOutcome } from "./requirement-list";
 import { rovingIndex } from "./roving";
 import { activeColumnKey, activeSize, showsSideBySide } from "./selection";
@@ -502,6 +509,40 @@ describe("issue paths", () => {
       '["sizes"]',
     ]);
     expect(issuePathCandidates([])).toEqual([]);
+  });
+
+  it("marks a notice so the link lands on the message, outside the Tab order", () => {
+    expect(issueNoticeProps(["sizes", "M", "values"])).toEqual({
+      "data-issue-path": '["sizes","M","values"]',
+      tabIndex: -1,
+    });
+    expect(issueNoticeProps(null)).toEqual({});
+  });
+
+  describe("the element a link lands on", () => {
+    const panel = { key: issuePathKey(["sizes", "M"]), focusesItself: false };
+    const notice = { key: issuePathKey(["sizes", "M"]), focusesItself: true };
+    const cell = (row: number) => ({ key: issuePathKey(["sizes", "M", "values", row]), focusesItself: true });
+    const past = { key: issuePathKey(["sizes", "M", "values"]), focusesItself: true };
+
+    it("takes the exact path first", () => {
+      expect(issueTargetIndex([panel, cell(0), cell(1)], ["sizes", "M", "values", 1])).toBe(2);
+    });
+
+    it("falls back to the nearest marked parent: a reading past the grid lands on its notice", () => {
+      expect(issueTargetIndex([panel, cell(0), cell(1), past], ["sizes", "M", "values", 15])).toBe(3);
+      expect(issueTargetIndex([panel, cell(0)], ["sizes", "M", "values", 15])).toBe(0);
+    });
+
+    it("prefers a notice to the container marked with the same path", () => {
+      expect(issueTargetIndex([panel, cell(0), notice], ["sizes", "M"])).toBe(2);
+      expect(issueTargetIndex([panel, cell(0)], ["sizes", "M"])).toBe(0);
+    });
+
+    it("finds nothing for a path nothing is marked with", () => {
+      expect(issueTargetIndex([panel], ["sizes", "S", "values", 0])).toBe(-1);
+      expect(issueTargetIndex([], [])).toBe(-1);
+    });
   });
 });
 

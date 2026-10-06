@@ -2,13 +2,15 @@
 
 // Follows the capture screen's `focusPath` (CaptureProps): the module reveals
 // the right size or hand, then the closest control marked with
-// issuePathProps is scrolled into view and focused (issue-path.ts).
+// issuePathProps, or the message marked with issueNoticeProps, is scrolled
+// into view and focused (issue-path.ts).
 import { useEffect, useEffectEvent, type RefObject } from "react";
 import { focusIssuePath, type IssuePath } from "./issue-path";
 
 /**
  * Calls `reveal` (switch size or hand), then focuses the closest marked
- * control inside `root` once it is on screen. Runs once for every new
+ * element inside `root` once it is on screen: a notice itself, a control, or
+ * the first control inside a marked container. Runs once for every new
  * focusPath array, so a second click on the same issue works when the screen
  * passes a new array per click (`setFocusPath([...issue.path])`); a re-render
  * with the same array does nothing. A null or empty path does nothing.

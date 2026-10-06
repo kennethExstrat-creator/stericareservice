@@ -48,5 +48,12 @@ export {
 } from "./requirement-list";
 export { ModuleSection } from "./module-section";
 export { Figure } from "./figure";
-export { issuePathKey, issuePathProps, focusIssuePath, findIssue, type IssuePath } from "./issue-path";
+export {
+  issuePathKey,
+  issuePathProps,
+  issueNoticeProps,
+  focusIssuePath,
+  findIssue,
+  type IssuePath,
+} from "./issue-path";
 export { useIssueFocus } from "./use-issue-focus";
