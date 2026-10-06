@@ -5,10 +5,11 @@ import {
   createPeople,
   createTemplate,
   setStatus,
+  UNSAFE_NAMES,
   type InspectionRow,
   type People,
 } from "./fixtures";
-import { asService, asUser, column, createTestDb, pgError, type Db, type Tx } from "./harness";
+import { asOwner, asService, asUser, column, createTestDb, pgError, type Db, type Tx } from "./harness";
 
 /** What the Storage API runs, as the caller, when a file is uploaded. */
 function upload(tx: Tx, bucket: string, name: string) {
@@ -29,6 +30,10 @@ describe("storage policies", { timeout: 30_000 }, () => {
   let draft: InspectionRow;
   let submitted: InspectionRow;
   let others: InspectionRow;
+  let approved: InspectionRow;
+  // Stored by the service role (which bypasses RLS): it starts in the draft's
+  // folder but resolves into another inspection's.
+  let planted: string;
 
   beforeAll(async () => {
     db = await createTestDb();
@@ -37,14 +42,21 @@ describe("storage policies", { timeout: 30_000 }, () => {
     draft = await createInspection(db, people.inspector, templateId);
     submitted = await createInspection(db, people.inspector, templateId);
     others = await createInspection(db, people.otherInspector, templateId);
+    approved = await createInspection(db, people.otherInspector, templateId);
+    planted = `${draft.id}/../${others.id}/planted.jpg`;
     await asService(db, async (tx) => {
       await upload(tx, "inspection-photos", `${submitted.id}/${randomUUID()}.jpg`);
       await upload(tx, "inspection-photos", `${others.id}/${randomUUID()}.jpg`);
+      await upload(tx, "inspection-photos", `${approved.id}/${randomUUID()}.jpg`);
+      await upload(tx, "inspection-files", `${approved.id}/${randomUUID()}.pdf`);
       // Malformed names that must never break a query or leak.
       await upload(tx, "inspection-photos", "not-an-inspection/photo.jpg");
       await upload(tx, "inspection-photos", "photo-without-folder.jpg");
+      await upload(tx, "inspection-photos", planted);
     });
     await setStatus(db, people.inspector, submitted.id, "submitted");
+    await setStatus(db, people.otherInspector, approved.id, "submitted");
+    await setStatus(db, people.admin, approved.id, "approved");
   }, 120_000);
 
   afterAll(async () => {

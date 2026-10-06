@@ -28,6 +28,23 @@ export async function visibleRows(tx: Tx, table: TableName): Promise<number> {
   return result.rows[0].n;
 }
 
+/**
+ * Object names that start in `folder` but are not in canonical form, most of
+ * them because a URL parser would resolve them into `other` (supabase-js puts
+ * stored names into request URLs unencoded). Every pointer column and every
+ * folder policy must refuse them.
+ */
+export const UNSAFE_NAMES: [label: string, name: (folder: string, other: string) => string][] = [
+  ["a '..' segment", (folder, other) => `${folder}/../${other}/${randomUUID()}.jpg`],
+  ["a '..' segment after a subfolder", (folder, other) => `${folder}/thumbs/../../${other}/${randomUUID()}.jpg`],
+  ["a '.' segment", (folder) => `${folder}/./${randomUUID()}.jpg`],
+  ["an empty segment", (folder) => `${folder}//${randomUUID()}.jpg`],
+  ["backslashes", (folder, other) => `${folder}/..\\${other}\\${randomUUID()}.jpg`],
+  ["percent-encoded dots", (folder, other) => `${folder}/%2e%2e/${other}/${randomUUID()}.jpg`],
+  ["dots split by a tab", (folder, other) => `${folder}/.\t./${other}/${randomUUID()}.jpg`],
+  ["an uppercase folder id", (folder) => `${folder.toUpperCase()}/${randomUUID()}.jpg`],
+];
+
 /** Ids of the people most suites need. Every one starts as an inspector. */
 export interface People {
   admin: string;

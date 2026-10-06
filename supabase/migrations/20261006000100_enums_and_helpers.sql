@@ -57,10 +57,16 @@ begin
 end;
 $$;
 
--- Object names in the inspection buckets start with the inspection id:
--- '<inspection_id>/<file>'. Anything else yields null instead of a cast error,
--- so a malformed name fails a policy without breaking the query around it.
-create function public.storage_inspection_id(object_name text)
+-- The folder id of an object name that lives in a uuid folder: an inspection
+-- in inspection-photos and inspection-files, a user in signatures. The parse
+-- is strict on purpose. supabase-js puts a stored name into the request URL
+-- unencoded, and URL parsing turns '..', '%2e%2e', '\' and dots split by a tab
+-- or newline into a step up into another folder. So a name counts only as
+-- '<lowercase uuid>/<segment>[/<segment>...]', each segment made of ASCII
+-- letters, digits, '.', '_' and '-', and none made of dots alone. Anything
+-- else yields null instead of a cast error, so a malformed name fails a
+-- policy or a check without breaking the query around it.
+create function public.storage_folder_uuid(object_name text)
 returns uuid
 language sql
 immutable
@@ -68,9 +74,22 @@ strict
 set search_path = ''
 as $$
   select case
-    when object_name ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/.'
+    when object_name ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(/[A-Za-z0-9_.-]+)+$'
+      and object_name !~ '/\.+(/|$)'
       then split_part(object_name, '/', 1)::uuid
   end;
+$$;
+
+-- Object names in the inspection buckets: '<inspection_id>/<file>', and
+-- thumbnails '<inspection_id>/thumbs/<file>'.
+create function public.storage_inspection_id(object_name text)
+returns uuid
+language sql
+immutable
+strict
+set search_path = ''
+as $$
+  select public.storage_folder_uuid(object_name);
 $$;
 
 -- 'INS-2026-0001': the creation year in Malaysia, where SteriCare works, then

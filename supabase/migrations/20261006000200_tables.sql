@@ -15,8 +15,12 @@ create table public.profiles (
   signature_path text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
+  -- "is not distinct from": a malformed path parses to null, which must fail.
   constraint profiles_signature_in_own_folder
-    check (signature_path like id::text || '/_%')
+    check (
+      signature_path is null
+      or public.storage_folder_uuid(signature_path) is not distinct from id
+    )
 );
 
 -- Reference data -------------------------------------------------------------
@@ -235,10 +239,13 @@ create index ai_review_actions_actor_id_idx on public.ai_review_actions (actor_i
 
 -- Audit ----------------------------------------------------------------------
 
--- Written only by triggers and public.log_inspection_event(); rows never change.
+-- Append-only: triggers and public.log_inspection_event() write it (server
+-- code with the service role may also insert), no role changes a row, and no
+-- API role deletes one. An inspection's rows go with it (the cascade runs as
+-- the table owner).
 create table public.audit_log (
   id bigint generated always as identity primary key,
-  -- Null when the event outlives its inspection (the deletion itself).
+  -- Null only on the record of a deletion, which outlives its inspection.
   inspection_id uuid references public.inspections (id) on delete cascade,
   -- Null for the service role and the database owner.
   actor_id uuid references public.profiles (id) on delete restrict,
@@ -246,7 +253,8 @@ create table public.audit_log (
   changes jsonb not null default '{}' check (jsonb_typeof(changes) = 'object'),
   at timestamptz not null default now(),
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint audit_log_names_inspection check (inspection_id is not null or action = 'deleted')
 );
 
 create index audit_log_inspection_id_idx on public.audit_log (inspection_id, at);

@@ -6,7 +6,9 @@
 -- `authenticated` and `anon` and are checked against their profile. Every
 -- other role (service_role, the owner running migrations and the SQL editor,
 -- code inside security definer functions) acts with admin rights, still bound
--- by the status transitions and the locked columns.
+-- by the status transitions, the locked columns and the rule that an approved
+-- inspection is read-only, its photos and files included. Like an admin, the
+-- service role cannot delete an approved inspection; only the owner can.
 
 -- Caller helpers -------------------------------------------------------------
 
@@ -68,8 +70,9 @@ as $$
   );
 $$;
 
--- Who may add, change or remove an inspection's photos and files: admins
--- always, the owner while it is a draft or reopened.
+-- Who may add, change or remove an inspection's photos and files: nobody once
+-- it is approved (approved is read-only); until then admins, and the owner
+-- while it is a draft or reopened.
 create function public.can_edit_inspection(inspection_id uuid)
 returns boolean
 language sql
@@ -80,6 +83,7 @@ as $$
   select exists (
     select 1 from public.inspections i
     where i.id = can_edit_inspection.inspection_id
+      and i.status <> 'approved'
       and (
         (
           i.inspector_id = (select auth.uid())
@@ -233,7 +237,9 @@ declare
   drawn text;
 begin
   if tg_op = 'DELETE' then
-    if old.status = 'approved' and api_user then
+    -- A final QC record: no API role deletes it, the service role included.
+    -- Only the database owner can, deliberately, from the SQL editor.
+    if old.status = 'approved' and (api_user or current_user = 'service_role') then
       raise exception 'an approved inspection cannot be deleted' using errcode = '42501';
     end if;
     return old;
@@ -324,13 +330,39 @@ $$;
 create trigger guard before insert or update or delete on public.inspections
   for each row execute function public.inspections_guard();
 
--- created_by is always the uploader, and only admins choose report photos.
+-- Photos and files of an approved inspection are read-only for every role,
+-- except which photos go into the report (BUILD_SPEC 5, 8.1 and 9.1). For
+-- signed-in users, created_by is always the uploader and only admins choose
+-- report photos.
 create function public.inspection_media_guard()
 returns trigger
 language plpgsql
 set search_path = ''
 as $$
+declare
+  parent uuid;
 begin
+  if tg_op = 'INSERT' then
+    parent := new.inspection_id;
+  else
+    parent := old.inspection_id;
+  end if;
+  -- Read as the caller: admins, the service role and the owner see every
+  -- inspection, and RLS keeps inspectors to the ones they may edit anyway.
+  -- When the parent itself is being deleted, it is already gone here, so its
+  -- evidence goes with it.
+  if exists (select 1 from public.inspections i where i.id = parent and i.status = 'approved') then
+    if tg_op <> 'UPDATE'
+      or to_jsonb(new) - 'include_in_report' - 'updated_at'
+        is distinct from to_jsonb(old) - 'include_in_report' - 'updated_at' then
+      raise exception 'the photos and files of an approved inspection are read-only'
+        using errcode = '42501';
+    end if;
+  end if;
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
   if current_user not in ('authenticated', 'anon') then
     return new;
   end if;
@@ -353,9 +385,9 @@ begin
 end;
 $$;
 
-create trigger guard before insert or update on public.inspection_photos
+create trigger guard before insert or update or delete on public.inspection_photos
   for each row execute function public.inspection_media_guard();
-create trigger guard before insert or update on public.inspection_files
+create trigger guard before insert or update or delete on public.inspection_files
   for each row execute function public.inspection_media_guard();
 
 -- Audit ----------------------------------------------------------------------
@@ -400,7 +432,8 @@ create trigger audit after insert or update of status or delete on public.inspec
   for each row execute function public.audit_inspection();
 
 -- For server actions: records an event on an inspection the caller can read
--- (any inspection for the service role) and returns the audit row id.
+-- (any inspection for the service role) and returns the audit row id. Every
+-- event names its inspection.
 create function public.log_inspection_event(
   inspection_id uuid,
   action text,
@@ -414,6 +447,9 @@ as $$
 declare
   event_id bigint;
 begin
+  if log_inspection_event.inspection_id is null then
+    raise exception 'inspection_id is required' using errcode = '22004';
+  end if;
   if log_inspection_event.action in ('created', 'status_changed', 'deleted') then
     raise exception 'action % is recorded automatically', log_inspection_event.action
       using errcode = '42501';

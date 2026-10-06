@@ -5,7 +5,10 @@
 --   signatures         <user_id>/<file>
 --   client-logos       any name, referenced by clients.logo_path
 --   template-sources   any name, referenced by templates.source_file_path
--- The Storage API enforces the size and type limits below; the policies decide who.
+-- In the first three, public.storage_folder_uuid() parses the folder strictly
+-- (lowercase uuid; ASCII letters, digits, '.', '_' and '-'; no '.' or '..'
+-- segment), and any other name is denied. The Storage API enforces the size
+-- and type limits below; the policies decide who.
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values
@@ -33,6 +36,7 @@ values
 on conflict (id) do nothing;
 
 -- Inspection photos and files follow the parent inspection --------------------
+-- Writable while the inspection is editable, so never once it is approved.
 
 create policy inspection_media_select on storage.objects
   for select to authenticated
@@ -108,7 +112,7 @@ create policy signatures_select on storage.objects
     bucket_id = 'signatures'
     and (
       (
-        (storage.foldername(name))[1] = (select auth.uid())::text
+        public.storage_folder_uuid(name) = (select auth.uid())
         and (select public.is_active())
       )
       or (select public.is_admin())
@@ -119,7 +123,7 @@ create policy signatures_insert on storage.objects
   for insert to authenticated
   with check (
     bucket_id = 'signatures'
-    and (storage.foldername(name))[1] = (select auth.uid())::text
+    and public.storage_folder_uuid(name) = (select auth.uid())
     and (select public.is_active())
   );
 
@@ -127,12 +131,12 @@ create policy signatures_update on storage.objects
   for update to authenticated
   using (
     bucket_id = 'signatures'
-    and (storage.foldername(name))[1] = (select auth.uid())::text
+    and public.storage_folder_uuid(name) = (select auth.uid())
     and (select public.is_active())
   )
   with check (
     bucket_id = 'signatures'
-    and (storage.foldername(name))[1] = (select auth.uid())::text
+    and public.storage_folder_uuid(name) = (select auth.uid())
     and (select public.is_active())
   );
 
@@ -140,6 +144,6 @@ create policy signatures_delete on storage.objects
   for delete to authenticated
   using (
     bucket_id = 'signatures'
-    and (storage.foldername(name))[1] = (select auth.uid())::text
+    and public.storage_folder_uuid(name) = (select auth.uid())
     and (select public.is_active())
   );

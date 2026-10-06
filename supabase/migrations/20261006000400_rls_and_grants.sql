@@ -1,8 +1,9 @@
 -- Row level security and privileges. Grants are explicit instead of relying on
 -- Supabase's default privileges: anon gets nothing, authenticated gets the
--- statements its policies allow (RLS filters the rows), service_role gets all.
--- Policies apply to `authenticated` only, and every one requires an active
--- profile, so a deactivated user reads and writes nothing.
+-- statements its policies allow (RLS filters the rows), service_role gets all
+-- except changing or removing audit rows. Policies apply to `authenticated`
+-- only, and every one requires an active profile, so a deactivated user reads
+-- and writes nothing.
 
 alter table public.profiles enable row level security;
 alter table public.manufacturers enable row level security;
@@ -23,14 +24,17 @@ revoke all on table
   public.templates, public.inspections, public.inspection_photos,
   public.inspection_files, public.ai_reviews, public.ai_review_actions,
   public.audit_log
-from anon, authenticated;
+from anon, authenticated, service_role;
 
 grant all on table
   public.profiles, public.manufacturers, public.clients, public.defect_codes,
   public.templates, public.inspections, public.inspection_photos,
-  public.inspection_files, public.ai_reviews, public.ai_review_actions,
-  public.audit_log
+  public.inspection_files, public.ai_reviews, public.ai_review_actions
 to service_role;
+-- The audit trail is append-only: server code reads it and adds to it
+-- (preferably through log_inspection_event()), but never changes or deletes
+-- rows. Cascades from a deleted inspection run as the owner.
+grant select, insert on table public.audit_log to service_role;
 
 -- Profiles are created by the auth.users trigger, never by users.
 grant select, update on table public.profiles to authenticated;
@@ -57,6 +61,7 @@ revoke all on function
   public.my_profile_status(),
   public.can_read_inspection(uuid),
   public.can_edit_inspection(uuid),
+  public.storage_folder_uuid(text),
   public.storage_inspection_id(text),
   public.inspection_ref(timestamptz, bigint),
   public.log_inspection_event(uuid, text, jsonb)
@@ -68,6 +73,7 @@ grant execute on function
   public.my_profile_status(),
   public.can_read_inspection(uuid),
   public.can_edit_inspection(uuid),
+  public.storage_folder_uuid(text),
   public.storage_inspection_id(text),
   public.inspection_ref(timestamptz, bigint),
   public.log_inspection_event(uuid, text, jsonb)
@@ -196,10 +202,12 @@ create policy inspection_photos_select on public.inspection_photos
   for select to authenticated using (public.can_read_inspection(inspection_id));
 create policy inspection_photos_insert on public.inspection_photos
   for insert to authenticated with check (public.can_edit_inspection(inspection_id));
+-- Admins also reach the photos of an approved inspection, where
+-- public.inspection_media_guard() lets only include_in_report change.
 create policy inspection_photos_update on public.inspection_photos
   for update to authenticated
-  using (public.can_edit_inspection(inspection_id))
-  with check (public.can_edit_inspection(inspection_id));
+  using ((select public.is_admin()) or public.can_edit_inspection(inspection_id))
+  with check ((select public.is_admin()) or public.can_edit_inspection(inspection_id));
 create policy inspection_photos_delete on public.inspection_photos
   for delete to authenticated using (public.can_edit_inspection(inspection_id));
 
@@ -239,7 +247,7 @@ create policy ai_review_actions_update on public.ai_review_actions
 create policy ai_review_actions_delete on public.ai_review_actions
   for delete to authenticated using ((select public.is_admin()));
 
--- Audit log: read-only. Rows without an inspection (deletions) are admin-only.
+-- Audit log: read-only for users. Deletion records (no inspection) are admin-only.
 
 create policy audit_log_select on public.audit_log
   for select to authenticated
