@@ -31,7 +31,14 @@ test("the inspector lands on the inspections list", async ({ page, context, base
 
 - Never change, deactivate or delete `inspector@test.local`, `admin@test.local` or real accounts.
 - Destructive tests use throwaway accounts from `throwawayEmail()` and delete them afterwards.
-- Rows created for a test are deleted in `afterAll`. `createTestAdminClient()` bypasses RLS, so
+- Rows created for a test are deleted in `afterAll`. Teardown order: remove the inspection's
+  Storage files, then call `deleteTestInspection()` for each inspection (the service role cannot
+  delete approved inspections directly; this database function can, for `@test.local`
+  inspectors only), then delete templates and throwaway accounts.
+- Inspection inserts never send `id` or `ref_no`: the database draws the ref number. Every
+  insert uses a number from the live sequence, so keep e2e runs few.
+- New accounts start inactive: activate a throwaway account with the admin client
+  (`update profiles set active = true`) before it signs in. `createTestAdminClient()` bypasses RLS, so
   use it for setup and teardown only, never to assert what a user can see.
 - Supabase's built-in mailer only delivers to project team members and allows a few emails an
   hour: do not loop on invite or reset emails.
