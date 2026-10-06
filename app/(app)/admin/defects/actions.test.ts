@@ -659,6 +659,18 @@ describe("mapDefectLabel", () => {
     expect(updates()).toEqual([]);
   });
 
+  it("says so when the code that exists is inactive, which An existing code does not offer", async () => {
+    useClient(respond({ insertError: { code: "23505", message: "duplicate key" }, code: codeRow("stain", { active: false }) }));
+    expect(await map({ mode: "new", code: "", newCode: "stain", name: "Stain" })).toEqual({
+      status: "error",
+      message: MESSAGES.checkFields,
+      fieldErrors: {
+        newCode: "There is already a code stain, and it is inactive. Reactivate it on the Codes tab, or pick another code.",
+      },
+    });
+    expect(updates()).toEqual([]);
+  });
+
   it("reads again and retries when someone saved the inspection in between", async () => {
     const newer = inspection({ updated_at: NEWER });
     useClient(respond({ rows: [inspection(), inspection(), newer], written: [null, { id: INSPECTION }] }));

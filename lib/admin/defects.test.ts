@@ -330,6 +330,66 @@ describe("templateLabels", () => {
     ]);
   });
 
+  it("shows a template's rewording over its list's label, per class or everywhere, as the modules do", () => {
+    const labels = templateLabels({
+      modules: [
+        {
+          key: "visual",
+          include: true,
+          labels: { "major.stain": "Stain (any colour)", bead_defective: "Bead fault" },
+          config: {
+            classes: {
+              major: {
+                include: true,
+                aql: 2.5,
+                defects: [
+                  { code: "stain", label: "Oil stain" },
+                  { code: "bead_defective", label: "Defective bead" },
+                ],
+              },
+              minor: {
+                include: true,
+                aql: 4,
+                defects: [
+                  { code: "stain", label: "Small stain" },
+                  { code: "bead_defective", label: "Defective beads" },
+                ],
+              },
+            },
+          },
+        },
+        {
+          key: "watertight",
+          include: true,
+          labels: { hole_crotch: "Crotch (between fingers)" },
+          config: {
+            locations: [
+              { code: "hole_crotch", label: "Between fingers (crotch)" },
+              { code: "hole_palm", label: "Palm" },
+            ],
+          },
+        },
+        {
+          key: "dispensing_safedon",
+          include: true,
+          labels: { no_cuff: "Cuff missing" },
+          config: { defects: [{ code: "no_cuff", label: "No cuff" }] },
+        },
+      ],
+    })!;
+    expect(labels.labels.map((label) => `${label.section}/${label.defectClass}/${label.code}: ${label.label}`)).toEqual([
+      "watertight/null/hole_crotch: Crotch (between fingers)",
+      "watertight/null/hole_palm: Palm",
+      "visual/major/stain: Stain (any colour)",
+      "visual/major/bead_defective: Bead fault",
+      // `major.stain` rewords it in major only.
+      "visual/minor/stain: Small stain",
+      "visual/minor/bead_defective: Bead fault",
+      // That module words its rows from its list.
+      "dispensing_safedon/null/no_cuff: No cuff",
+    ]);
+  });
+
   it("is null for anything that is not a resolved template", () => {
     expect(templateLabels(null)).toBeNull();
     expect(templateLabels({ code: "STD_EG" })).toBeNull();

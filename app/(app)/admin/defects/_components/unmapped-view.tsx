@@ -137,9 +137,10 @@ function InspectionCard({
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           {/* Focusable from code: it takes the keyboard when a row it held has been mapped. */}
           <h2 id={headingId} tabIndex={-1} className="rounded-sm text-lg font-bold text-foreground focus-ring">
+            {/* The way from a card to its inspection: a 44 px target on touch. */}
             <Link
               href={inspectionHref(inspection.id, inspection.status)}
-              className="rounded-sm text-brand-600 tabular-nums underline-offset-4 hover:underline focus-ring"
+              className="rounded-sm text-brand-600 tabular-nums underline-offset-4 hover:underline focus-ring touch:inline-flex touch:min-h-11 touch:items-center"
             >
               {inspection.refNo}
             </Link>

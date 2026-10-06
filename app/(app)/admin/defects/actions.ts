@@ -382,10 +382,15 @@ export async function mapDefectLabel(_previous: MapLabelResult, formData: FormDa
           console.error("[admin/defects] insert refused", error.code, error.message);
           return failed(refused.message);
         }
-        const message =
-          error.code === "23505"
-            ? `There is already a code ${newCode}. Choose it under An existing code, or pick another code.`
-            : refused.message;
+        let message = refused.message;
+        if (error.code === "23505") {
+          // An existing code is offered only while it is active.
+          const existing = await readDefectCode(supabase, newCode);
+          message =
+            existing && !existing.active
+              ? `There is already a code ${newCode}, and it is inactive. Reactivate it on the Codes tab, or pick another code.`
+              : `There is already a code ${newCode}. Choose it under An existing code, or pick another code.`;
+        }
         return failed(MESSAGES.checkFields, { newCode: message });
       }
       code = newCode;

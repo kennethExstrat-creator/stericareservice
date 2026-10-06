@@ -12,6 +12,7 @@ import { applyModuleOverrides, parseModuleOverrides } from "@/lib/templates/over
 import { buildInspectionContext } from "@/modules/_framework/context";
 import type { ModuleRegistry } from "@/modules/_framework/contract";
 import { HANDS, isHandSplit, type Hand } from "@/modules/_framework/hands";
+import { labelFor } from "@/modules/_framework/labels";
 
 /**
  * Defect codes and how labels map to them, for /admin/defects (BUILD_SPEC
@@ -432,15 +433,28 @@ function codedItems(value: unknown): { code: string; label?: string }[] {
 }
 
 /**
- * The wording a template shows for a code: the label in its config list, or
- * the module's label for the code (most specific first: `minor.bead_defective`,
- * then `bead_defective`), or the code itself.
+ * A code's label in a config list, on one line. Without one: the template's
+ * label for the code (most specific first: `minor.bead_defective`, then
+ * `bead_defective`), else the code itself.
  */
-function wordingOf(item: { code: string; label?: string }, labels: Record<string, string>, group?: string) {
+function listWording(item: { code: string; label?: string }, labels: Record<string, string>, group?: string): string {
   const own = item.label === undefined ? "" : oneLine(item.label);
   if (own) return own;
-  const keyed = (group && labels[`${group}.${item.code}`]) || labels[item.code];
-  return keyed?.trim() ? oneLine(keyed) : item.code;
+  const keyed = group ? labelFor(labels, group, item.code) : labelFor(labels, item.code);
+  return oneLine(keyed) || item.code;
+}
+
+/**
+ * The wording the visual and watertight modules show for a code (their
+ * defectLabel and effectiveLocations; docs/MODULES.md section 6): the
+ * template's labels reword it for the class (`minor.bead_defective`) or
+ * everywhere (`bead_defective`) without rewriting the list; otherwise the
+ * list's own label stands.
+ */
+function moduleWording(item: { code: string; label?: string }, labels: Record<string, string>, group?: string): string {
+  // labelFor gives the code itself when the labels do not word it.
+  const own = group ? labelFor(labels, group, item.code) : labelFor(labels, item.code);
+  return own === item.code ? listWording(item, {}) : oneLine(own);
 }
 
 /**
@@ -473,16 +487,17 @@ export function templateLabels(resolved: unknown): TemplateLabels | null {
         }
         classAql[defectClass] = typeof settings.aql === "number" ? settings.aql : null;
         for (const item of codedItems(settings.defects)) {
-          labels.push({ section: "visual", defectClass, code: item.code, label: wordingOf(item, wording, defectClass) });
+          labels.push({ section: "visual", defectClass, code: item.code, label: moduleWording(item, wording, defectClass) });
         }
       }
     } else if (key === "watertight") {
       for (const item of codedItems(config.locations)) {
-        labels.push({ section: "watertight", defectClass: null, code: item.code, label: wordingOf(item, wording) });
+        labels.push({ section: "watertight", defectClass: null, code: item.code, label: moduleWording(item, wording) });
       }
     } else if (key === "dispensing_safedon") {
+      // That module words its rows from its config list.
       for (const item of codedItems(config.defects)) {
-        labels.push({ section: "dispensing_safedon", defectClass: null, code: item.code, label: wordingOf(item, wording) });
+        labels.push({ section: "dispensing_safedon", defectClass: null, code: item.code, label: listWording(item, wording) });
       }
     }
   }
