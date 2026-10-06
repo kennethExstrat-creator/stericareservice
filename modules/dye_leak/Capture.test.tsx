@@ -101,6 +101,10 @@ describe("dye_leak capture", () => {
   it("offers the plan and a one-tap clean result before anything is entered, never a 0", () => {
     const html = render({ sizes: {} });
     expect(html).toMatch(/Pouches planned:<span data-slot="figure"[^>]*>13<\/span>/);
+    // The totals are dashes ("No value") until a count is entered.
+    for (const label of ["Pouches tested", "Pouches failed"]) {
+      expect(html).toMatch(new RegExp(`${label}</dt><dd[^>]*><span data-slot="figure" data-empty=""`));
+    }
     expect(html).toContain("13 as planned");
     expect(html).toContain("No leaks");
     expect(html).not.toContain('role="spinbutton"');

@@ -28,9 +28,12 @@ export type DyeLeakComputed = {
   pouchesPlanned: Record<string, number | null>;
   /** Per ordered size: fail on any leaking pouch, pass on none, not done until both counts are entered. */
   result: Record<string, DyeLeakVerdict>;
-  /** Sums over the ordered sizes of the counts entered. */
-  totalTested: number;
-  totalFailed: number;
+  /**
+   * Sums over the ordered sizes of the counts entered. Null until a size has
+   * that count, so a module nobody tested never reads "0 failed".
+   */
+  totalTested: number | null;
+  totalFailed: number | null;
 };
 
 /** Pouches to test for a size: the sampling plan's dye leak pouches, else config n. A plan of 0 plans nothing. */
@@ -57,7 +60,10 @@ export function calcDyeLeak({
 
   const perSize = perSizeResults(context.sizes, (size) => outcomes[size].result);
   const counts = (pick: (entry: DyeLeakSize) => number | null) =>
-    context.sizes.reduce((sum, size) => sum + (pick(entries[size]) ?? 0), 0);
+    context.sizes.reduce<number | null>((sum, size) => {
+      const count = pick(entries[size]);
+      return count === null ? sum : (sum ?? 0) + count;
+    }, null);
 
   return {
     result: resultFromSizes(perSize, summarise(context.sizes, entries, outcomes, labels)),

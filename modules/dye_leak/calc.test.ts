@@ -82,6 +82,16 @@ describe("dye_leak", () => {
     });
   });
 
+  it("totals only the counts entered, and has no total before any (never a 0 for nothing tested)", () => {
+    expect(calcDyeLeak(input({})).computed).toMatchObject({ totalTested: null, totalFailed: null });
+    const partial = calcDyeLeak(input({ "6.5": { pouchesTested: 13 }, "7.5": { pouchesFailed: 2 } })).computed;
+    expect(partial).toMatchObject({ totalTested: 13, totalFailed: 2 });
+    const tested = calcDyeLeak(input({ "6.5": { pouchesTested: 13 }, "7.0": { pouchesTested: 8 } })).computed;
+    expect(tested).toMatchObject({ totalTested: 21, totalFailed: null });
+    // An entered 0 is a count: "no leaks" totals 0 failed.
+    expect(calcDyeLeak(input({ "7.0": { pouchesFailed: 0 } })).computed.totalFailed).toBe(0);
+  });
+
   it("fails a size on any leaking pouch, and the module with it (BUILD_SPEC 6.1)", () => {
     const output = calcDyeLeak(
       input({ ...ALL_PASS, "7.0": { pouchesTested: 13, pouchesFailed: 1, notes: "Dye channel at the seal corner." } }),
