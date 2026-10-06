@@ -200,6 +200,17 @@ describe("saveClient", () => {
 });
 
 describe("deleteClient", () => {
+  it("needs an active admin before it reads or deletes anything", async () => {
+    vi.mocked(authorizeAction).mockResolvedValue({ ok: false, error: "You do not have permission to do that." });
+    const result = await deleteClient(IDLE, form({ id: CLIENT }));
+    expect(authorizeAction).toHaveBeenCalledWith("admin");
+    expect(result).toEqual({ status: "error", message: "You do not have permission to do that." });
+    expect(createClient).not.toHaveBeenCalled();
+    expect(queries).toEqual([]);
+    expect(bucket.list).not.toHaveBeenCalled();
+    expect(bucket.remove).not.toHaveBeenCalled();
+  });
+
   it("keeps a client that templates or inspections use, and says why", async () => {
     useDatabase(respondWith(clientRow(null, 0, 12)));
     const result = await deleteClient(IDLE, form({ id: CLIENT }));
@@ -273,6 +284,18 @@ describe("prepareLogoUpload", () => {
 });
 
 describe("confirmLogoUpload", () => {
+  it("needs an active admin before it reads, points or removes anything", async () => {
+    vi.mocked(authorizeAction).mockResolvedValue({ ok: false, error: "You do not have permission to do that." });
+    const result = await confirmLogoUpload({ clientId: CLIENT, path: NEW_LOGO });
+    expect(authorizeAction).toHaveBeenCalledWith("admin");
+    expect(result).toEqual({ status: "error", message: "You do not have permission to do that." });
+    // Not even for a client that has gone, whose whole logo folder it would otherwise remove.
+    expect(createClient).not.toHaveBeenCalled();
+    expect(queries).toEqual([]);
+    expect(bucket.list).not.toHaveBeenCalled();
+    expect(bucket.remove).not.toHaveBeenCalled();
+  });
+
   it("refuses an object outside the client's own folder", async () => {
     for (const path of [`${OTHER}/${NEW_FILE}.png`, `${CLIENT}/../${OTHER}/${NEW_FILE}.png`, `${CLIENT}/logo.png`]) {
       const result = await confirmLogoUpload({ clientId: CLIENT, path });
