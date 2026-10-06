@@ -2,6 +2,7 @@
 // takes the latest data (useDataUpdater's `current`) and returns the whole new
 // data (CaptureProps.onChange), keeping every saved size, also sizes no longer
 // ordered: their readings return with them (6.2 rule 4).
+import { parseDecimal } from "@/lib/stats";
 import { emptyForceAtBreakSize, type ForceAtBreakData } from "./schema";
 
 type Readings = readonly (number | null)[];
@@ -37,6 +38,39 @@ export function withGridEdits(
     edited = true;
   }
   return edited ? withReadings(data, size, values) : data;
+}
+
+/**
+ * The part of a pasted column that runs past the grid's last row, pasted
+ * into row `from` of a grid of `rows`: MeasurementGrid stores a column only
+ * as far as its rows, so the lab's 13 readings pasted into a plan of 10 would
+ * lose 3. Each line's first value, read as a number; text is never stored
+ * (null). Empty when the paste fits, or is one value or one row.
+ */
+export function pastedPastGrid(text: string, from: number, rows: number): (number | null)[] {
+  const lines = text.replace(/\r\n?/g, "\n").replace(/\n+$/, "").split("\n");
+  if (lines.length < 2) return [];
+  return lines.slice(Math.max(0, rows - from)).map((line) => {
+    const read = parseDecimal(line.split("\t")[0]);
+    return read.ok ? read.value : null;
+  });
+}
+
+/**
+ * Readings written from position `start` on, over the size's latest
+ * readings: the run of a pasted column past the grid, kept as readings past
+ * the gloves tested, so calc reports them instead of the paste dropping them.
+ * The same data back when nothing changes.
+ */
+export function withReadingsFrom(data: ForceAtBreakData, size: string, start: number, values: Readings): ForceAtBreakData {
+  const saved = data.sizes[size]?.values ?? [];
+  if (values.every((value, offset) => (saved[start + offset] ?? null) === value)) return data;
+  const next = [...saved];
+  values.forEach((value, offset) => {
+    while (next.length < start + offset) next.push(null);
+    next[start + offset] = value;
+  });
+  return withReadings(data, size, next);
 }
 
 /** Saved readings past the n gloves tested, with their positions. */

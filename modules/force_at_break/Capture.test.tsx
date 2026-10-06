@@ -128,7 +128,10 @@ describe("force_at_break capture", () => {
     expect(html).not.toContain("<input");
     expect(html).toContain(">6.470</td>");
     expect(html).toContain(">6.537<");
-    expect(tags(html, 'data-slot="status-pill"').map((pill) => /data-status="([a-z_]+)"/.exec(pill)?.[1])).toEqual(["pass"]);
+    const pills = tags(html, 'data-slot="status-pill"');
+    expect(pills.map((pill) => /data-status="([a-z_]+)"/.exec(pill)?.[1])).toEqual(["pass"]);
+    // 16 px on iPad, as the kit's own small pills (docs/DESIGN.md).
+    expect(pills[0]).toContain("touch:text-base");
   });
 
   it("lists readings past the gloves tested, with calc's message and a way to clear them", () => {
@@ -136,8 +139,31 @@ describe("force_at_break capture", () => {
     const html = render({ data });
     expect(html).toContain("Size M: 2 readings are entered beyond the 13 gloves tested. Clear them or correct the sampling plan.");
     expect(html).toContain("No. 15: 6.1 N, No. 16: 6.3 N");
-    expect(html).toContain(">Clear the 2 extra readings</button>");
+    expect(html).toMatch(/<button[^>]*touch:text-base[^>]*>Clear the 2 extra readings<\/button>/);
     expect(render({ data, readOnly: true })).not.toContain("Clear the 2 extra readings");
+  });
+
+  it("sends the issue link to the notice's message, never to the button that clears readings", () => {
+    const data = { sizes: { M: { values: [...READINGS, 6.1] } }, labReport: null };
+    const html = render({ data });
+    // The message takes the focus itself (tabIndex -1); the box with the button carries no path.
+    const [notice, ...others] = tags(html, 'data-slot="size-notice"');
+    expect(others).toEqual([]);
+    expect(notice).toMatch(/^<p /);
+    expect(notice).toContain('tabindex="-1"');
+    expect(notice).toContain('data-issue-path="[&quot;sizes&quot;,&quot;M&quot;,&quot;values&quot;]"');
+    expect(tags(html, "data-issue-path").filter((tag) => tag.includes("&quot;values&quot;"))).toEqual([notice]);
+  });
+
+  it("says when the sampling plan asks for more readings than a size can take", () => {
+    const context = makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ physical: 600 }) } });
+    const html = render({ context });
+    expect(tags(html, 'data-slot="numeric-cell"')).toHaveLength(500);
+    const [notice] = tags(html, 'data-slot="size-notice"');
+    expect(notice).toContain('data-issue-path="[&quot;sizes&quot;,&quot;M&quot;]"');
+    expect(html).toContain(
+      "Size M: the sampling plan gives 600 gloves to test; at most 500 readings can be entered. Correct the sampling plan.",
+    );
   });
 
   it("explains a size the sampling plan gives no gloves to test", () => {

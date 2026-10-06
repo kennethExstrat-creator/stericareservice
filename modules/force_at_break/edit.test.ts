@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { batchDataChanges, createDataUpdater } from "@/components/qc/data-updater";
-import { readingsBeyond, withGridEdits, withLabReport, withoutReadingsBeyond, withReadings } from "./edit";
+import { makeSampling, makeTestContext } from "@/modules/_framework/testing";
+import { calcForceAtBreak } from "./calc";
+import { FORCE_AT_BREAK_DEFAULT_CONFIG, FORCE_AT_BREAK_LABELS, FORCE_AT_BREAK_TITLE } from "./config";
+import {
+  pastedPastGrid,
+  readingsBeyond,
+  withGridEdits,
+  withLabReport,
+  withoutReadingsBeyond,
+  withReadings,
+  withReadingsFrom,
+} from "./edit";
 import { emptyForceAtBreak, ForceAtBreakDataSchema, type ForceAtBreakData } from "./schema";
 
 const LAB_REPORT_ID = "00000000-0000-4000-8000-000000000401";
@@ -61,6 +72,64 @@ describe("force_at_break edits", () => {
     });
     expect(changes).toHaveLength(1);
     expect(changes[0].sizes.M.values).toEqual(pasted);
+  });
+
+  describe("a pasted column longer than the grid", () => {
+    const LAB = [6.47, 6.884, 6.301, 6.537, 6.65, 6.214, 6.79];
+
+    it("finds the values that run past the grid's last row, from the row pasted into", () => {
+      const text = LAB.join("\n");
+      expect(pastedPastGrid(text, 0, 5)).toEqual([6.214, 6.79]);
+      expect(pastedPastGrid(text, 3, 5)).toEqual([6.301, 6.537, 6.65, 6.214, 6.79]);
+      expect(pastedPastGrid(text, 0, 13)).toEqual([]);
+      expect(pastedPastGrid(text, 6, 13)).toEqual([]);
+      // Windows line ends and a last newline, as a spreadsheet copies a column.
+      expect(pastedPastGrid("6.1\r\n6.2\r\n6.3\r\n", 0, 2)).toEqual([6.3]);
+      expect(pastedPastGrid("6.1\r\n6.2\r\n6.3\r\n", 1, 2)).toEqual([6.2, 6.3]);
+      // One value, or one row across columns, never runs past the last row.
+      expect(pastedPastGrid("6.1", 4, 5)).toEqual([]);
+      expect(pastedPastGrid("6.1\t6.2\t6.3", 4, 5)).toEqual([]);
+      // A block's first column, as the grid takes it. Text is never stored;
+      // 0 is kept, for calc to report.
+      expect(pastedPastGrid("6.1\t1\n6.2\t2\nn/a\t3\n0\t4\n\t5", 0, 1)).toEqual([6.2, null, 0, null]);
+    });
+
+    it("writes them past the grid over the latest readings; the same data back when nothing changes", () => {
+      const saved = withReadings(SAVED, "M", [6.1, 6.2]);
+      const next = withReadingsFrom(saved, "M", 5, [6.6, null, 6.8]);
+      expect(next.sizes).toEqual({ M: { values: [6.1, 6.2, null, null, null, 6.6, null, 6.8] }, XL: { values: [6.9] } });
+      expect(withReadingsFrom(saved, "M", 5, [])).toBe(saved);
+      expect(withReadingsFrom(saved, "M", 5, [null, null])).toBe(saved);
+      expect(withReadingsFrom(saved, "M", 1, [6.2])).toBe(saved);
+      expect(ForceAtBreakDataSchema.parse(next)).toEqual(next);
+    });
+
+    it("saves the lab's 7 readings pasted into a plan of 5 in one change, and calc reports the 2 past it", () => {
+      const changes: ForceAtBreakData[] = [];
+      const updater = createDataUpdater(emptyForceAtBreak(), (next) => changes.push(next));
+      // What the capture body does with the grid's change: the grid's 5 rows, then the rest of the paste.
+      const past = pastedPastGrid(LAB.join("\n"), 0, 5);
+      updater.update((current) => withReadingsFrom(withGridEdits(current, "M", [], LAB.slice(0, 5), 5), "M", 5, past));
+      expect(changes).toHaveLength(1);
+      expect(changes[0].sizes.M.values).toEqual(LAB);
+
+      const output = calcForceAtBreak({
+        data: changes[0],
+        config: FORCE_AT_BREAK_DEFAULT_CONFIG,
+        title: FORCE_AT_BREAK_TITLE,
+        labels: FORCE_AT_BREAK_LABELS,
+        context: makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ physical: 5 }) } }),
+        results: {},
+        hasData: true,
+      });
+      expect(output.issues).toEqual([
+        expect.objectContaining({
+          code: "force_readings_beyond_plan",
+          message: "Size M: 2 readings are entered beyond the 5 gloves tested. Clear them or correct the sampling plan.",
+          path: ["sizes", "M", "values", 5],
+        }),
+      ]);
+    });
   });
 
   it("finds and clears the readings past the gloves tested", () => {
