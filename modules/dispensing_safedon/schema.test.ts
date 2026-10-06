@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
+  dataKeys,
   defaultConfig,
   defaultLabels,
   labelOverrides,
@@ -66,6 +67,10 @@ describe("dispensing_safedon data", () => {
     expect(DispensingSafedonDataSchema.safeParse({ sizes: { XS: { boxes: [{ boxNo: 1, boxRatePct: 0.8 }] } } }).success).toBe(
       false,
     );
+  });
+
+  it("holds exactly the dictionary's entered keys per box (docs/DATA_DICTIONARY.md)", () => {
+    expect(Object.keys(emptySafedonBox()).sort()).toEqual(dataKeys("dispensing_safedon", "entered").sort());
   });
 
   it("tells a blank column from a started one", () => {

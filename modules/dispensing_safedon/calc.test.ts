@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { dataField, dataKeys } from "@/lib/coverage";
 import { roundTo } from "@/lib/stats";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import { evaluateInspection, type CalcInput, type InspectionContext } from "@/modules/_framework";
@@ -69,6 +70,14 @@ const FIVE = makeTestContext({ sizes: ["XS"], sampling: { XS: makeSampling({ pac
 describe("dispensing_safedon", () => {
   it("satisfies the module contract", () => {
     expect(checkModuleContract(definition)).toEqual([]);
+  });
+
+  it("computes every value the dictionary lists as computed, per size or per box (6.2 rule 2)", () => {
+    const size = calcDispensingSafedon(input({ sizes: { XS: { boxes: boxes(1) } } }, FIVE)).computed.sizes.XS;
+    for (const key of dataKeys("dispensing_safedon", "computed")) {
+      const perBox = dataField("dispensing_safedon", key)?.per.includes("box");
+      expect(Object.keys(perBox ? size.boxes[0] : size), key).toContain(key);
+    }
   });
 
   describe("the SAFEDON_EG example (expected results A)", () => {

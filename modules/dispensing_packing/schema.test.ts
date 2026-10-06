@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
+  dataKeys,
   defaultConfig,
   defaultLabels,
   labelOverrides,
@@ -61,6 +62,10 @@ describe("dispensing_packing data", () => {
     expect(DispensingPackingDataSchema.safeParse({ sizes: { M: { boxes: [], layeringAverage: 88.3 } } }).success).toBe(false);
     expect(DispensingPackingDataSchema.safeParse({ sizes: { M: { boxes: [{ ...BOX, box: 13 }] } } }).success).toBe(false);
     expect(DispensingPackingDataSchema.safeParse({ sizes: { M: { boxes: [{ ...BOX, result: "pass" }] } } }).success).toBe(false);
+  });
+
+  it("holds exactly the dictionary's entered keys per box (docs/DATA_DICTIONARY.md)", () => {
+    expect(Object.keys(emptyPackingBox()).sort()).toEqual(dataKeys("dispensing_packing", "entered").sort());
   });
 
   it("tells a blank row from a started one", () => {

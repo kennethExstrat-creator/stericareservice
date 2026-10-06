@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { dataKeys } from "@/lib/coverage";
 import { roundTo } from "@/lib/stats";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import { evaluateInspection, type CalcInput, type InspectionContext } from "@/modules/_framework";
@@ -62,6 +63,11 @@ const M_ONLY = makeTestContext({ sizes: ["M"] });
 describe("dispensing_packing", () => {
   it("satisfies the module contract", () => {
     expect(checkModuleContract(definition)).toEqual([]);
+  });
+
+  it("computes every value the dictionary lists as computed, per size (6.2 rule 2)", () => {
+    const size = calcDispensingPacking(input({ sizes: {} }, M_ONLY)).computed.sizes.M;
+    for (const key of dataKeys("dispensing_packing", "computed")) expect(Object.keys(size), key).toContain(key);
   });
 
   describe("the STD_EG example (expected results B)", () => {
