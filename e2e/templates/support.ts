@@ -264,6 +264,19 @@ export async function templateRow(id: string) {
   return data;
 }
 
+/**
+ * Someone else saves the version meanwhile: the same definition written
+ * again, which moves its updated_at on, so a page opened before refuses to
+ * confirm or activate what it showed.
+ */
+export async function touchTemplate(id: string): Promise<void> {
+  const admin = createTestAdminClient();
+  const { data, error } = await admin.from("templates").select("definition").eq("id", id).single();
+  if (error) fail(`reading template ${id}`, error);
+  const updated = await admin.from("templates").update({ definition: data.definition }).eq("id", id);
+  if (updated.error) fail(`touching template ${id}`, updated.error);
+}
+
 export async function templatesOfCode(code: string) {
   const { data, error } = await createTestAdminClient()
     .from("templates")

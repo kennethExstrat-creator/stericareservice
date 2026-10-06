@@ -125,13 +125,18 @@ test("the invite dialog explains every problem in place", async ({ page, context
     await shot(page, "invite-errors");
   });
 
-  await test.step("an address that already has an account stops before any email", async () => {
+  await test.step("an address that already has an account stops before any email, and every choice stays", async () => {
     await dialog.getByLabel("Full name").fill("Someone Else");
     await dialog.getByLabel("Email").fill(TEST_ACCOUNTS.inspector.toUpperCase());
     await expect(dialog.getByText("Enter their full name.")).toHaveCount(0);
+    // React resets a form after its action: the role must not flip back to Inspector when the invite is refused.
+    await dialog.getByRole("radio", { name: /Admin/ }).click();
     await dialog.getByRole("button", { name: "Send invite" }).click();
     await expect(dialog.getByText(/That email already has an account/)).toBeVisible();
     await expect(dialog.getByLabel("Email")).toHaveValue(TEST_ACCOUNTS.inspector.toUpperCase());
+    await expect(dialog.getByLabel("Full name")).toHaveValue("Someone Else");
+    await expect(dialog.getByRole("radio", { name: /Admin/ })).toBeChecked();
+    await expect(dialog.getByRole("radio", { name: /Inspector/ })).not.toBeChecked();
     await shot(page, "invite-existing");
   });
 
