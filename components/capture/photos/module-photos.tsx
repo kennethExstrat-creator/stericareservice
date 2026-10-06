@@ -126,9 +126,12 @@ export function ModulePhotos({
   const restoreFocus = () => {
     const target = returnFocus.current;
     returnFocus.current = null;
-    // The control that opened the dialog may be gone (a deleted photo): fall back to the heading.
-    if (target && target.isConnected) target.focus();
-    else document.getElementById(headingId)?.focus();
+    // The control that opened the dialog may be gone (a deleted photo): fall back to the heading,
+    // and in the gallery, where the whole section goes with its last photo, to the gallery's own.
+    if (target && target.isConnected) return target.focus();
+    const heading = document.getElementById(headingId);
+    if (heading) heading.focus();
+    else galleryViewer?.focusFallback?.();
   };
 
   const open = (id: string) => {

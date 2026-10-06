@@ -4,7 +4,7 @@
 // photos (template order, untagged last), and the lab reports and
 // certificates. One viewer spans every section, so the arrow keys walk
 // through all the inspection's photos.
-import { useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { CameraIcon, ImagesIcon, InfoIcon, TriangleAlertIcon } from "lucide-react";
 import { FileList, FileSlot } from "@/components/capture/files";
 import {
@@ -43,7 +43,10 @@ const SECTION = "rounded-xl bg-card p-5 shadow-sm ring-1 ring-border md:p-6";
 export function PhotoGallery({ inspectionId }: { inspectionId: string }) {
   const state = useInspectionMedia(inspectionId);
   const queue = usePhotoQueue();
-  const [openId, setOpenId, viewer] = useViewerState();
+  // Where focus goes when a dialog closes on a section that is gone (its last photo deleted).
+  const summary = useRef<HTMLParagraphElement>(null);
+  const focusSummary = useCallback(() => summary.current?.focus(), []);
+  const [openId, setOpenId, viewer] = useViewerState(focusSummary);
 
   const media = state.media;
   const options = media?.options ?? EMPTY_TAG_OPTIONS;
@@ -70,7 +73,8 @@ export function PhotoGallery({ inspectionId }: { inspectionId: string }) {
     <PhotoViewerContext.Provider value={viewer}>
       <div className="flex flex-col gap-6">
         <div className="flex flex-wrap items-center gap-3">
-          <p className="text-sm text-muted-foreground tabular-nums" aria-live="polite">
+          {/* A focus target, not a control: no ring (as StatusScreen's title). */}
+          <p ref={summary} tabIndex={-1} className="text-sm text-muted-foreground tabular-nums outline-none" aria-live="polite">
             {countPhotos(photos.length)}
             {moduleCount > 0 ? ` in ${moduleCount} ${moduleCount === 1 ? "module" : "modules"}` : ""} ·{" "}
             {countFiles(files.length)}
@@ -163,6 +167,7 @@ export function PhotoGallery({ inspectionId }: { inspectionId: string }) {
                     canEditQueued={access.canEdit}
                     options={options}
                     showModule
+                    focusFallback={focusSummary}
                   />
                 </div>
               )}

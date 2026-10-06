@@ -31,6 +31,7 @@ export function FileList({
   canEditQueued,
   options,
   showModule = false,
+  focusFallback,
   className,
 }: {
   inspectionId: string;
@@ -40,6 +41,8 @@ export function FileList({
   options: PhotoTagOptions;
   /** For lists that mix modules: say which module each file belongs to. */
   showModule?: boolean;
+  /** Where focus goes when the list is gone after a delete (its last file). */
+  focusFallback?: () => void;
   className?: string;
 }) {
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -115,8 +118,13 @@ export function FileList({
           file={deletingFile}
           onClose={() => {
             setDeleting(null);
-            // The row (and its button) may be gone: focus the list's first control instead.
-            requestAnimationFrame(() => listRef.current?.querySelector<HTMLElement>("a, button")?.focus());
+            // The row (and its button) may be gone: focus the list's first control instead, or the
+            // fallback when the list went with its last file.
+            requestAnimationFrame(() => {
+              const first = listRef.current?.querySelector<HTMLElement>("a, button");
+              if (first) first.focus();
+              else focusFallback?.();
+            });
           }}
         />
       )}

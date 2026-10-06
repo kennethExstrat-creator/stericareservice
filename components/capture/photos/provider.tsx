@@ -34,12 +34,18 @@ export function InspectionMediaProvider({
   );
 }
 
-/** Opens the gallery's viewer on a photo, so arrow keys step through every module's photos. */
-export const PhotoViewerContext = createContext<{ open: (photoId: string) => void } | null>(null);
+export interface GalleryViewer {
+  /** Opens the gallery's viewer on a photo, so arrow keys step through every module's photos. */
+  open: (photoId: string) => void;
+  /** Where keyboard focus goes when a whole module section leaves the page (its last photo deleted). */
+  focusFallback?: () => void;
+}
+
+export const PhotoViewerContext = createContext<GalleryViewer | null>(null);
 
 /** Holds which photo the gallery's viewer shows. */
-export function useViewerState(): [string | null, (id: string | null) => void, { open: (photoId: string) => void }] {
+export function useViewerState(focusFallback?: () => void): [string | null, (id: string | null) => void, GalleryViewer] {
   const [openId, setOpenId] = useState<string | null>(null);
-  const context = useMemo(() => ({ open: (photoId: string) => setOpenId(photoId) }), []);
+  const context = useMemo(() => ({ open: (photoId: string) => setOpenId(photoId), focusFallback }), [focusFallback]);
   return [openId, setOpenId, context];
 }

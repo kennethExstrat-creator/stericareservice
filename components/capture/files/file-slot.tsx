@@ -5,7 +5,7 @@
 // inspection-files bucket with a row in inspection_files, through the same
 // background queue as photos. A certificate must stay the document the lab
 // issued, so files are never converted.
-import { useId, useMemo } from "react";
+import { useCallback, useId, useMemo, useRef } from "react";
 import { useInspectionMedia, usePhotoQueue, useStartPhotoQueue, type PhotoFocus } from "@/components/capture/photos/hooks";
 import { slotFiles } from "@/components/capture/photos/photo-model";
 import { moduleSlotKey, NOTHING_PREPARING } from "@/components/capture/photos/queue-state";
@@ -73,6 +73,8 @@ export function FileSlot({
   const preparing = queue.preparingByModule[moduleSlotKey(inspectionId, moduleKey)] ?? NOTHING_PREPARING;
   const Heading = headingLevel === 2 ? "h2" : "h3";
   const label = `Add ${FILE_KIND_LABEL[kind].toLowerCase()}`;
+  const heading = useRef<HTMLHeadingElement>(null);
+  const focusHeading = useCallback(() => heading.current?.focus(), []);
 
   return (
     <section
@@ -82,7 +84,8 @@ export function FileSlot({
       className={cn("relative flex min-w-0 flex-col gap-3", className)}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <Heading id={headingId} className="text-base leading-snug font-semibold text-foreground">
+        {/* A focus target after the last file is deleted, not a control: no ring. */}
+        <Heading ref={heading} id={headingId} tabIndex={-1} className="text-base leading-snug font-semibold text-foreground outline-none">
           {title ?? PLURAL[kind]}
         </Heading>
         <p aria-live="polite" className="text-sm text-muted-foreground tabular-nums">
@@ -97,6 +100,7 @@ export function FileSlot({
           canEditUploaded={canEditUploaded}
           canEditQueued={canAdd}
           options={media.media?.options ?? EMPTY_TAG_OPTIONS}
+          focusFallback={focusHeading}
         />
       ) : preparing.files === 0 ? (
         <p className="text-sm text-muted-foreground">No {PLURAL[kind].toLowerCase()} yet.</p>
