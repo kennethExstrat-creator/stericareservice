@@ -1,6 +1,8 @@
-// Totals and the live accept/reject decision behind CounterTable, kept pure
-// so they can be tested. The rule is ISO 2859-1 single sampling, the same as
-// lib/aql's decide: accept with at most Ac defects, reject at Re or more.
+// Totals, the live accept/reject chip and the spoken summary behind
+// CounterTable, kept pure so they can be tested. The chip is a display: the
+// result that counts is calc's, from lib/aql's decide (which also knows a
+// sample short of n is incomplete). Not exported from @/components/qc, so a
+// calc never picks it up by mistake.
 import type { Status } from "@/lib/design/status";
 import type { AcceptanceLimits } from "@/lib/format";
 
@@ -32,20 +34,51 @@ export function columnTotal(
   return total;
 }
 
-/** Accept with at most Ac defects; reject at Re (Ac + 1) or more. */
-export function decide(total: number, limits: AcceptanceLimits): "accept" | "reject" {
-  return total <= limits.ac ? "accept" : "reject";
-}
-
 /**
- * The chip for a column: calc's status when given (it knows whether the
- * column is done), else the live decision from the limits, else not done.
+ * The chip for one column of one table. With limits it is the live decision,
+ * accept up to Ac and reject from Re (ISO 2859-1 single sampling), so it
+ * changes with the tap that changes the total and never shows a verdict from
+ * before it. calc's status wins only when it says the column is not done
+ * (calc knows what is missing). Without limits: calc's status, else not done.
  */
 export function columnStatus(
   total: number,
   { limits, status }: { limits?: AcceptanceLimits | null; status?: Status },
 ): Status {
-  if (status) return status;
-  if (!limits) return "not_done";
-  return decide(total, limits) === "accept" ? "pass" : "fail";
+  if (status === "not_done") return "not_done";
+  if (limits) return total <= limits.ac ? "pass" : "fail";
+  return status ?? "not_done";
+}
+
+/**
+ * What CounterTable says after a tap, built from the props rendered with the
+ * new count, so it matches the chip on screen: "3. Size M: total 8, Reject."
+ */
+export function counterAnnouncement({
+  count,
+  column,
+  total,
+  verdict,
+}: {
+  /** The tapped cell's new count. */
+  count: number;
+  /** The column's accessible name, e.g. "Size M". */
+  column: string;
+  total: number;
+  /** The chip's words, or null when it shows no verdict. */
+  verdict: string | null;
+}): string {
+  return `${count}. ${column}: total ${total}${verdict ? `, ${verdict}` : ""}.`;
+}
+
+/**
+ * CounterTable's widths in CSS px, as its classes set them: the label column
+ * (w-64) and each value column (w-32, touch:w-40), plus the frame's borders.
+ */
+export const COUNTER_WIDTHS = { label: 256, value: 128, valueTouch: 160, frame: 2 } as const;
+
+/** The width a CounterTable needs to show `valueColumns` value columns side by side. */
+export function counterTableWidth(valueColumns: number, coarse: boolean): number {
+  const value = coarse ? COUNTER_WIDTHS.valueTouch : COUNTER_WIDTHS.value;
+  return COUNTER_WIDTHS.label + valueColumns * value + COUNTER_WIDTHS.frame;
 }

@@ -168,16 +168,18 @@ export function BoxPicker({
             id={triggerId}
             aria-label={label}
             aria-expanded={open}
-            aria-controls={popupId}
+            // Only while the list is rendered: aria-controls must name an element that exists.
+            aria-controls={open ? popupId : undefined}
             aria-invalid={unlisted || undefined}
             aria-describedby={error ? errorId : undefined}
             onFocus={onFocus}
             className={cn(
               "flex w-full min-w-0 items-center gap-1.5 text-left outline-none transition-[color,box-shadow]",
               variant === "field" &&
-                "h-9 rounded-md border border-input bg-card px-2.5 text-base shadow-xs hover:border-primary focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 fine:text-sm touch:h-11 touch:px-3",
+                // A field's focus (docs/DESIGN.md): the brand border under focus-ring-inset, as NumericCell.
+                "h-9 rounded-md border border-input bg-card px-2.5 text-base shadow-xs hover:border-primary focus-visible:border-ring focus-ring-inset aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 fine:text-sm touch:h-11 touch:px-3",
               variant === "cell" &&
-                "h-8 rounded-none bg-transparent px-2.5 text-sm hover:bg-accent focus-visible:bg-card focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset aria-invalid:bg-fail-tint aria-invalid:text-fail aria-invalid:ring-2 aria-invalid:ring-fail aria-invalid:ring-inset touch:h-11 touch:text-base",
+                "h-8 rounded-none bg-transparent px-2.5 text-sm hover:bg-accent focus-visible:bg-card focus-ring-inset aria-invalid:bg-fail-tint aria-invalid:text-fail aria-invalid:ring-2 aria-invalid:ring-fail aria-invalid:ring-inset touch:h-11 touch:text-base",
               "aria-invalid:text-fail",
             )}
           >
@@ -210,7 +212,7 @@ export function BoxPicker({
           </div>
 
           {error && (
-            <p className="flex items-start gap-1.5 rounded-md border border-fail-border bg-fail-tint px-2.5 py-2 text-sm text-fail">
+            <p className="flex items-start gap-1.5 rounded-md border border-fail-border bg-fail-tint px-2.5 py-2 text-sm text-fail touch:text-base">
               <TriangleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
               {error}
             </p>
@@ -266,13 +268,13 @@ export function BoxPicker({
                     >
                       <span className="leading-none">{box}</span>
                       {selected ? (
-                        <span className="mt-0.5 inline-flex items-center gap-0.5 text-xs leading-none font-medium">
+                        <span className="mt-0.5 inline-flex items-center gap-0.5 text-xs leading-none font-medium touch:text-sm">
                           <CheckIcon aria-hidden className="size-3" />
                           Picked
                         </span>
                       ) : (
                         others > 0 && (
-                          <span className="mt-0.5 text-xs leading-none font-medium text-muted-foreground">
+                          <span className="mt-0.5 text-xs leading-none font-medium text-muted-foreground touch:text-sm">
                             Used{others > 1 ? ` ×${others}` : ""}
                           </span>
                         )
@@ -282,7 +284,7 @@ export function BoxPicker({
                 })}
               </div>
               {options.length === 0 && (
-                <p className="text-sm text-muted-foreground">No box in the list matches “{query}”.</p>
+                <p className="text-sm text-muted-foreground touch:text-base">No box in the list matches “{query}”.</p>
               )}
             </>
           ) : (
@@ -309,7 +311,7 @@ export function BoxPicker({
                 </Button>
               </div>
               {query.trim() !== "" && typed === null && (
-                <p className="text-sm text-fail">A box number is a whole number from 1.</p>
+                <p className="text-sm text-fail touch:text-base">A box number is a whole number from 1.</p>
               )}
             </>
           )}
@@ -323,7 +325,7 @@ export function BoxPicker({
       </Popover>
       {error &&
         (variant === "field" ? (
-          <p id={errorId} className="text-sm text-fail">
+          <p id={errorId} className="text-sm text-fail touch:text-base">
             {error}
           </p>
         ) : (
