@@ -38,7 +38,9 @@ export function AddPhotosCard({
           They upload in the background: keep working while they go up.
         </p>
       </div>
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:items-start">
+      {/* Desktop: the drop zone beside the field, top-aligned. iPad landscape: the two buttons
+          centred on the field, so they sit level with the select between its label and hint. */}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:items-start lg:touch:items-center">
         <Field>
           <FieldLabel htmlFor={`${id}-module`}>Module</FieldLabel>
           <Select value={moduleKey ?? UNTAGGED} onValueChange={(value) => setModuleKey(value === UNTAGGED ? null : value)}>
