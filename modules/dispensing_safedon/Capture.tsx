@@ -7,10 +7,21 @@
 // stepped through with Previous and Next or by tapping the box's column
 // number; from 1280 px every box sits side by side, as on the sheet. The per
 // box "1/125" and rate, the size total "3 / 625 (0.48%)" and its result
-// against the maximum come from calc as you tap (rule 2).
-import { useEffect, useRef, useState } from "react";
+// against the maximum come from calc as you tap (rule 2). Every write goes
+// through useDataUpdater, starting from the latest data, so taps faster than
+// the screen renders all count (docs/CAPTURE_KIT.md).
+import { useRef, useState } from "react";
 import { ChevronLeftIcon, ChevronRightIcon, PlusIcon } from "lucide-react";
-import { BoxPicker, CounterTable, ModuleSection, RequirementList, SizeTabs, useIssueFocus } from "@/components/qc";
+import {
+  BoxPicker,
+  CounterTable,
+  ModuleSection,
+  RequirementList,
+  SizeTabs,
+  useDataUpdater,
+  useIssueFocus,
+  type DataChange,
+} from "@/components/qc";
 import { Button } from "@/components/ui/button";
 import { formatRatio, formatRatioDecimal, formatSize } from "@/lib/format";
 import { cartonsFor, labelFor, type CaptureProps } from "@/modules/_framework";
@@ -21,7 +32,7 @@ import { boxesOf, columnsShown, setSafedonBoxNo, setSafedonCount } from "./edit"
 import { formatSizeRate } from "./text";
 
 type Props = CaptureProps<DispensingSafedonData, DispensingSafedonConfig, DispensingSafedonComputed>;
-type Update = (current: DispensingSafedonData) => DispensingSafedonData;
+type Update = (change: DataChange<DispensingSafedonData>) => void;
 
 export default function Capture({
   data,
@@ -36,23 +47,13 @@ export default function Capture({
   onFocusChange,
 }: Props) {
   const root = useRef<HTMLDivElement>(null);
+  const update = useDataUpdater(data, onChange);
+  // SizeTabs corrects this to the first ordered size once sizes are ordered.
   const [size, setSize] = useState(context.sizes[0] ?? "");
   // The box column being counted, per size (the one shown on iPad).
   const [active, setActive] = useState<Record<string, number>>({});
   // Columns asked for with "Add box", per size, beyond the plan.
   const [requested, setRequested] = useState<Record<string, number>>({});
-
-  // A held stepper repeats faster than the screen may render: every change
-  // builds on the last one.
-  const latest = useRef(data);
-  useEffect(() => {
-    latest.current = data;
-  }, [data]);
-  const change = (update: Update) => {
-    const next = update(latest.current);
-    latest.current = next;
-    onChange(next);
-  };
 
   useIssueFocus(focusPath, {
     root,
@@ -87,7 +88,7 @@ export default function Capture({
           <SafedonSizePanel
             size={shown}
             props={{ data, config, title, labels, context, evaluation, readOnly, onFocusChange }}
-            change={change}
+            update={update}
             active={active[shown] ?? 0}
             onActive={(column) => setActive((current) => ({ ...current, [shown]: column }))}
             requested={requested[shown] ?? 0}
@@ -102,19 +103,20 @@ export default function Capture({
 type PanelProps = {
   size: string;
   props: Pick<Props, "data" | "config" | "title" | "labels" | "context" | "evaluation" | "readOnly" | "onFocusChange">;
-  change: (update: Update) => void;
+  update: Update;
   active: number;
   onActive: (column: number) => void;
   requested: number;
   onRequest: (columns: number) => void;
 };
 
-function SafedonSizePanel({ size, props, change, active, onActive, requested, onRequest }: PanelProps) {
+function SafedonSizePanel({ size, props, update, active, onActive, requested, onRequest }: PanelProps) {
   const { data, config, title, labels, context, evaluation, readOnly, onFocusChange } = props;
   const boxes = boxesOf(data, size);
   const planned = plannedBoxes(context, config, size);
   const columns = columnsShown(planned, boxes.length, requested);
-  const current = Math.min(Math.max(active, 0), Math.max(columns - 1, 0));
+  // The column counted on iPad: the one asked for, within the columns shown.
+  const counted = Math.min(Math.max(active, 0), Math.max(columns - 1, 0));
   const cartons = cartonsFor(context, size);
   const used = boxes.map((box) => box.boxNo);
   // A module whose config or data is broken comes back with no computed values.
@@ -174,12 +176,12 @@ function SafedonSizePanel({ size, props, change, active, onActive, requested, on
           {indices.map((index) => (
             <li
               key={index}
-              data-active={index === current || undefined}
+              data-active={index === counted || undefined}
               className="flex min-w-0 items-center gap-1 rounded-lg border border-border bg-card p-0.5 data-active:border-primary data-active:bg-brand-50"
             >
               <button
                 type="button"
-                aria-pressed={index === current}
+                aria-pressed={index === counted}
                 aria-label={`Count column ${index + 1}`}
                 onClick={() => select(index)}
                 className="inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-md px-1 text-sm font-semibold text-muted-foreground tabular-nums outline-none hover:bg-accent focus-ring-inset aria-pressed:bg-primary aria-pressed:text-primary-foreground touch:h-11 touch:min-w-11 touch:text-base"
@@ -195,7 +197,7 @@ function SafedonSizePanel({ size, props, change, active, onActive, requested, on
                 cartons={cartons}
                 used={used}
                 onValueChange={(boxNo) => {
-                  change((current) => setSafedonBoxNo(current, size, index, boxNo));
+                  update((current) => setSafedonBoxNo(current, size, index, boxNo));
                   onActive(index);
                   onFocusChange?.({ size, ...(boxNo === null ? {} : { box: boxNo }) });
                 }}
@@ -218,21 +220,21 @@ function SafedonSizePanel({ size, props, change, active, onActive, requested, on
                 variant="outline"
                 size="icon-sm"
                 aria-label="Previous box"
-                disabled={current === 0}
-                onClick={() => select(current - 1)}
+                disabled={counted === 0}
+                onClick={() => select(counted - 1)}
               >
                 <ChevronLeftIcon aria-hidden />
               </Button>
               <span className="min-w-24 text-center text-sm tabular-nums touch:text-base" aria-live="polite">
-                {`${boxLabel} ${columnLabel(current)} · ${current + 1} / ${columns}`}
+                {`${boxLabel} ${columnLabel(counted)} · ${counted + 1} / ${columns}`}
               </span>
               <Button
                 type="button"
                 variant="outline"
                 size="icon-sm"
                 aria-label="Next box"
-                disabled={current >= columns - 1}
-                onClick={() => select(current + 1)}
+                disabled={counted >= columns - 1}
+                onClick={() => select(counted + 1)}
               >
                 <ChevronRightIcon aria-hidden />
               </Button>
@@ -255,10 +257,10 @@ function SafedonSizePanel({ size, props, change, active, onActive, requested, on
               name: boxNo === null ? `column ${index + 1}` : `box ${boxNo}`,
             };
           })}
-          activeColumn={String(current)}
+          activeColumn={String(counted)}
           getCount={({ row, column }) => boxes[Number(column)]?.counts[row] ?? 0}
           onCountChange={({ row, column }, count) =>
-            change((current) => setSafedonCount(current, size, Number(column), row, count))
+            update((current) => setSafedonCount(current, size, Number(column), row, count))
           }
           labels={{ rowHeader: boxLabel, total: labelFor(labels, "totalGroup") }}
           summaryRows={[

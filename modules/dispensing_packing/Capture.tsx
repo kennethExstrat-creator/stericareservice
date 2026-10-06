@@ -6,8 +6,10 @@
 // dispensing % are typed on the numeric keypad, Enter going down the column
 // and a pasted column filling down it; the stickiness code is picked from the
 // template's codes. Averages and Passed / Failed come from calc as you type,
-// read-only (rule 2). Wording comes from the template (rule 11).
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+// read-only (rule 2). Wording comes from the template (rule 11). Every write
+// goes through useDataUpdater, starting from the latest data: a pasted column
+// reaches the screen as one change with every value (docs/CAPTURE_KIT.md).
+import { useRef, useState, type KeyboardEvent } from "react";
 import { PlusIcon } from "lucide-react";
 import {
   BoxPicker,
@@ -20,7 +22,9 @@ import {
   RequirementList,
   SizeTabs,
   StatusPill,
+  useDataUpdater,
   useIssueFocus,
+  type DataChange,
   type EntryProblem,
   type InvalidEntry,
 } from "@/components/qc";
@@ -36,7 +40,7 @@ import { emptyPackingBox, type PackingBox } from "./schema";
 import { plainLabel } from "./text";
 
 type Props = CaptureProps<DispensingPackingData, DispensingPackingConfig, DispensingPackingComputed>;
-type Update = (current: DispensingPackingData) => DispensingPackingData;
+type Update = (change: DataChange<DispensingPackingData>) => void;
 type PercentKey = "layeringPct" | "dispensingPct";
 
 const HEAD = "border-b border-border bg-slate-50 px-2 py-2 text-left align-bottom font-semibold text-foreground";
@@ -55,23 +59,13 @@ export default function Capture({
   onFocusChange,
 }: Props) {
   const root = useRef<HTMLDivElement>(null);
+  const update = useDataUpdater(data, onChange);
+  // SizeTabs corrects this to the first ordered size once sizes are ordered.
   const [size, setSize] = useState(context.sizes[0] ?? "");
   // Rows asked for with "Add box", per size, beyond the plan.
   const [requested, setRequested] = useState<Record<string, number>>({});
   // Entries the cells refused ("2 42"), listed under the table with a link.
   const [rejected, setRejected] = useState<Record<string, EntryProblem>>({});
-
-  // A pasted column fills several cells in one go, each reporting its value
-  // before the screen renders again: every change builds on the last one.
-  const latest = useRef(data);
-  useEffect(() => {
-    latest.current = data;
-  }, [data]);
-  const change = (update: Update) => {
-    const next = update(latest.current);
-    latest.current = next;
-    onChange(next);
-  };
 
   useIssueFocus(focusPath, {
     root,
@@ -110,7 +104,7 @@ export default function Capture({
           <PackingSizePanel
             size={shown}
             props={{ data, config, title, labels, context, evaluation, readOnly, onFocusChange }}
-            change={change}
+            update={update}
             requested={requested[shown] ?? 0}
             onRequest={(rows) => setRequested((current) => ({ ...current, [shown]: rows }))}
             rejected={Object.values(rejected)}
@@ -126,14 +120,14 @@ export default function Capture({
 type PanelProps = {
   size: string;
   props: Pick<Props, "data" | "config" | "title" | "labels" | "context" | "evaluation" | "readOnly" | "onFocusChange">;
-  change: (update: Update) => void;
+  update: Update;
   requested: number;
   onRequest: (rows: number) => void;
   rejected: readonly EntryProblem[];
   onRejected: (key: string, problem: EntryProblem | null) => void;
 };
 
-function PackingSizePanel({ size, props, change, requested, onRequest, rejected, onRejected }: PanelProps) {
+function PackingSizePanel({ size, props, update, requested, onRequest, rejected, onRejected }: PanelProps) {
   const { data, config, title, labels, context, evaluation, readOnly, onFocusChange } = props;
   const boxes = boxesOf(data, size);
   const planned = plannedBoxes(context, config, size);
@@ -208,7 +202,7 @@ function PackingSizePanel({ size, props, change, requested, onRequest, rejected,
                 issues={issues}
                 sizeName={sizeName}
                 readOnly={readOnly}
-                onPatch={(patch) => change((current) => updatePackingBox(current, size, index, patch))}
+                onPatch={(patch) => update((current) => updatePackingBox(current, size, index, patch))}
                 onFocusBox={(box) => onFocusChange?.({ size, ...(box === null ? {} : { box }) })}
                 onRejected={(field, entry, problem) =>
                   onRejected(keyOf(field, index), entry ? { ...problem, key: keyOf(field, index), entry } : null)
