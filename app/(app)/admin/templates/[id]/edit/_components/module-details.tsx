@@ -83,7 +83,10 @@ export function ModuleDetails({
             disabled={pinned || !api.editable}
             onCheckedChange={(checked) => api.update((draft, context) => setInclude(draft, context, moduleKey, checked))}
             className="mt-0.5 touch:mt-0"
-            aria-describedby={`${includeFieldId(moduleKey)}-hint`}
+            aria-describedby={[`${includeFieldId(moduleKey)}-hint`, includeProblems.length > 0 ? `${includeFieldId(moduleKey)}-errors` : null]
+              .filter(Boolean)
+              .join(" ")}
+            aria-invalid={includeProblems.length > 0 ? true : undefined}
           />
           <div className="grid gap-1">
             <Label htmlFor={includeFieldId(moduleKey)}>{pinned ? "Always on" : "Include this module"}</Label>
@@ -96,7 +99,7 @@ export function ModuleDetails({
             </p>
           </div>
         </div>
-        <Problems problems={includeProblems} />
+        <Problems id={`${includeFieldId(moduleKey)}-errors`} problems={includeProblems} />
         {!pinned && (
           <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
             <p className="mr-auto text-sm text-muted-foreground" aria-live="polite">
@@ -127,14 +130,16 @@ export function ModuleDetails({
             placeholder="Same as the default"
             readOnly={!api.editable}
             autoComplete="off"
-            aria-describedby={`${titleFieldId(moduleKey)}-hint`}
+            aria-describedby={[`${titleFieldId(moduleKey)}-hint`, titleProblems.length > 0 ? `${titleFieldId(moduleKey)}-errors` : null]
+              .filter(Boolean)
+              .join(" ")}
             aria-invalid={titleProblems.length > 0 ? true : undefined}
             onChange={(event) => api.update((draft, context) => setTitle(draft, context, moduleKey, event.target.value))}
           />
           <p id={`${titleFieldId(moduleKey)}-hint`} className="text-sm text-muted-foreground">
             Default: “{view.inherited.title}”. Leave empty to use it.
           </p>
-          <Problems problems={titleProblems} />
+          <Problems id={`${titleFieldId(moduleKey)}-errors`} problems={titleProblems} />
         </div>
       </Section>
 
@@ -182,10 +187,18 @@ function Section({
   );
 }
 
-function Problems({ problems, className }: { problems: readonly { id: string; message: string }[]; className?: string }) {
+function Problems({
+  id,
+  problems,
+  className,
+}: {
+  id?: string;
+  problems: readonly { id: string; message: string }[];
+  className?: string;
+}) {
   if (problems.length === 0) return null;
   return (
-    <div className={cn("grid gap-1", className)}>
+    <div id={id} className={cn("grid gap-1", className)}>
       {problems.map((problem) => (
         <p key={problem.id} className="text-sm text-destructive">
           {problem.message}

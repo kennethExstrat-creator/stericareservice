@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { MODULE_REGISTRY } from "@/modules/registry";
-import { countIssuesUnder, issuesAt, issuesByPath, parseWithMessages, pathFromKey, pathKey } from "./issues";
+import { countIssuesUnder, issuesAt, issuesByPath, notANumber, parseWithMessages, pathFromKey, pathKey } from "./issues";
 import { DimensionsLikeSchema, DispensingLikeSchema, WatertightLikeSchema } from "./__fixtures__/schemas";
 
 function messages(schema: z.ZodType, value: unknown) {
@@ -65,6 +65,26 @@ describe("parseWithMessages", () => {
     expect(issuesAt(issues, ["specs", 0, "specs", "length", "max"])).toEqual(["Enter a number."]);
     expect(issuesAt(issues, ["specs", 0, "specs", "width", "kind"])).toEqual(["Choose a type."]);
     expect(issuesAt(issues, ["rows"])).toEqual(["Must be more than 0."]);
+  });
+
+  it("says what is wrong with text typed where a number belongs, and asks for an emptied one", () => {
+    const issues = messages(DispensingLikeSchema, {
+      minLayeringPct: "2 40",
+      stickinessCodes: [{ code: "A", label: "Non sticky", pass: true }],
+      boxesPerSize: { default: null, bySize: { M: "1,234" } },
+    });
+    expect(issuesAt(issues, ["minLayeringPct"])).toEqual(["“2 40” is not a number. Remove the space: one number only, e.g. 2.42."]);
+    // Emptied, a required number is null: asked for, never inherited in its place.
+    expect(issuesAt(issues, ["boxesPerSize", "default"])).toEqual(["Enter a number."]);
+    expect(issuesAt(issues, ["boxesPerSize", "bySize", "M"])).toEqual([
+      "“1,234” is not a number. Use a point for decimals, e.g. 1.234.",
+    ]);
+    // A number in quotes, from the JSON tab.
+    expect(issuesAt(messages(DimensionsLikeSchema.pick({ width: true }), { width: "12" }), ["width"])).toEqual([
+      "Write 12 as a number, without quotes.",
+    ]);
+    expect(notANumber(" ")).toBe("Enter a number.");
+    expect(notANumber("abc")).toBe("“abc” is not a number. Numbers only, e.g. 2.42.");
   });
 
   it("reads a module's real config schema the same way", () => {

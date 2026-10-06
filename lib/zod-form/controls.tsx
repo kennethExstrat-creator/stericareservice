@@ -1,9 +1,13 @@
 "use client";
 
 // The leaf controls of a generated form. Each one shows what is stored and
-// hands back a whole new value; text that is not yet a value (a number
-// typed as "2 42", half-written JSON) stays on screen with its reason and is
-// reported through onDraftError, so the page can refuse to save it.
+// hands back a whole new value. A number field stores what is typed even when
+// it is not a number ("2 42" stays "2 42"): the schema's check then names it
+// on the field and in the page's problems, where it stays until it is fixed,
+// also while the field is closed. Half-written JSON cannot be stored like
+// that: it stays on screen with its reason and is reported through
+// onDraftError, so the page can refuse to save it and hand it back
+// (`restore`) when the field opens again.
 import { useEffect, useRef, useState } from "react";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Input } from "@/components/ui/input";
@@ -20,35 +24,38 @@ type CommonProps = {
   describedBy?: string;
   invalid?: boolean;
   readOnly?: boolean;
-  /** Text that is not a value yet, or null once it is (or the field goes away). */
-  onDraftError?: (message: string | null) => void;
   className?: string;
 };
 
-/** What an emptied field stores: nothing (an optional setting), null (a nullable one) or "" (required text). */
+/** What an emptied field stores: nothing (an optional setting), null (a nullable or a required one) or "" (required text). */
 export type EmptyAs = "missing" | "null" | "empty";
 
 function emptyValueFor(emptyAs: EmptyAs): undefined | null | "" {
   return emptyAs === "missing" ? undefined : emptyAs === "null" ? null : "";
 }
 
-/** Reports a draft error to the page, and withdraws it when the field goes away. */
-function useDraftError(onDraftError: ((message: string | null) => void) | undefined) {
-  const latest = useRef(onDraftError);
-  useEffect(() => {
-    latest.current = onDraftError;
-  });
-  const reported = useRef<string | null>(null);
-  useEffect(
-    () => () => {
-      if (reported.current !== null) latest.current?.(null);
+/**
+ * What is typed, shown as typed ("2,5" stays "2,5" while it is stored as 2.5).
+ * An emptied optional setting falls back to what it inherits; shown under the
+ * caret, that value would take the next keys (13 emptied, then 5, reads 135).
+ * So an emptied field stays empty until it loses focus, and only then shows
+ * what it inherits. A value changed from outside (a reset, Discard) shows at once.
+ */
+function useTyped(value: unknown) {
+  const [typed, setTyped] = useState<{ text: string; value: unknown } | null>(null);
+  const [focused, setFocused] = useState(false);
+  const current =
+    typed !== null && (Object.is(typed.value, value) || (focused && typed.value === undefined)) ? typed : null;
+  return {
+    text: current?.text,
+    type: (text: string, stored: unknown) => setTyped({ text, value: stored }),
+    focusProps: {
+      onFocus: () => setFocused(true),
+      onBlur: () => {
+        setFocused(false);
+        setTyped(null);
+      },
     },
-    [],
-  );
-  return (message: string | null) => {
-    if (reported.current === message) return;
-    reported.current = message;
-    latest.current?.(message);
   };
 }
 
@@ -56,20 +63,41 @@ function useDraftError(onDraftError: ((message: string | null) => void) | undefi
  * Numbers
  * ------------------------------------------------------------------ */
 
+/**
+ * What typing `raw` into a number field stores (BUILD_SPEC 6.2 rule 1, the
+ * parser NumericCell uses): the number; the emptied value; or, for text that
+ * is not one number ("2 42", "3.5 g"), that text, which the schema refuses in
+ * plain words (issues.ts) until it is fixed.
+ */
+export function numberFromText(raw: string, emptyAs: "missing" | "null"): number | string | null | undefined {
+  const parsed = parseDecimal(raw);
+  if (!parsed.ok) return raw.trim();
+  if (parsed.value === null) return emptyAs === "null" ? null : undefined;
+  return parsed.value;
+}
+
+/** How a stored value reads in a number field: a number, text that is not one yet, or nothing. */
+export function numberText(value: unknown): string {
+  if (typeof value === "number") return String(value);
+  return typeof value === "string" ? value : "";
+}
+
 type NumberInputProps = CommonProps & {
   value: unknown;
-  onChange: (next: number | null | undefined) => void;
+  /** A number, the emptied value, or text that is not a number (the schema says why). */
+  onChange: (next: number | string | null | undefined) => void;
   integer?: boolean;
   unit?: string;
-  emptyAs: EmptyAs;
+  /**
+   * Emptied: "missing" leaves an optional setting out (it inherits again);
+   * "null" keeps it the template's own, empty, for a required or nullable
+   * number, so an inherited value never comes back in its place.
+   */
+  emptyAs: "missing" | "null";
   placeholder?: string;
 };
 
-/**
- * Numbers only (BUILD_SPEC 6.2 rule 1, the same parser as NumericCell): "2 42"
- * or "3.5 g" is not stored. The text stays with its reason, the stored value
- * stays as it was, and the page is told, so it will not save.
- */
+/** Numbers only (BUILD_SPEC 6.2 rule 1): what is typed is stored as it is, and the schema judges it. */
 export function NumberInput({
   id,
   value,
@@ -81,66 +109,33 @@ export function NumberInput({
   describedBy,
   invalid,
   readOnly,
-  onDraftError,
   className,
 }: NumberInputProps) {
-  // The text being typed, with the stored value it belongs to: once the stored
-  // value changes from outside (a reset), the text gives way to it.
-  const [draft, setDraft] = useState<{ text: string; value: unknown; error: string | null } | null>(null);
-  const report = useDraftError(onDraftError);
-  const current = draft !== null && Object.is(draft.value, value) ? draft : null;
-  const text = current?.text ?? (typeof value === "number" ? String(value) : "");
-  const error = current?.error ?? null;
-
-  useEffect(() => {
-    if (current === null) report(null);
-  });
-
-  const handle = (raw: string) => {
-    const parsed = parseDecimal(raw);
-    if (!parsed.ok) {
-      setDraft({ text: raw, value, error: parsed.error });
-      report(parsed.error);
-      return;
-    }
-    const next = parsed.value === null ? emptyValueFor(emptyAs) : parsed.value;
-    setDraft({ text: raw, value: next, error: null });
-    report(null);
-    if (!Object.is(next, value)) onChange(next as number | null | undefined);
-  };
-
-  const errorId = `${id}-draft`;
-  const describedByAll = [describedBy, error ? errorId : null].filter(Boolean).join(" ") || undefined;
-  const input = (
-    <InputGroupInput
-      id={id}
-      inputMode={integer ? "numeric" : "decimal"}
-      autoComplete="off"
-      enterKeyHint="next"
-      value={text}
-      placeholder={placeholder}
-      readOnly={readOnly}
-      aria-invalid={invalid || error !== null ? true : undefined}
-      aria-describedby={describedByAll}
-      onChange={(event) => handle(event.target.value)}
-      onBlur={() => {
-        if (current && current.error === null) setDraft(null);
-      }}
-      className="tabular-nums"
-    />
-  );
-
+  const typed = useTyped(value);
   return (
     <div className={cn("grid gap-1.5", className)}>
       <InputGroup className={cn("w-full max-w-56", readOnly && "bg-muted")}>
-        {input}
+        <InputGroupInput
+          id={id}
+          inputMode={integer ? "numeric" : "decimal"}
+          autoComplete="off"
+          enterKeyHint="next"
+          value={typed.text ?? numberText(value)}
+          placeholder={placeholder}
+          readOnly={readOnly}
+          aria-invalid={invalid ? true : undefined}
+          aria-describedby={describedBy}
+          onChange={(event) => {
+            const raw = event.target.value;
+            const next = numberFromText(raw, emptyAs);
+            typed.type(raw, next);
+            if (!Object.is(next, value)) onChange(next);
+          }}
+          {...typed.focusProps}
+          className="tabular-nums"
+        />
         {unit && <InputGroupAddon align="inline-end">{unit}</InputGroupAddon>}
       </InputGroup>
-      {error && (
-        <p id={errorId} className="text-sm text-destructive">
-          “{text}” is not stored. {error}
-        </p>
-      )}
     </div>
   );
 }
@@ -174,12 +169,13 @@ export function TextInput({
   readOnly,
   className,
 }: TextInputProps) {
+  const typed = useTyped(value);
   const listId = suggestions && suggestions.length > 0 ? `${id}-suggestions` : undefined;
   return (
     <>
       <Input
         id={id}
-        value={typeof value === "string" ? value : ""}
+        value={typed.text ?? (typeof value === "string" ? value : "")}
         placeholder={placeholder}
         maxLength={maxLength}
         readOnly={readOnly}
@@ -190,8 +186,11 @@ export function TextInput({
         aria-describedby={describedBy}
         onChange={(event) => {
           const text = event.target.value;
-          onChange(text === "" ? emptyValueFor(emptyAs) : text);
+          const next = text === "" ? emptyValueFor(emptyAs) : text;
+          typed.type(text, next);
+          if (!Object.is(next, value)) onChange(next);
         }}
+        {...typed.focusProps}
         className={cn(monospace && "font-mono", className)}
       />
       {listId && (
@@ -281,24 +280,61 @@ export function OptionSelect({
  * JSON
  * ------------------------------------------------------------------ */
 
+/** Text a field holds that is not a value yet, and why. */
+export type DraftText = { text: string; message: string };
+
 type JsonInputProps = CommonProps & {
   value: unknown;
   onChange: (next: unknown) => void;
   rows?: number;
+  /**
+   * Text that is not a value yet, or null once it is. Not withdrawn when the
+   * field closes: the page keeps it, so it still stops a save.
+   */
+  onDraftError?: (draft: DraftText | null) => void;
+  /** The text the page kept from when this field was last open. */
+  restore?: DraftText;
 };
 
 /** Any JSON value as text. Until the text is valid JSON the stored value stays as it was. */
-export function JsonInput({ id, value, onChange, rows = 4, describedBy, invalid, readOnly, onDraftError, className }: JsonInputProps) {
+export function JsonInput({
+  id,
+  value,
+  onChange,
+  rows = 4,
+  describedBy,
+  invalid,
+  readOnly,
+  onDraftError,
+  restore,
+  className,
+}: JsonInputProps) {
   const formatted = value === undefined ? "" : JSON.stringify(value, null, 2);
-  const [draft, setDraft] = useState<{ text: string; value: unknown; error: string | null } | null>(null);
-  const report = useDraftError(onDraftError);
+  const [draft, setDraft] = useState<{ text: string; value: unknown; error: string | null } | null>(() =>
+    restore ? { text: restore.text, value, error: restore.message } : null,
+  );
+  const latest = useRef(onDraftError);
+  useEffect(() => {
+    latest.current = onDraftError;
+  });
+  const reported = useRef<DraftText | null>(restore ?? null);
+  const report = (next: DraftText | null) => {
+    const last = reported.current;
+    if (next === null ? last === null : last !== null && last.text === next.text && last.message === next.message) return;
+    reported.current = next;
+    latest.current?.(next);
+  };
   // By content: the page may hand back an equal copy of what was typed.
   const current = draft !== null && deepEqual(draft.value, value) ? draft : null;
   const text = current?.text ?? formatted;
   const error = current?.error ?? null;
 
+  // The stored value changed from outside (a reset, Discard): the text gives way, and so does its problem.
   useEffect(() => {
-    if (current === null) report(null);
+    if (current === null && reported.current !== null) {
+      reported.current = null;
+      latest.current?.(null);
+    }
   });
 
   const errorId = `${id}-draft`;
@@ -331,7 +367,7 @@ export function JsonInput({ id, value, onChange, rows = 4, describedBy, invalid,
           } catch (problem) {
             const message = `Not valid JSON yet: ${problem instanceof Error ? problem.message : String(problem)}`;
             setDraft({ text: raw, value, error: message });
-            report(message);
+            report({ text: raw, message });
           }
         }}
         onBlur={() => {

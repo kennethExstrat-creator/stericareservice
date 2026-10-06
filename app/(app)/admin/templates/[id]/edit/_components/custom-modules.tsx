@@ -3,6 +3,7 @@
 // The template's custom modules (BUILD_SPEC 4.2 rule 2, 4.3): anything on the
 // source form that no module captures. Inherited ones show what the base
 // gives; copying one in lets this template change it.
+import { useRef } from "react";
 import { ChevronDownIcon, ChevronUpIcon, CopyPlusIcon, LayersIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import {
   AlertDialog,
@@ -61,7 +62,7 @@ export function CustomModules({
     <section aria-labelledby="custom-heading" className="grid gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="grid gap-1">
-          <h2 id="custom-heading" className="text-lg font-bold text-foreground">
+          <h2 id="custom-heading" tabIndex={-1} className="text-lg font-bold text-foreground outline-none">
             Custom modules
           </h2>
           <p className="max-w-2xl text-sm text-muted-foreground">
@@ -197,6 +198,8 @@ export function CustomModules({
 }
 
 function RemoveCustom({ title, onRemove }: { title: string; onRemove: () => void }) {
+  // Removed, its card (and this button) goes: the focus goes to the list's heading instead.
+  const removed = useRef(false);
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
@@ -205,7 +208,14 @@ function RemoveCustom({ title, onRemove }: { title: string; onRemove: () => void
           Remove
         </Button>
       </AlertDialogTrigger>
-      <AlertDialogContent>
+      <AlertDialogContent
+        onCloseAutoFocus={(event) => {
+          if (!removed.current) return;
+          removed.current = false;
+          event.preventDefault();
+          document.getElementById("custom-heading")?.focus();
+        }}
+      >
         <AlertDialogHeader>
           <AlertDialogTitle>Remove {title}?</AlertDialogTitle>
           <AlertDialogDescription>
@@ -215,7 +225,14 @@ function RemoveCustom({ title, onRemove }: { title: string; onRemove: () => void
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Keep it</AlertDialogCancel>
-          <AlertDialogAction onClick={onRemove}>Remove</AlertDialogAction>
+          <AlertDialogAction
+            onClick={() => {
+              removed.current = true;
+              onRemove();
+            }}
+          >
+            Remove
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

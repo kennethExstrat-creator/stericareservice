@@ -104,6 +104,25 @@ describe("SchemaForm", () => {
     expect(html).toContain("Choose one of the options.");
   });
 
+  it("shows text typed where a number belongs as it is, with one message on what is wrong", () => {
+    const html = render(
+      DispensingLikeSchema,
+      { ...DISPENSING, minLayeringPct: "2 40", boxesPerSize: { default: null } },
+      { validate: true },
+    );
+    const typed = tagWithId(html, "form-minLayeringPct");
+    expect(typed).toContain('value="2 40"');
+    expect(typed).toContain('aria-invalid="true"');
+    expect(typed).toContain("form-minLayeringPct-errors");
+    expect(html.match(/is not a number/g)).toHaveLength(1);
+    expect(html).toContain("“2 40” is not a number. Remove the space: one number only, e.g. 2.42.");
+    // A required number emptied: empty on screen, and asked for.
+    expect(tagWithId(html, "form-boxesPerSize-default")).toContain('value=""');
+    expect(html).toContain(
+      '<div id="form-boxesPerSize-default-errors" class="grid gap-1"><p class="text-sm text-destructive">Enter a number.</p></div>',
+    );
+  });
+
   it("draws a list of small objects as compact rows under one header", () => {
     const html = render(DispensingLikeSchema, DISPENSING);
     // One header names each column once, with its description.

@@ -4,12 +4,20 @@ import { asVersions, baseEg, clientEg, clientFactoryEg } from "@/lib/templates/_
 import { TEST_CLIENT_ID, TEST_MANUFACTURER_ID, TEST_REGISTRY } from "@/modules/_framework/__fixtures__/test-registry";
 import { pathKey } from "@/lib/zod-form";
 import { inheritanceOf } from "./inheritance";
-import { moveModule, setConfig, setInclude, type Draft, type EditorContext } from "./model";
-import { collectProblems, configIssues, isEditableShape, problemsOfModule, scopeProblems } from "./problems";
+import { addCustomModule, moduleView, moveModule, setConfig, setInclude, type Draft, type EditorContext } from "./model";
+import {
+  collectProblems,
+  configIssues,
+  hasDraftPlace,
+  isEditableShape,
+  problemsOfModule,
+  scopeProblems,
+  type DraftError,
+} from "./problems";
 
 const getBase = lookupFrom(asVersions([baseEg(), clientEg()]));
 
-function check(draft: Draft, code = draft.code, draftErrors = []) {
+function check(draft: Draft, code = draft.code, draftErrors: DraftError[] = []) {
   const context: EditorContext = { inheritance: inheritanceOf(draft, getBase), registry: TEST_REGISTRY };
   return { context, ...collectProblems(draft, context, { code, getBase, draftErrors }) };
 }
@@ -86,22 +94,67 @@ describe("collectProblems", () => {
     ]);
   });
 
-  it("keeps the code of the version, and says when a base is missing", () => {
+  it("keeps the code of the version, and says once when a base is missing", () => {
     expect(check({ ...baseEg(), code: "OTHER" }, "BASE_EG").problems).toEqual([
       expect.objectContaining({ place: { area: "template", path: ["code"] } }),
     ]);
     const orphan = { ...clientEg(), extends: "NOWHERE" };
-    expect(check(orphan).problems.map((problem) => problem.message)).toEqual(
-      expect.arrayContaining(["Base template NOWHERE has no active version."]),
-    );
+    // The resolver finds the same missing base: one cause, one problem.
+    expect(
+      check(orphan)
+        .problems.filter((problem) => problem.place.area === "template" && problem.place.path[0] === "extends")
+        .map((problem) => problem.message),
+    ).toEqual(["Base template NOWHERE has no active version."]);
   });
 
-  it("counts text a field cannot store yet as a problem", () => {
+  it("asks for an emptied number, and says what is wrong with text typed into one", () => {
+    const draft = baseEg();
+    const { context } = check(draft);
+    const weight = moduleView(draft, context, "weight").config;
+    const place = { area: "module", moduleKey: "weight", part: "config", path: ["n"] };
+    expect(check(setConfig(draft, context, "weight", { ...weight, n: null })).problems).toEqual([
+      expect.objectContaining({ place, message: "Enter a number." }),
+    ]);
+    expect(check(setConfig(draft, context, "weight", { ...weight, n: "2 40" })).problems).toEqual([
+      expect.objectContaining({ place, message: "“2 40” is not a number. Remove the space: one number only, e.g. 2.42." }),
+    ]);
+  });
+
+  it("counts text a field holds that is not a value yet as a problem", () => {
     const draft = baseEg();
     const { problems } = check(draft, draft.code, [
-      { place: { area: "module", moduleKey: "weight", part: "config", path: ["n"] }, message: "Numbers only, e.g. 2.42." },
-    ] as never);
-    expect(problems.map((problem) => problem.message)).toEqual(["Numbers only, e.g. 2.42."]);
+      {
+        place: { area: "module", moduleKey: "loading", part: "config", path: [] },
+        message: "Not valid JSON yet: Unexpected end of JSON input",
+        text: '{"a": ',
+      },
+    ]);
+    expect(problems.map((problem) => problem.message)).toEqual(["Not valid JSON yet: Unexpected end of JSON input"]);
+  });
+});
+
+describe("hasDraftPlace", () => {
+  const error = (place: DraftError["place"]): DraftError => ({ place, message: "Not valid JSON yet", text: "{" });
+
+  it("keeps text while the setting or list item it was typed into is there", () => {
+    const draft = baseEg();
+    const context = check(draft).context;
+    expect(hasDraftPlace(error({ area: "module", moduleKey: "loading", part: "config", path: [] }), draft, context)).toBe(true);
+    expect(hasDraftPlace(error({ area: "module", moduleKey: "weight", part: "config", path: ["n"] }), draft, context)).toBe(true);
+    // A list item that went: its text goes with it.
+    expect(
+      hasDraftPlace(error({ area: "module", moduleKey: "weight", part: "config", path: ["specs", 3, "spec"] }), draft, context),
+    ).toBe(false);
+  });
+
+  it("drops text of a custom module that is no longer there", () => {
+    const draft = baseEg();
+    const context = check(draft).context;
+    const place = { area: "custom", index: 0, customKey: "custom_1", path: ["fields", 0, "min"] } as const;
+    expect(hasDraftPlace(error(place), draft, context)).toBe(false);
+    const added = addCustomModule(draft, context).draft;
+    expect(hasDraftPlace(error(place), added, context)).toBe(true);
+    expect(hasDraftPlace(error({ ...place, path: ["fields", 4, "min"] }), added, context)).toBe(false);
   });
 });
 

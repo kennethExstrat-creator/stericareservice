@@ -215,6 +215,28 @@ describe("module edits", () => {
     expect(setConfig(child, context, "weight", weight.config)).toBe(child);
   });
 
+  it("keeps an emptied required number empty, never the value it inherits (13 emptied, then 5, is 5)", () => {
+    const child = clientFactoryEg();
+    const context = contextOf(child);
+    const weight = moduleView(child, context, "weight");
+    expect(weight.config.n).toBe(1);
+    // What the form hands over as the admin empties a required number: null, this template's own.
+    const emptied = setConfig(child, context, "weight", { ...weight.config, n: null });
+    expect(moduleView(emptied, contextOf(emptied), "weight").config.n).toBeNull();
+    expect(isConfigOverridden(emptied, "weight", ["n"])).toBe(true);
+    // The next key starts from nothing: 5, not 15.
+    const typed = setConfig(emptied, contextOf(emptied), "weight", { ...weight.config, n: 5 });
+    expect(moduleView(typed, contextOf(typed), "weight").config.n).toBe(5);
+    // Text that is not a number is kept as typed, for the schema to name.
+    const text = setConfig(typed, contextOf(typed), "weight", { ...weight.config, n: "2 40" });
+    expect(moduleView(text, contextOf(text), "weight").config.n).toBe("2 40");
+    // Left out (an optional setting emptied), or reset: the inherited value again.
+    const left = setConfig(typed, contextOf(typed), "weight", { warnThresholdPct: weight.config.warnThresholdPct });
+    expect(moduleView(left, contextOf(left), "weight").config.n).toBe(1);
+    const reset = resetConfigAt(emptied, contextOf(emptied), "weight", ["n"]);
+    expect(moduleView(reset, contextOf(reset), "weight").config.n).toBe(1);
+  });
+
   it("resets one value back to the inherited one, and a whole module", () => {
     const child = clientFactoryEg();
     const context = contextOf(child);

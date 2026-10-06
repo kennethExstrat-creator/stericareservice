@@ -43,6 +43,11 @@ type Drag = {
 
 const PINNED: ReadonlySet<ModuleKey> = new Set(["header", "conclusion"]);
 
+/** A module's Edit button, where the focus goes back to when its details close. */
+export function editModuleSelector(key: ModuleKey): string {
+  return `[data-edit-module="${key}"]`;
+}
+
 export function ModuleList({
   order,
   viewOf,
@@ -240,6 +245,7 @@ export function ModuleList({
 
                 <button
                   type="button"
+                  data-edit-module={key}
                   onClick={() => onSelect(key)}
                   aria-current={selected === key ? "true" : undefined}
                   aria-label={`Edit ${title}`}

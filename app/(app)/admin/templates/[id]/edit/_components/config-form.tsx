@@ -64,8 +64,9 @@ export function ConfigForm({ api, view }: { api: EditorApi; view: ModuleView }) 
     isOverridden: (path) => isConfigOverridden(api.draft, key, path),
     onReset: (path) => api.update((draft, context) => resetConfigAt(draft, context, key, path)),
     resetLabel: api.resetLabel,
-    onDraftError: (path: FormPath, message) =>
-      api.reportDraftError({ area: "module", moduleKey: key, part: "config", path }, message),
+    onDraftError: (path: FormPath, draft) =>
+      api.reportDraftError({ area: "module", moduleKey: key, part: "config", path }, draft),
+    draftFor: (path) => api.draftFor({ area: "module", moduleKey: key, part: "config", path }),
     suggestionsFor: (path, field) => (isDefectCodeField(path, field) ? codeOptions : undefined),
     noteFor: (path, value, field) =>
       isDefectCodeField(path, field) &&

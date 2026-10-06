@@ -1,5 +1,6 @@
 // What the editor's parts share: the draft, its context and problems, and
 // the one way to change it.
+import type { DraftText } from "@/lib/zod-form/controls";
 import type { DefectCodeOption, ReferenceOption } from "../_lib/load";
 import type { Draft, EditorContext } from "../_lib/model";
 import type { EditorProblem, ProblemPlace } from "../_lib/problems";
@@ -14,8 +15,10 @@ export type EditorApi = {
   editable: boolean;
   /** Changes the draft; `change` gets the latest draft and its context. */
   update: (change: (draft: Draft, context: EditorContext) => Draft) => void;
-  /** A field holding text that is not a value yet, or null once it is. */
-  reportDraftError: (place: ProblemPlace, message: string | null) => void;
+  /** A field holding text that is not a value yet (half-written JSON), or null once it is. */
+  reportDraftError: (place: ProblemPlace, draft: DraftText | null) => void;
+  /** That text, kept while its field was closed, to show again when it opens. */
+  draftFor: (place: ProblemPlace) => DraftText | undefined;
   /** The template's sizes, canonical, for size pickers in config. */
   sizes: readonly SizeOption[];
   defectCodes: readonly DefectCodeOption[];

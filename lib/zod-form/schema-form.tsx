@@ -14,7 +14,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { JsonInput, NumberInput, OptionSelect, TextInput, type EmptyAs, type SelectOption } from "./controls";
+import {
+  JsonInput,
+  NumberInput,
+  OptionSelect,
+  TextInput,
+  type DraftText,
+  type EmptyAs,
+  type SelectOption,
+} from "./controls";
 import type {
   ArrayNode,
   EnumNode,
@@ -49,8 +57,14 @@ export type SchemaFormHooks = {
   onReset?: (path: FormPath) => void;
   /** "Use default", "Use STD_EG's". */
   resetLabel?: string;
-  /** Text that is not a value yet (a number typed as "2 42"), or null once it is. */
-  onDraftError?: (path: FormPath, message: string | null) => void;
+  /**
+   * JSON text that is not a value yet, or null once it is. The page keeps it
+   * when the field closes (it still stops a save) and hands it back through
+   * `draftFor`. Numbers need neither: what is typed is stored, and the schema
+   * says what is wrong with it.
+   */
+  onDraftError?: (path: FormPath, draft: DraftText | null) => void;
+  draftFor?: (path: FormPath) => DraftText | undefined;
   /** Suggestions while typing into a text field, e.g. the defect codes for a `code`. */
   suggestionsFor?: (path: FormPath, node: FormNode) => readonly KeyOption[] | undefined;
   /** A note under a field that is valid but worth a look, e.g. a code that is not in the list. */
@@ -299,7 +313,6 @@ function ScalarField({ node, value, onChange, path, label, required, onRemove, h
     .filter(Boolean)
     .join(" ") || undefined;
   const emptyAs: EmptyAs = required ? "empty" : "missing";
-  const draftError = hooks.onDraftError ? (message: string | null) => hooks.onDraftError?.(path, message) : undefined;
 
   let control: ReactNode;
   switch (node.kind) {
@@ -311,11 +324,12 @@ function ScalarField({ node, value, onChange, path, label, required, onRemove, h
           onChange={onChange}
           integer={node.integer}
           unit={node.unit}
-          emptyAs="missing"
+          // Emptied, a required number stays the template's own, empty: the schema asks for a number, and the
+          // value it inherits does not come back in its place. "Use default" goes back to that one.
+          emptyAs={required ? "null" : "missing"}
           describedBy={describedBy}
           invalid={errors.length > 0}
           readOnly={readOnly}
-          onDraftError={draftError}
         />
       );
       break;
@@ -379,7 +393,8 @@ function ScalarField({ node, value, onChange, path, label, required, onRemove, h
           describedBy={describedBy}
           invalid={errors.length > 0}
           readOnly={readOnly}
-          onDraftError={draftError}
+          onDraftError={hooks.onDraftError ? (draft) => hooks.onDraftError?.(path, draft) : undefined}
+          restore={hooks.draftFor?.(path)}
         />
       );
   }
@@ -1249,7 +1264,6 @@ function NullableField(props: FieldProps & { node: NullableNode }) {
           describedBy={describedBy}
           invalid={errors.length > 0}
           readOnly={readOnly}
-          onDraftError={hooks.onDraftError ? (message) => hooks.onDraftError?.(path, message) : undefined}
         />
       );
     } else if (inner.kind === "string") {

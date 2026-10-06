@@ -4,6 +4,7 @@
 // ("Too small: expected number to be >=0") is replaced with plain words, per
 // parse, so nothing global changes.
 import type { z } from "zod";
+import { parseDecimal } from "@/lib/stats";
 
 export type FormPath = readonly (string | number)[];
 
@@ -45,7 +46,10 @@ export function friendlyMessage(issue: RawIssue): string | undefined {
   switch (issue.code) {
     case "invalid_type": {
       const expected = String(issue.expected);
-      if (issue.input === undefined) return expected === "number" || expected === "int" ? "Enter a number." : "Required.";
+      const number = expected === "number" || expected === "int";
+      if (issue.input === undefined) return number ? "Enter a number." : "Required.";
+      // A number field stores what was typed until it is a number (controls.tsx): say what is wrong with it.
+      if (number && typeof issue.input === "string") return notANumber(issue.input);
       return TYPE_WORDS[expected] ?? `Expected ${expected}.`;
     }
     case "too_small": {
@@ -94,6 +98,20 @@ export function friendlyMessage(issue: RawIssue): string | undefined {
     default:
       return undefined;
   }
+}
+
+/**
+ * Text where a number belongs: "2 40" typed into a number field, or a number
+ * written in quotes in the JSON. The advice is the capture grid's (lib/stats),
+ * in an admin's words: a setting is no cell.
+ */
+export function notANumber(text: string): string {
+  const trimmed = text.trim();
+  if (trimmed === "") return "Enter a number.";
+  const parsed = parseDecimal(trimmed);
+  if (parsed.ok) return `Write ${trimmed} as a number, without quotes.`;
+  const advice = parsed.error.replace(/^One number per cell: remove the space/, "Remove the space: one number only");
+  return `“${trimmed}” is not a number. ${advice}`;
 }
 
 /** safeParse with the plain wording. */

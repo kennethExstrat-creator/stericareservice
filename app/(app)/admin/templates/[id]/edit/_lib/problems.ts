@@ -6,7 +6,7 @@
 import { isModuleKey, type ModuleKey } from "@/lib/schemas/module-result";
 import { TemplateDefinitionSchema, type ResolvedTemplate } from "@/lib/schemas/template";
 import { resolveTemplate, type TemplateLookup, type TemplateProblem } from "@/lib/templates";
-import { parseWithMessages, pathKey, type FormPath } from "@/lib/zod-form";
+import { getAt, isPlainObject, parseWithMessages, pathKey, type FormPath } from "@/lib/zod-form";
 import type { Draft, EditorContext } from "./model";
 import { entriesOf, moduleOrder, moduleView, ownCustomModules } from "./model";
 
@@ -26,8 +26,13 @@ export type ProblemReport = {
   resolved: ResolvedTemplate | null;
 };
 
-/** A field the admin is typing into that does not hold a value yet ("2 42" in a number). */
-export type DraftError = { place: ProblemPlace; message: string };
+/**
+ * Text in a field that is not a value yet (half-written JSON), kept while its
+ * field is closed: it stops the save, and the field shows it again when it
+ * opens. Numbers need none of this: "2 42" is stored as typed, and the
+ * module's schema says what is wrong with it.
+ */
+export type DraftError = { place: ProblemPlace; message: string; text: string };
 
 export function collectProblems(
   draft: Draft,
@@ -63,6 +68,7 @@ export function collectProblems(
     }
   }
 
+  const baseMissing = context.inheritance.problems.length > 0;
   for (const message of context.inheritance.problems) add({ area: "template", path: ["extends"] }, message);
 
   if (!parsed.success) return { problems, resolved: null };
@@ -74,7 +80,10 @@ export function collectProblems(
       if (problem.path[0] === "modules" && problem.path[2] === "config" && configFailed.has(problem.path[1] as ModuleKey)) {
         continue;
       }
-      add(placeOfResolverProblem(draft, problem, options.code), resolverMessage(problem, options.code));
+      const place = placeOfResolverProblem(draft, problem, options.code);
+      // A missing base is said once, above: the resolver finds the same thing.
+      if (baseMissing && place.area === "template" && place.path.length === 1 && place.path[0] === "extends") continue;
+      add(place, resolverMessage(problem, options.code));
     }
   }
   return { problems, resolved: resolution.ok && problems.length === 0 ? resolution.template : null };
@@ -128,6 +137,31 @@ function resolverMessage(problem: TemplateProblem, code: string): string {
 
 function partOf(segment: string | number | undefined): "include" | "title" | "labels" | "config" | "entry" {
   return segment === "include" || segment === "title" || segment === "labels" || segment === "config" ? segment : "entry";
+}
+
+/**
+ * Whether kept field text still has its field: the setting or list item it
+ * was typed into is still there. A list item removed while the text was kept
+ * takes its text with it.
+ */
+export function hasDraftPlace(error: DraftError, draft: Draft, context: EditorContext): boolean {
+  const { place } = error;
+  const parent = place.path.slice(0, -1);
+  const holds = (container: unknown) => place.path.length === 0 || isContainer(getAt(container, parent));
+  switch (place.area) {
+    case "module":
+      return place.part !== "config" || holds(moduleView(draft, context, place.moduleKey).config);
+    case "custom": {
+      const custom = ownCustomModules(draft)[place.index];
+      return custom !== undefined && holds(custom);
+    }
+    case "template":
+      return holds(draft);
+  }
+}
+
+function isContainer(value: unknown): boolean {
+  return Array.isArray(value) || isPlainObject(value);
 }
 
 export function placeId(place: ProblemPlace): string {

@@ -5,10 +5,15 @@
 // JSON; a live capture preview. The draft lives here until Save, which
 // writes the definition and its resolution (actions.ts). A version that is
 // in use, active or retired opens read only, with "New version".
+//
+// Unsaved changes are not lost by accident: any link out of the page asks
+// first (the shell's too), the browser asks before a reload or close where
+// it can, and a copy kept on the device (backup.ts) is offered back when the
+// version opens again, for the iPad, where Safari never asks.
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeftIcon, LoaderCircleIcon, OctagonXIcon, SaveIcon, Undo2Icon } from "lucide-react";
+import { useActionState, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { ArrowLeftIcon, HistoryIcon, LoaderCircleIcon, OctagonXIcon, SaveIcon, Undo2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/qc";
 import { useMediaQuery } from "@/components/qc/use-media-query";
@@ -36,7 +41,18 @@ import { deepEqual, isPlainObject, type FormPath } from "@/lib/zod-form";
 import { fieldId } from "@/lib/zod-form/schema-form";
 import { MODULE_REGISTRY } from "@/modules";
 import { saveTemplate } from "../actions";
+import {
+  backupKey,
+  deviceStorage,
+  foundBackupStore,
+  offeredBackup,
+  readBackup,
+  removeBackup,
+  sweepBackups,
+  writeBackup,
+} from "../_lib/backup";
 import { inheritanceOf } from "../_lib/inheritance";
+import { leavingTo } from "../_lib/leave";
 import type { DefectCodeOption, EditorTemplate, ReferenceOption } from "../_lib/load";
 import {
   addModule,
@@ -51,6 +67,7 @@ import {
 } from "../_lib/model";
 import {
   collectProblems,
+  hasDraftPlace,
   isEditableShape,
   placeId,
   problemsOfModule,
@@ -68,8 +85,8 @@ import type { EditorApi } from "./editor-api";
 import { JsonView } from "./json-view";
 import { labelFieldId } from "./label-overrides";
 import { LockedNotice } from "./locked-notice";
+import { editModuleSelector, ModuleList } from "./module-list";
 import { includeFieldId, ModuleDetails, titleFieldId } from "./module-details";
-import { ModuleList } from "./module-list";
 import { ProblemsSummary } from "./problems-summary";
 
 type Tab = "modules" | "custom" | "details" | "json" | "preview";
@@ -84,6 +101,11 @@ const STATUS_WORD = { draft: "Draft", active: "Active", retired: "Retired" } as 
 const STUBS: ReadonlySet<ModuleKey> = new Set(
   (Object.keys(MODULE_REGISTRY) as ModuleKey[]).filter((key) => MODULE_REGISTRY[key].stub),
 );
+
+/** How long typing pauses before the device copy is written. */
+const BACKUP_DELAY_MS = 400;
+
+const BACKUP_TIME = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" });
 
 export function TemplateEditor({
   template,
@@ -108,12 +130,18 @@ export function TemplateEditor({
   const [jsonText, setJsonText] = useState<string | null>(null);
   const [draftErrors, setDraftErrors] = useState<ReadonlyMap<string, DraftError>>(() => new Map());
   const [lockedByServer, setLockedByServer] = useState<string | null>(null);
-  const [leaving, setLeaving] = useState(false);
+  /** Where a link the admin followed with unsaved changes goes, while the editor asks. */
+  const [leaving, setLeaving] = useState<string | null>(null);
+  /** Bumped when the draft is replaced wholesale (Discard, JSON, a restored copy): fields start again from it. */
+  const [formKey, setFormKey] = useState(0);
   const router = useRouter();
   const sideBySide = useMediaQuery(SIDE_BY_SIDE);
   const rootRef = useRef<HTMLDivElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  /** What had the focus when the module sheet opened, and the link that opened the Leave dialog: focus goes back there. */
+  const sheetOpener = useRef<HTMLElement | null>(null);
+  const leaveOpener = useRef<HTMLElement | null>(null);
 
   const extendsCode = typeof draft.extends === "string" ? draft.extends : undefined;
   const inheritance = useMemo(
@@ -122,9 +150,14 @@ export function TemplateEditor({
   );
   const context = useMemo<EditorContext>(() => ({ inheritance, registry: MODULE_REGISTRY }), [inheritance]);
   const shapeOk = isEditableShape(draft);
+  // Text kept for a field that was closed counts while its field is still there.
+  const liveDraftErrors = useMemo(
+    () => [...draftErrors.values()].filter((entry) => hasDraftPlace(entry, draft, context)),
+    [draftErrors, draft, context],
+  );
   const report = useMemo(
-    () => collectProblems(draft, context, { code: template.code, getBase: lookup, draftErrors: [...draftErrors.values()] }),
-    [draft, context, template.code, lookup, draftErrors],
+    () => collectProblems(draft, context, { code: template.code, getBase: lookup, draftErrors: liveDraftErrors }),
+    [draft, context, template.code, lookup, liveDraftErrors],
   );
   const jsonPending = jsonText !== null && jsonText !== JSON.stringify(draft, null, 2);
   const problems = useMemo(
@@ -151,19 +184,36 @@ export function TemplateEditor({
   const reason = lockedByServer ?? lockedReason({ version: template.version, status: template.status, inUse: template.inUse });
   const editable = reason === null;
   const dirty = !deepEqual(draft, saved.definition);
+  // Nothing changed, yet Save has work: no stored resolution, one this build cannot read, or a base that moved on.
+  // The saved version is the one loaded until a save; after one, the page reloads its facts.
+  const resolveDue = (template.resolution !== "ok" || template.stale.length > 0) && saved.updatedAt === template.updatedAt;
 
   const update: EditorApi["update"] = (change) =>
     setDraft((current) => change(current, { inheritance: inheritanceOf(current, lookup), registry: MODULE_REGISTRY }));
 
-  const reportDraftError = (place: ProblemPlace, message: string | null) =>
+  /** The draft replaced as a whole: fields drop what they held, and kept field text goes. */
+  const replaceDraft = (next: Draft) => {
+    setDraft(next);
+    setJsonText(null);
+    setDraftErrors(new Map());
+    setFormKey((key) => key + 1);
+  };
+
+  const reportDraftError: EditorApi["reportDraftError"] = (place, entry) =>
     setDraftErrors((current) => {
       const id = placeId(place);
-      if (message === null ? !current.has(id) : current.get(id)?.message === message) return current;
+      const existing = current.get(id);
+      if (entry === null ? !existing : existing?.message === entry.message && existing.text === entry.text) return current;
       const next = new Map(current);
-      if (message === null) next.delete(id);
-      else next.set(id, { place, message });
+      if (entry === null) next.delete(id);
+      else next.set(id, { place, message: entry.message, text: entry.text });
       return next;
     });
+
+  const draftFor: EditorApi["draftFor"] = (place) => {
+    const entry = draftErrors.get(placeId(place));
+    return entry && hasDraftPlace(entry, draft, context) ? { text: entry.text, message: entry.message } : undefined;
+  };
 
   const sizes = useMemo(
     () =>
@@ -181,6 +231,7 @@ export function TemplateEditor({
     editable,
     update,
     reportDraftError,
+    draftFor,
     sizes,
     defectCodes,
     scopeOptions,
@@ -203,7 +254,7 @@ export function TemplateEditor({
     return result;
   }, SAVE_IDLE);
 
-  const canSave = editable && shapeOk && dirty && problems.length === 0 && !saving;
+  const canSave = editable && shapeOk && (dirty || resolveDue) && problems.length === 0 && !saving;
 
   // Cmd/Ctrl+S saves, as anywhere else.
   useEffect(() => {
@@ -217,13 +268,94 @@ export function TemplateEditor({
     return () => window.removeEventListener("keydown", onKey);
   }, [canSave]);
 
-  // Leaving with unsaved changes asks first.
+  // Leaving with unsaved changes asks first: the browser for a reload, a close or another site...
   useEffect(() => {
     if (!dirty) return;
     const warn = (event: BeforeUnloadEvent) => event.preventDefault();
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
+
+  // ...and the editor for any link to another page of the app, the shell's sidebar and top bar included.
+  useEffect(() => {
+    if (!dirty) return;
+    const onClick = (event: MouseEvent) => {
+      if (event.defaultPrevented) return;
+      const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
+      if (!(link instanceof HTMLAnchorElement)) return;
+      const to = leavingTo(
+        {
+          href: link.href,
+          target: link.target,
+          download: link.hasAttribute("download"),
+          button: event.button,
+          modified: event.metaKey || event.ctrlKey || event.shiftKey || event.altKey,
+        },
+        window.location.href,
+      );
+      if (to === null) return;
+      // Before Next.js's Link sees the click: it leaves a click whose default is prevented alone.
+      event.preventDefault();
+      leaveOpener.current = link;
+      setLeaving(to);
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [dirty]);
+
+  // A copy of the unsaved changes on this device, offered back when the version opens again.
+  const storageKey = backupKey(viewer.id, template.id);
+  const backupStore = useMemo(() => foundBackupStore(() => readDeviceBackup(storageKey)), [storageKey]);
+  const found = useSyncExternalStore(backupStore.subscribe, backupStore.get, () => null);
+  const offer = offeredBackup(found, { updatedAt: template.updatedAt, definition: template.definition });
+  const offerPending = offer !== null;
+  /** The copy writer's latest unwritten copy, and whether the admin chose to leave without the changes. */
+  const pendingBackup = useRef<(() => void) | null>(null);
+  const droppedChanges = useRef(false);
+
+  useEffect(() => {
+    const storage = deviceStorage();
+    if (!storage) return;
+    if (!dirty) {
+      pendingBackup.current = null;
+      // A copy still on offer stays until the admin restores or discards it.
+      if (!offerPending) removeBackup(storage, storageKey);
+      return;
+    }
+    const write = () => {
+      pendingBackup.current = null;
+      if (droppedChanges.current) return;
+      writeBackup(storage, storageKey, { v: 1, updatedAt: saved.updatedAt, savedAt: Date.now(), definition: draft });
+    };
+    pendingBackup.current = write;
+    const timer = window.setTimeout(write, BACKUP_DELAY_MS);
+    const onHidden = () => {
+      if (document.visibilityState === "hidden") write();
+    };
+    window.addEventListener("pagehide", write);
+    document.addEventListener("visibilitychange", onHidden);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("pagehide", write);
+      document.removeEventListener("visibilitychange", onHidden);
+    };
+  }, [draft, dirty, saved.updatedAt, storageKey, offerPending]);
+
+  // Unmounted by a navigation the editor did not stop (Back): the last changes still go into the copy.
+  useEffect(() => () => pendingBackup.current?.(), []);
+
+  const restoreBackup = () => {
+    if (!offer) return;
+    replaceDraft(offer.definition as Draft);
+    backupStore.dismiss();
+    toast.success("Your unsaved changes are back. Save to keep them.");
+  };
+
+  const discardBackup = () => {
+    const storage = deviceStorage();
+    if (storage) removeBackup(storage, storageKey);
+    backupStore.dismiss();
+  };
 
   // Sticky things below the bar (the details panel, capture size bars) need its height.
   useLayoutEffect(() => {
@@ -245,7 +377,10 @@ export function TemplateEditor({
 
   const select = (key: ModuleKey) => {
     setSelected(key);
-    if (!sideBySide) setSheetOpen(true);
+    if (sideBySide) return;
+    // The sheet hands the focus back to what opened it: the module's Edit button, or a problem's link.
+    if (!sheetOpen) sheetOpener.current = focusedElement();
+    setSheetOpen(true);
   };
 
   const go = (place: ProblemPlace) => {
@@ -268,6 +403,8 @@ export function TemplateEditor({
 
   const details = (headingId: string) => (
     <ModuleDetails
+      // Another module, or a draft replaced as a whole: its fields start from what is stored.
+      key={`${selectedKey}:${formKey}`}
       api={api}
       moduleKey={selectedKey}
       position={order.indexOf(selectedKey)}
@@ -301,46 +438,96 @@ export function TemplateEditor({
         title={typeof draft.name === "string" && draft.name.trim() !== "" ? draft.name : template.code}
         description={<p data-testid="template-meta">{meta.join(" · ")}</p>}
         actions={
+          // With unsaved changes, the editor asks before it follows (see the link guard above).
           <Button asChild variant="outline">
-            <Link
-              href={TEMPLATES_PATH}
-              onClick={(event) => {
-                // Unsaved changes: ask first (a new tab or window leaves this one as it is).
-                if (!dirty || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-                event.preventDefault();
-                setLeaving(true);
-              }}
-            >
+            <Link href={TEMPLATES_PATH}>
               <ArrowLeftIcon aria-hidden />
               All templates
             </Link>
           </Button>
         }
       />
-      <AlertDialog open={leaving} onOpenChange={setLeaving}>
-        <AlertDialogContent>
+      <AlertDialog
+        open={leaving !== null}
+        onOpenChange={(open) => {
+          if (!open) setLeaving(null);
+        }}
+      >
+        <AlertDialogContent
+          onCloseAutoFocus={(event) => {
+            // Back to the link that was followed: no trigger of its own to return to.
+            event.preventDefault();
+            focusBack(leaveOpener.current);
+          }}
+        >
           <AlertDialogHeader>
             <AlertDialogTitle>Leave without saving?</AlertDialogTitle>
             <AlertDialogDescription>Your changes to this draft are not saved yet. Leaving drops them.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep editing</AlertDialogCancel>
-            <AlertDialogAction onClick={() => router.push(TEMPLATES_PATH)}>Leave</AlertDialogAction>
+            <AlertDialogAction
+              onClick={() => {
+                const to = leaving;
+                droppedChanges.current = true;
+                discardBackup();
+                if (to) router.push(to);
+              }}
+            >
+              Leave
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {offer && (
+        <Alert className="border-info-border bg-info-tint" data-testid="restore-offer">
+          <HistoryIcon aria-hidden />
+          <AlertTitle>Unsaved changes from {BACKUP_TIME.format(offer.savedAt)}</AlertTitle>
+          <AlertDescription className="grid gap-3 text-info">
+            <p>
+              This draft was left with changes that were not saved, on this device.
+              {editable ? " Restore them to go on, or discard them." : " This version can no longer change: restored, they go into a new version."}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" onClick={restoreBackup}>
+                <HistoryIcon aria-hidden />
+                Restore changes
+              </Button>
+              <Button type="button" variant="outline" onClick={discardBackup}>
+                Discard them
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {reason && (
         <LockedNotice
           templateId={template.id}
           reason={reason}
           draft={otherDraft}
-          carry={lockedByServer && dirty && shapeOk && problems.length === 0 ? JSON.stringify(draft) : null}
-          stranded={Boolean(lockedByServer) && dirty && (!shapeOk || problems.length > 0)}
+          // Changes made before the version locked (or restored from the device) can start the new version.
+          carry={dirty && shapeOk && problems.length === 0 ? JSON.stringify(draft) : null}
+          stranded={dirty && (!shapeOk || problems.length > 0)}
         />
       )}
 
-      {template.stale.length > 0 && editable && (
+      {editable && resolveDue && template.resolution !== "ok" && (
+        <Alert className="border-warn-border bg-warn-tint" data-testid="resolve-due">
+          <AlertTitle>{template.resolution === "missing" ? "Not resolved yet" : "Resolved by an earlier build"}</AlertTitle>
+          <AlertDescription className="text-warn">
+            {template.resolution === "missing"
+              ? "This draft has no stored resolution, so its version page shows no modules and it cannot be activated."
+              : "Its stored resolution cannot be read by this build, so it cannot be activated."}{" "}
+            {problems.length > 0
+              ? "Fix the problems below, then save: saving resolves it and stores the result."
+              : "Save resolves it and stores the result."}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {editable && resolveDue && template.stale.length > 0 && (
         <Alert className="border-info-border bg-info-tint">
           <AlertTitle>A base template has moved on</AlertTitle>
           <AlertDescription className="text-info">
@@ -358,8 +545,8 @@ export function TemplateEditor({
 
       {template.coverageConfirmedAt && editable && (
         <p className="text-sm text-muted-foreground">
-          The field coverage of this version is confirmed. Saving a change clears that, so it is confirmed again before
-          the version is activated.
+          The field coverage of this version is confirmed. A save that changes the template, or what it resolves to,
+          clears that, so it is confirmed again before the version is activated.
         </p>
       )}
 
@@ -377,14 +564,22 @@ export function TemplateEditor({
             <TabsTrigger value="preview">Preview</TabsTrigger>
           </TabsList>
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            <SaveState saving={saving} editable={editable} dirty={dirty} problems={problems.length} result={saveState} />
+            <SaveState
+              saving={saving}
+              editable={editable}
+              dirty={dirty}
+              resolveDue={resolveDue ? (template.resolution === "ok" ? "base" : "resolution") : null}
+              problems={problems.length}
+              result={saveState}
+            />
             {editable && dirty && (
               <DiscardChanges
                 onDiscard={() => {
-                  setDraft(saved.definition);
-                  setJsonText(null);
-                  setDraftErrors(new Map());
+                  replaceDraft(saved.definition);
+                  discardBackup();
                 }}
+                // Its button goes with the changes: the focus goes to the tab in view.
+                focusAfter={() => barRef.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus()}
               />
             )}
             {editable && (
@@ -471,11 +666,11 @@ export function TemplateEditor({
         </TabsContent>
 
         <TabsContent value="custom" className="text-base">
-          {shapeOk && <CustomModules api={api} open={openCustom} onOpen={setOpenCustom} />}
+          {shapeOk && <CustomModules key={formKey} api={api} open={openCustom} onOpen={setOpenCustom} />}
         </TabsContent>
 
         <TabsContent value="details" className="text-base">
-          <DetailsForm api={api} />
+          <DetailsForm key={formKey} api={api} />
         </TabsContent>
 
         <TabsContent value="json" className="text-base">
@@ -486,8 +681,7 @@ export function TemplateEditor({
             text={jsonText}
             onTextChange={setJsonText}
             onApply={(definition) => {
-              setDraft(definition);
-              setJsonText(null);
+              replaceDraft(definition);
               toast.success("JSON applied. Save to keep it.");
             }}
           />
@@ -506,6 +700,11 @@ export function TemplateEditor({
           onOpenAutoFocus={(event) => {
             event.preventDefault();
             document.getElementById("module-sheet-heading")?.focus();
+          }}
+          // Out of it, back to what opened it; if that is gone (a problem fixed), to the module's Edit button.
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            focusBack(sheetOpener.current, document.querySelector<HTMLElement>(editModuleSelector(selectedKey)));
           }}
         >
           <SheetHeader className="sr-only">
@@ -527,12 +726,15 @@ function SaveState({
   saving,
   editable,
   dirty,
+  resolveDue,
   problems,
   result,
 }: {
   saving: boolean;
   editable: boolean;
   dirty: boolean;
+  /** Save has work with nothing changed: a resolution to store, or a base that moved on. */
+  resolveDue: "resolution" | "base" | null;
   problems: number;
   result: SaveResult;
 }) {
@@ -550,6 +752,9 @@ function SaveState({
   } else if (dirty) {
     text = "Unsaved changes";
     tone = "border-warn-border bg-warn-tint text-warn";
+  } else if (resolveDue) {
+    text = resolveDue === "resolution" ? "Not resolved yet" : "Base moved on";
+    tone = "border-warn-border bg-warn-tint text-warn";
   } else {
     text = result.status === "saved" ? "Saved" : "No changes";
     tone = "border-border bg-card text-muted-foreground";
@@ -565,16 +770,23 @@ function SaveState({
   );
 }
 
-function DiscardChanges({ onDiscard }: { onDiscard: () => void }) {
+function DiscardChanges({ onDiscard, focusAfter }: { onDiscard: () => void; focusAfter: () => void }) {
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button type="button" variant="ghost">
+        <Button type="button" variant="ghost" data-discard>
           <Undo2Icon aria-hidden />
           Discard
         </Button>
       </AlertDialogTrigger>
-      <AlertDialogContent>
+      <AlertDialogContent
+        onCloseAutoFocus={(event) => {
+          // Kept editing: back to Discard, as usual. Discarded: the button went with the changes.
+          if (document.querySelector("[data-discard]")) return;
+          event.preventDefault();
+          focusAfter();
+        }}
+      >
         <AlertDialogHeader>
           <AlertDialogTitle>Discard your changes?</AlertDialogTitle>
           <AlertDialogDescription>The template goes back to how it was last saved.</AlertDialogDescription>
@@ -586,6 +798,31 @@ function DiscardChanges({ onDiscard }: { onDiscard: () => void }) {
       </AlertDialogContent>
     </AlertDialog>
   );
+}
+
+/** The copy of unsaved changes this device kept for a version, after dropping the ones too old to offer. */
+function readDeviceBackup(key: string) {
+  const storage = deviceStorage();
+  if (!storage) return null;
+  sweepBackups(storage, Date.now());
+  return readBackup(storage, key);
+}
+
+/* ------------------------------------------------------------------ *
+ * Focus
+ * ------------------------------------------------------------------ */
+
+function focusedElement(): HTMLElement | null {
+  const active = document.activeElement;
+  return active instanceof HTMLElement && active !== document.body ? active : null;
+}
+
+/** Focus on `element` if it is still on the page and can take it, else on `fallback`. */
+function focusBack(element: HTMLElement | null, fallback: HTMLElement | null = null) {
+  const usable = (candidate: HTMLElement | null): candidate is HTMLElement =>
+    candidate !== null && candidate.isConnected && !candidate.matches(":disabled") && candidate.getClientRects().length > 0;
+  if (usable(element)) element.focus();
+  else if (usable(fallback)) fallback.focus();
 }
 
 /* ------------------------------------------------------------------ *

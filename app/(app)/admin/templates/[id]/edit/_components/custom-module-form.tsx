@@ -116,9 +116,10 @@ export function CustomModuleForm({
           options={afterOptions}
           readOnly={readOnly}
           invalid={messagesAt(["after"]).length > 0}
+          describedBy={describedBy(idOf(["after"]), messagesAt(["after"]))}
           onChange={(after) => set("after", after as ModuleKey)}
         />
-        <Messages problems={messagesAt(["after"])} />
+        <Messages id={`${idOf(["after"])}-errors`} problems={messagesAt(["after"])} />
       </div>
 
       <fieldset className="grid gap-2">
@@ -126,6 +127,7 @@ export function CustomModuleForm({
         <RadioGroup
           value={custom.layout}
           disabled={readOnly}
+          aria-describedby={describedBy(idOf(["layout"]), messagesAt(["layout"]))}
           onValueChange={(layout) => {
             const next: Record<string, unknown> = { ...custom, layout };
             if (layout === "grid" && !custom.grid) next.grid = { columns: { label: "Box #", default: 13, addable: true } };
@@ -153,7 +155,7 @@ export function CustomModuleForm({
             </Label>
           ))}
         </RadioGroup>
-        <Messages problems={messagesAt(["layout"])} />
+        <Messages id={`${idOf(["layout"])}-errors`} problems={messagesAt(["layout"])} />
       </fieldset>
 
       {custom.layout === "grid" && custom.grid && (
@@ -175,23 +177,23 @@ export function CustomModuleForm({
                 id={idOf(["grid", "columns", "default"])}
                 value={custom.grid.columns.default}
                 integer
-                emptyAs="missing"
+                // Required: emptied, it is empty (and asked for), not gone.
+                emptyAs="null"
                 readOnly={readOnly}
                 invalid={messagesAt(["grid", "columns", "default"]).length > 0}
+                describedBy={describedBy(idOf(["grid", "columns", "default"]), messagesAt(["grid", "columns", "default"]))}
                 onChange={(value) =>
                   set("grid", {
                     ...custom.grid!,
+                    // What was typed, number or not: CustomModuleSchema says what is wrong with it.
                     columns: { ...custom.grid!.columns, default: value as number },
                   })
                 }
-                onDraftError={(message) =>
-                  api.reportDraftError(
-                    { area: "custom", index, customKey: custom.key, path: ["grid", "columns", "default"] },
-                    message,
-                  )
-                }
               />
-              <Messages problems={messagesAt(["grid", "columns", "default"])} />
+              <Messages
+                id={`${idOf(["grid", "columns", "default"])}-errors`}
+                problems={messagesAt(["grid", "columns", "default"])}
+              />
             </div>
           </div>
           <SwitchField
@@ -214,9 +216,9 @@ export function CustomModuleForm({
         </fieldset>
       )}
 
-      <fieldset className="grid gap-3">
+      <fieldset className="grid gap-3" aria-describedby={describedBy(idOf(["fields"]), messagesAt(["fields"]))}>
         <legend className="mb-2 text-base font-bold">Fields</legend>
-        <Messages problems={messagesAt(["fields"])} />
+        <Messages id={`${idOf(["fields"])}-errors`} problems={messagesAt(["fields"])} />
         <ol className="grid gap-3">
           {custom.fields.map((field, position) => (
             <FieldEditor
@@ -329,9 +331,11 @@ function FieldEditor({
             value={field.type}
             options={FieldTypeSchema.options.map((type) => ({ value: type, label: FIELD_TYPE_LABEL[type] }))}
             readOnly={readOnly}
+            invalid={messagesAt(at("type")).length > 0}
+            describedBy={describedBy(idOf("type"), messagesAt(at("type")))}
             onChange={(type) => onChange(retype(field, type as FieldType))}
           />
-          <Messages problems={messagesAt(at("type"))} />
+          <Messages id={`${idOf("type")}-errors`} problems={messagesAt(at("type"))} />
         </div>
         {numeric && (
           <div className="grid gap-1.5">
@@ -341,9 +345,11 @@ function FieldEditor({
               value={field.unit ?? null}
               options={[{ value: null, label: "None" }, ...UnitSchema.options.map((unit) => ({ value: unit, label: unit }))]}
               readOnly={readOnly}
+              invalid={messagesAt(at("unit")).length > 0}
+              describedBy={describedBy(idOf("unit"), messagesAt(at("unit")))}
               onChange={(unit) => set("unit", unit === null ? undefined : (unit as Field["unit"]))}
             />
-            <Messages problems={messagesAt(at("unit"))} />
+            <Messages id={`${idOf("unit")}-errors`} problems={messagesAt(at("unit"))} />
           </div>
         )}
         {numeric &&
@@ -358,12 +364,11 @@ function FieldEditor({
                 placeholder="No limit"
                 readOnly={readOnly}
                 invalid={messagesAt(at(bound)).length > 0}
-                onChange={(value) => set(bound, value ?? undefined)}
-                onDraftError={(message) =>
-                  api.reportDraftError({ area: "custom", index, customKey: custom.key, path: at(bound) }, message)
-                }
+                describedBy={describedBy(idOf(bound), messagesAt(at(bound)))}
+                // What was typed, number or not: CustomModuleSchema says what is wrong with "2 40".
+                onChange={(value) => set(bound, (value ?? undefined) as number | undefined)}
               />
-              <Messages problems={messagesAt(at(bound))} />
+              <Messages id={`${idOf(bound)}-errors`} problems={messagesAt(at(bound))} />
             </div>
           ))}
         {field.type === "select" && (
@@ -374,9 +379,10 @@ function FieldEditor({
               value={field.options ?? []}
               readOnly={readOnly}
               invalid={messagesAt(at("options")).length > 0}
+              errorsId={messagesAt(at("options")).length > 0 ? `${idOf("options")}-errors` : undefined}
               onChange={(options) => set("options", options)}
             />
-            <Messages problems={messagesAt(at("options"))} />
+            <Messages id={`${idOf("options")}-errors`} problems={messagesAt(at("options"))} />
           </div>
         )}
         <TextField
@@ -397,10 +403,13 @@ function FieldEditor({
               options={withCurrentPath([{ value: null, label: "No: keeps its own value" }, ...mapOptions], field.mapsTo)}
               readOnly={readOnly}
               invalid={messagesAt(at("mapsTo")).length > 0}
+              describedBy={describedBy(idOf("mapsTo"), messagesAt(at("mapsTo")), true)}
               onChange={(mapsTo) => set("mapsTo", typeof mapsTo === "string" ? mapsTo : undefined)}
             />
-            <p className="text-sm text-muted-foreground">Entered once, in the module, and shown here in this form&apos;s wording.</p>
-            <Messages problems={messagesAt(at("mapsTo"))} />
+            <p id={`${idOf("mapsTo")}-hint`} className="text-sm text-muted-foreground">
+              Entered once, in the module, and shown here in this form&apos;s wording.
+            </p>
+            <Messages id={`${idOf("mapsTo")}-errors`} problems={messagesAt(at("mapsTo"))} />
           </div>
         )}
       </div>
@@ -475,7 +484,6 @@ function TextField({
   problems: readonly EditorProblem[];
   onChange: (value: string) => void;
 }) {
-  const describedBy = [hint ? `${id}-hint` : null, problems.length > 0 ? `${id}-errors` : null].filter(Boolean).join(" ");
   return (
     <div className="grid gap-1.5">
       <Label htmlFor={id}>{label}</Label>
@@ -488,7 +496,7 @@ function TextField({
         autoCapitalize={monospace ? "none" : undefined}
         className={cn(monospace && "font-mono")}
         aria-invalid={problems.length > 0 ? true : undefined}
-        aria-describedby={describedBy || undefined}
+        aria-describedby={describedBy(id, problems, Boolean(hint))}
         onChange={(event) => onChange(event.target.value)}
       />
       {hint && (
@@ -530,12 +538,15 @@ function LinesInput({
   value,
   readOnly,
   invalid,
+  errorsId,
   onChange,
 }: {
   id: string;
   value: readonly string[];
   readOnly: boolean;
   invalid: boolean;
+  /** The id of its messages, when it has any. */
+  errorsId?: string;
   onChange: (lines: string[]) => void;
 }) {
   const [draft, setDraft] = useState<{ text: string; lines: string[] } | null>(null);
@@ -549,7 +560,7 @@ function LinesInput({
         readOnly={readOnly}
         rows={Math.max(3, value.length + 1)}
         aria-invalid={invalid ? true : undefined}
-        aria-describedby={hintId}
+        aria-describedby={[hintId, errorsId].filter(Boolean).join(" ")}
         onChange={(event) => {
           const text = event.target.value;
           const lines = text
@@ -567,7 +578,12 @@ function LinesInput({
   );
 }
 
-function Messages({ id, problems }: { id?: string; problems: readonly EditorProblem[] }) {
+/** A control's hint and messages, for aria-describedby: `custom-0-fields-1-min-errors`. */
+function describedBy(id: string, problems: readonly EditorProblem[], hint = false): string | undefined {
+  return [hint ? `${id}-hint` : null, problems.length > 0 ? `${id}-errors` : null].filter(Boolean).join(" ") || undefined;
+}
+
+function Messages({ id, problems }: { id: string; problems: readonly EditorProblem[] }) {
   if (problems.length === 0) return null;
   return (
     <div id={id} className="grid gap-1">

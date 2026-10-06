@@ -90,6 +90,7 @@ function render(key: ModuleKey) {
     editable: true,
     update: () => {},
     reportDraftError: () => {},
+    draftFor: () => undefined,
     sizes: [{ value: "M", label: "M" }],
     defectCodes: [{ code: "hole_finger", name: "Finger", active: true }],
     scopeOptions: { clients: [], manufacturers: [] },

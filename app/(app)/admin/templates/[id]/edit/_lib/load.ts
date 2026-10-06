@@ -29,6 +29,12 @@ export type EditorTemplate = {
   versions: VersionSummary[];
   /** The bases this version was last resolved against that have a newer active version since. */
   stale: StaleBase[];
+  /**
+   * Its stored resolution: none ("missing": a seed, an import, a copy that
+   * did not resolve then), one this build cannot read ("invalid"), or "ok".
+   * Only a save writes a new one, so the editor offers Save for the first two.
+   */
+  resolution: "ok" | "missing" | "invalid";
 };
 
 /** One template version, or null when there is none with that id. */
@@ -72,6 +78,7 @@ export const loadEditorTemplate = cache(async (id: string): Promise<EditorTempla
     sourceFilePath: row.source_file_path,
     versions: versions.data,
     stale: stored.success ? staleBases(stored.data, (code) => activeVersion.get(code)) : [],
+    resolution: row.resolved === null ? "missing" : stored.success ? "ok" : "invalid",
   };
 });
 
