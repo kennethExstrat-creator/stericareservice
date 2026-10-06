@@ -28,3 +28,23 @@ export function emptyCartonSampling(): CartonSamplingData {
 export function enteredCartons(row: CartonSize | undefined): number[] {
   return (row?.cartonNumbers ?? []).filter((carton): carton is number => carton !== null);
 }
+
+/**
+ * `data` with the carton number in one grid cell set. A blank cell keeps the
+ * place of the numbers after it; blanks at the end are dropped. Every other
+ * size is kept, also one no longer ordered (6.2 rule 4). The same `data`
+ * when nothing changes.
+ */
+export function withCartonNumber(
+  data: CartonSamplingData,
+  size: string,
+  index: number,
+  value: number | null,
+): CartonSamplingData {
+  const cells = [...(data.sizes[size]?.cartonNumbers ?? [])];
+  if ((cells[index] ?? null) === value) return data;
+  while (cells.length <= index) cells.push(null);
+  cells[index] = value;
+  while (cells.length > 0 && cells[cells.length - 1] === null) cells.pop();
+  return { ...data, sizes: { ...data.sizes, [size]: { ...data.sizes[size], cartonNumbers: cells } } };
+}

@@ -5,7 +5,7 @@
 // moves to the next count and a pasted row or column fills the counts after
 // it. Beside them: the order quantity, the lot in gloves and the inspection
 // level's plan, and the size's result as the counts change.
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import {
   EnterGroup,
   EntryProblems,
@@ -15,6 +15,7 @@ import {
   SizeTabs,
   StatusIcon,
   StatusPill,
+  useDataUpdater,
   useIssueFocus,
   type EntryProblem,
 } from "@/components/qc";
@@ -23,7 +24,7 @@ import { cn } from "@/lib/utils";
 import { labelFor, lotSizeGloves, type CaptureProps, type ValidationIssue } from "@/modules/_framework";
 import type { SamplingPlanComputed } from "./calc";
 import { columnGroups, shownColumns, type SamplingColumn, type SamplingPlanConfig } from "./config";
-import { emptySamplingSize, type SamplingPlanData } from "./schema";
+import { withCount, type SamplingPlanData } from "./schema";
 
 export default function Capture({
   data,
@@ -39,8 +40,9 @@ export default function Capture({
 }: CaptureProps<SamplingPlanData, SamplingPlanConfig, SamplingPlanComputed>) {
   const root = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(context.sizes[0] ?? "");
-  const [rejected, setRejected] = useState<Readonly<Record<string, EntryProblem & { size: string }>>>({});
-  const write = useDataWriter(data, onChange);
+  const [rejected, setRejected] = useState<Readonly<Record<string, RejectedEntry>>>({});
+  // Every write starts from the latest data, so a pasted run of counts keeps every value (docs/CAPTURE_KIT.md).
+  const update = useDataUpdater(data, onChange);
 
   const label = (key: string) => labelFor(labels, key);
   const sizeName = (size: string) => formatSize(size, { sizes: context.templateSizes });
@@ -57,27 +59,29 @@ export default function Capture({
   });
 
   const setCount = (size: string, column: SamplingColumn, value: number | null) =>
-    write((current) => ({
-      ...current,
-      sizes: { ...current.sizes, [size]: { ...(current.sizes[size] ?? emptySamplingSize()), [column]: value } },
-    }));
+    update((current) => withCount(current, size, column, value));
 
-  // Every size's panel stays mounted (wide="all"), so its rejected text stays on screen with the list.
-  const setRejectedEntry = (size: string, column: SamplingColumn, id: string, entry: EntryProblem["entry"] | null) =>
+  // Names the cell with its size: from 1280 px every size is on screen at once.
+  const cellName = (size: string, column: SamplingColumn) => `${label(column)}, size ${sizeName(size)}`;
+
+  const setRejectedEntry = (size: string, column: SamplingColumn, entry: EntryProblem["entry"] | null) =>
     setRejected((current) => {
+      const id = fieldId(size, column);
       const next = { ...current };
       delete next[id];
-      if (entry !== null) {
-        next[id] = { key: id, label: `${label(column)}, size ${sizeName(size)}`, entry, inputId: id, size };
-      }
+      if (entry !== null) next[id] = { key: id, label: cellName(size, column), entry, inputId: id, size, column };
       return next;
     });
+  // Text that was not stored, listed with a link while its cell is still empty.
+  const problemsOf = (size: string) =>
+    Object.values(rejected).filter(
+      (problem) => problem.size === size && (data.sizes[size]?.[problem.column] ?? null) === null,
+    );
 
   const countRows = (size: string, columns: readonly SamplingColumn[], indent: boolean) =>
     columns.map((column) => {
       const path = ["sizes", size, column] as const;
       const own = issues.filter((issue) => samePath(issue.path, path));
-      const id = fieldId(size, column);
       return (
         <CountRow
           key={column}
@@ -87,8 +91,8 @@ export default function Capture({
           field={
             <NumberField
               variant="cell"
-              id={id}
-              label={label(column)}
+              id={fieldId(size, column)}
+              label={cellName(size, column)}
               value={data.sizes[size]?.[column] ?? null}
               onValueChange={(value) => setCount(size, column, value)}
               integer
@@ -96,7 +100,7 @@ export default function Capture({
               error={own.find((issue) => issue.level === "error")?.message ?? null}
               issuePath={path}
               onFocus={() => onFocusChange?.({ size })}
-              onInvalidChange={(entry) => setRejectedEntry(size, column, id, entry)}
+              onInvalidChange={(entry) => setRejectedEntry(size, column, entry)}
               readOnly={readOnly}
             />
           }
@@ -140,7 +144,7 @@ export default function Capture({
     return (
       <div className="space-y-3">
         <FactList facts={facts} />
-        <div className="overflow-clip rounded-lg border border-border bg-card">
+        <div className="relative overflow-clip rounded-lg border border-border bg-card">
           <table className="w-full border-separate border-spacing-0 text-sm touch:text-base">
             <caption className="sr-only">{`${title}, size ${sizeName(size)}`}</caption>
             {groups.quantity.length > 0 && (
@@ -160,7 +164,7 @@ export default function Capture({
             <tbody>{countRows(size, groups.tests, false)}</tbody>
           </table>
         </div>
-        <EntryProblems problems={Object.values(rejected).filter((problem) => problem.size === size)} />
+        <EntryProblems problems={problemsOf(size)} />
         {result && (
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-foreground touch:text-base">
             <StatusPill size="sm" status={result.status} />
@@ -210,12 +214,14 @@ export default function Capture({
   );
 }
 
+type RejectedEntry = EntryProblem & { size: string; column: SamplingColumn };
+
 type Fact = { key: string; label: string; value: ReactNode };
 
 /** Read-only values beside the counts: computed or entered elsewhere, never typed here (6.2 rules 2 and 10). */
 function FactList({ facts }: { facts: readonly Fact[] }) {
   return (
-    <dl className="flex flex-wrap gap-x-6 gap-y-2 rounded-lg bg-muted px-3 py-2 text-sm touch:text-base">
+    <dl className="relative flex flex-wrap gap-x-6 gap-y-2 rounded-lg bg-muted px-3 py-2 text-sm touch:text-base">
       {facts.map((fact) => (
         <div key={fact.key} className="min-w-0">
           <dt className="text-muted-foreground">{fact.label}</dt>
@@ -284,19 +290,3 @@ function sumOf(values: readonly (number | null)[]): number | null {
   return entered.length === 0 ? null : entered.reduce((sum, value) => sum + value, 0);
 }
 
-/**
- * onChange built on the latest data. A pasted column fills several fields in
- * one event, each reporting its value before the screen hands the new data
- * back, so each write starts from the one before, not from the last render.
- */
-function useDataWriter<T>(data: T, onChange: (next: T) => void): (update: (current: T) => T) => void {
-  const latest = useRef(data);
-  useLayoutEffect(() => {
-    latest.current = data;
-  }, [data]);
-  return (update) => {
-    const next = update(latest.current);
-    latest.current = next;
-    onChange(next);
-  };
-}

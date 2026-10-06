@@ -38,3 +38,19 @@ export function emptySamplingPlan(): SamplingPlanData {
 export function emptySamplingSize(): SamplingSize {
   return SamplingSizeSchema.parse({});
 }
+
+/**
+ * `data` with one count of one size set. Every other size is kept, also one
+ * no longer ordered, so its data returns if the size is ordered again (6.2
+ * rule 4). The same `data` when nothing changes.
+ */
+export function withCount(
+  data: SamplingPlanData,
+  size: string,
+  column: keyof SamplingSize,
+  value: number | null,
+): SamplingPlanData {
+  const row = data.sizes[size] ?? emptySamplingSize();
+  if (row[column] === value) return data;
+  return { ...data, sizes: { ...data.sizes, [size]: { ...row, [column]: value } } };
+}

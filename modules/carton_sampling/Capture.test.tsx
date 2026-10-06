@@ -4,6 +4,7 @@
 // (components/qc), checked in a browser by the integrator.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { batchDataChanges, createDataUpdater } from "@/components/qc/data-updater";
 import { buildInspectionContext, evaluateInspection, type InspectionData } from "@/modules/_framework";
 import { makeTestContext, makeTestTemplate, TEST_INSPECTOR } from "@/modules/_framework/testing";
 import { ENGINE_REGISTRY, exampleData } from "@/modules/sampling_plan/__fixtures__/examples";
@@ -11,7 +12,7 @@ import { SAFEDON_EG_EXAMPLE, STD_EG_EXAMPLE, type ExampleReport } from "@/tests/
 import type { CartonSamplingComputed } from "./calc";
 import Capture from "./Capture";
 import { CARTON_SAMPLING_DEFAULT_CONFIG, CARTON_SAMPLING_LABELS } from "./config";
-import type { CartonSamplingData } from "./schema";
+import { emptyCartonSampling, withCartonNumber, type CartonSamplingData } from "./schema";
 
 const noop = () => {};
 
@@ -95,5 +96,42 @@ describe("carton_sampling Capture", () => {
   it("says so while no size is ordered", () => {
     const html = render({ ...props(STD_EG_EXAMPLE), context: makeTestContext(), evaluation: null });
     expect(html).toContain("No sizes ordered yet");
+  });
+});
+
+describe("carton_sampling Capture writes (useDataUpdater, docs/CAPTURE_KIT.md)", () => {
+  /**
+   * The capture screen under the kit's updater: onChange replaces the data,
+   * and every cell's handler is the one made at the last render, as the
+   * Capture's setCarton is.
+   */
+  function screen(start: CartonSamplingData = emptyCartonSampling()) {
+    let data = start;
+    const changes: CartonSamplingData[] = [];
+    const updater = createDataUpdater(data, (next) => {
+      changes.push(next);
+      data = next;
+    });
+    const setCarton = (size: string, index: number, value: number | null) =>
+      updater.update((current) => withCartonNumber(current, size, index, value));
+    return { setCarton, changes, data: () => data };
+  }
+
+  it("keeps both of two numbers entered in one event, before the screen renders again", () => {
+    const { setCarton, changes, data } = screen();
+    setCarton("M", 0, 32);
+    setCarton("M", 1, 578);
+    expect(changes).toHaveLength(2);
+    expect(data().sizes.M.cartonNumbers).toEqual([32, 578]);
+  });
+
+  it("hands a pasted column to onChange once, every number in its cell", () => {
+    const { setCarton, changes, data } = screen(withCartonNumber(emptyCartonSampling(), "XS", 0, 7));
+    const pasted = [1186, 2389, 2865, 32, 578];
+    // Pasted into row 1 column 3: NumberField fills the cells after it inside batchDataChanges.
+    batchDataChanges(() => pasted.forEach((carton, offset) => setCarton("M", 2 + offset, carton)));
+    expect(changes).toHaveLength(1);
+    expect(data().sizes.M.cartonNumbers).toEqual([null, null, ...pasted]);
+    expect(data().sizes.XS.cartonNumbers).toEqual([7]);
   });
 });

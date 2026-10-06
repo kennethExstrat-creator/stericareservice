@@ -4,14 +4,15 @@
 // (components/qc), checked in a browser by the integrator.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { batchDataChanges, createDataUpdater } from "@/components/qc/data-updater";
 import { buildInspectionContext, evaluateInspection, type InspectionData } from "@/modules/_framework";
 import { makeTestContext, makeTestTemplate, TEST_INSPECTOR } from "@/modules/_framework/testing";
 import { SAFEDON_EG_EXAMPLE, STD_EG_EXAMPLE, type ExampleReport } from "@/tests/fixtures/examples";
 import { ENGINE_REGISTRY, exampleData, samplingPlanData } from "./__fixtures__/examples";
 import type { SamplingPlanComputed } from "./calc";
 import Capture from "./Capture";
-import { SAMPLING_PLAN_DEFAULT_CONFIG, SAMPLING_PLAN_LABELS, type SamplingPlanConfig } from "./config";
-import type { SamplingPlanData } from "./schema";
+import { SAMPLING_PLAN_DEFAULT_CONFIG, SAMPLING_PLAN_LABELS, type SamplingColumn, type SamplingPlanConfig } from "./config";
+import { emptySamplingPlan, withCount, type SamplingPlanData } from "./schema";
 
 const LEVEL_I: SamplingPlanConfig = { ...SAMPLING_PLAN_DEFAULT_CONFIG, inspectionLevel: "I" };
 const noop = () => {};
@@ -69,7 +70,7 @@ describe("sampling_plan Capture", () => {
     const labels = { ...SAMPLING_PLAN_LABELS, innerUnits: "Inner pack", glovesPhysical: "# gloves for Tensile" };
     const html = render(props(SAFEDON_EG_EXAMPLE, LEVEL_I, labels));
     expect(html).toContain("# gloves for Tensile");
-    expect(html).toContain('aria-label="Inner pack"');
+    expect(html).toContain('aria-label="Inner pack, size XS"');
     expect(html).not.toContain("# gloves for FAB");
     expect(html).not.toContain("Inner Box");
     expect(html).toContain("Sampling Quantity");
@@ -104,7 +105,7 @@ describe("sampling_plan Capture", () => {
     expect(html).toContain("Size M, Case: 3,000 cases sampled, more than the 2,900 cases ordered.");
     const red = redCells(html);
     expect(red).toHaveLength(1);
-    expect(red[0]).toContain('aria-label="Case"');
+    expect(red[0]).toContain('aria-label="Case, size M"');
   });
 
   it("totals the columns over the sizes, as the onsite forms' Total: row", () => {
@@ -131,11 +132,11 @@ describe("sampling_plan Capture", () => {
     const html = render(props(STD_EG_EXAMPLE, config, labels));
     const group = html.indexOf("Sampling Quantity (WTT &amp; Visual)");
     expect(group).toBeGreaterThan(-1);
-    const order = ['aria-label="Case"', 'aria-label="Inner Box"', 'aria-label="Pouches"', 'aria-label="# gloves"', 'aria-label="# gloves for dimension"'];
-    const positions = order.map((text) => html.indexOf(text));
+    const order = ["Case", "Inner Box", "Pouches", "# gloves", "# gloves for dimension"];
+    const positions = order.map((name) => html.indexOf(`aria-label="${name}, size M"`));
     expect(positions.every((position) => position > group)).toBe(true);
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);
-    expect(html).not.toContain('aria-label="Gloves"');
+    expect(html).not.toContain('aria-label="Gloves, size M"');
   });
 
   it("is read-only for an approved inspection: cells become text, tabs still work", () => {
@@ -149,5 +150,50 @@ describe("sampling_plan Capture", () => {
     const html = render({ ...base, context: makeTestContext(), evaluation: null });
     expect(html).toContain("No sizes ordered yet");
     expect(tagsWith(html, "data-enter-field")).toEqual([]);
+  });
+});
+
+describe("sampling_plan Capture writes (useDataUpdater, docs/CAPTURE_KIT.md)", () => {
+  /**
+   * The capture screen under the kit's updater: onChange replaces the data,
+   * and every handler is the one made at the last render, as the Capture's
+   * setCount is.
+   */
+  function screen(start: SamplingPlanData = emptySamplingPlan()) {
+    let data = start;
+    const changes: SamplingPlanData[] = [];
+    const updater = createDataUpdater(data, (next) => {
+      changes.push(next);
+      data = next;
+    });
+    const setCount = (size: string, column: SamplingColumn, value: number | null) =>
+      updater.update((current) => withCount(current, size, column, value));
+    return { setCount, changes, data: () => data };
+  }
+
+  it("keeps both of two counts entered in one event, before the screen renders again", () => {
+    const { setCount, changes, data } = screen();
+    setCount("M", "cases", 50);
+    setCount("M", "glovesWatertightVisual", 500);
+    expect(changes).toHaveLength(2);
+    expect(data().sizes.M).toMatchObject({ cases: 50, glovesWatertightVisual: 500 });
+  });
+
+  it("hands a pasted row of the report's table to onChange once, with every count in it", () => {
+    const { setCount, changes, data } = screen(withCount(emptySamplingPlan(), "XS", "cases", 5));
+    const row: [SamplingColumn, number][] = [
+      ["cases", 50],
+      ["innerUnits", 50],
+      ["gloves", 500],
+      ["glovesWatertightVisual", 500],
+      ["glovesDimensions", 13],
+      ["glovesPhysical", 13],
+      ["innerUnitsDispensing", 13],
+    ];
+    // NumberField fills the run inside batchDataChanges, each field through its own handler.
+    batchDataChanges(() => row.forEach(([column, value]) => setCount("M", column, value)));
+    expect(changes).toHaveLength(1);
+    expect(data().sizes.M).toMatchObject(Object.fromEntries(row));
+    expect(data().sizes.XS.cases).toBe(5);
   });
 });

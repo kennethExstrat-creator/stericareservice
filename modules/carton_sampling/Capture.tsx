@@ -6,7 +6,7 @@
 // the next, and a pasted column or row of numbers fills the cells after the
 // one in focus. A number entered twice or above the order quantity turns red
 // at once, with the problem below the grid and a link back to the cell.
-import { useLayoutEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   EnterGroup,
   EntryProblems,
@@ -17,6 +17,7 @@ import {
   SizeTabs,
   StatusIcon,
   StatusPill,
+  useDataUpdater,
   useIssueFocus,
   type EntryProblem,
 } from "@/components/qc";
@@ -25,7 +26,7 @@ import { cn } from "@/lib/utils";
 import { labelFor, samplingFor, type CaptureProps, type ValidationIssue } from "@/modules/_framework";
 import { gridCell, type CartonSamplingComputed } from "./calc";
 import { GRID_COLUMNS, REPORT_GRID_CELLS, type CartonSamplingConfig } from "./config";
-import type { CartonSamplingData } from "./schema";
+import { withCartonNumber, type CartonSamplingData } from "./schema";
 
 const COLUMN_NUMBERS = Array.from({ length: GRID_COLUMNS }, (_, column) => column);
 
@@ -42,8 +43,9 @@ export default function Capture({
 }: CaptureProps<CartonSamplingData, CartonSamplingConfig, CartonSamplingComputed>) {
   const root = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(context.sizes[0] ?? "");
-  const [rejected, setRejected] = useState<Readonly<Record<string, EntryProblem>>>({});
-  const write = useDataWriter(data, onChange);
+  const [rejected, setRejected] = useState<Readonly<Record<string, RejectedEntry>>>({});
+  // Every write starts from the latest data, so a pasted run of numbers keeps every value (docs/CAPTURE_KIT.md).
+  const update = useDataUpdater(data, onChange);
 
   const label = (key: string) => labelFor(labels, key);
   const sizeName = (size: string) => formatSize(size, { sizes: context.templateSizes });
@@ -66,20 +68,14 @@ export default function Capture({
   });
 
   const setCarton = (size: string, index: number, value: number | null) =>
-    write((current) => {
-      const cells = [...(current.sizes[size]?.cartonNumbers ?? [])];
-      while (cells.length <= index) cells.push(null);
-      cells[index] = value;
-      // Blank cells keep the place of the numbers after them; trailing ones are not kept.
-      while (cells.length > 0 && cells[cells.length - 1] === null) cells.pop();
-      return { ...current, sizes: { ...current.sizes, [size]: { ...current.sizes[size], cartonNumbers: cells } } };
-    });
+    update((current) => withCartonNumber(current, size, index, value));
 
-  const setRejectedEntry = (id: string, name: string, entry: EntryProblem["entry"] | null) =>
+  const setRejectedEntry = (size: string, index: number, name: string, entry: EntryProblem["entry"] | null) =>
     setRejected((current) => {
+      const id = cellId(size, index);
       const next = { ...current };
       delete next[id];
-      if (entry !== null) next[id] = { key: id, label: name, entry, inputId: id };
+      if (entry !== null) next[id] = { key: id, label: name, entry, inputId: id, size, index };
       return next;
     });
 
@@ -94,6 +90,10 @@ export default function Capture({
     const rows = Array.from({ length: Math.ceil(total / GRID_COLUMNS) }, (_, row) => row);
     const positions = positionsOf(cells);
     const cellPath = (index: number) => ["sizes", size, "cartonNumbers", index] as const;
+    // Text that was not stored, listed with a link while its cell is still empty.
+    const problems = Object.values(rejected).filter(
+      (problem) => problem.size === size && (cells[problem.index] ?? null) === null,
+    );
 
     // The cell's own problem, else the problem of a number it shares with another cell.
     const problemAt = (index: number): ValidationIssue | undefined => {
@@ -109,7 +109,7 @@ export default function Capture({
       <div className="space-y-3">
         <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
           <h3 className="text-base font-semibold text-foreground">{caption(size)}</h3>
-          <p className="text-sm text-muted-foreground touch:text-base">
+          <p className="relative text-sm text-muted-foreground touch:text-base">
             {label("samplingQuantity")}{" "}
             <span className="font-semibold text-foreground tabular-nums">
               <Figure value={count} grouping /> / <Figure value={cases} grouping />
@@ -119,7 +119,7 @@ export default function Capture({
         {rows.length > 0 && (
           <EnterGroup
             {...issuePathProps(["sizes", size, "cartonNumbers"])}
-            className="overflow-clip rounded-lg border border-border bg-card"
+            className="relative overflow-clip rounded-lg border border-border bg-card"
           >
             <table className="w-full table-fixed border-separate border-spacing-0 text-sm touch:text-base">
               <caption className="sr-only">{`${title}, ${caption(size)}`}</caption>
@@ -130,7 +130,7 @@ export default function Capture({
                     <th
                       key={column}
                       scope="col"
-                      className="border-b border-l border-border bg-slate-50 px-1 py-1 text-center text-xs font-semibold text-muted-foreground tabular-nums touch:text-sm"
+                      className="border-b border-l border-border bg-slate-50 px-1 py-1 text-center text-sm font-semibold text-muted-foreground tabular-nums touch:text-base"
                     >
                       {column + 1}
                     </th>
@@ -142,7 +142,7 @@ export default function Capture({
                   <tr key={row} className="[&:last-child>*]:border-b-0">
                     <th
                       scope="row"
-                      className="border-b border-border bg-slate-50 text-center text-xs font-semibold text-muted-foreground tabular-nums touch:text-sm"
+                      className="border-b border-border bg-slate-50 text-center text-sm font-semibold text-muted-foreground tabular-nums touch:text-base"
                     >
                       {row + 1}
                     </th>
@@ -167,7 +167,7 @@ export default function Capture({
                             error={problemAt(index)?.message ?? null}
                             issuePath={cellPath(index)}
                             onFocus={() => onFocusChange?.(value === null ? { size } : { size, box: value })}
-                            onInvalidChange={(entry) => setRejectedEntry(id, name, entry)}
+                            onInvalidChange={(entry) => setRejectedEntry(size, index, name, entry)}
                             readOnly={readOnly}
                           />
                         </td>
@@ -179,7 +179,7 @@ export default function Capture({
             </table>
           </EnterGroup>
         )}
-        <EntryProblems problems={Object.values(rejected)} />
+        <EntryProblems problems={problems} />
         {own.length > 0 && (
           <ul className="space-y-1">
             {own.map((issue) => (
@@ -228,6 +228,8 @@ export default function Capture({
   );
 }
 
+type RejectedEntry = EntryProblem & { size: string; index: number };
+
 /** The cells each carton number sits in, in grid order. */
 function positionsOf(cells: readonly (number | null)[]): Map<number, number[]> {
   const positions = new Map<number, number[]>();
@@ -245,19 +247,3 @@ function samePath(path: readonly (string | number)[], target: readonly (string |
   return path.length === target.length && path.every((segment, index) => segment === target[index]);
 }
 
-/**
- * onChange built on the latest data. A pasted column fills several cells in
- * one event, each reporting its value before the screen hands the new data
- * back, so each write starts from the one before, not from the last render.
- */
-function useDataWriter<T>(data: T, onChange: (next: T) => void): (update: (current: T) => T) => void {
-  const latest = useRef(data);
-  useLayoutEffect(() => {
-    latest.current = data;
-  }, [data]);
-  return (update) => {
-    const next = update(latest.current);
-    latest.current = next;
-    onChange(next);
-  };
-}

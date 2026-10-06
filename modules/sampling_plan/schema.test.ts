@@ -22,7 +22,7 @@ import {
   SamplingPlanConfigSchema,
   type SamplingPlanConfig,
 } from "./config";
-import { emptySamplingPlan, emptySamplingSize, SamplingPlanDataSchema } from "./schema";
+import { emptySamplingPlan, emptySamplingSize, SamplingPlanDataSchema, withCount } from "./schema";
 
 const FILLED_M = {
   cases: 50,
@@ -67,6 +67,21 @@ describe("sampling_plan data", () => {
     expect(SamplingPlanDataSchema.safeParse({ sizes: { M: { watertightVisual: 500 } } }).success).toBe(false);
     expect(SamplingPlanDataSchema.safeParse({ sizes: { M: { case: 5 } } }).success).toBe(false);
     expect(SamplingPlanDataSchema.safeParse({ sizes: {}, comment: "x" }).success).toBe(false);
+  });
+
+  it("sets one count of one size and keeps every other size, one no longer ordered included (6.2 rule 4)", () => {
+    const saved = withCount(emptySamplingPlan(), "XS", "cases", 5);
+    const next = withCount(saved, "M", "glovesWatertightVisual", 500);
+    expect(next.sizes).toEqual({
+      XS: { ...emptySamplingSize(), cases: 5 },
+      M: { ...emptySamplingSize(), glovesWatertightVisual: 500 },
+    });
+    expect(saved.sizes).toEqual({ XS: { ...emptySamplingSize(), cases: 5 } });
+    expect(SamplingPlanDataSchema.parse(next)).toEqual(next);
+    // Nothing to change: the same data, so the screen saves nothing.
+    expect(withCount(next, "M", "glovesWatertightVisual", 500)).toBe(next);
+    expect(withCount(next, "L", "cases", null)).toBe(next);
+    expect(withCount(next, "XS", "cases", null).sizes.XS.cases).toBeNull();
   });
 });
 
