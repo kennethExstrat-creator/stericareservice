@@ -93,6 +93,21 @@ describe("SizeTabs", () => {
     expect(html).toContain("Panel XS");
   });
 
+  it("points aria-controls only at panels that are rendered", () => {
+    const tabsMode = tagsWith(render(), 'role="tab"');
+    expect(tabsMode.filter((tab) => tab.includes("aria-controls="))).toHaveLength(1);
+    expect(tabsMode.find((tab) => tab.includes("aria-controls="))).toContain('aria-selected="true"');
+    // Side by side every panel is rendered (hidden below 1280 px but the active one).
+    const sideBySide = tagsWith(render({ wide: "all" }), 'role="tab"');
+    expect(sideBySide.filter((tab) => tab.includes("aria-controls="))).toHaveLength(5);
+  });
+
+  it("lets headers inside stick below its bar", () => {
+    const html = render();
+    expect(html).toContain("[--size-tabs-bar:calc(3.5rem_+_1px)]");
+    expect(html).toContain("touch:[--size-tabs-bar:calc(4.25rem_+_1px)]");
+  });
+
   it("says so while no size is ordered", () => {
     const html = render({ sizes: [] });
     expect(html).not.toContain('role="tablist"');
@@ -119,11 +134,14 @@ describe("SizeStatusStrip", () => {
     const html = renderToStaticMarkup(<SizeStatusStrip sizes={["XS", "M"]} onSelect={noop} />);
     expect(html.match(/<button/g)).toHaveLength(2);
     expect(html).toContain('data-status="not_done"');
+    expect(tagsWith(html, "<button").every((button) => button.includes("touch:text-base") && button.includes("focus-ring"))).toBe(
+      true,
+    );
   });
 });
 
 describe("HandToggle", () => {
-  it("is a radio group of R and L named in full", () => {
+  it("is a radio group of Right and Left named in full", () => {
     const html = renderToStaticMarkup(<HandToggle value="L" onValueChange={noop} />);
     expect(html).toContain('role="radiogroup"');
     expect(html).toContain('aria-label="Hand"');
@@ -131,6 +149,14 @@ describe("HandToggle", () => {
     expect(radios).toHaveLength(2);
     expect(radios.find((radio) => radio.includes('aria-checked="true"'))).toContain('aria-label="Left hand"');
     expect(radios.filter((radio) => radio.includes('tabindex="0"'))).toHaveLength(1);
+  });
+
+  it("shows words, never a lone L that reads like size L", () => {
+    const html = renderToStaticMarkup(<HandToggle value="R" onValueChange={noop} allowBoth />);
+    expect(html).toMatch(/>Right<\/button>/);
+    expect(html).toMatch(/>Left<\/button>/);
+    expect(html).toMatch(/>Both<\/button>/);
+    expect(html).not.toMatch(/>L<\/button>/);
   });
 
   it("offers Both when asked", () => {
@@ -269,11 +295,13 @@ describe("CounterTable", () => {
     expect(html).not.toContain("left hand");
   });
 
-  it("splits each column into R and L sharing one total", () => {
+  it("splits each column into Right and Left sharing one total", () => {
     const html = render({ hands: ["R", "L"] });
     expect(html.match(/role="spinbutton"/g)).toHaveLength(rows.length * columns.length * 2);
     expect(html).toContain('colSpan="2"');
-    expect(html).toContain('<span class="sr-only">Right hand</span>');
+    // Words under the size, so size L over the left hand never reads "L" over "L".
+    expect(html).toContain('Right<span class="sr-only"> hand</span>');
+    expect(html).toContain('Left<span class="sr-only"> hand</span>');
   });
 
   it("shows only the active column below 1280 px", () => {
@@ -281,6 +309,33 @@ describe("CounterTable", () => {
     const hiddenCells = (html.match(/max-xl:hidden/g) ?? []).length;
     // Column S: header, n, limit, 3 rows, total, result.
     expect(hiddenCells).toBe(8);
+  });
+
+  it("shows the first column for an active column that is not one", () => {
+    const html = render({ activeColumn: "XXL" });
+    const heading = (label: string) => new RegExp(`<th[^>]*scope="col"[^>]*>${label}</th>`).exec(html)?.[0] ?? "";
+    expect(heading("S")).not.toContain("hidden");
+    expect(heading("M")).toContain("max-xl:hidden");
+    expect((html.match(/max-xl:hidden/g) ?? []).length).toBe(8);
+  });
+
+  it("says each tap itself, with the total and verdict, instead of the stepper", () => {
+    const html = render();
+    // One polite region for the table; the steppers inside stay quiet.
+    expect(html.match(/aria-live="polite"/g)).toHaveLength(1);
+  });
+
+  it("keeps labels next to their steppers: a fixed label column, a table only as wide as its columns", () => {
+    const html = render();
+    expect(tagsWith(html, 'scope="row"')[0]).toContain("w-64");
+    expect(html).toContain("w-fit max-w-full");
+  });
+
+  it("gives n and the limit 16 px text on touch", () => {
+    const html = render();
+    const info = tagsWith(html, "font-medium text-muted-foreground tabular-nums");
+    expect(info.length).toBeGreaterThan(0);
+    expect(info.every((tag) => tag.includes("touch:text-base"))).toBe(true);
   });
 
   it("flags one-off labels for an admin", () => {
@@ -318,6 +373,73 @@ describe("CounterTable", () => {
   });
 });
 
+describe("CounterTable inside SizeTabs", () => {
+  const rows: CounterRow[] = [{ key: "palm", label: "Palm" }];
+  const columns: CounterColumn[] = ["S", "M"].map((key) => ({ key, label: key, name: `Size ${key}`, limits: { ac: 1, re: 2 } }));
+  const render = (wide: "tabs" | "all", value: string) =>
+    renderToStaticMarkup(
+      <SizeTabs sizes={["S", "M"]} value={value} onValueChange={noop} wide={wide}>
+        <CounterTable
+          caption="Holes"
+          rows={rows}
+          columns={columns}
+          activeColumn={value}
+          getCount={() => 0}
+          onCountChange={noop}
+        />
+      </SizeTabs>,
+    );
+  const heading = (html: string, label: string) =>
+    new RegExp(`<th[^>]*scope="col"[^>]*>${label}</th>`).exec(html)?.[0] ?? "";
+
+  it("shows the size the tabs show, even while the module's value is not ordered", () => {
+    const html = render("tabs", "XXL");
+    expect(tagsWith(html, 'aria-selected="true"')[0]).toContain('data-size="S"');
+    expect(heading(html, "S")).not.toContain("hidden");
+    expect(heading(html, "M")).toContain("hidden");
+  });
+
+  it("keeps one size at every width when SizeTabs keeps its tabs", () => {
+    const html = render("tabs", "M");
+    expect(heading(html, "S")).toMatch(/class="[^"]*(?<![\w:-])hidden/);
+    expect(heading(html, "S")).not.toContain("max-xl:hidden");
+  });
+
+  it("goes side by side from 1280 px with wide=all", () => {
+    expect(heading(render("all", "M"), "S")).toContain("max-xl:hidden");
+  });
+
+  it("shows its own columns in a per-size function panel", () => {
+    const html = renderToStaticMarkup(
+      <SizeTabs sizes={["S", "M"]} value="M" onValueChange={noop}>
+        {(size) => (
+          <CounterTable
+            caption="Boxes"
+            rows={rows}
+            columns={[{ key: "253", label: "Box 253" }, { key: "1102", label: "Box 1102" }]}
+            activeColumn={size === "M" ? "1102" : "253"}
+            getCount={() => 0}
+            onCountChange={noop}
+          />
+        )}
+      </SizeTabs>,
+    );
+    // Not following the tabs: no sticky header, and it may scroll sideways from 1280 px.
+    expect(/<thead[^>]*>/.exec(html)?.[0]).not.toContain("sticky");
+    expect(html).toContain("overflow-clip xl:overflow-x-auto");
+  });
+
+  it("never scrolls sideways, so its header sticks below the size bar and its totals to the bottom", () => {
+    const html = render("tabs", "M");
+    expect(html).toContain("overflow-clip");
+    expect(html).not.toContain("xl:overflow-x-auto");
+    expect(/<thead[^>]*>/.exec(html)?.[0]).toContain(
+      "sticky top-[calc(var(--capture-sticky-top,0px)_+_var(--size-tabs-bar,0px))]",
+    );
+    expect(/<tfoot[^>]*>/.exec(html)?.[0]).toContain("sticky bottom-[var(--capture-sticky-bottom,0px)]");
+  });
+});
+
 describe("NumberField", () => {
   it("labels a decimal field with its unit and hint", () => {
     const html = renderToStaticMarkup(
@@ -348,6 +470,23 @@ describe("NumberField", () => {
     );
     expect(html).toContain('aria-label="Weight, glove 3 (g)"');
     expect(html).toContain('data-variant="cell"');
+  });
+
+  it("names a cell with a hidden label when its label is not plain text", () => {
+    const html = renderToStaticMarkup(
+      <NumberField id="layering-3" variant="cell" label={<b>Layering</b>} unit="%" value={null} onValueChange={noop} />,
+    );
+    expect(html).toContain('<label for="layering-3" class="sr-only"><b>Layering</b> (%)</label>');
+    expect(tagsWith(html, 'id="layering-3"')[0]).not.toContain("aria-label=");
+  });
+
+  it("uses 16 px hints and errors on touch", () => {
+    const html = renderToStaticMarkup(
+      <NumberField label="Weight" hint="From the scale" error="Too heavy." value={9} onValueChange={noop} />,
+    );
+    expect(tagsWith(html, 'id="').filter((tag) => tag.startsWith("<p")).every((tag) => tag.includes("touch:text-base"))).toBe(
+      true,
+    );
   });
 
   it("adds the unit to a cell's name only where the label does not already name it", () => {
@@ -447,6 +586,12 @@ describe("RequirementList", () => {
     expect(html).toContain("@container");
     expect(html).toContain("Spec. (ASTM D6319) ≥ 14.00 MPa");
   });
+
+  it("gives the result pills 16 px text on touch", () => {
+    const pills = tagsWith(html, 'data-slot="status-pill"');
+    expect(pills.length).toBeGreaterThan(0);
+    expect(pills.every((pill) => pill.includes("touch:text-base"))).toBe(true);
+  });
 });
 
 describe("SpecValue", () => {
@@ -493,6 +638,11 @@ describe("Figure", () => {
     expect(html).toContain("tabular-nums");
     expect(html).toContain("2.90");
     expect(html).toContain("> g<");
+  });
+
+  it("prints a computed value without binary noise", () => {
+    expect(renderToStaticMarkup(<Figure value={0.1 + 0.2} />)).toContain(">0.3<");
+    expect(renderToStaticMarkup(<Figure value={(2.9 + 3.1 + 2.8) / 3} unit="g" />)).toContain(">2.93333333333<");
   });
 
   it("attaches % and shows a dash, spoken as No value, for nothing", () => {

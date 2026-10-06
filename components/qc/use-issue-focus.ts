@@ -4,19 +4,19 @@
 // the right size or hand, then the closest control marked with
 // issuePathProps is scrolled into view and focused (issue-path.ts).
 import { useEffect, useEffectEvent, type RefObject } from "react";
-import { focusIssuePath, issuePathKey, type IssuePath } from "./issue-path";
+import { focusIssuePath, type IssuePath } from "./issue-path";
 
 /**
  * Calls `reveal` (switch size or hand), then focuses the closest marked
- * control inside `root` once it is on screen. Runs again whenever the path
- * changes; a null or empty path does nothing.
+ * control inside `root` once it is on screen. Runs once for every new
+ * focusPath array, so a second click on the same issue works when the screen
+ * passes a new array per click (`setFocusPath([...issue.path])`); a re-render
+ * with the same array does nothing. A null or empty path does nothing.
  */
 export function useIssueFocus(
   focusPath: IssuePath | null | undefined,
   { root, reveal }: { root: RefObject<HTMLElement | null>; reveal?: (path: IssuePath) => void },
 ): void {
-  const key = focusPath && focusPath.length > 0 ? issuePathKey(focusPath) : null;
-
   const follow = useEffectEvent((path: IssuePath) => {
     reveal?.(path);
     let frame = 0;
@@ -32,7 +32,7 @@ export function useIssueFocus(
   });
 
   useEffect(() => {
-    if (key === null) return;
-    return follow(JSON.parse(key) as IssuePath);
-  }, [key]);
+    if (!focusPath || focusPath.length === 0) return;
+    return follow(focusPath);
+  }, [focusPath]);
 }
