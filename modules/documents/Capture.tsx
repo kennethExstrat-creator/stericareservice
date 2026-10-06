@@ -4,7 +4,9 @@
 // template switches on, in its order. Verified, not verified or NA is a tap;
 // the reference no. is typed; the expiry date comes from the date picker
 // (6.2 rule 3). The item being worked on is reported as the focus, so a photo
-// or file added now is tagged with it (BUILD_SPEC 8.1).
+// or file added now is tagged with it (BUILD_SPEC 8.1). Each row's chip is
+// calc's result for the item; every change goes through useDataUpdater,
+// built from the latest data (edit.ts).
 import { useId, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { Status } from "@/lib/design/status";
@@ -12,7 +14,16 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Figure, findIssue, issuePathProps, StatusPill, useIssueFocus, type IssuePath } from "@/components/qc";
+import {
+  Figure,
+  findIssue,
+  issuePathProps,
+  StatusPill,
+  useDataUpdater,
+  useIssueFocus,
+  type IssuePath,
+} from "@/components/qc";
+import { SMALL_PILL_TOUCH } from "@/components/qc/status-pill";
 import {
   labelFor,
   type CaptureFocus,
@@ -30,6 +41,7 @@ import {
   type DocumentsConfig,
   type DocumentStatus,
 } from "./config";
+import { withItemValues } from "./edit";
 import type { DocumentEntry, DocumentsData } from "./schema";
 
 /**
@@ -60,18 +72,18 @@ export default function Capture({
   onChange,
   onFocusChange,
 }: CaptureProps<DocumentsData, DocumentsConfig, DocumentsComputed>) {
+  const update = useDataUpdater(data, onChange);
   const items = checklist(config);
   const root = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState<DocumentItem | null>(null);
   useIssueFocus(focusPath, { root });
 
-  // Items the template switches off keep their entries (MODULES.md section 10).
-  const update = (key: DocumentItem, values: Partial<DocumentEntry>) =>
-    onChange({ ...data, items: { ...data.items, [key]: { ...data.items[key], ...values } } });
   const focusItem = (key: DocumentItem) => {
     setActive(key);
     onFocusChange?.(itemFocus(key));
   };
+  // Empty when the module could not be evaluated (invalid data or config), whatever its type says.
+  const computed: Partial<DocumentsComputed> | undefined = evaluation?.computed;
 
   if (items.length === 0) {
     return <p className="text-sm text-muted-foreground touch:text-base">No documents are switched on for this template.</p>;
@@ -85,13 +97,14 @@ export default function Capture({
             key={item.key}
             item={item}
             entry={data.items[item.key]}
-            expired={evaluation?.computed.expired?.[item.key] ?? null}
+            status={computed?.itemStatus?.[item.key] ?? "not_done"}
+            expired={computed?.expired?.[item.key] ?? null}
             labels={labels}
             issues={evaluation?.issues}
             active={active === item.key}
             readOnly={readOnly}
             onFocusItem={() => focusItem(item.key)}
-            onUpdate={(values) => update(item.key, values)}
+            onUpdate={(values) => update((current) => withItemValues(current, item.key, values))}
           />
         ))}
       </ul>
@@ -102,6 +115,7 @@ export default function Capture({
 function DocumentRow({
   item,
   entry,
+  status,
   expired,
   labels,
   issues,
@@ -112,6 +126,8 @@ function DocumentRow({
 }: {
   item: DocumentItemConfig;
   entry: DocumentEntry;
+  /** calc's result for the item. */
+  status: Status;
   expired: boolean | null;
   labels: Labels;
   issues: readonly ValidationIssue[] | undefined;
@@ -124,7 +140,6 @@ function DocumentRow({
   const name = labelFor(labels, item.key);
   const path = (field: keyof DocumentEntry): IssuePath => ["items", item.key, field];
   const expiryIssue = findIssue(issues, path("expiryDate"));
-  const [status, statusLabel] = rowStatus(item, entry, expired, labels);
 
   return (
     <li
@@ -139,13 +154,17 @@ function DocumentRow({
           <p id={`${uid}-name`} className="font-semibold text-foreground touch:text-base">
             {name}
           </p>
-          {item.required && <Badge variant="secondary">Required</Badge>}
+          {item.required && (
+            <Badge variant="secondary" className="touch:h-8 touch:px-3 touch:text-base">
+              {labelFor(labels, "required")}
+            </Badge>
+          )}
         </div>
-        <StatusPill size="sm" status={status} label={statusLabel} />
+        <StatusPill size="sm" status={status} label={chipLabel(status, entry, labels)} className={SMALL_PILL_TOUCH} />
       </div>
 
       <div className="space-y-1.5" {...issuePathProps(path("status"))}>
-        <span id={`${uid}-status`} className="text-sm font-medium xl:sr-only">
+        <span id={`${uid}-status`} className="text-sm font-medium touch:text-base xl:sr-only">
           {labelFor(labels, "status")}
         </span>
         {readOnly ? (
@@ -170,7 +189,7 @@ function DocumentRow({
                 key={value}
                 value={value}
                 className={cn(
-                  "flex-1 rounded-full px-3 data-[state=on]:font-semibold xl:flex-none",
+                  "flex-1 rounded-full px-3 data-[state=on]:font-semibold touch:text-base xl:flex-none",
                   SELECTED_STATUS[value],
                 )}
               >
@@ -213,7 +232,10 @@ function DocumentRow({
             className={cn(expired === true && "border-warn-solid")}
           />
           {expiryIssue && (
-            <p id={`${uid}-expiry-issue`} className="text-sm text-warn touch:text-base">
+            <p
+              id={`${uid}-expiry-issue`}
+              className={cn("text-sm touch:text-base", expiryIssue.level === "error" ? "text-fail" : "text-warn")}
+            >
               {expiryIssue.message}
             </p>
           )}
@@ -229,16 +251,14 @@ function DocumentRow({
   );
 }
 
-/** The row's chip: what the item means for the result, in the template's words. */
-function rowStatus(
-  item: DocumentItemConfig,
-  entry: DocumentEntry,
-  expired: boolean | null,
-  labels: Labels,
-): [Status, string | undefined] {
-  if (entry.status === null) return ["not_done", undefined];
-  const word = labelFor(labels, "status", entry.status);
-  if (item.required && entry.status !== "verified") return ["fail", word];
-  if (expired === true) return ["warn", labelFor(labels, "expired")];
-  return [entry.status === "verified" ? "pass" : "info", word];
+/**
+ * The chip's words for calc's result: the item's status in the template's
+ * wording, "Expired" for a warning. While calc catches up with a tap, a word
+ * that does not fit its verdict gives way to the verdict's own word.
+ */
+function chipLabel(status: Status, entry: DocumentEntry, labels: Labels): string | undefined {
+  if (status === "warn") return labelFor(labels, "expired");
+  if (entry.status === null) return undefined;
+  const fits = status === "pass" ? entry.status === "verified" : (status === "fail" || status === "info") && entry.status !== "verified";
+  return fits ? labelFor(labels, "status", entry.status) : undefined;
 }

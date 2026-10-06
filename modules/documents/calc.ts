@@ -2,6 +2,7 @@
 // an item has expired (its expiry date is before the inspection date, from
 // the context); pass otherwise. Not done while an item on the checklist has no
 // status (6.2 rule 5). Items the template switches off are ignored.
+import type { ModuleStatus } from "@/lib/schemas/module-result";
 import {
   labelFor,
   notDone,
@@ -11,8 +12,15 @@ import {
   type CalcOutput,
   type Labels,
 } from "@/modules/_framework";
-import { checklist, DOCUMENT_STATUSES, type DocumentItem, type DocumentsConfig, type DocumentStatus } from "./config";
-import type { DocumentsData } from "./schema";
+import {
+  checklist,
+  DOCUMENT_STATUSES,
+  type DocumentItem,
+  type DocumentItemConfig,
+  type DocumentsConfig,
+  type DocumentStatus,
+} from "./config";
+import type { DocumentEntry, DocumentsData } from "./schema";
 
 export type DocumentsComputed = {
   /**
@@ -20,6 +28,13 @@ export type DocumentsComputed = {
    * Null when the item is NA, or either date is missing.
    */
   expired: Record<string, boolean | null>;
+  /**
+   * Per item on the checklist, what it means for the result (the chip on its
+   * row): not done without a status; fail when required and not verified;
+   * warn when expired; pass when verified; info when not verified or NA and
+   * not required.
+   */
+  itemStatus: Record<string, ModuleStatus>;
   /** Items on the checklist per status; `open` have none yet. */
   counts: Record<DocumentStatus | "open", number>;
 };
@@ -33,6 +48,13 @@ export function isExpired(expiryDate: string | null, inspectionDate: string | nu
   return expiryDate < inspectionDate;
 }
 
+function itemStatusOf(item: DocumentItemConfig, entry: DocumentEntry, expired: boolean | null): ModuleStatus {
+  if (entry.status === null) return "not_done";
+  if (item.required && entry.status !== "verified") return "fail";
+  if (expired === true) return "warn";
+  return entry.status === "verified" ? "pass" : "info";
+}
+
 export function calcDocuments({
   data,
   config,
@@ -43,12 +65,15 @@ export function calcDocuments({
   const inspectionDate = context.header.inspectionDate;
   const issues: CalcIssue[] = [];
   const expired: Record<string, boolean | null> = {};
+  const itemStatus: Record<string, ModuleStatus> = {};
   const counts: DocumentsComputed["counts"] = { verified: 0, not_verified: 0, na: 0, open: 0 };
 
-  for (const { key } of items) {
+  for (const item of items) {
+    const { key } = item;
     const entry = data.items[key];
     counts[entry.status ?? "open"] += 1;
     expired[key] = entry.status === "na" ? null : isExpired(entry.expiryDate, inspectionDate);
+    itemStatus[key] = itemStatusOf(item, entry, expired[key]);
     if (expired[key] === true) {
       issues.push(
         warningIssue(
@@ -60,16 +85,14 @@ export function calcDocuments({
     }
   }
 
-  const computed = { expired, counts };
+  const computed = { expired, itemStatus, counts };
   if (items.length === 0) {
     return { result: { status: "info", summary: "No documents are switched on." }, computed, issues };
   }
 
   const name = (key: DocumentItem) => labelFor(labels, key);
-  const requiredNotVerified = items.filter(
-    (item) => item.required && (data.items[item.key].status === "not_verified" || data.items[item.key].status === "na"),
-  );
-  const open = items.filter((item) => data.items[item.key].status === null);
+  const requiredNotVerified = items.filter((item) => itemStatus[item.key] === "fail");
+  const open = items.filter((item) => itemStatus[item.key] === "not_done");
   const lapsed = items.filter((item) => expired[item.key] === true);
 
   const parts: string[] = [];

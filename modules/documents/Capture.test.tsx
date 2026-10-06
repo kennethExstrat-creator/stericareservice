@@ -1,6 +1,6 @@
 // Server-rendered markup of the documents capture: the template's items in
 // its order and wording, status by tapping, expiry dates from a date picker,
-// calc's warnings beside the field, and read-only.
+// calc's result per item and its warnings beside the field, and read-only.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { CaptureProps, ModuleEvaluation } from "@/modules/_framework";
@@ -21,15 +21,31 @@ function render(
     labels = DOCUMENTS_LABELS,
     config = DOCUMENTS_DEFAULT_CONFIG,
     broken = false,
-  }: { readOnly?: boolean; labels?: Record<string, string>; config?: DocumentsConfig; broken?: boolean } = {},
+    evaluated = data,
+  }: {
+    readOnly?: boolean;
+    labels?: Record<string, string>;
+    config?: DocumentsConfig;
+    broken?: boolean;
+    /** The data calc last saw, when it lags behind the data on screen. */
+    evaluated?: DocumentsData;
+  } = {},
 ): string {
-  const output = calcDocuments({ data, config, title: DOCUMENTS_TITLE, labels, context: CONTEXT, results: {}, hasData: true });
+  const output = calcDocuments({
+    data: evaluated,
+    config,
+    title: DOCUMENTS_TITLE,
+    labels,
+    context: CONTEXT,
+    results: {},
+    hasData: true,
+  });
   const evaluation: ModuleEvaluation<DocumentsComputed> = {
     key: "documents",
     title: DOCUMENTS_TITLE,
     labels,
     config,
-    data,
+    data: evaluated,
     hasData: true,
     comment: null,
     // What the engine hands over when the module cannot be evaluated: nothing computed.
@@ -103,6 +119,29 @@ describe("documents capture", () => {
       ["fail", "Not verified"],
       ["not_done", "Not done"],
     ]);
+  });
+
+  it("shows calc's result for each item, in the template's words, and its own word while calc catches up", () => {
+    const pills = (html: string) =>
+      Array.from(
+        html.matchAll(/<span data-slot="status-pill" data-status="([a-z_]+)"[^>]*>.*?<span>([^<]*)<\/span><\/span>/g),
+        (match) => [match[1], match[2]],
+      );
+    const labels = { ...DOCUMENTS_LABELS, required: "Mandatory", expired: "Lapsed" };
+    const verified = withIso({ status: "verified" });
+    expect(pills(render(verified, { config: REQUIRED_ISO, labels }))).toEqual([
+      ["pass", "Verified"],
+      ["not_done", "Not done"],
+    ]);
+    // NA was just tapped; calc still says verified: the chip keeps calc's verdict in its own word.
+    expect(pills(render(withIso({ status: "na" }), { config: REQUIRED_ISO, evaluated: verified }))[0]).toEqual([
+      "pass",
+      "Passed",
+    ]);
+    const lapsed = render(withIso({ status: "verified", expiryDate: "2025-01-31" }), { config: REQUIRED_ISO, labels });
+    expect(pills(lapsed)[0]).toEqual(["warn", "Lapsed"]);
+    expect(lapsed).toContain("Mandatory");
+    expect(lapsed).not.toContain("Required");
   });
 
   it("is read-only on an approved inspection: the status becomes its word, fields read-only", () => {

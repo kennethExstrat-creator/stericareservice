@@ -69,6 +69,7 @@ describe("documents", () => {
       result: { status: "pass", summary: "6 Verified." },
       computed: {
         expired: Object.fromEntries(DOCUMENT_ITEMS.map((key) => [key, null])),
+        itemStatus: Object.fromEntries(DOCUMENT_ITEMS.map((key) => [key, "pass"])),
         counts: { verified: 6, not_verified: 0, na: 0, open: 0 },
       },
       issues: [],
@@ -102,6 +103,27 @@ describe("documents", () => {
     });
     expect(output.computed.counts).toEqual({ verified: 1, not_verified: 0, na: 0, open: 5 });
     expect(calcDocuments(input(emptyDocuments())).result.status).toBe("not_done");
+  });
+
+  it("gives each item on the checklist its own result, for the chip on its row", () => {
+    const data = documents({
+      certificateOfAnalysis: { status: "verified" },
+      labTestReports: { status: "not_verified" },
+      sterilisation: { status: "na" },
+      iso13485: { status: "na" },
+      fdaCe: { status: "verified", expiryDate: dayBefore(STD_EG_INSPECTED) },
+    });
+    expect(calcDocuments(input(data, { config: REQUIRE_ISO_AND_FDA })).computed.itemStatus).toEqual({
+      certificateOfAnalysis: "pass",
+      labTestReports: "info",
+      sterilisation: "info",
+      iso13485: "fail",
+      fdaCe: "warn",
+      declarationOfOrigin: "not_done",
+    });
+    // A required item that is verified but expired warns; one not verified fails, expired or not.
+    const expiredRequired = documents({ iso13485: { status: "not_verified", expiryDate: "2020-06-30" } });
+    expect(calcDocuments(input(expiredRequired, { config: REQUIRE_ISO_AND_FDA })).computed.itemStatus.iso13485).toBe("fail");
   });
 
   it("fails before it is complete when a required item is already unverified", () => {
@@ -175,6 +197,7 @@ describe("documents", () => {
     const output = calcDocuments(input(data, { config }));
     expect(output.result).toEqual({ status: "not_done", summary: "Missing: Certificate of analysis." });
     expect(Object.keys(output.computed.expired)).toEqual(["iso13485", "certificateOfAnalysis"]);
+    expect(output.computed.itemStatus).toEqual({ iso13485: "pass", certificateOfAnalysis: "not_done" });
     const done = documents({ iso13485: { status: "verified" }, certificateOfAnalysis: { status: "na" } });
     expect(calcDocuments(input(done, { config })).result).toEqual({ status: "pass", summary: "1 Verified, 1 NA." });
   });
