@@ -37,6 +37,7 @@ import {
   SOURCE_MAX_BYTES,
   SOURCE_TYPE_PROBLEM,
   sourceChangeBlocker,
+  sourceChangeBlockerOf,
   sourceFileName,
   sourceFileProblem,
   sourceFileType,
@@ -294,11 +295,29 @@ describe("source files", () => {
   });
 
   it("lets only a draft no inspection uses change its file", () => {
-    const row = { code: "STD_EG", version: 2 };
+    const row = { version: 2, hasFile: true };
     expect(sourceChangeBlocker({ ...row, status: "draft", usage: 0 })).toBeNull();
-    expect(sourceChangeBlocker({ ...row, status: "active", usage: 0 })).toMatch(/Version 2 is active.*new version/);
-    expect(sourceChangeBlocker({ ...row, status: "retired", usage: 0 })).toMatch(/Version 2 is retired/);
-    expect(sourceChangeBlocker({ ...row, status: "active", usage: 4 })).toMatch(/used by inspections/);
+    expect(sourceChangeBlocker({ ...row, hasFile: false, status: "draft", usage: 0 })).toBeNull();
+    expect(sourceChangeBlocker({ ...row, status: "active", usage: 0 })).toBe(
+      "Version 2 is active, so its source file stays as it was checked. Make a new version to attach a different form.",
+    );
+    expect(sourceChangeBlocker({ ...row, status: "retired", usage: 0 })).toMatch(/^Version 2 is retired, so its source file/);
+    expect(sourceChangeBlocker({ ...row, status: "active", usage: 4 })).toBe(
+      "Version 2 is used by inspections, so its source file stays as it is. Make a new version to attach a different form.",
+    );
+  });
+
+  it("sends a version that never had a file (one added outside the app) to a new version for it", () => {
+    expect(sourceChangeBlocker({ version: 1, hasFile: false, status: "active", usage: 0 })).toBe(
+      "Version 1 is active, and only a draft takes a source file. Make a new version and upload the form to it.",
+    );
+    expect(sourceChangeBlocker({ version: 1, hasFile: false, status: "active", usage: 3 })).toBe(
+      "Version 1 is used by inspections, so it can no longer change. Make a new version and upload the form to it.",
+    );
+    expect(sourceChangeBlockerOf({ version: 1, status: "retired", usage: 0, source_file_path: null })).toMatch(
+      /only a draft takes a source file/,
+    );
+    expect(sourceChangeBlockerOf({ version: 1, status: "draft", usage: 0, source_file_path: "A/v1/x/a.pdf" })).toBeNull();
   });
 
   it("names the file in the definition and the resolved template alike", () => {
@@ -559,6 +578,17 @@ describe("activation", () => {
       "Upload the source form or report first (BUILD_SPEC 4.2 rule 10).",
       "Confirm the coverage checklist first (BUILD_SPEC 4.2 rule 10).",
     ]);
+    expect(activationBlockers(detail({ coverageConfirmedAt: null }), [])).toEqual([
+      "Confirm the coverage checklist first (BUILD_SPEC 4.2 rule 10).",
+    ]);
+  });
+
+  it("sends a retired version without a source file to a new version, which can take one", () => {
+    expect(activationBlockers(detail({ status: "retired", sourceFilePath: null, coverageConfirmedAt: null }), [])).toEqual([
+      "Version 2 has no source file, and only a draft takes one: make a new version, upload the form to it and confirm its checklist (BUILD_SPEC 4.2 rule 10).",
+    ]);
+    // A retired version with its file and checklist goes back to active as it was.
+    expect(activationBlockers(detail({ status: "retired" }), [])).toEqual([]);
   });
 
   it("retires the active version of the code first", () => {
@@ -847,6 +877,9 @@ describe("coverage checklist", () => {
     const checklist = coverageChecklist(stdEg());
     expect(coverageBlocker(detail({ coverageConfirmedAt: null }), checklist)).toBeNull();
     expect(coverageBlocker(detail({ sourceFilePath: null }), checklist)).toMatch(/Upload the source form or report first/);
+    expect(coverageBlocker(detail({ status: "active", sourceFilePath: null }), checklist)).toMatch(
+      /^Version 2 has no source file to check against, and only a draft takes one\. Make a new version/,
+    );
     expect(coverageBlocker(detail({ resolution: { state: "missing" } }), null)).toMatch(/has not resolved/);
   });
 });

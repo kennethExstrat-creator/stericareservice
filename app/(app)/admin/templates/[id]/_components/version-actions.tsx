@@ -40,6 +40,8 @@ export type VersionActionsProps = {
   activeVersion: number | null;
   /** The number a new version gets, as the page counts it. */
   nextVersion: number;
+  /** The code's newest draft, when it is another version: a new version is often not needed. */
+  openDraft: { version: number; href: string } | null;
   usage: number;
   /** Warnings to repeat in the activation dialog: other templates for the same scope, bases moved on. */
   activationWarnings: string[];
@@ -107,7 +109,7 @@ type Confirmation = {
 };
 
 function confirmation(kind: Kind, props: VersionActionsProps): Confirmation {
-  const { code, version, activeVersion, nextVersion, usage } = props;
+  const { code, version, activeVersion, nextVersion, openDraft, usage } = props;
   const fields = { templateId: props.templateId, seen: props.seen };
   const using =
     usage === 0
@@ -156,6 +158,19 @@ function confirmation(kind: Kind, props: VersionActionsProps): Confirmation {
             Version {nextVersion} starts as a draft copy of version {version}, with the same source file, and opens in the
             template editor. Inspections keep using the active version until you activate the new one. Its coverage
             checklist is confirmed again.
+            {openDraft && (
+              <>
+                {" "}
+                Version {openDraft.version} is already a draft of {code}:{" "}
+                <Link
+                  href={openDraft.href}
+                  className="rounded-sm font-medium text-brand-600 underline underline-offset-4 focus-ring"
+                >
+                  open version {openDraft.version}
+                </Link>{" "}
+                to carry on with it instead.
+              </>
+            )}
           </>
         ),
         confirm: "Make new version",

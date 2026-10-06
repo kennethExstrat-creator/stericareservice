@@ -25,7 +25,7 @@ import {
   SOURCE_BUCKET,
   SOURCE_URL_SECONDS,
   SourceConfirmSchema,
-  sourceChangeBlocker,
+  sourceChangeBlockerOf,
   sourceFileExists,
   sourceFileName,
   sourceFileProblem,
@@ -123,7 +123,7 @@ export async function prepareSourceUpload(request: {
       refresh();
       return failed(MESSAGES.notFound);
     }
-    const blocked = sourceChangeBlocker(row);
+    const blocked = sourceChangeBlockerOf(row);
     if (blocked) {
       refresh();
       return failed(blocked);
@@ -165,7 +165,7 @@ export async function confirmSourceUpload(request: { templateId: string; path: s
       }
       // Only an object in this version's own folder, named as prepareSourceUpload() names them.
       if (!isSourceOf(path, row)) return failed(MESSAGES.stale);
-      const blocked = sourceChangeBlocker(row);
+      const blocked = sourceChangeBlockerOf(row);
       if (blocked) {
         refresh();
         return failed(blocked);
@@ -287,7 +287,13 @@ export async function confirmCoverage(_previous: ActionResult, formData: FormDat
     const resolution = parseResolution(row.resolved);
     const checklist = resolution.state === "ok" ? coverageChecklist(resolution.template) : null;
     const blocker = coverageBlocker(
-      { sourceFilePath: row.source_file_path, resolution, coverageConfirmedAt: row.coverage_confirmed_at },
+      {
+        status: row.status,
+        version: row.version,
+        sourceFilePath: row.source_file_path,
+        resolution,
+        coverageConfirmedAt: row.coverage_confirmed_at,
+      },
       checklist,
     );
     if (blocker || !checklist) return failed(blocker ?? MESSAGES.stale);

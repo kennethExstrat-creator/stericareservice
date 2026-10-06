@@ -84,6 +84,8 @@ export default async function TemplateVersionPage({ params }: PageProps<"/admin/
   const stale = staleBasesOf(detail);
   const ties = scopeTies(detail);
   const activeOfCode = detail.versions.find((entry) => entry.status === "active" && entry.id !== detail.id) ?? null;
+  // Newest first: the code's latest draft, when it is another version.
+  const openDraft = detail.versions.find((entry) => entry.status === "draft" && entry.id !== detail.id) ?? null;
   const baseActive = detail.extendsCode
     ? detail.activeTemplates.find((entry) => entry.code === detail.extendsCode) ?? null
     : null;
@@ -129,6 +131,7 @@ export default async function TemplateVersionPage({ params }: PageProps<"/admin/
             activationBlockersId={blockersId}
             activeVersion={activeOfCode?.version ?? null}
             nextVersion={nextVersionOf(detail.versions)}
+            openDraft={openDraft ? { version: openDraft.version, href: templatePath(openDraft.id) } : null}
             usage={detail.usage}
             activationWarnings={[
               ...ties.map(
@@ -174,7 +177,7 @@ export default async function TemplateVersionPage({ params }: PageProps<"/admin/
               <SourceFile
                 templateId={detail.id}
                 file={source ? sourceView(source) : null}
-                changeBlocked={sourceChangeBlocker(detail)}
+                changeBlocked={sourceChangeBlocker({ ...detail, hasFile: detail.sourceFilePath !== null })}
                 coverageConfirmed={detail.coverageConfirmedAt !== null}
                 bucket={SOURCE_BUCKET}
                 accept={SOURCE_ACCEPT}

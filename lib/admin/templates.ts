@@ -713,6 +713,13 @@ export function activationBlockers(
     const names = problems.map((problem) => problem.title).join(", ");
     blockers.push(`Settings of ${names} no longer fit the module${problems.length === 1 ? "" : "s"}. Make a new version and fix them in the editor.`);
   }
+  if (detail.sourceFilePath === null && detail.status !== "draft") {
+    // Only a draft takes a source file, and the checklist is checked against it.
+    blockers.push(
+      `Version ${detail.version} has no source file, and only a draft takes one: make a new version, upload the form to it and confirm its checklist (BUILD_SPEC 4.2 rule 10).`,
+    );
+    return blockers;
+  }
   if (detail.sourceFilePath === null) blockers.push("Upload the source form or report first (BUILD_SPEC 4.2 rule 10).");
   if (detail.coverageConfirmedAt === null) blockers.push("Confirm the coverage checklist first (BUILD_SPEC 4.2 rule 10).");
   return blockers;
@@ -1241,13 +1248,17 @@ export function coverageChecklist(template: ResolvedTemplate): CoverageChecklist
 
 /** Why coverage cannot be confirmed yet, or null when the admin may confirm it. */
 export function coverageBlocker(
-  detail: Pick<TemplateVersionDetail, "sourceFilePath" | "resolution" | "coverageConfirmedAt">,
+  detail: Pick<TemplateVersionDetail, "status" | "version" | "sourceFilePath" | "resolution" | "coverageConfirmedAt">,
   checklist: CoverageChecklist | null,
 ): string | null {
   if (detail.resolution.state !== "ok" || !checklist) {
     return "This version has not resolved, so there is nothing to check yet. Fix it in the editor first.";
   }
-  if (detail.sourceFilePath === null) return "Upload the source form or report first: the checklist is checked against it.";
+  if (detail.sourceFilePath === null) {
+    return detail.status === "draft"
+      ? "Upload the source form or report first: the checklist is checked against it."
+      : `Version ${detail.version} has no source file to check against, and only a draft takes one. Make a new version, upload the form to it and confirm its checklist there.`;
+  }
   if (checklist.blocking) {
     const count = checklist.missing;
     return `${count} ${count === 1 ? "field" : "fields"} of the source ${count === 1 ? "is" : "are"} not in this version. Nothing may be lost (BUILD_SPEC 4.2 rule 2): make a new version that keeps ${count === 1 ? "it" : "them"}, in a module or a custom module.`;
@@ -1266,20 +1277,40 @@ export function allSectionsTicked(checklist: CoverageChecklist, ticked: readonly
  * Why a version's source file cannot change, or null when it can: only a
  * draft that no inspection uses. An active or retired version was checked
  * and activated against its file; a new version takes a different one.
+ * `hasFile` picks the words: a version that never had a file (one added
+ * outside the app) gets one through a new version too.
  */
 export function sourceChangeBlocker(row: {
-  code: string;
   version: number;
   status: TemplateStatus;
   usage: number;
+  hasFile: boolean;
 }): string | null {
+  const attach = row.hasFile
+    ? "Make a new version to attach a different form."
+    : "Make a new version and upload the form to it.";
   if (row.usage > 0) {
-    return `Version ${row.version} is used by inspections, so its source file stays as it is. Make a new version to attach a different form.`;
+    return row.hasFile
+      ? `Version ${row.version} is used by inspections, so its source file stays as it is. ${attach}`
+      : `Version ${row.version} is used by inspections, so it can no longer change. ${attach}`;
   }
   if (row.status !== "draft") {
-    return `Version ${row.version} is ${TEMPLATE_STATUS_LABEL[row.status].toLowerCase()}, so its source file stays as it was checked. Make a new version to attach a different form.`;
+    const status = TEMPLATE_STATUS_LABEL[row.status].toLowerCase();
+    return row.hasFile
+      ? `Version ${row.version} is ${status}, so its source file stays as it was checked. ${attach}`
+      : `Version ${row.version} is ${status}, and only a draft takes a source file. ${attach}`;
   }
   return null;
+}
+
+/** sourceChangeBlocker() for a row as the actions read it. */
+export function sourceChangeBlockerOf(row: {
+  version: number;
+  status: TemplateStatus;
+  usage: number;
+  source_file_path: string | null;
+}): string | null {
+  return sourceChangeBlocker({ ...row, hasFile: row.source_file_path !== null });
 }
 
 /** `value` (a definition or a resolved template) naming `path` as its source file. */

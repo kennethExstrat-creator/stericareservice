@@ -288,12 +288,17 @@ export function Notices({ view }: { view: NoticesView }) {
   }
   for (const base of stale) {
     notices.push(
-      <Notice key={`stale-${base.code}`} tone="warn" title={`${base.code} has moved on`}>
-        {base.active === null
-          ? `This version was built on ${base.code} version ${base.resolvedWith}, and ${base.code} has no active version now.`
-          : `This version was built on ${base.code} version ${base.resolvedWith}; ${base.code}'s active version is now ${base.active}.`}{" "}
-        A new version takes in its changes.
-      </Notice>,
+      base.active === null ? (
+        <Notice key={`stale-${base.code}`} tone="warn" title={`${base.code} has no active version`}>
+          This version was built on {base.code} version {base.resolvedWith}, which is not active now. It keeps what it took
+          from {base.code}; a new version would be built on {base.code}&rsquo;s newest version.
+        </Notice>
+      ) : (
+        <Notice key={`stale-${base.code}`} tone="warn" title={`${base.code} has moved on`}>
+          This version was built on {base.code} version {base.resolvedWith}; {base.code}&rsquo;s active version is now{" "}
+          {base.active}. A new version takes in its changes.
+        </Notice>
+      ),
     );
   }
   if (ties.length > 0) {

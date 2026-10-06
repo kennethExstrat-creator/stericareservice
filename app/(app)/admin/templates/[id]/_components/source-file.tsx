@@ -78,7 +78,9 @@ export function SourceFile(props: SourceFileProps) {
           </div>
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground touch:text-base">No source file yet. Upload {props.hint}.</p>
+        <p className="text-sm text-muted-foreground touch:text-base">
+          {changeBlocked === null ? `No source file yet. Upload ${props.hint}.` : "No source file."}
+        </p>
       )}
 
       {file?.missing && (
