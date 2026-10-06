@@ -4,6 +4,7 @@ import { useActionState, useId, useRef, useState, type ReactNode, type RefObject
 import { CheckIcon, OctagonXIcon, RotateCcwIcon, TriangleAlertIcon } from "lucide-react";
 import { toast } from "sonner";
 import { StatusPill } from "@/components/qc";
+import { SMALL_PILL_TOUCH } from "@/components/qc/status-pill";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -116,9 +117,15 @@ function ApproveDialog({
             <dt className="text-muted-foreground">Final result</dt>
             <dd>
               {finalResult ? (
-                <StatusPill status={finalResult} variant="solid" size="sm" label={RESULT_LABEL[finalResult]} />
+                <StatusPill
+                  status={finalResult}
+                  variant="solid"
+                  size="sm"
+                  label={RESULT_LABEL[finalResult]}
+                  className={SMALL_PILL_TOUCH}
+                />
               ) : (
-                <StatusPill status="not_done" size="sm" label="Not chosen" />
+                <StatusPill status="not_done" size="sm" label="Not chosen" className={SMALL_PILL_TOUCH} />
               )}
             </dd>
           </div>
@@ -126,7 +133,12 @@ function ApproveDialog({
             <dt className="text-muted-foreground">Suggested result</dt>
             <dd>
               {suggestedResult ? (
-                <StatusPill status={suggestedResult} size="sm" label={RESULT_LABEL[suggestedResult]} />
+                <StatusPill
+                  status={suggestedResult}
+                  size="sm"
+                  label={RESULT_LABEL[suggestedResult]}
+                  className={SMALL_PILL_TOUCH}
+                />
               ) : (
                 <span className="text-muted-foreground">Could not be worked out</span>
               )}

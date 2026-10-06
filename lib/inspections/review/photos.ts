@@ -2,8 +2,10 @@
 // hand, defect or box it was tagged with at capture, in the template's
 // wording. Pure; the loader signs the URLs and looks up defect names.
 import type { PhotoTags } from "@/components/qc/photo-tags";
+import { formatHand, formatSize, formatSizeHand, type SizeOption } from "@/lib/format";
 import { parseTarget } from "@/lib/photos/target";
 import { isModuleKey } from "@/lib/schemas/module-result";
+import { labelFor, type Labels } from "@/modules/_framework";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import type { ReviewEvaluation } from "./evaluate";
 
@@ -34,16 +36,18 @@ export type ReviewPhoto = {
 
 export const UNTAGGED = "Not tagged";
 
-/** Section titles and labels in the template's wording, for photo tags. */
+/** Section titles, labels and sizes in the template's wording, for photo tags. */
 export type SectionWording = {
   title(key: string | null): string;
   /** A defect code as the module labels it, or null when the module has no label for it. */
   defectLabel(key: string | null, code: string): string | null;
+  /** The template's sizes, whose labels ("Medium") name a size. */
+  sizes: readonly SizeOption[];
 };
 
 export function sectionWording(evaluation: ReviewEvaluation): SectionWording {
   const titles = new Map<string, string>();
-  const labels = new Map<string, Readonly<Record<string, string>>>();
+  const labels = new Map<string, Labels>();
   if (evaluation.ok) {
     for (const entry of evaluation.report.modules) {
       titles.set(entry.key, entry.title);
@@ -58,9 +62,13 @@ export function sectionWording(evaluation: ReviewEvaluation): SectionWording {
       return titles.get(key) ?? (isModuleKey(key) ? MODULE_REGISTRY[key].title : key);
     },
     defectLabel: (key, code) => {
-      const label = key ? labels.get(key)?.[code] : undefined;
-      return label?.trim() ? label : null;
+      const moduleLabels = key ? labels.get(key) : undefined;
+      if (!moduleLabels) return null;
+      // labelFor shows the code itself when the module has no label for it.
+      const label = labelFor(moduleLabels, code);
+      return label === code ? null : label;
     },
+    sizes: evaluation.ok ? evaluation.context.templateSizes : [],
   };
 }
 
@@ -89,25 +97,30 @@ export function describePhoto(
   const defect = target.defect
     ? (wording.defectLabel(row.module_key, target.defect) ?? defectNames.get(target.defect) ?? target.defect)
     : undefined;
+  const section = wording.title(row.module_key);
+  const box = target.box !== undefined ? String(target.box) : undefined;
   const tags: PhotoTags = {
-    module: wording.title(row.module_key),
-    ...(target.size ? { size: target.size } : {}),
+    module: section,
+    // PhotoTile says "Size" before it: "Size Medium".
+    ...(target.size ? { size: formatSize(target.size, { sizes: wording.sizes }) } : {}),
     ...(target.hand ? { hand: target.hand } : {}),
     ...(defect ? { defect } : {}),
-    ...(target.box !== undefined ? { box: String(target.box) } : {}),
+    ...(box ? { box } : {}),
   };
+  // "Size M, right hand", as the capture kit names a size and hand.
+  const where = target.size
+    ? formatSizeHand(target.size, target.hand, { sizes: wording.sizes })
+    : target.hand
+      ? formatHand(target.hand).toLowerCase()
+      : undefined;
+  const description = [section, where, defect, box && `Box ${box}`].filter(Boolean).join(", ");
   const caption = row.caption?.trim() ? row.caption.trim() : null;
   return {
     id: row.id,
-    alt: caption ? `${caption} (${tagText(tags)})` : `Photo: ${tagText(tags)}`,
+    alt: caption ? `${caption} (${description})` : `Photo: ${description}`,
     tags,
     caption,
     flagged: row.flagged,
     takenAt: row.taken_at,
   };
-}
-
-function tagText({ module, size, hand, defect, box }: PhotoTags): string {
-  const handName = hand === "R" ? "right hand" : hand === "L" ? "left hand" : hand;
-  return [module, size && `size ${size}`, handName, defect, box && `box ${box}`].filter(Boolean).join(", ");
 }

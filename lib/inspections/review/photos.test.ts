@@ -23,10 +23,11 @@ describe("describePhoto", () => {
   const wording = sectionWording(evaluated());
 
   it("tags a photo with its module and focus in the template's wording", () => {
+    // The template labels size M "Medium".
     expect(describePhoto(photo(), wording)).toEqual({
       id: photo().id,
-      alt: "Photo: Visual Inspection (AQL), size M, right hand, Thin spot on glove body, box 253",
-      tags: { module: "Visual Inspection (AQL)", size: "M", hand: "R", defect: "Thin spot on glove body", box: "253" },
+      alt: "Photo: Visual Inspection (AQL), Size Medium, right hand, Thin spot on glove body, Box 253",
+      tags: { module: "Visual Inspection (AQL)", size: "Medium", hand: "R", defect: "Thin spot on glove body", box: "253" },
       caption: null,
       flagged: false,
       takenAt: "2026-10-05T02:10:00Z",
@@ -36,7 +37,18 @@ describe("describePhoto", () => {
   it("leads the text alternative with the caption", () => {
     expect(describePhoto(photo({ caption: "  Thin spot near the cuff " }), wording)).toMatchObject({
       caption: "Thin spot near the cuff",
-      alt: "Thin spot near the cuff (Visual Inspection (AQL), size M, right hand, Thin spot on glove body, box 253)",
+      alt: "Thin spot near the cuff (Visual Inspection (AQL), Size Medium, right hand, Thin spot on glove body, Box 253)",
+    });
+  });
+
+  it("names a size the template does not label by its value, and a hand without a size", () => {
+    expect(describePhoto(photo({ target: "size:7.0/box:12" }), wording)).toMatchObject({
+      alt: "Photo: Visual Inspection (AQL), Size 7.0, Box 12",
+      tags: { size: "7.0", box: "12" },
+    });
+    expect(describePhoto(photo({ target: "hand:L" }), wording)).toMatchObject({
+      alt: "Photo: Visual Inspection (AQL), left hand",
+      tags: { module: "Visual Inspection (AQL)", hand: "L" },
     });
   });
 

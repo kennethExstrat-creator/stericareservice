@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDateTime, inTemplateOrder, plural, RESULT_LABEL, sizeName } from "./format";
+import { formatDateTime, inTemplateOrder, plural, RESULT_LABEL } from "./format";
 
 describe("formatDateTime", () => {
   it("shows a timestamp in Malaysia time, as the team reads it", () => {
@@ -12,19 +12,6 @@ describe("formatDateTime", () => {
 
   it("shows anything unreadable as it is", () => {
     expect(formatDateTime("not a time")).toBe("not a time");
-  });
-});
-
-describe("sizeName", () => {
-  const context = { templateSizes: [{ value: "M", label: "Medium" }, { value: "L", label: "L" }] };
-
-  it("uses the template's own label", () => {
-    expect(sizeName(context, "M")).toBe("Medium");
-  });
-
-  it("says Size when the label is the size itself, or the template does not list it", () => {
-    expect(sizeName(context, "L")).toBe("Size L");
-    expect(sizeName(context, "7.0")).toBe("Size 7.0");
   });
 });
 

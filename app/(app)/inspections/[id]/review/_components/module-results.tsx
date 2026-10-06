@@ -9,9 +9,11 @@
 import type { ReactNode } from "react";
 import { CircleXIcon, TriangleAlertIcon } from "lucide-react";
 import { StatusPill } from "@/components/qc";
+import { SMALL_PILL_TOUCH } from "@/components/qc/status-pill";
+import { formatNumber, formatSize } from "@/lib/format";
 import { formatInspectionDate } from "@/lib/inspections/format";
 import { isListedIssue, type ReviewEvaluation } from "@/lib/inspections/review/evaluate";
-import { inTemplateOrder, plural, sizeName } from "@/lib/inspections/review/format";
+import { inTemplateOrder, plural } from "@/lib/inspections/review/format";
 import type { CustomModule, Field } from "@/lib/schemas/template";
 import { templateSections } from "@/lib/templates";
 import type { ValidationIssue } from "@/lib/validation";
@@ -141,7 +143,7 @@ function ModuleRow({ entry, issues, context }: { entry: ModuleEvaluation; issues
       id={`module-${entry.key}`}
       dataAttributes={{ "data-module": entry.key, "data-status": result.status }}
       heading={entry.title}
-      badge={<StatusPill status={result.status} size="sm" className="touch:h-7 touch:px-2.5 touch:text-sm" />}
+      badge={<StatusPill status={result.status} size="sm" className={SMALL_PILL_TOUCH} />}
       comment={entry.comment}
       result={
         <>
@@ -153,8 +155,10 @@ function ModuleRow({ entry, issues, context }: { entry: ModuleEvaluation; issues
                 if (!own) return null;
                 return (
                   <li key={size} data-size={size} className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <span className={cn("min-w-18 font-medium text-foreground", TEXT)}>{sizeName(context, size)}</span>
-                    <StatusPill status={own.status} size="sm" />
+                    <span className={cn("min-w-18 font-medium text-foreground", TEXT)}>
+                      {formatSize(size, { sizes: context.templateSizes, prefix: true })}
+                    </span>
+                    <StatusPill status={own.status} size="sm" className={SMALL_PILL_TOUCH} />
                     {own.summary && <span className={cn("text-muted-foreground", TEXT)}>{own.summary}</span>}
                   </li>
                 );
@@ -183,7 +187,8 @@ function CustomRow({
       dataAttributes={{ "data-custom": entry.custom.key }}
       heading={entry.custom.title}
       badge={
-        <span className="inline-flex h-6 items-center rounded-full border border-slate-300 bg-card px-2 text-xs font-semibold text-slate-700 touch:h-7 touch:px-2.5 touch:text-sm">
+        // A pill's size, without a result's colour: extra fields have no verdict.
+        <span className="inline-flex h-6 items-center rounded-full border border-slate-300 bg-card px-2 text-xs font-semibold text-slate-700 touch:h-8 touch:px-3 touch:text-base">
           Extra fields
         </span>
       }
@@ -227,8 +232,6 @@ function IssueList({ title, issues }: { title: string; issues: readonly Validati
  * grid of repeated columns, as lib/validation/custom.ts shapes them.
  * ------------------------------------------------------------------ */
 
-const NUMBER = new Intl.NumberFormat("en-GB", { maximumFractionDigits: 6 });
-
 /** A saved value as text, or null when nothing is entered. */
 export function formatCustomValue(field: Pick<Field, "type" | "unit">, value: unknown): string | null {
   if (value === null || value === undefined) return null;
@@ -238,9 +241,8 @@ export function formatCustomValue(field: Pick<Field, "type" | "unit">, value: un
   }
   if (typeof value === "boolean") return value ? "Yes" : "No";
   if (typeof value === "number") {
-    if (!Number.isFinite(value)) return null;
-    const unit = field.unit ? (field.unit === "%" ? "%" : ` ${field.unit}`) : "";
-    return `${NUMBER.format(value)}${unit}`;
+    // As entered, with thousands separators and the field's unit: "1,250", "240.5 mm", "88%".
+    return formatNumber(value, { grouping: true, unit: field.unit }) || null;
   }
   if (Array.isArray(value)) {
     if (field.type === "photo") return value.length === 0 ? null : plural(value.length, "photo");
@@ -280,7 +282,9 @@ function CustomValues({
       <div className="grid gap-3">
         {context.sizes.map((size) => (
           <div key={size}>
-            <p className={cn("font-medium text-foreground", TEXT)}>{sizeName(context, size)}</p>
+            <p className={cn("font-medium text-foreground", TEXT)}>
+              {formatSize(size, { sizes: context.templateSizes, prefix: true })}
+            </p>
             <FieldList fields={custom.fields} values={recordOf(bySize[size])} />
           </div>
         ))}
@@ -309,7 +313,8 @@ function CustomValues({
             return (
               <tr key={size}>
                 <th scope="row" className="py-1.5 pr-4 font-medium text-foreground">
-                  {sizeName(context, size)}
+                  {/* Under the "Size" column heading: "M", or the template's "Medium". */}
+                  {formatSize(size, { sizes: context.templateSizes })}
                 </th>
                 {custom.fields.map((field) => (
                   <td key={field.key} className="py-1.5 pr-4 text-foreground tabular-nums">

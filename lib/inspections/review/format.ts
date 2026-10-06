@@ -1,7 +1,8 @@
 // Text for the review screen. Times are shown in Malaysia, where the team
 // works and where the database dates every inspection, and are formatted on
 // the server only, so every device reads the same and nothing differs
-// between server and browser.
+// between server and browser. Sizes and numbers come from lib/format, as on
+// the capture screen (docs/CAPTURE_KIT.md).
 import type { InspectionResult } from "@/lib/schemas/common";
 import type { InspectionContext } from "@/modules/_framework";
 
@@ -27,15 +28,6 @@ export const RESULT_LABEL: Readonly<Record<InspectionResult, string>> = {
   fail: "Failed",
   hold: "On hold",
 };
-
-/**
- * A size as the template names it: "Size M", or the template's own label
- * ("Medium") when it has one.
- */
-export function sizeName(context: Pick<InspectionContext, "templateSizes">, size: string): string {
-  const label = context.templateSizes.find((entry) => entry.value === size)?.label;
-  return label && label !== size ? label : `Size ${size}`;
-}
 
 /** Sizes in the order the template lists them; unknown sizes last, as given. */
 export function inTemplateOrder(

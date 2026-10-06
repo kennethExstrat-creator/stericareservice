@@ -5,6 +5,7 @@
 // what BUILD_SPEC asks a panel with nothing connected to say.
 import { SparklesIcon } from "lucide-react";
 import { StatusPill } from "@/components/qc";
+import { SMALL_PILL_TOUCH } from "@/components/qc/status-pill";
 
 export const AI_PANEL_HEADING_ID = "ai-second-opinion";
 
@@ -25,7 +26,7 @@ export function AiPanelSlot({ inspectionId }: { inspectionId: string }) {
             <h2 id={AI_PANEL_HEADING_ID} className="text-lg font-bold text-foreground">
               AI second opinion
             </h2>
-            <StatusPill status="info" size="sm" label="Not connected" />
+            <StatusPill status="info" size="sm" label="Not connected" className={SMALL_PILL_TOUCH} />
           </div>
           <p className="text-base font-medium text-foreground fine:text-sm">AI second opinion not connected</p>
           <p className="max-w-3xl text-sm text-muted-foreground">

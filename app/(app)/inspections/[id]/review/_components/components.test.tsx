@@ -62,7 +62,15 @@ describe("ModuleResults", () => {
     const visual = row(html, "module-visual");
     expect(visual).toContain('data-status="fail"');
     expect(text(visual)).toContain("Visual Inspection (AQL)");
-    expect(text(visual)).toMatch(/Medium Passed .*Size L Failed/);
+    // lib/format's size names: the template labels M "Medium" and L "L".
+    expect(text(visual)).toMatch(/Size Medium Passed .*Size L Failed/);
+  });
+
+  it("sizes every result pill like the capture kit's: 16 px text on the iPad", () => {
+    const pills = [...row(html, "module-visual").matchAll(/<span data-slot="status-pill"[^>]*class="([^"]*)"/g)];
+    // The module's own result, then one per ordered size.
+    expect(pills).toHaveLength(3);
+    for (const [, classes] of pills) expect(classes).toContain("touch:text-base");
   });
 
   it("puts the inspector's comment beside the result", () => {
@@ -110,6 +118,10 @@ describe("formatCustomValue", () => {
     [{ type: "text" as const }, "Blue", "Blue"],
     [{ type: "photo" as const }, ["a", "b"], "2 photos"],
     [{ type: "number" as const }, [1, null, 3], "1, —, 3"],
+    // lib/format: every digit as entered, grouped, without binary noise.
+    [{ type: "number" as const, unit: "mm" as const }, 1234.5, "1,234.5 mm"],
+    [{ type: "number" as const }, 0.1 + 0.2, "0.3"],
+    [{ type: "number" as const, unit: "g" as const }, 0.0125, "0.0125 g"],
   ])("%j shows %j as %j", (field, value, shown) => {
     expect(formatCustomValue(field, value)).toBe(shown);
   });
