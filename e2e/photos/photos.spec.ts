@@ -10,6 +10,7 @@ import {
   listObjects,
   photoRows,
   setInspectionStatus,
+  setPhotoCaption,
   sweepPhotosFixtures,
   type PhotosFixture,
 } from "./fixtures";
@@ -17,6 +18,7 @@ import {
   drawImage,
   expectNoPageScroll,
   expectTouchTarget,
+  holdRowReads,
   holdUploads,
   isTouch,
   labReportPdf,
@@ -111,7 +113,8 @@ test("the inspector adds photos and a lab report, then retags, captions, views a
   });
 
   const jpeg = await drawImage(page, { name: "glove-length.jpg", type: "image/jpeg", width: 3000, height: 2000, label: "Length" });
-  const png = await drawImage(page, { name: "glove-palm.png", type: "image/png", width: 800, height: 600, label: "Palm" });
+  // Portrait, as most iPad camera photos are.
+  const png = await drawImage(page, { name: "glove-palm.png", type: "image/png", width: 600, height: 800, label: "Palm" });
   const dimensions = group(page, "dimensions");
 
   await test.step("two photos wait on the device, with a badge, then upload", async () => {
@@ -129,10 +132,31 @@ test("the inspector adds photos and a lab report, then retags, captions, views a
     await expect(dimensions.getByText("2 photos, 2 not uploaded yet")).toBeVisible();
     await shot(page, "2-waiting");
 
+    // Once uploaded, the page reads their rows: held here, then failed as a dropped connection.
+    const rows = await holdRowReads(page, "inspection_photos");
     await held.release();
-    await expect(dimensions.locator('[data-slot="photo-card"][data-upload-state="uploaded"]')).toHaveCount(2, { timeout: 30_000 });
+    const cards = dimensions.locator('[data-slot="photo-card"]');
+    await expect(cards.and(page.locator('[data-upload-state="uploaded"]'))).toHaveCount(2, { timeout: 30_000 });
+    await expect.poll(() => rows.held()).toBeGreaterThan(0);
+    // Uploaded, rows not read yet: still on screen, from the device's copy.
+    await expect(cards.and(page.locator("[data-pending-row]"))).toHaveCount(2);
+    await expect(dimensions.getByText("2 photos", { exact: true })).toBeVisible();
+    await shot(page, "2-rows-reading");
+    await rows.fail();
+    await expect.poll(() => rows.failed()).toBeGreaterThanOrEqual(2);
+    await expect(cards.and(page.locator("[data-pending-row]"))).toHaveCount(2);
+    await expect(dimensions.getByText("2 photos", { exact: true })).toBeVisible();
+    // The connection is back: the next retry reads them.
+    await rows.release();
+    await expect(cards.and(page.locator("[data-pending-row]"))).toHaveCount(0, { timeout: 30_000 });
+    await expect(cards).toHaveCount(2);
     await expect(page.locator('[data-slot="upload-badge"]')).toHaveCount(0);
     await expect(dimensions.getByText("Uploaded", { exact: true })).toHaveCount(2);
+    // The portrait photo keeps the tile's 4:3 shape, as its landscape neighbour does.
+    for (const image of await dimensions.locator('[data-slot="photo-tile"] > div:first-child').all()) {
+      const box = await image.boundingBox();
+      expect(box!.height / box!.width).toBeCloseTo(0.75, 1);
+    }
   });
 
   await test.step("processing resized, re-encoded and stripped them; rows and thumbnails are in", async () => {
@@ -140,7 +164,7 @@ test("the inspector adds photos and a lab report, then retags, captions, views a
     expect(rows).toHaveLength(2);
     const [big, small] = rows;
     expect(big).toMatchObject({ module_key: "dimensions", target: null, width: 2048, height: 1365, flagged: false });
-    expect(small).toMatchObject({ module_key: "dimensions", target: null, width: 800, height: 600, flagged: false });
+    expect(small).toMatchObject({ module_key: "dimensions", target: null, width: 600, height: 800, flagged: false });
     for (const row of rows) {
       expect(row.created_by).toBe(fixture.inspectorId);
       expect(row.include_in_report).toBe(false);
@@ -180,6 +204,20 @@ test("the inspector adds photos and a lab report, then retags, captions, views a
     await press(card.getByRole("button", { name: /^Edit tags and caption/ }));
     const dialog = page.getByRole("dialog", { name: /^Edit photo/ });
     await expect(dialog).toBeVisible();
+
+    // A refused save keeps what was typed, and focus goes to the field to fix.
+    await chooseOption(page, dialog.getByRole("combobox", { name: "Module" }), TITLES.dispensing_packing);
+    const caption = dialog.getByRole("textbox", { name: "Caption" });
+    const box = dialog.getByRole("textbox", { name: "Box (carton number)" });
+    await caption.fill("Typed caption that must survive");
+    await box.fill("abc");
+    await press(dialog.getByRole("button", { name: "Save" }));
+    await expect(dialog.getByText("Enter the box number in digits.")).toBeVisible();
+    await expect(caption).toHaveValue("Typed caption that must survive");
+    await expect(box).toHaveValue("abc");
+    await expect(box).toBeFocused();
+    await viewportShot(page, "4-edit-field-error");
+
     await chooseOption(page, dialog.getByRole("combobox", { name: "Module" }), TITLES.visual);
     await chooseOption(page, dialog.getByRole("combobox", { name: "Size" }), "M");
     await chooseOption(page, dialog.getByRole("combobox", { name: "Defect" }), THIN_SPOT_LABEL);
@@ -241,6 +279,15 @@ test("the inspector adds photos and a lab report, then retags, captions, views a
     expect(objects.filter((path) => path.includes(bigId))).toHaveLength(2);
   });
 
+  await test.step("back on the gallery after another screen, a change made elsewhere shows", async () => {
+    // Client-side navigation keeps the page and its copy of the photos: shown again, it loads them again.
+    await press(page.getByRole("link", { name: "Inspections", exact: true }).filter({ visible: true }).first());
+    await expect(page).toHaveURL(/\/inspections$/);
+    await setPhotoCaption(bigId, "Caption changed on another device");
+    await page.goBack();
+    await expect(group(page, "visual").locator(`[data-photo-id="${bigId}"]`)).toContainText("Caption changed on another device");
+  });
+
   await test.step("after a reload the thumbnails come from Storage", async () => {
     await page.reload();
     const tile = group(page, "visual").locator(`[data-photo-id="${bigId}"] img`);
@@ -280,6 +327,36 @@ test("offline, photos wait on the device and upload when the connection is back"
   expect(flagged).toMatchObject({ flagged: true, thumb_path: null, width: null, height: null });
   expect(flagged?.storage_path).toMatch(/\.heic$/);
   await shot(page, "9-flagged");
+
+  const card = watertight.locator('[data-slot="photo-card"]');
+  await test.step("full size, the original this browser cannot show reads 'No preview', not a broken image", async () => {
+    await expect(card.and(page.locator("[data-pending-row]"))).toHaveCount(0);
+    await card.getByRole("button", { name: /^Open photo/ }).click();
+    const viewer = page.locator('[data-slot="photo-viewer"]');
+    await expect(viewer.getByText("No preview", { exact: true })).toBeVisible();
+    await expect(viewer.getByText(/This browser could not convert the photo/)).toBeVisible();
+    await expect(viewer.locator("img")).toHaveCount(0);
+    await viewportShot(page, "9-flagged-viewer");
+    await page.keyboard.press("Escape");
+    await expect(viewer).toBeHidden();
+  });
+
+  await test.step("a caption saved while the connection drops is kept for the next try", async () => {
+    await card.getByRole("button", { name: /^Edit tags and caption/ }).click();
+    const dialog = page.getByRole("dialog", { name: /^Edit photo/ });
+    const caption = dialog.getByRole("textbox", { name: "Caption" });
+    await caption.fill("Pinhole at the fingertip, typed offline");
+    await context.setOffline(true);
+    await dialog.getByRole("button", { name: "Save" }).click();
+    await expect(dialog.getByText("Could not reach the server. Check the connection and try again.")).toBeVisible();
+    await expect(caption).toHaveValue("Pinhole at the fingertip, typed offline");
+    await expect(dialog.getByRole("button", { name: "Save" })).toBeFocused();
+    await viewportShot(page, "9-edit-offline");
+    await context.setOffline(false);
+    await dialog.getByRole("button", { name: "Save" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(card).toContainText("Pinhole at the fingertip, typed offline");
+  });
 });
 
 test("the admin chooses report photos", async ({ page, context, baseURL }) => {
@@ -305,9 +382,32 @@ test("the admin chooses report photos", async ({ page, context, baseURL }) => {
 
 test("once submitted, the inspector sees the photos read-only", async ({ page, context, baseURL }) => {
   test.skip(!isDesktop(), "The rights are the same on every device.");
-  await setInspectionStatus(fixture.inspectionId, "submitted");
   await signIn(context, baseURL!, TEST_ACCOUNTS.inspector);
   await page.goto(galleryPath());
+
+  await test.step("a photo still waiting when the inspection is submitted stops, and says what to do", async () => {
+    await chooseOption(page, addCard(page).getByRole("combobox", { name: "Module" }), TITLES.dimensions);
+    const late = await drawImage(page, { name: "late.jpg", type: "image/jpeg", width: 1200, height: 900, label: "Late" });
+    const held = await holdUploads(page, "inspection-photos");
+    await addCard(page).locator('input[data-photo-input="library"]').setInputFiles(late);
+    const card = group(page, "dimensions").locator('[data-slot="photo-card"]');
+    await expect(card).toHaveCount(1);
+    await setInspectionStatus(fixture.inspectionId, "submitted");
+    await held.release();
+    await expect(card).toHaveAttribute("data-upload-state", "failed", { timeout: 30_000 });
+    await expect(card.locator('[data-slot="upload-stopped"]')).toHaveText("Upload stopped");
+    await expect(card).toContainText("This inspection can no longer be changed from this account. Ask an admin to reopen it, then try again.");
+    await expect(card.getByText("Waiting to upload")).toBeHidden();
+    await expect(card).not.toContainText("row-level security");
+    await expect(page.locator('[data-slot="upload-badge"]')).toHaveAttribute("data-state", "failed");
+    await shot(page, "12-upload-stopped");
+    await card.getByRole("button", { name: /^Remove photo/ }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Remove photo" }).click();
+    await expect(card).toHaveCount(0);
+    await expect(page.locator('[data-slot="upload-badge"]')).toHaveCount(0);
+  });
+
+  await page.reload();
   await expect(page.getByText(/This inspection has been submitted/)).toBeVisible();
   await expect(page.getByRole("heading", { name: "Add photos", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^(Edit tags and caption|Delete photo)/ })).toHaveCount(0);

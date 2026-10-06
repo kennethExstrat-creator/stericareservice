@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page, type Route } from "@playwright/test";
 
 export type UploadFile = { name: string; mimeType: string; buffer: Buffer };
 
@@ -170,6 +170,50 @@ export async function holdUploads(page: Page, bucket: string): Promise<{ release
     release: async () => {
       open();
       await page.unroute(pattern, handler);
+    },
+  };
+}
+
+/**
+ * Holds the reads of rows just uploaded (GET /rest/v1/<table>?id=in.(...),
+ * which the page makes once the queue finishes an upload), so the screen can
+ * be seen keeping the photo meanwhile. fail() answers them as a dropped
+ * connection until release(). Every other request passes.
+ */
+export async function holdRowReads(
+  page: Page,
+  table: string,
+): Promise<{ held: () => number; failed: () => number; fail: () => Promise<void>; release: () => Promise<void> }> {
+  let mode: "hold" | "fail" | "pass" = "hold";
+  let failed = 0;
+  const waiting: Route[] = [];
+  const matches = (url: URL) => url.pathname.endsWith(`/rest/v1/${table}`);
+  const handler = async (route: Route) => {
+    const request = route.request();
+    const newRows = request.method() === "GET" && new URL(request.url()).searchParams.get("id")?.startsWith("in.");
+    if (!newRows || mode === "pass") return route.continue().catch(() => undefined);
+    if (mode === "hold") {
+      waiting.push(route);
+      return;
+    }
+    failed++;
+    await route.abort("internetdisconnected").catch(() => undefined);
+  };
+  await page.route(matches, handler);
+  return {
+    held: () => waiting.length,
+    failed: () => failed,
+    fail: async () => {
+      mode = "fail";
+      for (const route of waiting.splice(0)) {
+        failed++;
+        await route.abort("internetdisconnected").catch(() => undefined);
+      }
+    },
+    release: async () => {
+      mode = "pass";
+      for (const route of waiting.splice(0)) await route.continue().catch(() => undefined);
+      await page.unroute(matches, handler);
     },
   };
 }

@@ -268,6 +268,12 @@ export async function photoRows(inspectionId: string) {
   return data;
 }
 
+/** A caption changed from another device (the secret key stands in for it). */
+export async function setPhotoCaption(photoId: string, caption: string): Promise<void> {
+  const { error } = await createTestAdminClient().from("inspection_photos").update({ caption }).eq("id", photoId);
+  if (error) fail("changing a caption", error);
+}
+
 export async function fileRows(inspectionId: string) {
   const { data, error } = await createTestAdminClient()
     .from("inspection_files")
