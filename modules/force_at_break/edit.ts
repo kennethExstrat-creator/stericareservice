@@ -1,7 +1,7 @@
 // Pure edits of the saved data, for Capture and the capture screen. Each
-// returns the whole new data (CaptureProps.onChange) and keeps every saved
-// size, also sizes no longer ordered: their readings return with them
-// (6.2 rule 4).
+// takes the latest data (useDataUpdater's `current`) and returns the whole new
+// data (CaptureProps.onChange), keeping every saved size, also sizes no longer
+// ordered: their readings return with them (6.2 rule 4).
 import { emptyForceAtBreakSize, type ForceAtBreakData } from "./schema";
 
 type Readings = readonly (number | null)[];
@@ -13,14 +13,30 @@ export function withReadings(data: ForceAtBreakData, size: string, values: Readi
 }
 
 /**
- * The grid's column of `rows` cells written over the size's readings. A
- * reading past the grid stays saved, and calc reports it, until the
+ * The grid's edit written over the size's latest readings. MeasurementGrid
+ * hands back its whole column of `rows` cells, built from the readings it was
+ * rendered with (`shown`): only the cells that differ from them are the edit,
+ * so a change the screen has not rendered yet (an earlier cell, a paste) is
+ * kept. A reading past the grid stays saved, and calc reports it, until the
  * inspector clears it: editing a cell never drops it silently.
  */
-export function withGridColumn(data: ForceAtBreakData, size: string, column: Readings, rows: number): ForceAtBreakData {
-  const saved = data.sizes[size]?.values ?? [];
-  const cells = Array.from({ length: rows }, (_, index) => column[index] ?? null);
-  return withReadings(data, size, [...cells, ...saved.slice(rows)]);
+export function withGridEdits(
+  data: ForceAtBreakData,
+  size: string,
+  shown: Readings,
+  column: Readings,
+  rows: number,
+): ForceAtBreakData {
+  const values = [...(data.sizes[size]?.values ?? [])];
+  let edited = false;
+  for (let index = 0; index < rows; index += 1) {
+    const next = column[index] ?? null;
+    if (next === (shown[index] ?? null)) continue;
+    while (values.length < index) values.push(null);
+    values[index] = next;
+    edited = true;
+  }
+  return edited ? withReadings(data, size, values) : data;
 }
 
 /** Saved readings past the n gloves tested, with their positions. */
@@ -30,7 +46,8 @@ export function readingsBeyond(values: Readings, n: number): { index: number; va
 
 /** The size's readings past the n gloves tested, removed. */
 export function withoutReadingsBeyond(data: ForceAtBreakData, size: string, n: number): ForceAtBreakData {
-  return withReadings(data, size, (data.sizes[size]?.values ?? []).slice(0, n));
+  const values = data.sizes[size]?.values ?? [];
+  return readingsBeyond(values, n).length === 0 ? data : withReadings(data, size, values.slice(0, n));
 }
 
 /**

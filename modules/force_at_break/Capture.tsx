@@ -6,7 +6,8 @@
 // pasted column fills down) with the median, spec and verdict live in its
 // footer, and whether the lab report is attached. Wording is the template's
 // (6.2 rule 11); the median and the verdict are computed, never typed
-// (6.2 rule 2). Read-only shows the readings as text.
+// (6.2 rule 2). Read-only shows the readings as text. Every write goes
+// through useDataUpdater, from the latest data (docs/CAPTURE_KIT.md).
 import { useEffect, useEffectEvent, useRef, useState, type RefObject } from "react";
 import { FileCheckIcon, FileTextIcon } from "lucide-react";
 import {
@@ -18,17 +19,19 @@ import {
   MeasurementGrid,
   SizeTabs,
   StatusPill,
+  useDataUpdater,
+  type DataChange,
   type IssuePath,
   type Measure,
 } from "@/components/qc";
 import { Button } from "@/components/ui/button";
-import { formatSize } from "@/lib/format";
-import { formatDecimal, formatReading } from "@/lib/stats";
+import { formatNumber, formatSize, formatSpec } from "@/lib/format";
+import { formatReading } from "@/lib/stats";
 import { cn } from "@/lib/utils";
 import { labelFor, type CaptureProps, type ValidationIssue } from "@/modules/_framework";
 import { forceSpec, plannedReadings, readingsFor, specCaption, type ForceAtBreakSizeComputed } from "./calc";
 import { MAX_READINGS } from "./config";
-import { readingsBeyond, withGridColumn, withoutReadingsBeyond } from "./edit";
+import { readingsBeyond, withGridEdits, withoutReadingsBeyond } from "./edit";
 import type { ForceAtBreakComputed, ForceAtBreakConfig, ForceAtBreakData } from ".";
 
 type Props = CaptureProps<ForceAtBreakData, ForceAtBreakConfig, ForceAtBreakComputed>;
@@ -50,6 +53,7 @@ export default function Capture({
   onFocusChange,
 }: Props) {
   const root = useRef<HTMLDivElement>(null);
+  const update = useDataUpdater(data, onChange);
   const [selected, setSelected] = useState(context.sizes[0] ?? "");
   // A size taken out of the order falls back to the first one ordered.
   const size = context.sizes.includes(selected) ? selected : (context.sizes[0] ?? "");
@@ -86,7 +90,7 @@ export default function Capture({
             context={context}
             evaluation={evaluation}
             readOnly={readOnly}
-            onChange={onChange}
+            update={update}
           />
         )}
       </SizeTabs>
@@ -94,11 +98,12 @@ export default function Capture({
   );
 }
 
-type PanelProps = Pick<Props, "data" | "config" | "title" | "labels" | "context" | "evaluation" | "readOnly" | "onChange"> & {
+type PanelProps = Pick<Props, "data" | "config" | "title" | "labels" | "context" | "evaluation" | "readOnly"> & {
   size: string;
+  update: (change: DataChange<ForceAtBreakData>) => void;
 };
 
-function SizePanel({ size, data, config, title, labels, context, evaluation, readOnly, onChange }: PanelProps) {
+function SizePanel({ size, data, config, title, labels, context, evaluation, readOnly, update }: PanelProps) {
   const panel = useRef<HTMLDivElement>(null);
   const n = readingsFor(context, config, size);
   // Past this many rows a grid is a typing error in the sampling plan, not a test.
@@ -111,19 +116,30 @@ function SizePanel({ size, data, config, title, labels, context, evaluation, rea
     spec: specCaption(labelFor(labels, "specRow"), config.standardLabel),
     result: labelFor(labels, "result"),
   };
-  const beyond = readingsBeyond(values, n);
-  const readingErrors = (evaluation?.issues ?? []).filter(
-    (issue) => issue.level === "error" && issue.size === size && issue.code === "force_reading_not_positive",
+
+  // Readings saved past the gloves tested, and calc's errors on saved readings:
+  // shown with a way to clear or reach them, also when the plan gives no gloves.
+  const notices = (
+    <ReadingNotices
+      size={size}
+      sizeText={sizeText}
+      n={n}
+      values={values}
+      evaluation={evaluation}
+      readOnly={readOnly}
+      onClear={() => update((current) => withoutReadingsBeyond(current, size, n))}
+      onFocusReading={(index) => focusReading(panel.current, index)}
+    />
   );
 
   if (n === 0) {
     return (
-      <p
-        data-panel-size={size}
-        className="rounded-lg border border-dashed border-not-done-border bg-not-done-tint px-4 py-3 text-sm text-not-done touch:text-base"
-      >
-        No gloves to test in the sampling plan for size {sizeText}.
-      </p>
+      <div ref={panel} data-panel-size={size} {...issuePathProps(["sizes", size])} className="space-y-3">
+        <p className="rounded-lg border border-dashed border-not-done-border bg-not-done-tint px-4 py-3 text-sm text-not-done touch:text-base">
+          No gloves to test in the sampling plan for size {sizeText}.
+        </p>
+        {notices}
+      </div>
     );
   }
 
@@ -152,7 +168,7 @@ function SizePanel({ size, data, config, title, labels, context, evaluation, rea
           values={values}
           decimals={config.decimals}
           footer={footer}
-          specText={`≥ ${formatDecimal(config.specMin)}`}
+          specText={formatSpec(forceSpec(config))}
           computed={evaluation?.computed.sizes?.[size]}
         />
       ) : (
@@ -161,36 +177,74 @@ function SizePanel({ size, data, config, title, labels, context, evaluation, rea
           measures={[measure]}
           rows={rows}
           values={{ values }}
-          onValuesChange={(next) => onChange(withGridColumn(data, size, next.values ?? [], rows))}
+          // The grid's column is built from `values`, the readings on screen:
+          // only the cells it changed are written, over the latest readings.
+          onValuesChange={(next) => update((current) => withGridEdits(current, size, values, next.values ?? [], rows))}
           statistic="median"
           labels={footer}
         />
       )}
       <div className="space-y-3 text-sm text-muted-foreground touch:text-base">
         <p>{glovesNote(n, plannedReadings(context, size) !== null)}</p>
-        {beyond.length > 0 && (
-          <div
-            {...issuePathProps(["sizes", size, "values"])}
-            className="space-y-2 rounded-lg border border-fail-border bg-fail-tint px-3 py-2.5 text-fail"
-          >
-            <p>
-              {findIssue(evaluation?.issues, ["sizes", size, "values", beyond[0].index])?.message ??
-                `Size ${sizeText}: readings past the ${n} gloves tested.`}
-            </p>
-            <p className="tabular-nums">
-              {beyond.map(({ index, value }) => `No. ${index + 1}: ${formatReading(value)} N`).join(", ")}
-            </p>
-            {!readOnly && (
-              <Button type="button" variant="outline" size="sm" onClick={() => onChange(withoutReadingsBeyond(data, size, n))}>
-                {beyond.length === 1 ? "Clear the extra reading" : `Clear the ${beyond.length} extra readings`}
-              </Button>
-            )}
-          </div>
-        )}
-        {readingErrors.length > 0 && (
-          <ReadingErrors issues={readingErrors} readOnly={readOnly} onFocusReading={(index) => focusReading(panel.current, index)} />
-        )}
+        {notices}
       </div>
+    </div>
+  );
+}
+
+/**
+ * What needs the inspector beside the grid: readings saved past the n gloves
+ * tested (calc's error, the values, a way to clear them) and calc's errors on
+ * saved readings, each a way back to its cell.
+ */
+function ReadingNotices({
+  size,
+  sizeText,
+  n,
+  values,
+  evaluation,
+  readOnly,
+  onClear,
+  onFocusReading,
+}: {
+  size: string;
+  sizeText: string;
+  n: number;
+  values: readonly (number | null)[];
+  evaluation: Props["evaluation"];
+  readOnly: boolean;
+  onClear: () => void;
+  onFocusReading: (index: number) => void;
+}) {
+  const beyond = readingsBeyond(values, n);
+  const readingErrors = (evaluation?.issues ?? []).filter(
+    (issue) => issue.level === "error" && issue.size === size && issue.code === "force_reading_not_positive",
+  );
+  if (beyond.length === 0 && readingErrors.length === 0) return null;
+  return (
+    <div className="space-y-3 text-sm touch:text-base">
+      {beyond.length > 0 && (
+        <div
+          {...issuePathProps(["sizes", size, "values"])}
+          className="space-y-2 rounded-lg border border-fail-border bg-fail-tint px-3 py-2.5 text-fail"
+        >
+          <p>
+            {findIssue(evaluation?.issues, ["sizes", size, "values", beyond[0].index])?.message ??
+              `Size ${sizeText}: readings past the ${n} gloves tested.`}
+          </p>
+          <p className="tabular-nums">
+            {beyond.map(({ index, value }) => `No. ${index + 1}: ${formatNumber(value, { unit: "N" })}`).join(", ")}
+          </p>
+          {!readOnly && (
+            <Button type="button" variant="outline" size="sm" onClick={onClear}>
+              {beyond.length === 1 ? "Clear the extra reading" : `Clear the ${beyond.length} extra readings`}
+            </Button>
+          )}
+        </div>
+      )}
+      {readingErrors.length > 0 && (
+        <ReadingErrors issues={readingErrors} readOnly={readOnly} onFocusReading={onFocusReading} />
+      )}
     </div>
   );
 }
@@ -337,17 +391,19 @@ function ReadingsTable({
 }
 
 /**
- * Follows the screen's focusPath (an issue link): shows its size, then
- * focuses the reading's cell in that size's grid, or the closest control
- * marked for the path (a reading past the grid goes to its notice). The size
- * renders on a later frame, so it keeps trying for about half a second.
+ * Follows the screen's focusPath (an issue link) as the kit's useIssueFocus
+ * does, but down to the reading's own cell, which MeasurementGrid does not
+ * mark: shows its size, then focuses the cell in that size's grid, or the
+ * closest control marked for the path (a reading past the grid goes to its
+ * notice). Runs once for every new focusPath array, so a second click on the
+ * same issue works; the size renders on a later frame, so it keeps trying for
+ * about half a second.
  */
 function useFollowIssue(
   focusPath: IssuePath | null,
   root: RefObject<HTMLElement | null>,
   reveal: (path: IssuePath) => void,
 ): void {
-  const key = focusPath && focusPath.length > 0 ? issuePathKey(focusPath) : null;
   const follow = useEffectEvent((path: IssuePath) => {
     reveal(path);
     let frame = 0;
@@ -361,9 +417,9 @@ function useFollowIssue(
     return () => cancelAnimationFrame(frame);
   });
   useEffect(() => {
-    if (key === null) return;
-    return follow(JSON.parse(key) as IssuePath);
-  }, [key]);
+    if (!focusPath || focusPath.length === 0) return;
+    return follow(focusPath);
+  }, [focusPath]);
 }
 
 function focusTarget(root: HTMLElement, path: IssuePath): boolean {

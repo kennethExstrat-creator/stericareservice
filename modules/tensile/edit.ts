@@ -1,7 +1,7 @@
 // Pure edits of the saved data, for Capture and the capture screen. Each
-// returns the whole new data (CaptureProps.onChange) and keeps every saved
-// size, also sizes no longer ordered: their averages return with them
-// (6.2 rule 4).
+// takes the latest data (useDataUpdater's `current`) and returns the whole new
+// data (CaptureProps.onChange), keeping every saved size, also sizes no longer
+// ordered: their averages return with them (6.2 rule 4).
 import type { TensileMeasure } from "./config";
 import { emptyTensileSize, type TensileData } from "./schema";
 

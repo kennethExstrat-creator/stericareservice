@@ -147,6 +147,16 @@ describe("force_at_break capture", () => {
     expect(html).not.toContain("<input");
   });
 
+  it("still shows readings saved for a size the plan now gives no gloves, with calc's error and a way to clear them", () => {
+    const context = makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ physical: 0 }) } });
+    const html = render({ context, data: { sizes: { M: { values: [6.5, 6.6] } }, labReport: null } });
+    expect(html).toContain("No gloves to test in the sampling plan for size M.");
+    expect(html).toContain("Size M: 2 readings are entered beyond the 0 gloves tested. Clear them or correct the sampling plan.");
+    expect(html).toContain(">Clear the 2 extra readings</button>");
+    // The issue link lands on the notice.
+    expect(html).toContain('data-issue-path="[&quot;sizes&quot;,&quot;M&quot;,&quot;values&quot;]"');
+  });
+
   it("says no sizes are ordered yet instead of showing a grid", () => {
     const html = render({ context: makeTestContext({ sizes: [] }), data: { sizes: {}, labReport: null } });
     expect(html).toContain("No sizes ordered yet.");

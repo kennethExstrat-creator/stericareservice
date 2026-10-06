@@ -6,7 +6,9 @@
 // reading order), each with its spec and live verdict; sizes as SizeTabs on
 // iPad (swipe, arrow keys) and side by side on desktop; and whether the lab
 // report, which this module requires, is attached. Wording is the
-// template's (6.2 rule 11); verdicts are computed, never typed.
+// template's (6.2 rule 11); verdicts are computed, never typed. Every write
+// goes through useDataUpdater, from the latest data, so a pasted block lands
+// whole in one change (docs/CAPTURE_KIT.md).
 import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
 import { FileCheckIcon, FileTextIcon } from "lucide-react";
 import {
@@ -16,6 +18,7 @@ import {
   NumberField,
   SizeTabs,
   StatusPill,
+  useDataUpdater,
   useIssueFocus,
 } from "@/components/qc";
 import { labelFor, type CaptureProps } from "@/modules/_framework";
@@ -38,6 +41,7 @@ export default function Capture({
 }: CaptureProps<TensileData, TensileConfig, TensileComputed>) {
   const root = useRef<HTMLDivElement>(null);
   const baseId = useId();
+  const update = useDataUpdater(data, onChange);
   const [selected, setSelected] = useState(context.sizes[0] ?? "");
   // A size taken out of the order falls back to the first one ordered.
   const size = context.sizes.includes(selected) ? selected : (context.sizes[0] ?? "");
@@ -88,7 +92,7 @@ export default function Capture({
                     decimals={config.decimals[measure]}
                     min={0}
                     value={value}
-                    onValueChange={(next) => onChange(withAverage(data, shown, measure, next))}
+                    onValueChange={(next) => update((current) => withAverage(current, shown, measure, next))}
                     hint={<SpecHint caption={caption} minimum={formatMinimum(config, measure)} outcome={outcome} />}
                     error={findIssue(evaluation?.issues, path)?.message}
                     issuePath={path}

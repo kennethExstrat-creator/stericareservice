@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { batchDataChanges, createDataUpdater } from "@/components/qc/data-updater";
+import { TENSILE_MEASURES } from "./config";
 import { withAverage, withLabReport } from "./edit";
 import { emptyTensile, TensileDataSchema, type TensileData } from "./schema";
 
@@ -22,6 +24,40 @@ describe("tensile edits", () => {
   it("starts a size that has nothing saved yet", () => {
     expect(withAverage(emptyTensile(), "M", "tensileStrength", 34.03).sizes).toEqual({
       M: { tensileStrength: 34.03, elongationAtBreak: null },
+    });
+  });
+
+  it("lands a pasted block of averages whole, in one change, through the kit's updater (docs/CAPTURE_KIT.md)", () => {
+    const changes: TensileData[] = [];
+    const updater = createDataUpdater(emptyTensile(), (next) => changes.push(next));
+    // The SAFEDON_EG example's averages, pasted into XS's first field: each field
+    // stores its own value in reading order (XS tensile, XS elongation, S tensile, ...).
+    const block = { XS: [34.18, 536], S: [32.99, 547], M: [34.03, 555], L: [33.17, 543] };
+    batchDataChanges(() => {
+      for (const [size, averages] of Object.entries(block)) {
+        TENSILE_MEASURES.forEach((measure, index) =>
+          updater.update((current) => withAverage(current, size, measure, averages[index])),
+        );
+      }
+    });
+    expect(changes).toHaveLength(1);
+    expect(changes[0].sizes).toEqual({
+      XS: { tensileStrength: 34.18, elongationAtBreak: 536 },
+      S: { tensileStrength: 32.99, elongationAtBreak: 547 },
+      M: { tensileStrength: 34.03, elongationAtBreak: 555 },
+      L: { tensileStrength: 33.17, elongationAtBreak: 543 },
+    });
+  });
+
+  it("keeps two changes made before the screen renders again", () => {
+    const changes: TensileData[] = [];
+    const updater = createDataUpdater(SAVED, (next) => changes.push(next));
+    // Two fields of different sizes committed in one event (a blur as the size turns): neither is lost.
+    updater.update((current) => withAverage(current, "XL", "elongationAtBreak", 552));
+    updater.update((current) => withAverage(current, "XS", "tensileStrength", 34.2));
+    expect(changes.at(-1)?.sizes).toEqual({
+      XS: { tensileStrength: 34.2, elongationAtBreak: 536 },
+      XL: { tensileStrength: 31.5, elongationAtBreak: 552 },
     });
   });
 
