@@ -13,12 +13,17 @@ import { createTestAdminClient, deleteTestInspection } from "../support/admin";
 import { TEST_ACCOUNTS } from "../support/session";
 
 /**
- * Temporary rows for the template screens: templates whose code starts with
- * E2E_TEMPLATES, an inspection that uses one (to freeze it), and their files
- * in the template-sources bucket. Created with the secret key and deleted in
- * afterAll (e2e/README.md): Storage files, then inspections through
- * deleteTestInspection(), then the templates. Rows a crashed run left behind
- * are removed by the next run once they are half an hour old.
+ * Temporary rows for the template screens: a client of their own, templates
+ * whose code starts with E2E_TEMPLATES, an inspection that uses one (to
+ * freeze it), and their files in the template-sources bucket. Created with
+ * the secret key and deleted in afterAll (e2e/README.md): Storage files, then
+ * inspections through deleteTestInspection(), then the templates, then the
+ * client. Rows a crashed run left behind are removed by the next run once
+ * they are half an hour old.
+ *
+ * Every template that is ever active here is scoped to the run's own client,
+ * so it can only apply to a new inspection for that client: never to an
+ * inspection someone starts in the shared project meanwhile.
  */
 
 type AdminClient = ReturnType<typeof createTestAdminClient>;
@@ -27,6 +32,10 @@ export const CODE_PREFIX = "E2E_TEMPLATES";
 const RUN = randomBytes(3).toString("hex").toUpperCase();
 const STALE_MS = 30 * 60 * 1000;
 const BUCKET = "template-sources";
+
+/** Clients this spec creates: `E2E templates client <run> (temporary)`. */
+const CLIENT_PREFIX = "E2E templates client";
+const CLIENT_NAME = `${CLIENT_PREFIX} ${RUN} (temporary)`;
 
 /** A seeded manufacturer (supabase/seed.sql uses fixed ids). */
 export const HARTALEGA = "10000000-0000-4000-8000-000000000001";
@@ -43,12 +52,41 @@ function fail(step: string, error: { message: string } | null): never {
  * Definitions
  * ------------------------------------------------------------------ */
 
-/** A base template of its own: no seed in its chain, so no field inventory (the checklist is the last tick). */
-export function rootDefinition(code: string): TemplateDefinition {
+/**
+ * The shared base of ROOT: active from the start, so ROOT's page links to
+ * it. Scoped to the run's client at Hartalega, which no real inspection is
+ * for.
+ */
+export function baseDefinition(code: string, clientId: string): TemplateDefinition {
+  return {
+    code,
+    name: "E2E templates: shared base (temporary)",
+    scope: { productType: "examination", standard: "custom", clientId, manufacturerId: HARTALEGA },
+    unit: "pcs",
+    sizes: [{ value: "M" }],
+    modules: [
+      { key: "header", include: true },
+      { key: "conclusion", include: true },
+    ],
+    report: { title: "E2E templates shared base", showClientLogo: false },
+  };
+}
+
+/**
+ * The template whose whole life the desktop run plays out, scoped to the
+ * run's client. Built on the base above, which is no seed template, so it
+ * has no field inventory: the checklist is the last tick. It lists every
+ * module, so the order is its own.
+ */
+export function rootDefinition(
+  code: string,
+  { baseCode, clientId }: { baseCode: string; clientId: string },
+): TemplateDefinition {
   return {
     code,
     name: "E2E templates: base template (temporary)",
-    scope: { productType: "examination", standard: "custom" },
+    extends: baseCode,
+    scope: { productType: "examination", standard: "custom", clientId },
     unit: "pcs",
     sizes: [{ value: "S" }, { value: "M", label: "Medium" }, { value: "L" }],
     modules: [
@@ -147,6 +185,26 @@ export function resolveFixture(definition: TemplateDefinition, bases: TemplateBa
  * ------------------------------------------------------------------ */
 
 export type FixtureTemplate = { id: string; code: string; version: number };
+
+export type FixtureClient = { id: string; name: string };
+
+/** The run's own client: the scope of every template this spec activates. */
+export async function insertClient(): Promise<FixtureClient> {
+  const { data, error } = await createTestAdminClient()
+    .from("clients")
+    .insert({ name: CLIENT_NAME, notes: "Created and deleted by e2e/templates. Safe to delete." })
+    .select("id, name")
+    .single();
+  if (error) fail("creating the fixture client", error);
+  return data;
+}
+
+/** Whether a client row still exists. */
+export async function clientExists(id: string): Promise<boolean> {
+  const { data, error } = await createTestAdminClient().from("clients").select("id").eq("id", id).maybeSingle();
+  if (error) fail(`reading client ${id}`, error);
+  return data !== null;
+}
 
 export async function insertTemplate(
   definition: TemplateDefinition,
@@ -265,21 +323,21 @@ async function listObjects(admin: AdminClient, folder: string): Promise<string[]
 }
 
 /**
- * Deletes the templates of this run (all of them) and of older runs that are
- * more than half an hour old: their Storage files, the inspections that use
- * them, then the rows. Never touches another code.
+ * Deletes the templates and the client of this run (all of them) and of older
+ * runs that are more than half an hour old: the templates' Storage files,
+ * the inspections that use them, the templates, then the clients. Never
+ * touches another code or another spec's client.
  */
 export async function removeFixtures(): Promise<void> {
   const admin = createTestAdminClient();
+  const staleBefore = Date.now() - STALE_MS;
   const { data: rows, error } = await admin.from("templates").select("id, code, created_at").like("code", "E2E%");
   if (error) fail("finding fixture templates", error);
-  const staleBefore = Date.now() - STALE_MS;
   const mine = rows.filter(
     (row) =>
       row.code.startsWith(`${CODE_PREFIX}_`) &&
       (row.code.startsWith(fixtureCode("")) || Date.parse(row.created_at) < staleBefore),
   );
-  if (mine.length === 0) return;
 
   for (const code of new Set(mine.map((row) => row.code))) {
     const objects = await listObjects(admin, code);
@@ -290,12 +348,29 @@ export async function removeFixtures(): Promise<void> {
   }
 
   const ids = mine.map((row) => row.id);
-  const { data: inspections, error: inspectionError } = await admin.from("inspections").select("id").in("template_id", ids);
-  if (inspectionError) fail("finding fixture inspections", inspectionError);
-  for (const inspection of inspections) await deleteTestInspection(admin, inspection.id);
+  if (ids.length > 0) {
+    const { data: inspections, error: inspectionError } = await admin.from("inspections").select("id").in("template_id", ids);
+    if (inspectionError) fail("finding fixture inspections", inspectionError);
+    for (const inspection of inspections) await deleteTestInspection(admin, inspection.id);
 
-  const deleted = await admin.from("templates").delete().in("id", ids);
-  if (deleted.error) fail("deleting fixture templates", deleted.error);
+    const deleted = await admin.from("templates").delete().in("id", ids);
+    if (deleted.error) fail("deleting fixture templates", deleted.error);
+  }
+
+  // Last: the templates scoped to a client held on to it.
+  const { data: clients, error: clientError } = await admin
+    .from("clients")
+    .select("id, name, created_at")
+    .like("name", `${CLIENT_PREFIX} %`);
+  if (clientError) fail("finding fixture clients", clientError);
+  for (const client of clients) {
+    const thisRun = client.name === CLIENT_NAME;
+    if (!thisRun && Date.parse(client.created_at) >= staleBefore) continue;
+    const { error: deleteError } = await admin.from("clients").delete().eq("id", client.id);
+    // An older run's client that something else now uses stays: it harms nothing.
+    if (deleteError && thisRun) fail(`deleting ${client.name}`, deleteError);
+    if (deleteError) console.warn(`Templates fixture: kept ${client.name}: ${deleteError.message}`);
+  }
 }
 
 /** Whether Storage still holds anything under a code's folder. */
@@ -356,6 +431,20 @@ export async function chooseFile(
     await button.click();
     await (await chooser).setFiles(file);
   }).toPass({ timeout: 30_000 });
+}
+
+/**
+ * Opens a confirmation dialog through its button. Until the page has
+ * hydrated (just after a load or reload) a click does nothing, so it clicks
+ * again until the dialog shows.
+ */
+export async function openDialog(page: Page, button: Locator): Promise<Locator> {
+  const dialog = page.getByRole("alertdialog");
+  await expect(async () => {
+    if ((await dialog.count()) === 0) await button.click();
+    await expect(dialog).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+  return dialog;
 }
 
 /** A tap on the iPads, a click on the desktop. */

@@ -2,14 +2,18 @@ import { expect, test, type Page } from "@playwright/test";
 import { signIn, TEST_ACCOUNTS } from "../support/session";
 import {
   activeVersionOf,
+  baseDefinition,
   childDefinition,
   chooseFile,
+  clientExists,
   expectNoPageScroll,
   fixtureCode,
+  insertClient,
   insertInspection,
   insertTemplate,
   insertUnresolvedTemplate,
   isTouch,
+  openDialog,
   press,
   removeFixtures,
   resolveFixture,
@@ -22,6 +26,7 @@ import {
   templatesOfCode,
   toast,
   watchConsole,
+  type FixtureClient,
   type FixtureTemplate,
 } from "./support";
 
@@ -30,12 +35,14 @@ import {
  * 4.5, 10) against the live project, at the three sizes in
  * playwright.config.ts. Screenshots go to screenshots/templates/.
  *
- * Three temporary templates per run: ROOT, a base template of its own (no
- * field inventory: the checklist is the last tick), CLIENT, a variant of
- * STD_EG (its checklist lists STD_EG's forms), and UNRESOLVED, a draft that
- * never resolved. The full life of a version (upload, confirm, activate,
- * freeze, retire, new version) runs on the desktop only, so each run draws
- * one number from the ref sequence.
+ * A temporary client and four temporary templates per run: BASE, active
+ * from the start, and ROOT, built on it (no field inventory: the checklist
+ * is the last tick), both scoped to the client so neither ever applies to
+ * an inspection someone else starts; CLIENT, a variant of STD_EG (its
+ * checklist lists STD_EG's forms); and UNRESOLVED, a draft that never
+ * resolved. The full life of a version (upload, confirm, frozen by use as a
+ * draft, activate, retire, new version) runs on the desktop only, so each
+ * run draws one number from the ref sequence.
  */
 
 // A Server Action answers with the page re-rendered (refresh()), which a dev
@@ -43,14 +50,22 @@ import {
 const ACTION = { timeout: 30_000 };
 test.describe.configure({ timeout: 120_000 });
 
+let scopeClient: FixtureClient;
+let base: FixtureTemplate;
 let root: FixtureTemplate;
 let client: FixtureTemplate;
 let unresolved: FixtureTemplate;
 
 test.beforeAll(async () => {
   await removeFixtures();
-  const rootDefinitionValue = rootDefinition(fixtureCode("ROOT"));
-  root = await insertTemplate(rootDefinitionValue, resolveFixture(rootDefinitionValue));
+  scopeClient = await insertClient();
+  const baseDefinitionValue = baseDefinition(fixtureCode("BASE"), scopeClient.id);
+  base = await insertTemplate(baseDefinitionValue, resolveFixture(baseDefinitionValue), { status: "active" });
+  const rootDefinitionValue = rootDefinition(fixtureCode("ROOT"), { baseCode: base.code, clientId: scopeClient.id });
+  root = await insertTemplate(
+    rootDefinitionValue,
+    resolveFixture(rootDefinitionValue, [{ definition: baseDefinitionValue, version: 1 }]),
+  );
   const clientDefinitionValue = childDefinition(fixtureCode("CLIENT"));
   client = await insertTemplate(
     clientDefinitionValue,
@@ -61,10 +76,12 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await removeFixtures();
-  // Nothing of this run is left behind: no rows, no files.
+  // Nothing of this run is left behind: no rows, no files, no client.
   expect(await templatesOfCode(root.code)).toEqual([]);
+  expect(await templatesOfCode(base.code)).toEqual([]);
   expect(await storedFiles(root.code)).toEqual([]);
   expect(await storedFiles(client.code)).toEqual([]);
+  expect(await clientExists(scopeClient.id)).toBe(false);
 });
 
 async function asAdmin(page: Page, baseURL: string) {
@@ -105,7 +122,10 @@ test("the list shows every code with its versions, status, scope, base and use",
   const rootRow = rootCard.locator("tbody tr[data-version='1']");
   await expect(rootRow.locator('[data-slot="template-status"]')).toHaveText("Draft");
   await expect(rootRow).toContainText("Examination · Custom standard");
+  // In a column of its own from 1280 px, under the product type below that.
+  await expect(rootRow.getByText(scopeClient.name).filter({ visible: true })).toHaveCount(1);
   await expect(rootRow).toContainText("Not used yet");
+  await expect(page.locator(`section[data-code="${base.code}"]`)).toContainText("Version 1 active · 1 version");
 
   const clientCard = page.locator(`section[data-code="${client.code}"]`);
   await expect(clientCard).toContainText("Hartalega NGC");
@@ -153,15 +173,24 @@ test("a version shows its modules in order, with wording, switches and custom mo
   await press(labels.locator("summary"));
   await expect(labels.getByText("PO / SO Number")).toBeVisible();
 
+  // Its scope and the template it is built on, which is active: a link to that version.
+  const details = page.getByRole("region", { name: "Details" });
+  await expect(details).toContainText(scopeClient.name);
+  const extendsLink = details.getByRole("link", { name: base.code });
+  await expect(extendsLink).toHaveAttribute("href", `/admin/templates/${base.id}`);
+  await expect(details).toContainText(`${base.code}: built on version 1`);
+
   // Draft: edit it in the editor; nothing to activate until the file is in and the checklist confirmed.
   await expect(page.getByRole("link", { name: "Edit draft" })).toHaveAttribute("href", `/admin/templates/${root.id}/edit`);
+  await expect(page.getByRole("button", { name: "New version" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Activate" })).toBeDisabled();
   await expect(page.getByRole("note").filter({ hasText: "Before this version can be activated" })).toContainText(
     "Upload the source form or report first",
   );
   await expect(page.getByRole("button", { name: "Confirm coverage" })).toBeDisabled();
   if (isTouch()) {
-    for (const target of [page.getByRole("button", { name: "Upload source file" }), labels.locator("summary")]) {
+    const targets = [page.getByRole("button", { name: "Upload source file" }), labels.locator("summary"), extendsLink];
+    for (const target of targets) {
       expect((await target.boundingBox())?.height).toBeGreaterThanOrEqual(44);
     }
   }
@@ -276,7 +305,7 @@ test("the checklist is ticked section by section, then confirmed", async ({ page
   await shot(page, "checklist-confirmed");
 });
 
-test("a version's life: source file, coverage, activate, frozen by use, retire, new version", async ({ page, baseURL }) => {
+test("a version's life: source file, coverage, frozen by use, activate, retire, new version", async ({ page, baseURL }) => {
   test.skip(test.info().project.name !== "desktop", "Writes to the shared project: the desktop run covers it.");
   test.setTimeout(300_000);
   const hydration = watchConsole(page);
@@ -322,9 +351,29 @@ test("a version's life: source file, coverage, activate, frozen by use, retire, 
     await expect(page.getByRole("button", { name: "Activate" })).toBeEnabled(ACTION);
   });
 
+  await test.step("a draft an inspection uses is frozen: a new version is the way to change it", async () => {
+    // An admin may start an inspection from a draft (lib/templates selectTemplate).
+    await insertInspection(root.id);
+    await page.reload();
+    await expect(page.getByRole("note").filter({ hasText: "Frozen: used by 1 inspection" })).toContainText(
+      `To change ${root.code}, make a new version.`,
+    );
+    await expect(page.getByRole("link", { name: "Edit draft" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Replace file|Upload source file/ })).toHaveCount(0);
+    await expect(page.getByText("Version 1 is used by inspections, so its source file stays as it is.")).toBeVisible();
+    // Its file and checklist are in, so it can still be activated as it is.
+    await expect(page.getByRole("button", { name: "Activate" })).toBeEnabled();
+    await shot(page, "version-draft-in-use");
+
+    const dialog = await openDialog(page, page.getByRole("button", { name: "New version" }));
+    await expect(dialog).toContainText(`Make version 2 of ${root.code}?`);
+    await expect(dialog).toContainText("starts as a draft copy of version 1, with the same source file,");
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(dialog).toHaveCount(0);
+  });
+
   await test.step("activate it", async () => {
-    await page.getByRole("button", { name: "Activate" }).click();
-    const dialog = page.getByRole("alertdialog");
+    const dialog = await openDialog(page, page.getByRole("button", { name: "Activate" }));
     await expect(dialog).toContainText(`Activate ${root.code} version 1?`);
     await shot(page, "activate-dialog");
     await dialog.getByRole("button", { name: "Activate" }).click();
@@ -334,8 +383,7 @@ test("a version's life: source file, coverage, activate, frozen by use, retire, 
     await shot(page, "version-active");
   });
 
-  await test.step("once an inspection uses it, it is frozen", async () => {
-    await insertInspection(root.id);
+  await test.step("active and in use, it stays frozen", async () => {
     await page.reload();
     await expect(page.getByRole("note").filter({ hasText: "Frozen: used by 1 inspection" })).toContainText(
       "the database refuses any edit to a version an inspection uses",
@@ -347,8 +395,7 @@ test("a version's life: source file, coverage, activate, frozen by use, retire, 
   });
 
   await test.step("retire it", async () => {
-    await page.getByRole("button", { name: "Retire" }).click();
-    const dialog = page.getByRole("alertdialog");
+    const dialog = await openDialog(page, page.getByRole("button", { name: "Retire" }));
     await expect(dialog).toContainText("The inspection that uses it keeps it.");
     await shot(page, "retire-dialog");
     await dialog.getByRole("button", { name: "Retire" }).click();
@@ -359,8 +406,7 @@ test("a version's life: source file, coverage, activate, frozen by use, retire, 
 
   let draftId = "";
   await test.step("make a new version: a draft copy that opens in the editor", async () => {
-    await page.getByRole("button", { name: "New version" }).click();
-    const dialog = page.getByRole("alertdialog");
+    const dialog = await openDialog(page, page.getByRole("button", { name: "New version" }));
     await expect(dialog).toContainText(`Make version 2 of ${root.code}?`);
     await shot(page, "new-version-dialog");
     await dialog.getByRole("button", { name: "Make new version" }).click();
@@ -378,12 +424,13 @@ test("a version's life: source file, coverage, activate, frozen by use, retire, 
     expect(second.source_file_path).toBe(first.source_file_path);
     expect(second.coverage_confirmed_at).toBeNull();
     expect((second.definition as { name: string }).name).toBe((first.definition as { name: string }).name);
+    // Resolved against the base's active version (never a draft of it).
+    expect((await templateRow(second.id)).resolved).toMatchObject({ bases: [{ code: base.code, version: 1 }] });
   });
 
   await test.step("another new version first points to the open draft", async () => {
     await page.goto(`/admin/templates/${root.id}`);
-    await page.getByRole("button", { name: "New version" }).click();
-    const dialog = page.getByRole("alertdialog");
+    const dialog = await openDialog(page, page.getByRole("button", { name: "New version" }));
     await expect(dialog).toContainText(`Make version 3 of ${root.code}?`);
     await expect(dialog).toContainText(`Version 2 is already a draft of ${root.code}`);
     await expect(dialog.getByRole("link", { name: "open version 2" })).toHaveAttribute("href", `/admin/templates/${draftId}`);
