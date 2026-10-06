@@ -92,7 +92,8 @@ describe("header capture", () => {
     for (const value of ["PO-0001 (SO-0001)", "PC-A01"]) expect(html).toContain(`value="${value}"`);
     expect(html).toContain(">Address A</textarea>");
     expect(html).toContain(">Brand A PC-A01 Blue Nitrile</textarea>");
-    expect(tagsWith(html, 'enterKeyHint="next"')).toHaveLength(3);
+    // Enter moves on from each single-line field and each date: three text rows, three dates.
+    expect(tagsWith(html, 'enterKeyHint="next"')).toHaveLength(6);
   });
 
   it("leaves out the rows the template switches off", () => {

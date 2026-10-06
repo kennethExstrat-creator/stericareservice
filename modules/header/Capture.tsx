@@ -120,6 +120,8 @@ export default function Capture({
               max="9999-12-31"
               value={value ?? ""}
               onChange={(event) => pickDate(field, event.target.value === "" ? null : event.target.value)}
+              onKeyDown={nextOnEnter}
+              enterKeyHint="next"
               readOnly={readOnly}
               aria-describedby={warning ? warningId : undefined}
               data-header-field=""
