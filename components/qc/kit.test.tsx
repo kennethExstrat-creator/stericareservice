@@ -4,6 +4,7 @@
 // browser at iPad and desktop sizes (docs/CAPTURE_KIT.md).
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { AttachmentStatus } from "./attachment-status";
 import { BoxPicker } from "./box-picker";
 import { ColumnSwitcher } from "./column-switcher";
 import { CounterTable, type CounterColumn, type CounterRow } from "./counter-table";
@@ -659,6 +660,29 @@ describe("NumberField", () => {
     const html = renderToStaticMarkup(<PercentField label="Layering" value={88} onValueChange={noop} />);
     expect(html).toContain(">%<");
     expect(html).toContain('value="88"');
+  });
+});
+
+describe("AttachmentStatus", () => {
+  it("says whether the file is attached, by name where the screen knows it", () => {
+    const html = renderToStaticMarkup(<AttachmentStatus label="Lab report" attached fileName="lab-0001.pdf" issuePath={["labReport"]} />);
+    expect(html).toContain('data-attached="true"');
+    expect(html).toContain(">lab-0001.pdf<");
+    expect(html).toContain('data-issue-path="[&quot;labReport&quot;]"');
+    expect(renderToStaticMarkup(<AttachmentStatus label="Lab report" attached />)).toContain(">Attached<");
+  });
+
+  it("reads Not done for a required file that is missing, and says why", () => {
+    const html = renderToStaticMarkup(<AttachmentStatus label="Lab report" attached={false} required />);
+    expect(tagsWith(html, 'data-slot="status-pill"')[0]).toContain('data-status="not_done"');
+    expect(html).toContain(">Not attached<");
+    expect(html).toContain("Required before this section is done.");
+  });
+
+  it("is a plain line for an optional file that is missing", () => {
+    const html = renderToStaticMarkup(<AttachmentStatus label="Lab report" attached={false} />);
+    expect(html).not.toContain('data-slot="status-pill"');
+    expect(html).toContain(">Not attached<");
   });
 });
 
