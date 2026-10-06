@@ -52,7 +52,7 @@ export function Logo({ variant = "horizontal", className, sizes, href, loading }
       aria-label="SteriCare home"
       className={cn(
         classes,
-        "rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+        "rounded-md outline-none focus-ring",
       )}
     >
       {image}

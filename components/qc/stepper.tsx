@@ -3,7 +3,8 @@
 // +/- counter for defect counts (BUILD_SPEC 8: counts by tapping, never
 // typing). Holding a button repeats; Arrow, Page, Home and End keys work
 // anywhere in the group. Buttons stay focusable at the limits (aria-disabled)
-// so keyboard focus is never dropped.
+// so keyboard focus is never dropped; a disabled stepper (an approved
+// inspection) leaves the tab order.
 import {
   useEffect,
   useRef,
@@ -31,8 +32,10 @@ type StepperProps = {
   className?: string;
 };
 
+// At a limit a button greys its icon and drops its fill instead of fading as
+// a whole: opacity would fade the focus ring with it.
 const BUTTON =
-  "inline-flex size-8 shrink-0 items-center justify-center rounded-full outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 aria-disabled:cursor-not-allowed aria-disabled:opacity-40 touch:size-11 [&_svg]:size-4 touch:[&_svg]:size-5";
+  "inline-flex size-8 shrink-0 items-center justify-center rounded-full outline-none transition-colors focus-ring-inset aria-disabled:cursor-not-allowed aria-disabled:bg-transparent aria-disabled:text-slate-400 touch:size-11 [&_svg]:size-4 touch:[&_svg]:size-5";
 
 export function Stepper({
   value,
@@ -139,6 +142,7 @@ export function Stepper({
         type="button"
         aria-label={`Decrease ${label}`}
         aria-disabled={!canDecrease}
+        tabIndex={disabled ? -1 : undefined}
         className={cn(BUTTON, "text-foreground hover:bg-muted active:bg-slate-200")}
         onPointerDown={(event) => canDecrease && startRepeat(event, -1)}
         onPointerUp={stopRepeat}
@@ -157,7 +161,7 @@ export function Stepper({
         aria-valuemin={min}
         aria-valuemax={max}
         aria-disabled={disabled || undefined}
-        className="min-w-[3ch] rounded-sm px-1 text-center text-base font-semibold tabular-nums outline-none focus-visible:ring-3 focus-visible:ring-ring/50 touch:text-lg"
+        className="min-w-[3ch] rounded-sm px-1 text-center text-base font-semibold tabular-nums outline-none focus-ring touch:text-lg"
       >
         {value}
       </span>
@@ -165,6 +169,7 @@ export function Stepper({
         type="button"
         aria-label={`Increase ${label}`}
         aria-disabled={!canIncrease}
+        tabIndex={disabled ? -1 : undefined}
         className={cn(BUTTON, "bg-secondary text-secondary-foreground hover:bg-brand-200 active:bg-brand-300")}
         onPointerDown={(event) => canIncrease && startRepeat(event, 1)}
         onPointerUp={stopRepeat}

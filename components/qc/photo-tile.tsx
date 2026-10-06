@@ -91,7 +91,7 @@ export function PhotoTile({
           <button
             type="button"
             onClick={onOpen}
-            className="absolute inset-0 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
+            className="absolute inset-0 outline-none focus-ring-inset focus-visible:inset-ring-4 focus-visible:inset-ring-white"
           >
             <span className="sr-only">Open photo: {alt}</span>
           </button>

@@ -58,12 +58,16 @@ export function ProgressTracker({
   const done = steps.filter((step) => step.state === "done").length;
   const active = steps.find((step) => step.key === activeKey);
 
+  // Bar segments take the ring around them; list rows (a sidebar that may
+  // scroll or clip) take it inside.
+  const focusClass = variant === "list" ? "focus-ring-inset" : "focus-ring";
+
   const item = (step: ProgressStep, content: ReactNode, itemClass: string) =>
     onStepSelect ? (
       <button
         type="button"
         onClick={() => onStepSelect(step.key)}
-        className={cn(itemClass, "outline-none focus-visible:ring-3 focus-visible:ring-ring/50")}
+        className={cn(itemClass, "outline-none", focusClass)}
       >
         {content}
       </button>

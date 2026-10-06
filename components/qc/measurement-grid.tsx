@@ -286,7 +286,7 @@ export function MeasurementGrid({
               <button
                 type="button"
                 onClick={() => focusCell({ row, col })}
-                className="rounded-sm font-semibold underline underline-offset-2 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="rounded-sm font-semibold underline underline-offset-2 outline-none focus-ring-inset"
               >
                 {text.row} {row + 1}, {measure.label}
               </button>
