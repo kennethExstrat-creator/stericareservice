@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { labelOverrides, moduleConfig } from "@/lib/coverage";
+import { STATUS_LABEL } from "@/lib/design/status";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import { evaluateInspection, type CalcInput, type InspectionContext } from "@/modules/_framework";
 import { checkModuleContract, makeTestContext, makeTestTemplate } from "@/modules/_framework/testing";
@@ -12,7 +13,7 @@ import {
   type LabelingSection,
   type ReportSize,
 } from "@/tests/fixtures/examples";
-import { calcLabeling, checkLabel, levelFieldLabel, levelTotal } from "./calc";
+import { calcLabeling, checkLabel, levelFieldLabel, levelLabel, levelTotal } from "./calc";
 import { LABELING_DEFAULT_CONFIG, LABELING_LABELS, LabelingConfigSchema, type LabelingConfig } from "./config";
 import { definition } from "./index";
 import { emptyLabeling, emptyLabelingSize, type LabelingData, type LabelingLevelData, type LabelingSizeData } from "./schema";
@@ -113,6 +114,39 @@ describe("labeling", () => {
       expect(rows(LABELING_DEFAULT_CONFIG, "carton")).toEqual(STD_EG_EXAMPLE.labeling.carton.rows);
       expect(rows(SAFEDON_CONFIG, "inner")).toEqual(SAFEDON_EG_EXAMPLE.labeling.inner.rows);
       expect(rows(SAFEDON_CONFIG, "carton")).toEqual(SAFEDON_EG_EXAMPLE.labeling.carton.rows);
+    });
+
+    it("computes what both reports print per level and size: heading, limit, total and disposition", () => {
+      const reports = [
+        { example: STD_EG_EXAMPLE, config: LABELING_DEFAULT_CONFIG, labels: LABELING_LABELS },
+        { example: SAFEDON_EG_EXAMPLE, config: SAFEDON_CONFIG, labels: SAFEDON_LABELS },
+      ];
+      for (const { example, config, labels } of reports) {
+        const context = makeTestContext({ sizes: example.sizesOrdered });
+        const data = fromFixture(example.labeling, example.sizesOrdered);
+        const output = calcLabeling(input(data, { config, labels, context }));
+        for (const level of ["inner", "carton"] as const) {
+          const printed = example.labeling[level];
+          expect(levelLabel(labels, level)).toBe(printed.printedTitle);
+          for (const size of example.sizesOrdered) {
+            const entry = printed.perSize[size]!;
+            const computed = output.computed.sizes[size][level];
+            expect({ accept: computed.accept, reject: computed.reject }).toEqual(entry.printedLimit);
+            expect(String(computed.total)).toBe(entry.printedTotal);
+            // The chip in the disposition row says what the report prints.
+            expect(STATUS_LABEL[computed.result]).toBe(entry.printedResult);
+          }
+        }
+      }
+    });
+
+    it("words the disposition lines as printed, with STD_EG's carton line [sic] fixed", () => {
+      expect(levelFieldLabel(LABELING_LABELS, "inner", "result")).toBe(STD_EG_EXAMPLE.labeling.inner.printedResultLabel);
+      expect(STD_EG_EXAMPLE.labeling.carton.printedResultLabel).toBe("Disposition - Inner Box (Passed / Failed)");
+      expect(levelFieldLabel(LABELING_LABELS, "carton", "result")).toBe("Disposition - Carton Box (Passed / Failed)");
+      for (const level of ["inner", "carton"] as const) {
+        expect(levelFieldLabel(SAFEDON_LABELS, level, "result")).toBe(SAFEDON_EG_EXAMPLE.labeling[level].printedResultLabel);
+      }
     });
 
     it("B. sizes not ordered (XS, S, L, XL): no tables, no results, although the report printed Passed for them", () => {
@@ -442,5 +476,24 @@ describe("labeling", () => {
       }),
     ]);
     expect(evaluation.suggested.result).toBe("fail");
+  });
+
+  it("refuses text and dates saved in a count through the engine, never a pass (6.2 rules 1, 3 and 5)", () => {
+    // A count that a spreadsheet turned into a date, as the SAFEDON_EG report's watertight total.
+    const template = makeTestTemplate(MODULE_REGISTRY, [{ key: "header", include: false }, "labeling"]);
+    const data = {
+      modules: {
+        labeling: { sizes: { M: { inner: { inspected: "3", defects: { lot_no: "1980-01-01" } }, carton: { inspected: 1 } } } },
+      },
+      custom: {},
+    };
+    const evaluation = evaluateInspection({ template, data, context: makeTestContext({ sizes: ["M"] }) }, MODULE_REGISTRY);
+    const labeling = evaluation.modules.find((entry) => entry.key === "labeling")!;
+    expect(labeling.result.status).toBe("not_done");
+    expect(labeling.issues.filter((issue) => issue.code === "invalid_data").map((issue) => issue.path)).toEqual([
+      ["sizes", "M", "inner", "inspected"],
+      ["sizes", "M", "inner", "defects", "lot_no"],
+    ]);
+    expect(labeling.issues.every((issue) => issue.level === "error" || issue.code === "module_not_done")).toBe(true);
   });
 });
