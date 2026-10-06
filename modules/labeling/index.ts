@@ -21,6 +21,7 @@ export const definition = defineModule<LabelingData, LabelingConfig, LabelingCom
   defaultConfig: LABELING_DEFAULT_CONFIG,
   perSize: true,
   calc: calcLabeling,
+  loadCapture: () => import("./Capture"),
 });
 
 export type { LabelingData } from "./schema";
