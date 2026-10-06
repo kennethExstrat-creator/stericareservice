@@ -12,7 +12,7 @@
 // - config: merged as lib/templates/merge.ts describes, over the module's
 //   default config, then validated by the module's config schema;
 // - order: lib/templates/module-order.ts; header first, conclusion last,
-//   both always included (4.1);
+//   both always included (4.1); order_lots on whenever a per-size module is;
 // - custom modules: inherited; a child's custom module with the same key
 //   replaces the base's in place.
 // Scope, unit, sizes, name and source file are the template's own; the
@@ -82,6 +82,7 @@ export function resolveTemplate(definition: unknown, { getBase, registry }: Reso
     const entry = merged.entries.get(key);
     return entry ? [effectiveModule(entry, registry, problem)] : [];
   });
+  checkSizeSource(modules, registry, problem);
   const customModules = mergeCustomModules(rootFirst);
   checkCustomModules(customModules, modules, registry, problem);
 
@@ -237,6 +238,22 @@ function effectiveModule(
     labels: { ...definition.labels, ...entry.labels },
     config: parsed.success && isJsonObject(parsed.data) ? parsed.data : merged,
   };
+}
+
+/** Per-size modules show only the sizes in order_lots (6.2 rule 4): without it they could never be done. */
+function checkSizeSource(
+  modules: readonly ResolvedModule[],
+  registry: ModuleRegistry,
+  problem: (path: TemplateProblem["path"], message: string) => void,
+): void {
+  const perSize = modules.filter((entry) => entry.include && registry[entry.key].perSize).map((entry) => entry.key);
+  const orderLots = modules.find((entry) => entry.key === "order_lots");
+  if (perSize.length > 0 && !orderLots?.include) {
+    problem(
+      ["modules", "order_lots", "include"],
+      `${perSize.join(", ")} show only the sizes ordered in order_lots, so order_lots must be on.`,
+    );
+  }
 }
 
 function mergeCustomModules(rootFirst: readonly ChainEntry[]): CustomModule[] {

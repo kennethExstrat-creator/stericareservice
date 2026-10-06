@@ -48,6 +48,39 @@ describe("moduleOverrideProblem", () => {
     expect(moduleOverrideProblem(template, "dye_leak")).toContain("not part of template CLIENT_EG");
     expect(moduleOverrideProblem(template, "labelling")).toBe("labelling is not a module.");
   });
+
+  it("keeps on the modules that give other modules their sizes and sample sizes", () => {
+    const template = client();
+    expect(moduleOverrideProblem(template, "order_lots")).toBe(
+      "order_lots gives the ordered sizes, which every per-size module shows (BUILD_SPEC 6.2 rule 4), so it cannot be switched off for one inspection.",
+    );
+    expect(moduleOverrideProblem(template, "sampling_plan")).toContain("sample sizes (n)");
+    // Without them every per-size module would stay not done, with nothing saying why.
+    const applied = applyModuleOverrides(template, { order_lots: OVERRIDE, sampling_plan: OVERRIDE });
+    expect(applied).toEqual(template);
+    expect(excludedForInspection(applied)).toEqual([]);
+  });
+
+  it("keeps on a module whose value a custom field shows (Field.mapsTo)", () => {
+    const template: ResolvedTemplate = {
+      ...client(),
+      customModules: [
+        {
+          key: "client_form",
+          title: "Client form",
+          after: "glove_info",
+          layout: "fields",
+          fields: [{ key: "w", label: "Glove weight", type: "number", unit: "g", mapsTo: "modules.glove_info.indicativeWeight" }],
+        },
+      ],
+    };
+    expect(moduleOverrideProblem(template, "glove_info")).toBe(
+      "Client form: Glove weight shows a value of glove_info, so it cannot be switched off for one inspection.",
+    );
+    expect(applyModuleOverrides(template, { glove_info: OVERRIDE })).toEqual(template);
+    // Other modules still can be.
+    expect(moduleOverrideProblem(template, "packing_config")).toBeNull();
+  });
 });
 
 describe("parseModuleOverrides", () => {

@@ -212,7 +212,7 @@ Values entered once and read by every module that needs them (BUILD_SPEC 8, 6.2 
 
 Readers: `samplingFor(context, size)` (empty values when missing), `cartonsFor(context, size)`, `lotSizeGloves(context, size)` (cases x gloves per case, or null), `sizeLabel(context, size)` (the template's label, e.g. "Medium").
 
-**Any part can be empty.** A source module that is switched off, not filled in, or not built yet leaves its part empty: no sizes, no n, no cartons, no indicative weight. Handle it: a per-size module with no ordered sizes is not done (the framework says so); with no n, it is not done; with no carton list, the box number is entered freely and not checked; with no indicative weight, `weight` has nothing to compare against.
+**Any part can be empty.** A source module that is switched off, not filled in, or not built yet leaves its part empty: no sizes, no n, no cartons, no indicative weight. (`order_lots` and `sampling_plan` cannot be switched off for one inspection, and a template with a per-size module must include `order_lots`, but both can still be empty.) Handle it: a per-size module with no ordered sizes is not done (the framework says so); with no n, it is not done; with no carton list, the box number is entered freely and not checked; with no indicative weight, `weight` has nothing to compare against.
 
 **Source modules contribute.** The six modules in the table implement `contribute({ data, config })` and return only the parts they own (`CONTEXT_SOURCES`). Contributions read only their own saved data, and per-size maps may use any size spelling (the builder normalises and drops unordered sizes). A part another module owns is left out, and a `contribute` that throws gives nothing; either way the inspection still evaluates, without those values, and your module shows a `contribute_failed` error that blocks submit. `checkModuleContract` runs `contribute` on empty data only, so test it on filled data too.
 
@@ -329,7 +329,7 @@ A template (BUILD_SPEC 4.3, `TemplateDefinitionSchema`) lists modules in report 
 
 **Extends.** A child lists only what differs (4.2 rule 9):
 
-- `include`, `title`: the nearest template that sets them wins. Header and conclusion are always on (4.1), first and last.
+- `include`, `title`: the nearest template that sets them wins. Header and conclusion are always on (4.1), first and last. `order_lots` must be on whenever a per-size module is, since it gives them their sizes (rule 4); the resolver reports it otherwise.
 - `labels`: merged key by key over your defaults. `config`: merged as section 6 describes, then validated by your schema.
 - **Order**: the child's list is read top to bottom and each module it lists ends up somewhere after the module listed before it, not necessarily right after. A module the base already has stays put if it already comes after; otherwise it moves to just after it. A new module goes right after the previous entry (to the top, after header, if listed first). Modules the child does not list keep their place, and listing modules in the base's order (to relabel or reconfigure them) moves nothing. So:
   - to add `tensile` after `weight`, list `weight` then `tensile`;
@@ -343,7 +343,11 @@ A template (BUILD_SPEC 4.3, `TemplateDefinitionSchema`) lists modules in report 
 
 **Until your module is built** its stub accepts any config, so seed templates can be written now. Once your schema is in, every seed template must still resolve: check them in a test with `resolveTemplateOrThrow`.
 
-**Choosing a template** (4.4): `selectTemplate` picks the most specific active template (client and manufacturer, client, manufacturer, standard), or an admin's override. An admin can switch a module off for one inspection with a reason (`module_overrides`); `applyModuleOverrides` gives the inspection's copy of the template, which the context, the engine and the export all use.
+**Choosing a template** (4.4): `selectTemplate` picks the most specific active template (client and manufacturer, client, manufacturer, standard), or an admin's override. An admin can switch a module off for one inspection with a reason (`module_overrides`); `applyModuleOverrides` gives the inspection's copy of the template, which the context, the engine and the export all use. Some modules cannot be switched off for one inspection, and `moduleOverrideProblem` says why (`applyModuleOverrides` ignores such overrides):
+
+- `header` and `conclusion`: always on;
+- `order_lots` and `sampling_plan`: they give the ordered sizes and the sample sizes (n) other modules need; without them every per-size module would stay not done with nothing saying why. Switch off the modules that use them instead;
+- a module whose value a custom field shows (`mapsTo`): the field would show and edit a switched-off module.
 
 **Versions** (4.2 rule 8): `planTemplateEdit` edits an unused draft in place and makes a new version of anything else; `planActivation` requires the coverage checklist and retires the active version first. The database freezes a version once an inspection uses it.
 

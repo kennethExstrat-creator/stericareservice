@@ -75,13 +75,13 @@ describe("resolveTemplate: a template without a base", () => {
     const definition = {
       ...baseEg(),
       modules: [
-        { key: "weight", include: true },
+        { key: "packing_config", include: true },
         { key: "conclusion", include: true },
         { key: "glove_info", include: true },
       ],
     };
     const template = resolved(definition);
-    expect(keys(template)).toEqual(["header", "weight", "glove_info", "conclusion"]);
+    expect(keys(template)).toEqual(["header", "packing_config", "glove_info", "conclusion"]);
     expect(moduleOf(template, "header")).toMatchObject({ include: true, title: "Manufacturer Information" });
   });
 
@@ -285,6 +285,27 @@ describe("resolveTemplate: problems", () => {
     const child = clientEg();
     const index = child.modules.push({ key: "conclusion", include: false }) - 1;
     expect(problemsOf(child)).toEqual([expect.objectContaining({ template: "CLIENT_EG", path: ["modules", index, "include"] })]);
+  });
+
+  it("requires order_lots while a per-size module is on: it gives them their sizes (6.2 rule 4)", () => {
+    const child = clientEg();
+    child.modules.push({ key: "order_lots", include: false });
+    expect(problemsOf(child)).toEqual([
+      {
+        template: "CLIENT_EG",
+        path: ["modules", "order_lots", "include"],
+        message:
+          "sampling_plan, carton_sampling, dimensions, weight, tensile, dispensing_safedon, watertight, visual, labeling show only the sizes ordered in order_lots, so order_lots must be on.",
+      },
+    ]);
+    const withoutPerSize = {
+      ...baseEg(),
+      modules: [
+        { key: "glove_info", include: true },
+        { key: "packing_config", include: true },
+      ],
+    };
+    expect(keys(resolved(withoutPerSize))).toEqual(["header", "glove_info", "packing_config", "conclusion"]);
   });
 
   it("checks that a custom module follows a module of the template", () => {
