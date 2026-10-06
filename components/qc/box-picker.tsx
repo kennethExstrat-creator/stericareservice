@@ -175,9 +175,9 @@ export function BoxPicker({
             className={cn(
               "flex w-full min-w-0 items-center gap-1.5 text-left outline-none transition-[color,box-shadow]",
               variant === "field" &&
-                "h-9 rounded-md border border-input bg-card px-2.5 text-base shadow-xs hover:border-primary focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 fine:text-sm touch:h-11 touch:px-3",
+                "h-9 rounded-md border border-input bg-card px-2.5 text-base shadow-xs hover:border-primary focus-visible:border-ring focus-ring aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 fine:text-sm touch:h-11 touch:px-3",
               variant === "cell" &&
-                "h-8 rounded-none bg-transparent px-2.5 text-sm hover:bg-accent focus-visible:bg-card focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset aria-invalid:bg-fail-tint aria-invalid:text-fail aria-invalid:ring-2 aria-invalid:ring-fail aria-invalid:ring-inset touch:h-11 touch:text-base",
+                "h-8 rounded-none bg-transparent px-2.5 text-sm hover:bg-accent focus-visible:bg-card focus-ring-inset aria-invalid:bg-fail-tint aria-invalid:text-fail aria-invalid:ring-2 aria-invalid:ring-fail aria-invalid:ring-inset touch:h-11 touch:text-base",
               "aria-invalid:text-fail",
             )}
           >
