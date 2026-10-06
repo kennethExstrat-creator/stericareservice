@@ -135,6 +135,9 @@ describe("dye_leak", () => {
     expect(plannedPouches(context, { n: 5 }, "6.5")).toBe(8);
     expect(plannedPouches(context, { n: 5 }, "7.0")).toBe(5);
     expect(plannedPouches(context, { n: null }, "7.0")).toBeNull();
+    const none = surgicalContext({ sampling: { "6.5": makeSampling({ pouchesDyeLeak: 0 }) } });
+    expect(plannedPouches(none, { n: 5 }, "6.5")).toBe(5);
+    expect(plannedPouches(none, { n: null }, "6.5")).toBeNull();
     expect(calcDyeLeak(input({}, { context, config: { n: 5 } })).computed.pouchesPlanned).toEqual({
       "6.5": 8,
       "7.0": 5,

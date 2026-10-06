@@ -33,9 +33,10 @@ export type DyeLeakComputed = {
   totalFailed: number;
 };
 
-/** Pouches to test for a size: the sampling plan's dye leak pouches, else config n. */
+/** Pouches to test for a size: the sampling plan's dye leak pouches, else config n. A plan of 0 plans nothing. */
 export function plannedPouches(context: InspectionContext, config: DyeLeakConfig, size: string): number | null {
-  return samplingFor(context, size).pouchesDyeLeak ?? config.n;
+  const planned = samplingFor(context, size).pouchesDyeLeak;
+  return planned !== null && planned > 0 ? planned : config.n;
 }
 
 type SizeOutcome = { verdict: DyeLeakVerdict; result: PerSizeResult; issues: CalcIssue[] };
