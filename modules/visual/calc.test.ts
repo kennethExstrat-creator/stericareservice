@@ -95,6 +95,7 @@ function expectClass(output: ReturnType<typeof calcVisual>, size: string, cls: V
     result: expected.status,
   });
   for (const [code, count] of Object.entries(expected.byDefect)) expect(computed?.counts[code], `${size} ${code}`).toBe(count);
+  expect(output.computed.classes[cls].aql, `${cls} AQL`).toBe(expected.aql);
   if (expected.arrow) {
     expect(computed).toMatchObject({ arrow: expected.arrow.direction, usedLetter: expected.arrow.codeLetter, n: expected.arrow.n });
   }
@@ -410,6 +411,18 @@ describe("visual", () => {
       expect(visual?.result).toMatchObject({ status: "pass", perSize: { M: { status: "pass" } } });
       expect(Object.keys(visual?.result.perSize ?? {})).toEqual(["M"]);
       expect(visual?.issues.map((issue) => [issue.code, issue.size])).toEqual([["size_not_ordered", "XL"]]);
+    });
+
+    it("reports text in a count as invalid data instead of reading it (6.2 rule 1)", () => {
+      const template = makeTestTemplate(MODULE_REGISTRY, ["visual"]);
+      const data = { modules: { visual: { sizes: { M: { major: { inspected: 500, counts: { thin_spot: "8/500" } } } } } }, custom: {} };
+      const visual = evaluateInspection({ template, data, context: M_500() }, MODULE_REGISTRY).modules.find(
+        (entry) => entry.key === "visual",
+      );
+      expect(visual?.result.status).toBe("not_done");
+      expect(visual?.issues).toEqual([
+        expect.objectContaining({ level: "error", code: "invalid_data", path: ["sizes", "M", "major", "counts", "thin_spot"] }),
+      ]);
     });
   });
 

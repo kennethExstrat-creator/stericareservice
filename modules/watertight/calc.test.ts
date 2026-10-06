@@ -91,6 +91,7 @@ describe("watertight", () => {
     it("B. STD_EG M: n 500 is code N, limit 14 / 15, 1 hole (finger), passed", () => {
       const expected = STD_EG_EXPECTED.watertight.M;
       const output = calcWatertight(fromExample(STD_EG_EXAMPLE));
+      expect(output.computed.aql).toBe(expected?.aql);
       expect(output.computed.sizes.M).toMatchObject({
         tested: expected?.n,
         codeLetter: expected?.codeLetter,
@@ -137,6 +138,7 @@ describe("watertight", () => {
         expect(output.result.perSize?.[size]?.status).toBe(expected.status);
       }
       expect(output.result.status).toBe("pass");
+      expect(output.computed.aql).toBe(SAFEDON_EG_EXPECTED.watertight.XS?.aql);
       expect(output.computed.codeLetters).toBe("J & L");
       expect(output.computed.heading).toBe(
         "Freedom from Holes by watertight test (Sampling code letter J & L; AQL=1.5)",
