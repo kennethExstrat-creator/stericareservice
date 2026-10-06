@@ -6,7 +6,13 @@ import { checkModuleContract, makeSampling, makeTestContext, makeTestTemplate } 
 import { MODULE_REGISTRY } from "@/modules/registry";
 import { STD_EG_EXAMPLE, STD_EG_EXPECTED, type ReportSize } from "@/tests/fixtures/examples";
 import { calcForceAtBreak, readingsFor, specCaption } from "./calc";
-import { FORCE_AT_BREAK_DEFAULT_CONFIG, FORCE_AT_BREAK_LABELS, FORCE_AT_BREAK_TITLE, type ForceAtBreakConfig } from "./config";
+import {
+  FORCE_AT_BREAK_DEFAULT_CONFIG,
+  FORCE_AT_BREAK_LABELS,
+  FORCE_AT_BREAK_TITLE,
+  MAX_READINGS,
+  type ForceAtBreakConfig,
+} from "./config";
 import { definition } from "./index";
 import { emptyForceAtBreak, type ForceAtBreakData } from "./schema";
 
@@ -210,6 +216,24 @@ describe("force_at_break", () => {
     ]);
     // The 10 gloves tested are still judged.
     expect(output.computed.sizes.M).toMatchObject({ n: 10, entered: 10, result: "pass" });
+  });
+
+  it("raises an error for a sampling plan asking for more readings than a size can take, never waiting for good", () => {
+    // A typo such as 600 for 13: the screen's grid stops at MAX_READINGS rows.
+    const output = calcForceAtBreak(input({ M: { values: readingsWithMedian(6.5) } }, { at: context(["M"], { M: 600 }) }));
+    expect(MAX_READINGS).toBe(500);
+    expect(output.issues).toEqual([
+      {
+        level: "error",
+        code: "force_plan_too_many",
+        message: "Size M: the sampling plan gives 600 gloves to test; at most 500 readings can be entered. Correct the sampling plan.",
+        size: "M",
+        path: ["sizes", "M"],
+      },
+    ]);
+    expect(output.result.perSize?.M).toEqual({ status: "not_done", summary: "13 of 600 readings" });
+    // A plan of exactly the most a size can take is fine.
+    expect(calcForceAtBreak(input({ M: { values: [] } }, { at: context(["M"], { M: MAX_READINGS }) })).issues).toEqual([]);
   });
 
   it("is not done for a size the sampling plan gives no gloves to test", () => {

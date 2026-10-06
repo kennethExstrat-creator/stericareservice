@@ -2,7 +2,8 @@
 // the gloves tested against the minimum, judged at the decimals it is
 // printed with, as lib/stats judges every statistic. Not done until each
 // ordered size has all its readings (6.2 rule 5). A reading of 0 N or less,
-// or one past the gloves tested, is wrong data: an error with its path.
+// or one past the gloves tested, is wrong data: an error with its path. So
+// is a sampling plan that asks for more readings than a size can take.
 import type { PerSizeResult } from "@/lib/schemas/module-result";
 import { checkSpec, formatDecimal, median, roundTo, type Spec } from "@/lib/stats";
 import {
@@ -18,7 +19,7 @@ import {
   type InspectionContext,
   type Labels,
 } from "@/modules/_framework";
-import type { ForceAtBreakConfig } from "./config";
+import { MAX_READINGS, type ForceAtBreakConfig } from "./config";
 import type { ForceAtBreakData } from "./schema";
 
 export type ForceResult = "pass" | "fail" | "not_done";
@@ -55,8 +56,20 @@ export function calcForceAtBreak({
 
   const perSize = perSizeResults(context.sizes, (size): PerSizeResult => {
     const n = readingsFor(context, config, size);
+    const name = sizeLabel(context, size);
     const values = data.sizes[size]?.values ?? [];
-    issues.push(...readingIssues(values, n, size, sizeLabel(context, size), labels));
+    // The plan's count has no upper limit, the screen's grid has: a typo such
+    // as 600 for 13 would otherwise leave the size waiting for good.
+    if (n > MAX_READINGS) {
+      issues.push(
+        errorIssue(
+          "force_plan_too_many",
+          `Size ${name}: the sampling plan gives ${n} gloves to test; at most ${MAX_READINGS} readings can be entered. Correct the sampling plan.`,
+          { size, path: ["sizes", size] },
+        ),
+      );
+    }
+    issues.push(...readingIssues(values, n, size, name, labels));
 
     const readings = values.slice(0, n).filter(isValidReading);
     const value = median(readings);
