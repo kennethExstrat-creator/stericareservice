@@ -8,6 +8,7 @@ import {
   gridColumnCount,
   isPerSizeCustom,
   isSwitchedOffField,
+  mappedFieldValues,
   ownCustomFields,
   textValue,
   withGridCell,
@@ -103,6 +104,26 @@ describe("custom fields", () => {
     expect(record).toEqual({ weather: ["Dry", "Wet"], sizes: "kept" });
     // The mapped field keeps no row of its own.
     expect(withGridColumn(grid, {})).not.toHaveProperty("colourAgain");
+  });
+});
+
+describe("mappedFieldValues", () => {
+  it("shows each mapped field's value from the module it maps to, comment aside", () => {
+    const data = { modules: { glove_info: { colour: "Midnight blue", comment: "Checked." } }, custom: { site_notes: { weather: "Dry" } } };
+    expect(mappedFieldValues(SITE_NOTES, data)).toEqual({ colourAgain: "Midnight blue" });
+  });
+
+  it("shows null while the module holds no value, and for a path that is not a module's", () => {
+    expect(mappedFieldValues(SITE_NOTES, { modules: {}, custom: {} })).toEqual({ colourAgain: null });
+    const broken = { ...SITE_NOTES, fields: [{ key: "elsewhere", label: "Elsewhere", type: "text" as const, mapsTo: "modules.nothing.colour" }] };
+    expect(mappedFieldValues(broken, { modules: { glove_info: { colour: "Blue" } }, custom: {} })).toEqual({ elsewhere: null });
+  });
+
+  it("reads the data it is given, so a field shows each keystroke at once", () => {
+    const before = { modules: { glove_info: { colour: "Mid" } }, custom: {} };
+    const after = { modules: { glove_info: { colour: "Midn" } }, custom: {} };
+    expect(mappedFieldValues(SITE_NOTES, before).colourAgain).toBe("Mid");
+    expect(mappedFieldValues(SITE_NOTES, after).colourAgain).toBe("Midn");
   });
 });
 

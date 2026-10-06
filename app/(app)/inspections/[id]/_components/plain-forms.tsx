@@ -127,7 +127,7 @@ export function CustomModuleForm({
   custom: CustomModule;
   /** `data.custom.<key>` without its comment. */
   value: unknown;
-  /** Values of fields mapped to modules (Field.mapsTo), as the engine read them. */
+  /** Values of fields mapped to modules (Field.mapsTo), from the data on screen (mappedFieldValues). */
   mappedValues: Readonly<Record<string, unknown>>;
   context: InspectionContext;
   issues: readonly ValidationIssue[];

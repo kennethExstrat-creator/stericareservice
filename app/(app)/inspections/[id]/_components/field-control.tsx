@@ -70,11 +70,16 @@ export function FieldControl({
   const describedBy = [!cell && field.hint ? hintId : null, error ? errorId : null].filter(Boolean).join(" ") || undefined;
 
   if (field.type === "number") {
-    // The kit's field draws its own label, hint, error and issue mark.
+    // The kit's field draws its own label, hint, error and issue mark. In a
+    // table cell too it is the bordered field, its label kept for screen
+    // readers: the kit's borderless cell needs a grid that frames each cell
+    // (MeasurementGrid), and these tables frame rows only, beside the
+    // bordered text inputs of the same row.
     return (
       <NumberField
         id={inputId}
-        variant={variant}
+        variant="field"
+        hideLabel={cell}
         label={cell ? label : <LabelText label={field.label} required={field.required} />}
         value={typeof value === "number" ? value : null}
         onValueChange={(next) => onChange(next)}

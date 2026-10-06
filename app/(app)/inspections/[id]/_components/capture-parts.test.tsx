@@ -151,10 +151,26 @@ describe("CaptureHeader", () => {
     expect(html).toContain("Standard examination gloves · v3");
     expect(html).toContain('data-status="reopened"');
     for (const fact of ["Client A", "Manufacturer A · Factory 1", "6 Oct 2026", "Inspector A"]) expect(html).toContain(fact);
+    // The actions take a row of their own below 1280 px and sit beside the title from 1280 px.
+    const header = tagsWith(html, 'data-slot="page-header"')[0];
+    expect(header).toContain("md:flex-col");
+    expect(header).toContain("xl:flex-row");
+    expect(header).not.toContain("md:flex-row");
   });
 });
 
 describe("SectionFrame", () => {
+  it("is the open tab's panel below 1280 px, named by that tab", () => {
+    const html = renderToStaticMarkup(
+      <SectionFrame id="panel" tabLabelledBy={tabId("cap", "glove_info")} title="Glove Information" status="not_done">
+        <p>Body</p>
+      </SectionFrame>,
+    );
+    const frame = tagsWith(html, 'id="panel"')[0];
+    expect(frame).toContain('role="tabpanel"');
+    expect(frame).toContain(`aria-labelledby="${tabId("cap", "glove_info")}"`);
+  });
+
   it("is a region named by its heading, with the result, the summary and the footer", () => {
     const html = renderToStaticMarkup(
       <SectionFrame id="panel" title="Glove Information" status="not_done" summary="Missing: Glove colour." footer={<p>Footer</p>}>
@@ -204,9 +220,31 @@ describe("FieldControl", () => {
     );
     const input = tagsWith(html, "data-enter-field")[0];
     expect(input).toContain('data-enter-group="weight"');
-    expect(input).toContain('aria-label="Size M, Weight (g)"');
     expect(html).toContain("Weight: must be more than 0 g.");
     expect(html).toContain(`data-issue-path="${JSON.stringify(["sizes", "M", "weight"]).replaceAll('"', "&quot;")}"`);
+  });
+
+  it("draws a number cell as the bordered field beside the row's text inputs, named for screen readers", () => {
+    const html = renderToStaticMarkup(
+      <FieldControl
+        variant="cell"
+        cellLabel="Box weight, Box 1"
+        field={{ key: "boxWeight", segments: ["boxWeight"], label: "Box weight", type: "number", unit: "g" }}
+        value={12.5}
+        onChange={noop}
+        readOnly={false}
+        issuePath={["boxWeight", 0]}
+      />,
+    );
+    const input = tagsWith(html, 'data-slot="numeric-cell"')[0];
+    // Not the kit's borderless grid cell, which only a framed grid shows (MeasurementGrid).
+    expect(input).toContain('data-variant="field"');
+    expect(input).toContain("border-input");
+    expect(input).toContain('value="12.5"');
+    const id = /id="([^"]+)"/.exec(input)?.[1];
+    expect(html).toMatch(new RegExp(`<label[^>]*class="[^"]*sr-only[^"]*"[^>]*for="${id}"|<label[^>]*for="${id}"[^>]*class="[^"]*sr-only`));
+    expect(html).toContain("Box weight, Box 1");
+    expect(html).toContain(">g</span>");
   });
 
   it("labels text fields, says required, and shows a problem with the stored value", () => {

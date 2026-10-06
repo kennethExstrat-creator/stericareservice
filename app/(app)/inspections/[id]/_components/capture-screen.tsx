@@ -14,16 +14,39 @@
 // replaces the module's data in one immutable `InspectionData`, goes to the
 // local copy and the server (use-capture-autosave.ts), and the whole
 // inspection is evaluated again with the framework (results, live totals,
-// issues), a frame behind typing at most (useDeferredValue).
-import { useCallback, useDeferredValue, useEffect, useId, useMemo, useRef, useState, type RefObject } from "react";
+// issues), a frame behind typing at most (useDeferredValue). Saves also
+// bring back the inspection's status and module overrides, so a section
+// switched off or a submit made on another device shows here too.
+//
+// Leaving: number fields keep a half-typed value until they lose focus, and
+// a tap on the iPad does not move focus, so a click anywhere outside the open
+// section (a link, the menu, Submit) first leaves the field. The header's
+// Photos and Review wait for the last save; any other way out sends it as the
+// screen goes (use-capture-autosave.ts).
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ChevronLeftIcon, ChevronRightIcon, FileSearchIcon, ImagesIcon, ListChecksIcon, RefreshCwIcon } from "lucide-react";
 import { toast } from "sonner";
 import { ProgressTracker } from "@/components/qc";
+import { useMediaQuery, WIDE_QUERY } from "@/components/qc/use-media-query";
 import { Button } from "@/components/ui/button";
-import type { CaptureAccess, UserRole } from "@/lib/inspections/capture/access";
+import { Spinner } from "@/components/ui/spinner";
+import { isEditableStatus, type CaptureAccess, type UserRole } from "@/lib/inspections/capture/access";
 import { evaluateCapture, type CaptureMeta } from "@/lib/inspections/capture/evaluate";
-import { countIssues, groupIssues } from "@/lib/inspections/capture/issues";
+import { mappedFieldValues } from "@/lib/inspections/capture/fields";
+import { countIssues, groupIssues, unseenIssues } from "@/lib/inspections/capture/issues";
 import { canBeSwitchedOff } from "@/lib/inspections/capture/overrides";
 import {
   captureSections,
@@ -51,6 +74,7 @@ import {
   type DataNamespace,
   type InspectionData,
 } from "@/modules/_framework";
+import type { CaptureServerState } from "../actions";
 import { CaptureHeader, type CaptureHeading } from "./capture-header";
 import { CaptureNotices, type CaptureNotice } from "./capture-notices";
 import { ConflictDialog } from "./conflict-dialog";
@@ -61,9 +85,9 @@ import { SaveIndicator } from "./save-indicator";
 import { CustomBody, ModuleBody } from "./section-body";
 import { SectionComment, SectionFrame } from "./section-frame";
 import { SectionList } from "./section-list";
-import { SectionTabs } from "./section-tabs";
-import { SubmitControl, type SubmitPreparation } from "./submit-control";
-import { useCaptureAutosave } from "./use-capture-autosave";
+import { SectionTabs, tabId } from "./section-tabs";
+import { SubmitControl, type SubmitBlocked, type SubmitPreparation } from "./submit-control";
+import { LEAVE_FLUSH_MS, useCaptureAutosave } from "./use-capture-autosave";
 import { useStickyOffsets } from "./use-sticky-offsets";
 import { useWaitingUploads } from "./use-waiting-uploads";
 
@@ -115,6 +139,22 @@ export function CaptureScreen({
   const [data, setData] = useState(initialData);
   const dataRef = useRef(data);
   const [setAside, setSetAside] = useState(false);
+  // The status as the last save found it: submitted or approved since the page loaded means another device did it.
+  const [serverStatus, setServerStatus] = useState(heading.status);
+  const lockedElsewhere = access.editable && !isEditableStatus(serverStatus);
+
+  /** Overrides the server answered with: a section switched off or on elsewhere leaves or joins capture here. */
+  const followOverrides = useCallback((next: ModuleOverrides) => {
+    setOverrides((current) => (contentHash(current) === contentHash(next) ? current : next));
+  }, []);
+
+  const followServer = useCallback(
+    (state: CaptureServerState) => {
+      setServerStatus(state.status);
+      followOverrides(state.overrides);
+    },
+    [followOverrides],
+  );
 
   /** Data from the autosave (restored, or the other device's version): shown as it is, not saved again. */
   const replaceData = useCallback((next: InspectionData) => {
@@ -142,6 +182,7 @@ export function CaptureScreen({
     server: { data: initialData, updatedAt: initialUpdatedAt },
     enabled: access.editable,
     onStart,
+    onServerState: followServer,
   });
   const snapshot = autosave.snapshot;
   const conflict = snapshot?.conflict ?? null;
@@ -223,6 +264,52 @@ export function CaptureScreen({
     if (field instanceof HTMLElement && document.getElementById(panelId)?.contains(field)) field.blur();
   }, [panelId]);
 
+  // The same for every click outside the open section, before the click does
+  // its work: a link that leaves the screen (the shell's menu too), Submit,
+  // Issues. Inside the section a click is the form's own business, unless it
+  // follows a link.
+  useEffect(() => {
+    const onClick = (event: MouseEvent) => {
+      const panel = document.getElementById(panelId);
+      const field = document.activeElement;
+      if (!panel || !(field instanceof HTMLElement) || !panel.contains(field)) return;
+      const target = event.target;
+      const inside = target instanceof Node && panel.contains(target);
+      const followsLink = target instanceof Element && target.closest("a[href]") !== null;
+      if (inside && !followsLink) return;
+      field.blur();
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [panelId]);
+
+  /* Photos and Review in the header: the next page reads the inspection from
+     the server, so the last change is saved first (briefly: LEAVE_FLUSH_MS). */
+  const photosHref = `/inspections/${inspectionId}/photos`;
+  const reviewHref = `/inspections/${inspectionId}/review`;
+  const router = useRouter();
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const [leavingTo, setLeavingTo] = useState<string | null>(null);
+  const leaveTo = useCallback(
+    async (href: string) => {
+      leaveActiveField();
+      setLeavingTo(href);
+      try {
+        await autosave.flush({ timeoutMs: LEAVE_FLUSH_MS });
+      } finally {
+        // Gone meanwhile (another link was followed): stay out of its way.
+        if (mounted.current) router.push(href);
+      }
+    },
+    [autosave, leaveActiveField, router],
+  );
+
   /** Opens a section; the page scrolls back up to it when its top is out of view. */
   const selectSection = useCallback(
     (key: string, { focusHeading = false }: { focusHeading?: boolean } = {}) => {
@@ -249,16 +336,29 @@ export function CaptureScreen({
   const groups = useMemo(() => groupIssues(report.issues, sections), [report.issues, sections]);
   const [issuesOpen, setIssuesOpen] = useState(false);
   const [blockedMessage, setBlockedMessage] = useState<string | null>(null);
+  // The errors the server found when it refused a submit.
+  const [serverErrors, setServerErrors] = useState<readonly ValidationIssue[] | null>(null);
+  /**
+   * Of those, the ones this screen does not show. The overrides they were
+   * found with are taken over (onBlocked), so they usually appear here at
+   * once; any left over mean the inspection changed in another way.
+   */
+  const unseenErrors = useMemo(() => unseenIssues(serverErrors, report.issues), [serverErrors, report.issues]);
+
+  const closeBlocked = useCallback(() => {
+    setBlockedMessage(null);
+    setServerErrors(null);
+  }, []);
 
   const openIssues = useCallback(() => {
-    setBlockedMessage(null);
+    closeBlocked();
     setIssuesOpen(true);
-  }, []);
+  }, [closeBlocked]);
 
   const goToIssue = useCallback(
     (issue: ValidationIssue) => {
       setIssuesOpen(false);
-      setBlockedMessage(null);
+      closeBlocked();
       const sectionKey = issue.moduleKey;
       setActiveKey(sectionKey);
       setPhotoFocus({});
@@ -286,7 +386,7 @@ export function CaptureScreen({
         }, 700);
       });
     },
-    [panelId, syncUrl],
+    [closeBlocked, panelId, syncUrl],
   );
 
   const uploads = useWaitingUploads({ inspectionId, userId: user.id });
@@ -309,11 +409,36 @@ export function CaptureScreen({
 
   // After a refused submit, empty required fields say so where they are, too.
   const [submitTried, setSubmitTried] = useState(false);
-  const onBlocked = useCallback((message: string) => {
-    setSubmitTried(true);
-    setBlockedMessage(message);
-    setIssuesOpen(true);
+  const onBlocked = useCallback(
+    ({ message, errors, overrides: found }: SubmitBlocked) => {
+      setSubmitTried(true);
+      setBlockedMessage(message);
+      setServerErrors(errors);
+      if (found) followOverrides(found);
+      setIssuesOpen(true);
+    },
+    [followOverrides],
+  );
+
+  /* -------------------------------------------------------------- *
+   * Switching sections off and on (admins)
+   * -------------------------------------------------------------- */
+
+  // The button pressed goes with the change (Switch off with the section's
+  // header controls, Switch back on with the panel): the title takes focus.
+  const focusTitleFor = useRef<ModuleOverrides | null>(null);
+  const onSwitched = useCallback((next: ModuleOverrides) => {
+    focusTitleFor.current = next;
+    setOverrides(next);
   }, []);
+  useEffect(() => {
+    if (focusTitleFor.current !== overrides) return;
+    focusTitleFor.current = null;
+    headingRef.current?.focus({ preventScroll: true });
+  }, [overrides]);
+
+  // Below 1280 px the open section is the tab bar's panel; from 1280 px a region beside the sidebar.
+  const wide = useMediaQuery(WIDE_QUERY);
 
   /* -------------------------------------------------------------- *
    * Notices
@@ -324,7 +449,8 @@ export function CaptureScreen({
       captureNotices({
         access,
         role: user.role,
-        reviewHref: `/inspections/${inspectionId}/review`,
+        reviewHref,
+        lockedElsewhere,
         phase: autosave.phase,
         setAside,
         error: autosave.phase === "running" ? saveError : null,
@@ -333,7 +459,19 @@ export function CaptureScreen({
         retry: autosave.retryNow,
         signInHref: `/login?next=${encodeURIComponent(`/inspections/${inspectionId}`)}`,
       }),
-    [access, user.role, inspectionId, autosave.phase, autosave.retryNow, setAside, saveError, snapshot?.localCopy, snapshot?.pending],
+    [
+      access,
+      user.role,
+      reviewHref,
+      inspectionId,
+      lockedElsewhere,
+      autosave.phase,
+      autosave.retryNow,
+      setAside,
+      saveError,
+      snapshot?.localCopy,
+      snapshot?.pending,
+    ],
   );
 
   // Changes only this page holds (no local copy) would be lost by leaving: the browser asks first.
@@ -349,7 +487,11 @@ export function CaptureScreen({
    * Render
    * -------------------------------------------------------------- */
 
-  const saveStatus = !access.editable ? null : (snapshot?.status ?? "saved");
+  // Another tab is the writer: read-only here on purpose, and the notice says so. No red pill for that.
+  const quietSave = autosave.phase === "busy" || saveError?.reason === "other_tab";
+  const saveStatus = !access.editable || quietSave ? null : (snapshot?.status ?? "saved");
+  // As the last save found it: submitted on another device shows here as submitted.
+  const shownHeading = serverStatus === heading.status ? heading : { ...heading, status: serverStatus };
   const submitControl = (className?: string) =>
     access.editable ? (
       <SubmitControl
@@ -381,22 +523,26 @@ export function CaptureScreen({
       )}
     >
       <CaptureHeader
-        heading={heading}
+        heading={shownHeading}
         actions={
           <>
-            <Button asChild variant="outline">
-              <Link href={`/inspections/${inspectionId}/photos`}>
-                <ImagesIcon aria-hidden />
-                Photos
-              </Link>
-            </Button>
-            {heading.status !== "draft" && (
-              <Button asChild variant="outline">
-                <Link href={`/inspections/${inspectionId}/review`}>
-                  <FileSearchIcon aria-hidden />
-                  Review
-                </Link>
-              </Button>
+            <LeaveLink
+              href={photosHref}
+              icon={<ImagesIcon aria-hidden />}
+              leaving={leavingTo === photosHref}
+              onLeave={leaveTo}
+            >
+              Photos
+            </LeaveLink>
+            {shownHeading.status !== "draft" && (
+              <LeaveLink
+                href={reviewHref}
+                icon={<FileSearchIcon aria-hidden />}
+                leaving={leavingTo === reviewHref}
+                onLeave={leaveTo}
+              >
+                Review
+              </LeaveLink>
             )}
             {issuesButton("xl:hidden")}
             {submitControl("xl:hidden")}
@@ -466,6 +612,7 @@ export function CaptureScreen({
               section={active}
               panelId={panelId}
               headingRef={headingRef}
+              tabLabelledBy={wide ? undefined : tabId(idPrefix, active.key)}
               template={template}
               effective={evaluation.template}
               overrides={overrides}
@@ -485,7 +632,7 @@ export function CaptureScreen({
               onCustomChange={(key, value) => writeEntry("custom", key, value)}
               onMappedChange={writeMapped}
               onCommentChange={writeComment}
-              onOverridesChange={setOverrides}
+              onOverridesChange={onSwitched}
             />
           )}
 
@@ -516,11 +663,12 @@ export function CaptureScreen({
         open={issuesOpen}
         onOpenChange={(open) => {
           setIssuesOpen(open);
-          if (!open) setBlockedMessage(null);
+          if (!open) closeBlocked();
         }}
         groups={groups}
         counts={counts}
         blockedMessage={blockedMessage}
+        unseenErrors={unseenErrors}
         onGo={goToIssue}
       />
       <ConflictDialog
@@ -543,6 +691,8 @@ type ActiveSectionProps = {
   section: CaptureSection;
   panelId: string;
   headingRef: RefObject<HTMLHeadingElement | null>;
+  /** Below 1280 px: the id of the section's tab, which names the panel (WAI-ARIA tabs). */
+  tabLabelledBy?: string;
   /** As stored, for what may be switched off. */
   template: ResolvedTemplate;
   /** Overrides applied: what capture shows. */
@@ -573,6 +723,7 @@ function ActiveSection({
   section,
   panelId,
   headingRef,
+  tabLabelledBy,
   template,
   effective,
   overrides,
@@ -596,7 +747,13 @@ function ActiveSection({
 }: ActiveSectionProps) {
   if (section.kind === "excluded") {
     return (
-      <SectionFrame id={panelId} title={section.title} headingRef={headingRef} summary="Switched off for this inspection">
+      <SectionFrame
+        id={panelId}
+        tabLabelledBy={tabLabelledBy}
+        title={section.title}
+        headingRef={headingRef}
+        summary="Switched off for this inspection"
+      >
         <SwitchedOffPanel
           inspectionId={inspectionId}
           moduleKey={section.key}
@@ -629,6 +786,7 @@ function ActiveSection({
     return (
       <SectionFrame
         id={panelId}
+        tabLabelledBy={tabLabelledBy}
         title={section.title}
         headingRef={headingRef}
         status={section.status}
@@ -638,6 +796,7 @@ function ActiveSection({
           <CustomBody
             evaluation={evaluation}
             entry={entry}
+            mappedValues={mappedFieldValues(evaluation.custom, data)}
             context={context}
             focusPath={focusPath}
             readOnly={readOnly}
@@ -658,6 +817,7 @@ function ActiveSection({
   return (
     <SectionFrame
       id={panelId}
+      tabLabelledBy={tabLabelledBy}
       title={section.title}
       headingRef={headingRef}
       status={section.status}
@@ -714,6 +874,39 @@ function scrollToTitle(title: HTMLElement, root: HTMLElement | null) {
   window.scrollTo({ top: Math.max(0, top) });
 }
 
+/**
+ * A header link that leaves the capture screen once the last change is
+ * saved: Next.js's navigation is held (onNavigate) while `onLeave` saves and
+ * then follows the link. Opening it in a new tab works as any link.
+ */
+function LeaveLink({
+  href,
+  icon,
+  leaving,
+  onLeave,
+  children,
+}: {
+  href: string;
+  icon: ReactNode;
+  /** Saving before leaving for this link. */
+  leaving: boolean;
+  onLeave: (href: string) => void;
+  children: ReactNode;
+}) {
+  const onNavigate: ComponentProps<typeof Link>["onNavigate"] = (event) => {
+    event.preventDefault();
+    onLeave(href);
+  };
+  return (
+    <Button asChild variant="outline">
+      <Link href={href} onNavigate={onNavigate} aria-busy={leaving || undefined}>
+        {leaving ? <Spinner aria-hidden /> : icon}
+        {children}
+      </Link>
+    </Button>
+  );
+}
+
 function IssuesButton({
   errors,
   warnings,
@@ -753,6 +946,7 @@ function captureNotices({
   access,
   role,
   reviewHref,
+  lockedElsewhere,
   phase,
   setAside,
   error,
@@ -764,6 +958,8 @@ function captureNotices({
   access: CaptureAccess;
   role: UserRole;
   reviewHref: string;
+  /** Submitted or approved since this page loaded, as a save found: the review is where it went. */
+  lockedElsewhere: boolean;
   phase: ReturnType<typeof useCaptureAutosave>["phase"];
   setAside: boolean;
   error: AutosaveError | null;
@@ -818,19 +1014,35 @@ function captureNotices({
   }
 
   if (error && error.reason !== "conflict") {
-    const action =
-      error.reason === "unauthorized" ? (
+    let action: ReactNode;
+    if (error.reason === "unauthorized") {
+      action = (
         <Button asChild variant="outline" size="sm">
           <Link href={signInHref}>Sign in again</Link>
         </Button>
-      ) : error.reason === "other_tab" ? (
+      );
+    } else if (error.reason === "forbidden" || error.reason === "not_found") {
+      // Refused for good (submitted elsewhere, no longer this user's, gone): trying again cannot help.
+      action = lockedElsewhere ? (
+        <>
+          <Button asChild variant="outline" size="sm">
+            <Link href={reviewHref}>Open the review</Link>
+          </Button>
+          {reload}
+        </>
+      ) : (
         reload
-      ) : error.reason === "storage" ? undefined : (
+      );
+    } else if (error.reason === "other_tab") {
+      action = reload;
+    } else if (error.reason !== "storage") {
+      action = (
         <Button type="button" variant="outline" size="sm" onClick={retry}>
           <RefreshCwIcon aria-hidden />
           Try again
         </Button>
       );
+    }
     notices.push({ key: "save-error", tone: "error", message: `Not saved. ${error.message}`, action });
   } else if (!localCopy && pending) {
     notices.push({

@@ -137,6 +137,7 @@ export function ModuleBody({
 export function CustomBody({
   evaluation,
   entry,
+  mappedValues,
   context,
   focusPath,
   readOnly,
@@ -148,6 +149,12 @@ export function CustomBody({
   evaluation: CustomModuleEvaluation;
   /** `data.custom.<key>` as stored, comment included. */
   entry: unknown;
+  /**
+   * What the mapped fields show (mappedFieldValues), from the data on screen:
+   * `evaluation` runs a frame behind typing, and a text field fed its values
+   * would undo keystrokes.
+   */
+  mappedValues: Readonly<Record<string, unknown>>;
   context: InspectionContext;
   focusPath: IssuePath | null;
   readOnly: boolean;
@@ -166,7 +173,7 @@ export function CustomBody({
     <CustomModuleForm
       custom={evaluation.custom}
       value={value}
-      mappedValues={evaluation.values}
+      mappedValues={mappedValues}
       context={context}
       issues={issues as ValidationIssue[]}
       focusPath={focusPath}

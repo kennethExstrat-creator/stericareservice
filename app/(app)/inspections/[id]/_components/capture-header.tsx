@@ -1,6 +1,8 @@
 // The top of the capture screen: the template's name, the reference number
 // and workflow status, who and what the inspection is about, and the page's
-// actions (Photos, Review, and on the iPad Issues and Submit).
+// actions (Photos, Review, and on the iPad Issues and Submit). Below 1280 px
+// the actions take their own row under the title, so four touch-size
+// buttons never squeeze it; from 1280 px two sit beside it.
 import type { ReactNode } from "react";
 import { PageHeader } from "@/components/qc";
 import { formatInspectionDate } from "@/lib/inspections/format";
@@ -28,6 +30,7 @@ export function CaptureHeader({ heading, actions }: { heading: CaptureHeading; a
 
   return (
     <PageHeader
+      className="md:flex-col md:items-stretch xl:flex-row xl:items-end"
       eyebrow={`${heading.templateName} · v${heading.templateVersion}`}
       title={
         <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">

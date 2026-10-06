@@ -10,7 +10,15 @@
 //   convention for "fields on/off") are left out.
 import type { FieldType, Unit } from "@/lib/schemas/common";
 import type { CustomModule, Field } from "@/lib/schemas/template";
-import { labelFor, type AnyModuleDefinition, type Labels } from "@/modules/_framework";
+import {
+  labelFor,
+  parseCanonicalPath,
+  readModuleEntry,
+  readPath,
+  type AnyModuleDefinition,
+  type InspectionData,
+  type Labels,
+} from "@/modules/_framework";
 
 export type FormField = {
   /** The field's key, or the canonical path it edits. */
@@ -119,6 +127,25 @@ export function withGridColumn(custom: CustomModule, record: Readonly<Record<str
     next[field.key] = row;
   }
   return next;
+}
+
+/**
+ * What the mapped fields of a fields layout (Field.mapsTo) show: the value
+ * in the module each one maps to, read as lib/validation reads it, null when
+ * there is none. Read from the data on screen, not from the evaluation,
+ * which runs a frame behind typing (useDeferredValue): a controlled input
+ * fed the older value would put its text back and move the caret to the end
+ * on every keystroke.
+ */
+export function mappedFieldValues(custom: CustomModule, data: InspectionData): Record<string, unknown> {
+  const values: Record<string, unknown> = {};
+  for (const field of custom.fields) {
+    if (field.mapsTo === undefined) continue;
+    const target = parseCanonicalPath(field.mapsTo);
+    const stored = target ? readPath(readModuleEntry(data, "modules", target.moduleKey).value, target.segments) : undefined;
+    values[field.key] = stored ?? null;
+  }
+  return values;
 }
 
 /** Custom fields that keep their own value (a field mapped to a module keeps none here). */

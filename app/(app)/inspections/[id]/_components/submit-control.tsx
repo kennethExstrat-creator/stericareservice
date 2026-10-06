@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import type { ModuleOverrides } from "@/lib/schemas/template";
 import type { SuggestedResult, ValidationIssue } from "@/lib/validation";
 import { cn } from "@/lib/utils";
 import { submitInspection, type SubmitResult } from "../actions";
@@ -29,6 +30,15 @@ const IDLE: SubmitResult = { status: "idle" };
 
 /** What the screen does before the server is asked: photos uploaded, everything saved. */
 export type SubmitPreparation = { ok: true; dataHash: string } | { ok: false; message: string };
+
+/** Why submit was refused for errors. */
+export type SubmitBlocked = {
+  message: string;
+  /** The errors the server found in the saved data; null when the screen's own errors stopped it. */
+  errors: ValidationIssue[] | null;
+  /** The module overrides the server checked with, which may be newer than the screen's. */
+  overrides: ModuleOverrides | null;
+};
 
 type SubmitControlProps = {
   inspectionId: string;
@@ -40,7 +50,7 @@ type SubmitControlProps = {
   /** Waits for uploads and saves; resolves with the hash of the data that was saved. */
   prepare: () => Promise<SubmitPreparation>;
   /** Submit was refused for errors (on screen, or found by the server in the saved data). */
-  onBlocked: (message: string, errors: ValidationIssue[] | null) => void;
+  onBlocked: (blocked: SubmitBlocked) => void;
   disabled?: boolean;
   className?: string;
 };
@@ -66,17 +76,18 @@ export function SubmitControl({
     const result = await submitInspection({ inspectionId, dataHash: prepared.dataHash }).catch(unreachable);
     if (result.status === "blocked") {
       setOpen(false);
-      onBlocked(result.message, result.errors);
+      onBlocked({ message: result.message, errors: result.errors, overrides: result.overrides });
     }
     return result;
   }, IDLE);
 
   const openOrBlock = () => {
     if (errorCount > 0) {
-      onBlocked(
-        `Fix ${errorCount === 1 ? "this error" : `these ${errorCount} errors`} before submitting.`,
-        null,
-      );
+      onBlocked({
+        message: `Fix ${errorCount === 1 ? "this error" : `these ${errorCount} errors`} before submitting.`,
+        errors: null,
+        overrides: null,
+      });
       return;
     }
     setOpen(true);

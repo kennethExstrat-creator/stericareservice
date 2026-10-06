@@ -17,6 +17,12 @@ import { cn } from "@/lib/utils";
 type SectionFrameProps = {
   /** The panel id the section tabs point at. */
   id: string;
+  /**
+   * The id of the tab that opens this section, while the tab bar is how
+   * sections are chosen (below 1280 px): the frame is then that tab's
+   * panel, named by it. Otherwise a region named by its title.
+   */
+  tabLabelledBy?: string;
   title: string;
   /** The section's result; none for a section that is switched off. */
   status?: Status;
@@ -34,6 +40,7 @@ type SectionFrameProps = {
 
 export function SectionFrame({
   id,
+  tabLabelledBy,
   title,
   status,
   statusLabel,
@@ -48,7 +55,8 @@ export function SectionFrame({
   return (
     <section
       id={id}
-      aria-labelledby={titleId}
+      role={tabLabelledBy ? "tabpanel" : undefined}
+      aria-labelledby={tabLabelledBy ?? titleId}
       data-slot="section-frame"
       className={cn("rounded-xl bg-card text-card-foreground shadow-sm ring-1 ring-border", className)}
     >

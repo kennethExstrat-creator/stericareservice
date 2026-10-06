@@ -4,9 +4,12 @@
 // inspection, grouped by section in screen order. Errors block submit;
 // warnings are allowed and go into the export. Each issue is a link: it
 // opens its section and moves focus to the value it is about. When submit
-// is blocked the panel opens itself and says so.
+// is blocked the panel opens itself and says so; errors the server found
+// that this screen does not show (the inspection changed elsewhere) are
+// listed apart, with Reload.
 import { useRef } from "react";
-import { ArrowRightIcon, CircleXIcon, TriangleAlertIcon } from "lucide-react";
+import { ArrowRightIcon, CircleXIcon, RefreshCwIcon, TriangleAlertIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
@@ -25,10 +28,20 @@ type IssuesSheetProps = {
   counts: { errors: number; warnings: number };
   /** Set when submit was refused: why. */
   blockedMessage: string | null;
+  /** Errors the server found in the saved inspection that this screen does not show. */
+  unseenErrors?: readonly ValidationIssue[];
   onGo: (issue: ValidationIssue) => void;
 };
 
-export function IssuesSheet({ open, onOpenChange, groups, counts, blockedMessage, onGo }: IssuesSheetProps) {
+export function IssuesSheet({
+  open,
+  onOpenChange,
+  groups,
+  counts,
+  blockedMessage,
+  unseenErrors = [],
+  onGo,
+}: IssuesSheetProps) {
   // Leaving through an issue link: focus goes to that value, not back to the button that opened the panel.
   const leavingToIssue = useRef(false);
 
@@ -57,9 +70,34 @@ export function IssuesSheet({ open, onOpenChange, groups, counts, blockedMessage
           )}
         </SheetHeader>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-3 py-4">
+          {unseenErrors.length > 0 && (
+            <section
+              aria-labelledby="issues-unseen"
+              data-slot="unseen-errors"
+              className="space-y-2 rounded-lg border border-fail-border bg-fail-tint px-3 py-3 text-sm text-fail touch:text-base"
+            >
+              <h3 id="issues-unseen" className="font-semibold">
+                This inspection changed elsewhere. The saved inspection has{" "}
+                {unseenErrors.length === 1
+                  ? "an error this screen does not show: reload the page to see it."
+                  : `${unseenErrors.length} errors this screen does not show: reload the page to see them.`}
+              </h3>
+              <ul className="list-disc space-y-1 pl-5">
+                {unseenErrors.map((issue) => (
+                  <li key={issueKey(issue)}>{issue.message}</li>
+                ))}
+              </ul>
+              <Button type="button" variant="outline" size="sm" onClick={() => window.location.reload()}>
+                <RefreshCwIcon aria-hidden />
+                Reload
+              </Button>
+            </section>
+          )}
           {groups.length === 0 ? (
-            <p className="px-2 text-sm text-muted-foreground touch:text-base">Nothing to fix. Every section checks out.</p>
+            unseenErrors.length === 0 && (
+              <p className="px-2 text-sm text-muted-foreground touch:text-base">Nothing to fix. Every section checks out.</p>
+            )
           ) : (
             <div className="space-y-5">
               {groups.map((group) => (

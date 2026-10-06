@@ -3,7 +3,9 @@
 // Switching a module off for this inspection, and back on (BUILD_SPEC 4.4):
 // admins only, with a reason that is logged and exported. Switched off, the
 // module leaves capture, validation and the export; its data stays saved and
-// returns when it is switched back on.
+// returns when it is switched back on. Either way the button pressed goes
+// with the change, so the screen moves focus to the section's title
+// (capture-screen.tsx, onSwitched).
 import { useActionState, useId, useRef, useState } from "react";
 import { CircleOffIcon, OctagonXIcon, PowerIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -41,6 +43,8 @@ export function SwitchOffDialog({ inspectionId, moduleKey, title, onChanged }: S
   // A fresh form, with no old reason or error, every time it opens.
   const [formKey, setFormKey] = useState(0);
   const [pending, setPending] = useState(false);
+  // Switched off: the trigger has gone with the section's controls, and focus goes to its title instead.
+  const switched = useRef(false);
 
   return (
     <Dialog
@@ -62,6 +66,9 @@ export function SwitchOffDialog({ inspectionId, moduleKey, title, onChanged }: S
         onInteractOutside={(event) => {
           if (pending) event.preventDefault();
         }}
+        onCloseAutoFocus={(event) => {
+          if (switched.current) event.preventDefault();
+        }}
       >
         <SwitchOffForm
           key={formKey}
@@ -70,6 +77,7 @@ export function SwitchOffDialog({ inspectionId, moduleKey, title, onChanged }: S
           title={title}
           onPendingChange={setPending}
           onDone={(overrides) => {
+            switched.current = true;
             onChanged(overrides);
             setOpen(false);
           }}
