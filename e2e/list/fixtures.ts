@@ -1,12 +1,14 @@
 import type { TablesInsert } from "../../lib/supabase/database.types";
-import { createTestAdminClient } from "../support/admin";
+import { createTestAdminClient, deleteTestInspection } from "../support/admin";
 import { TEST_ACCOUNTS } from "../support/session";
 
 /**
  * Temporary rows for the inspections list specs. There is no capture screen
  * until Phase 2, so the specs insert inspections with the secret key and
- * delete them afterwards: inspections first, then the template and the
- * client they point at. A run that died half way is cleaned up by the next.
+ * delete them afterwards (e2e/README.md): each inspection through
+ * deleteTestInspection(), since the service role may not delete an approved
+ * one, then the template and the client they point at. They have no Storage
+ * files. A run that died half way is cleaned up by the next.
  *
  * Side effects that cannot be undone through the API, by design: each
  * inspection draws a number from the ref sequence, and each deletion leaves an
@@ -28,10 +30,10 @@ const SEED = {
 /** A PO with every character PostgREST's filter syntax treats specially. */
 export const HOSTILE_PO = "E2E-PO-2,(rev.1)*%";
 
-export type FixtureKey = "A" | "B" | "C";
+export type FixtureKey = "A" | "B" | "C" | "D";
 
 export type ListFixture = {
-  /** Ref numbers by key: A and B belong to the inspector, C to the admin. */
+  /** Ref numbers by key: A, B and D belong to the inspector, C to the admin. */
   refs: Record<FixtureKey, string>;
   clientId: string;
   manufacturers: typeof SEED;
@@ -49,8 +51,12 @@ async function removeFixtureRows(admin: AdminClient) {
   const templateIds = templates.map((template) => template.id);
 
   if (templateIds.length > 0) {
-    const inspections = await admin.from("inspections").delete().in("template_id", templateIds);
-    if (inspections.error) fail("deleting fixture inspections", inspections.error);
+    const { data: inspections, error: findError } = await admin
+      .from("inspections")
+      .select("id")
+      .in("template_id", templateIds);
+    if (findError) fail("finding fixture inspections", findError);
+    for (const inspection of inspections) await deleteTestInspection(admin, inspection.id);
     const removed = await admin.from("templates").delete().in("id", templateIds);
     if (removed.error) fail("deleting the fixture template", removed.error);
   }
@@ -74,15 +80,25 @@ export async function countVisibleInspections(account: "inspector" | "admin"): P
 }
 
 /**
- * Three inspections across both test accounts, each in a different status:
- *   A  inspector  draft      1 Oct  fixture client  Hartalega    no result
- *   B  inspector  submitted  3 Oct  fixture client  Terang Nusa  passed     HOSTILE_PO
- *   C  admin      reopened   2 Oct  Polyco          Terang Nusa  on hold
+ * Four inspections across both test accounts, one in each status:
+ *   A  inspector  draft      1 Oct   fixture client  Hartalega    no result
+ *   B  inspector  submitted  3 Oct   fixture client  Terang Nusa  passed     HOSTILE_PO
+ *   C  admin      reopened   2 Oct   Polyco          Terang Nusa  on hold
+ *   D  inspector  approved   30 Sep  Polyco          Hartalega    failed
  */
 export async function createListFixture(): Promise<ListFixture> {
   const admin = createTestAdminClient();
   await removeFixtureRows(admin);
+  try {
+    return await insertFixtureRows(admin);
+  } catch (error) {
+    // afterAll gets no fixture to clean up, so remove what was made so far.
+    await removeFixtureRows(admin).catch(() => undefined);
+    throw error;
+  }
+}
 
+async function insertFixtureRows(admin: AdminClient): Promise<ListFixture> {
   const { data: people, error: peopleError } = await admin
     .from("profiles")
     .select("id, email")
@@ -153,9 +169,22 @@ export async function createListFixture(): Promise<ListFixture> {
         result: "hold",
       },
     },
+    {
+      key: "D",
+      row: {
+        inspector_id: inspectorId,
+        inspection_date: "2026-09-30",
+        client_id: SEED.polyco,
+        manufacturer_id: SEED.hartalega,
+        po_no: "E2E-LIST-PO-400",
+        product_name: "Nitrile examination gloves, long cuff",
+        lot_numbers: ["E2E-LOT-D4"],
+        result: "fail",
+      },
+    },
   ];
 
-  // Every inspection starts as a draft; the status flow moves B and C on.
+  // Every inspection starts as a draft; the status flow moves B, C and D on.
   const { data: inserted, error: insertError } = await admin
     .from("inspections")
     .insert(specs.map(({ row }) => ({ ...row, template_id: template.id })))
@@ -166,15 +195,20 @@ export async function createListFixture(): Promise<ListFixture> {
     const po = specs.find((spec) => spec.key === key)?.row.po_no;
     return inserted.find((inspection) => inspection.po_no === po) ?? fail(`finding inspection ${key}`, null);
   };
-  const byKey = { A: insertedAs("A"), B: insertedAs("B"), C: insertedAs("C") };
+  const byKey = { A: insertedAs("A"), B: insertedAs("B"), C: insertedAs("C"), D: insertedAs("D") };
 
-  const submitted = await admin.from("inspections").update({ status: "submitted" }).in("id", [byKey.B.id, byKey.C.id]);
-  if (submitted.error) fail("submitting B and C", submitted.error);
+  const submitted = await admin
+    .from("inspections")
+    .update({ status: "submitted" })
+    .in("id", [byKey.B.id, byKey.C.id, byKey.D.id]);
+  if (submitted.error) fail("submitting B, C and D", submitted.error);
   const reopened = await admin.from("inspections").update({ status: "reopened" }).eq("id", byKey.C.id);
   if (reopened.error) fail("reopening C", reopened.error);
+  const approved = await admin.from("inspections").update({ status: "approved" }).eq("id", byKey.D.id);
+  if (approved.error) fail("approving D", approved.error);
 
   return {
-    refs: { A: byKey.A.ref_no, B: byKey.B.ref_no, C: byKey.C.ref_no },
+    refs: { A: byKey.A.ref_no, B: byKey.B.ref_no, C: byKey.C.ref_no, D: byKey.D.ref_no },
     clientId: client.id,
     manufacturers: SEED,
     cleanup: () => removeFixtureRows(admin),

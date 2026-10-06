@@ -8,17 +8,37 @@ import { countVisibleInspections, createListFixture, FIXTURE_CLIENT_NAME, HOSTIL
  */
 
 const HINT = "Inspection capture arrives in the next build";
+/** B's seeded manufacturer, with the factory that tells the company's plants apart. */
+const TERANG_NUSA_LABEL = "Terang Nusa Sdn. Bhd. · TG Factory 40";
 
 function isTouch() {
   return Boolean(test.info().project.use.hasTouch);
 }
 
+/**
+ * Full page on the desktop. A full-page capture drops touch emulation while
+ * it resizes (e2e/README.md), so the iPads get viewport shots, scrolled:
+ * name.png, or name-1.png, name-2.png ... for a longer page. caret "initial"
+ * leaves the inputs alone: Playwright's caret hiding writes a style attribute,
+ * which React would report as a hydration mismatch if it landed first.
+ */
 async function shot(page: Page, name: string) {
-  await page.screenshot({
-    path: `screenshots/list/${test.info().project.name}-${name}.png`,
-    fullPage: true,
-    animations: "disabled",
-  });
+  const path = (part = "") => `screenshots/list/${test.info().project.name}-${name}${part}.png`;
+  const options = { animations: "disabled", caret: "initial" } as const;
+  if (!isTouch()) {
+    await page.screenshot({ ...options, path: path(), fullPage: true });
+    return;
+  }
+  const { height, viewport } = await page.evaluate(() => ({
+    height: document.documentElement.scrollHeight,
+    viewport: window.innerHeight,
+  }));
+  const parts = Math.max(1, Math.ceil(height / viewport));
+  for (let part = 0; part < parts; part++) {
+    await page.evaluate((top) => window.scrollTo(0, top), part * viewport);
+    await page.screenshot({ ...options, path: path(parts > 1 ? `-${part + 1}` : "") });
+  }
+  await page.evaluate(() => window.scrollTo(0, 0));
 }
 
 /** A tap on the iPads, a click on the desktop. */
@@ -44,6 +64,13 @@ function watchConsole(page: Page) {
 async function expectNoPageScroll(page: Page) {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow, "the page scrolls sideways").toBeLessThanOrEqual(0);
+}
+
+/** On touch nothing hovers, so a long name must show in full (up to two lines), not cut off. */
+async function expectShownInFull(text: Locator) {
+  await expect(text).toHaveCount(1);
+  const cut = await text.evaluate((el) => el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1);
+  expect(cut, `${await text.textContent()} is cut off`).toBe(false);
 }
 
 test("signed out, the list sends you to sign in and back", async ({ page }) => {
@@ -105,22 +132,31 @@ test.describe("with inspections", () => {
 
     await expect(row(page, refs.B)).toBeVisible();
     await expect(row(page, refs.A)).toBeVisible();
+    await expect(row(page, refs.D)).toBeVisible();
     await expect(row(page, refs.C)).toHaveCount(0);
     await expect(page.getByRole("columnheader", { name: "Inspector", exact: true, includeHidden: true })).toHaveCount(0);
     await expect(row(page, refs.A)).not.toContainText("Test Inspector");
     await expect(page.getByText("Your inspections", { exact: true })).toBeVisible();
 
-    // Newest inspection date first: B (3 Oct) before A (1 Oct).
+    // Newest inspection date first: B (3 Oct), A (1 Oct), D (30 Sep).
     const order = await page.locator("tbody tr[data-ref]").evaluateAll((rows) => rows.map((r) => r.getAttribute("data-ref")));
     expect(order.indexOf(refs.B)).toBeLessThan(order.indexOf(refs.A));
+    expect(order.indexOf(refs.A)).toBeLessThan(order.indexOf(refs.D));
 
     await expect(row(page, refs.A).getByText("Draft")).toBeVisible();
     await expect(row(page, refs.A).getByText("Not done")).toBeVisible();
     await expect(row(page, refs.B).getByText("Submitted")).toBeVisible();
     await expect(row(page, refs.B).getByText("Passed")).toBeVisible();
+    // Approved and failed: the workflow badge never borrows the result's colour.
+    await expect(row(page, refs.D).getByText("Approved")).toBeVisible();
+    await expect(row(page, refs.D).getByText("Failed")).toBeVisible();
     await expect(row(page, refs.B).getByRole("rowheader")).toContainText(refs.B);
     await expect(row(page, refs.B)).toContainText(FIXTURE_CLIENT_NAME);
     await expect(row(page, refs.B)).toContainText("3 Oct 2026");
+    // Every value shows at every size: without a column of its own it sits under another.
+    await expect(row(page, refs.A)).toContainText("Nitrile examination gloves, blue", { useInnerText: true });
+    await expect(row(page, refs.A)).toContainText("Hartalega NGC", { useInnerText: true });
+    await expect(row(page, refs.A)).toContainText("E2E-LIST-PO-100", { useInnerText: true });
 
     if (isTouch()) {
       // 44 px rows and controls, 16 px field text.
@@ -129,6 +165,8 @@ test.describe("with inspections", () => {
       expect((await page.getByRole("button", { name: "New inspection" }).boundingBox())!.height).toBeGreaterThanOrEqual(44);
       const fontSize = await page.getByRole("searchbox", { name: "Search" }).evaluate((input) => getComputedStyle(input).fontSize);
       expect(fontSize).toBe("16px");
+      // No tooltips on touch: a long manufacturer wraps rather than losing its factory.
+      await expectShownInFull(row(page, refs.B).locator(`[title="${TERANG_NUSA_LABEL}"]`).filter({ visible: true }));
     } else {
       // Compact rows on the desktop.
       expect((await row(page, refs.A).boundingBox())!.height).toBeLessThanOrEqual(37);
@@ -150,13 +188,14 @@ test.describe("with inspections", () => {
     await page.goto("/inspections");
     const { refs } = fixture;
 
-    for (const ref of [refs.A, refs.B, refs.C]) await expect(row(page, ref)).toBeVisible();
+    for (const ref of [refs.A, refs.B, refs.C, refs.D]) await expect(row(page, ref)).toBeVisible();
     // Its own column on the desktop; on the iPad the name sits under the date.
     await expect(page.getByRole("columnheader", { name: "Inspector", exact: true })).toBeVisible({ visible: !isTouch() });
     await expect(row(page, refs.A)).toContainText("Test Inspector", { useInnerText: true });
     await expect(row(page, refs.C)).toContainText("Test Admin", { useInnerText: true });
     await expect(row(page, refs.C).getByText("Reopened")).toBeVisible();
     await expect(row(page, refs.C).getByText("On hold")).toBeVisible();
+    await expect(row(page, refs.C)).toContainText("Safedon nitrile examination gloves", { useInnerText: true });
     await expect(page.getByText("All inspectors")).toBeVisible();
 
     await expectNoPageScroll(page);
@@ -273,6 +312,66 @@ test.describe("with inspections", () => {
       await expect(page.getByRole("heading", { name: "No inspections match" }), `search ${text}`).toBeVisible();
       await expect(page.locator('[data-list-state="error"]')).toHaveCount(0);
     }
+  });
+
+  test("keyboard focus stays in the list when the control that had it goes away", async ({
+    page,
+    context,
+    baseURL,
+  }) => {
+    const hydration = watchConsole(page);
+    await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
+    const { refs } = fixture;
+    const search = page.getByRole("searchbox", { name: "Search" });
+    const clearSearch = page.getByRole("button", { name: "Clear search" });
+
+    // Clear search on text that never ran: the button goes, focus stays in the box.
+    await page.goto("/inspections");
+    await search.fill("ABC");
+    await clearSearch.press("Enter");
+    await expect(search).toBeFocused();
+    await expect(search).toHaveValue("");
+    await expect(clearSearch).toHaveCount(0);
+
+    // Clear search after a search ran: the whole list comes back, focus stays in the box.
+    await search.fill(refs.A);
+    await search.press("Enter");
+    await expect(page).toHaveURL(new RegExp(`\\?q=${refs.A}$`));
+    await clearSearch.press("Enter");
+    await expect(page).toHaveURL(/\/inspections$/);
+    await expect(row(page, refs.B)).toBeVisible();
+    await expect(search).toBeFocused();
+
+    // Clear filters, above the table and in "No inspections match": ready for the next search.
+    for (const filtered of ["/inspections?status=submitted", "/inspections?q=NOPE-XYZ"]) {
+      await page.goto(filtered);
+      await page.getByRole("link", { name: "Clear filters" }).press("Enter");
+      await expect(page).toHaveURL(/\/inspections$/);
+      await expect(search, filtered).toBeFocused();
+    }
+
+    // Past the end: the link goes, focus lands on the count above the table.
+    await page.goto("/inspections?page=999");
+    await page.getByRole("link", { name: /^Go to (the list|page \d+)$/ }).press("Enter");
+    await expect(page).toHaveURL(/\/inspections(\?page=\d+)?$/);
+    const count = page.locator('section[aria-label="Inspections"] [data-list-focus="results"]');
+    await expect(count).toBeFocused();
+    await expect(count).toHaveText(/^\d+ inspections?\b/);
+    expect(hydration()).toEqual([]);
+  });
+
+  test("Clear filters also clears a search that was typed but never run", async ({ page, context, baseURL }) => {
+    await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
+    await page.goto("/inspections?status=submitted");
+    const search = page.getByRole("searchbox", { name: "Search" });
+
+    await search.fill("ABC");
+    await press(page.getByRole("link", { name: "Clear filters" }));
+    await expect(page).toHaveURL(/\/inspections$/);
+    await expect(row(page, fixture.refs.A)).toBeVisible();
+    // The box shows what the list applies: nothing.
+    await expect(search).toHaveValue("");
+    await expect(page.getByRole("button", { name: "Clear search" })).toHaveCount(0);
   });
 
   test("a link to a page past the end says so", async ({ page, context, baseURL }) => {
