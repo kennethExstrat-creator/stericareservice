@@ -84,7 +84,8 @@ function TopBar({ user, nav }: { user: ShellUser; nav: readonly NavSection[] }) 
     >
       <div className="flex h-16 items-center gap-4 pr-[max(1rem,env(safe-area-inset-right))] pl-[max(1.5rem,env(safe-area-inset-left))]">
         <Logo variant="horizontal" href={HOME_PATH} loading="eager" className={cn(LOGO_TOUCH_TARGET, "max-sm:hidden")} />
-        <Logo variant="mark" href={HOME_PATH} className={cn(LOGO_TOUCH_TARGET, "sm:hidden")} />
+        {/* The mark is 29 px wide: padding takes its link to 44 px on touch, and the negative margin keeps the layout. */}
+        <Logo variant="mark" href={HOME_PATH} className={cn(LOGO_TOUCH_TARGET, "touch:-mx-2 touch:px-2 sm:hidden")} />
         <span aria-hidden className="h-7 w-px shrink-0 bg-border" />
         <TabNav sections={nav} className="shrink-0" />
         <UserMenu user={user} variant="bar" />

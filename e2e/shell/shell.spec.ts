@@ -231,6 +231,9 @@ test.describe("as the admin", () => {
       }
       expect(bar!.x + bar!.width, `${width} px: account menu inside the window`).toBeLessThanOrEqual(width);
       expect(bar!.height).toBeGreaterThanOrEqual(44);
+      // The home link (the mark below 640 px) stays a 44 px target.
+      const home = (await topBar.getByRole("link", { name: "SteriCare home" }).boundingBox())!;
+      expect(Math.min(home.width, home.height), `${width} px: home link`).toBeGreaterThanOrEqual(44);
       expect(await topBar.evaluate((element) => element.scrollWidth <= element.clientWidth), `${width} px`).toBe(true);
 
       if (width === 744) {
