@@ -5,13 +5,14 @@ Client-side persistence for capture on the iPad (BUILD_SPEC 8, "Speed", and 8.1)
 | Path | What |
 |---|---|
 | `lib/offline/autosave.ts` | The autosave controller: debounce, local copy, compare-and-set save, retries, status, conflicts, flush |
-| `lib/offline/drafts.ts` | The local copy record and the reload rule (`reconcile`) |
+| `lib/offline/drafts.ts` | The local copy record, the reload rule (`reconcile`) and the set-aside copies |
+| `lib/offline/lock.ts` | The lock that makes one tab at a time the writer of an inspection's local copy |
 | `lib/offline/protocol.ts` | The transport interface and its zod wire schemas |
 | `lib/offline/supabase-transport.ts` | The compare-and-set save on `inspections`, for a Server Action or the browser client |
 | `lib/offline/kv.ts`, `idb.ts`, `db.ts` | A typed key-value wrapper over raw IndexedDB, its in-memory twin, and the app's database (`stericare-offline`) |
 | `lib/offline/connectivity.ts` | Online/offline and page-hidden signals |
 | `lib/photos/process.ts`, `browser-codec.ts` | Photo processing; the DOM part is `browser-codec.ts` only |
-| `lib/photos/exif.ts`, `jpeg.ts`, `sniff.ts`, `sizing.ts` | Pure parts: Exif capture time, JPEG metadata strip, type sniffing, size maths |
+| `lib/photos/exif.ts`, `jpeg.ts`, `originals.ts`, `sniff.ts`, `sizing.ts` | Pure parts: Exif capture time, JPEG structure, metadata removal from JPEG, PNG and WebP, type sniffing, size maths |
 | `lib/photos/target.ts` | Photo tags and the `inspection_photos.target` format |
 | `lib/photos/paths.ts` | Storage object names (docs/DATABASE.md, "Storage") |
 | `lib/photos/files.ts` | Lab reports and certificates |
@@ -26,24 +27,25 @@ Import from `@/lib/offline` and `@/lib/photos`.
 
 | Store | Holds |
 |---|---|
-| `drafts` | One local copy of inspection data per user and inspection (`draft:<user_id>:<inspection_id>`) |
+| `drafts` | One local copy of inspection data per user and inspection (`draft:<user_id>:<inspection_id>`), and set-aside copies (`unreadable:<user_id>:<inspection_id>:<ms>`) |
 | `uploads` | Upload queue items: metadata only, small enough to load at start |
 | `upload-blobs` | The bytes of queued photos, thumbnails and files (`<id>/object`, `<id>/thumb`), stored as ArrayBuffer and read one item at a time |
 
-Writes resolve when their transaction commits, with strict durability. A connection iPadOS dropped while the page sat in the background is reopened once and the call retried. Records carry a format version (`v: 1`) and are checked with zod when read; a local copy that no longer validates is moved aside (`unreadable:...`), never deleted or applied.
+Writes resolve when their transaction commits, with strict durability. A connection iPadOS dropped while the page sat in the background is reopened once and the call retried. Records carry a format version (`v: 1`) and are checked with zod when read; a local copy that no longer validates is set aside (`unreadable:...`), never deleted or applied.
 
-Where IndexedDB is missing or refused (some private windows), the same interface runs in memory and `db.persistent` is false: show "This browser cannot keep unsaved work; keep the page open until it is saved."
+Where IndexedDB is missing or refused (some private windows), the same interface runs in memory and `db.persistent` is false. Pass `persistent: db.persistent` to `createAutosave` (the Supabase upload queue reads it itself): `snapshot.localCopy` is then false in both, and the pill shows the storage error instead of "Offline (will sync)" while changes are not on the server, since a reload would lose them.
 
 Call `requestPersistentStorage()` once after sign-in. Safari may otherwise evict site data after weeks without a visit; a home screen web app is exempt.
 
 ## Autosave
 
 ```ts
-const autosave = createAutosave<InspectionData>({
+const autosave = createAutosave<InspectionDraft>({
   inspectionId, userId,
-  transport,                       // see "The transport"
+  transport,                         // see "The transport"
   store: db.store("drafts"),
-  dataSchema: InspectionDataSchema, // optional: checks a restored local copy
+  persistent: db.persistent,
+  dataSchema: InspectionDraftSchema, // optional: checks a restored local copy; a draft schema (see below)
 });
 const start = await autosave.start({ data: row.data, updatedAt: row.updated_at });
 // then, on every edit:
@@ -64,11 +66,20 @@ How it behaves:
 | unauthorized (session ended) | error: "Sign in again to sync" | Keeps retrying; resumes by itself once the session is back |
 | forbidden (submitted, or not this user's), invalid, not_found | error | Waits: the next change or `retryNow()` tries again |
 | conflict | error | Waits for the inspector (see below) |
-| the local copy cannot be written, and the server is not reachable either | error: storage | Only memory holds the changes: keep the page open |
+| other_tab | error | Another tab on this device is the writer (see "One writer per inspection") |
+| the local copy cannot be kept (a failed write, or the in-memory fallback), and the server does not have the changes yet | error: storage | Only memory holds the changes: keep the page open |
 
 A request that takes longer than 30 s shows Offline (will sync) and is aborted if the transport accepts the `AbortSignal`. A Server Action cannot be aborted, so the controller waits for it rather than piling up requests.
 
 `getSnapshot()` returns `{ status, pending, lastSavedAt, online, error, conflict, retryAt, localCopy }`, the same object until something changes, for `useSyncExternalStore`. `status` is `saved | saving | offline | error`.
+
+### One writer per inspection
+
+Tabs on one device share one local copy per inspection, so only one controller may write it. `start()` takes a lock named after the user and inspection and holds it until `stop()`: Web Locks (`navigator.locks`), which span the tabs and which the browser releases when a tab is closed or discarded.
+
+- **A second tab** waits up to 3 s for the lock, then `start()` returns `{ kind: "busy", data }`: show the data read-only with `BUSY_MESSAGE` ("open in another tab"). Nothing is saved there; `change()` throws and `flush()` answers `other_tab`. Reload once the other tab is closed.
+- **The same tab** (a screen replaced by another on the same inspection, or React mounting twice): the old controller's `stop()` writes the local copy a last time and then lets go, and the new one waits for that. Answers that reach a stopped controller change memory only; the next start recognises a save that landed by its hash.
+- **Without Web Locks** (an insecure origin, such as the dev server reached over the LAN) the lock covers one page only. Every local copy then records the controller that wrote it, and a controller that finds another one's copy never writes over it: it shows `SUPERSEDED_MESSAGE`, keeps saving to the server (compare-and-set catches any clash there), refuses `flush()`, and the next start asks the conflict question if the two tabs diverged.
 
 ### The transport
 
@@ -84,25 +95,29 @@ The rule: write `data` only while the row's `updated_at` still equals `baseUpdat
 
 `updated_at` is an opaque version: pass it exactly as Postgres returned it (`2026-10-06T09:14:03.123456+00:00`). Never round-trip it through `Date`, which drops the microseconds and makes every compare-and-set miss.
 
-`saveInspectionData(client, request, { columns })` implements this on `public.inspections`. Two ways to use it:
+**Use a draft schema here, never the submit schema.** An inspection in progress is incomplete, and BUILD_SPEC 6.2 errors block submit, not saving. The schema given to `saveRequestSchema` and as `dataSchema` checks shape and types only (a number is a number, a size is a size), with every module and value optional. With the strict submit schema every in-progress save would be refused as `invalid` (which is not retried) and every restored local copy would be set aside.
 
-- **Server Action (recommended)**: validates the data with the module schemas before it reaches the database.
+`saveInspectionData(client, request, { columns })` implements the rule on `public.inspections`. Two ways to use it:
+
+- **Server Action (recommended)**: validates the data before it reaches the database.
 
   ```ts
   "use server";
   export async function saveInspection(input: unknown) {
     const auth = await authorizeAction();
     if (!auth.ok) return { ok: false, reason: "unauthorized", message: auth.error } as const;
-    const request = saveRequestSchema(InspectionDataSchema).safeParse(input);
+    const request = saveRequestSchema(InspectionDraftSchema).safeParse(input);
     if (!request.success) return { ok: false, reason: "invalid", message: summarizeIssues(request.error) } as const;
     return saveInspectionData(await createClient(), request.data, { columns: mirroredColumns });
   }
   // client: const transport = { save: ({ signal, ...request }) => saveInspection(request) };
   ```
 
-- **Browser client**: `supabaseAutosaveTransport(createClient())`. RLS and the database guards still apply, but the data is not checked against the module schemas on the way in.
+- **Browser client**: `supabaseAutosaveTransport(createClient())`. RLS and the database guards still apply, but the data is not checked on the way in.
 
 `columns` writes columns that mirror the data for lists and search (`po_no`, `product_name`, `lot_numbers`, `inspection_date`, `client_id`, `manufacturer_id`, `remarks`, `result`, `suggested_result`) in the same update. Status changes never go through autosave (AGENTS.md: server actions check the transition).
+
+A lost session reads as `unauthorized` (sign in again), not `forbidden`: without a session supabase-js sends the publishable key, PostgREST runs the request as anon and answers 401.
 
 With `experimental.useOffline` turned on in `next.config.ts`, Next.js holds a Server Action while offline instead of rejecting it. The controller copes: the pill shows Offline (will sync) after 30 s, nothing else is sent meanwhile, and the held request runs when the connection returns.
 
@@ -122,16 +137,18 @@ With `experimental.useOffline` turned on in `next.config.ts`, Next.js holds a Se
 
 The same rule runs when a save's compare-and-set misses: a server that moved through this device's own lost save, or through other columns (an admin switching a module off), is not a conflict; the controller rebases and sends again (up to 3 times in a row).
 
-**Conflicts** happen only when the same inspection was edited on two devices (or two tabs) and one of them had unsaved changes. Nothing is merged and nothing is lost silently: saving stops, `snapshot.conflict` holds both copies, and the capture screen asks:
+**Conflicts** happen only when the same inspection was edited on two devices (or, without Web Locks, in two tabs) and one of them had unsaved changes. Nothing is merged and nothing is lost silently: saving stops, `snapshot.conflict` holds both copies, and the capture screen asks:
 
 - **Keep this iPad's version**: `resolveConflict("local")` saves it over the server's copy.
 - **Use the version saved on the other device**: `resolveConflict("server")` drops the local changes and returns the server's data to render.
 
 Edits made while the question is open stay in the local copy and go with "keep this iPad's version".
 
+**Set-aside copies** are local copies this version could not read (an app update changed their shape). They are never applied or deleted on their own. `listSetAsideDrafts(store, userId)` lists them; `restoreSetAsideDraft(store, key)` puts one back for the next start to read again (it refuses while the inspection is open in a tab or has unsaved changes of its own); `discardSetAsideDraft(store, key)` deletes one once the inspector agrees.
+
 ### Flush before submit
 
-`await autosave.flush()` cancels the debounce and any backoff, saves now and waits for the answer. It returns `{ ok: true }`, or `{ ok: false, reason, message }` on a failure, a conflict or after 20 s: it never waits out an outage. Submit only after `ok`.
+`await autosave.flush()` cancels the debounce and any backoff, saves now and waits for the answer. It returns `{ ok: true }`, or `{ ok: false, reason, message }` on a failure, a conflict, another tab being the writer, or after 20 s: it never waits out an outage. Submit only after `ok`.
 
 ## Photos
 
@@ -146,7 +163,9 @@ Edits made while the question is open stay in the local copy and go with "keep t
 5. Strips metadata from both: re-encoding through a canvas writes no Exif, and `stripJpegMetadata` then removes any APP1 to APP15 segment (Exif with GPS, XMP, IPTC), comments and data after the image, keeping only JFIF and the colour profile. A check after it proves nothing else is left.
 6. `takenAt` is Exif DateTimeOriginal with its sub-seconds and UTC offset (else DateTimeDigitized; without an offset, the device's time zone), else the file's `lastModified`.
 
-Result: `{ blob, thumbBlob, width, height, takenAt, flagged, mimeType }`. When the browser cannot decode or convert the file (some HEIC), the original bytes are kept with `flagged: true`, no thumbnail and no size; the bucket accepts JPEG, PNG, WebP, HEIC and HEIF up to 25 MB, and anything else is refused (`unsupported`, `too_large`, `empty`).
+Result: `{ blob, thumbBlob, width, height, takenAt, flagged, mimeType }`.
+
+When the browser cannot convert the file (some HEIC; or a decode or canvas step that fails, e.g. under memory pressure), the original is kept with `flagged: true`, no thumbnail and no size; the bucket accepts JPEG, PNG, WebP, HEIC and HEIF up to 25 MB, and anything else is refused (`unsupported`, `too_large`, `empty`). The original still loses its metadata where its bytes allow (`cleanOriginal`, no decoding, image data byte for byte): a JPEG keeps only its colour profile and a minimal Exif block holding its orientation, so it still shows upright; a PNG keeps only its image chunks (no eXIf, text or time chunks); a WebP loses its EXIF and XMP chunks. An original whose bytes are cut short is refused (`unreadable`). HEIC and HEIF go up as they are (see "Known limits").
 
 ### Tags and the target string
 
@@ -182,39 +201,41 @@ await queue.start();
 const id = await queue.enqueuePhoto({ inspectionId, photo, tag: autoTag(focus) });
 ```
 
-- **Capture never waits.** `enqueuePhoto` and `enqueueFile` write the bytes and the item to IndexedDB and return the future row id. If they cannot be written, the item uploads from memory and `snapshot.localCopy` turns false.
-- **In order, one at a time.** A photo uploads its object to `inspection-photos/<inspection_id>/<id>.jpg` (or the original's extension when flagged), then its thumbnail to `<inspection_id>/thumbs/<id>.jpg`, then inserts the `inspection_photos` row. A file uploads to `inspection-files/<inspection_id>/<id>.<ext>` and inserts its `inspection_files` row. Each finished step is recorded, so a reload resumes where it stopped.
+- **Capture never waits.** `enqueuePhoto` and `enqueueFile` write the bytes and the item to IndexedDB and return the future row id. An item counts as pending from the moment it is handed over. If it cannot be written, it uploads from memory and `snapshot.localCopy` turns false.
+- **In order, one at a time**, oldest first. A photo uploads its object to `inspection-photos/<inspection_id>/<id>.jpg` (or the original's extension when flagged), then its thumbnail to `<inspection_id>/thumbs/<id>.jpg`, then inserts the `inspection_photos` row. A file uploads to `inspection-files/<inspection_id>/<id>.<ext>` and inserts its `inspection_files` row. Each finished step is recorded, so a reload resumes where it stopped.
 - **Idempotent.** The object names and the row id are the item's id. The storage client must count an object that already exists as uploaded and never overwrite it (Supabase answers 409 Duplicate; the adapter sends `x-upsert: false`). The repository must count a duplicate id as written (Postgres 23505). So a retry after a lost answer never creates a second object or row.
-- **Retries.** Network, server and expired-session failures retry the whole queue after 2, 4, 8 ... 60 s, and at once on the `online` event. Other failures (not allowed, refused, too large, the bytes gone from this device) stop that item, mark it `failed` with the reason, and the queue moves on; `retryNow(id)` puts it back.
+- **Retries.** Network, server and expired-session failures retry the whole queue after 2, 4, 8 ... 60 s, and at once on the `online` event. An offline device whose session token is due for refresh reads as no connection, not as an ended session. Other failures (not allowed, refused, too large, the bytes gone from this device) stop that item, mark it `failed` with the reason, and the queue moves on; `retryNow(id)` puts it back.
 - **Progress.** Uploads go through XMLHttpRequest, not supabase-js, because fetch cannot report upload progress. An upload with no progress for 60 s is abandoned and retried.
-- **Survives reloads.** `start()` loads this user's items (another user's wait for them) and removes leftover bytes of interrupted enqueues once they are an hour old.
-- **Retag and remove.** `retag(id, { tag, caption })` changes a queued photo; a retag made while its row is being written is followed by an update. `remove(id)` drops an item and deletes any object already uploaded. Both return false once the row exists: then change or delete the row as for any uploaded photo.
-- **Tabs.** Each item is uploaded under a `navigator.locks` lock, so two tabs never upload the same item at once; the idempotent steps cover browsers without locks.
+- **Survives reloads.** `start()` loads this user's items (another user's wait for them) and removes leftover bytes of interrupted enqueues once they are an hour old. Until that load has worked, `snapshot.load` is `loading` (then `ready`), and `isEmpty()` is false: nobody knows yet whether photos are waiting. A failed load shows `failed` and is retried with backoff, at once when the connection returns, and on `retryNow()`; meanwhile what the page queues itself still goes up.
+- **Retag and remove.** `retag(id, { tag, caption })` changes a queued photo; a retag made while its row is being written is followed by an update. If the server refuses that update for good (the row was deleted, the inspection submitted), the photo still counts as uploaded and the retag is reported in `snapshot.retagFailures` (clear one with `dismissRetagFailure(id)`). `remove(id)` returns true when the item is gone together with any object already uploaded; false when it was not queued, or when its row already exists: the item then leaves the queue, and the caller deletes the row and its objects as for any uploaded photo.
+- **Tabs.** Each item is uploaded under a `navigator.locks` lock, so two tabs never upload the same item at once; the idempotent steps cover browsers without locks. `isEmptyNow()` reads the store, so items another tab queued count too.
 
-`getSnapshot()` returns `{ items, pending, failed, online, retryAt, error, localCopy }`. Each item has `id`, `kind`, `inspectionId`, `moduleKey`, `target`, `caption`, `name`, `flagged`, `takenAt`, `state` (`waiting | uploading | failed`), `progress` (0 to 1) and `error`.
+`getSnapshot()` returns `{ load, items, pending, failed, online, retryAt, error, retagFailures, localCopy }`. Each item has `id`, `kind`, `inspectionId`, `moduleKey`, `target`, `caption`, `name`, `flagged`, `takenAt`, `state` (`waiting | uploading | failed`), `progress` (0 to 1) and `error`.
 
 ## What the capture screen wires
 
 1. **One database and one queue per page**, in a client provider: `getOfflineDatabase()`, `requestPersistentStorage()`, `createSupabaseUploadQueue(...)`, `queue.start()`. Stop the queue on sign-out.
-2. **Autosave per inspection**: create it when the capture screen mounts, `await start()` with the page's `data` and `updated_at`, render the data it returns, call `change()` on every edit with the new data object, `stop()` on unmount.
+2. **Autosave per inspection**: create it when the capture screen mounts (with `persistent: db.persistent`), `await start()` with the page's `data` and `updated_at`, render the data it returns, call `change()` on every edit with the new data object, `stop()` on unmount.
    - `restored`: a short notice, "Unsaved changes from this iPad were restored."
    - `conflict`: a dialog with the two choices above. `setAside`: "An older unsaved copy could not be read and was kept aside."
+   - `busy`: the data read-only, with `BUSY_MESSAGE` and a Reload button.
 3. **Status pill**: `SaveStatus` (`components/qc/save-status.tsx`) from `useSyncExternalStore(autosave.subscribe, autosave.getSnapshot)`: `saved` Saved (with `lastSavedAt`), `saving` Saving, `offline` Offline (will sync), `error` with `error.message` and an action (Try again: `retryNow()`; Sign in; Resolve). See follow-ups: the component has no error state yet.
-4. **Queue badge**: `pendingUploads={queue.pendingCount(inspectionId)}` on the pill, from `useSyncExternalStore(queue.subscribe, queue.getSnapshot)`.
+4. **Queue badge**: `pendingUploads={queue.pendingCount(inspectionId)}` on the pill, from `useSyncExternalStore(queue.subscribe, queue.getSnapshot)`; while `snapshot.load` is not `ready`, show it as unknown rather than 0.
 5. **Photo buttons**: `ModuleCard`'s `onFiles(files)`: for each file, `processPhoto` then `queue.enqueuePhoto({ inspectionId, photo, tag: autoTag(focus) })`, where `focus` is the module, size tab, hand and the defect or box selected. Lab report inputs (`force_at_break`, `tensile`, `documents`): `prepareFile` then `queue.enqueueFile`.
-6. **Photo tiles** for queued items: `PhotoTile` with `state` `pending` (or `flagged`), `progress * 100`, and `src` from `URL.createObjectURL(await queue.preview(id))` (revoke it on unmount). Uploaded photos come from `inspection_photos` with signed URLs.
-7. **Submit**: disabled while `!queue.isEmpty(inspectionId)` ("Waiting for 3 photos to upload"), then `await autosave.flush()`; submit only when it returns `ok`.
-8. **Sign-out**: warn when `listUnsavedDrafts(db.store("drafts"), userId)` or `queue.pendingCount()` is not empty; that work lives only on this device until it syncs.
+6. **Photo tiles** for queued items: `PhotoTile` with `state` `pending` (or `flagged`), `progress * 100`, and `src` from `URL.createObjectURL(await queue.preview(id))` (revoke it on unmount). Uploaded photos come from `inspection_photos` with signed URLs. Show `snapshot.retagFailures` as a notice ("The new tag of a photo could not be saved") and dismiss it once seen.
+7. **Submit**: keep the button disabled while photos are being processed (before `enqueuePhoto` returns, the queue does not know them) and while `!queue.isEmpty(inspectionId)` ("Waiting for 3 photos to upload"). On submit, check `await queue.isEmptyNow(inspectionId)`, which also counts items queued in another tab, then `await autosave.flush()`; submit only when both say yes.
+8. **Sign-out**: warn when `listUnsavedDrafts(db.store("drafts"), userId)` or `listSetAsideDrafts(db.store("drafts"), userId)` is not empty, or `await queue.isEmptyNow()` is false; that work lives only on this device until it syncs.
 9. **Housekeeping**: `pruneSyncedDrafts(db.store("drafts"), Date.now() - 30 days)` now and then (e.g. on the inspections list).
 
 ## Known limits
 
 - **Full offline mode is Later** (BUILD_SPEC 12). There is no service worker: a page that is reloaded or opened while offline does not load. Nothing is lost: the local copy and the queue are on the device and sync when the page next loads online. Editing continues offline only on a page that is already open.
 - **Capture time of non-JPEG photos.** HEIC, PNG and WebP Exif is not read; their capture time is the file's `lastModified`. iPadOS converts camera photos to JPEG for the web, so this mostly affects files dragged in on a desktop.
-- **Flagged originals keep their metadata**, GPS included, until converted: the browser could not decode them, so it could not strip them either. The conversion step (server side, later) must strip it.
+- **HEIC and HEIF originals keep their metadata**, GPS included, until converted: the browser could not decode them, and their metadata cannot be removed without decoding. The conversion step (server side, later) must strip it. Flagged JPEG, PNG and WebP originals are cleaned before upload.
 - **Files are uploaded as they are**, metadata included. A certificate photographed with the iPad camera is better taken with "Take photo", which processes it.
 - **A photo being processed when the page reloads is lost**: it is kept only once enqueued, a fraction of a second later.
 - **Processing runs on the main thread** (about 100 to 300 ms a photo on an iPad). It could move to a worker with OffscreenCanvas if bursts of library photos feel slow.
-- **Two tabs editing the same inspection** on one device count as two devices: the second to save gets the conflict question.
+- **A second tab on the same inspection** is read-only where Web Locks exist (every supported browser over HTTPS). Without them (plain http on the LAN in development) a second tab steps back at its first write instead of overwriting the first tab's copy, and two tabs writing within the same few milliseconds can still slip past that check once.
+- **A save in flight when the screen closes** lands on the server, but its answer is not recorded: `listUnsavedDrafts` lists that inspection until it is opened again, which settles it.
 - **Removing a photo another tab is uploading** may still leave its row; delete it from the gallery.
 - `lastSavedAt` and the retry times are device clock times; only `updated_at` comes from the server.
