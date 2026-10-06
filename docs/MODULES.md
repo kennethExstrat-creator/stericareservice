@@ -248,6 +248,7 @@ Readers: `samplingFor(context, size)` (empty values when missing), `cartonsFor(c
 |---|---|---|
 | `module_not_done` | warning; error with `requiredForSubmit` | The final status is not done (rule 5). |
 | `size_not_ordered` | warning | Data saved for a size not in the order; ignored (rule 4). |
+| `size_duplicate` | warning | One ordered size saved under two spellings (`M` and `m`); the canonical one is used, the other ignored. |
 | `invalid_data` | error | Saved data fails your schema (text in a numeric cell, rule 1). |
 | `invalid_config` | error | The template's config fails your schema. |
 | `calc_failed` | error | Your calc, or a refinement in your schemas, threw. Only your module is affected. |
@@ -265,7 +266,7 @@ It also overrides the status: nothing saved means not done; per-size results onl
 | 1. Numeric cells accept numbers only | Cell schemas; `NumericCell`; `readDecimalCell` for pasted text | `invalid_data` error on saved text |
 | 2. Totals, averages, medians, rates, code letters, limits are computed | Compute in calc, return in `computed`, show read-only | |
 | 3. Counts never turn into dates; dates use pickers | `CountCellSchema`, steppers; `DateCellSchema` with a date picker | |
-| 4. Sizes not in order_lots appear nowhere | Loop over `context.sizes` | Drops unordered sizes from data, results and export; `size_not_ordered` warning |
+| 4. Sizes not in order_lots appear nowhere | Loop over `context.sizes` | Drops unordered sizes from data, results and export; `size_not_ordered` warning; `size_duplicate` for a second spelling of an ordered size |
 | 5. Missing data shows "Not done", never "Passed" | Return `not_done` until complete | Forces not done without data or for missing sizes; `module_not_done` warning |
 | 6. Cartons unique per size, 1 to the order quantity, count = sampled cases | `carton_sampling`: errors with paths; result fail | Carton list into the context, unique |
 | 7. Box numbers picked from that size's carton list | Pick from `context.cartons[size]`; error when a saved box is not in it | |
@@ -380,7 +381,7 @@ const report = validateInspection(data, template, context);
 |---|---|---|
 | `header` | no | Always on. Contributes `header`; use its keys (`client`, `manufacturer`, `poNo`, `productName`, `productCode`, `inspectionDate`, `mfgDate`, `expiryDate`) as your data keys. Inspector from `context.inspection`, never typed. Warn if expiry is not after mfg date. Canonical paths for the text fields. |
 | `glove_info` | no | Done: the worked example. |
-| `order_lots` | no | The source of sizes, so not per size itself. Contributes `sizes` (sizes with a quantity) and `order`. Totals in `computed`, gloves from `context.packing`. Offer only `context.templateSizes`. |
+| `order_lots` | no | The source of sizes, so not per size itself, and the framework's per-size checks do not cover its data: reject a size entered twice yourself. Contributes `sizes` (sizes with a quantity) and `order`. Totals in `computed`, gloves from `context.packing`. Offer only `context.templateSizes`. |
 | `packing_config` | no | Contributes `packing`. Warn if gloves per case is not inner x per case. Inner unit name from config. |
 | `sampling_plan` | yes | Contributes `sampling` (the `SamplingValues` keys) and `aql.inspectionLevel` from config. Warn when below the AQL plan (`lib/aql`, `lotSizeGloves`). |
 | `carton_sampling` | yes | Contributes `cartons`. Rule 6 errors with paths; fail on them. |

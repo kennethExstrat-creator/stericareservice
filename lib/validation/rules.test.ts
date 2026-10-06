@@ -7,6 +7,7 @@ import {
   invalidDataIssues,
   notDoneIssues,
   restrictToOrderedSizes,
+  sizeDuplicateIssues,
   sizeNotOrderedIssues,
 } from "./rules";
 
@@ -16,18 +17,44 @@ describe("restrictToOrderedSizes (6.2 rule 4)", () => {
     expect(restrictToOrderedSizes(data, ["S", "M"])).toEqual({
       data: { unit: "g", sizes: { M: [2.9] } },
       ignored: ["XL", "7"],
+      duplicates: [],
     });
   });
 
-  it("prefers the canonical key when two spellings of a size are saved", () => {
-    expect(restrictToOrderedSizes({ sizes: { "7": "variant", "7.0": "canonical" } }, ["7.0"]).data).toEqual({
-      sizes: { "7.0": "canonical" },
+  it("prefers the canonical key when two spellings of a size are saved, and lists the other", () => {
+    expect(restrictToOrderedSizes({ sizes: { "7": "variant", "7.0": "canonical" } }, ["7.0"])).toEqual({
+      data: { sizes: { "7.0": "canonical" } },
+      ignored: [],
+      duplicates: ["7"],
+    });
+    expect(restrictToOrderedSizes({ sizes: { M: [3], m: [99] } }, ["M"])).toEqual({
+      data: { sizes: { M: [3] } },
+      ignored: [],
+      duplicates: ["m"],
+    });
+    // Neither is canonical: the first saved is used.
+    expect(restrictToOrderedSizes({ sizes: { "7": "first", "7,0": "second" } }, ["7.0"])).toEqual({
+      data: { sizes: { "7.0": "first" } },
+      ignored: [],
+      duplicates: ["7,0"],
     });
   });
 
   it("leaves data without sizes alone", () => {
     const data = { colour: "Blue" };
-    expect(restrictToOrderedSizes(data, ["M"])).toEqual({ data, ignored: [] });
+    expect(restrictToOrderedSizes(data, ["M"])).toEqual({ data, ignored: [], duplicates: [] });
+  });
+
+  it("warns once per second spelling, with a link to it", () => {
+    expect(sizeDuplicateIssues(["m"], "Weight (g)")).toEqual([
+      {
+        level: "warning",
+        code: FRAMEWORK_ISSUE_CODES.sizeDuplicate,
+        message: 'Weight (g): size M is also saved as "m". The values under "m" are left out of results and the export.',
+        size: "M",
+        path: ["sizes", "m"],
+      },
+    ]);
   });
 
   it("warns once per ignored size, with a link to it", () => {

@@ -13,7 +13,13 @@ import type { CustomModule, Field } from "@/lib/schemas/template";
 import { rangeError } from "@/lib/stats";
 import { CountCellSchema, DateCellSchema, DecimalCellSchema, isBlank, TextCellSchema, YesNoCellSchema } from "./cells";
 import { errorIssue, warningIssue, type CalcIssue, type IssuePath } from "./issues";
-import { FRAMEWORK_ISSUE_CODES as CODES, invalidDataIssues, restrictToOrderedSizes, sizeNotOrderedIssues } from "./rules";
+import {
+  FRAMEWORK_ISSUE_CODES as CODES,
+  invalidDataIssues,
+  restrictToOrderedSizes,
+  sizeDuplicateIssues,
+  sizeNotOrderedIssues,
+} from "./rules";
 
 type Values = Record<string, unknown>;
 
@@ -95,8 +101,8 @@ export function evaluateCustomValues({ custom, value, sizes, readMapped }: Custo
     return { values, issues };
   }
 
-  const { data, ignored } = restrictToOrderedSizes(parsed.data, sizes);
-  const issues = sizeNotOrderedIssues(ignored, custom.title);
+  const { data, ignored, duplicates } = restrictToOrderedSizes(parsed.data, sizes);
+  const issues = [...sizeNotOrderedIssues(ignored, custom.title), ...sizeDuplicateIssues(duplicates, custom.title)];
   const saved = (data.sizes ?? {}) as Record<string, Values>;
   const values: Values = {
     sizes: Object.fromEntries(

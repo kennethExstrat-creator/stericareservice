@@ -48,6 +48,7 @@ export {
   FRAMEWORK_ISSUE_CODES,
   restrictToOrderedSizes,
   sizeNotOrderedIssues,
+  sizeDuplicateIssues,
   notDoneIssues,
   inspectorIssues,
 } from "./rules";

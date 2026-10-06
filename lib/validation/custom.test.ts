@@ -91,6 +91,15 @@ describe("custom module values: a table with a row per ordered size", () => {
       ["error", "required", "S", ["sizes", "S", "requirement"]],
     ]);
   });
+
+  it("warns about a row saved under a second spelling of its size", () => {
+    const { values, issues } = evaluate({
+      custom: perSizeTable,
+      value: { sizes: { M: { requirement: "≤ 5%" }, m: { requirement: "≤ 6%" } } },
+    });
+    expect(values).toEqual({ sizes: { M: { requirement: "≤ 5%", conclusion: null } } });
+    expect(issues.map((issue) => [issue.code, issue.size, issue.path])).toEqual([["size_duplicate", "M", ["sizes", "m"]]]);
+  });
 });
 
 describe("custom module values: a grid of boxes per size", () => {

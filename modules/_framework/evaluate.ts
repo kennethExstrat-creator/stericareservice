@@ -22,6 +22,7 @@ import {
   invalidOutputIssues,
   notDoneIssues,
   restrictToOrderedSizes,
+  sizeDuplicateIssues,
   sizeNotOrderedIssues,
 } from "@/lib/validation/rules";
 import { suggestResult, type SuggestedResult } from "@/lib/validation/suggested-result";
@@ -150,10 +151,14 @@ function evaluateModule(
       return broken(config.data, null, "Saved data could not be read.", invalidDataIssues(title, parsed.error));
     }
 
-    const { data: moduleData, ignored } = definition.perSize
+    const { data: moduleData, ignored, duplicates } = definition.perSize
       ? restrictToOrderedSizes(parsed.data, context.sizes)
-      : { data: parsed.data, ignored: [] };
-    const issues: CalcIssue[] = [...contributed, ...sizeNotOrderedIssues(ignored, title)];
+      : { data: parsed.data, ignored: [], duplicates: [] };
+    const issues: CalcIssue[] = [
+      ...contributed,
+      ...sizeNotOrderedIssues(ignored, title),
+      ...sizeDuplicateIssues(duplicates, title),
+    ];
 
     let output: ReturnType<AnyModuleDefinition["calc"]>;
     try {

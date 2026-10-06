@@ -110,6 +110,17 @@ describe("evaluateInspection: the STD_EG example flow (expected results B)", () 
     ]);
   });
 
+  it("warns about a size saved under a second spelling instead of dropping it silently", () => {
+    const data = exampleB();
+    data.modules = { ...data.modules, weight: { sizes: { m: { values: [99] }, M: { values: WEIGHTS_M } } } };
+    const weight = moduleOf(evaluate(data), "weight");
+    expect(weight.data).toEqual({ sizes: { M: { values: WEIGHTS_M } } });
+    expect(weight.issues.map((issue) => [issue.code, issue.size, issue.path])).toEqual([
+      ["size_duplicate", "M", ["sizes", "m"]],
+      ["weight_deviation", "M", ["sizes", "M", "values"]],
+    ]);
+  });
+
   it("suggests pass once the cartons are fixed, the weight warning listed, conclusion left to the inspector", () => {
     const data = exampleB();
     data.modules = { ...data.modules, carton_sampling: { sizes: { M: [32, 609, 578, 2389, 1186] } } };

@@ -10,6 +10,8 @@ import { errorIssue, warningIssue, type CalcIssue, type IssuePath, type Validati
 export const FRAMEWORK_ISSUE_CODES = {
   /** 6.2.4: data saved for a size that is not in order_lots. Ignored, kept in the database. */
   sizeNotOrdered: "size_not_ordered",
+  /** One size saved under two spellings ("M" and "m"). One is used, the other ignored and kept. */
+  sizeDuplicate: "size_duplicate",
   /** 6.2.5: the module is not done. A warning, or an error for a module required for submit. */
   moduleNotDone: "module_not_done",
   /** Saved data does not match the module's data schema (text in a numeric cell, rule 6.2.1). */
@@ -36,26 +38,40 @@ export const FRAMEWORK_ISSUE_CODES = {
 const CODES = FRAMEWORK_ISSUE_CODES;
 
 /**
- * Splits per-size data into the ordered sizes (canonical keys, what calc sees)
- * and the sizes it holds that are not ordered (6.2.4). Data outside `sizes` is
- * kept as it is.
+ * Splits per-size data into the ordered sizes (canonical keys, what calc sees),
+ * the sizes it holds that are not ordered (6.2.4), and second spellings of an
+ * ordered size ("m" beside "M"), which are left out too. Data outside `sizes`
+ * is kept as it is.
  */
-export function restrictToOrderedSizes<T>(data: T, sizes: readonly string[]): { data: T; ignored: string[] } {
-  if (!isRecord(data) || !isRecord(data.sizes)) return { data, ignored: [] };
+export function restrictToOrderedSizes<T>(
+  data: T,
+  sizes: readonly string[],
+): { data: T; ignored: string[]; duplicates: string[] } {
+  if (!isRecord(data) || !isRecord(data.sizes)) return { data, ignored: [], duplicates: [] };
   const ordered = new Set(sizes);
-  const kept: Record<string, unknown> = {};
+  const kept = new Map<string, { spelling: string; entry: unknown }>();
   const ignored: string[] = [];
+  const duplicates: string[] = [];
   for (const [size, entry] of Object.entries(data.sizes)) {
     const canonical = normaliseSize(size);
-    if (canonical !== null && ordered.has(canonical)) {
-      // An exact canonical key wins over a variant spelling of the same size.
-      if (!(canonical in kept) || size === canonical) kept[canonical] = entry;
-    } else {
+    if (canonical === null || !ordered.has(canonical)) {
       ignored.push(size);
+      continue;
+    }
+    const current = kept.get(canonical);
+    if (current === undefined) {
+      kept.set(canonical, { spelling: size, entry });
+    } else if (size === canonical) {
+      // An exact canonical key wins over a variant spelling of the same size.
+      duplicates.push(current.spelling);
+      kept.set(canonical, { spelling: size, entry });
+    } else {
+      duplicates.push(size);
     }
   }
+  const restricted = Object.fromEntries([...kept].map(([canonical, { entry }]) => [canonical, entry]));
   // Size order, not key order: JavaScript lists a key like "7" before "XL".
-  return { data: { ...data, sizes: kept } as T, ignored: sortSizes(ignored) };
+  return { data: { ...data, sizes: restricted } as T, ignored: sortSizes(ignored), duplicates: sortSizes(duplicates) };
 }
 
 export function sizeNotOrderedIssues(ignored: readonly string[], title: string): CalcIssue[] {
@@ -66,6 +82,17 @@ export function sizeNotOrderedIssues(ignored: readonly string[], title: string):
       { size: normaliseSize(size) ?? size, path: ["sizes", size] },
     ),
   );
+}
+
+export function sizeDuplicateIssues(duplicates: readonly string[], title: string): CalcIssue[] {
+  return duplicates.map((size) => {
+    const canonical = normaliseSize(size) ?? size;
+    return warningIssue(
+      CODES.sizeDuplicate,
+      `${title}: size ${canonical} is also saved as "${size}". The values under "${size}" are left out of results and the export.`,
+      { size: canonical, path: ["sizes", size] },
+    );
+  });
 }
 
 /**
