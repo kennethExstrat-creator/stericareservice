@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { describeSchema, type FormNode } from "./describe";
-import { humanize, optionText } from "./labels";
+import { z } from "zod";
+import { humanize, numberRange, optionText } from "./labels";
 import { deepEqual, emptyValue, emptyVariant, getAt, moveItem, setAt, variantOf } from "./values";
 import { DimensionsLikeSchema, DispensingLikeSchema, MARKERS, WatertightLikeSchema } from "./__fixtures__/schemas";
 
@@ -102,5 +103,20 @@ describe("labels", () => {
     expect(optionText("median")).toBe("Median");
     expect(optionText(1.5)).toBe("1.5");
     expect(optionText(null)).toBe("None");
+  });
+
+  it("says what a number accepts, from the schema's own limits", () => {
+    const range = (schema: z.ZodType) => {
+      const node = describeSchema(schema);
+      return node.kind === "number" ? numberRange(node) : `not a number: ${node.kind}`;
+    };
+    expect(range(z.number().min(0).max(100))).toBe("0 to 100.");
+    expect(range(z.number().int().min(1).max(10_000))).toBe("Whole number, 1 to 10,000.");
+    expect(range(z.number().positive())).toBe("More than 0.");
+    expect(range(z.number().int().positive())).toBe("Whole number, more than 0.");
+    expect(range(z.number().max(5))).toBe("5 or less.");
+    expect(range(z.number().gt(0).lte(1.5))).toBe("More than 0 and 1.5 or less.");
+    expect(range(z.number().int())).toBe("Whole number.");
+    expect(range(z.number())).toBeUndefined();
   });
 });

@@ -39,7 +39,7 @@ export {
   type FormIssues,
   type FormPath,
 } from "./issues";
-export { humanize, optionText } from "./labels";
+export { humanize, numberRange, optionText } from "./labels";
 export {
   deepEqual,
   emptyObject,

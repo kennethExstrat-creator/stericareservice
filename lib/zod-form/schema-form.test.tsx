@@ -74,12 +74,18 @@ describe("SchemaForm", () => {
     });
     expect(html).toContain('inputMode="decimal"');
     expect(html).toContain(">%</div>");
+    // Its limits in words, read with the field.
+    expect(html).toContain('<p id="form-minLayeringPct-range" class="text-sm text-muted-foreground">0 to 100.</p>');
+    expect(tagWithId(html, "form-minLayeringPct")).toContain(
+      'aria-describedby="form-minLayeringPct-range form-minLayeringPct-description"',
+    );
+    expect(html).toContain("Whole number, 1 to 500.");
     expect(html).toContain('aria-label="Move Stickiness code 1 down"');
     expect(html).toContain('aria-label="Remove Stickiness code 2"');
     expect(html).toContain("Add stickiness code");
     // The record's entry, and the sizes still free to add.
     expect(html).toContain('data-record-key="XL"');
-    expect(html).toContain("Add to by size");
+    expect(html).toContain('Add a size<span class="sr-only"> to By size</span>');
   });
 
   it("puts each message on its field and wires it for screen readers", () => {

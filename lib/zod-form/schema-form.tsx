@@ -26,7 +26,7 @@ import type {
   UnionNode,
 } from "./describe";
 import { issuesAt, NO_ISSUES, type FormIssues, type FormPath } from "./issues";
-import { humanize, optionText } from "./labels";
+import { humanize, numberRange, optionText } from "./labels";
 import { emptyValue, emptyVariant, isPlainObject, moveItem, setAt, variantOf } from "./values";
 
 export type KeyOption = { value: string; label: string };
@@ -285,7 +285,14 @@ function ScalarField({ node, value, onChange, path, label, required, onRemove, h
   const descriptionId = `${id}-description`;
   const errorId = `${id}-errors`;
   const errors = issuesAt(issues, path);
-  const describedBy = [node.description && !quiet ? descriptionId : null, errors.length > 0 ? errorId : null]
+  // What a number accepts, from the schema's limits: "0 to 100." (left out in later list items, as descriptions are).
+  const range = node.kind === "number" && !quiet ? numberRange(node) : undefined;
+  const rangeId = `${id}-range`;
+  const describedBy = [
+    range ? rangeId : null,
+    node.description && !quiet ? descriptionId : null,
+    errors.length > 0 ? errorId : null,
+  ]
     .filter(Boolean)
     .join(" ") || undefined;
   const emptyAs: EmptyAs = required ? "empty" : "missing";
@@ -388,6 +395,11 @@ function ScalarField({ node, value, onChange, path, label, required, onRemove, h
         hidden={hideLabel}
       />
       {control}
+      {range && (
+        <p id={rangeId} className="text-sm text-muted-foreground">
+          {range}
+        </p>
+      )}
       {note && <p className="text-sm text-warn">{note}</p>}
       <Description id={descriptionId} text={node.description} />
       {errors.length > 0 && (
@@ -615,6 +627,7 @@ function RecordGroup({ node, value, onChange, path, label, onRemove, unit }: Fie
         <AddEntry
           id={`${id}-new-key`}
           label={label}
+          noun={node.key.marker === "size" ? "size" : "entry"}
           options={available}
           pattern={node.key.pattern}
           taken={keys}
@@ -628,6 +641,7 @@ function RecordGroup({ node, value, onChange, path, label, onRemove, unit }: Fie
 function AddEntry({
   id,
   label,
+  noun,
   options,
   pattern,
   taken,
@@ -635,6 +649,8 @@ function AddEntry({
 }: {
   id: string;
   label: string;
+  /** What a key is, for "Add a size". */
+  noun: string;
   options?: readonly KeyOption[];
   pattern?: string;
   taken: readonly string[];
@@ -645,7 +661,10 @@ function AddEntry({
     return (
       <div className="flex flex-wrap items-end gap-2">
         <div className="grid gap-1.5">
-          <Label htmlFor={id}>Add to {label.toLowerCase()}</Label>
+          <Label htmlFor={id}>
+            Add {noun === "entry" ? "an" : "a"} {noun}
+            <span className="sr-only"> to {label}</span>
+          </Label>
           <OptionSelect
             id={id}
             value={undefined}
@@ -770,16 +789,18 @@ function ArrayGroup({ node, value, onChange, path, label, onRemove, unit }: Fiel
             return (
               <li key={index} className="flex flex-wrap items-end gap-2" data-item={index}>
                 <div className="min-w-0 flex-1">
-                  <NodeField
-                    node={items}
-                    value={item}
-                    onChange={(next) => onChange(list.map((entry, position) => (position === index ? next : entry)))}
-                    path={itemPath}
-                    label={name}
-                    required
-                    hideLabel={items.kind !== "boolean"}
-                    unit
-                  />
+                  <QuietContext.Provider value={index > 0}>
+                    <NodeField
+                      node={items}
+                      value={item}
+                      onChange={(next) => onChange(list.map((entry, position) => (position === index ? next : entry)))}
+                      path={itemPath}
+                      label={name}
+                      required
+                      hideLabel={items.kind !== "boolean"}
+                      unit
+                    />
+                  </QuietContext.Provider>
                 </div>
                 {actions}
               </li>
@@ -998,22 +1019,24 @@ function UnionField({ node, value, onChange, path, label, onRemove, hideLabel, u
             className="min-w-44"
           />
         </div>
-        {fields.map((property) => {
-          const childPath = [...path, property.key];
-          return (
-            <div key={property.key} className="min-w-32">
-              <NodeField
-                node={property.node}
-                value={object[property.key]}
-                onChange={(next) => onChange(setAt(object, [property.key], next))}
-                path={childPath}
-                label={labelText(property.node, property.key, childPath, hooks)}
-                required={property.required}
-                unit
-              />
-            </div>
-          );
-        })}
+        <QuietContext.Provider value>
+          {fields.map((property) => {
+            const childPath = [...path, property.key];
+            return (
+              <div key={property.key} className="min-w-32">
+                <NodeField
+                  node={property.node}
+                  value={object[property.key]}
+                  onChange={(next) => onChange(setAt(object, [property.key], next))}
+                  path={childPath}
+                  label={labelText(property.node, property.key, childPath, hooks)}
+                  required={property.required}
+                  unit
+                />
+              </div>
+            );
+          })}
+        </QuietContext.Provider>
       </div>
       {tagErrors.map((message) => (
         <p key={message} className="text-sm text-destructive">
@@ -1034,7 +1057,13 @@ function NullableField(props: FieldProps & { node: NullableNode }) {
   const id = fieldId(idPrefix, path);
   const descriptionId = `${id}-description`;
   const errors = issuesAt(issues, path);
-  const describedBy = [node.description && !quiet ? descriptionId : null, errors.length > 0 ? `${id}-errors` : null]
+  const range = inner.kind === "number" && !quiet ? numberRange(inner) : undefined;
+  const rangeId = `${id}-range`;
+  const describedBy = [
+    range ? rangeId : null,
+    node.description && !quiet ? descriptionId : null,
+    errors.length > 0 ? `${id}-errors` : null,
+  ]
     .filter(Boolean)
     .join(" ") || undefined;
 
@@ -1087,6 +1116,11 @@ function NullableField(props: FieldProps & { node: NullableNode }) {
       <div className="grid gap-1.5" data-slot="form-field" data-kind={`nullable-${inner.kind}`}>
         <FieldHeader label={label} htmlFor={id} path={path} overridable={!unit} onRemove={onRemove} />
         {control}
+        {range && (
+          <p id={rangeId} className="text-sm text-muted-foreground">
+            {range}
+          </p>
+        )}
         <Description id={descriptionId} text={node.description} />
         {errors.length > 0 && (
           <div id={`${id}-errors`} className="grid gap-1">
