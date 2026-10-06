@@ -137,12 +137,13 @@ describe("watertight capture", () => {
     const fields = tagsWith(html, "data-issue-path=\"\\[&quot;sizes&quot;,&quot;[SM]&quot;\\]\"");
     expect(fields).toHaveLength(2);
     expect(fields[0]).not.toContain("hidden");
-    // From 1280 px SizeTabs marks itself data-side-by-side while the table fits; it keeps its tabs otherwise.
-    expect(fields[1]).toContain("hidden xl:in-data-[side-by-side]:block");
+    // SizeBlock: from 1280 px every size shows while SizeTabs puts them side by side (the table fits).
+    expect(fields[1]).toContain("max-xl:hidden");
+    expect(fields[1]).toContain('data-slot="size-block"');
     expect(tagsWith(html, 'data-slot="size-tabs"')[0]).toContain("data-side-by-side");
     // One element in the flex Label, so ", size M" follows the text with no gap when it shows.
     expect(html).toMatch(
-      /<label[^>]*><span>No\. of sample tested<span class="sr-only xl:in-data-\[side-by-side\]:not-sr-only">, size M<\/span><\/span><\/label>/,
+      /<label[^>]*><span>No\. of sample tested<span class="sr-only xl:not-sr-only">, size M<\/span><\/span><\/label>/,
     );
   });
 

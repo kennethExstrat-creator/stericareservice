@@ -30,6 +30,7 @@ export { useDataUpdater } from "./use-data-updater";
 export { batchDataChanges, createDataUpdater, type DataChange, type DataUpdater } from "./data-updater";
 export { useMediaQuery, WIDE_QUERY, COARSE_QUERY } from "./use-media-query";
 export { SizeTabs, SizeStatusStrip, type ResultLike, type SizeResults } from "./size-tabs";
+export { SizeBlock, SideBySideText, useSizeTabsLayout, type SizeTabsLayout } from "./size-block";
 export { HandToggle, handsOf, type HandView } from "./hand-toggle";
 export { BoxPicker } from "./box-picker";
 export {

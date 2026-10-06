@@ -176,12 +176,13 @@ describe("visual capture", () => {
     const html = render({ sizes: {}, context });
     const fields = tagsWith(html, 'data-issue-path="\\[&quot;sizes&quot;,&quot;M&quot;,&quot;major&quot;\\]"');
     expect(fields).toHaveLength(1);
-    expect(fields[0]).toContain("hidden xl:in-data-[side-by-side]:block");
+    // SizeBlock: from 1280 px every size shows while SizeTabs puts them side by side (the tables fit).
+    expect(fields[0]).toContain("max-xl:hidden");
     expect(tagsWith(html, 'data-issue-path="\\[&quot;sizes&quot;,&quot;S&quot;,&quot;major&quot;\\]"')[0]).not.toContain("hidden");
     expect(tagsWith(html, 'data-slot="size-tabs"')[0]).toContain("data-side-by-side");
     // One element in the flex Label, so ", size M" follows the text with no gap when it shows.
     expect(html).toMatch(
-      /<label[^>]*><span>No\. of sample inspected<span class="sr-only">, Major Defects<\/span><span class="sr-only xl:in-data-\[side-by-side\]:not-sr-only">, size M<\/span><\/span><\/label>/,
+      /<label[^>]*><span>No\. of sample inspected<span class="sr-only">, Major Defects<\/span><span class="sr-only xl:not-sr-only">, size M<\/span><\/span><\/label>/,
     );
   });
 

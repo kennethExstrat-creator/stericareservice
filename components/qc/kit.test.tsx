@@ -12,6 +12,7 @@ import { HandToggle } from "./hand-toggle";
 import { ModuleSection } from "./module-section";
 import { EnterGroup, EntryProblems, labelText, NumberField, PercentField } from "./number-field";
 import { RequirementList, SpecValue } from "./requirement-list";
+import { SideBySideText, SizeBlock } from "./size-block";
 import { SizeStatusStrip, SizeTabs } from "./size-tabs";
 
 const noop = () => {};
@@ -453,6 +454,43 @@ describe("CounterTable inside SizeTabs", () => {
       "sticky top-[calc(var(--capture-sticky-top,0px)_+_var(--size-tabs-bar,0px))]",
     );
     expect(/<tfoot[^>]*>/.exec(html)?.[0]).toContain("sticky bottom-[var(--capture-sticky-bottom,0px)]");
+  });
+});
+
+describe("SizeBlock and SideBySideText", () => {
+  const render = (wide: "tabs" | "all", value: string, node = true) =>
+    renderToStaticMarkup(
+      <SizeTabs sizes={["S", "M"]} value={value} onValueChange={noop} wide={wide}>
+        {node
+          ? ["S", "M"].map((size) => (
+              <SizeBlock key={size} size={size} className="space-y-2">
+                Tested<SideBySideText>, size {size}</SideBySideText>
+              </SizeBlock>
+            ))
+          : (size: string) => <SizeBlock size={size}>Panel {size}</SizeBlock>}
+      </SizeTabs>,
+    );
+  const block = (html: string, size: string) => tagsWith(html, `data-size="${size}"[^>]*data-slot="size-block"|data-slot="size-block"[^>]*data-size="${size}"`)[0] ?? "";
+
+  it("shows the size on the tabs, and the others from 1280 px while the sizes sit side by side", () => {
+    const html = render("all", "M");
+    expect(block(html, "M")).not.toContain("hidden");
+    expect(block(html, "S")).toContain("max-xl:hidden");
+    expect(block(html, "S")).toContain("space-y-2");
+    expect(html).toContain('<span class="sr-only xl:not-sr-only">, size S</span>');
+  });
+
+  it("follows the tabs, not a stale value, and keeps one size where SizeTabs keeps its tabs", () => {
+    const html = render("tabs", "XXL");
+    expect(block(html, "S")).not.toContain("hidden");
+    expect(block(html, "M")).toMatch(/class="[^"]*(?<![\w:-])hidden/);
+    expect(block(html, "M")).not.toContain("max-xl:hidden");
+    expect(html).toContain('<span class="sr-only">, size M</span>');
+  });
+
+  it("is always shown in a per-size function panel or outside SizeTabs", () => {
+    expect(block(render("tabs", "M", false), "M")).not.toContain("hidden");
+    expect(renderToStaticMarkup(<SizeBlock size="M">Alone</SizeBlock>)).not.toContain("hidden");
   });
 });
 

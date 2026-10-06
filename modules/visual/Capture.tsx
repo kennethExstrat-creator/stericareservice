@@ -20,6 +20,8 @@ import {
   issuePathProps,
   ModuleSection,
   NumberField,
+  SideBySideText,
+  SizeBlock,
   SizeTabs,
   useDataUpdater,
   useIssueFocus,
@@ -33,7 +35,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { STATUS_LABEL } from "@/lib/design/status";
 import { formatSize } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import { HANDS, labelFor, samplingFor, type CaptureProps, type Hand } from "@/modules/_framework";
 import type { VisualComputed, VisualConfig, VisualData } from ".";
 import { classLabel, effectiveClasses } from "./calc";
@@ -53,16 +54,6 @@ import {
 import { DEFECT_CLASSES, type DefectClass } from "./schema";
 
 type Props = CaptureProps<VisualData, VisualConfig, VisualComputed>;
-
-/**
- * A size's own block beside the tables: shown for the size on the tab, and
- * for every size from 1280 px only while SizeTabs shows the sizes side by
- * side (it marks itself data-side-by-side, and keeps its tabs where a table
- * does not fit, such as a hand split over many sizes), as the tables do.
- */
-const OTHER_SIZE = "hidden xl:in-data-[side-by-side]:block";
-/** The size in a label: read out always, shown where the sizes sit side by side. */
-const SIZE_IN_LABEL = "sr-only xl:in-data-[side-by-side]:not-sr-only";
 
 export default function VisualCapture({
   data,
@@ -145,17 +136,15 @@ export default function VisualCapture({
                 const missing = included.some((cls) => (data.sizes[entry]?.[cls].inspected ?? null) === null);
                 return (
                   // Also where an issue about the whole size points.
-                  <div
+                  <SizeBlock
                     key={entry}
-                    className={cn(
-                      "relative flex-wrap items-center gap-2",
-                      entry === size ? "flex" : "hidden xl:in-data-[side-by-side]:flex",
-                    )}
+                    size={entry}
+                    className="relative flex flex-wrap items-center gap-2"
                     {...issuePathProps(["sizes", entry])}
                   >
                     {planned !== null && (
                       <span>
-                        <span className={SIZE_IN_LABEL}>Size {sizeName(entry)}: </span>Sampling plan: {planned}
+                        <SideBySideText>Size {sizeName(entry)}: </SideBySideText>Sampling plan: {planned}
                       </span>
                     )}
                     {!readOnly && planned !== null && missing && (
@@ -170,7 +159,7 @@ export default function VisualCapture({
                         <span className="sr-only"> of size {sizeName(entry)}</span>
                       </Button>
                     )}
-                  </div>
+                  </SizeBlock>
                 );
               })}
             </div>
@@ -298,11 +287,7 @@ function ClassSection({
           const path: IssuePath = ["sizes", entry, cls, "inspected"];
           const warnings = messagesAt(path, "warning");
           return (
-            <div
-              key={entry}
-              className={cn("relative min-w-0", entry !== size && OTHER_SIZE)}
-              {...issuePathProps(["sizes", entry, cls])}
-            >
+            <SizeBlock key={entry} size={entry} className="relative min-w-0" {...issuePathProps(["sizes", entry, cls])}>
               {/* Only what was entered, no placeholder: an empty field is a class not yet inspected. */}
               <NumberField
                 label={
@@ -310,7 +295,7 @@ function ClassSection({
                   <span>
                     {labelFor(labels, "inspected")}
                     <span className="sr-only">, {classLabel(labels, cls)}</span>
-                    <span className={SIZE_IN_LABEL}>, size {formatSize(entry, { sizes: context.templateSizes })}</span>
+                    <SideBySideText>, size {formatSize(entry, { sizes: context.templateSizes })}</SideBySideText>
                   </span>
                 }
                 value={data.sizes[entry]?.[cls].inspected ?? null}
@@ -323,7 +308,7 @@ function ClassSection({
                 readOnly={readOnly}
                 onFocus={() => onFocusChange?.({ size: entry })}
               />
-            </div>
+            </SizeBlock>
           );
         })}
       </div>
