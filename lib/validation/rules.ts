@@ -4,6 +4,7 @@
 import type { z } from "zod";
 import type { ModuleResult } from "@/lib/schemas/module-result";
 import { normaliseSize, sortSizes } from "@/lib/sizes";
+import { HAND_LABEL, HANDS, type Hand } from "@/modules/_framework/hands";
 import { errorIssue, warningIssue, type CalcIssue, type IssuePath, type ValidationIssue } from "./issues";
 
 /** Issue codes the framework raises. Module codes must not reuse them. */
@@ -171,7 +172,8 @@ export function invalidDataIssues(
  * The place of a value in a module's data, in words: `["sizes", "M",
  * "lotNumbers", 1]` with order_lots' labels is "size M, Lot Number no. 2".
  * A key is named by its label when there is one; the last key, and a list's
- * own key, are named even without one.
+ * own key, are named even without one. A hand under a size (`R` or `L`,
+ * hand-split modules) is named too: "size M, right hand, Pin hole".
  */
 export function describeDataPath(path: IssuePath, labels: Readonly<Record<string, string>> = {}): string {
   const parts: string[] = [];
@@ -181,6 +183,11 @@ export function describeDataPath(path: IssuePath, labels: Readonly<Record<string
     if (segment === "sizes" && typeof next === "string") {
       parts.push(next.trim() === "" ? "a blank size" : `size ${next}`);
       index += 1;
+      const hand = path[index + 1];
+      if (isHand(hand)) {
+        parts.push(HAND_LABEL[hand].toLowerCase());
+        index += 1;
+      }
     } else if (typeof segment === "number") {
       const number = `no. ${segment + 1}`;
       if (parts.length > 0) parts[parts.length - 1] = `${parts[parts.length - 1]} ${number}`;
@@ -270,6 +277,10 @@ export function inspectorIssues(inspector: { id: string } | null): ValidationIss
       moduleKey: "header",
     },
   ];
+}
+
+function isHand(value: unknown): value is Hand {
+  return (HANDS as readonly unknown[]).includes(value);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -208,4 +208,38 @@ describe("validateInspection with the app's modules", () => {
       );
     });
   });
+
+  it("names the hand of a value a hand-split module cannot read", () => {
+    const resolution = resolveTemplate(
+      {
+        code: "HANDS_SG",
+        name: "Hands",
+        scope: { productType: "surgical", standard: "EN455" },
+        unit: "pairs",
+        sizes: [{ value: "7.0" }],
+        modules: [
+          { key: "order_lots", include: true },
+          { key: "watertight", include: true, config: { handSplit: true } },
+        ],
+      },
+      () => undefined,
+    );
+    if (!resolution.ok) throw new Error(JSON.stringify(resolution.problems));
+    const data: InspectionData = {
+      modules: {
+        order_lots: { sizes: { "7.0": { qtyCases: 40, lotNumbers: ["LOT-7-0001"] } } },
+        watertight: { sizes: { "7.0": { tested: 80, R: { holes: { hole_finger: "two" } } } } },
+      },
+      custom: {},
+    };
+    const context = buildAppContext({ template: resolution.template, data, meta: { inspector: INSPECTOR } });
+    const report = validateInspection(data, resolution.template, context);
+    expect(report.errors).toContainEqual({
+      level: "error",
+      moduleKey: "watertight",
+      code: "invalid_data",
+      message: "Freedom from Holes by watertight test: size 7.0, right hand, Pin hole, hole_finger is not a number.",
+      path: ["sizes", "7.0", "R", "holes", "hole_finger"],
+    });
+  });
 });

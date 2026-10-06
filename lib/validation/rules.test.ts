@@ -150,6 +150,14 @@ describe("framework issues", () => {
     expect(describeDataPath([])).toBe("");
   });
 
+  it("name the hand under a size in a hand-split module's data", () => {
+    const labels = { holes: "Pin hole" };
+    expect(describeDataPath(["sizes", "M", "R", "holes", "hole_finger"], labels)).toBe("size M, right hand, Pin hole, hole_finger");
+    expect(describeDataPath(["sizes", "M", "L"], labels)).toBe("size M, left hand");
+    // R and L are hands only right under a size.
+    expect(describeDataPath(["R", "holes"], labels)).toBe("Pin hole");
+  });
+
   it("turn schema errors into errors with paths into the data", () => {
     const schema = z.strictObject({ sizes: z.record(z.string(), z.array(z.number())) });
     const parsed = schema.safeParse({ sizes: { M: [243, "2 42"] } });
