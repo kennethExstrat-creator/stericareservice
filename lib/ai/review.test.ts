@@ -31,7 +31,7 @@ function answering(response: () => Response) {
 const toMockReceiver: typeof fetch = async (input, init) => mockReviewReceiver(new Request(input, init));
 
 function claudeAnswering(answer: () => ClaudeReviewMessage): ClaudeClientFactory {
-  return () => ({ beta: { messages: { parse: async () => answer() } } });
+  return () => ({ beta: { messages: { stream: () => ({ finalMessage: async () => answer() }) } } });
 }
 
 function claudeMessage(review: AiReview): ClaudeReviewMessage {
@@ -41,7 +41,6 @@ function claudeMessage(review: AiReview): ClaudeReviewMessage {
     stop_details: null,
     usage: { input_tokens: 1, output_tokens: 1, cache_creation_input_tokens: null, cache_read_input_tokens: null },
     content: [{ type: "text", text: JSON.stringify(review) }],
-    parsed_output: review,
   };
 }
 
@@ -125,6 +124,15 @@ describe("requestAiReview", () => {
     const fetchSpy = answering(() => Response.json(makeAiReview()));
     expect(await requestAiReview(doc, { env: WEBHOOK_ENV, fetch: fetchSpy })).toMatchObject({ ok: true });
     expect(JSON.parse(String(fetchSpy.mock.calls[0][1]?.body))).toEqual(doc);
+  });
+
+  it("sends an empty module tag as null, so receivers see one way of saying untagged", async () => {
+    const doc = makeStdEgExport();
+    doc.photos[2].moduleKey = "";
+    const fetchSpy = answering(() => Response.json(makeAiReview()));
+    expect(await requestAiReview(doc, { env: WEBHOOK_ENV, fetch: fetchSpy })).toMatchObject({ ok: true });
+    const sent = JSON.parse(String(fetchSpy.mock.calls[0][1]?.body));
+    expect(sent.photos[2].moduleKey).toBeNull();
   });
 
   it.each([

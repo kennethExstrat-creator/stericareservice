@@ -18,7 +18,10 @@ export const REVIEW_WEBHOOK_TIMEOUT_MS = 90_000;
 export interface RequestAiReviewOptions {
   /** Defaults to process.env. */
   env?: AiEnv;
-  /** Overrides the provider's timeout (webhook 90 s, Claude 300 s per attempt). */
+  /**
+   * Overrides the provider's time limit: webhook 90 s; Claude 10 minutes for the
+   * whole review, 30 at AI_REVIEW_EFFORT xhigh or max (claudeTimeoutMs).
+   */
   timeoutMs?: number;
   signal?: AbortSignal;
   /** Webhook transport; defaults to global fetch. */

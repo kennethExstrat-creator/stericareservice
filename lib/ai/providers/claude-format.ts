@@ -1,4 +1,4 @@
-import type { AutoParseableBetaOutputFormat } from "@anthropic-ai/sdk/lib/beta-parser";
+import type { BetaJSONOutputFormat } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import { z } from "zod";
 import { AiReviewSchema, type AiReview } from "@/lib/schemas";
 import { summarizeIssues } from "../issues";
@@ -9,10 +9,11 @@ import { summarizeIssues } from "../issues";
  * Not the SDK's zodOutputFormat, for two reasons (SDK 0.131):
  * - its schema transform turns `enum` and `const` into description text,
  *   so the API would not hold Claude to pass | fail | hold;
- * - its parse throws on text that does not validate, which on a
- *   max_tokens cut hides stop_reason. Here parse returns null instead,
- *   so the caller reads stop_reason first and parsed_output second.
- * The schema is still generated from zod: one source of truth.
+ * - its parse throws on text that does not validate, so a max_tokens cut
+ *   fails the whole stream and hides stop_reason.
+ * The format here carries the schema only. The provider reads stop_reason
+ * first, then parses the answer text with parseAiReviewText. The schema is
+ * still generated from zod: one source of truth.
  * ------------------------------------------------------------------ */
 
 type JsonSchema = Record<string, unknown>;
@@ -99,10 +100,6 @@ export function parseAiReviewText(text: string): ParsedReviewText {
   return parsed.success ? { review: parsed.data, problem: null } : { review: null, problem: summarizeIssues(parsed.error) };
 }
 
-export function aiReviewOutputFormat(): AutoParseableBetaOutputFormat<AiReview | null> {
-  return {
-    type: "json_schema",
-    schema: aiReviewJsonSchema(),
-    parse: (text) => parseAiReviewText(text).review,
-  };
+export function aiReviewOutputFormat(): BetaJSONOutputFormat {
+  return { type: "json_schema", schema: aiReviewJsonSchema() };
 }
