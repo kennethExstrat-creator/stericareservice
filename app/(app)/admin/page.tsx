@@ -57,7 +57,7 @@ export default async function AdminOverviewPage() {
         <h2 id="system-status" className="text-2xl font-bold tracking-tight text-foreground">
           System status
         </h2>
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 lg:grid-cols-2">
           <SupabaseCard env={supabaseEnv} secretKeySet={secretKeySet} database={database} />
           <EmailCard projectRef={supabaseEnv ? projectRefFrom(supabaseEnv.url) : null} siteUrl={getSiteUrl()} />
           <AiReviewCard status={ai.review} />
@@ -69,7 +69,7 @@ export default async function AdminOverviewPage() {
         <h2 id="quick-links" className="text-2xl font-bold tracking-tight text-foreground">
           Quick links
         </h2>
-        <ul className="grid gap-4 md:grid-cols-2">
+        <ul className="grid gap-6 md:grid-cols-2">
           <li>
             <QuickLink
               href={ADMIN_USERS_PATH}
@@ -193,15 +193,28 @@ function SupabaseCard({
         <Row label="Project" value={env ? <span className="font-mono text-foreground">{hostFrom(env.url)}</span> : "Not set"} />
         <Row
           label="URL and publishable key"
-          value="NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"
+          value={
+            env ? (
+              "The app can reach the project."
+            ) : (
+              <>
+                Set <Variable>NEXT_PUBLIC_SUPABASE_URL</Variable> and{" "}
+                <Variable>NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY</Variable>.
+              </>
+            )
+          }
           pill={env ? <StatusPill size="sm" status="pass" label="Set" /> : <StatusPill size="sm" status="fail" label="Missing" />}
         />
         <Row
           label="Secret key (server only)"
           value={
-            secretKeySet
-              ? "Used to invite and deactivate users."
-              : "Set SUPABASE_SECRET_KEY to invite and deactivate users."
+            secretKeySet ? (
+              "Used to invite and deactivate users."
+            ) : (
+              <>
+                Set <Variable>SUPABASE_SECRET_KEY</Variable> to invite and deactivate users.
+              </>
+            )
           }
           pill={
             secretKeySet ? <StatusPill size="sm" status="pass" label="Set" /> : <StatusPill size="sm" status="fail" label="Missing" />
@@ -304,8 +317,8 @@ function AiReviewCard({ status }: { status: AiReviewStatus }) {
         )}
       </Rows>
       <AiNote status={status}>
-        Not connected: the review panel says so. Set <code className="font-mono text-foreground">ANTHROPIC_API_KEY</code>{" "}
-        or <code className="font-mono text-foreground">AI_REVIEW_WEBHOOK_URL</code> to connect it.
+        Not connected: the review panel says so. Set <Variable>ANTHROPIC_API_KEY</Variable> or{" "}
+        <Variable>AI_REVIEW_WEBHOOK_URL</Variable> to connect it.
       </AiNote>
     </StatusCard>
   );
@@ -330,7 +343,7 @@ function AiReportCard({ status }: { status: AiReportStatus }) {
       </Rows>
       <AiNote status={status}>
         Not connected: &ldquo;Send to AI report&rdquo; offers the JSON download instead. Set{" "}
-        <code className="font-mono text-foreground">AI_REPORT_WEBHOOK_URL</code> to connect a report service.
+        <Variable>AI_REPORT_WEBHOOK_URL</Variable> to connect a report service.
       </AiNote>
     </StatusCard>
   );
@@ -379,14 +392,23 @@ function StatusCard({
           <Icon aria-hidden className="size-5 text-brand-600" />
           <h3>{title}</h3>
         </CardTitle>
-        <CardDescription>{description}</CardDescription>
-        <CardAction>
+        {/* The pill sits beside the title only, so the description gets the full width. */}
+        <CardDescription className="col-span-2">{description}</CardDescription>
+        <CardAction className="row-span-1">
           <StatusPill status={status.status} label={status.label} />
         </CardAction>
       </CardHeader>
       <CardContent className="gap-4">{children}</CardContent>
     </Card>
   );
+}
+
+/**
+ * An environment variable's name (never its value). It wraps to the next line
+ * whole and only splits when one name is wider than the card.
+ */
+function Variable({ children }: { children: string }) {
+  return <code className="font-mono wrap-break-word text-foreground">{children}</code>;
 }
 
 function Rows({ children }: { children: ReactNode }) {
@@ -434,7 +456,8 @@ function QuickLink({
     <Link
       href={href}
       className={cn(
-        "group flex items-center gap-4 rounded-xl bg-card p-5 shadow-sm ring-1 ring-border outline-none transition-colors",
+        // h-full: cards in one row match height when one description wraps.
+        "group flex h-full items-center gap-4 rounded-xl bg-card p-5 shadow-sm ring-1 ring-border outline-none transition-colors",
         "hover:ring-brand-300 focus-visible:ring-3 focus-visible:ring-ring/50",
       )}
     >
