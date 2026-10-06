@@ -23,6 +23,7 @@ export const definition = defineModule<CartonSamplingData, CartonSamplingConfig,
   perSize: true,
   calc: calcCartonSampling,
   contribute: contributeCartonSampling,
+  loadCapture: () => import("./Capture"),
 });
 
 export type { CartonSamplingData, CartonSize } from "./schema";
