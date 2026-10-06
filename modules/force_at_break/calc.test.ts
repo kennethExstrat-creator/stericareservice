@@ -216,6 +216,19 @@ describe("force_at_break", () => {
     const output = calcForceAtBreak(input({ M: { values: [] } }, { at: context(["M"], { M: 0 }) }));
     expect(output.result.perSize?.M).toEqual({ status: "not_done", summary: "No gloves to test in the sampling plan" });
     expect(output.computed.sizes.M).toEqual({ n: 0, entered: 0, median: null, result: "not_done" });
+    expect(output.issues).toEqual([]);
+
+    // Readings saved before the plan said 0 are never dropped silently.
+    const saved = calcForceAtBreak(input({ M: { values: [6.5] } }, { at: context(["M"], { M: 0 }) }));
+    expect(saved.issues).toEqual([
+      {
+        level: "error",
+        code: "force_readings_beyond_plan",
+        message: "Size M: 1 reading is entered, but the sampling plan gives no gloves to test. Clear it or correct the sampling plan.",
+        size: "M",
+        path: ["sizes", "M", "values", 0],
+      },
+    ]);
   });
 
   it("writes summaries in the template's wording, with its sizes and standard", () => {

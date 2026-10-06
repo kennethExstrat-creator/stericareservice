@@ -146,10 +146,12 @@ function readingIssues(
   const beyond = values.flatMap((value, index) => (index >= n && value !== null ? [index] : []));
   if (beyond.length > 0) {
     const one = beyond.length === 1;
+    const entered = `${beyond.length} ${one ? "reading is" : "readings are"} entered`;
+    const where = n === 0 ? `${entered}, but the sampling plan gives no gloves to test` : `${entered} beyond the ${n} gloves tested`;
     issues.push(
       errorIssue(
         "force_readings_beyond_plan",
-        `Size ${name}: ${beyond.length} ${one ? "reading is" : "readings are"} entered beyond the ${n} gloves tested. Clear ${one ? "it" : "them"} or correct the sampling plan.`,
+        `Size ${name}: ${where}. Clear ${one ? "it" : "them"} or correct the sampling plan.`,
         { size, path: ["sizes", size, "values", beyond[0]] },
       ),
     );
