@@ -1,6 +1,22 @@
-// Stepper keys: an ARIA spinbutton's keys, clamped to the count's limits.
+// Stepper keys: an ARIA spinbutton's keys, clamped to the count's limits; and
+// when a held button becomes a drag.
 import { describe, expect, it } from "vitest";
-import { clampCount, stepperKeyValue } from "./stepper-keys";
+import { clampCount, isDrag, PRESS_SLOP, stepperKeyValue } from "./stepper-keys";
+
+describe("isDrag", () => {
+  const start = { x: 100, y: 200 };
+
+  it("keeps a held finger that wobbles a press", () => {
+    expect(isDrag(start, { x: 104, y: 203 })).toBe(false);
+    expect(isDrag(start, { x: 100 + PRESS_SLOP, y: 200 })).toBe(false);
+  });
+
+  it("makes a finger that slides away a drag, in any direction", () => {
+    expect(isDrag(start, { x: 100 - PRESS_SLOP - 1, y: 200 })).toBe(true);
+    expect(isDrag(start, { x: 40, y: 200 })).toBe(true);
+    expect(isDrag(start, { x: 108, y: 208 })).toBe(true);
+  });
+});
 
 const count = { min: 0, max: 13, step: 1 };
 
