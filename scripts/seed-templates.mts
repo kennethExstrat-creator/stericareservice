@@ -1,14 +1,37 @@
 /**
  * Writes the seed templates of BUILD_SPEC 11 (STD_EG, SAFEDON_EG, STD_SG) to
- * the templates table, active, from lib/templates/definitions/seed-bundle.json.
+ * the templates table from lib/templates/definitions/seed-bundle.json:
+ * active, or with --drafts as drafts for an admin to check and activate.
  *
- *   node --env-file-if-exists=.env.local scripts/seed-templates.mts --dry-run
- *   node --env-file-if-exists=.env.local scripts/seed-templates.mts
+ *   npm run seed:templates -- --dry-run
+ *   npm run seed:templates
+ *
+ * (npm run seed:templates runs node --env-file-if-exists=.env.local
+ * scripts/seed-templates.mts; options go after the --.)
+ *
+ * Run order on a project:
+ *   1. supabase/seed.sql (npx supabase db push --include-seed): reference
+ *      data. SAFEDON_EG belongs to the client "Polyco Healthline", found by
+ *      name; without it the run stops before writing anything.
+ *   2. npm run seed:templates -- --dry-run: one line per template, nothing
+ *      written. Check that it lists STD_EG, SAFEDON_EG (with its client) and
+ *      STD_SG, and that it gives no warning about placeholder modules.
+ *   3. npm run seed:templates (or -- --drafts): writes what the dry run listed.
+ * The first seed into a project without seed templates needs no --replace.
+ * A run with an unchanged bundle writes nothing. After the bundle is
+ * regenerated, a changed definition (or with --refresh a changed resolution,
+ * such as new module defaults) becomes a new version; while a seeded version
+ * is active, retiring it needs --replace, and without it the run stops
+ * before writing anything.
  *
  * Options:
  *   --dry-run      show what would change; write nothing
  *   --replace      retire an active version that differs from the bundle;
  *                  without it, the run stops before writing anything
+ *   --drafts       write new versions as drafts and activate or retire
+ *                  nothing: an admin attaches the source form, confirms the
+ *                  coverage checklist and activates each one in the template
+ *                  editor (BUILD_SPEC 4.2 rule 10, 4.5)
  *   --allow-stubs  write although the bundle was made while some modules were
  *                  still placeholders (their default labels are then missing
  *                  from the stored resolution; regenerate the bundle instead)
@@ -25,12 +48,15 @@
  *     (BUILD_SPEC 4.1), so it may be an admin's newer version. The run stops
  *     before writing anything unless --replace is given; with it, the draft
  *     is activated or a new version added, and the active one retired.
+ * With --drafts, a version (active or draft) that already has the definition
+ * is kept; otherwise a new version is added as a draft. Nothing active
+ * changes, so --replace is never needed.
  * A version is retired, never edited: a version an inspection uses is frozen
  * (BUILD_SPEC 4.2 rule 8), and a code has one active version. A retired
  * version can be made active again in the template editor.
- * SAFEDON_EG belongs to its client, looked up by name (supabase/seed.sql
- * creates it; run that first). Coverage is not marked confirmed: the seeds
- * are checked against the data dictionary by the tests in lib/coverage.
+ * Coverage is not marked confirmed and no source form is stored: a script
+ * with the secret key has no admin to record. The seeds are checked against
+ * the data dictionary by the tests in lib/coverage.
  *
  * Needs Node 22.18+ (built-in TypeScript, so no path aliases here) and
  * NEXT_PUBLIC_SUPABASE_URL plus SUPABASE_SECRET_KEY in .env.local. The bundle
@@ -157,7 +183,13 @@ export function replacesActive(plan: Plan): boolean {
   return plan.action !== "keep" && plan.retire !== null;
 }
 
-export function planTemplate(wanted: Wanted, rows: readonly VersionRow[], options: { refresh: boolean }): Plan {
+export type PlanOptions = {
+  refresh: boolean;
+  /** Add new versions as drafts; activate and retire nothing. */
+  drafts?: boolean;
+};
+
+export function planTemplate(wanted: Wanted, rows: readonly VersionRow[], options: PlanOptions): Plan {
   const active = rows.find((row) => row.status === "active") ?? null;
   const retire = active === null ? null : { id: active.id, version: active.version };
   if (active !== null && sameVersion(active, wanted, options)) {
@@ -166,9 +198,20 @@ export function planTemplate(wanted: Wanted, rows: readonly VersionRow[], option
   const draft = rows
     .filter((row) => row.status === "draft" && sameVersion(row, wanted, options))
     .sort((a, b) => b.version - a.version)[0];
-  if (draft) return { action: "activate", code: wanted.code, version: draft.version, id: draft.id, retire };
   const version = rows.reduce((highest, row) => Math.max(highest, row.version), 0) + 1;
+  if (options.drafts) {
+    // Drafts wait for an admin: one that already has the definition is enough.
+    if (draft) return { action: "keep", code: wanted.code, version: draft.version, id: draft.id };
+    return { action: "insert", code: wanted.code, version, retire: null };
+  }
+  if (draft) return { action: "activate", code: wanted.code, version: draft.version, id: draft.id, retire };
   return { action: "insert", code: wanted.code, version, retire };
+}
+
+/** The status a planned version has, or has once the plan is carried out. */
+export function plannedStatus(plan: Plan, rows: readonly VersionRow[], options: Pick<PlanOptions, "drafts">): TemplateStatus {
+  if (plan.action === "keep") return rows.find((row) => row.id === plan.id)?.status ?? "active";
+  return options.drafts ? "draft" : "active";
 }
 
 /** The templates columns a definition sets (lib/templates/versions.ts templateRowFields). */
@@ -205,11 +248,13 @@ export type SeedDatabase = {
   setStatus(id: string, status: TemplateStatus): Promise<void>;
 };
 
-export type SeedOptions = { dryRun: boolean; refresh: boolean; replace: boolean };
+export type SeedOptions = { dryRun: boolean; refresh: boolean; replace: boolean; drafts?: boolean };
 
 export type SeedOutcome = {
   plan: Plan;
   client: string | null;
+  /** The status the version has, or has once written: drafts with --drafts. */
+  status: TemplateStatus;
   /** It would retire the active version, and --replace was not given: nothing is written. */
   blocked: boolean;
 };
@@ -219,9 +264,13 @@ export type SeedReport = { outcomes: SeedOutcome[]; written: boolean };
 /**
  * Plans every template, bases first, then carries the plans out in that
  * order, unless it is a dry run or a plan would retire an active version
- * without --replace: then nothing is written.
+ * without --replace: then nothing is written. With --drafts nothing active
+ * changes, so nothing stops it.
  */
 export async function seedTemplates(db: SeedDatabase, bundle: Bundle, options: SeedOptions): Promise<SeedReport> {
+  if (options.drafts && options.replace) {
+    throw new Error("Use --drafts or --replace, not both: drafts never retire an active version.");
+  }
   const clients = bundle.templates.some((entry) => entry.client !== null) ? await db.clients() : [];
   const clientIds = new Map<string, string>();
   for (const entry of bundle.templates) {
@@ -241,28 +290,33 @@ export async function seedTemplates(db: SeedDatabase, bundle: Bundle, options: S
   const versions = new Map<string, number>();
   for (const entry of bundle.templates) {
     const wanted = prepare(entry, clientIds.get(entry.code) ?? null, versions);
-    const plan = planTemplate(wanted, await db.versions(entry.code), options);
+    const rows = await db.versions(entry.code);
+    const plan = planTemplate(wanted, rows, options);
     versions.set(entry.code, plan.version);
-    const outcome = { plan, client: entry.client, blocked: !options.replace && replacesActive(plan) };
+    const outcome: SeedOutcome = {
+      plan,
+      client: entry.client,
+      status: plannedStatus(plan, rows, options),
+      blocked: !options.replace && replacesActive(plan),
+    };
     planned.push({ plan, wanted, outcome });
   }
   const outcomes = planned.map((entry) => entry.outcome);
   if (options.dryRun || outcomes.some((outcome) => outcome.blocked)) return { outcomes, written: false };
-  for (const { plan, wanted } of planned) await carryOut(db, plan, wanted);
+  for (const { plan, wanted } of planned) await carryOut(db, plan, wanted, options);
   return { outcomes, written: true };
 }
 
 /**
  * A new version goes in as a draft while another is active, then the old one
  * is retired and the new one activated; if that fails, the old one is put
- * back, so the code is never left without an active version.
+ * back, so the code is never left without an active version. With --drafts
+ * the new version stays a draft.
  */
-async function carryOut(db: SeedDatabase, plan: Plan, wanted: Wanted): Promise<void> {
+async function carryOut(db: SeedDatabase, plan: Plan, wanted: Wanted, options: Pick<SeedOptions, "drafts">): Promise<void> {
   if (plan.action === "keep") return;
-  const id =
-    plan.action === "activate"
-      ? plan.id
-      : await db.insert({ ...rowFields(wanted), version: plan.version, status: plan.retire ? "draft" : "active" });
+  const status = options.drafts || plan.retire ? "draft" : "active";
+  const id = plan.action === "activate" ? plan.id : await db.insert({ ...rowFields(wanted), version: plan.version, status });
   if (plan.retire === null) {
     if (plan.action === "activate") await db.setStatus(id, "active");
     return;
@@ -278,15 +332,15 @@ async function carryOut(db: SeedDatabase, plan: Plan, wanted: Wanted): Promise<v
 
 /** One line per template; `planned` when nothing was written (a dry run, or a run that stopped). */
 export function describeOutcome(outcome: SeedOutcome, planned: boolean): string {
-  const { plan, client, blocked } = outcome;
+  const { plan, client, status, blocked } = outcome;
   const head = `${plan.code.padEnd(12)} version ${plan.version}`;
   const retired = plan.action !== "keep" && plan.retire ? `, version ${plan.retire.version} ${planned ? "to retire" : "retired"}` : "";
   const what =
     plan.action === "keep"
-      ? "unchanged, active"
+      ? `unchanged, ${status}`
       : plan.action === "activate"
         ? `${planned ? "to activate (an existing draft)" : "activated (an existing draft)"}${retired}`
-        : `${planned ? "to add, active" : "added, active"}${retired}`;
+        : `${planned ? "to add" : "added"}, ${status}${retired}`;
   return `${head}  ${what}${client ? ` · client ${client}` : ""}${blocked ? " (needs --replace)" : ""}`;
 }
 
@@ -340,16 +394,22 @@ async function main(): Promise<void> {
     options: {
       "dry-run": { type: "boolean", default: false },
       replace: { type: "boolean", default: false },
+      drafts: { type: "boolean", default: false },
       "allow-stubs": { type: "boolean", default: false },
       refresh: { type: "boolean", default: false },
       help: { type: "boolean", default: false },
     },
   });
   if (values.help) {
-    console.log("node --env-file-if-exists=.env.local scripts/seed-templates.mts [--dry-run] [--replace] [--allow-stubs] [--refresh]");
+    console.log("npm run seed:templates -- [--dry-run] [--replace | --drafts] [--allow-stubs] [--refresh]");
+    console.log("Run order and options: the comment at the top of scripts/seed-templates.mts.");
     return;
   }
   const dryRun = values["dry-run"];
+  if (values.drafts && values.replace) {
+    console.error("Use --drafts or --replace, not both: drafts never retire an active version.");
+    process.exit(1);
+  }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
   const secretKey = process.env.SUPABASE_SECRET_KEY?.trim();
@@ -374,11 +434,19 @@ async function main(): Promise<void> {
     dryRun,
     refresh: values.refresh,
     replace: values.replace,
+    drafts: values.drafts,
   });
   console.log(dryRun ? "Seed templates, dry run:" : report.written ? "Seed templates:" : "Seed templates, nothing written:");
   for (const outcome of report.outcomes) console.log(`  ${describeOutcome(outcome, !report.written)}`);
   const blocked = describeBlocked(report.outcomes, dryRun);
   if (blocked) console.error(`\n${blocked}`);
+  const drafts = report.outcomes.filter((outcome) => outcome.status === "draft").map((outcome) => outcome.plan.code);
+  if (drafts.length > 0) {
+    console.log(
+      `\nDrafts: ${drafts.join(", ")}. Nothing starts from them until an admin attaches the source form, ` +
+        "confirms the coverage checklist and activates each one under Admin > Templates, bases first.",
+    );
+  }
   if (dryRun) console.log("\nNothing was written (--dry-run).");
   else if (!report.written) process.exit(1);
 }

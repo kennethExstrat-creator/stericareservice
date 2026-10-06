@@ -13,7 +13,9 @@
     "check": "npm run typecheck && npm run lint && npm run test",
     "db:push": "supabase db push",
     "db:types": "supabase gen types typescript --linked --schema public > lib/supabase/database.types.ts",
-    "seed:dev-users": "node --env-file-if-exists=.env.local scripts/create-dev-users.mts"
+    "seed:dev-users": "node --env-file-if-exists=.env.local scripts/create-dev-users.mts",
+    "seed:templates": "node --env-file-if-exists=.env.local scripts/seed-templates.mts",
+    "clean:e2e": "node --env-file-if-exists=.env.local scripts/clean-e2e-data.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
