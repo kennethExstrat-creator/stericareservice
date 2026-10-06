@@ -7,6 +7,7 @@ import {
   createInUseFixtures,
   drawLogo,
   failOnHydrationErrors,
+  hasTouch,
   isDesktop,
   logoFiles,
   runTag,
@@ -59,6 +60,11 @@ async function search(page: Page, label: string, query: string) {
   await page.getByRole("searchbox", { name: label }).fill(query);
 }
 
+/** Height in CSS pixels. */
+async function height(locator: Locator): Promise<number> {
+  return (await locator.boundingBox())?.height ?? Number.NaN;
+}
+
 test.describe("manufacturers, as the admin", () => {
   useAccount(TEST_ACCOUNTS.admin);
 
@@ -68,6 +74,10 @@ test.describe("manufacturers, as the admin", () => {
     await expect(page).toHaveTitle("Manufacturers · SteriCare QC");
     await expect(row(page, inUse.name)).toBeVisible();
     await expect(row(page, inUse.name)).toContainText("1 template");
+    if (isDesktop(page)) {
+      // Compact rows with a mouse (docs/DESIGN.md, Density): 32 to 36 px.
+      expect(await height(row(page, inUse.name))).toBeLessThanOrEqual(36);
+    }
     await shot(page, "manufacturers-list");
 
     await search(page, "Search manufacturers", `in use ${tag.toLowerCase()}`);
@@ -113,6 +123,10 @@ test.describe("manufacturers, as the admin", () => {
     await expect(page.getByText(`${name}, Plant 7 added.`)).toBeVisible();
     await expect(add).toBeHidden();
     await expect(row(page, name)).toContainText("Plant 7");
+    // The focus is back on the button the panel opened from.
+    await expect(page.getByRole("button", { name: "Add manufacturer" })).toBeFocused();
+    // The count stays on one line; a long name wraps instead.
+    expect(await height(row(page, name).getByText("Not in use"))).toBeLessThanOrEqual(24);
 
     const { data: created } = await admin
       .from("manufacturers")
@@ -136,11 +150,23 @@ test.describe("manufacturers, as the admin", () => {
     await shot(page, "manufacturer-duplicate");
     await footerButton(again, "Cancel").click();
     await expect(again).toBeHidden();
+    await expect(page.getByRole("button", { name: "Add manufacturer" })).toBeFocused();
 
-    // Edit.
-    await row(page, name).getByRole("button", { name: `Edit ${name}, Plant 7` }).click();
+    // From the keyboard: Enter on the row's Edit button opens the panel, and
+    // Escape closes it with the focus back on that button.
+    const editButton = row(page, name).getByRole("button", { name: `Edit ${name}, Plant 7` });
+    await editButton.focus();
+    await page.keyboard.press("Enter");
     const edit = panel(page, "Edit manufacturer");
     await expect(edit.getByLabel("Name", { exact: true })).toHaveValue(name);
+    // With a mouse the first field takes the focus; on touch the panel does, so no keyboard pops up.
+    if (!hasTouch()) await expect(edit.getByLabel("Name", { exact: true })).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(edit).toBeHidden();
+    await expect(editButton).toBeFocused();
+
+    // Edit.
+    await page.keyboard.press("Enter");
     await expect(edit.getByText("Not used by any template or inspection, so it can be deleted.")).toBeVisible();
     await shot(page, "manufacturer-edit");
     await edit.getByLabel("Factory").fill("Plant 8");
@@ -149,19 +175,27 @@ test.describe("manufacturers, as the admin", () => {
     await expect(page.getByText(`${name}, Plant 8 saved.`)).toBeVisible();
     await expect(edit).toBeHidden();
     await expect(row(page, name)).toContainText("Plant 8");
+    await expect(row(page, name).getByRole("button", { name: `Edit ${name}, Plant 8` })).toBeFocused();
 
-    // Delete.
+    // Delete. Cancelling the confirmation keeps the panel, with the focus on its Delete button.
     await row(page, name).getByRole("button", { name: /^Edit / }).click();
     const reopened = panel(page, "Edit manufacturer");
-    await reopened.getByRole("button", { name: "Delete manufacturer" }).click();
+    const deleteButton = reopened.getByRole("button", { name: "Delete manufacturer" });
+    await deleteButton.click();
     const confirm = page.getByRole("alertdialog", { name: `Delete ${name}, Plant 8?` });
     await expect(confirm).toBeVisible();
     await shot(page, "manufacturer-delete-confirm");
+    await confirm.getByRole("button", { name: "Cancel" }).click();
+    await expect(confirm).toBeHidden();
+    await expect(deleteButton).toBeFocused();
+    await deleteButton.click();
     await confirm.getByRole("button", { name: "Delete manufacturer" }).click();
     await expect(page.getByText(`${name}, Plant 8 deleted.`)).toBeVisible();
     await expect(confirm).toBeHidden();
     await expect(reopened).toBeHidden();
     await expect(row(page, name)).toHaveCount(0);
+    // Its row, and the Edit button the panel opened from, have gone: the focus goes to Add.
+    await expect(page.getByRole("button", { name: "Add manufacturer" })).toBeFocused();
 
     const { data: left } = await admin.from("manufacturers").select("id").eq("id", created!.id);
     expect(left).toEqual([]);
@@ -232,41 +266,55 @@ test.describe("clients, as the admin", () => {
     const { data: withPng } = await admin.from("clients").select("logo_path").eq("id", clientId).single();
     expect(withPng!.logo_path).toBe(pngFiles[0]);
 
-    // Replace: the new file becomes the logo and the old one goes.
+    // Replace, from the keyboard: the new file becomes the logo and the old
+    // one goes. The button is busy while it uploads, then has the focus again.
+    const replace = edit.getByRole("button", { name: "Replace logo" });
+    await replace.focus();
     await fileInput.setInputFiles({
       name: "logo.jpg",
       mimeType: "image/jpeg",
       buffer: await drawLogo(page, "image/jpeg", "JPEG"),
     });
     await expect(page.getByText("Logo replaced.")).toBeVisible();
+    await expect(replace).toBeFocused();
     await expect.poll(() => logoFiles(admin, clientId)).toEqual([expect.stringMatching(/\.jpg$/)]);
     const { data: withJpeg } = await admin.from("clients").select("logo_path").eq("id", clientId).single();
     expect(withJpeg!.logo_path).toMatch(/\.jpg$/);
     await expect(preview).toHaveAttribute("src", /\.jpg\?token=/);
 
-    // Edit the client's own fields; the logo stays as it is.
+    // Edit the client's own fields; the logo stays as it is. The panel's own
+    // uploads moved the row's version on, and the save still goes through.
     await edit.getByLabel("Notes").fill("Logo checked by the reference data e2e spec.");
     await footerButton(edit, "Save changes").click();
     await expect(page.getByText(`${name} saved.`)).toBeVisible();
     await expect(edit).toBeHidden();
+    await expect(page.getByRole("button", { name: "Add client" })).toBeFocused();
     const { data: edited } = await admin.from("clients").select("notes, logo_path").eq("id", clientId).single();
     expect(edited).toEqual({ notes: "Logo checked by the reference data e2e spec.", logo_path: withJpeg!.logo_path });
 
     // The list shows the logo too.
     const listed = row(page, name);
     await expect.poll(() => listed.locator("img").evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+    if (isDesktop(page)) expect(await height(listed)).toBeLessThanOrEqual(36);
     await shot(page, "clients-list");
 
-    // Remove the logo.
+    // Remove the logo. Cancelling keeps it, with the focus back on Remove logo.
     await listed.getByRole("button", { name: `Edit ${name}` }).click();
     const reopened = panel(page, "Edit client");
-    await reopened.getByRole("button", { name: "Remove logo" }).click();
+    const removeButton = reopened.getByRole("button", { name: "Remove logo" });
+    await removeButton.click();
     const confirmRemove = page.getByRole("alertdialog", { name: "Remove the logo?" });
     await expect(confirmRemove).toBeVisible();
     await shot(page, "client-logo-remove-confirm");
+    await confirmRemove.getByRole("button", { name: "Cancel" }).click();
+    await expect(confirmRemove).toBeHidden();
+    await expect(removeButton).toBeFocused();
+    await removeButton.click();
     await confirmRemove.getByRole("button", { name: "Remove logo" }).click();
     await expect(page.getByText("Logo removed.")).toBeVisible();
     await expect(reopened.getByText("No logo yet")).toBeVisible();
+    // Remove logo went with the logo, so the focus is on Upload logo.
+    await expect(reopened.getByRole("button", { name: "Upload logo" })).toBeFocused();
     await expect.poll(() => logoFiles(admin, clientId)).toEqual([]);
     const { data: withoutLogo } = await admin.from("clients").select("logo_path").eq("id", clientId).single();
     expect(withoutLogo!.logo_path).toBeNull();
@@ -278,8 +326,53 @@ test.describe("clients, as the admin", () => {
     await expect(page.getByText(`${name} deleted.`)).toBeVisible();
     await expect(reopened).toBeHidden();
     await expect(row(page, name)).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Add client" })).toBeFocused();
     const { data: left } = await admin.from("clients").select("id").eq("id", clientId);
     expect(left).toEqual([]);
+  });
+
+  test("a save over someone else's change is refused, even after a logo upload in the panel", async ({ page }) => {
+    test.skip(test.info().project.name !== "desktop", "The same at every size: once spares the shared database.");
+    const name = `${PREFIX} ${tag} Concurrency`;
+    const { data: created, error } = await admin
+      .from("clients")
+      .insert({ name, notes: "Their notes, before." })
+      .select("id")
+      .single();
+    if (error) throw new Error(`Could not create the test client: ${error.message}`);
+
+    await page.goto(`/admin/clients?q=${encodeURIComponent(name)}`);
+    await row(page, name).getByRole("button", { name: `Edit ${name}` }).click();
+    const edit = panel(page, "Edit client");
+    await expect(edit.getByLabel("Name", { exact: true })).toHaveValue(name);
+
+    // Another admin renames the client while this panel is open...
+    const theirs = { name: `${name} renamed`, notes: "Their notes, after." };
+    const renamed = await admin.from("clients").update(theirs).eq("id", created.id);
+    expect(renamed.error).toBeNull();
+
+    // ...and a logo upload here refreshes the page with their version underneath.
+    await edit
+      .locator('input[type="file"][name="logo"]')
+      .setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: await drawLogo(page, "image/png", "PNG") });
+    await expect(page.getByText("Logo added.")).toBeVisible();
+    await expect(edit.getByLabel("Name", { exact: true })).toHaveValue(name);
+    // Their change is not something typed here.
+    await expect(footerButton(edit, "Close")).toBeVisible();
+
+    await edit.getByLabel("Notes").fill("Notes from this panel.");
+    await footerButton(edit, "Save changes").click();
+    await expect(edit.getByText(/^Someone else changed this client while you were editing\./)).toBeVisible();
+    await shot(page, "client-save-conflict");
+    const { data: kept } = await admin.from("clients").select("name, notes").eq("id", created.id).single();
+    expect(kept).toEqual(theirs);
+
+    // Saving again replaces their change, as the message says.
+    await footerButton(edit, "Save changes").click();
+    await expect(page.getByText(`${name} saved.`)).toBeVisible();
+    await expect(edit).toBeHidden();
+    const { data: replaced } = await admin.from("clients").select("name, notes").eq("id", created.id).single();
+    expect(replaced).toEqual({ name, notes: "Notes from this panel." });
   });
 
   test("a client a template uses cannot be deleted, and its logo can still change", async ({ page }) => {

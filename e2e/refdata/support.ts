@@ -21,12 +21,17 @@ export function runTag(): string {
 /** The desktop layout starts at 1280 px (BUILD_SPEC 8). */
 export const isDesktop = (page: Page) => (page.viewportSize()?.width ?? 0) >= 1280;
 
+/** The iPad sizes: touch, so (pointer: coarse) styles apply. */
+export const hasTouch = () => test.info().project.use.hasTouch === true;
+
 export async function shot(page: Page, name: string) {
   // Hide the dev-only Next.js indicator, and let toasts and dialogs settle.
   await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
   await page.screenshot({
     path: `screenshots/refdata/${test.info().project.name}-${name}.png`,
-    fullPage: true,
+    // A full-page capture drops touch emulation while it resizes (e2e/README.md),
+    // which would show the iPad sizes at desktop density: they take the viewport.
+    fullPage: !hasTouch(),
     animations: "disabled",
   });
 }
