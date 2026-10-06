@@ -26,7 +26,8 @@ import {
 
 const SaveInputSchema = z.strictObject({
   id: z.uuid(),
-  updatedAt: z.string().min(1).max(64),
+  /** templates.updated_at as the editor read it: the save is a compare-and-set on it. */
+  updatedAt: z.iso.datetime({ offset: true }),
   definition: z.string().min(2).max(MAX_DEFINITION_CHARS),
 });
 
@@ -78,7 +79,7 @@ export async function saveTemplate(_previous: SaveResult, formData: FormData): P
     const supabase = await createClient();
     const { data: row, error } = await supabase
       .from("templates")
-      .select("id, code, version, status, definition, updated_at, source_file_path, coverage_confirmed_at")
+      .select("id, code, version, status, definition, resolved, updated_at, source_file_path, coverage_confirmed_at")
       .eq("id", input.data.id)
       .maybeSingle();
     if (error) {
@@ -118,8 +119,9 @@ export async function saveTemplate(_previous: SaveResult, formData: FormData): P
       };
     }
 
-    // A changed template needs its field coverage confirmed again before it is activated (4.2 rule 10).
-    const changed = !deepEqual(row.definition, definition);
+    // A changed template needs its field coverage confirmed again before it is activated (4.2 rule 10): changed
+    // itself, or in what it resolves to (a base that moved on, a module whose defaults changed).
+    const changed = !deepEqual(row.definition, definition) || !deepEqual(row.resolved, resolution.template);
     const clearCoverage = changed && row.coverage_confirmed_at !== null;
     const { data: saved, error: saveError } = await supabase
       .from("templates")
@@ -146,7 +148,7 @@ export async function saveTemplate(_previous: SaveResult, formData: FormData): P
         };
       }
       console.error("[admin/templates] save refused", saveError.code, saveError.message);
-      return { status: "error", message: `The template was not saved: ${saveError.message}` };
+      return { status: "error", message: UNEXPECTED };
     }
     if (!saved) {
       return {
@@ -242,7 +244,7 @@ export async function createTemplateVersion(_previous: VersionResult, formData: 
     }
     if ("error" in outcome) {
       console.error("[admin/templates] new version refused", outcome.error.code, outcome.error.message);
-      return { status: "error", message: `The new version was not made: ${outcome.error.message}` };
+      return { status: "error", message: UNEXPECTED };
     }
     createdId = outcome.id;
   } catch (error) {
