@@ -105,7 +105,7 @@ export function CaptureScreen({
   const rootRef = useRef<HTMLDivElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
-  useStickyOffsets(rootRef, barRef);
+  useStickyOffsets(rootRef, barRef, panelId);
 
   /* -------------------------------------------------------------- *
    * Data and autosave
@@ -213,9 +213,20 @@ export function CaptureScreen({
     window.history.replaceState(null, "", `?${params.toString()}`);
   }, []);
 
+  /**
+   * Leaves the field being edited in the open section, so a half-typed value
+   * is stored for the section it was typed in before that section goes
+   * (number fields commit on blur; a tap on the iPad does not move focus).
+   */
+  const leaveActiveField = useCallback(() => {
+    const field = document.activeElement;
+    if (field instanceof HTMLElement && document.getElementById(panelId)?.contains(field)) field.blur();
+  }, [panelId]);
+
   /** Opens a section; the page scrolls back up to it when its top is out of view. */
   const selectSection = useCallback(
     (key: string, { focusHeading = false }: { focusHeading?: boolean } = {}) => {
+      leaveActiveField();
       setActiveKey(key);
       setPhotoFocus({});
       setFocusRequest(null);
@@ -228,7 +239,7 @@ export function CaptureScreen({
         if (focusHeading) title.focus({ preventScroll: true });
       });
     },
-    [syncUrl],
+    [leaveActiveField, syncUrl],
   );
 
   /* -------------------------------------------------------------- *
@@ -253,15 +264,17 @@ export function CaptureScreen({
       setActiveKey(sectionKey);
       setPhotoFocus({});
       syncUrl(sectionKey);
-      // Cleared first, so the same link twice still moves focus.
       setFocusRequest(null);
+      // After the panel has closed and the section is on screen.
       requestAnimationFrame(() => {
         if (issue.path.length === 0) {
           headingRef.current?.scrollIntoView({ block: "start" });
           headingRef.current?.focus({ preventScroll: true });
           return;
         }
-        setFocusRequest({ sectionKey, path: issue.path });
+        // A new array for every click (docs/CAPTURE_KIT.md, "Issue links"):
+        // useIssueFocus follows each one once, so the same link twice still works.
+        setFocusRequest({ sectionKey, path: [...issue.path] });
         // Nothing in the section took focus (a form without marks): its title does.
         window.setTimeout(() => {
           const panel = document.getElementById(panelId);
@@ -356,7 +369,16 @@ export function CaptureScreen({
   const { previous, next } = active ? neighbours(sections, active.key) : { previous: null, next: null };
 
   return (
-    <div ref={rootRef} data-slot="capture-screen" className="flex flex-col gap-6">
+    <div
+      ref={rootRef}
+      data-slot="capture-screen"
+      className={cn(
+        "flex flex-col gap-6",
+        // Until use-sticky-offsets measures: the shell's top bar, plus the section tab bar below 1280 px.
+        "[--capture-sticky-bottom:0px] [--capture-sticky-top:0px]",
+        "max-xl:[--capture-sticky-top:calc(var(--shell-top,0px)_+_2.5rem_+_1px)] max-xl:touch:[--capture-sticky-top:calc(var(--shell-top,0px)_+_2.75rem_+_1px)]",
+      )}
+    >
       <CaptureHeader
         heading={heading}
         actions={
@@ -592,7 +614,7 @@ function ActiveSection({
         onChange={(text) => onCommentChange(namespace, section.key, text)}
         readOnly={readOnly}
       />
-      <PhotoSlot inspectionId={inspectionId} moduleKey={section.key} focus={photoFocus} />
+      <PhotoSlot inspectionId={inspectionId} moduleKey={section.key} focus={photoFocus} readOnly={readOnly} />
     </>
   );
 

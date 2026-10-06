@@ -123,6 +123,12 @@ describe("PhotoSlot (placeholder)", () => {
     expect(html).toContain("Add from library");
     expect(html).toContain("Photos arrive in the next build");
   });
+
+  it("takes the photo build's props: no focus yet, and the screen's read-only state", () => {
+    const html = renderToStaticMarkup(<PhotoSlot inspectionId="i" moduleKey="header" focus={null} readOnly />);
+    expect(html).toContain('data-module="header"');
+    expect(html.match(/<button[^>]*disabled=""/g)).toHaveLength(2);
+  });
 });
 
 describe("CaptureHeader", () => {
@@ -157,6 +163,8 @@ describe("SectionFrame", () => {
     );
     expect(html).toContain('aria-labelledby="panel-title"');
     expect(html).toMatch(/<h2 id="panel-title" tabindex="-1"[^>]*>Glove Information<\/h2>/);
+    // Focused by Previous, Next and issue links: an opaque ring for keyboard users, never a halo.
+    expect(tagsWith(html, 'id="panel-title"')[0]).toContain("focus-ring");
     expect(html).toContain("Not done");
     expect(html).toContain("Missing: Glove colour.");
     expect(html).toContain("<footer");
@@ -178,6 +186,27 @@ describe("FieldControl", () => {
     expect(html).toContain('value="3.5"');
     expect(html).toContain(">g</span>");
     expect(html).toContain(`data-issue-path="${JSON.stringify(["indicativeWeight"]).replaceAll('"', "&quot;")}"`);
+  });
+
+  it("puts a number cell into its column, so Enter walks down it and a paste fills it", () => {
+    const html = renderToStaticMarkup(
+      <FieldControl
+        variant="cell"
+        cellLabel="Size M, Weight"
+        field={{ key: "weight", segments: ["weight"], label: "Weight", type: "number", unit: "g", required: true }}
+        value={null}
+        onChange={noop}
+        readOnly={false}
+        issuePath={["sizes", "M", "weight"]}
+        group="weight"
+        error="Weight: must be more than 0 g."
+      />,
+    );
+    const input = tagsWith(html, "data-enter-field")[0];
+    expect(input).toContain('data-enter-group="weight"');
+    expect(input).toContain('aria-label="Size M, Weight (g)"');
+    expect(html).toContain("Weight: must be more than 0 g.");
+    expect(html).toContain(`data-issue-path="${JSON.stringify(["sizes", "M", "weight"]).replaceAll('"', "&quot;")}"`);
   });
 
   it("labels text fields, says required, and shows a problem with the stored value", () => {
@@ -246,6 +275,8 @@ describe("plain forms", () => {
     expect(html).toContain("Indicative weight (size M)");
     expect(html).toContain('value="Blue"');
     expect(html).toContain("A simplified form");
+    // One run of fields: Enter moves from one number to the next, a pasted column fills down.
+    expect(html).toContain('data-slot="enter-group"');
   });
 
   it("draws a custom table with one row per ordered size only", () => {

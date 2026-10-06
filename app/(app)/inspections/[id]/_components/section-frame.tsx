@@ -58,7 +58,8 @@ export function SectionFrame({
             id={titleId}
             ref={headingRef}
             tabIndex={-1}
-            className="scroll-mt-[calc(var(--capture-sticky-top,0px)_+_1rem)] text-lg leading-snug font-bold text-balance text-foreground outline-none"
+            // Focused by Previous, Next and issue links: the opaque ring shows it to keyboard users.
+            className="scroll-mt-[calc(var(--capture-sticky-top,0px)_+_1rem)] rounded-sm text-lg leading-snug font-bold text-balance text-foreground outline-none focus-ring"
           >
             {title}
           </h2>

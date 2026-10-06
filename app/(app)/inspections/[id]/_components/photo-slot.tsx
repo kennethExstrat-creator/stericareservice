@@ -7,19 +7,27 @@
 // replaces this one with the same props.
 import { CameraIcon, ImagesIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import type { CaptureFocus } from "@/modules/_framework";
 
 export type PhotoSlotProps = {
   inspectionId: string;
   /** A module key, or a custom module's key: the photo's module tag. */
   moduleKey: string;
-  /** The size, hand, defect or box in focus when the photo is taken. */
-  focus: CaptureFocus;
+  /** The size, hand, defect or box in focus when the photo is taken (the module's onFocusChange). */
+  focus?: CaptureFocus | null;
+  /** The screen's read-only state: approved, submitted, or not the user's to edit. */
+  readOnly?: boolean;
+  className?: string;
 };
 
-export function PhotoSlot({ moduleKey }: PhotoSlotProps) {
+export function PhotoSlot({ moduleKey, className }: PhotoSlotProps) {
   return (
-    <div data-slot="photo-slot" data-module={moduleKey} className="flex flex-wrap items-center gap-x-3 gap-y-2">
+    <div
+      data-slot="photo-slot"
+      data-module={moduleKey}
+      className={cn("flex flex-wrap items-center gap-x-3 gap-y-2", className)}
+    >
       <Button type="button" variant="outline" disabled>
         <CameraIcon aria-hidden />
         Take photo
@@ -28,7 +36,7 @@ export function PhotoSlot({ moduleKey }: PhotoSlotProps) {
         <ImagesIcon aria-hidden />
         Add from library
       </Button>
-      <p className="text-sm text-muted-foreground">Photos arrive in the next build</p>
+      <p className="text-sm text-muted-foreground touch:text-base">Photos arrive in the next build</p>
     </div>
   );
 }
