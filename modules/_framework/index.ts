@@ -22,6 +22,7 @@ export { SpecSchema } from "./config-schemas";
 export { labelFor, effectiveLabels, type Labels } from "./labels";
 export {
   AQL_DEFAULTS,
+  AQL_SOURCES,
   CONTEXT_SOURCES,
   EMPTY_SAMPLING,
   INSPECTION_LEVELS,

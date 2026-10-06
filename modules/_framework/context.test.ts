@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { TEST_ADMIN_ID, TEST_REGISTRY, registryWith } from "./__fixtures__/test-registry";
 import {
   AQL_DEFAULTS,
@@ -238,6 +239,33 @@ describe("buildInspectionContext: numbers flow forward", () => {
     expect(context.sampling).toEqual({});
     expect(context.packing).toEqual({ innerUnit: "inner box", glovesPerInner: null, innersPerCase: null, glovesPerCase: null });
     expect(context.contributionErrors).toEqual([]);
+  });
+
+  it("takes each AQL setting from the check that applies it, over the client's and the defaults", () => {
+    const watertight = defineModule({
+      ...stubModule({ key: "watertight", title: "Freedom from Holes by watertight test", perSize: true }),
+      configSchema: z.strictObject({ aql: z.number().nullable() }),
+      defaultConfig: { aql: null },
+      contribute: ({ config }) => ({ aql: { watertight: config.aql ?? undefined, major: 1.0 } }),
+    });
+    const registry = registryWith({ watertight });
+    const template = makeTestTemplate(registry, [...ALL, { key: "watertight", config: { aql: 0.65 } }]);
+    const context = buildInspectionContext(
+      { template, data: exampleData(), meta: META, aqlDefaults: { watertight: 1.0, major: 1.5 } },
+      registry,
+    );
+    // The template's 0.65 wins over the client's 1.0; major is visual's to set, so the client's 1.5 stays.
+    expect(context.aql).toEqual({ ...AQL_DEFAULTS, watertight: 0.65, major: 1.5 });
+    expect(context.contributionErrors).toEqual([
+      { moduleKey: "watertight", message: 'watertight contributed "aql.major", which only visual may provide.' },
+    ]);
+    // Without a template value the client's stays.
+    const plain = makeTestTemplate(registry, [...ALL, "watertight"]);
+    const client = buildInspectionContext(
+      { template: plain, data: exampleData(), meta: META, aqlDefaults: { watertight: 1.0 } },
+      registry,
+    );
+    expect(client.aql.watertight).toBe(1.0);
   });
 
   it("records a contribution that throws and builds the rest of the context", () => {

@@ -187,6 +187,21 @@ export const CONTEXT_SOURCES = {
   aql: "sampling_plan",
 } as const satisfies { readonly [K in keyof Required<ContextContribution>]: ModuleKey };
 
+/**
+ * The one module that may set each AQL setting, from the template's config:
+ * the check that applies it, so the sampling plan's lot check sees the AQL
+ * the template sets for watertight and visual (template over client over
+ * BUILD_SPEC 7), and the sampling plan its inspection level. A module that
+ * leaves a setting out keeps the client's or the default value.
+ */
+export const AQL_SOURCES = {
+  watertight: "watertight",
+  critical: "visual",
+  major: "visual",
+  minor: "visual",
+  inspectionLevel: "sampling_plan",
+} as const satisfies { readonly [K in keyof AqlSettings]: ModuleKey };
+
 export const EMPTY_SAMPLING: Readonly<SamplingValues> = {
   cases: null,
   innerUnits: null,
@@ -311,18 +326,32 @@ export function readableData<TData>(
 }
 
 /**
- * The parts of a contribution that `key` owns (CONTEXT_SOURCES), and one line
- * for each part it may not provide, which is left out.
+ * The parts of a contribution that `key` owns (CONTEXT_SOURCES; the AQL
+ * settings one by one, AQL_SOURCES), and one line for each part it may not
+ * provide, which is left out.
  */
 export function splitContribution(
   key: ModuleKey,
   contribution: ContextContribution,
 ): { owned: ContextContribution; refused: string[] } {
   const owners: Partial<Record<string, ModuleKey>> = CONTEXT_SOURCES;
+  const aqlOwners: Partial<Record<string, ModuleKey>> = AQL_SOURCES;
   const owned: Record<string, unknown> = {};
   const refused: string[] = [];
   for (const [part, value] of Object.entries(contribution)) {
     if (value === undefined) continue;
+    if (part === "aql" && typeof value === "object" && value !== null) {
+      const aql: Record<string, unknown> = {};
+      for (const [setting, entry] of Object.entries(value)) {
+        if (entry === undefined) continue;
+        const owner = aqlOwners[setting];
+        if (owner === key) aql[setting] = entry;
+        else if (owner === undefined) refused.push(`${key} contributed "aql.${setting}", which is not part of the context.`);
+        else refused.push(`${key} contributed "aql.${setting}", which only ${owner} may provide.`);
+      }
+      if (Object.keys(aql).length > 0) owned.aql = aql;
+      continue;
+    }
     const owner = owners[part];
     if (owner === key) owned[part] = value;
     else if (owner === undefined) refused.push(`${key} contributed "${part}", which is not part of the context.`);
