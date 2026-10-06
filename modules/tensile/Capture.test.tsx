@@ -167,11 +167,18 @@ describe("tensile capture", () => {
     ]);
   });
 
-  it("says when the lab report kept here was deleted since", () => {
+  it("says when the lab report kept here is not among the inspection's files", () => {
     const context = makeTestContext({ ...CONTEXT, files: [] });
     const html = render({ context });
     expect(html).toContain('data-state="missing"');
-    expect(html).toContain("Lab report: the file attached here is no longer with this inspection. Attach it again.");
+    expect(html).toContain("Lab report: the file attached here is not among this inspection&#x27;s files. It may still be uploading from another device; if it was deleted, attach it again.");
+  });
+
+  it("shows a lab report added in the gallery as attached, though the module keeps no id", () => {
+    const context = makeTestContext({ ...CONTEXT, files: [{ id: LAB_REPORT_ID, moduleKey: "tensile", kind: "lab_report" }] });
+    const html = render({ data: { ...EXAMPLE, labReport: null }, context });
+    expect(html).toContain('data-state="attached"');
+    expect(html).toContain(">Attached</span>");
   });
 
   it("keeps the module's not-done warning, which links to the first empty field, out of that field", () => {

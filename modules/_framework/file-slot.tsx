@@ -25,8 +25,14 @@ export type FileSlotRequest = {
   readonly title?: string;
   /** What is in focus when a file is added: the size a report is for, the document on the checklist. */
   readonly focus: CaptureFocus | null;
-  /** Nothing can be added or deleted here (approved, not the user's, or nothing chosen to file it under). */
+  /** Nothing can be added or deleted here: approved, or not the user's. */
   readonly readOnly: boolean;
+  /**
+   * New files can be added now. False while the module has nothing to file a
+   * new file under (documents before a document is chosen): hide the add
+   * controls only, and keep the list's own, Delete included.
+   */
+  readonly addable: boolean;
   /** A file was handed to the upload queue: its future inspection_files id. */
   onAdded(file: AttachedFile): void;
   /** A file of the module was deleted or taken off the queue. */
@@ -39,12 +45,8 @@ export type FileSlotRenderer = (request: FileSlotRequest) => ReactNode;
 const FileSlotContext = createContext<FileSlotRenderer | null>(null);
 
 /**
- * Given by the capture screen around the modules it renders:
- *
- *   <FileSlotProvider render={(slot) => (
- *     <FileSlot inspectionId={id} moduleKey={slot.moduleKey} kind={slot.kind} title={slot.title}
- *               focus={slot.focus} readOnly={slot.readOnly || readOnly} onAdded={slot.onAdded} />
- *   )}>
+ * Given by the capture screen around the modules it renders, with a renderer
+ * for its upload slot; docs/MODULES.md 10.1 shows the renderer.
  */
 export function FileSlotProvider({ render, children }: { render: FileSlotRenderer; children?: ReactNode }) {
   return <FileSlotContext.Provider value={render}>{children}</FileSlotContext.Provider>;
@@ -61,6 +63,8 @@ export type ModuleFileSlotProps = {
   title?: string;
   focus?: CaptureFocus | null;
   readOnly: boolean;
+  /** False while there is nothing to file a new file under: no adding, deleting still allowed. */
+  addable?: boolean;
   /** Keep the file's id in the module's data, through useDataUpdater. */
   onAdded: (file: AttachedFile) => void;
   /** Drop the id when the module keeps it. Without it, a deleted file stays kept until replaced. */
@@ -79,6 +83,7 @@ export function ModuleFileSlot({
   title,
   focus = null,
   readOnly,
+  addable = true,
   onAdded,
   onRemoved,
   className,
@@ -93,6 +98,7 @@ export function ModuleFileSlot({
           ...(title === undefined ? {} : { title }),
           focus,
           readOnly,
+          addable: !readOnly && addable,
           onAdded,
           onRemoved: (fileId) => onRemoved?.(fileId),
         })}

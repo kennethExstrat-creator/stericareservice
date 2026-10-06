@@ -4,9 +4,10 @@
 // the row's id in its own data (`FileIdCellSchema`), set through the file
 // slot (`ModuleFileSlot`, modules/_framework/file-slot.tsx), so "the lab
 // report is attached" is a fact calc reads from the data, the same on the
-// iPad, in the server actions and in the export. When the caller also knows
-// which files the inspection holds (InspectionMeta.files), `heldFileState`
-// tells a kept id whose file has since been deleted.
+// iPad, in the server actions and in the export. Every caller that decides a
+// result also passes the inspection's files (InspectionMeta.files): then a
+// kept id whose file has since been deleted is missing, and a file added
+// outside the module (the gallery keeps no id) still counts for it.
 import { z } from "zod";
 import type { InspectionContext } from "./context";
 
@@ -38,7 +39,8 @@ export const FileIdCellSchema = z.uuid().nullable().default(null);
  * A kept file id against the inspection's files:
  * - `none`: no id is kept;
  * - `attached`: the file is among the inspection's files, or they are not known here;
- * - `missing`: the files are known and it is not among them (deleted since).
+ * - `missing`: the files are known and it is not among them (deleted since,
+ *   or still uploading from another device).
  */
 export type HeldFileState = "none" | "attached" | "missing";
 
@@ -47,4 +49,33 @@ export function heldFileState(context: Pick<InspectionContext, "files">, fileId:
   const files = context.files ?? null;
   if (files === null) return "attached";
   return files.some((file) => file.id === fileId) ? "attached" : "missing";
+}
+
+/**
+ * The file a module needs one of (tensile's lab report): its kept id as
+ * `heldFileState` reads it, or, once the inspection's files are known, any
+ * file of the module and kind. So a lab report added in the gallery, which
+ * keeps no id, attaches the module too, and so does one still listed after
+ * the kept one was deleted. Not for files kept per entry (a documents item):
+ * a file of the module says nothing about which entry it is for.
+ */
+export function moduleFileState(
+  context: Pick<InspectionContext, "files">,
+  { moduleKey, kind, fileId }: { moduleKey: string; kind: FileKind; fileId: string | null },
+): HeldFileState {
+  const held = heldFileState(context, fileId);
+  if (held === "attached") return held;
+  const files = context.files ?? null;
+  if (files?.some((file) => file.moduleKey === moduleKey && file.kind === kind)) return "attached";
+  return held;
+}
+
+/**
+ * The warning for a missing file (`HeldFileState`), with what to do: the
+ * caller's files can lag behind another device's upload queue, so the file
+ * may still be on its way. `name` is what it is attached for ("Lab report",
+ * a document), `file` the word for the file.
+ */
+export function missingFileMessage(name: string, file = "file"): string {
+  return `${name}: the ${file} attached here is not among this inspection's files. It may still be uploading from another device; if it was deleted, attach it again.`;
 }

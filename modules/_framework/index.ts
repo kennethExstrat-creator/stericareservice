@@ -59,6 +59,8 @@ export {
   FileKindSchema,
   FileIdCellSchema,
   heldFileState,
+  moduleFileState,
+  missingFileMessage,
   type AttachedFile,
   type FileKind,
   type HeldFileState,

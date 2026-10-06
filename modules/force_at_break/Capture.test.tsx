@@ -127,7 +127,7 @@ describe("force_at_break capture", () => {
       context: makeTestContext({ ...CONTEXT, files: [] }),
     });
     expect(gone).toContain('data-state="missing"');
-    expect(gone).toContain("Lab report: the file attached here is no longer with this inspection. Attach it again.");
+    expect(gone).toContain("Lab report: the file attached here is not among this inspection&#x27;s files. It may still be uploading from another device; if it was deleted, attach it again.");
   });
 
   it("says where the lab report is attached when the screen gives no file slot (preview, review)", () => {

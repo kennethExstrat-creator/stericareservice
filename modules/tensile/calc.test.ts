@@ -100,11 +100,26 @@ describe("tensile", () => {
         {
           level: "warning",
           code: "lab_report_missing",
-          message: "Lab report: the file attached here is no longer with this inspection. Attach it again.",
+          message: "Lab report: the file attached here is not among this inspection's files. It may still be uploading from another device; if it was deleted, attach it again.",
           path: ["labReport"],
         },
       ]);
       expect(deleted.notDonePath).toEqual(["labReport"]);
+    });
+
+    it("counts a lab report of the module added in the gallery, which keeps no id, once the inspection's files are known", () => {
+      const GALLERY_REPORT = "00000000-0000-4000-8000-000000000403";
+      const files = [
+        { id: GALLERY_REPORT, moduleKey: "tensile", kind: "lab_report" },
+        { id: LAB_REPORT_ID, moduleKey: "force_at_break", kind: "lab_report" },
+      ] as const;
+      const gallery = calcTensile(input(exampleSizes, { at: makeTestContext({ ...exampleContext, files }), labReport: null }));
+      expect(gallery.result.status).toBe("pass");
+      expect(gallery.computed.labReportAttached).toBe(true);
+      expect(gallery.issues).toEqual([]);
+      // Another module's lab report attaches nothing here.
+      const elsewhere = makeTestContext({ ...exampleContext, files: [files[1]] });
+      expect(calcTensile(input(exampleSizes, { at: elsewhere, labReport: null })).result.status).toBe("not_done");
     });
 
     it("is not done until the lab report is attached: it is required (BUILD_SPEC 6.1)", () => {

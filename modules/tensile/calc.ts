@@ -4,15 +4,18 @@
 // Not done until both averages of every ordered size are in and the lab
 // report is attached, which this module requires (6.2 rule 5): the module
 // keeps the id of the file attached through its file slot (the framework's
-// file channel), and a kept file the inspection no longer holds is not
-// attached. An average of 0 or less is wrong data: an error with its path.
+// file channel). Once the inspection's files are known, a lab report of the
+// module added elsewhere (the gallery) counts too, and a kept file the
+// inspection does not hold is not attached. An average of 0 or less is wrong
+// data: an error with its path.
 import type { ModuleStatus, PerSizeResult } from "@/lib/schemas/module-result";
 import { checkSpec, formatDecimal, roundTo, type Spec } from "@/lib/stats";
 import {
   combinePerSize,
   errorIssue,
-  heldFileState,
   labelFor,
+  missingFileMessage,
+  moduleFileState,
   perSizeResults,
   sizeLabel,
   warningIssue,
@@ -20,6 +23,7 @@ import {
   type CalcInput,
   type CalcIssue,
   type CalcOutput,
+  type HeldFileState,
   type InspectionContext,
   type IssuePath,
   type Labels,
@@ -100,7 +104,7 @@ export function calcTensile({
   });
 
   // The lab report is required: without it the module is not done, whatever its sizes say.
-  const report = heldFileState(context, data.labReport);
+  const report = labReportState(context, data.labReport);
   const attached = report === "attached";
   if (report === "missing") issues.push(labReportMissing(labels));
   const status = attached ? combinePerSize(perSize) : worstStatus([combinePerSize(perSize), "not_done"]);
@@ -119,13 +123,14 @@ export function calcTensile({
   };
 }
 
-/** A kept lab report whose file the inspection no longer holds: deleted since it was attached. */
+/** The lab report: the one kept, or any of the module's lab reports once the inspection's files are known. */
+export function labReportState(context: InspectionContext, fileId: string | null): HeldFileState {
+  return moduleFileState(context, { moduleKey: "tensile", kind: "lab_report", fileId });
+}
+
+/** A kept lab report the inspection's files do not hold: deleted since, or still uploading elsewhere. */
 export function labReportMissing(labels: Labels): CalcIssue {
-  return warningIssue(
-    "lab_report_missing",
-    `${labelFor(labels, "labReport")}: the file attached here is no longer with this inspection. Attach it again.`,
-    { path: ["labReport"] },
-  );
+  return warningIssue("lab_report_missing", missingFileMessage(labelFor(labels, "labReport")), { path: ["labReport"] });
 }
 
 /** Where the not-done link goes, in screen order: the lab report, then the first average still to enter. */

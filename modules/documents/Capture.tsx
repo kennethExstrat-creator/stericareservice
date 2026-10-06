@@ -6,10 +6,11 @@
 // (6.2 rule 3). The row being worked on is reported as the focus for photo
 // and file tags (BUILD_SPEC 8.1), and a file added through the module's file
 // slot below the list is filed under it: the row keeps the file's id and
-// says it is attached. Each row's chip, and the colour of its selected
-// status, is calc's result for the item; every change goes through
-// useDataUpdater, built from the latest data (edit.ts).
-import { useId, useRef, useState } from "react";
+// says it is attached. Until a row is chosen nothing can be added there, but
+// the files listed can still be deleted. Each row's chip, and the colour of
+// its selected status, is calc's result for the item; every change goes
+// through useDataUpdater, built from the latest data (edit.ts).
+import { useEffect, useId, useRef, useState, type RefObject } from "react";
 import { FileXIcon, PaperclipIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Status } from "@/lib/design/status";
@@ -20,6 +21,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Figure,
   findIssue,
+  issuePathKey,
   issuePathProps,
   StatusPill,
   useDataUpdater,
@@ -31,6 +33,7 @@ import {
   fieldIssues,
   heldFileState,
   labelFor,
+  type CaptureFocus,
   type CaptureProps,
   type HeldFileState,
   type Labels,
@@ -73,15 +76,18 @@ export default function Capture({
   evaluation,
   focusPath,
   readOnly,
+  focus,
   onChange,
   onFocusChange,
 }: CaptureProps<DocumentsData, DocumentsConfig, DocumentsComputed>) {
   const update = useDataUpdater(data, onChange);
   const items = checklist(config);
   const root = useRef<HTMLDivElement>(null);
-  const [active, setActive] = useState<DocumentItem | null>(null);
+  // Opens on the document the screen has in focus, when it is on the checklist.
+  const [active, setActive] = useState<DocumentItem | null>(() => focusedItem(items, focus));
   const canAttach = useFileSlotRenderer() !== null;
   useIssueFocus(focusPath, { root });
+  useFollowFileLine(focusPath, root);
 
   const focusItem = (key: DocumentItem) => {
     setActive(key);
@@ -142,7 +148,8 @@ export default function Capture({
           kind={DOCUMENT_FILE_KIND[filing ?? items[0].key]}
           title={title}
           focus={filing === null ? null : { item: filing }}
-          readOnly={readOnly || filing === null}
+          readOnly={readOnly}
+          addable={filing !== null}
           onAdded={(file) => {
             if (filing !== null) update((current) => withItemValues(current, filing, { file: file.id }));
           }}
@@ -192,6 +199,7 @@ export function DocumentRow({
   const expiryIssue = findIssue(fieldIssues(issues), path("expiryDate"));
   const fileIssue = findIssue(fieldIssues(issues), path("file"));
   const tone = entry.status !== null && speaksOf(status, entry.status) ? SELECTED_TONE[status] : undefined;
+  const fileLineId = `${uid}-file`;
 
   return (
     <li
@@ -212,11 +220,15 @@ export function DocumentRow({
             </Badge>
           )}
           {fileState !== "none" && (
+            // A message, not a control: an issue link focuses it itself (useFollowFileLine).
             <p
+              id={fileLineId}
+              data-slot="document-file"
               data-file-state={fileState}
+              tabIndex={-1}
               {...issuePathProps(path("file"))}
               className={cn(
-                "flex items-start gap-1.5 text-sm touch:text-base",
+                "flex items-start gap-1.5 rounded-sm text-sm outline-none focus-ring touch:text-base",
                 fileState === "missing" ? "text-warn" : "text-muted-foreground",
               )}
             >
@@ -253,6 +265,7 @@ export function DocumentRow({
               onUpdate({ status: parsed.success ? parsed.data : null });
             }}
             aria-labelledby={`${uid}-name ${uid}-status`}
+            aria-describedby={fileState === "missing" ? fileLineId : undefined}
             className="w-full flex-wrap xl:w-auto xl:flex-nowrap"
           >
             {DOCUMENT_STATUSES.map((value) => (
@@ -314,6 +327,30 @@ export function DocumentRow({
       </div>
     </li>
   );
+}
+
+/** The document the screen has in focus (CaptureProps.focus), when it is on the checklist. */
+function focusedItem(items: readonly DocumentItemConfig[], focus: CaptureFocus | null | undefined): DocumentItem | null {
+  return items.find((item) => item.key === focus?.item)?.key ?? null;
+}
+
+/**
+ * An issue link to an item's file lands on its file line. The line is a
+ * message, not a control, and the kit's issue focus moves focus to controls
+ * only: it scrolls the line into view, and this focuses it.
+ */
+function useFollowFileLine(focusPath: IssuePath | null, root: RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    if (focusPath?.length !== 3 || focusPath[0] !== "items" || focusPath[2] !== "file") return;
+    const key = issuePathKey(focusPath);
+    const frame = requestAnimationFrame(() => {
+      const lines = root.current?.querySelectorAll<HTMLElement>('[data-slot="document-file"]') ?? [];
+      Array.from(lines)
+        .find((line) => line.dataset.issuePath === key)
+        ?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focusPath, root]);
 }
 
 /**

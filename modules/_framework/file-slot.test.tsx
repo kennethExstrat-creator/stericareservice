@@ -40,7 +40,14 @@ describe("ModuleFileSlot", () => {
     expect(html).not.toContain("data-unavailable");
     expect(requests).toHaveLength(1);
     const [request] = requests;
-    expect(request).toMatchObject({ moduleKey: "tensile", kind: "lab_report", title: "Lab report", focus: { size: "M" }, readOnly: false });
+    expect(request).toMatchObject({
+      moduleKey: "tensile",
+      kind: "lab_report",
+      title: "Lab report",
+      focus: { size: "M" },
+      readOnly: false,
+      addable: true,
+    });
     request.onAdded({ id: REPORT, name: "report.pdf", kind: "lab_report" });
     request.onRemoved(REPORT);
     expect(added).toEqual([REPORT]);
@@ -60,7 +67,22 @@ describe("ModuleFileSlot", () => {
       </FileSlotProvider>,
     );
     expect(requests[0]).not.toHaveProperty("title");
-    expect(requests[0]).toMatchObject({ focus: null, readOnly: true });
+    expect(requests[0]).toMatchObject({ focus: null, readOnly: true, addable: false });
     expect(() => requests[0].onRemoved(REPORT)).not.toThrow();
+  });
+
+  it("asks for a slot that deletes but does not add while the module has nothing to file a new file under", () => {
+    const requests: FileSlotRequest[] = [];
+    renderToStaticMarkup(
+      <FileSlotProvider
+        render={(request) => {
+          requests.push(request);
+          return null;
+        }}
+      >
+        <ModuleFileSlot moduleKey="documents" kind="certificate" readOnly={false} addable={false} onAdded={() => {}} />
+      </FileSlotProvider>,
+    );
+    expect(requests[0]).toMatchObject({ readOnly: false, addable: false });
   });
 });

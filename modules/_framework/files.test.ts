@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Constants } from "@/lib/supabase/database.types";
-import { FILE_KINDS, FileIdCellSchema, heldFileState } from "./files";
+import { FILE_KINDS, FileIdCellSchema, heldFileState, missingFileMessage, moduleFileState } from "./files";
 import { makeTestContext } from "./testing";
 
 const REPORT = "00000000-0000-4000-8000-000000000402";
@@ -32,5 +32,28 @@ describe("the file channel", () => {
     expect(heldFileState(context, OTHER)).toBe("missing");
     expect(heldFileState(makeTestContext({ files: [] }), REPORT)).toBe("missing");
     expect(heldFileState(context, null)).toBe("none");
+  });
+
+  it("counts any file of the module and kind once the inspection's files are known: one added in the gallery keeps no id", () => {
+    const tensile = { moduleKey: "tensile", kind: "lab_report" } as const;
+    const gallery = makeTestContext({ files: [{ id: OTHER, moduleKey: "tensile", kind: "lab_report" }] });
+    expect(moduleFileState(gallery, { ...tensile, fileId: null })).toBe("attached");
+    // The kept one was deleted, another lab report of the module is still there.
+    expect(moduleFileState(gallery, { ...tensile, fileId: REPORT })).toBe("attached");
+    // Another module's file, or another kind, attaches nothing.
+    expect(moduleFileState(gallery, { moduleKey: "force_at_break", kind: "lab_report", fileId: null })).toBe("none");
+    expect(moduleFileState(gallery, { ...tensile, kind: "certificate", fileId: REPORT })).toBe("missing");
+    expect(moduleFileState(makeTestContext({ files: [] }), { ...tensile, fileId: REPORT })).toBe("missing");
+    expect(moduleFileState(makeTestContext({ files: [] }), { ...tensile, fileId: null })).toBe("none");
+    // Files not known: the kept id alone, as heldFileState.
+    expect(moduleFileState(makeTestContext(), { ...tensile, fileId: REPORT })).toBe("attached");
+    expect(moduleFileState(makeTestContext(), { ...tensile, fileId: null })).toBe("none");
+  });
+
+  it("words a missing file for both reasons it can be missing", () => {
+    expect(missingFileMessage("Lab report")).toBe(
+      "Lab report: the file attached here is not among this inspection's files. It may still be uploading from another device; if it was deleted, attach it again.",
+    );
+    expect(missingFileMessage("ISO 13485", "certificate")).toMatch(/^ISO 13485: the certificate attached here /);
   });
 });

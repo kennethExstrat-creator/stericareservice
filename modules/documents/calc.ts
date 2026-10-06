@@ -4,11 +4,14 @@
 // with every item not verified or NA there is no verdict (info), as a pass
 // would stand on nothing. Not done while an item on the checklist has no
 // status (6.2 rule 5). Items the template switches off are ignored. A file is
-// optional for every item; a kept file the inspection no longer holds warns.
+// optional for every item; a kept file the inspection's files do not hold
+// warns. A file counts for an item only by the id the item keeps: one of the
+// module's files added elsewhere (the gallery) is for no item in particular.
 import type { ModuleStatus } from "@/lib/schemas/module-result";
 import {
   heldFileState,
   labelFor,
+  missingFileMessage,
   notDone,
   warningIssue,
   type CalcInput,
@@ -44,8 +47,8 @@ export type DocumentsComputed = {
   counts: Record<DocumentStatus | "open", number>;
   /**
    * Per item on the checklist, its file: none kept, attached, or missing (the
-   * inspection no longer holds the file kept). Attached while the
-   * inspection's files are not known.
+   * inspection's files do not hold the file kept: deleted, or still
+   * uploading elsewhere). Attached while the inspection's files are not known.
    */
   fileState: Record<string, HeldFileState>;
 };
@@ -100,7 +103,7 @@ export function calcDocuments({
       issues.push(
         warningIssue(
           "document_file_missing",
-          `${labelFor(labels, key)}: the ${labelFor(labels, "file").toLowerCase()} attached here is no longer with this inspection. Attach it again.`,
+          missingFileMessage(labelFor(labels, key), labelFor(labels, "file").toLowerCase()),
           { path: ["items", key, "file"] },
         ),
       );

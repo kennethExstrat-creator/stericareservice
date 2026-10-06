@@ -6,13 +6,16 @@
 // is a sampling plan that asks for more readings than a size can take. The
 // lab report is optional here ('where applicable'): the module keeps the id
 // of the file attached through its file slot (the framework's file
-// channel), and says so when the inspection no longer holds that file.
+// channel); once the inspection's files are known, a lab report of the
+// module added elsewhere (the gallery) counts too, and a kept file they do
+// not hold is reported.
 import type { PerSizeResult } from "@/lib/schemas/module-result";
 import { checkSpec, formatDecimal, median, roundTo, type Spec } from "@/lib/stats";
 import {
   errorIssue,
-  heldFileState,
   labelFor,
+  missingFileMessage,
+  moduleFileState,
   perSizeResults,
   resultFromSizes,
   samplingFor,
@@ -21,6 +24,7 @@ import {
   type CalcInput,
   type CalcIssue,
   type CalcOutput,
+  type HeldFileState,
   type InspectionContext,
   type Labels,
 } from "@/modules/_framework";
@@ -89,14 +93,10 @@ export function calcForceAtBreak({
     return { status: result, summary: medianText(shown, result, config, labels) };
   });
 
-  const report = heldFileState(context, data.labReport);
+  const report = labReportState(context, data.labReport);
   if (report === "missing") {
     issues.push(
-      warningIssue(
-        "lab_report_missing",
-        `${labelFor(labels, "labReport")}: the file attached here is no longer with this inspection. Attach it again.`,
-        { path: ["labReport"] },
-      ),
+      warningIssue("lab_report_missing", missingFileMessage(labelFor(labels, "labReport")), { path: ["labReport"] }),
     );
   }
 
@@ -111,6 +111,11 @@ export function calcForceAtBreak({
     },
     issues,
   };
+}
+
+/** The lab report: the one kept, or any of the module's lab reports once the inspection's files are known. */
+export function labReportState(context: InspectionContext, fileId: string | null): HeldFileState {
+  return moduleFileState(context, { moduleKey: "force_at_break", kind: "lab_report", fileId });
 }
 
 /** Readings a size needs: the sampling plan's gloves for the physical test when entered, else config n. */

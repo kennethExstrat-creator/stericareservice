@@ -24,16 +24,9 @@ import {
 } from "@/components/qc";
 // The kit's touch size for small pills; not exported from @/components/qc yet.
 import { SMALL_PILL_TOUCH } from "@/components/qc/status-pill";
-import {
-  fieldIssues,
-  heldFileState,
-  initialSize,
-  labelFor,
-  type CaptureProps,
-  type HeldFileState,
-} from "@/modules/_framework";
+import { fieldIssues, initialSize, labelFor, type CaptureProps, type HeldFileState } from "@/modules/_framework";
 import { ModuleFileSlot } from "@/modules/_framework/file-slot";
-import { formatMinimum, judgeAverage, MEASURE_RULES, specCaption, type TensileOutcome } from "./calc";
+import { formatMinimum, judgeAverage, labReportState, MEASURE_RULES, specCaption, type TensileOutcome } from "./calc";
 import { TENSILE_MEASURES } from "./config";
 import { withAverage, withLabReport, withoutLabReport } from "./edit";
 import type { TensileComputed, TensileConfig, TensileData } from ".";
@@ -84,7 +77,7 @@ export default function Capture({
       >
         <LabReportStatus
           label={labelFor(labels, "labReport")}
-          state={heldFileState(context, data.labReport)}
+          state={labReportState(context, data.labReport)}
           message={evaluation?.issues.find((issue) => issue.code === "lab_report_missing")?.message}
         />
         <ModuleFileSlot
@@ -146,8 +139,9 @@ export default function Capture({
 /**
  * Whether the lab report is attached; it is required, so until it is the
  * module is not done. The file slot below it attaches the file and the
- * module keeps its id (edit.ts withLabReport); a kept file the inspection no
- * longer holds is missing, with calc's message.
+ * module keeps its id (edit.ts withLabReport); one added in the gallery
+ * counts once the inspection's files are known, and a kept file they do not
+ * hold is missing, with calc's message.
  */
 function LabReportStatus({ label, state, message }: { label: string; state: HeldFileState; message?: string }) {
   const attached = state === "attached";

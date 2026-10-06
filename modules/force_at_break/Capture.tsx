@@ -34,7 +34,6 @@ import { formatNumber, formatSize, formatSpec } from "@/lib/format";
 import { formatReading } from "@/lib/stats";
 import { cn } from "@/lib/utils";
 import {
-  heldFileState,
   initialSize,
   labelFor,
   type CaptureProps,
@@ -42,7 +41,14 @@ import {
   type ValidationIssue,
 } from "@/modules/_framework";
 import { ModuleFileSlot } from "@/modules/_framework/file-slot";
-import { forceSpec, plannedReadings, readingsFor, specCaption, type ForceAtBreakSizeComputed } from "./calc";
+import {
+  forceSpec,
+  labReportState,
+  plannedReadings,
+  readingsFor,
+  specCaption,
+  type ForceAtBreakSizeComputed,
+} from "./calc";
 import { MAX_READINGS } from "./config";
 import {
   pastedPastGrid,
@@ -104,7 +110,7 @@ export default function Capture({
       >
         <LabReportStatus
           label={labelFor(labels, "labReport")}
-          state={heldFileState(context, data.labReport)}
+          state={labReportState(context, data.labReport)}
           message={evaluation?.issues.find((issue) => issue.code === "lab_report_missing")?.message}
         />
         <ModuleFileSlot
@@ -333,8 +339,9 @@ function ReadingNotices({
 /**
  * Whether the lab report is attached ('Refer to attached where applicable':
  * optional here). The file slot below it attaches the file and the module
- * keeps its id (edit.ts withLabReport); a kept file the inspection no longer
- * holds is missing, with calc's message.
+ * keeps its id (edit.ts withLabReport); one added in the gallery counts once
+ * the inspection's files are known, and a kept file they do not hold is
+ * missing, with calc's message.
  */
 function LabReportStatus({ label, state, message }: { label: string; state: HeldFileState; message?: string }) {
   const attached = state === "attached";
