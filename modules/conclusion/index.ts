@@ -1,11 +1,34 @@
-// Placeholder until the module is built: replace this folder (docs/MODULES.md).
-import { stubModule } from "@/modules/_framework";
+// Conclusion (BUILD_SPEC 6.1 conclusion). Reads every other module's result
+// for the suggested result, so it runs last; holds the final result, so
+// submit waits for it.
+import { defineModule } from "@/modules/_framework";
+import { calcConclusion, type ConclusionComputed } from "./calc";
+import {
+  CONCLUSION_DEFAULT_CONFIG,
+  CONCLUSION_LABELS,
+  CONCLUSION_TITLE,
+  ConclusionConfigSchema,
+  type ConclusionConfig,
+} from "./config";
+import { ConclusionDataSchema, emptyConclusion, type ConclusionData } from "./schema";
 
-// Reads every other module's result for the suggested result, so it runs
-// last; holds the final result, so submit waits for it.
-export const definition = stubModule({
+export const definition = defineModule<ConclusionData, ConclusionConfig, ConclusionComputed>({
   key: "conclusion",
-  title: "Conclusion",
+  title: CONCLUSION_TITLE,
+  labels: CONCLUSION_LABELS,
+  dataSchema: ConclusionDataSchema,
+  emptyData: emptyConclusion,
+  configSchema: ConclusionConfigSchema,
+  defaultConfig: CONCLUSION_DEFAULT_CONFIG,
   dependsOn: "all",
   requiredForSubmit: true,
+  canonicalPaths: [
+    { path: "remark", label: CONCLUSION_LABELS.remark, type: "textarea" },
+    { path: "date", label: CONCLUSION_LABELS.date, type: "date" },
+  ],
+  calc: calcConclusion,
 });
+
+export type { ConclusionData } from "./schema";
+export type { ConclusionConfig } from "./config";
+export type { ConclusionComputed } from "./calc";
