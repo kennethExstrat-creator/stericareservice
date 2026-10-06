@@ -172,7 +172,8 @@ function ReportSection({ model }: { model: AiPanelModel }) {
       className="space-y-3 rounded-xl bg-card p-4 shadow-sm ring-1 ring-border touch:p-5"
       data-testid="ai-report"
     >
-      <div className="flex flex-col gap-3 @3xl/ai:flex-row @3xl/ai:items-start @3xl/ai:justify-between">
+      {/* Side by side only where the buttons fit on one line next to the text (not on an iPad in portrait). */}
+      <div className="flex flex-col gap-3 @4xl/ai:flex-row @4xl/ai:items-start @4xl/ai:justify-between">
         <div className="min-w-0 space-y-1">
           <h3 id="ai-report-title" className="flex flex-wrap items-center gap-2 text-lg font-bold text-foreground">
             <FileTextIcon aria-hidden className="size-5 shrink-0 text-brand-600" />
