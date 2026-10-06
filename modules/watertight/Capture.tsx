@@ -226,6 +226,8 @@ export default function WatertightCapture({
               rowHeader: labelFor(labels, "holes"),
               inspected: labelFor(labels, "tested"),
               limits: labelFor(labels, "defectLimit"),
+              limitAccept: labelFor(labels, "accept"),
+              limitReject: labelFor(labels, "reject"),
               total: labelFor(labels, "totalDefects"),
               result: labelFor(labels, "result"),
               accept: STATUS_LABEL.pass,

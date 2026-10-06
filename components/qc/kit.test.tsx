@@ -275,6 +275,22 @@ describe("CounterTable", () => {
     expect(html).toContain(">Failed<");
   });
 
+  it("words the limit row as the template does, Ac and Re only as the fallback", () => {
+    const html = render({ labels: { limits: "Defect Limit", limitAccept: "Accept", limitReject: "Reject" } });
+    expect(html).toContain("Accept 7 / Reject 8");
+    expect(html).toContain("Accept 1 / Reject 2");
+    expect(html).not.toContain("Ac 7");
+    expect(render({ labels: { limitAccept: "Acc. =", limitReject: "Rej. =" } })).toContain("Acc. = 1 / Rej. = 2");
+    // The chip keeps its own words.
+    expect(html).toContain(">Accept<");
+  });
+
+  it("lets long limit wording wrap, so the column keeps its width", () => {
+    const cell = tagsWith(render({ labels: { limitAccept: "Accept", limitReject: "Reject" } }), "text-balance")[0];
+    expect(cell).toBeDefined();
+    expect(cell).not.toContain("whitespace-nowrap");
+  });
+
   it("lets calc's status win over the live decision", () => {
     const html = render({ columns: [{ ...columns[0], status: "not_done" }] });
     expect(tagsWith(html, 'data-slot="status-pill"')[0]).toContain('data-status="not_done"');

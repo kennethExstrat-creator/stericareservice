@@ -341,6 +341,9 @@ function ClassSection({
           rowHeader: classLabel(labels, cls),
           inspected: labelFor(labels, "inspected"),
           limits: limitLabel,
+          // Per class where a template words one class's limit apart (critical.accept: "Acc. =").
+          limitAccept: labelFor(labels, cls, "accept"),
+          limitReject: labelFor(labels, cls, "reject"),
           total: labelFor(labels, `${cls}Total`),
           result: labelFor(labels, `${cls}Result`),
           accept: STATUS_LABEL.pass,

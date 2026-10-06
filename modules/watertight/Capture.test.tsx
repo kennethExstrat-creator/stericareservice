@@ -101,8 +101,10 @@ describe("watertight capture", () => {
     for (const label of ["Between fingers", "Palm", "Cuff", "Finger", "Glove burst", "Other :"]) {
       expect(html).toContain(`aria-label="Increase ${label}, Size XS"`);
     }
-    expect(html).toContain("Ac 3 / Re 4");
-    expect(html).toContain("Ac 7 / Re 8");
+    // The limit row in the template's words (labels accept, reject), not the kit's Ac / Re.
+    expect(html).toContain("Accept 3 / Reject 4");
+    expect(html).toContain("Accept 7 / Reject 8");
+    expect(html).not.toContain("Ac 3 / Re 4");
     expect(totals(html)).toEqual([1, 0, 0, 1]);
     expect(tagsWith(html, 'data-slot="status-pill"').every((pill) => pill.includes('data-status="pass"'))).toBe(true);
     expect(html).toContain("Sampling code letter J &amp; L · AQL 1.5");

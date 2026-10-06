@@ -73,11 +73,20 @@ export type CounterTableLabels = {
   /** Heading over the row labels. */
   rowHeader: string;
   inspected: string;
+  /** Caption of the limit row, e.g. "Defect Limit". */
   limits: string;
   total: string;
   result: string;
+  /** The result chip's words for accept and reject, e.g. "Passed" and "Failed". */
   accept: string;
   reject: string;
+  /**
+   * The words before the numbers in the limit row, as the template prints
+   * them: "Accept" and "Reject" give "Accept 0 / Reject 1", "Acc. =" and
+   * "Rej. =" give "Acc. = 0 / Rej. = 1". Without them: "Ac 0 / Re 1".
+   */
+  limitAccept?: string;
+  limitReject?: string;
 };
 
 /** An extra computed row under the totals, e.g. Safedon's "1/125" and 0.008 per box. */
@@ -308,8 +317,9 @@ export function CounterTable({
                     {text.limits}
                   </th>
                   {columns.map((column) => (
-                    <td key={column.key} colSpan={span} className={cn(INFO, "border-l whitespace-nowrap", hidden(column))}>
-                      {formatLimits(column.limits, { empty: "—" })}
+                    // Long wording ("Accept 10 / Reject 11") wraps, balanced, so the column keeps its width.
+                    <td key={column.key} colSpan={span} className={cn(INFO, "border-l text-balance", hidden(column))}>
+                      {formatLimits(column.limits, { accept: text.limitAccept, reject: text.limitReject, empty: "—" })}
                     </td>
                   ))}
                 </tr>
