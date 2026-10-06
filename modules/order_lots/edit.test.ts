@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { addLots, lineFor, removeKey, removeLot, setLine, splitLots } from "./edit";
+import { batchDataChanges, createDataUpdater } from "@/components/qc/data-updater";
+import { addLots, lineFor, removeKey, removeLot, setLine, splitLots, tidySite } from "./edit";
 import { emptyOrderLine, OrderLotsDataSchema, type OrderLotsData } from "./schema";
 
 const ORDER: OrderLotsData = {
@@ -53,13 +54,60 @@ describe("order table edits", () => {
     expect(addLots(ORDER, "L", ["LOT-B04"]).data.sizes.L).toEqual({ ...emptyOrderLine(), lotNumbers: ["LOT-B04"] });
   });
 
-  it("removes one lot by its place in the list", () => {
+  it("removes the lot a chip shows, found by its text when the latest data has moved it", () => {
     const two = setLine(ORDER, "M", { lotNumbers: ["LOT-B03", "LOT-B07"] });
-    expect(removeLot(two, "M", 0).sizes.M.lotNumbers).toEqual(["LOT-B07"]);
+    expect(removeLot(two, "M", 0, "LOT-B03").sizes.M.lotNumbers).toEqual(["LOT-B07"]);
+    expect(removeLot(two, "M", 0, "LOT-B07").sizes.M.lotNumbers).toEqual(["LOT-B03"]);
+    expect(removeLot(two, "M", 1, "LOT-B09")).toBe(two);
   });
 
-  it("removes a line saved under a key the table does not show", () => {
+  it("trims the packing site once it is left, and leaves a tidy one as it was", () => {
+    expect(tidySite(setLine(ORDER, "S", { packingSite: " Packer C " }), "S").sizes.S.packingSite).toBe("Packer C");
+    expect(tidySite(setLine(ORDER, "S", { packingSite: "  " }), "S").sizes.S.packingSite).toBeNull();
+    expect(tidySite(ORDER, "S")).toBe(ORDER);
+    expect(tidySite(ORDER, "XL")).toBe(ORDER);
+  });
+
+  it("removes a line saved under a key the table does not show, once", () => {
     const stray: OrderLotsData = { sizes: { ...ORDER.sizes, Q: { ...emptyOrderLine(), qtyCases: 1 } } };
     expect(removeKey(stray, "Q")).toEqual(ORDER);
+    expect(removeKey(ORDER, "Q")).toBe(ORDER);
+  });
+});
+
+describe("order table edits through the kit's data updater (useDataUpdater)", () => {
+  it("stores a pasted column of quantities in one change, every size kept", () => {
+    const changes: OrderLotsData[] = [];
+    const updater = createDataUpdater(ORDER, (next) => changes.push(next));
+    // What a paste down the quantity column does: each field stores its value inside one batch.
+    batchDataChanges(() => {
+      for (const [size, qtyCases] of [["XS", 60], ["S", 850], ["M", 560], ["L", 60]] as const) {
+        updater.update((current) => setLine(current, size, { qtyCases }));
+      }
+    });
+    expect(changes).toHaveLength(1);
+    expect(Object.fromEntries(Object.entries(changes[0].sizes).map(([size, line]) => [size, line.qtyCases]))).toEqual({
+      S: 850,
+      M: 560,
+      XS: 60,
+      L: 60,
+    });
+    expect(changes[0].sizes.S.lotNumbers).toEqual(["LOT-B02"]);
+  });
+
+  it("keeps both of two changes made in one event: a lot added on blur and a lot removed", () => {
+    const changes: OrderLotsData[] = [];
+    const updater = createDataUpdater(ORDER, (next) => changes.push(next));
+    updater.update((current) => addLots(current, "M", ["LOT-B08"]).data);
+    updater.update((current) => removeLot(current, "M", 0, "LOT-B03"));
+    expect(changes.at(-1)?.sizes.M.lotNumbers).toEqual(["LOT-B08"]);
+    expect(changes.at(-1)?.sizes.S).toBe(ORDER.sizes.S);
+  });
+
+  it("saves nothing for a lot the size already has", () => {
+    const changes: OrderLotsData[] = [];
+    const updater = createDataUpdater(ORDER, (next) => changes.push(next));
+    updater.update((current) => addLots(current, "M", ["LOT-B03"]).data);
+    expect(changes).toEqual([]);
   });
 });

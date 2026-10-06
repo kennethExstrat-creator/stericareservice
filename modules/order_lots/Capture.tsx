@@ -5,7 +5,9 @@
 // on the numeric keypad, Enter walks down the column and a pasted column
 // fills down; lot numbers are added as chips, several per size, typed or
 // pasted. Lot sizes and totals are computed and read-only (rule 2). Every
-// label is the template's (rule 11).
+// label is the template's (rule 11). Every change goes through
+// useDataUpdater, built from the latest data, so a pasted column keeps every
+// size's quantity.
 import { useId, useRef, useState, type ClipboardEvent, type FocusEvent, type KeyboardEvent } from "react";
 import { XIcon } from "lucide-react";
 import {
@@ -15,6 +17,7 @@ import {
   findIssue,
   issuePathProps,
   NumberField,
+  useDataUpdater,
   useIssueFocus,
   type EntryProblem,
   type InvalidEntry,
@@ -25,12 +28,14 @@ import { cn } from "@/lib/utils";
 import { labelFor, type CaptureProps, type Labels } from "@/modules/_framework";
 import { readOrder, type OrderLotsComputed } from "./calc";
 import type { OrderLotsConfig } from "./config";
-import { addLots, lineFor, removeKey, removeLot, setLine, splitLots } from "./edit";
+import { addLots, lineFor, removeKey, removeLot, setLine, splitLots, tidySite } from "./edit";
 import type { OrderLotsData } from "./schema";
 
 const HEAD_CELL = "border-b border-border bg-slate-50 px-2.5 py-2 text-left align-bottom font-semibold";
 const ROW_HEAD = "border-r border-b border-border px-3 text-left font-semibold tabular-nums";
 const CELL = "border-r border-b border-border p-0 align-middle last:border-r-0 group-has-[input:focus]/row:bg-brand-50/60";
+/** Marks the packing site cells, so Enter goes down their column. */
+const SITE_ATTRIBUTE = "data-site-cell";
 
 export default function Capture({
   data,
@@ -48,6 +53,7 @@ export default function Capture({
   useIssueFocus(focusPath, { root });
   const id = useId();
   const [rejected, setRejected] = useState<Readonly<Record<string, InvalidEntry>>>({});
+  const update = useDataUpdater(data, onChange);
 
   const sizes = context.templateSizes.map((size) => size.value);
   const showSite = config.fields.packingSite;
@@ -127,7 +133,7 @@ export default function Capture({
                       integer
                       min={0}
                       value={line.qtyCases}
-                      onValueChange={(qtyCases) => onChange(setLine(data, size, { qtyCases }))}
+                      onValueChange={(qtyCases) => update((current) => setLine(current, size, { qtyCases }))}
                       onInvalidChange={(entry) => reject(size, entry)}
                       error={findIssue(issues, ["sizes", size, "qtyCases"])?.message}
                       issuePath={["sizes", size, "qtyCases"]}
@@ -142,11 +148,16 @@ export default function Capture({
                       issuePath={["sizes", size, "lotNumbers"]}
                       readOnly={readOnly}
                       onAdd={(lots) => {
-                        const added = addLots(data, size, lots);
-                        if (added.data !== data) onChange(added.data);
-                        return added.skipped;
+                        // update runs the change at once, so what it skipped is known on return.
+                        let skipped: string[] = [];
+                        update((current) => {
+                          const added = addLots(current, size, lots);
+                          skipped = added.skipped;
+                          return added.data;
+                        });
+                        return skipped;
                       }}
-                      onRemove={(index) => onChange(removeLot(data, size, index))}
+                      onRemove={(index, lot) => update((current) => removeLot(current, size, index, lot))}
                     />
                   </td>
                   {showSite && (
@@ -154,13 +165,14 @@ export default function Capture({
                       <TextCell
                         label={`${labelFor(labels, "packingSite")}, ${sizeName(size)}`}
                         value={line.packingSite}
-                        onValueChange={(packingSite) => onChange(setLine(data, size, { packingSite }))}
+                        onValueChange={(packingSite) => update((current) => setLine(current, size, { packingSite }))}
+                        onLeave={() => update((current) => tidySite(current, size))}
                         issuePath={["sizes", size, "packingSite"]}
                         readOnly={readOnly}
                       />
                     </td>
                   )}
-                  <td className={cn(CELL, "px-2.5 text-right")}>
+                  <td className={cn(CELL, "bg-slate-50 px-2.5 text-right")}>
                     {ordered ? <Figure value={computed?.lotSizeGloves[size]} grouping /> : null}
                   </td>
                 </tr>
@@ -185,7 +197,13 @@ export default function Capture({
       </EnterGroup>
 
       <EntryProblems problems={problems} />
-      <StrayLines data={data} labels={labels} sizes={sizes} readOnly={readOnly} onChange={onChange} />
+      <StrayLines
+        data={data}
+        labels={labels}
+        sizes={sizes}
+        readOnly={readOnly}
+        onRemove={(key) => update((current) => removeKey(current, key))}
+      />
     </div>
   );
 }
@@ -207,7 +225,8 @@ function LotNumbers({
   readOnly: boolean;
   /** Returns the lots skipped because the size already has them. */
   onAdd: (lots: string[]) => string[];
-  onRemove: (index: number) => void;
+  /** The chip's place in the list and the lot it shows. */
+  onRemove: (index: number, lot: string) => void;
 }) {
   const [draft, setDraft] = useState("");
   const [notice, setNotice] = useState("");
@@ -246,7 +265,7 @@ function LotNumbers({
           {!readOnly && (
             <button
               type="button"
-              onClick={() => onRemove(index)}
+              onClick={() => onRemove(index, lot)}
               aria-label={`Remove ${label} ${lot}, ${sizeName}`}
               className="flex size-7 shrink-0 items-center justify-center rounded-full outline-none hover:bg-brand-100 focus-ring-inset touch:size-11"
             >
@@ -275,7 +294,7 @@ function LotNumbers({
         {notice}
       </span>
       {notice && (
-        <span aria-hidden className="w-full px-1 text-sm text-muted-foreground">
+        <span aria-hidden className="w-full px-1 text-sm text-muted-foreground touch:text-base">
           {notice}
         </span>
       )}
@@ -283,17 +302,19 @@ function LotNumbers({
   );
 }
 
-/** A text cell of the table: stored as typed, trimmed when it is left, blank as null. */
+/** A text cell of the table: stored as typed, blank as null; `onLeave` tidies it when it is left. */
 function TextCell({
   label,
   value,
   onValueChange,
+  onLeave,
   issuePath,
   readOnly,
 }: {
   label: string;
   value: string | null;
   onValueChange: (value: string | null) => void;
+  onLeave: () => void;
   issuePath: readonly (string | number)[];
   readOnly: boolean;
 }) {
@@ -302,16 +323,25 @@ function TextCell({
       type="text"
       value={value ?? ""}
       onChange={(event) => onValueChange(event.target.value === "" ? null : event.target.value)}
-      onBlur={() => {
-        if (value !== null && value !== value.trim()) onValueChange(value.trim() === "" ? null : value.trim());
-      }}
+      onBlur={onLeave}
+      onKeyDown={nextSiteOnEnter}
+      enterKeyHint="next"
       aria-label={label}
       readOnly={readOnly}
       autoComplete="off"
+      data-site-cell=""
       {...issuePathProps(issuePath)}
       className="h-8 w-full min-w-0 bg-transparent px-2.5 outline-none focus-visible:bg-card focus-ring-inset touch:h-11"
     />
   );
+}
+
+/** Enter goes down the column to the next size's packing site, as it does for quantities. */
+function nextSiteOnEnter(event: KeyboardEvent<HTMLInputElement>) {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  const cells = Array.from(event.currentTarget.closest("table")?.querySelectorAll<HTMLElement>(`[${SITE_ATTRIBUTE}]`) ?? []);
+  cells[cells.indexOf(event.currentTarget) + 1]?.focus();
 }
 
 /**
@@ -324,13 +354,13 @@ function StrayLines({
   labels,
   sizes,
   readOnly,
-  onChange,
+  onRemove,
 }: {
   data: OrderLotsData;
   labels: Labels;
   sizes: readonly string[];
   readOnly: boolean;
-  onChange: (next: OrderLotsData) => void;
+  onRemove: (key: string) => void;
 }) {
   const reading = readOrder(data);
   const stray = [
@@ -359,7 +389,7 @@ function StrayLines({
                 {parts.length > 0 && `: ${parts.join("; ")}`}
               </span>
               {!readOnly && (
-                <Button type="button" size="sm" variant="outline" onClick={() => onChange(removeKey(data, key))}>
+                <Button type="button" size="sm" variant="outline" onClick={() => onRemove(key)}>
                   Remove “{key}”
                 </Button>
               )}

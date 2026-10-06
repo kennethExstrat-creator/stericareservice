@@ -5,8 +5,9 @@
 // typed once here and reused everywhere. Dates come from pickers (rule 3):
 // a calendar, or month and year where the template prints only those.
 // Enter moves to the next field. Every label is the template's (rule 11).
+// Every change goes through useDataUpdater, built from the latest data.
 import { useId, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
-import { findIssue, issuePathProps, StatusIcon, useIssueFocus } from "@/components/qc";
+import { findIssue, issuePathProps, StatusIcon, useDataUpdater, useIssueFocus } from "@/components/qc";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -16,6 +17,7 @@ import { labelFor, type CaptureProps } from "@/modules/_framework";
 import { headerRows, type HeaderComputed } from "./calc";
 import type { HeaderConfig, HeaderField } from "./config";
 import { monthDate, yearMonth } from "./dates";
+import { setDate, setText, tidyText } from "./edit";
 import type { HeaderData, HeaderDateField, HeaderTextField } from "./schema";
 
 const FIELD_ATTRIBUTE = "data-header-field";
@@ -43,6 +45,7 @@ export default function Capture({
   useIssueFocus(focusPath, { root });
   const id = useId();
   const [fallbackYear] = useState(() => new Date().getFullYear());
+  const update = useDataUpdater(data, onChange);
 
   const rows = headerRows(data, config, context);
   const shown = (field: HeaderField) => config.fields[field];
@@ -51,12 +54,9 @@ export default function Capture({
   const dates = (["inspectionDate", "mfgDate", "expiryDate"] as const).filter(shown);
   const referenceYear = yearOf(rows.inspectionDate ?? rows.mfgDate ?? rows.expiryDate) ?? fallbackYear;
 
-  const setText = (field: HeaderTextField, value: string) => onChange({ ...data, [field]: value === "" ? null : value });
-  const tidyText = (field: HeaderTextField) => {
-    const value = data[field];
-    if (value !== null && value !== value.trim()) onChange({ ...data, [field]: value.trim() === "" ? null : value.trim() });
-  };
-  const setDate = (field: HeaderDateField, value: string | null) => onChange({ ...data, [field]: value });
+  const typeText = (field: HeaderTextField, value: string) => update((current) => setText(current, field, value));
+  const leaveText = (field: HeaderTextField) => update((current) => tidyText(current, field));
+  const pickDate = (field: HeaderDateField, value: string | null) => update((current) => setDate(current, field, value));
 
   const textField = (field: HeaderTextField, { multiline = false, wide = false } = {}) => (
     <div key={field} className={cn("min-w-0 space-y-1.5", wide && "md:col-span-2")} {...issuePathProps([field])}>
@@ -68,8 +68,8 @@ export default function Capture({
           id={`${id}-${field}`}
           rows={2}
           value={data[field] ?? ""}
-          onChange={(event) => setText(field, event.target.value)}
-          onBlur={() => tidyText(field)}
+          onChange={(event) => typeText(field, event.target.value)}
+          onBlur={() => leaveText(field)}
           readOnly={readOnly}
           data-header-field=""
         />
@@ -77,8 +77,8 @@ export default function Capture({
         <Input
           id={`${id}-${field}`}
           value={data[field] ?? ""}
-          onChange={(event) => setText(field, event.target.value)}
-          onBlur={() => tidyText(field)}
+          onChange={(event) => typeText(field, event.target.value)}
+          onBlur={() => leaveText(field)}
           onKeyDown={nextOnEnter}
           enterKeyHint="next"
           autoComplete="off"
@@ -104,7 +104,7 @@ export default function Capture({
             label={label}
             value={value}
             years={yearRange(referenceYear, value)}
-            onChange={(next) => setDate(field, next)}
+            onValueChange={(next) => pickDate(field, next)}
             readOnly={readOnly}
             describedBy={warning ? warningId : undefined}
           />
@@ -116,8 +116,10 @@ export default function Capture({
             <Input
               id={`${id}-${field}`}
               type="date"
+              // Four-digit years only: without a max, some browsers take a sixth year digit.
+              max="9999-12-31"
               value={value ?? ""}
-              onChange={(event) => setDate(field, event.target.value === "" ? null : event.target.value)}
+              onChange={(event) => pickDate(field, event.target.value === "" ? null : event.target.value)}
               readOnly={readOnly}
               aria-describedby={warning ? warningId : undefined}
               data-header-field=""
@@ -146,12 +148,12 @@ export default function Capture({
           <dl className="grid gap-x-6 gap-y-3 rounded-lg border border-border bg-muted px-4 py-3 sm:grid-cols-3">
             {facts.map((field) => (
               <div key={field} className="min-w-0">
-                <dt className="text-sm text-muted-foreground">{labelFor(labels, field)}</dt>
+                <dt className="text-sm text-muted-foreground touch:text-base">{labelFor(labels, field)}</dt>
                 <dd className="font-medium break-words text-foreground">{factValue(rows[field])}</dd>
               </div>
             ))}
           </dl>
-          <p className="text-sm text-muted-foreground">{factsHint(facts)}</p>
+          <p className="text-sm text-muted-foreground touch:text-base">{factsHint(facts)}</p>
         </section>
       )}
 
@@ -173,7 +175,7 @@ function MonthPicker({
   label,
   value,
   years,
-  onChange,
+  onValueChange,
   readOnly,
   describedBy,
 }: {
@@ -181,7 +183,7 @@ function MonthPicker({
   label: string;
   value: string | null;
   years: readonly number[];
-  onChange: (value: string) => void;
+  onValueChange: (value: string) => void;
   readOnly: boolean;
   describedBy?: string;
 }) {
@@ -194,7 +196,7 @@ function MonthPicker({
   const choose = (next: { month: number | null; year: number | null }) => {
     if (next.month !== null && next.year !== null) {
       setDraft({ month: null, year: null });
-      onChange(monthDate(next.year, next.month));
+      onValueChange(monthDate(next.year, next.month));
     } else {
       setDraft(next);
     }

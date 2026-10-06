@@ -93,6 +93,14 @@ describe("order_lots capture", () => {
     expect(html).toContain('value="Manufacturer B"');
   });
 
+  it("takes a packing site per size where the template shows it, Enter going down the column", () => {
+    const sites = tagsWith(render(SAFEDON_EG_EXAMPLE), "data-site-cell");
+    expect(sites).toHaveLength(5);
+    for (const site of sites) expect(site).toContain('enterKeyHint="next"');
+    expect(sites.find((site) => site.includes("Size XS"))).toContain('value="Packer C"');
+    expect(tagsWith(render(STD_EG_EXAMPLE), "data-site-cell")).toEqual([]);
+  });
+
   it("shows the computed lot sizes and totals read-only (6.2 rule 2)", () => {
     const html = render(SAFEDON_EG_EXAMPLE);
     expect(html).toContain("1,530");

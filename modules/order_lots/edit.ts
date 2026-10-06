@@ -1,7 +1,10 @@
-// Edits of the order table, pure so they are tested without a browser. Each
-// returns the whole data for CaptureProps.onChange, writes a size under its
+// Edits of the order table, pure so they are tested without a browser.
+// Capture applies each to the latest data through useDataUpdater
+// (docs/CAPTURE_KIT.md), so a pasted column of quantities lands in one change
+// with every size kept. Each returns the whole data, writes a size under its
 // canonical key (dropping another spelling of it, whose line calc already
-// ignores) and leaves every other size's line as it was, ordered or not.
+// ignores) and leaves every other size's line as it was, ordered or not. An
+// edit that changes nothing returns `data` itself, and no change is saved.
 import { normaliseSize } from "@/lib/sizes";
 import { readOrder } from "./calc";
 import { emptyOrderLine, type OrderLine, type OrderLotsData } from "./schema";
@@ -17,6 +20,13 @@ export function setLine(data: OrderLotsData, size: string, patch: Partial<OrderL
   const line = { ...lineFor(data, size), ...patch };
   const others = Object.fromEntries(Object.entries(data.sizes).filter(([key]) => normaliseSize(key) !== size));
   return { ...data, sizes: isEmptyLine(line) ? others : { ...others, [size]: line } };
+}
+
+/** Trims the size's packing site once it is left; nothing but spaces is blank. */
+export function tidySite(data: OrderLotsData, size: string): OrderLotsData {
+  const site = lineFor(data, size).packingSite;
+  if (site === null || site === site.trim()) return data;
+  return setLine(data, size, { packingSite: site.trim() === "" ? null : site.trim() });
 }
 
 /** Lots typed or pasted: one per line, or separated by commas, semicolons or tabs. */
@@ -44,13 +54,21 @@ export function addLots(data: OrderLotsData, size: string, lots: readonly string
   return { data: setLine(data, size, { lotNumbers: [...current, ...added] }), skipped };
 }
 
-export function removeLot(data: OrderLotsData, size: string, index: number): OrderLotsData {
+/**
+ * Removes the lot a chip shows at `index`. The latest data can be ahead of
+ * the screen, so the lot is checked there and found by its text if it moved;
+ * one already gone is not removed twice.
+ */
+export function removeLot(data: OrderLotsData, size: string, index: number, lot: string): OrderLotsData {
   const lots = lineFor(data, size).lotNumbers;
-  return setLine(data, size, { lotNumbers: lots.filter((_, at) => at !== index) });
+  const at = lots[index] === lot ? index : lots.indexOf(lot);
+  if (at === -1) return data;
+  return setLine(data, size, { lotNumbers: lots.filter((_, position) => position !== at) });
 }
 
 /** Removes a line saved under a key the table does not show: not a size, a second spelling, or a size the template lacks. */
 export function removeKey(data: OrderLotsData, key: string): OrderLotsData {
+  if (!Object.hasOwn(data.sizes, key)) return data;
   return { ...data, sizes: Object.fromEntries(Object.entries(data.sizes).filter(([saved]) => saved !== key)) };
 }
 

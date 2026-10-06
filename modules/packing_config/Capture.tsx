@@ -4,14 +4,25 @@
 // a pasted column fills the next fields), then the check the app computes,
 // gloves per inner unit x inner units per case, against the gloves per case
 // as printed (BUILD_SPEC 6.1, 6.2 rule 2). The onsite Packing Mode text when
-// the template shows it. Every label is the template's (rule 11).
+// the template shows it. Every label is the template's (rule 11). Every
+// change goes through useDataUpdater, built from the latest data.
 import { useId, useRef, type FocusEvent } from "react";
-import { EnterGroup, Figure, findIssue, issuePathProps, NumberField, StatusIcon, useIssueFocus } from "@/components/qc";
+import {
+  EnterGroup,
+  Figure,
+  findIssue,
+  issuePathProps,
+  NumberField,
+  StatusIcon,
+  useDataUpdater,
+  useIssueFocus,
+} from "@/components/qc";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { labelFor, type CaptureProps } from "@/modules/_framework";
 import type { PackingConfigComputed } from "./calc";
 import { PACKING_COUNTS, type PackingConfigConfig } from "./config";
+import { setCount, setPackingMode, tidyPackingMode } from "./edit";
 import type { PackingConfigData } from "./schema";
 
 export default function Capture({
@@ -27,6 +38,7 @@ export default function Capture({
   const root = useRef<HTMLDivElement>(null);
   useIssueFocus(focusPath, { root });
   const id = useId();
+  const update = useDataUpdater(data, onChange);
   const issues = evaluation?.issues ?? [];
   const mismatch = issues.find((issue) => issue.code === "gloves_per_case_mismatch");
   // Errors show on the field; the mismatch is a warning and shows by the computed check.
@@ -34,8 +46,6 @@ export default function Capture({
     const issue = findIssue(issues, [field]);
     return issue?.level === "error" ? issue.message : null;
   };
-
-  const setPackingMode = (value: string | null) => onChange({ ...data, packingMode: value });
 
   // A photo taken here has no size, hand, defect or box to tag.
   const clearFocus = (event: FocusEvent<HTMLDivElement>) => {
@@ -53,7 +63,7 @@ export default function Capture({
             integer
             min={1}
             value={data[field]}
-            onValueChange={(value) => onChange({ ...data, [field]: value })}
+            onValueChange={(value) => update((current) => setCount(current, field, value))}
             error={errorAt(field)}
             issuePath={[field]}
             readOnly={readOnly}
@@ -84,11 +94,11 @@ export default function Capture({
           <Input
             id={`${id}-packingMode`}
             value={data.packingMode ?? ""}
-            onChange={(event) => setPackingMode(event.target.value === "" ? null : event.target.value)}
-            onBlur={() => {
-              const value = data.packingMode;
-              if (value !== null && value !== value.trim()) setPackingMode(value.trim() === "" ? null : value.trim());
+            onChange={(event) => {
+              const value = event.target.value;
+              update((current) => setPackingMode(current, value));
             }}
+            onBlur={() => update(tidyPackingMode)}
             autoComplete="off"
             readOnly={readOnly}
           />

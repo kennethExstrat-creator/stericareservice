@@ -107,6 +107,8 @@ describe("header capture", () => {
     const dates = tagsWith(html, 'type="date"');
     expect(dates).toHaveLength(3);
     expect(dates.map((input) => /value="([^"]*)"/.exec(input)?.[1])).toEqual(["2025-04-11", "2025-04-01", "2030-03-01"]);
+    // A year of four digits at most: the schema keeps no other date.
+    for (const input of dates) expect(input).toContain('max="9999-12-31"');
   });
 
   it("picks month and year where the template prints only those (SAFEDON_EG)", () => {
