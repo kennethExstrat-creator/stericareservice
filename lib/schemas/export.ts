@@ -93,12 +93,18 @@ export const ExportCustomModuleSchema = z.object({
 });
 export type ExportCustomModule = z.infer<typeof ExportCustomModuleSchema>;
 
+/**
+ * Module key or custom module key a photo or file is tagged with; null when
+ * untagged (a desktop upload not yet retagged). inspection_photos.module_key
+ * and inspection_files.module_key are nullable, so the export allows it.
+ */
+export const ExportModuleTagSchema = z.string().min(1).nullable();
+
 export const ExportPhotoSchema = z.object({
   id: z.uuid(),
   /** Signed URL, valid for 24 hours. */
   url: HttpUrlSchema,
-  /** Module key or custom module key. */
-  moduleKey: z.string().min(1),
+  moduleKey: ExportModuleTagSchema,
   /** What the photo shows, e.g. `size:M/hand:R/defect:thin_spot/box:253`. */
   target: z.string().nullable(),
   caption: z.string().nullable(),
@@ -113,7 +119,7 @@ export const ExportFileSchema = z.object({
   id: z.uuid(),
   /** Signed URL, valid for 24 hours. */
   url: HttpUrlSchema,
-  moduleKey: z.string().min(1),
+  moduleKey: ExportModuleTagSchema,
   kind: z.enum(["lab_report", "certificate", "other"]),
   name: z.string().min(1),
 });

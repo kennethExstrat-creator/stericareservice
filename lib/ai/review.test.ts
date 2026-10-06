@@ -89,6 +89,15 @@ describe("requestAiReview", () => {
     expect(JSON.parse(String(init?.body))).toEqual(makeStdEgExport());
   });
 
+  it("sends an export with photos and files that are not tagged with a module", async () => {
+    const doc = makeStdEgExport();
+    doc.photos[2].moduleKey = null;
+    doc.files[0].moduleKey = null;
+    const fetchSpy = answering(() => Response.json(makeAiReview()));
+    expect(await requestAiReview(doc, { env: WEBHOOK_ENV, fetch: fetchSpy })).toMatchObject({ ok: true });
+    expect(JSON.parse(String(fetchSpy.mock.calls[0][1]?.body))).toEqual(doc);
+  });
+
   it.each([
     ["an HTTP error", () => new Response("down", { status: 503 }), "error"],
     ["a body that is not JSON", () => new Response("<html>"), "invalid_response"],

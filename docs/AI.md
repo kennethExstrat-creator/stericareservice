@@ -85,7 +85,7 @@ The body is the inspection export, schema version `"1"` (`ExportSchema`):
 | `modules[]` | Included modules in template order: `key`, `title` and `labels` as on the source form, `data` (entered), `computed` (totals, statistics, code letters, limits), `result` (`status` pass, fail, warn, info or not_done, `summary`, `perSize`), `warnings`, `errors`, inspector `comment`. |
 | `excludedModules[]` | Modules switched off for this inspection: `key`, `title`, `reason`. |
 | `custom[]` | One-off template fields: `key`, `title`, `after`, `layout`, `fields`, `values`. |
-| `photos[]`, `files[]` | Signed URLs valid for 24 hours, with module, target (for example `size:M/defect:thin_spot/box:253`), caption, `includeInReport` and `flagged` (an unconverted original, often HEIC). |
+| `photos[]`, `files[]` | Signed URLs valid for 24 hours, with `moduleKey`, target (for example `size:M/defect:thin_spot/box:253`), caption, `includeInReport` and `flagged` (an unconverted original, often HEIC). `moduleKey` is `null` for a photo or file not tagged with a module (for example a desktop upload not yet retagged): the database columns `inspection_photos.module_key` and `inspection_files.module_key` allow it, so the export does too. |
 | `conclusion` | `suggestedResult` (computed), `finalResult` (the inspector's), `remark`, `inspector`, `date`. |
 
 `data`, `computed` and custom `values` are plain JSON whose shape per module is defined in Phase 2. A filled example: `lib/ai/__fixtures__/std-eg-export.ts`.

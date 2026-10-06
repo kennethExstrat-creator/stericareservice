@@ -108,8 +108,11 @@ function userContent(doc: InspectionExport, photos: readonly ExportPhoto[]): Bet
 
 /** Id and tags, quoted. The caption is free text, so it stays inside the export block. */
 function describePhoto(photo: ExportPhoto): string {
-  const target = photo.target ? `, target ${JSON.stringify(photo.target)}` : "";
-  return `Photo ${photo.id} (module ${JSON.stringify(photo.moduleKey)}${target}):`;
+  const tags = [
+    photo.moduleKey ? `module ${JSON.stringify(photo.moduleKey)}` : "no module",
+    ...(photo.target ? [`target ${JSON.stringify(photo.target)}`] : []),
+  ];
+  return `Photo ${photo.id} (${tags.join(", ")}):`;
 }
 
 function ask(doc: InspectionExport, attached: number): string {

@@ -48,6 +48,15 @@ describe("requestAiReport", () => {
     expect(headers.get(WEBHOOK_HEADERS.signature)).toMatch(/^sha256=[0-9a-f]{64}$/);
   });
 
+  it("sends an export with photos and files that are not tagged with a module", async () => {
+    const doc = makeStdEgExport();
+    doc.photos[2].moduleKey = null;
+    doc.files[0].moduleKey = null;
+    const fetchSpy = answering(() => Response.json({ reportUrl: "https://reports.example.com/r/INS-2024-0001.pdf" }));
+    expect(await requestAiReport(doc, { env: REPORT_ENV, fetch: fetchSpy })).toMatchObject({ ok: true });
+    expect(JSON.parse(String(fetchSpy.mock.calls[0][1]?.body))).toEqual(doc);
+  });
+
   it.each([
     ["a missing reportUrl", { url: "https://reports.example.com/r/1.pdf" }],
     ["a reportUrl that is not http(s)", { reportUrl: "javascript:alert(1)" }],

@@ -138,6 +138,23 @@ describe("reviewWithClaude: request", () => {
     );
   });
 
+  it("labels a photo that is not tagged with a module", async () => {
+    const doc = makeStdEgExport();
+    doc.photos[0].moduleKey = null;
+    doc.photos[1].moduleKey = null;
+    doc.photos[1].target = null;
+    const { parse, factory } = fakeClient(message());
+    await reviewWithClaude(doc, SETTINGS, { createClient: factory });
+
+    const labels = userBlocks(sentParams(parse)).flatMap((block) =>
+      block.type === "text" && block.text.startsWith("Photo ") ? [block.text] : [],
+    );
+    expect(labels.slice(0, 2)).toEqual([
+      `Photo ${FIXTURE_IDS.photoThinSpot} (no module, target "size:M/defect:thin_spot"):`,
+      `Photo ${FIXTURE_IDS.photoPinHole} (no module):`,
+    ]);
+  });
+
   it("attaches include-in-report photos first, skips flagged ones and respects the limit", async () => {
     const { parse, factory } = fakeClient(message(), message());
     await reviewWithClaude(makeStdEgExport(), SETTINGS, { createClient: factory });

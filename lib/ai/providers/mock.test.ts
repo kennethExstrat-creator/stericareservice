@@ -94,6 +94,14 @@ describe("mockReview", () => {
     expect(finding?.evidence.values.map((value) => value.label)).toEqual(["Module result", "Size S", "Size M"]);
   });
 
+  it("cites only photos tagged with the finding's module", () => {
+    const doc = makeStdEgExport();
+    const scale = doc.photos.find((photo) => photo.id === FIXTURE_IDS.photoScale);
+    if (!scale) throw new Error("Fixture has no scale photo");
+    scale.moduleKey = null;
+    expect(mockReview(doc).findings[0]).toMatchObject({ module: "weight", evidence: { photos: [] } });
+  });
+
   it("always produces a valid AiReview", () => {
     expect(AiReviewSchema.safeParse(mockReview(makeStdEgExport())).success).toBe(true);
   });

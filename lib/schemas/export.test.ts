@@ -61,6 +61,20 @@ describe("ExportSchema", () => {
     expect(issuePaths(both)).toContain("modules");
   });
 
+  it("accepts photos and files not tagged with a module, as the database allows", () => {
+    const doc = makeStdEgExport();
+    doc.photos[2].moduleKey = null;
+    doc.files[0].moduleKey = null;
+    expect(ExportSchema.parse(doc)).toEqual(doc);
+  });
+
+  it("rejects an empty module tag: untagged is null", () => {
+    const doc = makeStdEgExport();
+    doc.photos[0].moduleKey = "";
+    doc.files[0].moduleKey = "";
+    expect(issuePaths(doc)).toEqual(expect.arrayContaining(["photos.0.moduleKey", "files.0.moduleKey"]));
+  });
+
   it("rejects duplicate photo and file ids", () => {
     const doc = makeStdEgExport();
     doc.photos.push({ ...doc.photos[0] });
