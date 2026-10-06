@@ -106,9 +106,13 @@ export type InspectionMeta = {
   /**
    * The inspection's lab reports and certificates as far as the caller knows
    * them: inspection_files rows on the server; on the capture screen, those
-   * uploaded plus those still queued on this device. Leave it out (or null)
-   * while they are not loaded: modules then take the file ids they keep as
-   * attached. Never pass an empty list for "not loaded yet".
+   * uploaded plus those still queued on this device. Pass them on every path
+   * that decides a result (capture, submit, review, export), so they all
+   * agree: without them a kept file id counts as attached even after its file
+   * is deleted, and a lab report added in the gallery counts for nothing.
+   * Leave it out (or null) only while they are not loaded; never pass an
+   * empty list for "not loaded yet". Optional in the type only so that
+   * callers written before it compile.
    */
   files?: readonly InspectionFileRef[] | null;
 };
@@ -175,7 +179,11 @@ export type ContextContribution = {
   aql?: Partial<AqlSettings>;
 };
 
-/** The one module that may contribute each part of the context. */
+/**
+ * The one module that may contribute each part of the context. The AQL
+ * settings are owned one by one (AQL_SOURCES); `aql` here names the sampling
+ * plan, which sets the inspection level.
+ */
 export const CONTEXT_SOURCES = {
   header: "header",
   indicativeWeight: "glove_info",
@@ -312,7 +320,10 @@ export function buildInspectionContext(input: BuildContextInput, registry: Modul
  * schema, its empty data when nothing is saved, or, when the saved data
  * fails the schema, what is left once the values the schema rejects are
  * taken out (salvageData), with where they were. Null when nothing can be
- * read.
+ * read. For the context and for showing what is saved, read-only: an
+ * editable Capture given it would save it back at the first edit, and the
+ * rejected values would be gone without anyone deciding so. A screen may
+ * offer one explicit "Remove the values that cannot be read" that saves it.
  */
 export function readableData<TData>(
   definition: { readonly dataSchema: z.ZodType<TData>; emptyData(): TData },

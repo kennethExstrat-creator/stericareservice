@@ -159,7 +159,10 @@ export interface ModuleDefinition<TData = unknown, TConfig = unknown, TComputed 
   readonly stub: boolean;
   /** Pure: result, computed values and issues from data, config and context. */
   calc(input: CalcInput<TData, TConfig>): CalcOutput<TComputed>;
-  /** Pure: what this module adds to the shared context. Only the fields it owns (CONTEXT_SOURCES). */
+  /**
+   * Pure: what this module adds to the shared context. Only the parts it owns
+   * (CONTEXT_SOURCES), and of the AQL settings only its own (AQL_SOURCES).
+   */
   contribute?(input: ContributeInput<TData, TConfig>): ContextContribution;
   /** The capture UI, loaded on demand: `loadCapture: () => import("./Capture")`. */
   loadCapture?(): Promise<{ default: CaptureComponent<TData, TConfig, TComputed> }>;

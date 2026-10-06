@@ -4,7 +4,9 @@
 // out and the rest is read. The context is built from what can be read, so
 // one bad lot number never takes every ordered size away from the other
 // modules; the engine still reports each rejected value as a blocking
-// invalid_data error with its path.
+// invalid_data error with its path. What it gives is for reading only:
+// saving it is removing the rejected values, which needs someone's decision
+// (readableData in context.ts).
 import type { z } from "zod";
 import type { IssuePath } from "@/lib/validation/issues";
 import { readPath } from "./paths";
