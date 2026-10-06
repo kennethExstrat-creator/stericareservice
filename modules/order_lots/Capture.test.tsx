@@ -117,6 +117,18 @@ describe("order_lots capture", () => {
     expect(html).toContain('data-issue-path="[&quot;sizes&quot;,&quot;M&quot;,&quot;lotNumbers&quot;,0]"');
   });
 
+  it("links issues on a line saved under another spelling of its size to that line's key", () => {
+    // Older data: size M saved as "m". Calc's paths name the saved key; the row shows it as M.
+    const data: OrderLotsData = { sizes: { m: { qtyCases: 2900, lotNumbers: ["LOT-A01", "LOT-A01"], packingSite: null } } };
+    const issue = props(STD_EG_EXAMPLE, { data }).evaluation?.issues.find((entry) => entry.code === "lot_number_duplicate");
+    expect(issue?.path).toEqual(["sizes", "m", "lotNumbers", 1]);
+    const html = render(STD_EG_EXAMPLE, { data });
+    expect(html).toContain('data-issue-path="[&quot;sizes&quot;,&quot;m&quot;,&quot;lotNumbers&quot;,1]"');
+    expect(html).toContain('data-issue-path="[&quot;sizes&quot;,&quot;m&quot;,&quot;qtyCases&quot;]"');
+    expect(html).not.toContain("Remove “m”");
+    expect(tagsWith(html, 'data-enter-group="qty"').find((cell) => cell.includes("Size M"))).toContain('value="2900"');
+  });
+
   it("is read-only: no lot field, no remove buttons, quantities not editable", () => {
     const html = render(SAFEDON_EG_EXAMPLE, { readOnly: true });
     expect(html).not.toContain(": add");

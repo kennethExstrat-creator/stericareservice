@@ -56,6 +56,9 @@ export default function Capture({
   const update = useDataUpdater(data, onChange);
 
   const sizes = context.templateSizes.map((size) => size.value);
+  // Issue paths point into the data: a line saved under another spelling ("m") keeps that key.
+  const savedKeys = new Map(readOrder(data).rows.map((row) => [row.size, row.key]));
+  const dataPath = (size: string, ...rest: string[]) => ["sizes", savedKeys.get(size) ?? size, ...rest];
   const showSite = config.fields.packingSite;
   const computed = evaluation?.computed;
   const issues = evaluation?.issues ?? [];
@@ -117,7 +120,7 @@ export default function Capture({
               const line = lineFor(data, size);
               const ordered = line.qtyCases !== null && line.qtyCases > 0;
               return (
-                <tr key={size} className="group/row" onFocus={focusSize(size)} {...issuePathProps(["sizes", size])}>
+                <tr key={size} className="group/row" onFocus={focusSize(size)} {...issuePathProps(dataPath(size))}>
                   <th
                     scope="row"
                     className={cn(ROW_HEAD, ordered ? "bg-card text-foreground" : "bg-card text-muted-foreground")}
@@ -135,8 +138,8 @@ export default function Capture({
                       value={line.qtyCases}
                       onValueChange={(qtyCases) => update((current) => setLine(current, size, { qtyCases }))}
                       onInvalidChange={(entry) => reject(size, entry)}
-                      error={findIssue(issues, ["sizes", size, "qtyCases"])?.message}
-                      issuePath={["sizes", size, "qtyCases"]}
+                      error={findIssue(issues, dataPath(size, "qtyCases"))?.message}
+                      issuePath={dataPath(size, "qtyCases")}
                       readOnly={readOnly}
                     />
                   </td>
@@ -145,7 +148,7 @@ export default function Capture({
                       lots={line.lotNumbers}
                       label={labelFor(labels, "lotNumbers")}
                       sizeName={sizeName(size)}
-                      issuePath={["sizes", size, "lotNumbers"]}
+                      issuePath={dataPath(size, "lotNumbers")}
                       readOnly={readOnly}
                       onAdd={(lots) => {
                         // update runs the change at once, so what it skipped is known on return.
@@ -167,7 +170,7 @@ export default function Capture({
                         value={line.packingSite}
                         onValueChange={(packingSite) => update((current) => setLine(current, size, { packingSite }))}
                         onLeave={() => update((current) => tidySite(current, size))}
-                        issuePath={["sizes", size, "packingSite"]}
+                        issuePath={dataPath(size, "packingSite")}
                         readOnly={readOnly}
                       />
                     </td>
