@@ -85,10 +85,12 @@ deployment. Design rules and tokens: [docs/DESIGN.md](docs/DESIGN.md).
    then run in the SQL editor, using that email:
 
    ```sql
-   update public.profiles set role = 'admin' where email = 'you@example.com';
+   update public.profiles set role = 'admin', active = true where email = 'you@example.com';
    ```
 
-   After that, invite everyone else from `/admin/users` in the app.
+   New accounts start inactive (a safety net in case public sign-up is ever switched on), so
+   this line also activates yours. After that, invite everyone else from `/admin/users`; an
+   invite activates the account it creates.
 
 6. **Local test accounts** (development projects only, never production):
 
