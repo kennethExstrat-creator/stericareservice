@@ -22,6 +22,11 @@ export function ListCard({ children }: { children: ReactNode }) {
 export const HEAD = "fine:h-9";
 export const CELL = "fine:py-px";
 
+/** A row opens its panel from its Edit button, so the keyboard goes back there when the panel closes. */
+export function rowEditButton(row: HTMLElement): HTMLElement | null {
+  return row.querySelector<HTMLElement>("[data-row-edit]");
+}
+
 /** An empty optional value: a dash for the eye, "None" for screen readers. */
 export function NoValue() {
   return (
@@ -45,17 +50,18 @@ export function UsageText({ usage }: { usage: Usage }) {
 }
 
 /** The row's Edit button. The whole row opens the panel too, for mouse and touch. */
-export function EditButton({ name, onClick }: { name: string; onClick: () => void }) {
+export function EditButton({ name, onClick }: { name: string; onClick: (button: HTMLButtonElement) => void }) {
   return (
     <Button
       type="button"
       variant="ghost"
       size="sm"
       aria-label={`Edit ${name}`}
+      data-row-edit=""
       onClick={(event) => {
         // The row opens the same panel; one opening is enough.
         event.stopPropagation();
-        onClick();
+        onClick(event.currentTarget);
       }}
     >
       <PencilIcon aria-hidden />

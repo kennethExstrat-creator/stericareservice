@@ -4,7 +4,15 @@ import { CloudOffIcon, ImageOffIcon } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { oneLine, type ClientItem, type LogoPreview } from "@/lib/admin/reference";
 import { cn } from "@/lib/utils";
-import { CELL, EditButton, HEAD, ListCard, NoValue, UsageText } from "../../manufacturers/_components/reference-list";
+import {
+  CELL,
+  EditButton,
+  HEAD,
+  ListCard,
+  NoValue,
+  UsageText,
+  rowEditButton,
+} from "../../manufacturers/_components/reference-list";
 
 /**
  * The clients, with their logos. On iPad the notes drop out (the panel shows
@@ -17,7 +25,8 @@ export function ClientsTable({
 }: {
   rows: readonly ClientItem[];
   selectedId: string | null;
-  onEdit: (id: string) => void;
+  /** Opens the row's panel; `opener` gets the focus back when it closes. */
+  onEdit: (id: string, opener: HTMLElement | null) => void;
 }) {
   return (
     <ListCard>
@@ -40,7 +49,7 @@ export function ClientsTable({
               key={row.id}
               data-state={row.id === selectedId ? "selected" : undefined}
               className="cursor-pointer"
-              onClick={() => onEdit(row.id)}
+              onClick={(event) => onEdit(row.id, rowEditButton(event.currentTarget))}
             >
               <TableCell className={cn("pl-4", CELL)}>
                 <LogoThumbnail logo={row.logo} />
@@ -61,7 +70,7 @@ export function ClientsTable({
                 <UsageText usage={row.usage} />
               </TableCell>
               <TableCell className={cn("pr-4 text-right", CELL)}>
-                <EditButton name={row.name} onClick={() => onEdit(row.id)} />
+                <EditButton name={row.name} onClick={(button) => onEdit(row.id, button)} />
               </TableCell>
             </TableRow>
           ))}

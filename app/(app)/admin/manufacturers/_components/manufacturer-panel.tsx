@@ -43,10 +43,21 @@ type ManufacturerPanelProps = {
   /** Suggestions for the country field. */
   countries: readonly string[];
   onClose: () => void;
+  /** The manufacturer was deleted: the panel closes, and its row (and Edit button) go. */
+  onDeleted: () => void;
+  returnFocus: () => void;
 };
 
 /** Add or edit one manufacturer; deleting sits at the end of the edit panel. */
-export function ManufacturerPanel({ open, target, item, countries, onClose }: ManufacturerPanelProps) {
+export function ManufacturerPanel({
+  open,
+  target,
+  item,
+  countries,
+  onClose,
+  onDeleted,
+  returnFocus,
+}: ManufacturerPanelProps) {
   const id = useId();
   const formId = `${id}-form`;
   const editing = target.mode === "edit";
@@ -116,6 +127,7 @@ export function ManufacturerPanel({ open, target, item, countries, onClose }: Ma
       open={open}
       busy={pending}
       onClose={onClose}
+      returnFocus={returnFocus}
       title={editing ? "Edit manufacturer" : "Add manufacturer"}
       description="Name and address as they should read in report headers."
       footer={
@@ -185,7 +197,7 @@ export function ManufacturerPanel({ open, target, item, countries, onClose }: Ma
               name={manufacturerLabel(shown)}
               usage={shown.usage}
               action={deleteManufacturer}
-              onDeleted={onClose}
+              onDeleted={onDeleted}
             />
           )}
         </>

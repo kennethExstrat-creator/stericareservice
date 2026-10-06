@@ -47,10 +47,13 @@ type ClientPanelProps = {
   onClose: () => void;
   /** A new client was added: the panel stays open on it, for the logo. */
   onCreated: (id: string) => void;
+  /** The client was deleted: the panel closes, and its row (and Edit button) go. */
+  onDeleted: () => void;
+  returnFocus: () => void;
 };
 
 /** Add or edit one client, with its logo; deleting sits at the end of the edit panel. */
-export function ClientPanel({ open, target, item, onClose, onCreated }: ClientPanelProps) {
+export function ClientPanel({ open, target, item, onClose, onCreated, onDeleted, returnFocus }: ClientPanelProps) {
   const id = useId();
   const formId = `${id}-form`;
   const editing = target.mode === "edit";
@@ -131,6 +134,7 @@ export function ClientPanel({ open, target, item, onClose, onCreated }: ClientPa
       open={open}
       busy={busy}
       onClose={onClose}
+      returnFocus={returnFocus}
       title={editing ? "Edit client" : "Add client"}
       description={
         editing
@@ -199,7 +203,7 @@ export function ClientPanel({ open, target, item, onClose, onCreated }: ClientPa
                 usage={shown.usage}
                 action={deleteClient}
                 alsoDeletes={shown.logo ? "Its logo is deleted too." : undefined}
-                onDeleted={onClose}
+                onDeleted={onDeleted}
               />
             </>
           )}

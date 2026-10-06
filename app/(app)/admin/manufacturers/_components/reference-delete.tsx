@@ -2,7 +2,7 @@
 
 // Shared by /admin/manufacturers and /admin/clients (see reference-panel.tsx).
 
-import { useActionState, useId, useState } from "react";
+import { useActionState, useId, useRef, useState, type RefObject } from "react";
 import { InfoIcon, OctagonXIcon, Trash2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -26,7 +26,7 @@ import {
   type ReferenceKind,
   type Usage,
 } from "@/lib/admin/reference";
-import { PanelSection } from "./reference-panel";
+import { focusFirst, PanelSection } from "./reference-panel";
 
 type DeleteAction = (previous: ActionResult, formData: FormData) => Promise<ActionResult>;
 
@@ -49,6 +49,7 @@ type DeleteSectionProps = {
 export function DeleteSection({ kind, id, name, usage, action, alsoDeletes, onDeleted }: DeleteSectionProps) {
   const titleId = useId();
   const reasonId = useId();
+  const deleteButton = useRef<HTMLButtonElement>(null);
   const [confirming, setConfirming] = useState(false);
   const noun = KINDS[kind].one;
   const blocker = deleteBlocker(usage);
@@ -61,6 +62,7 @@ export function DeleteSection({ kind, id, name, usage, action, alsoDeletes, onDe
       </p>
       <div>
         <Button
+          ref={deleteButton}
           type="button"
           variant="destructive"
           disabled={Boolean(blocker)}
@@ -78,6 +80,7 @@ export function DeleteSection({ kind, id, name, usage, action, alsoDeletes, onDe
           name={name}
           action={action}
           alsoDeletes={alsoDeletes}
+          opener={deleteButton}
           onCancel={() => setConfirming(false)}
           onDeleted={() => {
             setConfirming(false);
@@ -95,12 +98,20 @@ function ConfirmDelete({
   name,
   action,
   alsoDeletes,
+  opener,
   onCancel,
   onDeleted,
-}: Omit<DeleteSectionProps, "usage" | "onDeleted"> & { onCancel: () => void; onDeleted: () => void }) {
+}: Omit<DeleteSectionProps, "usage" | "onDeleted"> & {
+  /** The Delete button, which gets the focus back when this closes without deleting. */
+  opener: RefObject<HTMLButtonElement | null>;
+  onCancel: () => void;
+  onDeleted: () => void;
+}) {
+  const deleted = useRef(false);
   const [state, formAction, pending] = useActionState(async (previous: ActionResult, formData: FormData) => {
     const result = await action(previous, formData).catch(unreachable);
     if (result.status === "success") {
+      deleted.current = true;
       toast.success(result.message);
       onDeleted();
     }
@@ -117,6 +128,14 @@ function ConfirmDelete({
       <AlertDialogContent
         onEscapeKeyDown={(event) => {
           if (pending) event.preventDefault();
+        }}
+        onCloseAutoFocus={(event) => {
+          // Opened from code, so Radix has no Trigger to go back to.
+          event.preventDefault();
+          // Deleted: the panel is closing too, and puts the focus back itself.
+          if (deleted.current) return;
+          // The Delete button, or the panel when the row came into use meanwhile (the button is disabled).
+          focusFirst([opener.current, opener.current?.closest<HTMLElement>("[role='dialog']")]);
         }}
       >
         <form action={formAction} className="grid gap-6">

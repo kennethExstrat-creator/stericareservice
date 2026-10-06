@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, type MouseEvent } from "react";
 import { BuildingIcon, PlusIcon } from "lucide-react";
 import { PageHeader } from "@/components/qc";
 import { Button } from "@/components/ui/button";
@@ -16,12 +17,14 @@ function textOf(row: ClientItem): string {
 
 /** /admin/clients in the browser: the list, its search and the panel that adds and edits. */
 export function ClientsAdmin({ clients, initialQuery }: { clients: ClientItem[]; initialQuery: string }) {
-  const panel = usePanel();
+  // Where the keyboard goes when a panel closes and the button it opened from has gone.
+  const addButton = useRef<HTMLButtonElement>(null);
+  const panel = usePanel(addButton);
   const { query, setQuery, results } = useListSearch(clients, initialQuery, textOf);
 
   const editingId = panel.target.mode === "edit" ? panel.target.id : null;
   const item = editingId ? (clients.find((row) => row.id === editingId) ?? null) : null;
-  const add = () => panel.show({ mode: "create" });
+  const add = (event: MouseEvent<HTMLButtonElement>) => panel.show({ mode: "create" }, event.currentTarget);
 
   return (
     <div className="flex flex-col gap-6">
@@ -30,7 +33,7 @@ export function ClientsAdmin({ clients, initialQuery }: { clients: ClientItem[];
         title="Clients"
         description="The companies you inspect for, with the logo for their reports."
         actions={
-          <Button onClick={add}>
+          <Button ref={addButton} onClick={add}>
             <PlusIcon aria-hidden />
             Add client
           </Button>
@@ -63,7 +66,7 @@ export function ClientsAdmin({ clients, initialQuery }: { clients: ClientItem[];
             <ClientsTable
               rows={results}
               selectedId={panel.open ? editingId : null}
-              onEdit={(id) => panel.show({ mode: "edit", id })}
+              onEdit={(id, opener) => panel.show({ mode: "edit", id }, opener)}
             />
           ) : (
             <NoMatches query={query} many="clients" onClear={() => setQuery("")} />
@@ -78,6 +81,8 @@ export function ClientsAdmin({ clients, initialQuery }: { clients: ClientItem[];
         item={item}
         onClose={panel.close}
         onCreated={(id) => panel.retarget({ mode: "edit", id })}
+        onDeleted={panel.closeDeleted}
+        returnFocus={panel.returnFocus}
       />
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useId, useRef, useState } from "react";
+import { useActionState, useEffect, useId, useRef, useState, type RefObject } from "react";
 import { CloudOffIcon, ImageIcon, ImageOffIcon, OctagonXIcon, Trash2Icon, UploadIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -26,7 +26,7 @@ import {
   type LogoPreview,
 } from "@/lib/admin/reference";
 import { createClient } from "@/lib/supabase/client";
-import { PanelSection } from "../../manufacturers/_components/reference-panel";
+import { focusFirst, PanelSection } from "../../manufacturers/_components/reference-panel";
 import { confirmLogoUpload, prepareLogoUpload, removeClientLogo } from "../actions";
 
 type ClientLogoProps = {
@@ -50,6 +50,11 @@ export function ClientLogo({ clientId, clientName, logo, onPendingChange }: Clie
   const titleId = useId();
   const hintId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
+  const uploadButton = useRef<HTMLButtonElement>(null);
+  const removeButton = useRef<HTMLButtonElement>(null);
+  // The upload button is disabled while its upload runs, which drops the
+  // keyboard focus onto the page; it goes back to the button afterwards.
+  const refocusUpload = useRef(false);
   const [removing, setRemoving] = useState(false);
 
   const [state, uploadAction, pending] = useActionState(
@@ -81,6 +86,15 @@ export function ClientLogo({ clientId, clientName, logo, onPendingChange }: Clie
 
   useEffect(() => {
     onPendingChange(pending);
+    if (!pending && refocusUpload.current) {
+      refocusUpload.current = false;
+      // Unless the keyboard moved on during the upload: the focus is lost
+      // when it sits on the page, or on the panel (where Radix puts it).
+      const active = document.activeElement;
+      if (!active || active === document.body || active.getAttribute("role") === "dialog") {
+        focusFirst([uploadButton.current]);
+      }
+    }
   }, [pending, onPendingChange]);
 
   return (
@@ -123,9 +137,13 @@ export function ClientLogo({ clientId, clientName, logo, onPendingChange }: Clie
           tabIndex={-1}
           aria-hidden
           className="sr-only"
-          onChange={(event) => event.currentTarget.form?.requestSubmit()}
+          onChange={(event) => {
+            refocusUpload.current = document.activeElement === uploadButton.current;
+            event.currentTarget.form?.requestSubmit();
+          }}
         />
         <Button
+          ref={uploadButton}
           type="button"
           variant="outline"
           disabled={pending}
@@ -136,7 +154,7 @@ export function ClientLogo({ clientId, clientName, logo, onPendingChange }: Clie
           {pending ? "Uploading…" : logo ? "Replace logo" : "Upload logo"}
         </Button>
         {logo && (
-          <Button type="button" variant="ghost" disabled={pending} onClick={() => setRemoving(true)}>
+          <Button ref={removeButton} type="button" variant="ghost" disabled={pending} onClick={() => setRemoving(true)}>
             <Trash2Icon aria-hidden />
             Remove logo
           </Button>
@@ -154,7 +172,15 @@ export function ClientLogo({ clientId, clientName, logo, onPendingChange }: Clie
         </Alert>
       )}
 
-      {removing && <ConfirmRemoveLogo clientId={clientId} clientName={clientName} onDone={() => setRemoving(false)} />}
+      {removing && (
+        <ConfirmRemoveLogo
+          clientId={clientId}
+          clientName={clientName}
+          removeButton={removeButton}
+          uploadButton={uploadButton}
+          onDone={() => setRemoving(false)}
+        />
+      )}
     </PanelSection>
   );
 }
@@ -162,15 +188,23 @@ export function ClientLogo({ clientId, clientName, logo, onPendingChange }: Clie
 function ConfirmRemoveLogo({
   clientId,
   clientName,
+  removeButton,
+  uploadButton,
   onDone,
 }: {
   clientId: string;
   clientName: string;
+  /** Gets the focus back when this closes and the logo stays. */
+  removeButton: RefObject<HTMLButtonElement | null>;
+  /** Gets it once the logo is removed: the Remove button goes with the logo. */
+  uploadButton: RefObject<HTMLButtonElement | null>;
   onDone: () => void;
 }) {
+  const removed = useRef(false);
   const [state, formAction, pending] = useActionState(async (previous: ActionResult, formData: FormData) => {
     const result = await removeClientLogo(previous, formData).catch(unreachable);
     if (result.status === "success") {
+      removed.current = true;
       toast.success(result.message);
       onDone();
     }
@@ -187,6 +221,11 @@ function ConfirmRemoveLogo({
       <AlertDialogContent
         onEscapeKeyDown={(event) => {
           if (pending) event.preventDefault();
+        }}
+        onCloseAutoFocus={(event) => {
+          // Opened from code, so Radix has no Trigger to go back to.
+          event.preventDefault();
+          focusFirst(removed.current ? [uploadButton.current] : [removeButton.current, uploadButton.current]);
         }}
       >
         <form action={formAction} className="grid gap-6">

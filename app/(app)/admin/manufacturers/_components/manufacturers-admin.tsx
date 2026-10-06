@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef, type MouseEvent } from "react";
 import { FactoryIcon, PlusIcon } from "lucide-react";
 import { PageHeader } from "@/components/qc";
 import { Button } from "@/components/ui/button";
@@ -37,13 +37,15 @@ export function ManufacturersAdmin({
   manufacturers: ManufacturerItem[];
   initialQuery: string;
 }) {
-  const panel = usePanel();
+  // Where the keyboard goes when a panel closes and the button it opened from has gone.
+  const addButton = useRef<HTMLButtonElement>(null);
+  const panel = usePanel(addButton);
   const { query, setQuery, results } = useListSearch(manufacturers, initialQuery, textOf);
   const countries = useMemo(() => countrySuggestions(manufacturers), [manufacturers]);
 
   const editingId = panel.target.mode === "edit" ? panel.target.id : null;
   const item = editingId ? (manufacturers.find((row) => row.id === editingId) ?? null) : null;
-  const add = () => panel.show({ mode: "create" });
+  const add = (event: MouseEvent<HTMLButtonElement>) => panel.show({ mode: "create" }, event.currentTarget);
 
   return (
     <div className="flex flex-col gap-6">
@@ -52,7 +54,7 @@ export function ManufacturersAdmin({
         title="Manufacturers"
         description="The factories you inspect at. Templates and inspections pick from this list."
         actions={
-          <Button onClick={add}>
+          <Button ref={addButton} onClick={add}>
             <PlusIcon aria-hidden />
             Add manufacturer
           </Button>
@@ -85,7 +87,7 @@ export function ManufacturersAdmin({
             <ManufacturersTable
               rows={results}
               selectedId={panel.open ? editingId : null}
-              onEdit={(id) => panel.show({ mode: "edit", id })}
+              onEdit={(id, opener) => panel.show({ mode: "edit", id }, opener)}
             />
           ) : (
             <NoMatches query={query} many="manufacturers" onClear={() => setQuery("")} />
@@ -100,6 +102,8 @@ export function ManufacturersAdmin({
         item={item}
         countries={countries}
         onClose={panel.close}
+        onDeleted={panel.closeDeleted}
+        returnFocus={panel.returnFocus}
       />
     </div>
   );

@@ -3,7 +3,7 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { manufacturerLabel, oneLine, type ManufacturerItem } from "@/lib/admin/reference";
 import { cn } from "@/lib/utils";
-import { CELL, EditButton, HEAD, ListCard, NoValue, UsageText } from "./reference-list";
+import { CELL, EditButton, HEAD, ListCard, NoValue, UsageText, rowEditButton } from "./reference-list";
 
 /**
  * The manufacturers, one compact line each on desktop (1280 px and wider).
@@ -17,7 +17,8 @@ export function ManufacturersTable({
 }: {
   rows: readonly ManufacturerItem[];
   selectedId: string | null;
-  onEdit: (id: string) => void;
+  /** Opens the row's panel; `opener` gets the focus back when it closes. */
+  onEdit: (id: string, opener: HTMLElement | null) => void;
 }) {
   return (
     <ListCard>
@@ -41,7 +42,7 @@ export function ManufacturersTable({
               key={row.id}
               data-state={row.id === selectedId ? "selected" : undefined}
               className="cursor-pointer"
-              onClick={() => onEdit(row.id)}
+              onClick={(event) => onEdit(row.id, rowEditButton(event.currentTarget))}
             >
               <TableCell className={cn("pl-4 whitespace-normal", CELL)}>
                 <div className="flex min-w-0 flex-col gap-0.5 py-0.5">
@@ -68,7 +69,7 @@ export function ManufacturersTable({
                 <UsageText usage={row.usage} />
               </TableCell>
               <TableCell className={cn("pr-4 text-right", CELL)}>
-                <EditButton name={manufacturerLabel(row)} onClick={() => onEdit(row.id)} />
+                <EditButton name={manufacturerLabel(row)} onClick={(button) => onEdit(row.id, button)} />
               </TableCell>
             </TableRow>
           ))}
