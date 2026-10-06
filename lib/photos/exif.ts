@@ -122,6 +122,24 @@ function pointer(view: DataView, entry: Entry | undefined, little: boolean): num
   return view.getUint32(entry.at, little);
 }
 
+/**
+ * The TIFF structure of an Exif block that holds the orientation and
+ * nothing else: what a flagged original keeps, so that it still shows, and
+ * converts, upright.
+ */
+export function orientationExif(orientation: number): Uint8Array<ArrayBuffer> {
+  if (!Number.isInteger(orientation) || orientation < 1 || orientation > 8) {
+    throw new RangeError(`Invalid Exif orientation ${orientation}.`);
+  }
+  // Big-endian "MM", 42, IFD0 at 8; one entry: Orientation (0x0112), SHORT, count 1, the value; no next IFD.
+  return new Uint8Array([
+    0x4d, 0x4d, 0x00, 0x2a, 0x00, 0x00, 0x00, 0x08,
+    0x00, 0x01,
+    0x01, 0x12, 0x00, SHORT, 0x00, 0x00, 0x00, 0x01, 0x00, orientation, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+  ]);
+}
+
 /* ------------------------------------------------------------------ *
  * Capture time
  * ------------------------------------------------------------------ */

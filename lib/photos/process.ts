@@ -1,5 +1,6 @@
 import { exifTakenAt } from "./exif";
 import { listJpegMetadata, readJpegInfo, stripJpegMetadata, type JpegInfo } from "./jpeg";
+import { CLEANABLE_TYPES, cleanOriginal } from "./originals";
 import { PHOTO_SIZE_LIMIT, PHOTO_TYPES } from "./paths";
 import {
   JPEG_QUALITY,
@@ -43,7 +44,10 @@ export interface ImageCodec {
 }
 
 export interface ProcessedPhoto {
-  /** JPEG without metadata; the original bytes when flagged. */
+  /**
+   * JPEG without metadata. When flagged: the original, its metadata removed
+   * (a JPEG keeps only its orientation), or as it is for HEIC and HEIF.
+   */
   blob: Blob;
   /** 400 px JPEG; null when flagged. */
   thumbBlob: Blob | null;
@@ -57,7 +61,8 @@ export interface ProcessedPhoto {
   mimeType: string;
 }
 
-export type ProcessPhotoFailure = "empty" | "unsupported" | "too_large";
+/** unreadable: the browser could not convert it, and its bytes are cut short or malformed. */
+export type ProcessPhotoFailure = "empty" | "unsupported" | "too_large" | "unreadable";
 
 export type ProcessPhotoResult =
   | { ok: true; photo: ProcessedPhoto }
@@ -82,17 +87,27 @@ export async function processPhoto(
   const converted = await convert(file, jpeg, codec).catch(() => null);
   if (converted) return { ok: true, photo: { ...converted, takenAt, flagged: false, mimeType: "image/jpeg" } };
 
-  // The browser could not convert it: keep the original, flagged, if the bucket takes it.
+  // The browser could not convert it (an undecodable HEIC, or the canvas failed): keep the
+  // original, flagged, if the bucket takes it.
   if (!type || !(PHOTO_TYPES as readonly string[]).includes(type)) {
     return { ok: false, reason: "unsupported", message: "This file is not a photo the app can store." };
   }
   if (file.size > PHOTO_SIZE_LIMIT) {
     return { ok: false, reason: "too_large", message: "The photo is larger than 25 MB and cannot be converted here." };
   }
-  return {
-    ok: true,
-    photo: { blob: new Blob([file], { type }), thumbBlob: null, width: null, height: null, takenAt, flagged: true, mimeType: type },
-  };
+  let blob: Blob;
+  if (CLEANABLE_TYPES.includes(type)) {
+    // GPS and the rest go even so; the image data stays byte for byte.
+    const clean = cleanOriginal(new Uint8Array(await file.arrayBuffer()), type, jpeg?.exif?.orientation ?? null);
+    if (!clean) {
+      return { ok: false, reason: "unreadable", message: "This photo could not be read. Take it again, or choose another file." };
+    }
+    blob = new Blob([clean.slice()], { type });
+  } else {
+    // HEIC and HEIF cannot be cleaned without decoding them: uploaded as they are (docs/OFFLINE.md).
+    blob = new Blob([file], { type });
+  }
+  return { ok: true, photo: { blob, thumbBlob: null, width: null, height: null, takenAt, flagged: true, mimeType: type } };
 }
 
 type Converted = Pick<ProcessedPhoto, "blob" | "thumbBlob" | "width" | "height">;

@@ -157,16 +157,53 @@ describe("processPhoto", () => {
     expect(Buffer.from(await bytesOf(result.photo.blob))).toEqual(Buffer.from(HEIC_HEAD));
   });
 
-  it("keeps the original when decoding or encoding fails part way", async () => {
-    const jpeg = photoFile(buildJpeg({ before: [app1Exif(cameraExif())] }));
-    expect(await processPhoto(jpeg, { codec: new FakeCodec("throws") })).toMatchObject({
+  it("keeps a JPEG it could not convert as the original, flagged, without GPS or other metadata", async () => {
+    const camera = buildJpeg({ before: [app0Jfif(), app1Exif(cameraExif({ orientation: 6 })), app1Xmp(), comment("Shot on iPad")] });
+    const jpeg = photoFile(camera);
+    const decodeFails = await processPhoto(jpeg, { codec: new FakeCodec("throws") });
+    expect(decodeFails).toMatchObject({
       ok: true,
-      photo: { flagged: true, mimeType: "image/jpeg", takenAt: "2024-07-12T02:15:30.123Z" },
+      photo: { flagged: true, mimeType: "image/jpeg", takenAt: "2024-07-12T02:15:30.123Z", thumbBlob: null },
     });
+
     const codec = new FakeCodec({ width: 4032, height: 3024 }, true);
-    expect(await processPhoto(jpeg, { codec })).toMatchObject({ ok: true, photo: { flagged: true } });
+    const encodeFails = await processPhoto(jpeg, { codec });
+    expect(encodeFails).toMatchObject({ ok: true, photo: { flagged: true } });
     expect(codec.released).toBeGreaterThan(0);
     expect(codec.closed).toBe(1);
+
+    for (const result of [decodeFails, encodeFails]) {
+      if (!result.ok) continue;
+      const bytes = await bytesOf(result.photo.blob);
+      expect(result.photo.blob.type).toBe("image/jpeg");
+      expect(listJpegMetadata(bytes)).toEqual(["exif"]);
+      expect(readJpegInfo(bytes)?.exif).toMatchObject({ orientation: 6, hasGps: false, dateTimeOriginal: null });
+      expect(includesText(bytes, "GPS")).toBe(false);
+      expect(includesText(bytes, "Shot on iPad")).toBe(false);
+    }
+  });
+
+  it("keeps a PNG it could not convert without its text and Exif chunks", async () => {
+    const chunk = (type: string, data: string) => {
+      const bytes = Buffer.from(data, "latin1");
+      return [0, 0, 0, bytes.length, ...Buffer.from(type, "latin1"), ...bytes, 0, 0, 0, 0];
+    };
+    const png = new Uint8Array([
+      ...[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+      ...chunk("IHDR", "\0\0\0\x04\0\0\0\x03\x08\x02\0\0\0"),
+      ...chunk("tEXt", "Location\0Somewhere"),
+      ...chunk("IDAT", "pixels"),
+      ...chunk("IEND", ""),
+    ]);
+    const result = await processPhoto(photoFile(png, "scan.png", "image/png"), { codec: new FakeCodec("throws") });
+    expect(result).toMatchObject({ ok: true, photo: { flagged: true, mimeType: "image/png" } });
+    if (result.ok) expect(includesText(await bytesOf(result.photo.blob), "Somewhere")).toBe(false);
+  });
+
+  it("refuses a photo it can neither convert nor read", async () => {
+    const camera = buildJpeg({ before: [app1Exif(cameraExif())] });
+    const cut = photoFile(camera.subarray(0, camera.length - 2));
+    expect(await processPhoto(cut, { codec: new FakeCodec("throws") })).toMatchObject({ ok: false, reason: "unreadable" });
   });
 
   it("refuses empty files, files the bucket would refuse, and originals over 25 MB", async () => {

@@ -1,4 +1,4 @@
-import { parseExif, type ExifInfo } from "./exif";
+import { orientationExif, parseExif, type ExifInfo } from "./exif";
 import type { Size } from "./sizing";
 
 /* ------------------------------------------------------------------ *
@@ -123,6 +123,28 @@ export function stripJpegMetadata(bytes: Uint8Array): Uint8Array | null {
   }
   parts.push(bytes.subarray(cursor, layout.end));
 
+  return concat(parts);
+}
+
+/**
+ * The JPEG with an Exif segment that holds only `orientation`, placed
+ * right after SOI and a leading JFIF segment. For a stripped original:
+ * without it, a photo taken in portrait shows on its side. Null when the
+ * bytes are not a JPEG.
+ */
+export function withExifOrientation(bytes: Uint8Array, orientation: number): Uint8Array | null {
+  const layout = readJpegLayout(bytes);
+  if (!layout) return null;
+  const tiff = orientationExif(orientation);
+  const payload = [...Array.from("Exif\0\0", (char) => char.charCodeAt(0)), ...tiff];
+  const length = payload.length + 2;
+  const segment = new Uint8Array([0xff, 0xe1, length >> 8, length & 0xff, ...payload]);
+  const first = layout.segments[0];
+  const at = first?.marker === 0xe0 && first.start === 2 ? first.end : 2;
+  return concat([bytes.subarray(0, at), segment, bytes.subarray(at)]);
+}
+
+function concat(parts: Uint8Array[]): Uint8Array {
   const out = new Uint8Array(parts.reduce((total, part) => total + part.length, 0));
   let offset = 0;
   for (const part of parts) {
