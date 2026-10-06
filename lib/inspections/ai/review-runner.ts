@@ -6,6 +6,7 @@ import {
   evaluateRecord,
   exportFromEvaluation,
   loadInspectionRecord,
+  parseInspectionId,
   type ExportClient,
   type ExportViewer,
 } from "@/lib/export";
@@ -61,7 +62,13 @@ export async function startAiReview(input: StartAiReviewInput): Promise<StartAiR
     return { ok: false, reason: "not_connected", message: status.detail ? `${status.label}. ${status.detail}` : `${status.label}.` };
   }
 
-  const loaded = await loadInspectionRecord(client, inspectionId);
+  const id = parseInspectionId(inspectionId);
+  if (!id) return { ok: false, reason: "not_found", message: "Inspection not found." };
+  // The inspection and any review in progress, side by side.
+  const [loaded, running] = await Promise.all([
+    loadInspectionRecord(client, id),
+    client.from("ai_reviews").select(AI_REVIEW_COLUMNS).eq("inspection_id", id).eq("status", "pending"),
+  ]);
   if (!loaded.ok) {
     return { ok: false, reason: loaded.reason === "not_found" ? "not_found" : "database_error", message: loaded.message };
   }
@@ -70,11 +77,6 @@ export async function startAiReview(input: StartAiReviewInput): Promise<StartAiR
   if (!AI_STATUSES.includes(record.status)) return { ok: false, reason: "not_reviewable", message: NOT_REVIEWABLE };
 
   // One review at a time per version: a second request would be paid for twice.
-  const running = await client
-    .from("ai_reviews")
-    .select(AI_REVIEW_COLUMNS)
-    .eq("inspection_id", record.id)
-    .eq("status", "pending");
   if (running.error) return databaseError("Could not check for a review in progress.", running.error);
   for (const review of running.data.map(parseStoredReview)) {
     if (isStale(review, now)) {

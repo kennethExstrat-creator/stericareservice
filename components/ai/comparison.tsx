@@ -23,7 +23,7 @@ export const COLUMN_TITLES = {
 export function Comparison({ model, review }: { model: AiPanelModel; review: ReviewModel }) {
   const canDecide = model.viewer.isAdmin;
   return (
-    <div className="overflow-clip rounded-xl bg-card shadow-sm ring-1 ring-border">
+    <div className="overflow-clip rounded-xl bg-card shadow-sm ring-1 ring-border" data-testid="ai-comparison">
       <div
         aria-hidden
         className={cn(
