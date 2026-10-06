@@ -7,19 +7,27 @@
  *
  * Options:
  *   --dry-run      show what would change; write nothing
+ *   --replace      retire an active version that differs from the bundle;
+ *                  without it, the run stops before writing anything
  *   --allow-stubs  write although the bundle was made while some modules were
  *                  still placeholders (their default labels are then missing
  *                  from the stored resolution; regenerate the bundle instead)
  *   --refresh      also make a new version when only the resolution changed
  *                  (new module defaults), not the definition
  *
- * Safe to run again. For each template, bases first:
+ * Every template is planned first, bases first, then written:
  *   - the active version has the same definition (and was resolved against
- *     the same base versions): nothing is written;
- *   - a draft version has it: that draft is activated;
- *   - otherwise a new version (highest + 1) is added and activated.
- * The version it replaces is retired, never edited: a version an inspection
- * uses is frozen (BUILD_SPEC 4.2 rule 8), and a code has one active version.
+ *     the same base versions): nothing is written, so a second run with the
+ *     same bundle changes nothing;
+ *   - no version is active: a draft with the definition is activated, or a
+ *     new version (highest + 1) is added, active;
+ *   - another version is active: templates belong to admins once seeded
+ *     (BUILD_SPEC 4.1), so it may be an admin's newer version. The run stops
+ *     before writing anything unless --replace is given; with it, the draft
+ *     is activated or a new version added, and the active one retired.
+ * A version is retired, never edited: a version an inspection uses is frozen
+ * (BUILD_SPEC 4.2 rule 8), and a code has one active version. A retired
+ * version can be made active again in the template editor.
  * SAFEDON_EG belongs to its client, looked up by name (supabase/seed.sql
  * creates it; run that first). Coverage is not marked confirmed: the seeds
  * are checked against the data dictionary by the tests in lib/coverage.
@@ -144,6 +152,11 @@ export function sameVersion(row: VersionRow, wanted: Wanted, { refresh }: { refr
   return refresh ? jsonEqual(row.resolved, wanted.resolved) : jsonEqual(row.resolved.bases, wanted.resolved.bases);
 }
 
+/** The plan retires the active version: it replaces what may be an admin's change since the seed. */
+export function replacesActive(plan: Plan): boolean {
+  return plan.action !== "keep" && plan.retire !== null;
+}
+
 export function planTemplate(wanted: Wanted, rows: readonly VersionRow[], options: { refresh: boolean }): Plan {
   const active = rows.find((row) => row.status === "active") ?? null;
   const retire = active === null ? null : { id: active.id, version: active.version };
@@ -192,12 +205,23 @@ export type SeedDatabase = {
   setStatus(id: string, status: TemplateStatus): Promise<void>;
 };
 
-export type SeedOptions = { dryRun: boolean; refresh: boolean };
+export type SeedOptions = { dryRun: boolean; refresh: boolean; replace: boolean };
 
-export type SeedOutcome = { plan: Plan; client: string | null };
+export type SeedOutcome = {
+  plan: Plan;
+  client: string | null;
+  /** It would retire the active version, and --replace was not given: nothing is written. */
+  blocked: boolean;
+};
 
-/** Plans every template, bases first, and (unless a dry run) carries each plan out before the next. */
-export async function seedTemplates(db: SeedDatabase, bundle: Bundle, options: SeedOptions): Promise<SeedOutcome[]> {
+export type SeedReport = { outcomes: SeedOutcome[]; written: boolean };
+
+/**
+ * Plans every template, bases first, then carries the plans out in that
+ * order, unless it is a dry run or a plan would retire an active version
+ * without --replace: then nothing is written.
+ */
+export async function seedTemplates(db: SeedDatabase, bundle: Bundle, options: SeedOptions): Promise<SeedReport> {
   const clients = bundle.templates.some((entry) => entry.client !== null) ? await db.clients() : [];
   const clientIds = new Map<string, string>();
   for (const entry of bundle.templates) {
@@ -212,16 +236,20 @@ export async function seedTemplates(db: SeedDatabase, bundle: Bundle, options: S
     clientIds.set(entry.code, id);
   }
 
-  const outcomes: SeedOutcome[] = [];
+  // A child is resolved against the version its base will have, so planning needs no writes.
+  const planned: { plan: Plan; wanted: Wanted; outcome: SeedOutcome }[] = [];
   const versions = new Map<string, number>();
   for (const entry of bundle.templates) {
     const wanted = prepare(entry, clientIds.get(entry.code) ?? null, versions);
     const plan = planTemplate(wanted, await db.versions(entry.code), options);
-    if (!options.dryRun) await carryOut(db, plan, wanted);
     versions.set(entry.code, plan.version);
-    outcomes.push({ plan, client: entry.client });
+    const outcome = { plan, client: entry.client, blocked: !options.replace && replacesActive(plan) };
+    planned.push({ plan, wanted, outcome });
   }
-  return outcomes;
+  const outcomes = planned.map((entry) => entry.outcome);
+  if (options.dryRun || outcomes.some((outcome) => outcome.blocked)) return { outcomes, written: false };
+  for (const { plan, wanted } of planned) await carryOut(db, plan, wanted);
+  return { outcomes, written: true };
 }
 
 /**
@@ -248,17 +276,33 @@ async function carryOut(db: SeedDatabase, plan: Plan, wanted: Wanted): Promise<v
   }
 }
 
-export function describeOutcome(outcome: SeedOutcome, dryRun: boolean): string {
-  const { plan, client } = outcome;
+/** One line per template; `planned` when nothing was written (a dry run, or a run that stopped). */
+export function describeOutcome(outcome: SeedOutcome, planned: boolean): string {
+  const { plan, client, blocked } = outcome;
   const head = `${plan.code.padEnd(12)} version ${plan.version}`;
-  const retired = plan.action !== "keep" && plan.retire ? `, version ${plan.retire.version} ${dryRun ? "to retire" : "retired"}` : "";
+  const retired = plan.action !== "keep" && plan.retire ? `, version ${plan.retire.version} ${planned ? "to retire" : "retired"}` : "";
   const what =
     plan.action === "keep"
       ? "unchanged, active"
       : plan.action === "activate"
-        ? `${dryRun ? "to activate (an existing draft)" : "activated (an existing draft)"}${retired}`
-        : `${dryRun ? "to add, active" : "added, active"}${retired}`;
-  return `${head}  ${what}${client ? ` · client ${client}` : ""}`;
+        ? `${planned ? "to activate (an existing draft)" : "activated (an existing draft)"}${retired}`
+        : `${planned ? "to add, active" : "added, active"}${retired}`;
+  return `${head}  ${what}${client ? ` · client ${client}` : ""}${blocked ? " (needs --replace)" : ""}`;
+}
+
+/** Why a run stops when it would retire an active version, and what to do. */
+export function describeBlocked(outcomes: readonly SeedOutcome[], dryRun: boolean): string | null {
+  const blocked = outcomes.filter((outcome) => outcome.blocked);
+  if (blocked.length === 0) return null;
+  const which = blocked
+    .map(({ plan }) => (plan.action !== "keep" && plan.retire ? `${plan.code} version ${plan.retire.version}` : plan.code))
+    .join(", ");
+  const them = blocked.length === 1 ? "it" : "them";
+  return (
+    `Active now and different from the bundle: ${which}. An admin may have changed ${them} since the seed. ` +
+    `${dryRun ? "A real run stops" : "Stopped"} before writing anything: check ${them}, ` +
+    `then run again with --replace to retire ${them}.`
+  );
 }
 
 /** The data of a Supabase answer, or an error naming what failed. */
@@ -295,13 +339,14 @@ async function main(): Promise<void> {
   const { values } = parseArgs({
     options: {
       "dry-run": { type: "boolean", default: false },
+      replace: { type: "boolean", default: false },
       "allow-stubs": { type: "boolean", default: false },
       refresh: { type: "boolean", default: false },
       help: { type: "boolean", default: false },
     },
   });
   if (values.help) {
-    console.log("node --env-file-if-exists=.env.local scripts/seed-templates.mts [--dry-run] [--allow-stubs] [--refresh]");
+    console.log("node --env-file-if-exists=.env.local scripts/seed-templates.mts [--dry-run] [--replace] [--allow-stubs] [--refresh]");
     return;
   }
   const dryRun = values["dry-run"];
@@ -325,10 +370,17 @@ async function main(): Promise<void> {
     }
   }
 
-  const outcomes = await seedTemplates(supabaseDatabase(url, secretKey), bundle, { dryRun, refresh: values.refresh });
-  console.log(dryRun ? "Seed templates, dry run:" : "Seed templates:");
-  for (const outcome of outcomes) console.log(`  ${describeOutcome(outcome, dryRun)}`);
+  const report = await seedTemplates(supabaseDatabase(url, secretKey), bundle, {
+    dryRun,
+    refresh: values.refresh,
+    replace: values.replace,
+  });
+  console.log(dryRun ? "Seed templates, dry run:" : report.written ? "Seed templates:" : "Seed templates, nothing written:");
+  for (const outcome of report.outcomes) console.log(`  ${describeOutcome(outcome, !report.written)}`);
+  const blocked = describeBlocked(report.outcomes, dryRun);
+  if (blocked) console.error(`\n${blocked}`);
   if (dryRun) console.log("\nNothing was written (--dry-run).");
+  else if (!report.written) process.exit(1);
 }
 
 // Run only when started as a script, so tests can import the functions above.

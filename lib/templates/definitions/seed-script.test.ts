@@ -3,15 +3,18 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  describeBlocked,
   describeOutcome,
   jsonEqual,
   parseBundle,
   planTemplate,
   prepare,
+  replacesActive,
   rowFields,
   seedTemplates,
   type Bundle,
   type SeedDatabase,
+  type SeedOptions,
   type TemplateStatus,
   type VersionRow,
   type Wanted,
@@ -62,6 +65,18 @@ function fakeDatabase(options: { clients?: { id: string; name: string }[]; refus
 
 const active = (rows: readonly Row[]) =>
   rows.filter((row) => row.status === "active").map((row) => `${row.code} v${row.version}`).sort();
+
+/** A real run; --replace only where a test gives it. */
+const RUN: SeedOptions = { dryRun: false, refresh: false, replace: false };
+const DRY_RUN: SeedOptions = { ...RUN, dryRun: true };
+const REPLACE: SeedOptions = { ...RUN, replace: true };
+
+/** The bundle with STD_EG renamed: a changed definition. */
+function renamed(name = "Standard examination gloves (EN 455), revised"): Bundle {
+  const changed = bundle();
+  changed.templates[0].definition.name = name;
+  return changed;
+}
 
 describe("the bundle", () => {
   it("reads seed-bundle.json", () => {
@@ -158,6 +173,14 @@ describe("planning one template", () => {
     expect(planTemplate(wanted, [row(1, "retired")], options)).toMatchObject({ action: "insert", version: 2, retire: null });
   });
 
+  it("knows which plans retire the active version", () => {
+    expect(replacesActive(planTemplate(wanted, [], options))).toBe(false);
+    expect(replacesActive(planTemplate(wanted, [row(1, "active")], options))).toBe(false);
+    expect(replacesActive(planTemplate(wanted, [row(1, "retired"), row(2, "draft")], options))).toBe(false);
+    expect(replacesActive(planTemplate(wanted, [row(1, "active", { definition: changed })], options))).toBe(true);
+    expect(replacesActive(planTemplate(wanted, [row(1, "active", { definition: changed }), row(2, "draft")], options))).toBe(true);
+  });
+
   it("treats a version without a resolution as different", () => {
     expect(planTemplate(wanted, [row(1, "active", { resolved: null })], options)).toMatchObject({ action: "insert", version: 2 });
   });
@@ -182,35 +205,99 @@ describe("planning one template", () => {
 describe("seeding", () => {
   it("adds the three templates, active, SAFEDON_EG for its client and resolved against STD_EG version 1", async () => {
     const { db, rows, writes } = fakeDatabase();
-    const outcomes = await seedTemplates(db, bundle(), { dryRun: false, refresh: false });
+    const report = await seedTemplates(db, bundle(), RUN);
+    expect(report.written).toBe(true);
     expect(writes).toEqual(["insert STD_EG v1 active", "insert SAFEDON_EG v1 active", "insert STD_SG v1 active"]);
     expect(active(rows)).toEqual(["SAFEDON_EG v1", "STD_EG v1", "STD_SG v1"]);
     const safedon = rows.find((row) => row.code === "SAFEDON_EG");
     expect(safedon?.client_id).toBe(POLYCO);
     expect((safedon?.resolved as { bases: unknown }).bases).toEqual([{ code: "STD_EG", version: 1 }]);
-    expect(outcomes.map((outcome) => describeOutcome(outcome, false))).toEqual([
+    expect(report.outcomes.map((outcome) => describeOutcome(outcome, false))).toEqual([
       "STD_EG       version 1  added, active",
       "SAFEDON_EG   version 1  added, active · client Polyco Healthline",
       "STD_SG       version 1  added, active",
     ]);
+    expect(describeBlocked(report.outcomes, false)).toBeNull();
   });
 
   it("is idempotent: a second run writes nothing", async () => {
     const { db, writes } = fakeDatabase();
-    await seedTemplates(db, bundle(), { dryRun: false, refresh: false });
+    await seedTemplates(db, bundle(), RUN);
     writes.length = 0;
-    const outcomes = await seedTemplates(db, bundle(), { dryRun: false, refresh: false });
+    const report = await seedTemplates(db, bundle(), RUN);
     expect(writes).toEqual([]);
-    expect(outcomes.map((outcome) => outcome.plan.action)).toEqual(["keep", "keep", "keep"]);
+    expect(report.outcomes.map((outcome) => outcome.plan.action)).toEqual(["keep", "keep", "keep"]);
+  });
+
+  it("stops before writing anything when it would retire an active version, unless told to replace it", async () => {
+    const { db, rows, writes } = fakeDatabase();
+    await seedTemplates(db, bundle(), RUN);
+    writes.length = 0;
+    const report = await seedTemplates(db, renamed(), RUN);
+    expect(report.written).toBe(false);
+    expect(writes).toEqual([]);
+    expect(active(rows)).toEqual(["SAFEDON_EG v1", "STD_EG v1", "STD_SG v1"]);
+    // SAFEDON_EG would follow its base to a new version, so it is held back too.
+    expect(report.outcomes.map((outcome) => [outcome.plan.code, outcome.blocked])).toEqual([
+      ["STD_EG", true],
+      ["SAFEDON_EG", true],
+      ["STD_SG", false],
+    ]);
+    expect(report.outcomes.map((outcome) => describeOutcome(outcome, true))).toEqual([
+      "STD_EG       version 2  to add, active, version 1 to retire (needs --replace)",
+      "SAFEDON_EG   version 2  to add, active, version 1 to retire · client Polyco Healthline (needs --replace)",
+      "STD_SG       version 1  unchanged, active",
+    ]);
+    expect(describeBlocked(report.outcomes, false)).toBe(
+      "Active now and different from the bundle: STD_EG version 1, SAFEDON_EG version 1. An admin may have changed them " +
+        "since the seed. Stopped before writing anything: check them, then run again with --replace to retire them.",
+    );
+  });
+
+  it("leaves an admin's newer active version alone unless told to replace it", async () => {
+    // Seeded as version 1; an admin has since saved and activated version 2 of STD_EG.
+    const { db, rows, writes } = fakeDatabase();
+    await seedTemplates(db, bundle(), RUN);
+    const seeded = rows.find((row) => row.code === "STD_EG")!;
+    seeded.status = "retired";
+    rows.push({ ...structuredClone(seeded), id: "admin-v2", version: 2, status: "active", definition: { name: "Admin's" } });
+    writes.length = 0;
+
+    const report = await seedTemplates(db, bundle(), RUN);
+    expect(writes).toEqual([]);
+    expect(active(rows)).toEqual(["SAFEDON_EG v1", "STD_EG v2", "STD_SG v1"]);
+    expect(describeBlocked(report.outcomes, true)).toMatch(
+      /^Active now and different from the bundle: STD_EG version 2, SAFEDON_EG version 1\. .* A real run stops before writing anything/,
+    );
+
+    await seedTemplates(db, bundle(), REPLACE);
+    expect(writes).toEqual([
+      "insert STD_EG v3 draft",
+      "retired STD_EG v2",
+      "active STD_EG v3",
+      "insert SAFEDON_EG v2 draft",
+      "retired SAFEDON_EG v1",
+      "active SAFEDON_EG v2",
+    ]);
+    // The admin's version is retired, never edited: it can be made active again.
+    expect(rows.find((row) => row.id === "admin-v2")).toMatchObject({ status: "retired", definition: { name: "Admin's" } });
+  });
+
+  it("needs no --replace where nothing is active: it activates a draft or adds a version", async () => {
+    const { db, rows, writes } = fakeDatabase();
+    await seedTemplates(db, bundle(), RUN);
+    for (const row of rows) row.status = row.code === "STD_EG" ? "draft" : "retired";
+    writes.length = 0;
+    const report = await seedTemplates(db, bundle(), RUN);
+    expect(report.outcomes.map((outcome) => outcome.blocked)).toEqual([false, false, false]);
+    expect(writes).toEqual(["active STD_EG v1", "insert SAFEDON_EG v2 active", "insert STD_SG v2 active"]);
   });
 
   it("versions a changed base and the child resolved against it, retiring what they replace", async () => {
     const { db, rows, writes } = fakeDatabase();
-    await seedTemplates(db, bundle(), { dryRun: false, refresh: false });
+    await seedTemplates(db, bundle(), RUN);
     writes.length = 0;
-    const changed = bundle();
-    changed.templates[0].definition.name = "Standard examination gloves (EN 455), revised";
-    await seedTemplates(db, changed, { dryRun: false, refresh: false });
+    await seedTemplates(db, renamed(), REPLACE);
     expect(writes).toEqual([
       "insert STD_EG v2 draft",
       "retired STD_EG v1",
@@ -230,9 +317,10 @@ describe("seeding", () => {
 
   it("writes nothing on a dry run and says what it would do", async () => {
     const { db, writes } = fakeDatabase();
-    const outcomes = await seedTemplates(db, bundle(), { dryRun: true, refresh: false });
+    const report = await seedTemplates(db, bundle(), DRY_RUN);
+    expect(report.written).toBe(false);
     expect(writes).toEqual([]);
-    expect(outcomes.map((outcome) => describeOutcome(outcome, true))).toEqual([
+    expect(report.outcomes.map((outcome) => describeOutcome(outcome, true))).toEqual([
       "STD_EG       version 1  to add, active",
       "SAFEDON_EG   version 1  to add, active · client Polyco Healthline",
       "STD_SG       version 1  to add, active",
@@ -241,11 +329,9 @@ describe("seeding", () => {
 
   it("plans a dry run of a changed base with the base's next version", async () => {
     const { db } = fakeDatabase();
-    await seedTemplates(db, bundle(), { dryRun: false, refresh: false });
-    const changed = bundle();
-    changed.templates[0].definition.name = "Renamed";
-    const outcomes = await seedTemplates(db, changed, { dryRun: true, refresh: false });
-    expect(outcomes.map((outcome) => describeOutcome(outcome, true))).toEqual([
+    await seedTemplates(db, bundle(), RUN);
+    const report = await seedTemplates(db, renamed("Renamed"), { ...DRY_RUN, replace: true });
+    expect(report.outcomes.map((outcome) => describeOutcome(outcome, true))).toEqual([
       "STD_EG       version 2  to add, active, version 1 to retire",
       "SAFEDON_EG   version 2  to add, active, version 1 to retire · client Polyco Healthline",
       "STD_SG       version 1  unchanged, active",
@@ -254,7 +340,7 @@ describe("seeding", () => {
 
   it("stops before writing anything when the client is missing", async () => {
     const { db, writes } = fakeDatabase({ clients: [{ id: POLYCO, name: "Someone else" }] });
-    await expect(seedTemplates(db, bundle(), { dryRun: false, refresh: false })).rejects.toThrow(
+    await expect(seedTemplates(db, bundle(), RUN)).rejects.toThrow(
       /SAFEDON_EG belongs to the client "Polyco Healthline", which is not in the clients table/,
     );
     expect(writes).toEqual([]);
@@ -262,18 +348,16 @@ describe("seeding", () => {
 
   it("finds the client whatever its case", async () => {
     const { db, rows } = fakeDatabase({ clients: [{ id: POLYCO, name: " polyco HEALTHLINE " }] });
-    await seedTemplates(db, bundle(), { dryRun: false, refresh: false });
+    await seedTemplates(db, bundle(), RUN);
     expect(rows.find((row) => row.code === "SAFEDON_EG")?.client_id).toBe(POLYCO);
   });
 
   it("puts the old version back when the new one cannot be activated", async () => {
     const { db, rows } = fakeDatabase();
-    await seedTemplates(db, bundle(), { dryRun: false, refresh: false });
+    await seedTemplates(db, bundle(), RUN);
     const failing = fakeDatabase({ refuseActive: "STD_EG v2" });
     failing.rows.push(...rows.map((row) => structuredClone(row)));
-    const changed = bundle();
-    changed.templates[0].definition.name = "Renamed";
-    await expect(seedTemplates(failing.db, changed, { dryRun: false, refresh: false })).rejects.toThrow(/activation refused/);
+    await expect(seedTemplates(failing.db, renamed("Renamed"), REPLACE)).rejects.toThrow(/activation refused/);
     expect(failing.writes).toEqual(["insert STD_EG v2 draft", "retired STD_EG v1", "active STD_EG v1"]);
     expect(active(failing.rows)).toEqual(["SAFEDON_EG v1", "STD_EG v1", "STD_SG v1"]);
   });
