@@ -1,7 +1,6 @@
 -- Caller helpers for the policies, the auth.users -> profiles sync, guard
 -- triggers for what RLS cannot express (columns, status transitions) and the
--- automatic audit trail. 20261006000600 replaces handle_new_auth_user() and
--- inspections_guard().
+-- automatic audit trail.
 --
 -- Trust model of the guards: end users reach the database as the API roles
 -- `authenticated` and `anon` and are checked against their profile. Every
@@ -182,10 +181,9 @@ create trigger on_auth_user_email_changed after update of email on auth.users
   for each row when (old.email is distinct from new.email)
   execute function public.handle_auth_email_change();
 
--- Users created before this migration (for example in the dashboard) get a
--- profile too, inactive like every new account (20261006000600).
-insert into public.profiles (id, email, full_name, role, active)
-select u.id, u.email, u.raw_user_meta_data ->> 'full_name', 'inspector', false
+-- Users created before this migration (for example in the dashboard) get a profile too.
+insert into public.profiles (id, email, full_name, role)
+select u.id, u.email, u.raw_user_meta_data ->> 'full_name', 'inspector'
 from auth.users u
 on conflict (id) do nothing;
 

@@ -64,18 +64,17 @@ export async function activate(db: Db, userId: string): Promise<void> {
   await asService(db, (tx) => tx.query("update public.profiles set active = true where id = $1", [userId]));
 }
 
-/** An invited inspector: a new auth user (inactive, like every new account), then activated. */
-export async function createInspector(db: Db, email: string, fullName: string): Promise<string> {
-  const id = await createAuthUser(db, { email, fullName });
-  await activate(db, id);
-  return id;
-}
-
 export async function createPeople(db: Db): Promise<People> {
   const admin = await createAuthUser(db, { email: "admin@test.local", fullName: "Ada Admin" });
   await promoteToAdmin(db, admin);
-  const inspector = await createInspector(db, "inspector@test.local", "Ivan Inspector");
-  const otherInspector = await createInspector(db, "other@test.local", "Olga Other");
+  const inspector = await createAuthUser(db, {
+    email: "inspector@test.local",
+    fullName: "Ivan Inspector",
+  });
+  const otherInspector = await createAuthUser(db, {
+    email: "other@test.local",
+    fullName: "Olga Other",
+  });
   return { admin, inspector, otherInspector };
 }
 

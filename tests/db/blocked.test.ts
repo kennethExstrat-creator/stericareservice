@@ -143,8 +143,9 @@ describe("deactivated users, new accounts and anon", { timeout: 30_000 }, () => 
   });
 
   it("keeps a new account inert until it is activated", async () => {
-    // What a public sign-up, an anonymous sign-in or the dashboard's Add user creates.
-    const stranger = await createAuthUser(db, { email: "stranger@example.com" });
+    // What a public sign-up, an anonymous sign-in or the dashboard's Add user
+    // creates: the raw trigger result, before anyone activates it.
+    const stranger = await createAuthUser(db, { email: "stranger@example.com", active: false });
     const status = await asUser(db, stranger, (tx) => tx.query("select * from public.my_profile_status()"));
     expect(status.rows).toEqual([{ active: false, role: "inspector" }]);
     expect(await asUser(db, stranger, everythingVisible)).toEqual(nothing);
