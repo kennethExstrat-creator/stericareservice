@@ -69,8 +69,9 @@ export default async function InspectionsPage({ searchParams }: PageProps<"/insp
         ? describeCount(filters, list.total, list.rows.length)
         : "";
 
+  // No padding of its own: the app shell's <main> sets the page margins.
   return (
-    <div className="flex w-full flex-1 flex-col gap-6 px-4 py-6 md:px-6 md:py-8 xl:px-8">
+    <div className="flex w-full flex-1 flex-col gap-6">
       <PageHeader
         eyebrow={isAdmin ? "All inspectors" : "Your inspections"}
         title="Inspections"
