@@ -1,25 +1,12 @@
 "use client";
 
 // The side panel that adds or edits one code. The same pattern as the
-// manufacturers and clients panels (branch phase2/s-refdata); this branch
-// owns only the defects route, so it keeps its own copy until a shared
-// components/admin/ exists.
+// manufacturers and clients panels (app/(app)/admin/manufacturers/_components/
+// reference-panel.tsx); this branch owns only the defects route, so it keeps
+// its own copy until a shared components/admin/ exists.
 
 import { useCallback, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-
-/**
- * The app shell's <main> (MAIN_CONTENT_ID in components/shell/app-shell.tsx,
- * focusable with tabIndex -1). Not imported: that module is server-side and
- * would bring the shell's nav config into the browser.
- */
-export const MAIN_CONTENT_ID = "main-content";
-
-/** Focus `element` if it is still on the page, else the page's main area. */
-export function focusOrMain(element: HTMLElement | null | undefined): void {
-  const target = element?.isConnected && element !== document.body ? element : document.getElementById(MAIN_CONTENT_ID);
-  target?.focus();
-}
 
 /** What the panel shows: a new code (possibly filled in from a link), or the code being edited. */
 export type PanelTarget = { mode: "create"; prefill?: { code: string; name: string } } | { mode: "edit"; code: string };
@@ -27,20 +14,51 @@ export type PanelTarget = { mode: "create"; prefill?: { code: string; name: stri
 type PanelState = { key: number; open: boolean; target: PanelTarget };
 
 /**
+ * Focuses the first element that is still on the page and can take the
+ * focus; false when none could. For dialogs that open from code: Radix puts
+ * the focus back only on a Trigger, so without one it would land on <body>.
+ */
+export function focusFirst(candidates: ReadonlyArray<HTMLElement | null | undefined>): boolean {
+  for (const element of candidates) {
+    if (!element?.isConnected || element.matches(":disabled")) continue;
+    element.focus();
+    if (document.activeElement === element) return true;
+  }
+  return false;
+}
+
+/**
  * Open and close state for the panel. Every opening gets a new `key`, so the
  * form inside starts fresh (its fields, its errors).
+ *
+ * `show` takes the button the panel opened from (a row's Edit button, also
+ * for a click on the row, or an Add button), and `returnFocus` puts the
+ * keyboard back on it when the panel closes. When that button has gone (its
+ * code was deleted, or no longer matches the search) the focus goes to
+ * `fallback`, the page's Add code button. A panel open from the start (a
+ * link that fills in a new code) has no opener: it goes to the fallback.
  */
-export function usePanel(initial: PanelTarget | null = null) {
+export function usePanel(fallback: RefObject<HTMLElement | null>, initial: PanelTarget | null = null) {
   const [state, setState] = useState<PanelState>({
     key: 0,
     open: initial !== null,
     target: initial ?? { mode: "create" },
   });
-  const show = useCallback((target: PanelTarget) => {
+  const opener = useRef<HTMLElement | null>(null);
+  const show = useCallback((target: PanelTarget, from: HTMLElement | null) => {
+    opener.current = from;
     setState((current) => ({ key: current.key + 1, open: true, target }));
   }, []);
   const close = useCallback(() => setState((current) => ({ ...current, open: false })), []);
-  return { ...state, show, close };
+  /** After a delete: the row goes, and with it the Edit button the panel may have opened from. */
+  const closeDeleted = useCallback(() => {
+    opener.current = null;
+    close();
+  }, [close]);
+  const returnFocus = useCallback(() => {
+    focusFirst([opener.current, fallback.current]);
+  }, [fallback]);
+  return { ...state, show, close, closeDeleted, returnFocus };
 }
 
 type PanelProps = {
@@ -48,11 +66,8 @@ type PanelProps = {
   /** While a save runs, the panel stays open so its outcome is seen. */
   busy: boolean;
   onClose: () => void;
-  /**
-   * True when what opened the panel is about to leave the page (its row was
-   * deleted): the focus then goes to the page instead of to it.
-   */
-  openerGone?: RefObject<boolean>;
+  /** Puts the keyboard back where the panel opened from, once it has closed (usePanel's returnFocus). */
+  returnFocus: () => void;
   title: string;
   description: ReactNode;
   children: ReactNode;
@@ -63,13 +78,12 @@ type PanelProps = {
  * A panel from the right: the list stays in view on desktop. Header, a body
  * that scrolls, and a footer with the form's buttons that never scrolls away.
  * With a mouse the first field takes the focus; on touch the panel itself,
- * so the keyboard does not cover it before anyone asked to type. Closing
- * gives the focus back to what opened the panel, or to the page when that is
- * gone (a deleted code's row).
+ * so the keyboard does not cover it before anyone asked to type. However it
+ * closes (Escape, Close, the corner button, a save or a delete), the focus
+ * goes back to where it opened from.
  */
-export function Panel({ open, busy, onClose, openerGone, title, description, children, footer }: PanelProps) {
+export function Panel({ open, busy, onClose, returnFocus, title, description, children, footer }: PanelProps) {
   const contentRef = useRef<HTMLDivElement>(null);
-  const openerRef = useRef<HTMLElement | null>(null);
 
   return (
     <Sheet
@@ -86,7 +100,6 @@ export function Panel({ open, busy, onClose, openerGone, title, description, chi
         className="gap-0 outline-none data-[side=right]:w-full data-[side=right]:sm:max-w-md data-[side=right]:xl:max-w-lg"
         onOpenAutoFocus={(event) => {
           event.preventDefault();
-          openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
           const content = contentRef.current;
           const field = window.matchMedia("(pointer: coarse)").matches
             ? null
@@ -94,8 +107,9 @@ export function Panel({ open, busy, onClose, openerGone, title, description, chi
           (field ?? content)?.focus();
         }}
         onCloseAutoFocus={(event) => {
+          // Radix would focus a Trigger, and this panel opens from code.
           event.preventDefault();
-          focusOrMain(openerGone?.current ? null : openerRef.current);
+          returnFocus();
         }}
         onInteractOutside={(event) => {
           if (busy) event.preventDefault();

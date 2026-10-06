@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { PlusIcon, TagsIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { matchesSearch, searchText, type DefectCodeItem, type DefectsCounts } from "@/lib/admin/defects";
@@ -34,7 +34,9 @@ export function DefectCodesAdmin({
   /** From a "Not a defect code" link on the label mapping tab: open the add panel filled in. */
   prefill: { code: string; name: string } | null;
 }) {
-  const panel = usePanel(prefill ? { mode: "create", prefill } : null);
+  // Where the keyboard goes when a panel closes and what opened it has gone.
+  const addButton = useRef<HTMLButtonElement>(null);
+  const panel = usePanel(addButton, prefill ? { mode: "create", prefill } : null);
   const { query, setQuery } = useQuery(initialQuery);
   const indexed = useMemo(() => codes.map((row) => ({ row, text: textOf(row) })), [codes]);
   const results = useMemo(
@@ -53,7 +55,7 @@ export function DefectCodesAdmin({
 
   const editingCode = panel.target.mode === "edit" ? panel.target.code : null;
   const item = editingCode ? (codes.find((row) => row.code === editingCode) ?? null) : null;
-  const add = () => panel.show({ mode: "create" });
+  const add = (from: HTMLElement) => panel.show({ mode: "create" }, from);
 
   return (
     <div className="flex flex-col gap-6">
@@ -61,7 +63,7 @@ export function DefectCodesAdmin({
         current="codes"
         counts={counts}
         actions={
-          <Button onClick={add}>
+          <Button ref={addButton} onClick={(event) => add(event.currentTarget)}>
             <PlusIcon aria-hidden />
             Add code
           </Button>
@@ -73,7 +75,7 @@ export function DefectCodesAdmin({
           icon={<TagsIcon aria-hidden />}
           title="No defect codes yet"
           action={
-            <Button variant="outline" onClick={add}>
+            <Button variant="outline" onClick={(event) => add(event.currentTarget)}>
               Add your first code
             </Button>
           }
@@ -94,7 +96,7 @@ export function DefectCodesAdmin({
             <CodesTable
               rows={results}
               selectedCode={panel.open ? editingCode : null}
-              onEdit={(code) => panel.show({ mode: "edit", code })}
+              onEdit={(code, opener) => panel.show({ mode: "edit", code }, opener)}
             />
           ) : (
             <NoMatches query={query} many="codes" onClear={() => setQuery("")} />
@@ -102,7 +104,15 @@ export function DefectCodesAdmin({
         </>
       )}
 
-      <CodePanel key={panel.key} open={panel.open} target={panel.target} item={item} onClose={panel.close} />
+      <CodePanel
+        key={panel.key}
+        open={panel.open}
+        target={panel.target}
+        item={item}
+        onClose={panel.close}
+        onDeleted={panel.closeDeleted}
+        returnFocus={panel.returnFocus}
+      />
     </div>
   );
 }

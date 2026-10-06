@@ -41,7 +41,8 @@ export function CodesTable({
 }: {
   rows: readonly DefectCodeItem[];
   selectedCode: string | null;
-  onEdit: (code: string) => void;
+  /** Opens the code's panel; `opener` (the row's Edit button) gets the focus back when it closes. */
+  onEdit: (code: string, opener: HTMLElement | null) => void;
 }) {
   return (
     <ListCard>
@@ -76,7 +77,8 @@ export function CodesTable({
               data-code={row.code}
               data-state={row.code === selectedCode ? "selected" : undefined}
               className="cursor-pointer"
-              onClick={() => onEdit(row.code)}
+              // The whole row opens the panel with a mouse or a finger; the keyboard uses its Edit button.
+              onClick={(event) => onEdit(row.code, event.currentTarget.querySelector<HTMLElement>("[data-edit]"))}
             >
               <TableHead scope="row" className={cn(CELL, "h-auto font-normal whitespace-normal touch:h-auto")}>
                 <span
@@ -124,10 +126,11 @@ export function CodesTable({
                   variant="ghost"
                   size="sm"
                   aria-label={`Edit ${row.code}`}
+                  data-edit
                   onClick={(event) => {
                     // The row opens the same panel; one opening is enough.
                     event.stopPropagation();
-                    onEdit(row.code);
+                    onEdit(row.code, event.currentTarget);
                   }}
                 >
                   <PencilIcon aria-hidden />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useId, useState } from "react";
+import { useActionState, useId, useRef, useState, type RefObject } from "react";
 import { BanIcon, InfoIcon, OctagonXIcon, RotateCcwIcon, SearchXIcon, Trash2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -32,7 +32,7 @@ import {
 } from "@/lib/admin/defects";
 import { deleteDefectCode, saveDefectCode, setDefectCodeActive, type CodeFormResult } from "../actions";
 import { CodeStatusBadge } from "./badges";
-import { Panel, PanelSection, type PanelTarget } from "./panel";
+import { focusFirst, Panel, PanelSection, type PanelTarget } from "./panel";
 import { TextField } from "./text-field";
 
 type Values = Record<DefectCodeField, string>;
@@ -53,6 +53,10 @@ type CodePanelProps = {
   /** The code being edited as the page has it now, or null (adding, or deleted meanwhile). */
   item: DefectCodeItem | null;
   onClose: () => void;
+  /** Closes the panel after this code was deleted: its row, and the button that opened the panel, go too. */
+  onDeleted: () => void;
+  /** Puts the keyboard back where the panel opened from, once it has closed. */
+  returnFocus: () => void;
 };
 
 /**
@@ -61,7 +65,7 @@ type CodePanelProps = {
  * an edit shows it read-only. Below an edit: deactivating, and deleting a
  * code nothing uses.
  */
-export function CodePanel({ open, target, item, onClose }: CodePanelProps) {
+export function CodePanel({ open, target, item, onClose, onDeleted, returnFocus }: CodePanelProps) {
   const id = useId();
   const formId = `${id}-form`;
   const editing = target.mode === "edit";
@@ -115,6 +119,7 @@ export function CodePanel({ open, target, item, onClose }: CodePanelProps) {
       open={open}
       busy={pending}
       onClose={onClose}
+      returnFocus={returnFocus}
       title={editing ? "Edit defect code" : "Add defect code"}
       description={
         editing
@@ -195,7 +200,7 @@ export function CodePanel({ open, target, item, onClose }: CodePanelProps) {
           {editing && shown && (
             <>
               <StatusSection item={shown} />
-              <DeleteSection item={shown} onDeleted={onClose} />
+              <DeleteSection item={shown} onDeleted={onDeleted} />
             </>
           )}
         </>
@@ -208,14 +213,21 @@ export function CodePanel({ open, target, item, onClose }: CodePanelProps) {
  * Active or inactive
  * ------------------------------------------------------------------ */
 
+/**
+ * Whether the code is offered when mapping labels. One button does both:
+ * Deactivate (after a confirmation) and Reactivate. It is the same element
+ * either way, so the keyboard stays on it when the code changes state.
+ */
 function StatusSection({ item }: { item: DefectCodeItem }) {
   const titleId = useId();
+  const button = useRef<HTMLButtonElement>(null);
   const [confirming, setConfirming] = useState(false);
   const [state, formAction, pending] = useActionState(async (previous: ActionResult, formData: FormData) => {
     const result = await setDefectCodeActive(previous, formData).catch(unreachable);
     if (result.status === "success") toast.success(result.message);
     return result;
   }, IDLE);
+  const reactivating = pending && !item.active;
 
   return (
     <PanelSection title="Status" titleId={titleId}>
@@ -227,37 +239,47 @@ function StatusSection({ item }: { item: DefectCodeItem }) {
             : "Inactive: kept wherever templates and inspections use it, but not offered when mapping labels."}
         </span>
       </p>
-      {item.active ? (
+      <form action={formAction} className="flex flex-col gap-3">
+        <input type="hidden" name="code" value={item.code} />
+        <input type="hidden" name="active" value="true" />
         <div>
-          <Button type="button" variant="outline" onClick={() => setConfirming(true)}>
-            <BanIcon aria-hidden />
-            Deactivate code
+          <Button
+            ref={button}
+            type={item.active ? "button" : "submit"}
+            variant="outline"
+            // Not disabled while it runs: a disabled button would drop the keyboard focus.
+            aria-disabled={reactivating || undefined}
+            onClick={(event) => {
+              if (reactivating) event.preventDefault();
+              else if (item.active) setConfirming(true);
+            }}
+          >
+            {reactivating ? <Spinner aria-hidden /> : item.active ? <BanIcon aria-hidden /> : <RotateCcwIcon aria-hidden />}
+            {item.active ? "Deactivate code" : reactivating ? "Reactivating…" : "Reactivate code"}
           </Button>
         </div>
-      ) : (
-        <form action={formAction} className="flex flex-col gap-3">
-          <input type="hidden" name="code" value={item.code} />
-          <input type="hidden" name="active" value="true" />
-          <div>
-            <Button type="submit" variant="outline" disabled={pending}>
-              {pending ? <Spinner aria-hidden /> : <RotateCcwIcon aria-hidden />}
-              {pending ? "Reactivating…" : "Reactivate code"}
-            </Button>
-          </div>
-          {state.status === "error" && (
-            <Alert variant="destructive">
-              <OctagonXIcon aria-hidden />
-              <AlertDescription className="text-destructive">{state.message}</AlertDescription>
-            </Alert>
-          )}
-        </form>
-      )}
-      {confirming && <ConfirmDeactivate item={item} onDone={() => setConfirming(false)} />}
+        {!item.active && state.status === "error" && (
+          <Alert variant="destructive">
+            <OctagonXIcon aria-hidden />
+            <AlertDescription className="text-destructive">{state.message}</AlertDescription>
+          </Alert>
+        )}
+      </form>
+      {confirming && <ConfirmDeactivate item={item} opener={button} onDone={() => setConfirming(false)} />}
     </PanelSection>
   );
 }
 
-function ConfirmDeactivate({ item, onDone }: { item: DefectCodeItem; onDone: () => void }) {
+function ConfirmDeactivate({
+  item,
+  opener,
+  onDone,
+}: {
+  item: DefectCodeItem;
+  /** The status button, which gets the focus back however this closes. */
+  opener: RefObject<HTMLButtonElement | null>;
+  onDone: () => void;
+}) {
   const [state, formAction, pending] = useActionState(async (previous: ActionResult, formData: FormData) => {
     const result = await setDefectCodeActive(previous, formData).catch(unreachable);
     if (result.status === "success") {
@@ -278,6 +300,11 @@ function ConfirmDeactivate({ item, onDone }: { item: DefectCodeItem; onDone: () 
         onEscapeKeyDown={(event) => {
           if (pending) event.preventDefault();
         }}
+        onCloseAutoFocus={(event) => {
+          // Opened from code, so Radix has no Trigger to go back to.
+          event.preventDefault();
+          focusFirst([opener.current, opener.current?.closest<HTMLElement>("[role='dialog']")]);
+        }}
       >
         <form action={formAction} className="grid gap-6">
           <AlertDialogHeader>
@@ -294,6 +321,7 @@ function ConfirmDeactivate({ item, onDone }: { item: DefectCodeItem; onDone: () 
           <input type="hidden" name="code" value={item.code} />
           <input type="hidden" name="active" value="false" />
 
+          {/* role="alert": read out as soon as it appears. */}
           {state.status === "error" && (
             <Alert variant="destructive">
               <OctagonXIcon aria-hidden />
@@ -320,9 +348,15 @@ function ConfirmDeactivate({ item, onDone }: { item: DefectCodeItem; onDone: () 
  * Deleting a code nothing uses
  * ------------------------------------------------------------------ */
 
+/**
+ * The end of the edit panel. A code that a template version mentions cannot
+ * be deleted, and the panel says why instead of offering a button that can
+ * only fail; the action also checks that no inspection counts it.
+ */
 function DeleteSection({ item, onDeleted }: { item: DefectCodeItem; onDeleted: () => void }) {
   const titleId = useId();
   const reasonId = useId();
+  const deleteButton = useRef<HTMLButtonElement>(null);
   const [confirming, setConfirming] = useState(false);
   const blocker = deleteBlocker(item);
 
@@ -337,6 +371,7 @@ function DeleteSection({ item, onDeleted }: { item: DefectCodeItem; onDeleted: (
       </p>
       <div>
         <Button
+          ref={deleteButton}
           type="button"
           variant="destructive"
           disabled={Boolean(blocker)}
@@ -350,6 +385,7 @@ function DeleteSection({ item, onDeleted }: { item: DefectCodeItem; onDeleted: (
       {confirming && (
         <ConfirmDelete
           code={item.code}
+          opener={deleteButton}
           onCancel={() => setConfirming(false)}
           onDeleted={() => {
             setConfirming(false);
@@ -361,10 +397,23 @@ function DeleteSection({ item, onDeleted }: { item: DefectCodeItem; onDeleted: (
   );
 }
 
-function ConfirmDelete({ code, onCancel, onDeleted }: { code: string; onCancel: () => void; onDeleted: () => void }) {
+function ConfirmDelete({
+  code,
+  opener,
+  onCancel,
+  onDeleted,
+}: {
+  code: string;
+  /** The Delete button, which gets the focus back when this closes without deleting. */
+  opener: RefObject<HTMLButtonElement | null>;
+  onCancel: () => void;
+  onDeleted: () => void;
+}) {
+  const deleted = useRef(false);
   const [state, formAction, pending] = useActionState(async (previous: ActionResult, formData: FormData) => {
     const result = await deleteDefectCode(previous, formData).catch(unreachable);
     if (result.status === "success") {
+      deleted.current = true;
       toast.success(result.message);
       onDeleted();
     }
@@ -382,6 +431,14 @@ function ConfirmDelete({ code, onCancel, onDeleted }: { code: string; onCancel: 
         onEscapeKeyDown={(event) => {
           if (pending) event.preventDefault();
         }}
+        onCloseAutoFocus={(event) => {
+          // Opened from code, so Radix has no Trigger to go back to.
+          event.preventDefault();
+          // Deleted: the panel is closing too, and puts the focus back itself.
+          if (deleted.current) return;
+          // The Delete button, or the panel when a template took the code up meanwhile (the button is disabled).
+          focusFirst([opener.current, opener.current?.closest<HTMLElement>("[role='dialog']")]);
+        }}
       >
         <form action={formAction} className="grid gap-6">
           <AlertDialogHeader>
@@ -390,6 +447,7 @@ function ConfirmDelete({ code, onCancel, onDeleted }: { code: string; onCancel: 
           </AlertDialogHeader>
           <input type="hidden" name="code" value={code} />
 
+          {/* role="alert": read out as soon as it appears. */}
           {state.status === "error" && (
             <Alert variant="destructive">
               <OctagonXIcon aria-hidden />
