@@ -129,4 +129,4 @@ export {
   notDone,
 } from "@/lib/validation/results";
 export { suggestResult, type SuggestedResult, type SuggestionInput } from "@/lib/validation/suggested-result";
-export { describeDataPath } from "@/lib/validation/rules";
+export { describeDataPath, fieldIssues } from "@/lib/validation/rules";

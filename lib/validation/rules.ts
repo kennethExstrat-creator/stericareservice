@@ -96,6 +96,16 @@ export function sizeDuplicateIssues(duplicates: readonly string[], title: string
 }
 
 /**
+ * The issues to show beside a field: all but the framework's
+ * `module_not_done`, which speaks of the module as a whole and carries a
+ * field's path (CalcOutput.notDonePath) only so its link opens that field.
+ * Read inline messages through it: `findIssue(fieldIssues(evaluation?.issues), path)`.
+ */
+export function fieldIssues<T extends { readonly code: string }>(issues: readonly T[] | null | undefined): T[] {
+  return (issues ?? []).filter((issue) => issue.code !== CODES.moduleNotDone);
+}
+
+/**
  * 6.2.5: one issue per module that is not done. The link goes to `path`, the
  * field the module says to complete first (CalcOutput.notDonePath), else to
  * the module. A warning, so an inspection can be submitted on hold, except

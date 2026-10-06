@@ -28,6 +28,7 @@ import {
 } from "@/components/qc";
 import { SMALL_PILL_TOUCH } from "@/components/qc/status-pill";
 import {
+  fieldIssues,
   heldFileState,
   labelFor,
   type CaptureProps,
@@ -188,8 +189,8 @@ export function DocumentRow({
   const uid = useId();
   const name = labelFor(labels, item.key);
   const path = (field: keyof DocumentEntry): IssuePath => ["items", item.key, field];
-  const expiryIssue = findIssue(issues, path("expiryDate"));
-  const fileIssue = findIssue(issues, path("file"));
+  const expiryIssue = findIssue(fieldIssues(issues), path("expiryDate"));
+  const fileIssue = findIssue(fieldIssues(issues), path("file"));
   const tone = entry.status !== null && speaksOf(status, entry.status) ? SELECTED_TONE[status] : undefined;
 
   return (
@@ -210,28 +211,28 @@ export function DocumentRow({
               {labelFor(labels, "required")}
             </Badge>
           )}
+          {fileState !== "none" && (
+            <p
+              data-file-state={fileState}
+              {...issuePathProps(path("file"))}
+              className={cn(
+                "flex items-start gap-1.5 text-sm touch:text-base",
+                fileState === "missing" ? "text-warn" : "text-muted-foreground",
+              )}
+            >
+              {fileState === "missing" ? (
+                <FileXIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
+              ) : (
+                <PaperclipIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
+              )}
+              {fileState === "missing"
+                ? (fileIssue?.message ?? `${labelFor(labels, "file")} no longer with this inspection.`)
+                : `${labelFor(labels, "file")} attached`}
+            </p>
+          )}
         </div>
         <StatusPill size="sm" status={status} label={chipLabel(status, entry.status, labels)} className={SMALL_PILL_TOUCH} />
       </div>
-      {fileState !== "none" && (
-        <p
-          data-file-state={fileState}
-          {...issuePathProps(path("file"))}
-          className={cn(
-            "flex items-start gap-1.5 text-sm touch:text-base xl:col-start-1",
-            fileState === "missing" ? "text-warn" : "text-muted-foreground",
-          )}
-        >
-          {fileState === "missing" ? (
-            <FileXIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
-          ) : (
-            <PaperclipIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
-          )}
-          {fileState === "missing"
-            ? (fileIssue?.message ?? `${labelFor(labels, "file")} no longer with this inspection.`)
-            : `${labelFor(labels, "file")} attached`}
-        </p>
-      )}
 
       <div className="space-y-1.5" {...issuePathProps(path("status"))}>
         <span id={`${uid}-status`} className="text-sm font-medium touch:text-base xl:sr-only">

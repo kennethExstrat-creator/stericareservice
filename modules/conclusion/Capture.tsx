@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { findIssue, issuePathProps, StatusIcon, StatusPill, useDataUpdater, useIssueFocus } from "@/components/qc";
-import { labelFor, moduleTitle, type CaptureProps } from "@/modules/_framework";
+import { fieldIssues, labelFor, moduleTitle, type CaptureProps } from "@/modules/_framework";
 import type { ConclusionComputed, ConclusionConfig, ConclusionData } from ".";
 import { resultWord } from "./calc";
 import { isoDateOf, withDate, withFinalResult, withRemark, withSignature } from "./edit";
@@ -74,8 +74,9 @@ export default function Capture({
   const computed = evaluation?.computed;
   const suggested = computed?.suggestedResult ?? null;
   const issues = evaluation?.issues ?? [];
-  const differs = findIssue(issues, ["finalResult"]);
-  const dateIssue = findIssue(issues, ["date"]);
+  // The not-done error links to these fields too; beside them, only their own issues.
+  const differs = findIssue(fieldIssues(issues), ["finalResult"]);
+  const dateIssue = findIssue(fieldIssues(issues), ["date"]);
   const inspector = context.inspection.inspector;
   const today = () => isoDateOf(new Date());
   const ids = {

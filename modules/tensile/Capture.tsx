@@ -24,7 +24,14 @@ import {
 } from "@/components/qc";
 // The kit's touch size for small pills; not exported from @/components/qc yet.
 import { SMALL_PILL_TOUCH } from "@/components/qc/status-pill";
-import { heldFileState, initialSize, labelFor, type CaptureProps, type HeldFileState } from "@/modules/_framework";
+import {
+  fieldIssues,
+  heldFileState,
+  initialSize,
+  labelFor,
+  type CaptureProps,
+  type HeldFileState,
+} from "@/modules/_framework";
 import { ModuleFileSlot } from "@/modules/_framework/file-slot";
 import { formatMinimum, judgeAverage, MEASURE_RULES, specCaption, type TensileOutcome } from "./calc";
 import { TENSILE_MEASURES } from "./config";
@@ -118,7 +125,7 @@ export default function Capture({
                     value={value}
                     onValueChange={(next) => update((current) => withAverage(current, shown, measure, next))}
                     hint={<SpecHint caption={caption} minimum={formatMinimum(config, measure)} outcome={outcome} />}
-                    error={findIssue(evaluation?.issues, path)?.message}
+                    error={findIssue(fieldIssues(evaluation?.issues), path)?.message}
                     issuePath={path}
                     onFocus={() => {
                       setSelected(shown);

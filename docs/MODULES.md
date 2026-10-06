@@ -246,7 +246,7 @@ Readers: `samplingFor(context, size)` (empty values when missing), `cartonsFor(c
 - `message`: one sentence for the inspector, with the template's labels and the values: "Carton 578 is entered twice for size M."
 - `path`: where the problem is **inside your data**, for the link in the issue list: `["sizes", "M", 12]` is the 13th carton of size M. `[]` points at the module.
 - `size`: the size it concerns, when there is one.
-- Missing values are not issues: they make the module not done, and the framework adds one `module_not_done` issue per module, a warning, or an error that blocks submit when the module has `requiredForSubmit` (the conclusion). It links to `notDonePath` when calc gives one (the conclusion's final result choice, tensile's lab report), else to the module. Raise issues for **wrong** data.
+- Missing values are not issues: they make the module not done, and the framework adds one `module_not_done` issue per module, a warning, or an error that blocks submit when the module has `requiredForSubmit` (the conclusion). It links to `notDonePath` when calc gives one (the conclusion's final result choice, tensile's lab report), else to the module. That issue speaks of the whole module, so a Capture showing issues beside a field reads them through `fieldIssues`: `findIssue(fieldIssues(evaluation?.issues), path)`. Raise issues for **wrong** data.
 
 **What the framework does for every module**, whatever calc returns:
 

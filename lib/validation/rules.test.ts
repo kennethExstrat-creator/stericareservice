@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
   describeDataPath,
+  fieldIssues,
   FRAMEWORK_ISSUE_CODES,
   inspectorIssues,
   invalidConfigIssues,
@@ -89,6 +90,13 @@ describe("framework issues", () => {
       },
     ]);
     expect(notDoneIssues("Conclusion", { status: "warn", summary: "Final result: hold." }, true)).toEqual([]);
+  });
+
+  it("keep the not-done issue, which only links to a field, out of the issues shown beside fields", () => {
+    const linked = notDoneIssues("Conclusion", { status: "not_done", summary: "No final result." }, true, ["finalResult"]);
+    const differs = { level: "warning", code: "final_result_differs", message: "Differs.", path: ["finalResult"] };
+    expect(fieldIssues([...linked, differs])).toEqual([differs]);
+    expect(fieldIssues(undefined)).toEqual([]);
   });
 
   it("link a not-done module to the field it names", () => {

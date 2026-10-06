@@ -174,6 +174,14 @@ describe("tensile capture", () => {
     expect(html).toContain("Lab report: the file attached here is no longer with this inspection. Attach it again.");
   });
 
+  it("keeps the module's not-done warning, which links to the first empty field, out of that field", () => {
+    const data: TensileData = { ...EXAMPLE, sizes: { ...EXAMPLE.sizes, M: { tensileStrength: 34.03, elongationAtBreak: null } } };
+    expect(evaluationOf(data, CONTEXT)?.issues).toEqual([
+      expect.objectContaining({ code: "module_not_done", path: ["sizes", "M", "elongationAtBreak"] }),
+    ]);
+    expect(render({ data })).not.toContain("is not done");
+  });
+
   it("shows calc's error under the field it concerns", () => {
     const data: TensileData = { ...EXAMPLE, sizes: { ...EXAMPLE.sizes, M: { tensileStrength: 0, elongationAtBreak: 555 } } };
     expect(render({ data })).toContain("Size M: Tensile Strength (Average) (MPa) must be more than 0, not 0.");
