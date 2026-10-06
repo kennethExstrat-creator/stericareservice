@@ -490,7 +490,7 @@ describe("loadClients", () => {
     expect(bucket.createSignedUrls).not.toHaveBeenCalled();
   });
 
-  it("shows a logo it cannot sign as missing instead of failing the page", async () => {
+  it("shows a logo whose file Storage does not have as missing, instead of failing the page", async () => {
     const { client, bucket } = fakeClient(() => ({
       data: [
         { id: "a", name: "A", logo_path: "a/gone.png", notes: null, updated_at: "t", ...usageColumns(0, 0) },
@@ -500,25 +500,52 @@ describe("loadClients", () => {
     }));
     bucket.createSignedUrls.mockResolvedValueOnce({
       data: [
-        { path: "a/gone.png", signedUrl: "", error: "Object not found" },
+        {
+          path: "a/gone.png",
+          signedUrl: null as never,
+          error: "Either the object does not exist or you do not have access to it",
+        },
         { path: "b/here.png", signedUrl: "https://storage.example/b/here.png?token=t", error: null },
       ],
       error: null,
     });
 
     const rows = await loadClients(client);
-    expect(rows.map((row) => row.logo)).toEqual([{ url: null }, { url: "https://storage.example/b/here.png?token=t" }]);
+    expect(rows.map((row) => row.logo)).toEqual([
+      { url: null, problem: "missing" },
+      { url: "https://storage.example/b/here.png?token=t" },
+    ]);
   });
 
-  it("still lists the clients when Storage is down", async () => {
+  it("calls every logo unavailable, not missing, when Storage does not answer", async () => {
+    const { client, bucket } = fakeClient(() => ({
+      data: [
+        { id: "a", name: "A", logo_path: "a/x.png", notes: null, updated_at: "t", ...usageColumns(0, 0) },
+        { id: "b", name: "B", logo_path: "b/y.png", notes: null, updated_at: "t", ...usageColumns(0, 0) },
+        { id: "c", name: "C", logo_path: null, notes: null, updated_at: "t", ...usageColumns(0, 0) },
+      ],
+      error: null,
+    }));
+    bucket.createSignedUrls.mockResolvedValueOnce({ data: null as never, error: { message: "fetch failed" } });
+
+    const rows = await loadClients(client);
+
+    expect(rows.map((row) => row.logo)).toEqual([
+      { url: null, problem: "unavailable" },
+      { url: null, problem: "unavailable" },
+      null,
+    ]);
+    expect(console.error).toHaveBeenCalled();
+  });
+
+  it("calls a logo Storage left out of its answer unavailable", async () => {
     const { client, bucket } = fakeClient(() => ({
       data: [{ id: "a", name: "A", logo_path: "a/x.png", notes: null, updated_at: "t", ...usageColumns(0, 0) }],
       error: null,
     }));
-    bucket.createSignedUrls.mockResolvedValueOnce({ data: null as never, error: { message: "unavailable" } });
+    bucket.createSignedUrls.mockResolvedValueOnce({ data: [], error: null });
     const rows = await loadClients(client);
-    expect(rows[0].logo).toEqual({ url: null });
-    expect(console.error).toHaveBeenCalled();
+    expect(rows[0].logo).toEqual({ url: null, problem: "unavailable" });
   });
 });
 

@@ -1,6 +1,6 @@
 // The page as the server renders it: the role check comes first, then the
 // list with its logos, and the states the live database cannot show on
-// demand (no clients, a logo whose file has gone).
+// demand (no clients, a logo whose file has gone, Storage not answering).
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClientItem } from "@/lib/admin/reference";
@@ -84,9 +84,18 @@ describe("/admin/clients", () => {
     expect(html).toContain("2 clients");
   });
 
-  it("says when a stored logo cannot be shown", async () => {
-    const html = await render([{ ...polyco, logo: { url: null } }]);
+  it("says when a stored logo's file is missing", async () => {
+    const html = await render([{ ...polyco, logo: { url: null, problem: "missing" } }]);
     expect(html).toContain("Missing");
+    expect(html).not.toContain("Unavailable");
+    expect(html).not.toContain("<img");
+  });
+
+  it("does not call logos missing when Storage could not be asked for previews", async () => {
+    const html = await render([{ ...polyco, logo: { url: null, problem: "unavailable" } }]);
+    expect(html).toContain("Unavailable");
+    expect(html).toContain('title="Logo preview unavailable. Reload to try again."');
+    expect(html).not.toContain("Missing");
     expect(html).not.toContain("<img");
   });
 

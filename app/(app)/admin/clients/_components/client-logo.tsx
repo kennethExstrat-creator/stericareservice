@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useId, useRef, useState } from "react";
-import { ImageIcon, ImageOffIcon, OctagonXIcon, Trash2Icon, UploadIcon } from "lucide-react";
+import { CloudOffIcon, ImageIcon, ImageOffIcon, OctagonXIcon, Trash2Icon, UploadIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -86,20 +86,26 @@ export function ClientLogo({ clientId, clientName, logo, onPendingChange }: Clie
   return (
     <PanelSection title="Logo" titleId={titleId}>
       <div className="flex h-36 items-center justify-center overflow-hidden rounded-lg bg-white p-4 ring-1 ring-border">
-        {logo?.url ? (
+        {!logo ? (
+          <p className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
+            <ImageIcon aria-hidden className="size-6" />
+            No logo yet
+          </p>
+        ) : logo.url !== null ? (
           // A signed URL from a private bucket: next/image would need the
           // Supabase host in remotePatterns and would proxy every token.
           // eslint-disable-next-line @next/next/no-img-element
           <img src={logo.url} alt={`${clientName} logo`} className="max-h-full max-w-full object-contain" />
-        ) : logo ? (
+        ) : logo.problem === "unavailable" ? (
+          // Storage did not answer: the file is probably fine, so no call to replace it.
+          <p className="flex flex-col items-center gap-2 text-center text-sm text-muted-foreground">
+            <CloudOffIcon aria-hidden className="size-6" />
+            Logo preview unavailable. Reload to try again.
+          </p>
+        ) : (
           <p className="flex flex-col items-center gap-2 text-center text-sm font-medium text-warn">
             <ImageOffIcon aria-hidden className="size-6" />
             The logo file is missing. Upload it again.
-          </p>
-        ) : (
-          <p className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
-            <ImageIcon aria-hidden className="size-6" />
-            No logo yet
           </p>
         )}
       </div>

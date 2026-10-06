@@ -1,6 +1,6 @@
 "use client";
 
-import { ImageOffIcon } from "lucide-react";
+import { CloudOffIcon, ImageOffIcon } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { oneLine, type ClientItem, type LogoPreview } from "@/lib/admin/reference";
 import { cn } from "@/lib/utils";
@@ -73,7 +73,8 @@ export function ClientsTable({
 
 /**
  * A logo in its own white box, scaled to fit. The name sits next to it, so
- * the image is decorative here; the words say when there is none.
+ * the image is decorative here; the words say when there is none, when its
+ * file is missing, and when Storage could not be asked for a preview.
  */
 export function LogoThumbnail({ logo }: { logo: LogoPreview | null }) {
   const box = "flex h-8 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md touch:h-10 touch:w-20";
@@ -84,8 +85,17 @@ export function LogoThumbnail({ logo }: { logo: LogoPreview | null }) {
       </span>
     );
   }
-  if (!logo.url) {
-    return (
+  if (logo.url === null) {
+    return logo.problem === "unavailable" ? (
+      // The file may be fine: Storage did not answer. Wider, so the word fits.
+      <span
+        className={cn(box, "w-auto gap-1 border border-border bg-slate-50 px-2 text-xs text-muted-foreground touch:w-auto")}
+        title="Logo preview unavailable. Reload to try again."
+      >
+        <CloudOffIcon aria-hidden className="size-3.5" />
+        Unavailable
+      </span>
+    ) : (
       <span className={cn(box, "gap-1 border border-warn-border bg-warn-tint text-xs font-medium text-warn")}>
         <ImageOffIcon aria-hidden className="size-3.5" />
         Missing

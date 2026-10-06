@@ -380,8 +380,16 @@ export type ManufacturerItem = {
   usage: Usage;
 };
 
-/** A stored logo. `url` is a signed preview link, or null when the file could not be signed (missing). */
-export type LogoPreview = { url: string | null };
+/**
+ * A stored logo as the page shows it: a signed preview link, or why there is
+ * none. "missing": Storage has no file by the logo's name, so it needs
+ * uploading again. "unavailable": no links could be made just now (Storage
+ * did not answer), so the file itself may well be fine.
+ */
+export type LogoPreview = { url: string } | { url: null; problem: "missing" | "unavailable" };
+
+const LOGO_MISSING: LogoPreview = { url: null, problem: "missing" };
+const LOGO_UNAVAILABLE: LogoPreview = { url: null, problem: "unavailable" };
 
 /** One client as the admin page shows it. The logo's object name stays on the server. */
 export type ClientItem = {
@@ -421,7 +429,7 @@ export async function loadClients(supabase: DatabaseClient): Promise<ClientItem[
     .select("id, name, logo_path, notes, updated_at, templates(count), inspections(count)");
   if (error) throw new Error(`Could not load the clients: ${error.message}`);
 
-  const urls = await signLogos(
+  const previews = await signLogos(
     supabase,
     data.flatMap((row) => (row.logo_path ? [row.logo_path] : [])),
   );
@@ -432,29 +440,32 @@ export async function loadClients(supabase: DatabaseClient): Promise<ClientItem[
       notes: row.notes,
       updatedAt: row.updated_at,
       usage: usageOf(row),
-      logo: row.logo_path ? { url: urls.get(row.logo_path) ?? null } : null,
+      logo: row.logo_path ? (previews.get(row.logo_path) ?? LOGO_UNAVAILABLE) : null,
     }))
     .sort((a, b) => byName.compare(a.name, b.name));
 }
 
 /**
- * Signed preview links by object name. A name that cannot be signed (its file
- * is missing, or Storage is down) is left out: the page says the logo is
- * unavailable rather than failing.
+ * Logo previews by object name, signed in one call. The page never fails
+ * over a logo: a file Storage does not have is "missing" (upload it again),
+ * and when Storage does not answer at all every logo is "unavailable" (reload
+ * later), so an outage never asks admins to replace logos that are fine.
  */
-export async function signLogos(supabase: DatabaseClient, paths: readonly string[]): Promise<Map<string, string>> {
-  const urls = new Map<string, string>();
-  if (paths.length === 0) return urls;
+export async function signLogos(supabase: DatabaseClient, paths: readonly string[]): Promise<Map<string, LogoPreview>> {
+  const previews = new Map<string, LogoPreview>();
+  if (paths.length === 0) return previews;
 
   const { data, error } = await supabase.storage.from(CLIENT_LOGOS_BUCKET).createSignedUrls([...paths], LOGO_URL_SECONDS);
   if (error) {
     console.error("[admin/reference] could not sign client logos", error.message);
-    return urls;
+    for (const path of paths) previews.set(path, LOGO_UNAVAILABLE);
+    return previews;
   }
+  // Storage answers each name it cannot find with an error of its own.
   for (const item of data) {
-    if (item.path && item.signedUrl && !item.error) urls.set(item.path, item.signedUrl);
+    if (item.path) previews.set(item.path, item.signedUrl && !item.error ? { url: item.signedUrl } : LOGO_MISSING);
   }
-  return urls;
+  return previews;
 }
 
 /** A manufacturer by id with its usage counts, or null when it does not exist. */
