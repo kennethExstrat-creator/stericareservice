@@ -3,7 +3,7 @@
 // not the gloves per inner unit times the inner units per case (6.1): that
 // check is computed, never typed (rule 2). The counts reach order_lots and
 // the sampling plan through the context.
-import { formatCount } from "@/lib/format";
+import { formatCount } from "@/lib/aql";
 import {
   errorIssue,
   labelFor,

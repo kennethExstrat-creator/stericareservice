@@ -5,7 +5,7 @@
 // context. Totals are computed, never typed (rule 2): cartons from the
 // quantities, gloves with the gloves per case that packing_config puts in the
 // context.
-import { formatCount } from "@/lib/format";
+import { formatCount } from "@/lib/aql";
 import { normaliseSize, orderSizes, SIZE_HINT } from "@/lib/sizes";
 import {
   errorIssue,
@@ -114,17 +114,18 @@ export function calcOrderLots({
   );
 
   const missing = missingValues(rows, config, labels, context);
-  if (ordered.length === 0 && missing.length === 0) {
+  if (missing.length > 0) {
+    return { result: { ...notDone(sentence(`Missing: ${missing.join("; ")}`)), perSize }, computed, issues };
+  }
+  if (totalCartons === null) {
     return {
       result: notDone(`No size ordered yet: enter the ${labelFor(labels, "qtyCases")} of each size in the order.`),
       computed,
       issues,
     };
   }
-  if (missing.length > 0) {
-    return { result: { ...notDone(sentence(`Missing: ${missing.join("; ")}`)), perSize }, computed, issues };
-  }
-  return { result: { status: "info", summary: summarise(ordered, computed, labels, context), perSize }, computed, issues };
+  const summary = summarise(ordered, { cartons: totalCartons, gloves: computed.totalGloves }, labels, context);
+  return { result: { status: "info", summary, perSize }, computed, issues };
 }
 
 /** The ordered sizes, with their quantities and lots, for every other module (6.2 rule 4). */
@@ -251,16 +252,16 @@ function rowResult(row: OrderedRow, config: OrderLotsConfig, labels: Labels): Pe
 /** "Sizes XS, S, M, L. Total # carton 1,530; Total # gloves 3,060,000." */
 function summarise(
   ordered: readonly OrderedRow[],
-  computed: OrderLotsComputed,
+  totals: { cartons: number; gloves: number | null },
   labels: Labels,
   context: InspectionContext,
 ): string {
   const sizes = `Size${ordered.length > 1 ? "s" : ""} ${ordered.map((row) => sizeLabel(context, row.size)).join(", ")}`;
-  const cartons = `${labelFor(labels, "totalCartons")} ${formatCount(computed.totalCartons)}`;
+  const cartons = `${labelFor(labels, "totalCartons")} ${formatCount(totals.cartons)}`;
   const gloves =
-    computed.totalGloves === null
+    totals.gloves === null
       ? `${labelFor(labels, "totalGloves")}: waiting for the gloves per case`
-      : `${labelFor(labels, "totalGloves")} ${formatCount(computed.totalGloves)}`;
+      : `${labelFor(labels, "totalGloves")} ${formatCount(totals.gloves)}`;
   return `${sizes}. ${cartons}; ${gloves}.`;
 }
 
