@@ -468,11 +468,9 @@ export function classLabel(labels: Labels, cls: DefectClass): string {
  * everywhere (`bead_defective`) without rewriting the list.
  */
 export function defectLabel(labels: Labels, cls: DefectClass, defect: VisualDefect): string {
-  for (const key of [`${cls}.${defect.code}`, defect.code]) {
-    const own = labels[key];
-    if (own !== undefined && own.trim() !== "") return own;
-  }
-  return defect.label;
+  // labelFor gives the code itself when the labels do not word it: the list's wording stands.
+  const own = labelFor(labels, cls, defect.code);
+  return own === defect.code ? defect.label : own;
 }
 
 function zeroCounts(defects: readonly VisualDefect[]): Record<string, number> {

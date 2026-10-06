@@ -391,6 +391,9 @@ describe("watertight", () => {
     const output = calcWatertight(input({ M: { tested: 500, holes: { hole_finger: 1 } } }, { labels }));
     expect(output.result.perSize?.M?.summary).toBe("1 / 500 (Fingertip 1), Limit 14 / 15: Passed.");
     expect(output.computed.locations.find((location) => location.code === "hole_finger")?.label).toBe("Fingertip");
+    // A blank label leaves the list's own wording.
+    const blank = calcWatertight(input({ M: { tested: 500 } }, { labels: { ...WATERTIGHT_LABELS, hole_palm: " " } }));
+    expect(blank.computed.locations.find((location) => location.code === "hole_palm")?.label).toBe("Palm");
     expect(calcWatertight(input({ M: {} }, { labels })).result.perSize?.M?.summary).toBe(
       "Missing: Gloves tested (sampling plan: 500).",
     );

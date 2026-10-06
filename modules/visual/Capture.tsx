@@ -7,7 +7,9 @@
 // sub-columns when the template splits hands. Code letters, limits, totals
 // and the accept/reject chips are calc's (6.2 rule 2) and follow every tap.
 // A class stays not done for a size until its gloves inspected are entered:
-// the inspector's word that the size was inspected (6.2 rule 5).
+// the inspector's word that the size was inspected (6.2 rule 5). Every
+// change goes through useDataUpdater and starts from the latest data, so a
+// pasted column or two taps in one event all land (docs/CAPTURE_KIT.md).
 import { useRef, useState } from "react";
 import {
   CounterTable,
@@ -19,10 +21,12 @@ import {
   ModuleSection,
   NumberField,
   SizeTabs,
+  useDataUpdater,
   useIssueFocus,
   type CounterCell,
   type CounterColumn,
   type CounterRow,
+  type DataChange,
   type HandView,
   type IssuePath,
 } from "@/components/qc";
@@ -50,6 +54,16 @@ import { DEFECT_CLASSES, type DefectClass } from "./schema";
 
 type Props = CaptureProps<VisualData, VisualConfig, VisualComputed>;
 
+/**
+ * A size's own block beside the tables: shown for the size on the tab, and
+ * for every size from 1280 px only while SizeTabs shows the sizes side by
+ * side (it marks itself data-side-by-side, and keeps its tabs where a table
+ * does not fit, such as a hand split over many sizes), as the tables do.
+ */
+const OTHER_SIZE = "hidden xl:in-data-[side-by-side]:block";
+/** The size in a label: read out always, shown where the sizes sit side by side. */
+const SIZE_IN_LABEL = "sr-only xl:in-data-[side-by-side]:not-sr-only";
+
 export default function VisualCapture({
   data,
   config,
@@ -62,6 +76,7 @@ export default function VisualCapture({
   onFocusChange,
 }: Props) {
   const root = useRef<HTMLDivElement>(null);
+  const update = useDataUpdater(data, onChange);
   const sizes = context.sizes;
   const [chosen, setChosen] = useState(sizes[0] ?? "");
   const size = sizes.includes(chosen) ? chosen : (sizes[0] ?? "");
@@ -73,9 +88,10 @@ export default function VisualCapture({
     root,
     reveal: (path) => {
       const [first, target, hand] = path;
+      // size_not_ordered and size_duplicate point at sizes that are not on screen: stay put.
       if (first !== "sizes" || typeof target !== "string" || !sizes.includes(target)) return;
       setChosen(target);
-      if ((hand === "R" || hand === "L") && view !== "both" && view !== hand) setView(hand);
+      if (hand === "R" || hand === "L") setView((current) => (current === "both" ? current : hand));
     },
   });
 
@@ -117,7 +133,8 @@ export default function VisualCapture({
           ) : undefined
         }
       >
-        <div className="space-y-6">
+        {/* One run: Enter goes from one class's gloves inspected to the next, and a pasted column fills them. */}
+        <EnterGroup className="space-y-6">
           <div className="space-y-2 text-sm text-muted-foreground touch:text-base">
             <p>
               {labelFor(labels, "codeLetter")} {evaluation?.computed.codeLetters ?? "–"}
@@ -125,25 +142,28 @@ export default function VisualCapture({
             <div className="flex flex-wrap gap-x-6 gap-y-2">
               {sizes.map((entry) => {
                 const planned = samplingFor(context, entry).watertightVisual;
-                const missing = included.filter((cls) => (data.sizes[entry]?.[cls].inspected ?? null) === null);
+                const missing = included.some((cls) => (data.sizes[entry]?.[cls].inspected ?? null) === null);
                 return (
                   // Also where an issue about the whole size points.
                   <div
                     key={entry}
-                    className={cn("relative flex flex-wrap items-center gap-2", entry !== size && "max-xl:hidden")}
+                    className={cn(
+                      "relative flex-wrap items-center gap-2",
+                      entry === size ? "flex" : "hidden xl:in-data-[side-by-side]:flex",
+                    )}
                     {...issuePathProps(["sizes", entry])}
                   >
                     {planned !== null && (
                       <span>
-                        <span className="max-xl:sr-only">Size {sizeName(entry)}: </span>Sampling plan: {planned}
+                        <span className={SIZE_IN_LABEL}>Size {sizeName(entry)}: </span>Sampling plan: {planned}
                       </span>
                     )}
-                    {!readOnly && planned !== null && missing.length > 0 && (
+                    {!readOnly && planned !== null && missing && (
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => onChange(fillInspected(data, entry, missing, planned))}
+                        onClick={() => update((current) => fillInspected(current, entry, included, planned))}
                       >
                         Use {planned} for every class
                         <span className="sr-only"> of size {sizeName(entry)}</span>
@@ -166,24 +186,26 @@ export default function VisualCapture({
               context={context}
               evaluation={evaluation}
               readOnly={readOnly}
-              onChange={onChange}
+              update={update}
               onFocusChange={onFocusChange}
               size={size}
               split={split}
               shownHands={shownHands}
             />
           ))}
-        </div>
+        </EnterGroup>
       </SizeTabs>
     </div>
   );
 }
 
-type SectionProps = Pick<Props, "data" | "labels" | "context" | "evaluation" | "readOnly" | "onChange" | "onFocusChange"> & {
+type SectionProps = Pick<Props, "data" | "labels" | "context" | "evaluation" | "readOnly" | "onFocusChange"> & {
   cls: DefectClass;
   heading: string;
   defects: VisualComputed["classes"]["major"]["defects"];
-  /** The size on the tab: the only column below 1280 px. */
+  /** The module's one way to change its data (useDataUpdater). */
+  update: (change: DataChange<VisualData>) => void;
+  /** The size on the tab. */
   size: string;
   split: boolean;
   shownHands: Hand[];
@@ -199,7 +221,7 @@ function ClassSection({
   context,
   evaluation,
   readOnly,
-  onChange,
+  update,
   onFocusChange,
   size,
   split,
@@ -226,6 +248,7 @@ function ClassSection({
       n: data.sizes[entry]?.[cls].inspected ?? null,
       limits:
         values && values.accept !== null && values.reject !== null ? { ac: values.accept, re: values.reject } : null,
+      // The class's result for the size, never the size's (docs/CAPTURE_KIT.md).
       status: values?.result,
     };
   });
@@ -240,8 +263,10 @@ function ClassSection({
   };
   const writeCell = (cell: CounterCell, count: number) => {
     const label = oneOffByRow.get(cell.row);
-    onChange(
-      label === undefined ? setCount(data, cellOf(cell), cell.row, count) : setOneOff(data, cellOf(cell), label, count),
+    update((current) =>
+      label === undefined
+        ? setCount(current, cellOf(cell), cell.row, count)
+        : setOneOff(current, cellOf(cell), label, count),
     );
   };
   const cellPath = (cell: CounterCell): IssuePath => {
@@ -253,8 +278,8 @@ function ClassSection({
   };
   const addRow = (label: string) => {
     const cell: DefectCell = split ? { size, cls, hand: shownHands[0] } : { size, cls };
-    const next = addOneOff(data, cell, label, defects, sizes, split);
-    if (next !== data) onChange(next);
+    // Unchanged (the label is already a row of the class) is no change at all.
+    update((current) => addOneOff(current, cell, label, defects, sizes, split));
   };
   const errorAt = (path: IssuePath) =>
     findIssue(
@@ -265,14 +290,14 @@ function ClassSection({
 
   return (
     <ModuleSection title={heading}>
-      <EnterGroup className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[repeat(auto-fill,minmax(14rem,1fr))]">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[repeat(auto-fill,minmax(14rem,1fr))]">
         {sizes.map((entry) => {
           const path: IssuePath = ["sizes", entry, cls, "inspected"];
           const planned = samplingFor(context, entry).watertightVisual;
           return (
             <div
               key={entry}
-              className={cn("relative min-w-0", entry !== size && "max-xl:hidden")}
+              className={cn("relative min-w-0", entry !== size && OTHER_SIZE)}
               {...issuePathProps(["sizes", entry, cls])}
             >
               <NumberField
@@ -280,11 +305,11 @@ function ClassSection({
                   <>
                     {labelFor(labels, "inspected")}
                     <span className="sr-only">, {classLabel(labels, cls)}</span>
-                    <span className="max-xl:sr-only">, size {formatSize(entry, { sizes: context.templateSizes })}</span>
+                    <span className={SIZE_IN_LABEL}>, size {formatSize(entry, { sizes: context.templateSizes })}</span>
                   </>
                 }
                 value={data.sizes[entry]?.[cls].inspected ?? null}
-                onValueChange={(inspected) => onChange(setInspected(data, entry, cls, inspected))}
+                onValueChange={(inspected) => update((current) => setInspected(current, entry, cls, inspected))}
                 integer
                 min={2}
                 placeholder={planned === null ? undefined : String(planned)}
@@ -296,7 +321,7 @@ function ClassSection({
             </div>
           );
         })}
-      </EnterGroup>
+      </div>
 
       <CounterTable
         caption={heading}

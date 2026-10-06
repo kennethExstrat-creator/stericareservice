@@ -66,6 +66,11 @@ export function setTested(data: WatertightData, size: string, tested: number | n
   return withSize(data, size, { ...sizeOf(data, size), tested });
 }
 
+/** The sampling plan's n for a size that has no gloves tested yet; one entered stays. */
+export function fillTested(data: WatertightData, size: string, n: number): WatertightData {
+  return sizeOf(data, size).tested === null ? setTested(data, size, n) : data;
+}
+
 export function setOtherDescription(data: WatertightData, cell: HoleCell, text: string): WatertightData {
   return withHand(data, cell, (record) => ({ ...record, otherDescription: text.trim() === "" ? null : text }));
 }

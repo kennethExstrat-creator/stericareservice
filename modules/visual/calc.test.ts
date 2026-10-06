@@ -313,6 +313,8 @@ describe("visual", () => {
       expect(defectLabel({ "minor.bead_defective": "Bead defect" }, "minor", bead)).toBe("Bead defect");
       expect(defectLabel({ "minor.bead_defective": "Bead defect" }, "major", bead)).toBe("Defective bead");
       expect(defectLabel({ bead_defective: "Bead flaw" }, "major", bead)).toBe("Bead flaw");
+      expect(defectLabel({ "major.bead_defective": " " }, "major", bead)).toBe("Defective bead");
+      expect(defectLabel({}, "major", bead)).toBe("Defective bead");
       expect(classLabel({ ...VISUAL_LABELS, majorCounts: "Major defect" }, "major")).toBe("Major defect");
     });
 

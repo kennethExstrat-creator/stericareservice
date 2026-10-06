@@ -118,7 +118,7 @@ describe("watertight capture", () => {
     expect(entered).toContain('data-issue-path="[&quot;sizes&quot;,&quot;M&quot;,&quot;tested&quot;]"');
   });
 
-  it("shows the gloves tested field of every size from 1280 px and only the tab's size below", () => {
+  it("shows the tab's gloves tested field, and every size's only where SizeTabs puts the sizes side by side", () => {
     const sizes = ["S", "M"];
     const html = render({
       sizes: {},
@@ -126,8 +126,11 @@ describe("watertight capture", () => {
     });
     const fields = tagsWith(html, "data-issue-path=\"\\[&quot;sizes&quot;,&quot;[SM]&quot;\\]\"");
     expect(fields).toHaveLength(2);
-    expect(fields[0]).not.toContain("max-xl:hidden");
-    expect(fields[1]).toContain("max-xl:hidden");
+    expect(fields[0]).not.toContain("hidden");
+    // From 1280 px SizeTabs marks itself data-side-by-side while the table fits; it keeps its tabs otherwise.
+    expect(fields[1]).toContain("hidden xl:in-data-[side-by-side]:block");
+    expect(tagsWith(html, 'data-slot="size-tabs"')[0]).toContain("data-side-by-side");
+    expect(html).toContain('No. of sample tested<span class="sr-only xl:in-data-[side-by-side]:not-sr-only">, size M</span>');
   });
 
   it("splits each size into right and left hands with a hand toggle (surgical templates)", () => {

@@ -355,9 +355,10 @@ export function effectiveAql(config: Pick<WatertightConfig, "aql">, context: Pic
  * one location through its labels, keyed by code, without rewriting the list.
  */
 export function effectiveLocations(config: Pick<WatertightConfig, "locations">, labels: Labels): HoleLocation[] {
-  return config.locations.map((location) => {
-    const own = labels[location.code];
-    return { code: location.code, label: own !== undefined && own.trim() !== "" ? own : location.label };
+  return config.locations.map(({ code, label }) => {
+    // labelFor gives the code itself when the labels do not word it: the list's wording stands.
+    const own = labelFor(labels, code);
+    return { code, label: own === code ? label : own };
   });
 }
 

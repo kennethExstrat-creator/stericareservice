@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { WATERTIGHT_DEFAULT_CONFIG } from "./config";
 import {
   addOneOff,
+  fillTested,
   labelKey,
   oneOffLabels,
   oneOffRowKey,
@@ -38,6 +39,12 @@ describe("watertight edits", () => {
     expect(next.sizes.XS).toBe(start.sizes.XS);
     expect(next.sizes.M.tested).toBe(500);
     expect(setTested(next, "M", null).sizes.M.tested).toBeNull();
+  });
+
+  it("fills the sampling plan's n only into a size without gloves tested, keeping one entered", () => {
+    const start = data({ S: { tested: 125 } });
+    expect(fillTested(start, "M", 500).sizes).toMatchObject({ S: { tested: 125 }, M: { tested: 500 } });
+    expect(fillTested(start, "S", 200)).toBe(start);
   });
 
   it("starts a size that has no entry yet", () => {

@@ -6,7 +6,9 @@
 // sub-columns when the template splits hands. Code letters, limits, totals
 // and the accept/reject chips are calc's (6.2 rule 2) and follow every tap.
 // A size stays not done until its gloves tested are entered: the
-// inspector's word that the size was tested (6.2 rule 5).
+// inspector's word that the size was tested (6.2 rule 5). Every change goes
+// through useDataUpdater and starts from the latest data, so a pasted column
+// of gloves tested or two taps in one event all land (docs/CAPTURE_KIT.md).
 import { useId, useRef, useState } from "react";
 import {
   CounterTable,
@@ -17,6 +19,7 @@ import {
   issuePathProps,
   NumberField,
   SizeTabs,
+  useDataUpdater,
   useIssueFocus,
   type CounterCell,
   type CounterColumn,
@@ -36,6 +39,7 @@ import { aqlCaption, effectiveAql, effectiveLocations } from "./calc";
 import { OTHER_LOCATION } from "./config";
 import {
   addOneOff,
+  fillTested,
   oneOffLabels,
   oneOffRowKey,
   readHoles,
@@ -50,6 +54,16 @@ import {
 
 type Props = CaptureProps<WatertightData, WatertightConfig, WatertightComputed>;
 
+/**
+ * A size's own block beside the table: shown for the size on the tab, and for
+ * every size from 1280 px only while SizeTabs shows the sizes side by side
+ * (it marks itself data-side-by-side, and keeps its tabs where the table
+ * does not fit, such as a hand split over many sizes), as the table does.
+ */
+const OTHER_SIZE = "hidden xl:in-data-[side-by-side]:block";
+/** The size in a label: read out always, shown where the sizes sit side by side. */
+const SIZE_IN_LABEL = "sr-only xl:in-data-[side-by-side]:not-sr-only";
+
 export default function WatertightCapture({
   data,
   config,
@@ -63,6 +77,7 @@ export default function WatertightCapture({
   onFocusChange,
 }: Props) {
   const root = useRef<HTMLDivElement>(null);
+  const update = useDataUpdater(data, onChange);
   const sizes = context.sizes;
   const [chosen, setChosen] = useState(sizes[0] ?? "");
   const size = sizes.includes(chosen) ? chosen : (sizes[0] ?? "");
@@ -74,9 +89,10 @@ export default function WatertightCapture({
     root,
     reveal: (path) => {
       const [first, target, hand] = path;
+      // size_not_ordered and size_duplicate point at sizes that are not on screen: stay put.
       if (first !== "sizes" || typeof target !== "string" || !sizes.includes(target)) return;
       setChosen(target);
-      if ((hand === "R" || hand === "L") && view !== "both" && view !== hand) setView(hand);
+      if (hand === "R" || hand === "L") setView((current) => (current === "both" ? current : hand));
     },
   });
 
@@ -102,6 +118,7 @@ export default function WatertightCapture({
       n: data.sizes[entry]?.tested ?? null,
       limits:
         values && values.accept !== null && values.reject !== null ? { ac: values.accept, re: values.reject } : null,
+      // One table per size: the size's result is the table's (docs/CAPTURE_KIT.md).
       status: results?.[entry]?.status,
     };
   });
@@ -116,8 +133,10 @@ export default function WatertightCapture({
   };
   const writeCell = (cell: CounterCell, count: number) => {
     const label = oneOffByRow.get(cell.row);
-    onChange(
-      label === undefined ? setHoles(data, cellOf(cell), cell.row, count) : setOneOff(data, cellOf(cell), label, count),
+    update((current) =>
+      label === undefined
+        ? setHoles(current, cellOf(cell), cell.row, count)
+        : setOneOff(current, cellOf(cell), label, count),
     );
   };
   const cellPath = (cell: CounterCell): IssuePath => {
@@ -128,8 +147,9 @@ export default function WatertightCapture({
     return found ? [...base, "unmapped", found.index] : [...base, "unmapped"];
   };
   const addRow = (label: string) => {
-    const next = addOneOff(data, split ? { size, hand: shownHands[0] } : { size }, label, locations, sizes, split);
-    if (next !== data) onChange(next);
+    const cell: HoleCell = split ? { size, hand: shownHands[0] } : { size };
+    // Unchanged (the label is already a row) is no change at all.
+    update((current) => addOneOff(current, cell, label, locations, sizes, split));
   };
   const errorAt = (path: IssuePath) =>
     findIssue(
@@ -176,9 +196,10 @@ export default function WatertightCapture({
                 tested={data.sizes[entry]?.tested ?? null}
                 planned={samplingFor(context, entry).watertightVisual}
                 error={errorAt(["sizes", entry, "tested"])}
-                hidden={entry !== size}
+                onTab={entry === size}
                 readOnly={readOnly}
-                onTestedChange={(tested) => onChange(setTested(data, entry, tested))}
+                onTestedChange={(tested) => update((current) => setTested(current, entry, tested))}
+                onUsePlanned={(planned) => update((current) => fillTested(current, entry, planned))}
                 onFocus={() => onFocusChange?.({ size: entry })}
               />
             ))}
@@ -239,9 +260,9 @@ export default function WatertightCapture({
                     path={path}
                     value={text}
                     note={findIssue(evaluation?.issues, path)?.message ?? null}
-                    hidden={entry !== size}
+                    onTab={entry === size}
                     readOnly={readOnly}
-                    onValueChange={(next) => onChange(setOtherDescription(data, cell, next))}
+                    onValueChange={(next) => update((current) => setOtherDescription(current, cell, next))}
                     onFocus={() =>
                       onFocusChange?.({ size: entry, ...(hand ? { hand } : {}), defect: OTHER_LOCATION })
                     }
@@ -263,9 +284,10 @@ function TestedField({
   tested,
   planned,
   error,
-  hidden,
+  onTab,
   readOnly,
   onTestedChange,
+  onUsePlanned,
   onFocus,
 }: {
   label: string;
@@ -274,19 +296,20 @@ function TestedField({
   tested: number | null;
   planned: number | null;
   error: string | null;
-  hidden: boolean;
+  /** The size on the tab; the others show only where the sizes sit side by side. */
+  onTab: boolean;
   readOnly: boolean;
   onTestedChange: (tested: number | null) => void;
+  onUsePlanned: (planned: number) => void;
   onFocus: () => void;
 }) {
   return (
-    // Below 1280 px only the size on the tab shows; from 1280 px every size does, side by side.
-    <div className={cn("relative min-w-0 space-y-2", hidden && "max-xl:hidden")} {...issuePathProps(path)}>
+    <div className={cn("relative min-w-0 space-y-2", !onTab && OTHER_SIZE)} {...issuePathProps(path)}>
       <NumberField
         label={
           <>
             {label}
-            <span className="max-xl:sr-only">, size {sizeName}</span>
+            <span className={SIZE_IN_LABEL}>, size {sizeName}</span>
           </>
         }
         value={tested}
@@ -303,7 +326,7 @@ function TestedField({
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground touch:text-base">
           <span>Sampling plan: {planned}</span>
           {!readOnly && tested === null && (
-            <Button type="button" variant="outline" size="sm" onClick={() => onTestedChange(planned)}>
+            <Button type="button" variant="outline" size="sm" onClick={() => onUsePlanned(planned)}>
               Use {planned}
               <span className="sr-only"> for size {sizeName}</span>
             </Button>
@@ -321,7 +344,7 @@ function OtherField({
   path,
   value,
   note,
-  hidden,
+  onTab,
   readOnly,
   onValueChange,
   onFocus,
@@ -331,14 +354,15 @@ function OtherField({
   path: IssuePath;
   value: string;
   note: string | null;
-  hidden: boolean;
+  /** The size on the tab; the others show only where the sizes sit side by side. */
+  onTab: boolean;
   readOnly: boolean;
   onValueChange: (value: string) => void;
   onFocus: () => void;
 }) {
   const id = useId();
   return (
-    <div className={cn("relative max-w-xl space-y-1.5", hidden && "max-xl:hidden")} {...issuePathProps(path)}>
+    <div className={cn("relative max-w-xl space-y-1.5", !onTab && OTHER_SIZE)} {...issuePathProps(path)}>
       <Label htmlFor={id} className="leading-snug touch:text-base">
         {label} <span className="font-normal text-muted-foreground">({where})</span>
       </Label>
