@@ -28,7 +28,7 @@ import {
 import { suggestResult, type SuggestedResult } from "@/lib/validation/suggested-result";
 import type { AnyModuleDefinition, JsonObject, ModuleRegistry } from "./contract";
 import type { InspectionContext } from "./context";
-import { readModuleEntry, type InspectionData } from "./data";
+import { parseModuleData, readModuleEntry, type InspectionData } from "./data";
 import { effectiveLabels } from "./labels";
 import { calcOrder, resultsFor } from "./order";
 import { parseCanonicalPath, readPath } from "./paths";
@@ -40,7 +40,11 @@ export type ModuleEvaluation<TComputed extends JsonObject = JsonObject> = {
   labels: Readonly<Record<string, string>>;
   /** Effective config as parsed; the template's raw config when it is invalid. */
   config: unknown;
-  /** Saved data as parsed, ordered sizes only: what the export shows. Null when unreadable. */
+  /**
+   * Saved data as parsed, ordered sizes only: what calc saw and the export
+   * shows. Null when unreadable. Not for Capture, which edits every saved
+   * size (parseModuleData).
+   */
   data: unknown;
   hasData: boolean;
   comment: string | null;
@@ -146,7 +150,7 @@ function evaluateModule(
     if (!config.success) {
       return broken(resolved.config, null, "Template settings are invalid.", invalidConfigIssues(title, config.error));
     }
-    const parsed = definition.dataSchema.safeParse(entry.hasData ? entry.value : definition.emptyData());
+    const parsed = parseModuleData(definition, entry);
     if (!parsed.success) {
       return broken(config.data, null, "Saved data could not be read.", invalidDataIssues(title, parsed.error));
     }

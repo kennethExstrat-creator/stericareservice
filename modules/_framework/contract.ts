@@ -66,6 +66,11 @@ export interface CaptureFocus {
 
 /** Props of `modules/<key>/Capture.tsx`. */
 export interface CaptureProps<TData = unknown, TConfig = unknown, TComputed extends JsonObject = JsonObject> {
+  /**
+   * Your saved data parsed with your schema (parseModuleData), every saved
+   * size included: not `evaluation.data`, which keeps ordered sizes only.
+   * Show only `context.sizes`.
+   */
   readonly data: TData;
   readonly config: TConfig;
   /** Read-only on screen: section and result labels come from the template (6.2 rule 11). */
@@ -79,7 +84,12 @@ export interface CaptureProps<TData = unknown, TConfig = unknown, TComputed exte
   readonly focusPath: IssuePath | null;
   /** Approved, or not the user's to edit. */
   readonly readOnly: boolean;
-  /** Replace the module's data; the screen saves it. Never store text in a numeric cell. */
+  /**
+   * Replace the module's data with the whole new value; the screen saves it.
+   * Start from `data`, so sizes no longer ordered keep their data:
+   * `onChange({ ...data, sizes: { ...data.sizes, [size]: entry } })`.
+   * Never store text in a numeric cell.
+   */
   onChange(next: TData): void;
   /** Report what is in focus, for photo tags. */
   onFocusChange?(focus: CaptureFocus): void;

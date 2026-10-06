@@ -293,11 +293,11 @@ Then add `loadCapture: () => import("./Capture")` to your definition.
 
 | Prop | What |
 |---|---|
-| `data`, `config` | Parsed with your schemas. |
+| `data`, `config` | Parsed with your schemas. `data` holds **every saved size**, also sizes no longer in the order (the screen passes `parseModuleData`, not `evaluation.data`, which keeps ordered sizes only). Show only `context.sizes`. |
 | `title`, `labels` | The template's wording over your defaults, as calc gets them; read labels with `labelFor`. Read-only: never editable on the capture screen (rule 11). |
 | `context` | Sizes, n, cartons and the rest, as in calc. |
 | `evaluation` | The latest `result`, `computed` and `issues` for your module: live totals, accept/reject chips, inline errors. |
-| `onChange(next)` | Replace your data; the screen merges it into the inspection and autosaves. |
+| `onChange(next)` | Replace your data with the **whole** new value; the screen writes it into the inspection and autosaves. Start from `data`, so a size taken out of the order keeps its data in case it comes back (rule 4): `onChange({ ...data, sizes: { ...data.sizes, [size]: entry } })`. |
 | `onFocusChange(focus)` | Report the size, hand, defect or box in focus, so a photo taken now is tagged with it (BUILD_SPEC 8.1). |
 | `focusPath` | A data path to scroll to and focus, from a link in the issue list. |
 | `readOnly` | Approved, or not the user's to edit. |
@@ -363,6 +363,14 @@ const report = validateInspection(data, template, context);
 // report.modules: result, computed, issues, comment per included module, in template order
 // report.custom, report.excluded (with reasons), report.issues (screen order)
 // report.errors, report.warnings, report.canSubmit, report.suggested
+
+// Capture props for one included module (helpers from @/modules/_framework):
+const definition = MODULE_REGISTRY[key];
+const resolvedModule = template.modules.find((entry) => entry.key === key);
+const saved = parseModuleData(definition, readModuleEntry(data, "modules", key)); // every saved size
+// data: saved.data (when saved.success; otherwise show the module's invalid_data errors),
+// title: resolvedModule.title, labels: effectiveLabels(definition, resolvedModule), context,
+// evaluation: its report.modules entry, onChange: (next) => writeModuleData(data, "modules", key, next)
 ```
 
 - **Saving a template version**: `resolveTemplate(definition, getBase)` from `@/modules` resolves against the real modules (`getBase` returns a base's definition, usually its active version; `lookupFrom(definitions)` builds one). On success, write `templateRowFields(definition, resolved)` to the `templates` row; on failure, show each problem's `template`, `path` and `message` in the editor.

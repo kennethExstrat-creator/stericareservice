@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   emptyInspectionData,
   InspectionDataSchema,
+  parseModuleData,
   perSizeData,
   readModuleEntry,
   writeModuleComment,
@@ -51,6 +52,31 @@ describe("inspection data", () => {
     expect(commented.modules.glove_info).toEqual({ colour: "Green", comment: "Second look." });
     expect(writeModuleComment(commented, "modules", "glove_info", " ").modules.glove_info).toEqual({ colour: "Green" });
     expect(writeModuleComment(emptyInspectionData(), "custom", "notes", "Seen.").custom.notes).toEqual({ comment: "Seen." });
+  });
+
+  it("gives Capture every saved size, so writing back its change keeps sizes no longer ordered (6.2 rule 4)", () => {
+    const definition = {
+      dataSchema: perSizeData(z.strictObject({ values: z.array(z.number()) })),
+      emptyData: () => ({ sizes: {} }),
+    };
+    // L was ordered when it was weighed, then removed from the order.
+    const saved: InspectionData = { modules: { weight: { sizes: { M: { values: [2.9] }, L: { values: [3.4] } } } }, custom: {} };
+    const parsed = parseModuleData(definition, readModuleEntry(saved, "modules", "weight"));
+    if (!parsed.success) throw new Error("expected saved data to parse");
+    expect(parsed.data.sizes).toEqual({ M: { values: [2.9] }, L: { values: [3.4] } });
+
+    // The inspector edits M, the only ordered size; Capture hands back the whole value.
+    const next = { ...parsed.data, sizes: { ...parsed.data.sizes, M: { values: [2.9, 2.8] } } };
+    expect(writeModuleData(saved, "modules", "weight", next).modules.weight).toEqual({
+      sizes: { M: { values: [2.9, 2.8] }, L: { values: [3.4] } },
+    });
+
+    expect(parseModuleData(definition, readModuleEntry(emptyInspectionData(), "modules", "weight"))).toEqual({
+      success: true,
+      data: { sizes: {} },
+    });
+    const broken: InspectionData = { modules: { weight: { sizes: { M: { values: ["2 42"] } } } }, custom: {} };
+    expect(parseModuleData(definition, readModuleEntry(broken, "modules", "weight")).success).toBe(false);
   });
 
   it("keeps per-size data under sizes, empty by default", () => {

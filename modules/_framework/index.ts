@@ -51,6 +51,7 @@ export {
   InspectionDataSchema,
   emptyInspectionData,
   readModuleEntry,
+  parseModuleData,
   writeModuleData,
   writeModuleComment,
   perSizeData,

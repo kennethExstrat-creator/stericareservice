@@ -44,7 +44,19 @@ export function readModuleEntry(data: InspectionData, namespace: DataNamespace, 
   };
 }
 
-/** New data with a module's entry replaced; its comment is kept. */
+/**
+ * A module's saved data parsed with its schema, its empty data when nothing
+ * is saved. Every saved size is included: this is what Capture edits and
+ * hands back whole to onChange. calc and the export see ordered sizes only.
+ */
+export function parseModuleData<TData>(
+  definition: { readonly dataSchema: z.ZodType<TData>; emptyData(): TData },
+  entry: ModuleEntry,
+): z.ZodSafeParseResult<TData> {
+  return definition.dataSchema.safeParse(entry.hasData ? entry.value : definition.emptyData());
+}
+
+/** New data with a module's entry replaced, whole; its comment is kept. */
 export function writeModuleData(
   data: InspectionData,
   namespace: DataNamespace,
