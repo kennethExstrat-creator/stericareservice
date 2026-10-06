@@ -1,11 +1,12 @@
 "use client";
 
 // The carton grid (BUILD_SPEC 6.1 carton_sampling, 8 "Speed"): per ordered
-// size, one cell per case sampled, 10 to a row as on the report. Carton
-// numbers go in on the numeric keypad; Enter moves along the row and on to
-// the next, and a pasted column or row of numbers fills the cells after the
-// one in focus. A number entered twice or above the order quantity turns red
-// at once, with the problem below the grid and a link back to the cell.
+// size, one cell per case sampled, 10 to a row as on the report, then a
+// shaded spare row. Carton numbers go in on the numeric keypad; Enter moves
+// along the row and on to the next, and a pasted column or row of numbers
+// fills the cells after the one in focus. A number entered twice or above the
+// order quantity turns red at once, with the problem below the grid and a
+// link back to the cell.
 import { useRef, useState } from "react";
 import {
   EnterGroup,
@@ -23,7 +24,7 @@ import {
 } from "@/components/qc";
 // Not exported from @/components/qc yet: the kit's own touch size for a small pill (16 px text on iPad).
 import { SMALL_PILL_TOUCH } from "@/components/qc/status-pill";
-import { formatSize } from "@/lib/format";
+import { formatCount, formatSize } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { labelFor, samplingFor, type CaptureProps, type ValidationIssue } from "@/modules/_framework";
 import { gridCell, type CartonSamplingComputed } from "./calc";
@@ -88,9 +89,11 @@ export default function Capture({
     const result = evaluation?.result.perSize?.[size];
     const own = issues.filter((issue) => issue.path[0] === "sizes" && issue.path[1] === size);
     const count = facts?.samplingQuantity ?? cells.filter((carton) => carton !== null).length;
-    // One cell per case sampled (the report's 50 until the plan says), never more than the data can hold.
-    const total = Math.min(MAX_CARTONS_PER_SIZE, Math.max(cases ?? REPORT_GRID_CELLS, cells.length));
-    const rows = Array.from({ length: Math.ceil(total / GRID_COLUMNS) }, (_, row) => row);
+    // The spare row takes a list longer than the plan; a read-only grid takes nothing.
+    const rows = Array.from({ length: gridRows(cases, cells.length, !readOnly) }, (_, row) => row);
+    // Cells past the plan's cases: shaded, and named so for screen readers.
+    const spare = (index: number) => cases !== null && index >= cases;
+    const beyond = cases === null ? "" : `, beyond the ${formatCount(cases)} ${cases === 1 ? "case" : "cases"} sampled`;
     const positions = positionsOf(cells);
     const cellPath = (index: number) => ["sizes", size, "cartonNumbers", index] as const;
     // Text that was not stored, listed with a link while its cell is still empty.
@@ -151,14 +154,14 @@ export default function Capture({
                     </th>
                     {COLUMN_NUMBERS.map((column) => {
                       const index = row * GRID_COLUMNS + column;
-                      if (index >= total) {
-                        return <td key={column} className="border-b border-l border-border bg-muted" />;
-                      }
                       const id = cellId(size, index);
-                      const name = `${caption(size)}, ${gridCell(index)}`;
+                      const name = `${caption(size)}, ${gridCell(index)}${spare(index) ? beyond : ""}`;
                       const value = cells[index] ?? null;
                       return (
-                        <td key={column} className="border-b border-l border-border p-0">
+                        <td
+                          key={column}
+                          className={cn("border-b border-l border-border p-0", spare(index) && "bg-slate-50")}
+                        >
                           <NumberField
                             variant="cell"
                             id={id}
@@ -232,6 +235,22 @@ export default function Capture({
 }
 
 type RejectedEntry = EntryProblem & { size: string; index: number };
+
+/** Whole rows the data can hold. */
+const MAX_ROWS = Math.floor(MAX_CARTONS_PER_SIZE / GRID_COLUMNS);
+
+/**
+ * Rows of a size's grid: room for the plan's cases (the report's 50 until
+ * the plan gives them) or for the numbers stored, if more, then the spare
+ * row. A paste fills only the cells there are: the spare row keeps a list
+ * longer than the plan from being cut down to the plan and passing. What is
+ * past the plan is stored, and the size fails (6.2 rule 6). Never more rows
+ * than the data can hold.
+ */
+function gridRows(cases: number | null, stored: number, spare: boolean): number {
+  const needed = Math.ceil(Math.max(cases ?? REPORT_GRID_CELLS, stored) / GRID_COLUMNS);
+  return Math.min(MAX_ROWS, needed + (spare ? 1 : 0));
+}
 
 /** The cells each carton number sits in, in grid order. */
 function positionsOf(cells: readonly (number | null)[]): Map<number, number[]> {

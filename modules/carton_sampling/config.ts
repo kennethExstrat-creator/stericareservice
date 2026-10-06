@@ -15,7 +15,7 @@ export const CARTON_SAMPLING_LABELS = {
 /** The report's grid: 10 carton numbers to a row (5 rows print 50). Issue messages name cells by row and column. */
 export const GRID_COLUMNS = 10;
 
-/** Cells the capture grid offers while the sampling plan has no cases for the size: the report's 10 x 5. */
+/** Cells the capture grid makes room for while the sampling plan has no cases for the size: the report's 10 x 5. */
 export const REPORT_GRID_CELLS = 50;
 
 export const CartonSamplingConfigSchema = z
