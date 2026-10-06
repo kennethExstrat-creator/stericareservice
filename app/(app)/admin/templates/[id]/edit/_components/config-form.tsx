@@ -53,7 +53,10 @@ export function ConfigForm({ api, view }: { api: EditorApi; view: ModuleView }) 
   );
 
   const hooks: SchemaFormHooks = {
-    labelForKey: (name) => view.labels[name],
+    // The module's own words for what a setting is about: a field switched on, a measure's decimals. Not for a
+    // choice or a text: dimensions labels its statistic row "Median", which is no name for the median-or-average select.
+    labelForKey: (name, _path, field) =>
+      field && (field.kind === "enum" || field.kind === "string" || field.kind === "literal") ? undefined : view.labels[name],
     labelForOption: (value) => (typeof value === "string" ? view.labels[value] : undefined),
     markerOptions: (marker) => (marker === "size" ? api.sizes : undefined),
     variantLabel: (marker, value) => (marker === "spec" ? SPEC_KINDS[value] : undefined),

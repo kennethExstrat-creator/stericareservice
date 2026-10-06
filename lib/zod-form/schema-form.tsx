@@ -34,8 +34,8 @@ export type KeyOption = { value: string; label: string };
 
 /** What the page knows that the schema does not. Every hook is optional. */
 export type SchemaFormHooks = {
-  /** Words for a property or record key, e.g. the module's own label for that key. */
-  labelForKey?: (key: string, path: FormPath) => string | undefined;
+  /** Words for a property or record key, e.g. the module's own label for that key; `node` is its value's. */
+  labelForKey?: (key: string, path: FormPath, node: FormNode | undefined) => string | undefined;
   /** Words for an option of a select. */
   labelForOption?: (value: FormScalar, path: FormPath) => string | undefined;
   /** Choices for a string, or a record's keys, the schema marks (e.g. "size": the template's sizes). */
@@ -162,7 +162,7 @@ type FieldProps = NodeProps & {
 
 function labelText(node: FormNode, key: string | number | undefined, path: FormPath, hooks: SchemaFormHooks): string {
   if (node.title) return node.title;
-  if (typeof key === "string") return hooks.labelForKey?.(key, path) ?? humanize(key);
+  if (typeof key === "string") return hooks.labelForKey?.(key, path, node) ?? humanize(key);
   return typeof key === "number" ? String(key + 1) : "Value";
 }
 
@@ -461,13 +461,22 @@ function ObjectFields({ node, value, onChange, path, unit, columns = false }: No
   const { hooks, readOnly } = useForm();
   const object = isPlainObject(value) ? value : {};
   const onlySwitches = node.properties.length > 1 && node.properties.every((property) => property.node.kind === "boolean");
+  // A few short plain settings, such as decimals per measure, sit side by side.
+  const terse =
+    node.properties.length >= 3 &&
+    node.properties.every(
+      (property) =>
+        isPlain(property.node) &&
+        (property.required || inlineOptional(property.node)) &&
+        (property.node.description ?? "").length <= 60,
+    );
 
   return (
     <div
       className={cn(
         "grid gap-5",
         onlySwitches && "gap-x-6 gap-y-4 sm:grid-cols-2",
-        columns && !onlySwitches && "gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(11rem,1fr))]",
+        !onlySwitches && (columns || terse) && "gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(11rem,1fr))]",
       )}
     >
       {node.properties.map((property) => {
@@ -550,7 +559,7 @@ function ObjectGroup({ node, value, onChange, path, label, onRemove, hideLabel, 
   const id = fieldId(idPrefix, path);
   return (
     <fieldset
-      className="grid min-w-0 gap-4 rounded-lg border border-border p-4"
+      className="grid min-w-0 gap-4 rounded-lg border border-border p-3"
       data-slot="form-group"
       aria-describedby={node.description ? `${id}-description` : undefined}
     >
@@ -573,11 +582,11 @@ function RecordGroup({ node, value, onChange, path, label, onRemove, unit }: Fie
   const keys = Object.keys(object);
   const offered = node.key.marker ? hooks.markerOptions?.(node.key.marker, path) : undefined;
   const keyLabel = (key: string) =>
-    offered?.find((option) => option.value === key)?.label ?? hooks.labelForKey?.(key, [...path, key]) ?? key;
+    offered?.find((option) => option.value === key)?.label ?? hooks.labelForKey?.(key, [...path, key], node.value) ?? key;
   const available = offered?.filter((option) => !keys.includes(option.value));
 
   return (
-    <fieldset className="grid min-w-0 gap-4 rounded-lg border border-border p-4" data-slot="form-group" data-kind="record">
+    <fieldset className="grid min-w-0 gap-4 rounded-lg border border-border p-3" data-slot="form-group" data-kind="record">
       <FieldHeader label={label} as="legend" path={path} overridable={false} onRemove={onRemove} />
       <Description id={`${id}-description`} text={node.description} />
       <FieldErrors path={path} />
@@ -779,7 +788,7 @@ function ArrayGroup({ node, value, onChange, path, label, onRemove, unit }: Fiel
 
   if (items.kind === "object" && isCompactRow(items)) {
     return (
-      <fieldset className="grid min-w-0 gap-3 rounded-lg border border-border p-4" data-slot="form-group" data-kind="rows">
+      <fieldset className="grid min-w-0 gap-3 rounded-lg border border-border p-3" data-slot="form-group" data-kind="rows">
         <FieldHeader label={label} as="legend" path={path} overridable={!unit} onRemove={onRemove} />
         <Description id={`${id}-description`} text={node.description} />
         <FieldErrors path={path} />
@@ -791,7 +800,7 @@ function ArrayGroup({ node, value, onChange, path, label, onRemove, unit }: Fiel
   }
 
   return (
-    <fieldset className="grid min-w-0 gap-3 rounded-lg border border-border p-4" data-slot="form-group" data-kind="array">
+    <fieldset className="grid min-w-0 gap-3 rounded-lg border border-border p-3" data-slot="form-group" data-kind="array">
       <FieldHeader label={label} as="legend" path={path} overridable={!unit} onRemove={onRemove} />
       <Description id={`${id}-description`} text={node.description} />
       <FieldErrors path={path} />
@@ -887,8 +896,9 @@ function columnWidth(property: FormProperty): string {
     case "boolean":
       return "minmax(0,0.6fr)";
     case "string":
+      // Codes such as embedded_insect need room; wording more.
       return /(code|key|value)$/i.test(property.key) || node.pattern !== undefined || (node.maxLength ?? Infinity) <= 40
-        ? "minmax(0,1fr)"
+        ? "minmax(0,1.4fr)"
         : "minmax(0,2fr)";
     case "enum":
       return "minmax(0,1.2fr)";
@@ -929,20 +939,30 @@ function CompactRows({
     };
   });
   const template = { "--row-columns": items.properties.map(columnWidth).join(" ") } as CSSProperties;
+  const notes = columns.filter((column) => column.note !== "");
   if (list.length === 0) return null;
 
   return (
     <div className="grid gap-2" style={template}>
-      <div className="hidden items-end gap-2 px-2 sm:flex" data-slot="row-header">
+      {/* What each column takes, once: a column is too narrow for a sentence. */}
+      {notes.length > 0 && (
+        <ul className="grid gap-0.5 text-sm text-muted-foreground" data-slot="row-notes">
+          {notes.map((column) => (
+            <li key={column.key}>
+              <span className="font-medium text-foreground">{column.label}:</span> {column.note}
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="hidden items-end gap-2 px-2 sm:flex" data-slot="row-header" aria-hidden>
         <div className="grid min-w-0 flex-1 grid-cols-(--row-columns) gap-x-3">
           {columns.map((column) => (
-            <div key={column.key} className="grid content-end gap-0.5">
-              <span className="text-sm font-medium text-foreground">{column.label}</span>
-              {column.note && <span className="text-sm text-muted-foreground">{column.note}</span>}
-            </div>
+            <span key={column.key} className="truncate text-sm font-medium text-foreground">
+              {column.label}
+            </span>
           ))}
         </div>
-        {!readOnly && <span aria-hidden className={cn("shrink-0", ROW_ACTIONS)} />}
+        {!readOnly && <span className={cn("shrink-0", ROW_ACTIONS)} />}
       </div>
       <ol className="grid gap-2">
         {list.map((item, index) => {
@@ -996,16 +1016,21 @@ function CompactRows({
   );
 }
 
-/** An object of plain values only (a size and its label, a code, its label and pass): its fields fit side by side. */
-function isFlat(node: ObjectNode): boolean {
-  const plain = (child: FormNode): boolean =>
+/** A value with one plain control: text, a number, a switch, a select, a fixed value. */
+function isPlain(child: FormNode): boolean {
+  return (
     child.kind === "string" ||
     child.kind === "number" ||
     child.kind === "boolean" ||
     child.kind === "enum" ||
     child.kind === "literal" ||
-    (child.kind === "nullable" && plain(child.inner));
-  return node.properties.length <= 4 && node.properties.every((property) => plain(property.node));
+    (child.kind === "nullable" && isPlain(child.inner))
+  );
+}
+
+/** An object of plain values only (a size and its label, a code, its label and pass): its fields fit side by side. */
+function isFlat(node: ObjectNode): boolean {
+  return node.properties.length <= 4 && node.properties.every((property) => isPlain(property.node));
 }
 
 /** "Hole locations" names one item "hole location". */
@@ -1095,7 +1120,7 @@ function EnumSet({
   };
 
   return (
-    <fieldset className="grid min-w-0 gap-3 rounded-lg border border-border p-4" data-slot="form-group" data-kind="set">
+    <fieldset className="grid min-w-0 gap-3 rounded-lg border border-border p-3" data-slot="form-group" data-kind="set">
       <FieldHeader label={label} as="legend" path={path} overridable={!unit} onRemove={onRemove} />
       <Description id={`${id}-description`} text={node.description} />
       <FieldErrors path={path} />

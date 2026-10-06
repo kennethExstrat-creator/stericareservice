@@ -49,7 +49,22 @@ const cartonSampling = defineModule({
   calc: notDone,
 });
 
-const registry = { ...TEST_REGISTRY, watertight, carton_sampling: cartonSampling } as ModuleRegistry;
+const dimensions = defineModule({
+  key: "dimensions",
+  title: "Dimension",
+  // "statistic" is the report's row label; the config's "statistic" is the choice of median or average.
+  labels: { length: "Length", statistic: "Median" },
+  dataSchema: z.strictObject({}),
+  emptyData: () => ({}),
+  configSchema: z.strictObject({
+    statistic: z.enum(["median", "average"]),
+    decimals: z.strictObject({ length: z.number().int().min(0).max(10) }),
+  }),
+  defaultConfig: { statistic: "median", decimals: { length: 0 } },
+  calc: notDone,
+});
+
+const registry = { ...TEST_REGISTRY, watertight, carton_sampling: cartonSampling, dimensions } as ModuleRegistry;
 
 const draft: Draft = {
   code: "E2E_FORM",
@@ -61,6 +76,7 @@ const draft: Draft = {
     { key: "header", include: true },
     { key: "watertight", include: true },
     { key: "carton_sampling", include: true },
+    { key: "dimensions", include: true },
     { key: "conclusion", include: true },
   ],
 };
@@ -94,6 +110,12 @@ describe("ConfigForm", () => {
 
   it("says what a number accepts", () => {
     expect(render("watertight")).toContain('<p id="config-watertight-aql-range" class="text-sm text-muted-foreground">0 to 10.</p>');
+  });
+
+  it("names settings in the module's words, but not a choice after a row label", () => {
+    const html = render("dimensions");
+    expect(html).toMatch(/for="config-dimensions-decimals-length"[^>]*>Length</);
+    expect(html).toMatch(/for="config-dimensions-statistic"[^>]*>Statistic</);
   });
 
   it("says when a module has no settings, in the module's own words", () => {

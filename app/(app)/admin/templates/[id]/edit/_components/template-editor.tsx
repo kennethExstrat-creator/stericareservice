@@ -501,7 +501,7 @@ export function TemplateEditor({
       <Sheet open={sheetOpen && !sideBySide && tab === "modules"} onOpenChange={setSheetOpen}>
         <SheetContent
           side="right"
-          className="w-full gap-0 overflow-y-auto bg-background data-[side=right]:sm:max-w-2xl"
+          className="gap-0 overflow-y-auto bg-background data-[side=right]:w-full data-[side=right]:sm:max-w-3xl"
           // Into the sheet at its heading; a link from the problem list then moves on to the field.
           onOpenAutoFocus={(event) => {
             event.preventDefault();
