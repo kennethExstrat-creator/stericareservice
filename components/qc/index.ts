@@ -16,6 +16,9 @@ export { ProgressTracker, type ProgressStep, type StepState } from "./progress-t
 export { PageHeader } from "./page-header";
 
 // Capture kit: shared building blocks for module Capture screens (docs/CAPTURE_KIT.md).
+// Accept/reject decisions are calc's, with lib/aql: the kit only displays them.
+export { useDataUpdater } from "./use-data-updater";
+export type { DataChange } from "./data-updater";
 export { SizeTabs, SizeStatusStrip, type ResultLike, type SizeResults } from "./size-tabs";
 export { HandToggle, handsOf, type HandView } from "./hand-toggle";
 export { BoxPicker } from "./box-picker";
@@ -26,7 +29,7 @@ export {
   type CounterSummaryRow,
   type CounterTableLabels,
 } from "./counter-table";
-export { columnTotal, columnStatus, decide, type CounterCell, type CounterHand, type CountReader } from "./counter-model";
+export { columnTotal, type CounterCell, type CounterHand, type CountReader } from "./counter-model";
 export {
   NumberField,
   PercentField,
