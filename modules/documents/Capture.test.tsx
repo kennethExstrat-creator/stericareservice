@@ -1,12 +1,13 @@
 // Server-rendered markup of the documents capture: the template's items in
 // its order and wording, status by tapping, expiry dates from a date picker,
-// calc's result per item and its warnings beside the field, and read-only.
+// calc's result per item (chip and selected colour) and its warnings beside
+// the field, rows that keep their size when focus moves, and read-only.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { CaptureProps, ModuleEvaluation } from "@/modules/_framework";
 import { makeTestContext } from "@/modules/_framework/testing";
 import { calcDocuments, type DocumentsComputed } from "./calc";
-import Capture from "./Capture";
+import Capture, { DocumentRow } from "./Capture";
 import { DOCUMENTS_DEFAULT_CONFIG, DOCUMENTS_LABELS, DOCUMENTS_TITLE, type DocumentsConfig } from "./config";
 import { emptyDocuments, type DocumentsData } from "./schema";
 
@@ -66,6 +67,14 @@ function render(
     onChange: noop,
   };
   return renderToStaticMarkup(<Capture {...props} />);
+}
+
+/** Each pressed status button's words and the status colour it wears (null: none). */
+function selected(html: string): [string, string | null][] {
+  return Array.from(html.matchAll(/<button([^>]*)data-state="on"([^>]*)>([^<]*)<\/button>/g), (match) => [
+    match[3],
+    /data-\[state=on\]:text-(pass|fail|warn|info)\b/.exec(`${match[1]}${match[2]}`)?.[1] ?? null,
+  ]);
 }
 
 function withIso(entry: Partial<DocumentsData["items"]["iso13485"]>): DocumentsData {
@@ -131,6 +140,49 @@ describe("documents capture", () => {
       ["fail", "Not verified"],
       ["not_done", "Not done"],
     ]);
+  });
+
+  it("colours a selected status with calc's result for the item: red only where the item fails", () => {
+    // Not verified: red on the required item, neutral (info) on the optional one, as their chips.
+    const data = withIso({ status: "not_verified" });
+    data.items.certificateOfAnalysis = { ...data.items.certificateOfAnalysis, status: "not_verified" };
+    expect(selected(render(data, { config: REQUIRED_ISO }))).toEqual([
+      ["Not verified", "fail"],
+      ["Not verified", "info"],
+    ]);
+    expect(selected(render(withIso({ status: "na" }), { config: REQUIRED_ISO }))).toEqual([["NA", "fail"]]);
+    expect(selected(render(withIso({ status: "verified" })))).toEqual([["Verified", "pass"]]);
+    // Verified but expired: the warning's amber, as the chip says "Expired".
+    expect(selected(render(withIso({ status: "verified", expiryDate: "2025-01-31" })))).toEqual([["Verified", "warn"]]);
+    // NA was just tapped; calc still says verified: no verdict colour until calc catches up.
+    const lagging = render(withIso({ status: "na" }), { config: REQUIRED_ISO, evaluated: withIso({ status: "verified" }) });
+    expect(selected(lagging)).toEqual([["NA", null]]);
+    expect(selected(render(withIso({ status: "not_verified" }), { broken: true }))).toEqual([["Not verified", null]]);
+  });
+
+  it("draws a row the same whether or not it is in focus, so a tap never moves the rows below it", () => {
+    const row = (active: boolean) =>
+      renderToStaticMarkup(
+        <DocumentRow
+          item={{ key: "iso13485", include: true, required: true }}
+          entry={{ status: "verified", referenceNo: "CERT-0001", expiryDate: "2025-01-31" }}
+          status="warn"
+          expired
+          labels={DOCUMENTS_LABELS}
+          issues={[]}
+          active={active}
+          readOnly={false}
+          onFocusItem={noop}
+          onUpdate={noop}
+        />,
+      );
+    expect(row(true)).toContain('data-active="true"');
+    expect(row(true).replace(' data-active="true"', "")).toBe(row(false));
+  });
+
+  it("promises no photo or file tag: lib/photos cannot tag by item yet", () => {
+    const html = render(withIso({ status: "verified" }));
+    expect(html).not.toMatch(/tagged/i);
   });
 
   it("shows calc's result for each item, in the template's words, and its own word while calc catches up", () => {

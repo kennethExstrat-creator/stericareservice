@@ -3,10 +3,11 @@
 // Documents capture (BUILD_SPEC 6.1 documents): one row per item the
 // template switches on, in its order. Verified, not verified or NA is a tap;
 // the reference no. is typed; the expiry date comes from the date picker
-// (6.2 rule 3). The item being worked on is reported as the focus, so a photo
-// or file added now is tagged with it (BUILD_SPEC 8.1). Each row's chip is
-// calc's result for the item; every change goes through useDataUpdater,
-// built from the latest data (edit.ts).
+// (6.2 rule 3). The row being worked on is reported as the focus for photo
+// and file tags (BUILD_SPEC 8.1); lib/photos cannot tag by item yet, so the
+// screen promises no tag. Each row's chip, and the colour of its selected
+// status, is calc's result for the item; every change goes through
+// useDataUpdater, built from the latest data (edit.ts).
 import { useId, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { Status } from "@/lib/design/status";
@@ -47,7 +48,7 @@ import type { DocumentEntry, DocumentsData } from "./schema";
 /**
  * The focus for photo and file tags. CaptureFocus has no slot yet for an
  * entry of a module's own list, so `item` rides along until the framework
- * and lib/photos take it (handed over as a follow-up).
+ * and lib/photos take it (handed over as a follow-up); autoTag drops it today.
  */
 type ItemFocus = CaptureFocus & { readonly item: string };
 
@@ -56,10 +57,17 @@ function itemFocus(item: DocumentItem): CaptureFocus {
   return focus;
 }
 
-const SELECTED_STATUS: Readonly<Record<DocumentStatus, string>> = {
-  verified: "data-[state=on]:border-pass-border data-[state=on]:bg-pass-tint data-[state=on]:text-pass",
-  not_verified: "data-[state=on]:border-fail-border data-[state=on]:bg-fail-tint data-[state=on]:text-fail",
-  na: "data-[state=on]:border-info-border data-[state=on]:bg-info-tint data-[state=on]:text-info",
+/**
+ * The selected status wears calc's result for the item, as the chip beside
+ * it does: red only where the item fails (a required item not verified), so
+ * "Not verified" on an optional item stays neutral. While calc is still a
+ * tap behind, the toggle keeps its own selected look.
+ */
+const SELECTED_TONE: Readonly<Partial<Record<Status, string>>> = {
+  pass: "data-[state=on]:border-pass-border data-[state=on]:bg-pass-tint data-[state=on]:text-pass",
+  fail: "data-[state=on]:border-fail-border data-[state=on]:bg-fail-tint data-[state=on]:text-fail",
+  warn: "data-[state=on]:border-warn-border data-[state=on]:bg-warn-tint data-[state=on]:text-warn",
+  info: "data-[state=on]:border-info-border data-[state=on]:bg-info-tint data-[state=on]:text-info",
 };
 
 export default function Capture({
@@ -126,7 +134,13 @@ export default function Capture({
   );
 }
 
-function DocumentRow({
+/**
+ * One item of the checklist. Its markup never depends on `active` apart from
+ * `data-active`: a row becomes active on pointerdown, and a row above that
+ * grew or shrank mid-press would move the control under the finger, so the
+ * tap would land elsewhere. Exported for that test.
+ */
+export function DocumentRow({
   item,
   entry,
   status,
@@ -154,6 +168,7 @@ function DocumentRow({
   const name = labelFor(labels, item.key);
   const path = (field: keyof DocumentEntry): IssuePath => ["items", item.key, field];
   const expiryIssue = findIssue(issues, path("expiryDate"));
+  const tone = entry.status !== null && speaksOf(status, entry.status) ? SELECTED_TONE[status] : undefined;
 
   return (
     <li
@@ -174,7 +189,7 @@ function DocumentRow({
             </Badge>
           )}
         </div>
-        <StatusPill size="sm" status={status} label={chipLabel(status, entry, labels)} className={SMALL_PILL_TOUCH} />
+        <StatusPill size="sm" status={status} label={chipLabel(status, entry.status, labels)} className={SMALL_PILL_TOUCH} />
       </div>
 
       <div className="space-y-1.5" {...issuePathProps(path("status"))}>
@@ -204,7 +219,7 @@ function DocumentRow({
                 value={value}
                 className={cn(
                   "flex-1 rounded-full px-3 data-[state=on]:font-semibold touch:text-base xl:flex-none",
-                  SELECTED_STATUS[value],
+                  value === entry.status && tone,
                 )}
               >
                 {labelFor(labels, "status", value)}
@@ -255,14 +270,20 @@ function DocumentRow({
           )}
         </div>
       </div>
-
-      {active && !readOnly && (
-        <p className="text-sm text-muted-foreground touch:text-base xl:col-span-full">
-          Photos and files added now are tagged “{name}”.
-        </p>
-      )}
     </li>
   );
+}
+
+/**
+ * Whether calc's result for the item is about the status on screen; calc may
+ * still be a tap behind. A pass is a verified item; a fail or info one not
+ * verified or NA; an expired warning one that is not NA.
+ */
+function speaksOf(status: Status, selected: DocumentStatus): boolean {
+  if (status === "pass") return selected === "verified";
+  if (status === "fail" || status === "info") return selected !== "verified";
+  if (status === "warn") return selected !== "na";
+  return false;
 }
 
 /**
@@ -270,9 +291,7 @@ function DocumentRow({
  * wording, "Expired" for a warning. While calc catches up with a tap, a word
  * that does not fit its verdict gives way to the verdict's own word.
  */
-function chipLabel(status: Status, entry: DocumentEntry, labels: Labels): string | undefined {
-  if (status === "warn") return labelFor(labels, "expired");
-  if (entry.status === null) return undefined;
-  const fits = status === "pass" ? entry.status === "verified" : (status === "fail" || status === "info") && entry.status !== "verified";
-  return fits ? labelFor(labels, "status", entry.status) : undefined;
+function chipLabel(status: Status, selected: DocumentStatus | null, labels: Labels): string | undefined {
+  if (selected === null || !speaksOf(status, selected)) return undefined;
+  return status === "warn" ? labelFor(labels, "expired") : labelFor(labels, "status", selected);
 }
