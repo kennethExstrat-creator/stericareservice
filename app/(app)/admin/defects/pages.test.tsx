@@ -45,9 +45,10 @@ const resolved = {
       config: {
         classes: {
           critical: { include: true, aql: 0, defects: [{ code: "embedded_insect", label: "Embedded Insects" }] },
+          // Left to the client, as the visual module's default config does.
           major: {
             include: true,
-            aql: 2.5,
+            aql: null,
             defects: [
               { code: "stain", label: "Oil stain" },
               { code: "torn_cuff", label: "Torn cuff" },
@@ -181,6 +182,7 @@ describe("/admin/defects/labels", () => {
     expect(html).toContain("STD_EG <span");
     expect(html).toContain("Critical defects");
     expect(html).toContain("AQL 0.0");
+    expect(html).toContain("AQL from the client, else 2.5");
     expect(html).toContain("Oil stain");
     expect(html).toContain("Not a defect code");
     expect(html).toContain('href="/admin/defects?add=torn_cuff&amp;name=Torn+cuff"');

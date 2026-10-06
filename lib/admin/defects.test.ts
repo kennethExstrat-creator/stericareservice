@@ -235,6 +235,13 @@ describe("templateLabels", () => {
     expect(labels.classesOff).toEqual(["minor"]);
   });
 
+  it("reads a class AQL the template leaves to the client as null", () => {
+    const resolved = resolvedOf("STD_EG");
+    const visual = resolved.modules.find((entry) => entry.key === "visual")!;
+    (visual.config as { classes: Record<string, { aql: number | null }> }).classes.major.aql = null;
+    expect(templateLabels(resolved)!.classAql).toEqual({ critical: 0, major: null, minor: 4 });
+  });
+
   it("falls back to the module's label for a code, most specific first, then the code", () => {
     const labels = templateLabels({
       modules: [

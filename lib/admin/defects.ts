@@ -382,8 +382,11 @@ export type TemplateLabels = {
   labels: TemplateLabel[];
   /** Visual classes the template switches off. */
   classesOff: DefectClass[];
-  /** AQL of each visual class that is on, as the template sets it. */
-  classAql: Partial<Record<DefectClass, number>>;
+  /**
+   * AQL of each visual class that is on, as the template sets it; null when
+   * it leaves it to the client (else BUILD_SPEC 7's default, AQL_DEFAULTS).
+   */
+  classAql: Partial<Record<DefectClass, number | null>>;
 };
 
 const ResolvedShapeSchema = z.object({ modules: z.array(z.unknown()) });
@@ -429,7 +432,7 @@ export function templateLabels(resolved: unknown): TemplateLabels | null {
 
   const labels: TemplateLabel[] = [];
   const classesOff: DefectClass[] = [];
-  const classAql: Partial<Record<DefectClass, number>> = {};
+  const classAql: Partial<Record<DefectClass, number | null>> = {};
 
   for (const raw of parsed.data.modules) {
     const entry = ResolvedModuleShapeSchema.safeParse(raw);
@@ -445,7 +448,7 @@ export function templateLabels(resolved: unknown): TemplateLabels | null {
           classesOff.push(defectClass);
           continue;
         }
-        if (typeof settings.aql === "number") classAql[defectClass] = settings.aql;
+        classAql[defectClass] = typeof settings.aql === "number" ? settings.aql : null;
         for (const item of codedItems(settings.defects)) {
           labels.push({ section: "visual", defectClass, code: item.code, label: wordingOf(item, wording, defectClass) });
         }
@@ -519,7 +522,7 @@ export type TemplateLabelMap = {
   resolved: boolean;
   sections: { section: LabelSection; rows: LabelRow[] }[];
   classesOff: DefectClass[];
-  classAql: Partial<Record<DefectClass, number>>;
+  classAql: Partial<Record<DefectClass, number | null>>;
   /** Labels whose code is not a defect code, or is inactive. */
   attention: number;
 };

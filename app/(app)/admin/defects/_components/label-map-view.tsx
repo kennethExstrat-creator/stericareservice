@@ -6,6 +6,7 @@ import { ArrowRightIcon, CircleCheckIcon, LayoutTemplateIcon, PlusIcon, Triangle
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DEFECT_CLASSES, type DefectClass } from "@/lib/coverage/keys";
+import { AQL_DEFAULTS } from "@/modules/_framework/context";
 import {
   CLASS_LABEL,
   SECTION_TITLE,
@@ -30,6 +31,11 @@ const CELL = "px-3 py-1.5 align-middle whitespace-normal first:pl-4 last:pr-4 md
 /** "0.0", "2.5", "4.0": as the reports print an AQL. */
 function aqlText(aql: number): string {
   return aql.toFixed(1);
+}
+
+/** "AQL 2.5"; a class that leaves it empty takes the client's AQL, else BUILD_SPEC 7's default. */
+function classAqlText(defectClass: DefectClass, aql: number | null): string {
+  return aql === null ? `AQL from the client, else ${aqlText(AQL_DEFAULTS[defectClass])}` : `AQL ${aqlText(aql)}`;
 }
 
 function countText(shown: number, total: number): string {
@@ -191,7 +197,10 @@ function SectionTable({ map, section, rows }: { map: TemplateLabelMap; section: 
                 <TableHead colSpan={3} scope="rowgroup" className={cn(CELL, "h-auto font-semibold text-foreground")}>
                   {CLASS_LABEL[defectClass]} defects
                   {map.classAql[defectClass] !== undefined && (
-                    <span className="font-normal text-muted-foreground"> · AQL {aqlText(map.classAql[defectClass]!)}</span>
+                    <span className="font-normal text-muted-foreground">
+                      {" "}
+                      · {classAqlText(defectClass, map.classAql[defectClass] ?? null)}
+                    </span>
                   )}
                 </TableHead>
               </TableRow>
@@ -224,10 +233,10 @@ function LabelTableRow({ row }: { row: LabelRow }) {
       <TableCell className={cn(CELL, "hidden md:table-cell")}>
         {row.state === "unknown" ? (
           <Button asChild variant="link" size="sm" className="h-auto px-0 touch:h-11 touch:px-0">
-            <Link href={addCodeHref(row.code, row.label)}>
+            {/* The name says which code; it starts with the words on screen (WCAG 2.5.3). */}
+            <Link href={addCodeHref(row.code, row.label)} aria-label={`Add this code: ${row.code}`}>
               <PlusIcon aria-hidden />
               Add this code
-              <span className="sr-only">: {row.code}</span>
             </Link>
           </Button>
         ) : (
