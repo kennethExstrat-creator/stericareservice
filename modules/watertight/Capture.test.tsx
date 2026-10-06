@@ -133,6 +133,18 @@ describe("watertight capture", () => {
     expect(html).toContain('No. of sample tested<span class="sr-only xl:in-data-[side-by-side]:not-sr-only">, size M</span>');
   });
 
+  it("says under the gloves tested what calc found: errors in red, warnings in amber", () => {
+    const context = makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ watertightVisual: 50 }) } });
+    const short = render({ sizes: { M: { tested: 50 } }, context, config: { ...WATERTIGHT_DEFAULT_CONFIG, aql: 0.65 } });
+    expect(short).toMatch(/<span class="block text-warn">Size M: A sample of 50 is too small for AQL 0\.65/);
+    const unplanned = render({ sizes: { M: { tested: 315 } }, context: M_500() });
+    expect(unplanned).toContain(
+      '<span class="block text-warn">Size M: No. of sample tested is 315, but the sampling plan has 500 gloves for watertight and visual.</span>',
+    );
+    const tooFew = render({ sizes: { M: { tested: 1 } }, context: M_500() });
+    expect(tooFew).toMatch(/class="text-sm text-fail[^"]*">Size M: No\. of sample tested must be at least 2 for an AQL plan\.</);
+  });
+
   it("splits each size into right and left hands with a hand toggle (surgical templates)", () => {
     const html = render({
       sizes: { "7.0": { tested: 125, R: { holes: { hole_palm: 2 } } } },

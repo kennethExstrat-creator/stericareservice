@@ -122,6 +122,27 @@ describe("visual capture", () => {
     expect(render({ sizes: { M: inspectedAll(500) }, context: M_500() })).not.toContain("for every class");
   });
 
+  it("says under a class's gloves inspected what calc found there, warnings in amber", () => {
+    const html = render({ sizes: { M: { ...inspectedAll(500), minor: { inspected: 315 } } }, context: M_500() });
+    expect(html).toContain(
+      '<span class="block text-warn">Size M, Minor Defects: No. of sample inspected is 315, but the sampling plan has 500 gloves for watertight and visual.</span>',
+    );
+    expect(html.match(/block text-warn/g)).toHaveLength(1);
+  });
+
+  it("shows the tab's fields, and every size's only where SizeTabs puts the sizes side by side", () => {
+    const context = makeTestContext({
+      sizes: ["S", "M"],
+      sampling: { S: makeSampling({ watertightVisual: 200 }), M: makeSampling({ watertightVisual: 500 }) },
+    });
+    const html = render({ sizes: {}, context });
+    const fields = tagsWith(html, 'data-issue-path="\\[&quot;sizes&quot;,&quot;M&quot;,&quot;major&quot;\\]"');
+    expect(fields).toHaveLength(1);
+    expect(fields[0]).toContain("hidden xl:in-data-[side-by-side]:block");
+    expect(tagsWith(html, 'data-issue-path="\\[&quot;sizes&quot;,&quot;S&quot;,&quot;major&quot;\\]"')[0]).not.toContain("hidden");
+    expect(tagsWith(html, 'data-slot="size-tabs"')[0]).toContain("data-side-by-side");
+  });
+
   it("shows only ordered sizes (6.2 rule 4)", () => {
     const html = render({ sizes: { M: inspectedAll(500), XL: inspectedAll(200) }, context: M_500() });
     expect(tagsWith(html, 'role="tab"').map((tab) => /data-size="([^"]+)"/.exec(tab)?.[1])).toEqual(["M"]);

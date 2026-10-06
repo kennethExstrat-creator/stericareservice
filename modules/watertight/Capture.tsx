@@ -16,6 +16,7 @@ import {
   findIssue,
   HandToggle,
   handsOf,
+  issuePathKey,
   issuePathProps,
   NumberField,
   SizeTabs,
@@ -151,11 +152,13 @@ export default function WatertightCapture({
     // Unchanged (the label is already a row) is no change at all.
     update((current) => addOneOff(current, cell, label, locations, sizes, split));
   };
-  const errorAt = (path: IssuePath) =>
-    findIssue(
-      evaluation?.issues.filter((issue) => issue.level === "error"),
-      path,
-    )?.message ?? null;
+  /** calc's messages about the value at `path`: errors show in red under the field, warnings in amber. */
+  const messagesAt = (path: IssuePath, level: "error" | "warning") => {
+    const key = issuePathKey(path);
+    return (evaluation?.issues ?? [])
+      .filter((issue) => issue.level === level && issuePathKey(issue.path) === key)
+      .map((issue) => issue.message);
+  };
 
   const codeLetters = evaluation?.computed.codeLetters;
   const other = locations.find((location) => location.code === OTHER_LOCATION);
@@ -195,7 +198,8 @@ export default function WatertightCapture({
                 path={["sizes", entry]}
                 tested={data.sizes[entry]?.tested ?? null}
                 planned={samplingFor(context, entry).watertightVisual}
-                error={errorAt(["sizes", entry, "tested"])}
+                error={messagesAt(["sizes", entry, "tested"], "error")[0] ?? null}
+                warnings={messagesAt(["sizes", entry, "tested"], "warning")}
                 onTab={entry === size}
                 readOnly={readOnly}
                 onTestedChange={(tested) => update((current) => setTested(current, entry, tested))}
@@ -284,6 +288,7 @@ function TestedField({
   tested,
   planned,
   error,
+  warnings,
   onTab,
   readOnly,
   onTestedChange,
@@ -296,6 +301,8 @@ function TestedField({
   tested: number | null;
   planned: number | null;
   error: string | null;
+  /** E.g. a sample too small for the AQL: why the size stays not done. */
+  warnings: readonly string[];
   /** The size on the tab; the others show only where the sizes sit side by side. */
   onTab: boolean;
   readOnly: boolean;
@@ -318,6 +325,7 @@ function TestedField({
         min={2}
         placeholder={planned === null ? undefined : String(planned)}
         error={error}
+        hint={warnings.length > 0 ? <WarningNotes messages={warnings} /> : undefined}
         issuePath={[...path, "tested"]}
         readOnly={readOnly}
         onFocus={onFocus}
@@ -335,6 +343,15 @@ function TestedField({
       )}
     </div>
   );
+}
+
+/** calc's warnings about a field, in amber: NumberField's hint, so they describe the field. */
+function WarningNotes({ messages }: { messages: readonly string[] }) {
+  return messages.map((message) => (
+    <span key={message} className="block text-warn">
+      {message}
+    </span>
+  ));
 }
 
 /** Where the holes counted under "Other :" were, for one size (and hand). */

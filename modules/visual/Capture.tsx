@@ -14,9 +14,9 @@ import { useRef, useState } from "react";
 import {
   CounterTable,
   EnterGroup,
-  findIssue,
   HandToggle,
   handsOf,
+  issuePathKey,
   issuePathProps,
   ModuleSection,
   NumberField,
@@ -281,11 +281,13 @@ function ClassSection({
     // Unchanged (the label is already a row of the class) is no change at all.
     update((current) => addOneOff(current, cell, label, defects, sizes, split));
   };
-  const errorAt = (path: IssuePath) =>
-    findIssue(
-      evaluation?.issues.filter((issue) => issue.level === "error"),
-      path,
-    )?.message ?? null;
+  /** calc's messages about the value at `path`: errors show in red under the field, warnings in amber. */
+  const messagesAt = (path: IssuePath, level: "error" | "warning") => {
+    const key = issuePathKey(path);
+    return (evaluation?.issues ?? [])
+      .filter((issue) => issue.level === level && issuePathKey(issue.path) === key)
+      .map((issue) => issue.message);
+  };
   const limitLabel = labelFor(labels, cls === "critical" ? "criticalLimit" : "defectLimit");
 
   return (
@@ -294,6 +296,7 @@ function ClassSection({
         {sizes.map((entry) => {
           const path: IssuePath = ["sizes", entry, cls, "inspected"];
           const planned = samplingFor(context, entry).watertightVisual;
+          const warnings = messagesAt(path, "warning");
           return (
             <div
               key={entry}
@@ -313,7 +316,8 @@ function ClassSection({
                 integer
                 min={2}
                 placeholder={planned === null ? undefined : String(planned)}
-                error={errorAt(path)}
+                error={messagesAt(path, "error")[0] ?? null}
+                hint={warnings.length > 0 ? <WarningNotes messages={warnings} /> : undefined}
                 issuePath={path}
                 readOnly={readOnly}
                 onFocus={() => onFocusChange?.({ size: entry })}
@@ -358,4 +362,13 @@ function ClassSection({
       />
     </ModuleSection>
   );
+}
+
+/** calc's warnings about a field, in amber: NumberField's hint, so they describe the field. */
+function WarningNotes({ messages }: { messages: readonly string[] }) {
+  return messages.map((message) => (
+    <span key={message} className="block text-warn">
+      {message}
+    </span>
+  ));
 }
