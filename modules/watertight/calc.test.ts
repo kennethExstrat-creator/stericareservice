@@ -8,7 +8,6 @@ import {
   TEMPLATES,
   type TemplateCode,
 } from "@/lib/coverage";
-import type { ModuleKey } from "@/lib/schemas";
 import { lookupFrom, resolveTemplate } from "@/lib/templates";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import {
@@ -480,7 +479,7 @@ describe("watertight", () => {
     const watertightOf = (code: TemplateCode) => {
       const resolution = resolveTemplate(seed(code), { getBase, registry });
       if (!resolution.ok) throw new Error(JSON.stringify(resolution.problems));
-      const found = resolution.template.modules.find((entry) => entry.key === ("watertight" satisfies ModuleKey));
+      const found = resolution.template.modules.find((entry) => entry.key === "watertight");
       if (!found) throw new Error(`${code} has no watertight`);
       return found;
     };
