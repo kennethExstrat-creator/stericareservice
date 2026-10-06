@@ -147,14 +147,16 @@ describe("saveClient", () => {
     });
   });
 
-  it("adds a client and offers the logo next", async () => {
-    useDatabase(() => ({ data: { id: CLIENT }, error: null }));
+  it("adds a client and offers the logo next, with the version the open panel saves against", async () => {
+    useDatabase(() => ({ data: { id: CLIENT, updated_at: VERSION }, error: null }));
     const result = await saveClient(IDLE, form({ id: "", version: "", name: " Polyco  Healthline ", notes: "" }));
     expect(arg(queries[0], "insert")?.[0]).toEqual({ name: "Polyco Healthline", notes: null });
+    expect(arg(queries[0], "select")?.[0]).toBe("id, updated_at");
     expect(result).toEqual({
       status: "success",
       message: "Polyco Healthline added. You can add their logo now.",
       id: CLIENT,
+      version: VERSION,
     });
     expect(refresh).toHaveBeenCalledOnce();
   });
@@ -177,11 +179,23 @@ describe("saveClient", () => {
     expect(result).toEqual({ status: "success", message: "Polyco saved.", id: CLIENT });
   });
 
-  it("says when someone else saved first", async () => {
-    useDatabase(respondWith(clientRow(null), { data: null, error: null }));
-    const result = await saveClient(IDLE, form({ id: CLIENT, version: VERSION, name: "Polyco", notes: "" }));
-    expect(result).toMatchObject({ status: "error", message: expect.stringMatching(/^Someone else changed this client/) });
+  it("says when someone else saved first, and answers with their version for a second save to replace", async () => {
+    const NEWER = "2026-10-06T11:02:13.512904+00:00";
+    useDatabase(respondWith({ name: "Polyco Healthline", notes: null, updated_at: NEWER }, { data: null, error: null }));
+    const result = await saveClient(IDLE, form({ id: CLIENT, version: VERSION, name: "Polyco", notes: "Mine" }));
+    expect(result).toEqual({
+      status: "error",
+      message:
+        "Someone else changed this client while you were editing. Close the panel to see their changes, or save again to replace them with yours.",
+      latest: { version: NEWER, values: { name: "Polyco Healthline", notes: "" } },
+    });
     expect(refresh).toHaveBeenCalledOnce();
+  });
+
+  it("says when the client was deleted meanwhile", async () => {
+    useDatabase(respondWith(null, { data: null, error: null }));
+    const result = await saveClient(IDLE, form({ id: CLIENT, version: VERSION, name: "Polyco", notes: "" }));
+    expect(result).toEqual({ status: "error", message: "This client has been deleted, so your changes were not saved." });
   });
 });
 

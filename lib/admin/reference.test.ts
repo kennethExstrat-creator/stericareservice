@@ -10,10 +10,12 @@ import {
   LogoUploadRequestSchema,
   MESSAGES,
   ManufacturerInputSchema,
+  clientValues,
   describeDeleteError,
   describeSaveError,
   deleteBlocker,
   fieldErrors,
+  followVersion,
   formatMegabytes,
   guarded,
   isInUse,
@@ -25,17 +27,21 @@ import {
   logoFileProblem,
   logoObjectName,
   manufacturerLabel,
+  manufacturerValues,
   matchesSearch,
   multiLine,
   normaliseForSearch,
   oneLine,
   parseLogoObjectName,
   readClient,
+  readClientSnapshot,
   readForm,
   readManufacturer,
+  readManufacturerSnapshot,
   removeLogoFiles,
   removeUnusedLogos,
   searchText,
+  succeeded,
   unreachable,
   usageText,
   type DatabaseClient,
@@ -204,6 +210,59 @@ describe("EditTargetSchema", () => {
   ])("refuses %s", (_label, target) => {
     const result = EditTargetSchema.safeParse(target);
     expect(result.success).toBe(false);
+  });
+});
+
+describe("form values", () => {
+  it("show every editable field as text, with empty ones as blank", () => {
+    expect(
+      manufacturerValues({ name: "Terang Nusa", factoryName: "TG Factory 40", address: null, country: "Malaysia", notes: null }),
+    ).toEqual({ name: "Terang Nusa", factory_name: "TG Factory 40", address: "", country: "Malaysia", notes: "" });
+    expect(clientValues({ name: "Polyco", notes: null })).toEqual({ name: "Polyco", notes: "" });
+  });
+
+  it("are blank for a new row", () => {
+    expect(manufacturerValues(null)).toEqual({ name: "", factory_name: "", address: "", country: "", notes: "" });
+    expect(clientValues(null)).toEqual({ name: "", notes: "" });
+  });
+});
+
+describe("followVersion", () => {
+  const opened = { version: "v1", values: { name: "Polyco", notes: "" } };
+
+  it("stays on the version the panel opened on while the row is unchanged", () => {
+    expect(followVersion(opened, { version: "v1", values: { name: "Polyco", notes: "" } })).toBe(opened);
+  });
+
+  it("follows a newer version whose fields are unchanged, such as after a logo upload", () => {
+    expect(followVersion(opened, { version: "v2", values: { name: "Polyco", notes: "" } })).toEqual({
+      version: "v2",
+      values: opened.values,
+    });
+  });
+
+  it("keeps the old version when someone else changed a field, so the save is refused", () => {
+    // Renamed elsewhere, then the panel's own logo upload refreshed the page.
+    expect(followVersion(opened, { version: "v3", values: { name: "Polyco Healthline", notes: "" } })).toBe(opened);
+    expect(followVersion(opened, { version: "v3", values: { name: "Polyco", notes: "Their note" } })).toBe(opened);
+  });
+
+  it("does not move on later either, once a change has been missed", () => {
+    // Their change, then a logo change: still not what the panel showed.
+    const missed = followVersion(opened, { version: "v3", values: { name: "Polyco Healthline", notes: "" } });
+    expect(followVersion(missed, { version: "v4", values: { name: "Polyco Healthline", notes: "" } })).toBe(opened);
+  });
+});
+
+describe("succeeded", () => {
+  it("names the row a save created or changed, and a new row's first version", () => {
+    expect(succeeded("Saved.")).toEqual({ status: "success", message: "Saved." });
+    expect(succeeded("Added.", { id: CLIENT, version: "v1" })).toEqual({
+      status: "success",
+      message: "Added.",
+      id: CLIENT,
+      version: "v1",
+    });
   });
 });
 
@@ -572,6 +631,34 @@ describe("readManufacturer and readClient", () => {
   it("throw on a database error", async () => {
     const { client } = fakeClient(() => ({ data: null, error: { message: "timeout" } }));
     await expect(readManufacturer(client, CLIENT)).rejects.toThrow("timeout");
+  });
+});
+
+describe("readManufacturerSnapshot and readClientSnapshot", () => {
+  const VERSION = "2026-10-06T10:45:02.066067+00:00";
+
+  it("read the editable fields as the form shows them, at the row's current version", async () => {
+    const { client, queries } = fakeClient(() => ({
+      data: { name: "Terang Nusa", factory_name: null, address: "Lot 1\nKlang", country: "Malaysia", notes: null, updated_at: VERSION },
+      error: null,
+    }));
+    await expect(readManufacturerSnapshot(client, CLIENT)).resolves.toEqual({
+      version: VERSION,
+      values: { name: "Terang Nusa", factory_name: "", address: "Lot 1\nKlang", country: "Malaysia", notes: "" },
+    });
+    expect(queries[0].calls).toContainEqual(["eq", ["id", CLIENT]]);
+
+    const clients = fakeClient(() => ({ data: { name: "Polyco", notes: null, updated_at: VERSION }, error: null }));
+    await expect(readClientSnapshot(clients.client, CLIENT)).resolves.toEqual({
+      version: VERSION,
+      values: { name: "Polyco", notes: "" },
+    });
+  });
+
+  it("answer null for a row that has been deleted, and throw on a database error", async () => {
+    await expect(readClientSnapshot(fakeClient(() => ({ data: null, error: null })).client, CLIENT)).resolves.toBeNull();
+    const failing = fakeClient(() => ({ data: null, error: { message: "timeout" } }));
+    await expect(readManufacturerSnapshot(failing.client, CLIENT)).rejects.toThrow("timeout");
   });
 });
 

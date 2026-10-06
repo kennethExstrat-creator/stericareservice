@@ -22,6 +22,7 @@ import {
   logoFileProblem,
   logoObjectName,
   readClient,
+  readClientSnapshot,
   readForm,
   removeLogoFiles,
   removeUnusedLogos,
@@ -63,10 +64,14 @@ export async function saveClient(_previous: SaveClientResult, formData: FormData
     const { id, version } = target.data;
 
     if (!id) {
-      const { data, error } = await supabase.from("clients").insert(input.data).select("id").single();
+      // The panel stays open on the new client, for its logo: it saves against this first version.
+      const { data, error } = await supabase.from("clients").insert(input.data).select("id, updated_at").single();
       if (error) return saveFailed(error);
       refresh();
-      return succeeded(`${input.data.name} added. You can add their logo now.`, data.id);
+      return succeeded(`${input.data.name} added. You can add their logo now.`, {
+        id: data.id,
+        version: data.updated_at,
+      });
     }
 
     // Only the version the form was opened on: a newer save by someone else matches nothing.
@@ -80,7 +85,7 @@ export async function saveClient(_previous: SaveClientResult, formData: FormData
     if (error) return saveFailed(error);
     if (!data) return notSaved(supabase, id);
     refresh();
-    return succeeded(`${input.data.name} saved.`, data.id);
+    return succeeded(`${input.data.name} saved.`, { id: data.id });
   });
 }
 
@@ -90,15 +95,22 @@ function saveFailed(error: { code?: string; message?: string }): SaveClientResul
   return field ? failed<ClientField>(message, { [field]: message }) : failed(message);
 }
 
-/** The update matched nothing: someone else saved first (a logo change counts), or deleted the client. */
+/**
+ * The update matched nothing: someone else changed the client's name or
+ * notes first, or deleted it. (A logo change alone does not count: the panel
+ * follows those.) With their version (`latest`), the panel's next save
+ * replaces it, as the message offers.
+ */
 async function notSaved(supabase: DatabaseClient, id: string): Promise<SaveClientResult> {
-  const current = await readClient(supabase, id);
+  const latest = await readClientSnapshot(supabase, id);
   refresh();
-  return failed(
-    current
-      ? "Someone else changed this client while you were editing. Close the panel to see their changes, or save again to replace them with yours."
-      : "This client has been deleted, so your changes were not saved.",
-  );
+  if (!latest) return failed("This client has been deleted, so your changes were not saved.");
+  return {
+    ...failed(
+      "Someone else changed this client while you were editing. Close the panel to see their changes, or save again to replace them with yours.",
+    ),
+    latest,
+  };
 }
 
 /** Deletes a client that no template or inspection uses, and then its logo files. */

@@ -162,11 +162,15 @@ describe("saveManufacturer", () => {
     expect(refresh).toHaveBeenCalledOnce();
   });
 
-  it("says when someone else saved first, and shows their version", async () => {
+  it("says when someone else saved first, and answers with their version for a second save to replace", async () => {
+    const NEWER = "2026-10-06T11:02:13.512904+00:00";
     useDatabase((query) =>
       kind(query) === "update"
         ? { data: null, error: null }
-        : { data: { id: ID, name: "Terang", factory_name: null, ...counts(0, 0) }, error: null },
+        : {
+            data: { name: "Terang", factory_name: null, address: null, country: "Malaysia", notes: "Their note", updated_at: NEWER },
+            error: null,
+          },
     );
 
     const result = await saveManufacturer(IDLE, manufacturerForm({ id: ID, version: VERSION }));
@@ -175,7 +179,12 @@ describe("saveManufacturer", () => {
       status: "error",
       message:
         "Someone else changed this manufacturer while you were editing. Close the panel to see their changes, or save again to replace them with yours.",
+      latest: {
+        version: NEWER,
+        values: { name: "Terang", factory_name: "", address: "", country: "Malaysia", notes: "Their note" },
+      },
     });
+    expect(queries[1].calls).toContainEqual(["eq", ["id", ID]]);
     expect(refresh).toHaveBeenCalledOnce();
   });
 

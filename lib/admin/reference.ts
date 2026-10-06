@@ -97,6 +97,46 @@ export const ClientInputSchema = z.object({
 export type ClientField = keyof z.output<typeof ClientInputSchema>;
 export const CLIENT_FIELDS = Object.keys(ClientInputSchema.shape) as ClientField[];
 
+type ManufacturerText = { name: string; factoryName: string | null; address: string | null; country: string | null; notes: string | null };
+
+/** A manufacturer's editable fields as the form shows them: text, "" for none. */
+export function manufacturerValues(row: ManufacturerText | null): Record<ManufacturerField, string> {
+  return {
+    name: row?.name ?? "",
+    factory_name: row?.factoryName ?? "",
+    address: row?.address ?? "",
+    country: row?.country ?? "",
+    notes: row?.notes ?? "",
+  };
+}
+
+/** A client's editable fields as the form shows them. The logo is not one: it has its own actions. */
+export function clientValues(row: { name: string; notes: string | null } | null): Record<ClientField, string> {
+  return { name: row?.name ?? "", notes: row?.notes ?? "" };
+}
+
+/* ------------------------------------------------------------------ *
+ * Versions: a save never replaces a change its panel has not shown
+ * ------------------------------------------------------------------ */
+
+/** A row's editable fields as the form shows them, at one version of the row (its `updated_at`). */
+export type Snapshot<Field extends string> = { version: string; values: Record<Field, string> };
+
+/**
+ * The version an open panel saves against, once the page has a newer copy
+ * of the row. A logo change (or anything else outside the form) moves
+ * `updated_at` without touching the fields, so the panel follows it and its
+ * next save still goes through. If the fields changed, someone else edited
+ * them: the panel keeps `base`, and its save is refused instead of quietly
+ * replacing what they wrote.
+ */
+export function followVersion<Field extends string>(base: Snapshot<Field>, latest: Snapshot<Field>): Snapshot<Field> {
+  if (latest.version === base.version) return base;
+  const fields = Object.keys(base.values) as Field[];
+  const unchanged = fields.every((field) => latest.values[field] === base.values[field]);
+  return unchanged ? { version: latest.version, values: base.values } : base;
+}
+
 /** A row id sent back by the page. Any uuid: ids come from Postgres, which takes every version. */
 export const RecordIdSchema = z.guid({ error: MESSAGES.stale });
 
@@ -140,17 +180,23 @@ export function fieldErrors<T>(error: z.ZodError<T>): Partial<Record<keyof T & s
 
 /**
  * What a Server Action on these pages answers. Only display data: it is
- * serialised to the browser. `id` names the row a save created or changed.
+ * serialised to the browser. `id` names the row a save created or changed,
+ * and `version` is a new row's first `updated_at`. `latest` comes with a
+ * save refused because someone else changed the row: the row as it is now,
+ * which a second save replaces (the panel says so).
  */
 export type ActionResult<Field extends string = string> =
   | { status: "idle" }
-  | { status: "success"; message: string; id?: string }
-  | { status: "error"; message: string; fieldErrors?: Partial<Record<Field, string>> };
+  | { status: "success"; message: string; id?: string; version?: string }
+  | { status: "error"; message: string; fieldErrors?: Partial<Record<Field, string>>; latest?: Snapshot<Field> };
 
 export const IDLE = { status: "idle" } as const;
 
-export function succeeded(message: string, id?: string): { status: "success"; message: string; id?: string } {
-  return id ? { status: "success", message, id } : { status: "success", message };
+export function succeeded(
+  message: string,
+  row?: { id: string; version?: string },
+): { status: "success"; message: string; id?: string; version?: string } {
+  return { status: "success", message, ...row };
 }
 
 export function failed<Field extends string = never>(
@@ -494,6 +540,29 @@ export async function readClient(
     .maybeSingle();
   if (error) throw new Error(`Could not read client ${id}: ${error.message}`);
   return data ? { id: data.id, name: data.name, logoPath: data.logo_path, usage: usageOf(data) } : null;
+}
+
+/** A manufacturer's editable fields at its current version, or null when it does not exist. */
+export async function readManufacturerSnapshot(
+  supabase: DatabaseClient,
+  id: string,
+): Promise<Snapshot<ManufacturerField> | null> {
+  const { data, error } = await supabase
+    .from("manufacturers")
+    .select("name, factory_name, address, country, notes, updated_at")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(`Could not read manufacturer ${id}: ${error.message}`);
+  if (!data) return null;
+  const { factory_name: factoryName, updated_at: version, ...text } = data;
+  return { version, values: manufacturerValues({ ...text, factoryName }) };
+}
+
+/** A client's editable fields at its current version, or null when it does not exist. */
+export async function readClientSnapshot(supabase: DatabaseClient, id: string): Promise<Snapshot<ClientField> | null> {
+  const { data, error } = await supabase.from("clients").select("name, notes, updated_at").eq("id", id).maybeSingle();
+  if (error) throw new Error(`Could not read client ${id}: ${error.message}`);
+  return data ? { version: data.updated_at, values: clientValues(data) } : null;
 }
 
 /** The files in a client's logo folder, oldest first. */

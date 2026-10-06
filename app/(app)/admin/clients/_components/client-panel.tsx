@@ -9,13 +9,18 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/
 import { FieldGroup } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
 import {
+  CLIENT_FIELDS,
   IDLE,
   LIMITS,
+  clientValues,
+  followVersion,
   multiLine,
   oneLine,
+  readForm,
   unreachable,
   type ClientField,
   type ClientItem,
+  type Snapshot,
 } from "@/lib/admin/reference";
 import { DeleteSection } from "../../manufacturers/_components/reference-delete";
 import { TextField } from "../../manufacturers/_components/reference-field";
@@ -29,9 +34,10 @@ type FieldErrors = Partial<Record<ClientField, string>>;
 /** Fields in the order they appear, so the first one with an error gets the focus. */
 const FIELDS: readonly ClientField[] = ["name", "notes"];
 
-function valuesOf(item: ClientItem | null): Values {
-  return { name: item?.name ?? "", notes: item?.notes ?? "" };
-}
+/** The fields as the server stores them (ClientInputSchema cleans them the same way). */
+const cleaned = (values: Values): Values => ({ name: oneLine(values.name), notes: multiLine(values.notes) });
+
+const snapshotOf = (item: ClientItem): Snapshot<ClientField> => ({ version: item.updatedAt, values: clientValues(item) });
 
 type ClientPanelProps = {
   open: boolean;
@@ -49,15 +55,26 @@ export function ClientPanel({ open, target, item, onClose, onCreated }: ClientPa
   const formId = `${id}-form`;
   const editing = target.mode === "edit";
 
-  // The last version of the row this panel saw: it keeps showing while the
+  // The version a save goes against, with the fields as they were at it: the
+  // row as the panel opened on it (or added it). A newer copy of the row
+  // moves it on only when the fields are unchanged, as after this panel's
+  // own logo upload or removal. If someone else changed the name or notes,
+  // the save is refused instead of quietly writing over their change.
+  const [base, setBase] = useState<Snapshot<ClientField> | null>(() => (item ? snapshotOf(item) : null));
+  // The last copy of the row this panel saw: it keeps showing while the
   // panel closes after a delete, when the row has already left the list.
   const [shown, setShown] = useState(item);
-  if (item && item !== shown) setShown(item);
+  if (item && item !== shown) {
+    setShown(item);
+    // No version yet only if a new client's answer came without one: start from the list's.
+    const next = base ? followVersion(base, snapshotOf(item)) : editing ? snapshotOf(item) : null;
+    if (next !== base) setBase(next);
+  }
   // A client this panel has just added may reach the list a moment after the answer.
   const [createdId, setCreatedId] = useState<string | null>(null);
   const gone = open && editing && !item && target.id !== createdId;
 
-  const [values, setValues] = useState<Values>(() => valuesOf(item));
+  const [values, setValues] = useState<Values>(() => clientValues(item));
   const [errors, setErrors] = useState<FieldErrors>({});
   const [logoPending, setLogoPending] = useState(false);
 
@@ -70,11 +87,14 @@ export function ClientPanel({ open, target, item, onClose, onCreated }: ClientPa
           onClose();
         } else {
           // Stay on the new client, as saved, so its logo can go up next.
-          setValues((current) => ({ name: oneLine(current.name), notes: multiLine(current.notes) }));
+          if (result.version) setBase({ version: result.version, values: cleaned(readForm(formData, CLIENT_FIELDS)) });
+          setValues(cleaned);
           setCreatedId(result.id);
           onCreated(result.id);
         }
       } else if (result.status === "error") {
+        // Refused over someone else's change: a second save replaces it, as the message offers.
+        if (result.latest) setBase(result.latest);
         const fieldErrors = result.fieldErrors ?? {};
         setErrors(fieldErrors);
         const first = FIELDS.find((field) => fieldErrors[field]);
@@ -85,7 +105,9 @@ export function ClientPanel({ open, target, item, onClose, onCreated }: ClientPa
     IDLE,
   );
 
-  const saved = valuesOf(shown);
+  // Against what the panel opened on, not the latest copy: someone else's
+  // change is not something typed here.
+  const saved = base?.values ?? clientValues(null);
   const dirty = FIELDS.some((field) => values[field] !== saved[field]);
   const formError = state.status === "error" && !state.fieldErrors ? state.message : null;
   const busy = pending || logoPending;
@@ -147,7 +169,7 @@ export function ClientPanel({ open, target, item, onClose, onCreated }: ClientPa
         <>
           <form id={formId} action={formAction} noValidate>
             <input type="hidden" name="id" value={editing ? target.id : ""} />
-            <input type="hidden" name="version" value={editing ? (item?.updatedAt ?? "") : ""} />
+            <input type="hidden" name="version" value={editing ? (base?.version ?? "") : ""} />
             <FieldGroup className="gap-5">
               <TextField {...field("name")} label="Name" autoCapitalize="words" />
               <TextField {...field("notes")} label="Notes" multiline description="For admins. Not part of reports." />

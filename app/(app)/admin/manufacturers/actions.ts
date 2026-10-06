@@ -16,6 +16,7 @@ import {
   manufacturerLabel,
   readForm,
   readManufacturer,
+  readManufacturerSnapshot,
   succeeded,
   type ActionResult,
   type DatabaseClient,
@@ -56,7 +57,7 @@ export async function saveManufacturer(
       const { data, error } = await supabase.from("manufacturers").insert(input.data).select("id").single();
       if (error) return saveFailed(error);
       refresh();
-      return succeeded(`${labelOf(input.data)} added.`, data.id);
+      return succeeded(`${labelOf(input.data)} added.`, { id: data.id });
     }
 
     // Only the version the form was opened on: a newer save by someone else matches nothing.
@@ -70,7 +71,7 @@ export async function saveManufacturer(
     if (error) return saveFailed(error);
     if (!data) return notSaved(supabase, id);
     refresh();
-    return succeeded(`${labelOf(input.data)} saved.`, data.id);
+    return succeeded(`${labelOf(input.data)} saved.`, { id: data.id });
   });
 }
 
@@ -82,15 +83,21 @@ function saveFailed(error: { code?: string; message?: string }): SaveManufacture
   return field ? failed<ManufacturerField>(message, { [field]: message }) : failed(message);
 }
 
-/** The update matched nothing: someone else saved first, or deleted the manufacturer. */
+/**
+ * The update matched nothing: someone else saved first, or deleted the
+ * manufacturer. With their version (`latest`), the panel's next save
+ * replaces it, as the message offers.
+ */
 async function notSaved(supabase: DatabaseClient, id: string): Promise<SaveManufacturerResult> {
-  const current = await readManufacturer(supabase, id);
+  const latest = await readManufacturerSnapshot(supabase, id);
   refresh();
-  return failed(
-    current
-      ? "Someone else changed this manufacturer while you were editing. Close the panel to see their changes, or save again to replace them with yours."
-      : "This manufacturer has been deleted, so your changes were not saved.",
-  );
+  if (!latest) return failed("This manufacturer has been deleted, so your changes were not saved.");
+  return {
+    ...failed(
+      "Someone else changed this manufacturer while you were editing. Close the panel to see their changes, or save again to replace them with yours.",
+    ),
+    latest,
+  };
 }
 
 /** Deletes a manufacturer that no template or inspection uses. */
