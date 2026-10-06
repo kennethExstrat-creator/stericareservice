@@ -7,17 +7,25 @@
 // It is built before any calc runs. Each source module contributes from its
 // own saved data (`contribute`), so every calc sees the complete context
 // whatever the template's module order. A source module that is switched
-// off or not filled in leaves its part empty; readers must cope with that.
-// A contribution that throws, or names a part another module owns, is left
-// out and recorded, and the engine reports it on that module: one module's
-// bug never stops the others.
+// off or not filled in leaves its part empty, apart from what its config
+// gives; readers must cope with that. Saved data that partly fails its
+// schema still gives what can be read. A contribution that throws, or names
+// a part another module owns, is left out and recorded, and the engine
+// reports it on that module: one module's bug never stops the others.
+//
+// It also carries what modules need about the inspection itself: the
+// included modules with their titles, and its files when the caller knows
+// them (the file channel, files.ts).
+import type { z } from "zod";
 import type { EntityRef, ProductType, Standard } from "@/lib/schemas/common";
 import type { ModuleKey } from "@/lib/schemas/module-result";
 import type { ResolvedSize, ResolvedTemplate, TemplateUnit } from "@/lib/schemas/template";
 import { normaliseSize, orderSizes } from "@/lib/sizes";
 import type { TablesUpdate } from "@/lib/supabase/database.types";
-import type { ModuleRegistry } from "./contract";
-import { readModuleEntry, type InspectionData } from "./data";
+import type { CaptureFocus, ModuleRegistry } from "./contract";
+import { readModuleEntry, type InspectionData, type ModuleEntry } from "./data";
+import type { InspectionFileRef } from "./files";
+import { salvageData, type SalvagedData } from "./salvage";
 
 /** ISO 2859-1 inspection levels (BUILD_SPEC 7). */
 export const INSPECTION_LEVELS = ["S-1", "S-2", "S-3", "S-4", "I", "II", "III"] as const;
@@ -95,7 +103,18 @@ export type InspectionMeta = {
   inspector?: EntityRef | null;
   client?: EntityRef | null;
   manufacturer?: EntityRef | null;
+  /**
+   * The inspection's lab reports and certificates as far as the caller knows
+   * them: inspection_files rows on the server; on the capture screen, those
+   * uploaded plus those still queued on this device. Leave it out (or null)
+   * while they are not loaded: modules then take the file ids they keep as
+   * attached. Never pass an empty list for "not loaded yet".
+   */
+  files?: readonly InspectionFileRef[] | null;
 };
+
+/** A module the inspection includes, with its heading in the template's wording. */
+export type IncludedModule = { key: ModuleKey; title: string };
 
 /** A source module whose contribution was left out, wholly or in part, and why. */
 export type ContributionError = { moduleKey: ModuleKey; message: string };
@@ -127,6 +146,19 @@ export type InspectionContext = {
   cartons: Readonly<Record<string, readonly number[]>>;
   indicativeWeight: IndicativeWeight | null;
   aql: AqlSettings;
+  /**
+   * The modules the inspection includes, in template order, with their
+   * titles in the template's wording (6.2 rule 11): how a module names
+   * another, e.g. the conclusion's "not done: Glove Packing Check". Read it
+   * with `moduleTitle`; optional only for contexts built before it existed.
+   */
+  modules?: readonly IncludedModule[];
+  /**
+   * The inspection's files (InspectionMeta.files), or null when the caller
+   * does not know them. Read with `heldFileState`; optional only for
+   * contexts built before it existed.
+   */
+  files?: readonly InspectionFileRef[] | null;
   /** For the engine, which reports each as a `contribute_failed` error on that module. */
   contributionErrors: readonly ContributionError[];
 };
@@ -217,15 +249,22 @@ export function baseContext({ template, meta = {}, aqlDefaults = {} }: Omit<Buil
     cartons: {},
     indicativeWeight: null,
     aql: { ...AQL_DEFAULTS, ...withoutUndefined(aqlDefaults) },
+    modules: template.modules.filter((entry) => entry.include).map(({ key, title }) => ({ key, title })),
+    files: meta.files ? meta.files.map((file) => ({ ...file })) : null,
     contributionErrors: [],
   };
 }
 
 /**
- * Runs every included module's `contribute` on its saved data. Data or config
- * that fails its schema contributes nothing (the engine reports it). A
- * contribution that throws is left out, and so is a part the module does not
- * own; both are recorded in `contributionErrors`.
+ * Runs every included module's `contribute` on its saved data, or on its
+ * empty data when nothing is saved, so what comes from the template's config
+ * (the inspection level, the inner unit's name) is there from the start.
+ * Saved data that fails its schema contributes what can still be read
+ * (`readableData`): one bad lot number never takes the ordered sizes away
+ * from every per-size module; the engine reports the bad value as a blocking
+ * error with its path. Config that fails its schema contributes nothing
+ * (the engine reports it). A contribution that throws is left out, and so is
+ * a part the module does not own; both are recorded in `contributionErrors`.
  */
 export function buildInspectionContext(input: BuildContextInput, registry: ModuleRegistry): InspectionContext {
   let context = baseContext(input);
@@ -235,11 +274,11 @@ export function buildInspectionContext(input: BuildContextInput, registry: Modul
     const definition = registry[resolved.key];
     if (!definition.contribute) continue;
     const entry = readModuleEntry(input.data, "modules", resolved.key);
-    if (!entry.hasData) continue;
     try {
-      const data = definition.dataSchema.safeParse(entry.value);
       const config = definition.configSchema.safeParse(resolved.config);
-      if (!data.success || !config.success) continue;
+      if (!config.success) continue;
+      const data = readableData(definition, entry);
+      if (data === null) continue;
       const { owned, refused } = splitContribution(
         resolved.key,
         definition.contribute({ data: data.data, config: config.data }),
@@ -251,6 +290,24 @@ export function buildInspectionContext(input: BuildContextInput, registry: Modul
     }
   }
   return restrictToOrderedSizes({ ...context, contributionErrors: errors });
+}
+
+/**
+ * A module's data as far as it can be read: its saved data parsed by its
+ * schema, its empty data when nothing is saved, or, when the saved data
+ * fails the schema, what is left once the values the schema rejects are
+ * taken out (salvageData), with where they were. Null when nothing can be
+ * read.
+ */
+export function readableData<TData>(
+  definition: { readonly dataSchema: z.ZodType<TData>; emptyData(): TData },
+  entry: ModuleEntry,
+): SalvagedData<TData> | null {
+  if (!entry.hasData) {
+    const empty = definition.dataSchema.safeParse(definition.emptyData());
+    return empty.success ? { data: empty.data, dropped: [] } : null;
+  }
+  return salvageData(definition.dataSchema, entry.value);
 }
 
 /**
@@ -340,6 +397,33 @@ export function lotSizeGloves(context: InspectionContext, size: string): number 
 /** The template's label for a size ("Medium"), or the size itself. */
 export function sizeLabel(context: InspectionContext, size: string): string {
   return context.templateSizes.find((entry) => entry.value === size)?.label ?? size;
+}
+
+/**
+ * The size a per-size Capture opens on: the size the screen has in focus
+ * (CaptureProps.focus) when it is ordered, else the first ordered size, else
+ * "" while nothing is ordered.
+ */
+export function initialSize(context: Pick<InspectionContext, "sizes">, focus?: CaptureFocus | null): string {
+  const size = focus?.size;
+  if (size !== undefined && context.sizes.includes(size)) return size;
+  return context.sizes[0] ?? "";
+}
+
+/** The modules the inspection includes, in template order, with their titles. */
+export function includedModules(context: Pick<InspectionContext, "modules">): readonly IncludedModule[] {
+  return context.modules ?? [];
+}
+
+/**
+ * A module's heading in the template's wording ("Glove Packing Check"); for
+ * a module the context does not list, its key in words ("Dispensing packing").
+ */
+export function moduleTitle(context: Pick<InspectionContext, "modules">, key: ModuleKey): string {
+  const found = includedModules(context).find((entry) => entry.key === key);
+  if (found && found.title.trim() !== "") return found.title;
+  const words = key.replaceAll("_", " ");
+  return `${words.charAt(0).toUpperCase()}${words.slice(1)}`;
 }
 
 /**

@@ -8,7 +8,7 @@ import { buildInspectionContext, type InspectionMeta } from "./context";
 import type { CalcOutput, ModuleRegistry } from "./contract";
 import { emptyInspectionData, type InspectionData } from "./data";
 import { defineModule, NOT_BUILT_SUMMARY, stubModule } from "./define";
-import { evaluateInspection, type InspectionEvaluation } from "./evaluate";
+import { evaluateInspection, evaluationOf, type InspectionEvaluation } from "./evaluate";
 import { labelFor } from "./labels";
 import { checkModuleContract, makeTestTemplate } from "./testing";
 
@@ -183,8 +183,61 @@ describe("evaluateInspection: framework rules for every module", () => {
     const weight = moduleOf(evaluate(data), "weight");
     expect(weight.result).toMatchObject({ status: "not_done", summary: "Saved data could not be read." });
     expect(weight.issues).toEqual([
-      expect.objectContaining({ level: "error", code: "invalid_data", path: ["sizes", "M", "values", 1] }),
+      {
+        level: "error",
+        moduleKey: "weight",
+        code: "invalid_data",
+        message: "Weight (g): size M, values no. 2 is not a number.",
+        path: ["sizes", "M", "values", 1],
+      },
     ]);
+  });
+
+  it("keeps the context from a source module's readable values, and says so on its errors", () => {
+    const data = exampleB();
+    data.modules = {
+      ...data.modules,
+      carton_sampling: { sizes: { M: [32, 609, "five hundred", 2389, 1186] } },
+    };
+    const template = makeTestTemplate(TEST_REGISTRY, MODULES);
+    const context = buildInspectionContext({ template, data, meta: META }, TEST_REGISTRY);
+    expect(context.cartons).toEqual({ M: [32, 609, 2389, 1186] });
+    const cartons = moduleOf(evaluateInspection({ template, data, context }, TEST_REGISTRY), "carton_sampling");
+    expect(cartons.issues).toEqual([
+      expect.objectContaining({
+        code: "invalid_data",
+        message:
+          "Finished Goods Sampling Information (carton number): size M no. 3 is not a number. Until it is corrected, the other sections use the rest of what is saved here.",
+        path: ["sizes", "M", 2],
+      }),
+    ]);
+  });
+
+  it("links a module's not-done issue to the field its calc names", () => {
+    const pointing = (notDonePath: unknown) =>
+      defineModule({
+        ...stubModule({ key: "dimensions", title: "Dimension" }),
+        calc: () => ({ result: notDone("Missing: width."), computed: {}, issues: [], notDonePath }) as CalcOutput,
+      });
+    const run = (notDonePath: unknown) => {
+      const registry = registryWith({ dimensions: pointing(notDonePath) });
+      const data: InspectionData = { modules: { dimensions: { anything: 1 } }, custom: {} };
+      return evaluate(data, makeTestTemplate(registry, ["dimensions"]), registry).issues.filter(
+        (issue) => issue.moduleKey === "dimensions",
+      );
+    };
+    expect(run(["width", 0])).toEqual([
+      {
+        level: "warning",
+        moduleKey: "dimensions",
+        code: "module_not_done",
+        message: "Dimension is not done: Missing: width.",
+        path: ["width", 0],
+      },
+    ]);
+    // Not a path into the data: the link goes to the module.
+    expect(run([-1])[0].path).toEqual([]);
+    expect(run(undefined)[0].path).toEqual([]);
   });
 
   it("reports a template config the module rejects", () => {
@@ -278,6 +331,15 @@ describe("evaluateInspection: framework rules for every module", () => {
   it("requires the inspector (6.2 rule 11)", () => {
     const evaluation = evaluate(exampleB(), undefined, TEST_REGISTRY, {});
     expect(evaluation.issues).toContainEqual(expect.objectContaining({ moduleKey: "header", code: "inspector_missing" }));
+  });
+});
+
+describe("evaluationOf", () => {
+  it("gives one module's evaluation with the computed values its definition declares", () => {
+    const evaluation = evaluate(exampleB());
+    const weight = evaluationOf(evaluation, TEST_REGISTRY.weight);
+    expect(weight).toBe(moduleOf(evaluation, "weight"));
+    expect(evaluationOf(evaluation, TEST_REGISTRY.tensile)).toBeNull();
   });
 });
 

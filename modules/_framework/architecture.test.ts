@@ -47,6 +47,12 @@ function offenders(imports: Import[], forbidden: (specifier: string) => boolean)
   return imports.filter((entry) => forbidden(entry.specifier)).map((entry) => `${entry.file} imports ${entry.specifier}`);
 }
 
+/**
+ * The framework's React parts, for Capture.tsx only: imported by their own
+ * path (`@/modules/_framework/file-slot`), never through the framework's index.
+ */
+const FRAMEWORK_CLIENT_FILES = ["modules/_framework/file-slot.tsx"];
+
 const REGISTRY = (specifier: string) =>
   specifier === "@/modules" || specifier === "@/modules/registry" || specifier === "@/modules/index";
 const VALIDATION_ENTRY = (specifier: string) =>
@@ -66,9 +72,9 @@ describe("module layering", () => {
     expect(offenders(imports, (specifier) => REGISTRY(specifier) || VALIDATION_ENTRY(specifier))).toEqual([]);
   });
 
-  it("keeps module logic free of React, Next, components and server code (Capture.tsx aside)", () => {
+  it("keeps module logic free of React, Next, components and server code (Capture.tsx and the client parts aside)", () => {
     const imports = runtimeImports([...moduleFolders, "modules/_framework"]).filter(
-      (entry) => !/\/Capture\.tsx$/.test(entry.file),
+      (entry) => !/\/Capture\.tsx$/.test(entry.file) && !FRAMEWORK_CLIENT_FILES.includes(entry.file),
     );
     const ui = (specifier: string) =>
       specifier === "react" ||
@@ -80,6 +86,22 @@ describe("module layering", () => {
       specifier.startsWith("@/lib/ai") ||
       specifier === "server-only";
     expect(offenders(imports, ui)).toEqual([]);
+  });
+
+  it("keeps the framework's client parts out of everything but Capture.tsx", () => {
+    // Server code, calcs and the export import @/modules/_framework: it must never pull in React.
+    const imports = runtimeImports([...moduleFolders, "modules/_framework", "lib/validation", "lib/templates"]).filter(
+      (entry) => !/\/Capture\.tsx$/.test(entry.file) && !FRAMEWORK_CLIENT_FILES.includes(entry.file),
+    );
+    const client = (specifier: string) =>
+      FRAMEWORK_CLIENT_FILES.some((file) => {
+        const stem = file.replace(/\.tsx$/, "");
+        return specifier === `@/${stem}` || specifier === `./${stem.slice("modules/_framework/".length)}`;
+      });
+    expect(offenders(imports, client)).toEqual([]);
+    for (const file of FRAMEWORK_CLIENT_FILES) {
+      expect(readFileSync(join(ROOT, file), "utf8").startsWith('"use client";'), file).toBe(true);
+    }
   });
 
   it("lets only lib/validation/validate.ts load the registry from lib", () => {

@@ -13,15 +13,15 @@ import { EraserIcon, Redo2Icon, TriangleAlertIcon, Undo2Icon } from "lucide-reac
 import { RadioGroup as RadioGroupPrimitive } from "radix-ui";
 import { cn } from "@/lib/utils";
 import type { Status } from "@/lib/design/status";
-import type { InspectionResult } from "@/lib/schemas";
+import type { InspectionResult, ModuleKey } from "@/lib/schemas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { findIssue, issuePathProps, StatusIcon, StatusPill, useDataUpdater, useIssueFocus } from "@/components/qc";
-import { labelFor, type CaptureProps } from "@/modules/_framework";
+import { labelFor, moduleTitle, type CaptureProps } from "@/modules/_framework";
 import type { ConclusionComputed, ConclusionConfig, ConclusionData } from ".";
-import { moduleName, resultWord } from "./calc";
+import { resultWord } from "./calc";
 import { isoDateOf, withDate, withFinalResult, withRemark, withSignature } from "./edit";
 import {
   addStroke,
@@ -88,11 +88,13 @@ export default function Capture({
     dateIssue: `${baseId}-date-issue`,
   };
 
+  // Other modules by their titles in the template's wording (6.2 rule 11).
+  const names = (keys: readonly ModuleKey[]) => keys.map((key) => moduleTitle(context, key)).join(", ");
   const reasons = computed
     ? [
-        computed.failed?.length ? `Failed: ${computed.failed.map(moduleName).join(", ")}.` : null,
-        computed.notDone?.length ? `Not done: ${computed.notDone.map(moduleName).join(", ")}.` : null,
-        computed.warned?.length ? `Warnings: ${computed.warned.map(moduleName).join(", ")}.` : null,
+        computed.failed?.length ? `Failed: ${names(computed.failed)}.` : null,
+        computed.notDone?.length ? `Not done: ${names(computed.notDone)}.` : null,
+        computed.warned?.length ? `Warnings: ${names(computed.warned)}.` : null,
       ].filter((reason): reason is string => reason !== null)
     : [];
 

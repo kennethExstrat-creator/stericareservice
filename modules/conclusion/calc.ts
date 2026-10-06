@@ -3,17 +3,21 @@
 // beside the inspector's final result, which sets the status: pass, fail,
 // and hold as warn, since a module status has no hold. Not done until the
 // final result and the date are there; the conclusion is required for
-// submit, so that blocks it. A final result that differs from the suggestion
-// is a warning for the reviewer, never an error: the inspector decides.
+// submit, so that blocks it, and the blocking issue links to what is
+// missing. A final result that differs from the suggestion is a warning for
+// the reviewer, never an error: the inspector decides. Other modules are
+// named by their titles in the template's wording (context.modules).
 import type { InspectionResult, ModuleKey, ModuleResult, ModuleStatus } from "@/lib/schemas";
 import {
   labelFor,
+  moduleTitle,
   notDone,
   suggestResult,
   warningIssue,
   type CalcInput,
   type CalcIssue,
   type CalcOutput,
+  type InspectionContext,
   type Labels,
   type SuggestedResult,
   type SuggestionInput,
@@ -44,14 +48,15 @@ export function calcConclusion({
   context,
   results,
 }: CalcInput<ConclusionData, ConclusionConfig>): CalcOutput<ConclusionComputed> {
-  const suggestion = suggest(results);
+  const suggestion = suggest(results, context);
+  const name = (key: ModuleKey) => moduleTitle(context, key);
   const computed: ConclusionComputed = {
     suggestedResult: suggestion.result,
     failed: suggestion.failed,
     notDone: suggestion.notDone,
     warned: suggestion.warned,
   };
-  const suggested = `${labelFor(labels, "suggestedResult")}: ${resultWord(labels, suggestion.result)}${reasonOf(suggestion, true)}.`;
+  const suggested = `${labelFor(labels, "suggestedResult")}: ${resultWord(labels, suggestion.result)}${reasonOf(suggestion, true, name)}.`;
   const issues: CalcIssue[] = [];
 
   const final = data.finalResult;
@@ -60,7 +65,7 @@ export function calcConclusion({
     issues.push(
       warningIssue(
         "final_result_differs",
-        `${labelFor(labels, "finalResult")} ${resultWord(labels, final)} differs from the suggestion, ${resultWord(labels, suggestion.result)}${reasonOf(suggestion, false)}.${explain}`,
+        `${labelFor(labels, "finalResult")} ${resultWord(labels, final)} differs from the suggestion, ${resultWord(labels, suggestion.result)}${reasonOf(suggestion, false, name)}.${explain}`,
         { path: ["finalResult"] },
       ),
     );
@@ -82,7 +87,13 @@ export function calcConclusion({
     ...(data.date === null ? [labelFor(labels, "date")] : []),
   ];
   if (final === null || missing.length > 0) {
-    return { result: notDone(`Missing: ${missing.join(", ")}. ${suggested}`), computed, issues };
+    return {
+      result: notDone(`Missing: ${missing.join(", ")}. ${suggested}`),
+      computed,
+      issues,
+      // The blocking issue opens the choice still to make: the result first, then the date.
+      notDonePath: final === null ? ["finalResult"] : ["date"],
+    };
   }
 
   const signed = data.signature === null ? " Not signed." : "";
@@ -102,11 +113,17 @@ export function resultWord(labels: Labels, result: InspectionResult): string {
 }
 
 /**
- * The modules that make the suggestion what it is, e.g. " (failed: Carton
- * sampling)". `withWarnings` adds the warned modules to a pass.
+ * The modules that make the suggestion what it is, e.g. " (failed: Finished
+ * Goods Sampling Information (carton number))". `withWarnings` adds the
+ * warned modules to a pass. `name` gives a module's name: its title from the
+ * context (moduleTitle); the key in words when left out.
  */
-export function reasonOf(suggestion: SuggestedResult, withWarnings: boolean): string {
-  const names = (keys: readonly ModuleKey[]) => keys.map(moduleName).join(", ");
+export function reasonOf(
+  suggestion: SuggestedResult,
+  withWarnings: boolean,
+  name: (key: ModuleKey) => string = moduleName,
+): string {
+  const names = (keys: readonly ModuleKey[]) => keys.map(name).join(", ");
   if (suggestion.failed.length > 0) return ` (failed: ${names(suggestion.failed)})`;
   if (suggestion.notDone.length > 0) return ` (not done: ${names(suggestion.notDone)})`;
   if (suggestion.result === "hold") return " (no module has a result yet)";
@@ -115,20 +132,23 @@ export function reasonOf(suggestion: SuggestedResult, withWarnings: boolean): st
 }
 
 /**
- * A module's name for the suggestion. calc receives the other modules'
- * results but not their titles, so the key stands in, in words: "Carton
- * sampling". The engine's own suggestion (InspectionEvaluation.suggested)
- * names them by title.
+ * A module's key in words, "Carton sampling": the name of a module the
+ * context does not list.
+ *
+ * @deprecated Name modules by their title: `moduleTitle(context, key)` from
+ * `@/modules/_framework`, which falls back to these words.
  */
 export function moduleName(key: ModuleKey): string {
-  const words = key.replaceAll("_", " ");
-  return `${words.charAt(0).toUpperCase()}${words.slice(1)}`;
+  return moduleTitle({ modules: [] }, key);
 }
 
-function suggest(results: Readonly<Partial<Record<ModuleKey, ModuleResult>>>): SuggestedResult {
+function suggest(
+  results: Readonly<Partial<Record<ModuleKey, ModuleResult>>>,
+  context: Pick<InspectionContext, "modules">,
+): SuggestedResult {
   const inputs: SuggestionInput[] = [];
   for (const [key, result] of Object.entries(results) as [ModuleKey, ModuleResult | undefined][]) {
-    if (result) inputs.push({ key, status: result.status, title: moduleName(key) });
+    if (result) inputs.push({ key, status: result.status, title: moduleTitle(context, key) });
   }
   return suggestResult(inputs);
 }

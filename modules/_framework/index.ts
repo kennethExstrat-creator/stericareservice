@@ -14,7 +14,9 @@ export type {
   ModuleDefinition,
   AnyModuleDefinition,
   ModuleRegistry,
+  PackagingLevel,
 } from "./contract";
+export { PACKAGING_LEVELS } from "./contract";
 export { defineModule, stubModule, NOT_BUILT_SUMMARY, type ModuleSpec, type StubSpec } from "./define";
 export { SpecSchema } from "./config-schemas";
 export { labelFor, effectiveLabels, type Labels } from "./labels";
@@ -32,12 +34,17 @@ export {
   cartonsFor,
   lotSizeGloves,
   sizeLabel,
+  initialSize,
+  includedModules,
+  moduleTitle,
   inspectionRowValues,
+  readableData,
   type AqlSettings,
   type BuildContextInput,
   type ContextContribution,
   type ContributionError,
   type HeaderValues,
+  type IncludedModule,
   type IndicativeWeight,
   type InspectionContext,
   type InspectionLevel,
@@ -46,6 +53,17 @@ export {
   type PackingValues,
   type SamplingValues,
 } from "./context";
+export {
+  FILE_KINDS,
+  FileKindSchema,
+  FileIdCellSchema,
+  heldFileState,
+  type AttachedFile,
+  type FileKind,
+  type HeldFileState,
+  type InspectionFileRef,
+} from "./files";
+export { salvageData, type SalvagedData } from "./salvage";
 export {
   COMMENT_KEY,
   InspectionDataSchema,
@@ -72,6 +90,7 @@ export {
 } from "./paths";
 export {
   evaluateInspection,
+  evaluationOf,
   type CustomModuleEvaluation,
   type EvaluateInput,
   type ExcludedModule,
@@ -109,3 +128,4 @@ export {
   notDone,
 } from "@/lib/validation/results";
 export { suggestResult, type SuggestedResult, type SuggestionInput } from "@/lib/validation/suggested-result";
+export { describeDataPath } from "@/lib/validation/rules";

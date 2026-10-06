@@ -51,6 +51,7 @@ export {
   sizeDuplicateIssues,
   notDoneIssues,
   inspectorIssues,
+  describeDataPath,
 } from "./rules";
 export {
   fieldValueSchema,

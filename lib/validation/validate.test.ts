@@ -135,4 +135,77 @@ describe("validateInspection with the app's modules", () => {
     expect(report.suggested.result).toBe("hold");
     expect(validateInspection(data, template, context, MODULE_REGISTRY)).toEqual(report);
   });
+
+  describe("data saved before a schema limit (data tolerance)", () => {
+    const resolution = resolveTemplate(
+      {
+        code: "TOLERANCE_EG",
+        name: "Data tolerance",
+        scope: { productType: "examination", standard: "EN455" },
+        unit: "pcs",
+        sizes: [{ value: "M" }, { value: "L" }],
+        modules: [
+          { key: "order_lots", include: true },
+          { key: "labeling", include: true },
+        ],
+      },
+      () => undefined,
+    );
+    if (!resolution.ok) throw new Error(JSON.stringify(resolution.problems));
+    const template = resolution.template;
+    // A lot number of 250 characters, saved before order_lots took at most 200.
+    const data: InspectionData = {
+      modules: {
+        order_lots: {
+          sizes: {
+            M: { qtyCases: 2900, lotNumbers: ["LOT-M-0001", "L".repeat(250)] },
+            L: { qtyCases: 60, lotNumbers: ["LOT-L-0001"] },
+          },
+        },
+      },
+      custom: {},
+    };
+
+    it("keeps every ordered size for the per-size modules", () => {
+      const context = buildAppContext({ template, data, meta: { inspector: INSPECTOR } });
+      expect(context.sizes).toEqual(["M", "L"]);
+      expect(context.order).toEqual({
+        M: { qtyCases: 2900, lotNumbers: ["LOT-M-0001"] },
+        L: { qtyCases: 60, lotNumbers: ["LOT-L-0001"] },
+      });
+      const report = validateInspection(data, template, context);
+      const labeling = report.modules.find((entry) => entry.key === "labeling");
+      expect(Object.keys(labeling?.result.perSize ?? {})).toEqual(["M", "L"]);
+    });
+
+    it("blocks submit with an error that names the module and the field, and links to it", () => {
+      const context = buildAppContext({ template, data, meta: { inspector: INSPECTOR } });
+      const report = validateInspection(data, template, context);
+      expect(report.errors).toContainEqual({
+        level: "error",
+        moduleKey: "order_lots",
+        code: "invalid_data",
+        message:
+          "Order: size M, Lot Number no. 2 is longer than 200 characters. Until it is corrected, the other sections use the rest of what is saved here.",
+        path: ["sizes", "M", "lotNumbers", 1],
+      });
+      expect(report.canSubmit).toBe(false);
+      expect(report.modules.find((entry) => entry.key === "order_lots")?.result.status).toBe("not_done");
+    });
+
+    it("says so when nothing of a source module can be read", () => {
+      const unreadable: InspectionData = { modules: { order_lots: "not an order" }, custom: {} };
+      const context = buildAppContext({ template, data: unreadable, meta: { inspector: INSPECTOR } });
+      expect(context.sizes).toEqual([]);
+      const report = validateInspection(unreadable, template, context);
+      expect(report.errors).toContainEqual(
+        expect.objectContaining({
+          moduleKey: "order_lots",
+          code: "invalid_data",
+          path: [],
+          message: expect.stringContaining("Until it is corrected, the other sections get nothing from this one."),
+        }),
+      );
+    });
+  });
 });
