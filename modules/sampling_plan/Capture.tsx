@@ -142,7 +142,8 @@ export default function Capture({
       );
     }
     return (
-      <div className="space-y-3">
+      // As wide as its labels need, so each count sits next to its label on a wide screen.
+      <div className="max-w-xl space-y-3">
         <FactList facts={facts} />
         <div className="relative overflow-clip rounded-lg border border-border bg-card">
           <table className="w-full border-separate border-spacing-0 text-sm touch:text-base">
