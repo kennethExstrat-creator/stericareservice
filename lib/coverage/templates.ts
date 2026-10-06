@@ -35,7 +35,7 @@ import {
   type Measure,
   type SamplingColumn,
 } from "./keys";
-import type { SourceId, TemplateCode } from "./types";
+import type { FieldTarget, SourceId, TemplateCode } from "./types";
 
 /* ------------------------------------------------------------------ *
  * Config value types, one per module, keyed as in fields.ts
@@ -162,7 +162,7 @@ export type CustomFieldSpec = {
   readonly hint?: string;
 };
 
-/** BUILD_SPEC 4.3 CustomModule, for fields no module holds. */
+/** BUILD_SPEC 4.3 CustomModule, for fields no module holds. `table`: one row per ordered size. */
 export type CustomModuleSpec = {
   readonly key: string;
   readonly title: string;
@@ -180,8 +180,7 @@ export type TemplateSpec = {
   readonly extends: TemplateCode | null;
   readonly scope: {
     readonly productType: ProductType;
-    /** null: to confirm. */
-    readonly standard: Standard | null;
+    readonly standard: Standard;
     /** The template belongs to one client (BUILD_SPEC 4.4). */
     readonly clientScoped: boolean;
   };
@@ -189,12 +188,11 @@ export type TemplateSpec = {
   readonly unit: "pcs" | "pairs";
   /** Normalised sizes (rule 4.2.5), in report order. */
   readonly sizes: readonly { readonly value: string; readonly label?: string }[];
+  /** BUILD_SPEC 4.3 `report`, with the title kept as the report prints it: line by line. */
   readonly report: {
-    /** The report's title block, line by line. null: to confirm. */
+    /** The report's title block, line by line; a seed joins them into `report.title`. null: to confirm. */
     readonly titleLines: readonly string[] | null;
     readonly showClientLogo: boolean;
-    /** Running header of pages 2 on; {po} is the PO number, {product} the product name. */
-    readonly pageHeader: string | null;
   };
   /** Included modules, in capture order (BUILD_SPEC 11). */
   readonly modules: readonly TemplateModule[];
@@ -255,6 +253,32 @@ const GLOVE_TYPE: CustomModuleSpec = {
   ],
 };
 
+/**
+ * The Safedon onsite sheet's two free-text boxes, one pair per size block
+ * (onsite/SAFEDON_EG.md: "stay in custom and go into the export"). Kept as
+ * written, next to the spec the template sets and the result the app computes.
+ */
+const SAFEDON_DISPENSING_NOTES: CustomModuleSpec = {
+  key: "safedon_dispensing_notes",
+  title: "Glove Dispensing Inspection: onsite notes",
+  after: "dispensing_safedon",
+  layout: "table",
+  fields: [
+    {
+      key: "specRequirement",
+      label: "Specification / Requirement",
+      type: "text",
+      hint: "As written on the onsite sheet for the size. The app judges the rate against the template's maximum.",
+    },
+    {
+      key: "conclusion",
+      label: "Conclusion",
+      type: "text",
+      hint: "As written on the onsite sheet for the size. The app computes Passed or Failed from the rate.",
+    },
+  ],
+};
+
 /* ------------------------------------------------------------------ *
  * STD_EG: reports/STD_EG.md, onsite/EG.md
  * ------------------------------------------------------------------ */
@@ -279,13 +303,9 @@ const STD_EG: TemplateSpec = {
   report: {
     titleLines: ["Preshipment Inspection", "Nitrile Disposable Examination Gloves"],
     showClientLogo: false,
-    pageHeader: "Pre-shipment Inspection : {po} {product}",
   },
   modules: [
-    {
-      key: "header",
-      config: { fields: { ...allOn(HEADER_FIELDS), inspector: false }, mfgExpiryPrecision: "day" },
-    },
+    { key: "header", config: { fields: allOn(HEADER_FIELDS), mfgExpiryPrecision: "day" } },
     { key: "glove_info", config: { fields: allOn(GLOVE_INFO_FIELDS), indicativeWeightSize: "M" } },
     { key: "order_lots", config: { fields: { packingSite: false } } },
     { key: "packing_config", config: { innerUnit: "inner_box", fields: { packingMode: true } } },
@@ -330,6 +350,10 @@ const STD_EG: TemplateSpec = {
   ],
   customModules: [GLOVE_TYPE],
   toConfirm: [
+    {
+      path: "header.fields",
+      note: "Inspected by is shown: the EG onsite form prints it (section 2); the STD_EG report does not, and BUILD_SPEC 11 names it as a SAFEDON_EG addition.",
+    },
     {
       path: "sampling_plan.inspectionLevel",
       note: "Level I: the example's samples match it. BUILD_SPEC 13 asks for the inspection level per client.",
@@ -383,7 +407,6 @@ const SAFEDON_EG: TemplateSpec = {
   report: {
     titleLines: ["Preshipment Inspection", "Safedon Nitrile PF Exam Gloves"],
     showClientLogo: true,
-    pageHeader: "Preshipment Report (PO# {po}: {product})",
   },
   modules: [
     {
@@ -443,7 +466,7 @@ const SAFEDON_EG: TemplateSpec = {
     },
     { key: "conclusion", config: {} },
   ],
-  customModules: [GLOVE_TYPE],
+  customModules: [GLOVE_TYPE, SAFEDON_DISPENSING_NOTES],
   toConfirm: [
     {
       path: "scope.clientScoped",
@@ -472,11 +495,11 @@ const STD_SG: TemplateSpec = {
   code: "STD_SG",
   name: "Standard sterile surgical gloves",
   extends: null,
-  scope: { productType: "surgical", standard: null, clientScoped: false },
+  scope: { productType: "surgical", standard: "custom", clientScoped: false },
   builtFrom: ["onsite_SG"],
   unit: "pairs",
   sizes: sizes("5.5", "6.0", "6.5", "7.0", "7.5", "8.0", "8.5", "9.0"),
-  report: { titleLines: null, showClientLogo: false, pageHeader: null },
+  report: { titleLines: null, showClientLogo: false },
   modules: [
     {
       key: "header",
@@ -515,7 +538,10 @@ const STD_SG: TemplateSpec = {
   ],
   customModules: [GLOVE_TYPE],
   toConfirm: [
-    { path: "scope.standard", note: "No filled SG report: EN 455 or ASTM D3577." },
+    {
+      path: "scope.standard",
+      note: "'custom' until confirmed: no filled SG report, so EN 455 or ASTM D3577 is open (BUILD_SPEC 13).",
+    },
     { path: "unit", note: "pairs (sterile surgical gloves are packed in pairs); the SG form counts '# gloves'." },
     { path: "sizes", note: "The form has 8 size columns with blank headings: 5.5 to 9.0 assumed." },
     { path: "report.titleLines", note: "No filled SG report." },
@@ -566,6 +592,58 @@ export function templateOfSource(source: SourceId): TemplateCode {
   );
   if (!code) throw new Error(`No template is built from ${source}`);
   return code;
+}
+
+/**
+ * Whether a template shows a module data field: the module is on and no
+ * config switch hides the field (header and glove info fields, packing site,
+ * packing mode, sampling columns, measures, loading fields), its class or its
+ * level. Used to check that every coverage row lands on a field the template shows.
+ */
+export function fieldShown(template: TemplateCode, target: Pick<FieldTarget, "module" | "field" | "group">): boolean {
+  const { module, field, group } = target;
+  const on = (switches: Readonly<Record<string, boolean>>) => switches[field] !== false;
+  switch (module) {
+    case "header": {
+      const config = moduleConfig(template, "header");
+      return config !== undefined && on(config.fields);
+    }
+    case "glove_info": {
+      const config = moduleConfig(template, "glove_info");
+      return config !== undefined && on(config.fields);
+    }
+    case "order_lots": {
+      const config = moduleConfig(template, "order_lots");
+      return config !== undefined && on(config.fields);
+    }
+    case "packing_config": {
+      const config = moduleConfig(template, "packing_config");
+      return config !== undefined && on(config.fields);
+    }
+    case "sampling_plan": {
+      const config = moduleConfig(template, "sampling_plan");
+      return config !== undefined && on(config.columns);
+    }
+    case "dimensions": {
+      const config = moduleConfig(template, "dimensions");
+      const measure = (MEASURES as readonly string[]).includes(field);
+      return config !== undefined && (!measure || (config.measures as readonly string[]).includes(field));
+    }
+    case "loading": {
+      const config = moduleConfig(template, "loading");
+      return config !== undefined && on(config.fields);
+    }
+    case "visual": {
+      const config = moduleConfig(template, "visual");
+      return config !== undefined && (group === undefined || config.classes[group as DefectClass]?.include === true);
+    }
+    case "labeling": {
+      const config = moduleConfig(template, "labeling");
+      return config !== undefined && (group === undefined || config.levels[group as LabellingLevel]?.include === true);
+    }
+    default:
+      return templateModuleKeys(template).includes(module);
+  }
 }
 
 /**

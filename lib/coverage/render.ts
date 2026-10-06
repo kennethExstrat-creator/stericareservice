@@ -287,7 +287,12 @@ function differences(template: TemplateSpec, base: TemplateSpec): string[] {
 function templateSection(code_: TemplateCode): string {
   const template = TEMPLATES[code_];
   const custom = template.customModules
-    .map((module) => `${code(module.key)} "${module.title}" after ${code(module.after)}: ${module.fields.map((field) => code(field.key)).join(", ")}`)
+    .map(
+      (module) =>
+        `${code(module.key)} "${cell(module.title)}" (${module.layout}) after ${code(module.after)}: ${module.fields
+          .map((field) => `${code(field.key)} "${cell(field.label)}"`)
+          .join(", ")}`,
+    )
     .join("; ");
   const lines = [
     `### ${code(template.code)}: ${template.name}`,
@@ -298,13 +303,12 @@ function templateSection(code_: TemplateCode): string {
         ["Extends", template.extends ? code(template.extends) : "none"],
         [
           "Scope",
-          `${template.scope.productType}, ${template.scope.standard ?? "standard to confirm"}${template.scope.clientScoped ? ", one client" : ""}`,
+          `${template.scope.productType}, ${template.scope.standard}${template.scope.clientScoped ? ", one client" : ""}`,
         ],
         ["Built from", template.builtFrom.map((source) => code(SOURCE_DOCUMENTS[source].file)).join(", ")],
         ["Unit, sizes", `${template.unit}; ${template.sizes.map((size) => size.value).join(", ")}`],
         ["Report title", template.report.titleLines ? cell(template.report.titleLines.join(" / ")) : "to confirm"],
         ["Client logo", template.report.showClientLogo ? "yes" : "no"],
-        ["Running page header", template.report.pageHeader ? cell(template.report.pageHeader) : "to confirm"],
         ["Custom modules", custom || "none"],
       ],
     ),

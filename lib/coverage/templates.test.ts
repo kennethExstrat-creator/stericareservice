@@ -4,6 +4,7 @@ import { formatSpec } from "@/lib/stats/spec";
 import { moduleSpec } from "./fields";
 import { DEFECT_CLASSES, LABELLING_CHECKS, type Measure } from "./keys";
 import {
+  fieldShown,
   labelOverrides,
   moduleConfig,
   seedModuleConfigs,
@@ -13,6 +14,11 @@ import {
   type SizeSpecs,
 } from "./templates";
 import { SOURCE_IDS, TEMPLATE_CODES, TEMPLATE_PROPERTIES } from "./types";
+
+/** phase2/framework, lib/schemas/template.ts: FIELD_KEY_PATTERN (ModuleConfig.labels and Field keys). */
+const FRAMEWORK_FIELD_KEY = /^[A-Za-z][A-Za-z0-9_]*$/;
+/** phase2/framework, lib/schemas/template.ts: CUSTOM_KEY_PATTERN. */
+const FRAMEWORK_CUSTOM_KEY = /^[a-z][a-z0-9_]*$/;
 
 /** BUILD_SPEC 11, "Modules on (in order)". */
 const BUILD_SPEC_11_ORDER: Readonly<Record<(typeof TEMPLATE_CODES)[number], readonly ModuleKey[]>> = {
@@ -295,10 +301,26 @@ describe("what the reports fix", () => {
       Object.entries(moduleConfig(code, "header")?.fields ?? {})
         .filter(([, on]) => !on)
         .map(([key]) => key);
-    expect(off("STD_EG")).toEqual(["inspector"]);
+    // STD_EG shows Inspected by: its report has no row, its EG onsite form does (rule 4.2.1).
+    expect(off("STD_EG")).toEqual([]);
     expect(off("SAFEDON_EG")).toEqual(["client", "factoryGloveCode"]);
     expect(off("STD_SG")).toEqual(["factoryAddress", "client", "factoryGloveCode"]);
     expect(moduleConfig("SAFEDON_EG", "header")?.mfgExpiryPrecision).toBe("month");
+  });
+
+  it("knows which fields a template shows", () => {
+    expect(fieldShown("STD_EG", { module: "header", field: "inspector" })).toBe(true);
+    expect(fieldShown("SAFEDON_EG", { module: "header", field: "client" })).toBe(false);
+    expect(fieldShown("SAFEDON_EG", { module: "dimensions", field: "cuffThickness" })).toBe(false);
+    expect(fieldShown("SAFEDON_EG", { module: "dimensions", field: "statistic" })).toBe(true);
+    expect(fieldShown("STD_EG", { module: "order_lots", field: "packingSite" })).toBe(false);
+    expect(fieldShown("SAFEDON_EG", { module: "order_lots", field: "packingSite" })).toBe(true);
+    expect(fieldShown("STD_SG", { module: "sampling_plan", field: "gloves" })).toBe(false);
+    expect(fieldShown("STD_SG", { module: "sampling_plan", field: "pouches" })).toBe(true);
+    expect(fieldShown("STD_EG", { module: "tensile", field: "tensileStrength" })).toBe(false);
+    expect(fieldShown("STD_EG", { module: "visual", field: "counts", group: "critical" })).toBe(true);
+    expect(fieldShown("STD_EG", { module: "visual", field: "counts", group: "nope" })).toBe(false);
+    expect(fieldShown("STD_EG", { module: "labeling", field: "result", group: "carton" })).toBe(true);
   });
 
   it("shows the packing site in SAFEDON_EG only", () => {
@@ -319,6 +341,11 @@ describe("what the reports fix", () => {
     expect(TEMPLATES.SAFEDON_EG.scope).toEqual({ productType: "examination", standard: "ASTM_D6319", clientScoped: true });
     expect(TEMPLATES.STD_EG.scope).toEqual({ productType: "examination", standard: "EN455", clientScoped: false });
   });
+
+  it("gives STD_SG a standard the template schema accepts, to confirm", () => {
+    expect(TEMPLATES.STD_SG.scope).toEqual({ productType: "surgical", standard: "custom", clientScoped: false });
+    expect(TEMPLATES.STD_SG.toConfirm.map((item) => item.path)).toContain("scope.standard");
+  });
 });
 
 describe("custom modules", () => {
@@ -327,6 +354,28 @@ describe("custom modules", () => {
       const [gloveType] = TEMPLATES[code].customModules;
       expect(gloveType).toMatchObject({ key: "glove_type", after: "header", layout: "fields" });
       expect(gloveType.fields.map((field) => [field.key, field.label, field.type])).toEqual([["gloveType", "Glove Type", "text"]]);
+    }
+  });
+
+  it("keeps the Safedon onsite sheet's free text per size, after the Safedon dispensing check (SAFEDON_EG only)", () => {
+    const notes = TEMPLATES.SAFEDON_EG.customModules.find((module) => module.key === "safedon_dispensing_notes");
+    expect(notes).toMatchObject({ after: "dispensing_safedon", layout: "table" });
+    expect(notes?.fields.map((field) => [field.key, field.label, field.type])).toEqual([
+      ["specRequirement", "Specification / Requirement", "text"],
+      ["conclusion", "Conclusion", "text"],
+    ]);
+    expect(TEMPLATES.STD_EG.customModules.map((module) => module.key)).toEqual(["glove_type"]);
+    expect(TEMPLATES.STD_SG.customModules.map((module) => module.key)).toEqual(["glove_type"]);
+  });
+
+  it("uses keys the framework's CustomModuleSchema accepts, after a module the template has", () => {
+    for (const code of TEMPLATE_CODES) {
+      for (const custom of TEMPLATES[code].customModules) {
+        expect(custom.key, code).toMatch(FRAMEWORK_CUSTOM_KEY);
+        expect(isModuleKey(custom.key), `${code} ${custom.key}`).toBe(false);
+        expect(templateModuleKeys(code), `${code} ${custom.key}`).toContain(custom.after);
+        for (const field of custom.fields) expect(field.key, `${code} ${custom.key}`).toMatch(FRAMEWORK_FIELD_KEY);
+      }
     }
   });
 });

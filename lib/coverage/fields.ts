@@ -157,7 +157,7 @@ const header = defineModule({
       column: "inspections.inspector_id",
       rules: [11],
       notes:
-        "The logged-in inspector, always recorded (rule 11), also where the source prints no row (STD_EG). config fields.inspector only shows or hides the row.",
+        "The logged-in inspector, always recorded (rule 11). config fields.inspector only shows or hides the row: the STD_EG report prints none, the onsite forms and the SAFEDON_EG report do.",
     },
   ],
   config: [
@@ -1393,7 +1393,8 @@ const dispensingSafedon = defineModule({
       unit: "%",
       per: ["size", "box"],
       entry: "computed",
-      formula: "boxDefects / config glovesPerPack × 100 (Total, line 2; the report prints the fraction, e.g. 0.008).",
+      formula:
+        "boxDefects / config glovesPerPack × 100 (Total, line 2: the report prints it as a percentage with one decimal, e.g. 0.8%).",
       rules: [2],
     },
     {

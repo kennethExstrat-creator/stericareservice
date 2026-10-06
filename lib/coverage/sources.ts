@@ -109,8 +109,12 @@ const REPORT_STD_EG: SourceField[] = [
     {
       label: "Pre-shipment Inspection : <PO> <product>",
       input: "page",
-      targets: [tpl("report.pageHeader")],
-      notes: "Running header of pages 2 to 4, from header.poNo and header.productName.",
+      targets: [
+        layout(
+          "Running header of pages 2 to 4, 'Pre-shipment Inspection : <PO> <product>': the AI report draws it from header.poNo and header.productName.",
+        ),
+      ],
+      notes: "BUILD_SPEC 4.3's report settings hold the title and the client logo only.",
     },
   ]),
   ...section(STD, "Page 1 > Title", [
@@ -142,7 +146,8 @@ const REPORT_STD_EG: SourceField[] = [
       corrected: "Factory glove code",
       input: "text",
       targets: [f("header", "factoryGloveCode")],
-      notes: "No 'Inspected by' row in this format; the app records the inspector anyway (header.inspector).",
+      notes:
+        "No 'Inspected by' row on this report; the app records the inspector anyway, and STD_EG shows the row because the EG onsite form prints it (header.inspector).",
     },
   ]),
   ...section(STD, "Page 1 > Glove Information", [
@@ -544,8 +549,12 @@ const REPORT_SAFEDON_EG: SourceField[] = [
     {
       label: "Preshipment Report (PO# <PO>: <product>)",
       input: "page",
-      targets: [tpl("report.pageHeader")],
-      notes: "Running header of pages 2 to 4, from header.poNo and header.productName.",
+      targets: [
+        layout(
+          "Running header of pages 2 to 4, 'Preshipment Report (PO# <PO>: <product>)': the AI report draws it from header.poNo and header.productName.",
+        ),
+      ],
+      notes: "BUILD_SPEC 4.3's report settings hold the title and the client logo only.",
     },
   ]),
   ...section(SAF, "Page 1 > Title", [
@@ -554,8 +563,9 @@ const REPORT_SAFEDON_EG: SourceField[] = [
     {
       label: "(client logo)",
       input: "image",
-      targets: [tpl("report.showClientLogo"), f("header", "client")],
-      notes: "Top left: the client's logo (clients.logo_path), in place of a Client Name row.",
+      targets: [tpl("report.showClientLogo")],
+      notes:
+        "Top left: the logo (clients.logo_path) of the inspection's client, in place of a Client Name row. The client is picked on /inspections/new and kept in inspections.client_id; the header's Client Name row is off.",
     },
   ]),
   ...section(SAF, "Page 1 > Manufacturer Information", [
@@ -770,7 +780,7 @@ const REPORT_SAFEDON_EG: SourceField[] = [
         c("dispensing_safedon", "glovesPerPack"),
       ],
       notes:
-        "Three lines: per box <defects>/<gloves per pack>; per box the rate as a fraction; per size <defects> / <gloves> (<rate> %).",
+        "Three lines: per box <defects>/<gloves per pack>; per box the rate as a percentage with one decimal (e.g. 0.8%); per size <defects> / <gloves> (<rate> %).",
     },
     {
       label: "Specification / Requirement",
@@ -1198,16 +1208,20 @@ const ONSITE_SAFEDON_EG: SourceField[] = [
     {
       label: "Specification / Requirement",
       input: "text",
-      targets: [l("dispensing_safedon", "specRow"), c("dispensing_safedon", "maxRatePct")],
+      targets: [
+        custom("safedon_dispensing_notes", "specRequirement"),
+        l("dispensing_safedon", "specRow"),
+        c("dispensing_safedon", "maxRatePct"),
+      ],
       notes:
-        "Free text per block. onsite/SAFEDON_EG.md keeps it in custom; the report prints the ≤ 5% spec here, so it is the template's maxRatePct (open question).",
+        "Free text per block, kept as written in the custom module safedon_dispensing_notes and exported (onsite/SAFEDON_EG.md). The app judges the rate against the template's maxRatePct, which the report prints here (≤ 5%).",
     },
     {
       label: "Conclusion",
       input: "text",
-      targets: [f("dispensing_safedon", "result")],
+      targets: [custom("safedon_dispensing_notes", "conclusion"), f("dispensing_safedon", "result")],
       notes:
-        "Free text per block. onsite/SAFEDON_EG.md keeps it in custom; the report prints the computed Passed / Failed here (rule 6.2.2; open question).",
+        "Free text per block, kept as written in the custom module safedon_dispensing_notes and exported (onsite/SAFEDON_EG.md). The report prints the computed Passed / Failed here (rule 6.2.2).",
     },
   ]),
 ];

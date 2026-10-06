@@ -4,7 +4,7 @@ import { SAFEDON_DISPENSING_DEFECTS, VISUAL_DEFECTS } from "./defects";
 import { captionLabel, dataField, fieldLabel, moduleSpec } from "./fields";
 import { DEFECT_CLASSES, LABELLING_CHECKS, LABELLING_LEVELS } from "./keys";
 import { slug, SOURCE_DOCUMENTS, SOURCE_FIELDS, sourceFields } from "./sources";
-import { moduleConfig, templateModuleKeys, templateOfSource, TEMPLATES } from "./templates";
+import { fieldShown, moduleConfig, templateModuleKeys, templateOfSource, TEMPLATES } from "./templates";
 import {
   isConfigTarget,
   isCustomTarget,
@@ -99,6 +99,16 @@ const LABELLED_INPUTS = new Set<SourceInput>([
 ]);
 
 const TYPOS = [/\bFactrory\b/, /\bpackaing\b/, /\bEmbeded\b/, /\bsickiness\b/, /\bThin batch\b/, /\bideallly\b/, /\bould\b/];
+
+/** Cells someone writes in, ticks or picks on the source. */
+const WRITTEN_INPUTS = new Set<SourceInput>(["text", "number", "date", "select", "signature", "handwritten_rows", "blank"]);
+
+/** A target that keeps a value as written: an entered or recorded field, a custom field, or the size list. */
+function keepsValue(target: SourceTarget): boolean {
+  if (isFieldTarget(target)) return dataField(target.module, target.field)?.entry !== "computed";
+  if (isCustomTarget(target)) return true;
+  return isTemplateTarget(target) && target.template === "sizes";
+}
 
 const where = (field: SourceField) => `${field.id} (${field.label})`;
 
@@ -199,10 +209,37 @@ describe("every source field has a target (rule 4.2.2: nothing lost)", () => {
     }
   });
 
-  it("holds what no module holds in a custom module: the onsite forms' Glove Type", () => {
-    const customs = SOURCE_FIELDS.filter((field) => field.targets.some(isCustomTarget));
-    expect(new Set(customs.map((field) => field.label))).toEqual(new Set(["Glove Type"]));
-    expect(new Set(customs.map((field) => field.source))).toEqual(new Set(["onsite_EG", "onsite_SG", "onsite_SAFEDON_EG"]));
+  it("holds what no module holds in a custom module: Glove Type, and the Safedon sheet's free text", () => {
+    const customs = SOURCE_FIELDS.flatMap((field) =>
+      field.targets.filter(isCustomTarget).map((target) => `${field.source}: ${field.label} -> ${target.custom}.${target.field}`),
+    );
+    expect(customs).toEqual([
+      "onsite_EG: Glove Type -> glove_type.gloveType",
+      "onsite_SG: Glove Type -> glove_type.gloveType",
+      "onsite_SAFEDON_EG: Glove Type -> glove_type.gloveType",
+      "onsite_SAFEDON_EG: Specification / Requirement -> safedon_dispensing_notes.specRequirement",
+      "onsite_SAFEDON_EG: Conclusion -> safedon_dispensing_notes.conclusion",
+    ]);
+  });
+
+  it("keeps what is written: every cell filled in on a source lands on an entered, recorded or custom field", () => {
+    const notKept = SOURCE_FIELDS.filter((field) => WRITTEN_INPUTS.has(field.input) && !field.targets.some(keepsValue));
+    // Only a count the reports print that the app derives from what is entered (rule 6.2.2):
+    // the carton grid's Sampling Quantity is the number of carton numbers.
+    expect(notKept.map((field) => field.id)).toEqual([
+      "report_STD_EG:page-1-finished-goods-sampling-information-carton-number:sampling-quantity",
+      "report_SAFEDON_EG:page-1-finished-goods-sampling-information-carton-number:sampling-quantity",
+    ]);
+  });
+
+  it("lands only on fields the template shows: none is switched off in its config", () => {
+    const hidden = SOURCE_FIELDS.flatMap((field) =>
+      field.targets
+        .filter(isFieldTarget)
+        .filter((target) => !fieldShown(templateOfSource(field.source), target))
+        .map((target) => `${field.id} -> ${target.module}.${target.field}${target.group ? `[${target.group}]` : ""}`),
+    );
+    expect(hidden).toEqual([]);
   });
 });
 
@@ -283,18 +320,22 @@ describe("their wording, our keys (rule 4.2.3)", () => {
     expect(compared).toBeGreaterThan(230);
   });
 
-  it("prints the report title and running header from the template", () => {
+  it("prints the report title from the template and leaves running headers to the AI report", () => {
+    let headers = 0;
     for (const field of SOURCE_FIELDS) {
       const template = WORDING_SOURCES[field.source];
       const [target] = field.targets;
-      if (!template || !isTemplateTarget(target)) continue;
-      const report = TEMPLATES[template].report;
-      if (target.template === "report.titleLines") expect(report.titleLines, where(field)).toContain(field.label);
-      if (target.template === "report.pageHeader") {
-        const header = report.pageHeader ?? "";
-        expect(matchesLabel(field.label.replace(/<[^>]+>/g, "x"), header), where(field)).toBe(true);
+      if (!template) continue;
+      if (isTemplateTarget(target) && target.template === "report.titleLines") {
+        expect(TEMPLATES[template].report.titleLines, where(field)).toContain(field.label);
+      }
+      if (field.input === "page" && /<PO>/.test(field.label)) {
+        headers += 1;
+        // BUILD_SPEC 4.3's report settings hold a title and the client logo only.
+        expect(field.targets, where(field)).toEqual([{ layout: expect.stringContaining(`'${field.label}'`) }]);
       }
     }
+    expect(headers).toBe(2);
   });
 
   it("maps the six Safedon dispensing rows to their defect codes on the report and the onsite sheet", () => {

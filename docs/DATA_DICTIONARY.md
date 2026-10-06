@@ -15,16 +15,18 @@ UPDATE_DATA_DICTIONARY=1 npx vitest run lib/coverage/doc.test.ts
 | File | Holds | Used by |
 |---|---|---|
 | `lib/coverage/fields.ts` | Per module: data fields, config fields, captions, default labels (STD_EG wording), other templates' wording | Module engineers: `modules/<key>/schema.ts` and `config.ts` |
-| `lib/coverage/templates.ts` | Per template: modules on and their order, sizes, unit, report title, every module's config values, custom modules, what is still to confirm. `seedModuleConfigs(code)` gives BUILD_SPEC 4.3 `ModuleConfig` values | Template seeds `STD_EG`, `SAFEDON_EG`, `STD_SG` |
+| `lib/coverage/templates.ts` | Per template: modules on and their order, sizes, unit, report title, every module's config values, custom modules, what is still to confirm. `seedModuleConfigs(code)` gives BUILD_SPEC 4.3 `ModuleConfig` values; `fieldShown` says whether a template shows a field | Template seeds `STD_EG`, `SAFEDON_EG`, `STD_SG` |
 | `lib/coverage/defects.ts` | Defect labels per template and class in report order, mapped to the codes of `supabase/seed.sql`; hole locations; the Safedon dispensing defects; stickiness codes; labelling checks per level | Template seeds, defect mapping screen |
 | `lib/coverage/sources.ts` | Every field of every source document, verbatim, with stable ids and where it goes | Coverage checklist (rule 4.2.10) |
 | `lib/coverage/keys.ts` | Closed key lists: measures, sampling columns, header fields, labelling levels and checks, inner units, inspection levels, code letters | All of the above |
 
-The tests check that every source field has a target and every target exists; that no module has
-duplicate keys; that every module key is a `ModuleKey`; that every defect code is in `seed.sql` (and
-every seeded code is used); that each template's module order is BUILD_SPEC 11's; that `[sic]` labels
-are corrected; and that every label printed on the reports and on the SG form is the label the
-template shows. Config keys are also checked at compile time against the dictionary.
+The tests check that every source field has a target and every target exists in a field the
+template shows; that every cell someone fills in on a source lands on an entered, recorded or custom
+field; that no module has duplicate keys; that every module key is a `ModuleKey`; that every defect
+code is in `seed.sql` (and every seeded code is used); that each template's module order is BUILD_SPEC
+11's; that `[sic]` labels are corrected; and that every label printed on the reports and on the SG
+form is the label the template shows. Config keys are also checked at compile time against the
+dictionary.
 
 ## Conventions
 
@@ -109,7 +111,7 @@ Report module, always on. Captures: Manufacturer and factory address, PO, produc
 | `inspectionDate` | Inspection date | STD_SG: Date | date |  | inspection | entered | 3 | Prefilled from today in Malaysia (the column default). Column `inspections.inspection_date`. |
 | `mfgDate` | Manufacturing date | STD_SG: Mfg Date | date |  | inspection | entered | 3 | The onsite forms have one 'Mfg / Exp Date' box; the app splits it into mfgDate and expiryDate. Precision: config mfgExpiryPrecision. |
 | `expiryDate` | Expiry date | STD_SG: Exp Date | date |  | inspection | entered | 3 | The module warns when it is not after mfgDate. |
-| `inspector` | Inspected by |  | reference |  | inspection | system | 11 | Column `inspections.inspector_id`. The logged-in inspector, always recorded (rule 11), also where the source prints no row (STD_EG). config fields.inspector only shows or hides the row. |
+| `inspector` | Inspected by |  | reference |  | inspection | system | 11 | Column `inspections.inspector_id`. The logged-in inspector, always recorded (rule 11). config fields.inspector only shows or hides the row: the STD_EG report prints none, the onsite forms and the SAFEDON_EG report do. |
 
 | Config key | Type | Default | Meaning |
 |---|---|---|---|
@@ -411,7 +413,7 @@ Report module. Captures: Per size, per box (picked from the carton list): counts
 | `counts` | Safedon Packing Defects |  | count_map |  | size › box | entered | 1 | Map keyed by defect code from config defects. |
 | `codeLetter` | Sampling code letter |  | select |  | size | **computed** | 2 | From the number of boxes tested (BUILD_SPEC 7), for the heading. Values: A, B, C, D, E, F, G, H, J, K, L, M, N, P, Q, R. |
 | `boxDefects` | Defects / gloves per pack |  | integer |  | size › box | **computed** | 2 | Sum of the box's counts. Printed as &lt;defects>/&lt;glovesPerPack> (Total, line 1). |
-| `boxRatePct` | Defect rate |  | decimal | % | size › box | **computed** | 2 | boxDefects / config glovesPerPack × 100 (Total, line 2; the report prints the fraction, e.g. 0.008). |
+| `boxRatePct` | Defect rate |  | decimal | % | size › box | **computed** | 2 | boxDefects / config glovesPerPack × 100 (Total, line 2: the report prints it as a percentage with one decimal, e.g. 0.8%). |
 | `boxesTested` | Boxes tested |  | integer |  | size | **computed** | 2 | Boxes with a box number (onsite/SAFEDON_EG.md, mapping to the core). Counts boxes. |
 | `boxesFailed` | Boxes failed |  | integer |  | size | **computed** | 2 | Boxes with any count above zero. Counts boxes. |
 | `totalDefects` | Total |  | integer |  | size | **computed** | 2 | Sum of the size's box counts (Total, line 3: &lt;defects> / &lt;gloves> (&lt;rate> %)). |
@@ -555,12 +557,11 @@ Note: Not on any current form: the website's QC scope. Loading-stage photos are 
 | Unit, sizes | pcs; XS, S, M, L, XL |
 | Report title | Preshipment Inspection / Nitrile Disposable Examination Gloves |
 | Client logo | no |
-| Running page header | Pre-shipment Inspection : {po} {product} |
-| Custom modules | `glove_type` "Glove Type" after `header`: `gloveType` |
+| Custom modules | `glove_type` "Glove Type" (fields) after `header`: `gloveType` "Glove Type" |
 
 | # | Module | Title | Config |
 |---|---|---|---|
-| 1 | `header` | Manufacturer Information | fields off: inspector; mfg / expiry dates: day |
+| 1 | `header` | Manufacturer Information | fields off: none; mfg / expiry dates: day |
 | 2 | `glove_info` | Glove Information | fields off: none; indicative weight for size M |
 | 3 | `order_lots` | Order | packing site off |
 | 4 | `packing_config` | Packing configuration | inner unit inner_box; packing mode text on |
@@ -587,6 +588,7 @@ Dimension specs (mm, median):
 
 To confirm:
 
+- `header.fields`: Inspected by is shown: the EG onsite form prints it (section 2); the STD_EG report does not, and BUILD_SPEC 11 names it as a SAFEDON_EG addition.
 - `sampling_plan.inspectionLevel`: Level I: the example's samples match it. BUILD_SPEC 13 asks for the inspection level per client.
 - `dimensions.specs`: The example report's specs. BUILD_SPEC 13: spec limits per product.
 - `dimensions.decimals`: As printed: 0 for length and width, 2 for thickness. lib/stats judges the shown (rounded) value: confirm.
@@ -604,8 +606,7 @@ To confirm:
 | Unit, sizes | pcs; XS, S, M, L, XL |
 | Report title | Preshipment Inspection / Safedon Nitrile PF Exam Gloves |
 | Client logo | yes |
-| Running page header | Preshipment Report (PO# {po}: {product}) |
-| Custom modules | `glove_type` "Glove Type" after `header`: `gloveType` |
+| Custom modules | `glove_type` "Glove Type" (fields) after `header`: `gloveType` "Glove Type"; `safedon_dispensing_notes` "Glove Dispensing Inspection: onsite notes" (table) after `dispensing_safedon`: `specRequirement` "Specification / Requirement", `conclusion` "Conclusion" |
 
 | # | Module | Title | Config |
 |---|---|---|---|
@@ -671,13 +672,12 @@ To confirm:
 | Property | Value |
 |---|---|
 | Extends | none |
-| Scope | surgical, standard to confirm |
+| Scope | surgical, custom |
 | Built from | `onsite/SG.md` |
 | Unit, sizes | pairs; 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0 |
 | Report title | to confirm |
 | Client logo | no |
-| Running page header | to confirm |
-| Custom modules | `glove_type` "Glove Type" after `header`: `gloveType` |
+| Custom modules | `glove_type` "Glove Type" (fields) after `header`: `gloveType` "Glove Type" |
 
 | # | Module | Title | Config |
 |---|---|---|---|
@@ -701,7 +701,7 @@ Wording that differs from the defaults:
 
 To confirm:
 
-- `scope.standard`: No filled SG report: EN 455 or ASTM D3577.
+- `scope.standard`: 'custom' until confirmed: no filled SG report, so EN 455 or ASTM D3577 is open (BUILD_SPEC 13).
 - `unit`: pairs (sterile surgical gloves are packed in pairs); the SG form counts '# gloves'.
 - `sizes`: The form has 8 size columns with blank headings: 5.5 to 9.0 assumed.
 - `report.titleLines`: No filled SG report.
@@ -836,8 +836,11 @@ Where the sources or BUILD_SPEC leave a choice, the dictionary takes one. Each i
    labelling boxes from the carton list; the reports print only how many).
 4. **Report first** (rule 4.2.1). The EG onsite form's stickiness (onsite/EG.md suggests none,
    slight, severe) uses the report's codes A, B, B1, C, D. The Safedon onsite sheet's free-text
-   "Specification / Requirement" and "Conclusion" are the `maxRatePct` config and the computed
-   result, as the report prints them, not custom fields as onsite/SAFEDON_EG.md proposes.
+   "Specification / Requirement" and "Conclusion" are kept as written, per size, in the custom
+   module `safedon_dispensing_notes` (layout `table`, after `dispensing_safedon`) and exported, as
+   onsite/SAFEDON_EG.md asks; nothing written there is lost (rule 4.2.2). The app still judges each
+   size's rate against `maxRatePct` and computes the result, which is what the report prints in
+   those two rows.
 5. **Weight** is compared with the indicative weight only for the size it is given for
    (`glove_info.indicativeWeightSize`, M): the other sizes' averages are info. Comparing every size
    with size M's weight would warn on sizes the expected results pass.
@@ -854,17 +857,27 @@ Where the sources or BUILD_SPEC leave a choice, the dictionary takes one. Each i
    though its report prints dispensing (page 3) before watertight and visual (page 4) and weight
    inside the dimension table.
 10. **STD_SG** has no filled report. Values the SG form does not fix are provisional and listed
-    under "To confirm": STD_EG's defect lists and hole locations, the default AQLs, sizes 5.5 to 9.0
-    (8 blank columns), unit pairs, dimensions with no spec or statistic.
+    under "To confirm": the standard (`custom`, since the template schema requires one), STD_EG's
+    defect lists and hole locations, the default AQLs, sizes 5.5 to 9.0 (8 blank columns), unit
+    pairs, dimensions with no spec or statistic.
 11. **Decimals** are the reports' printed decimals (length and width 0, thickness 2, force 3, weight
     2, tensile 2, elongation 0). `lib/stats` judges the statistic as shown, so the decimals decide
     borderline results (question 9).
 12. **Product code** stays inside `header.productName`, one cell on every source, entered once
     (rule 6.2.10). The fixtures extract it separately (question 11).
 13. **Report title** is kept as lines (`report.titleLines`); BUILD_SPEC 4.3's `report.title` is one
-    string, so a seed joins them.
+    string, so a seed joins them. The running headers of pages 2 to 4 are report layout: BUILD_SPEC
+    4.3's report settings hold only the title and the client logo, and the AI report draws them from
+    the PO and the product name (their wording is in the coverage matrix).
 14. **Hand split.** With `handSplit` on, holes and defect counts are per hand; tested, inspected and
     the AQL limits stay per size, as the SG form's totals span R and L.
+15. **Inspected by in the STD_EG header.** The STD_EG report prints no Inspected by row, but its EG
+    onsite form does (section 2), so STD_EG shows the header's inspector row (rule 4.2.1: onsite
+    forms come in as config). BUILD_SPEC 11 names Inspected by as a SAFEDON_EG addition because only
+    that report prints it. Listed under "To confirm".
+16. **Client logo.** SAFEDON_EG prints the client's logo instead of a Client Name row: the logo is a
+    report setting (`report.showClientLogo`), and the client is the inspection's
+    (`inspections.client_id`, picked on /inspections/new) while the header's Client Name row is off.
 
 ## Open questions
 
@@ -920,7 +933,7 @@ module field; `template` a template property; `layout` is drawn by the AI report
 | Section | Label (verbatim) | App wording | Input | Maps to | Notes |
 |---|---|---|---|---|---|
 | All pages | Page &lt;n> of 4 |  | page | layout: Page number: the AI report numbers its own pages. |  |
-| All pages | Pre-shipment Inspection : &lt;PO> &lt;product> |  | page | template `report.pageHeader` | Running header of pages 2 to 4, from header.poNo and header.productName. |
+| All pages | Pre-shipment Inspection : &lt;PO> &lt;product> |  | page | layout: Running header of pages 2 to 4, 'Pre-shipment Inspection : &lt;PO> &lt;product>': the AI report draws it from header.poNo and header.productName. | BUILD_SPEC 4.3's report settings hold the title and the client logo only. |
 | Page 1 > Title | Preshipment Inspection |  | heading | template `report.titleLines` |  |
 | Page 1 > Title | Nitrile Disposable Examination Gloves |  | heading | template `report.titleLines` |  |
 | Page 1 > Manufacturer Information | Manufacturer Information |  | heading | title `header` |  |
@@ -932,7 +945,7 @@ module field; `template` a template property; `layout` is drawn by the AI report
 | Page 1 > Manufacturer Information | Inspection date |  | date | `header.inspectionDate` |  |
 | Page 1 > Manufacturer Information | Manufacturing date |  | date | `header.mfgDate` |  |
 | Page 1 > Manufacturer Information | Expiry date |  | date | `header.expiryDate` |  |
-| Page 1 > Manufacturer Information | Factrory glove code | Factory glove code | text | `header.factoryGloveCode` | No 'Inspected by' row in this format; the app records the inspector anyway (header.inspector). |
+| Page 1 > Manufacturer Information | Factrory glove code | Factory glove code | text | `header.factoryGloveCode` | No 'Inspected by' row on this report; the app records the inspector anyway, and STD_EG shows the row because the EG onsite form prints it (header.inspector). |
 | Page 1 > Glove Information | Glove Information |  | heading | title `glove_info` |  |
 | Page 1 > Glove Information | Glove surface texture |  | text | `glove_info.surfaceTexture` |  |
 | Page 1 > Glove Information | Indicative weight (size M) |  | number | `glove_info.indicativeWeight`<br>config `glove_info.indicativeWeightSize` | Grams. |
@@ -1075,10 +1088,10 @@ module field; `template` a template property; `layout` is drawn by the AI report
 | Section | Label (verbatim) | App wording | Input | Maps to | Notes |
 |---|---|---|---|---|---|
 | All pages | Page &lt;n> of 4 |  | page | layout: Page number: the AI report numbers its own pages. |  |
-| All pages | Preshipment Report (PO# &lt;PO>: &lt;product>) |  | page | template `report.pageHeader` | Running header of pages 2 to 4, from header.poNo and header.productName. |
+| All pages | Preshipment Report (PO# &lt;PO>: &lt;product>) |  | page | layout: Running header of pages 2 to 4, 'Preshipment Report (PO# &lt;PO>: &lt;product>)': the AI report draws it from header.poNo and header.productName. | BUILD_SPEC 4.3's report settings hold the title and the client logo only. |
 | Page 1 > Title | Preshipment Inspection |  | heading | template `report.titleLines` |  |
 | Page 1 > Title | Safedon Nitrile PF Exam Gloves |  | heading | template `report.titleLines` |  |
-| Page 1 > Title | (client logo) |  | image | template `report.showClientLogo`<br>`header.client` | Top left: the client's logo (clients.logo_path), in place of a Client Name row. |
+| Page 1 > Title | (client logo) |  | image | template `report.showClientLogo` | Top left: the logo (clients.logo_path) of the inspection's client, in place of a Client Name row. The client is picked on /inspections/new and kept in inspections.client_id; the header's Client Name row is off. |
 | Page 1 > Manufacturer Information | Manufacturer Information |  | heading | title `header` |  |
 | Page 1 > Manufacturer Information | Manufacturer / Supplier |  | text | `header.manufacturer` |  |
 | Page 1 > Manufacturer Information | Supplier Factory Address / Location |  | text | `header.factoryAddress` |  |
@@ -1152,7 +1165,7 @@ module field; `template` a template property; `layout` is drawn by the AI report
 | Page 3 > Glove Dispensing Inspection | Two or more gloves out at the same time caused by gloves sticking together |  | fixed | config `dispensing_safedon.defects[sticky]` | Definition of 'Sticky glove', printed beside the row; the app shows its own wording as the hint. |
 | Page 3 > Glove Dispensing Inspection | Faulty cuff |  | number | `dispensing_safedon.counts[faulty_cuff]` | A count per box. |
 | Page 3 > Glove Dispensing Inspection | Deformed or out of shaped cuff which causes dispensing problem |  | fixed | config `dispensing_safedon.defects[faulty_cuff]` | Definition of 'Faulty cuff', printed beside the row; the app shows its own wording as the hint. |
-| Page 3 > Glove Dispensing Inspection | Total |  | computed | caption `dispensing_safedon.totalGroup`<br>`dispensing_safedon.boxDefects`<br>`dispensing_safedon.boxRatePct`<br>`dispensing_safedon.totalDefects`<br>`dispensing_safedon.glovesInspected`<br>`dispensing_safedon.ratePct`<br>config `dispensing_safedon.glovesPerPack` | Three lines: per box &lt;defects>/&lt;gloves per pack>; per box the rate as a fraction; per size &lt;defects> / &lt;gloves> (&lt;rate> %). |
+| Page 3 > Glove Dispensing Inspection | Total |  | computed | caption `dispensing_safedon.totalGroup`<br>`dispensing_safedon.boxDefects`<br>`dispensing_safedon.boxRatePct`<br>`dispensing_safedon.totalDefects`<br>`dispensing_safedon.glovesInspected`<br>`dispensing_safedon.ratePct`<br>config `dispensing_safedon.glovesPerPack` | Three lines: per box &lt;defects>/&lt;gloves per pack>; per box the rate as a percentage with one decimal (e.g. 0.8%); per size &lt;defects> / &lt;gloves> (&lt;rate> %). |
 | Page 3 > Glove Dispensing Inspection | Specification / Requirement |  | fixed | caption `dispensing_safedon.specRow`<br>config `dispensing_safedon.maxRatePct` | ≤ 5% per size. |
 | Page 3 > Glove Dispensing Inspection | Conclusion |  | computed | `dispensing_safedon.result` | Passed / Failed per size. |
 | Page 4 > Freedom from Holes by watertight test | Freedom from Holes by watertight test (Sampling code letter J & L; AQL=1.5) |  | heading | caption `watertight.heading`<br>title `watertight`<br>`watertight.codeLetter`<br>config `watertight.aql` |  |
@@ -1384,7 +1397,7 @@ module field; `template` a template property; `layout` is drawn by the AI report
 | 6. Glove Dispensing Inspection | Faulty cuff |  | number | `dispensing_safedon.counts[faulty_cuff]` | A count per box. |
 | 6. Glove Dispensing Inspection | Deformed or out of shaped cuff which causes dispensing problem |  | fixed | config `dispensing_safedon.defects[faulty_cuff]` | Definition of 'Faulty cuff', printed beside the row; the app shows its own wording as the hint. |
 | 6. Glove Dispensing Inspection | Total |  | computed | caption `dispensing_safedon.totalGroup`<br>`dispensing_safedon.boxDefects`<br>`dispensing_safedon.boxRatePct`<br>`dispensing_safedon.totalDefects`<br>`dispensing_safedon.glovesInspected`<br>`dispensing_safedon.ratePct` | Three unlabelled lines: two rows of 13 per-box cells, then one full-width cell. All computed. |
-| 6. Glove Dispensing Inspection | Specification / Requirement |  | text | caption `dispensing_safedon.specRow`<br>config `dispensing_safedon.maxRatePct` | Free text per block. onsite/SAFEDON_EG.md keeps it in custom; the report prints the ≤ 5% spec here, so it is the template's maxRatePct (open question). |
-| 6. Glove Dispensing Inspection | Conclusion |  | text | `dispensing_safedon.result` | Free text per block. onsite/SAFEDON_EG.md keeps it in custom; the report prints the computed Passed / Failed here (rule 6.2.2; open question). |
+| 6. Glove Dispensing Inspection | Specification / Requirement |  | text | custom `safedon_dispensing_notes.specRequirement`<br>caption `dispensing_safedon.specRow`<br>config `dispensing_safedon.maxRatePct` | Free text per block, kept as written in the custom module safedon_dispensing_notes and exported (onsite/SAFEDON_EG.md). The app judges the rate against the template's maxRatePct, which the report prints here (≤ 5%). |
+| 6. Glove Dispensing Inspection | Conclusion |  | text | custom `safedon_dispensing_notes.conclusion`<br>`dispensing_safedon.result` | Free text per block, kept as written in the custom module safedon_dispensing_notes and exported (onsite/SAFEDON_EG.md). The report prints the computed Passed / Failed here (rule 6.2.2). |
 
 <!-- /generated:coverage -->

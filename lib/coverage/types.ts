@@ -158,19 +158,17 @@ export type LabelTarget = { readonly module: ModuleKey; readonly label: string }
 /** A field of a custom module: no module holds it (rule 4.2.2). */
 export type CustomTarget = { readonly custom: string; readonly field: string };
 
-export const TEMPLATE_PROPERTIES = [
-  "sizes",
-  "unit",
-  "report.titleLines",
-  "report.showClientLogo",
-  "report.pageHeader",
-] as const;
+/** Template-level values (BUILD_SPEC 4.3): the size list, the unit, the report settings. */
+export const TEMPLATE_PROPERTIES = ["sizes", "unit", "report.titleLines", "report.showClientLogo"] as const;
 export type TemplateProperty = (typeof TEMPLATE_PROPERTIES)[number];
 
 /** A template-level value: the size list, the report title. */
 export type TemplateTarget = { readonly template: TemplateProperty };
 
-/** Report layout only (page numbers, legends): the AI report draws it, nothing to capture or configure. */
+/**
+ * Report layout only (page numbers, running headers, legends): the AI report
+ * draws it from values the app already holds; nothing to capture or configure.
+ */
 export type LayoutTarget = { readonly layout: string };
 
 export type SourceTarget = FieldTarget | ConfigTarget | LabelTarget | CustomTarget | TemplateTarget | LayoutTarget;
