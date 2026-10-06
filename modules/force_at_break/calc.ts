@@ -3,19 +3,28 @@
 // printed with, as lib/stats judges every statistic. Not done until each
 // ordered size has all its readings (6.2 rule 5). A reading of 0 N or less,
 // or one past the gloves tested, is wrong data: an error with its path. So
-// is a sampling plan that asks for more readings than a size can take.
+// is a sampling plan that asks for more readings than a size can take. The
+// lab report is optional here ('where applicable'): the module keeps the id
+// of the file attached through its file slot (the framework's file
+// channel); once the inspection's files are known, a lab report of the
+// module added elsewhere (the gallery) counts too, and a kept file they do
+// not hold is reported.
 import type { PerSizeResult } from "@/lib/schemas/module-result";
 import { checkSpec, formatDecimal, median, roundTo, type Spec } from "@/lib/stats";
 import {
   errorIssue,
   labelFor,
+  missingFileMessage,
+  moduleFileState,
   perSizeResults,
   resultFromSizes,
   samplingFor,
   sizeLabel,
+  warningIssue,
   type CalcInput,
   type CalcIssue,
   type CalcOutput,
+  type HeldFileState,
   type InspectionContext,
   type Labels,
 } from "@/modules/_framework";
@@ -84,17 +93,29 @@ export function calcForceAtBreak({
     return { status: result, summary: medianText(shown, result, config, labels) };
   });
 
+  const report = labReportState(context, data.labReport);
+  if (report === "missing") {
+    issues.push(
+      warningIssue("lab_report_missing", missingFileMessage(labelFor(labels, "labReport")), { path: ["labReport"] }),
+    );
+  }
+
   return {
     result: resultFromSizes(perSize, summarise(context, perSize, sizes, config, labels)),
     computed: {
       specMin: config.specMin,
       standardLabel: config.standardLabel,
       decimals: config.decimals,
-      labReportAttached: data.labReport !== null,
+      labReportAttached: report === "attached",
       sizes,
     },
     issues,
   };
+}
+
+/** The lab report: the one kept, or any of the module's lab reports once the inspection's files are known. */
+export function labReportState(context: InspectionContext, fileId: string | null): HeldFileState {
+  return moduleFileState(context, { moduleKey: "force_at_break", kind: "lab_report", fileId });
 }
 
 /** Readings a size needs: the sampling plan's gloves for the physical test when entered, else config n. */

@@ -4,13 +4,14 @@
 // report's two averages in NumberFields (decimal keypad; Enter moves on, and
 // across sizes on desktop; a pasted block of averages fills the fields in
 // reading order), each with its spec and live verdict; sizes as SizeTabs on
-// iPad (swipe, arrow keys) and side by side on desktop; and whether the lab
-// report, which this module requires, is attached. Wording is the
-// template's (6.2 rule 11); verdicts are computed, never typed. Every write
-// goes through useDataUpdater, from the latest data, so a pasted block lands
-// whole in one change (docs/CAPTURE_KIT.md).
+// iPad (swipe, arrow keys) and side by side on desktop; and the lab report,
+// which this module requires: whether it is attached, and the screen's file
+// slot to attach it (the framework's file channel, BUILD_SPEC 8.1). Wording
+// is the template's (6.2 rule 11); verdicts are computed, never typed. Every
+// write goes through useDataUpdater, from the latest data, so a pasted block
+// lands whole in one change (docs/CAPTURE_KIT.md).
 import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
-import { FileCheckIcon, FileTextIcon } from "lucide-react";
+import { FileCheckIcon, FileTextIcon, FileXIcon } from "lucide-react";
 import {
   EnterGroup,
   findIssue,
@@ -23,10 +24,11 @@ import {
 } from "@/components/qc";
 // The kit's touch size for small pills; not exported from @/components/qc yet.
 import { SMALL_PILL_TOUCH } from "@/components/qc/status-pill";
-import { labelFor, type CaptureProps } from "@/modules/_framework";
-import { formatMinimum, judgeAverage, MEASURE_RULES, specCaption, type TensileOutcome } from "./calc";
+import { fieldIssues, initialSize, labelFor, type CaptureProps, type HeldFileState } from "@/modules/_framework";
+import { ModuleFileSlot } from "@/modules/_framework/file-slot";
+import { formatMinimum, judgeAverage, labReportState, MEASURE_RULES, specCaption, type TensileOutcome } from "./calc";
 import { TENSILE_MEASURES } from "./config";
-import { withAverage } from "./edit";
+import { withAverage, withLabReport, withoutLabReport } from "./edit";
 import type { TensileComputed, TensileConfig, TensileData } from ".";
 
 export default function Capture({
@@ -38,13 +40,14 @@ export default function Capture({
   evaluation,
   focusPath,
   readOnly,
+  focus,
   onChange,
   onFocusChange,
 }: CaptureProps<TensileData, TensileConfig, TensileComputed>) {
   const root = useRef<HTMLDivElement>(null);
   const baseId = useId();
   const update = useDataUpdater(data, onChange);
-  const [selected, setSelected] = useState(context.sizes[0] ?? "");
+  const [selected, setSelected] = useState(() => initialSize(context, focus));
   // A size taken out of the order falls back to the first one ordered.
   const size = context.sizes.includes(selected) ? selected : (context.sizes[0] ?? "");
 
@@ -66,7 +69,26 @@ export default function Capture({
   return (
     // relative: screen-reader text inside never lays out against the page (docs/DESIGN.md).
     <div ref={root} data-slot="tensile" className="relative space-y-4">
-      <LabReportStatus label={labelFor(labels, "labReport")} attached={data.labReport !== null} />
+      <section
+        data-slot="lab-report"
+        {...issuePathProps(["labReport"])}
+        aria-label={labelFor(labels, "labReport")}
+        className="relative space-y-3 rounded-lg border border-border bg-card px-3 py-2.5"
+      >
+        <LabReportStatus
+          label={labelFor(labels, "labReport")}
+          state={labReportState(context, data.labReport)}
+          message={evaluation?.issues.find((issue) => issue.code === "lab_report_missing")?.message}
+        />
+        <ModuleFileSlot
+          moduleKey="tensile"
+          kind="lab_report"
+          focus={size === "" ? null : { size }}
+          readOnly={readOnly}
+          onAdded={(file) => update((current) => withLabReport(current, file.id))}
+          onRemoved={(fileId) => update((current) => withoutLabReport(current, fileId))}
+        />
+      </section>
       {/* One run for Enter and paste: one size's two fields on iPad, every size in reading order on desktop. */}
       <EnterGroup>
         <SizeTabs
@@ -96,7 +118,7 @@ export default function Capture({
                     value={value}
                     onValueChange={(next) => update((current) => withAverage(current, shown, measure, next))}
                     hint={<SpecHint caption={caption} minimum={formatMinimum(config, measure)} outcome={outcome} />}
-                    error={findIssue(evaluation?.issues, path)?.message}
+                    error={findIssue(fieldIssues(evaluation?.issues), path)?.message}
                     issuePath={path}
                     onFocus={() => {
                       setSelected(shown);
@@ -116,17 +138,19 @@ export default function Capture({
 
 /**
  * Whether the lab report is attached; it is required, so until it is the
- * module is not done. The capture screen uploads it and records its file id
- * (edit.ts withLabReport); this line only shows the state.
+ * module is not done. The file slot below it attaches the file and the
+ * module keeps its id (edit.ts withLabReport); one added in the gallery
+ * counts once the inspection's files are known, and a kept file they do not
+ * hold is missing, with calc's message.
  */
-function LabReportStatus({ label, attached }: { label: string; attached: boolean }) {
-  const Icon = attached ? FileCheckIcon : FileTextIcon;
+function LabReportStatus({ label, state, message }: { label: string; state: HeldFileState; message?: string }) {
+  const attached = state === "attached";
+  const Icon = attached ? FileCheckIcon : state === "missing" ? FileXIcon : FileTextIcon;
   return (
     <div
-      data-slot="lab-report"
       data-attached={attached || undefined}
-      {...issuePathProps(["labReport"])}
-      className="relative flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-card px-3 py-2 text-sm touch:py-2.5 touch:text-base"
+      data-state={state}
+      className="relative flex flex-wrap items-center gap-x-3 gap-y-1 text-sm touch:text-base"
     >
       <Icon aria-hidden className="size-5 shrink-0 text-muted-foreground" />
       <span className="font-medium text-foreground">{label}</span>
@@ -135,7 +159,9 @@ function LabReportStatus({ label, attached }: { label: string; attached: boolean
       ) : (
         <>
           <StatusPill size="sm" status="not_done" label="Not attached" className={SMALL_PILL_TOUCH} />
-          <span className="text-muted-foreground">Required before this section is done.</span>
+          <span className={state === "missing" ? "text-warn" : "text-muted-foreground"}>
+            {message ?? "Required before this section is done."}
+          </span>
         </>
       )}
     </div>

@@ -90,6 +90,38 @@ describe("tensile", () => {
       expect(output.computed.labReportAttached).toBe(true);
     });
 
+    it("takes a kept lab report the inspection no longer holds as not attached, and says so", () => {
+      const held = makeTestContext({ ...exampleContext, files: [{ id: LAB_REPORT_ID, moduleKey: "tensile", kind: "lab_report" }] });
+      expect(calcTensile(input(exampleSizes, { at: held })).result.status).toBe("pass");
+      const deleted = calcTensile(input(exampleSizes, { at: makeTestContext({ ...exampleContext, files: [] }) }));
+      expect(deleted.result.status).toBe("not_done");
+      expect(deleted.computed.labReportAttached).toBe(false);
+      expect(deleted.issues).toEqual([
+        {
+          level: "warning",
+          code: "lab_report_missing",
+          message: "Lab report: the file attached here is not among this inspection's files. It may still be uploading from another device; if it was deleted, attach it again.",
+          path: ["labReport"],
+        },
+      ]);
+      expect(deleted.notDonePath).toEqual(["labReport"]);
+    });
+
+    it("counts a lab report of the module added in the gallery, which keeps no id, once the inspection's files are known", () => {
+      const GALLERY_REPORT = "00000000-0000-4000-8000-000000000403";
+      const files = [
+        { id: GALLERY_REPORT, moduleKey: "tensile", kind: "lab_report" },
+        { id: LAB_REPORT_ID, moduleKey: "force_at_break", kind: "lab_report" },
+      ] as const;
+      const gallery = calcTensile(input(exampleSizes, { at: makeTestContext({ ...exampleContext, files }), labReport: null }));
+      expect(gallery.result.status).toBe("pass");
+      expect(gallery.computed.labReportAttached).toBe(true);
+      expect(gallery.issues).toEqual([]);
+      // Another module's lab report attaches nothing here.
+      const elsewhere = makeTestContext({ ...exampleContext, files: [files[1]] });
+      expect(calcTensile(input(exampleSizes, { at: elsewhere, labReport: null })).result.status).toBe("not_done");
+    });
+
     it("is not done until the lab report is attached: it is required (BUILD_SPEC 6.1)", () => {
       const output = calcTensile(input(exampleSizes, { at: exampleContext, labReport: null }));
       expect(output.result.status).toBe("not_done");
@@ -265,7 +297,7 @@ describe("tensile", () => {
       ]);
     });
 
-    it("warns that the module is not done while the lab report is missing", () => {
+    it("warns that the module is not done while the lab report is missing, linking to it", () => {
       const evaluated = evaluate({ sizes: { M: PASSING } });
       expect(evaluated).toMatchObject({
         result: { status: "not_done", perSize: { M: { status: "pass" } } },
@@ -274,9 +306,17 @@ describe("tensile", () => {
             level: "warning",
             code: "module_not_done",
             message: `${TENSILE_TITLE} is not done: Size M: 34.18 MPa / 536%. Spec. (ASTM D6319) ≥ 14.00 MPa / ≥ 500%. Lab report not attached.`,
+            path: ["labReport"],
           }),
         ],
       });
+    });
+
+    it("links the not-done issue to the first average still to enter once the lab report is in", () => {
+      const evaluated = evaluate({ sizes: { M: { tensileStrength: 34.18 } }, labReport: LAB_REPORT_ID });
+      expect(evaluated?.issues).toEqual([
+        expect.objectContaining({ code: "module_not_done", path: ["sizes", "M", "elongationAtBreak"] }),
+      ]);
     });
 
     it("passes once the averages are in and the lab report is attached", () => {

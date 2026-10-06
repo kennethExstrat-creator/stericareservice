@@ -9,3 +9,12 @@ import type { DocumentEntry, DocumentsData } from "./schema";
 export function withItemValues(data: DocumentsData, item: DocumentItem, values: Partial<DocumentEntry>): DocumentsData {
   return { ...data, items: { ...data.items, [item]: { ...data.items[item], ...values } } };
 }
+
+/** A file of the module was deleted: every item that kept it lets go; the same data when none did. */
+export function withoutFile(data: DocumentsData, fileId: string): DocumentsData {
+  let next = data;
+  for (const item of Object.keys(data.items) as DocumentItem[]) {
+    if (data.items[item].file === fileId) next = withItemValues(next, item, { file: null });
+  }
+  return next;
+}
