@@ -3,6 +3,7 @@
 // in components/qc; the calculations in calc.test.ts.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { SMALL_PILL_TOUCH } from "@/components/qc/status-pill";
 import type { InspectionContext, ModuleEvaluation } from "@/modules/_framework";
 import { makeSampling, makeTestContext } from "@/modules/_framework/testing";
 import { cartonList, STD_EG_EXAMPLE } from "@/tests/fixtures/examples";
@@ -79,6 +80,8 @@ function render({
 }
 
 const count = (html: string, text: string) => html.split(text).length - 1;
+/** Text as renderToStaticMarkup escapes it inside an attribute. */
+const inMarkup = (text: string) => text.replace(/&/g, "&amp;").replace(/>/g, "&gt;");
 
 describe("dispensing_packing capture", () => {
   it("shows only the ordered sizes, whatever is saved for others (6.2 rule 4)", () => {
@@ -107,6 +110,11 @@ describe("dispensing_packing capture", () => {
     const frame = /<div[^>]*>(?=<table)/.exec(html)?.[0];
     expect(frame).toContain("overflow-clip");
     expect(frame).not.toContain("overflow-x-auto");
+    // A cell reached with Enter, Shift+Enter or Tab scrolls clear of the size bar and of the
+    // heading row as tall as it is measured (the template's wording can wrap it), not a guess.
+    expect(/<tbody[^>]*>/.exec(html)?.[0]).toContain(
+      "scroll-mt-[calc(var(--size-tabs-bar,0px)_+_var(--packing-head,3rem))]",
+    );
   });
 
   it("uses the template's labels and its rows per size when the sampling plan is silent", () => {
@@ -126,6 +134,10 @@ describe("dispensing_packing capture", () => {
     expect(stray).toContain('aria-invalid="true"');
     const listed = /<button[^>]*aria-label="Box #, Item 13"[^>]*>/.exec(html)?.[0];
     expect(listed).not.toContain('aria-invalid="true"');
+    // The picker names the size as the tabs and calc do.
+    expect(html).toContain("Box 2336 is not in the carton list for size M.");
+    const medium = render({ context: { ...CONTEXT, templateSizes: [{ value: "M", label: "Medium" }] } });
+    expect(medium).toContain("Box 2336 is not in the carton list for size Medium.");
   });
 
   it("offers the template's stickiness codes and shows its legend", () => {
@@ -133,6 +145,27 @@ describe("dispensing_packing capture", () => {
     expect(count(html, '<option value="B1">B1</option>')).toBe(13);
     expect(html).toContain("A mix of non sticky to light stickiness at the bead");
     expect(html).toContain("Glove stickiness Code");
+    // The legend's pills at the kit's own touch size, 16 px on iPad.
+    const legend = /<dl[\s\S]*?<\/dl>/.exec(html)?.[0] ?? "";
+    expect(count(legend, inMarkup(SMALL_PILL_TOUCH))).toBe(DISPENSING_PACKING_DEFAULT_CONFIG.stickinessCodes.length);
+  });
+
+  it("shows each stickiness cell as a picker: a chevron, and Pick while empty", () => {
+    const html = render({ data: { sizes: { M: { boxes: stdEgData().sizes.M.boxes.slice(0, 5) } } } });
+    const cell = (item: number) =>
+      new RegExp(`<select[^>]*aria-label="Stickiness \\*\\*, Item ${item}"[^>]*>[\\s\\S]*?</select><svg[^>]*>`).exec(html)?.[0] ??
+      "";
+    expect(cell(6)).toContain('data-empty="true"');
+    expect(cell(6)).toContain('<option value="" selected="">Pick</option>');
+    expect(cell(6)).toContain("lucide-chevron-down");
+    // With a code picked, the empty option clears it.
+    expect(cell(1)).not.toContain('data-empty="true"');
+    expect(cell(1)).toContain('<option value="">—</option>');
+    expect(cell(1)).toContain("lucide-chevron-down");
+    // Read-only, a missing code stays the screen's dash for no value.
+    const readOnly = render({ data: { sizes: {} }, readOnly: true });
+    expect(readOnly).not.toContain("Pick");
+    expect(readOnly).not.toContain("lucide-chevron-down");
   });
 
   it("shows calc's averages and Passed live, and Not done until the boxes are complete", () => {

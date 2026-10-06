@@ -9,8 +9,8 @@
 // read-only (rule 2). Wording comes from the template (rule 11). Every write
 // goes through useDataUpdater, starting from the latest data: a pasted column
 // reaches the screen as one change with every value (docs/CAPTURE_KIT.md).
-import { useRef, useState, type KeyboardEvent } from "react";
-import { PlusIcon } from "lucide-react";
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
+import { ChevronDownIcon, PlusIcon } from "lucide-react";
 import {
   BoxPicker,
   EnterGroup,
@@ -28,6 +28,8 @@ import {
   type EntryProblem,
   type InvalidEntry,
 } from "@/components/qc";
+// Not exported from @/components/qc yet: imported, not copied, so the legend keeps the kit's pill size.
+import { SMALL_PILL_TOUCH } from "@/components/qc/status-pill";
 import { Button } from "@/components/ui/button";
 import { formatSize, formatSpec } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -138,8 +140,12 @@ function PackingSizePanel({ size, props, update, requested, onRequest, rejected,
   const computed = evaluation?.computed.sizes?.[size];
   const result = evaluation?.result.perSize?.[size];
   const sizeName = formatSize(size, { sizes: context.templateSizes, prefix: true });
+  // Inside the picker's sentences: "Box 2336 is not in the carton list for size M."
+  const pickerSize = `size ${formatSize(size, { sizes: context.templateSizes })}`;
   const issues = evaluation?.issues ?? [];
   const keyOf = (field: PercentKey, index: number) => `${size}:${field}:${index}`;
+  const head = useRef<HTMLTableSectionElement>(null);
+  const headHeight = useHeadHeight(head);
   const passing = config.stickinessCodes.filter((entry) => entry.pass).map((entry) => entry.code);
   // A refused entry is listed while its cell stays empty.
   const problems = rejected.filter((problem) => {
@@ -156,7 +162,11 @@ function PackingSizePanel({ size, props, update, requested, onRequest, rejected,
         </p>
       )}
       <EnterGroup className="relative overflow-clip rounded-lg border border-border bg-card">
-        <table className="w-full table-fixed border-separate border-spacing-0 text-sm touch:text-base">
+        <table
+          // The heading row's height, measured: the template's wording can wrap it to two lines or more.
+          style={headHeight === null ? undefined : ({ "--packing-head": `${headHeight}px` } as CSSProperties)}
+          className="w-full table-fixed border-separate border-spacing-0 text-sm touch:text-base"
+        >
           <caption className="sr-only">{`${title}, ${sizeName}`}</caption>
           <colgroup>
             <col className="w-12 touch:w-14" />
@@ -168,8 +178,9 @@ function PackingSizePanel({ size, props, update, requested, onRequest, rejected,
           </colgroup>
           {/* The column headings stay below the size bar while the 13 rows scroll
               (the frame clips rather than scrolls, so sticky still works); a
-              cell reached with Enter or Shift+Enter scrolls clear of both. */}
-          <thead className="sticky top-[calc(var(--capture-sticky-top,0px)_+_var(--size-tabs-bar,0px))] z-[4]">
+              cell reached with Enter or Shift+Enter (or Tab) scrolls clear of
+              both, by the bar's and the heading row's measured heights. */}
+          <thead ref={head} className="sticky top-[calc(var(--capture-sticky-top,0px)_+_var(--size-tabs-bar,0px))] z-[4]">
             <tr>
               <th scope="col" className={cn(HEAD, "text-center")}>
                 {labelFor(labels, "itemColumn")}
@@ -191,7 +202,7 @@ function PackingSizePanel({ size, props, update, requested, onRequest, rejected,
               </th>
             </tr>
           </thead>
-          <tbody className="[&_:is(input,select,button)]:scroll-mt-[calc(var(--size-tabs-bar,0px)_+_3rem)]">
+          <tbody className="[&_:is(input,select,button)]:scroll-mt-[calc(var(--size-tabs-bar,0px)_+_var(--packing-head,3rem))]">
             {Array.from({ length: rows }, (_, index) => (
               <PackingRow
                 key={index}
@@ -203,7 +214,7 @@ function PackingSizePanel({ size, props, update, requested, onRequest, rejected,
                 labels={labels}
                 config={config}
                 issues={issues}
-                sizeName={sizeName}
+                pickerSize={pickerSize}
                 readOnly={readOnly}
                 onPatch={(patch) => update((current) => updatePackingBox(current, size, index, patch))}
                 onFocusBox={(box) => onFocusChange?.({ size, ...(box === null ? {} : { box }) })}
@@ -286,7 +297,7 @@ type RowProps = {
   labels: Labels;
   config: DispensingPackingConfig;
   issues: readonly ValidationIssue[];
-  sizeName: string;
+  pickerSize: string;
   readOnly: boolean;
   onPatch: (patch: Partial<PackingBox>) => void;
   onFocusBox: (box: number | null) => void;
@@ -302,7 +313,7 @@ function PackingRow({
   labels,
   config,
   issues,
-  sizeName,
+  pickerSize,
   readOnly,
   onPatch,
   onFocusBox,
@@ -342,7 +353,7 @@ function PackingRow({
         <BoxPicker
           variant="cell"
           label={`${labelFor(labels, "boxNo")}, ${item}`}
-          sizeLabel={sizeName.toLowerCase()}
+          sizeLabel={pickerSize}
           value={box.boxNo}
           cartons={cartons}
           used={used}
@@ -394,7 +405,11 @@ type StickinessCellProps = {
   onValueChange: (value: string | null) => void;
 };
 
-/** One of the template's codes, from a native select: the iPad's own picker, typeahead on desktop. */
+/**
+ * One of the template's codes, from a native select: the iPad's own picker,
+ * typeahead on desktop. It reads as a picker, as the box cell beside it does:
+ * a chevron, and "Pick" while empty ("—" is the screen's mark for no value).
+ */
 function StickinessCell({ value, config, label, error, issuePath, readOnly, onFocus, onValueChange }: StickinessCellProps) {
   const code = config.stickinessCodes.find((entry) => entry.code === value);
   const failing = code !== undefined && !code.pass;
@@ -421,13 +436,19 @@ function StickinessCell({ value, config, label, error, issuePath, readOnly, onFo
         value={value ?? ""}
         onFocus={onFocus}
         onChange={(event) => onValueChange(event.target.value === "" ? null : event.target.value)}
+        data-empty={value === null || undefined}
         data-fail={failing || undefined}
         className={cn(
-          "block h-8 w-full cursor-pointer appearance-none rounded-none bg-transparent px-2.5 font-semibold outline-none focus-ring-inset touch:h-11",
-          "hover:bg-accent data-fail:bg-fail-tint data-fail:text-fail aria-invalid:bg-fail-tint aria-invalid:text-fail",
+          // pr-8 keeps the code clear of the chevron, which sits where the box picker's does.
+          "block h-8 w-full cursor-pointer appearance-none rounded-none bg-transparent pr-8 pl-2.5 font-semibold outline-none focus-ring-inset touch:h-11",
+          "hover:bg-accent data-empty:font-normal data-empty:text-muted-foreground",
+          "data-fail:bg-fail-tint data-fail:text-fail aria-invalid:bg-fail-tint aria-invalid:text-fail",
+          // Where the browser styles the open list, its options stay plain whatever the cell shows.
+          "*:text-foreground",
         )}
       >
-        <option value="">—</option>
+        {/* Empty, it asks for a pick; with a code, this option clears it. */}
+        <option value="">{value === null ? "Pick" : "—"}</option>
         {config.stickinessCodes.map((entry) => (
           <option key={entry.code} value={entry.code}>
             {entry.code}
@@ -435,6 +456,10 @@ function StickinessCell({ value, config, label, error, issuePath, readOnly, onFo
         ))}
         {unknown && <option value={value}>{value}</option>}
       </select>
+      <ChevronDownIcon
+        aria-hidden
+        className="pointer-events-none absolute top-1/2 right-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+      />
       {error && <span className="sr-only">{error}</span>}
     </span>
   );
@@ -502,16 +527,28 @@ function StickinessLegend({ labels, config }: { labels: Labels; config: Dispensi
             <dt className="font-semibold tabular-nums">{entry.code}</dt>
             <dd className="text-muted-foreground">{entry.label}</dd>
             <dd>
-              {/* 16 px on iPad, as the kit's small pills in tables (status-pill.tsx SMALL_PILL_TOUCH). */}
-              <StatusPill
-                size="sm"
-                status={entry.pass ? "pass" : "fail"}
-                className="touch:h-8 touch:gap-1.5 touch:px-3 touch:text-base touch:[&>svg]:size-4"
-              />
+              {/* 16 px on iPad, as the kit's small pills in tables. */}
+              <StatusPill size="sm" status={entry.pass ? "pass" : "fail"} className={SMALL_PILL_TOUCH} />
             </dd>
           </div>
         ))}
       </dl>
     </ModuleSection>
   );
+}
+
+/** A table's heading row height in px, kept current as its wording wraps and fonts load; null until measured. */
+function useHeadHeight(head: RefObject<HTMLTableSectionElement | null>): number | null {
+  const [height, setHeight] = useState<number | null>(null);
+  useEffect(() => {
+    const element = head.current;
+    const table = element?.parentElement;
+    if (!element || !table || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => setHeight(element.offsetHeight));
+    observer.observe(element);
+    // The table as well: it resizes with its heading row in a browser that does not observe row groups.
+    observer.observe(table);
+    return () => observer.disconnect();
+  }, [head]);
+  return height;
 }
