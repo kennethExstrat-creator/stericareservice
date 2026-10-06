@@ -68,11 +68,40 @@ describe("ExportSchema", () => {
     expect(ExportSchema.parse(doc)).toEqual(doc);
   });
 
-  it("rejects an empty module tag: untagged is null", () => {
+  it("reads an empty or blank module tag as untagged, which the database columns allow", () => {
     const doc = makeStdEgExport();
     doc.photos[0].moduleKey = "";
-    doc.files[0].moduleKey = "";
+    doc.files[0].moduleKey = "   ";
+    const parsed = ExportSchema.parse(doc);
+    expect(parsed.photos[0].moduleKey).toBeNull();
+    expect(parsed.files[0].moduleKey).toBeNull();
+    expect(parsed.photos[1].moduleKey).toBe(doc.photos[1].moduleKey);
+  });
+
+  it("still requires the module tag: untagged is null, not missing", () => {
+    const doc = makeStdEgExport();
+    Reflect.deleteProperty(doc.photos[0], "moduleKey");
+    Reflect.deleteProperty(doc.files[0], "moduleKey");
     expect(issuePaths(doc)).toEqual(expect.arrayContaining(["photos.0.moduleKey", "files.0.moduleKey"]));
+  });
+
+  it("keeps custom module keys apart from library module keys", () => {
+    const customModule = (key: string) => ({
+      key,
+      title: "Extra checks",
+      layout: "fields" as const,
+      fields: [],
+      values: {},
+    });
+    const clash = makeStdEgExport();
+    clash.custom.push(customModule("weight"));
+    expect(issuePaths(clash)).toEqual(["custom.0.key"]);
+
+    // Reserved even when the template leaves that module out, so a later template version can add it.
+    const reserved = makeStdEgExport();
+    expect(reserved.modules.some((module) => module.key === "documents")).toBe(false);
+    reserved.custom.push(customModule("documents"));
+    expect(issuePaths(reserved)).toEqual(["custom.0.key"]);
   });
 
   it("rejects duplicate photo and file ids", () => {
