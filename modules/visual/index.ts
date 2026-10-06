@@ -17,6 +17,7 @@ export const definition = defineModule<VisualData, VisualConfig, VisualComputed>
   perSize: true,
   handSplit: true,
   calc: calcVisual,
+  loadCapture: () => import("./Capture"),
 });
 
 export type { VisualData } from "./schema";
