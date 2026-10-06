@@ -627,6 +627,7 @@ export type Database = {
           role: Database["public"]["Enums"]["user_role"]
         }[]
       }
+      storage_folder_uuid: { Args: { object_name: string }; Returns: string }
       storage_inspection_id: { Args: { object_name: string }; Returns: string }
     }
     Enums: {
