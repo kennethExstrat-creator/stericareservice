@@ -93,6 +93,31 @@ describe("weight capture, one value per size (SAFEDON_EG)", () => {
     expect(html).toContain("<span>A</span>");
   });
 
+  it("runs Enter and a pasted column down the sizes, one column of the table", () => {
+    const cells = tags(html, 'data-slot="numeric-cell"');
+    expect(cells.every((cell) => cell.includes('data-enter-group="values"'))).toBe(true);
+  });
+
+  it("marks the value calc refuses, and lists the problem as a link", () => {
+    const zero = render("SAFEDON_EG", { sizes: { ...data.sizes, S: { values: [0] } } }, exampleContext(SAFEDON_EG_EXAMPLE));
+    // The cell is drawn in fail red and described by calc's message.
+    const marked = (size: string) => {
+      const cell = tags(zero, `aria-label="Weight \\(g\\), size ${size}"`)[0];
+      const classes = /class="([^"]*)"/.exec(cell)?.[1].split(" ") ?? [];
+      return classes.includes("ring-fail") && /aria-describedby="[^"]*calc-error"/.test(cell);
+    };
+    expect(marked("S")).toBe(true);
+    expect(marked("XS")).toBe(false);
+    expect(zero).toContain("Size S, Weight (g): must be more than 0 g.");
+    expect(tags(zero, 'aria-label="Problems with the weights"')).toHaveLength(1);
+  });
+
+  it("sizes its result pills for touch: 16 px text on iPad", () => {
+    const pills = tags(html, 'data-slot="status-pill"');
+    expect(pills.length).toBeGreaterThan(0);
+    expect(pills.every((pill) => pill.includes("touch:text-base"))).toBe(true);
+  });
+
   it("compares size M with the indicative weight: within the threshold", () => {
     const note = html.slice(html.indexOf('data-slot="weight-deviation"'));
     expect(note).toContain("-0.6");

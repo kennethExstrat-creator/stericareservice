@@ -5,13 +5,16 @@
 // on one screen. With several gloves per size (13 on STD_EG) each size is a
 // MeasurementGrid in size tabs, its footer the live average. Under each, the
 // size of the indicative weight shows its deviation and the warning beyond
-// the threshold (BUILD_SPEC 6.2 rule 9). Issue links focus the value; photos
-// are tagged with the size in focus.
+// the threshold (BUILD_SPEC 6.2 rule 9). Every write goes through
+// useDataUpdater, so a column pasted down the sizes, or two commits in one
+// event, all land. Issue links focus the value; photos are tagged with the
+// size in focus.
 import { useId, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import {
   EnterGroup,
   EntryProblems,
   Figure,
+  findIssue,
   focusIssuePath,
   issuePathProps,
   MeasurementGrid,
@@ -20,7 +23,9 @@ import {
   SizeTabs,
   StatusIcon,
   StatusPill,
+  useDataUpdater,
   useIssueFocus,
+  type DataChange,
   type EntryProblem,
   type InvalidEntry,
   type MeasurementValues,
@@ -30,28 +35,35 @@ import { cn } from "@/lib/utils";
 import type { ModuleStatus } from "@/lib/schemas";
 import { labelFor, sizeLabel, type CaptureProps, type Labels, type ValidationIssue } from "@/modules/_framework";
 import { indicativeFor, specFor, type WeightComputed } from "./calc";
-import { firstValues, withFirstValues } from "./capture-data";
+import { firstValues, valueChanges, withValues } from "./capture-data";
 import type { WeightConfig } from "./config";
 import type { WeightData } from "./schema";
 
 type Props = CaptureProps<WeightData, WeightConfig, WeightComputed>;
+/** Applies a change to the latest data (useDataUpdater). */
+type Update = (change: DataChange<WeightData>) => void;
 
-// Around MeasurementGrid, for what it does not do yet. Read-only: a disabled
-// fieldset stops every edit, and the weights keep full contrast instead of
-// greying out. Swipe: its scroller pans both ways, which takes the horizontal
-// swipe that turns the size on iPad (docs/CAPTURE_KIT.md); the grid fits the
-// iPad's width, so touch pans it vertically only.
-const GRID_FRAME = cn(
+// MeasurementGrid has no read-only mode yet: a disabled fieldset stops every
+// edit, and the weights keep full contrast instead of greying out.
+const READ_ONLY_FRAME = cn(
   "m-0 min-w-0 border-0 p-0",
   "[&_input:disabled]:text-foreground [&_input:disabled]:opacity-100 [&_input:disabled]:[-webkit-text-fill-color:currentColor]",
-  "[&_[data-slot=measurement-grid]>div]:touch-pan-y [&_[data-slot=measurement-grid]>div]:touch-pinch-zoom",
 );
+
+// A small pill at the touch size (16 px text on iPad), as the kit sizes its
+// own (SMALL_PILL_TOUCH in components/qc/status-pill.tsx, not exported).
+const PILL_TOUCH = "touch:h-8 touch:gap-1.5 touch:px-3 touch:text-base touch:[&>svg]:size-4";
 
 const HEAD = "border-b border-border bg-slate-50 px-3 py-2 font-semibold text-foreground";
 const CELL = "border-b border-border px-3 py-1.5 align-middle touch:py-2";
 
 export default function Capture(props: Props) {
-  return props.config.n === 1 ? <OneValuePerSize {...props} /> : <GlovesPerSize {...props} />;
+  const update = useDataUpdater(props.data, props.onChange);
+  return props.config.n === 1 ? (
+    <OneValuePerSize {...props} update={update} />
+  ) : (
+    <GlovesPerSize {...props} update={update} />
+  );
 }
 
 /* One value per size: a table of the ordered sizes ---------------------- */
@@ -65,9 +77,9 @@ function OneValuePerSize({
   evaluation,
   focusPath,
   readOnly,
-  onChange,
   onFocusChange,
-}: Props) {
+  update,
+}: Props & { update: Update }) {
   const root = useRef<HTMLDivElement>(null);
   const idBase = useId();
   const [rejected, setRejected] = useState<Readonly<Record<string, InvalidEntry>>>({});
@@ -79,7 +91,7 @@ function OneValuePerSize({
   const valueOf = (size: string) => data.sizes[size]?.values[0] ?? null;
 
   const write = (size: string, value: number | null) => {
-    if (!readOnly) onChange(withFirstValues(data, size, [value], 1));
+    if (!readOnly) update((current) => withValues(current, size, [{ index: 0, value }]));
   };
   const track = (size: string, entry: InvalidEntry | null) =>
     setRejected((current) => {
@@ -130,11 +142,14 @@ function OneValuePerSize({
                   <td className={cn(CELL, "w-40 p-0 touch:py-0")}>
                     <NumberField
                       variant="cell"
+                      // One column: Enter runs down the sizes, a pasted column fills them.
+                      group="values"
                       id={inputId(size)}
                       label={`${labelFor(labels, "values")}, size ${sizeLabel(context, size)}`}
                       value={valueOf(size)}
                       onValueChange={(value) => write(size, value)}
                       onInvalidChange={(entry) => track(size, entry)}
+                      error={findIssue(evaluation?.issues, ["sizes", size, "values", 0])?.message}
                       decimals={config.decimals}
                       min={0}
                       readOnly={readOnly}
@@ -169,23 +184,22 @@ function OneValuePerSize({
 
 /* Several gloves per size: a grid per size, in size tabs ---------------- */
 
-function GlovesPerSize(props: Props) {
+function GlovesPerSize(props: Props & { update: Update }) {
   const { context, evaluation, focusPath, onFocusChange } = props;
   const root = useRef<HTMLDivElement>(null);
-  const [chosen, setChosen] = useState<string | null>(null);
-  // Only ordered sizes (6.2 rule 4); a size taken out of the order falls back to the first.
-  const size = chosen !== null && context.sizes.includes(chosen) ? chosen : (context.sizes[0] ?? "");
+  // SizeTabs shows the first ordered size while this is not one (6.2 rule 4) and says so through show.
+  const [size, setSize] = useState(context.sizes[0] ?? "");
 
   const show = (next: string) => {
-    setChosen(next);
+    setSize(next);
     onFocusChange?.({ size: next });
   };
 
   useIssueFocus(focusPath, {
     root,
     reveal: (path) => {
-      const target = path[0] === "sizes" ? path[1] : undefined;
-      if (typeof target === "string" && context.sizes.includes(target)) setChosen(target);
+      // size_not_ordered points at a size that is not on screen: stay put.
+      if (path[0] === "sizes" && typeof path[1] === "string" && context.sizes.includes(path[1])) setSize(path[1]);
     },
   });
 
@@ -207,25 +221,28 @@ function GlovesPerSize(props: Props) {
 function SizeGrid({
   size,
   root,
+  update,
   data,
   config,
   labels,
   context,
   evaluation,
   readOnly,
-  onChange,
   onFocusChange,
-}: Props & { size: string; root: RefObject<HTMLDivElement | null> }) {
+}: Props & { size: string; root: RefObject<HTMLDivElement | null>; update: Update }) {
   const grid = useRef<HTMLDivElement>(null);
   const name = sizeLabel(context, size);
   const status = evaluation?.result.perSize?.[size]?.status;
   const label = labelFor(labels, "values");
-  const values: MeasurementValues = { values: firstValues(data, size, config.n) };
+  const shown = firstValues(data, size, config.n);
 
   useCellIssuePaths(grid, size);
 
+  // Only the weights the grid changed are written, on the latest data.
   const write = (next: MeasurementValues) => {
-    if (!readOnly && next.values) onChange(withFirstValues(data, size, next.values, config.n));
+    if (readOnly || !next.values) return;
+    const changes = valueChanges(shown, next.values, config.n);
+    update((current) => withValues(current, size, changes));
   };
 
   return (
@@ -244,7 +261,7 @@ function SizeGrid({
         }}
         {...issuePathProps(["sizes", size, "values"])}
       >
-        <fieldset disabled={readOnly} className={GRID_FRAME}>
+        <fieldset disabled={readOnly} className={READ_ONLY_FRAME}>
           <MeasurementGrid
             caption={`${label}, size ${name}`}
             measures={[
@@ -259,7 +276,7 @@ function SizeGrid({
               },
             ]}
             rows={config.n}
-            values={values}
+            values={{ values: shown }}
             onValuesChange={write}
             statistic="average"
             labels={{
@@ -298,7 +315,7 @@ function statusWord(status: ModuleStatus | undefined, labels: Labels): string | 
 
 function ResultPill({ status, labels }: { status: ModuleStatus | undefined; labels: Labels }) {
   const shown = status ?? "not_done";
-  return <StatusPill size="sm" status={shown} label={statusWord(shown, labels)} />;
+  return <StatusPill size="sm" status={shown} label={statusWord(shown, labels)} className={PILL_TOUCH} />;
 }
 
 /** "Deviation from indicative weight −17.1% · indicative 3.5 g, threshold 10% · Warning", for that size only. */
@@ -325,7 +342,7 @@ function DeviationNote({
       <span className="text-muted-foreground tabular-nums">
         {`indicative ${formatNumber(indicative.grams, { unit: "g" })}, threshold ${formatNumber(config.warnThresholdPct, { unit: "%" })}`}
       </span>
-      <StatusPill size="sm" status={beyond ? "warn" : "pass"} />
+      <StatusPill size="sm" status={beyond ? "warn" : "pass"} className={PILL_TOUCH} />
     </p>
   );
 }
