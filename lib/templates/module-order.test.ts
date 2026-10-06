@@ -25,6 +25,14 @@ describe("applyListedOrder", () => {
     expect(applyListedOrder(BASE, ["c", "a"])).toEqual(["header", "b", "c", "a", "d", "conclusion"]);
   });
 
+  it("moves a module earlier only when the modules it must now precede are listed after it", () => {
+    const base = ["header", "a", "b", "c", "m", "conclusion"];
+    // m already comes after a, so listing a then m leaves it in place.
+    expect(applyListedOrder(base, ["a", "m"])).toEqual(base);
+    expect(applyListedOrder(base, ["m", "b", "c"])).toEqual(["header", "a", "m", "b", "c", "conclusion"]);
+    expect(applyListedOrder(base, ["a", "m", "b", "c"])).toEqual(["header", "a", "m", "b", "c", "conclusion"]);
+  });
+
   it("gives exactly the listed order when every module is listed", () => {
     const wanted = ["header", "d", "b", "a", "c", "conclusion"];
     expect(applyListedOrder(BASE, wanted)).toEqual(wanted);

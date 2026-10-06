@@ -1,7 +1,7 @@
 // Module order down an extends chain (BUILD_SPEC 4.2 rule 9: modules added,
 // removed, reordered). The root template lists its modules in report order.
-// A child's list is read top to bottom: each module it lists ends up after
-// the module listed before it.
+// A child's list is read top to bottom: each module it lists ends up
+// somewhere after the module listed before it, not necessarily right after.
 //
 // - A module the base has stays where it is if it already comes after the
 //   previous entry; otherwise it moves to just after it.
@@ -9,9 +9,13 @@
 //   it goes to the top (just after header).
 // - Modules the child does not list keep their place.
 //
-// So listing every module gives exactly that order, and listing a module
-// right after its neighbour places it there. `header` is then moved first
-// and `conclusion` last, wherever they were listed.
+// So a child that lists modules in the base's order, to relabel or
+// reconfigure them, moves nothing, and listing every module gives exactly
+// that order. To move a module later, list the module it must follow, then
+// it. To move a module earlier, list it, then the modules it must now come
+// before: listing it after a module it already follows leaves it in place.
+// `header` is then moved first and `conclusion` last, wherever they were
+// listed.
 
 export function applyListedOrder<K extends string>(base: readonly K[], listed: readonly K[]): K[] {
   const order = [...base];

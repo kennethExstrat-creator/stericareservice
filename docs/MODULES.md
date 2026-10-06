@@ -325,7 +325,11 @@ A template (BUILD_SPEC 4.3, `TemplateDefinitionSchema`) lists modules in report 
 
 - `include`, `title`: the nearest template that sets them wins. Header and conclusion are always on (4.1), first and last.
 - `labels`: merged key by key over your defaults. `config`: merged as section 6 describes, then validated by your schema.
-- **Order**: the child's list is read top to bottom and each module it lists ends up after the module listed before it. A module the base already has stays put if it already comes after; otherwise it moves there. A new module goes right after the previous entry (to the top, after header, if listed first). Modules the child does not list keep their place. So to add `tensile` after `weight`, list `weight` then `tensile`; listing every module gives exactly that order.
+- **Order**: the child's list is read top to bottom and each module it lists ends up somewhere after the module listed before it, not necessarily right after. A module the base already has stays put if it already comes after; otherwise it moves to just after it. A new module goes right after the previous entry (to the top, after header, if listed first). Modules the child does not list keep their place, and listing modules in the base's order (to relabel or reconfigure them) moves nothing. So:
+  - to add `tensile` after `weight`, list `weight` then `tensile`;
+  - to move a module **later**, list the module it must follow, then it;
+  - to move a module **earlier**, list it, then the modules it must now come before. Listing it after a module it already follows leaves it in place: with base `a, b, c, m`, the list `a, m` changes nothing, while `m, b, c` gives `a, m, b, c`;
+  - listing every module gives exactly that order.
 - Custom modules are inherited; a child's custom module with the same key replaces the base's.
 - Scope, unit, sizes and name are the template's own; the report settings are inherited when absent; the source file is not.
 
