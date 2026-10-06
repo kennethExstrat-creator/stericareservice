@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   addStroke,
+  boxOf,
   canAddStroke,
   encodeStroke,
+  fitStroke,
   MAX_POINTS_PER_STROKE,
   MAX_RAW_POINTS,
   MAX_STROKES,
@@ -10,6 +12,7 @@ import {
   SIGNATURE_WIDTH,
   SignatureSchema,
   simplify,
+  STANDARD_BOX,
   strokePath,
   strokePoints,
   thin,
@@ -182,7 +185,7 @@ describe("strokes in and out", () => {
     expect(withoutLastStroke(one)).toBeNull();
   });
 
-  it("stops taking strokes at the limit", () => {
+  it("stops taking strokes at the limit, and gives a full signature back as it is", () => {
     let signature: Signature | null = null;
     for (let index = 0; index < MAX_STROKES; index += 1) {
       expect(canAddStroke(signature)).toBe(true);
@@ -190,5 +193,36 @@ describe("strokes in and out", () => {
     }
     expect(canAddStroke(signature)).toBe(false);
     expect(SignatureSchema.safeParse(signature).success).toBe(true);
+    expect(addStroke(signature, [1, 1])).toBe(signature);
+  });
+
+  it("takes nothing back from no signature", () => {
+    expect(withoutLastStroke(null)).toBeNull();
+  });
+
+  it("keeps each signature in its own box: new ones in the box drawn in, strokes scaled into an older box", () => {
+    expect(boxOf(null)).toEqual(STANDARD_BOX);
+    const wide = { width: 800, height: 200 };
+    const older = addStroke(null, [700, 50], wide);
+    expect(older).toEqual({ width: 800, height: 200, strokes: [[700, 50]] });
+    expect(boxOf(older)).toEqual(wide);
+    // A stroke drawn in the standard box (Redo after the box changed) lands where it was drawn.
+    const added = addStroke(older, [600, 200, 300, 100], STANDARD_BOX);
+    expect(added.strokes[1]).toEqual([800, 200, 400, 100]);
+    expect(SignatureSchema.safeParse(added).success).toBe(true);
+  });
+});
+
+describe("fitStroke", () => {
+  it("returns the stroke as it is in the same box", () => {
+    expect(fitStroke([10, 20, 30, 40], STANDARD_BOX, STANDARD_BOX)).toEqual([10, 20, 30, 40]);
+  });
+
+  it("scales into another box in whole units, inside it, without repeats", () => {
+    expect(fitStroke([0, 0, 300, 100, 600, 200], STANDARD_BOX, { width: 300, height: 100 })).toEqual([
+      0, 0, 150, 50, 300, 100,
+    ]);
+    expect(fitStroke([0, 0, 1, 1, 2, 2], STANDARD_BOX, { width: 60, height: 20 })).toEqual([0, 0]);
+    expect(fitStroke([599, 199], STANDARD_BOX, { width: 61, height: 21 })).toEqual([61, 21]);
   });
 });

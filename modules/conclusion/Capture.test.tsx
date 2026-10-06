@@ -59,7 +59,7 @@ function render(
 }
 
 function renderPad(props: Partial<Parameters<typeof SignaturePad>[0]> = {}) {
-  return renderToStaticMarkup(<SignaturePad value={null} onValueChange={noop} label="Signature" {...props} />);
+  return renderToStaticMarkup(<SignaturePad value={null} onChange={noop} label="Signature" {...props} />);
 }
 
 const tagsWith = (html: string, attribute: string): string[] =>
@@ -105,7 +105,13 @@ describe("conclusion capture", () => {
     expect(html).toContain(
       "Conclusion PASSED differs from the suggestion, FAILED (failed: Labeling). Explain why under Remark.",
     );
-    expect(render({ finalResult: "fail", date: "2025-04-12" }, { defects: 1 })).not.toContain("differs from");
+    // The choice is described by the warning, so a screen reader hears it with the result.
+    const describedBy = /role="radiogroup"[^>]*aria-describedby="([^"]+)"/.exec(html)?.[1];
+    expect(describedBy).toBeDefined();
+    expect(html).toMatch(new RegExp(`<p id="${describedBy}"[^>]*>(<svg[\\s\\S]*?</svg>)?Conclusion PASSED differs`));
+    const agreed = render({ finalResult: "fail", date: "2025-04-12" }, { defects: 1 });
+    expect(agreed).not.toContain("differs from");
+    expect(agreed).not.toMatch(/role="radiogroup"[^>]*aria-describedby=/);
   });
 
   it("shows who inspected, from the inspection, and the date from the picker", () => {

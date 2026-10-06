@@ -1,6 +1,9 @@
 // Edits the capture screen makes, as pure functions returning the whole new
-// data for onChange. The date is automatic: it becomes today when the result
-// is chosen or the signature drawn, and stays as set after that.
+// data from the data they are given, never changing it. Capture applies them
+// to the latest data through useDataUpdater (docs/CAPTURE_KIT.md), so edits
+// made in one event build on each other. The date is automatic: it becomes
+// today when the result is chosen or the signature drawn, and stays as set
+// after that.
 import type { InspectionResult } from "@/lib/schemas";
 import { DateCellSchema } from "@/modules/_framework";
 import type { ConclusionData } from "./schema";
@@ -16,8 +19,12 @@ export function withFinalResult(data: ConclusionData, finalResult: InspectionRes
   return { ...data, finalResult, date: data.date ?? today };
 }
 
-/** A new signature dates the conclusion if nothing has; clearing it keeps the date. */
+/**
+ * A new signature dates the conclusion if nothing has; clearing it keeps the
+ * date. The same signature (a stroke the pad had no room for) changes nothing.
+ */
 export function withSignature(data: ConclusionData, signature: Signature | null, today: string): ConclusionData {
+  if (signature === data.signature) return data;
   return { ...data, signature, date: signature === null ? data.date : (data.date ?? today) };
 }
 

@@ -4,8 +4,9 @@
 // every module, read-only) next to the inspector's final result, a warning
 // when the two differ, the remark, who inspected and the date (both
 // automatic; the date can be changed with the picker), and the signature
-// drawn on the pad. The pad lives here too: module folders keep React in
-// Capture.tsx (modules/_framework/architecture.test.ts).
+// drawn on the pad. Every edit goes through useDataUpdater
+// (docs/CAPTURE_KIT.md), built from the latest data. The pad lives here too:
+// module folders keep React in Capture.tsx (modules/_framework/architecture.test.ts).
 import { useId, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { EraserIcon, Redo2Icon, TriangleAlertIcon, Undo2Icon } from "lucide-react";
 import { RadioGroup as RadioGroupPrimitive } from "radix-ui";
@@ -16,25 +17,28 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { findIssue, issuePathProps, StatusIcon, StatusPill, useIssueFocus } from "@/components/qc";
+import { findIssue, issuePathProps, StatusIcon, StatusPill, useDataUpdater, useIssueFocus } from "@/components/qc";
 import { labelFor, type CaptureProps } from "@/modules/_framework";
 import type { ConclusionComputed, ConclusionConfig, ConclusionData } from ".";
 import { moduleName, resultWord } from "./calc";
 import { isoDateOf, withDate, withFinalResult, withRemark, withSignature } from "./edit";
 import {
   addStroke,
+  boxOf,
   canAddStroke,
   encodeStroke,
   MIN_STEP,
-  SIGNATURE_HEIGHT,
-  SIGNATURE_WIDTH,
   strokePath,
   withoutLastStroke,
   type Point,
   type Signature,
+  type SignatureBox,
+  type SignatureChange,
 } from "./signature";
 
 const RESULTS: readonly InspectionResult[] = ["pass", "fail", "hold"];
+
+const isResult = (value: string): value is InspectionResult => (RESULTS as readonly string[]).includes(value);
 
 const STATUS_OF: Readonly<Record<InspectionResult, Status>> = { pass: "pass", fail: "fail", hold: "hold" };
 
@@ -44,6 +48,9 @@ const CHOSEN: Readonly<Record<InspectionResult, string>> = {
   fail: "data-[state=checked]:border-fail-solid data-[state=checked]:bg-fail-solid data-[state=checked]:text-fail-solid-foreground",
   hold: "data-[state=checked]:border-hold-solid data-[state=checked]:bg-hold-solid data-[state=checked]:text-hold-solid-foreground",
 };
+
+/** The suggested result's pill at 16 px on iPad (docs/DESIGN.md). */
+const PILL_TOUCH = "touch:h-9 touch:px-3.5 touch:text-base touch:[&>svg]:size-5";
 
 /** Matches the data schema's limit (TextCellSchema). */
 const MAX_REMARK = 2000;
@@ -59,6 +66,7 @@ export default function Capture({
   onFocusChange,
 }: CaptureProps<ConclusionData, ConclusionConfig, ConclusionComputed>) {
   const baseId = useId();
+  const update = useDataUpdater(data, onChange);
   const root = useRef<HTMLDivElement>(null);
   useIssueFocus(focusPath, { root });
 
@@ -72,6 +80,7 @@ export default function Capture({
   const ids = {
     suggested: `${baseId}-suggested`,
     final: `${baseId}-final`,
+    differs: `${baseId}-differs`,
     remark: `${baseId}-remark`,
     inspector: `${baseId}-inspector`,
     date: `${baseId}-date`,
@@ -94,9 +103,9 @@ export default function Capture({
             {labelFor(labels, "suggestedResult")}
           </h3>
           {suggested ? (
-            <StatusPill status={STATUS_OF[suggested]} label={resultWord(labels, suggested)} />
+            <StatusPill status={STATUS_OF[suggested]} label={resultWord(labels, suggested)} className={PILL_TOUCH} />
           ) : (
-            <StatusPill status="not_done" label="Not calculated yet" />
+            <StatusPill status="not_done" label="Not calculated yet" className={PILL_TOUCH} />
           )}
           {suggested === "hold" && reasons.length === 0 && (
             <p className="text-sm text-muted-foreground touch:text-base">No module has a result yet.</p>
@@ -116,8 +125,11 @@ export default function Capture({
           </span>
           <RadioGroupPrimitive.Root
             aria-labelledby={ids.final}
+            aria-describedby={differs ? ids.differs : undefined}
             value={data.finalResult ?? ""}
-            onValueChange={(next) => onChange(withFinalResult(data, next as InspectionResult, today()))}
+            onValueChange={(next) => {
+              if (isResult(next)) update((current) => withFinalResult(current, next, today()));
+            }}
             disabled={readOnly}
             orientation="horizontal"
             className="grid grid-cols-3 gap-2"
@@ -140,7 +152,10 @@ export default function Capture({
             ))}
           </RadioGroupPrimitive.Root>
           {differs && (
-            <p className="flex items-start gap-2 rounded-md border border-warn-border bg-warn-tint px-3 py-2 text-sm text-warn touch:text-base">
+            <p
+              id={ids.differs}
+              className="flex items-start gap-2 rounded-md border border-warn-border bg-warn-tint px-3 py-2 text-sm text-warn touch:text-base"
+            >
               <TriangleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
               {differs.message}
             </p>
@@ -157,7 +172,10 @@ export default function Capture({
           value={data.remark ?? ""}
           maxLength={MAX_REMARK}
           readOnly={readOnly}
-          onChange={(event) => onChange(withRemark(data, event.target.value))}
+          onChange={(event) => {
+            const remark = event.target.value;
+            update((current) => withRemark(current, remark));
+          }}
           {...issuePathProps(["remark"])}
         />
       </div>
@@ -179,7 +197,10 @@ export default function Capture({
             value={data.date ?? ""}
             readOnly={readOnly}
             aria-describedby={dateIssue ? ids.dateIssue : undefined}
-            onChange={(event) => onChange(withDate(data, event.target.value))}
+            onChange={(event) => {
+              const value = event.target.value;
+              update((current) => withDate(current, value));
+            }}
             {...issuePathProps(["date"])}
           />
           {dateIssue && (
@@ -192,7 +213,7 @@ export default function Capture({
 
       <SignaturePad
         value={data.signature}
-        onValueChange={(next) => onChange(withSignature(data, next, today()))}
+        onChange={(change) => update((current) => withSignature(current, change(current.signature), today()))}
         label={labelFor(labels, "signature")}
         signer={inspector?.name}
         readOnly={readOnly}
@@ -205,9 +226,17 @@ export default function Capture({
 /** Line width in signature units: about 3 px on an iPad. */
 const STROKE_WIDTH = 2.5;
 
+/** A stroke taken back with Undo, with the box it was drawn in. */
+type UndoneStroke = { readonly stroke: number[]; readonly box: SignatureBox };
+
 type SignaturePadProps = {
   value: Signature | null;
-  onValueChange: (next: Signature | null) => void;
+  /**
+   * Hands an edit of the signature to the module, which applies it to the
+   * latest one (useDataUpdater): a stroke drawn while an earlier edit has
+   * not been rendered yet is added to it, never in its place.
+   */
+  onChange: (change: SignatureChange) => void;
   /** The template's wording, e.g. "Signature". */
   label: string;
   /** Who signs, for the accessible description. */
@@ -226,27 +255,29 @@ type SignaturePadProps = {
  * pointer move; it is stored when the pointer lifts (signature.ts:
  * simplified whole-unit points, a few kB in all).
  */
-export function SignaturePad({ value, onValueChange, label, signer, readOnly = false, className, ...rest }: SignaturePadProps) {
+export function SignaturePad({ value, onChange, label, signer, readOnly = false, className, ...rest }: SignaturePadProps) {
   const baseId = useId();
   const labelId = `${baseId}-label`;
   const statusId = `${baseId}-status`;
   const surface = useRef<SVGSVGElement>(null);
   const live = useRef<SVGPathElement>(null);
-  const drawing = useRef<{ pointerId: number; points: Point[] } | null>(null);
+  const drawing = useRef<{ pointerId: number; box: SignatureBox; points: Point[] } | null>(null);
   // Strokes taken back with Undo, latest last; a new stroke or Clear empties it.
-  const [undone, setUndone] = useState<number[][]>([]);
+  const [undone, setUndone] = useState<UndoneStroke[]>([]);
   const [announcement, setAnnouncement] = useState("");
 
   // New strokes go into the stored box, so an older signature keeps its scale.
-  const width = value?.width ?? SIGNATURE_WIDTH;
-  const height = value?.height ?? SIGNATURE_HEIGHT;
+  const box = boxOf(value);
   const strokes = value?.strokes ?? [];
   const full = !canAddStroke(value);
 
-  const toBox = (event: { clientX: number; clientY: number }): Point => {
+  const toBox = (event: { clientX: number; clientY: number }, target: SignatureBox): Point => {
     const rect = surface.current?.getBoundingClientRect();
     if (!rect || rect.width === 0 || rect.height === 0) return { x: 0, y: 0 };
-    return { x: ((event.clientX - rect.left) / rect.width) * width, y: ((event.clientY - rect.top) / rect.height) * height };
+    return {
+      x: ((event.clientX - rect.left) / rect.width) * target.width,
+      y: ((event.clientY - rect.top) / rect.height) * target.height,
+    };
   };
 
   const drawLive = (points: readonly Point[]) => {
@@ -258,8 +289,8 @@ export function SignaturePad({ value, onValueChange, label, signer, readOnly = f
     if (event.pointerType === "mouse" && event.button !== 0) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
-    const points = [toBox(event)];
-    drawing.current = { pointerId: event.pointerId, points };
+    const points = [toBox(event, box)];
+    drawing.current = { pointerId: event.pointerId, box, points };
     drawLive(points);
   };
 
@@ -270,7 +301,7 @@ export function SignaturePad({ value, onValueChange, label, signer, readOnly = f
     const native = event.nativeEvent;
     const moves = typeof native.getCoalescedEvents === "function" ? native.getCoalescedEvents() : [];
     for (const move of moves.length > 0 ? moves : [native]) {
-      const point = toBox(move);
+      const point = toBox(move, current.box);
       const last = current.points[current.points.length - 1];
       if (Math.hypot(point.x - last.x, point.y - last.y) >= MIN_STEP) current.points.push(point);
     }
@@ -283,30 +314,30 @@ export function SignaturePad({ value, onValueChange, label, signer, readOnly = f
     drawing.current = null;
     live.current?.setAttribute("d", "");
     if (!keep) return;
-    const stroke = encodeStroke(current.points, { width, height });
+    const stroke = encodeStroke(current.points, current.box);
     if (stroke.length === 0) return;
     setUndone([]);
-    onValueChange(addStroke(value, stroke));
+    onChange((signature) => addStroke(signature, stroke, current.box));
   };
 
   const undo = () => {
     if (!value) return;
-    setUndone([...undone, value.strokes[value.strokes.length - 1]]);
-    onValueChange(withoutLastStroke(value));
+    setUndone([...undone, { stroke: value.strokes[value.strokes.length - 1], box }]);
+    onChange(withoutLastStroke);
     setAnnouncement("Last stroke removed.");
   };
 
   const redo = () => {
-    const stroke = undone[undone.length - 1];
-    if (!stroke) return;
+    const last = undone[undone.length - 1];
+    if (!last) return;
     setUndone(undone.slice(0, -1));
-    onValueChange(addStroke(value, stroke));
+    onChange((signature) => addStroke(signature, last.stroke, last.box));
     setAnnouncement("Stroke restored.");
   };
 
   const clear = () => {
     setUndone([]);
-    onValueChange(null);
+    onChange(() => null);
     setAnnouncement(`${label} cleared.`);
   };
 
@@ -343,7 +374,7 @@ export function SignaturePad({ value, onValueChange, label, signer, readOnly = f
       </div>
       <svg
         ref={surface}
-        viewBox={`0 0 ${width} ${height}`}
+        viewBox={`0 0 ${box.width} ${box.height}`}
         role="img"
         aria-labelledby={labelId}
         aria-describedby={statusId}
@@ -355,17 +386,17 @@ export function SignaturePad({ value, onValueChange, label, signer, readOnly = f
         // The browser took the touch (a system gesture): the line was not meant.
         onPointerCancel={(event) => endStroke(event, false)}
         onLostPointerCapture={(event) => endStroke(event, true)}
-        style={{ aspectRatio: `${width} / ${height}` }}
+        style={{ aspectRatio: `${box.width} / ${box.height}` }}
         className={cn(
           "block w-full max-w-2xl rounded-lg border border-input bg-card text-foreground select-none [-webkit-touch-callout:none]",
           readOnly ? "bg-muted" : "cursor-crosshair touch-none",
         )}
       >
         <line
-          x1={width * 0.04}
-          x2={width * 0.96}
-          y1={height * 0.78}
-          y2={height * 0.78}
+          x1={box.width * 0.04}
+          x2={box.width * 0.96}
+          y1={box.height * 0.78}
+          y2={box.height * 0.78}
           stroke="var(--color-slate-300)"
           strokeWidth={1.5}
           strokeDasharray="6 6"

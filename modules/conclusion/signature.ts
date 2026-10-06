@@ -49,6 +49,23 @@ export const SignatureSchema = z
   });
 export type Signature = z.infer<typeof SignatureSchema>;
 
+/**
+ * An edit to the stored signature, applied to the latest one (the pad hands
+ * these to useDataUpdater through the conclusion, docs/CAPTURE_KIT.md).
+ */
+export type SignatureChange = (current: Signature | null) => Signature | null;
+
+/** The box a signature's points are in. */
+export type SignatureBox = { readonly width: number; readonly height: number };
+
+/** New signatures are drawn in this box. */
+export const STANDARD_BOX: SignatureBox = { width: SIGNATURE_WIDTH, height: SIGNATURE_HEIGHT };
+
+/** The signature's own box; the standard box when there is none yet. */
+export function boxOf(signature: Signature | null): SignatureBox {
+  return signature === null ? STANDARD_BOX : { width: signature.width, height: signature.height };
+}
+
 export type Point = { readonly x: number; readonly y: number };
 
 /**
@@ -87,10 +104,7 @@ export function simplify(points: readonly Point[], tolerance = SIMPLIFY_TOLERANC
  * kept inside the box, repeats dropped, and at most MAX_POINTS_PER_STROKE
  * points (the tolerance doubles until it fits). Empty when nothing was drawn.
  */
-export function encodeStroke(
-  points: readonly Point[],
-  box: { width: number; height: number } = { width: SIGNATURE_WIDTH, height: SIGNATURE_HEIGHT },
-): number[] {
+export function encodeStroke(points: readonly Point[], box: SignatureBox = STANDARD_BOX): number[] {
   const thinned = thin(points);
   let tolerance = SIMPLIFY_TOLERANCE;
   for (;;) {
@@ -147,14 +161,34 @@ export function strokePath(stroke: readonly number[]): string {
   return `${path}L${num(last.x)} ${num(last.y)}`;
 }
 
-/** A signature with one more stroke; a new signature in the standard box when there was none. */
-export function addStroke(signature: Signature | null, stroke: readonly number[]): Signature {
-  if (signature === null) return { width: SIGNATURE_WIDTH, height: SIGNATURE_HEIGHT, strokes: [[...stroke]] };
-  return { ...signature, strokes: [...signature.strokes, [...stroke]] };
+/**
+ * A signature with one more stroke, drawn in `box`: a new signature in that
+ * box when there was none, else the stroke scaled into the signature's own
+ * box. A signature that already holds MAX_STROKES comes back as it is.
+ */
+export function addStroke(
+  signature: Signature | null,
+  stroke: readonly number[],
+  box: SignatureBox = STANDARD_BOX,
+): Signature {
+  if (signature === null) return { width: box.width, height: box.height, strokes: [[...stroke]] };
+  if (signature.strokes.length >= MAX_STROKES) return signature;
+  return { ...signature, strokes: [...signature.strokes, fitStroke(stroke, box, boxOf(signature))] };
 }
 
-/** The signature without its last stroke; null once no stroke is left. */
-export function withoutLastStroke(signature: Signature): Signature | null {
+/** A stored stroke moved from one box into another, still whole units inside it. */
+export function fitStroke(stroke: readonly number[], from: SignatureBox, to: SignatureBox): number[] {
+  if (from.width === to.width && from.height === to.height) return [...stroke];
+  const scaled = strokePoints(stroke).map((point) => ({
+    x: (point.x * to.width) / from.width,
+    y: (point.y * to.height) / from.height,
+  }));
+  return roundPoints(scaled, to);
+}
+
+/** The signature without its last stroke; null once no stroke is left (or there was none). */
+export function withoutLastStroke(signature: Signature | null): Signature | null {
+  if (signature === null) return null;
   const strokes = signature.strokes.slice(0, -1);
   return strokes.length === 0 ? null : { ...signature, strokes };
 }
@@ -164,7 +198,7 @@ export function canAddStroke(signature: Signature | null): boolean {
   return signature === null || signature.strokes.length < MAX_STROKES;
 }
 
-function roundPoints(points: readonly Point[], box: { width: number; height: number }): number[] {
+function roundPoints(points: readonly Point[], box: SignatureBox): number[] {
   const encoded: number[] = [];
   for (const point of points) {
     const x = clamp(Math.round(point.x), box.width);
