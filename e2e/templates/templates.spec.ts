@@ -3,6 +3,7 @@ import { signIn, TEST_ACCOUNTS } from "../support/session";
 import {
   activeVersionOf,
   childDefinition,
+  chooseFile,
   expectNoPageScroll,
   fixtureCode,
   insertInspection,
@@ -247,7 +248,7 @@ test("the checklist is ticked section by section, then confirmed", async ({ page
   await asAdmin(page, baseURL!);
   await page.goto(`/admin/templates/${client.id}`);
 
-  await page.locator('input[type="file"]').setInputFiles({
+  await chooseFile(page, page.getByRole("button", { name: "Upload source file" }), {
     name: "Client variant form.pdf",
     mimeType: "application/pdf",
     buffer: SOURCE_PDF,
@@ -283,7 +284,7 @@ test("a version's life: source file, coverage, activate, frozen by use, retire, 
   await page.goto(`/admin/templates/${root.id}`);
 
   await test.step("upload the source form", async () => {
-    await page.locator('input[type="file"]').setInputFiles({
+    await chooseFile(page, page.getByRole("button", { name: "Upload source file" }), {
       name: "E2E source form (v1).pdf",
       mimeType: "application/pdf",
       buffer: SOURCE_PDF,
@@ -304,7 +305,11 @@ test("a version's life: source file, coverage, activate, frozen by use, retire, 
   });
 
   await test.step("a wrong file is refused before it is sent", async () => {
-    await page.locator('input[type="file"]').setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("x") });
+    await chooseFile(page, page.getByRole("button", { name: "Replace file" }), {
+      name: "notes.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from("x"),
+    });
     await expect(page.getByRole("alert").filter({ hasText: "Choose a PDF, Excel or Word file, or a photo" })).toBeVisible();
   });
 

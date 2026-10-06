@@ -339,6 +339,25 @@ export async function shot(page: Page, name: string): Promise<void> {
   await page.evaluate(() => window.scrollTo(0, 0));
 }
 
+/**
+ * Picks a file through the page's own button, as an admin does: the button
+ * opens the hidden file input. Until the page has hydrated the button does
+ * nothing, so the click is retried until the file chooser opens (setting the
+ * input's files directly would skip the button, and before hydration nothing
+ * would upload).
+ */
+export async function chooseFile(
+  page: Page,
+  button: Locator,
+  file: { name: string; mimeType: string; buffer: Buffer },
+): Promise<void> {
+  await expect(async () => {
+    const chooser = page.waitForEvent("filechooser", { timeout: 2_000 });
+    await button.click();
+    await (await chooser).setFiles(file);
+  }).toPass({ timeout: 30_000 });
+}
+
 /** A tap on the iPads, a click on the desktop. */
 export async function press(locator: Locator): Promise<void> {
   if (isTouch()) await locator.tap();
