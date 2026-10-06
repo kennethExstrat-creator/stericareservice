@@ -92,6 +92,28 @@ describe("review provider resolution", () => {
     expect(problems).not.toContain("pasted-here");
   });
 
+  it.each(["claude-opus-5-5", "claude-sonnet-4-5-20250929", "claude-2.1", "claude-opus-4-1@20250805"])(
+    "accepts the model id %s",
+    (model) => {
+      expect(review({ ANTHROPIC_API_KEY: API_KEY, AI_REVIEW_MODEL: model })).toMatchObject({ claude: { model } });
+    },
+  );
+
+  it.each(["opus", "Claude-Opus-5-5", "gpt-5", "anthropic.claude-opus-5-5"])("rejects the model id %s", (model) => {
+    expect(problemsOf(review({ ANTHROPIC_API_KEY: API_KEY, AI_REVIEW_MODEL: model }))).toBe(
+      "AI_REVIEW_MODEL must be a Claude model id, e.g. claude-opus-5-5.",
+    );
+  });
+
+  it("lists the accepted values for the provider and the effort", () => {
+    expect(problemsOf(review({ AI_REVIEW_PROVIDER: "openai" }))).toBe(
+      "AI_REVIEW_PROVIDER must be one of auto, webhook, claude, mock or off.",
+    );
+    expect(problemsOf(review({ ANTHROPIC_API_KEY: API_KEY, AI_REVIEW_EFFORT: "extreme" }))).toBe(
+      "AI_REVIEW_EFFORT must be one of low, medium, high, xhigh or max.",
+    );
+  });
+
   it.each(["-1", "2.5", "lots"])("rejects AI_REVIEW_MAX_PHOTOS=%s", (value) => {
     expect(problemsOf(review({ ANTHROPIC_API_KEY: API_KEY, AI_REVIEW_MAX_PHOTOS: value }))).toContain(
       "AI_REVIEW_MAX_PHOTOS",
@@ -151,6 +173,29 @@ describe("webhook URLs and the signing secret", () => {
     expect(text).not.toContain(API_KEY);
     expect(text).not.toContain("url-secret-token");
     expect(text).not.toContain("short-secret");
+  });
+});
+
+describe("a secret pasted on the wrong line", () => {
+  // Problems reach the UI through getAiStatus(), so none may repeat the value it is about.
+  const LEAKED = "LEAKED-SECRET";
+  const values: Record<string, { value: string; isKey: boolean }> = {
+    "an API key": { value: `sk-ant-api03-${LEAKED}`, isKey: true },
+    "a quoted API key": { value: `"sk-ant-api03-${LEAKED}"`, isKey: true },
+    "a KEY=value line": { value: `ANTHROPIC_API_KEY=sk-ant-api03-${LEAKED}`, isKey: true },
+    "a URL with a token": { value: `https://hooks.example.com/x?token=${LEAKED}`, isKey: false },
+    "a webhook secret": { value: `${LEAKED}-0123456789abcdef0123456789abcdef`, isKey: false },
+  };
+  const cases = ["AI_REVIEW_PROVIDER", "AI_REVIEW_MODEL", "AI_REVIEW_EFFORT"].flatMap((name) =>
+    Object.entries(values).map(([label, { value, isKey }]) => ({ name, label, value, isKey })),
+  );
+
+  it.each(cases)("$name holding $label is misconfigured, named and never repeated", ({ name, value, isKey }) => {
+    const target = review({ ANTHROPIC_API_KEY: API_KEY, [name]: value });
+    const problems = problemsOf(target);
+    expect(problems).toContain(name);
+    expect(problems.includes(`${name} holds an API key`)).toBe(isKey);
+    expect(JSON.stringify(target)).not.toContain(LEAKED);
   });
 });
 

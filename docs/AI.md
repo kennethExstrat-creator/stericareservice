@@ -21,7 +21,7 @@ The app does not lay out reports and does not decide results. Both hand-offs sta
 
 ## Choosing a provider
 
-Set these in `.env.local` (Vercel: Project Settings > Environment Variables). Empty values count as unset. Configuration is read on every request, so a bad value turns that hand-off "misconfigured" (the status says which variable to fix) instead of crashing the app.
+Set these in `.env.local` (Vercel: Project Settings > Environment Variables). Empty values count as unset. Configuration is read on every request, so a bad value turns that hand-off "misconfigured" instead of crashing the app. The status names the variable to fix and what it accepts, but never repeats the value, so a key or a URL with a token pasted on the wrong line does not reach the screen.
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -30,7 +30,7 @@ Set these in `.env.local` (Vercel: Project Settings > Environment Variables). Em
 | `AI_REPORT_WEBHOOK_URL` | | Report service. |
 | `AI_WEBHOOK_SECRET` | | Signs both webhooks. At least 16 characters: `openssl rand -hex 32`. |
 | `ANTHROPIC_API_KEY` | | Runs the second opinion directly on Claude. Server only. |
-| `AI_REVIEW_MODEL` | `claude-opus-5-5` | Claude model for the second opinion. |
+| `AI_REVIEW_MODEL` | `claude-opus-5-5` | Claude model for the second opinion: a Claude API model id, starting with `claude-`. |
 | `AI_REVIEW_EFFORT` | `high` | `low`, `medium`, `high`, `xhigh` or `max`. |
 | `AI_REVIEW_MAX_PHOTOS` | `6` | Photos attached to a Claude review, 0 to 20. |
 | `ENABLE_MOCK_AI` | | `true` allows the mock reviewer and mock receivers in a production build (for a preview deployment). |

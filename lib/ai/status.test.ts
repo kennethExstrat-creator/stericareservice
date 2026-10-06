@@ -62,6 +62,23 @@ describe("getAiStatus", () => {
     }
   });
 
+  it.each([
+    ["AI_REVIEW_PROVIDER", { AI_REVIEW_PROVIDER: "sk-ant-api03-LEAKED-SECRET" }],
+    ["AI_REVIEW_PROVIDER", { AI_REVIEW_PROVIDER: "https://hooks.example.com/x?token=LEAKED-SECRET" }],
+    ["AI_REVIEW_MODEL", { ANTHROPIC_API_KEY: API_KEY, AI_REVIEW_MODEL: "ANTHROPIC_API_KEY=sk-ant-api03-LEAKED-SECRET" }],
+    ["AI_REVIEW_MODEL", { ANTHROPIC_API_KEY: API_KEY, AI_REVIEW_MODEL: "LEAKED-SECRET-0123456789abcdef" }],
+    ["AI_REVIEW_EFFORT", { ANTHROPIC_API_KEY: API_KEY, AI_REVIEW_EFFORT: "sk-ant-api03-LEAKED-SECRET" }],
+  ])("names %s without showing a secret pasted into it", (name, env) => {
+    const status = getAiStatus(env);
+    expect(status.review).toMatchObject({
+      connected: false,
+      provider: "misconfigured",
+      detail: expect.stringContaining(name),
+    });
+    expect(status.review).not.toHaveProperty("model");
+    expect(JSON.stringify(status)).not.toContain("LEAKED-SECRET");
+  });
+
   it("never includes keys, secrets or URLs when connected", () => {
     const text = JSON.stringify(
       getAiStatus({

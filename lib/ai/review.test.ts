@@ -48,6 +48,17 @@ describe("requestAiReview", () => {
     expect(!outcome.ok && outcome.message).toContain("ANTHROPIC_API_KEY");
   });
 
+  it("never repeats a secret pasted into the wrong variable", async () => {
+    const outcome = await requestAiReview(makeStdEgExport(), {
+      env: { AI_REVIEW_PROVIDER: "https://hooks.example.com/x?token=LEAKED-SECRET" },
+    });
+    expect(outcome).toEqual({
+      ok: false,
+      reason: "misconfigured",
+      message: "AI_REVIEW_PROVIDER must be one of auto, webhook, claude, mock or off.",
+    });
+  });
+
   it("returns the deterministic mock review", async () => {
     expect(await requestAiReview(makeStdEgExport(), { env: { AI_REVIEW_PROVIDER: "mock" } })).toEqual({
       ok: true,

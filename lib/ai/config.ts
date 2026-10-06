@@ -7,6 +7,10 @@ import { z } from "zod";
  * Read on every call, never at import: a missing or invalid variable
  * resolves to "off" or "misconfigured" for that hand-off instead of
  * crashing the app. The review and the report resolve independently.
+ *
+ * Problems name the variable and what it accepts but never repeat its
+ * value: they reach the UI through getAiStatus(), and a key or a URL
+ * with a token pasted on the wrong line must not.
  * ------------------------------------------------------------------ */
 
 export type AiEnv = Readonly<Record<string, string | undefined>>;
@@ -24,7 +28,11 @@ const MIN_SECRET_LENGTH = 16;
 
 const ProviderSchema = z.enum(AI_REVIEW_PROVIDERS);
 const EffortSchema = z.enum(AI_REVIEW_EFFORTS);
-const ModelSchema = z.string().max(100).regex(/^[A-Za-z0-9][\w.:@-]*$/);
+/**
+ * A Claude API model id (claude-opus-5-5, claude-sonnet-4-5-20250929). The
+ * status label shows it, so a secret pasted here must not pass as one.
+ */
+const ModelSchema = z.string().max(100).regex(/^claude-[a-z0-9][a-z0-9.:@_-]*$/);
 
 export interface WebhookTarget {
   url: string;
@@ -85,9 +93,7 @@ function resolveReview(context: ResolveContext, mockEnabled: boolean): ReviewTar
   const rawProvider = read(env, "AI_REVIEW_PROVIDER") ?? "auto";
   const provider = ProviderSchema.safeParse(rawProvider.toLowerCase());
   if (!provider.success) {
-    return misconfigured(
-      `AI_REVIEW_PROVIDER must be one of ${AI_REVIEW_PROVIDERS.join(", ")} (got "${rawProvider}").`,
-    );
+    return misconfigured(invalidValue("AI_REVIEW_PROVIDER", oneOf(AI_REVIEW_PROVIDERS), rawProvider));
   }
 
   const webhookUrl = read(env, "AI_REVIEW_WEBHOOK_URL");
@@ -126,17 +132,14 @@ function reviewClaude(env: AiEnv, apiKey: string): ReviewTarget {
   const problems: string[] = [];
 
   const rawModel = read(env, "AI_REVIEW_MODEL") ?? DEFAULT_REVIEW_MODEL;
-  // The model id is shown in the UI, so a key pasted on the wrong line must not pass as one.
-  if (rawModel.startsWith("sk-")) {
-    problems.push(`AI_REVIEW_MODEL holds an API key. Move it to ANTHROPIC_API_KEY and set a model id, e.g. ${DEFAULT_REVIEW_MODEL}.`);
-  } else if (!ModelSchema.safeParse(rawModel).success) {
-    problems.push(`AI_REVIEW_MODEL "${rawModel}" is not a valid model id, e.g. ${DEFAULT_REVIEW_MODEL}.`);
+  if (!ModelSchema.safeParse(rawModel).success) {
+    problems.push(invalidValue("AI_REVIEW_MODEL", `a Claude model id, e.g. ${DEFAULT_REVIEW_MODEL}`, rawModel));
   }
 
   const rawEffort = read(env, "AI_REVIEW_EFFORT") ?? DEFAULT_REVIEW_EFFORT;
   const effort = EffortSchema.safeParse(rawEffort.toLowerCase());
   if (!effort.success) {
-    problems.push(`AI_REVIEW_EFFORT must be one of ${AI_REVIEW_EFFORTS.join(", ")} (got "${rawEffort}").`);
+    problems.push(invalidValue("AI_REVIEW_EFFORT", oneOf(AI_REVIEW_EFFORTS), rawEffort));
   }
 
   const rawMaxPhotos = read(env, "AI_REVIEW_MAX_PHOTOS");
@@ -210,6 +213,23 @@ function readSecret(env: AiEnv): WebhookSecret {
 
 function misconfigured(...problems: string[]): { provider: "misconfigured"; problems: string[] } {
   return { provider: "misconfigured", problems };
+}
+
+/** What to fix, without the value itself (see the header comment). */
+function invalidValue(name: string, expected: string, raw: string): string {
+  return looksLikeApiKey(raw)
+    ? `${name} holds an API key. Move the key to ANTHROPIC_API_KEY and set ${name} to ${expected}.`
+    : `${name} must be ${expected}.`;
+}
+
+/** An sk- key, also when quoted or pasted with its variable name. */
+function looksLikeApiKey(value: string): boolean {
+  return /(?:^|[^A-Za-z0-9])sk-/.test(value);
+}
+
+/** "one of low, medium, high, xhigh or max" */
+function oneOf(values: readonly string[]): string {
+  return `one of ${values.slice(0, -1).join(", ")} or ${values.at(-1)}`;
 }
 
 /** Trimmed value; empty strings count as unset. */
