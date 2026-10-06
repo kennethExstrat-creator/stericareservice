@@ -1,0 +1,75 @@
+import { ResultChip, SaveStatus, StatusPill } from "@/components/qc";
+import { STATUSES, STATUS_LABEL } from "@/lib/design/status";
+import { DesignSection, Specimen } from "./design-section";
+
+const TABS = [
+  { label: "Header", status: "info" },
+  { label: "Glove info", status: "info" },
+  { label: "Packing", status: "warn" },
+  { label: "Dimensions", status: "fail" },
+  { label: "Watertight", status: "pass" },
+  { label: "Visual", status: "not_done" },
+] as const;
+
+export function PillSection() {
+  return (
+    <DesignSection
+      id="pills"
+      title="Results and saving"
+      description="StatusPill for results, ResultChip where space is tight (module tabs), SaveStatus in the capture header. Saving is never shown in status colours except Offline, which needs attention."
+      source="app-specific (BUILD_SPEC 4.2 rule 7, 8)"
+    >
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Specimen label="StatusPill">
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              {STATUSES.map((status) => (
+                <StatusPill key={status} status={status} />
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {STATUSES.map((status) => (
+                <StatusPill key={status} status={status} variant="solid" />
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {STATUSES.map((status) => (
+                <StatusPill key={status} status={status} size="sm" />
+              ))}
+            </div>
+          </div>
+        </Specimen>
+
+        <Specimen label="ResultChip in module tabs">
+          <ul className="flex flex-wrap gap-2">
+            {TABS.map(({ label, status }) => (
+              <li
+                key={label}
+                className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-card px-3 text-sm font-medium text-foreground touch:h-11"
+              >
+                {label}
+                <ResultChip status={status} />
+              </li>
+            ))}
+          </ul>
+          <p className="mt-4 text-sm text-muted-foreground">
+            Each chip reads its result to screen readers ({TABS.map(({ status }) => STATUS_LABEL[status]).join(", ")}).
+          </p>
+        </Specimen>
+
+        <Specimen label="SaveStatus" className="lg:col-span-2">
+          <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
+            <SaveStatus state="saved" />
+            <SaveStatus state="saving" />
+            <SaveStatus state="offline" />
+            <SaveStatus state="offline" pendingUploads={3} />
+            <SaveStatus state="saved" pendingUploads={1} />
+          </div>
+          <p className="mt-4 text-sm text-muted-foreground">
+            The count is photos still in the upload queue; submit stays blocked until it reaches zero.
+          </p>
+        </Specimen>
+      </div>
+    </DesignSection>
+  );
+}

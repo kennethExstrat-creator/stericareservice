@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" role="img" aria-label="Placeholder: shipping carton with a label">
+  <rect width="400" height="300" fill="#e9e4dc"/>
+  <rect x="0" y="230" width="400" height="70" fill="#d6cfc4"/>
+  <!-- carton -->
+  <path d="M90 90 200 60l110 30v140l-110 30-110-30z" fill="#c9a26b"/>
+  <path d="M200 60v170l110-30V90z" fill="#b48a52"/>
+  <path d="M90 90 200 120l110-30" fill="none" stroke="#8f6a3a" stroke-width="3"/>
+  <path d="M200 120v140" stroke="#8f6a3a" stroke-width="3"/>
+  <!-- label -->
+  <path d="M112 128l70 19v62l-70-19z" fill="#ffffff"/>
+  <g stroke="#4b5563" stroke-width="4" stroke-linecap="round">
+    <path d="M122 143l50 13M122 157l38 10M122 171l50 13"/>
+  </g>
+  <text x="150" y="203" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#111827" transform="rotate(15 150 203)">253</text>
+</svg>

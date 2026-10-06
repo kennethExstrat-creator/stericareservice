@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" role="img" aria-label="Placeholder: close-up of a thin spot on a glove">
+  <defs>
+    <radialGradient id="spot" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#9cc4ea"/>
+      <stop offset="1" stop-color="#3e7fc1"/>
+    </radialGradient>
+  </defs>
+  <rect width="400" height="300" fill="#3e7fc1"/>
+  <g stroke="#3573b0" stroke-width="2" fill="none">
+    <path d="M0 60c80-20 160 20 240 0s120-20 160 0M0 140c80-20 160 20 240 0s120-20 160 0M0 220c80-20 160 20 240 0s120-20 160 0"/>
+  </g>
+  <ellipse cx="214" cy="150" rx="34" ry="24" fill="url(#spot)"/>
+  <circle cx="214" cy="150" r="58" fill="none" stroke="#ffffff" stroke-width="5" stroke-dasharray="14 9"/>
+</svg>

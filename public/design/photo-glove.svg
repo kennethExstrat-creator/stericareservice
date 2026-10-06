@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" role="img" aria-label="Placeholder: glove on a measuring board">
+  <rect width="400" height="300" fill="#dfe7ef"/>
+  <rect x="0" y="210" width="400" height="90" fill="#cfd9e4"/>
+  <!-- ruler -->
+  <rect x="30" y="236" width="340" height="30" rx="3" fill="#f4d58d"/>
+  <g stroke="#7a5c12" stroke-width="2">
+    <path d="M50 236v12M70 236v8M90 236v12M110 236v8M130 236v12M150 236v8M170 236v12M190 236v8M210 236v12M230 236v8M250 236v12M270 236v8M290 236v12M310 236v8M330 236v12M350 236v8"/>
+  </g>
+  <!-- glove -->
+  <path d="M150 210c-6-40-10-70-8-96 1-12 15-13 17 0l6 52 4-86c1-14 18-14 18 0l2 82 8-92c1-14 19-13 18 1l-4 92 14-78c3-13 19-10 17 3l-12 86 20-44c6-11 21-5 16 7l-36 82c-6 13-6 17-6 25v6z" fill="#3e7fc1"/>
+  <path d="M150 210c-6-40-10-70-8-96 1-12 15-13 17 0l6 52 4-86c1-14 18-14 18 0l2 82 8-92c1-14 19-13 18 1l-4 92 14-78c3-13 19-10 17 3l-12 86 20-44c6-11 21-5 16 7l-36 82c-6 13-6 17-6 25v6z" fill="none" stroke="#235a92" stroke-width="3" stroke-linejoin="round"/>
+</svg>
