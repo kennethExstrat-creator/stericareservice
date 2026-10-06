@@ -610,6 +610,10 @@ export type Database = {
     Functions: {
       can_edit_inspection: { Args: { inspection_id: string }; Returns: boolean }
       can_read_inspection: { Args: { inspection_id: string }; Returns: boolean }
+      delete_test_inspection: {
+        Args: { inspection_id: string }
+        Returns: boolean
+      }
       inspection_ref: {
         Args: { created: string; seq: number }
         Returns: string
