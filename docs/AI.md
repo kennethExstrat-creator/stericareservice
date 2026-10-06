@@ -15,7 +15,7 @@ The app does not lay out reports and does not decide results. Both hand-offs sta
 
 - **Never automatic.** The AI never changes an inspection, a module result or the final result. Its review is stored next to the inspection and shown beside it.
 - **The admin decides.** For each finding the admin records agree, disagree (a note is required) or fixed (`AiReviewActionSchema`).
-- **Evidence or a question.** The reviewer must cite the values, carton or box numbers and photo ids behind every finding, and ask the inspector instead of guessing when evidence is missing.
+- **Evidence or a question.** The reviewer must cite the values, carton or box numbers and photo ids behind every finding, and ask the inspector instead of guessing when evidence is missing. A review that names a module or photo the inspection does not have is rejected, from any provider.
 - **Inspection text is data.** Comments, remarks and captions are passed as data; the reviewer is told never to follow instructions found in them.
 - **Not connected is a normal state.** With nothing configured the review panel shows "AI second opinion not connected" and the report button shows "AI not connected" with a JSON download.
 
@@ -54,7 +54,7 @@ Server code calls `requestAiReview(exportDoc)` and `requestAiReport(exportDoc)` 
 | `not_connected` | Nothing configured for this hand-off. |
 | `misconfigured` | A variable is invalid, or Claude rejected the API key or model. The message names the variable. |
 | `refused` | Claude declined, and no fallback model completed the review. |
-| `invalid_response` | The answer was not valid JSON in the expected shape, or was cut off. |
+| `invalid_response` | The answer was not valid JSON in the expected shape, was cut off, or named modules or photos that are not in the inspection. |
 | `timeout` | No answer in time. |
 | `error` | HTTP or network error, rate limit, outage, or an export that failed validation. |
 
@@ -127,7 +127,8 @@ Second opinion (`AiReviewSchema`, `lib/schemas/ai-review.ts`):
 
 - `suggestedResult`: `pass`, `fail` or `hold`. `confidence`: 0 to 1. `severity`: `critical`, `major`, `minor` or `info`.
 - Finding and question ids must be unique within a review (`F1`, `F2` ... and `Q1`, `Q2` ...): admin decisions are stored against them.
-- `module` is a module key or custom module key; `size` is a size or `null`; `unit` may be omitted or `null`; `photos` are photo ids from the export.
+- `module` (of a finding, and of a question unless `null`) must be the key of a module in the export: in `modules`, `excludedModules` or `custom`, or `header` or `conclusion`. Every id in `photos` must be a photo id from the export. The review panel links to both, so a review that names anything else is rejected as `invalid_response`, with a message naming each unknown reference (`findUnknownReferences` in `lib/schemas/ai-review.ts`).
+- `size` is a size or `null`; `unit` may be omitted or `null`. Sizes and `boxes` are not checked against the export: flagging a size that was not ordered or a box missing from the carton list is part of the review.
 
 ### Verifying the signature
 

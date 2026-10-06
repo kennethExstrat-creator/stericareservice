@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as mockReviewReceiver } from "@/app/api/dev/mock-ai-review/route";
+import type { AiReview } from "@/lib/schemas";
 import { makeAiReview } from "./__fixtures__/ai-review";
-import { makeStdEgExport } from "./__fixtures__/std-eg-export";
+import { FIXTURE_IDS, makeStdEgExport } from "./__fixtures__/std-eg-export";
 import type { ClaudeClientFactory, ClaudeReviewMessage } from "./providers/claude";
 import { mockReview } from "./providers/mock";
 import { requestAiReview } from "./review";
@@ -31,6 +32,34 @@ const toMockReceiver: typeof fetch = async (input, init) => mockReviewReceiver(n
 
 function claudeAnswering(answer: () => ClaudeReviewMessage): ClaudeClientFactory {
   return () => ({ beta: { messages: { parse: async () => answer() } } });
+}
+
+function claudeMessage(review: AiReview): ClaudeReviewMessage {
+  return {
+    model: "claude-opus-5-5",
+    stop_reason: "end_turn",
+    stop_details: null,
+    usage: { input_tokens: 1, output_tokens: 1, cache_creation_input_tokens: null, cache_read_input_tokens: null },
+    content: [{ type: "text", text: JSON.stringify(review) }],
+    parsed_output: review,
+  };
+}
+
+const CLAUDE_ENV = { ANTHROPIC_API_KEY: "sk-ant-test-key-000" };
+const UNKNOWN_PHOTO = "00000000-0000-4000-8000-00000000dead";
+
+/** Well-formed, but about a module, a photo and a question module the STD_EG export does not have. */
+function reviewCitingUnknownEvidence(): AiReview {
+  const review = makeAiReview();
+  review.findings[0] = {
+    ...review.findings[0],
+    module: "tensile",
+    size: "XXL",
+    severity: "critical",
+    evidence: { ...review.findings[0].evidence, photos: [UNKNOWN_PHOTO] },
+  };
+  review.questions[0] = { ...review.questions[0], module: "no_such_module" };
+  return review;
 }
 
 describe("requestAiReview", () => {
@@ -120,19 +149,44 @@ describe("requestAiReview", () => {
 
   it("runs on Claude through the injected client", async () => {
     const review = makeAiReview();
-    const createClaudeClient = claudeAnswering(() => ({
-      model: "claude-opus-5-5",
-      stop_reason: "end_turn",
-      stop_details: null,
-      usage: { input_tokens: 1, output_tokens: 1, cache_creation_input_tokens: null, cache_read_input_tokens: null },
-      content: [{ type: "text", text: JSON.stringify(review) }],
-      parsed_output: review,
-    }));
-    const outcome = await requestAiReview(makeStdEgExport(), {
-      env: { ANTHROPIC_API_KEY: "sk-ant-test-key-000" },
-      createClaudeClient,
-    });
+    const createClaudeClient = claudeAnswering(() => claudeMessage(review));
+    const outcome = await requestAiReview(makeStdEgExport(), { env: CLAUDE_ENV, createClaudeClient });
     expect(outcome).toMatchObject({ ok: true, provider: "claude", model: "claude-opus-5-5", review });
+  });
+
+  it("rejects a webhook review that cites modules or photos the inspection does not have", async () => {
+    const fetchSpy = answering(() => Response.json(reviewCitingUnknownEvidence()));
+    const outcome = await requestAiReview(makeStdEgExport(), { env: WEBHOOK_ENV, fetch: fetchSpy });
+    expect(outcome).toEqual({
+      ok: false,
+      reason: "invalid_response",
+      provider: "webhook",
+      message:
+        "The webhook's review cites modules or photos that are not in this inspection (" +
+        'findings.0.module: "tensile" is not a module of this inspection; ' +
+        `findings.0.evidence.photos.0: "${UNKNOWN_PHOTO}" is not a photo of this inspection; ` +
+        'questions.0.module: "no_such_module" is not a module of this inspection).',
+    });
+  });
+
+  it("rejects a Claude review that cites modules or photos the inspection does not have", async () => {
+    const createClaudeClient = claudeAnswering(() => claudeMessage(reviewCitingUnknownEvidence()));
+    const outcome = await requestAiReview(makeStdEgExport(), { env: CLAUDE_ENV, createClaudeClient });
+    expect(outcome).toMatchObject({ ok: false, reason: "invalid_response", provider: "claude" });
+    expect(!outcome.ok && outcome.message).toMatch(
+      /^Claude's review cites modules or photos that are not in this inspection \(findings\.0\.module: "tensile"/,
+    );
+  });
+
+  it("names a single unknown photo, even when the rest of the review checks out", async () => {
+    const review = makeAiReview();
+    review.findings[0].evidence.photos = [FIXTURE_IDS.photoScale, UNKNOWN_PHOTO];
+    const createClaudeClient = claudeAnswering(() => claudeMessage(review));
+    const outcome = await requestAiReview(makeStdEgExport(), { env: CLAUDE_ENV, createClaudeClient });
+    expect(!outcome.ok && outcome.message).toBe(
+      "Claude's review cites modules or photos that are not in this inspection " +
+        `(findings.0.evidence.photos.1: "${UNKNOWN_PHOTO}" is not a photo of this inspection).`,
+    );
   });
 
   it("never throws: an unexpected error is logged and reported", async () => {

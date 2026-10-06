@@ -1,11 +1,11 @@
 import "server-only";
-import { AiReviewSchema, ExportSchema, type InspectionExport } from "@/lib/schemas";
-import { readAiConfig, type AiEnv, type WebhookTarget } from "./config";
+import { AiReviewSchema, ExportSchema, findUnknownReferences, type InspectionExport } from "@/lib/schemas";
+import { readAiConfig, type AiEnv, type ReviewTarget, type WebhookTarget } from "./config";
 import { summarizeIssues } from "./issues";
 import { reviewWithClaude, type ClaudeClientFactory } from "./providers/claude";
 import { mockReview } from "./providers/mock";
 import { AI_REVIEW_NOT_CONNECTED } from "./status";
-import type { AiReviewOutcome } from "./types";
+import type { AiReviewOutcome, AiReviewProvider, AiReviewSuccess } from "./types";
 import { handoffFailureReason, postWebhook } from "./webhook";
 
 /* ------------------------------------------------------------------ *
@@ -56,6 +56,17 @@ async function dispatch(exportDoc: InspectionExport, options: RequestAiReviewOpt
   }
   const doc = parsed.data;
 
+  const outcome = await runProvider(doc, target, options);
+  return outcome.ok ? checkReferences(outcome, doc) : outcome;
+}
+
+type ConnectedReviewTarget = Extract<ReviewTarget, { provider: AiReviewProvider }>;
+
+async function runProvider(
+  doc: InspectionExport,
+  target: ConnectedReviewTarget,
+  options: RequestAiReviewOptions,
+): Promise<AiReviewOutcome> {
   switch (target.provider) {
     case "mock":
       return { ok: true, review: mockReview(doc), provider: "mock", model: null };
@@ -68,6 +79,24 @@ async function dispatch(exportDoc: InspectionExport, options: RequestAiReviewOpt
         signal: options.signal,
       });
   }
+}
+
+const REVIEW_BY: Record<AiReviewProvider, string> = {
+  webhook: "The webhook's review",
+  claude: "Claude's review",
+  mock: "The mock review",
+};
+
+/** Findings must point at modules and photos the inspection has (findUnknownReferences). */
+function checkReferences(outcome: AiReviewSuccess, doc: InspectionExport): AiReviewOutcome {
+  const issues = findUnknownReferences(outcome.review, doc);
+  if (issues.length === 0) return outcome;
+  return {
+    ok: false,
+    reason: "invalid_response",
+    message: `${REVIEW_BY[outcome.provider]} cites modules or photos that are not in this inspection (${summarizeIssues({ issues })}).`,
+    provider: outcome.provider,
+  };
 }
 
 async function reviewViaWebhook(

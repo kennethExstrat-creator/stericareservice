@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { makeAiReview } from "@/lib/ai/__fixtures__/ai-review";
-import { AiReviewActionSchema, AiReviewSchema } from "./ai-review";
+import { FIXTURE_IDS, makeStdEgExport } from "@/lib/ai/__fixtures__/std-eg-export";
+import { AiReviewActionSchema, AiReviewSchema, findUnknownReferences, type AiReview } from "./ai-review";
+import type { InspectionExport } from "./export";
 
 function issuePaths(value: unknown): string[] {
   const result = AiReviewSchema.safeParse(value);
@@ -50,6 +52,56 @@ describe("AiReviewSchema", () => {
     review.findings.push({ ...review.findings[0] });
     review.questions.push({ ...review.questions[0] });
     expect(issuePaths(review)).toEqual(expect.arrayContaining(["findings.1.id", "questions.1.id"]));
+  });
+});
+
+describe("findUnknownReferences", () => {
+  const UNKNOWN_PHOTO = "00000000-0000-4000-8000-00000000dead";
+
+  function citing(module: string, photos: string[], questionModule: string | null = null): AiReview {
+    const review = makeAiReview();
+    review.findings[0] = { ...review.findings[0], module, evidence: { ...review.findings[0].evidence, photos } };
+    review.questions[0] = { ...review.questions[0], module: questionModule };
+    return review;
+  }
+
+  it("accepts a review that cites the export's own modules and photos", () => {
+    expect(findUnknownReferences(makeAiReview(), makeStdEgExport())).toEqual([]);
+  });
+
+  it("names every module and photo the inspection does not have, by path", () => {
+    const review = citing("tensile", [FIXTURE_IDS.photoScale, UNKNOWN_PHOTO], "no_such_module");
+    expect(findUnknownReferences(review, makeStdEgExport())).toEqual([
+      { path: ["findings", 0, "module"], message: '"tensile" is not a module of this inspection' },
+      {
+        path: ["findings", 0, "evidence", "photos", 1],
+        message: `"${UNKNOWN_PHOTO}" is not a photo of this inspection`,
+      },
+      { path: ["questions", 0, "module"], message: '"no_such_module" is not a module of this inspection' },
+    ]);
+  });
+
+  it("accepts excluded and custom modules, and the always-on header and conclusion", () => {
+    const doc: InspectionExport = makeStdEgExport();
+    doc.modules = doc.modules.filter((module) => module.key !== "conclusion" && module.key !== "header");
+    doc.excludedModules.push({ key: "tensile", title: "Tensile", reason: "Not in this client's scope." });
+    doc.custom.push({ key: "humidity", title: "Humidity", layout: "fields", fields: [], values: {} });
+
+    for (const key of ["tensile", "humidity", "header", "conclusion"]) {
+      expect(findUnknownReferences(citing(key, [], key), doc)).toEqual([]);
+    }
+  });
+
+  it("does not check sizes or boxes, which a reviewer may rightly find missing from the data", () => {
+    const review = makeAiReview();
+    review.findings[0].size = "XXL";
+    review.findings[0].evidence.boxes = ["9999"];
+    expect(findUnknownReferences(review, makeStdEgExport())).toEqual([]);
+  });
+
+  it("shortens a long value in the message", () => {
+    const [issue] = findUnknownReferences(citing("x".repeat(500), []), makeStdEgExport());
+    expect(issue.message).toBe(`"${"x".repeat(57)}..." is not a module of this inspection`);
   });
 });
 

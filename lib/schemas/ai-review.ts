@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { InspectionResultSchema } from "./common";
+import type { InspectionExport } from "./export";
+import { ALWAYS_ON_MODULE_KEYS } from "./module-result";
 
 /* ------------------------------------------------------------------ *
  * AI second opinion (BUILD_SPEC 9.2)
@@ -30,7 +32,7 @@ export const AiFindingSchema = z.object({
   module: z
     .string()
     .min(1)
-    .describe("Key of the module (e.g. 'weight') or custom module the finding is about."),
+    .describe("Key of the module (e.g. 'weight') or custom module in the export that the finding is about."),
   size: z
     .string()
     .nullable()
@@ -47,7 +49,7 @@ export type AiFinding = z.infer<typeof AiFindingSchema>;
 
 export const AiQuestionSchema = z.object({
   id: z.string().min(1).describe("Stable question id: Q1, Q2, Q3 and so on."),
-  module: z.string().nullable().describe("Key of the module the question is about, or null."),
+  module: z.string().nullable().describe("Key of the module in the export that the question is about, or null."),
   question: z.string().min(1).describe("A question only the inspector can answer."),
 });
 export type AiQuestion = z.infer<typeof AiQuestionSchema>;
@@ -89,6 +91,59 @@ function flagDuplicateIds(
     }
     seen.add(item.id);
   });
+}
+
+/* ------------------------------------------------------------------ *
+ * References into the reviewed export
+ *
+ * The review panel links findings and questions to modules and photos,
+ * so those must exist in the export the review is about: a review that
+ * cites evidence the inspection does not have is rejected, not repaired.
+ * Sizes and box numbers are not checked. Naming a size that was not
+ * ordered, a box missing from the carton list, or a size seen only in a
+ * comment or a photo is part of the reviewer's job.
+ * ------------------------------------------------------------------ */
+
+export interface ReviewReferenceIssue {
+  path: (string | number)[];
+  message: string;
+}
+
+export function findUnknownReferences(review: AiReview, exportDoc: InspectionExport): ReviewReferenceIssue[] {
+  const modules = new Set<string>([
+    // Always on, and the export's conclusion section exists even if a builder leaves the module out.
+    ...ALWAYS_ON_MODULE_KEYS,
+    ...exportDoc.modules.map((module) => module.key),
+    ...exportDoc.excludedModules.map((module) => module.key),
+    ...exportDoc.custom.map((module) => module.key),
+  ]);
+  const photos = new Set(exportDoc.photos.map((photo) => photo.id));
+  const issues: ReviewReferenceIssue[] = [];
+
+  const checkModule = (key: string | null, path: ReviewReferenceIssue["path"]) => {
+    if (key !== null && !modules.has(key)) {
+      issues.push({ path, message: `${quote(key)} is not a module of this inspection` });
+    }
+  };
+
+  review.findings.forEach((finding, index) => {
+    checkModule(finding.module, ["findings", index, "module"]);
+    finding.evidence.photos.forEach((id, photoIndex) => {
+      if (!photos.has(id)) {
+        issues.push({
+          path: ["findings", index, "evidence", "photos", photoIndex],
+          message: `${quote(id)} is not a photo of this inspection`,
+        });
+      }
+    });
+  });
+  review.questions.forEach((question, index) => checkModule(question.module, ["questions", index, "module"]));
+  return issues;
+}
+
+/** The value as the reviewer wrote it, cut short: it lands in an admin-facing message. */
+function quote(value: string): string {
+  return JSON.stringify(value.length > 60 ? `${value.slice(0, 57)}...` : value);
 }
 
 /* ------------------------------------------------------------------ *
