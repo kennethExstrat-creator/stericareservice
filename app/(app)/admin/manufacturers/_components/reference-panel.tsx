@@ -89,7 +89,10 @@ export function ReferencePanel({ open, busy, onClose, title, description, childr
   );
 }
 
-/** A titled part of the panel body below the form: the logo, deleting. */
+/**
+ * A titled part of the panel body below the form: the logo, deleting.
+ * Relative, so screen-reader-only text inside stays anchored in the scroller.
+ */
 export function PanelSection({
   title,
   titleId,
@@ -100,7 +103,7 @@ export function PanelSection({
   children: ReactNode;
 }) {
   return (
-    <section aria-labelledby={titleId} className="mt-6 flex flex-col gap-3 border-t border-border pt-5">
+    <section aria-labelledby={titleId} className="relative mt-6 flex flex-col gap-3 border-t border-border pt-5">
       <h3 id={titleId} className="text-base font-semibold text-foreground">
         {title}
       </h3>
