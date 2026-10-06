@@ -9,7 +9,7 @@ import {
   type InspectionRow,
   type People,
 } from "./fixtures";
-import { asOwner, asService, asUser, column, createTestDb, pgError, type Db, type Tx } from "./harness";
+import { asService, asUser, column, createTestDb, pgError, type Db, type Tx } from "./harness";
 
 /** What the Storage API runs, as the caller, when a file is uploaded. */
 function upload(tx: Tx, bucket: string, name: string) {
@@ -126,6 +126,103 @@ describe("storage policies", { timeout: 30_000 }, () => {
         asUser(db, people.admin, (tx) => upload(tx, "inspection-photos", `${randomUUID()}/${randomUUID()}.jpg`)),
       );
       expect(error.code).toBe("42501");
+    });
+
+    it("hides a stored name that climbs out of its folder, from admins too", async () => {
+      for (const userId of [people.inspector, people.otherInspector, people.admin]) {
+        const seen = await asUser(db, userId, (tx) =>
+          column<string>(tx, "select name from storage.objects where name = $1", [planted]),
+        );
+        expect(seen, userId).toEqual([]);
+      }
+    });
+
+    it("keeps the files of an approved inspection readable but fixed, for admins too", async () => {
+      for (const userId of [people.otherInspector, people.admin]) {
+        const seen = await asUser(db, userId, async (tx) => [
+          ...(await names(tx, "inspection-photos")),
+          ...(await names(tx, "inspection-files")),
+        ]);
+        expect(seen.filter((name) => name.startsWith(`${approved.id}/`)), userId).toHaveLength(2);
+
+        const added = await pgError(
+          asUser(db, userId, (tx) => upload(tx, "inspection-photos", `${approved.id}/${randomUUID()}.jpg`)),
+        );
+        expect(added.code, userId).toBe("42501");
+
+        const changed = await asUser(db, userId, async (tx) => [
+          (await tx.query("update storage.objects set name = name || '.old' where name like $1", [`${approved.id}/%`]))
+            .affectedRows,
+          (await tx.query("delete from storage.objects where name like $1", [`${approved.id}/%`])).affectedRows,
+        ]);
+        expect(changed, userId).toEqual([0, 0]);
+      }
+    });
+  });
+
+  // supabase-js puts stored names into request URLs unencoded, where most of
+  // these resolve into another folder. The three uuid-folder buckets and every
+  // pointer column accept only '<lowercase uuid>/<segment>[/<segment>...]'.
+  describe.each(UNSAFE_NAMES)("a name with %s", (_label, unsafeName) => {
+    it("is refused in the inspection buckets, admins included", async () => {
+      const attempts: [userId: string, bucket: string][] = [
+        [people.inspector, "inspection-photos"],
+        [people.inspector, "inspection-files"],
+        [people.admin, "inspection-photos"],
+        [people.admin, "inspection-files"],
+      ];
+      for (const [userId, bucket] of attempts) {
+        const error = await pgError(asUser(db, userId, (tx) => upload(tx, bucket, unsafeName(draft.id, others.id))));
+        expect(error.code, `${userId} ${bucket}`).toBe("42501");
+      }
+    });
+
+    it("is refused in signatures", async () => {
+      const error = await pgError(
+        asUser(db, people.inspector, (tx) =>
+          upload(tx, "signatures", unsafeName(people.inspector, people.otherInspector)),
+        ),
+      );
+      expect(error.code).toBe("42501");
+    });
+
+    it("is refused as a photo, thumbnail, file or signature path", async () => {
+      const name = unsafeName(draft.id, others.id);
+      const errors = [
+        await pgError(
+          asUser(db, people.inspector, (tx) =>
+            tx.query("insert into public.inspection_photos (inspection_id, storage_path) values ($1, $2)", [
+              draft.id,
+              name,
+            ]),
+          ),
+        ),
+        await pgError(
+          asUser(db, people.inspector, (tx) =>
+            tx.query(
+              "insert into public.inspection_photos (inspection_id, storage_path, thumb_path) values ($1, $2, $3)",
+              [draft.id, `${draft.id}/${randomUUID()}.jpg`, name],
+            ),
+          ),
+        ),
+        await pgError(
+          asUser(db, people.inspector, (tx) =>
+            tx.query("insert into public.inspection_files (inspection_id, storage_path, name) values ($1, $2, 'x.pdf')", [
+              draft.id,
+              name,
+            ]),
+          ),
+        ),
+        await pgError(
+          asUser(db, people.inspector, (tx) =>
+            tx.query("update public.profiles set signature_path = $2 where id = $1", [
+              people.inspector,
+              unsafeName(people.inspector, people.otherInspector),
+            ]),
+          ),
+        ),
+      ];
+      expect(errors.map((error) => error.code)).toEqual(["23514", "23514", "23514", "23514"]);
     });
   });
 

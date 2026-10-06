@@ -40,6 +40,7 @@ describe("RLS: admin", { timeout: 30_000 }, () => {
     first = await createInspection(db, people.inspector, templateId, { po_no: "PO-1" });
     second = await createInspection(db, people.otherInspector, templateId, { po_no: "PO-2" });
     await addPhoto(db, first.id, people.inspector);
+    await addFile(db, first.id, people.inspector);
     await addPhoto(db, second.id, people.otherInspector);
     await addFile(db, second.id, people.otherInspector);
     await addReview(db, second.id, people.admin);
@@ -216,6 +217,36 @@ describe("RLS: admin", { timeout: 30_000 }, () => {
     expect(result.affectedRows).toBe(1);
   });
 
+  it("changes nothing else about the photos and files of an approved inspection", async () => {
+    const caption = await pgError(
+      asUser(db, people.admin, (tx) =>
+        tx.query("update public.inspection_photos set caption = 'too late' where inspection_id = $1", [first.id]),
+      ),
+    );
+    expect(caption).toMatchObject({
+      code: "42501",
+      message: "the photos and files of an approved inspection are read-only",
+    });
+
+    const added = await pgError(
+      asUser(db, people.admin, (tx) =>
+        tx.query("insert into public.inspection_photos (inspection_id, storage_path) values ($1, $2)", [
+          first.id,
+          `${first.id}/${randomUUID()}.jpg`,
+        ]),
+      ),
+    );
+    expect(added.code).toBe("42501");
+
+    const changed = await asUser(db, people.admin, async (tx) => [
+      (await tx.query("delete from public.inspection_photos where inspection_id = $1", [first.id])).affectedRows,
+      (await tx.query("update public.inspection_files set name = 'renamed.pdf' where inspection_id = $1", [first.id]))
+        .affectedRows,
+      (await tx.query("delete from public.inspection_files where inspection_id = $1", [first.id])).affectedRows,
+    ]);
+    expect(changed).toEqual([0, 0, 0]);
+  });
+
   it("records AI reviews and decides on findings in their own name", async () => {
     const review = await asUser(db, people.admin, (tx) =>
       tx.query<{ id: string }>(
@@ -293,6 +324,16 @@ describe("service role", { timeout: 30_000 }, () => {
   let people: People;
   let templateId: string;
 
+  /** An approved inspection with a photo, a lab report and an AI review. */
+  async function approvedInspection(): Promise<InspectionRow> {
+    const made = await createInspection(db, people.inspector, templateId);
+    await addPhoto(db, made.id, people.inspector);
+    await addFile(db, made.id, people.inspector);
+    await addReview(db, made.id, people.admin);
+    await setStatus(db, people.inspector, made.id, "submitted");
+    return setStatus(db, people.admin, made.id, "approved");
+  }
+
   beforeAll(async () => {
     db = await createTestDb();
     people = await createPeople(db);
@@ -331,8 +372,13 @@ describe("service role", { timeout: 30_000 }, () => {
         ),
       ),
     );
-    const audit = await pgError(asService(db, (tx) => tx.query("update public.audit_log set action = 'edited'")));
-    expect([ref.code, audit.code]).toEqual(["42501", "42501"]);
+    expect(ref).toMatchObject({ code: "42501", message: "ref_no is assigned by the database" });
+
+    // The audit trail is append-only, for server code too.
+    for (const sql of ["update public.audit_log set action = 'edited'", "delete from public.audit_log"]) {
+      const error = await pgError(asService(db, (tx) => tx.query(sql)));
+      expect(error, sql).toMatchObject({ code: "42501", message: "permission denied for table audit_log" });
+    }
   });
 
   it("logs events on any inspection", async () => {
@@ -343,6 +389,46 @@ describe("service role", { timeout: 30_000 }, () => {
     expect(id[0]).toBeGreaterThan(0);
     const trail = await auditTrail(db, draft.id);
     expect(trail.at(-1)).toEqual({ action: "ai_review.requested", actor_id: null, changes: {} });
+  });
+
+  it("logs no event without an inspection, and neither can a user", async () => {
+    const service = await pgError(asService(db, (tx) => tx.query("select public.log_inspection_event(null, 'note')")));
+    const user = await pgError(
+      asUser(db, people.inspector, (tx) => tx.query("select public.log_inspection_event(null, 'note')")),
+    );
+    for (const error of [service, user]) {
+      expect(error).toMatchObject({ code: "22004", message: "inspection_id is required" });
+    }
+  });
+
+  it("changes nothing about the photos and files of an approved inspection but the report choice", async () => {
+    const approved = await approvedInspection();
+    const blocked: [sql: string, params: unknown[]][] = [
+      [
+        "insert into public.inspection_photos (inspection_id, storage_path, created_by) values ($1, $2, $3)",
+        [approved.id, `${approved.id}/${randomUUID()}.jpg`, people.inspector],
+      ],
+      ["update public.inspection_photos set caption = 'too late' where inspection_id = $1", [approved.id]],
+      ["delete from public.inspection_photos where inspection_id = $1", [approved.id]],
+      [
+        "insert into public.inspection_files (inspection_id, storage_path, name, created_by) values ($1, $2, 'late.pdf', $3)",
+        [approved.id, `${approved.id}/${randomUUID()}.pdf`, people.inspector],
+      ],
+      ["update public.inspection_files set name = 'renamed.pdf' where inspection_id = $1", [approved.id]],
+      ["delete from public.inspection_files where inspection_id = $1", [approved.id]],
+    ];
+    for (const [sql, params] of blocked) {
+      const error = await pgError(asService(db, (tx) => tx.query(sql, params)));
+      expect(error, sql).toMatchObject({
+        code: "42501",
+        message: "the photos and files of an approved inspection are read-only",
+      });
+    }
+
+    const pick = await asService(db, (tx) =>
+      tx.query("update public.inspection_photos set include_in_report = true where inspection_id = $1", [approved.id]),
+    );
+    expect(pick.affectedRows).toBe(1);
   });
 
   it("stores photo rows for any inspection", async () => {
