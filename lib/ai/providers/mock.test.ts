@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FIXTURE_IDS, makeStdEgExport } from "@/lib/ai/__fixtures__/std-eg-export";
 import { AiReviewSchema, type InspectionExport, type ModuleResult } from "@/lib/schemas";
+import { STD_EG_EXPECTED } from "@/tests/fixtures/examples";
 import { mockReview } from "./mock";
 
 function withResult(doc: InspectionExport, key: string, result: ModuleResult): InspectionExport {
@@ -12,7 +13,10 @@ function withResult(doc: InspectionExport, key: string, result: ModuleResult): I
 
 describe("mockReview", () => {
   it("turns the fixture's weight warning into a hold with one finding and a remark question", () => {
-    const review = mockReview(makeStdEgExport());
+    const doc = makeStdEgExport();
+    const weight = doc.modules.find((module) => module.key === "weight");
+    if (!weight) throw new Error("Fixture has no weight module");
+    const review = mockReview(doc);
 
     expect(review.suggestedResult).toBe("hold");
     expect(review.confidence).toBe(0.6);
@@ -22,14 +26,15 @@ describe("mockReview", () => {
         module: "weight",
         size: "M",
         severity: "minor",
-        message: "Weight (g) - average of 13 gloves per size has a warning. Size M average 2.9 g is 17% below the indicative 3.5 g.",
+        message: `${weight.title} has a warning. ${weight.result.summary}`,
         evidence: {
           values: [
             { label: "Module result", value: "warn", unit: null },
             { label: "Size M", value: "warn", unit: null },
             {
               label: "Warning weight_deviation, size M",
-              value: "Average weight 2.9 g is 17.1% below the indicative 3.5 g (threshold 10%).",
+              // The real weight module's words for expected results B.
+              value: STD_EG_EXPECTED.warnings[0].message,
               unit: null,
             },
           ],

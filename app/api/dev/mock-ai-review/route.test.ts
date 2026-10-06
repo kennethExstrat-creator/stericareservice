@@ -55,7 +55,7 @@ describe("POST /api/dev/mock-ai-review", () => {
 
     it.each([
       ["no signature", () => ({})],
-      ["a signature over a different body", () => signed(BODY.replace("INS-2024-0001", "INS-2024-0002"))],
+      ["a signature over a different body", () => signed(BODY.replace(makeStdEgExport().refNo, "INS-2099-0002"))],
       ["the wrong secret", () => signed(BODY, { secret: "whsec_other_0123456789abcdef" })],
       ["a stale timestamp", () => signed(BODY, { timestamp: Math.floor(Date.now() / 1000) - 600 })],
     ])("rejects %s with 401", async (_label, headers) => {

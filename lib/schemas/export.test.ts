@@ -94,14 +94,16 @@ describe("ExportSchema", () => {
       values: {},
     });
     const clash = makeStdEgExport();
+    // STD_EG has a custom module of its own (glove_type): the clash comes after it.
+    expect(clash.custom.map((module) => module.key)).toEqual(["glove_type"]);
     clash.custom.push(customModule("weight"));
-    expect(issuePaths(clash)).toEqual(["custom.0.key"]);
+    expect(issuePaths(clash)).toEqual(["custom.1.key"]);
 
     // Reserved even when the template leaves that module out, so a later template version can add it.
     const reserved = makeStdEgExport();
     expect(reserved.modules.some((module) => module.key === "documents")).toBe(false);
     reserved.custom.push(customModule("documents"));
-    expect(issuePaths(reserved)).toEqual(["custom.0.key"]);
+    expect(issuePaths(reserved)).toEqual(["custom.1.key"]);
   });
 
   it("rejects duplicate photo and file ids", () => {
@@ -162,10 +164,125 @@ describe("ExportSchema", () => {
     expect(parse(doc).success).toBe(true);
   });
 
-  it("references the fixture's lab report from force at break", () => {
+  it("references the lab report by its file id in force at break's data, and lists that file with a signed URL", () => {
     const doc = makeStdEgExport();
-    expect(moduleOf(doc, "force_at_break").data).toMatchObject({
-      sizes: { M: { labReportFileId: FIXTURE_IDS.fileLabReport } },
+    const forceAtBreak = moduleOf(doc, "force_at_break");
+    expect(forceAtBreak.data.labReport).toBe(FIXTURE_IDS.fileLabReport);
+    expect(forceAtBreak.computed.labReportAttached).toBe(true);
+    // The report service matches the module's id to the file it may fetch.
+    expect(doc.files).toEqual([
+      {
+        id: FIXTURE_IDS.fileLabReport,
+        url: expect.stringMatching(/^https:\/\//),
+        moduleKey: "force_at_break",
+        kind: "lab_report",
+        name: "Force at break lab report.pdf",
+      },
+    ]);
+  });
+
+  it("accepts a module without its config, as documents written before it existed", () => {
+    const doc = makeStdEgExport();
+    expect(moduleOf(doc, "weight").config).toBeDefined();
+    delete moduleOf(doc, "weight").config;
+    expect(parse(doc).success).toBe(true);
+  });
+
+  it("rejects a config that JSON cannot carry", () => {
+    const doc = makeStdEgExport();
+    Object.assign(moduleOf(doc, "weight"), { config: { warnThresholdPct: Number.NaN } });
+    expect(issuePaths(doc)).toContain("modules.8.config.warnThresholdPct");
+  });
+});
+
+/*
+ * The fixture is built through the real modules (lib/ai/__fixtures__/std-eg-export.ts),
+ * so these pin what the export carries for the STD_EG example: a module whose
+ * shapes or results change has to change them knowingly.
+ */
+describe("the STD_EG export of the real modules", () => {
+  const doc = makeStdEgExport();
+
+  it("lists STD_EG's modules in template order, with its custom Glove Type", () => {
+    expect(doc.modules.map((module) => module.key)).toEqual([
+      "header",
+      "glove_info",
+      "order_lots",
+      "packing_config",
+      "sampling_plan",
+      "carton_sampling",
+      "dimensions",
+      "force_at_break",
+      "weight",
+      "watertight",
+      "visual",
+      "dispensing_packing",
+      "labeling",
+      "conclusion",
+    ]);
+    expect(doc.custom).toEqual([
+      expect.objectContaining({ key: "glove_type", after: "header", values: { gloveType: "Nitrile, powder free" } }),
+    ]);
+  });
+
+  it("reproduces expected results B: every module passes or informs, weight warns", () => {
+    const statuses = Object.fromEntries(doc.modules.map((module) => [module.key, module.result.status]));
+    expect(statuses).toEqual({
+      header: "info",
+      glove_info: "info",
+      order_lots: "info",
+      packing_config: "info",
+      sampling_plan: "info",
+      carton_sampling: "pass",
+      dimensions: "pass",
+      force_at_break: "pass",
+      weight: "warn",
+      watertight: "pass",
+      visual: "pass",
+      dispensing_packing: "pass",
+      labeling: "pass",
+      conclusion: "pass",
     });
+    expect(doc.modules.flatMap((module) => module.warnings.map((warning) => [module.key, warning.code, warning.size]))).toEqual([
+      ["weight", "weight_deviation", "M"],
+    ]);
+    expect(doc.modules.flatMap((module) => module.errors ?? [])).toEqual([]);
+    expect(doc.conclusion).toMatchObject({ suggestedResult: "pass", finalResult: "pass", remark: null, date: "2025-04-12" });
+  });
+
+  it("carries the header's entered values as data, and the inspection row's in computed", () => {
+    const header = moduleOf(doc, "header");
+    expect(Object.keys(header.data).sort()).toEqual(
+      ["expiryDate", "factoryAddress", "factoryGloveCode", "inspectionDate", "mfgDate", "poNo", "productCode", "productName"].sort(),
+    );
+    expect(header.computed).toMatchObject({ manufacturer: "Manufacturer A · Factory A1", client: null, inspector: "Inspector A" });
+  });
+
+  it("keeps the order per size, and the inner unit's name in packing's config", () => {
+    expect(moduleOf(doc, "order_lots").data).toEqual({
+      sizes: { M: { qtyCases: 2900, lotNumbers: ["LOT-A01"], packingSite: null } },
+    });
+    expect(moduleOf(doc, "order_lots").computed).toMatchObject({ totalCartons: 2900, totalGloves: 5_800_000 });
+    expect(moduleOf(doc, "packing_config").config).toMatchObject({ innerUnit: "inner_box" });
+    expect(moduleOf(doc, "packing_config").computed).toMatchObject({ innerUnit: "inner box", glovesPerCaseCheck: 2000 });
+  });
+
+  it("keeps force at break's readings per size, its lab report, and the median against the spec", () => {
+    const forceAtBreak = moduleOf(doc, "force_at_break");
+    expect(Object.keys(forceAtBreak.data).sort()).toEqual(["labReport", "sizes"]);
+    expect(forceAtBreak.data.sizes).toEqual({ M: { values: expect.any(Array) } });
+    expect(forceAtBreak.computed).toMatchObject({
+      specMin: 6,
+      labReportAttached: true,
+      sizes: { M: { n: 13, entered: 13, median: 6.537, result: "pass" } },
+    });
+    expect(forceAtBreak.config).toMatchObject({ specMin: 6 });
+  });
+
+  it("carries each module's settings: specs, statistics, thresholds and AQLs", () => {
+    expect(doc.modules.every((module) => module.config !== undefined)).toBe(true);
+    expect(moduleOf(doc, "dimensions").config).toMatchObject({ statistic: "median" });
+    expect(moduleOf(doc, "weight").config).toMatchObject({ warnThresholdPct: 10 });
+    expect(moduleOf(doc, "watertight").config).toMatchObject({ aql: 1.5 });
   });
 });
