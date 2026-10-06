@@ -5,8 +5,9 @@
 // when the two differ, the remark, who inspected and the date (both
 // automatic; the date can be changed with the picker), and the signature
 // drawn on the pad. Every edit goes through useDataUpdater
-// (docs/CAPTURE_KIT.md), built from the latest data. The pad lives here too:
-// module folders keep React in Capture.tsx (modules/_framework/architecture.test.ts).
+// (docs/CAPTURE_KIT.md), built from the latest data. The pad lives here
+// too: module folders keep React in Capture.tsx
+// (modules/_framework/architecture.test.ts).
 import { useId, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { EraserIcon, Redo2Icon, TriangleAlertIcon, Undo2Icon } from "lucide-react";
 import { RadioGroup as RadioGroupPrimitive } from "radix-ui";

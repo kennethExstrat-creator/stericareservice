@@ -6,7 +6,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import { evaluateInspection, type InspectionContext, type ModuleEvaluation } from "@/modules/_framework";
-import { makeTestContext, makeTestTemplate } from "@/modules/_framework/testing";
+import { makeTestContext, makeTestTemplate, TEST_INSPECTOR } from "@/modules/_framework/testing";
+import { SAFEDON_EG_EXAMPLE } from "@/tests/fixtures/examples";
 import Capture, { SignaturePad } from "./Capture";
 import type { ConclusionComputed } from "./calc";
 import { CONCLUSION_DEFAULT_CONFIG, CONCLUSION_LABELS } from "./config";
@@ -122,6 +123,21 @@ describe("conclusion capture", () => {
     expect(html).toContain("Released.</textarea>");
     const nobody = makeTestContext({ sizes: ["M"], inspection: { ...makeTestContext().inspection, inspector: null } });
     expect(render({}, { context: nobody })).toMatch(/<input[^>]*readonly=""[^>]*value="Not recorded"/i);
+  });
+
+  it("A. SAFEDON_EG: Inspected by beside the signature is the inspection's inspector; result and date as printed", () => {
+    const { conclusion } = SAFEDON_EG_EXAMPLE;
+    const inspectedBy = conclusion.inspectedBy!;
+    const context = makeTestContext({
+      sizes: ["M"],
+      inspection: { ...makeTestContext().inspection, inspector: { id: TEST_INSPECTOR.id, name: inspectedBy } },
+    });
+    const html = render({ finalResult: "pass", date: conclusion.date.iso, signature: SIGNED }, { context });
+    expect(CONCLUSION_LABELS.pass).toBe(conclusion.printedResult);
+    expect(radios(html).find((radio) => radio.checked)?.value).toBe("pass");
+    expect(html).toMatch(new RegExp(`<input[^>]*readonly=""[^>]*value="${inspectedBy}"`, "i"));
+    expect(html).toContain(`Signed by ${inspectedBy}.`);
+    expect(html).toMatch(new RegExp(`<input[^>]*type="date"[^>]*value="${conclusion.date.iso}"`));
   });
 
   it("warns under the date when it is before the inspection date", () => {

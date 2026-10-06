@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { defaultConfig, defaultLabels, labelOverrides, moduleConfig, TEMPLATES, type TemplateCode } from "@/lib/coverage";
+import { SAFEDON_EG_EXAMPLE, STD_EG_EXAMPLE } from "@/tests/fixtures/examples";
 import { CONCLUSION_DEFAULT_CONFIG, CONCLUSION_LABELS, ConclusionConfigSchema } from "./config";
 import { ConclusionDataSchema, emptyConclusion } from "./schema";
 
@@ -28,8 +29,12 @@ describe("conclusion data", () => {
   });
 
   it("takes the date from a picker only: no printed dates, no numbers (6.2 rule 3)", () => {
-    expect(ConclusionDataSchema.parse({ date: "2025-02-19" }).date).toBe("2025-02-19");
-    for (const date of ["12/04/2025", "2/19/2025", "2025-02-30", 45_759, "1980-01-01T00:00:00Z"]) {
+    // The reports print the date day first (STD_EG) or month first (SAFEDON_EG); the app keeps the picker's ISO date.
+    for (const { date } of [STD_EG_EXAMPLE.conclusion, SAFEDON_EG_EXAMPLE.conclusion]) {
+      expect(ConclusionDataSchema.parse({ date: date.iso }).date).toBe(date.iso);
+      expect(ConclusionDataSchema.safeParse({ date: date.printed }).success, date.printed).toBe(false);
+    }
+    for (const date of ["2025-02-30", 45_759, "1980-01-01T00:00:00Z"]) {
       expect(ConclusionDataSchema.safeParse({ date }).success, String(date)).toBe(false);
     }
   });
