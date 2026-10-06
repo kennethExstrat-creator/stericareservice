@@ -28,8 +28,18 @@ import { cn } from "@/lib/utils";
 import { labelFor, type CaptureProps, type Labels } from "@/modules/_framework";
 import { readOrder, type OrderLotsComputed } from "./calc";
 import type { OrderLotsConfig } from "./config";
-import { addLots, lineFor, removeKey, removeLot, setLine, splitLots, tidySite } from "./edit";
-import type { OrderLotsData } from "./schema";
+import {
+  addLots,
+  leftOutNotice,
+  lineFor,
+  removeKey,
+  removeLot,
+  setLine,
+  splitLots,
+  tidySite,
+  type AddedLots,
+} from "./edit";
+import { LOT_NUMBER_MAX_LENGTH, TEXT_MAX_LENGTH, type OrderLotsData } from "./schema";
 
 const HEAD_CELL = "border-b border-border bg-slate-50 px-2.5 py-2 text-left align-bottom font-semibold";
 const ROW_HEAD = "border-r border-b border-border px-3 text-left font-semibold tabular-nums";
@@ -151,14 +161,14 @@ export default function Capture({
                       issuePath={dataPath(size, "lotNumbers")}
                       readOnly={readOnly}
                       onAdd={(lots) => {
-                        // update runs the change at once, so what it skipped is known on return.
-                        let skipped: string[] = [];
+                        // update runs the change at once, so what it left out is known on return.
+                        let leftOut: LeftOut = { skipped: [], tooLong: [] };
                         update((current) => {
                           const added = addLots(current, size, lots);
-                          skipped = added.skipped;
+                          leftOut = added;
                           return added.data;
                         });
-                        return skipped;
+                        return leftOut;
                       }}
                       onRemove={(index, lot) => update((current) => removeLot(current, size, index, lot))}
                     />
@@ -211,6 +221,8 @@ export default function Capture({
   );
 }
 
+type LeftOut = Pick<AddedLots, "skipped" | "tooLong">;
+
 /** Lot numbers of one size: chips with a remove button, and a field that adds what is typed or pasted. */
 function LotNumbers({
   lots,
@@ -226,8 +238,8 @@ function LotNumbers({
   sizeName: string;
   issuePath: readonly (string | number)[];
   readOnly: boolean;
-  /** Returns the lots skipped because the size already has them. */
-  onAdd: (lots: string[]) => string[];
+  /** Returns the lots left out: the size has them already, or they are too long to keep. */
+  onAdd: (lots: string[]) => LeftOut;
   /** The chip's place in the list and the lot it shows. */
   onRemove: (index: number, lot: string) => void;
 }) {
@@ -237,18 +249,22 @@ function LotNumbers({
   const add = (text: string) => {
     const typed = splitLots(text);
     if (typed.length === 0) return;
-    const skipped = onAdd(typed);
+    const leftOut = onAdd(typed);
     setDraft("");
-    setNotice(skipped.length > 0 ? `Already listed: ${skipped.join(", ")}.` : "");
+    setNotice(leftOutNotice(leftOut));
   };
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key !== "Enter") return;
     event.preventDefault();
     add(draft);
   };
+  // One lot is pasted into the field to finish there. A list is added at once,
+  // and so is a lot too long to keep, which the field would cut short: it is
+  // left out with a notice.
   const onPaste = (event: ClipboardEvent<HTMLInputElement>) => {
     const text = event.clipboardData.getData("text");
-    if (splitLots(text).length < 2) return;
+    const pasted = splitLots(text);
+    if (pasted.length < 2 && pasted.every((lot) => lot.length <= LOT_NUMBER_MAX_LENGTH)) return;
     event.preventDefault();
     add(`${draft}\n${text}`);
   };
@@ -286,6 +302,7 @@ function LotNumbers({
           onPaste={onPaste}
           onBlur={() => add(draft)}
           aria-label={`${label}, ${sizeName}: add`}
+          maxLength={LOT_NUMBER_MAX_LENGTH}
           placeholder={lots.length === 0 ? "Add lot" : "Add"}
           enterKeyHint="enter"
           autoComplete="off"
@@ -330,6 +347,7 @@ function TextCell({
       onKeyDown={nextSiteOnEnter}
       enterKeyHint="next"
       aria-label={label}
+      maxLength={TEXT_MAX_LENGTH}
       readOnly={readOnly}
       autoComplete="off"
       data-site-cell=""

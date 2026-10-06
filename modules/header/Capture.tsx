@@ -18,7 +18,7 @@ import { headerRows, type HeaderComputed } from "./calc";
 import type { HeaderConfig, HeaderField } from "./config";
 import { monthDate, yearMonth } from "./dates";
 import { setDate, setText, tidyText } from "./edit";
-import type { HeaderData, HeaderDateField, HeaderTextField } from "./schema";
+import { TEXT_MAX_LENGTH, type HeaderData, type HeaderDateField, type HeaderTextField } from "./schema";
 
 const FIELD_ATTRIBUTE = "data-header-field";
 
@@ -70,6 +70,7 @@ export default function Capture({
           value={data[field] ?? ""}
           onChange={(event) => typeText(field, event.target.value)}
           onBlur={() => leaveText(field)}
+          maxLength={TEXT_MAX_LENGTH}
           readOnly={readOnly}
           data-header-field=""
         />
@@ -82,6 +83,7 @@ export default function Capture({
           onKeyDown={nextOnEnter}
           enterKeyHint="next"
           autoComplete="off"
+          maxLength={TEXT_MAX_LENGTH}
           readOnly={readOnly}
           data-header-field=""
         />

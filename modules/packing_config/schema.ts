@@ -5,6 +5,13 @@
 import { z } from "zod";
 import { CountCellSchema, TextCellSchema } from "@/modules/_framework";
 
+/**
+ * TextCellSchema's limit (lib/validation/cells.ts). Saved data that fails the
+ * schema cannot be shown or edited (invalid_data), so the Packing Mode field
+ * takes no more and setPackingMode keeps no more.
+ */
+export const TEXT_MAX_LENGTH = 2000;
+
 export const PackingConfigDataSchema = z.strictObject({
   /** Gloves in one inner unit: 200 per inner box, 125 per plastic pack. */
   glovesPerInner: CountCellSchema,

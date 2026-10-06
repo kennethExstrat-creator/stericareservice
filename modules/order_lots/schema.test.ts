@@ -3,7 +3,7 @@ import { z } from "zod";
 import { dataKeys, defaultConfig, defaultLabels, labelOverrides, moduleConfig, moduleTitle, TEMPLATE_CODES } from "@/lib/coverage";
 import { resolvedModule, resolveSeedTemplate } from "@/modules/header/__fixtures__/templates";
 import { ORDER_LOTS_DEFAULT_CONFIG, ORDER_LOTS_LABELS, ORDER_LOTS_TITLE, OrderLotsConfigSchema } from "./config";
-import { emptyOrderLine, emptyOrderLots, OrderLotsDataSchema } from "./schema";
+import { emptyOrderLine, emptyOrderLots, LOT_NUMBER_MAX_LENGTH, OrderLotsDataSchema, TEXT_MAX_LENGTH } from "./schema";
 
 describe("order_lots data", () => {
   it("starts empty and accepts a draft line with anything missing", () => {
@@ -30,6 +30,14 @@ describe("order_lots data", () => {
     expect(data.sizes.M.lotNumbers).toEqual(["LOT-A01", "LOT-A02"]);
     expect(OrderLotsDataSchema.safeParse({ sizes: { M: { lotNumbers: "LOT-A01" } } }).success).toBe(false);
     expect(OrderLotsDataSchema.safeParse({ sizes: { M: { lotNumbers: [101] } } }).success).toBe(false);
+  });
+
+  it("keeps a lot up to LOT_NUMBER_MAX_LENGTH and a packing site up to TEXT_MAX_LENGTH, the fields' limits", () => {
+    const line = (entry: object) => OrderLotsDataSchema.safeParse({ sizes: { M: entry } }).success;
+    expect(line({ lotNumbers: ["L".repeat(LOT_NUMBER_MAX_LENGTH)] })).toBe(true);
+    expect(line({ lotNumbers: ["L".repeat(LOT_NUMBER_MAX_LENGTH + 1)] })).toBe(false);
+    expect(line({ packingSite: "P".repeat(TEXT_MAX_LENGTH) })).toBe(true);
+    expect(line({ packingSite: "P".repeat(TEXT_MAX_LENGTH + 1) })).toBe(false);
   });
 
   it("rejects keys it does not have, the reserved comment and the totals included (6.2 rule 2)", () => {

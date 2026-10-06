@@ -13,7 +13,7 @@ import {
 import { resolvedModule, resolveSeedTemplate } from "./__fixtures__/templates";
 import { HEADER_DEFAULT_CONFIG, HEADER_FIELDS, HEADER_LABELS, HEADER_TITLE, HeaderConfigSchema } from "./config";
 import { datePart, monthDate, yearMonth } from "./dates";
-import { emptyHeader, HeaderDataSchema } from "./schema";
+import { emptyHeader, HEADER_TEXT_FIELDS, HeaderDataSchema, TEXT_MAX_LENGTH } from "./schema";
 
 describe("header data", () => {
   it("starts empty and accepts a draft with anything missing", () => {
@@ -55,6 +55,13 @@ describe("header data", () => {
     expect(data).toMatchObject({ poNo: "PO-0001 (SO-0001)", productName: "Brand A PC-A01 Blue Nitrile\nBlue" });
     expect(HeaderDataSchema.safeParse({ poNo: 2466264 }).success).toBe(false);
     expect(HeaderDataSchema.safeParse({ productCode: ["PC-A01"] }).success).toBe(false);
+  });
+
+  it("keeps text up to TEXT_MAX_LENGTH in every text field, the fields' limit", () => {
+    for (const field of HEADER_TEXT_FIELDS) {
+      expect(HeaderDataSchema.safeParse({ [field]: "x".repeat(TEXT_MAX_LENGTH) }).success).toBe(true);
+      expect(HeaderDataSchema.safeParse({ [field]: "x".repeat(TEXT_MAX_LENGTH + 1) }).success).toBe(false);
+    }
   });
 
   it("rejects fields it does not have: the inspector, the manufacturer, the client and the reserved comment", () => {

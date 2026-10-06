@@ -13,7 +13,7 @@ import Capture from "./Capture";
 import { calcHeader, type HeaderComputed } from "./calc";
 import { HEADER_DEFAULT_CONFIG, HEADER_LABELS, HEADER_TITLE, type HeaderConfig } from "./config";
 import { definition } from "./index";
-import type { HeaderData } from "./schema";
+import { TEXT_MAX_LENGTH, type HeaderData } from "./schema";
 
 const noop = () => {};
 const TEMPLATE = makeTestTemplate(MODULE_REGISTRY, []);
@@ -94,6 +94,13 @@ describe("header capture", () => {
     expect(html).toContain(">Brand A PC-A01 Blue Nitrile</textarea>");
     // Enter moves on from each single-line field and each date: three text rows, three dates.
     expect(tagsWith(html, 'enterKeyHint="next"')).toHaveLength(6);
+  });
+
+  it("takes no more text in a field than the schema keeps, so the header always loads", () => {
+    const html = render();
+    const fields = [...tagsOf(html, "input"), ...tagsOf(html, "textarea")].filter((field) => !field.includes('type="date"'));
+    expect(fields).toHaveLength(5);
+    for (const field of fields) expect(field).toContain(`maxLength="${TEXT_MAX_LENGTH}"`);
   });
 
   it("leaves out the rows the template switches off", () => {

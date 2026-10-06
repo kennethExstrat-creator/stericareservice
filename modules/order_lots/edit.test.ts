@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { batchDataChanges, createDataUpdater } from "@/components/qc/data-updater";
-import { addLots, lineFor, removeKey, removeLot, setLine, splitLots, tidySite } from "./edit";
-import { emptyOrderLine, OrderLotsDataSchema, type OrderLotsData } from "./schema";
+import { addLots, leftOutNotice, lineFor, removeKey, removeLot, setLine, splitLots, tidySite } from "./edit";
+import {
+  emptyOrderLine,
+  LOT_NUMBER_MAX_LENGTH,
+  OrderLotsDataSchema,
+  TEXT_MAX_LENGTH,
+  type OrderLotsData,
+} from "./schema";
 
 const ORDER: OrderLotsData = {
   sizes: {
@@ -50,7 +56,7 @@ describe("order table edits", () => {
     const { data, skipped } = addLots(ORDER, "M", ["LOT-B05", "LOT-B03", " LOT-B06 ", "LOT-B05"]);
     expect(data.sizes.M.lotNumbers).toEqual(["LOT-B03", "LOT-B05", "LOT-B06"]);
     expect(skipped).toEqual(["LOT-B03", "LOT-B05"]);
-    expect(addLots(ORDER, "M", ["LOT-B03"])).toEqual({ data: ORDER, skipped: ["LOT-B03"] });
+    expect(addLots(ORDER, "M", ["LOT-B03"])).toEqual({ data: ORDER, skipped: ["LOT-B03"], tooLong: [] });
     expect(addLots(ORDER, "L", ["LOT-B04"]).data.sizes.L).toEqual({ ...emptyOrderLine(), lotNumbers: ["LOT-B04"] });
   });
 
@@ -72,6 +78,59 @@ describe("order table edits", () => {
     const stray: OrderLotsData = { sizes: { ...ORDER.sizes, Q: { ...emptyOrderLine(), qtyCases: 1 } } };
     expect(removeKey(stray, "Q")).toEqual(ORDER);
     expect(removeKey(ORDER, "Q")).toBe(ORDER);
+  });
+});
+
+// Saved data the schema rejects cannot be shown or edited (invalid_data), and
+// without the order no size is ordered: every edit must return data it keeps.
+describe("order table edits keep the data loadable", () => {
+  const longest = "L".repeat(LOT_NUMBER_MAX_LENGTH);
+  const tooLong = `${longest}9`;
+
+  it("leaves out a lot too long to keep, adds the rest and says which", () => {
+    const added = addLots(ORDER, "M", ["LOT-B05", tooLong, longest]);
+    expect(added.data.sizes.M.lotNumbers).toEqual(["LOT-B03", "LOT-B05", longest]);
+    expect(added.tooLong).toEqual([tooLong]);
+    expect(OrderLotsDataSchema.safeParse(added.data).success).toBe(true);
+    expect(addLots(ORDER, "M", [tooLong])).toEqual({ data: ORDER, skipped: [], tooLong: [tooLong] });
+  });
+
+  it("leaves out twenty lots pasted with slashes, which the split reads as one lot", () => {
+    const pasted = Array.from({ length: 20 }, (_, index) => `LOT-${String(index + 1).padStart(6, "0")}`).join(" / ");
+    expect(pasted.length).toBeGreaterThan(LOT_NUMBER_MAX_LENGTH);
+    const added = addLots(ORDER, "M", splitLots(pasted));
+    expect(added).toEqual({ data: ORDER, skipped: [], tooLong: [pasted] });
+  });
+
+  it("cuts a packing site to the schema's limit, never through a character", () => {
+    const site = setLine(ORDER, "S", { packingSite: "P".repeat(TEXT_MAX_LENGTH + 40) }).sizes.S.packingSite;
+    expect(site).toBe("P".repeat(TEXT_MAX_LENGTH));
+    // An emoji is two UTF-16 units: one that would straddle the limit is left out whole.
+    const straddling = `${"P".repeat(TEXT_MAX_LENGTH - 1)}\u{1F9E4}`;
+    expect(setLine(ORDER, "S", { packingSite: straddling }).sizes.S.packingSite).toBe("P".repeat(TEXT_MAX_LENGTH - 1));
+    const fits = `${"P".repeat(TEXT_MAX_LENGTH - 2)}\u{1F9E4}`;
+    expect(setLine(ORDER, "S", { packingSite: fits }).sizes.S.packingSite).toBe(fits);
+  });
+
+  it("returns data the schema keeps from every edit, however long what is typed or pasted", () => {
+    const longSite = "P".repeat(TEXT_MAX_LENGTH * 2);
+    const edits: [string, OrderLotsData][] = [
+      ["setLine", setLine(ORDER, "M", { qtyCases: 600, packingSite: longSite })],
+      ["tidySite", tidySite(setLine(ORDER, "S", { packingSite: ` ${longSite}` }), "S")],
+      ["addLots", addLots(ORDER, "L", [tooLong, "LOT-B04", tooLong.repeat(10)]).data],
+      ["removeLot", removeLot(ORDER, "M", 0, "LOT-B03")],
+      ["removeKey", removeKey({ sizes: { ...ORDER.sizes, Q: emptyOrderLine() } }, "Q")],
+    ];
+    for (const [name, data] of edits) expect([name, OrderLotsDataSchema.safeParse(data).success]).toEqual([name, true]);
+  });
+
+  it("says what was left out below the lot field", () => {
+    expect(leftOutNotice({ skipped: [], tooLong: [] })).toBe("");
+    expect(leftOutNotice({ skipped: ["LOT-B03", "LOT-B05"], tooLong: [] })).toBe("Already listed: LOT-B03, LOT-B05.");
+    expect(leftOutNotice({ skipped: ["LOT-B03"], tooLong: [`LOT-000001 / LOT-000002 / ${longest}`] })).toBe(
+      "Already listed: LOT-B03. Not added, over 200 characters: “LOT-000001 / LOT-000…”. " +
+        "Separate lots with commas, semicolons or new lines.",
+    );
   });
 });
 

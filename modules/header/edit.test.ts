@@ -5,7 +5,7 @@ import { createDataUpdater } from "@/components/qc/data-updater";
 import { STD_EG_EXAMPLE } from "@/tests/fixtures/examples";
 import { headerData } from "./__fixtures__/examples";
 import { setDate, setText, tidyText } from "./edit";
-import { emptyHeader, HeaderDataSchema, type HeaderData } from "./schema";
+import { emptyHeader, HEADER_TEXT_FIELDS, HeaderDataSchema, TEXT_MAX_LENGTH, type HeaderData } from "./schema";
 
 const FILLED = headerData(STD_EG_EXAMPLE.header);
 
@@ -28,6 +28,20 @@ describe("header edits", () => {
       expect(next.mfgDate).toBeNull();
       expect(HeaderDataSchema.safeParse(next).success).toBe(true);
     }
+  });
+
+  it("cuts text to the schema's limit, never through a character, so the header always loads", () => {
+    for (const field of HEADER_TEXT_FIELDS) {
+      const next = setText(FILLED, field, "x".repeat(TEXT_MAX_LENGTH + 240));
+      expect(next[field]).toBe("x".repeat(TEXT_MAX_LENGTH));
+      expect(HeaderDataSchema.safeParse(next).success).toBe(true);
+      expect(HeaderDataSchema.safeParse(tidyText(setText(FILLED, field, ` ${"x".repeat(TEXT_MAX_LENGTH)}`), field)).success).toBe(
+        true,
+      );
+    }
+    // An emoji is two UTF-16 units: one that would straddle the limit is left out whole.
+    const straddling = `${"x".repeat(TEXT_MAX_LENGTH - 1)}\u{1F9E4}`;
+    expect(setText(FILLED, "productName", straddling).productName).toBe("x".repeat(TEXT_MAX_LENGTH - 1));
   });
 
   it("returns the data itself when nothing changes, so no change is saved", () => {

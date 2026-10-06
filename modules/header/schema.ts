@@ -7,6 +7,13 @@
 import { z } from "zod";
 import { DateCellSchema, TextCellSchema } from "@/modules/_framework";
 
+/**
+ * TextCellSchema's limit (lib/validation/cells.ts). Saved data that fails the
+ * schema cannot be shown or edited (invalid_data), so the fields take no more
+ * and setText keeps no more.
+ */
+export const TEXT_MAX_LENGTH = 2000;
+
 export const HeaderDataSchema = z.strictObject({
   /** Prefilled from the picked manufacturer's address. */
   factoryAddress: TextCellSchema,

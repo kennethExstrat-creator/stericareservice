@@ -17,7 +17,7 @@ import {
   type PackingConfigConfig,
 } from "./config";
 import { definition } from "./index";
-import type { PackingConfigData } from "./schema";
+import { TEXT_MAX_LENGTH, type PackingConfigData } from "./schema";
 
 const noop = () => {};
 const SAFEDON_LABELS = { ...PACKING_CONFIG_LABELS, ...labelOverrides("SAFEDON_EG", "packing_config") };
@@ -95,6 +95,8 @@ describe("packing_config capture", () => {
     const shown = render({ config: { ...PACKING_CONFIG_DEFAULT_CONFIG, fields: { packingMode: true } } });
     expect(shown).toContain(">Packing Mode<");
     expect(tagsOf(shown, "input")).toHaveLength(4);
+    // No more text than the schema keeps, so the data always loads.
+    expect(tagsOf(shown, "input").filter((input) => input.includes(`maxLength="${TEXT_MAX_LENGTH}"`))).toHaveLength(1);
   });
 
   it("marks each count for issue links and is read-only when asked", () => {

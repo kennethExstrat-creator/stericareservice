@@ -7,11 +7,19 @@
 import { z } from "zod";
 import { CountCellSchema, perSizeData, TextCellSchema } from "@/modules/_framework";
 
+// Saved data that fails the schema cannot be shown or edited (invalid_data),
+// and without this module's lines no size is ordered, so the fields take no
+// more than the schema keeps and the edits keep no more either.
+/** The longest lot number kept. */
+export const LOT_NUMBER_MAX_LENGTH = 200;
+/** TextCellSchema's limit (lib/validation/cells.ts), for the packing site. */
+export const TEXT_MAX_LENGTH = 2000;
+
 export const OrderLineSchema = z.strictObject({
   /** Cases ordered: a whole number (rule 1). Blank or 0: the size is not ordered. */
   qtyCases: CountCellSchema,
   /** One or more lots per size, as printed: "LOT-A01". */
-  lotNumbers: z.array(z.string().max(200)).default([]),
+  lotNumbers: z.array(z.string().max(LOT_NUMBER_MAX_LENGTH)).default([]),
   /** The site that packed the size's lot, as printed (SAFEDON_EG); config.fields.packingSite shows it. */
   packingSite: TextCellSchema,
 });

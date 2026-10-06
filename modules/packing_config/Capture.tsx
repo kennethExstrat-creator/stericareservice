@@ -23,7 +23,7 @@ import { labelFor, type CaptureProps } from "@/modules/_framework";
 import type { PackingConfigComputed } from "./calc";
 import { PACKING_COUNTS, type PackingConfigConfig } from "./config";
 import { setCount, setPackingMode, tidyPackingMode } from "./edit";
-import type { PackingConfigData } from "./schema";
+import { TEXT_MAX_LENGTH, type PackingConfigData } from "./schema";
 
 export default function Capture({
   data,
@@ -100,6 +100,7 @@ export default function Capture({
             }}
             onBlur={() => update(tidyPackingMode)}
             autoComplete="off"
+            maxLength={TEXT_MAX_LENGTH}
             readOnly={readOnly}
           />
         </div>

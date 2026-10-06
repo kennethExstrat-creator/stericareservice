@@ -18,7 +18,7 @@ import {
   PACKING_CONFIG_TITLE,
   PackingConfigConfigSchema,
 } from "./config";
-import { emptyPackingConfig, PackingConfigDataSchema } from "./schema";
+import { emptyPackingConfig, PackingConfigDataSchema, TEXT_MAX_LENGTH } from "./schema";
 
 describe("packing_config data", () => {
   it("starts empty and accepts a draft with anything missing", () => {
@@ -28,6 +28,11 @@ describe("packing_config data", () => {
 
   it("holds the dictionary's entered keys", () => {
     expect(Object.keys(emptyPackingConfig()).sort()).toEqual([...dataKeys("packing_config", "entered")].sort());
+  });
+
+  it("keeps the packing mode up to TEXT_MAX_LENGTH, the field's limit", () => {
+    expect(PackingConfigDataSchema.safeParse({ packingMode: "x".repeat(TEXT_MAX_LENGTH) }).success).toBe(true);
+    expect(PackingConfigDataSchema.safeParse({ packingMode: "x".repeat(TEXT_MAX_LENGTH + 1) }).success).toBe(false);
   });
 
   it("stores the counts as whole numbers, never as text (6.2 rules 1 and 3)", () => {

@@ -13,7 +13,7 @@ import Capture from "./Capture";
 import type { OrderLotsComputed } from "./calc";
 import { ORDER_LOTS_LABELS, type OrderLotsConfig } from "./config";
 import { definition } from "./index";
-import type { OrderLotsData } from "./schema";
+import { LOT_NUMBER_MAX_LENGTH, TEXT_MAX_LENGTH, type OrderLotsData } from "./schema";
 
 const noop = () => {};
 
@@ -91,6 +91,14 @@ describe("order_lots capture", () => {
     expect(html).toContain('aria-label="Remove Lot Number LOT-B03, Size M"');
     expect(html).toContain('aria-label="Lot Number, Size M: add"');
     expect(html).toContain('value="Manufacturer B"');
+  });
+
+  it("takes no more in a lot or a packing site than the schema keeps, so the order always loads", () => {
+    const html = render(SAFEDON_EG_EXAMPLE);
+    const lotFields = tagsWith(html, 'aria-label="Lot Number, Size [^"]*: add"');
+    expect(lotFields).toHaveLength(5);
+    for (const field of lotFields) expect(field).toContain(`maxLength="${LOT_NUMBER_MAX_LENGTH}"`);
+    for (const site of tagsWith(html, "data-site-cell")) expect(site).toContain(`maxLength="${TEXT_MAX_LENGTH}"`);
   });
 
   it("takes a packing site per size where the template shows it, Enter going down the column", () => {
