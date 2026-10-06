@@ -14,3 +14,36 @@ export { PhotoTile, type PhotoState } from "./photo-tile";
 export { tagLine, type PhotoTags } from "./photo-tags";
 export { ProgressTracker, type ProgressStep, type StepState } from "./progress-tracker";
 export { PageHeader } from "./page-header";
+
+// Capture kit: shared building blocks for module Capture screens (docs/CAPTURE_KIT.md).
+export { SizeTabs, SizeStatusStrip, type ResultLike, type SizeResults } from "./size-tabs";
+export { HandToggle, handsOf, type HandView } from "./hand-toggle";
+export { BoxPicker } from "./box-picker";
+export {
+  CounterTable,
+  type CounterColumn,
+  type CounterRow,
+  type CounterSummaryRow,
+  type CounterTableLabels,
+} from "./counter-table";
+export { columnTotal, columnStatus, decide, type CounterCell, type CounterHand, type CountReader } from "./counter-model";
+export {
+  NumberField,
+  PercentField,
+  EnterGroup,
+  EntryProblems,
+  type EntryProblem,
+  type NumberFieldProps,
+} from "./number-field";
+export {
+  RequirementList,
+  SpecValue,
+  specOutcome,
+  type Requirement,
+  type RequirementLabels,
+  type RequirementOutcome,
+} from "./requirement-list";
+export { ModuleSection } from "./module-section";
+export { Figure } from "./figure";
+export { issuePathKey, issuePathProps, focusIssuePath, findIssue, type IssuePath } from "./issue-path";
+export { useIssueFocus } from "./use-issue-focus";
