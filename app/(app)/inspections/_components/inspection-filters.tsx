@@ -10,9 +10,14 @@
 // Without JavaScript the form still works as a plain GET form. Long client and
 // manufacturer names truncate in the pickers (the label span is what the
 // picker shows once chosen).
+//
+// Focus stays in the bar: Clear search puts it back in the search box (on the
+// iPad the keyboard stays up for the next search), and the pickers keep it.
+// Should the bar itself go (nothing left to filter), the list moves focus to
+// the results instead (list-focus.tsx).
 import { SearchIcon, XIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useId, useOptimistic, useState, useTransition, type FormEvent } from "react";
+import { useId, useOptimistic, useRef, useState, useTransition, type FormEvent } from "react";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -26,6 +31,8 @@ import {
   type InspectionListFilters,
 } from "@/lib/inspections/search-params";
 import type { InspectionStatus } from "@/lib/schemas/common";
+import { useRequestListFocus } from "./list-focus";
+import { SEARCH_FOCUS_TARGET } from "./list-focus-target";
 
 type Choices = Pick<InspectionListFilters, "status" | "client" | "manufacturer">;
 
@@ -49,7 +56,10 @@ export function InspectionFilters({
 }) {
   const id = useId();
   const router = useRouter();
+  const requestFocus = useRequestListFocus();
   const [isPending, startTransition] = useTransition();
+  const formRef = useRef<HTMLFormElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   // The pickers show a new choice on the same frame; the URL catches up.
   const [choices, setOptimisticChoices] = useOptimistic<Choices>({
@@ -58,21 +68,33 @@ export function InspectionFilters({
     manufacturer: filters.manufacturer,
   });
 
-  // The search box holds a draft until it is submitted, and follows the URL
-  // when the URL changes some other way (Clear filters, the back button).
+  // The search box holds a draft until it is submitted. Whenever the list
+  // moves to other filters (a search, a picker, Clear filters, the back
+  // button) the box follows the URL, so it never shows a search that is not
+  // applied. The page number is not part of it: paging keeps a draft. Text
+  // typed while this bar's own navigation is on its way is the next search,
+  // so the box keeps that.
   const urlSearch = filters.q ?? "";
+  const view = buildInspectionsHref({ ...filters, page: 1 });
   const [search, setSearch] = useState(urlSearch);
-  const [lastUrlSearch, setLastUrlSearch] = useState(urlSearch);
-  if (urlSearch !== lastUrlSearch) {
-    setLastUrlSearch(urlSearch);
-    setSearch(urlSearch);
+  const [syncedView, setSyncedView] = useState(view);
+  const [typedWhilePending, setTypedWhilePending] = useState(false);
+  if (view !== syncedView) {
+    setSyncedView(view);
+    setTypedWhilePending(false);
+    if (!typedWhilePending) setSearch(urlSearch);
+  } else if (typedWhilePending && !isPending) {
+    setTypedWhilePending(false);
   }
 
   function apply(next: Choices, q: string) {
+    // A new filter starts again at page 1.
+    const href = buildInspectionsHref({ ...next, q, page: 1 });
+    // Only if the bar has focus: a tap on Search in Safari leaves it on <body>.
+    if (formRef.current?.contains(document.activeElement)) requestFocus({ href, target: "search" });
     startTransition(() => {
       setOptimisticChoices(next);
-      // A new filter starts again at page 1.
-      router.push(buildInspectionsHref({ ...next, q, page: 1 }), { scroll: false });
+      router.push(href, { scroll: false });
     });
   }
 
@@ -81,13 +103,23 @@ export function InspectionFilters({
     apply(choices, search);
   }
 
+  function onSearchChange(value: string) {
+    setSearch(value);
+    if (isPending) setTypedWhilePending(true);
+  }
+
   function clearSearch() {
     setSearch("");
-    if (urlSearch) apply(choices, "");
+    // The clear button goes with the text: focus moves to the box first, so it
+    // never drops to <body>, and on the iPad the keyboard stays up.
+    searchRef.current?.focus();
+    // Also overtakes a search still on its way.
+    if (urlSearch || isPending) apply(choices, "");
   }
 
   return (
     <form
+      ref={formRef}
       role="search"
       aria-label="Filter inspections"
       action={INSPECTIONS_PATH}
@@ -103,11 +135,13 @@ export function InspectionFilters({
             {isPending ? <Spinner aria-label="Updating the list" /> : <SearchIcon aria-hidden />}
           </InputGroupAddon>
           <InputGroupInput
+            {...SEARCH_FOCUS_TARGET}
+            ref={searchRef}
             id={`${id}-q`}
             name="q"
             type="search"
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => onSearchChange(event.target.value)}
             placeholder="Ref, PO or lot number"
             maxLength={MAX_SEARCH_LENGTH}
             enterKeyHint="search"

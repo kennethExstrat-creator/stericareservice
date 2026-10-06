@@ -64,6 +64,18 @@ describe("LoadFailed", () => {
   });
 });
 
+describe("focus after a list link goes away", () => {
+  it.each([
+    ["no inspections yet", <NoInspectionsYet key="empty" role="inspector" />],
+    ["no matches", <NoMatches key="no-matches" filters={{ q: "X", page: 1 }} names={{}} />],
+    ["past the end", <PastTheEnd key="past" filters={{ page: 2 }} total={1} pageCount={1} />],
+    ["load failed", <LoadFailed key="failed" retryHref="/inspections" />],
+  ])("can land on the %s heading, which takes focus from script only", (_, state) => {
+    const html = renderToStaticMarkup(state);
+    expect(html).toMatch(/<h2 data-list-focus="results" tabindex="-1" class="[^"]*outline-none[^"]*">/);
+  });
+});
+
 describe("ListPagination", () => {
   it("is not shown for a single page", () => {
     expect(renderToStaticMarkup(<ListPagination filters={{ page: 1 }} pageCount={1} />)).toBe("");

@@ -1,6 +1,7 @@
 // What the list shows instead of rows: nothing yet, nothing matching the
 // filters, a page past the end, or a failed load. Each says what happened and
-// offers the one useful next step.
+// offers the one useful next step. The heading is where focus lands when the
+// control that had it goes away with the previous list (list-focus.tsx).
 import { ClipboardListIcon, ListEndIcon, SearchXIcon, TriangleAlertIcon, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { INSPECTION_STATUS_LABEL } from "@/lib/inspections/format";
 import { buildInspectionsHref, INSPECTIONS_PATH, type InspectionListFilters } from "@/lib/inspections/search-params";
 import type { Database } from "@/lib/supabase/database.types";
 import { cn } from "@/lib/utils";
+import { RESULTS_FOCUS_TARGET } from "./list-focus-target";
 import { ListLink } from "./list-link";
 
 type UserRole = Database["public"]["Enums"]["user_role"];
@@ -44,7 +46,9 @@ function ListState({
           <Icon aria-hidden />
         </EmptyMedia>
         <EmptyTitle>
-          <h2 className="text-lg font-bold text-foreground">{title}</h2>
+          <h2 {...RESULTS_FOCUS_TARGET} className="text-lg font-bold text-foreground outline-none">
+            {title}
+          </h2>
         </EmptyTitle>
         <EmptyDescription className="text-base text-muted-foreground fine:text-sm">{children}</EmptyDescription>
       </EmptyHeader>
@@ -67,10 +71,13 @@ export function NoInspectionsYet({ role }: { role: UserRole }) {
   );
 }
 
+/** Back to the whole list, with focus in the search box, ready for the next search. */
 function ClearFiltersButton() {
   return (
     <Button asChild variant="outline">
-      <ListLink href={INSPECTIONS_PATH}>Clear filters</ListLink>
+      <ListLink href={INSPECTIONS_PATH} focusAfter="search">
+        Clear filters
+      </ListLink>
     </Button>
   );
 }

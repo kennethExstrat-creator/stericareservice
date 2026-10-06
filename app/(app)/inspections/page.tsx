@@ -16,6 +16,8 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { InspectionFilters } from "./_components/inspection-filters";
 import { InspectionTable } from "./_components/inspection-table";
+import { ListFocusScope } from "./_components/list-focus";
+import { RESULTS_FOCUS_TARGET } from "./_components/list-focus-target";
 import { ListLink } from "./_components/list-link";
 import { ListPagination } from "./_components/list-pagination";
 import { LoadFailed, NoInspectionsYet, NoMatches, PastTheEnd } from "./_components/list-states";
@@ -50,6 +52,15 @@ export default async function InspectionsPage({ searchParams }: PageProps<"/insp
   const filtered = hasActiveFilters(filters);
   const failed = !options.ok || list.kind === "error";
   const nothingYet = !failed && list.kind === "rows" && list.total === 0 && !filtered;
+  const view = failed
+    ? "error"
+    : list.kind === "out-of-range"
+      ? "past-the-end"
+      : list.kind === "rows" && list.total === 0
+        ? filtered
+          ? "no-matches"
+          : "empty"
+        : "rows";
   const announcement = failed
     ? "The inspections could not be loaded."
     : list.kind === "out-of-range"
@@ -71,7 +82,7 @@ export default async function InspectionsPage({ searchParams }: PageProps<"/insp
         actions={<NewInspectionButton />}
       />
 
-      <div className="group/list flex flex-col gap-4">
+      <ListFocusScope href={buildInspectionsHref(filters)} view={view} className="group/list flex flex-col gap-4">
         {options.ok && !nothingYet && (
           <InspectionFilters filters={filters} clients={options.clients} manufacturers={options.manufacturers} />
         )}
@@ -106,7 +117,7 @@ export default async function InspectionsPage({ searchParams }: PageProps<"/insp
             </>
           ) : null}
         </section>
-      </div>
+      </ListFocusScope>
     </div>
   );
 }
@@ -121,14 +132,22 @@ function describeCount(filters: InspectionListFilters, total: number, shown: num
   return shown < total ? `${matched} · showing ${from}–${to}` : matched;
 }
 
-/** The count above the table, with Clear filters when the list is filtered. */
+/**
+ * The count above the table, with Clear filters when the list is filtered.
+ * The count is where focus lands after a link in the list goes away; Clear
+ * filters sends it to the search box, ready for the next search.
+ */
 function ListSummary({ filters, total, shown }: { filters: InspectionListFilters; total: number; shown: number }) {
   return (
     <div className="flex min-h-8 flex-wrap items-center justify-between gap-x-4 gap-y-1">
-      <p className="text-sm text-muted-foreground tabular-nums">{describeCount(filters, total, shown)}</p>
+      <p {...RESULTS_FOCUS_TARGET} className="text-sm text-muted-foreground tabular-nums outline-none">
+        {describeCount(filters, total, shown)}
+      </p>
       {hasActiveFilters(filters) && (
         <Button asChild variant="link" size="sm" className="px-0 touch:px-0">
-          <ListLink href={INSPECTIONS_PATH}>Clear filters</ListLink>
+          <ListLink href={INSPECTIONS_PATH} focusAfter="search">
+            Clear filters
+          </ListLink>
         </Button>
       )}
     </div>
