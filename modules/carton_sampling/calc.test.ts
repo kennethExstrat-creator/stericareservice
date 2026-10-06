@@ -152,6 +152,13 @@ describe("carton_sampling", () => {
     expect(calcCartonSampling(input({ M: [32, 32, 1186, 2389, 2865] })).issues.map((issue) => issue.code)).toEqual([
       "carton_duplicate",
     ]);
+    const one = contextM({ sampling: { M: makeSampling({ cases: 1 }) } });
+    expect(calcCartonSampling(input({ M: [32, 578] }, one)).issues.map((issue) => issue.message)).toEqual([
+      "Size M: 2 carton numbers, but the sampling plan has 1 case.",
+    ]);
+    expect(calcCartonSampling(input({ M: [32] }, one)).result.summary).toBe(
+      "Size M: 1 carton number, unique and between 1 and 2,900.",
+    );
   });
 
   it("checks each ordered size on its own: the same number may appear in two sizes", () => {

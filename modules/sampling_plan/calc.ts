@@ -174,7 +174,7 @@ function checkSize({ size, row, config, level, labels, context }: SizeCheckInput
       code: "cases_above_order",
       column: "cases",
       brief: `${label("cases")} ${formatCount(cases)} is more than the ${formatCount(ordered)} ordered`,
-      detail: `${formatCount(cases)} cases sampled, but ${formatCount(ordered)} were ordered.`,
+      detail: `${counted(cases, "case")} sampled, more than the ${counted(ordered, "case")} ordered.`,
     });
   }
 
@@ -186,7 +186,7 @@ function checkSize({ size, row, config, level, labels, context }: SizeCheckInput
       code: "sample_size_invalid",
       column: "glovesWatertightVisual",
       brief: `${label("glovesWatertightVisual")} ${sample} is below ${MIN_SAMPLE}`,
-      detail: `${sample} gloves sampled; an ISO 2859-1 sample has at least ${MIN_SAMPLE}.`,
+      detail: `${counted(sample, "glove")} sampled; an ISO 2859-1 sample has at least ${MIN_SAMPLE}.`,
     });
   } else if (sample !== null) {
     sampleCodeLetter = codeLetterForSampleSize(sample);
@@ -302,6 +302,11 @@ function totalsOf(data: SamplingPlanData, config: SamplingPlanConfig, sizes: rea
       return [column, values.length === 0 ? null : values.reduce((sum, entered) => sum + entered, 0)];
     }),
   );
+}
+
+/** "1 case", "2,900 cases". */
+function counted(count: number, noun: string): string {
+  return `${formatCount(count)} ${count === 1 ? noun : `${noun}s`}`;
 }
 
 /** "Case: 50; inspection level I needs 500 (code N)." */

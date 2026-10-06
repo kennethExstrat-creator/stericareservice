@@ -105,7 +105,7 @@ function checkSize(
   if (sampledCases !== null && count > sampledCases) {
     report(
       "carton_count_above_cases",
-      `${formatCount(count)} carton numbers, but the sampling plan has ${formatCount(sampledCases)} cases`,
+      `${counted(count, "carton number")}, but the sampling plan has ${counted(sampledCases, "case")}`,
     );
   }
 
@@ -122,16 +122,21 @@ function sizeResult(problems: readonly Problem[], { samplingQuantity: count, sam
     (missing): missing is string => missing !== null,
   );
   if (waiting.length > 0) {
-    return { status: "not_done", summary: `Waiting for ${waiting.join(" and ")}; ${formatCount(count)} carton numbers entered.` };
+    return { status: "not_done", summary: `Waiting for ${waiting.join(" and ")}; ${counted(count, "carton number")} entered.` };
   }
   if (sampledCases === 0) return { status: "not_done", summary: "No cases sampled." };
   if (sampledCases !== null && count < sampledCases) {
-    return { status: "not_done", summary: `${formatCount(count)} of ${formatCount(sampledCases)} carton numbers.` };
+    return { status: "not_done", summary: `${formatCount(count)} of ${counted(sampledCases, "carton number")}.` };
   }
   return {
     status: "pass",
-    summary: `${formatCount(count)} carton numbers, unique and between 1 and ${formatCount(orderQty ?? 0)}.`,
+    summary: `${counted(count, "carton number")}, unique and between 1 and ${formatCount(orderQty ?? 0)}.`,
   };
+}
+
+/** "1 case", "50 carton numbers". */
+function counted(count: number, noun: string): string {
+  return `${formatCount(count)} ${count === 1 ? noun : `${noun}s`}`;
 }
 
 function summarise(

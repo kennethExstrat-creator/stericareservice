@@ -285,7 +285,7 @@ describe("sampling_plan", () => {
       {
         level: "error",
         code: "sample_size_invalid",
-        message: "Size M, # gloves for watertight & Visual: 1 gloves sampled; an ISO 2859-1 sample has at least 2.",
+        message: "Size M, # gloves for watertight & Visual: 1 glove sampled; an ISO 2859-1 sample has at least 2.",
         size: "M",
         path: ["sizes", "M", "glovesWatertightVisual"],
       },
@@ -298,7 +298,7 @@ describe("sampling_plan", () => {
       {
         level: "error",
         code: "cases_above_order",
-        message: "Size M, Case: 3,000 cases sampled, but 2,900 were ordered.",
+        message: "Size M, Case: 3,000 cases sampled, more than the 2,900 cases ordered.",
         size: "M",
         path: ["sizes", "M", "cases"],
       },
