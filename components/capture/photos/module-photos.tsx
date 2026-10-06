@@ -12,8 +12,10 @@ import {
   countPhotos,
   displayTags,
   EMPTY_TAG_OPTIONS,
+  moduleTitle,
   type PhotoTagOptions,
 } from "@/lib/inspections/photos/view";
+import { autoTag, buildTarget } from "@/lib/photos/target";
 import { cn } from "@/lib/utils";
 import { useAddPhotos, useInspectionMedia, usePhotoQueue, useStartPhotoQueue, type PhotoFocus } from "./hooks";
 import { mediaStore } from "./media-store";
@@ -53,6 +55,18 @@ export type ModulePhotosProps = {
 /** What a photo shows, in words: its caption, else its tags with the module. */
 export function photoAlt(photo: Pick<SlotPhoto, "caption" | "moduleKey" | "target">, options: PhotoTagOptions): string {
   return photo.caption?.trim() || tagLine(displayTags(photo.moduleKey, photo.target, options)) || "Photo";
+}
+
+/**
+ * What a photo added now is tagged with besides its module, in words
+ * ("Size M · Right hand"): the focus the module records. Empty when nothing
+ * is in focus, or for the untagged slot.
+ */
+export function nextTagLine(moduleKey: string | null, focus: PhotoFocus | null | undefined, options: PhotoTagOptions): string {
+  if (moduleKey === null) return "";
+  const tags = displayTags(moduleKey, buildTarget(autoTag({ moduleKey, ...(focus ?? {}) }).target), options, { withModule: false });
+  // displayTags keeps the module only when nothing else is tagged.
+  return tags.module ? "" : tagLine(tags);
 }
 
 export function toViewerPhoto(photo: SlotPhoto, options: PhotoTagOptions): ViewerPhoto {
@@ -113,6 +127,7 @@ export function ModulePhotos({
   const canChooseReport = access?.isAdmin === true;
   const preparing = queue.preparingByModule[moduleSlotKey(inspectionId, moduleKey)] ?? NOTHING_PREPARING;
   const queuedCount = photos.filter((photo) => photo.queued).length;
+  const nextTags = variant === "capture" ? nextTagLine(moduleKey, focus, options) : "";
 
   const Heading = headingLevel === 2 ? "h2" : "h3";
   const heading = title ?? "Photos";
@@ -213,12 +228,14 @@ export function ModulePhotos({
             );
           })}
         </ul>
-      ) : media.status === "loading" ? (
+      ) : media.status === "loading" || media.status === "idle" ? (
+        // Not known yet (idle: the first render, before the browser loads them): never "No photos".
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
           <LoaderCircleIcon aria-hidden className="size-4 animate-spin" />
           Loading photos…
         </p>
-      ) : variant === "capture" && preparing.photos === 0 ? (
+      ) : variant === "capture" && preparing.photos === 0 && media.status !== "error" ? (
+        // After a failed load the notice above says what is known instead.
         <p className="text-sm text-muted-foreground">{canAdd ? "No photos yet." : "No photos."}</p>
       ) : null}
 
@@ -230,7 +247,16 @@ export function ModulePhotos({
       )}
 
       {showAddControls && canAdd && (
-        <PhotoAddControls onFiles={addPhotos} target={moduleKey === null ? undefined : heading} compact={variant === "gallery"} />
+        <PhotoAddControls
+          onFiles={addPhotos}
+          target={moduleKey === null ? undefined : moduleTitle(moduleKey, options)}
+          compact={variant === "gallery"}
+        />
+      )}
+      {canAdd && nextTags && (
+        <p data-slot="next-tags" className="text-sm text-muted-foreground">
+          New photos are tagged {nextTags}.
+        </p>
       )}
 
       {editingPhoto && (
