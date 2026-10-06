@@ -21,6 +21,7 @@ import {
   type EntryProblem,
 } from "@/components/qc";
 import { formatSize } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { labelFor, samplingFor, type CaptureProps, type ValidationIssue } from "@/modules/_framework";
 import { gridCell, type CartonSamplingComputed } from "./calc";
 import { GRID_COLUMNS, REPORT_GRID_CELLS, type CartonSamplingConfig } from "./config";
@@ -147,7 +148,9 @@ export default function Capture({
                     </th>
                     {COLUMN_NUMBERS.map((column) => {
                       const index = row * GRID_COLUMNS + column;
-                      if (index >= total) return <td key={column} className="border-b border-l border-border bg-muted" />;
+                      if (index >= total) {
+                        return <td key={column} className="border-b border-l border-border bg-muted" />;
+                      }
                       const id = cellId(size, index);
                       const name = `${caption(size)}, ${gridCell(index)}`;
                       const value = cells[index] ?? null;
@@ -184,13 +187,13 @@ export default function Capture({
                 <button
                   type="button"
                   onClick={() => root.current && focusIssuePath(root.current, issue.path)}
-                  className="flex w-full items-start gap-1.5 rounded-sm text-left text-sm focus-ring-inset touch:min-h-11 touch:text-base"
+                  className={cn(
+                    "flex w-full items-start gap-1.5 rounded-sm text-left text-sm focus-ring-inset touch:min-h-11 touch:text-base",
+                    issue.level === "error" ? "text-fail" : "text-warn",
+                  )}
                 >
-                  <StatusIcon
-                    status={issue.level === "error" ? "fail" : "warn"}
-                    className={issue.level === "error" ? "mt-0.5 size-4 shrink-0 text-fail" : "mt-0.5 size-4 shrink-0 text-warn"}
-                  />
-                  <span className={issue.level === "error" ? "text-fail" : "text-warn"}>{issue.message}</span>
+                  <StatusIcon status={issue.level === "error" ? "fail" : "warn"} className="mt-0.5 size-4 shrink-0" />
+                  <span>{issue.message}</span>
                 </button>
               </li>
             ))}

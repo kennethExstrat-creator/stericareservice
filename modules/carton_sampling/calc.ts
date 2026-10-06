@@ -113,16 +113,19 @@ function checkSize(
   return { computed, issues: problems.map((problem) => problem.issue), result: sizeResult(problems, computed) };
 }
 
-function sizeResult(problems: readonly Problem[], { samplingQuantity: count, sampledCases, orderQty }: CartonSizeComputed): PerSizeResult {
+function sizeResult(problems: readonly Problem[], computed: CartonSizeComputed): PerSizeResult {
+  const { samplingQuantity: count, sampledCases, orderQty } = computed;
   if (problems.length > 0) {
     const more = problems.length > 1 ? `; ${problems.length - 1} more` : "";
     return { status: "fail", summary: `${problems[0].brief}${more}.` };
   }
-  const waiting = [orderQty === null ? "the order quantity" : null, sampledCases === null ? "the sampled cases" : null].filter(
-    (missing): missing is string => missing !== null,
-  );
+  const waiting = [
+    orderQty === null ? "the order quantity" : null,
+    sampledCases === null ? "the sampled cases" : null,
+  ].filter((missing): missing is string => missing !== null);
   if (waiting.length > 0) {
-    return { status: "not_done", summary: `Waiting for ${waiting.join(" and ")}; ${counted(count, "carton number")} entered.` };
+    const entered = counted(count, "carton number");
+    return { status: "not_done", summary: `Waiting for ${waiting.join(" and ")}; ${entered} entered.` };
   }
   if (sampledCases === 0) return { status: "not_done", summary: "No cases sampled." };
   if (sampledCases !== null && count < sampledCases) {

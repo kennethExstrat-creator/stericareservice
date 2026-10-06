@@ -37,7 +37,13 @@ import {
   type Labels,
   type SamplingValues,
 } from "@/modules/_framework";
-import { SAMPLING_CONTEXT_KEYS, SAMPLING_COLUMNS, shownColumns, type SamplingColumn, type SamplingPlanConfig } from "./config";
+import {
+  SAMPLING_CONTEXT_KEYS,
+  SAMPLING_COLUMNS,
+  shownColumns,
+  type SamplingColumn,
+  type SamplingPlanConfig,
+} from "./config";
 import { emptySamplingSize, type SamplingPlanData, type SamplingSize } from "./schema";
 
 /** One size's lot at the inspection level, and its watertight and visual sample against it. */
@@ -101,7 +107,8 @@ export function contributeSamplingPlan({
     Object.entries(data.sizes).map(([size, row]) => [size, samplingValues(row, config)]),
   );
   // A template without a level leaves the client's level, if any, in place.
-  return config.inspectionLevel === null ? { sampling } : { sampling, aql: { inspectionLevel: config.inspectionLevel } };
+  if (config.inspectionLevel === null) return { sampling };
+  return { sampling, aql: { inspectionLevel: config.inspectionLevel } };
 }
 
 /** What one size passes forward under the context's keys; a column switched off passes nothing. */
@@ -207,8 +214,12 @@ function checkSize({ size, row, config, level, labels, context }: SizeCheckInput
   const plan = level === null || lot === null ? null : lotPlan(lot, level, context.aql);
   // A plan's n at or above the lot means inspecting every glove (docs/AQL.md rule 8).
   const required = plan === null ? null : Math.min(plan.n, plan.lotSize);
-  if (plan !== null && required !== null && level !== null && sample !== null && sample >= MIN_SAMPLE && sample < required) {
-    const who = plan.usedLetter === plan.codeLetter ? `inspection level ${level}` : `inspection level ${level} at AQL ${formatAql(plan.aql)}`;
+  if (plan !== null && required !== null && sample !== null && sample >= MIN_SAMPLE && sample < required) {
+    // Name the AQL only when its arrow, not Table 1, sets the sample.
+    const who =
+      plan.usedLetter === plan.codeLetter
+        ? `inspection level ${plan.level}`
+        : `inspection level ${plan.level} at AQL ${formatAql(plan.aql)}`;
     const needs = required < plan.n ? `all ${formatCount(required)}` : formatCount(plan.n);
     findings.push({
       level: "warning",
@@ -261,7 +272,8 @@ function sizeResult({ row, config, level, lot, plan, findings, label }: SizeResu
     };
   }
   if (level !== null && plan === null) {
-    return { status: "not_done", summary: `No inspection level ${level} plan for a lot of ${formatCount(lot ?? 0)} gloves.` };
+    const gloves = formatCount(lot ?? 0);
+    return { status: "not_done", summary: `No inspection level ${level} plan for a lot of ${gloves} gloves.` };
   }
   if (findings.length > 0) return { status: "warn", summary: sentence(findings.map((finding) => finding.brief)) };
   if (shown.length === 0) return { status: "info", summary: "No columns are switched on." };
@@ -285,7 +297,8 @@ function summarise(
   const worst = worstStatus(sizes.map((size) => perSize[size].status));
   const names = sizes.map((size) => sizeLabel(context, size)).join(", ");
   if (worst === "info") {
-    return level === null ? `Sampling plan entered for size ${names}.` : `Samples meet inspection level ${level} for size ${names}.`;
+    if (level === null) return `Sampling plan entered for size ${names}.`;
+    return `Samples meet inspection level ${level} for size ${names}.`;
   }
   return sizes
     .filter((size) => perSize[size].status === worst)
@@ -293,7 +306,11 @@ function summarise(
     .join(" ");
 }
 
-function totalsOf(data: SamplingPlanData, config: SamplingPlanConfig, sizes: readonly string[]): Record<string, number | null> {
+function totalsOf(
+  data: SamplingPlanData,
+  config: SamplingPlanConfig,
+  sizes: readonly string[],
+): Record<string, number | null> {
   return Object.fromEntries(
     shownColumns(config).map((column) => {
       const values = sizes.flatMap((size) => {

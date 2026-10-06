@@ -67,7 +67,9 @@ export default function Capture({
     setRejected((current) => {
       const next = { ...current };
       delete next[id];
-      if (entry !== null) next[id] = { key: id, label: `${label(column)}, size ${sizeName(size)}`, entry, inputId: id, size };
+      if (entry !== null) {
+        next[id] = { key: id, label: `${label(column)}, size ${sizeName(size)}`, entry, inputId: id, size };
+      }
       return next;
     });
 
@@ -106,7 +108,11 @@ export default function Capture({
     const plan = computed?.sizes?.[size];
     const result = evaluation?.result.perSize?.[size];
     const facts: Fact[] = [
-      { key: "orderQty", label: label("orderQty"), value: <Figure value={context.order[size]?.qtyCases ?? null} grouping /> },
+      {
+        key: "orderQty",
+        label: label("orderQty"),
+        value: <Figure value={context.order[size]?.qtyCases ?? null} grouping />,
+      },
       {
         key: "lotSizeGloves",
         label: label("lotSizeGloves"),
