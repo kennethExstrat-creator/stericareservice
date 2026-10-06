@@ -1,0 +1,373 @@
+import { describe, expect, it } from "vitest";
+import type { TemplateCandidate } from "@/lib/templates/select";
+import { buildSeedBundle, SEED_TEMPLATES } from "@/lib/templates/definitions";
+import { TEST_CLIENT_ID, TEST_MANUFACTURER_ID, TEST_REGISTRY } from "@/modules/_framework/__fixtures__/test-registry";
+import { makeTestTemplate } from "@/modules/_framework/testing";
+import { MODULE_REGISTRY } from "@/modules/registry";
+import {
+  choiceReason,
+  chooseTemplate,
+  copyFromPrevious,
+  describeCreateError,
+  fieldErrorsOf,
+  latestPerProduct,
+  newInspectionData,
+  NewInspectionInputSchema,
+  NO_CLIENT,
+  previousFor,
+  previousMatches,
+  productKey,
+  readNewInspectionForm,
+  todayInMalaysia,
+  type PreviousInspectionRow,
+} from "./create";
+
+const CLIENT = "20000000-0000-4000-8000-000000000001";
+const OTHER_CLIENT = "20000000-0000-4000-8000-000000000002";
+const MANUFACTURER = "10000000-0000-4000-8000-000000000001";
+const OTHER_MANUFACTURER = "10000000-0000-4000-8000-000000000002";
+
+function form(values: Record<string, string>): FormData {
+  const data = new FormData();
+  for (const [key, value] of Object.entries(values)) data.set(key, value);
+  return data;
+}
+
+function parse(values: Record<string, string>) {
+  return NewInspectionInputSchema.safeParse(readNewInspectionForm(form(values)));
+}
+
+/** The seed templates as the real registry resolves them today. */
+const seeds = new Map(buildSeedBundle(SEED_TEMPLATES, MODULE_REGISTRY).templates.map((entry) => [entry.code, entry.resolved]));
+const STD_EG = seeds.get("STD_EG")!;
+const STD_SG = seeds.get("STD_SG")!;
+
+describe("the form", () => {
+  it("reads client, manufacturer, product type and product name", () => {
+    const parsed = parse({ clientId: CLIENT, manufacturerId: MANUFACTURER, productType: "examination", productName: "  Nitrile blue  " });
+    expect(parsed.success && parsed.data).toEqual({
+      clientId: CLIENT,
+      manufacturerId: MANUFACTURER,
+      productType: "examination",
+      productName: "Nitrile blue",
+      templateId: undefined,
+      previousId: undefined,
+    });
+  });
+
+  it("takes No client as no client, and an empty product name as none", () => {
+    const parsed = parse({ clientId: NO_CLIENT, manufacturerId: MANUFACTURER, productType: "surgical", productName: " " });
+    expect(parsed.success && [parsed.data.clientId, parsed.data.productName]).toEqual([null, null]);
+  });
+
+  it("asks for every choice it is missing, in words", () => {
+    const parsed = parse({});
+    expect(parsed.success).toBe(false);
+    expect(fieldErrorsOf(parsed.error!)).toEqual({
+      clientId: "Choose the client, or No client.",
+      manufacturerId: "Choose the manufacturer.",
+      productType: "Choose the product type.",
+    });
+  });
+
+  it("refuses what is not an id, a product type or a sensible name", () => {
+    const parsed = parse({
+      clientId: "Polyco",
+      manufacturerId: "1",
+      productType: "industrial",
+      productName: "x".repeat(301),
+      templateId: "STD_EG",
+      previousId: "INS-2026-0001",
+    });
+    expect(Object.keys(fieldErrorsOf(parsed.error!)).sort()).toEqual(
+      ["clientId", "manufacturerId", "previousId", "productName", "productType", "templateId"].sort(),
+    );
+  });
+
+  it("ignores files and fields it does not know", () => {
+    const data = form({ clientId: NO_CLIENT, manufacturerId: MANUFACTURER, productType: "examination", extra: "x" });
+    data.set("productName", new Blob(["x"]));
+    expect(readNewInspectionForm(data)).toEqual({
+      clientId: NO_CLIENT,
+      manufacturerId: MANUFACTURER,
+      productType: "examination",
+      productName: "",
+      templateId: "",
+      previousId: "",
+    });
+  });
+});
+
+describe("choosing the template (BUILD_SPEC 4.4)", () => {
+  const candidate = (id: string, code: string, extra: Partial<TemplateCandidate> = {}): TemplateCandidate => ({
+    id,
+    code,
+    version: 1,
+    status: "active",
+    productType: "examination",
+    standard: "EN455",
+    clientId: null,
+    manufacturerId: null,
+    ...extra,
+  });
+  const candidates = [
+    candidate("00000000-0000-4000-8000-000000000001", "STD_EG"),
+    candidate("00000000-0000-4000-8000-000000000002", "SAFEDON_EG", { clientId: CLIENT, standard: "ASTM_D6319" }),
+    candidate("00000000-0000-4000-8000-000000000003", "STD_SG", { productType: "surgical", standard: "custom" }),
+    candidate("00000000-0000-4000-8000-000000000004", "DRAFT_EG", { status: "draft", clientId: CLIENT }),
+    candidate("00000000-0000-4000-8000-000000000005", "OLD_EG", { status: "retired" }),
+  ];
+  const picks = { productType: "examination" as const, clientId: CLIENT, manufacturerId: MANUFACTURER, templateId: undefined };
+
+  it("takes the most specific active template", () => {
+    const choice = chooseTemplate(candidates, picks, "inspector");
+    expect(choice.ok && [choice.template.code, choice.specificity]).toEqual(["SAFEDON_EG", "client"]);
+    const standard = chooseTemplate(candidates, { ...picks, clientId: OTHER_CLIENT }, "inspector");
+    expect(standard.ok && [standard.template.code, standard.specificity]).toEqual(["STD_EG", "standard"]);
+  });
+
+  it("lets only an admin choose, from templates that are not retired and are for the same product", () => {
+    const draft = { ...picks, templateId: "00000000-0000-4000-8000-000000000004" };
+    expect(chooseTemplate(candidates, draft, "inspector")).toEqual({
+      ok: false,
+      field: "templateId",
+      message: "Only an admin can choose the template.",
+    });
+    const chosen = chooseTemplate(candidates, draft, "admin");
+    expect(chosen.ok && [chosen.template.code, chosen.specificity]).toEqual(["DRAFT_EG", "override"]);
+    expect(chooseTemplate(candidates, { ...picks, templateId: "00000000-0000-4000-8000-000000000005" }, "admin")).toMatchObject({
+      ok: false,
+      field: "templateId",
+      message: expect.stringMatching(/OLD_EG version 1 is retired/),
+    });
+    expect(chooseTemplate(candidates, { ...picks, templateId: "00000000-0000-4000-8000-000000000003" }, "admin")).toEqual({
+      ok: false,
+      field: "templateId",
+      message: "STD_SG is for surgical gloves. Choose one for examination gloves.",
+    });
+  });
+
+  it("says when no template applies", () => {
+    expect(chooseTemplate(candidates.slice(0, 2), { ...picks, productType: "surgical" }, "inspector")).toEqual({
+      ok: false,
+      message: "No active template for surgical gloves fits these choices. An admin needs to activate one.",
+    });
+  });
+
+  it("explains each choice in plain words", () => {
+    const names = { client: "Polyco Healthline", manufacturer: "Hartalega NGC" };
+    expect(choiceReason("client_manufacturer", names, "examination")).toBe("For Polyco Healthline at Hartalega NGC");
+    expect(choiceReason("client", names, "examination")).toBe("For Polyco Healthline");
+    expect(choiceReason("manufacturer", names, "examination")).toBe("For Hartalega NGC");
+    expect(choiceReason("standard", names, "surgical")).toBe("Standard template for surgical gloves");
+    expect(choiceReason("override", names, "examination")).toBe("Chosen by an admin");
+  });
+});
+
+describe("start from previous: which inspection", () => {
+  const row = (id: string, extra: Partial<PreviousInspectionRow> = {}): PreviousInspectionRow => ({
+    id,
+    ref_no: `INS-2026-${id}`,
+    inspection_date: "2026-10-01",
+    status: "submitted",
+    created_at: "2026-10-01T02:00:00Z",
+    client_id: CLIENT,
+    manufacturer_id: MANUFACTURER,
+    product_name: "Nitrile blue",
+    template: { code: "STD_EG", version: 1, product_type: "examination" },
+    ...extra,
+  });
+
+  it("keeps the latest inspection of each product, newest first", () => {
+    const products = latestPerProduct([
+      row("0001", { inspection_date: "2026-09-01" }),
+      row("0002", { inspection_date: "2026-10-02", product_name: "nitrile  BLUE " }),
+      row("0003", { inspection_date: "2026-10-02", created_at: "2026-10-02T01:00:00Z", product_name: "Nitrile white" }),
+      row("0004", { inspection_date: "2026-10-02", created_at: "2026-10-02T03:00:00Z", product_name: "Nitrile white" }),
+      row("0005", { client_id: null }),
+      row("0006", { template: { code: "STD_SG", version: 2, product_type: "surgical" } }),
+      row("0007", { manufacturer_id: null }),
+      row("0008", { template: null }),
+      row("0009", { product_name: "  ", inspection_date: "2026-08-01" }),
+    ]);
+    expect(products.map((product) => [product.refNo, product.productName])).toEqual([
+      ["INS-2026-0004", "Nitrile white"],
+      ["INS-2026-0002", "nitrile  BLUE"],
+      ["INS-2026-0005", "Nitrile blue"],
+      ["INS-2026-0006", "Nitrile blue"],
+      ["INS-2026-0009", null],
+    ]);
+    expect(productKey(" Nitrile   Blue ")).toBe("nitrile blue");
+  });
+
+  it("offers only the products of the same client, manufacturer and product type", () => {
+    const products = latestPerProduct([
+      row("0001"),
+      row("0002", { client_id: null }),
+      row("0003", { manufacturer_id: OTHER_MANUFACTURER }),
+      row("0004", { template: { code: "STD_SG", version: 1, product_type: "surgical" } }),
+    ]);
+    const refs = (clientId: string | null, manufacturerId: string | null, productType: "examination" | "surgical" | null) =>
+      previousFor(products, { clientId, manufacturerId, productType }).map((product) => product.refNo);
+    expect(refs(CLIENT, MANUFACTURER, "examination")).toEqual(["INS-2026-0001"]);
+    expect(refs(null, MANUFACTURER, "examination")).toEqual(["INS-2026-0002"]);
+    expect(refs(CLIENT, MANUFACTURER, "surgical")).toEqual(["INS-2026-0004"]);
+    expect(refs(CLIENT, null, "examination")).toEqual([]);
+    expect(refs(CLIENT, MANUFACTURER, null)).toEqual([]);
+    const previous = { clientId: CLIENT, manufacturerId: MANUFACTURER, productType: "examination" as const };
+    expect(previousMatches(previous, { clientId: CLIENT, manufacturerId: MANUFACTURER, productType: "examination" })).toBe(true);
+    expect(previousMatches(previous, { clientId: null, manufacturerId: MANUFACTURER, productType: "examination" })).toBe(false);
+  });
+});
+
+describe("start from previous: what is copied", () => {
+  const previous = {
+    modules: {
+      header: {
+        manufacturer: "Manufacturer A",
+        factoryAddress: "Factory address A",
+        poNo: "PO-0001",
+        productName: "Brand A nitrile, code GN-0001",
+        productCode: "GN-0001",
+        client: "Client A",
+        factoryGloveCode: "FGC-01",
+        inspectionDate: "2026-09-01",
+        mfgDate: "2026-08-01",
+        expiryDate: "2029-07-31",
+        comment: "Header checked against the PO.",
+      },
+      glove_info: { surfaceTexture: "Finger-textured", indicativeWeight: 3.5, colour: "Blue", length: "240 mm min", comment: "As printed." },
+      packing_config: { glovesPerInner: 100, innersPerCase: 10, glovesPerCase: 1000, packingMode: "10 boxes per carton" },
+      order_lots: { lots: [{ size: "M", qtyCases: 400, lotNumbers: ["LOT-M-0001"] }] },
+      sampling_plan: { sizes: { M: { cases: 20 } } },
+      conclusion: { finalResult: "pass", remark: "All good." },
+    },
+    custom: { glove_type: { gloveType: "Powder free" } },
+  };
+
+  it("copies the product's facts from the header, and glove information and packing whole", () => {
+    const { modules, copied } = copyFromPrevious(previous, STD_EG, MODULE_REGISTRY);
+    expect(copied).toEqual(["header", "glove_info", "packing_config"]);
+    expect(modules).toEqual({
+      header: {
+        factoryAddress: "Factory address A",
+        productName: "Brand A nitrile, code GN-0001",
+        productCode: "GN-0001",
+        factoryGloveCode: "FGC-01",
+      },
+      glove_info: { surfaceTexture: "Finger-textured", indicativeWeight: 3.5, colour: "Blue", length: "240 mm min" },
+      packing_config: { glovesPerInner: 100, innersPerCase: 10, glovesPerCase: 1000, packingMode: "10 boxes per carton" },
+    });
+  });
+
+  it("never copies the PO, dates, lots, other modules, results, comments or custom modules", () => {
+    const { data } = newInspectionData({
+      template: STD_EG,
+      registry: MODULE_REGISTRY,
+      inspectionDate: "2026-10-06",
+      productName: null,
+      previous,
+    });
+    const text = JSON.stringify(data);
+    for (const kept of ["PO-0001", "2026-09-01", "2026-08-01", "2029-07-31", "LOT-M-0001", "All good.", "Powder free"]) {
+      expect(text, kept).not.toContain(kept);
+    }
+    expect(text).not.toContain('"comment"');
+    expect(data.custom).toEqual({});
+  });
+
+  it("copies nothing into a module the new template switches off, or from a module with nothing in it", () => {
+    const withoutGloveInfo = { ...STD_SG };
+    expect(copyFromPrevious(previous, withoutGloveInfo, MODULE_REGISTRY).copied).toEqual(["header", "packing_config"]);
+    const empty = { modules: { glove_info: { colour: null, comment: "Nothing yet." }, header: { poNo: "PO-1" } }, custom: {} };
+    expect(copyFromPrevious(empty, STD_EG, MODULE_REGISTRY)).toEqual({ modules: {}, copied: [] });
+  });
+
+  it("keeps to each module's schema: a value it does not take is left out", () => {
+    // The test registry's header knows poNo, productName and client; its glove_info indicativeWeight and colour;
+    // its packing_config the three counts.
+    const template = makeTestTemplate(TEST_REGISTRY, ["header", "glove_info", "packing_config"]);
+    const { modules, copied } = copyFromPrevious(previous, template, TEST_REGISTRY);
+    expect(copied).toEqual(["header", "glove_info", "packing_config"]);
+    expect(modules).toEqual({
+      header: { poNo: null, productName: "Brand A nitrile, code GN-0001", client: null },
+      glove_info: { indicativeWeight: 3.5, colour: "Blue" },
+      packing_config: { glovesPerInner: 100, innersPerCase: 10, glovesPerCase: 1000 },
+    });
+  });
+
+  it("starts a module empty when none of its saved values fit any more", () => {
+    const template = makeTestTemplate(TEST_REGISTRY, ["header", "glove_info"]);
+    const stale = { modules: { glove_info: { indicativeWeight: "3.5 g", tint: "Blue" } }, custom: {} };
+    expect(copyFromPrevious(stale, template, TEST_REGISTRY)).toEqual({ modules: {}, copied: [] });
+  });
+});
+
+describe("the new inspection's data", () => {
+  it("holds each included module's empty data, in template order, the header dated today", () => {
+    const { data, copied } = newInspectionData({
+      template: STD_EG,
+      registry: MODULE_REGISTRY,
+      inspectionDate: "2026-10-06",
+      productName: "Nitrile blue",
+    });
+    expect(copied).toEqual([]);
+    expect(Object.keys(data.modules)).toEqual(STD_EG.modules.filter((entry) => entry.include).map((entry) => entry.key));
+    expect(data.modules.header).toEqual({ inspectionDate: "2026-10-06", productName: "Nitrile blue" });
+    expect(data.modules.glove_info).toEqual(MODULE_REGISTRY.glove_info.emptyData());
+    expect(data.custom).toEqual({});
+    // Plain JSON, as the database stores it.
+    expect(JSON.parse(JSON.stringify(data))).toEqual(data);
+  });
+
+  it("leaves out modules the template switches off", () => {
+    const safedon = seeds.get("SAFEDON_EG")!;
+    const { data } = newInspectionData({ template: safedon, registry: MODULE_REGISTRY, inspectionDate: "2026-10-06", productName: null });
+    expect(Object.keys(data.modules)).not.toContain("force_at_break");
+    expect(Object.keys(data.modules)).not.toContain("dispensing_packing");
+    expect(Object.keys(data.modules)).toContain("tensile");
+    expect(data.modules.header).toEqual({ inspectionDate: "2026-10-06" });
+  });
+
+  it("uses the product name typed on the form over the copied one", () => {
+    const previous = { modules: { header: { productName: "Old name", productCode: "GN-1" } }, custom: {} };
+    const { data, copied } = newInspectionData({
+      template: STD_EG,
+      registry: MODULE_REGISTRY,
+      inspectionDate: "2026-10-06",
+      productName: "New name",
+      previous,
+    });
+    expect(copied).toEqual(["header"]);
+    expect(data.modules.header).toEqual({ productName: "New name", productCode: "GN-1", inspectionDate: "2026-10-06" });
+  });
+
+  it("parses every module's data with that module's schema, whatever the registry", () => {
+    const template = makeTestTemplate(TEST_REGISTRY, ["header", "glove_info", "order_lots", "dimensions"], {
+      scope: { productType: "examination", standard: "EN455", clientId: TEST_CLIENT_ID, manufacturerId: TEST_MANUFACTURER_ID },
+    });
+    const { data } = newInspectionData({ template, registry: TEST_REGISTRY, inspectionDate: "2026-10-06", productName: "Nitrile" });
+    for (const [key, value] of Object.entries(data.modules)) {
+      expect(TEST_REGISTRY[key as keyof typeof TEST_REGISTRY].dataSchema.safeParse(value).success, key).toBe(true);
+    }
+    // This header has no inspection date: it is left to the row.
+    expect(data.modules.header).toEqual({ poNo: null, productName: "Nitrile", client: null });
+  });
+});
+
+describe("dates and errors", () => {
+  it("dates an inspection by the calendar in Malaysia", () => {
+    expect(todayInMalaysia(new Date("2026-10-05T15:59:59Z"))).toBe("2026-10-05");
+    expect(todayInMalaysia(new Date("2026-10-05T16:00:00Z"))).toBe("2026-10-06");
+    expect(todayInMalaysia(new Date("2026-12-31T20:00:00Z"))).toBe("2027-01-01");
+  });
+
+  it("puts database refusals in words", () => {
+    expect(describeCreateError({ code: "23514", message: "inspections start from an active template" })).toBe(
+      "That template is no longer active. Reload the page to see the current one.",
+    );
+    expect(describeCreateError({ code: "23503", message: "fk" })).toMatch(/has gone/);
+    expect(describeCreateError({ code: "42501", message: "rls" })).toMatch(/not allowed/);
+    expect(describeCreateError({ code: "XX000", message: "boom" })).toBe("The inspection could not be created. Try again.");
+  });
+});
