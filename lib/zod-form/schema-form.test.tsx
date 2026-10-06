@@ -97,10 +97,22 @@ describe("SchemaForm", () => {
     const label = fieldId("form", ["locations", 0, "label"]);
     const input = tagWithId(html, label);
     expect(input).toContain('aria-invalid="true"');
-    expect(input).toContain(`aria-describedby="${label}-description ${label}-errors"`);
+    // A compact row: the column header carries the description, the field its message.
+    expect(input).toContain(`aria-describedby="${label}-errors"`);
     expect(html).toContain(`<div id="${label}-errors" class="grid gap-1"><p class="text-sm text-destructive">Enter a value.</p></div>`);
     expect(html).toContain("Lower case letters, digits and _.");
     expect(html).toContain("Choose one of the options.");
+  });
+
+  it("draws a list of small objects as compact rows under one header", () => {
+    const html = render(DispensingLikeSchema, DISPENSING);
+    // One header names each column once, with its description.
+    expect(html.match(/data-slot="row-header"/g)).toHaveLength(1);
+    // Each row is a group named by its item; its labels give way to the header from 640 px.
+    expect(html).toContain('<legend class="sr-only">Stickiness code 2</legend>');
+    expect(html).toMatch(/<label[^>]*class="[^"]*sm:sr-only[^"]*"[^>]*for="form-stickinessCodes-1-code"/);
+    expect(tagWithId(html, "form-stickinessCodes-1-pass")).toContain('role="switch"');
+    expect(html).toContain('aria-label="Remove Stickiness code 2"');
   });
 
   it("offers a tagged union's variants by name, and keeps the values of the one chosen", () => {

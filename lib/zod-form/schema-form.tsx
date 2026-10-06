@@ -6,7 +6,7 @@
 // (a template's sizes), tagged unions switched by their tag. Messages come
 // from the zod schema by path (issues.ts). Every change hands the whole new
 // value to onChange.
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, type CSSProperties, type ReactNode } from "react";
 import { ArrowDownIcon, ArrowUpIcon, PlusIcon, RotateCcwIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -19,6 +19,7 @@ import type {
   ArrayNode,
   EnumNode,
   FormNode,
+  FormProperty,
   FormScalar,
   NullableNode,
   ObjectNode,
@@ -155,7 +156,8 @@ type FieldProps = NodeProps & {
   required: boolean;
   /** Shown next to the label: Remove, for an optional setting. */
   onRemove?: () => void;
-  hideLabel?: boolean;
+  /** Label for screen readers only; "sm" from 640 px, where a compact row's header names the column. */
+  hideLabel?: boolean | "sm";
 };
 
 function labelText(node: FormNode, key: string | number | undefined, path: FormPath, hooks: SchemaFormHooks): string {
@@ -189,10 +191,11 @@ function FieldHeader({
   overridable: boolean;
   onRemove?: () => void;
   as?: "label" | "legend" | "span";
-  hidden?: boolean;
+  hidden?: boolean | "sm";
 }) {
   const { hooks, readOnly } = useForm();
   const overridden = overridable && (hooks.isOverridden?.(path) ?? false);
+  const hide = hidden === true ? "sr-only" : hidden === "sm" ? "sm:sr-only" : undefined;
   const name = (
     <>
       {label}
@@ -201,13 +204,13 @@ function FieldHeader({
   );
   const title =
     as === "label" ? (
-      <Label htmlFor={htmlFor} className={cn("leading-snug", hidden && "sr-only")}>
+      <Label htmlFor={htmlFor} className={cn("leading-snug", hide)}>
         {name}
       </Label>
     ) : as === "legend" ? (
-      <legend className={cn("text-sm font-semibold text-foreground", hidden && "sr-only")}>{name}</legend>
+      <legend className={cn("text-sm font-semibold text-foreground", hide)}>{name}</legend>
     ) : (
-      <span className={cn("text-sm font-medium", hidden && "sr-only")}>{name}</span>
+      <span className={cn("text-sm font-medium", hide)}>{name}</span>
     );
   if (!overridden && !onRemove) return title;
   return (
@@ -421,7 +424,7 @@ function withCurrent(options: SelectOption[], value: unknown): SelectOption[] {
   return [...options, { value, label: value }];
 }
 
-function BooleanField({ node, value, onChange, path, label, onRemove, unit }: FieldProps) {
+function BooleanField({ node, value, onChange, path, label, onRemove, hideLabel, unit }: FieldProps) {
   const { idPrefix, issues, readOnly } = useForm();
   const quiet = useContext(QuietContext);
   const id = fieldId(idPrefix, path);
@@ -429,7 +432,7 @@ function BooleanField({ node, value, onChange, path, label, onRemove, unit }: Fi
   const errors = issuesAt(issues, path);
   return (
     <div className="grid gap-1.5" data-slot="form-field" data-kind="boolean">
-      <div className="flex items-start gap-3">
+      <div className={cn("flex gap-3", hideLabel ? "min-h-9 items-center touch:min-h-11" : "items-start")}>
         <Switch
           id={id}
           checked={value === true}
@@ -440,7 +443,7 @@ function BooleanField({ node, value, onChange, path, label, onRemove, unit }: Fi
           className="mt-0.5 touch:mt-0"
         />
         <div className="grid min-w-0 flex-1 gap-1">
-          <FieldHeader label={label} htmlFor={id} path={path} overridable={!unit} onRemove={onRemove} />
+          <FieldHeader label={label} htmlFor={id} path={path} overridable={!unit} onRemove={onRemove} hidden={hideLabel} />
           <Description id={descriptionId} text={node.description} />
         </div>
       </div>
@@ -765,6 +768,27 @@ function ArrayGroup({ node, value, onChange, path, label, onRemove, unit }: Fiel
   const itemLabel = humanize(singularLabel(label));
   const flat = items.kind !== "object" && items.kind !== "union" && items.kind !== "array" && items.kind !== "record";
   const canAdd = !readOnly && (node.maxItems === undefined || list.length < node.maxItems);
+  const addButton = canAdd && (
+    <div>
+      <Button type="button" variant="outline" size="sm" onClick={() => onChange([...list, emptyValue(items)])}>
+        <PlusIcon aria-hidden />
+        Add {itemLabel.toLowerCase()}
+      </Button>
+    </div>
+  );
+
+  if (items.kind === "object" && isCompactRow(items)) {
+    return (
+      <fieldset className="grid min-w-0 gap-3 rounded-lg border border-border p-4" data-slot="form-group" data-kind="rows">
+        <FieldHeader label={label} as="legend" path={path} overridable={!unit} onRemove={onRemove} />
+        <Description id={`${id}-description`} text={node.description} />
+        <FieldErrors path={path} />
+        {list.length === 0 && <p className="text-sm text-muted-foreground">None yet.</p>}
+        <CompactRows items={items} list={list} onChange={onChange} path={path} itemLabel={itemLabel} />
+        {addButton}
+      </fieldset>
+    );
+  }
 
   return (
     <fieldset className="grid min-w-0 gap-3 rounded-lg border border-border p-4" data-slot="form-group" data-kind="array">
@@ -843,15 +867,132 @@ function ArrayGroup({ node, value, onChange, path, label, onRemove, unit }: Fiel
           );
         })}
       </ol>
-      {canAdd && (
-        <div>
-          <Button type="button" variant="outline" size="sm" onClick={() => onChange([...list, emptyValue(items)])}>
-            <PlusIcon aria-hidden />
-            Add {itemLabel.toLowerCase()}
-          </Button>
-        </div>
-      )}
+      {addButton}
     </fieldset>
+  );
+}
+
+/**
+ * Small objects whose settings are all plain and always there (a size and its
+ * label; a code, its wording and whether it passes): one compact row each.
+ */
+function isCompactRow(node: ObjectNode): boolean {
+  return isFlat(node) && node.properties.every((property) => property.required || inlineOptional(property.node));
+}
+
+/** How much of a compact row a setting takes: codes and numbers little, wording more, a switch least. */
+function columnWidth(property: FormProperty): string {
+  const node = property.node.kind === "nullable" ? property.node.inner : property.node;
+  switch (node.kind) {
+    case "boolean":
+      return "minmax(0,0.6fr)";
+    case "string":
+      return /(code|key|value)$/i.test(property.key) || node.pattern !== undefined || (node.maxLength ?? Infinity) <= 40
+        ? "minmax(0,1fr)"
+        : "minmax(0,2fr)";
+    case "enum":
+      return "minmax(0,1.2fr)";
+    default:
+      return "minmax(0,1fr)";
+  }
+}
+
+/** Width of a row's move and remove buttons, kept free in the header so the columns line up. */
+const ROW_ACTIONS = "w-[6.5rem] touch:w-[8.75rem]";
+
+/**
+ * A list of small objects as rows under one header (DESIGN.md: compact rows):
+ * the header names each column once, with its description and range; each row
+ * is a group named by its item ("Stickiness code 2"), its fields labelled for
+ * screen readers, and its move and remove buttons at the end.
+ */
+function CompactRows({
+  items,
+  list,
+  onChange,
+  path,
+  itemLabel,
+}: {
+  items: ObjectNode;
+  list: readonly unknown[];
+  onChange: (next: unknown) => void;
+  path: FormPath;
+  itemLabel: string;
+}) {
+  const { readOnly, hooks, issues } = useForm();
+  const columns = items.properties.map((property) => {
+    const inner = property.node.kind === "nullable" ? property.node.inner : property.node;
+    return {
+      key: property.key,
+      label: labelText(property.node, property.key, [...path, 0, property.key], hooks),
+      note: [property.node.description, inner.kind === "number" ? numberRange(inner) : undefined].filter(Boolean).join(" "),
+    };
+  });
+  const template = { "--row-columns": items.properties.map(columnWidth).join(" ") } as CSSProperties;
+  if (list.length === 0) return null;
+
+  return (
+    <div className="grid gap-2" style={template}>
+      <div className="hidden items-end gap-2 px-2 sm:flex" data-slot="row-header">
+        <div className="grid min-w-0 flex-1 grid-cols-(--row-columns) gap-x-3">
+          {columns.map((column) => (
+            <div key={column.key} className="grid content-end gap-0.5">
+              <span className="text-sm font-medium text-foreground">{column.label}</span>
+              {column.note && <span className="text-sm text-muted-foreground">{column.note}</span>}
+            </div>
+          ))}
+        </div>
+        {!readOnly && <span aria-hidden className={cn("shrink-0", ROW_ACTIONS)} />}
+      </div>
+      <ol className="grid gap-2">
+        {list.map((item, index) => {
+          const itemPath = [...path, index];
+          const name = `${itemLabel} ${index + 1}`;
+          const object = isPlainObject(item) ? item : {};
+          const setItem = (next: unknown) => onChange(list.map((entry, position) => (position === index ? next : entry)));
+          return (
+            <li key={index} data-item={index}>
+              <fieldset className="flex min-w-0 items-start gap-2 rounded-md bg-slate-50 px-2 py-1.5 ring-1 ring-border">
+                <legend className="sr-only">{name}</legend>
+                <div className="grid min-w-0 flex-1 gap-x-3 gap-y-2 sm:grid-cols-(--row-columns)">
+                  <QuietContext.Provider value>
+                    {items.properties.map((property, column) => (
+                      <NodeField
+                        key={property.key}
+                        node={property.node}
+                        value={object[property.key]}
+                        onChange={(next) => setItem(setAt(object, [property.key], next))}
+                        path={[...itemPath, property.key]}
+                        label={columns[column].label}
+                        required={property.required}
+                        hideLabel="sm"
+                        unit
+                      />
+                    ))}
+                  </QuietContext.Provider>
+                  {issuesAt(issues, itemPath).length > 0 && (
+                    <div className="sm:col-span-full">
+                      <FieldErrors path={itemPath} />
+                    </div>
+                  )}
+                </div>
+                {!readOnly && (
+                  <span className={cn("flex min-h-9 shrink-0 items-center justify-end touch:min-h-11", ROW_ACTIONS)}>
+                    <ItemActions
+                      name={name}
+                      first={index === 0}
+                      last={index === list.length - 1}
+                      onMove={(to) => onChange(moveItem(list, index, to === "up" ? index - 1 : index + 1))}
+                      onRemove={() => onChange(list.filter((_, position) => position !== index))}
+                    />
+                  </span>
+                )}
+              </fieldset>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }
 
@@ -1050,7 +1191,7 @@ function UnionField({ node, value, onChange, path, label, onRemove, hideLabel, u
 }
 
 function NullableField(props: FieldProps & { node: NullableNode }) {
-  const { node, value, onChange, path, label, onRemove, unit } = props;
+  const { node, value, onChange, path, label, onRemove, hideLabel, unit } = props;
   const { idPrefix, issues, readOnly, hooks } = useForm();
   const quiet = useContext(QuietContext);
   const inner = node.inner;
@@ -1114,7 +1255,7 @@ function NullableField(props: FieldProps & { node: NullableNode }) {
     }
     return (
       <div className="grid gap-1.5" data-slot="form-field" data-kind={`nullable-${inner.kind}`}>
-        <FieldHeader label={label} htmlFor={id} path={path} overridable={!unit} onRemove={onRemove} />
+        <FieldHeader label={label} htmlFor={id} path={path} overridable={!unit} onRemove={onRemove} hidden={hideLabel} />
         {control}
         {range && (
           <p id={rangeId} className="text-sm text-muted-foreground">

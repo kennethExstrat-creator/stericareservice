@@ -47,9 +47,15 @@ function isDesktop() {
 async function shot(page: Page, name: string) {
   const path = (part = "") => `screenshots/editor/${test.info().project.name}-${name}${part}.png`;
   const options = { animations: "disabled", caret: "initial" } as const;
+  // The dev-only Next.js indicator is not part of the page.
+  await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
   if (!isTouch()) {
-    // From the top: sticky bars are drawn where the page is scrolled to.
-    await page.evaluate(() => window.scrollTo(0, 0));
+    // From the top, settled: sticky bars are drawn where the page is scrolled to.
+    await page.evaluate(async () => {
+      window.scrollTo(0, 0);
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      window.scrollTo(0, 0);
+    });
     await page.screenshot({ ...options, path: path(), fullPage: true });
     return;
   }
@@ -287,9 +293,15 @@ test("the admin edits a draft: switches, order, wording, settings, a custom fiel
   await expect(page.getByTestId("problems")).toBeHidden();
   await shot(page, "5-custom-module");
 
-  // Details and JSON.
+  // Details: name, sizes, report, where it applies, and the fixed code.
   await press(page.getByRole("tab", { name: "Details" }));
-  await expect(page.getByTestId("template-details").locator("#details-name")).toHaveValue(TEMPLATE_NAME);
+  const detailsTab = page.getByTestId("template-details");
+  await expect(detailsTab.locator("#details-name")).toHaveValue(TEMPLATE_NAME);
+  await expect(detailsTab.locator("#details-scope-productType")).toContainText("Examination gloves");
+  await expect(detailsTab.locator("#details-scope-standard")).toContainText("EN 455");
+  await expect(detailsTab.locator("#details-scope-clientId")).toContainText("Any client");
+  await expect(detailsTab.locator("#details-code")).toHaveValue(draft.code);
+  await expect(detailsTab.locator("#details-extends")).toHaveValue("None");
   await shot(page, "6-details");
   await press(page.getByRole("tab", { name: "JSON" }));
   const json = page.locator("#template-json");
@@ -315,6 +327,14 @@ test("the admin edits a draft: switches, order, wording, settings, a custom fiel
   expect(sections.slice(-2)).toEqual(["glove_type", "conclusion"]);
   await expectNoPageScroll(page);
   await shot(page, "8-preview");
+
+  // Leaving with unsaved changes asks first.
+  await press(page.getByRole("link", { name: "All templates" }));
+  const leave = page.getByRole("alertdialog", { name: "Leave without saving?" });
+  await expect(leave).toBeVisible();
+  await press(leave.getByRole("button", { name: "Keep editing" }));
+  await expect(leave).toBeHidden();
+  await expect(page).toHaveURL(new RegExp(`/admin/templates/${draft.id}/edit$`));
 
   // Save, and what it stored.
   await expect(saveState).toHaveText("Unsaved changes");
