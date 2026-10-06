@@ -122,7 +122,7 @@ function InspectionCard({
   const mappable = canMap(inspection.status);
   const waiting = WAITING[inspection.status];
   const facts = [
-    inspection.template ? templateVersionLabel(inspection.template) : "Template unknown",
+    templateVersionLabel(inspection.template),
     formatInspectionDate(inspection.inspectionDate),
     inspection.inspector,
   ].filter(Boolean);

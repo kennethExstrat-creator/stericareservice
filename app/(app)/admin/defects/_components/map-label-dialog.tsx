@@ -96,7 +96,7 @@ function Note({ children }: { children: string }) {
  * inspection, but inspectors can only tap it once the template lists it.
  */
 function offListNote(inspection: InspectionLabels, label: OneOffLabel, choice: CodeOption | null): string | null {
-  if (!inspection.template || label.listed.length === 0 || (choice && label.listed.includes(choice.code))) return null;
+  if (label.listed.length === 0 || (choice && label.listed.includes(choice.code))) return null;
   const list =
     label.defectClass === null ? "hole locations" : `${CLASS_LABEL[label.defectClass].toLowerCase()} defects`;
   const subject = choice ? `${choice.name} (${choice.code}) is not` : "A new code is not";

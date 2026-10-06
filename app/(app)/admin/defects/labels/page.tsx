@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { buildLabelMaps, defectsCounts, loadDefectsData } from "@/lib/admin/defects";
 import { requireAdmin } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
+import { MODULE_REGISTRY } from "@/modules/registry";
 import { DefectsHeader } from "../_components/defects-header";
 import { LabelMapView } from "../_components/label-map-view";
 
@@ -20,7 +21,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function LabelMappingPage({ searchParams }: PageProps<"/admin/defects/labels">) {
   await requireAdmin();
   const supabase = await createClient();
-  const [data, params] = await Promise.all([loadDefectsData(supabase), searchParams]);
+  const [data, params] = await Promise.all([loadDefectsData(supabase, MODULE_REGISTRY), searchParams]);
   const maps = buildLabelMaps(data.templates, data.codes);
 
   return (

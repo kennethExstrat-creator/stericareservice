@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { addPrefill, buildCodeItems, defectsCounts, loadDefectsData } from "@/lib/admin/defects";
 import { requireAdmin } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
+import { MODULE_REGISTRY } from "@/modules/registry";
 import { DefectCodesAdmin } from "./_components/codes-admin";
 
 /**
@@ -27,7 +28,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function DefectCodesPage({ searchParams }: PageProps<"/admin/defects">) {
   await requireAdmin();
   const supabase = await createClient();
-  const [data, params] = await Promise.all([loadDefectsData(supabase), searchParams]);
+  const [data, params] = await Promise.all([loadDefectsData(supabase, MODULE_REGISTRY), searchParams]);
   const query = typeof params.q === "string" ? params.q : "";
 
   return (

@@ -21,10 +21,12 @@ import {
   fieldErrors,
   guarded,
   inspectionCountingCode,
+  labelScope,
   loadTemplates,
   mapOneOffLabel,
   readDefectCode,
   readForm,
+  readResolvedTemplate,
   succeeded,
   templatesMentioning,
   warned,
@@ -32,6 +34,7 @@ import {
   type CodeSnapshot,
   type DatabaseClient,
   type DefectCodeField,
+  type LabelScope,
   type LabelTarget,
   type MapField,
   type MappingChange,
@@ -40,6 +43,7 @@ import { authorizeAction } from "@/lib/auth/session";
 import type { InspectionStatus } from "@/lib/schemas/common";
 import type { Json } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
+import { MODULE_REGISTRY } from "@/modules/registry";
 
 /*
  * Actions for /admin/defects (BUILD_SPEC 4.2 rule 4 and 10). Server Actions
@@ -215,17 +219,41 @@ export async function deleteDefectCode(_previous: ActionResult, formData: FormDa
  * Mapping a one-off label
  * ------------------------------------------------------------------ */
 
-type InspectionRow = { id: string; ref_no: string; status: InspectionStatus; updated_at: string; data: unknown };
+type InspectionRow = {
+  id: string;
+  ref_no: string;
+  status: InspectionStatus;
+  updated_at: string;
+  data: unknown;
+  module_overrides: unknown;
+  /** The template version it was started with, as resolved. */
+  template: { resolved: unknown } | null;
+};
 
 async function readInspection(supabase: DatabaseClient, id: string): Promise<InspectionRow | null> {
   const { data, error } = await supabase
     .from("inspections")
-    .select("id, ref_no, status, updated_at, data")
+    .select(
+      "id, ref_no, status, updated_at, data, module_overrides, template:templates!inspections_template_id_fkey(resolved)",
+    )
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(`Could not read inspection ${id}: ${error.message}`);
   return data;
 }
+
+/**
+ * Where the inspection counts one-off labels, as its calc does (labelScope):
+ * only there is a label listed, so only there is it mapped. Null when its
+ * template version cannot be read.
+ */
+function scopeOf(row: InspectionRow): LabelScope | null {
+  const template = readResolvedTemplate(row.template?.resolved);
+  return template && labelScope(template, { moduleOverrides: row.module_overrides, data: row.data }, MODULE_REGISTRY);
+}
+
+const unreadableTemplate = (refNo: string) =>
+  `The template version ${refNo} uses could not be read, so its labels cannot be mapped. Ask a developer to check the template.`;
 
 /** Why an inspection's labels cannot be mapped now. */
 function notMappable(row: Pick<InspectionRow, "ref_no" | "status">): string {
@@ -249,7 +277,9 @@ async function saveMapping(supabase: DatabaseClient, id: string, target: LabelTa
     const row = await readInspection(supabase, id);
     if (!row) return { ok: false, message: GONE };
     if (!canMap(row.status)) return { ok: false, message: notMappable(row) };
-    const outcome = mapOneOffLabel(row.data, target, code);
+    const scope = scopeOf(row);
+    if (!scope) return { ok: false, message: unreadableTemplate(row.ref_no) };
+    const outcome = mapOneOffLabel(row.data, target, code, scope);
     if (!outcome.ok) return { ok: false, message: describeMappingProblem(outcome.problem, row.ref_no) };
 
     const { data, error } = await supabase
@@ -314,8 +344,10 @@ export async function mapDefectLabel(_previous: MapLabelResult, formData: FormDa
       refresh();
       return failed(notMappable(inspection));
     }
+    const scope = scopeOf(inspection);
+    if (!scope) return failed(unreadableTemplate(inspection.ref_no));
     const wanted = choice.data.mode === "existing" ? choice.data.code : choice.data.newCode;
-    const check = mapOneOffLabel(inspection.data, target, wanted);
+    const check = mapOneOffLabel(inspection.data, target, wanted, scope);
     if (!check.ok) {
       refresh();
       return failed(describeMappingProblem(check.problem, inspection.ref_no));

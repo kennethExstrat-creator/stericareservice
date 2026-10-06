@@ -18,11 +18,32 @@ vi.mock("./actions", () => ({
   mapDefectLabel: vi.fn(),
 }));
 
+import { z } from "zod";
 import { buildInspectionLabels, loadDefectsData, templateLabels } from "@/lib/admin/defects";
 import { requireAdmin } from "@/lib/auth/session";
+import type { ModuleRegistry } from "@/modules/_framework/contract";
+import { MODULE_REGISTRY } from "@/modules/registry";
 import LabelMappingPage, { generateMetadata as labelsMetadata } from "./labels/page";
 import DefectCodesPage, { generateMetadata as codesMetadata } from "./page";
 import UnmappedLabelsPage, { generateMetadata as unmappedMetadata } from "./unmapped/page";
+
+/** The registry with a stand-in order module that orders each size with a quantity, as order_lots does. */
+const registry: ModuleRegistry = {
+  ...MODULE_REGISTRY,
+  order_lots: {
+    ...MODULE_REGISTRY.order_lots,
+    dataSchema: z.unknown(),
+    configSchema: z.unknown(),
+    contribute: ({ data }) => ({
+      sizes: Object.entries((data as { sizes?: Record<string, { qtyCases?: number }> } | undefined)?.sizes ?? {})
+        .filter(([, line]) => (line.qtyCases ?? 0) > 0)
+        .map(([size]) => size),
+    }),
+  },
+};
+
+/** Sizes M and L ordered. */
+const ORDER = { sizes: { M: { qtyCases: 10, lotNumbers: [], packingSite: null }, L: { qtyCases: 5, lotNumbers: [], packingSite: null } } };
 
 const ADMIN = { id: "7c2d4e1a-0b3f-4a5c-9d8e-1f2a3b4c5d6e", email: "admin@test.local", fullName: "Test Admin", role: "admin" as const };
 const props = (searchParams: Record<string, string> = {}) =>
@@ -36,13 +57,32 @@ const code = (value: string, name: string, active = true) => ({
   updated_at: "2026-10-06T01:02:03.123456+00:00",
 });
 
+/** As `templates.resolved` holds a version. */
 const resolved = {
+  format: 2,
+  code: "STD_EG",
+  name: "Standard examination gloves",
+  chain: ["STD_EG"],
+  bases: [],
+  scope: { productType: "examination", standard: "EN455" },
+  unit: "pcs",
+  sizes: [
+    { value: "M", label: "M" },
+    { value: "L", label: "L" },
+  ],
+  customModules: [],
+  report: { title: "Report", showClientLogo: false },
+  sourceFile: null,
   modules: [
+    { key: "header", include: true, title: "Header", labels: {}, config: {} },
+    { key: "order_lots", include: true, title: "Order", labels: {}, config: {} },
     {
       key: "visual",
       include: true,
+      title: "Visual Inspection",
       labels: {},
       config: {
+        handSplit: false,
         classes: {
           critical: { include: true, aql: 0, defects: [{ code: "embedded_insect", label: "Embedded Insects" }] },
           // Left to the client, as the visual module's default config does.
@@ -58,6 +98,7 @@ const resolved = {
         },
       },
     },
+    { key: "conclusion", include: true, title: "Conclusion", labels: {}, config: {} },
   ],
 };
 
@@ -79,7 +120,9 @@ const row = (id: string, status: InspectionQueryRow["status"]): InspectionQueryR
   status,
   inspection_date: "2026-10-06",
   template_id: "template-1",
+  module_overrides: {},
   inspector: { full_name: "Ivy Inspector", email: "inspector@test.local" },
+  order_lots: ORDER,
   visual: { sizes: { M: { major: { counts: {}, unmapped: [{ label: "Pinhole near thumb", count: 2 }] } } } },
   watertight: null,
 });
@@ -89,7 +132,7 @@ function data(overrides: Partial<DefectsData> = {}): DefectsData {
   const templates = [template()];
   const inspections = buildInspectionLabels(
     [row("00000000-0000-4000-8000-000000000001", "submitted"), row("00000000-0000-4000-8000-000000000002", "draft")],
-    { codes, templates },
+    { codes, templates, registry },
   );
   return { codes, templates, inspections, ...overrides };
 }
@@ -231,7 +274,7 @@ describe("/admin/defects/unmapped", () => {
     };
     const codes = [code("stain", "Stain")];
     vi.mocked(loadDefectsData).mockResolvedValue(
-      data({ codes, inspections: buildInspectionLabels([twoSizes], { codes, templates: [template()] }) }),
+      data({ codes, inspections: buildInspectionLabels([twoSizes], { codes, templates: [template()], registry }) }),
     );
     const html = await render(UnmappedLabelsPage());
     const text = html.replace(/<!-- -->/g, "").replace(/<[^>]+>/g, "|");

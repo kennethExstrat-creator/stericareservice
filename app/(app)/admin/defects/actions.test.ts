@@ -3,6 +3,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("next/cache", () => ({ refresh: vi.fn() }));
 vi.mock("@/lib/auth/session", () => ({ authorizeAction: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
+// A stand-in order module that orders each size with a quantity, as order_lots does (its own tests
+// cover that rule): the mapping follows the ordered sizes, whatever the order module's schemas.
+vi.mock("@/modules/registry", async (importOriginal) => {
+  const { z } = await import("zod");
+  const actual = await importOriginal<typeof import("@/modules/registry")>();
+  const orderLots = {
+    ...actual.MODULE_REGISTRY.order_lots,
+    dataSchema: z.unknown(),
+    configSchema: z.unknown(),
+    contribute: ({ data }: { data: unknown }) => ({
+      sizes: Object.entries((data as { sizes?: Record<string, { qtyCases?: number }> } | undefined)?.sizes ?? {})
+        .filter(([, line]) => (line.qtyCases ?? 0) > 0)
+        .map(([size]) => size),
+    }),
+  };
+  return { ...actual, MODULE_REGISTRY: { ...actual.MODULE_REGISTRY, order_lots: orderLots } };
+});
 
 import { refresh } from "next/cache";
 import { MESSAGES, type ActionResult } from "@/lib/admin/defects";
@@ -348,8 +365,49 @@ describe("deleteDefectCode", () => {
 
 describe("mapDefectLabel", () => {
   const target = { module: "visual", kind: "unmapped", defectClass: "major", label: "Torn cuff" };
+  /** The template version the inspection was started with, as `templates.resolved` holds it. */
+  const RESOLVED = {
+    format: 2,
+    code: "STD_EG",
+    name: "Standard examination gloves",
+    chain: ["STD_EG"],
+    bases: [],
+    scope: { productType: "examination", standard: "EN455" },
+    unit: "pcs",
+    sizes: ["S", "M", "L"].map((value) => ({ value, label: value })),
+    modules: [
+      { key: "header", include: true, title: "Header", labels: {}, config: {} },
+      { key: "order_lots", include: true, title: "Order", labels: {}, config: {} },
+      {
+        key: "visual",
+        include: true,
+        title: "Visual Inspection",
+        labels: {},
+        config: {
+          handSplit: false,
+          classes: {
+            critical: { include: true, aql: 0, defects: [] },
+            major: { include: true, aql: 2.5, defects: [{ code: "stain", label: "Oil stain" }] },
+            minor: { include: true, aql: 4, defects: [] },
+          },
+        },
+      },
+      { key: "conclusion", include: true, title: "Conclusion", labels: {}, config: {} },
+    ],
+    customModules: [],
+    report: { title: "Report", showClientLogo: false },
+    sourceFile: null,
+  };
+  /** M and L ordered; S not. */
+  const ORDER = {
+    sizes: {
+      M: { qtyCases: 10, lotNumbers: ["LOT-M"], packingSite: null },
+      L: { qtyCases: 5, lotNumbers: ["LOT-L"], packingSite: null },
+    },
+  };
   const data = () => ({
     modules: {
+      order_lots: ORDER,
       visual: { sizes: { M: { major: { counts: { stain: 1 }, unmapped: [{ label: "Torn cuff", count: 2 }] } } } },
     },
     custom: {},
@@ -360,6 +418,8 @@ describe("mapDefectLabel", () => {
     status: "submitted",
     updated_at: VERSION,
     data: data(),
+    module_overrides: {},
+    template: { resolved: RESOLVED },
     ...extra,
   });
 
@@ -407,10 +467,14 @@ describe("mapDefectLabel", () => {
     const [update] = updates();
     expect(arg(update, "update")).toEqual({
       data: {
-        modules: { visual: { sizes: { M: { major: { counts: { stain: 3 }, unmapped: [] } } } } },
+        modules: { order_lots: ORDER, visual: { sizes: { M: { major: { counts: { stain: 3 }, unmapped: [] } } } } },
         custom: {},
       },
     });
+    // With the template version it was started with, to tell what it counts.
+    const read = fake.queries.find((query) => query.table === "inspections" && isRead(query));
+    expect(String(arg(read, "select"))).toContain("template:templates!inspections_template_id_fkey(resolved)");
+    expect(String(arg(read, "select"))).toContain("module_overrides");
     // Only over the version it read, and only while it is still submitted.
     expect(eqs(update)).toEqual({ id: INSPECTION, updated_at: VERSION, status: "submitted" });
     expect(fake.client.rpc).toHaveBeenCalledWith("log_inspection_event", {
@@ -430,29 +494,34 @@ describe("mapDefectLabel", () => {
     expect(refresh).toHaveBeenCalled();
   });
 
-  it("maps the label in every size it was counted in, at once", async () => {
-    const twoSizes = {
+  it("maps the label in every size the inspection counts, at once, and never in a size not in the order", async () => {
+    const sizes = {
       modules: {
+        order_lots: ORDER,
         visual: {
           sizes: {
             M: { major: { counts: { stain: 1 }, unmapped: [{ label: "Torn cuff", count: 2 }] } },
             L: { major: { counts: {}, unmapped: [{ label: "torn cuff", count: 1 }] } },
+            // Not ordered: saved, but counted nowhere (BUILD_SPEC 6.2 rule 4).
+            S: { major: { counts: {}, unmapped: [{ label: "Torn cuff", count: 4 }] } },
           },
         },
       },
       custom: {},
     };
-    useClient(respond({ rows: [inspection({ data: twoSizes })] }));
+    useClient(respond({ rows: [inspection({ data: sizes })] }));
 
     expect(await map()).toMatchObject({ status: "success" });
     expect(updates()).toHaveLength(1);
     expect(arg(updates()[0], "update")).toEqual({
       data: {
         modules: {
+          order_lots: ORDER,
           visual: {
             sizes: {
               M: { major: { counts: { stain: 3 }, unmapped: [] } },
               L: { major: { counts: { stain: 1 }, unmapped: [] } },
+              S: { major: { counts: {}, unmapped: [{ label: "Torn cuff", count: 4 }] } },
             },
           },
         },
@@ -535,6 +604,32 @@ describe("mapDefectLabel", () => {
       message: "This label is no longer on INS-2026-0042: someone has mapped or changed it. Reload the page.",
     });
     expect(fake.queries.some((query) => isWrite(query, "insert"))).toBe(false);
+  });
+
+  it("maps nothing where the inspection counts nothing: no size ordered, or the module switched off", async () => {
+    const unordered = { ...data(), modules: { ...data().modules, order_lots: { sizes: {} } } };
+    useClient(respond({ rows: [inspection({ data: unordered })] }));
+    expect(await map()).toEqual({
+      status: "error",
+      message: "This label is no longer on INS-2026-0042: someone has mapped or changed it. Reload the page.",
+    });
+
+    const switchedOff = { visual: { reason: "Not inspected", by: ADMIN, at: "2026-10-06T08:00:00Z" } };
+    useClient(respond({ rows: [inspection({ module_overrides: switchedOff })] }));
+    expect(await map()).toMatchObject({ status: "error" });
+    expect(updates()).toEqual([]);
+  });
+
+  it("says when the template version cannot be read, and adds no code", async () => {
+    const message =
+      "The template version INS-2026-0042 uses could not be read, so its labels cannot be mapped. Ask a developer to check the template.";
+    useClient(respond({ rows: [inspection({ template: { resolved: { modules: [] } } })] }));
+    expect(await map({ mode: "new", code: "", newCode: "torn_cuff", name: "Torn cuff" })).toEqual({ status: "error", message });
+    expect(fake.queries.some((query) => isWrite(query, "insert"))).toBe(false);
+
+    useClient(respond({ rows: [inspection({ template: null })] }));
+    expect(await map()).toEqual({ status: "error", message });
+    expect(updates()).toEqual([]);
   });
 
   it("maps only to an active code that exists", async () => {

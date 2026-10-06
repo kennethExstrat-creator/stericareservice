@@ -5,9 +5,13 @@ import type { Snapshot } from "@/lib/admin/reference";
 import { DEFECT_CLASSES, type DefectClass } from "@/lib/coverage/keys";
 import { formatSizeHand, type SizeOption } from "@/lib/format";
 import type { InspectionStatus } from "@/lib/schemas/common";
-import { compareSizes } from "@/lib/sizes";
+import { ResolvedTemplateSchema, type ResolvedTemplate } from "@/lib/schemas/template";
+import { normaliseSize } from "@/lib/sizes";
 import type { Database } from "@/lib/supabase/database.types";
-import { HANDS, type Hand } from "@/modules/_framework/hands";
+import { applyModuleOverrides, parseModuleOverrides } from "@/lib/templates/overrides";
+import { buildInspectionContext } from "@/modules/_framework/context";
+import type { ModuleRegistry } from "@/modules/_framework/contract";
+import { HANDS, isHandSplit, type Hand } from "@/modules/_framework/hands";
 
 /**
  * Defect codes and how labels map to them, for /admin/defects (BUILD_SPEC
@@ -17,18 +21,20 @@ import { HANDS, type Hand } from "@/modules/_framework/hands";
  *
  * Shared by server and browser code (the page's client components use the
  * schemas, the search and the display words), so nothing here imports a
- * server-only module. The queries take the caller's Supabase client: they
- * run with the signed-in admin's rights, so Row Level Security checks them
- * again.
+ * server-only module, nor the module registry: the server passes it in.
+ * The queries take the caller's Supabase client: they run with the
+ * signed-in admin's rights, so Row Level Security checks them again.
  *
- * Inspection data is read in the canonical shape of docs/DATA_DICTIONARY.md:
- * per-size modules keep `sizes.<size>`, hand split adds `R` and `L`, visual
- * nests its classes; one-off labels are `unmapped: [{ label, count }]` next
- * to the code counts (`counts` in visual, `holes` in watertight), and the
- * watertight report's "Other :" row is `holes.hole_other` with its
- * `otherDescription`. A one-off label is one label per inspection and visual
- * class, whatever size and hand it was counted in, as the capture screen
- * shows it: it is listed and mapped once.
+ * Inspection data is read in the canonical shape of docs/DATA_DICTIONARY.md,
+ * and only where the inspection counts it, as the visual and watertight
+ * calcs read it (labelScope): the ordered sizes (BUILD_SPEC 6.2 rule 4),
+ * the hand layout the template uses (`R` and `L` with handSplit on, the size
+ * itself without) and the visual classes it switches on. One-off labels are
+ * `unmapped: [{ label, count }]` next to the code counts (`counts` in
+ * visual, `holes` in watertight), and the watertight report's "Other :" row
+ * is `holes.hole_other` with its `otherDescription`. A one-off label is one
+ * label per inspection and visual class, whatever size and hand it was
+ * counted in, as the capture screen shows it: it is listed and mapped once.
  */
 
 export type DatabaseClient = SupabaseClient<Database>;
@@ -704,10 +710,60 @@ export const MODULE_LABEL: Readonly<Record<LabelModule, string>> = { watertight:
 const OTHER_DESCRIPTION_MAX = 2000;
 
 /**
- * How deep below a size's entry labels are looked for: hand and class, in
- * either order, with room for one grouping key a module may add (`classes`).
+ * What an inspection counts of its watertight and visual data, as their
+ * calcs read it: the ordered sizes (BUILD_SPEC 6.2 rule 4; the inspection
+ * context's, in the template's order), the hand layout each module uses,
+ * and the visual classes switched on. A module switched off, by the template
+ * or for this inspection (BUILD_SPEC 4.4), is null: it counts nothing. Data
+ * outside the scope stays saved but counts nowhere, so the defects pages
+ * neither list nor map it.
  */
-const MAX_DEPTH = 3;
+export type LabelScope = {
+  sizes: readonly string[];
+  watertight: { handSplit: boolean } | null;
+  visual: { handSplit: boolean; classes: readonly DefectClass[] } | null;
+};
+
+/** A template version as stored (`templates.resolved`), or null when it cannot be read. */
+export function readResolvedTemplate(resolved: unknown): ResolvedTemplate | null {
+  const parsed = ResolvedTemplateSchema.safeParse(resolved);
+  return parsed.success ? parsed.data : null;
+}
+
+/**
+ * Where an inspection made with `template` counts one-off labels. The
+ * ordered sizes come from the inspection context, which order_lots gives
+ * through the module contract (`registry`); the hand layout and the classes
+ * from the template, with the inspection's module overrides applied.
+ */
+export function labelScope(
+  template: ResolvedTemplate,
+  inspection: { moduleOverrides: unknown; data: unknown },
+  registry: ModuleRegistry,
+): LabelScope {
+  const effective = applyModuleOverrides(template, parseModuleOverrides(inspection.moduleOverrides));
+  const modules = (isRecord(inspection.data) && ownRecord(inspection.data, "modules")) || {};
+  const { sizes } = buildInspectionContext({ template: effective, data: { modules, custom: {} } }, registry);
+  const settings = (key: LabelModule) => {
+    const entry = effective.modules.find((module) => module.key === key);
+    return entry?.include ? { handSplit: isHandSplit(registry[key], entry.config), config: entry.config } : null;
+  };
+  const watertight = settings("watertight");
+  const visual = settings("visual");
+  const classes = (visual && isRecord(visual.config.classes) && visual.config.classes) || {};
+  return {
+    sizes,
+    watertight: watertight && { handSplit: watertight.handSplit },
+    visual: visual && {
+      handSplit: visual.handSplit,
+      // As templateLabels reads them: a class the template does not set up, or switches off, counts nothing.
+      classes: DEFECT_CLASSES.filter((defectClass) => {
+        const setting = ownRecord(classes, defectClass);
+        return setting !== null && setting.include !== false;
+      }),
+    },
+  };
+}
 
 /**
  * One-off labels compare as the capture screen compares them, without case
@@ -735,67 +791,79 @@ export const LabelTargetSchema = z
   .refine((target) => target.kind === "unmapped" || target.module === "watertight", { error: MESSAGES.stale });
 export type LabelTarget = z.output<typeof LabelTargetSchema>;
 
-/** A size (and hand) a label was recorded in. */
+/** A size (and hand) a label was found in. */
 export type LabelPlace = {
-  /** The key under `sizes`, as saved. */
+  /** An ordered size, canonical (its data may be saved under another spelling). */
   size: string;
   hand: Hand | null;
   /** How many there, or null when a saved count is not a whole number. */
   count: number | null;
 };
 
-/** A one-off label as found in an inspection's data, with every place it was recorded. */
+/** A one-off label as found in an inspection's data, with every place it was found. */
 export type FoundLabel = LabelTarget & {
-  /** In size order; right hand before left. */
+  /** In the template's size order; right hand before left. Never a place where it was counted 0. */
   places: LabelPlace[];
   /** Every place together, or null when a count is unreadable (the inspection needs fixing first). */
   count: number | null;
 };
 
-const isHand = (key: string): key is Hand => (HANDS as readonly string[]).includes(key);
-const isDefectClass = (key: string): key is DefectClass => (DEFECT_CLASSES as readonly string[]).includes(key);
 const handRank = (hand: Hand | null) => (hand === null ? -1 : HANDS.indexOf(hand));
 const classRank = (defectClass: DefectClass | null) => (defectClass === null ? -1 : DEFECT_CLASSES.indexOf(defectClass));
-
-function comparePlaces(a: Pick<LabelPlace, "size" | "hand">, b: Pick<LabelPlace, "size" | "hand">): number {
-  return compareSizes(a.size, b.size) || handRank(a.hand) - handRank(b.hand);
-}
 
 /** A sum of counts that stays null once one of them is unreadable. */
 function addCounts(a: number | null, b: number | null): number | null {
   return a === null || b === null ? null : a + b;
 }
 
-/** An object in a module's data that may hold one-off labels, and where it sits. */
+/** An object in a module's data that holds one-off labels, and where it sits. */
 type Holder = { size: string; hand: Hand | null; defectClass: DefectClass | null; node: JsonRecord };
 
-function walk(node: JsonRecord, path: string[], visit: (node: JsonRecord, path: string[]) => void): void {
-  visit(node, path);
-  if (path.length >= MAX_DEPTH) return;
-  for (const key of Object.keys(node)) {
-    if (key === "unmapped" || key === "counts" || key === "holes" || key.length > 40) continue;
-    const child = ownRecord(node, key);
-    if (child) walk(child, [...path, key], visit);
+/**
+ * The key each ordered size's data is saved under, picked as the framework
+ * picks it (lib/validation restrictToOrderedSizes): the canonical spelling,
+ * else the first other spelling of the size. Sizes not in the order are
+ * left out: they count nowhere (BUILD_SPEC 6.2 rule 4).
+ */
+function sizeKeys(sizes: JsonRecord, ordered: readonly string[]): Map<string, string> {
+  const wanted = new Set(ordered);
+  const keys = new Map<string, string>();
+  for (const key of Object.keys(sizes)) {
+    const size = key.length <= 40 ? normaliseSize(key) : null;
+    if (size === null || !wanted.has(size)) continue;
+    if (!keys.has(size) || key === size) keys.set(size, key);
   }
+  return keys;
 }
 
 /**
- * Every object of a module's data that may hold one-off labels: each size's
- * entry and the hands and classes below it, in size order. Visual labels
- * count only under a class, so a visual object outside one is left out.
+ * Every object of a module's data that the inspection counts one-off labels
+ * in (labelScope), in the order the capture screen goes through them:
+ * ordered sizes in the template's order, the right hand before the left
+ * with a hand split (the size itself without), then the visual classes
+ * switched on, in report order.
  */
-function holdersOf(modules: JsonRecord, moduleKey: LabelModule): Holder[] {
-  const sizes = ownRecord(ownRecord(modules, moduleKey) ?? {}, "sizes");
-  if (!sizes) return [];
+function holdersOf(modules: JsonRecord, moduleKey: LabelModule, scope: LabelScope): Holder[] {
+  const layout = scope[moduleKey];
+  const sizes = layout ? ownRecord(ownRecord(modules, moduleKey) ?? {}, "sizes") : null;
+  if (!layout || !sizes) return [];
+  const classes: readonly (DefectClass | null)[] = moduleKey === "visual" ? (scope.visual?.classes ?? []) : [null];
+  const keys = sizeKeys(sizes, scope.sizes);
   const holders: Holder[] = [];
-  for (const size of Object.keys(sizes).sort(compareSizes)) {
-    const entry = size.length <= 40 ? ownRecord(sizes, size) : null;
+  for (const size of scope.sizes) {
+    const key = keys.get(size);
+    const entry = key === undefined ? null : ownRecord(sizes, key);
     if (!entry) continue;
-    walk(entry, [], (node, path) => {
-      const defectClass = moduleKey === "visual" ? (path.find(isDefectClass) ?? null) : null;
-      if (moduleKey === "visual" && defectClass === null) return;
-      holders.push({ size, hand: path.find(isHand) ?? null, defectClass, node });
-    });
+    const parts: { hand: Hand | null; node: JsonRecord | null }[] = layout.handSplit
+      ? HANDS.map((hand) => ({ hand, node: ownRecord(entry, hand) }))
+      : [{ hand: null, node: entry }];
+    for (const { hand, node } of parts) {
+      if (!node) continue;
+      for (const defectClass of classes) {
+        const holder = defectClass === null ? node : ownRecord(node, defectClass);
+        if (holder) holders.push({ size, hand, defectClass, node: holder });
+      }
+    }
   }
   return holders;
 }
@@ -832,32 +900,25 @@ function labelsIn(node: JsonRecord, moduleKey: LabelModule): { kind: LabelKind; 
   return found;
 }
 
-function compareFound(a: FoundLabel, b: FoundLabel): number {
-  return (
-    LABEL_MODULES.indexOf(a.module) - LABEL_MODULES.indexOf(b.module) ||
-    classRank(a.defectClass) - classRank(b.defectClass) ||
-    LABEL_KINDS.indexOf(a.kind) - LABEL_KINDS.indexOf(b.kind) ||
-    comparePlaces(a.places[0], b.places[0]) ||
-    a.label.localeCompare(b.label)
-  );
-}
-
 /**
- * Every one-off label in an inspection's data: the visual and watertight
- * `unmapped` lists, and watertight "Other :" locations. A label recorded in
- * several sizes or hands is one entry, with each place and its count, as
- * the capture screen shows it as one row; it keeps the spelling of the first
- * size. The same words in another visual class are another label: the class
- * is its severity. Sorted in report order: module, class, one-off labels
- * before "Other :" rows, then the size each was first recorded in.
+ * Every one-off label an inspection counts (`scope`): the visual and
+ * watertight `unmapped` lists, and watertight "Other :" locations. A label
+ * found in several sizes or hands is one entry, with each place and its
+ * count, as the capture screen shows it as one row, and keeps the spelling
+ * the capture screen shows: the first, in size order, right hand first. The
+ * same words in another visual class are another label: the class is its
+ * severity. Calc skips what was counted 0, so a place with 0 is left out,
+ * and a label found nowhere is nothing to map. Sorted in report order:
+ * module, class, one-off labels before "Other :" rows, then where each was
+ * first found.
  */
-export function findOneOffLabels(data: unknown): FoundLabel[] {
+export function findOneOffLabels(data: unknown, scope: LabelScope): FoundLabel[] {
   const modules = isRecord(data) ? ownRecord(data, "modules") : null;
   if (!modules) return [];
 
   const groups = new Map<string, FoundLabel>();
   for (const moduleKey of LABEL_MODULES) {
-    for (const { size, hand, defectClass, node } of holdersOf(modules, moduleKey)) {
+    for (const { size, hand, defectClass, node } of holdersOf(modules, moduleKey, scope)) {
       for (const { kind, label, count } of labelsIn(node, moduleKey)) {
         const id = [moduleKey, kind, defectClass ?? "", labelKey(label)].join("|");
         let group = groups.get(id);
@@ -865,16 +926,25 @@ export function findOneOffLabels(data: unknown): FoundLabel[] {
           group = { module: moduleKey, kind, defectClass, label, places: [], count: 0 };
           groups.set(id, group);
         }
-        const place = group.places.find((held) => held.size === size && held.hand === hand);
-        if (place) place.count = addCounts(place.count, count);
-        else group.places.push({ size, hand, count });
+        if (count === 0) continue;
+        // Each size and hand holds a class once, so a place is never seen twice.
+        group.places.push({ size, hand, count });
         group.count = addCounts(group.count, count);
       }
     }
   }
-  const found = [...groups.values()];
-  for (const label of found) label.places.sort(comparePlaces);
-  return found.sort(compareFound);
+  const placeRank = (place: LabelPlace) => scope.sizes.indexOf(place.size);
+  return [...groups.values()]
+    .filter((label) => label.places.length > 0)
+    .sort(
+      (a, b) =>
+        LABEL_MODULES.indexOf(a.module) - LABEL_MODULES.indexOf(b.module) ||
+        classRank(a.defectClass) - classRank(b.defectClass) ||
+        LABEL_KINDS.indexOf(a.kind) - LABEL_KINDS.indexOf(b.kind) ||
+        placeRank(a.places[0]) - placeRank(b.places[0]) ||
+        handRank(a.places[0].hand) - handRank(b.places[0].hand) ||
+        a.label.localeCompare(b.label),
+    );
 }
 
 /** "Visual · Major", "Watertight", "Watertight · Other" (the report's "Other :" row) */
@@ -1014,35 +1084,35 @@ function mapOtherIn(holder: JsonRecord, target: LabelTarget, code: string): Move
 
 /**
  * Records that a one-off label is `code` (BUILD_SPEC 4.2 rule 4), in every
- * size and hand it was recorded in: its entries leave the `unmapped` list and
- * their count joins `code` in the count map beside them (`counts` in visual,
- * `holes` in watertight), in the same size, hand and class, so it counts with
- * that code from then on. A one-off hole mapped to hole_other becomes the
- * "Other :" row's description. An "Other :" location moves its holes from
- * hole_other to `code`, and its description goes. Totals do not change:
- * one-off labels already count towards them.
+ * size and hand the inspection counts it in (`scope`): its entries leave the
+ * `unmapped` list and their count joins `code` in the count map beside them
+ * (`counts` in visual, `holes` in watertight), in the same size, hand and
+ * class, so it counts with that code from then on. A one-off hole mapped to
+ * hole_other becomes the "Other :" row's description. An "Other :" location
+ * moves its holes from hole_other to `code`, and its description goes.
+ * Totals do not change: one-off labels already count towards them. Data
+ * the inspection does not count (a size not in the order, the other hand
+ * layout, a class switched off) is left as it is.
  *
  * All or nothing, and pure: returns new data and never changes `data`.
  */
-export function mapOneOffLabel(data: unknown, target: LabelTarget, code: string): MappingOutcome {
+export function mapOneOffLabel(data: unknown, target: LabelTarget, code: string, scope: LabelScope): MappingOutcome {
   if (!isRecord(data)) return { ok: false, problem: "invalid_data" };
   if (target.kind === "other" && code === OTHER_HOLE_CODE) return { ok: false, problem: "same_code" };
 
   const copy = structuredClone(data);
   const modules = ownRecord(copy, "modules");
   const places: MappingChange["places"] = [];
-  for (const { size, hand, defectClass, node } of modules ? holdersOf(modules, target.module) : []) {
+  for (const { size, hand, defectClass, node } of modules ? holdersOf(modules, target.module, scope) : []) {
     if (defectClass !== target.defectClass) continue;
     const moved = target.kind === "unmapped" ? mapUnmappedIn(node, target, code) : mapOtherIn(node, target, code);
-    if (moved === null) continue;
     if (typeof moved === "string") return { ok: false, problem: moved };
-    const place = places.find((held) => held.size === size && held.hand === hand);
-    if (place) place.count += moved;
-    else places.push({ size, hand, count: moved });
+    // Entries counted 0 go too, but only a count moved is a place.
+    if (moved !== null && moved > 0) places.push({ size, hand, count: moved });
   }
+  // Nothing counted under the label: it is not listed either, so the page was out of date.
   if (places.length === 0) return { ok: false, problem: "not_found" };
 
-  places.sort(comparePlaces);
   const { module, kind, defectClass, label } = target;
   const count = places.reduce((total, place) => total + place.count, 0);
   return { ok: true, data: copy, change: { module, kind, defectClass, label, code, count, places } };
@@ -1097,15 +1167,28 @@ export type CodeChoice = { code: string; name: string; description: string | nul
  * Up to `limit` codes a one-off label probably means, best first: the most
  * words shared with the code and its name (a word only its description or a
  * template's label for it has counts half), then the codes the template
- * lists in the same place, then the closest name ("Stain" before "Small dirt
- * or stain" for "stain").
+ * lists in the same place, then codes any template lists in the same part of
+ * the report (`section`), then the closest name ("Stain" before "Small dirt
+ * or stain" for "stain"). A code templates list only in other parts (a hole
+ * location for a visual defect, a dispensing fault) is not suggested: it
+ * would count where no list has it. It stays on the full list.
  */
 export function suggestCodes(
   label: string,
   codes: readonly CodeChoice[],
-  { preferred = [], wording = new Map(), limit = 5 }: {
+  {
+    preferred = [],
+    wording = new Map(),
+    sections = new Map(),
+    section,
+    limit = 5,
+  }: {
     preferred?: readonly string[];
     wording?: ReadonlyMap<string, readonly string[]>;
+    /** The parts of the report templates list each code in. */
+    sections?: ReadonlyMap<string, ReadonlySet<LabelSection>>;
+    /** Where the label was recorded. */
+    section?: LabelSection;
     limit?: number;
   } = {},
 ): string[] {
@@ -1113,6 +1196,8 @@ export function suggestCodes(
   if (wanted.size === 0) return [];
   const preferredSet = new Set(preferred);
   const scored = codes.flatMap((choice) => {
+    const listedIn = sections.get(choice.code);
+    if (section && listedIn && listedIn.size > 0 && !listedIn.has(section)) return [];
     const own = wordsOf(`${choice.code} ${choice.name}`);
     const more = wordsOf([choice.description ?? "", ...(wording.get(choice.code) ?? [])].join(" "));
     let score = 0;
@@ -1126,13 +1211,15 @@ export function suggestCodes(
       }
     }
     if (score === 0) return [];
-    return [{ ...choice, score, preferred: preferredSet.has(choice.code), extra: own.size - matched }];
+    const here = section !== undefined && listedIn !== undefined && listedIn.has(section);
+    return [{ ...choice, score, preferred: preferredSet.has(choice.code), here, extra: own.size - matched }];
   });
   return scored
     .sort(
       (a, b) =>
         b.score - a.score ||
         Number(b.preferred) - Number(a.preferred) ||
+        Number(b.here) - Number(a.here) ||
         a.extra - b.extra ||
         a.name.localeCompare(b.name),
     )
@@ -1310,31 +1397,27 @@ export type InspectionLabels = {
   status: InspectionStatus;
   inspectionDate: string;
   inspector: string | null;
-  template: { id: string; code: string; version: number } | null;
-  /** The template's sizes, for their own labels ("Medium"); empty without a template. */
+  template: { id: string; code: string; version: number };
+  /** The template's sizes, for their own labels ("Medium"). */
   sizes: SizeOption[];
   labels: OneOffLabel[];
 };
 
-const SizeOptionSchema = z.object({ value: z.string(), label: z.string().optional() });
-
-/** The sizes of a resolved template (`templates.resolved`), as far as they can be read. */
-function templateSizes(resolved: unknown): SizeOption[] {
-  if (!isRecord(resolved) || !Array.isArray(resolved.sizes)) return [];
-  return resolved.sizes.flatMap((item) => {
-    const parsed = SizeOptionSchema.safeParse(item);
-    return parsed.success ? [parsed.data] : [];
-  });
-}
-
-/** An open inspection as read for its one-off labels: only the visual and watertight parts of its data. */
+/**
+ * An open inspection as read for its one-off labels: the parts of its data
+ * the defects pages read (the order, for the ordered sizes; visual and
+ * watertight) and the modules an admin switched off for it.
+ */
 export type InspectionQueryRow = {
   id: string;
   ref_no: string;
   status: InspectionStatus;
   inspection_date: string;
   template_id: string;
+  /** `inspections.module_overrides` (BUILD_SPEC 4.4). */
+  module_overrides: unknown;
   inspector: { full_name: string | null; email: string | null } | null;
+  order_lots: unknown;
   visual: unknown;
   watertight: unknown;
 };
@@ -1342,13 +1425,13 @@ export type InspectionQueryRow = {
 /** Statuses in the order the unmapped tab lists them: what can be mapped now first. */
 const STATUS_ORDER: readonly InspectionStatus[] = ["submitted", "reopened", "draft", "approved"];
 
-/** Open inspections (not approved), newest first, with the visual and watertight parts of their data. */
+/** Open inspections (not approved), newest first, with the parts of their data the defects pages read. */
 export async function loadOpenInspections(supabase: DatabaseClient): Promise<InspectionQueryRow[]> {
   return selectAll<InspectionQueryRow>("the inspections", (from, to) =>
     supabase
       .from("inspections")
       .select(
-        "id, ref_no, status, inspection_date, template_id, inspector:profiles!inspections_inspector_id_fkey(full_name, email), visual:data->modules->visual, watertight:data->modules->watertight",
+        "id, ref_no, status, inspection_date, template_id, module_overrides, inspector:profiles!inspections_inspector_id_fkey(full_name, email), order_lots:data->modules->order_lots, visual:data->modules->visual, watertight:data->modules->watertight",
       )
       .in("status", [...OPEN_STATUSES])
       .order("created_at", { ascending: false })
@@ -1359,31 +1442,50 @@ export async function loadOpenInspections(supabase: DatabaseClient): Promise<Ins
 }
 
 /**
- * The inspections with one-off labels, the ones that can be mapped first,
- * then in the order given (newest first), each label with the codes it
- * probably means, the codes its template lists in its place, and a code for
- * adding it as a new one.
+ * The inspections with one-off labels where they count (labelScope), the
+ * ones that can be mapped first, then in the order given (newest first),
+ * each label with the codes it probably means, the codes its template lists
+ * in its place, and a code for adding it as a new one. An inspection whose
+ * template version cannot be read is left out: what it counts cannot be
+ * told, and its results cannot be worked out either.
  */
 export function buildInspectionLabels(
   rows: readonly InspectionQueryRow[],
-  { codes, templates }: { codes: readonly DefectCodeRow[]; templates: readonly TemplateRecord[] },
+  {
+    codes,
+    templates,
+    registry,
+  }: { codes: readonly DefectCodeRow[]; templates: readonly TemplateRecord[]; registry: ModuleRegistry },
 ): InspectionLabels[] {
   const templateById = new Map(templates.map((template) => [template.id, template]));
+  // Each version parsed once, however many inspections use it.
+  const parsed = new Map<string, ResolvedTemplate | null>();
+  const readable = (record: TemplateRecord) => {
+    if (!parsed.has(record.id)) parsed.set(record.id, readResolvedTemplate(record.resolved));
+    return parsed.get(record.id) ?? null;
+  };
   const active = codes.filter((code) => code.active);
   const taken = new Set(codes.map((code) => code.code));
-  // Every label templates give each code, so "Oil stain" suggests stain.
+  // Every label templates give each code, so "Oil stain" suggests stain, and where they list it.
   const wording = new Map<string, string[]>();
+  const sections = new Map<string, Set<LabelSection>>();
   for (const template of templates) {
-    for (const label of template.labels?.labels ?? []) wording.set(label.code, [...(wording.get(label.code) ?? []), label.label]);
+    for (const label of template.labels?.labels ?? []) {
+      wording.set(label.code, [...(wording.get(label.code) ?? []), label.label]);
+      sections.set(label.code, (sections.get(label.code) ?? new Set()).add(label.section));
+    }
   }
 
   const result: InspectionLabels[] = [];
   for (const row of rows) {
-    const found = findOneOffLabels({ modules: { visual: row.visual, watertight: row.watertight } });
+    const record = templateById.get(row.template_id);
+    const template = record ? readable(record) : null;
+    if (!record || !template) continue;
+    const data = { modules: { order_lots: row.order_lots, visual: row.visual, watertight: row.watertight } };
+    const found = findOneOffLabels(data, labelScope(template, { moduleOverrides: row.module_overrides, data }, registry));
     if (found.length === 0) continue;
-    const template = templateById.get(row.template_id) ?? null;
     const labels = found.map((label): OneOffLabel => {
-      const listed = (template?.labels?.labels ?? [])
+      const listed = (record.labels?.labels ?? [])
         .filter((entry) =>
           label.module === "visual"
             ? entry.section === "visual" && entry.defectClass === label.defectClass
@@ -1393,7 +1495,7 @@ export function buildInspectionLabels(
       return {
         ...label,
         id: [row.id, label.module, label.kind, label.defectClass ?? "", labelKey(label.label)].join("|"),
-        suggestions: suggestCodes(label.label, active, { preferred: listed, wording }),
+        suggestions: suggestCodes(label.label, active, { preferred: listed, wording, sections, section: label.module }),
         listed: [...new Set(listed)],
         newCode: suggestNewCode(label.label, label.module, taken),
       };
@@ -1404,8 +1506,8 @@ export function buildInspectionLabels(
       status: row.status,
       inspectionDate: row.inspection_date,
       inspector: row.inspector ? row.inspector.full_name?.trim() || row.inspector.email?.trim() || null : null,
-      template: template ? { id: template.id, code: template.code, version: template.version } : null,
-      sizes: template ? templateSizes(template.resolved) : [],
+      template: { id: record.id, code: record.code, version: record.version },
+      sizes: template.sizes.map(({ value, label }) => ({ value, label })),
       labels,
     });
   }
@@ -1452,14 +1554,18 @@ export type DefectsData = {
   inspections: InspectionLabels[];
 };
 
-/** The three reads run side by side; the labels are matched with the codes and templates afterwards. */
-export async function loadDefectsData(supabase: DatabaseClient): Promise<DefectsData> {
+/**
+ * The three reads run side by side; the labels are matched with the codes
+ * and templates afterwards. `registry` is the module registry
+ * (modules/registry.ts), which gives each inspection's ordered sizes.
+ */
+export async function loadDefectsData(supabase: DatabaseClient, registry: ModuleRegistry): Promise<DefectsData> {
   const [codes, templates, rows] = await Promise.all([
     loadDefectCodes(supabase),
     loadTemplates(supabase),
     loadOpenInspections(supabase),
   ]);
-  return { codes, templates, inspections: buildInspectionLabels(rows, { codes, templates }) };
+  return { codes, templates, inspections: buildInspectionLabels(rows, { codes, templates, registry }) };
 }
 
 /** The counts the tab row shows. */

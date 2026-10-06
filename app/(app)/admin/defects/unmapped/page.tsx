@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { defectsCounts, loadDefectsData } from "@/lib/admin/defects";
 import { requireAdmin } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
+import { MODULE_REGISTRY } from "@/modules/registry";
 import { DefectsHeader } from "../_components/defects-header";
 import type { CodeOption } from "../_components/map-label-dialog";
 import { UnmappedView } from "../_components/unmapped-view";
@@ -24,7 +25,7 @@ const byName = new Intl.Collator("en-GB", { sensitivity: "base", numeric: true }
 export default async function UnmappedLabelsPage() {
   await requireAdmin();
   const supabase = await createClient();
-  const data = await loadDefectsData(supabase);
+  const data = await loadDefectsData(supabase, MODULE_REGISTRY);
   const codes: CodeOption[] = data.codes
     .filter((code) => code.active)
     .map((code) => ({ code: code.code, name: code.name }))
