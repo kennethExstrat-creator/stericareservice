@@ -38,11 +38,13 @@ export function FindingCard({
         <div className="space-y-2">
           <p className="text-xs font-semibold text-muted-foreground">Evidence</p>
           {evidence.values.length > 0 && (
-            <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 text-sm">
+            // A number sits on its label's line, right aligned; a value too long to
+            // share the line (the reviewer may quote a sentence) wraps below it.
+            <dl className="space-y-1 text-sm">
               {evidence.values.map((value, index) => (
-                <div key={`${value.label}-${index}`} className="contents">
-                  <dt className="break-words text-muted-foreground">{value.label}</dt>
-                  <dd className="text-right font-medium break-words text-foreground tabular-nums">
+                <div key={`${value.label}-${index}`} className="flex flex-wrap items-baseline justify-between gap-x-3">
+                  <dt className="min-w-0 break-words text-muted-foreground">{value.label}</dt>
+                  <dd className="ml-auto min-w-0 text-right font-medium break-words text-foreground tabular-nums">
                     {value.value}
                     {value.unit ? ` ${value.unit}` : ""}
                   </dd>
