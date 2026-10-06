@@ -1,5 +1,47 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { asOwner, column, createTestDb, type Db } from "./harness";
+import { applyAsOwner, asOwner, column, createTestDb, readMigrations, type Db } from "./harness";
+
+/**
+ * Every definition the migrations control, as text: functions with their
+ * privileges, policies, constraints, triggers, indexes, column defaults and
+ * table privileges. ACL entries are sorted, so a revoke and an identical grant
+ * compare equal.
+ */
+async function schemaSnapshot(db: Db): Promise<string[]> {
+  const result = await db.query<{ item: string }>(
+    `with acl(oid, list) as (
+       select c.oid, array(select a::text from unnest(c.relacl) a order by 1)::text from pg_class c
+       union all
+       select p.oid, array(select a::text from unnest(p.proacl) a order by 1)::text from pg_proc p
+     )
+     select 'function ' || pg_get_functiondef(p.oid) || ' acl ' || coalesce(acl.list, '-') as item
+       from pg_proc p join acl on acl.oid = p.oid
+      where p.pronamespace = 'public'::regnamespace
+     union all
+     select format('policy %s.%s %s %s using %s check %s', schemaname, tablename, policyname, cmd,
+                   coalesce(qual, '-'), coalesce(with_check, '-')) || ' to ' || roles::text
+       from pg_policies where schemaname in ('public', 'storage')
+     union all
+     select format('constraint %s.%s %s', conrelid::regclass, conname, pg_get_constraintdef(oid))
+       from pg_constraint where connamespace = 'public'::regnamespace
+     union all
+     select 'trigger ' || pg_get_triggerdef(t.oid)
+       from pg_trigger t join pg_class c on c.oid = t.tgrelid
+      where not t.tgisinternal and c.relnamespace in ('public'::regnamespace, 'auth'::regnamespace)
+     union all
+     select 'index ' || indexdef from pg_indexes where schemaname = 'public'
+     union all
+     select format('default %s.%s %s', d.adrelid::regclass, a.attname, pg_get_expr(d.adbin, d.adrelid))
+       from pg_attrdef d join pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
+      where d.adrelid in (select oid from pg_class where relnamespace = 'public'::regnamespace)
+     union all
+     select format('privileges %s %s', c.oid::regclass, coalesce(acl.list, '-'))
+       from pg_class c join acl on acl.oid = c.oid
+      where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'S')
+     order by 1`,
+  );
+  return result.rows.map((row) => row.item);
+}
 
 // Guards that catch a new table or function shipped without its access rules.
 describe("schema guards", { timeout: 30_000 }, () => {
@@ -108,6 +150,16 @@ describe("schema guards", { timeout: 30_000 }, () => {
           )`,
     );
     expect(result.rows).toEqual([]);
+  });
+
+  // 20261006000700 restates rules that a project may already have, so running
+  // it again must change nothing.
+  it("applies the review fixes again without changing the schema", async () => {
+    const before = await schemaSnapshot(db);
+    const fixes = (await readMigrations()).find((file) => file.name === "20261006000700_review_fixes.sql");
+    expect(fixes).toBeDefined();
+    await applyAsOwner(db, fixes!);
+    expect(await schemaSnapshot(db)).toEqual(before);
   });
 
   it("creates every bucket private", async () => {

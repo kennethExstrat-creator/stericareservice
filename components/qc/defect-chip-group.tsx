@@ -79,7 +79,7 @@ export function DefectChipGroup({
       data-slot="defect-chip-group"
       disabled={disabled}
       aria-describedby={`${id}-hint`}
-      className={cn("min-w-0 space-y-3", className)}
+      className={cn("relative min-w-0 space-y-3", className)}
     >
       {/* The legend names the group; the visible heading sits in a flex row,
           where a legend cannot. */}

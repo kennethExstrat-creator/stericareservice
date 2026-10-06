@@ -145,6 +145,7 @@
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
   --color-ring: var(--ring);
+  --color-control: var(--control);
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
@@ -190,7 +191,13 @@
   --accent-foreground: var(--color-brand-700);
   --destructive: var(--color-fail);
   --border: var(--color-slate-200);
+  /* Text-field edges, as on the website's forms. A field is also told by its
+     label and its white box, so this edge may be light (1.48:1). */
   --input: var(--color-slate-300);
+  /* App-specific: the edge of a checkbox, radio or switch. Nothing else marks
+     these controls or their state, so the edge must hold 3:1 (WCAG 1.4.11):
+     slate-500 is 4.76:1 on white and 4.50:1 on mist. */
+  --control: var(--color-slate-500);
   --ring: var(--color-brand-500);
   --chart-1: var(--color-brand-500);
   --chart-2: var(--color-accent-500);
@@ -229,9 +236,33 @@
   background-image: linear-gradient(90deg, var(--color-brand-500), var(--color-accent-600));
 }
 
+/* ---- Keyboard focus (app-specific) ------------------------------------------
+   An opaque 2 px brand-500 outline on :focus-visible. focus-ring sits 2 px
+   clear of the control, so it is read against the ground (4.69:1 on white,
+   4.43:1 on mist) and never against the control's own fill: on a brand-500
+   button a ring that touches the edge would vanish. focus-ring-inset draws it
+   just inside the edge, for fields, grid cells and controls whose surroundings
+   clip or crowd an outer ring. Never a translucent ring: brand-500 at 50%
+   composites to about 2:1. An outline (not a box-shadow ring) also survives
+   forced-colours mode, and overrides outline-none on the same element.
+   lib/design/contrast.test.ts measures both utilities on every ground. */
+@utility focus-ring {
+  &:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+}
+
+@utility focus-ring-inset {
+  &:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: -2px;
+  }
+}
+
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border outline-ring;
   }
 
   html {

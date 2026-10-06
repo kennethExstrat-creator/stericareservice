@@ -55,6 +55,38 @@ describe("inspection reference numbers", { timeout: 30_000 }, () => {
     expect(error).toMatchObject({ code: "42501", message: "ref_no is assigned by the database" });
   });
 
+  it("never hands out again a number freed by a deletion, even on the connection that drew it", async () => {
+    // currval() still holds the freed number here; the database must not trust it.
+    const error = await pgError(
+      asUser(db, people.admin, async (tx) => {
+        const made = await tx.query<{ id: string; ref_no: string }>(
+          "insert into public.inspections (template_id, inspector_id) values ($1, $2) returning id, ref_no",
+          [templateId, people.inspector],
+        );
+        await tx.query("delete from public.inspections where id = $1", [made.rows[0].id]);
+        return tx.query("insert into public.inspections (template_id, inspector_id, ref_no) values ($1, $2, $3)", [
+          templateId,
+          people.inspector,
+          made.rows[0].ref_no,
+        ]);
+      }),
+    );
+    expect(error).toMatchObject({ code: "42501", message: "ref_no is assigned by the database" });
+  });
+
+  it("keeps the format when a repair switches the guard off", async () => {
+    const error = await pgError(
+      asOwner(db, async (tx) => {
+        await tx.query("alter table public.inspections disable trigger guard");
+        return tx.query("insert into public.inspections (template_id, inspector_id) values ($1, $2)", [
+          templateId,
+          people.inspector,
+        ]);
+      }),
+    );
+    expect(error).toMatchObject({ code: "23514", message: expect.stringContaining("inspections_ref_no_format") });
+  });
+
   it("defaults the inspector, the date, the status and the data shape", async () => {
     const made = await createInspection(db, people.inspector, templateId);
     expect(made).toMatchObject({

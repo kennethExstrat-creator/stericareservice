@@ -27,11 +27,27 @@ test("the inspector lands on the inspections list", async ({ page, context, base
 });
 ```
 
+## Screenshots on the iPad projects
+
+Playwright's `fullPage: true` capture drops touch emulation while it resizes, so an "iPad"
+full-page shot comes out at desktop density (coarse-pointer styles such as 44 px targets and
+16 px text disappear). On `ipad-portrait` and `ipad-landscape`, take viewport screenshots while
+scrolling (or stitch them) instead of `fullPage`, and assert sizes with `boundingBox()` rather
+than from a full-page image.
+
 ## Rules for the shared database
 
 - Never change, deactivate or delete `inspector@test.local`, `admin@test.local` or real accounts.
 - Destructive tests use throwaway accounts from `throwawayEmail()` and delete them afterwards.
-- Rows created for a test are deleted in `afterAll`. `createTestAdminClient()` bypasses RLS, so
-  use it for setup and teardown only, never to assert what a user can see.
+- Rows created for a test are deleted in `afterAll`. Teardown order: remove the inspection's
+  Storage files, then call `deleteTestInspection()` for each inspection (the service role cannot
+  delete approved inspections directly; this database function can, for `@test.local`
+  inspectors only), then delete templates and throwaway accounts.
+- Inspection inserts never send `id` or `ref_no`: the database draws the ref number. Every
+  insert uses a number from the live sequence, so keep e2e runs few.
+- New accounts start inactive: activate a throwaway account with the admin client
+  (`update profiles set active = true`) before it signs in.
+- `createTestAdminClient()` bypasses RLS, so use it for setup and teardown only, never to assert
+  what a user can see.
 - Supabase's built-in mailer only delivers to project team members and allows a few emails an
   hour: do not loop on invite or reset emails.

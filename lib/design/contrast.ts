@@ -29,6 +29,18 @@ export function contrastRatio(a: string, b: string): number {
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 }
 
+/**
+ * The colour a translucent foreground renders as over an opaque ground
+ * (source-over in sRGB, as browsers paint), e.g. brand-500 at 50% on white.
+ */
+export function composite(foreground: string, alpha: number, ground: string): `#${string}` {
+  if (!(alpha >= 0 && alpha <= 1)) throw new RangeError(`alpha must be from 0 to 1, got ${alpha}`);
+  const top = hexToRgb(foreground);
+  const bottom = hexToRgb(ground);
+  const mixed = top.map((value, i) => Math.round(value * alpha + bottom[i] * (1 - alpha)));
+  return `#${mixed.map((value) => value.toString(16).padStart(2, "0")).join("")}`;
+}
+
 /** Ratio rounded down to two decimals, so a printed 4.50 never hides a 4.499. */
 export function formatRatio(ratio: number): string {
   return `${(Math.floor(ratio * 100) / 100).toFixed(2)}:1`;

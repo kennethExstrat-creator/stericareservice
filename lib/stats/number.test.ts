@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { formatDecimal, formatReading, parseDecimal, rangeError, readDecimal } from "./number";
+import { MAX_READING, formatDecimal, formatReading, parseDecimal, rangeError, readDecimal } from "./number";
+import { summarizeColumn } from "./column";
 
 describe("parseDecimal", () => {
   it.each([
@@ -40,6 +41,30 @@ describe("parseDecimal", () => {
       expect(parseDecimal(raw).ok).toBe(false);
     },
   );
+
+  // 309 or more digits overflow to Infinity; a NumericCell without a max would
+  // store it and the column statistic would throw.
+  it.each([
+    ["400 digits", "1" + "0".repeat(400)],
+    ["400 negative digits", "-" + "9".repeat(400)],
+    ["400 digits before a decimal comma", "1" + "0".repeat(400) + ",5"],
+    ["400 digits before a decimal point", "1" + "0".repeat(400) + ".5"],
+    ["one past the largest reading", String(2 ** 53)],
+  ])("rejects a number too large to be a reading (%s)", (_, raw) => {
+    expect(parseDecimal(raw)).toEqual({ ok: false, error: "Too large to be a reading." });
+  });
+
+  it("accepts readings up to the largest exact value", () => {
+    expect(parseDecimal(String(MAX_READING))).toEqual({ ok: true, value: MAX_READING });
+    expect(parseDecimal(`-${MAX_READING}`)).toEqual({ ok: true, value: -MAX_READING });
+  });
+
+  it("returns only finite values, so a column statistic can always be computed", () => {
+    const largest = parseDecimal(String(MAX_READING));
+    if (!largest.ok || largest.value === null) throw new Error("expected a reading");
+    const column = Array.from({ length: 13 }, () => largest.value);
+    expect(Number.isFinite(summarizeColumn(column, 13, "average", undefined, undefined).statistic)).toBe(true);
+  });
 });
 
 describe("rangeError", () => {
@@ -64,6 +89,11 @@ describe("readDecimal", () => {
   it("rejects text and out-of-range numbers alike", () => {
     expect(readDecimal("2 42", { min: 0 }).ok).toBe(false);
     expect(readDecimal("-1", { min: 0 })).toEqual({ ok: false, error: "Must be 0 or more." });
+  });
+
+  it("rejects an overflowing number even without a max", () => {
+    expect(readDecimal("9".repeat(400), { min: 0 })).toEqual({ ok: false, error: "Too large to be a reading." });
+    expect(readDecimal("9".repeat(400))).toEqual({ ok: false, error: "Too large to be a reading." });
   });
 });
 

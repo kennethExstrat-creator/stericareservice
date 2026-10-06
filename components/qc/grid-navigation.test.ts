@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { caretOf, planPaste, targetCell } from "./grid-navigation";
+import { applyPaste, caretOf, cellKey, planPaste, targetCell, type PastePlan } from "./grid-navigation";
 
 const size = { rows: 13, cols: 5 };
 
@@ -92,5 +92,90 @@ describe("planPaste", () => {
       { row: 1, col: 4, raw: "96" },
     ]);
     expect(plan?.skipped).toBe(0);
+  });
+});
+
+describe("cellKey", () => {
+  it("names a cell by measure and row", () => {
+    expect(cellKey("width", 2)).toBe("width:2");
+  });
+});
+
+describe("applyPaste", () => {
+  const measures = [
+    { key: "length", min: 0, max: 400 },
+    { key: "width", min: 0, max: 200 },
+    { key: "cuff" },
+  ];
+  const rows = 5;
+  const paste = (text: string, row: number, col: number): PastePlan => {
+    const plan = planPaste(text, { row, col }, { rows, cols: measures.length });
+    if (!plan) throw new Error("expected a multi-value paste");
+    return plan;
+  };
+
+  it("fills a pasted column down from the focused cell and leaves the rest alone", () => {
+    const values = { length: [240, null, null, null, 250], width: [95, 96, 97, 98, 99] };
+    const result = applyPaste(paste("243\n245\n242", 1, 0), measures, rows, values, {});
+    expect(result.values.length).toEqual([240, 243, 245, 242, 250]);
+    expect(result.values.width).toBe(values.width);
+    expect(result.invalid).toEqual({});
+    expect(result.notice).toBe("Pasted 3 values.");
+  });
+
+  it('stores nothing for a rejected line ("2 42") and lists it with its text', () => {
+    const values = { length: [240, 241, 242, 243, 244] };
+    const result = applyPaste(paste("245\n2 42\n246", 0, 0), measures, rows, values, {});
+    expect(result.values.length).toEqual([245, null, 246, 243, 244]);
+    expect(result.invalid).toEqual({
+      "length:1": { raw: "2 42", error: "One number per cell: remove the space, e.g. 2.42." },
+    });
+    expect(result.notice).toBe("Pasted 3 values. 1 not stored.");
+  });
+
+  it("applies each measure's limits", () => {
+    const result = applyPaste(paste("401\t95\n240\t201", 0, 0), measures, rows, {}, {});
+    expect(result.values.length).toEqual([null, 240, null, null, null]);
+    expect(result.values.width).toEqual([95, null, null, null, null]);
+    expect(result.invalid[cellKey("length", 0)]?.error).toBe("Must be 400 or less.");
+    expect(result.invalid[cellKey("width", 1)]?.error).toBe("Must be 200 or less.");
+    expect(result.notice).toBe("Pasted 4 values. 2 not stored.");
+  });
+
+  it("clears an earlier rejection that a valid value now replaces, and keeps the others", () => {
+    const earlier = {
+      "length:0": { raw: "2 42", error: "One number per cell." },
+      "width:3": { raw: "abc", error: "Numbers only, e.g. 2.42." },
+    };
+    const result = applyPaste(paste("242\n243", 0, 0), measures, rows, {}, earlier);
+    expect(result.invalid).toEqual({ "width:3": earlier["width:3"] });
+    expect(result.values.length).toEqual([242, 243, null, null, null]);
+  });
+
+  it("clears a cell for a blank line", () => {
+    const result = applyPaste(paste("243\n\n245", 0, 0), measures, rows, { length: [1, 2, 3, 4, 5] }, {});
+    expect(result.values.length).toEqual([243, null, 245, 4, 5]);
+    expect(result.invalid).toEqual({});
+  });
+
+  it("counts values that do not fit, in words", () => {
+    const result = applyPaste(paste("1\n2\n3", 3, 2), measures, rows, {}, {});
+    expect(result.values.cuff).toEqual([null, null, null, 1, 2]);
+    expect(result.notice).toBe("Pasted 2 values. 1 did not fit.");
+    expect(applyPaste(paste("1\n2", 4, 0), measures, rows, {}, {}).notice).toBe("Pasted 1 value. 1 did not fit.");
+  });
+
+  it("never stores text or Infinity", () => {
+    const result = applyPaste(paste(["abc", "12mm", "9".repeat(400), "1e3", "0.07"].join("\n"), 0, 2), measures, rows, {}, {});
+    expect(result.values.cuff).toEqual([null, null, null, null, 0.07]);
+    expect(Object.keys(result.invalid)).toHaveLength(4);
+  });
+
+  it("does not change the values or rejections it was given", () => {
+    const values = Object.freeze({ length: Object.freeze([240, 241, 242, 243, 244]) });
+    const invalid = Object.freeze({ "length:0": { raw: "x", error: "Numbers only, e.g. 2.42." } });
+    applyPaste(paste("1\n2", 0, 0), measures, rows, values, invalid);
+    expect(values.length).toEqual([240, 241, 242, 243, 244]);
+    expect(invalid).toHaveProperty("length:0");
   });
 });

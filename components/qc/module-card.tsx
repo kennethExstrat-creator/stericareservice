@@ -101,7 +101,7 @@ export function ModuleCard({
             rows={2}
           />
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex flex-wrap items-center gap-2">
           <Button type="button" variant="outline" disabled={disabled} onClick={() => camera.current?.click()}>
             <CameraIcon aria-hidden />
             Take photo

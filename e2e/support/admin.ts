@@ -18,3 +18,17 @@ export function createTestAdminClient() {
 export function throwawayEmail(owner: string): string {
   return `e2e-${owner}-${Math.random().toString(36).slice(2, 8)}@test.local`;
 }
+
+/**
+ * Deletes a test inspection, approved ones included. The service role may not
+ * delete approved inspections directly (their audit history must stay), so
+ * teardown goes through delete_test_inspection(), which only accepts
+ * inspections of @test.local inspectors. Delete its Storage files first.
+ */
+export async function deleteTestInspection(
+  admin: ReturnType<typeof createTestAdminClient>,
+  inspectionId: string,
+): Promise<void> {
+  const { error } = await admin.rpc("delete_test_inspection", { inspection_id: inspectionId });
+  if (error) throw new Error(`Could not delete test inspection ${inspectionId}: ${error.message}`);
+}

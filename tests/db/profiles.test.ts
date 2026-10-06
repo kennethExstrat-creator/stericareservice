@@ -19,7 +19,7 @@ describe("auth.users -> profiles", { timeout: 30_000 }, () => {
     db = await createTestDb({
       // Kenneth may sign up in the dashboard before the migrations run.
       beforeMigrations: async (fresh) => {
-        await createAuthUser(fresh, { email: "early@test.local", fullName: "Early Bird" });
+        await createAuthUser(fresh, { email: "early@test.local", fullName: "Early Bird", active: false });
       },
     });
   }, 120_000);
@@ -43,16 +43,25 @@ describe("auth.users -> profiles", { timeout: 30_000 }, () => {
     });
   });
 
+  it("starts new accounts inactive until an admin activates them", async () => {
+    const id = await createAuthUser(db, { email: "selfsignup@test.local", active: false });
+    expect(await profileAsOwner(db, id)).toMatchObject({ role: "inspector", active: false });
+    const visible = await asUser(db, id, (tx) => column<string>(tx, "select id from public.profiles"));
+    expect(visible).toEqual([]);
+  });
+
   it("leaves full_name empty when the metadata has none", async () => {
     const id = await createAuthUser(db, { email: "noname@test.local" });
     expect((await profileAsOwner(db, id)).full_name).toBeNull();
   });
 
-  it("gives users created before the migration a profile", async () => {
-    const emails = await asOwner(db, (tx) =>
-      column<string>(tx, "select email from public.profiles where email = 'early@test.local'"),
+  it("gives users created before the migration an inactive profile", async () => {
+    const rows = await asOwner(db, (tx) =>
+      tx.query<{ email: string; active: boolean }>(
+        "select email, active from public.profiles where email = 'early@test.local'",
+      ),
     );
-    expect(emails).toEqual(["early@test.local"]);
+    expect(rows.rows).toEqual([{ email: "early@test.local", active: false }]);
   });
 
   it("keeps profiles.email in sync with auth.users", async () => {

@@ -1,6 +1,6 @@
 # SteriCare QC: design rules
 
-The light SteriCare theme for the inspection app, derived from the website snapshot in `docs/design-reference/` (BUILD_SPEC 2.1). Tokens live in `app/globals.css`; `lib/design/tokens.ts` mirrors them as hex, and `lib/design/contrast.test.ts` fails if the two drift, if the copied website tokens change, or if any status or text pair drops below 4.5:1. See every rule live at `/design` (hidden in production unless `ENABLE_DESIGN_PAGE=true`).
+The light SteriCare theme for the inspection app, derived from the website snapshot in `docs/design-reference/` (BUILD_SPEC 2.1). Tokens live in `app/globals.css`; `lib/design/tokens.ts` mirrors them as hex, and `lib/design/contrast.test.ts` fails if the two drift, if the copied website tokens change, if any status or text pair drops below 4.5:1, or if a component ships a focus ring, control edge or translucent text below its floor (it measures the colour that renders). See every rule live at `/design` (hidden in production unless `ENABLE_DESIGN_PAGE=true`).
 
 Source column: the website file a decision came from, or **app** (app-specific, with the reason).
 
@@ -18,7 +18,7 @@ Source column: the website file a decision came from, or **app** (app-specific, 
 | Radius | `--radius: 0.75rem` with shadcn's multipliers | Fields and menus md (≈10 px), tab lists lg (12 px), cards and dialogs xl (≈17 px; website cards 16 px). Buttons, chips, pills: full | `ui.tsx.txt` shapes; scale is app |
 | Fonts | Outfit (`--font-sans`), Red Hat Display (`--font-display`, `--font-heading`) | Body; every h1–h6 and display text. Both have tabular figures | `layout.tsx.txt` |
 
-**shadcn variables** (every component inherits them): `--background` mist · `--foreground` slate-900 · `--card`, `--popover` white · `--primary` brand-500 / white · `--secondary` brand-100 / brand-700 (7.89:1) · `--muted` slate-100 / slate-600 (6.92:1) · `--accent` brand-50 / brand-700 (8.60:1) · `--destructive` red-700 (6.47:1 both ways) · `--border` slate-200 · `--input` slate-300 · `--ring` brand-500 · `--chart-1…5` brand-500, accent-500, brand-700, accent-700, brand-300 · `--sidebar` white with brand-500 primary.
+**shadcn variables** (every component inherits them): `--background` mist · `--foreground` slate-900 · `--card`, `--popover` white · `--primary` brand-500 / white · `--secondary` brand-100 / brand-700 (7.89:1) · `--muted` slate-100 / slate-600 (6.92:1) · `--accent` brand-50 / brand-700 (8.60:1) · `--destructive` red-700 (6.47:1 both ways) · `--border` slate-200 · `--input` slate-300 (text-field edges) · `--control` slate-500 (checkbox, radio and switch edges, 4.76:1 on white; app) · `--ring` brand-500, always opaque · `--chart-1…5` brand-500, accent-500, brand-700, accent-700, brand-300 · `--sidebar` white with brand-500 primary.
 
 **The accent clash.** shadcn's `accent` is the subtle hover surface (`bg-accent`, `text-accent-foreground`, brand-50 / brand-700). The website's teal scale is `accent-50…950` (`bg-accent-500`). Both resolve and neither replaces the other: reach for `accent-<step>` when you mean teal.
 
@@ -55,7 +55,7 @@ Utilities: `text-pass`, `bg-pass-tint`, `border-pass-border`, `bg-pass-solid tex
 ## Density (by pointer, not width)
 
 - `touch:` = `(pointer: coarse)` (iPad), `fine:` = `(pointer: fine)` (mouse or trackpad). Layout switches at 1280 px (`xl`): below it a top tab bar and full-width grid; from 1280 px a left sidebar, wider grid, photos alongside. Check 820×1180, 1180×820 and 1440×900.
-- iPad: every control at least 44×44 px (buttons, steppers, chips, tabs, menu items, grid rows; checkbox, radio and switch grow to 24–28 px with a 44 px hit area). Field text 16 px so iOS never zooms on focus (Input and Textarea are 14 px only under `fine:`).
+- iPad: every control at least 44×44 px (buttons, steppers, chips, tabs, menu items, grid rows, the grid's error list; checkbox, radio and switch grow to 24–28 px with a 44 px hit area). Field text 16 px so iOS never zooms on focus (Input and Textarea are 14 px only under `fine:`).
 - Desktop: compact controls (32–36 px) and 32–36 px table rows.
 - To resize a control, override both: `h-12 touch:h-14`.
 
@@ -63,18 +63,29 @@ Utilities: `text-pass`, `bg-pass-tint`, `border-pass-border`, `bg-pass-solid tex
 
 Only state transitions: 150 ms `ease-out-expo` is the default for every `transition-*` utility. Menus and dialogs fade/zoom in 100 ms. No hover lifts, no scale on hover, no sliding gradients, no scroll reveals, no smooth scrolling. `prefers-reduced-motion` reduces all animation and transition to near zero. Data entry never waits on an animation.
 
+## Focus
+
+Keyboard focus is an opaque 2 px brand-500 outline on `:focus-visible`, never a translucent halo: brand-500 at 50% composites to about 2:1 (WCAG 1.4.11 needs 3:1). Two utilities in `app/globals.css`, nothing else:
+
+- `focus-ring`: 2 px clear of the control, so it is read against the ground (4.69:1 on white, 4.43:1 on mist), never against the control's own fill. Buttons, checkbox, radio, switch, the stepper's value, progress segments, tab panels.
+- `focus-ring-inset`: just inside the edge, where an outer ring would be clipped by a scroller or crowd a neighbour. Fields, grid cells, tabs, stepper buttons, defect chips, list rows, the grid's error list. At least 4:1 on every fill it sits on (brand-100 is the lowest).
+
+An outline, not a box-shadow ring, also survives forced-colours mode. A control that greys out at a limit drops its fill instead of fading, because opacity would fade the ring too. The contrast test fails on any `focus-visible:ring-*` or translucent ring in a component.
+
 ## Components
 
 | Component | Rules | Source |
 |---|---|---|
-| Button | Pill. Primary solid brand-500 / white, hover brand-600, a 1 px press; no lift, scale or gradient. Outline: white with slate-300 edge. Focus: brand-500 border and 3 px brand-500/50 ring. Links brand-600 (brand-500 is 4.43:1 on mist) | `ui.tsx.txt` (shape); fill app |
-| Field | White, slate-300 border, label above, error text below in fail red. Read-only fields sit on slate-100: computed values, never typed (BUILD_SPEC 6.2 rule 2) | `contact-form.tsx` |
+| Button | Pill. Primary solid brand-500 / white, hover brand-600, a 1 px press; no lift, scale or gradient. Outline: white with slate-300 edge. Focus: `focus-ring`. Links brand-600 (brand-500 is 4.43:1 on mist) | `ui.tsx.txt` (shape); fill app |
+| Field | White, slate-300 border, label above, error text below in fail red. Focus: brand-500 border under `focus-ring-inset`. Read-only fields sit on slate-100: computed values, never typed (BUILD_SPEC 6.2 rule 2) | `contact-form.tsx` |
+| Checkbox, radio, switch | Edge `--control` (slate-500): nothing else marks these controls or their state, so they hold 3:1 where a text field's slate-300 edge (1.48:1) would not. Unchecked switch: white track, slate-500 edge and thumb; checked: brand-500 with a white thumb | app (WCAG 1.4.11) |
+| Tabs | Inactive labels slate-600 (`muted-foreground`, 6.92:1 on the slate-100 list), never a translucent foreground; active slate-900 on white | app (BUILD_SPEC 2.1) |
 | Card / ModuleCard | White, slate-200 edge, soft shadow (`shadow-sm`), xl radius, no hover lift. ModuleCard: template-wording title, StatusPill, body, inspector comment, "Take photo" (rear camera) and "Add from library" | `ui.tsx.txt` Card |
-| StatusPill, ResultChip | Icon + words; ResultChip is a 20 px disc with a glyph and a screen-reader label, for module tabs. Not done stays an empty dashed ring | app |
+| StatusPill, ResultChip | Icon + words; ResultChip is a 20 px disc with a glyph and a screen-reader label, for module tabs; the disc is positioned so the label never escapes a scrolling tab bar. Not done stays an empty dashed ring | app |
 | SaveStatus | Saved (neutral), Saving (brand), Offline (will sync) (warn amber); pending uploads as a brand count badge | app (BUILD_SPEC 8) |
-| Stepper | − value +, hold to repeat, Arrow/Page/Home/End keys, value announced; minus stays focusable but aria-disabled at 0 | app |
+| Stepper | − value +, hold to repeat, Arrow/Page/Home/End keys, value announced; minus stays focusable but aria-disabled at 0 (greyed, not faded); a disabled stepper (an approved inspection) leaves the tab order | app |
 | DefectChip(Group) | Tap adds one, attached minus removes one, live total. Unmapped one-off labels: dashed amber edge and a flag | app |
-| NumericCell, MeasurementGrid | `inputmode="decimal"`, numbers only: "2 42" is rejected, listed under the grid with a link, and stored as nothing. Enter goes down the column (then to the next column), arrows move between cells, a pasted column fills down. Footer: Median/Average (Not done until data), Spec., P/F (Not done until the column is complete; judged at the displayed precision). Sticky header and footer, visible 2 px focus ring | app (BUILD_SPEC 6.2, 8) |
+| NumericCell, MeasurementGrid | `inputmode="decimal"`, numbers only: "2 42" is rejected and stored as nothing. The rejection is announced with the cell's name (focus has already moved on) and listed under the grid as a full-width row button back to the cell (44 px on iPad). Enter goes down the column (then to the next column), arrows move between cells, a pasted column fills down. Footer: Median/Average (Not done until data), Spec., P/F (Not done until the column is complete; judged at the displayed precision). Sticky header and footer, visible 2 px focus ring | app (BUILD_SPEC 6.2, 8) |
 | PhotoTile | Waiting / uploading with progress, uploaded, flagged (needs conversion), selected, include-in-report (admin) | app (BUILD_SPEC 8.1) |
 | ProgressTracker | Progress in brand (done, in progress, not started); the module in view carries the gradient; results stay in status colours | app |
 | PageHeader | Eyebrow with gradient dash, Red Hat Display title, actions | `ui.tsx.txt` Eyebrow, SectionHeading |
@@ -89,4 +100,6 @@ Only state transitions: 150 ms `ease-out-expo` is the default for every `transit
 - **Do** keep the gradient to the logo, login, one accent word in a large title and the active progress step. **Don't** put body text, buttons or tables on it.
 - **Do** design for 44 px on iPad and 16 px field text. **Don't** shrink a touch target to fit a row.
 - **Do** keep transitions at 150 ms ease-out-expo. **Don't** add hover lifts, scale, parallax or scroll animation.
+- **Do** use `focus-ring` or `focus-ring-inset` for keyboard focus. **Don't** use shadcn's `focus-visible:ring-ring/50` halo, or translucent text such as `text-foreground/60`: both render lighter than the token the test measures.
+- **Do** make a component that holds `sr-only` text `relative`. **Don't** leave that text unanchored: in a horizontally scrolling tab bar or table it escapes the scroller and widens the page at iPad widths.
 - **Do** keep secondary text at slate-600 or darker. **Don't** add a dark mode (the `dark:` variant is inert on purpose).
