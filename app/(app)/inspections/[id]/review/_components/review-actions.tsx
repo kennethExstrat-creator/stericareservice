@@ -20,21 +20,17 @@ import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { approveInspection, reopenInspection, type ReviewActionResult } from "@/lib/inspections/review/actions";
+import { approvalCautions, type ApprovalFacts } from "@/lib/inspections/review/approval";
 import { RESULT_LABEL } from "@/lib/inspections/review/format";
 import { REOPEN_REASON_MAX, REVIEW_MESSAGES } from "@/lib/inspections/review/schemas";
-import type { InspectionResult } from "@/lib/schemas/common";
 import { unreachable } from "./unreachable";
 
-export type ReviewActionsProps = {
+/** The inspector's final result, the app's suggestion and the errors on screen (lib/inspections/review/approval). */
+export type ReviewActionsProps = ApprovalFacts & {
   inspectionId: string;
   refNo: string;
   /** `updated_at` as rendered: approving applies to this version only. */
   version: string;
-  finalResult: InspectionResult | null;
-  /** The app's suggestion; null when the results could not be worked out. */
-  suggestedResult: InspectionResult | null;
-  /** Validation errors in the results on screen. */
-  errors: number;
 };
 
 const IDLE: ReviewActionResult = { status: "idle" };
@@ -99,65 +95,14 @@ function ApproveDialog({
       settle(await approveInspection(previous, formData).catch(unreachable), onClose),
     IDLE,
   );
-  const differs = finalResult !== null && suggestedResult !== null && finalResult !== suggestedResult;
 
   return (
     <ReviewDialog pending={pending} onClose={onClose} returnFocusTo={returnFocusTo}>
       <form action={formAction} className="grid gap-5">
         <AlertDialogHeader>
           <AlertDialogTitle className="text-lg font-bold">Approve {refNo}?</AlertDialogTitle>
-          <AlertDialogDescription>
-            An approved inspection is final: nobody can change its results, photos or files afterwards. Only the
-            choice of report photos stays open.
-          </AlertDialogDescription>
+          <ApproveDescription finalResult={finalResult} suggestedResult={suggestedResult} errors={errors} />
         </AlertDialogHeader>
-
-        <dl className="grid gap-2 rounded-lg border border-border bg-slate-50 px-4 py-3 text-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <dt className="text-muted-foreground">Final result</dt>
-            <dd>
-              {finalResult ? (
-                <StatusPill
-                  status={finalResult}
-                  variant="solid"
-                  size="sm"
-                  label={RESULT_LABEL[finalResult]}
-                  className={SMALL_PILL_TOUCH}
-                />
-              ) : (
-                <StatusPill status="not_done" size="sm" label="Not chosen" className={SMALL_PILL_TOUCH} />
-              )}
-            </dd>
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <dt className="text-muted-foreground">Suggested result</dt>
-            <dd>
-              {suggestedResult ? (
-                <StatusPill
-                  status={suggestedResult}
-                  size="sm"
-                  label={RESULT_LABEL[suggestedResult]}
-                  className={SMALL_PILL_TOUCH}
-                />
-              ) : (
-                <span className="text-muted-foreground">Could not be worked out</span>
-              )}
-            </dd>
-          </div>
-        </dl>
-
-        {(differs || errors > 0 || finalResult === null) && (
-          <ul className="grid gap-2">
-            {finalResult === null && <Caution>The inspector has not chosen a final result.</Caution>}
-            {differs && <Caution>The final result differs from the suggested result.</Caution>}
-            {errors > 0 && (
-              <Caution>
-                The checks found {errors === 1 ? "1 error" : `${errors} errors`}. Reopen it instead if the inspector
-                should fix {errors === 1 ? "it" : "them"} first.
-              </Caution>
-            )}
-          </ul>
-        )}
 
         <input type="hidden" name="inspectionId" value={inspectionId} />
         <input type="hidden" name="version" value={version} />
@@ -175,6 +120,68 @@ function ApproveDialog({
         </AlertDialogFooter>
       </form>
     </ReviewDialog>
+  );
+}
+
+/**
+ * Everything the admin weighs before approving, all of it the dialog's
+ * description: what approving means, the final and the suggested result,
+ * and the cautions. A screen reader reads it out with the title as the
+ * dialog opens, while focus waits on Cancel, so the cautions are heard
+ * before Approve can be reached. Spaces keep the words apart when read or
+ * copied; the layout spaces them on screen.
+ */
+export function ApproveDescription({ finalResult, suggestedResult, errors }: ApprovalFacts) {
+  const cautions = approvalCautions({ finalResult, suggestedResult, errors });
+  return (
+    <AlertDialogDescription asChild>
+      <div className="grid gap-5 justify-self-stretch">
+        <p>
+          An approved inspection is final: nobody can change its results, photos or files afterwards. Only the choice
+          of report photos stays open.
+        </p>{" "}
+        <dl className="grid gap-2 rounded-lg border border-border bg-slate-50 px-4 py-3 text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <dt className="text-muted-foreground">Final result</dt>{" "}
+            <dd>
+              {finalResult ? (
+                <StatusPill
+                  status={finalResult}
+                  variant="solid"
+                  size="sm"
+                  label={RESULT_LABEL[finalResult]}
+                  className={SMALL_PILL_TOUCH}
+                />
+              ) : (
+                <StatusPill status="not_done" size="sm" label="Not chosen" className={SMALL_PILL_TOUCH} />
+              )}
+            </dd>
+          </div>{" "}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <dt className="text-muted-foreground">Suggested result</dt>{" "}
+            <dd>
+              {suggestedResult ? (
+                <StatusPill
+                  status={suggestedResult}
+                  size="sm"
+                  label={RESULT_LABEL[suggestedResult]}
+                  className={SMALL_PILL_TOUCH}
+                />
+              ) : (
+                <span className="text-muted-foreground">Could not be worked out</span>
+              )}
+            </dd>
+          </div>
+        </dl>{" "}
+        {cautions.length > 0 && (
+          <ul className="grid gap-2 text-left">
+            {cautions.map((caution) => (
+              <Caution key={caution}>{caution}</Caution>
+            ))}
+          </ul>
+        )}
+      </div>
+    </AlertDialogDescription>
   );
 }
 
@@ -304,7 +311,7 @@ function Caution({ children }: { children: ReactNode }) {
   return (
     <li className="flex gap-2 rounded-lg border border-warn-border bg-warn-tint px-3 py-2 text-sm text-warn">
       <TriangleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
-      <span>{children}</span>
+      <span>{children}</span>{" "}
     </li>
   );
 }

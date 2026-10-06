@@ -7,6 +7,7 @@ import { ArrowLeftIcon, ClipboardListIcon, PencilLineIcon } from "lucide-react";
 import { PageHeader } from "@/components/qc";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth/session";
+import { approvalChecks } from "@/lib/inspections/review/approval";
 import { loadReview, type ReviewData, type ReviewInspection } from "@/lib/inspections/review/load";
 import { statusNotice } from "@/lib/inspections/review/notice";
 import { INSPECTIONS_PATH } from "@/lib/inspections/search-params";
@@ -148,8 +149,8 @@ function HeaderActions({ review }: { review: ReviewData }) {
         refNo={inspection.refNo}
         version={inspection.version}
         finalResult={inspection.result}
-        suggestedResult={evaluation.ok ? evaluation.report.suggested.result : null}
-        errors={evaluation.ok ? evaluation.summary.errors : 0}
+        // No suggestion and no error count when the results could not be worked out: the dialog says so.
+        {...approvalChecks(evaluation)}
       />
     </>
   );
