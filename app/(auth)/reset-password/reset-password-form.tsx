@@ -19,6 +19,16 @@ export function ResetPasswordForm({ flow, email }: { flow: PasswordFlow; email: 
   const confirmRef = useRef<HTMLInputElement>(null);
   const passwordError = state.fieldErrors?.password;
   const confirmError = state.fieldErrors?.confirm;
+  // Focus goes back to the first field after a failed save (below), so its
+  // description carries both fields' errors: a screen reader then hears why,
+  // even when only the confirmation was wrong ("The passwords do not match.").
+  const passwordDescribedBy = [
+    passwordError && "reset-password-error",
+    confirmError && "reset-confirm-error",
+    POLICY_ID,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   // A failed save clears both fields (React resets the form): start again at the first.
   useEffect(() => {
@@ -58,7 +68,7 @@ export function ResetPasswordForm({ flow, email }: { flow: PasswordFlow; email: 
           enterKeyHint="next"
           required
           aria-invalid={passwordError ? true : undefined}
-          aria-describedby={passwordError ? `reset-password-error ${POLICY_ID}` : POLICY_ID}
+          aria-describedby={passwordDescribedBy}
           onChange={(event) => setPassword(event.currentTarget.value)}
           onKeyDown={onPasswordKeyDown}
         />

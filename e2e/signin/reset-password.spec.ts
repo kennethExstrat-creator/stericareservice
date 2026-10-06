@@ -82,6 +82,9 @@ test("a reset link: rules up front, checked on the server, then saved", async ({
   await expect(confirm).toHaveAttribute("aria-invalid", "true");
   await expect(password).toHaveValue("");
   await expect(password).toBeFocused();
+  // Both fields were cleared and focus is back on the first: a screen reader hears why.
+  await expect(password).toHaveAccessibleDescription(/^The passwords do not match\./);
+  await expect(confirm).toHaveAccessibleDescription("The passwords do not match.");
   await expect(rules.nth(0)).toHaveAttribute("data-met", "false");
   await shot(page, testInfo, "reset-password-mismatch");
 
