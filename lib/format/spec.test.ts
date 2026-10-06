@@ -30,6 +30,11 @@ describe("formatSpec", () => {
     expect(formatSpec(undefined, { unit: "g" })).toBe("NA");
   });
 
+  it("prints a computed limit without binary noise", () => {
+    expect(formatSpec({ kind: "tolerance", nominal: 0.1 + 0.2, tolerance: 0.05 })).toBe("0.3 ± 0.05");
+    expect(formatSpec({ kind: "max", max: 1.1 * 3 }, { unit: "mm" })).toBe("≤ 3.3 mm");
+  });
+
   it("matches lib/stats without options", () => {
     const specs: Spec[] = [
       { kind: "min", min: 240 },

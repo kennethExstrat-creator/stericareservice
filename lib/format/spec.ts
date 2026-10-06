@@ -1,6 +1,8 @@
 // Specification limits as the reports print them, with units and decimals:
 // "≥ 240", "95 ± 10", "≤ 5%", "≥ 14.00 MPa", "0.05 – 0.10 mm" or "NA".
-// The same output as lib/stats' formatSpec when no options are given.
+// The same text as lib/stats' formatSpec when no options are given (spec.test.ts
+// checks it), plus a unit, fixed decimals and a missing spec. Display code
+// imports this one; calc keeps lib/stats'.
 import type { Spec } from "@/lib/stats";
 import { formatNumber, withUnit } from "./number";
 
