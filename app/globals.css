@@ -2,14 +2,135 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+/* =========================================================================
+   SteriCare QC: light theme
+   Brand, accent, mist, ease-out-expo, text-gradient-brand and ::selection are
+   copied from the website (docs/design-reference/globals.css). Everything
+   else is app-specific; the rules live in docs/DESIGN.md. Hex values here
+   must match lib/design/tokens.ts (checked by lib/design/contrast.test.ts).
+   ========================================================================= */
+
+/* The design reference and forms are not app source. */
+@source not "../docs";
+
+/* Light only. No element ever matches, so the dark: classes that ship with
+   shadcn components stay inert (without this, Tailwind applies them under
+   prefers-color-scheme: dark). */
+@custom-variant dark (&:not(*));
+
+/* Density by input device, not width: iPad reports a coarse pointer, a
+   desktop with mouse or trackpad a fine one. touch: grows controls to 44 px. */
+@custom-variant touch (@media (pointer: coarse));
+@custom-variant fine (@media (pointer: fine));
+
+/* Static: components and inline styles read these as CSS variables, so they
+   must exist even where no utility uses them. */
+@theme static {
+  /* ---- Brand: vivid logo blue. Same hue as the logo (OKLCH 253) pushed to
+     the sRGB chroma limit at each step; 600 is the exact logo blue.
+     500 carries white text at 4.7:1. On ink, text uses 400 (6.6:1). ---- */
+  --color-brand-50: #f4f7fb;
+  --color-brand-100: #e5eef8;
+  --color-brand-200: #c9ddf4;
+  --color-brand-300: #9bc5f6;
+  --color-brand-400: #3b9aff;
+  --color-brand-500: #0074d6;
+  --color-brand-600: #0157a2;
+  --color-brand-700: #084884;
+  --color-brand-800: #0a3867;
+  --color-brand-900: #08294c;
+  --color-brand-950: #051930;
+
+  /* ---- Accent: vivid logo teal (OKLCH hue 182.6). The exact logo teal
+     #1F9D8E sits between 500 and 600. Teal cannot be both bright and hold
+     white text: 400/500 are for surfaces, glows and dark grounds; 600 pairs
+     with brand-500 at equal lightness for buttons (4.43:1). ---- */
+  --color-accent-50: #edfbf9;
+  --color-accent-100: #d0f9f1;
+  --color-accent-200: #7ff7e4;
+  --color-accent-300: #52e5d2;
+  --color-accent-400: #00beac;
+  --color-accent-500: #00a292;
+  --color-accent-600: #008779;
+  --color-accent-700: #007368;
+  --color-accent-800: #0c5d53;
+  --color-accent-900: #0e4740;
+  --color-accent-950: #092d28;
+
+  /* ---- Mist: the muted ground, off-white tinted toward the logo blue ---- */
+  --color-mist: #f5f9fc;
+
+  /* ---- Neutrals: Tailwind 4's slate, written as its sRGB hex so the contrast
+     test measures exactly what ships. Text is 900; secondary text stops at
+     600 (7.2:1 on mist); 500 and lighter are for borders and icons only. ---- */
+  --color-slate-50: #f8fafc;
+  --color-slate-100: #f1f5f9;
+  --color-slate-200: #e2e8f0;
+  --color-slate-300: #cad5e2;
+  --color-slate-400: #90a1b9;
+  --color-slate-500: #62748e;
+  --color-slate-600: #45556c;
+  --color-slate-700: #314158;
+  --color-slate-800: #1d293d;
+  --color-slate-900: #0f172b;
+  --color-slate-950: #020618;
+
+  /* ---- Status: results, never the brand (teal is the brand, not a pass).
+     <status> is the text and icon colour and holds 4.5:1 on its tint, white
+     and mist; -solid-foreground holds 4.5:1 on -solid. Warn and hold share
+     amber and are told apart by label and icon. ---- */
+  --color-pass: #166534;
+  --color-pass-tint: #f0fdf4;
+  --color-pass-border: #86efac;
+  --color-pass-solid: #15803d;
+  --color-pass-solid-foreground: #ffffff;
+
+  --color-fail: #b91c1c;
+  --color-fail-tint: #fef2f2;
+  --color-fail-border: #fca5a5;
+  --color-fail-solid: #b91c1c;
+  --color-fail-solid-foreground: #ffffff;
+
+  --color-warn: #92400e;
+  --color-warn-tint: #fffbeb;
+  --color-warn-border: #fcd34d;
+  --color-warn-solid: #fbbf24;
+  --color-warn-solid-foreground: #451a03;
+
+  --color-hold: #78350f;
+  --color-hold-tint: #fef3c7;
+  --color-hold-border: #f59e0b;
+  --color-hold-solid: #f59e0b;
+  --color-hold-solid-foreground: #451a03;
+
+  --color-info: #314158;
+  --color-info-tint: #f1f5f9;
+  --color-info-border: #cad5e2;
+  --color-info-solid: #45556c;
+  --color-info-solid-foreground: #ffffff;
+
+  --color-not-done: #45556c;
+  --color-not-done-tint: #f8fafc;
+  --color-not-done-border: #90a1b9;
+  --color-not-done-solid: #62748e;
+  --color-not-done-solid-foreground: #ffffff;
+
+  /* ---- Motion: short state transitions only. Every transition utility
+     without its own duration or easing gets 150 ms ease-out-expo. ---- */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --default-transition-duration: 150ms;
+  --default-transition-timing-function: var(--ease-out-expo);
+}
 
 @theme inline {
+  /* Typefaces load via next/font in app/layout.tsx. */
+  --font-sans: var(--font-outfit), ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: var(--font-redhat), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-redhat), ui-sans-serif, system-ui, sans-serif;
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -48,86 +169,126 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* shadcn/ui semantics, mapped onto the tokens above so every component
+   inherits the theme. Naming clash: shadcn's `accent` is the subtle hover
+   surface (bg-accent, text-accent-foreground); the website's teal scale is
+   accent-50..950 (bg-accent-500). Both resolve; neither replaces the other. */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --background: var(--color-mist);
+  --foreground: var(--color-slate-900);
+  --card: #ffffff;
+  --card-foreground: var(--color-slate-900);
+  --popover: #ffffff;
+  --popover-foreground: var(--color-slate-900);
+  --primary: var(--color-brand-500);
+  --primary-foreground: #ffffff;
+  --secondary: var(--color-brand-100);
+  --secondary-foreground: var(--color-brand-700);
+  --muted: var(--color-slate-100);
+  --muted-foreground: var(--color-slate-600);
+  --accent: var(--color-brand-50);
+  --accent-foreground: var(--color-brand-700);
+  --destructive: var(--color-fail);
+  --border: var(--color-slate-200);
+  --input: var(--color-slate-300);
+  --ring: var(--color-brand-500);
+  --chart-1: var(--color-brand-500);
+  --chart-2: var(--color-accent-500);
+  --chart-3: var(--color-brand-700);
+  --chart-4: var(--color-accent-700);
+  --chart-5: var(--color-brand-300);
+  /* Fields md (~10 px), cards xl (~17 px); buttons and chips are pills. */
+  --radius: 0.75rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: var(--color-slate-900);
+  --sidebar-primary: var(--color-brand-500);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--color-brand-50);
+  --sidebar-accent-foreground: var(--color-brand-700);
+  --sidebar-border: var(--color-slate-200);
+  --sidebar-ring: var(--color-brand-500);
 }
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+/* ---- The logo gradient as text ---------------------------------------------
+   For display type only. On light grounds it ends on accent-600, which keeps
+   large text above 3:1 at every point; on dark grounds it uses the 400 steps,
+   because the exact logo blue is too dark to read on ink.
+   The gradient spans the element's box: give block elements w-fit, or short
+   text only picks up the blue start. Inline spans wrap across lines fine. */
+@utility text-gradient-brand {
+  background-image: linear-gradient(90deg, var(--color-brand-500), var(--color-accent-600));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+/* (text-gradient-light is not carried over: the app has no dark grounds.) */
+
+/* The same gradient as a fill: logo-adjacent marks, the login screen and the
+   active progress step. Never put body text on it. */
+@utility bg-gradient-brand {
+  background-image: linear-gradient(90deg, var(--color-brand-500), var(--color-accent-600));
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
-  button:not(:disabled), [role="button"]:not(:disabled) {
-    cursor: pointer;
-  }
+
   html {
     @apply font-sans;
+    color-scheme: light;
+    accent-color: var(--color-primary);
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    /* Pressed states are drawn by the components themselves. */
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Every heading uses the display face, as the website's base layer does. */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-display;
+  }
+
+  ::selection {
+    background-color: var(--color-brand-500);
+    color: #ffffff;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  /* Rapid taps on steppers and chips must count, not double-tap zoom. */
+  a,
+  button,
+  input,
+  label,
+  select,
+  summary,
+  textarea,
+  [role="button"] {
+    touch-action: manipulation;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
