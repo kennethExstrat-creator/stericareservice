@@ -4,7 +4,9 @@
 // with the printed figure. A size fails when a measure fails, passes when
 // every judged measure passes, and is not done until every glove has every
 // reading (BUILD_SPEC 6.2 rule 5). A measure whose spec is NA, or missing,
-// is recorded but not judged.
+// is recorded but not judged. A reading of 0 mm or less is an error that
+// blocks submit; it still counts, as MeasurementGrid's footer counts it, so
+// the screen never shows two verdicts for one column.
 import type { ModuleStatus } from "@/lib/schemas";
 import {
   formatDecimal,
@@ -122,7 +124,7 @@ export function calcDimensions({
     }
 
     const measures = config.measures.map((measure): MeasureSummary => {
-      const column = Array.from({ length: rows }, (_, index) => usable(gloves[index]?.[measure] ?? null));
+      const column = Array.from({ length: rows }, (_, index) => gloves[index]?.[measure] ?? null);
       const spec = specFor(config, size, measure);
       const decimals = config.decimals[measure];
       const summary = summarizeColumn(column, rows, config.statistic, spec, decimals);
@@ -156,11 +158,6 @@ export function calcDimensions({
     computed,
     issues,
   };
-}
-
-/** A reading that can be counted: a measurement is more than 0 mm. */
-function usable(value: number | null): number | null {
-  return value !== null && value > 0 ? value : null;
 }
 
 /** Not done while readings are missing; a measure without a spec to judge by is a record (info). */

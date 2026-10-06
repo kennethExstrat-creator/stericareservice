@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { roundTo, summarizeColumn } from "@/lib/stats";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import {
   buildInspectionContext,
@@ -202,22 +203,32 @@ describe("weight", () => {
   });
 
   describe("wrong data", () => {
-    it("rejects a weight of 0 or less, with a link to the value, and does not count it", () => {
+    it("rejects a weight of 0 or less with an error that blocks submit, with a link to the value", () => {
       const values = Array.from({ length: 13 }, (_, index) => (index === 2 ? 0 : 2.9));
       const output = calcWeight(input(sizeM(values)));
-      expect(output.issues).toEqual([
-        {
-          level: "error",
-          code: "weight_not_positive",
-          message: "Size M, Weight (g) No. 3: must be more than 0 g.",
-          size: "M",
-          path: ["sizes", "M", "values", 2],
-        },
-      ]);
-      expect(output.result.status).toBe("not_done");
+      expect(output.issues[0]).toEqual({
+        level: "error",
+        code: "weight_not_positive",
+        message: "Size M, Weight (g) No. 3: must be more than 0 g.",
+        size: "M",
+        path: ["sizes", "M", "values", 2],
+      });
       expect(calcWeight(input(sizeM([-2.9]), ONE_VALUE)).issues[0]?.message).toBe(
         "Size M, Weight (g): must be more than 0 g.",
       );
+    });
+
+    it("counts it as the grid's live average does, so the screen gives one answer", () => {
+      const values = Array.from({ length: 13 }, (_, index) => (index === 2 ? 0 : 2.9));
+      const output = calcWeight(input(sizeM(values)));
+      // MeasurementGrid's footer is lib/stats summarizeColumn over the stored column.
+      const footer = summarizeColumn(values, 13, "average", undefined, STD_EG.decimals);
+      expect(output.computed.count.M).toBe(footer.count);
+      expect(output.computed.shown.M).toBe(roundTo(footer.statistic ?? Number.NaN, STD_EG.decimals));
+      expect(output.computed.shown.M).toBe(2.68);
+      // 2.68 g is 23.4% below the indicative 3.5 g: the warning joins the error.
+      expect(output.result.status).toBe("warn");
+      expect(output.issues.map((issue) => issue.code)).toEqual(["weight_not_positive", "weight_deviation"]);
     });
 
     it("counts only the first n values and warns about the rest", () => {

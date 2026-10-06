@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { roundTo } from "@/lib/stats";
+import { roundTo, summarizeColumn } from "@/lib/stats";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import { evaluateInspection, type CalcInput, type InspectionContext } from "@/modules/_framework";
 import { checkModuleContract, makeSampling, makeTestContext, makeTestTemplate } from "@/modules/_framework/testing";
@@ -386,20 +386,51 @@ describe("dimensions", () => {
     });
   });
 
-  it("rejects a reading of 0 or less, with a link to the cell, and does not count it", () => {
-    const list = gloves(13).map((glove, index) => (index === 3 ? { ...glove, width: 0 } : glove));
-    const output = calcDimensions(input(sizeM(list)));
-    expect(output.issues).toEqual([
-      {
-        level: "error",
-        code: "dimension_not_positive",
-        message: "Size M, Width No. 4: must be more than 0 mm.",
-        size: "M",
-        path: ["sizes", "M", "gloves", 3, "width"],
-      },
-    ]);
-    expect(output.computed.count.M.width).toBe(12);
-    expect(output.result.status).toBe("not_done");
+  describe("a reading of 0 or less", () => {
+    it("is an error that blocks submit, with a link to the cell", () => {
+      const list = gloves(13).map((glove, index) => (index === 3 ? { ...glove, width: 0 } : glove));
+      const output = calcDimensions(input(sizeM(list)));
+      expect(output.issues).toEqual([
+        {
+          level: "error",
+          code: "dimension_not_positive",
+          message: "Size M, Width No. 4: must be more than 0 mm.",
+          size: "M",
+          path: ["sizes", "M", "gloves", 3, "width"],
+        },
+      ]);
+    });
+
+    it("counts as the grid's footer counts it, so the size and the footer give one verdict", () => {
+      // MeasurementGrid's footer is lib/stats summarizeColumn over the stored column.
+      const footer = (list: DimensionGlove[], config: DimensionsConfig, measure: "length" | "width") =>
+        summarizeColumn(
+          list.map((glove) => glove[measure]),
+          13,
+          config.statistic,
+          config.specs.find((row) => row.size === "M")?.specs[measure],
+          config.decimals[measure],
+        );
+
+      // The median hardly moves: width still 95, passed, as the footer shows it.
+      const median = gloves(13).map((glove, index) => (index === 3 ? { ...glove, width: 0 } : glove));
+      const std = calcDimensions(input(sizeM(median)));
+      expect(std.computed.count.M.width).toBe(13);
+      expect(std.computed.shown.M.width).toBe(95);
+      expect(std.computed.measureResult.M.width).toBe(footer(median, STD_EG, "width").outcome);
+      expect(std.computed.measureResult.M.width).toBe("pass");
+      expect(std.result.status).toBe("pass");
+
+      // The average drops below the minimum: failed, in the footer as in the result.
+      const average = gloves(13, { length: 242, width: 97, fingerThickness: 0.17, palmThickness: 0.11 }).map((glove, index) =>
+        index === 0 ? { ...glove, length: 0 } : glove,
+      );
+      const safedon = calcDimensions(input(sizeM(average), SAFEDON_EG));
+      expect(safedon.computed.shown.M.length).toBe(223);
+      expect(safedon.computed.measureResult.M.length).toBe(footer(average, SAFEDON_EG, "length").outcome);
+      expect(safedon.result.status).toBe("fail");
+      expect(safedon.issues.map((issue) => issue.code)).toEqual(["dimension_not_positive"]);
+    });
   });
 
   it("returns plain JSON", () => {

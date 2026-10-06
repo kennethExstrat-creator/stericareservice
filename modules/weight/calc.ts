@@ -3,7 +3,9 @@
 // is a record (info). The size the indicative weight is given for (glove_info,
 // through the context) is compared with it, and a deviation beyond the
 // threshold is a warning (BUILD_SPEC 6.2 rule 9). Not done until all n
-// gloves are weighed (rule 5).
+// gloves are weighed (rule 5). A weight of 0 g or less is an error that blocks
+// submit; it still counts, as MeasurementGrid's live average counts it, so
+// the screen never shows two answers for one size.
 import type { ModuleStatus } from "@/lib/schemas";
 import { checkSpec, formatDecimal, formatSpec, mean, roundTo, type Spec } from "@/lib/stats";
 import {
@@ -28,7 +30,7 @@ type BySize<T> = { [size: string]: T };
 export type WeightComputed = {
   /** Gloves weighed per size. */
   n: number;
-  /** Values counted per size: the first n, each more than 0 g. */
+  /** Values counted per size: those entered among the first n. */
   count: BySize<number>;
   /** Mean of the values counted, unrounded; null until there is one. */
   average: BySize<number | null>;
@@ -97,7 +99,7 @@ export function calcWeight({
     const values = data.sizes[size]?.values ?? [];
     issues.push(...valueIssues(size, values, config.n, labels, context));
     const counted = Array.from({ length: config.n }, (_, index) => values[index] ?? null).filter(
-      (value): value is number => value !== null && value > 0,
+      (value): value is number => value !== null,
     );
     const average = mean(counted);
     const shown = average === null ? null : roundTo(average, config.decimals);
