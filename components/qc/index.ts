@@ -26,7 +26,9 @@ export { PageHeader } from "./page-header";
 // Capture kit: shared building blocks for module Capture screens (docs/CAPTURE_KIT.md).
 // Accept/reject decisions are calc's, with lib/aql: the kit only displays them.
 export { useDataUpdater } from "./use-data-updater";
-export type { DataChange } from "./data-updater";
+// The updater without React, for tests of a module's writes (and anything outside a component).
+export { batchDataChanges, createDataUpdater, type DataChange, type DataUpdater } from "./data-updater";
+export { useMediaQuery, WIDE_QUERY, COARSE_QUERY } from "./use-media-query";
 export { SizeTabs, SizeStatusStrip, type ResultLike, type SizeResults } from "./size-tabs";
 export { HandToggle, handsOf, type HandView } from "./hand-toggle";
 export { BoxPicker } from "./box-picker";

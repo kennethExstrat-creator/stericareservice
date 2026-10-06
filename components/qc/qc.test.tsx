@@ -11,6 +11,7 @@ import { DefectChipGroup } from "./defect-chip-group";
 import { MeasurementGrid, type Measure } from "./measurement-grid";
 import { ModuleCard } from "./module-card";
 import { NumericCell } from "./numeric-cell";
+import { tagLine } from "./photo-tags";
 import { PhotoTile } from "./photo-tile";
 import { ProgressTracker } from "./progress-tracker";
 import { ResultChip } from "./result-chip";
@@ -151,6 +152,28 @@ describe("SaveStatus", () => {
 
   it("hides the badge with nothing queued", () => {
     expect(renderToStaticMarkup(<SaveStatus state="saved" />)).not.toContain("waiting to upload");
+  });
+
+  it("says Not saved in fail red when saving needs the inspector, keeping the upload count", () => {
+    const html = renderToStaticMarkup(<SaveStatus state="error" pendingUploads={1} />);
+    expect(html).toContain('data-state="error"');
+    expect(html).toContain("Not saved");
+    expect(html).toContain("text-fail");
+    expect(html).toContain("lucide-cloud-alert");
+    expect(html).toContain("photo waiting to upload");
+  });
+});
+
+describe("tagLine", () => {
+  it("names what was in focus when the photo was taken", () => {
+    expect(tagLine({ module: "Dimensions", size: "M", box: "253" })).toBe("Dimensions · Size M · Box 253");
+    expect(tagLine({ module: "Watertight", size: "7.0", hand: "L", defect: "Palm" })).toBe(
+      "Watertight · Size 7.0 · Left hand · Palm",
+    );
+  });
+
+  it("ends with an entry of the module's own list, such as a loading stage", () => {
+    expect(tagLine({ module: "Loading", item: "Doors closed" })).toBe("Loading · Doors closed");
   });
 });
 
