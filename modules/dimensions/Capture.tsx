@@ -5,8 +5,9 @@
 // on are columns in the template's wording; the footer shows the median or
 // average, the spec and the verdict at the printed precision, live as you
 // type. Enter walks down a column and a pasted column fills down (the grid's
-// own rules). Issue links switch to the size and focus the cell; photos are
-// tagged with the size in view.
+// own rules); every write goes through useDataUpdater, so a paste or two
+// commits in one event all land. Issue links switch to the size and focus
+// the cell; photos are tagged with the size in view.
 import { useLayoutEffect, useRef, useState, type RefObject } from "react";
 import {
   focusIssuePath,
@@ -15,47 +16,45 @@ import {
   ModuleSection,
   SizeTabs,
   StatusIcon,
+  useDataUpdater,
   useIssueFocus,
+  type DataChange,
   type Measure as GridMeasure,
   type MeasurementValues,
 } from "@/components/qc";
 import { cn } from "@/lib/utils";
 import { labelFor, sizeLabel, type CaptureProps, type Labels, type ValidationIssue } from "@/modules/_framework";
 import { rowsFor, specFor, type DimensionsComputed } from "./calc";
-import { cellPath, gridColumns, sizeHeading, withGridColumns } from "./capture-data";
+import { cellPath, gridChanges, gridColumns, sizeHeading, withReadings } from "./capture-data";
 import type { DimensionsConfig, Measure } from "./config";
 import type { DimensionsData } from "./schema";
 
 type Props = CaptureProps<DimensionsData, DimensionsConfig, DimensionsComputed>;
 
-// Around MeasurementGrid, for what it does not do yet. Read-only: a disabled
-// fieldset stops every edit, and the readings keep full contrast instead of
-// greying out. Swipe: its scroller pans both ways, which takes the horizontal
-// swipe that turns the size on iPad (docs/CAPTURE_KIT.md); the grid fits the
-// iPad's width, so touch pans it vertically only.
-const GRID_FRAME = cn(
+// MeasurementGrid has no read-only mode yet: a disabled fieldset stops every
+// edit, and the readings keep full contrast instead of greying out.
+const READ_ONLY_FRAME = cn(
   "m-0 min-w-0 border-0 p-0",
   "[&_input:disabled]:text-foreground [&_input:disabled]:opacity-100 [&_input:disabled]:[-webkit-text-fill-color:currentColor]",
-  "[&_[data-slot=measurement-grid]>div]:touch-pan-y [&_[data-slot=measurement-grid]>div]:touch-pinch-zoom",
 );
 
 export default function Capture(props: Props) {
-  const { context, evaluation, focusPath, onFocusChange } = props;
+  const { data, context, evaluation, focusPath, onChange, onFocusChange } = props;
+  const update = useDataUpdater(data, onChange);
   const root = useRef<HTMLDivElement>(null);
-  const [chosen, setChosen] = useState<string | null>(null);
-  // Only ordered sizes (6.2 rule 4); a size taken out of the order falls back to the first.
-  const size = chosen !== null && context.sizes.includes(chosen) ? chosen : (context.sizes[0] ?? "");
+  // SizeTabs shows the first ordered size while this is not one (6.2 rule 4) and says so through show.
+  const [size, setSize] = useState(context.sizes[0] ?? "");
 
   const show = (next: string) => {
-    setChosen(next);
+    setSize(next);
     onFocusChange?.({ size: next });
   };
 
   useIssueFocus(focusPath, {
     root,
     reveal: (path) => {
-      const target = path[0] === "sizes" ? path[1] : undefined;
-      if (typeof target === "string" && context.sizes.includes(target)) setChosen(target);
+      // size_not_ordered points at a size that is not on screen: stay put.
+      if (path[0] === "sizes" && typeof path[1] === "string" && context.sizes.includes(path[1])) setSize(path[1]);
     },
   });
 
@@ -68,7 +67,7 @@ export default function Capture(props: Props) {
         onValueChange={show}
         results={evaluation?.result.perSize}
       >
-        {(current) => <SizeGrid {...props} size={current} root={root} />}
+        {(current) => <SizeGrid {...props} size={current} root={root} update={update} />}
       </SizeTabs>
     </div>
   );
@@ -77,15 +76,19 @@ export default function Capture(props: Props) {
 function SizeGrid({
   size,
   root,
+  update,
   data,
   config,
   labels,
   context,
   evaluation,
   readOnly,
-  onChange,
   onFocusChange,
-}: Props & { size: string; root: RefObject<HTMLDivElement | null> }) {
+}: Props & {
+  size: string;
+  root: RefObject<HTMLDivElement | null>;
+  update: (change: DataChange<DimensionsData>) => void;
+}) {
   const grid = useRef<HTMLDivElement>(null);
   const { rows } = rowsFor(context, size, config);
   const heading = sizeHeading(labelFor(labels, "sizeHeading"), sizeLabel(context, size));
@@ -103,11 +106,15 @@ function SizeGrid({
     spec: specFor(config, size, measure),
     min: 0,
   }));
+  const columns = gridColumns(data, size, config.measures, rows);
 
   useCellIssuePaths(grid, size, config.measures);
 
+  // Only the readings the grid changed are written, on the latest data.
   const write = (next: MeasurementValues) => {
-    if (!readOnly) onChange(withGridColumns(data, size, next, config.measures, rows));
+    if (readOnly) return;
+    const changes = gridChanges(columns, next, config.measures, rows);
+    update((current) => withReadings(current, size, changes));
   };
 
   return (
@@ -126,12 +133,12 @@ function SizeGrid({
         }}
         {...issuePathProps(["sizes", size, "gloves"])}
       >
-        <fieldset disabled={readOnly} className={GRID_FRAME}>
+        <fieldset disabled={readOnly} className={READ_ONLY_FRAME}>
           <MeasurementGrid
             caption={heading}
             measures={measures}
             rows={rows}
-            values={gridColumns(data, size, config.measures, rows)}
+            values={columns}
             onValuesChange={write}
             statistic={config.statistic}
             labels={gridLabels(labels)}
