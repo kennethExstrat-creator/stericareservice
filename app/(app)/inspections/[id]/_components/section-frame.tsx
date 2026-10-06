@@ -52,23 +52,26 @@ export function SectionFrame({
       data-slot="section-frame"
       className={cn("rounded-xl bg-card text-card-foreground shadow-sm ring-1 ring-border", className)}
     >
-      <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3 border-b border-border px-5 py-4">
-        <div className="min-w-0 space-y-1">
+      {/* The result stays top right, however long the summary: the summary runs full width below. */}
+      <header className="space-y-1 border-b border-border px-5 py-4">
+        <div className="flex items-start justify-between gap-x-4 gap-y-2 max-sm:flex-wrap">
           <h2
             id={titleId}
             ref={headingRef}
             tabIndex={-1}
             // Focused by Previous, Next and issue links: the opaque ring shows it to keyboard users.
-            className="scroll-mt-[calc(var(--capture-sticky-top,0px)_+_1rem)] rounded-sm text-lg leading-snug font-bold text-balance text-foreground outline-none focus-ring"
+            className="min-w-0 rounded-sm text-lg leading-snug font-bold text-balance text-foreground outline-none focus-ring"
           >
             {title}
           </h2>
-          {summary && <div className="text-sm text-muted-foreground touch:text-base">{summary}</div>}
+          {(actions || status) && (
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+              {actions}
+              {status && <StatusPill status={status} label={statusLabel} />}
+            </div>
+          )}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {actions}
-          {status && <StatusPill status={status} label={statusLabel} />}
-        </div>
+        {summary && <div className="text-sm text-muted-foreground touch:text-base">{summary}</div>}
       </header>
       <div className="space-y-5 px-5 py-5">{children}</div>
       {footer && (

@@ -234,8 +234,7 @@ export function CaptureScreen({
       requestAnimationFrame(() => {
         const title = headingRef.current;
         if (!title) return;
-        const stickyTop = Number.parseFloat(rootRef.current?.style.getPropertyValue("--capture-sticky-top") ?? "") || 0;
-        if (title.getBoundingClientRect().top < stickyTop) title.scrollIntoView({ block: "start" });
+        if (title.getBoundingClientRect().top < stickyTopOf(rootRef.current)) scrollToTitle(title, rootRef.current);
         if (focusHeading) title.focus({ preventScroll: true });
       });
     },
@@ -267,9 +266,10 @@ export function CaptureScreen({
       setFocusRequest(null);
       // After the panel has closed and the section is on screen.
       requestAnimationFrame(() => {
+        const title = headingRef.current;
         if (issue.path.length === 0) {
-          headingRef.current?.scrollIntoView({ block: "start" });
-          headingRef.current?.focus({ preventScroll: true });
+          if (title) scrollToTitle(title, rootRef.current);
+          title?.focus({ preventScroll: true });
           return;
         }
         // A new array for every click (docs/CAPTURE_KIT.md, "Issue links"):
@@ -278,9 +278,10 @@ export function CaptureScreen({
         // Nothing in the section took focus (a form without marks): its title does.
         window.setTimeout(() => {
           const panel = document.getElementById(panelId);
-          if (panel && !panel.contains(document.activeElement)) {
-            headingRef.current?.scrollIntoView({ block: "start" });
-            headingRef.current?.focus({ preventScroll: true });
+          const heading = headingRef.current;
+          if (panel && heading && !panel.contains(document.activeElement)) {
+            scrollToTitle(heading, rootRef.current);
+            heading.focus({ preventScroll: true });
           }
         }, 700);
       });
@@ -694,6 +695,24 @@ function ActiveSection({
 /* ------------------------------------------------------------------ *
  * Pieces
  * ------------------------------------------------------------------ */
+
+/** Space between the sticky bars and a section title scrolled up to them. */
+const TITLE_GAP_PX = 16;
+
+/** Where the screen's sticky bars end (use-sticky-offsets.ts), in px from the top of the viewport. */
+function stickyTopOf(root: HTMLElement | null): number {
+  return Number.parseFloat(root?.style.getPropertyValue("--capture-sticky-top") ?? "") || 0;
+}
+
+/**
+ * Scrolls the page so a section title sits just below the sticky bars. Not
+ * scrollIntoView: the page's scroll padding also makes room for a module's
+ * own sticky size bar, which is not stuck while its title is in view.
+ */
+function scrollToTitle(title: HTMLElement, root: HTMLElement | null) {
+  const top = window.scrollY + title.getBoundingClientRect().top - stickyTopOf(root) - TITLE_GAP_PX;
+  window.scrollTo({ top: Math.max(0, top) });
+}
 
 function IssuesButton({
   errors,
