@@ -19,6 +19,7 @@ export const definition = defineModule<LoadingData, LoadingConfig, LoadingComput
     { path: "cartonCondition", label: LOADING_LABELS.cartonCondition, type: "textarea" },
   ],
   calc: calcLoading,
+  loadCapture: () => import("./Capture"),
 });
 
 export type { LoadingData } from "./schema";
