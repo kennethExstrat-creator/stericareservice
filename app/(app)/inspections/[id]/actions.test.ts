@@ -1,0 +1,446 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// The framework's test registry stands in for the real modules, so these
+// tests keep testing the actions whichever modules are built.
+vi.mock("@/modules/registry", async () => {
+  const { TEST_REGISTRY } = await import("@/modules/_framework/__fixtures__/test-registry");
+  return { MODULE_REGISTRY: TEST_REGISTRY, getModuleDefinition: (key: keyof typeof TEST_REGISTRY) => TEST_REGISTRY[key] };
+});
+vi.mock("@/lib/auth/session", () => ({ authorizeAction: vi.fn() }));
+vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
+vi.mock("next/navigation", () => ({
+  redirect: vi.fn((path: string) => {
+    throw new Error(`REDIRECT ${path}`);
+  }),
+  unstable_rethrow: vi.fn(),
+}));
+
+import { redirect } from "next/navigation";
+import { authorizeAction } from "@/lib/auth/session";
+import { contentHash } from "@/lib/offline/stable-json";
+import type { ResolvedTemplate } from "@/lib/schemas/template";
+import { createClient } from "@/lib/supabase/server";
+import { TEST_REGISTRY } from "@/modules/_framework/__fixtures__/test-registry";
+import { makeTestTemplate } from "@/modules/_framework/testing";
+import type { InspectionData } from "@/modules/_framework";
+import { saveCaptureData, submitInspection, switchModuleOff, switchModuleOn, type OverrideResult } from "./actions";
+
+const INSPECTION = "7c2d4e1a-0b3f-4a5c-9d8e-1f2a3b4c5d6e";
+const INSPECTOR = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
+const ADMIN = "5f6e7d8c-9b0a-4c1d-8e2f-3a4b5c6d7e8f";
+const VERSION = "2026-10-06T09:14:03.123456+00:00";
+const NEXT_VERSION = "2026-10-06T09:14:05.654321+00:00";
+const IDLE: OverrideResult = { status: "idle" };
+
+/* ------------------------------------------------------------------ *
+ * A fake Supabase client: every query records its chain and resolves to
+ * whatever the test's responder returns for it.
+ * ------------------------------------------------------------------ */
+
+type Result = { data: unknown; error: unknown };
+type Query = { table: string; calls: Array<[string, unknown[]]> };
+type Responder = (query: Query) => Result;
+
+function fakeClient(respond: Responder, rpc: (name: string, args: unknown) => Result = () => ({ data: 1, error: null })) {
+  const queries: Query[] = [];
+  const rpcCalls: Array<[string, unknown]> = [];
+  const from = vi.fn((table: string) => {
+    const query: Query = { table, calls: [] };
+    queries.push(query);
+    const builder: Record<string, unknown> = {};
+    for (const method of ["select", "update", "eq", "in", "abortSignal"]) {
+      builder[method] = (...args: unknown[]) => {
+        query.calls.push([method, args]);
+        return builder;
+      };
+    }
+    builder.maybeSingle = () => {
+      query.calls.push(["maybeSingle", []]);
+      return Promise.resolve(respond(query));
+    };
+    builder.then = (resolve: (value: Result) => unknown, reject: (reason: unknown) => unknown) =>
+      Promise.resolve(respond(query)).then(resolve, reject);
+    return builder;
+  });
+  return {
+    client: {
+      from,
+      rpc: vi.fn((name: string, args: unknown) => {
+        rpcCalls.push([name, args]);
+        return Promise.resolve(rpc(name, args));
+      }),
+    },
+    queries,
+    rpcCalls,
+  };
+}
+
+const isUpdate = (query: Query) => query.calls.some(([name]) => name === "update");
+const updatePayload = (query: Query | undefined) =>
+  query?.calls.find(([name]) => name === "update")?.[1][0] as Record<string, unknown> | undefined;
+const hasEq = (query: Query, column: string, value: unknown) =>
+  query.calls.some(([name, args]) => name === "eq" && args[0] === column && args[1] === value);
+
+/* ------------------------------------------------------------------ *
+ * The inspection row as the capture select returns it
+ * ------------------------------------------------------------------ */
+
+function template(withCustom = false): ResolvedTemplate {
+  return makeTestTemplate(TEST_REGISTRY, ["glove_info", "packing_config", "weight"], {
+    customModules: withCustom
+      ? [
+          {
+            key: "site_notes",
+            title: "Site notes",
+            after: "glove_info",
+            layout: "fields",
+            fields: [{ key: "sealIntact", label: "Seal intact", type: "yes_no", required: true }],
+          },
+        ]
+      : [],
+  });
+}
+
+function row(overrides: Record<string, unknown> = {}) {
+  return {
+    id: INSPECTION,
+    ref_no: "INS-2026-0001",
+    status: "draft",
+    data: { modules: {}, custom: {} },
+    module_overrides: {},
+    updated_at: VERSION,
+    inspection_date: "2026-10-06",
+    inspector_id: INSPECTOR,
+    submitted_at: null,
+    result: null,
+    template: { id: "t1", code: "TEST_EG", version: 1, resolved: template() },
+    client: { id: "20000000-0000-4000-8000-0000000000c1", name: "Client A" },
+    manufacturer: { id: "10000000-0000-4000-8000-0000000000f1", name: "Manufacturer A", factory_name: null },
+    inspector: { id: INSPECTOR, full_name: "Inspector A", email: "inspector@test.local" },
+    ...overrides,
+  };
+}
+
+const COMPLETE: InspectionData = {
+  modules: {
+    header: { poNo: "PO-0001", productName: "Nitrile gloves", client: "Client A" },
+    glove_info: { indicativeWeight: 3.5, colour: "Blue" },
+    conclusion: { finalResult: "pass", remark: null },
+  },
+  custom: {},
+};
+
+let client: ReturnType<typeof fakeClient>;
+
+function useClient(respond: Responder, rpc?: (name: string, args: unknown) => Result) {
+  client = fakeClient(respond, rpc);
+  vi.mocked(createClient).mockResolvedValue(client.client as never);
+}
+
+function signedInAs(role: "inspector" | "admin", id = role === "admin" ? ADMIN : INSPECTOR) {
+  vi.mocked(authorizeAction).mockResolvedValue({
+    ok: true,
+    user: { id, email: `${role}@test.local`, fullName: null, role },
+  });
+}
+
+beforeEach(() => {
+  signedInAs("inspector");
+  vi.spyOn(console, "error").mockImplementation(() => {});
+});
+
+afterEach(() => {
+  vi.resetAllMocks();
+  vi.restoreAllMocks();
+});
+
+/* ------------------------------------------------------------------ *
+ * saveCaptureData
+ * ------------------------------------------------------------------ */
+
+describe("saveCaptureData", () => {
+  const request = (data: unknown = COMPLETE, baseUpdatedAt = VERSION) => ({ inspectionId: INSPECTION, data, baseUpdatedAt });
+
+  it("answers unauthorized without a session, before reading anything", async () => {
+    vi.mocked(authorizeAction).mockResolvedValue({ ok: false, error: "Your session has ended. Sign in again." });
+    useClient(() => ({ data: null, error: null }));
+    await expect(saveCaptureData(request())).resolves.toEqual({
+      ok: false,
+      reason: "unauthorized",
+      message: "Your session has ended. Sign in again.",
+    });
+    expect(client.queries).toHaveLength(0);
+  });
+
+  it("refuses a request that is not one", async () => {
+    useClient(() => ({ data: row(), error: null }));
+    await expect(saveCaptureData({ inspectionId: "INS-1", data: {}, baseUpdatedAt: "" })).resolves.toMatchObject({
+      ok: false,
+      reason: "invalid",
+    });
+    await expect(saveCaptureData(request({ modules: {}, custom: {}, extra: 1 }))).resolves.toMatchObject({ reason: "invalid" });
+  });
+
+  it("answers not_found for an inspection the user cannot see", async () => {
+    useClient(() => ({ data: null, error: null }));
+    await expect(saveCaptureData(request())).resolves.toMatchObject({ ok: false, reason: "not_found" });
+  });
+
+  it("refuses a submitted inspection", async () => {
+    useClient(() => ({ data: row({ status: "submitted" }), error: null }));
+    await expect(saveCaptureData(request())).resolves.toEqual({
+      ok: false,
+      reason: "forbidden",
+      message: "This inspection has been submitted and can no longer be changed here.",
+    });
+  });
+
+  it("answers conflict with the server's copy when someone saved in between", async () => {
+    const stored = { modules: { glove_info: { colour: "Red", indicativeWeight: null } }, custom: {} };
+    useClient(() => ({ data: row({ data: stored, updated_at: NEXT_VERSION }), error: null }));
+    await expect(saveCaptureData(request())).resolves.toEqual({
+      ok: false,
+      reason: "conflict",
+      server: { data: stored, updatedAt: NEXT_VERSION },
+    });
+    expect(client.queries.filter(isUpdate)).toHaveLength(0);
+  });
+
+  it("refuses changed data that fails the module's schema, naming the section", async () => {
+    useClient(() => ({ data: row(), error: null }));
+    const outcome = await saveCaptureData(
+      request({ modules: { glove_info: { indicativeWeight: "2 42", colour: null } }, custom: {} }),
+    );
+    expect(outcome).toMatchObject({ ok: false, reason: "invalid" });
+    expect(outcome.ok === false && "message" in outcome ? outcome.message : "").toMatch(/^Glove Information: indicativeWeight: /);
+  });
+
+  it("writes the data with compare-and-set and the mirrored columns", async () => {
+    useClient((query) =>
+      isUpdate(query) ? { data: { updated_at: NEXT_VERSION }, error: null } : { data: row(), error: null },
+    );
+    await expect(saveCaptureData(request())).resolves.toEqual({ ok: true, updatedAt: NEXT_VERSION });
+
+    const update = client.queries.find(isUpdate);
+    expect(update && hasEq(update, "id", INSPECTION) && hasEq(update, "updated_at", VERSION)).toBe(true);
+    expect(updatePayload(update)).toMatchObject({
+      data: COMPLETE,
+      po_no: "PO-0001",
+      product_name: "Nitrile gloves",
+      lot_numbers: [],
+      inspection_date: "2026-10-06",
+      result: "pass",
+      suggested_result: "hold",
+    });
+    expect(updatePayload(update)).not.toHaveProperty("status");
+    expect(updatePayload(update)).not.toHaveProperty("client_id");
+  });
+
+  it("lets an admin save another inspector's draft", async () => {
+    signedInAs("admin");
+    useClient((query) =>
+      isUpdate(query) ? { data: { updated_at: NEXT_VERSION }, error: null } : { data: row(), error: null },
+    );
+    await expect(saveCaptureData(request())).resolves.toEqual({ ok: true, updatedAt: NEXT_VERSION });
+  });
+
+  it("turns an unexpected failure into a server error the autosave retries", async () => {
+    useClient(() => {
+      throw new Error("socket hang up");
+    });
+    await expect(saveCaptureData(request())).resolves.toMatchObject({ ok: false, reason: "server" });
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * submitInspection
+ * ------------------------------------------------------------------ */
+
+describe("submitInspection", () => {
+  const submit = (data: InspectionData = COMPLETE) => submitInspection({ inspectionId: INSPECTION, dataHash: contentHash(data) });
+
+  it("submits saved data without errors and opens the review", async () => {
+    useClient((query) =>
+      isUpdate(query) ? { data: [{ id: INSPECTION }], error: null } : { data: row({ data: COMPLETE }), error: null },
+    );
+    await expect(submit()).rejects.toThrow(`REDIRECT /inspections/${INSPECTION}/review`);
+    const update = client.queries.find(isUpdate);
+    expect(updatePayload(update)).toMatchObject({ status: "submitted", result: "pass", po_no: "PO-0001" });
+    expect(update && hasEq(update, "updated_at", VERSION)).toBe(true);
+    expect(redirect).toHaveBeenCalledWith(`/inspections/${INSPECTION}/review`);
+  });
+
+  it("stays blocked while the saved data has errors, and lists them", async () => {
+    const data = { modules: { ...COMPLETE.modules, conclusion: { finalResult: null, remark: null } }, custom: {} };
+    useClient(() => ({ data: row({ data }), error: null }));
+    const result = await submit(data);
+    expect(result).toMatchObject({ status: "blocked", message: "Fix this error before submitting." });
+    expect(result.status === "blocked" && result.errors.map((issue) => issue.moduleKey)).toEqual(["conclusion"]);
+    expect(client.queries.filter(isUpdate)).toHaveLength(0);
+  });
+
+  it("counts a required custom field as an error", async () => {
+    useClient(() => ({
+      data: row({ data: COMPLETE, template: { id: "t1", code: "TEST_EG", version: 1, resolved: template(true) } }),
+      error: null,
+    }));
+    const result = await submit();
+    expect(result.status === "blocked" && result.errors.map((issue) => issue.code)).toEqual(["required"]);
+  });
+
+  it("refuses when the saved data is not what the inspector checked", async () => {
+    useClient(() => ({ data: row({ data: COMPLETE }), error: null }));
+    const result = await submitInspection({ inspectionId: INSPECTION, dataHash: contentHash({ modules: {}, custom: {} }) });
+    expect(result).toMatchObject({ status: "error" });
+    expect(result.status === "error" && result.message).toMatch(/changed on another device/);
+  });
+
+  it("refuses when the row moved while it was being submitted", async () => {
+    useClient((query) => (isUpdate(query) ? { data: [], error: null } : { data: row({ data: COMPLETE }), error: null }));
+    await expect(submit()).resolves.toMatchObject({ status: "error", message: expect.stringMatching(/changed while/) });
+  });
+
+  it("opens the review of an inspection that is submitted already", async () => {
+    useClient(() => ({ data: row({ status: "submitted", data: COMPLETE }), error: null }));
+    await expect(submit()).rejects.toThrow("REDIRECT");
+    expect(client.queries.filter(isUpdate)).toHaveLength(0);
+  });
+
+  it("refuses an approved inspection and a request that is not one", async () => {
+    useClient(() => ({ data: row({ status: "approved", data: COMPLETE }), error: null }));
+    await expect(submit()).resolves.toMatchObject({ status: "error", message: expect.stringMatching(/approved/) });
+    await expect(submitInspection({ inspectionId: INSPECTION, dataHash: "x" })).resolves.toMatchObject({ status: "error" });
+  });
+
+  it("explains the database refusing the change of status", async () => {
+    useClient((query) =>
+      isUpdate(query)
+        ? { data: null, error: { code: "23514", message: "status cannot change" } }
+        : { data: row({ data: COMPLETE }), error: null },
+    );
+    await expect(submit()).resolves.toMatchObject({ status: "error", message: expect.stringMatching(/current status/) });
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * switchModuleOff / switchModuleOn
+ * ------------------------------------------------------------------ */
+
+function form(fields: Record<string, string>): FormData {
+  const data = new FormData();
+  for (const [name, value] of Object.entries(fields)) data.set(name, value);
+  return data;
+}
+
+describe("switchModuleOff", () => {
+  beforeEach(() => signedInAs("admin"));
+
+  it("is for admins only", async () => {
+    vi.mocked(authorizeAction).mockResolvedValue({ ok: false, error: "You do not have permission to do that." });
+    useClient(() => ({ data: row(), error: null }));
+    await expect(
+      switchModuleOff(IDLE, form({ inspectionId: INSPECTION, moduleKey: "weight", reason: "n/a" })),
+    ).resolves.toEqual({ status: "error", message: "You do not have permission to do that." });
+    expect(authorizeAction).toHaveBeenCalledWith("admin");
+  });
+
+  it("needs a reason, reported on the field", async () => {
+    useClient(() => ({ data: row(), error: null }));
+    await expect(
+      switchModuleOff(IDLE, form({ inspectionId: INSPECTION, moduleKey: "weight", reason: "  " })),
+    ).resolves.toEqual({
+      status: "error",
+      message: "Say why this section is switched off.",
+      fieldError: "Say why this section is switched off.",
+    });
+  });
+
+  it("says why a module cannot be switched off", async () => {
+    useClient(() => ({ data: row(), error: null }));
+    await expect(
+      switchModuleOff(IDLE, form({ inspectionId: INSPECTION, moduleKey: "conclusion", reason: "n/a" })),
+    ).resolves.toMatchObject({ status: "error", message: expect.stringMatching(/^Conclusion is always on/) });
+  });
+
+  it("switches it off with the reason, the admin and the time, logs it and follows the suggestion", async () => {
+    useClient((query) => (isUpdate(query) ? { data: [{ id: INSPECTION }], error: null } : { data: row(), error: null }));
+    const result = await switchModuleOff(
+      IDLE,
+      form({ inspectionId: INSPECTION, moduleKey: "weight", reason: " Not in this order. " }),
+    );
+    expect(result).toMatchObject({ status: "success", message: "Weight (g) is switched off for this inspection." });
+    const override = result.status === "success" ? result.overrides.weight : undefined;
+    expect(override).toMatchObject({ reason: "Not in this order.", by: ADMIN });
+    expect(Number.isNaN(Date.parse(override?.at ?? ""))).toBe(false);
+
+    const update = client.queries.find(isUpdate);
+    expect(updatePayload(update)).toMatchObject({ module_overrides: { weight: override }, suggested_result: "hold" });
+    expect(update && hasEq(update, "updated_at", VERSION)).toBe(true);
+    expect(client.rpcCalls).toEqual([
+      [
+        "log_inspection_event",
+        {
+          inspection_id: INSPECTION,
+          action: "module_override",
+          changes: { module: "weight", include: false, reason: "Not in this order." },
+        },
+      ],
+    ]);
+  });
+
+  it("tries again when another change landed in between", async () => {
+    let updates = 0;
+    useClient((query) => {
+      if (!isUpdate(query)) return { data: row(), error: null };
+      updates += 1;
+      return { data: updates === 1 ? [] : [{ id: INSPECTION }], error: null };
+    });
+    await expect(
+      switchModuleOff(IDLE, form({ inspectionId: INSPECTION, moduleKey: "weight", reason: "n/a" })),
+    ).resolves.toMatchObject({ status: "success" });
+    expect(updates).toBe(2);
+  });
+
+  it("keeps the change but warns when the audit log refuses it", async () => {
+    useClient(
+      (query) => (isUpdate(query) ? { data: [{ id: INSPECTION }], error: null } : { data: row(), error: null }),
+      () => ({ data: null, error: { code: "42501", message: "no" } }),
+    );
+    await expect(
+      switchModuleOff(IDLE, form({ inspectionId: INSPECTION, moduleKey: "weight", reason: "n/a" })),
+    ).resolves.toMatchObject({ status: "warning", message: expect.stringMatching(/audit log/) });
+  });
+
+  it("leaves an approved inspection alone", async () => {
+    useClient(() => ({ data: row({ status: "approved" }), error: null }));
+    await expect(
+      switchModuleOff(IDLE, form({ inspectionId: INSPECTION, moduleKey: "weight", reason: "n/a" })),
+    ).resolves.toEqual({ status: "error", message: "An approved inspection is read-only." });
+  });
+});
+
+describe("switchModuleOn", () => {
+  beforeEach(() => signedInAs("admin"));
+
+  const off = { weight: { reason: "Not in this order.", by: ADMIN, at: "2026-10-06T08:00:00.000Z" } };
+
+  it("removes the override and logs the earlier reason", async () => {
+    useClient((query) =>
+      isUpdate(query) ? { data: [{ id: INSPECTION }], error: null } : { data: row({ module_overrides: off }), error: null },
+    );
+    const result = await switchModuleOn(IDLE, form({ inspectionId: INSPECTION, moduleKey: "weight" }));
+    expect(result).toEqual({ status: "success", message: "Weight (g) is switched back on.", overrides: {} });
+    expect(updatePayload(client.queries.find(isUpdate))).toMatchObject({ module_overrides: {} });
+    expect(client.rpcCalls[0][1]).toMatchObject({
+      changes: { module: "weight", include: true, previousReason: "Not in this order." },
+    });
+  });
+
+  it("says when the module is not switched off", async () => {
+    useClient(() => ({ data: row(), error: null }));
+    await expect(switchModuleOn(IDLE, form({ inspectionId: INSPECTION, moduleKey: "weight" }))).resolves.toEqual({
+      status: "error",
+      message: "Weight (g) is not switched off for this inspection.",
+    });
+  });
+});

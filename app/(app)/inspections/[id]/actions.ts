@@ -1,0 +1,366 @@
+"use server";
+
+import { redirect, unstable_rethrow } from "next/navigation";
+import { authorizeAction } from "@/lib/auth/session";
+import { captureAccess, isEditableStatus } from "@/lib/inspections/capture/access";
+import { changedEntryProblems, describeProblems } from "@/lib/inspections/capture/changes";
+import { evaluateCapture } from "@/lib/inspections/capture/evaluate";
+import { loadCaptureInspection, type CaptureInspection } from "@/lib/inspections/capture/load";
+import { mirroredColumns } from "@/lib/inspections/capture/mirror";
+import {
+  switchOffProblem,
+  switchOnProblem,
+  withOverride,
+  withoutOverride,
+} from "@/lib/inspections/capture/overrides";
+import {
+  SaveInputSchema,
+  SubmitInputSchema,
+  SwitchOffInputSchema,
+  SwitchOnInputSchema,
+} from "@/lib/inspections/capture/schemas";
+import { FAILURE_MESSAGES, saveInspectionData, type SaveOutcome } from "@/lib/offline";
+import { contentHash } from "@/lib/offline/stable-json";
+import type { ModuleOverrides } from "@/lib/schemas/template";
+import { createClient } from "@/lib/supabase/server";
+import type { Json } from "@/lib/supabase/database.types";
+import type { ValidationIssue } from "@/lib/validation";
+import type { InspectionData } from "@/modules/_framework";
+
+/*
+ * Server Actions of the capture screen (BUILD_SPEC 8 and 10). They are public
+ * HTTP endpoints: each one checks the session first (authorizeAction),
+ * validates its input with zod and re-reads the inspection with the user's
+ * own client, so Row Level Security and the database guards check every
+ * write again. Status changes and module overrides are plain updates that
+ * the inspections guard checks (the status flow, admins only for overrides)
+ * and audits.
+ *
+ * Saving from two devices: every save is a compare-and-set on
+ * inspections.updated_at (docs/OFFLINE.md, "The transport"). A save names
+ * the version its data was edited from and is written only while the row is
+ * still at that version; otherwise the action answers "conflict" with the
+ * row's current data and version, and the device's autosave decides: it
+ * sends again on top of the new version when the server's data is what this
+ * device last saved or sent (only other columns moved, such as an admin
+ * switching a module off, or a save whose answer was lost), and otherwise
+ * stops and asks the inspector which version to keep. Nothing is merged and
+ * nothing is overwritten silently.
+ */
+
+/* ------------------------------------------------------------------ *
+ * Autosave
+ * ------------------------------------------------------------------ */
+
+/**
+ * The autosave transport (lib/offline). Saves the whole data of a draft or
+ * reopened inspection, checks every changed entry against its module's
+ * schema, and writes the columns that mirror the data in the same update.
+ */
+export async function saveCaptureData(input: unknown): Promise<SaveOutcome<InspectionData>> {
+  try {
+    const auth = await authorizeAction();
+    if (!auth.ok) return { ok: false, reason: "unauthorized", message: auth.error };
+
+    const parsed = SaveInputSchema.safeParse(input);
+    if (!parsed.success) return { ok: false, reason: "invalid", message: FAILURE_MESSAGES.invalid };
+    const request = parsed.data;
+
+    const supabase = await createClient();
+    const loaded = await loadCaptureInspection(supabase, request.inspectionId);
+    if (loaded.kind === "not_found") return { ok: false, reason: "not_found", message: FAILURE_MESSAGES.not_found };
+    if (loaded.kind === "template_unreadable") {
+      return { ok: false, reason: "invalid", message: "This inspection's template cannot be read. Ask an admin." };
+    }
+    const row = loaded.inspection;
+
+    const access = captureAccess({
+      status: row.status,
+      role: auth.user.role,
+      userId: auth.user.id,
+      inspectorId: row.inspectorId,
+    });
+    if (!access.editable) return { ok: false, reason: "forbidden", message: readOnlyMessage(row) };
+
+    // Someone saved in between: the device decides (see the note at the top).
+    if (row.updatedAt !== request.baseUpdatedAt) {
+      return { ok: false, reason: "conflict", server: { data: row.data, updatedAt: row.updatedAt } };
+    }
+
+    const problems = changedEntryProblems(row.data, request.data, row.template.resolved);
+    if (problems.length > 0) return { ok: false, reason: "invalid", message: describeProblems(problems) };
+
+    const evaluation = evaluateCapture({
+      template: row.template.resolved,
+      overrides: row.overrides,
+      data: request.data,
+      meta: row.meta,
+    });
+    return await saveInspectionData(supabase, request, { columns: () => mirroredColumns(evaluation) });
+  } catch (error) {
+    unstable_rethrow(error);
+    console.error("[capture] save failed", error);
+    return { ok: false, reason: "server", message: FAILURE_MESSAGES.server };
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Submit
+ * ------------------------------------------------------------------ */
+
+export type SubmitResult =
+  | { status: "idle" }
+  /** Validation errors on the saved data: submit waits until they are fixed. */
+  | { status: "blocked"; message: string; errors: ValidationIssue[] }
+  | { status: "error"; message: string };
+
+/**
+ * Moves a draft or reopened inspection to submitted, then opens its review.
+ * The screen has saved everything and checked the upload queue first; here
+ * the saved data must be exactly what the inspector validated (`dataHash`)
+ * and must have no errors (BUILD_SPEC 6.2). The database checks the
+ * transition, stamps submitted_at and writes the audit row.
+ */
+export async function submitInspection(input: unknown): Promise<SubmitResult> {
+  let reviewPath: string;
+  try {
+    const auth = await authorizeAction();
+    if (!auth.ok) return { status: "error", message: auth.error };
+
+    const parsed = SubmitInputSchema.safeParse(input);
+    if (!parsed.success) return { status: "error", message: "The request was not understood. Reload the page and try again." };
+    const { inspectionId, dataHash } = parsed.data;
+
+    const supabase = await createClient();
+    const loaded = await loadCaptureInspection(supabase, inspectionId);
+    if (loaded.kind === "not_found") return { status: "error", message: FAILURE_MESSAGES.not_found };
+    if (loaded.kind === "template_unreadable") {
+      return { status: "error", message: "This inspection's template cannot be read. Ask an admin." };
+    }
+    const row = loaded.inspection;
+    reviewPath = `/inspections/${row.id}/review`;
+
+    // Submitted already (a second tap, or another device): the review is where to go.
+    if (row.status !== "submitted") {
+      const access = captureAccess({
+        status: row.status,
+        role: auth.user.role,
+        userId: auth.user.id,
+        inspectorId: row.inspectorId,
+      });
+      if (!access.editable) return { status: "error", message: readOnlyMessage(row) };
+
+      if (contentHash(row.data) !== dataHash) {
+        return {
+          status: "error",
+          message:
+            "This inspection changed on another device since this one last saved. Reload the page to see the latest version, then submit.",
+        };
+      }
+
+      const evaluation = evaluateCapture({
+        template: row.template.resolved,
+        overrides: row.overrides,
+        data: row.data,
+        meta: row.meta,
+      });
+      const { errors } = evaluation.report;
+      if (errors.length > 0) {
+        return {
+          status: "blocked",
+          message: `Fix ${errors.length === 1 ? "this error" : `these ${errors.length} errors`} before submitting.`,
+          errors,
+        };
+      }
+
+      const { data: submitted, error } = await supabase
+        .from("inspections")
+        .update({ ...mirroredColumns(evaluation), status: "submitted" })
+        .eq("id", row.id)
+        // Unchanged since it was validated above.
+        .eq("updated_at", row.updatedAt)
+        .select("id");
+      if (error) {
+        console.error("[capture] submit refused", error.code, error.message);
+        return { status: "error", message: submitErrorMessage(error.code) };
+      }
+      if (!submitted || submitted.length === 0) {
+        return {
+          status: "error",
+          message: "This inspection changed while it was being submitted. Reload the page, then submit again.",
+        };
+      }
+    }
+  } catch (error) {
+    unstable_rethrow(error);
+    console.error("[capture] submit failed", error);
+    return { status: "error", message: "The inspection could not be submitted. Try again in a moment." };
+  }
+  redirect(reviewPath);
+}
+
+function submitErrorMessage(code: string | undefined): string {
+  if (code === "42501") return "You cannot submit this inspection.";
+  if (code === "23514") return "This inspection cannot be submitted from its current status. Reload the page.";
+  return "The inspection could not be submitted. Try again in a moment.";
+}
+
+/* ------------------------------------------------------------------ *
+ * Module overrides (admins)
+ * ------------------------------------------------------------------ */
+
+export type OverrideResult =
+  | { status: "idle" }
+  | { status: "success" | "warning"; message: string; overrides: ModuleOverrides }
+  | { status: "error"; message: string; fieldError?: string };
+
+/**
+ * Switches a module off for this inspection with a reason (BUILD_SPEC 4.4).
+ * Its data stays saved; capture, validation and the export leave it out and
+ * the export lists it with the reason. Logged as `module_override`.
+ */
+export async function switchModuleOff(_previous: OverrideResult, formData: FormData): Promise<OverrideResult> {
+  return guardedOverride("switchModuleOff", async () => {
+    const auth = await authorizeAction("admin");
+    if (!auth.ok) return { status: "error", message: auth.error };
+
+    const parsed = SwitchOffInputSchema.safeParse({
+      inspectionId: formData.get("inspectionId"),
+      moduleKey: formData.get("moduleKey"),
+      reason: formData.get("reason") ?? "",
+    });
+    if (!parsed.success) {
+      const reasonIssue = parsed.error.issues.find((issue) => issue.path[0] === "reason");
+      if (reasonIssue) return { status: "error", message: reasonIssue.message, fieldError: reasonIssue.message };
+      return { status: "error", message: "The request was not understood. Reload the page and try again." };
+    }
+    const { inspectionId, moduleKey, reason } = parsed.data;
+
+    const supabase = await createClient();
+    return updateOverrides(supabase, inspectionId, (row) => {
+      const problem = switchOffProblem(row.template.resolved, row.overrides, moduleKey);
+      if (problem) return { problem };
+      return {
+        next: withOverride(row.overrides, moduleKey, { reason, by: auth.user.id, at: new Date().toISOString() }),
+        event: { module: moduleKey, include: false, reason },
+        message: `${titleOf(row, moduleKey)} is switched off for this inspection.`,
+      };
+    });
+  });
+}
+
+/** Switches a module back on; its saved data returns with it. Logged as `module_override`. */
+export async function switchModuleOn(_previous: OverrideResult, formData: FormData): Promise<OverrideResult> {
+  return guardedOverride("switchModuleOn", async () => {
+    const auth = await authorizeAction("admin");
+    if (!auth.ok) return { status: "error", message: auth.error };
+
+    const parsed = SwitchOnInputSchema.safeParse({
+      inspectionId: formData.get("inspectionId"),
+      moduleKey: formData.get("moduleKey"),
+    });
+    if (!parsed.success) {
+      return { status: "error", message: "The request was not understood. Reload the page and try again." };
+    }
+    const { inspectionId, moduleKey } = parsed.data;
+
+    const supabase = await createClient();
+    return updateOverrides(supabase, inspectionId, (row) => {
+      const problem = switchOnProblem(row.template.resolved, row.overrides, moduleKey);
+      if (problem) return { problem };
+      return {
+        next: withoutOverride(row.overrides, moduleKey),
+        event: { module: moduleKey, include: true, previousReason: row.overrides[moduleKey]?.reason ?? null },
+        message: `${titleOf(row, moduleKey)} is switched back on.`,
+      };
+    });
+  });
+}
+
+type OverridePlan =
+  | { problem: string }
+  | { next: ModuleOverrides; event: Record<string, Json>; message: string };
+
+/** Lost updates: an override written on another device in between makes the write miss, and it is tried once more. */
+const OVERRIDE_ATTEMPTS = 2;
+
+async function updateOverrides(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  inspectionId: string,
+  plan: (row: CaptureInspection) => OverridePlan,
+): Promise<OverrideResult> {
+  for (let attempt = 0; attempt < OVERRIDE_ATTEMPTS; attempt += 1) {
+    const loaded = await loadCaptureInspection(supabase, inspectionId);
+    if (loaded.kind === "not_found") return { status: "error", message: FAILURE_MESSAGES.not_found };
+    if (loaded.kind === "template_unreadable") {
+      return { status: "error", message: "This inspection's template cannot be read." };
+    }
+    const row = loaded.inspection;
+    if (row.status === "approved") return { status: "error", message: "An approved inspection is read-only." };
+
+    const planned = plan(row);
+    if ("problem" in planned) return { status: "error", message: planned.problem };
+
+    // The suggestion leaves out what is switched off, so it follows the change.
+    const { report } = evaluateCapture({
+      template: row.template.resolved,
+      overrides: planned.next,
+      data: row.data,
+      meta: row.meta,
+    });
+    const { data: written, error } = await supabase
+      .from("inspections")
+      .update({ module_overrides: planned.next as NonNullable<Json>, suggested_result: report.suggested.result })
+      .eq("id", row.id)
+      .eq("updated_at", row.updatedAt)
+      .select("id");
+    if (error) {
+      console.error("[capture] override refused", error.code, error.message);
+      return {
+        status: "error",
+        message: error.code === "42501" ? "Only an admin can switch sections off or on." : "The change could not be saved. Try again.",
+      };
+    }
+    if (!written || written.length === 0) continue;
+
+    const logged = await supabase.rpc("log_inspection_event", {
+      inspection_id: row.id,
+      action: "module_override",
+      changes: planned.event,
+    });
+    if (logged.error) {
+      console.error("[capture] override not logged", logged.error.code, logged.error.message);
+      return {
+        status: "warning",
+        message: `${planned.message} The change could not be added to the audit log.`,
+        overrides: planned.next,
+      };
+    }
+    return { status: "success", message: planned.message, overrides: planned.next };
+  }
+  return { status: "error", message: "This inspection kept changing while it was being updated. Try again." };
+}
+
+async function guardedOverride(name: string, run: () => Promise<OverrideResult>): Promise<OverrideResult> {
+  try {
+    return await run();
+  } catch (error) {
+    unstable_rethrow(error);
+    console.error(`[capture] ${name} failed`, error);
+    return { status: "error", message: "The change could not be saved. Try again in a moment." };
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Helpers
+ * ------------------------------------------------------------------ */
+
+function titleOf(row: CaptureInspection, key: string): string {
+  return row.template.resolved.modules.find((entry) => entry.key === key)?.title ?? key;
+}
+
+function readOnlyMessage(row: Pick<CaptureInspection, "status">): string {
+  if (row.status === "approved") return "This inspection is approved and can no longer be changed.";
+  if (!isEditableStatus(row.status)) return "This inspection has been submitted and can no longer be changed here.";
+  return "This inspection can no longer be changed from this account.";
+}
