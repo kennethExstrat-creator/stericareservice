@@ -3,10 +3,10 @@
 // Loading capture (BUILD_SPEC 6.1 loading): the fields the template switches
 // on, with the cartons loaded next to the order's total cartons, which flow
 // forward from order_lots and are never typed (6.2 rule 2). The loading
-// stage picked here is reported as the focus, so the photos taken at each
-// stage are tagged with it (BUILD_SPEC 8.1). Every change goes through
-// useDataUpdater, built from the latest data (edit.ts).
-import { useId, useRef, useState } from "react";
+// stage picked here is reported as the focus for photo tags (BUILD_SPEC 8.1);
+// lib/photos cannot tag by stage yet, so the screen promises no tag. Every
+// change goes through useDataUpdater, built from the latest data (edit.ts).
+import { useId, useLayoutEffect, useRef, useState, type ComponentProps } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,7 +32,7 @@ import type { LoadingData } from "./schema";
 /**
  * The focus for photo tags. CaptureFocus has no slot yet for an entry of a
  * module's own list, so `item` rides along until the framework and
- * lib/photos take it (handed over as a follow-up).
+ * lib/photos take it (handed over as a follow-up); autoTag drops it today.
  */
 type ItemFocus = CaptureFocus & { readonly item: string };
 
@@ -75,7 +75,7 @@ export default function Capture({
   const pickStage = (value: string) => {
     const next = isStage(value) ? value : null;
     setStage(next);
-    // A stage picked again is let go: photos taken now are no longer tagged with it.
+    // A stage picked again is let go: the focus no longer names it.
     onFocusChange?.(next ? stageFocus(next) : {});
   };
 
@@ -89,11 +89,10 @@ export default function Capture({
               <Label htmlFor={`${uid}-container`} className="touch:text-base">
                 {labelFor(labels, "containerNo")}
               </Label>
-              <Input
+              <CapitalsInput
                 id={`${uid}-container`}
                 value={data.containerNo ?? ""}
-                // Container numbers are painted in capitals; storing them so keeps the export clean.
-                onChange={(event) => set({ containerNo: textOrNull(event.target.value.toUpperCase()) })}
+                onValueChange={(containerNo) => set({ containerNo: textOrNull(containerNo) })}
                 readOnly={readOnly}
                 autoComplete="off"
                 autoCapitalize="characters"
@@ -179,14 +178,7 @@ export default function Capture({
 
       {/* Photos cannot be added to a read-only inspection, so there is no stage to pick. */}
       {!readOnly && (
-        <ModuleSection
-          title={labelFor(labels, "loadingStage")}
-          description={
-            stage
-              ? `Photos taken now are tagged “${labelFor(labels, stage)}”.`
-              : "Pick the stage before taking its photos, so each photo is tagged with it."
-          }
-        >
+        <ModuleSection title={labelFor(labels, "loadingStage")}>
           <ToggleGroup
             type="single"
             variant="outline"
@@ -209,5 +201,52 @@ export default function Capture({
         </ModuleSection>
       )}
     </div>
+  );
+}
+
+/** Where the inspector's caret was in the value they typed, rewritten in capitals. */
+type Caret = { value: string; start: number; end: number; direction: NonNullable<HTMLInputElement["selectionDirection"]> };
+
+/**
+ * A text field kept in capitals: container numbers are painted in capitals,
+ * and storing them so keeps the export clean. Writing the capitals back
+ * moves the browser's caret to the end, so a letter typed in lower case in
+ * the middle of a number would send the next one to the end; the caret is
+ * put back where it was before the screen paints.
+ */
+function CapitalsInput({
+  value,
+  onValueChange,
+  ...props
+}: Omit<ComponentProps<typeof Input>, "value" | "onChange" | "ref"> & {
+  value: string;
+  onValueChange: (value: string) => void;
+}) {
+  const input = useRef<HTMLInputElement>(null);
+  const caret = useRef<Caret | null>(null);
+  useLayoutEffect(() => {
+    const typed = caret.current;
+    caret.current = null;
+    const node = input.current;
+    if (!typed || !node || node.value !== typed.value || node.ownerDocument.activeElement !== node) return;
+    node.setSelectionRange(typed.start, typed.end, typed.direction);
+  });
+
+  return (
+    <Input
+      {...props}
+      ref={input}
+      value={value}
+      onChange={(event) => {
+        const { value: text, selectionStart: start, selectionEnd: end, selectionDirection } = event.target;
+        const capitals = text.toUpperCase();
+        // Only a value rewritten in capitals moves the caret.
+        caret.current =
+          capitals !== text && start !== null && end !== null
+            ? { value: capitals, start, end, direction: selectionDirection ?? "none" }
+            : null;
+        onValueChange(capitals);
+      }}
+    />
   );
 }

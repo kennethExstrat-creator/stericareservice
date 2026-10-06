@@ -88,11 +88,17 @@ describe("loading capture", () => {
     expect(html).not.toContain("All 2,900 loaded");
   });
 
-  it("offers the loading stages to tag photos with", () => {
+  it("offers the loading stages, and promises no photo tag: lib/photos cannot tag by stage yet", () => {
     const html = render({});
     const stages = Array.from(html.matchAll(/data-slot="toggle-group-item"[^>]*>([^<]*)<\/button>/g), (match) => match[1]);
     expect(stages).toEqual(LOADING_STAGES.map((stage) => LOADING_LABELS[stage]));
-    expect(html).toContain("Pick the stage before taking its photos");
+    expect(html).toContain(LOADING_LABELS.loadingStage);
+    expect(html).not.toMatch(/tagged/i);
+  });
+
+  it("shows the container number as stored, in capitals", () => {
+    const html = render({ containerNo: "CSQU3054383" });
+    expect(html).toMatch(/<input[^>]*id="[^"]+-container"[^>]*value="CSQU3054383"/);
   });
 
   it("still shows the order's cartons from the context when calc could not run", () => {
