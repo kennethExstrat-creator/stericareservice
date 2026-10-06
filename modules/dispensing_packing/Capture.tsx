@@ -502,7 +502,12 @@ function StickinessLegend({ labels, config }: { labels: Labels; config: Dispensi
             <dt className="font-semibold tabular-nums">{entry.code}</dt>
             <dd className="text-muted-foreground">{entry.label}</dd>
             <dd>
-              <StatusPill size="sm" status={entry.pass ? "pass" : "fail"} />
+              {/* 16 px on iPad, as the kit's small pills in tables (status-pill.tsx SMALL_PILL_TOUCH). */}
+              <StatusPill
+                size="sm"
+                status={entry.pass ? "pass" : "fail"}
+                className="touch:h-8 touch:gap-1.5 touch:px-3 touch:text-base touch:[&>svg]:size-4"
+              />
             </dd>
           </div>
         ))}
