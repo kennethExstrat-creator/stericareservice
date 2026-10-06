@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { formatCount as aqlFormatCount } from "@/lib/aql";
 import { formatCount, formatNumber, formatPercent, toPercent, withUnit } from "./number";
 
 describe("formatNumber", () => {
@@ -7,6 +8,17 @@ describe("formatNumber", () => {
     expect(formatNumber(0.105)).toBe("0.105");
     expect(formatNumber(-1.5)).toBe("-1.5");
     expect(formatNumber(-0)).toBe("0");
+  });
+
+  it("drops binary noise from a calculation, keeping every digit that was typed", () => {
+    expect(formatNumber(0.1 + 0.2)).toBe("0.3");
+    expect(formatNumber((2.9 + 3.1 + 2.8) / 3)).toBe("2.93333333333");
+    expect(formatNumber(-0.1 - 0.2)).toBe("-0.3");
+    expect(formatNumber(1.1 * 3, { unit: "g" })).toBe("3.3 g");
+    expect(formatNumber(13.996)).toBe("13.996");
+    expect(formatNumber(0.000123)).toBe("0.000123");
+    expect(formatNumber(123456.789012)).toBe("123456.789012");
+    expect(formatNumber(5_800_000.000000001, { grouping: true })).toBe("5,800,000");
   });
 
   it("pads and rounds to fixed decimals like Excel's ROUND", () => {
@@ -64,6 +76,12 @@ describe("formatCount", () => {
     expect(formatCount(5_800_000)).toBe("5,800,000");
     expect(formatCount(13)).toBe("13");
     expect(formatCount(null, "—")).toBe("—");
+  });
+
+  it("prints every count as lib/aql's formatCount does, so either import gives the same text", () => {
+    for (const count of [0, 7, 13, 999, 1000, 80_000, 120_000, 1_700_000, 5_800_000, 123_456_789]) {
+      expect(formatCount(count)).toBe(aqlFormatCount(count));
+    }
   });
 });
 
