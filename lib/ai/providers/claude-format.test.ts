@@ -89,13 +89,10 @@ describe("parsing Claude's answer", () => {
 
   it("returns the validated review", () => {
     expect(parseAiReviewText(JSON.stringify(review))).toEqual({ review, problem: null });
-    expect(aiReviewOutputFormat().parse(JSON.stringify(review))).toEqual(review);
   });
 
-  it("returns null instead of throwing on a cut-off answer", () => {
+  it("names the problem instead of throwing on a cut-off answer", () => {
     const truncated = JSON.stringify(review).slice(0, 80);
-    expect(() => aiReviewOutputFormat().parse(truncated)).not.toThrow();
-    expect(aiReviewOutputFormat().parse(truncated)).toBeNull();
     expect(parseAiReviewText(truncated)).toEqual({ review: null, problem: "the answer is not complete JSON" });
   });
 
@@ -105,9 +102,11 @@ describe("parsing Claude's answer", () => {
     expect(result.problem).toContain("confidence");
   });
 
-  it("is a json_schema format carrying the generated schema", () => {
+  it("is a json_schema format carrying only the generated schema", () => {
     const format = aiReviewOutputFormat();
-    expect(format.type).toBe("json_schema");
+    expect(format).toEqual({ type: "json_schema", schema: aiReviewJsonSchema() });
     expect(format.schema).toBe(aiReviewJsonSchema());
+    // No parser for the SDK to run: one that throws would fail the stream before stop_reason is read.
+    expect(format).not.toHaveProperty("parse");
   });
 });

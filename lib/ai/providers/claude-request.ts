@@ -1,22 +1,37 @@
 import "server-only";
-import type { AutoParseableBetaOutputFormat } from "@anthropic-ai/sdk/lib/beta-parser";
 import type {
   BetaContentBlockParam,
-  MessageCreateParamsNonStreaming,
+  BetaJSONOutputFormat,
+  BetaMessageStreamParams,
 } from "@anthropic-ai/sdk/resources/beta/messages/messages";
-import type { AiReview, ExportPhoto, InspectionExport } from "@/lib/schemas";
+import type { ExportPhoto, InspectionExport } from "@/lib/schemas";
 import type { AiReviewEffort } from "../config";
 import { REVIEW_SYSTEM_PROMPT } from "../prompts/review-system";
 import { aiReviewOutputFormat } from "./claude-format";
 
-/** Room for adaptive thinking plus the JSON answer in one non-streaming call. */
-export const CLAUDE_MAX_TOKENS = 16_000;
+/**
+ * Room for adaptive thinking plus the JSON answer. xhigh and max think
+ * longer, and Anthropic advises at least 64K tokens there. The request is
+ * streamed, which any budget above about 16K tokens needs.
+ */
+export const CLAUDE_MAX_TOKENS: Readonly<Record<AiReviewEffort, number>> = {
+  low: 16_000,
+  medium: 16_000,
+  high: 16_000,
+  xhigh: 64_000,
+  max: 64_000,
+};
 
 /** Header for `fallbacks: "default"`. The array form needs server-side-fallback-2026-06-01; never mix them. */
 export const SERVER_SIDE_FALLBACK_BETA = "server-side-fallback-2026-07-01";
 
-export type ClaudeReviewParams = MessageCreateParamsNonStreaming & {
-  output_config: { effort: AiReviewEffort; format: AutoParseableBetaOutputFormat<AiReview | null> };
+/**
+ * Sent with client.beta.messages.stream(), which sets `stream: true` itself.
+ * Structured outputs (`output_config.format`) are generally available, so
+ * they need no beta header.
+ */
+export type ClaudeReviewParams = BetaMessageStreamParams & {
+  output_config: { effort: AiReviewEffort; format: BetaJSONOutputFormat };
 };
 
 export interface ReviewRequestSettings {
@@ -36,7 +51,7 @@ export function buildReviewRequest(
 ): ClaudeReviewParams {
   return {
     model: settings.model,
-    max_tokens: CLAUDE_MAX_TOKENS,
+    max_tokens: CLAUDE_MAX_TOKENS[settings.effort],
     betas: [SERVER_SIDE_FALLBACK_BETA],
     fallbacks: "default",
     system: [{ type: "text", text: REVIEW_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
