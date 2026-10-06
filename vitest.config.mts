@@ -13,6 +13,6 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["**/*.test.{ts,tsx}"],
-    exclude: ["node_modules/**", "docs/**", ".next/**", "supabase/**"],
+    exclude: ["node_modules/**", "docs/**", ".next/**", "supabase/**", ".claude/**"],
   },
 });

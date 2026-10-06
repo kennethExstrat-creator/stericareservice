@@ -51,3 +51,6 @@ docs/examples/
 # test artefacts
 /test-results/
 /screenshots/
+
+# coding-agent worktrees
+/.claude/worktrees/

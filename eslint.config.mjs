@@ -15,6 +15,8 @@ const eslintConfig = defineConfig([
     // Reference material only: the website snapshot and forms (BUILD_SPEC 2.1).
     "docs/**",
     "supabase/**",
+    // Agent worktrees (parallel builds) are separate checkouts.
+    ".claude/**",
   ]),
 ]);
 
