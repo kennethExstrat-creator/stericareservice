@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import { BoxPicker } from "./box-picker";
 import { ColumnSwitcher } from "./column-switcher";
 import { CounterTable, type CounterColumn, type CounterRow } from "./counter-table";
+import { DateField } from "./date-field";
 import type { CounterCell } from "./counter-model";
 import { Figure } from "./figure";
 import { HandToggle } from "./hand-toggle";
@@ -658,6 +659,47 @@ describe("NumberField", () => {
     const html = renderToStaticMarkup(<PercentField label="Layering" value={88} onValueChange={noop} />);
     expect(html).toContain(">%<");
     expect(html).toContain('value="88"');
+  });
+});
+
+describe("DateField", () => {
+  it("is a labelled date picker that keeps four-digit years (6.2 rule 3)", () => {
+    const html = renderToStaticMarkup(<DateField id="expiry" label="Expiry date" value="2030-03-01" onValueChange={noop} />);
+    expect(html).toContain('<label data-slot="label"');
+    expect(html).toContain('for="expiry"');
+    const input = tagsWith(html, 'id="expiry"')[0];
+    expect(input).toContain('type="date"');
+    expect(input).toContain('max="9999-12-31"');
+    expect(input).toContain('value="2030-03-01"');
+    expect(tagsWith(renderToStaticMarkup(<DateField label="Date" value={null} onValueChange={noop} />), 'type="date"')[0]).toContain(
+      'value=""',
+    );
+  });
+
+  it("shows calc's warning in amber, describing the date, and marks itself for issue links", () => {
+    const html = renderToStaticMarkup(
+      <DateField
+        id="expiry"
+        label="Expiry date"
+        value="2025-03-01"
+        warning="Expiry date 2025-03-01 is not after Manufacturing date 2025-04-01."
+        issuePath={["expiryDate"]}
+        onValueChange={noop}
+      />,
+    );
+    expect(tagsWith(html, 'id="expiry"')[0]).toContain('aria-describedby="expiry-calc-warning"');
+    expect(html).toMatch(/id="expiry-calc-warning"[^>]*text-warn/);
+    expect(html).toContain('data-issue-path="[&quot;expiryDate&quot;]"');
+  });
+
+  it("passes the input's own attributes through, read-only included", () => {
+    const html = renderToStaticMarkup(
+      <DateField id="d" label="Date" value="2025-04-11" readOnly enterKeyHint="next" data-header-field="" onValueChange={noop} />,
+    );
+    const input = tagsWith(html, 'id="d"')[0];
+    expect(input).toContain('readOnly=""');
+    expect(input).toContain('enterKeyHint="next"');
+    expect(input).toContain('data-header-field=""');
   });
 });
 

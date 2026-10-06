@@ -59,6 +59,7 @@ export {
   type RequirementLabels,
   type RequirementOutcome,
 } from "./requirement-list";
+export { DateField } from "./date-field";
 export { ModuleSection } from "./module-section";
 export { Figure } from "./figure";
 export {
