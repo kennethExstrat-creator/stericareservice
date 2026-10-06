@@ -103,7 +103,7 @@ export function makeInspectionData() {
         comment: "Weighed on the factory scale.",
       },
       visual: { sizes: { M: { critical: 0, major: 8 } } },
-      conclusion: { finalResult: "hold", remark: "From the module, not the row." },
+      conclusion: { finalResult: "hold", remark: "Weight below the indicative value; waiting for the spec sheet." },
     },
     custom: { glove_type: { gloveType: "Nitrile, powder free" } },
   };
@@ -125,7 +125,8 @@ export function makeInspectionRow(overrides: Row = {}, template: Row = {}): Row 
     },
     result: "hold",
     suggested_result: "fail",
-    remarks: "Weight below the indicative value; waiting for the spec sheet.",
+    // The list's copy of the remark, from before the inspector last changed it.
+    remarks: "Remark as first saved.",
     report_url: null,
     created_at: "2026-10-05T01:00:00.123456+00:00",
     updated_at: UPDATED_AT,

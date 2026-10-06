@@ -2,7 +2,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ExportSchema, type InspectionExport } from "@/lib/schemas/export";
 import { TEST_REGISTRY } from "@/modules/_framework/__fixtures__/test-registry";
 import { createFakeSupabase, type FakeSupabaseOptions } from "./__fixtures__/fake-supabase";
-import { IDS, makeInspectionRow, makeObjects, makeResolvedTemplate, makeTables, PATHS, UPDATED_AT } from "./__fixtures__/inspection";
+import {
+  IDS,
+  makeInspectionData,
+  makeInspectionRow,
+  makeObjects,
+  makeResolvedTemplate,
+  makeTables,
+  PATHS,
+  UPDATED_AT,
+} from "./__fixtures__/inspection";
 import { buildInspectionExport, type BuildExportOptions } from "./build";
 import { EXPORT_URL_TTL_SECONDS } from "./sign";
 
@@ -187,7 +196,8 @@ describe("buildInspectionExport", () => {
     expect(warn).toHaveBeenCalled();
   });
 
-  it("concludes with the computed suggestion, the inspector's final result and remark from the inspection row", async () => {
+  it("concludes with the computed suggestion and the final result and remark the inspector entered", async () => {
+    // The row's remarks column still holds an older copy: the conclusion module is the source.
     const doc = await exportOf();
     expect(doc.conclusion).toEqual({
       suggestedResult: "fail",
@@ -198,10 +208,20 @@ describe("buildInspectionExport", () => {
     });
   });
 
-  it("falls back to what the conclusion module saved when the row has no result or remark yet", async () => {
-    const fake = setup({ tables: { ...makeTables(), inspections: [makeInspectionRow({ result: null, remarks: "  " })] } });
-    const doc = await exportOf(fake);
-    expect(doc.conclusion).toMatchObject({ finalResult: "hold", remark: "From the module, not the row." });
+  it("takes the final result from the conclusion module when the row's copy differs", async () => {
+    const fake = setup({ tables: { ...makeTables(), inspections: [makeInspectionRow({ result: "pass" })] } });
+    expect((await exportOf(fake)).conclusion.finalResult).toBe("hold");
+  });
+
+  it("falls back to the row's columns when the conclusion module holds no final result or remark", async () => {
+    const data = makeInspectionData();
+    data.modules.conclusion = { finalResult: null, remark: "  " } as unknown as typeof data.modules.conclusion;
+    const fake = setup({ tables: { ...makeTables(), inspections: [makeInspectionRow({ data, result: "fail" })] } });
+    expect((await exportOf(fake)).conclusion).toMatchObject({ finalResult: "fail", remark: "Remark as first saved." });
+
+    const neither = makeInspectionRow({ data, result: null, remarks: null });
+    const empty = setup({ tables: { ...makeTables(), inspections: [neither] } });
+    expect((await exportOf(empty)).conclusion).toMatchObject({ finalResult: null, remark: null });
   });
 
   it("names the inspector by email when the profile has no name, and leaves out an address the schema would refuse", async () => {

@@ -142,18 +142,20 @@ function moduleData(evaluated: EvaluatedInspection, evaluation: ModuleEvaluation
 
 /**
  * The conclusion block. The suggested result is the framework's, from this
- * evaluation. The final result and remark are the inspection row's columns
- * (what lists and approval read), else what the conclusion module saved;
- * the date is the conclusion's own (the report date, DATA_DICTIONARY
- * decision 1), or null until it is recorded.
+ * evaluation. The final result and remark are what the inspector entered in
+ * the conclusion module. inspections.result and inspections.remarks only
+ * mirror them for lists and search (docs/OFFLINE.md), so they stand in only
+ * where the module holds no value (data saved before the module was built,
+ * or that no longer reads). The date is the conclusion's own (the report
+ * date, DATA_DICTIONARY decision 1), or null until it is recorded.
  */
 export function conclusionOf(record: InspectionRecord, evaluated: EvaluatedInspection): ExportConclusion {
   const saved = evaluated.report.modules.find((evaluation) => evaluation.key === "conclusion");
   const data = saved && isRecord(saved.data) ? saved.data : {};
   return {
     suggestedResult: evaluated.report.suggested.result,
-    finalResult: record.result ?? resultOrNull(data.finalResult),
-    remark: blankToNull(record.remarks) ?? (typeof data.remark === "string" ? blankToNull(data.remark) : null),
+    finalResult: resultOrNull(data.finalResult) ?? record.result,
+    remark: (typeof data.remark === "string" ? blankToNull(data.remark) : null) ?? blankToNull(record.remarks),
     inspector: evaluated.inspector,
     date: IsoDateSchema.safeParse(data.date).success ? (data.date as string) : null,
   };
