@@ -56,6 +56,8 @@ export type NewFixture = {
   previousRef: string;
   inspectorId: string;
   adminId: string;
+  /** Hartalega's address as the database holds it: a new inspection's header starts with it. */
+  manufacturerAddress: string | null;
   cleanup: () => Promise<void>;
 };
 
@@ -140,6 +142,13 @@ async function insertFixtureRows(admin: AdminClient): Promise<NewFixture> {
   if (peopleError) fail("finding the test accounts", peopleError);
   const idOf = (email: string) => people.find((person) => person.email === email)?.id ?? fail(`finding ${email}`, null);
 
+  const { data: manufacturer, error: manufacturerError } = await admin
+    .from("manufacturers")
+    .select("address")
+    .eq("id", HARTALEGA.id)
+    .single();
+  if (manufacturerError) fail("reading Hartalega", manufacturerError);
+
   const clientName = `${FIXTURE_CLIENT_PREFIX} ${Math.random().toString(36).slice(2, 6)}`;
   const { data: client, error: clientError } = await admin
     .from("clients")
@@ -201,6 +210,7 @@ async function insertFixtureRows(admin: AdminClient): Promise<NewFixture> {
     previousRef: previous.ref_no,
     inspectorId: idOf(TEST_ACCOUNTS.inspector),
     adminId: idOf(TEST_ACCOUNTS.admin),
+    manufacturerAddress: manufacturer.address?.trim() || null,
     cleanup: () => removeFixtureRows(admin),
   };
 }

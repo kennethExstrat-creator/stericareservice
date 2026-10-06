@@ -81,7 +81,8 @@ async function create(formData: FormData): Promise<Outcome> {
   const [templates, client, manufacturer, previous] = await Promise.all([
     user.role === "admin" ? templateQuery.neq("status", "retired") : templateQuery.eq("status", "active"),
     input.clientId ? supabase.from("clients").select("id").eq("id", input.clientId).maybeSingle() : null,
-    supabase.from("manufacturers").select("id").eq("id", input.manufacturerId).maybeSingle(),
+    // The address prefills the header (lib/coverage: header.factoryAddress).
+    supabase.from("manufacturers").select("id, address").eq("id", input.manufacturerId).maybeSingle(),
     input.previousId
       ? supabase
           .from("inspections")
@@ -140,6 +141,7 @@ async function create(formData: FormData): Promise<Outcome> {
     registry: MODULE_REGISTRY,
     inspectionDate,
     productName: input.productName,
+    factoryAddress: manufacturer.data.address,
     previous: previousData,
   });
 

@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import type { ModuleKey } from "@/lib/schemas/module-result";
+import type { ResolvedTemplate } from "@/lib/schemas/template";
 import type { TemplateCandidate } from "@/lib/templates/select";
 import { buildSeedBundle, SEED_TEMPLATES } from "@/lib/templates/definitions";
 import { TEST_CLIENT_ID, TEST_MANUFACTURER_ID, TEST_REGISTRY } from "@/modules/_framework/__fixtures__/test-registry";
@@ -10,6 +12,7 @@ import {
   copyFromPrevious,
   describeCreateError,
   fieldErrorsOf,
+  headerPrefill,
   latestPerProduct,
   newInspectionData,
   NewInspectionInputSchema,
@@ -18,6 +21,7 @@ import {
   previousMatches,
   productKey,
   readNewInspectionForm,
+  templateShowsField,
   todayInMalaysia,
   type PreviousInspectionRow,
 } from "./create";
@@ -41,6 +45,25 @@ function parse(values: Record<string, string>) {
 const seeds = new Map(buildSeedBundle(SEED_TEMPLATES, MODULE_REGISTRY).templates.map((entry) => [entry.code, entry.resolved]));
 const STD_EG = seeds.get("STD_EG")!;
 const STD_SG = seeds.get("STD_SG")!;
+
+/**
+ * The values given, and nothing else: every other key of the module's data
+ * is empty. Holds for the placeholder modules and for the built ones, whose
+ * empty data lists every field as null.
+ */
+function expectOnly(actual: unknown, expected: Record<string, unknown>) {
+  expect(actual).toMatchObject(expected);
+  const others = Object.entries(actual as Record<string, unknown>).filter(([key]) => !(key in expected));
+  expect(Object.fromEntries(others.filter(([, value]) => value !== null))).toEqual({});
+}
+
+/** A copy of the template with one module's config replaced. */
+function withConfig(template: ResolvedTemplate, key: ModuleKey, config: Record<string, unknown>): ResolvedTemplate {
+  return {
+    ...template,
+    modules: template.modules.map((entry) => (entry.key === key ? { ...entry, config: { ...entry.config, ...config } } : entry)),
+  } as ResolvedTemplate;
+}
 
 describe("the form", () => {
   it("reads client, manufacturer, product type and product name", () => {
@@ -248,16 +271,14 @@ describe("start from previous: what is copied", () => {
   it("copies the product's facts from the header, and glove information and packing whole", () => {
     const { modules, copied } = copyFromPrevious(previous, STD_EG, MODULE_REGISTRY);
     expect(copied).toEqual(["header", "glove_info", "packing_config"]);
-    expect(modules).toEqual({
-      header: {
-        factoryAddress: "Factory address A",
-        productName: "Brand A nitrile, code GN-0001",
-        productCode: "GN-0001",
-        factoryGloveCode: "FGC-01",
-      },
-      glove_info: { surfaceTexture: "Finger-textured", indicativeWeight: 3.5, colour: "Blue", length: "240 mm min" },
-      packing_config: { glovesPerInner: 100, innersPerCase: 10, glovesPerCase: 1000, packingMode: "10 boxes per carton" },
+    expectOnly(modules.header, {
+      factoryAddress: "Factory address A",
+      productName: "Brand A nitrile, code GN-0001",
+      productCode: "GN-0001",
+      factoryGloveCode: "FGC-01",
     });
+    expectOnly(modules.glove_info, { surfaceTexture: "Finger-textured", indicativeWeight: 3.5, colour: "Blue", length: "240 mm min" });
+    expectOnly(modules.packing_config, { glovesPerInner: 100, innersPerCase: 10, glovesPerCase: 1000, packingMode: "10 boxes per carton" });
   });
 
   it("never copies the PO, dates, lots, other modules, results, comments or custom modules", () => {
@@ -269,7 +290,7 @@ describe("start from previous: what is copied", () => {
       previous,
     });
     const text = JSON.stringify(data);
-    for (const kept of ["PO-0001", "2026-09-01", "2026-08-01", "2029-07-31", "LOT-M-0001", "All good.", "Powder free"]) {
+    for (const kept of ["PO-0001", "2026-09-01", "2026-08-01", "2029-07-31", "LOT-M-0001", "All good.", "Powder free", "Client A"]) {
       expect(text, kept).not.toContain(kept);
     }
     expect(text).not.toContain('"comment"');
@@ -277,10 +298,21 @@ describe("start from previous: what is copied", () => {
   });
 
   it("copies nothing into a module the new template switches off, or from a module with nothing in it", () => {
-    const withoutGloveInfo = { ...STD_SG };
-    expect(copyFromPrevious(previous, withoutGloveInfo, MODULE_REGISTRY).copied).toEqual(["header", "packing_config"]);
+    expect(copyFromPrevious(previous, STD_SG, MODULE_REGISTRY).copied).toEqual(["header", "packing_config"]);
     const empty = { modules: { glove_info: { colour: null, comment: "Nothing yet." }, header: { poNo: "PO-1" } }, custom: {} };
     expect(copyFromPrevious(empty, STD_EG, MODULE_REGISTRY)).toEqual({ modules: {}, copied: [] });
+  });
+
+  it("leaves behind a field the new template switches off", () => {
+    // STD_SG's header has no factory address or factory glove code (onsite/SG.md).
+    const { modules } = copyFromPrevious(previous, STD_SG, MODULE_REGISTRY);
+    expectOnly(modules.header, { productName: "Brand A nitrile, code GN-0001", productCode: "GN-0001" });
+    const noColour = withConfig(STD_EG, "glove_info", { fields: { surfaceTexture: true, indicativeWeight: true, colour: false, length: true } });
+    expectOnly(copyFromPrevious(previous, noColour, MODULE_REGISTRY).modules.glove_info, {
+      surfaceTexture: "Finger-textured",
+      indicativeWeight: 3.5,
+      length: "240 mm min",
+    });
   });
 
   it("keeps to each module's schema: a value it does not take is left out", () => {
@@ -313,8 +345,10 @@ describe("the new inspection's data", () => {
     });
     expect(copied).toEqual([]);
     expect(Object.keys(data.modules)).toEqual(STD_EG.modules.filter((entry) => entry.include).map((entry) => entry.key));
-    expect(data.modules.header).toEqual({ inspectionDate: "2026-10-06", productName: "Nitrile blue" });
-    expect(data.modules.glove_info).toEqual(MODULE_REGISTRY.glove_info.emptyData());
+    expectOnly(data.modules.header, { inspectionDate: "2026-10-06", productName: "Nitrile blue" });
+    for (const key of Object.keys(data.modules).filter((entry) => entry !== "header")) {
+      expect(data.modules[key], key).toEqual(MODULE_REGISTRY[key as keyof typeof MODULE_REGISTRY].emptyData());
+    }
     expect(data.custom).toEqual({});
     // Plain JSON, as the database stores it.
     expect(JSON.parse(JSON.stringify(data))).toEqual(data);
@@ -326,7 +360,7 @@ describe("the new inspection's data", () => {
     expect(Object.keys(data.modules)).not.toContain("force_at_break");
     expect(Object.keys(data.modules)).not.toContain("dispensing_packing");
     expect(Object.keys(data.modules)).toContain("tensile");
-    expect(data.modules.header).toEqual({ inspectionDate: "2026-10-06" });
+    expectOnly(data.modules.header, { inspectionDate: "2026-10-06" });
   });
 
   it("uses the product name typed on the form over the copied one", () => {
@@ -339,19 +373,85 @@ describe("the new inspection's data", () => {
       previous,
     });
     expect(copied).toEqual(["header"]);
-    expect(data.modules.header).toEqual({ productName: "New name", productCode: "GN-1", inspectionDate: "2026-10-06" });
+    expectOnly(data.modules.header, { productName: "New name", productCode: "GN-1", inspectionDate: "2026-10-06" });
+  });
+
+  it("fills the factory address from the manufacturer, unless the earlier inspection gave one", () => {
+    const blank = newInspectionData({
+      template: STD_EG,
+      registry: MODULE_REGISTRY,
+      inspectionDate: "2026-10-06",
+      productName: null,
+      factoryAddress: "  Lot 1, Industrial Park  ",
+    });
+    expectOnly(blank.data.modules.header, { inspectionDate: "2026-10-06", factoryAddress: "Lot 1, Industrial Park" });
+
+    const copied = newInspectionData({
+      template: STD_EG,
+      registry: MODULE_REGISTRY,
+      inspectionDate: "2026-10-06",
+      productName: null,
+      factoryAddress: "Lot 1, Industrial Park",
+      previous: { modules: { header: { factoryAddress: "Plant 2, as written last time", productCode: "GN-1" } }, custom: {} },
+    });
+    expectOnly(copied.data.modules.header, {
+      inspectionDate: "2026-10-06",
+      factoryAddress: "Plant 2, as written last time",
+      productCode: "GN-1",
+    });
+
+    const unknown = newInspectionData({
+      template: STD_EG,
+      registry: MODULE_REGISTRY,
+      inspectionDate: "2026-10-06",
+      productName: null,
+      factoryAddress: " ",
+    });
+    expectOnly(unknown.data.modules.header, { inspectionDate: "2026-10-06" });
+  });
+
+  it("prefills only the header rows the template shows", () => {
+    // STD_SG has no factory address row (onsite/SG.md).
+    const { data } = newInspectionData({
+      template: STD_SG,
+      registry: MODULE_REGISTRY,
+      inspectionDate: "2026-10-06",
+      productName: "Surgical PF",
+      factoryAddress: "Lot 1, Industrial Park",
+    });
+    expectOnly(data.modules.header, { inspectionDate: "2026-10-06", productName: "Surgical PF" });
+    expect(headerPrefill(withConfig(STD_EG, "header", { fields: { inspectionDate: false } }), {
+      inspectionDate: "2026-10-06",
+      productName: "Nitrile",
+    }, undefined)).toEqual({ productName: "Nitrile" });
   });
 
   it("parses every module's data with that module's schema, whatever the registry", () => {
     const template = makeTestTemplate(TEST_REGISTRY, ["header", "glove_info", "order_lots", "dimensions"], {
       scope: { productType: "examination", standard: "EN455", clientId: TEST_CLIENT_ID, manufacturerId: TEST_MANUFACTURER_ID },
     });
-    const { data } = newInspectionData({ template, registry: TEST_REGISTRY, inspectionDate: "2026-10-06", productName: "Nitrile" });
+    const { data } = newInspectionData({
+      template,
+      registry: TEST_REGISTRY,
+      inspectionDate: "2026-10-06",
+      productName: "Nitrile",
+      factoryAddress: "Lot 1",
+    });
     for (const [key, value] of Object.entries(data.modules)) {
       expect(TEST_REGISTRY[key as keyof typeof TEST_REGISTRY].dataSchema.safeParse(value).success, key).toBe(true);
     }
-    // This header has no inspection date: it is left to the row.
+    // This header has no inspection date or factory address: they are left to the row and the manufacturer.
     expect(data.modules.header).toEqual({ poNo: null, productName: "Nitrile", client: null });
+  });
+});
+
+describe("which fields a template shows", () => {
+  it("reads the module's field switches; a field without one shows", () => {
+    expect(templateShowsField(STD_EG, "header", "factoryAddress")).toBe(true);
+    expect(templateShowsField(STD_SG, "header", "factoryAddress")).toBe(false);
+    expect(templateShowsField(STD_EG, "packing_config", "glovesPerInner")).toBe(true);
+    // A module the template switches off shows nothing.
+    expect(templateShowsField(STD_SG, "glove_info", "colour")).toBe(false);
   });
 });
 

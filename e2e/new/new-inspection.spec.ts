@@ -117,6 +117,16 @@ function templatePanel(page: Page) {
   return page.getByTestId("template-panel");
 }
 
+/**
+ * The values given, and nothing else: every other key is empty. Module data
+ * lists every field once a module is built, as null until entered.
+ */
+function expectOnly(actual: unknown, expected: Record<string, unknown>) {
+  expect(actual).toMatchObject(expected);
+  const others = Object.entries(actual as Record<string, unknown>).filter(([key]) => !(key in expected));
+  expect(Object.fromEntries(others.filter(([, value]) => value !== null))).toEqual({});
+}
+
 /** Today in Malaysia, as the inspection is dated. */
 function todayInMalaysia(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur" }).format(new Date());
@@ -191,7 +201,7 @@ test("the template follows the client, manufacturer and product type", async ({ 
       page.getByRole("link", { name: "Cancel" }),
       page.locator("[data-slot=choice-card]").first(),
     ]) {
-      expect((await control.boundingBox())!.height, await control.textContent()).toBeGreaterThanOrEqual(44);
+      expect((await control.boundingBox())!.height, (await control.textContent()) ?? "").toBeGreaterThanOrEqual(44);
     }
     const fontSize = await page.getByRole("textbox", { name: /Product name/ }).evaluate((input) => getComputedStyle(input).fontSize);
     expect(fontSize).toBe("16px");
@@ -241,8 +251,13 @@ test("the inspector creates an inspection and lands on it", async ({ page, conte
   const data = created.data as { modules: Record<string, unknown>; custom: Record<string, unknown> };
   // jsonb keeps no key order: compare as a set.
   expect(Object.keys(data.modules).sort()).toEqual([...STD_EG_MODULES].sort());
-  expect(data.modules.header).toEqual({ inspectionDate: todayInMalaysia(), productName: "E2E blank start" });
-  expect(data.modules.glove_info).toEqual({ surfaceTexture: null, indicativeWeight: null, colour: null, length: null });
+  // Dated today, with the product name typed and the manufacturer's address.
+  expectOnly(data.modules.header, {
+    inspectionDate: todayInMalaysia(),
+    productName: "E2E blank start",
+    ...(fixture.manufacturerAddress ? { factoryAddress: fixture.manufacturerAddress } : {}),
+  });
+  expectOnly(data.modules.glove_info, {});
   expect(data.custom).toEqual({});
   expect((await auditOf(id)).map((row) => row.action)).toEqual(["created"]);
   await shot(page, "created");
@@ -261,15 +276,16 @@ test("start from previous copies the product's details and nothing else", async 
   const [created] = (await inspectionsOfFixture(fixture.templateId)).filter((row) => row.id === id);
   expect(created.product_name).toBe(PREVIOUS.productName);
   const data = created.data as { modules: Record<string, unknown>; custom: Record<string, unknown> };
-  expect(data.modules.header).toEqual({
+  // The address typed last time wins over the manufacturer's.
+  expectOnly(data.modules.header, {
     factoryAddress: PREVIOUS.header.factoryAddress,
     productName: PREVIOUS.header.productName,
     productCode: PREVIOUS.header.productCode,
     factoryGloveCode: PREVIOUS.header.factoryGloveCode,
     inspectionDate: todayInMalaysia(),
   });
-  expect(data.modules.glove_info).toEqual(PREVIOUS.gloveInfo);
-  expect(data.modules.packing_config).toEqual(PREVIOUS.packing);
+  expectOnly(data.modules.glove_info, PREVIOUS.gloveInfo);
+  expectOnly(data.modules.packing_config, PREVIOUS.packing);
   const text = JSON.stringify(data);
   for (const never of [PREVIOUS.header.poNo, PREVIOUS.header.mfgDate, PREVIOUS.header.expiryDate, PREVIOUS.header.comment, PREVIOUS.conclusion.remark, "never copied"]) {
     expect(text, never).not.toContain(never);

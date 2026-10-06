@@ -25,6 +25,7 @@ const OTHER_CLIENT = "20000000-0000-4000-8000-000000000002";
 const MANUFACTURER = "10000000-0000-4000-8000-000000000001";
 const NEW_ID = "5f6e7d8c-9b0a-4c1d-8e2f-3a4b5c6d7e8f";
 const PREVIOUS_ID = "6a7b8c9d-0e1f-4a2b-8c3d-4e5f6a7b8c9d";
+const ADDRESS = "Lot 1, Placeholder Industrial Park";
 const IDLE: CreateInspectionState = { status: "idle" };
 
 const T = {
@@ -98,11 +99,12 @@ const argOf = (query: Query | undefined, method: string) => query?.calls.find(([
 type World = {
   templates?: ReturnType<typeof row>[];
   client?: boolean;
+  address?: string | null;
   previous?: Record<string, unknown> | null;
   insert?: Result;
 };
 
-function world({ templates, client = true, previous = null, insert }: World = {}) {
+function world({ templates, client = true, address = ADDRESS, previous = null, insert }: World = {}) {
   const rows = templates ?? [row(T.STD_EG, "STD_EG"), row(T.SAFEDON_EG, "SAFEDON_EG"), row(T.STD_SG, "STD_SG")];
   return fakeClient((query) => {
     if (query.table === "templates") {
@@ -114,7 +116,7 @@ function world({ templates, client = true, previous = null, insert }: World = {}
       return { data: visible, error: null };
     }
     if (query.table === "clients") return { data: client ? { id: CLIENT } : null, error: null };
-    if (query.table === "manufacturers") return { data: { id: MANUFACTURER }, error: null };
+    if (query.table === "manufacturers") return { data: { id: MANUFACTURER, address }, error: null };
     if (query.table === "inspections" && argOf(query, "insert")) return insert ?? { data: { id: NEW_ID }, error: null };
     if (query.table === "inspections") return { data: previous, error: null };
     return { data: null, error: null };
@@ -152,6 +154,16 @@ async function submit(data: FormData): Promise<CreateInspectionState | { redirec
     if (error instanceof Error && error.message === "NEXT_REDIRECT") return { redirectedTo: (error as Error & { url: string }).url };
     throw error;
   }
+}
+
+/**
+ * The values given, and nothing else: every other key of the module's data
+ * is empty, for the placeholder modules and the built ones alike.
+ */
+function expectOnly(actual: unknown, expected: Record<string, unknown>) {
+  expect(actual).toMatchObject(expected);
+  const others = Object.entries(actual as Record<string, unknown>).filter(([key]) => !(key in expected));
+  expect(Object.fromEntries(others.filter(([, value]) => value !== null))).toEqual({});
 }
 
 const inserted = () => argOf(db.queries.find((query) => query.table === "inspections" && argOf(query, "insert")), "insert") as
@@ -228,11 +240,21 @@ describe("the template (BUILD_SPEC 4.4)", () => {
     const data = payload.data as { modules: Record<string, unknown>; custom: Record<string, unknown> };
     const included = bundle.get("SAFEDON_EG")!.resolved.modules.filter((entry) => entry.include).map((entry) => entry.key);
     expect(Object.keys(data.modules)).toEqual(included);
-    expect(data.modules.header).toEqual({ inspectionDate: "2026-10-06", productName: "Nitrile blue" });
+    // The header starts dated today, with the product name and the manufacturer's address.
+    expectOnly(data.modules.header, { inspectionDate: "2026-10-06", productName: "Nitrile blue", factoryAddress: ADDRESS });
     expect(data.custom).toEqual({});
+    const manufacturer = db.queries.find((query) => query.table === "manufacturers");
+    expect(argOf(manufacturer, "select")).toBe("id, address");
     // An inspector reads active templates only.
     expect(db.queries.some((query) => query.table === "templates" && has(query, "eq", "status", "active"))).toBe(true);
     expect(db.rpcs).toEqual([]);
+  });
+
+  it("leaves the factory address blank when the manufacturer has none", async () => {
+    use(world({ address: null }));
+    await submit(order());
+    const data = inserted()!.data as { modules: Record<string, unknown> };
+    expectOnly(data.modules.header, { inspectionDate: "2026-10-06", productName: "Nitrile blue" });
   });
 
   it("takes the standard template when there is no client", async () => {
@@ -320,9 +342,15 @@ describe("start from previous (BUILD_SPEC 8)", () => {
       redirectedTo: `/inspections/${NEW_ID}`,
     });
     const data = inserted()!.data as { modules: Record<string, unknown>; custom: Record<string, unknown> };
-    expect(data.modules.header).toEqual({ productName: "Nitrile blue", productCode: "GN-1", inspectionDate: "2026-10-06" });
-    expect(data.modules.glove_info).toEqual(previous.data.modules.glove_info);
-    expect(data.modules.packing_config).toEqual({ glovesPerInner: 100 });
+    // No address last time: the manufacturer's fills it.
+    expectOnly(data.modules.header, {
+      productName: "Nitrile blue",
+      productCode: "GN-1",
+      inspectionDate: "2026-10-06",
+      factoryAddress: ADDRESS,
+    });
+    expectOnly(data.modules.glove_info, previous.data.modules.glove_info);
+    expectOnly(data.modules.packing_config, { glovesPerInner: 100 });
     expect(data.modules.sampling_plan).toEqual(MODULE_REGISTRY.sampling_plan.emptyData());
     expect(data.custom).toEqual({});
     expect(db.rpcs).toEqual([

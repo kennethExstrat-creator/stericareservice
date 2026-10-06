@@ -335,11 +335,26 @@ function withValues(
 }
 
 /**
+ * Whether a template shows one of a module's fields: the module is on and
+ * its config does not switch the field off. Modules switch fields by key
+ * under `fields` (docs/MODULES.md section 6, lib/coverage: header,
+ * glove_info, order_lots, packing_config, loading); a field without a switch
+ * shows.
+ */
+export function templateShowsField(template: ResolvedTemplate, key: ModuleKey, field: string): boolean {
+  const entry = template.modules.find((candidate) => candidate.key === key && candidate.include);
+  if (!entry) return false;
+  const fields = isRecord(entry.config) ? entry.config.fields : undefined;
+  return !isRecord(fields) || fields[field] !== false;
+}
+
+/**
  * The modules "start from previous" fills in from an earlier inspection's
- * data, for the modules the new template switches on. Each value goes
- * through the module's schema onto its empty data, one at a time: a value the
- * module no longer takes (renamed since, or text where a number belongs) is
- * left out, and a module left with nothing is not counted as copied.
+ * data, for the modules and fields the new template switches on. Each value
+ * goes through the module's schema onto its empty data, one at a time: a
+ * value the module no longer takes (renamed since, or text where a number
+ * belongs) is left out, and a module left with nothing is not counted as
+ * copied.
  */
 export function copyFromPrevious(
   previous: InspectionData,
@@ -354,7 +369,11 @@ export function copyFromPrevious(
     const { value, hasData } = readModuleEntry(previous, "modules", key);
     if (!hasData || !isRecord(value)) continue;
     const fields = PREVIOUS_COPY[key];
-    const picked = fields === "all" ? value : Object.fromEntries(fields.flatMap((field) => (field in value ? [[field, value[field]]] : [])));
+    const listed = fields === "all" ? Object.keys(value) : fields.filter((field) => field in value);
+    // A field the new template switches off stays behind.
+    const picked = Object.fromEntries(
+      listed.filter((field) => templateShowsField(template, key, field)).map((field) => [field, value[field]]),
+    );
     const definition = registry[key];
     const data = withValues(definition, definition.emptyData(), picked);
     if (!hasValue(data)) continue;
@@ -364,18 +383,47 @@ export function copyFromPrevious(
   return { modules, copied };
 }
 
+/** What the header starts with besides a copy (lib/coverage: the header's prefills). */
+export type HeaderPrefill = {
+  /** Today in Malaysia, as the row's inspection_date. */
+  inspectionDate: string;
+  /** As typed on the form; the row repeats it (BUILD_SPEC 6.2 rule 10). */
+  productName: string | null;
+  /** The picked manufacturer's address (manufacturers.address); a copied address wins. */
+  factoryAddress?: string | null;
+};
+
+/**
+ * The header values a new inspection starts with, for the rows its template
+ * shows: the inspection date, the product name from the form (over a copied
+ * one) and the manufacturer's address (unless one was copied).
+ */
+export function headerPrefill(
+  template: ResolvedTemplate,
+  prefill: HeaderPrefill,
+  copiedHeader: unknown,
+): Record<string, string> {
+  const values: Record<string, string> = { inspectionDate: prefill.inspectionDate };
+  if (prefill.productName !== null && prefill.productName.trim() !== "") values.productName = prefill.productName.trim();
+  const address = prefill.factoryAddress?.trim() ?? "";
+  const copiedAddress = isRecord(copiedHeader) && hasValue(copiedHeader.factoryAddress);
+  if (address !== "" && !copiedAddress) values.factoryAddress = address;
+  return Object.fromEntries(Object.entries(values).filter(([field]) => templateShowsField(template, "header", field)));
+}
+
 /**
  * The data a new inspection starts with: each included module's empty data,
- * with what "start from previous" copied, and the header's inspection date
- * and product name, which the row repeats. Custom modules start empty.
+ * with what "start from previous" copied, and the header's prefills
+ * (headerPrefill): the inspection date and product name, which the row
+ * repeats, and the manufacturer's address. Custom modules start empty.
  */
-export function newInspectionData(input: {
-  template: ResolvedTemplate;
-  registry: ModuleRegistry;
-  inspectionDate: string;
-  productName: string | null;
-  previous?: InspectionData | null;
-}): { data: InspectionData; copied: CopiedModuleKey[] } {
+export function newInspectionData(
+  input: HeaderPrefill & {
+    template: ResolvedTemplate;
+    registry: ModuleRegistry;
+    previous?: InspectionData | null;
+  },
+): { data: InspectionData; copied: CopiedModuleKey[] } {
   const { template, registry } = input;
   const copy = input.previous ? copyFromPrevious(input.previous, template, registry) : { modules: {}, copied: [] };
   const modules: Record<string, unknown> = {};
@@ -385,10 +433,8 @@ export function newInspectionData(input: {
     modules[entry.key] = copiedData === undefined ? registry[entry.key].emptyData() : copiedData;
   }
   if ("header" in modules) {
-    modules.header = withValues(registry.header, modules.header, {
-      inspectionDate: input.inspectionDate,
-      ...(input.productName === null ? {} : { productName: input.productName }),
-    });
+    const copiedHeader = (copy.modules as Record<string, unknown>).header;
+    modules.header = withValues(registry.header, modules.header, headerPrefill(template, input, copiedHeader));
   }
   return { data: { modules, custom: {} }, copied: copy.copied };
 }

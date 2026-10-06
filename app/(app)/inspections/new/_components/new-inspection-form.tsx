@@ -237,7 +237,7 @@ export function NewInspectionForm({ role, clients, manufacturers, templates, pre
                   ) : (
                     <FieldDescription id={`${id}-manufacturer-hint`}>
                       {manufacturers.length > 0
-                        ? "The factory the gloves come from."
+                        ? "The factory the gloves come from. Its address goes into the header."
                         : role === "admin"
                           ? "Add the manufacturer under Admin first."
                           : "Ask an admin to add the manufacturer."}
