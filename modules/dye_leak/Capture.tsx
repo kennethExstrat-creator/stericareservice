@@ -23,6 +23,7 @@ import {
   useIssueFocus,
   type IssuePath,
 } from "@/components/qc";
+import { SMALL_PILL_TOUCH } from "@/components/qc/status-pill";
 import { formatSize } from "@/lib/format";
 import { labelFor, type CaptureProps } from "@/modules/_framework";
 import { plannedPouches, type DyeLeakComputed } from "./calc";
@@ -109,7 +110,7 @@ export default function Capture({
                   {labelFor(labels, "pouchesPlanned")}:
                   <Figure value={planned} className="font-semibold text-foreground" />
                 </p>
-                <StatusPill size="sm" status={result?.status ?? "not_done"} />
+                <StatusPill size="sm" status={result?.status ?? "not_done"} className={SMALL_PILL_TOUCH} />
               </div>
               <CountField
                 label={testedLabel}
