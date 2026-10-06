@@ -1,0 +1,129 @@
+// Server-rendered markup of the order table: one row per template size in
+// the template's wording, quantities on the numeric keypad, lot chips, the
+// computed lot sizes and totals, read-only mode and issue links.
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it } from "vitest";
+import { buildInspectionContext, evaluateInspection, type CaptureProps } from "@/modules/_framework";
+import { makeTestTemplate } from "@/modules/_framework/testing";
+import { packingConfig, packingData } from "@/modules/packing_config/__fixtures__/examples";
+import { MODULE_REGISTRY } from "@/modules/registry";
+import { SAFEDON_EG_EXAMPLE, STD_EG_EXAMPLE } from "@/tests/fixtures/examples";
+import { orderData } from "./__fixtures__/examples";
+import Capture from "./Capture";
+import type { OrderLotsComputed } from "./calc";
+import { ORDER_LOTS_LABELS, type OrderLotsConfig } from "./config";
+import { definition } from "./index";
+import type { OrderLotsData } from "./schema";
+
+const noop = () => {};
+
+type Props = CaptureProps<OrderLotsData, OrderLotsConfig, OrderLotsComputed>;
+type Example = typeof STD_EG_EXAMPLE | typeof SAFEDON_EG_EXAMPLE;
+
+/** Props as the capture screen builds them: the module's evaluation from the engine. */
+function props(example: Example, overrides: Partial<Props> & { data?: OrderLotsData } = {}): Props {
+  const config: OrderLotsConfig = overrides.config ?? { fields: { packingSite: example === SAFEDON_EG_EXAMPLE } };
+  const data = overrides.data ?? orderData(example.order);
+  const template = makeTestTemplate(MODULE_REGISTRY, [
+    { key: "order_lots", config, labels: { ...ORDER_LOTS_LABELS, ...overrides.labels } },
+    { key: "packing_config", config: packingConfig(example.packing) },
+  ]);
+  const inspection = { modules: { order_lots: data, packing_config: packingData(example.packing) }, custom: {} };
+  const context = buildInspectionContext({ template, data: inspection }, MODULE_REGISTRY);
+  const evaluation = evaluateInspection({ template, data: inspection, context }, MODULE_REGISTRY).modules.find(
+    (entry) => entry.key === "order_lots",
+  );
+  return {
+    data,
+    config,
+    title: "Order",
+    labels: { ...ORDER_LOTS_LABELS, ...overrides.labels },
+    context,
+    evaluation: (evaluation ?? null) as Props["evaluation"],
+    focusPath: null,
+    readOnly: false,
+    onChange: noop,
+    ...overrides,
+  };
+}
+
+const render = (example: Example, overrides: Partial<Props> = {}) =>
+  renderToStaticMarkup(<Capture {...props(example, overrides)} />);
+
+/** Every opening tag that carries `attribute`. */
+const tagsWith = (html: string, attribute: string): string[] =>
+  Array.from(html.matchAll(new RegExp(`<[^>]*${attribute}[^>]*>`, "g")), (match) => match[0]);
+/** Every opening tag of one element. */
+const tagsOf = (html: string, element: string): string[] =>
+  Array.from(html.matchAll(new RegExp(`<${element}\\b[^>]*>`, "g")), (match) => match[0]);
+
+describe("order_lots capture", () => {
+  it("is what the module definition loads", async () => {
+    expect((await definition.loadCapture?.())?.default).toBe(Capture);
+  });
+
+  it("has one row per size the template offers, ordered or not", () => {
+    const html = render(STD_EG_EXAMPLE);
+    expect(tagsWith(html, 'scope="row"')).toHaveLength(5);
+    for (const size of ["XS", "S", "M", "L", "XL"]) expect(html).toContain(`>${size}</th>`);
+  });
+
+  it("heads the columns in the template's wording (6.2 rule 11)", () => {
+    const html = render(STD_EG_EXAMPLE, { labels: { ...ORDER_LOTS_LABELS, qtyCases: "Qty (case)" } });
+    expect(html).toContain(">Qty (case)</th>");
+    expect(html).toContain(">Lot Number</th>");
+    expect(html).not.toContain(">Packing Site</th>");
+    expect(render(SAFEDON_EG_EXAMPLE)).toContain(">Packing Site</th>");
+  });
+
+  it("takes quantities on the numeric keypad, one Enter run down the column", () => {
+    const html = render(STD_EG_EXAMPLE);
+    const cells = tagsWith(html, 'data-enter-group="qty"');
+    expect(cells).toHaveLength(5);
+    for (const cell of cells) expect(cell).toContain('inputMode="decimal"');
+    expect(html).toContain('aria-label="Qty (cases), Size M"');
+    expect(cells.find((cell) => cell.includes("Size M"))).toContain('value="2900"');
+  });
+
+  it("lists each size's lots as chips, with a field to add more", () => {
+    const html = render(SAFEDON_EG_EXAMPLE);
+    expect(html).toContain("LOT-B03");
+    expect(html).toContain('aria-label="Remove Lot Number LOT-B03, Size M"');
+    expect(html).toContain('aria-label="Lot Number, Size M: add"');
+    expect(html).toContain('value="Manufacturer B"');
+  });
+
+  it("shows the computed lot sizes and totals read-only (6.2 rule 2)", () => {
+    const html = render(SAFEDON_EG_EXAMPLE);
+    expect(html).toContain("1,530");
+    expect(html).toContain("3,060,000");
+    expect(html).toContain("1,700,000");
+    expect(html).toContain(">Total # carton<");
+    expect(html).toContain(">Total # gloves<");
+    expect(tagsOf(html, "input").some((input) => input.includes("1,530") || input.includes("1530"))).toBe(false);
+  });
+
+  it("marks each cell for issue links", () => {
+    const html = render(STD_EG_EXAMPLE);
+    expect(html).toContain('data-issue-path="[&quot;sizes&quot;,&quot;M&quot;,&quot;qtyCases&quot;]"');
+    expect(html).toContain('data-issue-path="[&quot;sizes&quot;,&quot;M&quot;,&quot;lotNumbers&quot;,0]"');
+  });
+
+  it("is read-only: no lot field, no remove buttons, quantities not editable", () => {
+    const html = render(SAFEDON_EG_EXAMPLE, { readOnly: true });
+    expect(html).not.toContain(": add");
+    expect(html).not.toContain("Remove Lot Number");
+    for (const cell of tagsWith(html, 'data-enter-group="qty"')) expect(cell).toContain('readOnly=""');
+    expect(html).toContain("LOT-B03");
+  });
+
+  it("lists lines saved under keys the table does not show, so they can be removed", () => {
+    const data: OrderLotsData = {
+      sizes: { ...orderData(STD_EG_EXAMPLE.order).sizes, m: { qtyCases: 5, lotNumbers: [], packingSite: null } },
+    };
+    const html = render(STD_EG_EXAMPLE, { data });
+    expect(html).toContain("Remove “m”");
+    expect(html).toContain('data-issue-path="[&quot;sizes&quot;,&quot;m&quot;]"');
+    expect(render(STD_EG_EXAMPLE)).not.toContain("Remove “");
+  });
+});

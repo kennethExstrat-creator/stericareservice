@@ -20,6 +20,7 @@ export const definition = defineModule<OrderLotsData, OrderLotsConfig, OrderLots
   defaultConfig: ORDER_LOTS_DEFAULT_CONFIG,
   calc: calcOrderLots,
   contribute: contributeOrderLots,
+  loadCapture: () => import("./Capture"),
 });
 
 export type { OrderLotsData } from "./schema";
