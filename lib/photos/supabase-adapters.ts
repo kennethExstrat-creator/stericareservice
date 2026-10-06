@@ -1,7 +1,13 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { isAuthRetryableFetchError, type SupabaseClient } from "@supabase/supabase-js";
 import type { SupabasePublicEnv } from "@/lib/env";
 import type { OfflineDatabase } from "@/lib/offline/db";
-import { FAILURE_MESSAGES, postgrestFailure, reasonForStatus, type FailureReason } from "@/lib/offline/failures";
+import {
+  FAILURE_MESSAGES,
+  postgrestFailure,
+  reasonForStatus,
+  type Failure,
+  type FailureReason,
+} from "@/lib/offline/failures";
 import type { Database } from "@/lib/supabase/database.types";
 import type { MediaBucket } from "./paths";
 import {
@@ -26,7 +32,11 @@ export interface SupabaseStorageOptions {
   url: string;
   /** The publishable key. */
   apiKey: string;
-  /** The signed-in user's access token, e.g. from supabase.auth.getSession(), which refreshes it when due. */
+  /**
+   * The signed-in user's access token, e.g. sessionToken(client). Null when
+   * signed out; rejects when it cannot tell (offline with a token due for
+   * refresh), which counts as a network failure.
+   */
   getAccessToken(): Promise<string | null>;
   /** An upload with no progress for this long is abandoned and retried. */
   stallTimeoutMs?: number;
@@ -34,29 +44,43 @@ export interface SupabaseStorageOptions {
   fetch?: typeof fetch;
 }
 
+type Refused = { ok: false } & Failure;
+
+const SIGNED_OUT: Refused = { ok: false, reason: "unauthorized", message: FAILURE_MESSAGES.unauthorized };
+const NO_CONNECTION: Refused = { ok: false, reason: "network", message: FAILURE_MESSAGES.network };
+
+/** The access token, or why there is none: signed out, or no connection to refresh it. */
+async function readToken(getAccessToken: () => Promise<string | null>): Promise<{ ok: true; token: string } | Refused> {
+  try {
+    const token = await getAccessToken();
+    return token ? { ok: true, token } : SIGNED_OUT;
+  } catch {
+    return NO_CONNECTION;
+  }
+}
+
 export function supabaseStorage(options: SupabaseStorageOptions): UploadStorage {
   const base = `${options.url.replace(/\/+$/, "")}/storage/v1/object`;
   const createRequest = options.createRequest ?? (() => new XMLHttpRequest());
   const stallMs = options.stallTimeoutMs ?? UPLOAD_STALL_TIMEOUT_MS;
-  const token = () => options.getAccessToken().catch(() => null);
 
   return {
     async upload(request) {
-      const accessToken = await token();
-      if (!accessToken) return { ok: false, reason: "unauthorized", message: FAILURE_MESSAGES.unauthorized };
-      const headers = { authorization: `Bearer ${accessToken}`, apikey: options.apiKey };
+      const access = await readToken(options.getAccessToken);
+      if (!access.ok) return access;
+      const headers = { authorization: `Bearer ${access.token}`, apikey: options.apiKey };
       return send(createRequest(), `${base}/${request.bucket}/${request.path}`, headers, request, stallMs);
     },
 
     async remove(bucket: MediaBucket, paths: string[]) {
-      const accessToken = await token();
-      if (!accessToken) return { ok: false, reason: "unauthorized", message: FAILURE_MESSAGES.unauthorized };
+      const access = await readToken(options.getAccessToken);
+      if (!access.ok) return access;
       const fetchImpl = options.fetch ?? fetch;
       let response: Response;
       try {
         response = await fetchImpl(`${base}/${bucket}`, {
           method: "DELETE",
-          headers: { authorization: `Bearer ${accessToken}`, apikey: options.apiKey, "content-type": "application/json" },
+          headers: { authorization: `Bearer ${access.token}`, apikey: options.apiKey, "content-type": "application/json" },
           body: JSON.stringify({ prefixes: paths }),
         });
       } catch {
@@ -157,11 +181,18 @@ export function postgrestOutcome({ error, status }: PostgrestAnswer): TransferOu
 }
 
 export function supabaseRepository(client: SupabaseClient<Database>): MediaRepository {
+  // Without a session supabase-js would send the request as anon, which no table lets in.
+  const signedIn = async (): Promise<Refused | null> => {
+    const access = await readToken(() => sessionToken(client));
+    return access.ok ? null : access;
+  };
   return {
     async insertPhoto(row) {
-      return postgrestOutcome(await client.from("inspection_photos").insert(row));
+      return (await signedIn()) ?? postgrestOutcome(await client.from("inspection_photos").insert(row));
     },
     async updatePhoto(id, patch) {
+      const refused = await signedIn();
+      if (refused) return refused;
       const answer = await client.from("inspection_photos").update(patch).eq("id", id).select("id");
       if (answer.error) return postgrestOutcome(answer);
       // Row level security hides rows this user may not change: no row back means not allowed now.
@@ -170,7 +201,7 @@ export function supabaseRepository(client: SupabaseClient<Database>): MediaRepos
         : { ok: false, reason: "forbidden", message: FAILURE_MESSAGES.forbidden };
     },
     async insertFile(row) {
-      return postgrestOutcome(await client.from("inspection_files").insert(row));
+      return (await signedIn()) ?? postgrestOutcome(await client.from("inspection_files").insert(row));
     },
   };
 }
@@ -179,10 +210,17 @@ export function supabaseRepository(client: SupabaseClient<Database>): MediaRepos
  * Wiring
  * ------------------------------------------------------------------ */
 
-/** The signed-in user's access token. getSession() refreshes it when it is due. */
+/**
+ * The signed-in user's access token, or null when signed out. getSession()
+ * refreshes a token that is due; when that refresh cannot reach Supabase
+ * (offline), this throws, so callers report no connection rather than an
+ * ended session.
+ */
 export async function sessionToken(client: SupabaseClient<Database>): Promise<string | null> {
-  const { data } = await client.auth.getSession();
-  return data.session?.access_token ?? null;
+  const { data, error } = await client.auth.getSession();
+  if (data.session?.access_token) return data.session.access_token;
+  if (error && isAuthRetryableFetchError(error)) throw error;
+  return null;
 }
 
 export interface SupabaseUploadQueueOptions {
@@ -201,6 +239,7 @@ export function createSupabaseUploadQueue({ client, env, userId, db }: SupabaseU
     userId,
     items: db.store("uploads"),
     blobs: db.store("upload-blobs"),
+    persistent: db.persistent,
     storage: supabaseStorage({ url: env.url, apiKey: env.publishableKey, getAccessToken: () => sessionToken(client) }),
     repository: supabaseRepository(client),
   });

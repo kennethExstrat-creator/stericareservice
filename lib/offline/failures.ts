@@ -62,8 +62,14 @@ const POSTGRES_REASONS: Readonly<Record<string, FailureReason>> = {
   PGRST303: "unauthorized",
 };
 
-/** A supabase-js (PostgREST) error as a failure. Status 0 is a request that never got an answer. */
+/**
+ * A supabase-js (PostgREST) error as a failure. Status 0 is a request that
+ * never got an answer. 401 comes first: without a session supabase-js sends
+ * the publishable key instead, PostgREST runs the request as anon, and
+ * anon's 42501 must read as "sign in again", not "not allowed".
+ */
 export function postgrestFailure(error: { code?: string; message: string }, status: number): Failure {
+  if (status === 401) return { reason: "unauthorized", message: FAILURE_MESSAGES.unauthorized };
   const reason = (error.code && POSTGRES_REASONS[error.code]) || reasonForStatus(status);
   return { reason, message: error.message || FAILURE_MESSAGES[reason] };
 }

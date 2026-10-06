@@ -117,6 +117,16 @@ describe("saveInspectionData", () => {
     });
   });
 
+  it("asks for a sign-in when the session is gone, rather than reporting the inspection as locked", async () => {
+    // Without a session supabase-js sends the publishable key; PostgREST runs as anon and answers 401.
+    const anon = fakeClient({ data: null, error: { code: "42501", message: "permission denied for table inspections" }, status: 401 });
+    expect(await saveInspectionData(anon.client, { inspectionId: ID, data, baseUpdatedAt: V1 })).toMatchObject({
+      ok: false,
+      reason: "unauthorized",
+      message: expect.stringMatching(/sign in/i),
+    });
+  });
+
   it("serves as the autosave transport", async () => {
     const { client } = fakeClient({ data: { updated_at: V2 }, error: null, status: 200 });
     const transport = supabaseAutosaveTransport(client);

@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { AuthRetryableFetchError, AuthSessionMissingError, type SupabaseClient } from "@supabase/supabase-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "@/lib/supabase/database.types";
 import { createMemoryDatabase } from "@/lib/offline/kv";
@@ -123,6 +123,23 @@ describe("supabaseStorage", () => {
     expect(requests).toHaveLength(0);
   });
 
+  it("reports no connection, not an ended session, when the token cannot be refreshed offline", async () => {
+    const requests: FakeXhr[] = [];
+    const client = supabaseStorage({
+      url: URL_BASE,
+      apiKey: "sb_publishable_test",
+      getAccessToken: () => Promise.reject(new AuthRetryableFetchError("Failed to fetch", 0)),
+      createRequest: () => {
+        const xhr = new FakeXhr();
+        requests.push(xhr);
+        return xhr as unknown as XMLHttpRequest;
+      },
+    });
+    expect(await client.upload(request())).toMatchObject({ ok: false, reason: "network" });
+    expect(await client.remove?.("inspection-photos", [PATH])).toMatchObject({ ok: false, reason: "network" });
+    expect(requests).toHaveLength(0);
+  });
+
   it("reports a dropped connection, and a cancelled upload, as network failures", async () => {
     const { client, requests } = storage();
     const dropped = client.upload(request());
@@ -205,6 +222,8 @@ describe("postgrestOutcome", () => {
   it.each([
     [{ code: "23505", message: "duplicate key value violates unique constraint" }, 409, { ok: true }],
     [{ code: "42501", message: "new row violates row-level security policy" }, 403, { ok: false, reason: "forbidden" }],
+    // No session: supabase-js sends the publishable key, PostgREST runs as anon and answers 401.
+    [{ code: "42501", message: "permission denied for table inspection_photos" }, 401, { ok: false, reason: "unauthorized" }],
     [{ code: "23503", message: "violates foreign key constraint" }, 409, { ok: false, reason: "not_found" }],
     [{ code: "23514", message: "violates check constraint" }, 400, { ok: false, reason: "invalid" }],
     [{ code: "PGRST301", message: "JWT expired" }, 401, { ok: false, reason: "unauthorized" }],
@@ -221,10 +240,14 @@ describe("postgrestOutcome", () => {
 
 describe("supabaseRepository", () => {
   type Answer = { data?: unknown; error: { code?: string; message: string } | null; status: number };
+  type SessionAnswer = { data: { session: { access_token: string } | null }; error: Error | null };
 
-  function fakeClient(answers: { insert?: Answer; update?: Answer }) {
+  const signedIn: SessionAnswer = { data: { session: { access_token: "user-jwt" } }, error: null };
+
+  function fakeClient(answers: { insert?: Answer; update?: Answer; session?: SessionAnswer }) {
     const calls: unknown[][] = [];
     const client = {
+      auth: { getSession: async () => answers.session ?? signedIn },
       from(table: string) {
         return {
           insert: async (row: unknown) => {
@@ -279,14 +302,41 @@ describe("supabaseRepository", () => {
     const offline = fakeClient({ update: { data: null, error: { message: "TypeError: Load failed" }, status: 0 } });
     expect(await supabaseRepository(offline.client).updatePhoto(row.id, patch)).toMatchObject({ ok: false, reason: "network" });
   });
+
+  it("asks for a sign-in without sending anything when there is no session, so the item resumes later", async () => {
+    const { client, calls } = fakeClient({ session: { data: { session: null }, error: null } });
+    const repository = supabaseRepository(client);
+    const patch = { module_key: "visual", target: "size:M", caption: null };
+    expect(await repository.insertPhoto(row)).toMatchObject({ ok: false, reason: "unauthorized" });
+    expect(await repository.updatePhoto(row.id, patch)).toMatchObject({ ok: false, reason: "unauthorized" });
+    expect(await repository.insertFile({ ...row, kind: "certificate", storage_path: "p", name: "n", module_key: null })).toMatchObject({
+      ok: false,
+      reason: "unauthorized",
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it("reports no connection when an expired token cannot be refreshed offline", async () => {
+    const { client, calls } = fakeClient({
+      session: { data: { session: null }, error: new AuthRetryableFetchError("Failed to fetch", 0) },
+    });
+    expect(await supabaseRepository(client).insertPhoto(row)).toMatchObject({ ok: false, reason: "network" });
+    expect(calls).toEqual([]);
+  });
 });
 
 describe("sessionToken", () => {
+  const client = (session: unknown, error: Error | null = null) =>
+    ({ auth: { getSession: async () => ({ data: { session }, error }) } }) as unknown as SupabaseClient<Database>;
+
   it("reads the access token of the current session, or null when signed out", async () => {
-    const client = (session: unknown) =>
-      ({ auth: { getSession: async () => ({ data: { session }, error: null }) } }) as unknown as SupabaseClient<Database>;
     expect(await sessionToken(client({ access_token: "user-jwt" }))).toBe("user-jwt");
     expect(await sessionToken(client(null))).toBeNull();
+    expect(await sessionToken(client(null, new AuthSessionMissingError()))).toBeNull();
+  });
+
+  it("throws when the session cannot be refreshed for want of a connection", async () => {
+    await expect(sessionToken(client(null, new AuthRetryableFetchError("Failed to fetch", 0)))).rejects.toThrow(/fetch/);
   });
 });
 
