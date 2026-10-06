@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDecimal, parseDecimal, rangeError } from "./number";
+import { formatDecimal, formatReading, parseDecimal, rangeError, readDecimal } from "./number";
 
 describe("parseDecimal", () => {
   it.each([
@@ -52,6 +52,31 @@ describe("rangeError", () => {
   it("explains values outside the limits", () => {
     expect(rangeError(-1, { min: 0 })).toBe("Must be 0 or more.");
     expect(rangeError(401, { min: 0, max: 400 })).toBe("Must be 400 or less.");
+  });
+});
+
+describe("readDecimal", () => {
+  it("accepts numbers inside the limits and blank", () => {
+    expect(readDecimal("243", { min: 0, max: 400 })).toEqual({ ok: true, value: 243 });
+    expect(readDecimal("", { min: 0 })).toEqual({ ok: true, value: null });
+  });
+
+  it("rejects text and out-of-range numbers alike", () => {
+    expect(readDecimal("2 42", { min: 0 }).ok).toBe(false);
+    expect(readDecimal("-1", { min: 0 })).toEqual({ ok: false, error: "Must be 0 or more." });
+  });
+});
+
+describe("formatReading", () => {
+  it("pads to the measure's decimals without rounding", () => {
+    expect(formatReading(0.1, 2)).toBe("0.10");
+    expect(formatReading(243, 1)).toBe("243.0");
+    expect(formatReading(0.105, 2)).toBe("0.105");
+    expect(formatReading(2.42, 0)).toBe("2.42");
+  });
+
+  it("is blank for no value", () => {
+    expect(formatReading(null, 2)).toBe("");
   });
 });
 

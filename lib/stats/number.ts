@@ -34,11 +34,21 @@ export function parseDecimal(raw: string): ParseDecimalResult {
   return { ok: false, error: "Numbers only, e.g. 2.42." };
 }
 
+export type Limits = { min?: number; max?: number };
+
 /** Range check for a parsed value; null when it fits. */
-export function rangeError(value: number, { min, max }: { min?: number; max?: number }): string | null {
+export function rangeError(value: number, { min, max }: Limits): string | null {
   if (min !== undefined && value < min) return `Must be ${formatDecimal(min)} or more.`;
   if (max !== undefined && value > max) return `Must be ${formatDecimal(max)} or less.`;
   return null;
+}
+
+/** parseDecimal plus the range check: what a numeric cell accepts. */
+export function readDecimal(raw: string, limits: Limits = {}): ParseDecimalResult {
+  const parsed = parseDecimal(raw);
+  if (!parsed.ok || parsed.value === null) return parsed;
+  const error = rangeError(parsed.value, limits);
+  return error ? { ok: false, error } : parsed;
 }
 
 /** Blank for null; fixed decimals when given (rounded half away from zero). */
@@ -46,4 +56,19 @@ export function formatDecimal(value: number | null, decimals?: number): string {
   if (value === null) return "";
   if (decimals === undefined) return String(value);
   return roundTo(value, decimals).toFixed(decimals);
+}
+
+/**
+ * A stored reading for display: padded to at least `minDecimals` places so a
+ * column lines up (0.1 shows as 0.10), but never rounded: what was entered
+ * is what is shown.
+ */
+export function formatReading(value: number | null, minDecimals = 0): string {
+  if (value === null) return "";
+  const text = String(value);
+  if (minDecimals <= 0 || text.includes("e")) return text;
+  const dot = text.indexOf(".");
+  const places = dot === -1 ? 0 : text.length - dot - 1;
+  if (places >= minDecimals) return text;
+  return `${dot === -1 ? `${text}.` : text}${"0".repeat(minDecimals - places)}`;
 }
