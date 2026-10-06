@@ -1,7 +1,7 @@
-// Server-rendered markup checks: accessible names, states and computed
-// footers. The interaction rules are pure functions with their own tests:
-// numeric-entry (commit, Escape), grid-navigation (Enter, arrows, paste) and
-// stepper-keys.
+// Server-rendered markup checks: accessible names, states, live regions and
+// computed footers. The interaction rules are pure functions with their own
+// tests: numeric-entry (commit, Escape), grid-navigation (Enter, arrows,
+// paste), stepper-keys and use-announcement.
 import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -72,6 +72,7 @@ describe("screen-reader text stays inside its component (D1)", () => {
         onAddLabel={noop}
       />,
     ],
+    ["NumericCell", <NumericCell key="cell" aria-label="Weight" value={3.5} onValueChange={noop} unit="g" />],
     [
       "MeasurementGrid",
       <MeasurementGrid key="grid" caption="Dimension" measures={measures} values={{}} onValuesChange={noop} statistic="median" />,
@@ -200,6 +201,16 @@ describe("NumericCell", () => {
     expect(html).toContain('aria-invalid="true"');
     expect(html).toContain("is not stored. One number per cell.");
   });
+
+  it("has a polite live region from the start, so a rejection on blur is spoken (D7)", () => {
+    const html = renderToStaticMarkup(<NumericCell aria-label="Weight" value={null} onValueChange={noop} />);
+    expect(html).toMatch(/<span class="sr-only" aria-live="polite"><\/span>/);
+  });
+
+  it("leaves announcing to the grid in a grid cell", () => {
+    const html = renderToStaticMarkup(<NumericCell variant="cell" aria-label="Width, No. 3" value={null} onValueChange={noop} />);
+    expect(html).not.toContain("aria-live");
+  });
 });
 
 describe("MeasurementGrid", () => {
@@ -225,6 +236,10 @@ describe("MeasurementGrid", () => {
     expect(html).toContain('aria-label="Width, No. 13"');
     expect(html).toContain("<caption");
     expect(html).toContain(">Median<");
+  });
+
+  it("has one polite live region for rejected entries and pastes (D7)", () => {
+    expect(render({}).match(/aria-live="polite"/g)).toHaveLength(1);
   });
 
   it("says Not done until a column has data, and NA without a spec", () => {

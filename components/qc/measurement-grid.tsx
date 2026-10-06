@@ -3,9 +3,9 @@
 // The sample grid: gloves (rows) by measures (columns) with computed footer
 // rows in the template's wording (Median or Average, Spec., P/F). Enter walks
 // down a column, arrows move between cells, and pasting a column of values
-// fills down from the focused cell. Rejected entries are listed under the grid
-// with links back to their cells (BUILD_SPEC 6.2). The keyboard and paste
-// rules are pure functions in grid-navigation.ts.
+// fills down from the focused cell. Rejected entries are announced and listed
+// under the grid as full-width buttons back to their cells (BUILD_SPEC 6.2).
+// The keyboard and paste rules are pure functions in grid-navigation.ts.
 import { useId, useRef, useState, type KeyboardEvent } from "react";
 import { cn } from "@/lib/utils";
 import { formatDecimal, formatSpec, summarizeColumn, type Spec, type StatisticKind } from "@/lib/stats";
@@ -20,7 +20,9 @@ import {
   type MeasurementValues,
 } from "./grid-navigation";
 import { NumericCell, type InvalidEntry } from "./numeric-cell";
+import { rejectionMessage } from "./numeric-entry";
 import { StatusPill } from "./status-pill";
+import { useAnnouncement } from "./use-announcement";
 
 export type { MeasurementValues } from "./grid-navigation";
 
@@ -76,7 +78,7 @@ export function MeasurementGrid({
   };
   const idBase = useId();
   const [invalid, setInvalid] = useState<InvalidCells>({});
-  const [notice, setNotice] = useState("");
+  const [notice, announce] = useAnnouncement();
   const inputs = useRef(new Map<string, HTMLInputElement>());
   const size = { rows, cols: measures.length };
 
@@ -86,6 +88,8 @@ export function MeasurementGrid({
   const invalidAt = (measure: string, row: number) =>
     valueAt(measure, row) === null ? invalid[cellKey(measure, row)] : undefined;
   const errorId = (measure: string, row: number) => `${idBase}-error-${measure}-${row}`;
+  /** The cell's name, as its aria-label and the error list give it. */
+  const cellName = (measure: Measure, row: number) => `${measure.label}, ${text.row} ${row + 1}`;
 
   const focusCell = ({ row, col }: CellPosition) => {
     inputs.current.get(cellKey(measures[col].key, row))?.focus();
@@ -97,13 +101,16 @@ export function MeasurementGrid({
     onValuesChange({ ...values, [measure]: column });
   };
 
-  const setInvalidAt = (measure: string, row: number, entry: InvalidEntry | null) => {
+  const setInvalidAt = (measure: Measure, row: number, entry: InvalidEntry | null) => {
     setInvalid((current) => {
       const next = { ...current };
-      if (entry) next[cellKey(measure, row)] = entry;
-      else delete next[cellKey(measure, row)];
+      if (entry) next[cellKey(measure.key, row)] = entry;
+      else delete next[cellKey(measure.key, row)];
       return next;
     });
+    // Focus has usually moved on (Enter, an arrow, a tap elsewhere), so the
+    // cell's own error would go unheard: say it, with the cell's name.
+    if (entry) announce(rejectionMessage(entry, cellName(measure, row)));
   };
 
   const onCellKeyDown = (row: number, col: number) => (event: KeyboardEvent<HTMLInputElement>) => {
@@ -121,7 +128,7 @@ export function MeasurementGrid({
     const result = applyPaste(plan, measures, rows, values, invalid);
     onValuesChange(result.values);
     setInvalid(result.invalid);
-    setNotice(result.notice);
+    announce(result.notice);
     return true;
   };
 
@@ -188,12 +195,12 @@ export function MeasurementGrid({
                         value={valueAt(measure.key, row)}
                         onValueChange={(value) => setValue(measure.key, row, value)}
                         invalid={entry ?? null}
-                        onInvalidChange={(next) => setInvalidAt(measure.key, row, next)}
+                        onInvalidChange={(next) => setInvalidAt(measure, row, next)}
                         min={measure.min}
                         max={measure.max}
                         decimals={measure.decimals}
                         enterKeyHint="next"
-                        aria-label={`${measure.label}, ${text.row} ${row + 1}`}
+                        aria-label={cellName(measure, row)}
                         aria-describedby={entry ? errorId(measure.key, row) : undefined}
                         onKeyDown={onCellKeyDown(row, col)}
                         onPasteText={onCellPaste(row, col)}
@@ -255,18 +262,24 @@ export function MeasurementGrid({
         </table>
       </div>
 
+      {/* Each rejected entry is a full-width row button back to its cell: on
+          iPad the way back to a reading must be a 44 px target. */}
       {problems.length > 0 && (
-        <ul className="space-y-1 border-t border-fail-border bg-fail-tint px-3 py-2.5 text-sm text-fail">
+        <ul className="border-t border-fail-border bg-fail-tint px-1.5 py-1 text-sm text-fail">
           {problems.map(({ measure, row, col, entry }) => (
             <li key={cellKey(measure.key, row)} id={errorId(measure.key, row)}>
               <button
                 type="button"
                 onClick={() => focusCell({ row, col })}
-                className="rounded-sm font-semibold underline underline-offset-2 outline-none focus-ring-inset"
+                className="flex min-h-8 w-full items-center rounded-md px-1.5 py-1 text-left outline-none hover:bg-fail-border/25 focus-ring-inset touch:min-h-11"
               >
-                {text.row} {row + 1}, {measure.label}
+                <span>
+                  <span className="font-semibold underline underline-offset-2">
+                    {text.row} {row + 1}, {measure.label}
+                  </span>
+                  {entry && `: ${rejectionMessage(entry)}`}
+                </span>
               </button>
-              : “{entry?.raw}” is not stored. {entry?.error}
             </li>
           ))}
         </ul>

@@ -4,7 +4,8 @@
 // the cell is left (blur, Enter, arrow keys): a number is committed; anything
 // else, such as "2 42", stays on screen with an error while the stored value
 // becomes null. Text is never stored. Escape restores the last value. The
-// rules are pure functions in numeric-entry.ts.
+// rules are pure functions in numeric-entry.ts. A field announces a rejected
+// entry itself; in a grid, MeasurementGrid announces it with the cell's name.
 import {
   useId,
   useRef,
@@ -24,6 +25,7 @@ import {
   showsEntryError,
   type InvalidEntry,
 } from "./numeric-entry";
+import { useAnnouncement } from "./use-announcement";
 
 export type { InvalidEntry } from "./numeric-entry";
 
@@ -92,6 +94,8 @@ export function NumericCell({
     setDraft(next);
   };
 
+  const [announcement, announce] = useAnnouncement();
+
   const commit = () => {
     const raw = draftRef.current;
     if (raw === null) return;
@@ -99,6 +103,7 @@ export function NumericCell({
     const change = commitChange(raw, { value, invalid }, { min, max });
     if ("value" in change) onValueChange(change.value ?? null);
     if ("invalid" in change) setInvalid(change.invalid ?? null);
+    if (change.invalid && variant === "field") announce(rejectionMessage(change.invalid));
   };
 
   const display = entryText(draft, invalid, value, decimals);
@@ -183,7 +188,7 @@ export function NumericCell({
   if (variant === "cell") return input;
 
   return (
-    <div className="space-y-1.5">
+    <div className="relative">
       <div className="relative">
         {input}
         {unit && (
@@ -196,10 +201,15 @@ export function NumericCell({
         )}
       </div>
       {showError && invalid && (
-        <p id={errorId} className="text-sm text-fail">
+        <p id={errorId} className="mt-1.5 text-sm text-fail">
           {rejectionMessage(invalid)}
         </p>
       )}
+      {/* Spoken once when an entry is rejected, not on every keystroke that
+          shows or hides the error above. */}
+      <span className="sr-only" aria-live="polite">
+        {announcement}
+      </span>
     </div>
   );
 }

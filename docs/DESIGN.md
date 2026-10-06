@@ -55,7 +55,7 @@ Utilities: `text-pass`, `bg-pass-tint`, `border-pass-border`, `bg-pass-solid tex
 ## Density (by pointer, not width)
 
 - `touch:` = `(pointer: coarse)` (iPad), `fine:` = `(pointer: fine)` (mouse or trackpad). Layout switches at 1280 px (`xl`): below it a top tab bar and full-width grid; from 1280 px a left sidebar, wider grid, photos alongside. Check 820×1180, 1180×820 and 1440×900.
-- iPad: every control at least 44×44 px (buttons, steppers, chips, tabs, menu items, grid rows; checkbox, radio and switch grow to 24–28 px with a 44 px hit area). Field text 16 px so iOS never zooms on focus (Input and Textarea are 14 px only under `fine:`).
+- iPad: every control at least 44×44 px (buttons, steppers, chips, tabs, menu items, grid rows, the grid's error list; checkbox, radio and switch grow to 24–28 px with a 44 px hit area). Field text 16 px so iOS never zooms on focus (Input and Textarea are 14 px only under `fine:`).
 - Desktop: compact controls (32–36 px) and 32–36 px table rows.
 - To resize a control, override both: `h-12 touch:h-14`.
 
@@ -85,7 +85,7 @@ An outline, not a box-shadow ring, also survives forced-colours mode. A control 
 | SaveStatus | Saved (neutral), Saving (brand), Offline (will sync) (warn amber); pending uploads as a brand count badge | app (BUILD_SPEC 8) |
 | Stepper | − value +, hold to repeat, Arrow/Page/Home/End keys, value announced; minus stays focusable but aria-disabled at 0 (greyed, not faded); a disabled stepper (an approved inspection) leaves the tab order | app |
 | DefectChip(Group) | Tap adds one, attached minus removes one, live total. Unmapped one-off labels: dashed amber edge and a flag | app |
-| NumericCell, MeasurementGrid | `inputmode="decimal"`, numbers only: "2 42" is rejected, listed under the grid with a link, and stored as nothing. Enter goes down the column (then to the next column), arrows move between cells, a pasted column fills down. Footer: Median/Average (Not done until data), Spec., P/F (Not done until the column is complete; judged at the displayed precision). Sticky header and footer, visible 2 px focus ring | app (BUILD_SPEC 6.2, 8) |
+| NumericCell, MeasurementGrid | `inputmode="decimal"`, numbers only: "2 42" is rejected and stored as nothing. The rejection is announced with the cell's name (focus has already moved on) and listed under the grid as a full-width row button back to the cell (44 px on iPad). Enter goes down the column (then to the next column), arrows move between cells, a pasted column fills down. Footer: Median/Average (Not done until data), Spec., P/F (Not done until the column is complete; judged at the displayed precision). Sticky header and footer, visible 2 px focus ring | app (BUILD_SPEC 6.2, 8) |
 | PhotoTile | Waiting / uploading with progress, uploaded, flagged (needs conversion), selected, include-in-report (admin) | app (BUILD_SPEC 8.1) |
 | ProgressTracker | Progress in brand (done, in progress, not started); the module in view carries the gradient; results stay in status colours | app |
 | PageHeader | Eyebrow with gradient dash, Red Hat Display title, actions | `ui.tsx.txt` Eyebrow, SectionHeading |
