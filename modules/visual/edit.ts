@@ -116,6 +116,30 @@ export function addOneOff(
   return setOneOff(data, cell, label, 0);
 }
 
+/**
+ * Codes with defects saved in a class that the class's list lacks, over the
+ * ordered sizes (and hands): calc counts them, so the screen shows them as rows too.
+ */
+export function unlistedCodes(
+  data: VisualData,
+  sizes: readonly string[],
+  cls: DefectClass,
+  split: boolean,
+  listed: ReadonlySet<string>,
+): string[] {
+  const codes = new Set<string>();
+  for (const size of sizes) {
+    const entry = data.sizes[size];
+    if (!entry) continue;
+    for (const record of split ? [entry.R?.[cls], entry.L?.[cls]] : [entry[cls]]) {
+      for (const [code, count] of Object.entries(record?.counts ?? {})) {
+        if (count > 0 && !listed.has(code)) codes.add(code);
+      }
+    }
+  }
+  return [...codes];
+}
+
 /** A class's one-off labels saved for any ordered size (and hand), first spelling kept, in order of entry. */
 export function oneOffLabels(data: VisualData, sizes: readonly string[], cls: DefectClass, split: boolean): string[] {
   const seen = new Map<string, string>();

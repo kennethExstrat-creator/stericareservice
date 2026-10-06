@@ -76,8 +76,8 @@ export function calcWatertight({
   context,
 }: CalcInput<WatertightData, WatertightConfig>): CalcOutput<WatertightComputed> {
   const issues: CalcIssue[] = [];
-  const locations = config.locations.map((location) => ({ code: location.code, label: locationLabel(labels, location) }));
-  const aql = config.aql ?? context.aql.watertight;
+  const locations = effectiveLocations(config, labels);
+  const aql = effectiveAql(config, context);
   const plannable = AqlSchema.safeParse(aql);
   if (!plannable.success) {
     issues.push(
@@ -109,7 +109,7 @@ export function calcWatertight({
   const codeLetters = listCodeLetters(Object.values(sizes).map((entry) => entry.codeLetter));
   const heading = fillCaption(labelFor(labels, "heading"), {
     codeLetters,
-    aql: plannable.success ? aqlCaption(plannable.data) : String(aql),
+    aql: aqlCaption(aql),
   });
   const summary = lines.length === 0 ? "No sizes ordered yet." : `${capitalise(lines.join("; "))}.`;
   return { result: resultFromSizes(perSize, summary), computed: { aql, locations, codeLetters, heading, sizes }, issues };
@@ -345,10 +345,20 @@ function hasHoles(record: WatertightHand): boolean {
   return Object.values(record.holes).some((count) => count > 0) || record.unmapped.some((oneOff) => oneOff.count > 0);
 }
 
-/** A template may reword one location through its labels, keyed by code, without rewriting the list. */
-function locationLabel(labels: Labels, location: HoleLocation): string {
-  const own = labels[location.code];
-  return own !== undefined && own.trim() !== "" ? own : location.label;
+/** The AQL used: the template's, else the client's (context), else BUILD_SPEC 7's (context default). */
+export function effectiveAql(config: Pick<WatertightConfig, "aql">, context: Pick<InspectionContext, "aql">): number {
+  return config.aql ?? context.aql.watertight;
+}
+
+/**
+ * The locations in the template's order and wording. A template may reword
+ * one location through its labels, keyed by code, without rewriting the list.
+ */
+export function effectiveLocations(config: Pick<WatertightConfig, "locations">, labels: Labels): HoleLocation[] {
+  return config.locations.map((location) => {
+    const own = labels[location.code];
+    return { code: location.code, label: own !== undefined && own.trim() !== "" ? own : location.label };
+  });
 }
 
 function locationName(locations: readonly HoleLocation[], code: string): string {
@@ -380,9 +390,11 @@ export function listCodeLetters(letters: readonly (CodeLetter | null)[]): string
   return `${found.slice(0, -1).join(", ")} & ${found[found.length - 1]}`;
 }
 
-/** An AQL as the headings print it: critical as 0.0, the rest as ISO 2859-1 does (1.5, 4.0, 0.65). */
-export function aqlCaption(aql: Aql): string {
-  return aql === 0 ? "0.0" : formatAql(aql);
+/** An AQL as the headings print it: 0 as 0.0, a Table 2-A AQL as ISO 2859-1 does (1.5, 4.0, 0.65), anything else as given. */
+export function aqlCaption(aql: number): string {
+  if (aql === 0) return "0.0";
+  const known = AqlSchema.safeParse(aql);
+  return known.success ? formatAql(known.data) : String(aql);
 }
 
 /** Fills `{name}` placeholders in a caption; an unknown placeholder stays as written. */

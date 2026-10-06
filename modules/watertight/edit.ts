@@ -112,6 +112,29 @@ export function addOneOff(
   return setOneOff(data, cell, label, 0);
 }
 
+/**
+ * Codes with holes saved that the template's list lacks, over the ordered
+ * sizes (and hands): calc counts them, so the screen shows them as rows too.
+ */
+export function unlistedCodes(
+  data: WatertightData,
+  sizes: readonly string[],
+  split: boolean,
+  listed: ReadonlySet<string>,
+): string[] {
+  const codes = new Set<string>();
+  for (const size of sizes) {
+    const entry = data.sizes[size];
+    if (!entry) continue;
+    for (const record of split ? [entry.R, entry.L] : [entry]) {
+      for (const [code, count] of Object.entries(record?.holes ?? {})) {
+        if (count > 0 && !listed.has(code)) codes.add(code);
+      }
+    }
+  }
+  return [...codes];
+}
+
 /** The one-off labels saved for any ordered size (and hand), first spelling kept, in order of entry. */
 export function oneOffLabels(data: WatertightData, sizes: readonly string[], split: boolean): string[] {
   const seen = new Map<string, string>();

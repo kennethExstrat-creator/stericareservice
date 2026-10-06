@@ -11,6 +11,7 @@ import {
   setOneOff,
   setOtherDescription,
   setTested,
+  unlistedCodes,
 } from "./edit";
 import { WatertightDataSchema, type WatertightData } from "./schema";
 
@@ -87,6 +88,17 @@ describe("watertight edits", () => {
     expect(next.sizes.S.unmapped).toEqual([{ label: "Near the thumb", count: 1 }]);
     expect(readOneOff(next, { size: "M" }, "NEAR the thumb")).toEqual({ index: 0, entry: { label: "Near the thumb", count: 2 } });
     expect(readOneOff(next, { size: "L" }, "Near the thumb")).toBeNull();
+  });
+
+  it("lists codes with holes that the template does not list, over the ordered sizes and hands", () => {
+    const listed = new Set(LOCATIONS.map((location) => location.code));
+    const saved = data({
+      M: { holes: { hole_palm: 1, glove_burst: 2, hole_seam: 0 } },
+      L: { R: { holes: { hole_thumb: 1 } } },
+      XL: { holes: { not_ordered: 1 } },
+    });
+    expect(unlistedCodes(saved, ["M", "L"], false, listed)).toEqual(["glove_burst"]);
+    expect(unlistedCodes(saved, ["M", "L"], true, listed)).toEqual(["hole_thumb"]);
   });
 
   it("lists the one-off rows of the ordered sizes and hands, first spelling kept", () => {

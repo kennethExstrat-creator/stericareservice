@@ -96,29 +96,19 @@ export type VisualComputed = {
 export function calcVisual({ data, config, labels, context }: CalcInput<VisualData, VisualConfig>): CalcOutput<VisualComputed> {
   const issues: CalcIssue[] = [];
   const included = DEFECT_CLASSES.filter((cls) => config.classes[cls].include);
+  const classes = effectiveClasses(config, labels, context);
   const aqls = {} as Record<DefectClass, Aql | null>;
-  const classes = {} as VisualComputed["classes"];
   for (const cls of DEFECT_CLASSES) {
-    const setting = config.classes[cls];
-    const aql = cls === "critical" ? 0 : (setting.aql ?? context.aql[cls]);
-    const plannable = AqlSchema.safeParse(aql);
+    const plannable = AqlSchema.safeParse(classes[cls].aql);
     aqls[cls] = plannable.success ? plannable.data : null;
-    if (setting.include && !plannable.success) {
+    if (classes[cls].include && !plannable.success) {
       issues.push(
         errorIssue(
           "aql_invalid",
-          `${classLabel(labels, cls)}: AQL ${aql} is not in ISO 2859-1 Table 2-A, so no limits can be set. Ask an admin to correct the template or the client's AQL.`,
+          `${classLabel(labels, cls)}: AQL ${classes[cls].aql} is not in ISO 2859-1 Table 2-A, so no limits can be set. Ask an admin to correct the template or the client's AQL.`,
         ),
       );
     }
-    classes[cls] = {
-      include: setting.include,
-      aql,
-      heading: fillCaption(labelFor(labels, `${cls}Heading`), {
-        aql: plannable.success ? aqlCaption(plannable.data) : String(aql),
-      }),
-      defects: setting.defects.map((defect) => ({ code: defect.code, label: defectLabel(labels, cls, defect) })),
-    };
   }
 
   const sizes: Record<string, VisualSizeComputed> = {};
@@ -439,6 +429,29 @@ function hasDefects(record: VisualCounts): boolean {
   return Object.values(record.counts).some((count) => count > 0) || record.unmapped.some((oneOff) => oneOff.count > 0);
 }
 
+/**
+ * Each class as the template sets it: on or off, the AQL used (critical 0;
+ * otherwise the template's, else the client's, else BUILD_SPEC 7's), the
+ * heading with its AQL, and the defect list in the template's wording.
+ */
+export function effectiveClasses(
+  config: VisualConfig,
+  labels: Labels,
+  context: Pick<InspectionContext, "aql">,
+): VisualComputed["classes"] {
+  const info = (cls: DefectClass): VisualClassInfo => {
+    const setting = config.classes[cls];
+    const aql = cls === "critical" ? 0 : (setting.aql ?? context.aql[cls]);
+    return {
+      include: setting.include,
+      aql,
+      heading: fillCaption(labelFor(labels, `${cls}Heading`), { aql: aqlCaption(aql) }),
+      defects: setting.defects.map((defect) => ({ code: defect.code, label: defectLabel(labels, cls, defect) })),
+    };
+  };
+  return { critical: info("critical"), major: info("major"), minor: info("minor") };
+}
+
 /** The class's name in the template's wording: "Major Defects". */
 export function classLabel(labels: Labels, cls: DefectClass): string {
   return labelFor(labels, `${cls}Counts`);
@@ -480,9 +493,11 @@ export function listCodeLetters(letters: readonly (CodeLetter | null)[]): string
   return `${found.slice(0, -1).join(", ")} & ${found[found.length - 1]}`;
 }
 
-/** An AQL as the headings print it: critical as 0.0, the rest as ISO 2859-1 does (2.5, 4.0, 0.65). */
-export function aqlCaption(aql: Aql): string {
-  return aql === 0 ? "0.0" : formatAql(aql);
+/** An AQL as the headings print it: 0 as 0.0, a Table 2-A AQL as ISO 2859-1 does (2.5, 4.0, 0.65), anything else as given. */
+export function aqlCaption(aql: number): string {
+  if (aql === 0) return "0.0";
+  const known = AqlSchema.safeParse(aql);
+  return known.success ? formatAql(known.data) : String(aql);
 }
 
 /** Fills `{name}` placeholders in a caption; an unknown placeholder stays as written. */

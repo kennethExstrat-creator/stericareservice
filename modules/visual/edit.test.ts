@@ -10,6 +10,7 @@ import {
   setCount,
   setInspected,
   setOneOff,
+  unlistedCodes,
 } from "./edit";
 import { VisualDataSchema, type VisualData } from "./schema";
 
@@ -71,6 +72,17 @@ describe("visual edits", () => {
     expect(addOneOff(added, cell, "rolled bead", MINOR, ["M"], false)).toBe(added);
     // Another class has its own one-off rows.
     expect(addOneOff(added, { size: "M", cls: "major" }, "Faint print", [], ["M"], false).sizes.M.major.unmapped).toHaveLength(1);
+  });
+
+  it("lists codes with defects that a class does not list, over the ordered sizes and hands", () => {
+    const listed = new Set(VISUAL_DEFAULT_CONFIG.classes.major.defects.map((defect) => defect.code));
+    const saved = data({
+      M: { major: { counts: { thin_spot: 2, powder_mark: 1, bead_blister: 0 } }, minor: { counts: { powder_mark: 4 } } },
+      L: { R: { major: { counts: { seam_mark: 1 } } } },
+      XL: { major: { counts: { not_ordered: 1 } } },
+    });
+    expect(unlistedCodes(saved, ["M", "L"], "major", false, listed)).toEqual(["powder_mark"]);
+    expect(unlistedCodes(saved, ["M", "L"], "major", true, listed)).toEqual(["seam_mark"]);
   });
 
   it("counts a one-off in any cell and lists a class's one-off rows over the ordered sizes and hands", () => {
