@@ -156,8 +156,11 @@ function confirmation(kind: Kind, props: VersionActionsProps): Confirmation {
         description: (
           <>
             Version {nextVersion} starts as a draft copy of version {version}, with the same source file, and opens in the
-            template editor. Inspections keep using the active version until you activate the new one. Its coverage
-            checklist is confirmed again.
+            template editor.{" "}
+            {props.status === "active" || activeVersion !== null
+              ? `New inspections keep starting from version ${props.status === "active" ? version : activeVersion} until you activate version ${nextVersion}.`
+              : `Inspectors can start from it once you activate it.`}{" "}
+            You confirm its coverage checklist again before activating it.
             {openDraft && (
               <>
                 {" "}
