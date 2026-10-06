@@ -68,8 +68,8 @@ export function ButtonSection() {
               {saving && <Spinner aria-hidden />}
               {saving ? "Saving…" : "Save (try me)"}
             </Button>
-            {/* Shows the keyboard focus ring without needing a keyboard. */}
-            <Button tabIndex={-1} className="border-ring ring-3 ring-ring/50">
+            {/* Shows the keyboard focus ring (focus-ring) without needing a keyboard. */}
+            <Button tabIndex={-1} className="outline-solid outline-2 outline-offset-2 outline-ring">
               Focused
             </Button>
           </div>

@@ -71,8 +71,9 @@ const MAPPING: { variable: keyof typeof semantic; token: string; use: string }[]
   { variable: "accent", token: "brand-50", use: "Hover and menu highlight (text brand-700)" },
   { variable: "destructive", token: "fail (red-700)", use: "Destructive actions, field errors" },
   { variable: "border", token: "slate-200", use: "Card and divider lines" },
-  { variable: "input", token: "slate-300", use: "Field borders, switch track" },
-  { variable: "ring", token: "brand-500", use: "Focus rings" },
+  { variable: "input", token: "slate-300", use: "Text-field borders" },
+  { variable: "control", token: "slate-500", use: "Checkbox, radio, switch edges (3:1)" },
+  { variable: "ring", token: "brand-500", use: "Focus rings: opaque, 2 px" },
   { variable: "sidebar", token: "white", use: "Sidebar (primary brand-500)" },
 ];
 

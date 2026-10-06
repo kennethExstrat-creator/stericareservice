@@ -6,12 +6,14 @@ type ParseOptions = {
   strict?: boolean;
 };
 
+const stripComments = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, "");
+
 /** Every `--name: value;` declaration in the stylesheet, comments removed. */
 export function parseCustomProperties(
   css: string,
   { strict = true }: ParseOptions = {},
 ): Map<string, string> {
-  const source = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const source = stripComments(css);
   const properties = new Map<string, string>();
   for (const [, name, raw] of source.matchAll(/(--[\w-]+)\s*:\s*([^;{}]+);/g)) {
     const value = raw.trim().replace(/\s+/g, " ");
@@ -38,4 +40,31 @@ export function resolveCustomProperty(name: string, properties: Map<string, stri
     if (!reference) return value;
     current = reference[1];
   }
+}
+
+/** The body of `@utility <name> { … }`, comments removed; undefined when there is none. */
+export function utilityBody(css: string, name: string): string | undefined {
+  const source = stripComments(css);
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const start = new RegExp(`@utility\\s+${escaped}\\s*\\{`).exec(source);
+  if (!start) return undefined;
+  const open = start.index + start[0].length - 1;
+  let depth = 0;
+  for (let i = open; i < source.length; i += 1) {
+    if (source[i] === "{") depth += 1;
+    if (source[i] === "}") {
+      depth -= 1;
+      if (depth === 0) return source.slice(open + 1, i);
+    }
+  }
+  throw new Error(`@utility ${name} is not closed`);
+}
+
+/** `property: value` declarations in a CSS fragment, nesting flattened (later wins). */
+export function declarations(css: string): Map<string, string> {
+  const found = new Map<string, string>();
+  for (const [, property, value] of stripComments(css).matchAll(/([\w-]+)\s*:\s*([^;{}]+);/g)) {
+    found.set(property, value.trim().replace(/\s+/g, " "));
+  }
+  return found;
 }
