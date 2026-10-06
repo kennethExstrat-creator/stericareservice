@@ -59,7 +59,7 @@ export function DesignIndex({ variant, className }: { variant: "bar" | "sidebar"
               href={`#${id}`}
               aria-current={active === id ? "location" : undefined}
               className={cn(
-                "flex items-center rounded-full px-3 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+                "flex items-center rounded-full px-3 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-ring-inset",
                 "aria-[current=location]:bg-accent aria-[current=location]:text-accent-foreground",
                 variant === "bar" ? "h-9 whitespace-nowrap touch:h-11" : "h-9 rounded-md touch:h-11",
               )}

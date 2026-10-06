@@ -134,7 +134,10 @@ export const semantic = {
   "accent-foreground": brand[700],
   destructive: status.fail.text,
   border: slate[200],
+  /** Text-field edges (the website's forms); the label and white box carry the field. */
   input: slate[300],
+  /** Checkbox, radio and switch edges: their only marker, so 3:1 (WCAG 1.4.11). App-specific. */
+  control: slate[500],
   ring: brand[500],
   "chart-1": brand[500],
   "chart-2": accent[500],

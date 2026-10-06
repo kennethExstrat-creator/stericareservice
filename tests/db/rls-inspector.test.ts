@@ -149,6 +149,7 @@ describe("RLS: inspector", { timeout: 30_000 }, () => {
   });
 
   it.each([
+    ["id", "id = gen_random_uuid()"],
     ["ref_no", "ref_no = 'INS-1999-0001'"],
     ["inspector_id", "inspector_id = '00000000-0000-4000-8000-000000000000'"],
     ["template_id", "template_id = gen_random_uuid()"],

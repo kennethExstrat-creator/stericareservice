@@ -3,7 +3,9 @@
 // Numeric entry for measurements (BUILD_SPEC 6.2 rule 1). Text is parsed when
 // the cell is left (blur, Enter, arrow keys): a number is committed; anything
 // else, such as "2 42", stays on screen with an error while the stored value
-// becomes null. Text is never stored. Escape restores the last value.
+// becomes null. Text is never stored. Escape restores the last value. The
+// rules are pure functions in numeric-entry.ts. A field announces a rejected
+// entry itself; in a grid, MeasurementGrid announces it with the cell's name.
 import {
   useId,
   useRef,
@@ -15,10 +17,17 @@ import {
   type MouseEvent,
 } from "react";
 import { cn } from "@/lib/utils";
-import { formatReading, readDecimal } from "@/lib/stats";
+import {
+  commitChange,
+  entryKeyAction,
+  entryText,
+  rejectionMessage,
+  showsEntryError,
+  type InvalidEntry,
+} from "./numeric-entry";
+import { useAnnouncement } from "./use-announcement";
 
-/** What was typed that is not a usable number, and why. */
-export type InvalidEntry = { raw: string; error: string };
+export type { InvalidEntry } from "./numeric-entry";
 
 type NumericCellProps = Omit<
   ComponentProps<"input">,
@@ -85,27 +94,25 @@ export function NumericCell({
     setDraft(next);
   };
 
+  const [announcement, announce] = useAnnouncement();
+
   const commit = () => {
     const raw = draftRef.current;
     if (raw === null) return;
     updateDraft(null);
-    const result = readDecimal(raw, { min, max });
-    if (!result.ok) {
-      if (value !== null) onValueChange(null);
-      setInvalid({ raw, error: result.error });
-      return;
-    }
-    if (invalid) setInvalid(null);
-    if (result.value !== value) onValueChange(result.value);
+    const change = commitChange(raw, { value, invalid }, { min, max });
+    if ("value" in change) onValueChange(change.value ?? null);
+    if ("invalid" in change) setInvalid(change.invalid ?? null);
+    if (change.invalid && variant === "field") announce(rejectionMessage(change.invalid));
   };
 
-  const display = draft ?? invalid?.raw ?? formatReading(value, decimals);
-  // Reward early: the error clears as soon as the edit becomes valid.
-  const showError = invalid !== null && (draft === null || !readDecimal(draft, { min, max }).ok);
+  const display = entryText(draft, invalid, value, decimals);
+  const showError = showsEntryError(invalid, draft, { min, max });
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") commit();
-    if (event.key === "Escape" && draftRef.current !== null) {
+    const action = entryKeyAction(event.key, draftRef.current !== null);
+    if (action === "commit") commit();
+    if (action === "revert") {
       event.preventDefault();
       updateDraft(null);
     }
@@ -169,10 +176,10 @@ export function NumericCell({
       className={cn(
         "w-full min-w-0 text-right tabular-nums outline-none placeholder:text-muted-foreground",
         variant === "field" &&
-          "h-9 rounded-md border border-input bg-card px-2.5 text-base shadow-xs transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 [&[readonly]]:bg-muted [&[readonly]]:shadow-none fine:text-sm touch:h-11 touch:px-3",
+          "h-9 rounded-md border border-input bg-card px-2.5 text-base shadow-xs transition-[color,box-shadow] focus-visible:border-ring focus-ring-inset aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 [&[readonly]]:bg-muted [&[readonly]]:shadow-none fine:text-sm touch:h-11 touch:px-3",
         variant === "field" && unit && "pr-12 touch:pr-12",
         variant === "cell" &&
-          "h-8 rounded-none bg-transparent px-2.5 text-sm focus-visible:bg-card focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset aria-invalid:bg-fail-tint aria-invalid:text-fail aria-invalid:ring-2 aria-invalid:ring-fail aria-invalid:ring-inset touch:h-11 touch:text-base",
+          "h-8 rounded-none bg-transparent px-2.5 text-sm focus-visible:bg-card focus-ring-inset aria-invalid:bg-fail-tint aria-invalid:text-fail aria-invalid:ring-2 aria-invalid:ring-fail aria-invalid:ring-inset touch:h-11 touch:text-base",
         className,
       )}
     />
@@ -181,7 +188,7 @@ export function NumericCell({
   if (variant === "cell") return input;
 
   return (
-    <div className="space-y-1.5">
+    <div className="relative">
       <div className="relative">
         {input}
         {unit && (
@@ -194,10 +201,15 @@ export function NumericCell({
         )}
       </div>
       {showError && invalid && (
-        <p id={errorId} className="text-sm text-fail">
-          “{invalid.raw}” is not stored. {invalid.error}
+        <p id={errorId} className="mt-1.5 text-sm text-fail">
+          {rejectionMessage(invalid)}
         </p>
       )}
+      {/* Spoken once when an entry is rejected, not on every keystroke that
+          shows or hides the error above. */}
+      <span className="sr-only" aria-live="polite">
+        {announcement}
+      </span>
     </div>
   );
 }

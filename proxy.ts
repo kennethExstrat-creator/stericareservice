@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { classifyPath, LOGIN_PATH, safeNextPath } from "@/lib/auth/routes";
+import { proxyDecision } from "@/lib/auth/routes";
 import { updateSession } from "@/lib/supabase/proxy";
 
 /**
@@ -14,24 +14,20 @@ export async function proxy(request: NextRequest) {
   const { response, claims } = await updateSession(request);
   const { pathname, search, searchParams } = request.nextUrl;
 
-  switch (classifyPath(pathname)) {
-    case "api":
-    case "open":
-      return response;
-    case "guest":
-      return claims ? redirectKeepingSession(request, response, safeNextPath(searchParams.get("next"))) : response;
-    case "protected": {
-      if (claims) return response;
-      const login = new URL(LOGIN_PATH, request.url);
-      if (pathname !== "/") login.searchParams.set("next", `${pathname}${search}`);
-      return redirectKeepingSession(request, response, login);
-    }
-  }
+  const decision = proxyDecision({
+    method: request.method,
+    pathname,
+    search,
+    next: searchParams.get("next"),
+    signedIn: claims !== null,
+  });
+  if (decision.action === "pass") return response;
+  return redirectKeepingSession(request, response, decision.location);
 }
 
 /** A redirect that still carries any refreshed auth cookies and cache headers. */
-function redirectKeepingSession(request: NextRequest, from: NextResponse, to: URL | string) {
-  const redirect = NextResponse.redirect(typeof to === "string" ? new URL(to, request.url) : to);
+function redirectKeepingSession(request: NextRequest, from: NextResponse, location: string) {
+  const redirect = NextResponse.redirect(new URL(location, request.url));
   for (const cookie of from.cookies.getAll()) redirect.cookies.set(cookie);
   for (const header of ["cache-control", "expires", "pragma"]) {
     const value = from.headers.get(header);

@@ -14,7 +14,7 @@ import {
   type InspectionRow,
   type People,
 } from "./fixtures";
-import { asOwner, asService, asUser, column, createTestDb, pgError, type Db } from "./harness";
+import { asOwner, asService, asUser, column, createAuthUser, createTestDb, pgError, type Db } from "./harness";
 
 type AuditRow = Tables<"audit_log">;
 
@@ -40,6 +40,7 @@ describe("RLS: admin", { timeout: 30_000 }, () => {
     first = await createInspection(db, people.inspector, templateId, { po_no: "PO-1" });
     second = await createInspection(db, people.otherInspector, templateId, { po_no: "PO-2" });
     await addPhoto(db, first.id, people.inspector);
+    await addFile(db, first.id, people.inspector);
     await addPhoto(db, second.id, people.otherInspector);
     await addFile(db, second.id, people.otherInspector);
     await addReview(db, second.id, people.admin);
@@ -216,6 +217,36 @@ describe("RLS: admin", { timeout: 30_000 }, () => {
     expect(result.affectedRows).toBe(1);
   });
 
+  it("changes nothing else about the photos and files of an approved inspection", async () => {
+    const caption = await pgError(
+      asUser(db, people.admin, (tx) =>
+        tx.query("update public.inspection_photos set caption = 'too late' where inspection_id = $1", [first.id]),
+      ),
+    );
+    expect(caption).toMatchObject({
+      code: "42501",
+      message: "the photos and files of an approved inspection are read-only",
+    });
+
+    const added = await pgError(
+      asUser(db, people.admin, (tx) =>
+        tx.query("insert into public.inspection_photos (inspection_id, storage_path) values ($1, $2)", [
+          first.id,
+          `${first.id}/${randomUUID()}.jpg`,
+        ]),
+      ),
+    );
+    expect(added.code).toBe("42501");
+
+    const changed = await asUser(db, people.admin, async (tx) => [
+      (await tx.query("delete from public.inspection_photos where inspection_id = $1", [first.id])).affectedRows,
+      (await tx.query("update public.inspection_files set name = 'renamed.pdf' where inspection_id = $1", [first.id]))
+        .affectedRows,
+      (await tx.query("delete from public.inspection_files where inspection_id = $1", [first.id])).affectedRows,
+    ]);
+    expect(changed).toEqual([0, 0, 0]);
+  });
+
   it("records AI reviews and decides on findings in their own name", async () => {
     const review = await asUser(db, people.admin, (tx) =>
       tx.query<{ id: string }>(
@@ -293,6 +324,58 @@ describe("service role", { timeout: 30_000 }, () => {
   let people: People;
   let templateId: string;
 
+  /** An approved inspection with a photo, a lab report and an AI review. */
+  async function approvedInspection(): Promise<InspectionRow> {
+    const made = await createInspection(db, people.inspector, templateId);
+    await addPhoto(db, made.id, people.inspector);
+    await addFile(db, made.id, people.inspector);
+    await addReview(db, made.id, people.admin);
+    await setStatus(db, people.inspector, made.id, "submitted");
+    return setStatus(db, people.admin, made.id, "approved");
+  }
+
+  /** What remains of an inspection, its evidence and its audit trail, seen by the owner. */
+  async function whatIsLeft(inspectionId: string) {
+    return asOwner(db, async (tx) => {
+      const count = async (table: string) =>
+        (await column<string>(tx, `select id::text from public.${table} where inspection_id = $1`, [inspectionId]))
+          .length;
+      const deletion = await tx.query<Pick<AuditRow, "actor_id" | "changes">>(
+        `select actor_id, changes from public.audit_log
+          where action = 'deleted' and changes ->> 'inspection_id' = $1`,
+        [inspectionId],
+      );
+      return {
+        inspections: (await column<string>(tx, "select id from public.inspections where id = $1", [inspectionId]))
+          .length,
+        photos: await count("inspection_photos"),
+        files: await count("inspection_files"),
+        reviews: await count("ai_reviews"),
+        audit: await column<string>(tx, "select action from public.audit_log where inspection_id = $1 order by id", [
+          inspectionId,
+        ]),
+        deletion: deletion.rows,
+      };
+    });
+  }
+
+  /** whatIsLeft() of an inspection deleted with everything it had, as the service role or owner. */
+  function deletedWithEverything(inspection: InspectionRow) {
+    return {
+      inspections: 0,
+      photos: 0,
+      files: 0,
+      reviews: 0,
+      audit: [],
+      deletion: [
+        {
+          actor_id: null,
+          changes: { inspection_id: inspection.id, ref_no: inspection.ref_no, status: inspection.status },
+        },
+      ],
+    };
+  }
+
   beforeAll(async () => {
     db = await createTestDb();
     people = await createPeople(db);
@@ -331,8 +414,13 @@ describe("service role", { timeout: 30_000 }, () => {
         ),
       ),
     );
-    const audit = await pgError(asService(db, (tx) => tx.query("update public.audit_log set action = 'edited'")));
-    expect([ref.code, audit.code]).toEqual(["42501", "42501"]);
+    expect(ref).toMatchObject({ code: "42501", message: "ref_no is assigned by the database" });
+
+    // The audit trail is append-only, for server code too.
+    for (const sql of ["update public.audit_log set action = 'edited'", "delete from public.audit_log"]) {
+      const error = await pgError(asService(db, (tx) => tx.query(sql)));
+      expect(error, sql).toMatchObject({ code: "42501", message: "permission denied for table audit_log" });
+    }
   });
 
   it("logs events on any inspection", async () => {
@@ -343,6 +431,109 @@ describe("service role", { timeout: 30_000 }, () => {
     expect(id[0]).toBeGreaterThan(0);
     const trail = await auditTrail(db, draft.id);
     expect(trail.at(-1)).toEqual({ action: "ai_review.requested", actor_id: null, changes: {} });
+  });
+
+  it("logs no event without an inspection, and neither can a user", async () => {
+    const service = await pgError(asService(db, (tx) => tx.query("select public.log_inspection_event(null, 'note')")));
+    const user = await pgError(
+      asUser(db, people.inspector, (tx) => tx.query("select public.log_inspection_event(null, 'note')")),
+    );
+    for (const error of [service, user]) {
+      expect(error).toMatchObject({ code: "22004", message: "inspection_id is required" });
+    }
+  });
+
+  it("changes nothing about the photos and files of an approved inspection but the report choice", async () => {
+    const approved = await approvedInspection();
+    const blocked: [sql: string, params: unknown[]][] = [
+      [
+        "insert into public.inspection_photos (inspection_id, storage_path, created_by) values ($1, $2, $3)",
+        [approved.id, `${approved.id}/${randomUUID()}.jpg`, people.inspector],
+      ],
+      ["update public.inspection_photos set caption = 'too late' where inspection_id = $1", [approved.id]],
+      ["delete from public.inspection_photos where inspection_id = $1", [approved.id]],
+      [
+        "insert into public.inspection_files (inspection_id, storage_path, name, created_by) values ($1, $2, 'late.pdf', $3)",
+        [approved.id, `${approved.id}/${randomUUID()}.pdf`, people.inspector],
+      ],
+      ["update public.inspection_files set name = 'renamed.pdf' where inspection_id = $1", [approved.id]],
+      ["delete from public.inspection_files where inspection_id = $1", [approved.id]],
+    ];
+    for (const [sql, params] of blocked) {
+      const error = await pgError(asService(db, (tx) => tx.query(sql, params)));
+      expect(error, sql).toMatchObject({
+        code: "42501",
+        message: "the photos and files of an approved inspection are read-only",
+      });
+    }
+
+    const pick = await asService(db, (tx) =>
+      tx.query("update public.inspection_photos set include_in_report = true where inspection_id = $1", [approved.id]),
+    );
+    expect(pick.affectedRows).toBe(1);
+  });
+
+  it("cannot delete an approved inspection, so its audit history stays", async () => {
+    const approved = await approvedInspection();
+    const error = await pgError(
+      asService(db, (tx) => tx.query("delete from public.inspections where id = $1", [approved.id])),
+    );
+    expect(error).toMatchObject({ code: "42501", message: "an approved inspection cannot be deleted" });
+    expect(await whatIsLeft(approved.id)).toMatchObject({
+      inspections: 1,
+      photos: 1,
+      files: 1,
+      reviews: 1,
+      audit: ["created", "status_changed", "status_changed"],
+      deletion: [],
+    });
+  });
+
+  it("leaves deleting an approved inspection to the database owner, which is recorded", async () => {
+    const approved = await approvedInspection();
+    const deleted = await asOwner(db, (tx) => tx.query("delete from public.inspections where id = $1", [approved.id]));
+    expect(deleted.affectedRows).toBe(1);
+    expect(await whatIsLeft(approved.id)).toEqual(deletedWithEverything(approved));
+  });
+
+  // End-to-end teardown in the shared project (e2e/README.md).
+  it("deletes the inspections of test accounts through delete_test_inspection(), approved ones included", async () => {
+    const approved = await approvedInspection();
+    const draft = await createInspection(db, people.inspector, templateId);
+    const results = await asService(db, async (tx) => [
+      await column<boolean>(tx, "select public.delete_test_inspection($1)", [approved.id]),
+      await column<boolean>(tx, "select public.delete_test_inspection($1)", [draft.id]),
+      await column<boolean>(tx, "select public.delete_test_inspection($1)", [randomUUID()]),
+    ]);
+    expect(results).toEqual([[true], [true], [false]]);
+    expect(await whatIsLeft(approved.id)).toEqual(deletedWithEverything(approved));
+  });
+
+  it("keeps delete_test_inspection() away from real accounts and from signed-in users", async () => {
+    const real = await createAuthUser(db, { email: "rina@stericare.example", fullName: "Rina Real" });
+    const theirs = await createInspection(db, real, templateId);
+    const notTest = await pgError(
+      asService(db, (tx) => tx.query("select public.delete_test_inspection($1)", [theirs.id])),
+    );
+    expect(notTest).toMatchObject({
+      code: "42501",
+      message: `inspection ${theirs.id} does not belong to a test account`,
+    });
+
+    const own = await createInspection(db, people.inspector, templateId);
+    for (const userId of [people.admin, people.inspector]) {
+      const error = await pgError(
+        asUser(db, userId, (tx) => tx.query("select public.delete_test_inspection($1)", [own.id])),
+      );
+      expect(error, userId).toMatchObject({
+        code: "42501",
+        message: "permission denied for function delete_test_inspection",
+      });
+    }
+    const still = await asOwner(db, (tx) =>
+      column<string>(tx, "select id from public.inspections where id in ($1, $2) order by id", [theirs.id, own.id]),
+    );
+    expect(still).toEqual([theirs.id, own.id].sort());
   });
 
   it("stores photo rows for any inspection", async () => {

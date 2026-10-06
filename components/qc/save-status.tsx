@@ -39,7 +39,7 @@ export function SaveStatus({
       role="status"
       data-slot="save-status"
       data-state={state}
-      className={cn("inline-flex items-center gap-2", className)}
+      className={cn("relative inline-flex items-center gap-2", className)}
     >
       <span
         className={cn(

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { makeStdEgExport } from "@/lib/ai/__fixtures__/std-eg-export";
-import { AiReportResponseSchema } from "@/lib/ai/report";
 import { signWebhookBody, WEBHOOK_HEADERS } from "@/lib/ai/webhook";
+import { AiReportResponseSchema } from "@/lib/schemas";
 import { GET, POST } from "./route";
 
 const ORIGIN = "http://localhost:3000";

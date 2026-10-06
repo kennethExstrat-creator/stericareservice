@@ -1,6 +1,5 @@
 import "server-only";
-import { z } from "zod";
-import { ExportSchema, HttpUrlSchema, type InspectionExport } from "@/lib/schemas";
+import { AiReportResponseSchema, ExportSchema, type InspectionExport } from "@/lib/schemas";
 import { readAiConfig, type AiEnv } from "./config";
 import { summarizeIssues } from "./issues";
 import { AI_REPORT_NOT_CONNECTED } from "./status";
@@ -15,8 +14,6 @@ import { handoffFailureReason, postWebhook } from "./webhook";
 
 /** Writing a four-page report takes longer than a review. */
 export const REPORT_WEBHOOK_TIMEOUT_MS = 180_000;
-
-export const AiReportResponseSchema = z.object({ reportUrl: HttpUrlSchema });
 
 export interface RequestAiReportOptions {
   env?: AiEnv;

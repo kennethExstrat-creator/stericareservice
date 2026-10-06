@@ -13,7 +13,7 @@ import {
   StandardSchema,
   UnitSchema,
 } from "./common";
-import { ModuleKeySchema, ModuleResultSchema } from "./module-result";
+import { isModuleKey, ModuleKeySchema, ModuleResultSchema } from "./module-result";
 
 /* ------------------------------------------------------------------ *
  * Inspection export (BUILD_SPEC 9.1)
@@ -82,6 +82,10 @@ export const ExportCustomFieldSchema = z.object({
 export type ExportCustomField = z.infer<typeof ExportCustomFieldSchema>;
 
 export const ExportCustomModuleSchema = z.object({
+  /**
+   * Never a library module key, even one this template leaves out: findings,
+   * questions and photo tags name a module or a custom module by key alone.
+   */
   key: z.string().min(1),
   title: z.string().min(1),
   /** The report module this section follows. */
@@ -96,9 +100,13 @@ export type ExportCustomModule = z.infer<typeof ExportCustomModuleSchema>;
 /**
  * Module key or custom module key a photo or file is tagged with; null when
  * untagged (a desktop upload not yet retagged). inspection_photos.module_key
- * and inspection_files.module_key are nullable, so the export allows it.
+ * and inspection_files.module_key are nullable text with no non-empty check,
+ * so an empty or blank tag is read as untagged instead of failing the export.
  */
-export const ExportModuleTagSchema = z.string().min(1).nullable();
+export const ExportModuleTagSchema = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? null : value),
+  z.string().min(1).nullable(),
+);
 
 export const ExportPhotoSchema = z.object({
   id: z.uuid(),
@@ -172,6 +180,16 @@ export const ExportSchema = z
       ["custom"],
       "Custom module",
     );
+    // Library keys are reserved, so a key in a finding, a question or a photo tag names one section.
+    doc.custom.forEach((module, index) => {
+      if (isModuleKey(module.key)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["custom", index, "key"],
+          message: `Custom module key "${module.key}" is a library module key; give the custom module its own key.`,
+        });
+      }
+    });
     reportDuplicates(
       ctx,
       doc.photos.map((photo) => photo.id),

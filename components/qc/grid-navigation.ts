@@ -1,4 +1,6 @@
 // Keyboard and paste rules for MeasurementGrid, kept pure so they can be tested.
+import type { Limits } from "@/lib/stats";
+import { commitEntry, type InvalidEntry } from "./numeric-entry";
 
 export type CellPosition = { row: number; col: number };
 export type GridSize = { rows: number; cols: number };
@@ -74,4 +76,63 @@ export function planPaste(text: string, from: CellPosition, { rows, cols }: Grid
     });
   });
   return { cells, skipped };
+}
+
+/** Values per measure key, one per row; null where nothing is entered. */
+export type MeasurementValues = Readonly<Record<string, readonly (number | null)[]>>;
+
+/** Rejected entries by cell, keyed with cellKey. */
+export type InvalidCells = Readonly<Record<string, InvalidEntry>>;
+
+export function cellKey(measure: string, row: number): string {
+  return `${measure}:${row}`;
+}
+
+export type PasteResult = {
+  values: MeasurementValues;
+  invalid: InvalidCells;
+  /** For the grid's live region, e.g. "Pasted 13 values. 1 not stored." */
+  notice: string;
+};
+
+/**
+ * Applies a paste plan under the numbers-only rule: each value is committed
+ * as if it had been typed into its cell (commitEntry), so a rejected value
+ * leaves the cell null and is listed with its text, and a valid one clears
+ * an earlier rejection. Columns the paste does not reach are kept as they are.
+ */
+export function applyPaste(
+  plan: PastePlan,
+  measures: readonly (Limits & { key: string })[],
+  rows: number,
+  values: MeasurementValues,
+  invalid: InvalidCells,
+): PasteResult {
+  const columns: Record<string, (number | null)[]> = {};
+  const nextInvalid: Record<string, InvalidEntry> = { ...invalid };
+  let rejected = 0;
+  for (const cell of plan.cells) {
+    const measure = measures[cell.col];
+    const column = (columns[measure.key] ??= Array.from(
+      { length: rows },
+      (_, row) => values[measure.key]?.[row] ?? null,
+    ));
+    const entry = commitEntry(cell.raw, { min: measure.min, max: measure.max });
+    column[cell.row] = entry.value;
+    if (entry.invalid) {
+      nextInvalid[cellKey(measure.key, cell.row)] = entry.invalid;
+      rejected += 1;
+    } else {
+      delete nextInvalid[cellKey(measure.key, cell.row)];
+    }
+  }
+  const pasted = plan.cells.length;
+  const notice = [
+    `Pasted ${pasted} ${pasted === 1 ? "value" : "values"}.`,
+    rejected > 0 && `${rejected} not stored.`,
+    plan.skipped > 0 && `${plan.skipped} did not fit.`,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return { values: { ...values, ...columns }, invalid: nextInvalid, notice };
 }

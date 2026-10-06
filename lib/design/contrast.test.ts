@@ -1,8 +1,8 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { AA_LARGE, AA_TEXT, contrastRatio, formatRatio, hexToRgb } from "./contrast";
-import { parseCustomProperties, resolveCustomProperty } from "./css-variables";
+import { AA_LARGE, AA_TEXT, composite, contrastRatio, formatRatio, hexToRgb } from "./contrast";
+import { declarations, parseCustomProperties, resolveCustomProperty, utilityBody } from "./css-variables";
 import {
   STATUSES,
   STEPS,
@@ -14,16 +14,65 @@ import {
   slate,
   status,
   white,
+  type Hex,
 } from "./tokens";
 
 const read = (relative: string) =>
   readFileSync(fileURLToPath(new URL(relative, import.meta.url)), "utf8");
 
-const appCss = parseCustomProperties(read("../../app/globals.css"));
+const appCssText = read("../../app/globals.css");
+const appCss = parseCustomProperties(appCssText);
 // The website scopes some variables per selector (--reveal-delay); its theme tokens are unique.
 const websiteCss = parseCustomProperties(read("../../docs/design-reference/globals.css"), {
   strict: false,
 });
+
+/** Every component and page source, as shipped (tests excluded). */
+const sources: [file: string, text: string][] = ["components", "app"].flatMap((dir) =>
+  readdirSync(fileURLToPath(new URL(`../../${dir}/`, import.meta.url)), { recursive: true, encoding: "utf8" })
+    .filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file))
+    .map((file): [string, string] => [`${dir}/${file}`, read(`../../${dir}/${file}`)]),
+);
+
+/** Class-like tokens in a source file, split into variants and the utility (`focus-visible:ring-3` → ["focus-visible"], "ring-3"). */
+function classTokens(text: string): { token: string; variants: string[]; utility: string }[] {
+  return text
+    .split(/[\s"'`{},()]+/)
+    .filter((token) => /^[\w[\]&>*@!:=./%#-]+$/.test(token))
+    .map((token) => {
+      const parts: string[] = [];
+      let depth = 0;
+      let current = "";
+      for (const char of token) {
+        if (char === "[") depth += 1;
+        if (char === "]") depth -= 1;
+        if (char === ":" && depth === 0) {
+          parts.push(current);
+          current = "";
+        } else {
+          current += char;
+        }
+      }
+      return { token, variants: parts, utility: current };
+    });
+}
+
+/** A theme colour as hex, e.g. "muted-foreground" → slate-600; undefined for anything else. */
+function themeColour(name: string): Hex | undefined {
+  if (name === "white") return white;
+  if (name === "black") return "#000000";
+  if (!appCss.has(`--color-${name}`)) return undefined;
+  const value = resolveCustomProperty(`--color-${name}`, appCss).toLowerCase();
+  return /^#[0-9a-f]{6}$/.test(value) ? (value as Hex) : undefined;
+}
+
+/** Grounds that text and focus rings sit on: cards, page, table heads, quiet surfaces. */
+const GROUNDS: [string, Hex][] = [
+  ["white", white],
+  ["mist", mist],
+  ["slate-50", slate[50]],
+  ["slate-100 (muted, tab list)", slate[100]],
+];
 
 describe("contrast maths", () => {
   it("matches the WCAG reference values", () => {
@@ -42,6 +91,16 @@ describe("contrast maths", () => {
 
   it("rounds printed ratios down", () => {
     expect(formatRatio(4.4999)).toBe("4.49:1");
+  });
+
+  it("composites a translucent colour over its ground, as the browser paints it", () => {
+    expect(composite("#000000", 0.5, "#ffffff")).toBe("#808080");
+    expect(composite(brand[500], 1, mist)).toBe(brand[500]);
+    expect(composite(brand[500], 0, mist)).toBe(mist);
+    // The review's measurements (D3, D5): the old focus halo and inactive tab text.
+    expect(composite(brand[500], 0.5, white)).toBe("#80baeb");
+    expect(composite(slate[900], 0.6, slate[100])).toBe("#69707d");
+    expect(() => composite(white, 1.5, mist)).toThrow(RangeError);
   });
 });
 
@@ -101,13 +160,122 @@ describe("shadcn semantic pairs", () => {
     expect(contrastRatio(white, semantic.destructive)).toBeGreaterThanOrEqual(AA_TEXT);
   });
 
-  it("focus ring shows against white and mist (3:1)", () => {
-    expect(contrastRatio(semantic.ring, white)).toBeGreaterThanOrEqual(AA_LARGE);
-    expect(contrastRatio(semantic.ring, mist)).toBeGreaterThanOrEqual(AA_LARGE);
-  });
-
   it("secondary text is never lighter than slate-600", () => {
     expect(semantic["muted-foreground"]).toBe(slate[600]);
+  });
+});
+
+describe("keyboard focus (WCAG 1.4.11, design review D3)", () => {
+  // What ships: the outline the two utilities draw, not the bare token.
+  const FOCUS_UTILITIES: [name: string, offset: string][] = [
+    ["focus-ring", "2px"],
+    ["focus-ring-inset", "-2px"],
+  ];
+
+  it.each(FOCUS_UTILITIES)("%s draws an opaque 2 px ring-colour outline on :focus-visible", (name, offset) => {
+    const body = utilityBody(appCssText, name);
+    expect(body, `@utility ${name} in app/globals.css`).toBeDefined();
+    expect(body).toMatch(/&:focus-visible\s*\{/);
+    const rules = declarations(body ?? "");
+    // A bare var() of an opaque hex: no alpha, color-mix or /50 to composite.
+    expect(rules.get("outline")).toBe("2px solid var(--color-ring)");
+    expect(rules.get("outline-offset")).toBe(offset);
+  });
+
+  it("the ring colour is an opaque brand-500", () => {
+    expect(themeColour("ring")).toBe(brand[500]);
+    expect(semantic.ring).toBe(brand[500]);
+  });
+
+  it.each([
+    ...GROUNDS,
+    ["brand-50 (accent: hover, active rows and chips)", brand[50]],
+    ["brand-100 (secondary: the stepper's plus)", brand[100]],
+    ["fail tint (the grid's error list)", status.fail.tint],
+  ] as [string, Hex][])("the ring holds 3:1 against %s", (_, ground) => {
+    expect(contrastRatio(semantic.ring, ground)).toBeGreaterThanOrEqual(AA_LARGE);
+  });
+
+  it("a translucent halo would not: brand-500 at 50% is about 2:1", () => {
+    for (const [, ground] of GROUNDS) {
+      expect(contrastRatio(composite(semantic.ring, 0.5, ground), ground)).toBeLessThan(AA_LARGE);
+    }
+  });
+
+  it("the base outline colour is opaque", () => {
+    expect(appCssText).toMatch(/@apply border-border outline-ring;/);
+  });
+
+  it("no component draws focus with a box-shadow ring or a translucent colour", () => {
+    const offenders = sources.flatMap(([file, text]) =>
+      classTokens(text)
+        .filter(({ token, variants, utility }) => {
+          const onFocus = variants.some((variant) => variant.includes("focus"));
+          const ringShadow = /^ring-(?!0$)/.test(utility) || /^ring-\[/.test(utility);
+          const translucent = /^(ring|outline)-[a-z][\w-]*\/\d+$/.test(utility);
+          return (onFocus && (ringShadow || translucent)) || /(^|:)outline-ring\//.test(token);
+        })
+        .map(({ token }) => `${file}: ${token}`),
+    );
+    expect(offenders, "use focus-ring or focus-ring-inset (app/globals.css)").toEqual([]);
+  });
+});
+
+describe("checkbox, radio and switch edges (WCAG 1.4.11, design review D4)", () => {
+  it.each(GROUNDS)("--control holds 3:1 on %s", (_, ground) => {
+    expect(contrastRatio(semantic.control, ground)).toBeGreaterThanOrEqual(AA_LARGE);
+  });
+
+  it("text fields keep the website's light edge, which a toggle cannot use", () => {
+    expect(semantic.input).toBe(slate[300]);
+    expect(contrastRatio(semantic.input, white)).toBeLessThan(AA_LARGE);
+  });
+
+  it.each<[string, string, string[]]>([
+    ["checkbox", "components/ui/checkbox.tsx", ["border-control"]],
+    ["radio", "components/ui/radio-group.tsx", ["border-control"]],
+    ["switch", "components/ui/switch.tsx", ["data-unchecked:border-control", "data-unchecked:bg-control"]],
+  ])("the unchecked %s is drawn with --control", (_, file, required) => {
+    const text = sources.find(([name]) => name === file)?.[1] ?? "";
+    const utilities = classTokens(text).map(({ token }) => token);
+    for (const name of required) expect(utilities, `${file} uses ${name}`).toContain(name);
+    expect(utilities.filter((token) => /(^|:)(border|bg)-input$/.test(token)), file).toEqual([]);
+  });
+});
+
+describe("translucent text, measured as it renders (design review D5)", () => {
+  const FONT_SIZES = new Set(["xs", "sm", "base", "lg", "xl", ...Array.from({ length: 8 }, (_, i) => `${i + 2}xl`)]);
+  const translucentText = sources.flatMap(([file, text]) =>
+    classTokens(text).flatMap(({ token, utility }) => {
+      const match = /^text-([a-z][\w-]*)\/(\d+)$/.exec(utility);
+      return match && !FONT_SIZES.has(match[1]) ? [{ file, token, colour: match[1], alpha: Number(match[2]) / 100 }] : [];
+    }),
+  );
+
+  it("can measure every translucent text colour in the source", () => {
+    const unknown = translucentText.filter(({ colour }) => themeColour(colour) === undefined);
+    expect(unknown.map(({ file, token }) => `${file}: ${token}`)).toEqual([]);
+  });
+
+  it("holds 4.5:1 on every ground, and neutral text stays at least as dark as slate-600", () => {
+    const neutrals = new Set<string>(Object.values(slate));
+    const failures: string[] = [];
+    for (const { file, token, colour, alpha } of translucentText) {
+      const base = themeColour(colour);
+      if (!base) continue;
+      for (const [groundName, ground] of GROUNDS) {
+        const ratio = contrastRatio(composite(base, alpha, ground), ground);
+        const floor = neutrals.has(base) ? Math.max(AA_TEXT, contrastRatio(slate[600], ground)) : AA_TEXT;
+        if (ratio < floor) failures.push(`${file}: ${token} on ${groundName} is ${formatRatio(ratio)}`);
+      }
+    }
+    expect(failures).toEqual([]);
+  });
+
+  it("would have caught the inactive tab label", () => {
+    const ratio = contrastRatio(composite(slate[900], 0.6, slate[100]), slate[100]);
+    expect(ratio).toBeGreaterThanOrEqual(AA_TEXT);
+    expect(ratio).toBeLessThan(contrastRatio(slate[600], slate[100]));
   });
 });
 

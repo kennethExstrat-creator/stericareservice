@@ -10,22 +10,36 @@ const PLAIN = /^-?(?:\d+(?:\.\d*)?|\.\d+)$/;
 const DECIMAL_COMMA = /^-?\d+,(\d+)$/;
 
 /**
+ * Largest magnitude a reading may have. Past it digits stop being exact, and a
+ * long enough run of digits overflows to Infinity, which no statistic can use.
+ */
+export const MAX_READING = Number.MAX_SAFE_INTEGER;
+
+function reading(value: number): ParseDecimalResult {
+  if (!Number.isFinite(value) || Math.abs(value) > MAX_READING) {
+    return { ok: false, error: "Too large to be a reading." };
+  }
+  return { ok: true, value };
+}
+
+/**
  * Reads one decimal number. Blank is a valid "no value" (null). A single
  * comma is read as a decimal point, except before exactly three digits,
- * where it could be a thousands separator and is rejected instead.
+ * where it could be a thousands separator and is rejected instead. Every
+ * value it returns is finite.
  */
 export function parseDecimal(raw: string): ParseDecimalResult {
   const text = raw.trim();
   if (text === "") return { ok: true, value: null };
 
-  if (PLAIN.test(text)) return { ok: true, value: Number(text) };
+  if (PLAIN.test(text)) return reading(Number(text));
 
   const comma = DECIMAL_COMMA.exec(text);
   if (comma) {
     if (comma[1].length === 3) {
       return { ok: false, error: "Use a point for decimals, e.g. 1.234." };
     }
-    return { ok: true, value: Number(text.replace(",", ".")) };
+    return reading(Number(text.replace(",", ".")));
   }
 
   if (/^-?[\d.,]+(?:\s+[\d.,]+)+$/.test(text)) {
