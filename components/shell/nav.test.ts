@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   activeSection,
+  ariaCurrentFor,
+  hiddenSectionPaths,
   isHiddenFromRole,
   isNavLinkActive,
   NAV,
@@ -98,6 +100,33 @@ describe("navForRole", () => {
     navForRole("inspector");
     navForRole("admin");
     expect(JSON.stringify(NAV)).toBe(before);
+  });
+});
+
+describe("hiddenSectionPaths", () => {
+  it("names only the admin area for an inspector, and nothing for an admin", () => {
+    expect(hiddenSectionPaths("inspector")).toEqual(["/admin"]);
+    expect(hiddenSectionPaths("admin")).toEqual([]);
+  });
+});
+
+describe("ariaCurrentFor", () => {
+  const inspections = { href: "/inspections", match: "prefix" } as const;
+  const adminTab = { href: "/admin", match: "prefix" } as const;
+  const overview = { href: "/admin", match: "exact" } as const;
+
+  it.each([
+    [inspections, "/inspections", "page"],
+    [inspections, "/inspections/", "page"],
+    [inspections, "/inspections/new", "true"],
+    [adminTab, "/admin", "page"],
+    [adminTab, "/admin/users", "true"],
+    [overview, "/admin", "page"],
+    [overview, "/admin/users", undefined],
+    [inspections, "/admin", undefined],
+    [inspections, null, undefined],
+  ] as const)("%o on %s is %s", (link, pathname, expected) => {
+    expect(ariaCurrentFor(link, pathname)).toBe(expected);
   });
 });
 

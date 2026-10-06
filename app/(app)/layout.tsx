@@ -1,5 +1,5 @@
 import { AppShell } from "@/components/shell/app-shell";
-import { navForRole } from "@/components/shell/nav";
+import { hiddenSectionPaths, navForRole } from "@/components/shell/nav";
 import { SectionGate } from "@/components/shell/section-gate";
 import { toShellUser } from "@/components/shell/user";
 import { requireUser } from "@/lib/auth/session";
@@ -17,7 +17,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   const user = await requireUser();
   return (
     <AppShell user={toShellUser(user)} nav={navForRole(user.role)}>
-      <SectionGate role={user.role}>{children}</SectionGate>
+      <SectionGate hidden={hiddenSectionPaths(user.role)}>{children}</SectionGate>
     </AppShell>
   );
 }

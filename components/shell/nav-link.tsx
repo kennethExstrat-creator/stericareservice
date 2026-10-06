@@ -1,13 +1,15 @@
 "use client";
 
 // The one client piece of the nav: layouts do not re-render on navigation, so
-// the current page is read here, from the URL, and marked with aria-current.
-// Styles key off that attribute (aria-[current=page]:...), so the server
-// renders everything else.
+// the current entry is read here, from the URL, and marked with aria-current:
+// "page" on the link to this very page, "true" on a section or parent link
+// this page is inside. Styles key off the attribute (aria-[current]:...), so
+// the server renders everything else. Imports ./nav-match only, never the
+// nav config.
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { isNavLinkActive, type NavMatch } from "./nav";
+import { ariaCurrentFor, type NavMatch } from "./nav-match";
 
 type NavLinkProps = {
   href: string;
@@ -18,9 +20,8 @@ type NavLinkProps = {
 
 export function NavLink({ href, match, className, children }: NavLinkProps) {
   const pathname = usePathname();
-  const current = isNavLinkActive({ href, match }, pathname);
   return (
-    <Link href={href} aria-current={current ? "page" : undefined} className={className}>
+    <Link href={href} aria-current={ariaCurrentFor({ href, match }, pathname)} className={className}>
       {children}
     </Link>
   );

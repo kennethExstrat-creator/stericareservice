@@ -1,5 +1,6 @@
 // Server-rendered markup of the three nav views: which link is current
-// (aria-current="page"), and that planned screens are never links.
+// (aria-current "page" on this very page, "true" on the section it is in),
+// and that planned screens are never links.
 import { PathnameContext } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -11,11 +12,12 @@ function render(pathname: string, ui: ReactNode): string {
   return renderToStaticMarkup(<PathnameContext.Provider value={pathname}>{ui}</PathnameContext.Provider>);
 }
 
-/** The text of every link marked current. */
-function currentLinks(html: string): string[] {
-  return [...html.matchAll(/<a [^>]*aria-current="page"[^>]*>(.*?)<\/a>/g)].map((match) =>
-    match[1].replace(/<[^>]+>/g, "").trim(),
-  );
+/** Every link marked current, as [its text, its aria-current]. */
+function currentLinks(html: string): [string, string][] {
+  return [...html.matchAll(/<a [^>]*aria-current="([^"]+)"[^>]*>(.*?)<\/a>/g)].map((match) => [
+    match[2].replace(/<[^>]+>/g, "").trim(),
+    match[1],
+  ]);
 }
 
 const linkHrefs = (html: string) => [...html.matchAll(/<a [^>]*href="([^"]+)"/g)].map((match) => match[1]);
@@ -23,10 +25,16 @@ const linkHrefs = (html: string) => [...html.matchAll(/<a [^>]*href="([^"]+)"/g)
 describe("SidebarNav", () => {
   it("marks the current page and nothing else", () => {
     const nav = navForRole("admin");
-    expect(currentLinks(render("/admin/users", <SidebarNav sections={nav} />))).toEqual(["Users"]);
-    expect(currentLinks(render("/admin", <SidebarNav sections={nav} />))).toEqual(["Overview"]);
-    expect(currentLinks(render("/inspections/new", <SidebarNav sections={nav} />))).toEqual(["Inspections"]);
+    expect(currentLinks(render("/admin/users", <SidebarNav sections={nav} />))).toEqual([["Users", "page"]]);
+    expect(currentLinks(render("/admin", <SidebarNav sections={nav} />))).toEqual([["Overview", "page"]]);
+    expect(currentLinks(render("/inspections", <SidebarNav sections={nav} />))).toEqual([["Inspections", "page"]]);
     expect(currentLinks(render("/somewhere-else", <SidebarNav sections={nav} />))).toEqual([]);
+  });
+
+  it("marks a parent entry current but not as the page itself", () => {
+    const nav = navForRole("admin");
+    expect(currentLinks(render("/inspections/new", <SidebarNav sections={nav} />))).toEqual([["Inspections", "true"]]);
+    expect(currentLinks(render("/admin/users/abc", <SidebarNav sections={nav} />))).toEqual([["Users", "true"]]);
   });
 
   it("shows the Phase 3 screens to admins as text, not links", () => {
@@ -55,8 +63,10 @@ describe("TabNav", () => {
     const nav = navForRole("admin");
     const html = render("/admin/users", <TabNav sections={nav} />);
     expect(linkHrefs(html)).toEqual(["/inspections", "/admin"]);
-    expect(currentLinks(html)).toEqual(["Admin"]);
-    expect(currentLinks(render("/inspections", <TabNav sections={nav} />))).toEqual(["Inspections"]);
+    // On /admin/users the tab is the section, not the page: "true", not "page".
+    expect(currentLinks(html)).toEqual([["Admin", "true"]]);
+    expect(currentLinks(render("/admin", <TabNav sections={nav} />))).toEqual([["Admin", "page"]]);
+    expect(currentLinks(render("/inspections", <TabNav sections={nav} />))).toEqual([["Inspections", "page"]]);
   });
 
   it("gives an inspector the Inspections tab only", () => {
@@ -72,7 +82,7 @@ describe("SectionNav", () => {
     const html = render("/admin/users", <SectionNav section={admin} />);
     expect(html).toContain('aria-label="Admin"');
     expect(linkHrefs(html)).toEqual(["/admin", "/admin/users"]);
-    expect(currentLinks(html)).toEqual(["Users"]);
+    expect(currentLinks(html)).toEqual([["Users", "page"]]);
     // One line for what is planned; screen readers hear "Coming in Phase 3: ...".
     expect(html).toContain('<span class="sr-only">Coming in Phase 3: </span>Manufacturers, Clients, Defects and Templates');
   });

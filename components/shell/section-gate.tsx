@@ -8,13 +8,14 @@
 // streaming, so on their own they can only swap in the 404 page in the
 // browser, with status 200, after a flash of the shell. This gate sits in
 // the shell layout, above that boundary, so the server answers 404 before
-// sending anything. The role comes from the server session.
+// sending anything. The server passes the paths this user may not open
+// (hiddenSectionPaths), so no nav config reaches the browser.
 import { notFound, usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { isHiddenFromRole, type UserRole } from "./nav";
+import { isUnderAny } from "./nav-match";
 
-export function SectionGate({ role, children }: { role: UserRole; children: ReactNode }) {
+export function SectionGate({ hidden, children }: { hidden: readonly string[]; children: ReactNode }) {
   const pathname = usePathname();
-  if (isHiddenFromRole(pathname, role)) notFound();
+  if (isUnderAny(hidden, pathname)) notFound();
   return children;
 }

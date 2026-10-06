@@ -13,8 +13,8 @@ const SIDEBAR_LINK = cn(
   "group relative flex h-9 items-center gap-3 rounded-md px-3 text-sm font-medium text-foreground outline-none transition-colors",
   "hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 touch:h-11 touch:text-base",
   // Current page: tinted, bold, and a brand bar on the left edge.
-  "aria-[current=page]:bg-accent aria-[current=page]:font-semibold aria-[current=page]:text-accent-foreground",
-  "before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full aria-[current=page]:before:bg-brand-500",
+  "aria-[current]:bg-accent aria-[current]:font-semibold aria-[current]:text-accent-foreground",
+  "before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full aria-[current]:before:bg-brand-500",
 );
 
 export function SidebarNav({ sections, className }: { sections: readonly NavSection[]; className?: string }) {
@@ -55,7 +55,7 @@ function SidebarEntry({ entry }: { entry: NavEntry }) {
   }
   return (
     <NavLink href={entry.href} match={entry.match} className={SIDEBAR_LINK}>
-      <NavIcon name={entry.icon} className="size-4 shrink-0 text-slate-500 group-aria-[current=page]:text-brand-600" />
+      <NavIcon name={entry.icon} className="size-4 shrink-0 text-slate-500 group-aria-[current]:text-brand-600" />
       <span className="truncate">{entry.label}</span>
     </NavLink>
   );
@@ -67,8 +67,8 @@ const TAB_LINK = cn(
   "group relative inline-flex h-full items-center gap-2 px-3 text-sm font-medium whitespace-nowrap text-muted-foreground outline-none transition-colors",
   "hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset touch:px-4 touch:text-base",
   // Current section: dark, bold and underlined in brand blue.
-  "aria-[current=page]:font-semibold aria-[current=page]:text-foreground",
-  "after:absolute after:inset-x-2 after:bottom-0 after:h-[3px] after:rounded-t-full aria-[current=page]:after:bg-brand-500",
+  "aria-[current]:font-semibold aria-[current]:text-foreground",
+  "after:absolute after:inset-x-2 after:bottom-0 after:h-[3px] after:rounded-t-full aria-[current]:after:bg-brand-500",
 );
 
 export function TabNav({ sections, className }: { sections: readonly NavSection[]; className?: string }) {
@@ -78,7 +78,7 @@ export function TabNav({ sections, className }: { sections: readonly NavSection[
         {sections.map(({ key, tab }) => (
           <li key={key} className="flex">
             <NavLink href={tab.href} match={tab.match} className={TAB_LINK}>
-              <NavIcon name={tab.icon} className="size-4 shrink-0 text-slate-500 group-aria-[current=page]:text-brand-600" />
+              <NavIcon name={tab.icon} className="size-4 shrink-0 text-slate-500 group-aria-[current]:text-brand-600" />
               {tab.label}
             </NavLink>
           </li>
@@ -93,7 +93,7 @@ export function TabNav({ sections, className }: { sections: readonly NavSection[
 const SECTION_LINK = cn(
   "inline-flex h-9 items-center gap-2 rounded-full border border-border bg-card px-4 text-sm font-medium whitespace-nowrap text-foreground outline-none transition-colors",
   "hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 touch:h-11 touch:text-base",
-  "aria-[current=page]:border-brand-200 aria-[current=page]:bg-accent aria-[current=page]:font-semibold aria-[current=page]:text-accent-foreground",
+  "aria-[current]:border-brand-200 aria-[current]:bg-accent aria-[current]:font-semibold aria-[current]:text-accent-foreground",
 );
 
 const plannedList = new Intl.ListFormat("en-GB", { style: "long", type: "conjunction" });

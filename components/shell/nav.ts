@@ -1,13 +1,17 @@
 /**
  * The app's navigation (BUILD_SPEC 10): what each role sees and which entry
- * is current. Pure data and functions, no React, so the rules are unit-tested
- * and the server filters by role before anything reaches the browser.
+ * is current. Pure data and functions, no React, so the rules are unit-tested.
+ * Server code only: the server filters by role, and client components use
+ * ./nav-match, so this list never reaches the browser whole.
  *
  * Hiding an entry is not access control: every page checks the session
  * itself (lib/auth/session.ts), and /admin answers 404 to non-admins.
  */
 import { HOME_PATH } from "@/lib/auth/routes";
 import type { Enums } from "@/lib/supabase/database.types";
+import { isNavLinkActive, isUnderAny, type NavMatch } from "./nav-match";
+
+export { ariaCurrentFor, isNavLinkActive, normalizePath, type NavMatch } from "./nav-match";
 
 export type UserRole = Enums<"user_role">;
 
@@ -21,12 +25,6 @@ export type NavIconName =
   | "clients"
   | "defects"
   | "templates";
-
-/**
- * `exact`: only this path. `prefix`: this path and everything below it
- * (`/inspections` covers `/inspections/new`, never `/inspectionsfoo`).
- */
-export type NavMatch = "exact" | "prefix";
 
 export type NavLinkEntry = {
   kind: "link";
@@ -112,33 +110,22 @@ export function navForRole(role: UserRole, nav: readonly NavSection[] = NAV): Na
     .filter((section) => section.entries.length > 0);
 }
 
-/** "/admin/" and "/admin" are the same place; the root stays "/". */
-export function normalizePath(path: string): string {
-  const trimmed = path.replace(/\/+$/, "");
-  return trimmed === "" ? "/" : trimmed;
-}
-
-/** True when `pathname` is the page `link` points to (aria-current="page"). */
-export function isNavLinkActive(link: { href: string; match: NavMatch }, pathname: string | null | undefined): boolean {
-  if (!pathname) return false;
-  const path = normalizePath(pathname);
-  const href = normalizePath(link.href);
-  if (path === href) return true;
-  return link.match === "prefix" && path.startsWith(href === "/" ? "/" : `${href}/`);
-}
-
 /**
- * True when `pathname` is inside a section `role` may not see: /admin and
- * everything under it for an inspector. The shell answers those with a 404.
+ * The paths of the sections `role` may not see ("/admin" for an inspector,
+ * nothing for an admin). The shell answers them with a 404 (SectionGate);
+ * the server works them out, so the browser only learns its own.
  */
+export function hiddenSectionPaths(role: UserRole, nav: readonly NavSection[] = NAV): string[] {
+  return nav.filter((section) => !section.roles.includes(role)).map((section) => section.tab.href);
+}
+
+/** True when `pathname` is inside a section `role` may not see: /admin and everything under it for an inspector. */
 export function isHiddenFromRole(
   pathname: string | null | undefined,
   role: UserRole,
   nav: readonly NavSection[] = NAV,
 ): boolean {
-  return nav.some(
-    (section) => !section.roles.includes(role) && isNavLinkActive({ href: section.tab.href, match: "prefix" }, pathname),
-  );
+  return isUnderAny(hiddenSectionPaths(role, nav), pathname);
 }
 
 /** The section whose tab is current, if any (the iPad top bar marks it). */
