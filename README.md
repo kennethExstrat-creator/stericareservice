@@ -101,7 +101,26 @@ deployment. Design rules and tokens: [docs/DESIGN.md](docs/DESIGN.md).
    Creates `inspector@test.local` (inspector) and `admin@test.local` (admin) with a known
    password, printed at the end. Without `--force` it only runs against a local Supabase.
 
-7. **Types.** After changing the schema: `npm run db:types` (needs `supabase link`).
+7. **Seed templates** (`STD_EG`, `SAFEDON_EG`, `STD_SG` from BUILD_SPEC 11), once step 3 has run
+   `supabase/seed.sql`:
+
+   ```bash
+   npm run seed:templates -- --dry-run    # one line per template; writes nothing
+   npm run seed:templates                 # writes them, active
+   npm run seed:templates -- --drafts     # or as drafts that an admin checks and activates
+   ```
+
+   `SAFEDON_EG` belongs to the client Polyco Healthline, which `supabase/seed.sql` creates; the
+   script finds it by name and stops before writing anything if it is missing. The dry run should
+   list all three templates and give no warning about placeholder modules. The first seed needs
+   no `--replace`, and a second run with the same bundle (`lib/templates/definitions/seed-bundle.json`)
+   writes nothing. After the bundle is regenerated, a changed definition (or, with `--refresh`,
+   new module defaults) becomes a new version, and retiring the seeded version that is active
+   needs `--replace`; without it the run stops before writing anything. Drafts need their source
+   form and coverage checklist in the template editor before they can be activated. Details: the
+   comment at the top of `scripts/seed-templates.mts`.
+
+8. **Types.** After changing the schema: `npm run db:types` (needs `supabase link`).
 
 ## AI models
 
@@ -129,6 +148,8 @@ Contract, guardrails, costs and data handling: [docs/AI.md](docs/AI.md).
 | `npm run check` | Typecheck, lint and all tests |
 | `npm test` | Vitest (unit, AI layer, RLS tests on PGlite) |
 | `npm run seed:dev-users` | Local test accounts (see above) |
+| `npm run seed:templates` | The seed templates (see above); `-- --dry-run` first |
+| `npm run clean:e2e` | Lists what crashed end-to-end runs left; `-- --apply` deletes it ([e2e/README.md](e2e/README.md)) |
 | `npm run db:push` | Apply migrations to the linked project |
 | `npm run db:types` | Regenerate `lib/supabase/database.types.ts` |
 
