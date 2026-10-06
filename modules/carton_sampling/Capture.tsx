@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils";
 import { labelFor, samplingFor, type CaptureProps, type ValidationIssue } from "@/modules/_framework";
 import { gridCell, type CartonSamplingComputed } from "./calc";
 import { GRID_COLUMNS, REPORT_GRID_CELLS, type CartonSamplingConfig } from "./config";
-import { withCartonNumber, type CartonSamplingData } from "./schema";
+import { MAX_CARTONS_PER_SIZE, withCartonNumber, type CartonSamplingData } from "./schema";
 
 const COLUMN_NUMBERS = Array.from({ length: GRID_COLUMNS }, (_, column) => column);
 
@@ -86,7 +86,8 @@ export default function Capture({
     const result = evaluation?.result.perSize?.[size];
     const own = issues.filter((issue) => issue.path[0] === "sizes" && issue.path[1] === size);
     const count = facts?.samplingQuantity ?? cells.filter((carton) => carton !== null).length;
-    const total = Math.max(cases ?? REPORT_GRID_CELLS, cells.length);
+    // One cell per case sampled (the report's 50 until the plan says), never more than the data can hold.
+    const total = Math.min(MAX_CARTONS_PER_SIZE, Math.max(cases ?? REPORT_GRID_CELLS, cells.length));
     const rows = Array.from({ length: Math.ceil(total / GRID_COLUMNS) }, (_, row) => row);
     const positions = positionsOf(cells);
     const cellPath = (index: number) => ["sizes", size, "cartonNumbers", index] as const;

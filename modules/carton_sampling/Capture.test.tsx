@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { batchDataChanges, createDataUpdater } from "@/components/qc/data-updater";
 import { buildInspectionContext, evaluateInspection, type InspectionData } from "@/modules/_framework";
 import { makeTestContext, makeTestTemplate, TEST_INSPECTOR } from "@/modules/_framework/testing";
-import { ENGINE_REGISTRY, exampleData } from "@/modules/sampling_plan/__fixtures__/examples";
+import { ENGINE_REGISTRY, exampleData, samplingPlanData } from "@/modules/sampling_plan/__fixtures__/examples";
 import { SAFEDON_EG_EXAMPLE, STD_EG_EXAMPLE, type ExampleReport } from "@/tests/fixtures/examples";
 import type { CartonSamplingComputed } from "./calc";
 import Capture from "./Capture";
@@ -59,6 +59,22 @@ describe("carton_sampling Capture", () => {
     for (const cell of cells) expect(cell).toContain('inputMode="decimal"');
     expect(html).toContain(pathAttribute(["sizes", "M", "cartonNumbers", 20]));
     expect(html).toContain(pathAttribute(["sizes", "M", "cartonNumbers"]));
+  });
+
+  it("offers the report's 50 cells until the sampling plan gives the cases, then one per case sampled", () => {
+    const noPlan = exampleData(STD_EG_EXAMPLE, {
+      sampling_plan: { sizes: {} },
+      carton_sampling: { sizes: { M: { cartonNumbers: [32, 578] } } },
+    });
+    expect(tagsWith(render(props(STD_EG_EXAMPLE, noPlan)), "data-enter-field")).toHaveLength(50);
+    const more = exampleData(STD_EG_EXAMPLE, {
+      sampling_plan: { sizes: { M: { ...samplingPlanData(STD_EG_EXAMPLE).sizes.M, cases: 63 } } },
+    });
+    const html = render(props(STD_EG_EXAMPLE, more));
+    const cells = tagsWith(html, "data-enter-field");
+    expect(cells).toHaveLength(63);
+    expect(cells[62]).toContain('aria-label="M (Carton #), row 7 column 3"');
+    expect(html).toMatch(/Sampling Quantity <span[^>]*>.*50.* \/ .*63/);
   });
 
   it("shows only the ordered sizes and their sampled cases: SAFEDON_EG XS has 5 cells", () => {
