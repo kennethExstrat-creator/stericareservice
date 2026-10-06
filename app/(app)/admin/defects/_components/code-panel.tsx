@@ -22,14 +22,17 @@ import {
   DEFECT_CODE_FIELDS,
   IDLE,
   LIMITS,
+  codeSnapshot,
   deleteBlocker,
   listOf,
   normaliseCode,
   unreachable,
   type ActionResult,
+  type CodeSnapshot,
   type DefectCodeField,
   type DefectCodeItem,
 } from "@/lib/admin/defects";
+import { followVersion } from "@/lib/admin/reference";
 import { deleteDefectCode, saveDefectCode, setDefectCodeActive, type CodeFormResult } from "../actions";
 import { CodeStatusBadge } from "./badges";
 import { focusFirst, Panel, PanelSection, type PanelTarget } from "./panel";
@@ -70,10 +73,23 @@ export function CodePanel({ open, target, item, onClose, onDeleted, returnFocus 
   const formId = `${id}-form`;
   const editing = target.mode === "edit";
 
-  // The last version of the code this panel saw: it keeps showing while the
+  // The version an edit saves against, with the name and description as they
+  // were at it: the code as the panel opened on it. The page refreshes after
+  // any change here (deactivating, a delete a template blocked), and a newer
+  // copy moves this on only when its name and description are unchanged;
+  // otherwise the save is refused, never quietly written over someone
+  // else's change.
+  const [base, setBase] = useState<CodeSnapshot | null>(() => (item ? codeSnapshot(item) : null));
+  // The last copy of the code this panel saw: it keeps showing while the
   // panel closes after a delete, when the row has already left the list.
   const [shown, setShown] = useState(item);
-  if (item && item !== shown) setShown(item);
+  if (item && item !== shown) {
+    setShown(item);
+    if (base) {
+      const next = followVersion(base, codeSnapshot(item));
+      if (next !== base) setBase(next);
+    }
+  }
   const gone = open && editing && !item;
 
   const [values, setValues] = useState<Values>(() => valuesOf(item, target));
@@ -86,6 +102,8 @@ export function CodePanel({ open, target, item, onClose, onDeleted, returnFocus 
         toast.success(result.message);
         onClose();
       } else if (result.status === "error") {
+        // Refused over someone else's change: a second save replaces it, as the message offers.
+        if (result.latest) setBase(result.latest);
         const fieldErrors = result.fieldErrors ?? {};
         setErrors(fieldErrors);
         const first = DEFECT_CODE_FIELDS.find((field) => fieldErrors[field]);
@@ -96,7 +114,8 @@ export function CodePanel({ open, target, item, onClose, onDeleted, returnFocus 
     IDLE,
   );
 
-  const saved = valuesOf(shown, target);
+  // Against what the panel opened on, not the latest copy: someone else's change is not something typed here.
+  const saved: Values = base && editing ? { code: target.code, ...base.values } : valuesOf(null, target);
   const dirty = DEFECT_CODE_FIELDS.some((field) => values[field] !== saved[field]);
   const formError = state.status === "error" && !state.fieldErrors ? state.message : null;
 
@@ -158,7 +177,7 @@ export function CodePanel({ open, target, item, onClose, onDeleted, returnFocus 
         <>
           <form id={formId} action={formAction} noValidate>
             <input type="hidden" name="mode" value={editing ? "edit" : "create"} />
-            {editing && <input type="hidden" name="version" value={item?.updatedAt ?? ""} />}
+            {editing && <input type="hidden" name="version" value={base?.version ?? ""} />}
             <FieldGroup className="gap-5">
               {editing ? (
                 <div className="flex flex-col gap-2">

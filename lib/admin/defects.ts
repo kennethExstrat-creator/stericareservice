@@ -1,6 +1,7 @@
 import { unstable_rethrow } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import type { Snapshot } from "@/lib/admin/reference";
 import { DEFECT_CLASSES, type DefectClass } from "@/lib/coverage/keys";
 import { formatSizeHand, type SizeOption } from "@/lib/format";
 import type { InspectionStatus } from "@/lib/schemas/common";
@@ -146,6 +147,21 @@ export const EditTargetSchema = z.object({
   version: z.iso.datetime({ offset: true, error: MESSAGES.stale }),
 });
 
+/** The fields an edit saves. The code itself never changes. */
+export type CodeDetailField = "name" | "description";
+
+/**
+ * A code's name and description as the edit form shows them, at one version
+ * (`updated_at`). The edit panel saves against the version it opened on and
+ * follows a newer one only when these are unchanged (followVersion in
+ * lib/admin/reference.ts), so a save never replaces someone else's edit.
+ */
+export type CodeSnapshot = Snapshot<CodeDetailField>;
+
+export function codeSnapshot(code: { updatedAt: string; name: string; description: string | null }): CodeSnapshot {
+  return { version: code.updatedAt, values: { name: code.name, description: code.description ?? "" } };
+}
+
 export const CodeTargetSchema = z.object({ code: CodeRefSchema });
 
 export const ActiveTargetSchema = z.object({
@@ -180,13 +196,14 @@ export function fieldErrors<T>(error: z.ZodError<T>): Partial<Record<keyof T & s
 /**
  * What a Server Action on these pages answers. Only display data: it is
  * serialised to the browser. A warning is a partial success, e.g. a new code
- * that was added although the label could not be mapped to it.
+ * that was added although the label could not be mapped to it. `latest` is
+ * the row as it is now, when a save was refused over someone else's change.
  */
-export type ActionResult<Field extends string = string> =
+export type ActionResult<Field extends string = string, Latest = never> =
   | { status: "idle" }
   | { status: "success"; message: string }
   | { status: "warning"; message: string }
-  | { status: "error"; message: string; fieldErrors?: Partial<Record<Field, string>> };
+  | { status: "error"; message: string; fieldErrors?: Partial<Record<Field, string>>; latest?: Latest };
 
 export const IDLE = { status: "idle" } as const;
 

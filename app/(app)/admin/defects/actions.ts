@@ -12,6 +12,7 @@ import {
   MapTargetSchema,
   NewDefectCodeSchema,
   canMap,
+  codeSnapshot,
   deleteBlocker,
   describeCodeInsertError,
   describeCodeWriteError,
@@ -28,6 +29,7 @@ import {
   templatesMentioning,
   warned,
   type ActionResult,
+  type CodeSnapshot,
   type DatabaseClient,
   type DefectCodeField,
   type LabelTarget,
@@ -48,7 +50,8 @@ import { createClient } from "@/lib/supabase/server";
  * page sent).
  */
 
-export type CodeFormResult = ActionResult<DefectCodeField>;
+/** A refused edit answers with the code as it is now (`latest`), so a second save replaces it, as the message offers. */
+export type CodeFormResult = ActionResult<DefectCodeField, CodeSnapshot>;
 export type MapLabelResult = ActionResult<MapField>;
 
 /* ------------------------------------------------------------------ *
@@ -101,13 +104,15 @@ export async function saveDefectCode(_previous: CodeFormResult, formData: FormDa
     }
     if (!data) {
       const current = await readDefectCode(supabase, code);
-      // The page reloads its data, so the panel holds the newer version for a second try.
       refresh();
-      return failed(
-        current
-          ? "Someone else changed this code while you were editing. Close the panel to see their changes, or save again to replace them with yours."
-          : "This code has been deleted, so your changes were not saved.",
-      );
+      if (!current) return failed("This code has been deleted, so your changes were not saved.");
+      // Their version: the panel's next save goes against it, so it replaces their change, as offered.
+      return {
+        ...failed(
+          "Someone else changed this code while you were editing. Close the panel to see their changes, or save again to replace them with yours.",
+        ),
+        latest: codeSnapshot({ updatedAt: current.updated_at, name: current.name, description: current.description }),
+      };
     }
     refresh();
     return succeeded(`Code ${code} saved.`);

@@ -102,7 +102,7 @@ afterEach(() => {
 
 describe("every action", () => {
   const target = JSON.stringify({ module: "visual", kind: "unmapped", defectClass: "major", label: "Torn cuff" });
-  const calls: Array<[string, () => Promise<ActionResult>]> = [
+  const calls: Array<[string, () => Promise<ActionResult<string, unknown>>]> = [
     ["saveDefectCode", () => saveDefectCode(IDLE, form({ mode: "create", code: "torn_cuff", name: "Torn cuff", description: "" }))],
     ["setDefectCodeActive", () => setDefectCodeActive(IDLE, form({ code: "stain", active: "false" }))],
     ["deleteDefectCode", () => deleteDefectCode(IDLE, form({ code: "stain" }))],
@@ -198,12 +198,17 @@ describe("saveDefectCode, editing", () => {
     expect(refresh).toHaveBeenCalledOnce();
   });
 
-  it("does not replace someone else's newer change, and shows it", async () => {
-    useClient((query) => (isWrite(query, "update") ? OK_EMPTY : { data: codeRow("torn_cuff", { updated_at: NEWER }), error: null }));
+  it("does not replace someone else's newer change, and answers with it for a second save to replace", async () => {
+    useClient((query) =>
+      isWrite(query, "update")
+        ? OK_EMPTY
+        : { data: codeRow("torn_cuff", { name: "Torn cuff", description: "Their words", updated_at: NEWER }), error: null },
+    );
     expect(await edit()).toEqual({
       status: "error",
       message:
         "Someone else changed this code while you were editing. Close the panel to see their changes, or save again to replace them with yours.",
+      latest: { version: NEWER, values: { name: "Torn cuff", description: "Their words" } },
     });
     expect(refresh).toHaveBeenCalledOnce();
 

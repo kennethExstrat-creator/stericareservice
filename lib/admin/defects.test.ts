@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { followVersion } from "@/lib/admin/reference";
 import { moduleConfig, templateModuleKeys } from "@/lib/coverage/templates";
 import type { TemplateCode } from "@/lib/coverage/types";
 import {
@@ -16,6 +17,7 @@ import {
   buildInspectionLabels,
   buildLabelMaps,
   canMap,
+  codeSnapshot,
   countLabel,
   countUnmapped,
   currentVersions,
@@ -167,6 +169,17 @@ describe("codes", () => {
     expect(EditTargetSchema.safeParse({ code: "Stain", version: "2026-10-06T01:02:03Z" }).success).toBe(false);
     expect(ActiveTargetSchema.parse({ code: "stain", active: "false" })).toEqual({ code: "stain", active: false });
     expect(ActiveTargetSchema.safeParse({ code: "stain", active: "no" }).success).toBe(false);
+  });
+
+  it("lets an open edit follow a status change, never someone else's edit", () => {
+    const opened = codeSnapshot({ updatedAt: "2026-10-06T01:00:00+00:00", name: "Stain", description: null });
+    expect(opened).toEqual({ version: "2026-10-06T01:00:00+00:00", values: { name: "Stain", description: "" } });
+    // Deactivated meanwhile: a newer version with the same name and description, so the next save goes through.
+    const deactivated = codeSnapshot({ updatedAt: "2026-10-06T01:05:00+00:00", name: "Stain", description: null });
+    expect(followVersion(opened, deactivated)).toEqual(deactivated);
+    // Someone else's description: the save stays on the version opened, and is refused.
+    const edited = codeSnapshot({ updatedAt: "2026-10-06T01:06:00+00:00", name: "Stain", description: "Any colour" });
+    expect(followVersion(opened, edited)).toBe(opened);
   });
 
   it("says why a new code was refused next to the code field", () => {
