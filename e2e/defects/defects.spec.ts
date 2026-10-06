@@ -209,11 +209,14 @@ test.describe("as an admin", () => {
     await shot(page, "code-deactivate", { scroll: false });
     await press(confirm.getByRole("button", { name: "Deactivate" }));
     await expect(toast(page, /^e2e_defect_x is inactive\./)).toBeVisible();
-    await expect(edit.getByRole("button", { name: "Reactivate code" })).toBeVisible();
+    // The same button, now Reactivate, keeps the keyboard.
+    await expect(edit.getByRole("button", { name: "Reactivate code" })).toBeFocused();
     expect((await storedCode("e2e_defect_x"))?.active).toBe(false);
     await shot(page, "code-inactive-panel", { scroll: false });
     await press(edit.getByRole("button", { name: "Close", exact: true }).first());
     await expect(edit).toBeHidden();
+    // Back on the Edit button the panel opened from.
+    await expect(row.getByRole("button", { name: "Edit e2e_defect_x" })).toBeFocused();
     await expect(row.locator('[data-slot="code-status"]')).toHaveText("Inactive");
     await shot(page, "codes-inactive");
 
@@ -224,6 +227,8 @@ test.describe("as an admin", () => {
     await press(remove.getByRole("button", { name: "Delete code" }));
     await expect(toast(page, "Code e2e_defect_x deleted.")).toBeVisible();
     await expect(row).toHaveCount(0);
+    // Its row went with the Edit button, so the keyboard goes to Add code.
+    await expect(page.getByRole("button", { name: "Add code" })).toBeFocused();
     expect(await storedCode("e2e_defect_x")).toBeNull();
     expect(hydration()).toEqual([]);
   });
@@ -240,7 +245,7 @@ test.describe("as an admin", () => {
     await expect(card.locator('[data-slot="template-status"]')).toHaveText("Draft");
     await expect(card.getByRole("link", { name: /in the template editor$/ })).toHaveAttribute(
       "href",
-      `/admin/templates/${fixture.templateId}`,
+      `/admin/templates/${fixture.templateId}/edit`,
     );
     // Severity is the class: "Defective bead" is major, "Defective beads" minor, both bead_defective.
     const visual = card.locator('[data-section="visual"]');
@@ -262,16 +267,18 @@ test.describe("as an admin", () => {
     await shot(page, "labels");
 
     // The flag links to the codes tab with the add panel filled in.
-    if (test.info().project.name !== "ipad-portrait") {
-      await press(unknown.getByRole("link", { name: `Add this code: ${NOT_A_CODE}` }));
-      const panel = page.getByRole("dialog", { name: "Add defect code" });
-      await expect(panel).toBeVisible();
-      await expect(panel.getByLabel("Code", { exact: true })).toHaveValue(NOT_A_CODE);
-      await expect(panel.getByLabel("Name", { exact: true })).toHaveValue("E2E label without a code");
-      await expect(page).toHaveURL(/\/admin\/defects$/);
-      await shot(page, "code-add-prefilled", { scroll: false });
-      await press(panel.getByRole("button", { name: "Close", exact: true }).first());
-    }
+    const addThisCode = unknown.getByRole("link", { name: `Add this code: ${NOT_A_CODE}` });
+    await expectTouchTarget(addThisCode);
+    await press(addThisCode);
+    const panel = page.getByRole("dialog", { name: "Add defect code" });
+    await expect(panel).toBeVisible();
+    await expect(panel.getByLabel("Code", { exact: true })).toHaveValue(NOT_A_CODE);
+    await expect(panel.getByLabel("Name", { exact: true })).toHaveValue("E2E label without a code");
+    await expect(page).toHaveURL(/\/admin\/defects$/);
+    await shot(page, "code-add-prefilled", { scroll: false });
+    await press(panel.getByRole("button", { name: "Close", exact: true }).first());
+    // Opened by the link, not a button on this page: the keyboard goes to Add code.
+    await expect(page.getByRole("button", { name: "Add code" })).toBeFocused();
     expect(hydration()).toEqual([]);
   });
 
@@ -287,10 +294,12 @@ test.describe("as an admin", () => {
       "href",
       `/inspections/${fixture.submitted.id}/review`,
     );
+    // One row for the label, whatever size it was counted in, with each size's count.
     const tornCuff = submitted.locator(`tr[data-label="${LABELS.tornCuff}"]`);
+    await expect(tornCuff).toHaveCount(1);
     await expect(tornCuff).toContainText("Visual · Major");
     await expect(tornCuff).toContainText("Unmapped");
-    await expect(tornCuff.locator("td").nth(2)).toHaveText("2");
+    await expect(tornCuff.locator("[data-found] li")).toHaveText(["Size M: 2", "Size L: 1", "3 found in all"]);
     await expect(submitted.locator(`tr[data-label="${LABELS.thumbTip}"]`)).toContainText("Watertight · Other");
     // The draft is listed, but waits for the inspector.
     await expect(draft).toContainText(LABELS.draft);
@@ -300,18 +309,27 @@ test.describe("as an admin", () => {
     await expectTouchTarget(tornCuff.getByRole("button", { name: /^Map/ }));
     await shot(page, "unmapped");
 
-    // 1. To an existing code: its count joins stain's in the same size and class.
+    // 1. To an existing code: in each size its count joins stain's, in the same class.
     await press(tornCuff.getByRole("button", { name: `Map “${LABELS.tornCuff}” on ${fixture.submitted.refNo}` }));
     let dialog = page.getByRole("dialog", { name: `Map “${LABELS.tornCuff}”` });
     await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText("Size M: 2; Size L: 1 (3 found in all)");
     await press(dialog.getByRole("button", { name: "Map label" }));
     await expect(dialog.getByText("Choose a code.")).toBeVisible();
     await press(dialog.getByRole("combobox", { name: "Defect code" }));
     await shot(page, "map-choose", { scroll: false });
+    // A code the template does not list in the class still counts; the dialog says so.
+    await press(page.getByRole("option", { name: /^Faulty cuff\b/ }));
+    await expect(dialog.getByText(/^Faulty cuff \(faulty_cuff\) is not one of E2E_DEFECTS v1’s major defects\./)).toBeVisible();
+    await shot(page, "map-off-list", { scroll: false });
+    await press(dialog.getByRole("combobox", { name: "Defect code" }));
     await press(page.getByRole("option", { name: /^Stain\b/ }));
+    await expect(dialog.locator("[data-note]")).toHaveCount(0);
     await press(dialog.getByRole("button", { name: "Map label" }));
     await expect(toast(page, `“${LABELS.tornCuff}” on ${fixture.submitted.refNo} now counts as Stain (stain).`)).toBeVisible();
     await expect(tornCuff).toHaveCount(0);
+    // Its row has gone: the keyboard waits on the inspection's heading.
+    await expect(submitted.getByRole("heading", { level: 2 })).toBeFocused();
 
     // 2. To a new code, added from the label.
     const stickyEdge = submitted.locator(`tr[data-label="${LABELS.stickyEdge}"]`);
@@ -320,6 +338,7 @@ test.describe("as an admin", () => {
     await press(dialog.getByRole("radio", { name: /A new code/ }));
     await expect(dialog.getByLabel("Code", { exact: true })).toHaveValue("e2e_sticky_edge");
     await expect(dialog.getByLabel("Name", { exact: true })).toHaveValue(LABELS.stickyEdge);
+    await expect(dialog.locator("[data-note]")).toContainText("A new code is not one of E2E_DEFECTS v1’s minor defects.");
     await dialog.getByLabel("Code", { exact: true }).fill("e2e_defect_y");
     await shot(page, "map-new-code", { scroll: false });
     await press(dialog.getByRole("button", { name: "Add code and map" }));
@@ -336,17 +355,21 @@ test.describe("as an admin", () => {
     await press(dialog.getByRole("button", { name: "Map label" }));
     await expect(toast(page, /now counts as Hole in finger \(hole_finger\)\.$/)).toBeVisible();
 
-    // Nothing left to map on the submitted inspection: only the draft remains.
+    // Nothing left to map on the submitted inspection: only the draft remains, and has the keyboard.
     await expect(submitted).toHaveCount(0);
     await expect(draft).toBeVisible();
+    await expect(draft.getByRole("heading", { level: 2 })).toBeFocused();
     await shot(page, "unmapped-done");
 
-    // Recorded on the inspection's data, so each counts with its code from now on.
+    // Recorded on the inspection's data, in every size, so each counts with its code from now on.
     const { data } = await inspectionData(fixture.submitted.id);
     expect(data).toEqual({
       modules: {
         watertight: {
-          sizes: { M: { tested: 80, holes: { hole_palm: 0, hole_other: 0, hole_finger: 1 }, otherDescription: null, unmapped: [] } },
+          sizes: {
+            M: { tested: 80, holes: { hole_finger: 1 }, otherDescription: null, unmapped: [] },
+            L: { tested: 80, holes: {}, otherDescription: null, unmapped: [] },
+          },
         },
         visual: {
           sizes: {
@@ -355,15 +378,30 @@ test.describe("as an admin", () => {
               major: { inspected: 80, counts: { stain: 3 }, unmapped: [] },
               minor: { inspected: 80, counts: { e2e_defect_y: 1 }, unmapped: [] },
             },
+            L: {
+              critical: { inspected: 80, counts: {}, unmapped: [] },
+              major: { inspected: 80, counts: { stain: 1 }, unmapped: [] },
+              minor: { inspected: 80, counts: {}, unmapped: [] },
+            },
           },
         },
       },
       custom: {},
     });
-    // And in its audit trail, in the admin's name.
+    // And in its audit trail, in the admin's name, with each size.
     const events = await mappingEvents(fixture.submitted.id);
     expect(events.map((event) => event.changes)).toEqual([
-      expect.objectContaining({ label: LABELS.tornCuff, code: "stain", count: 2, class: "major", new_code: false }),
+      expect.objectContaining({
+        label: LABELS.tornCuff,
+        code: "stain",
+        count: 3,
+        class: "major",
+        places: [
+          { size: "M", hand: null, count: 2 },
+          { size: "L", hand: null, count: 1 },
+        ],
+        new_code: false,
+      }),
       expect.objectContaining({ label: LABELS.stickyEdge, code: "e2e_defect_y", count: 1, class: "minor", new_code: true }),
       expect.objectContaining({ label: LABELS.thumbTip, code: "hole_finger", count: 1, kind: "other", new_code: false }),
     ]);

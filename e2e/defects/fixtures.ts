@@ -27,11 +27,11 @@ export const NOT_A_CODE = "e2e_not_a_code";
 
 /** The one-off labels in the fixture's data. */
 export const LABELS = {
-  /** Visual, major, 2 found; the counts already hold stain: 1. */
+  /** Visual, major: 2 in size M (whose counts already hold stain: 1) and 1 in size L, spelt in lower case there. */
   tornCuff: "E2E torn cuff",
-  /** Visual, minor, 1 found. */
+  /** Visual, minor, 1 found in size M. */
   stickyEdge: "E2E sticky edge",
-  /** Watertight "Other :" row, 1 hole. */
+  /** Watertight "Other :" row, 1 hole in size M. */
   thumbTip: "E2E thumb tip",
   /** On the draft inspection. */
   draft: "E2E draft label",
@@ -58,7 +58,10 @@ function resolvedTemplate(): JsonObject {
     bases: [],
     scope: { productType: "examination", standard: "EN455" },
     unit: "pcs",
-    sizes: [{ value: "M", label: "M" }],
+    sizes: [
+      { value: "M", label: "M" },
+      { value: "L", label: "L" },
+    ],
     modules: [
       { key: "header", include: true, title: "Manufacturer Information", labels: {}, config: {} },
       { key: "order_lots", include: true, title: "Order", labels: {}, config: {} },
@@ -116,12 +119,19 @@ function resolvedTemplate(): JsonObject {
   };
 }
 
-/** The submitted inspection's data: one-off labels in visual (major, minor) and an Other : hole in watertight. */
+/**
+ * The submitted inspection's data, as the watertight and visual modules save
+ * it (a count of 0 is no key): one-off labels in visual (major, in two sizes,
+ * and minor) and an Other : hole in watertight.
+ */
 export function submittedData(): JsonObject {
   return {
     modules: {
       watertight: {
-        sizes: { M: { tested: 80, holes: { hole_palm: 0, hole_other: 1 }, otherDescription: LABELS.thumbTip, unmapped: [] } },
+        sizes: {
+          M: { tested: 80, holes: { hole_other: 1 }, otherDescription: LABELS.thumbTip, unmapped: [] },
+          L: { tested: 80, holes: {}, otherDescription: null, unmapped: [] },
+        },
       },
       visual: {
         sizes: {
@@ -129,6 +139,11 @@ export function submittedData(): JsonObject {
             critical: { inspected: 80, counts: {}, unmapped: [] },
             major: { inspected: 80, counts: { stain: 1 }, unmapped: [{ label: LABELS.tornCuff, count: 2 }] },
             minor: { inspected: 80, counts: {}, unmapped: [{ label: LABELS.stickyEdge, count: 1 }] },
+          },
+          L: {
+            critical: { inspected: 80, counts: {}, unmapped: [] },
+            major: { inspected: 80, counts: {}, unmapped: [{ label: LABELS.tornCuff.toLowerCase(), count: 1 }] },
+            minor: { inspected: 80, counts: {}, unmapped: [] },
           },
         },
       },
