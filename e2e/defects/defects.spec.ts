@@ -1,11 +1,13 @@
 import { expect as baseExpect, test, type Locator, type Page } from "@playwright/test";
 import { signIn, TEST_ACCOUNTS } from "../support/session";
 import {
+  changeCode,
   createDefectsFixture,
   inspectionData,
   LABELS,
   mappingEvents,
   NOT_A_CODE,
+  ORDER,
   storedCode,
   TEMPLATE_CODE,
   type DefectsFixture,
@@ -200,9 +202,14 @@ test.describe("as an admin", () => {
     await expect(row).toContainText("E2E defect X, edited");
     expect((await storedCode("e2e_defect_x"))?.name).toBe("E2E defect X, edited");
 
-    // Deactivate, with a confirmation; the code stays, marked inactive.
+    // Deactivate, with a confirmation; the code stays, marked inactive. Meanwhile another admin
+    // changes the description: the page refreshes after the status change, and a save is then
+    // refused instead of quietly writing over their change; a second save replaces it, as offered.
     await press(row.getByRole("button", { name: "Edit e2e_defect_x" }));
     await expect(edit).toBeVisible();
+    await edit.getByLabel("Name", { exact: true }).fill("E2E defect X, typed here");
+    // Still found by the search above, so the row stays in the list.
+    await changeCode("e2e_defect_x", { description: "Changed by another admin in e2e/defects." });
     await press(edit.getByRole("button", { name: "Deactivate code" }));
     const confirm = page.getByRole("alertdialog", { name: "Deactivate e2e_defect_x?" });
     await expect(confirm).toBeVisible();
@@ -213,11 +220,26 @@ test.describe("as an admin", () => {
     await expect(edit.getByRole("button", { name: "Reactivate code" })).toBeFocused();
     expect((await storedCode("e2e_defect_x"))?.active).toBe(false);
     await shot(page, "code-inactive-panel", { scroll: false });
-    await press(edit.getByRole("button", { name: "Close", exact: true }).first());
+
+    await press(edit.getByRole("button", { name: "Save changes" }));
+    await expect(edit.getByText(/^Someone else changed this code while you were editing\./)).toBeVisible();
+    expect(await storedCode("e2e_defect_x")).toMatchObject({
+      name: "E2E defect X, edited",
+      description: "Changed by another admin in e2e/defects.",
+    });
+    await shot(page, "code-save-refused", { scroll: false });
+    await press(edit.getByRole("button", { name: "Save changes" }));
     await expect(edit).toBeHidden();
+    expect(await storedCode("e2e_defect_x")).toEqual({
+      code: "e2e_defect_x",
+      name: "E2E defect X, typed here",
+      description: "Created by e2e/defects. Safe to delete.",
+      active: false,
+    });
     // Back on the Edit button the panel opened from.
     await expect(row.getByRole("button", { name: "Edit e2e_defect_x" })).toBeFocused();
     await expect(row.locator('[data-slot="code-status"]')).toHaveText("Inactive");
+    await expect(row).toContainText("E2E defect X, typed here");
     await shot(page, "codes-inactive");
 
     // A code the seeded templates mention cannot be deleted; this unused one can.
@@ -256,6 +278,10 @@ test.describe("as an admin", () => {
     );
     await expect(visual.locator('tr[data-code="stain"]')).toContainText("Oil stain");
     await expect(card.locator('[data-section="watertight"] tr[data-code="hole_other"]')).toContainText("Other :");
+    // The template rewords this location: its wording, not its list's, as the module shows it.
+    await expect(card.locator('[data-section="watertight"] tr[data-code="hole_crotch"]')).toContainText(
+      "Crotch (between fingers)",
+    );
     // A label whose code is not a defect code.
     const unknown = visual.locator(`tr[data-code="${NOT_A_CODE}"]`);
     await expect(unknown).toContainText("Not a defect code");
@@ -301,12 +327,17 @@ test.describe("as an admin", () => {
     await expect(tornCuff).toContainText("Unmapped");
     await expect(tornCuff.locator("[data-found] li")).toHaveText(["Size M: 2", "Size L: 1", "3 found in all"]);
     await expect(submitted.locator(`tr[data-label="${LABELS.thumbTip}"]`)).toContainText("Watertight · Other");
+    // Only what the inspection counts: not a size outside the order, nor a label counted 0.
+    await expect(submitted.locator(`tr[data-label="${LABELS.unordered}"]`)).toHaveCount(0);
+    await expect(submitted.locator(`tr[data-label="${LABELS.nothingFound}"]`)).toHaveCount(0);
+    await expect(submitted.locator("tbody tr")).toHaveCount(3);
     // The draft is listed, but waits for the inspector.
     await expect(draft).toContainText(LABELS.draft);
     await expect(draft).toContainText("A draft: the inspector may still change these labels.");
     await expect(draft.getByRole("button", { name: /^Map/ })).toHaveCount(0);
     await expectNoPageScroll(page);
     await expectTouchTarget(tornCuff.getByRole("button", { name: /^Map/ }));
+    await expectTouchTarget(submitted.getByRole("link", { name: fixture.submitted.refNo }));
     await shot(page, "unmapped");
 
     // 1. To an existing code: in each size its count joins stain's, in the same class.
@@ -316,7 +347,12 @@ test.describe("as an admin", () => {
     await expect(dialog).toContainText("Size M: 2; Size L: 1 (3 found in all)");
     await press(dialog.getByRole("button", { name: "Map label" }));
     await expect(dialog.getByText("Choose a code.")).toBeVisible();
+    // Never a hole location or a Safedon dispensing fault for a visual defect: they would count where
+    // no visual list has them. They stay on the full list.
+    const elsewhere = /Faulty cuff|Hole in cuff|No cuff|Finger out/;
+    await expect(dialog.locator('[id$="-code-description"]')).not.toContainText(elsewhere);
     await press(dialog.getByRole("combobox", { name: "Defect code" }));
+    await expect(page.getByRole("group", { name: "Suggested" }).getByRole("option", { name: elsewhere })).toHaveCount(0);
     await shot(page, "map-choose", { scroll: false });
     // A code the template does not list in the class still counts; the dialog says so.
     await press(page.getByRole("option", { name: /^Faulty cuff\b/ }));
@@ -365,6 +401,7 @@ test.describe("as an admin", () => {
     const { data } = await inspectionData(fixture.submitted.id);
     expect(data).toEqual({
       modules: {
+        order_lots: ORDER,
         watertight: {
           sizes: {
             M: { tested: 80, holes: { hole_finger: 1 }, otherDescription: null, unmapped: [] },
@@ -375,7 +412,8 @@ test.describe("as an admin", () => {
           sizes: {
             M: {
               critical: { inspected: 80, counts: {}, unmapped: [] },
-              major: { inspected: 80, counts: { stain: 3 }, unmapped: [] },
+              // The label counted 0 stays as saved: nothing was found, so nothing was mapped.
+              major: { inspected: 80, counts: { stain: 3 }, unmapped: [{ label: LABELS.nothingFound, count: 0 }] },
               minor: { inspected: 80, counts: { e2e_defect_y: 1 }, unmapped: [] },
             },
             L: {
@@ -383,6 +421,8 @@ test.describe("as an admin", () => {
               major: { inspected: 80, counts: { stain: 1 }, unmapped: [] },
               minor: { inspected: 80, counts: {}, unmapped: [] },
             },
+            // Not in the order: untouched.
+            XL: { major: { inspected: 80, counts: {}, unmapped: [{ label: LABELS.unordered, count: 3 }] } },
           },
         },
       },

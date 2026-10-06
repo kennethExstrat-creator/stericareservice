@@ -6,10 +6,10 @@ import { TEST_ACCOUNTS } from "../support/session";
  * Temporary rows for the /admin/defects specs, made with the secret key and
  * deleted afterwards (e2e/README.md): a draft template E2E_DEFECTS (a draft,
  * so no new inspection ever picks it), two inspections of the test inspector
- * that use it (one submitted, one draft) with one-off labels in their visual
- * and watertight data, in the canonical shape of docs/DATA_DICTIONARY.md, and
- * the temporary codes the specs add. A run that died half way is cleaned up
- * by the next.
+ * that use it (one submitted, one draft) with an order and one-off labels in
+ * their visual and watertight data, in the canonical shape of
+ * docs/DATA_DICTIONARY.md and the modules' schemas, and the temporary codes
+ * the specs add. A run that died half way is cleaned up by the next.
  *
  * Side effects that cannot be undone, by design: each inspection draws a
  * number from the ref sequence, and each deletion leaves an audit row
@@ -35,7 +35,19 @@ export const LABELS = {
   thumbTip: "E2E thumb tip",
   /** On the draft inspection. */
   draft: "E2E draft label",
+  /** Visual, major, 3 found in size XL, which is not in the order: it counts nowhere, so it is not listed. */
+  unordered: "E2E unordered label",
+  /** Visual, major, added in size M but counted 0: nothing was found, so it is not listed either. */
+  nothingFound: "E2E nothing found",
 } as const;
+
+/** The order: sizes M and L (BUILD_SPEC 6.2 rule 4: the only sizes any module counts). */
+export const ORDER = {
+  sizes: {
+    M: { qtyCases: 10, lotNumbers: ["E2E-LOT-M"], packingSite: null },
+    L: { qtyCases: 5, lotNumbers: ["E2E-LOT-L"], packingSite: null },
+  },
+} satisfies JsonObject;
 
 export type DefectsFixture = {
   submitted: { id: string; refNo: string };
@@ -48,7 +60,12 @@ function fail(step: string, error: { message: string } | null): never {
   throw new Error(`Defects fixture: ${step} failed: ${error?.message ?? "no data"}`);
 }
 
-/** As templates.resolved holds it: the seed STD_EG lists, cut down, plus a label whose code does not exist. */
+/**
+ * As templates.resolved holds it: the seed STD_EG lists, cut down, plus a
+ * label whose code does not exist, a location the template rewords, and
+ * SAFEDON_EG's dispensing faults (so the map dialog never suggests them, or
+ * a hole location, for a visual defect, whatever templates the project has).
+ */
 function resolvedTemplate(): JsonObject {
   return {
     format: 2,
@@ -64,12 +81,13 @@ function resolvedTemplate(): JsonObject {
     ],
     modules: [
       { key: "header", include: true, title: "Manufacturer Information", labels: {}, config: {} },
-      { key: "order_lots", include: true, title: "Order", labels: {}, config: {} },
+      { key: "order_lots", include: true, title: "Order", labels: {}, config: { fields: { packingSite: false } } },
       {
         key: "watertight",
         include: true,
         title: "Freedom from Holes by watertight test",
-        labels: {},
+        // The template's wording over its list's, as the module shows it.
+        labels: { hole_crotch: "Crotch (between fingers)" },
         config: {
           aql: 1.5,
           handSplit: false,
@@ -111,6 +129,22 @@ function resolvedTemplate(): JsonObject {
           },
         },
       },
+      {
+        key: "dispensing_safedon",
+        include: true,
+        title: "Glove Dispensing Inspection",
+        labels: {},
+        config: {
+          defects: [
+            { code: "no_cuff", label: "No cuff", hint: "" },
+            { code: "finger_out", label: "Finger out", hint: "" },
+            { code: "faulty_cuff", label: "Faulty cuff", hint: "" },
+          ],
+          glovesPerPack: 125,
+          maxRatePct: 5,
+          boxesPerSize: { default: 13 },
+        },
+      },
       { key: "conclusion", include: true, title: "Conclusion", labels: {}, config: {} },
     ],
     customModules: [],
@@ -120,13 +154,15 @@ function resolvedTemplate(): JsonObject {
 }
 
 /**
- * The submitted inspection's data, as the watertight and visual modules save
- * it (a count of 0 is no key): one-off labels in visual (major, in two sizes,
- * and minor) and an Other : hole in watertight.
+ * The submitted inspection's data, as the modules save it (a count of 0 is
+ * no key): the order, one-off labels in visual (major, in two sizes, and
+ * minor) and an Other : hole in watertight; and two that count nowhere: one
+ * in a size not in the order, one counted 0.
  */
 export function submittedData(): JsonObject {
   return {
     modules: {
+      order_lots: ORDER,
       watertight: {
         sizes: {
           M: { tested: 80, holes: { hole_other: 1 }, otherDescription: LABELS.thumbTip, unmapped: [] },
@@ -137,7 +173,14 @@ export function submittedData(): JsonObject {
         sizes: {
           M: {
             critical: { inspected: 80, counts: {}, unmapped: [] },
-            major: { inspected: 80, counts: { stain: 1 }, unmapped: [{ label: LABELS.tornCuff, count: 2 }] },
+            major: {
+              inspected: 80,
+              counts: { stain: 1 },
+              unmapped: [
+                { label: LABELS.tornCuff, count: 2 },
+                { label: LABELS.nothingFound, count: 0 },
+              ],
+            },
             minor: { inspected: 80, counts: {}, unmapped: [{ label: LABELS.stickyEdge, count: 1 }] },
           },
           L: {
@@ -145,6 +188,7 @@ export function submittedData(): JsonObject {
             major: { inspected: 80, counts: {}, unmapped: [{ label: LABELS.tornCuff.toLowerCase(), count: 1 }] },
             minor: { inspected: 80, counts: {}, unmapped: [] },
           },
+          XL: { major: { inspected: 80, counts: {}, unmapped: [{ label: LABELS.unordered, count: 3 }] } },
         },
       },
     },
@@ -155,6 +199,7 @@ export function submittedData(): JsonObject {
 function draftData(): JsonObject {
   return {
     modules: {
+      order_lots: { sizes: { M: ORDER.sizes.M } },
       visual: { sizes: { M: { major: { inspected: 80, counts: {}, unmapped: [{ label: LABELS.draft, count: 1 }] } } } },
     },
     custom: {},
@@ -258,6 +303,12 @@ export async function mappingEvents(id: string) {
     .order("id");
   if (error) fail(`reading the audit log of ${id}`, error);
   return data;
+}
+
+/** Another admin's change to a code, made behind the page's back. */
+export async function changeCode(code: string, values: { name?: string; description?: string | null }) {
+  const { error } = await createTestAdminClient().from("defect_codes").update(values).eq("code", code);
+  if (error) fail(`changing code ${code}`, error);
 }
 
 /** A defect code as stored, or null. */
