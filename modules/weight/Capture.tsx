@@ -36,10 +36,16 @@ import type { WeightData } from "./schema";
 
 type Props = CaptureProps<WeightData, WeightConfig, WeightComputed>;
 
-// MeasurementGrid has no read-only mode yet: a disabled fieldset stops every
-// edit, and these keep the weights at full contrast instead of greyed out.
-const READ_ONLY_GRID =
-  "m-0 min-w-0 border-0 p-0 [&_input:disabled]:text-foreground [&_input:disabled]:opacity-100 [&_input:disabled]:[-webkit-text-fill-color:currentColor]";
+// Around MeasurementGrid, for what it does not do yet. Read-only: a disabled
+// fieldset stops every edit, and the weights keep full contrast instead of
+// greying out. Swipe: its scroller pans both ways, which takes the horizontal
+// swipe that turns the size on iPad (docs/CAPTURE_KIT.md); the grid fits the
+// iPad's width, so touch pans it vertically only.
+const GRID_FRAME = cn(
+  "m-0 min-w-0 border-0 p-0",
+  "[&_input:disabled]:text-foreground [&_input:disabled]:opacity-100 [&_input:disabled]:[-webkit-text-fill-color:currentColor]",
+  "[&_[data-slot=measurement-grid]>div]:touch-pan-y [&_[data-slot=measurement-grid]>div]:touch-pinch-zoom",
+);
 
 const HEAD = "border-b border-border bg-slate-50 px-3 py-2 font-semibold text-foreground";
 const CELL = "border-b border-border px-3 py-1.5 align-middle touch:py-2";
@@ -238,7 +244,7 @@ function SizeGrid({
         }}
         {...issuePathProps(["sizes", size, "values"])}
       >
-        <fieldset disabled={readOnly} className={READ_ONLY_GRID}>
+        <fieldset disabled={readOnly} className={GRID_FRAME}>
           <MeasurementGrid
             caption={`${label}, size ${name}`}
             measures={[
