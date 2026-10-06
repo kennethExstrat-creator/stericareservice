@@ -78,6 +78,21 @@ describe("/login", () => {
     expect(page).not.toMatch(/sign up|create an account|register/i);
   });
 
+  it("puts “Forgot password?” after the password field, so Tab goes from the email to the password", async () => {
+    const page = await html(LoginPage(query()));
+    const order = ['id="login-email"', 'id="login-password"', 'href="/forgot-password"', 'type="submit"'].map((marker) =>
+      page.indexOf(marker),
+    );
+    expect(order.every((index) => index >= 0)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+  });
+
+  it("titles the screen in DESIGN.md's Display style; the other cards keep H1", async () => {
+    expect(await html(LoginPage(query()))).toMatch(/<h1[^>]*data-size="display"[^>]*class="text-4xl leading-10 font-extrabold /);
+    expect(await html(ForgotPasswordPage())).toMatch(/<h1[^>]*data-size="title"[^>]*class="text-3xl leading-tight font-bold /);
+    expect(await html(ResetPasswordPage(query()))).toMatch(/<h1[^>]*data-size="title"/);
+  });
+
   it("carries ?next= into the form for the action to check", async () => {
     const page = await html(LoginPage(query({ next: "/inspections/abc" })));
     expect(page).toContain('name="next" value="/inspections/abc"');

@@ -102,6 +102,28 @@ test.describe("/login", () => {
     await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
   });
 
+  test("Tab goes from the email straight to the password", async ({ page }) => {
+    // Email, Tab, password, Enter: "Forgot password?" sits in the label row
+    // but must not take the focus (and the typed password) before the field.
+    await open(page, "/login");
+    const password = page.getByLabel("Password", { exact: true });
+    await page.getByLabel("Email").fill("inspector@test.local");
+    await page.keyboard.press("Tab");
+    await expect(password).toBeFocused();
+    await page.keyboard.type("typed-after-tab-1");
+    await expect(password).toHaveValue("typed-after-tab-1");
+
+    for (const next of [
+      page.getByRole("button", { name: "Show password" }),
+      page.getByRole("link", { name: "Forgot password?" }),
+      page.getByRole("button", { name: "Sign in" }),
+    ]) {
+      await page.keyboard.press("Tab");
+      await expect(next).toBeFocused();
+    }
+    await expect(page).toHaveURL(/\/login$/);
+  });
+
   for (const [code, text] of [
     ["deactivated", "This account has been deactivated. Ask your SteriCare administrator."],
     ["link_invalid", "That link has expired or was already used."],

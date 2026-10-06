@@ -68,25 +68,36 @@ export function LoginForm({ next, notice }: { next?: string; notice: LoginNotice
       </Field>
 
       <Field data-invalid={passwordError ? true : undefined}>
-        <div className="flex items-center justify-between gap-4">
-          <FieldLabel htmlFor="login-password">Password</FieldLabel>
+        {/*
+          "Forgot password?" is drawn in the label row but comes after the field
+          in the DOM, so Tab goes Email, Password, Show password, Forgot
+          password?, Sign in. Placed before the field, it would take the Tab
+          from the email: the password typed next would go nowhere, and Enter
+          would open the link.
+        */}
+        <div className="grid grid-cols-[1fr_auto] items-baseline gap-x-4 gap-y-3">
+          <FieldLabel htmlFor="login-password" className="col-start-1 row-start-1">
+            Password
+          </FieldLabel>
+          <div className="col-span-2 row-start-2">
+            <PasswordInput
+              ref={passwordRef}
+              id="login-password"
+              name="password"
+              autoComplete="current-password"
+              enterKeyHint="go"
+              required
+              aria-invalid={passwordError ? true : undefined}
+              aria-describedby={passwordError ? "login-password-error" : undefined}
+            />
+          </div>
           <Link
             href="/forgot-password"
-            className="rounded-sm text-sm font-medium text-brand-600 underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 touch:-my-3 touch:py-3"
+            className="col-start-2 row-start-1 rounded-sm text-sm font-medium text-brand-600 underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 touch:-my-3 touch:py-3"
           >
             Forgot password?
           </Link>
         </div>
-        <PasswordInput
-          ref={passwordRef}
-          id="login-password"
-          name="password"
-          autoComplete="current-password"
-          enterKeyHint="go"
-          required
-          aria-invalid={passwordError ? true : undefined}
-          aria-describedby={passwordError ? "login-password-error" : undefined}
-        />
         <FieldError id="login-password-error" role={undefined}>
           {passwordError}
         </FieldError>
