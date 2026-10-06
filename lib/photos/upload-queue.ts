@@ -137,6 +137,9 @@ type QueuedItem = z.infer<typeof QueuedItemSchema>;
 type PhotoItem = z.infer<typeof PhotoItemSchema>;
 type FileItem = z.infer<typeof FileItemSchema>;
 
+/** Enough of any stored item, of any format version, to tell whose and which inspection's it is. */
+const ItemOwnerSchema = z.object({ userId: z.string(), inspectionId: z.string() });
+
 /** Bytes are stored as ArrayBuffer, which every engine's IndexedDB round-trips. */
 const StoredBytesSchema = z.object({ type: z.string(), bytes: z.instanceof(ArrayBuffer), storedAt: z.number() });
 
@@ -174,10 +177,29 @@ export interface UploadItem {
   createdAt: number;
 }
 
+/**
+ * Reading the items kept on this device: until it has worked, nobody knows
+ * whether photos are waiting, so isEmpty() is false. A failed read is
+ * retried with backoff and when the connection returns.
+ */
+export type UploadQueueLoad = "loading" | "ready" | "failed";
+
+/** A photo that is uploaded, but whose later retag or caption the server refused. Its row keeps the earlier one. */
+export interface RetagFailure {
+  id: string;
+  inspectionId: string;
+  /** What could not be saved. */
+  moduleKey: string | null;
+  target: string | null;
+  caption: string | null;
+  error: Failure;
+}
+
 export interface UploadQueueSnapshot {
+  load: UploadQueueLoad;
   /** In upload order. */
   items: readonly UploadItem[];
-  /** Everything not uploaded yet, failed items included: the badge. */
+  /** Everything not uploaded yet, failed items and items being stored included: the badge. */
   pending: number;
   failed: number;
   online: boolean;
@@ -185,7 +207,13 @@ export interface UploadQueueSnapshot {
   retryAt: number | null;
   /** The failure being waited out, e.g. an expired session ("Sign in again"). */
   error: Failure | null;
-  /** False once an item could not be kept on this device: it uploads only while this page stays open. */
+  /** Retags that did not stick, for a notice; dismissRetagFailure() clears one. */
+  retagFailures: readonly RetagFailure[];
+  /**
+   * False when items are not kept through a reload: the in-memory fallback
+   * (`persistent: false`), or an item that could not be written. They
+   * upload only while this page stays open.
+   */
   localCopy: boolean;
 }
 
@@ -209,6 +237,8 @@ export interface UploadQueueOptions {
   items: KeyValueStore<unknown>;
   /** The "upload-blobs" store. */
   blobs: KeyValueStore<unknown>;
+  /** False when the stores do not survive a reload: the in-memory fallback (`db.persistent`). */
+  persistent?: boolean;
   storage: UploadStorage;
   repository: MediaRepository;
   connectivity?: Connectivity;
@@ -220,7 +250,11 @@ export interface UploadQueueOptions {
 }
 
 export interface UploadQueue {
-  /** Loads this user's items that survived a reload and starts uploading. Call once. */
+  /**
+   * Starts uploading and loads this user's items that survived a reload.
+   * Resolves once they are loaded, or once loading has failed (then
+   * snapshot.load is "failed" and it is retried). Call once.
+   */
   start(): Promise<void>;
   /** Queues a processed photo; resolves with its id once it is kept on this device. */
   enqueuePhoto(input: EnqueuePhoto): Promise<string>;
@@ -228,14 +262,26 @@ export interface UploadQueue {
   enqueueFile(input: EnqueueFile): Promise<string>;
   /** Retags or recaptions a queued photo. False once it has left the queue: update its row instead. */
   retag(id: string, change: { tag?: PhotoTag; caption?: string | null }): Promise<boolean>;
-  /** Drops an item whose row is not written yet, with any object already uploaded. False once its row exists. */
+  /**
+   * Takes an item out of the queue. True: it is gone, with any object
+   * already uploaded. False: it was not queued, or its row already exists;
+   * then delete the row and its objects as for any uploaded photo (a retag
+   * still waiting for that row is dropped).
+   */
   remove(id: string): Promise<boolean>;
   /** Puts failed items back in line (one, or all) and retries now instead of waiting out the backoff. */
   retryNow(id?: string): void;
-  /** Items not uploaded yet, failed ones included. */
+  /** Items this page knows are not uploaded yet, failed ones included: the badge. */
   pendingCount(inspectionId?: string): number;
-  /** Submit waits for this (BUILD_SPEC 8.1). */
-  isEmpty(inspectionId: string): boolean;
+  /** Nothing is waiting, as far as this page knows; false until the kept items are loaded. */
+  isEmpty(inspectionId?: string): boolean;
+  /**
+   * The submit check (BUILD_SPEC 8.1): reads the items kept on this device,
+   * so items another tab queued count too. False when that read fails.
+   */
+  isEmptyNow(inspectionId?: string): Promise<boolean>;
+  /** Clears a retag failure once the inspector has seen it. */
+  dismissRetagFailure(id: string): void;
   /** The local thumbnail of a queued photo, for its tile. Null for files and unconvertible originals. */
   preview(id: string): Promise<Blob | null>;
   /** For useSyncExternalStore. */
@@ -280,6 +326,7 @@ class Queue implements UploadQueue {
   private readonly userId: string;
   private readonly itemStore: KeyValueStore<unknown>;
   private readonly blobStore: KeyValueStore<unknown>;
+  private readonly persistent: boolean;
   private readonly storage: UploadStorage;
   private readonly repository: MediaRepository;
   private readonly connectivity: Connectivity;
@@ -296,10 +343,17 @@ class Queue implements UploadQueue {
   /** Items another tab is uploading. */
   private readonly busyElsewhere = new Set<string>();
   private readonly removing = new Set<string>();
-  private readonly enqueuing = new Set<string>();
+  /** Items being written to this device: id to inspection id. They count as pending already. */
+  private readonly enqueuing = new Map<string, string>();
+  /** Items this page finished or removed: a load that read them before they were deleted must not bring them back. */
+  private readonly gone = new Set<string>();
   private readonly listeners = new Set<() => void>();
 
   private phase: "new" | "running" | "stopped" = "new";
+  private load: UploadQueueLoad = "loading";
+  private loadInFlight = false;
+  private loadAttempts = 0;
+  private loadTimer: ReturnType<typeof setTimeout> | null = null;
   private pumping = false;
   private current: { id: string; abort: AbortController; done: Promise<unknown> } | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -308,6 +362,7 @@ class Queue implements UploadQueue {
   private recheckTimer: ReturnType<typeof setTimeout> | null = null;
   private attempts = 0;
   private lastError: Failure | null = null;
+  private retagFailures: readonly RetagFailure[] = [];
   private localCopy = true;
   private nextSeq = 0;
   private online: boolean;
@@ -318,6 +373,7 @@ class Queue implements UploadQueue {
     this.userId = options.userId;
     this.itemStore = options.items;
     this.blobStore = options.blobs;
+    this.persistent = options.persistent ?? true;
     this.storage = options.storage;
     this.repository = options.repository;
     this.connectivity = options.connectivity ?? defaultConnectivity();
@@ -332,27 +388,58 @@ class Queue implements UploadQueue {
 
   async start(): Promise<void> {
     if (this.phase !== "new") throw new Error("The upload queue has already been started.");
-    let stored: unknown[] = [];
-    try {
-      stored = await this.itemStore.getAll();
-    } catch {
-      this.localCopy = false;
-    }
-    for (const raw of stored) {
-      const parsed = QueuedItemSchema.safeParse(raw);
-      // Another user's items wait for them; unreadable ones are left alone.
-      if (!parsed.success || parsed.data.userId !== this.userId || this.queued.has(parsed.data.id)) continue;
-      this.queued.set(parsed.data.id, parsed.data);
-    }
-    for (const item of this.queued.values()) this.nextSeq = Math.max(this.nextSeq, item.seq + 1);
-    await this.collectOrphans().catch(() => undefined);
-    if (this.phase !== "new") return;
-
     this.phase = "running";
     this.online = this.connectivity.isOnline();
     this.unsubscribe = this.connectivity.subscribe((online) => this.setOnline(online));
     this.emit();
+    await this.loadKept();
+  }
+
+  /** Reads this user's items kept on this device: those of earlier pages and of other tabs. */
+  private async loadKept(): Promise<void> {
+    if (this.loadInFlight || this.phase !== "running") return;
+    this.loadInFlight = true;
+    this.cancelLoadRetry();
+    let stored: unknown[];
+    try {
+      stored = await this.itemStore.getAll();
+    } catch {
+      this.loadInFlight = false;
+      if (this.phase !== "running") return;
+      this.load = "failed";
+      this.loadAttempts++;
+      this.loadTimer = setTimeout(
+        () => {
+          this.loadTimer = null;
+          void this.loadKept();
+        },
+        backoffDelay(this.loadAttempts, this.backoff, this.random),
+      );
+      this.emit();
+      // What this page queued itself still goes up meanwhile.
+      void this.pump();
+      return;
+    }
+    this.loadInFlight = false;
+    if (this.phase !== "running") return;
+    for (const raw of stored) {
+      const parsed = QueuedItemSchema.safeParse(raw);
+      // Another user's items wait for them; unreadable ones are left alone.
+      if (!parsed.success || parsed.data.userId !== this.userId) continue;
+      if (this.queued.has(parsed.data.id) || this.gone.has(parsed.data.id)) continue;
+      this.queued.set(parsed.data.id, parsed.data);
+    }
+    for (const item of this.queued.values()) this.nextSeq = Math.max(this.nextSeq, item.seq + 1);
+    this.load = "ready";
+    this.loadAttempts = 0;
+    this.emit();
+    await this.collectOrphans().catch(() => undefined);
     void this.pump();
+  }
+
+  private cancelLoadRetry(): void {
+    if (this.loadTimer !== null) clearTimeout(this.loadTimer);
+    this.loadTimer = null;
   }
 
   async enqueuePhoto({ inspectionId, photo, tag, caption = null }: EnqueuePhoto): Promise<string> {
@@ -448,12 +535,15 @@ class Queue implements UploadQueue {
         await this.current.done;
       }
       const latest = this.queued.get(id);
-      // Gone: it finished meanwhile. Row written: the queue finishes it; delete the row instead.
-      if (!latest || latest.done.row) return false;
+      // Gone: it finished meanwhile, so its row exists.
+      if (!latest) return false;
       this.queued.delete(id);
       this.progress.delete(id);
+      this.gone.add(id);
       this.emit();
       await this.discard(id);
+      // Its row exists: the caller deletes the row and its objects, so nothing is left to retag.
+      if (latest.done.row) return false;
       await this.removeObjects(latest);
       return true;
     } finally {
@@ -472,6 +562,7 @@ class Queue implements UploadQueue {
     this.busyElsewhere.clear();
     this.attempts = 0;
     this.cancelRetry();
+    if (this.load === "failed") void this.loadKept();
     this.emit();
     void this.pump();
   }
@@ -481,11 +572,41 @@ class Queue implements UploadQueue {
     for (const item of this.queued.values()) {
       if (inspectionId === undefined || item.inspectionId === inspectionId) count++;
     }
+    for (const itemInspection of this.enqueuing.values()) {
+      if (inspectionId === undefined || itemInspection === inspectionId) count++;
+    }
     return count;
   }
 
-  isEmpty(inspectionId: string): boolean {
-    return this.pendingCount(inspectionId) === 0;
+  isEmpty(inspectionId?: string): boolean {
+    return this.load === "ready" && this.pendingCount(inspectionId) === 0;
+  }
+
+  async isEmptyNow(inspectionId?: string): Promise<boolean> {
+    const matches = (itemInspection: string) => inspectionId === undefined || itemInspection === inspectionId;
+    // Items still being written may not be in the store yet.
+    for (const itemInspection of this.enqueuing.values()) if (matches(itemInspection)) return false;
+    let stored: unknown[];
+    try {
+      stored = await this.itemStore.getAll();
+    } catch {
+      return false;
+    }
+    for (const raw of stored) {
+      const owner = ItemOwnerSchema.safeParse(raw);
+      if (owner.success && owner.data.userId === this.userId && matches(owner.data.inspectionId)) return false;
+    }
+    // Items that could not be written to this device exist only in this page.
+    for (const item of this.queued.values()) {
+      if (matches(item.inspectionId) && this.isMemoryOnly(item.id)) return false;
+    }
+    return true;
+  }
+
+  dismissRetagFailure(id: string): void {
+    if (!this.retagFailures.some((failure) => failure.id === id)) return;
+    this.retagFailures = this.retagFailures.filter((failure) => failure.id !== id);
+    this.emit();
   }
 
   async preview(id: string): Promise<Blob | null> {
@@ -513,6 +634,7 @@ class Queue implements UploadQueue {
     if (this.phase === "stopped") return;
     this.phase = "stopped";
     this.cancelRetry();
+    this.cancelLoadRetry();
     if (this.recheckTimer !== null) clearTimeout(this.recheckTimer);
     this.recheckTimer = null;
     this.unsubscribe?.();
@@ -527,7 +649,8 @@ class Queue implements UploadQueue {
 
   /** Writes the bytes, then the item, which is what makes the bytes count. */
   private async keep(item: QueuedItem, parts: [Part, Blob][]): Promise<void> {
-    this.enqueuing.add(item.id);
+    this.enqueuing.set(item.id, item.inspectionId);
+    this.emit();
     try {
       for (const [part, blob] of parts) {
         await this.blobStore.put(blobKey(item.id, part), {
@@ -626,7 +749,8 @@ class Queue implements UploadQueue {
    * ---------------------------------------------------------------- */
 
   private async pump(): Promise<void> {
-    if (this.pumping || this.phase !== "running") return;
+    // The first load takes a moment: older items go first.
+    if (this.pumping || this.phase !== "running" || this.load === "loading") return;
     this.pumping = true;
     try {
       while (this.phase === "running" && this.retryTimer === null) {
@@ -673,6 +797,7 @@ class Queue implements UploadQueue {
     // Another tab may have finished or removed it since this tab loaded it.
     if (!(await this.stillQueued(id))) {
       this.queued.delete(id);
+      this.gone.add(id);
       return "gone";
     }
     let item = this.queued.get(id);
@@ -705,11 +830,19 @@ class Queue implements UploadQueue {
       }
       // Retagged while uploading: bring the row up to date.
       for (;;) {
+        if (this.removing.has(id)) return "cancelled";
         const latest = this.queued.get(id);
         if (!latest || latest.kind !== "photo" || latest.rowMeta >= latest.meta) break;
         const meta = latest.meta;
         const outcome = await this.repository.updatePhoto(id, rowPatch(latest));
-        if (!outcome.ok) return this.fail(latest, outcome);
+        if (!outcome.ok && isRetryable(outcome.reason)) return this.fail(latest, outcome);
+        if (!outcome.ok) {
+          // The photo and its row are in; only the new tag was refused (the row was deleted, or the
+          // inspection submitted). That must not hold up submit: report it and finish.
+          const newest = this.queued.get(id);
+          this.reportRetagFailure(newest?.kind === "photo" ? newest : latest, outcome);
+          break;
+        }
         await this.update(latest, (current) =>
           current.kind === "photo" ? { ...current, rowMeta: Math.max(current.rowMeta, meta) } : current,
         );
@@ -771,10 +904,23 @@ class Queue implements UploadQueue {
   private finish(id: string): void {
     this.queued.delete(id);
     this.progress.delete(id);
+    this.gone.add(id);
     this.attempts = 0;
     this.lastError = null;
     this.emit();
     void this.discard(id);
+  }
+
+  private reportRetagFailure(item: PhotoItem, { reason, message }: Failure): void {
+    const failure: RetagFailure = {
+      id: item.id,
+      inspectionId: item.inspectionId,
+      moduleKey: item.moduleKey,
+      target: item.target,
+      caption: item.caption,
+      error: { reason, message },
+    };
+    this.retagFailures = [...this.retagFailures.filter((entry) => entry.id !== item.id), failure];
   }
 
   private setProgress(item: QueuedItem, bytes: number): void {
@@ -792,6 +938,7 @@ class Queue implements UploadQueue {
 
   private setOnline(online: boolean): void {
     this.online = online;
+    if (online && this.load === "failed") void this.loadKept();
     if (online && this.retryTimer !== null) {
       // Back online: retry now instead of waiting out the backoff.
       this.attempts = 0;
@@ -821,9 +968,13 @@ class Queue implements UploadQueue {
     this.retryAt = null;
   }
 
+  /**
+   * Oldest first. seq only breaks ties within a millisecond: items a page
+   * queues before its load has worked may share seq numbers with kept ones.
+   */
   private ordered(): QueuedItem[] {
     return [...this.queued.values()].sort(
-      (a, b) => a.seq - b.seq || a.createdAt - b.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+      (a, b) => a.createdAt - b.createdAt || a.seq - b.seq || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
     );
   }
 
@@ -844,13 +995,15 @@ class Queue implements UploadQueue {
       createdAt: item.createdAt,
     }));
     return {
+      load: this.load,
       items,
-      pending: items.length,
+      pending: items.length + this.enqueuing.size,
       failed: items.filter((item) => item.state === "failed").length,
       online: this.online,
       retryAt: this.retryAt,
       error: this.lastError,
-      localCopy: this.localCopy,
+      retagFailures: this.retagFailures,
+      localCopy: this.persistent && this.localCopy,
     };
   }
 

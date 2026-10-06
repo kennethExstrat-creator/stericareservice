@@ -43,6 +43,8 @@ export {
   type UploadQueue,
   type UploadQueueOptions,
   type UploadQueueSnapshot,
+  type UploadQueueLoad,
+  type RetagFailure,
   type UploadItem,
   type UploadState,
   type UploadStorage,
@@ -64,5 +66,6 @@ export {
   type SupabaseStorageOptions,
   type SupabaseUploadQueueOptions,
 } from "./supabase-adapters";
+export { cleanOriginal, CLEANABLE_TYPES } from "./originals";
 export { parseExif, exifTakenAt, type ExifInfo } from "./exif";
 export { PHOTO_MAX_EDGE, THUMB_MAX_EDGE, JPEG_QUALITY } from "./sizing";
