@@ -24,7 +24,8 @@ import { PhotoEditDialog } from "./photo-edit-dialog";
 import { slotPhotos, type SlotPhoto } from "./photo-model";
 import { PhotoViewer, type ViewerPhoto } from "./photo-viewer";
 import { PhotoViewerContext } from "./provider";
-import { moduleSlotKey, NOTHING_PREPARING, photoQueueStore } from "./queue-store";
+import { moduleSlotKey, NOTHING_PREPARING } from "./queue-state";
+import { photoQueueStore } from "./queue-store";
 import { UploadNotices } from "./upload-notices";
 
 export type ModulePhotosProps = {

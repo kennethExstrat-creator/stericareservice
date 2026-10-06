@@ -9,7 +9,8 @@ import type { InspectionMedia } from "@/lib/inspections/photos/queries";
 import { autoTag } from "@/lib/photos/target";
 import { IDLE_MEDIA, mediaStore, type MediaState } from "./media-store";
 import { uploadStatusFor, type PhotoUploadStatus } from "./photo-model";
-import { photoQueueStore, type PhotoQueueState } from "./queue-store";
+import type { PhotoQueueState } from "./queue-state";
+import { photoQueueStore } from "./queue-store";
 
 /** What the capture screen has in focus (modules/_framework CaptureFocus, nulls allowed). */
 export interface PhotoFocus {
@@ -89,6 +90,16 @@ export function usePhotoUploadStatus(inspectionId: string): PhotoUploadStatus {
  */
 export function photoUploadsSettled(inspectionId?: string): Promise<boolean> {
   return photoQueueStore.isSettled(inspectionId);
+}
+
+/**
+ * Stops the page's uploads, for the sign-out flow (docs/OFFLINE.md, "What the
+ * capture screen wires"): ask photoUploadsSettled() first and warn while it is
+ * false, since those photos are only on this device until they upload. Kept
+ * items resume when their user next opens a photo screen on this device.
+ */
+export function stopPhotoQueue(): void {
+  photoQueueStore.stop();
 }
 
 /**

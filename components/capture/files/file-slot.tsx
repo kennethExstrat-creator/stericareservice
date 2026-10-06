@@ -8,7 +8,8 @@
 import { useId, useMemo } from "react";
 import { useInspectionMedia, usePhotoQueue, useStartPhotoQueue, type PhotoFocus } from "@/components/capture/photos/hooks";
 import { slotFiles } from "@/components/capture/photos/photo-model";
-import { moduleSlotKey, NOTHING_PREPARING, photoQueueStore } from "@/components/capture/photos/queue-store";
+import { moduleSlotKey, NOTHING_PREPARING } from "@/components/capture/photos/queue-state";
+import { photoQueueStore } from "@/components/capture/photos/queue-store";
 import { EMPTY_TAG_OPTIONS, FILE_KIND_LABEL, countFiles } from "@/lib/inspections/photos/view";
 import type { InspectionFileKind } from "@/lib/photos/files";
 import { cn } from "@/lib/utils";

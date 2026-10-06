@@ -6,7 +6,7 @@ import type { InspectionMedia } from "@/lib/inspections/photos/queries";
 import type { MediaFile } from "@/lib/inspections/photos/view";
 import type { InspectionFileKind } from "@/lib/photos/files";
 import type { UploadItem } from "@/lib/photos/upload-queue";
-import { NOTHING_PREPARING, QUEUE_PROBLEMS, type PhotoQueueState } from "./queue-store";
+import { NOTHING_PREPARING, QUEUE_PROBLEMS, type PhotoQueueState } from "./queue-state";
 
 export type PhotoUploadState = "waiting" | "uploading" | "failed" | "uploaded";
 

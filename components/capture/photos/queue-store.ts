@@ -7,85 +7,36 @@
 // prepared at once, processed in the browser one at a time (memory), handed
 // to the queue, and uploads in the background with retries. Everything here
 // runs in the browser only; on the server the store stays in its first state.
+import { isAuthRetryableFetchError, type SupabaseClient } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import { getSupabasePublicEnv } from "@/lib/env";
 import { getOfflineDatabase, requestPersistentStorage } from "@/lib/offline/db";
+import { FAILURE_MESSAGES } from "@/lib/offline/failures";
 import { browserCodec } from "@/lib/photos/browser-codec";
 import { prepareFile, type InspectionFileKind } from "@/lib/photos/files";
 import { processPhoto } from "@/lib/photos/process";
-import { createSupabaseUploadQueue } from "@/lib/photos/supabase-adapters";
+import { supabaseRepository, supabaseStorage } from "@/lib/photos/supabase-adapters";
 import type { PhotoTag } from "@/lib/photos/target";
-import type { UploadItem, UploadQueue, UploadQueueSnapshot } from "@/lib/photos/upload-queue";
+import {
+  createUploadQueue,
+  type MediaRepository,
+  type TransferOutcome,
+  type UploadItem,
+  type UploadQueue,
+} from "@/lib/photos/upload-queue";
 import { createClient } from "@/lib/supabase/client";
-
-export type QueuePhase =
-  /** Not started: no photo screen has asked for it yet. */
-  | "idle"
-  /** Opening the local database and reading what this device kept. */
-  | "starting"
-  | "ready"
-  /** No Supabase settings, or no signed-in user: nothing can be queued. */
-  | "unavailable";
-
-export interface PhotoQueueState {
-  phase: QueuePhase;
-  userId: string | null;
-  /** Why the queue is unavailable, in words. */
-  problem: string | null;
-  queue: UploadQueueSnapshot;
-  /** Photos and files being prepared, by inspection: the queue does not know them yet. */
-  preparing: Readonly<Record<string, PreparingCount>>;
-  /** The same, by `<inspection id>:<module key>` (moduleSlotKey), for the slot that is adding them. */
-  preparingByModule: Readonly<Record<string, PreparingCount>>;
-  /**
-   * Local previews of photos added on this page, by id: an object URL, or
-   * null when there is none (an original the browser cannot show). Kept after
-   * the upload, so a tile does not flash while its signed URL loads.
-   */
-  previews: Readonly<Record<string, string | null>>;
-}
-
-export interface PreparingCount {
-  photos: number;
-  files: number;
-}
-
-export const NOTHING_PREPARING: PreparingCount = { photos: 0, files: 0 };
-
-export const EMPTY_QUEUE_SNAPSHOT: UploadQueueSnapshot = {
-  load: "loading",
-  items: [],
-  pending: 0,
-  failed: 0,
-  online: true,
-  retryAt: null,
-  error: null,
-  retagFailures: [],
-  localCopy: true,
-};
-
-const INITIAL_STATE: PhotoQueueState = {
-  phase: "idle",
-  userId: null,
-  problem: null,
-  queue: EMPTY_QUEUE_SNAPSHOT,
-  preparing: {},
-  preparingByModule: {},
-  previews: {},
-};
-
-export const QUEUE_PROBLEMS = {
-  notConfigured: "Photo uploads are not set up on this server.",
-  signedOut: "Sign in again to add photos.",
-  failedToStart: "This device could not open its photo store. Reload the page and try again.",
-} as const;
+import type { Database } from "@/lib/supabase/database.types";
+import {
+  bumpPreparing,
+  INITIAL_QUEUE_STATE,
+  moduleSlotKey,
+  QUEUE_PROBLEMS,
+  type PhotoQueueState,
+  type PreparingCount,
+} from "./queue-state";
 
 /** Types a browser shows as they are: an original kept unconverted can still be its own preview. */
 const SHOWABLE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-
-export function moduleSlotKey(inspectionId: string, moduleKey: string | null): string {
-  return `${inspectionId}:${moduleKey ?? ""}`;
-}
 
 /** Items the queue let go of without this page removing them: uploaded (here or in another tab). */
 export type SettledListener = (items: readonly UploadItem[]) => void;
@@ -106,7 +57,7 @@ export interface AddFilesInput {
 }
 
 class PhotoQueueStore {
-  private state: PhotoQueueState = INITIAL_STATE;
+  private state: PhotoQueueState = INITIAL_QUEUE_STATE;
   private queue: UploadQueue | null = null;
   private starting: Promise<UploadQueue | null> | null = null;
   /** The session lookup of startFromSession() in flight, if any. */
@@ -130,7 +81,7 @@ class PhotoQueueStore {
 
   readonly getSnapshot = (): PhotoQueueState => this.state;
 
-  readonly getServerSnapshot = (): PhotoQueueState => INITIAL_STATE;
+  readonly getServerSnapshot = (): PhotoQueueState => INITIAL_QUEUE_STATE;
 
   onSettled(listener: SettledListener): () => void {
     this.settledListeners.add(listener);
@@ -162,7 +113,20 @@ class PhotoQueueStore {
       void requestPersistentStorage();
       // Another user may have signed in while the database opened.
       if (this.state.userId !== userId) return null;
-      const queue = createSupabaseUploadQueue({ client: createClient(), env, userId, db });
+      const client = createClient();
+      // lib/photos' createSupabaseUploadQueue, with every request checked against this user (ownToken).
+      const queue = createUploadQueue({
+        userId,
+        items: db.store("uploads"),
+        blobs: db.store("upload-blobs"),
+        persistent: db.persistent,
+        storage: supabaseStorage({
+          url: env.url,
+          apiKey: env.publishableKey,
+          getAccessToken: () => ownToken(client, userId),
+        }),
+        repository: ownRepository(client, userId),
+      });
       this.queue = queue;
       this.stopListening = queue.subscribe(() => this.onQueueChange(queue));
       this.onQueueChange(queue);
@@ -213,6 +177,16 @@ class PhotoQueueStore {
     if (this.queue) return this.queue;
     if (!this.starting) this.startFromSession();
     return (await this.starting) ?? this.queue;
+  }
+
+  /**
+   * Stops uploading, e.g. when the user signs out. What is queued stays on
+   * this device and resumes when its user next opens a photo screen here.
+   */
+  stop(): void {
+    if (typeof window === "undefined") return;
+    this.sessionLookup = null;
+    this.stopCurrent();
   }
 
   /** Processes and queues photos, one at a time. Returns at once: capture never waits. */
@@ -381,8 +355,8 @@ class PhotoQueueStore {
 
   private bumpPreparing(inspectionId: string, slot: string, kind: keyof PreparingCount, by: number): void {
     this.setState({
-      preparing: bump(this.state.preparing, inspectionId, kind, by),
-      preparingByModule: bump(this.state.preparingByModule, slot, kind, by),
+      preparing: bumpPreparing(this.state.preparing, inspectionId, kind, by),
+      preparingByModule: bumpPreparing(this.state.preparingByModule, slot, kind, by),
     });
   }
 
@@ -404,7 +378,11 @@ class PhotoQueueStore {
     this.starting = null;
     this.lastItems = new Map();
     this.removedHere.clear();
-    this.setState({ ...INITIAL_STATE, preparing: this.state.preparing, preparingByModule: this.state.preparingByModule });
+    this.setState({
+      ...INITIAL_QUEUE_STATE,
+      preparing: this.state.preparing,
+      preparingByModule: this.state.preparingByModule,
+    });
   }
 
   private setState(patch: Partial<PhotoQueueState>): void {
@@ -413,17 +391,43 @@ class PhotoQueueStore {
   }
 }
 
-function bump(
-  counts: Readonly<Record<string, PreparingCount>>,
-  key: string,
-  kind: keyof PreparingCount,
-  by: number,
-): Record<string, PreparingCount> {
-  const current = counts[key] ?? NOTHING_PREPARING;
-  const next = { ...current, [kind]: Math.max(0, current[kind] + by) };
-  const result = { ...counts, [key]: next };
-  if (next.photos + next.files === 0) delete result[key];
-  return result;
+/* ------------------------------------------------------------------ *
+ * Whose session uploads
+ * ------------------------------------------------------------------ */
+
+type Client = SupabaseClient<Database>;
+
+/**
+ * The access token of the queue's own user: null when signed out, and also
+ * when someone else is signed in on this browser now. A shared iPad must
+ * never upload one inspector's photos under another's name; they wait (as
+ * "sign in again") until their own user is back. Throws when an offline
+ * device cannot refresh a token that is due, which the queue counts as no
+ * connection (lib/photos sessionToken, with the user checked).
+ */
+export async function ownToken(client: Client, userId: string): Promise<string | null> {
+  const { data, error } = await client.auth.getSession();
+  const session = data.session;
+  if (session?.access_token) return session.user.id === userId ? session.access_token : null;
+  if (error && isAuthRetryableFetchError(error)) throw error;
+  return null;
+}
+
+/** The photo and file tables, written only while the queue's own user is signed in. */
+export function ownRepository(client: Client, userId: string, inner: MediaRepository = supabaseRepository(client)): MediaRepository {
+  const refusal = async (): Promise<TransferOutcome | null> => {
+    try {
+      if (await ownToken(client, userId)) return null;
+      return { ok: false, reason: "unauthorized", message: FAILURE_MESSAGES.unauthorized };
+    } catch {
+      return { ok: false, reason: "network", message: FAILURE_MESSAGES.network };
+    }
+  };
+  return {
+    insertPhoto: async (row) => (await refusal()) ?? inner.insertPhoto(row),
+    updatePhoto: async (id, patch) => (await refusal()) ?? inner.updatePhoto(id, patch),
+    insertFile: async (row) => (await refusal()) ?? inner.insertFile(row),
+  };
 }
 
 /** The page's queue. Components use it through the hooks in ./hooks. */

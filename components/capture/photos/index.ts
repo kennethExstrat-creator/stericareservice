@@ -7,6 +7,7 @@
 //
 //   const status = usePhotoUploadStatus(id); // submit waits while status.blocking (status.message says why)
 //   if (await photoUploadsSettled(id)) ...   // the last check on submit, other tabs included
+//   if (!(await photoUploadsSettled())) warn; stopPhotoQueue();   // on sign-out
 export { PhotoSlot, type PhotoSlotProps } from "./photo-slot";
 export { ModulePhotos, type ModulePhotosProps } from "./module-photos";
 export { PhotoQueueProvider, InspectionMediaProvider } from "./provider";
@@ -16,6 +17,7 @@ export { PhotoAddControls } from "./photo-add-controls";
 export {
   usePhotoUploadStatus,
   photoUploadsSettled,
+  stopPhotoQueue,
   useAddPhotos,
   useInspectionMedia,
   usePhotoQueue,
