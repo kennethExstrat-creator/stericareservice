@@ -1,14 +1,31 @@
 // The pure rules behind the capture kit: keys, swipes, totals and
-// decisions, box lists, paste splitting and issue paths. Markup is covered by
-// kit.test.tsx; real pointer, key and paste handling by the Playwright run.
+// decisions, the spoken summary, size and column fallbacks, box lists, paste
+// plans and the one-change paste, issue paths. Markup is covered by
+// kit.test.tsx; pointer, key and paste handling were checked in a browser.
 import { describe, expect, it } from "vitest";
 import { bestOption, boxOptions, isUnlisted, moveInGrid, pickedElsewhere, readBoxNumber } from "./box-options";
-import { columnStatus, columnTotal, countOf, decide, type CounterCell } from "./counter-model";
-import { neighbour, splitPastedValues } from "./field-navigation";
-import { handsOf } from "./hand-toggle";
+import {
+  columnStatus,
+  columnTotal,
+  counterAnnouncement,
+  counterTableWidth,
+  countOf,
+  type CounterCell,
+} from "./counter-model";
+import { batchDataChanges, createDataUpdater, type DataChange } from "./data-updater";
+import {
+  fillRun,
+  neighbour,
+  parsePastedRows,
+  pasteNotice,
+  planFieldPaste,
+  splitPastedValues,
+} from "./field-navigation";
+import { handsOf, shownHandView } from "./hand-toggle";
 import { findIssue, issuePathCandidates, issuePathKey, issuePathProps } from "./issue-path";
 import { specOutcome } from "./requirement-list";
 import { rovingIndex } from "./roving";
+import { activeColumnKey, activeSize, showsSideBySide } from "./selection";
 import { stepValue, swipeStep } from "./swipe";
 
 describe("rovingIndex", () => {
@@ -113,18 +130,92 @@ describe("counter model", () => {
   });
 
   it("accepts up to Ac and rejects from Re", () => {
-    expect(decide(3, { ac: 3, re: 4 })).toBe("accept");
-    expect(decide(4, { ac: 3, re: 4 })).toBe("reject");
-    expect(decide(0, { ac: 0, re: 1 })).toBe("accept");
-    expect(decide(1, { ac: 0, re: 1 })).toBe("reject");
+    expect(columnStatus(3, { limits: { ac: 3, re: 4 } })).toBe("pass");
+    expect(columnStatus(4, { limits: { ac: 3, re: 4 } })).toBe("fail");
+    expect(columnStatus(0, { limits: { ac: 0, re: 1 } })).toBe("pass");
+    expect(columnStatus(1, { limits: { ac: 0, re: 1 } })).toBe("fail");
   });
 
-  it("shows calc's status first, then the live decision, else not done", () => {
+  it("decides from the total on screen, so calc's verdict from before the tap never shows", () => {
+    // Ac 7 / Re 8: the tap to 8 rejects, whatever calc said at 7.
+    expect(columnStatus(8, { limits: { ac: 7, re: 8 }, status: "pass" })).toBe("fail");
+    expect(columnStatus(7, { limits: { ac: 7, re: 8 }, status: "fail" })).toBe("pass");
+    // A size-level result passed by mistake cannot mark a clean class table Reject.
+    expect(columnStatus(0, { limits: { ac: 3, re: 4 }, status: "fail" })).toBe("pass");
+  });
+
+  it("lets calc's not done win: calc knows what is missing", () => {
     expect(columnStatus(5, { limits: { ac: 3, re: 4 }, status: "not_done" })).toBe("not_done");
-    expect(columnStatus(2, { limits: { ac: 3, re: 4 } })).toBe("pass");
-    expect(columnStatus(4, { limits: { ac: 3, re: 4 } })).toBe("fail");
+    expect(columnStatus(0, { limits: { ac: 3, re: 4 }, status: "not_done" })).toBe("not_done");
+  });
+
+  it("shows calc's status without limits, else not done", () => {
+    expect(columnStatus(2, { status: "warn" })).toBe("warn");
+    expect(columnStatus(2, { limits: null, status: "pass" })).toBe("pass");
     expect(columnStatus(0, { limits: null })).toBe("not_done");
     expect(columnStatus(0, {})).toBe("not_done");
+  });
+
+  it("says the new count, the total and the chip's verdict", () => {
+    expect(counterAnnouncement({ count: 3, column: "Size XS", total: 8, verdict: "Reject" })).toBe(
+      "3. Size XS: total 8, Reject.",
+    );
+    expect(counterAnnouncement({ count: 0, column: "box 253", total: 2, verdict: null })).toBe("0. box 253: total 2.");
+  });
+
+  it("takes the verdict it says from the props after the tap, the same as the chip", () => {
+    // The table rendered after the tap: palm 8 in XS, calc still saying pass from before it.
+    const column = { key: "XS", limits: { ac: 7, re: 8 }, status: "pass" as const };
+    const total = columnTotal([{ key: "palm" }, { key: "cuff" }], "XS", undefined, ({ row }) => (row === "palm" ? 8 : 0));
+    const chip = columnStatus(total, column);
+    expect(chip).toBe("fail");
+    expect(counterAnnouncement({ count: 8, column: "Size XS", total, verdict: chip === "fail" ? "Reject" : "Accept" })).toBe(
+      "8. Size XS: total 8, Reject.",
+    );
+  });
+
+  it("knows how wide every column side by side is", () => {
+    // Label 256, value columns 128 (160 on touch), 2 px of frame.
+    expect(counterTableWidth(5, false)).toBe(256 + 5 * 128 + 2);
+    expect(counterTableWidth(10, false)).toBe(1538);
+    expect(counterTableWidth(1, true)).toBe(256 + 160 + 2);
+  });
+});
+
+describe("size and column on screen", () => {
+  const sizes = ["XS", "S", "M", "L", "XL"];
+
+  it("shows the value when it is ordered", () => {
+    expect(activeSize(sizes, "M")).toBe("M");
+  });
+
+  it("falls back to the first ordered size for a size out of the order, or none yet", () => {
+    expect(activeSize(sizes, "XXL")).toBe("XS");
+    expect(activeSize(sizes, "")).toBe("XS");
+    expect(activeSize([], "M")).toBeUndefined();
+  });
+
+  it("shows the same column in CounterTable as the tab that looks selected", () => {
+    const columns = sizes.map((key) => ({ key }));
+    expect(activeColumnKey(columns, "M", "M")).toBe("M");
+    // A stale value: SizeTabs shows XS, and so does the table.
+    expect(activeColumnKey(columns, "XXL", activeSize(sizes, "XXL"))).toBe("XS");
+    expect(activeColumnKey(columns, "XXL")).toBe("XS");
+    expect(activeColumnKey([], "XXL", "XS")).toBeUndefined();
+  });
+
+  it("goes side by side only when asked and the widest table fits", () => {
+    expect(showsSideBySide("all", 1048, counterTableWidth(5, false))).toBe(true);
+    // Five sizes split into right and left hands need 1538 px.
+    expect(showsSideBySide("all", 1048, counterTableWidth(10, false))).toBe(false);
+    expect(showsSideBySide("all", null, counterTableWidth(10, false))).toBe(true);
+    expect(showsSideBySide("tabs", 4000, 0)).toBe(false);
+  });
+
+  it("reads Both as the right hand where Both is not offered", () => {
+    expect(shownHandView("both", false)).toBe("R");
+    expect(shownHandView("both", true)).toBe("both");
+    expect(shownHandView("L", false)).toBe("L");
   });
 });
 
@@ -188,6 +279,163 @@ describe("box options", () => {
     expect(moveInGrid("PageDown", 0, 12, 5)).toBe(11);
     expect(moveInGrid("Enter", 0, 12, 5)).toBeNull();
     expect(moveInGrid("ArrowRight", 0, 0, 5)).toBeNull();
+  });
+});
+
+describe("parsePastedRows and planFieldPaste", () => {
+  it("reads a spreadsheet block as rows of cells", () => {
+    expect(parsePastedRows("88\t70\r\n90\t75\n")).toEqual([
+      ["88", "70"],
+      ["90", "75"],
+    ]);
+  });
+
+  it("fills a run in reading order", () => {
+    expect(planFieldPaste("88\t70\n90\t75", { column: false })).toEqual({ values: ["88", "70", "90", "75"], leftOut: 0 });
+  });
+
+  it("fills a named group (one column) from the first column only", () => {
+    expect(planFieldPaste("88\t70\n90\t75\n", { column: true })).toEqual({ values: ["88", "90"], leftOut: 2 });
+    // A row copied across still lands in this column only.
+    expect(planFieldPaste("88\t90\t87", { column: true })).toEqual({ values: ["88"], leftOut: 2 });
+  });
+
+  it("leaves one value to the ordinary paste, trailing empty cells included", () => {
+    expect(planFieldPaste("88", { column: true })).toBeNull();
+    expect(planFieldPaste("88\n", { column: false })).toBeNull();
+    expect(planFieldPaste("88\t", { column: true })).toBeNull();
+  });
+});
+
+describe("one change for a paste (useDataUpdater under CaptureProps' onChange)", () => {
+  type Box = { layering: number | null };
+  type Data = { sizes: Record<string, { boxes: Box[] }> };
+  const setLayering = (data: Data, size: string, index: number, layering: number | null): Data => {
+    const boxes = [...(data.sizes[size]?.boxes ?? [])];
+    boxes[index] = { ...boxes[index], layering };
+    return { ...data, sizes: { ...data.sizes, [size]: { boxes } } };
+  };
+  const empty = (): Data => ({ sizes: { M: { boxes: Array.from({ length: 5 }, () => ({ layering: null })) } } });
+  const layering = (data: Data) => data.sizes.M.boxes.map((box) => box.layering);
+  // A field's own rule: a number from 0 to 100, blank is no value, anything else is rejected.
+  const parse = (raw: string): { ok: boolean; value: number | null } => {
+    if (raw === "") return { ok: true, value: null };
+    const value = /^\d+(\.\d+)?$/.test(raw) ? Number(raw) : Number.NaN;
+    return value >= 0 && value <= 100 ? { ok: true, value } : { ok: false, value: null };
+  };
+
+  /**
+   * The capture screen and a module that follows the contract: onChange(next)
+   * replaces the data, and each field calls the onValueChange the module
+   * rendered, which saw the data of that render.
+   */
+  function harness(write: "updater" | "direct") {
+    let data = empty();
+    const changes: Data[] = [];
+    const onChange = (next: Data) => {
+      changes.push(next);
+      data = next;
+    };
+    const updater = createDataUpdater(data, onChange);
+    const rendered = data;
+    const fields = [0, 1, 2, 3, 4].map((index) => {
+      const onValueChange = (value: number | null) =>
+        write === "updater"
+          ? updater.update((current) => setLayering(current, "M", index, value))
+          : onChange(setLayering(rendered, "M", index, value));
+      // NumberField's store: the value, or null with the text kept on screen.
+      return (raw: string) => {
+        const parsed = parse(raw);
+        onValueChange(parsed.value);
+        return parsed.ok;
+      };
+    });
+    const paste = (text: string) => {
+      const plan = planFieldPaste(text, { column: true });
+      if (!plan) throw new Error("not a paste of several values");
+      let result = { filled: 0, rejected: 0, skipped: 0 };
+      batchDataChanges(() => {
+        result = fillRun(plan.values, fields, 0, (store, raw) => store(raw));
+      });
+      return { result, plan };
+    };
+    return { paste, changes, data: () => data };
+  }
+
+  it("hands every pasted value to onChange once", () => {
+    const screen = harness("updater");
+    const { result } = screen.paste("88\n90\n87\n2 42\n91");
+    expect(screen.changes).toHaveLength(1);
+    expect(layering(screen.data())).toEqual([88, 90, 87, null, 91]);
+    expect(result).toEqual({ filled: 5, rejected: 1, skipped: 0 });
+  });
+
+  it("would keep only the last value if each field started from the rendered data", () => {
+    // What the review found, and why every kit callback goes through `update`.
+    const screen = harness("direct");
+    screen.paste("88\n90\n87\n2 42\n91");
+    expect(screen.changes).toHaveLength(5);
+    expect(layering(screen.data())).toEqual([null, null, null, null, 91]);
+  });
+
+  it("judges each value by its own field and says what happened", () => {
+    const screen = harness("updater");
+    const { result, plan } = screen.paste("50\t9\n101\n-3\n70\n80\n90\n95");
+    expect(layering(screen.data())).toEqual([50, null, null, 70, 80]);
+    expect(result).toEqual({ filled: 5, rejected: 2, skipped: 2 });
+    expect(pasteNotice({ ...result, leftOut: plan.leftOut })).toBe(
+      "Pasted 5 values. 2 not stored. 2 did not fit. Only the first column is used here: 1 value from other columns left out.",
+    );
+    expect(pasteNotice({ filled: 1, rejected: 0, skipped: 0, leftOut: 0 })).toBe("Pasted 1 value.");
+  });
+
+  it("builds changes made in one event on each other outside a batch", () => {
+    const changes: Data[] = [];
+    const updater = createDataUpdater(empty(), (next) => changes.push(next));
+    updater.update((current) => setLayering(current, "M", 0, 70));
+    updater.update((current) => setLayering(current, "M", 1, 80));
+    expect(changes).toHaveLength(2);
+    expect(layering(changes[1])).toEqual([70, 80, null, null, null]);
+  });
+
+  it("starts from the data the screen renders next", () => {
+    const changes: Data[] = [];
+    const onChange = (next: Data) => changes.push(next);
+    const updater = createDataUpdater(empty(), onChange);
+    updater.update((current) => setLayering(current, "M", 0, 70));
+    // The screen renders its own copy (re-parsed, say); the next event starts from it.
+    updater.sync(setLayering(empty(), "M", 4, 99), onChange);
+    updater.update((current) => setLayering(current, "M", 1, 80));
+    expect(layering(changes[1])).toEqual([null, 80, null, null, 99]);
+  });
+
+  it("flushes once after nested batches, and skips a change that changes nothing", () => {
+    const changes: Data[] = [];
+    const updater = createDataUpdater(empty(), (next) => changes.push(next));
+    batchDataChanges(() => {
+      updater.update((current) => setLayering(current, "M", 0, 1));
+      batchDataChanges(() => updater.update((current) => setLayering(current, "M", 1, 2)));
+      expect(changes).toHaveLength(0);
+    });
+    expect(changes).toHaveLength(1);
+    expect(layering(changes[0])).toEqual([1, 2, null, null, null]);
+    const same: DataChange<Data> = (current) => current;
+    updater.update(same);
+    expect(changes).toHaveLength(1);
+  });
+
+  it("gives each module in a batch its own single change", () => {
+    const first: Data[] = [];
+    const second: Data[] = [];
+    const a = createDataUpdater(empty(), (next) => first.push(next));
+    const b = createDataUpdater(empty(), (next) => second.push(next));
+    batchDataChanges(() => {
+      a.update((current) => setLayering(current, "M", 0, 1));
+      b.update((current) => setLayering(current, "M", 0, 2));
+      a.update((current) => setLayering(current, "M", 1, 3));
+    });
+    expect([first.length, second.length]).toEqual([1, 1]);
+    expect(layering(first[0])).toEqual([1, 3, null, null, null]);
   });
 });
 

@@ -5,21 +5,38 @@
 // each cell a Stepper. Like the reports, each column shows the number
 // inspected and its Accept / Reject limit on top, and the computed total and
 // a live accept/reject chip at the bottom (6.2 rule 2: never typed). With a
-// hand split every column has R and L sub-columns sharing one total and one
-// decision. `activeColumn` shows one column below 1280 px (pair it with
-// SizeTabs); from 1280 px all columns sit side by side. On iPad the totals
-// row sticks to the bottom of the screen while the table is in view.
-import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
+// hand split every column has Right and Left sub-columns sharing one total
+// and one decision. Given `activeColumn` as SizeTabs' panel, the table shows
+// the size the tabs show and follows their layout: one size at a time, or
+// every size side by side from 1280 px when SizeTabs has room for this table
+// (it reports the width it needs). Its header rows stick below the size bar and
+// its totals to the bottom of the screen while the table is in view. The
+// label column has a fixed width, so a label sits next to its steppers and
+// stacked tables (defect classes) line up.
+import { useContext, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { FlagIcon, PlusIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { STATUS_LABEL, type Status } from "@/lib/design/status";
-import { formatCount, formatHand, formatLimits, type AcceptanceLimits } from "@/lib/format";
+import { formatCount, formatLimits, type AcceptanceLimits } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { columnStatus, columnTotal, countOf, type CounterCell, type CounterHand, type CountReader } from "./counter-model";
+import {
+  columnStatus,
+  columnTotal,
+  counterAnnouncement,
+  counterTableWidth,
+  countOf,
+  type CounterCell,
+  type CounterHand,
+  type CountReader,
+} from "./counter-model";
+import { HAND_WORD } from "./hand-toggle";
 import { issuePathProps, type IssuePath } from "./issue-path";
-import { StatusPill } from "./status-pill";
+import { activeColumnKey } from "./selection";
+import { SizeTabsContext } from "./size-tabs-context";
+import { SMALL_PILL_TOUCH, StatusPill } from "./status-pill";
 import { Stepper } from "./stepper";
+import { COARSE_QUERY, useMediaQuery } from "./use-media-query";
 
 export type CounterRow = {
   /** Defect or location code; a one-off label gets a key of its own. */
@@ -37,13 +54,18 @@ export type CounterColumn = {
   key: string;
   /** Column heading: "M", "253". */
   label: string;
-  /** Accessible name in each stepper's label, e.g. "size M" or "box 253". Defaults to the label. */
+  /** Accessible name in each stepper's label, e.g. "Size M" or "box 253". Defaults to the label. */
   name?: string;
   /** Samples inspected (from the sampling plan). Undefined hides the row for every column. */
   n?: number | null;
   /** Accept / Reject limits from the AQL plan. Undefined hides the limit row. */
   limits?: AcceptanceLimits | null;
-  /** calc's result for the column (evaluation.result.perSize). Wins over the live decision. */
+  /**
+   * calc's result for this column of this table: a defect class's result for
+   * the size, never the size's overall result (`evaluation.result.perSize`).
+   * With limits the chip is the live decision (total against Ac) and only a
+   * not_done from calc overrides it; without limits this is the chip.
+   */
   status?: Status;
 };
 
@@ -86,7 +108,13 @@ type CounterTableProps = {
   hands?: readonly CounterHand[];
   /** The hands on screen (from a HandToggle). Defaults to `hands`. */
   visibleHands?: readonly CounterHand[];
-  /** Below 1280 px only this column shows; from 1280 px every column does. */
+  /**
+   * The column on screen one at a time (the size from SizeTabs). In SizeTabs'
+   * panel (passed as a node, not a per-size function) the table follows the
+   * tabs: a key that is not a column shows the size the tabs show, and every
+   * column shows side by side only when SizeTabs does. Elsewhere: this column
+   * below 1280 px, every column from 1280 px.
+   */
   activeColumn?: string;
   /** Row and footer labels in the template's wording. */
   labels?: Partial<CounterTableLabels>;
@@ -109,11 +137,14 @@ type CounterTableProps = {
 };
 
 const HEAD = "border-b border-border bg-slate-50 px-3 py-2 text-center align-bottom font-semibold text-foreground";
-const INFO = "border-b border-border bg-slate-50 px-3 py-1 text-center text-sm font-medium text-muted-foreground tabular-nums";
+const INFO =
+  "border-b border-border bg-slate-50 px-3 py-1 text-center text-sm font-medium text-muted-foreground tabular-nums touch:text-base";
 const FOOT = "border-b border-border bg-slate-50 px-3 py-1.5 text-center tabular-nums touch:py-2";
-// The label column sticks while wide tables scroll sideways. Its edge is a
-// shadow, so it draws over the first value column's border instead of doubling it.
-const LABEL_COLUMN = "sticky left-0 text-left shadow-[1px_0_0_var(--border)]";
+// The label column has a fixed width (COUNTER_WIDTHS.label), so labels sit
+// next to their steppers and stacked tables line up. It sticks while a wide
+// table scrolls sideways; its edge is a shadow, so it draws over the first
+// value column's border instead of doubling it.
+const LABEL_COLUMN = "sticky left-0 w-64 text-left [overflow-wrap:anywhere] shadow-[1px_0_0_var(--border)]";
 const ROW_HEAD = cn(LABEL_COLUMN, "z-[1] border-b border-border bg-card px-3 align-middle font-normal text-foreground");
 
 export function CounterTable({
@@ -137,17 +168,33 @@ export function CounterTable({
   readOnly = false,
   className,
 }: CounterTableProps) {
+  const tableId = useId();
+  const sizeTabs = useContext(SizeTabsContext);
   const text: CounterTableLabels = { ...DEFAULT_LABELS, ...labels };
   const split = hands !== undefined && hands.length > 0;
   const shownHands = split ? (visibleHands ?? hands).filter((hand) => hands.includes(hand)) : [];
   const sides: readonly (CounterHand | undefined)[] = shownHands.length > 0 ? shownHands : [undefined];
   const span = sides.length;
 
+  // One column at a time, following SizeTabs when inside it.
+  const active = activeColumn === undefined ? undefined : activeColumnKey(columns, activeColumn, sizeTabs?.size);
+  const following = active !== undefined && sizeTabs !== null;
+  const sideBySide = sizeTabs ? sizeTabs.sideBySide : true;
+
+  // Tell SizeTabs how wide every column side by side would be, so it keeps
+  // its tabs from 1280 px when they would not fit (a hand split, many sizes).
+  const coarse = useMediaQuery(COARSE_QUERY);
+  const needed = counterTableWidth(columns.length * span, coarse);
+  const requireWidth = following ? sizeTabs.requireWidth : undefined;
+  useEffect(() => {
+    if (!requireWidth) return;
+    requireWidth(tableId, needed);
+    return () => requireWidth(tableId, null);
+  }, [requireWidth, tableId, needed]);
+
   const withInspected = showInspected ?? columns.some((column) => column.n !== undefined);
   const withLimits = showLimits ?? columns.some((column) => column.limits !== undefined);
   const withResult = showResult ?? columns.some((column) => column.limits !== undefined || column.status !== undefined);
-
-  const [announcement, setAnnouncement] = useState("");
 
   const totals = new Map(columns.map((column) => [column.key, columnTotal(rows, column.key, hands, getCount)]));
   const totalOf = (column: CounterColumn) => totals.get(column.key) ?? 0;
@@ -155,41 +202,51 @@ export function CounterTable({
   const resultLabel = (status: Status) =>
     status === "pass" ? text.accept : status === "fail" ? text.reject : STATUS_LABEL[status];
 
-  // Below 1280 px only the active column shows (SizeTabs picks it).
+  // Inactive columns: hidden below 1280 px when sizes go side by side there, else at every width.
   const hidden = (column: CounterColumn) =>
-    activeColumn !== undefined && column.key !== activeColumn ? "max-xl:hidden" : undefined;
+    active !== undefined && column.key !== active ? (sideBySide ? "max-xl:hidden" : "hidden") : undefined;
   const nameOf = (column: CounterColumn) => column.name ?? column.label;
   const cellOf = (row: CounterRow, column: CounterColumn, hand: CounterHand | undefined): CounterCell =>
     hand ? { row: row.key, column: column.key, hand } : { row: row.key, column: column.key };
 
-  const change = (cell: CounterCell, column: CounterColumn, next: number, previous: number) => {
+  // The last cell tapped. What is said about it is worked out from the props
+  // rendered after the tap, so the verdict spoken is the one on the chip.
+  const [touched, setTouched] = useState<CounterCell | null>(null);
+  const change = (cell: CounterCell, next: number) => {
     onCountChange(cell, next);
-    const total = totalOf(column) - previous + next;
-    const status = columnStatus(total, column);
-    setAnnouncement(
-      `${nameOf(column)}: total ${total}${withResult && status !== "not_done" ? `, ${resultLabel(status)}` : ""}.`,
-    );
+    setTouched(cell);
   };
+  const touchedColumn = touched ? columns.find((column) => column.key === touched.column) : undefined;
+  const announcement =
+    touched && touchedColumn
+      ? counterAnnouncement({
+          count: countOf(getCount(touched)),
+          column: nameOf(touchedColumn),
+          total: totalOf(touchedColumn),
+          verdict: withResult && statusOf(touchedColumn) !== "not_done" ? resultLabel(statusOf(touchedColumn)) : null,
+        })
+      : "";
 
   return (
     <div data-slot="counter-table" className={cn("min-w-0 space-y-3", className)}>
-      {/* One column fits any iPad, so below 1280 px nothing scrolls sideways and
-          the totals can stick to the screen; wider tables scroll inside. */}
+      {/* Following SizeTabs the table never scrolls sideways (it shows every
+          size only where they fit), so its header and totals can stick to the
+          screen. Elsewhere a wide table (many boxes) scrolls inside. */}
       <div
         className={cn(
-          "relative rounded-lg border border-border bg-card",
-          activeColumn !== undefined ? "overflow-clip xl:overflow-x-auto" : "overflow-x-auto",
+          "relative w-fit max-w-full rounded-lg border border-border bg-card",
+          following ? "overflow-clip" : active !== undefined ? "overflow-clip xl:overflow-x-auto" : "overflow-x-auto",
         )}
       >
-        <table className="w-full border-separate border-spacing-0 text-sm touch:text-base">
+        <table className="border-separate border-spacing-0 text-sm touch:text-base">
           <caption className="sr-only">{caption}</caption>
-          <thead>
+          <thead
+            className={cn(
+              following && "sticky top-[calc(var(--capture-sticky-top,0px)_+_var(--size-tabs-bar,0px))] z-[4]",
+            )}
+          >
             <tr>
-              <th
-                scope="col"
-                rowSpan={split ? 2 : 1}
-                className={cn(HEAD, LABEL_COLUMN, "z-[2] min-w-44 font-semibold")}
-              >
+              <th scope="col" rowSpan={split ? 2 : 1} className={cn(HEAD, LABEL_COLUMN, "z-[2] font-semibold")}>
                 {text.rowHeader}
               </th>
               {columns.map((column) => (
@@ -212,43 +269,53 @@ export function CounterTable({
                       scope="col"
                       className={cn(
                         HEAD,
-                        "py-1 text-xs touch:text-sm",
+                        "py-1 text-sm touch:text-base",
                         index === 0 ? "border-l" : "border-l border-l-slate-100",
                         hidden(column),
                       )}
                     >
-                      <span aria-hidden>{hand}</span>
-                      <span className="sr-only">{hand ? formatHand(hand) : ""}</span>
+                      {/* A word, not "L": size L can head the column above. */}
+                      {hand && (
+                        <>
+                          {HAND_WORD[hand]}
+                          <span className="sr-only"> hand</span>
+                        </>
+                      )}
                     </th>
                   )),
                 )}
               </tr>
             )}
-            {withInspected && (
-              <tr>
-                <th scope="row" className={cn(INFO, LABEL_COLUMN, "z-[2]")}>
-                  {text.inspected}
-                </th>
-                {columns.map((column) => (
-                  <td key={column.key} colSpan={span} className={cn(INFO, "border-l", hidden(column))}>
-                    {formatCount(column.n ?? null, "—")}
-                  </td>
-                ))}
-              </tr>
-            )}
-            {withLimits && (
-              <tr>
-                <th scope="row" className={cn(INFO, LABEL_COLUMN, "z-[2]")}>
-                  {text.limits}
-                </th>
-                {columns.map((column) => (
-                  <td key={column.key} colSpan={span} className={cn(INFO, "border-l whitespace-nowrap", hidden(column))}>
-                    {formatLimits(column.limits, { empty: "—" })}
-                  </td>
-                ))}
-              </tr>
-            )}
           </thead>
+
+          {(withInspected || withLimits) && (
+            <tbody>
+              {withInspected && (
+                <tr>
+                  <th scope="row" className={cn(INFO, LABEL_COLUMN, "z-[2]")}>
+                    {text.inspected}
+                  </th>
+                  {columns.map((column) => (
+                    <td key={column.key} colSpan={span} className={cn(INFO, "border-l", hidden(column))}>
+                      {formatCount(column.n ?? null, "—")}
+                    </td>
+                  ))}
+                </tr>
+              )}
+              {withLimits && (
+                <tr>
+                  <th scope="row" className={cn(INFO, LABEL_COLUMN, "z-[2]")}>
+                    {text.limits}
+                  </th>
+                  {columns.map((column) => (
+                    <td key={column.key} colSpan={span} className={cn(INFO, "border-l whitespace-nowrap", hidden(column))}>
+                      {formatLimits(column.limits, { empty: "—" })}
+                    </td>
+                  ))}
+                </tr>
+              )}
+            </tbody>
+          )}
 
           <tbody>
             {rows.map((row) => (
@@ -279,7 +346,7 @@ export function CounterTable({
                   sides.map((hand, index) => {
                     const cell = cellOf(row, column, hand);
                     const count = countOf(getCount(cell));
-                    const name = [row.label, nameOf(column), hand && formatHand(hand).toLowerCase()]
+                    const name = [row.label, nameOf(column), hand && `${HAND_WORD[hand].toLowerCase()} hand`]
                       .filter(Boolean)
                       .join(", ");
                     return (
@@ -289,7 +356,7 @@ export function CounterTable({
                         onFocus={onCellFocus ? () => onCellFocus(cell) : undefined}
                         {...issuePathProps(cellIssuePath?.(cell))}
                         className={cn(
-                          // A fixed width, so stacked tables (defect classes) line up.
+                          // A fixed width (COUNTER_WIDTHS.value), so stacked tables line up.
                           "w-32 border-b border-border px-2 py-px text-center align-middle data-nonzero:bg-brand-50 touch:w-40 touch:py-1.5",
                           index === 0 ? "border-l" : "border-l border-l-slate-100",
                           hidden(column),
@@ -301,7 +368,9 @@ export function CounterTable({
                           <Stepper
                             label={name}
                             value={count}
-                            onValueChange={(next) => change(cell, column, next, count)}
+                            onValueChange={(next) => change(cell, next)}
+                            // The table says the count with the new total and verdict.
+                            announce={false}
                           />
                         )}
                       </td>
@@ -352,7 +421,7 @@ export function CounterTable({
                         size="sm"
                         status={status}
                         label={resultLabel(status)}
-                        className="mx-auto touch:h-8 touch:gap-1.5 touch:px-3 touch:text-base touch:[&>svg]:size-4"
+                        className={cn("mx-auto", SMALL_PILL_TOUCH)}
                       />
                     </td>
                   );
