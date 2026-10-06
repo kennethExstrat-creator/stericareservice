@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "check": "npm run typecheck && npm run lint && npm run test",
     "db:push": "supabase db push",
-    "db:types": "supabase gen types typescript --linked --schema public > lib/supabase/database.types.ts"
+    "db:types": "supabase gen types typescript --linked --schema public > lib/supabase/database.types.ts",
+    "seed:dev-users": "node --env-file-if-exists=.env.local scripts/create-dev-users.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
