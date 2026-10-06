@@ -27,6 +27,7 @@ export const definition = defineModule<ConclusionData, ConclusionConfig, Conclus
     { path: "date", label: CONCLUSION_LABELS.date, type: "date" },
   ],
   calc: calcConclusion,
+  loadCapture: () => import("./Capture"),
 });
 
 export type { ConclusionData } from "./schema";
