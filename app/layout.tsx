@@ -57,9 +57,13 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
+    // suppressHydrationWarning: browser extensions (screen recorders, password
+    // managers) add attributes to <html> before React hydrates. It covers this
+    // element's own attributes only; mismatches anywhere else still surface.
     <html
       lang="en"
       className={cn(outfit.variable, redHatDisplay.variable, "h-full antialiased")}
+      suppressHydrationWarning
     >
       <body className="flex min-h-full flex-col bg-background font-sans text-foreground">
         <TooltipProvider>{children}</TooltipProvider>

@@ -54,3 +54,8 @@ docs/examples/
 
 # coding-agent worktrees
 /.claude/worktrees/
+
+# playwright
+/playwright-report/
+/blob-report/
+/playwright/.cache/
