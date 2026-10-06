@@ -20,10 +20,12 @@ export function AccountStatusBadge({ status }: { status: AccountStatus }) {
       data-status={status}
       className={cn(
         "inline-flex h-7 w-fit shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold whitespace-nowrap",
+        // With a mouse or trackpad: the small pill (StatusPill size="sm"), for compact rows.
+        "fine:h-6 fine:gap-1 fine:px-2 fine:text-xs",
         className,
       )}
     >
-      <Icon aria-hidden className="size-4" />
+      <Icon aria-hidden className="size-4 fine:size-3.5" />
       {label}
     </span>
   );

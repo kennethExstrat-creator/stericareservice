@@ -66,6 +66,23 @@ test("the admin sees everyone, with themselves marked and protected", async ({ p
   for (const header of ["Name", "Role", "Status", "Last signed in"]) {
     await expect(page.getByRole("columnheader", { name: header })).toBeVisible();
   }
+  // The date each person was added: its own column from 1024 px, under the name below that.
+  if (page.viewportSize()!.width >= 1024) {
+    await expect(page.getByRole("columnheader", { name: "Added" })).toBeVisible();
+  } else {
+    await expect(me.getByText(/^Added \d{1,2} \w{3} \d{4}$/)).toBeVisible();
+  }
+  // Compact rows with a mouse (docs/DESIGN.md, Density); 44 px controls on touch.
+  if (test.info().project.name === "desktop") {
+    for (const row of [me, inspector]) {
+      const height = (await row.boundingBox())?.height ?? 0;
+      expect(height).toBeGreaterThanOrEqual(32);
+      expect(height).toBeLessThanOrEqual(36);
+    }
+  } else {
+    const trigger = me.getByRole("button", { name: /^Actions for / });
+    expect((await trigger.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+  }
   await shot(page, "admin-list");
 
   // No way to lock yourself out: no deactivate, no demotion.

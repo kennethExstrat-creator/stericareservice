@@ -85,6 +85,14 @@ describe("UsersTable", () => {
     expect(pending).toContain(">Never</span>");
   });
 
+  it("puts the date added under the name where the Added column drops out (below 1024 px)", () => {
+    expect(html).toMatch(/<th[^>]*class="[^"]*hidden lg:table-cell[^"]*"[^>]*>Added<\/th>/);
+    expect(admin).toContain(
+      '<span class="text-muted-foreground lg:hidden">Added <time dateTime="2026-10-05T17:30:00Z">6 Oct 2026</time></span>',
+    );
+    expect(pending).toContain('lg:hidden">Added <time dateTime="2026-10-06T03:00:00Z">6 Oct 2026</time></span>');
+  });
+
   it("names a person without a full name by their email, without repeating it under the name", () => {
     // Text nodes only (attributes like the menu's aria-label are not counted).
     expect(pending.match(/>new@test\.local</g)).toHaveLength(2); // the name cell and the email column

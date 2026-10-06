@@ -2,6 +2,7 @@ import { LockIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { displayName, type UserListItem } from "@/lib/auth/users";
+import { cn } from "@/lib/utils";
 import { AccountStatusBadge, RoleLabel } from "./account-status";
 import { UserActions } from "./user-actions";
 
@@ -19,10 +20,17 @@ function DateText({ iso, empty }: { iso: string | null; empty: string }) {
   return <time dateTime={iso}>{DATE.format(new Date(iso))}</time>;
 }
 
+// Compact rows with a mouse or trackpad (docs/DESIGN.md, Density): a 36 px
+// header and rows of about 35 px around the 32 px menu button. Touch keeps
+// the table's own 44 px sizes.
+const HEAD = "fine:h-9";
+const CELL = "fine:py-px";
+
 /**
  * Everyone with an account. Desktop (1280 px and wider) gets one compact line
- * per person; on iPad the email sits under the name and the least needed
- * columns drop out, so the row keeps 44 px controls without scrolling sideways.
+ * per person; on iPad the email and the date added sit under the name and the
+ * least needed columns drop out, so the row keeps 44 px controls without
+ * scrolling sideways.
  */
 export function UsersTable({ users, showSignIns }: { users: UserListItem[]; showSignIns: boolean }) {
   return (
@@ -31,13 +39,13 @@ export function UsersTable({ users, showSignIns }: { users: UserListItem[]; show
         <caption className="sr-only">Users and their access</caption>
         <TableHeader className="bg-slate-50">
           <TableRow className="hover:bg-transparent">
-            <TableHead className="pl-4">Name</TableHead>
-            <TableHead className="hidden xl:table-cell">Email</TableHead>
-            <TableHead>Role</TableHead>
-            <TableHead>Status</TableHead>
-            {showSignIns && <TableHead>Last signed in</TableHead>}
-            <TableHead className="hidden lg:table-cell">Added</TableHead>
-            <TableHead className="w-0 pr-4">
+            <TableHead className={cn("pl-4", HEAD)}>Name</TableHead>
+            <TableHead className={cn("hidden xl:table-cell", HEAD)}>Email</TableHead>
+            <TableHead className={HEAD}>Role</TableHead>
+            <TableHead className={HEAD}>Status</TableHead>
+            {showSignIns && <TableHead className={HEAD}>Last signed in</TableHead>}
+            <TableHead className={cn("hidden lg:table-cell", HEAD)}>Added</TableHead>
+            <TableHead className={cn("w-0 pr-4", HEAD)}>
               <span className="sr-only">Actions</span>
             </TableHead>
           </TableRow>
@@ -48,7 +56,7 @@ export function UsersTable({ users, showSignIns }: { users: UserListItem[]; show
             const showEmailUnderName = Boolean(user.fullName?.trim()) && user.email !== "";
             return (
               <TableRow key={user.id} data-status={user.status}>
-                <TableCell className="pl-4 whitespace-normal">
+                <TableCell className={cn("pl-4 whitespace-normal", CELL)}>
                   <div className="flex min-w-0 flex-col gap-0.5 py-0.5">
                     <span className="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium text-foreground">
                       <span className="[overflow-wrap:anywhere]">{name}</span>
@@ -57,14 +65,19 @@ export function UsersTable({ users, showSignIns }: { users: UserListItem[]; show
                     {showEmailUnderName && (
                       <span className="text-muted-foreground [overflow-wrap:anywhere] xl:hidden">{user.email}</span>
                     )}
+                    {/* The Added column starts at 1024 px; below that the date sits here. */}
+                    <span className="text-muted-foreground lg:hidden">
+                      Added <DateText iso={user.createdAt} empty="" />
+                    </span>
                   </div>
                 </TableCell>
-                <TableCell className="hidden text-muted-foreground xl:table-cell">{user.email}</TableCell>
-                <TableCell>
+                <TableCell className={cn("hidden text-muted-foreground xl:table-cell", CELL)}>{user.email}</TableCell>
+                <TableCell className={CELL}>
                   <RoleLabel role={user.role} />
                 </TableCell>
-                <TableCell>
-                  <div className="flex flex-col items-start gap-1">
+                <TableCell className={CELL}>
+                  {/* Stacked on iPad; on one line on desktop, so the row stays compact. */}
+                  <div className="flex flex-col items-start gap-1 fine:flex-row fine:items-center fine:gap-2">
                     <AccountStatusBadge status={user.status} />
                     {user.signInBlocked && (
                       <span className="inline-flex items-center gap-1 text-sm font-medium text-warn">
@@ -75,14 +88,14 @@ export function UsersTable({ users, showSignIns }: { users: UserListItem[]; show
                   </div>
                 </TableCell>
                 {showSignIns && (
-                  <TableCell>
+                  <TableCell className={CELL}>
                     <DateText iso={user.lastSignInAt} empty="Never" />
                   </TableCell>
                 )}
-                <TableCell className="hidden lg:table-cell">
+                <TableCell className={cn("hidden lg:table-cell", CELL)}>
                   <DateText iso={user.createdAt} empty="" />
                 </TableCell>
-                <TableCell className="pr-4 text-right">
+                <TableCell className={cn("pr-4 text-right", CELL)}>
                   <UserActions
                     user={{
                       id: user.id,
