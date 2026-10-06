@@ -1,0 +1,401 @@
+import { expect, test, type Locator, type Page } from "@playwright/test";
+import { signIn, TEST_ACCOUNTS } from "../support/session";
+import {
+  codeFor,
+  createDraftTemplate,
+  createUsedTemplate,
+  storedTemplate,
+  TEMPLATE_NAME,
+  versionsOf,
+  type EditorFixture,
+} from "./fixtures";
+
+/**
+ * The template editor, /admin/templates/[id]/edit (BUILD_SPEC 4.5 and 10),
+ * against the live project at the three sizes in playwright.config.ts.
+ * Each size edits its own temporary E2E_EDITOR draft and deletes it after.
+ * Screenshots go to screenshots/editor/.
+ */
+
+test.describe.configure({ mode: "serial" });
+
+const INITIAL_ORDER = [
+  "header",
+  "glove_info",
+  "order_lots",
+  "packing_config",
+  "sampling_plan",
+  "watertight",
+  "visual",
+  "conclusion",
+];
+
+function isTouch() {
+  return Boolean(test.info().project.use.hasTouch);
+}
+
+function isDesktop() {
+  return test.info().project.name === "desktop";
+}
+
+/**
+ * Full page on the desktop. A full-page capture drops touch emulation while it
+ * resizes (e2e/README.md), so the iPads get viewport shots, scrolled. caret
+ * "initial" leaves the inputs alone (a style attribute written before
+ * hydration would read as a mismatch).
+ */
+async function shot(page: Page, name: string) {
+  const path = (part = "") => `screenshots/editor/${test.info().project.name}-${name}${part}.png`;
+  const options = { animations: "disabled", caret: "initial" } as const;
+  if (!isTouch()) {
+    // From the top: sticky bars are drawn where the page is scrolled to.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ ...options, path: path(), fullPage: true });
+    return;
+  }
+  const { height, viewport } = await page.evaluate(() => ({
+    height: document.documentElement.scrollHeight,
+    viewport: window.innerHeight,
+  }));
+  const parts = Math.min(6, Math.max(1, Math.ceil(height / viewport)));
+  for (let part = 0; part < parts; part++) {
+    await page.evaluate((top) => window.scrollTo(0, top), part * viewport);
+    await page.screenshot({ ...options, path: path(parts > 1 ? `-${part + 1}` : "") });
+  }
+  await page.evaluate(() => window.scrollTo(0, 0));
+}
+
+/** A tap on the iPads, a click on the desktop. */
+async function press(locator: Locator) {
+  if (isTouch()) await locator.tap();
+  else await locator.click();
+}
+
+/** Collects console errors, so hydration mismatches fail the test. */
+function watchConsole(page: Page) {
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(error.message));
+  return () => errors.filter((text) => /hydrat|did not match|server rendered/i.test(text));
+}
+
+async function expectNoPageScroll(page: Page) {
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(overflow, "the page scrolls sideways").toBeLessThanOrEqual(0);
+}
+
+function moduleList(page: Page) {
+  return page.getByTestId("module-list");
+}
+
+function row(page: Page, key: string) {
+  return moduleList(page).locator(`[data-module-key="${key}"]`);
+}
+
+function moduleOrder(page: Page) {
+  return () =>
+    moduleList(page)
+      .locator("[data-module-key]")
+      .evaluateAll((rows) => rows.map((entry) => entry.getAttribute("data-module-key")));
+}
+
+/** The details of one module: beside the list from 1024 px, in a sheet below that. */
+async function openDetails(page: Page, key: string): Promise<Locator> {
+  await press(row(page, key).getByRole("button", { name: /^Edit / }));
+  const details = page.locator(`[data-testid="module-details"][data-module-key="${key}"]`);
+  await expect(details).toBeVisible();
+  return details;
+}
+
+async function closeDetails(page: Page) {
+  const sheet = page.getByRole("dialog");
+  if (await sheet.isVisible()) {
+    await press(sheet.getByRole("button", { name: "Close" }));
+    await expect(sheet).toBeHidden();
+  }
+}
+
+/** Drags a row by its handle, with the mouse, to where another row is. */
+async function dragRow(page: Page, from: Locator, to: Locator) {
+  const handle = from.getByRole("button", { name: /^Move / });
+  const start = await handle.boundingBox();
+  const target = await to.boundingBox();
+  if (!start || !target) throw new Error("rows not on screen");
+  await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(start.x + start.width / 2, target.y + target.height / 2 - 4, { steps: 12 });
+  await page.mouse.up();
+}
+
+let draft: EditorFixture;
+
+test.beforeAll(async ({}, testInfo) => {
+  draft = await createDraftTemplate(codeFor(testInfo.project.name));
+});
+
+test.afterAll(async () => {
+  await draft?.cleanup();
+});
+
+test("signed out, the editor sends you to sign in", async ({ page }) => {
+  await page.goto(`/admin/templates/${draft.id}/edit`);
+  await expect(page).toHaveURL(/\/login\?next=%2Fadmin%2Ftemplates%2F[0-9a-f-]+%2Fedit$/);
+});
+
+test("an inspector gets a 404 that names nothing", async ({ page, context, baseURL }) => {
+  await signIn(context, baseURL!, TEST_ACCOUNTS.inspector);
+  const response = await page.goto(`/admin/templates/${draft.id}/edit`);
+  expect(response?.status()).toBe(404);
+  await expect(page.getByText(/page not found|could not be found/i).first()).toBeVisible();
+  expect(await page.locator("title").allTextContents()).not.toContainEqual(expect.stringContaining(draft.code));
+  expect(await response?.text()).not.toContain(draft.code);
+  await shot(page, "inspector-404");
+});
+
+test("an unknown or malformed template id shows the admin the not-found page", async ({ page, context, baseURL }) => {
+  await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
+  // The (app) loading screen has already streamed by the time the page knows,
+  // so the status stays 200 (as for any record not found below it); the page is the 404 page.
+  for (const id of ["not-a-uuid", "00000000-0000-4000-8000-000000000000"]) {
+    await page.goto(`/admin/templates/${id}/edit`);
+    await expect(page.getByText(/page not found|could not be found/i).first()).toBeVisible();
+    await expect(page.getByTestId("template-editor")).toHaveCount(0);
+  }
+});
+
+test("the admin edits a draft: switches, order, wording, settings, a custom field, preview, save", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  test.setTimeout(300_000);
+  const hydration = watchConsole(page);
+  await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
+
+  const response = await page.goto(`/admin/templates/${draft.id}/edit`);
+  expect(response?.status()).toBe(200);
+  await expect(page).toHaveTitle(`Edit ${draft.code} v1 · SteriCare QC`);
+  await expect(page.getByRole("heading", { level: 1, name: TEMPLATE_NAME })).toBeVisible();
+  await expect(page.getByTestId("template-meta")).toContainText(`${draft.code} · Version 1 · Draft`);
+  await expect.poll(moduleOrder(page)).toEqual(INITIAL_ORDER);
+  const saveState = page.getByTestId("save-state");
+  const save = page.getByRole("button", { name: "Save", exact: true });
+  await expect(saveState).toHaveText("No changes");
+  await expect(save).toBeDisabled();
+  await expectNoPageScroll(page);
+  if (isTouch()) {
+    // 44 px targets on the iPad: the drag handle and the switch's hit area.
+    const handle = await row(page, "glove_info").getByRole("button", { name: /^Move / }).boundingBox();
+    expect(handle?.height ?? 0).toBeGreaterThanOrEqual(44);
+  }
+  await shot(page, "1-modules");
+
+  // Header and conclusion are always on.
+  await expect(row(page, "header").getByRole("switch")).toBeDisabled();
+  await expect(row(page, "conclusion").getByRole("switch")).toBeDisabled();
+
+  // A module off, then on again.
+  const visualSwitch = row(page, "visual").getByRole("switch");
+  await press(visualSwitch);
+  await expect(visualSwitch).toHaveAttribute("aria-checked", "false");
+  await expect(row(page, "visual")).toHaveAttribute("data-included", "false");
+  await expect(saveState).toHaveText("Unsaved changes");
+  await shot(page, "2-module-off");
+  await press(visualSwitch);
+  await expect(visualSwitch).toHaveAttribute("aria-checked", "true");
+
+  // Reorder: arrow keys on the handle and a mouse drag on the desktop, Move down on the iPads.
+  const expectedOrder = isDesktop()
+    ? ["header", "glove_info", "sampling_plan", "order_lots", "packing_config", "visual", "watertight", "conclusion"]
+    : ["header", "glove_info", "order_lots", "packing_config", "sampling_plan", "visual", "watertight", "conclusion"];
+  if (isDesktop()) {
+    const handle = row(page, "watertight").getByRole("button", { name: /^Move / });
+    await handle.focus();
+    await page.keyboard.press("ArrowDown");
+    await expect.poll(moduleOrder(page)).toEqual([...INITIAL_ORDER.slice(0, 5), "visual", "watertight", "conclusion"]);
+    await expect(row(page, "watertight").getByRole("button", { name: /^Move / })).toBeFocused();
+    await expect(page.getByRole("status").filter({ hasText: /moved to position 7 of 8/ })).toBeAttached();
+    await dragRow(page, row(page, "sampling_plan"), row(page, "order_lots"));
+  } else {
+    const details = await openDetails(page, "watertight");
+    await press(details.getByRole("button", { name: "Move down" }));
+    await expect(details.getByText("Position 7 of 8")).toBeVisible();
+    await closeDetails(page);
+  }
+  await expect.poll(moduleOrder(page)).toEqual(expectedOrder);
+
+  // Wording and settings of glove_info, the module that is built.
+  const details = await openDetails(page, "glove_info");
+  await details.locator("#label-glove_info-colour").fill("Colour of glove");
+  await details.locator("#title-glove_info").fill("Glove Details");
+  const lengthSwitch = details.locator("#config-glove_info-fields-length");
+  await expect(lengthSwitch).toHaveAttribute("aria-checked", "true");
+  await press(lengthSwitch);
+  await expect(lengthSwitch).toHaveAttribute("aria-checked", "false");
+  await press(details.locator("#config-glove_info-indicativeWeightSize"));
+  await press(page.getByRole("option", { name: "L", exact: true }));
+  await expect(details.locator("#config-glove_info-indicativeWeightSize")).toContainText("L");
+  await expect(details.getByText("Changed", { exact: true })).toHaveCount(2);
+  await shot(page, "3-module-details");
+  // The settings, in view: on the desktop the details panel scrolls on its own.
+  await lengthSwitch.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `screenshots/editor/${test.info().project.name}-3b-module-settings.png`, caret: "initial" });
+  await closeDetails(page);
+  await expect(row(page, "glove_info")).toContainText("Glove Details");
+  await expect(row(page, "glove_info")).toContainText("Changed");
+
+  // A problem stops the save and links to its place: order_lots gives the sizes.
+  await press(row(page, "order_lots").getByRole("switch"));
+  const problems = page.getByTestId("problems");
+  await expect(problems).toContainText("so order_lots must be on");
+  await expect(saveState).toHaveText("1 problem");
+  await expect(save).toBeDisabled();
+  await shot(page, "4-problem");
+  await press(problems.getByRole("button", { name: /Order/ }));
+  const orderDetails = page.locator('[data-testid="module-details"][data-module-key="order_lots"]');
+  await expect(orderDetails.locator("#include-order_lots")).toBeFocused();
+  await press(orderDetails.locator("#include-order_lots"));
+  await expect(problems).toBeHidden();
+  await closeDetails(page);
+
+  // A custom module with a field of each kind it needs.
+  await press(page.getByRole("tab", { name: "Custom modules" }));
+  await expect(page.getByText("No custom modules")).toBeVisible();
+  await press(page.getByRole("button", { name: "Add custom module" }).first());
+  const form = page.getByTestId("custom-module-form");
+  await form.locator("#custom-0-title").fill("Glove type");
+  await form.locator("#custom-0-key").fill("glove_type");
+  await form.locator("#custom-0-fields-0-label").fill("Glove type");
+  await form.locator("#custom-0-fields-0-key").fill("gloveType");
+  await press(form.locator("#custom-0-fields-0-type"));
+  await press(page.getByRole("option", { name: "Choice from a list" }));
+  await expect(page.getByTestId("problems")).toContainText("A select field needs at least one option.");
+  await form.locator("#custom-0-fields-0-options").fill("Nitrile\nLatex");
+  await press(form.getByRole("button", { name: "Add field" }));
+  await form.locator("#custom-0-fields-1-label").fill("Cuff length");
+  await form.locator("#custom-0-fields-1-key").fill("cuffLength");
+  await press(form.locator("#custom-0-fields-1-type"));
+  await press(page.getByRole("option", { name: "Number", exact: true }));
+  await press(form.locator("#custom-0-fields-1-unit"));
+  await press(page.getByRole("option", { name: "mm", exact: true }));
+  await form.locator("#custom-0-fields-1-min").fill("2 40");
+  await expect(form.getByText("“2 40” is not stored.")).toBeVisible();
+  await expect(save).toBeDisabled();
+  await form.locator("#custom-0-fields-1-min").fill("240");
+  await expect(page.getByTestId("problems")).toBeHidden();
+  await shot(page, "5-custom-module");
+
+  // Details and JSON.
+  await press(page.getByRole("tab", { name: "Details" }));
+  await expect(page.getByTestId("template-details").locator("#details-name")).toHaveValue(TEMPLATE_NAME);
+  await shot(page, "6-details");
+  await press(page.getByRole("tab", { name: "JSON" }));
+  const json = page.locator("#template-json");
+  await expect(json).toHaveValue(/"glove_type"/);
+  const text = await json.inputValue();
+  await json.fill(text.replace(`"name": "${TEMPLATE_NAME}"`, '"name": ""'));
+  await expect(page.getByText("name: Enter a value.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Apply JSON" })).toBeDisabled();
+  await shot(page, "7-json-problem");
+  await press(page.getByRole("button", { name: "Undo JSON edits" }));
+  await expect(page.getByText("Valid template definition.")).toBeVisible();
+
+  // The preview draws every included module, the custom one in its place.
+  await press(page.getByRole("tab", { name: "Preview" }));
+  const preview = page.getByTestId("capture-preview");
+  await expect(preview.locator("[data-preview-module]")).toHaveCount(8);
+  await expect(preview.locator('[data-preview-module="glove_info"]')).toContainText("Glove Details");
+  await expect(preview.locator('[data-preview-custom="glove_type"]')).toContainText("Nitrile / Latex");
+  await expect(preview.locator('[data-preview-custom="glove_type"]')).toContainText("Cuff length (mm)");
+  const sections = await preview
+    .locator("[data-preview-module], [data-preview-custom]")
+    .evaluateAll((cards) => cards.map((card) => card.getAttribute("data-preview-module") ?? card.getAttribute("data-preview-custom")));
+  expect(sections.slice(-2)).toEqual(["glove_type", "conclusion"]);
+  await expectNoPageScroll(page);
+  await shot(page, "8-preview");
+
+  // Save, and what it stored.
+  await expect(saveState).toHaveText("Unsaved changes");
+  await press(save);
+  // The action resolves and writes, then the page re-renders: give a slow dev server time.
+  await expect(saveState).toHaveText("Saved", { timeout: 30_000 });
+  await expect(page.getByText(`Saved ${draft.code} version 1.`)).toBeVisible();
+  const stored = await storedTemplate(draft.id);
+  const definition = stored.definition as { modules: { key: string; title?: string; labels?: object; config?: object }[] };
+  expect(definition.modules.map((entry) => entry.key)).toEqual(expectedOrder);
+  expect(definition.modules.find((entry) => entry.key === "glove_info")).toEqual({
+    key: "glove_info",
+    include: true,
+    title: "Glove Details",
+    labels: { colour: "Colour of glove" },
+    config: { fields: { length: false }, indicativeWeightSize: "L" },
+  });
+  const resolved = stored.resolved as { modules: { key: string; config: unknown }[]; customModules: { key: string }[] };
+  expect(resolved.modules.map((entry) => entry.key)).toEqual(expectedOrder);
+  expect(resolved.customModules.map((custom) => custom.key)).toEqual(["glove_type"]);
+  expect(resolved.modules.find((entry) => entry.key === "glove_info")?.config).toEqual({
+    fields: { surfaceTexture: true, indicativeWeight: true, colour: true, length: false },
+    indicativeWeightSize: "L",
+  });
+  await shot(page, "9-saved");
+
+  // Reload: it is all still there, and nothing is unsaved.
+  await page.reload();
+  await expect.poll(moduleOrder(page)).toEqual(expectedOrder);
+  await expect(saveState).toHaveText("No changes");
+  const again = await openDetails(page, "glove_info");
+  await expect(again.locator("#label-glove_info-colour")).toHaveValue("Colour of glove");
+  await expect(again.locator("#config-glove_info-fields-length")).toHaveAttribute("aria-checked", "false");
+  await closeDetails(page);
+  await press(page.getByRole("tab", { name: "Custom modules" }));
+  await expect(page.locator('[data-custom-key="glove_type"]')).toContainText("Cuff length");
+  await shot(page, "10-reloaded");
+  expect(hydration()).toEqual([]);
+});
+
+test("a retired version reads only and offers a new version", async ({ page, context, baseURL }, testInfo) => {
+  test.skip(testInfo.project.name === "desktop", "The desktop run checks a version in use instead.");
+  const retired = await createDraftTemplate(codeFor(testInfo.project.name, "_RETIRED"), "retired");
+  try {
+    await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
+    await page.goto(`/admin/templates/${retired.id}/edit`);
+    await expect(page.getByTestId("locked")).toContainText("Version 1 is retired, so it cannot be changed.");
+    await expect(page.getByRole("button", { name: "Save", exact: true })).toHaveCount(0);
+    await expect(row(page, "glove_info").getByRole("switch")).toBeDisabled();
+    await expect(page.getByRole("button", { name: "New version" })).toBeVisible();
+    await expectNoPageScroll(page);
+    await shot(page, "11-read-only");
+  } finally {
+    await retired.cleanup();
+  }
+});
+
+test("a version in use reads only, and New version makes the next draft", async ({ page, context, baseURL }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "One inspection per run (e2e/README.md): the desktop run covers it.");
+  test.setTimeout(120_000);
+  const used = await createUsedTemplate(codeFor(testInfo.project.name, "_USED"));
+  try {
+    await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
+    await page.goto(`/admin/templates/${used.id}/edit`);
+    const locked = page.getByTestId("locked");
+    await expect(locked).toContainText("Version 1 cannot be changed: 1 inspection uses it");
+    await expect(page.getByRole("button", { name: "Save", exact: true })).toHaveCount(0);
+    await expect(row(page, "visual").getByRole("switch")).toBeDisabled();
+    await shot(page, "11-read-only");
+
+    await page.getByRole("button", { name: "New version" }).click();
+    await expect(page).not.toHaveURL(new RegExp(used.id), { timeout: 30_000 });
+    await expect(page.getByTestId("template-meta")).toContainText(`${used.code} · Version 2 · Draft`);
+    await expect(page.getByTestId("locked")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
+    expect((await versionsOf(used.code)).map((row) => [row.version, row.status])).toEqual([
+      [1, "draft"],
+      [2, "draft"],
+    ]);
+    await shot(page, "12-new-version");
+  } finally {
+    await used.cleanup();
+  }
+});
