@@ -313,8 +313,12 @@ export function failed(message: string): { status: "error"; message: string } {
   return { status: "error", message };
 }
 
-/** A template id sent back by the page, lower-cased as Supabase gives ids. */
-const TemplateIdSchema = z.uuid().transform((id) => id.toLowerCase());
+/**
+ * A template id: any 8-4-4-4-12 hex id, as Postgres takes it (z.uuid() would
+ * refuse a fixed seed id such as 30000000-0000-0000-0000-000000000001),
+ * lower-cased as Supabase gives ids.
+ */
+export const TemplateIdSchema = z.guid().transform((id) => id.toLowerCase());
 
 /** `updated_at` as the page read it: the version of the row the admin looked at. */
 const SeenSchema = z.string().trim().min(1).max(64);
@@ -648,6 +652,67 @@ export async function loadTemplateVersion(supabase: DatabaseClient, id: string):
 }
 
 /* ------------------------------------------------------------------ *
+ * What a version can still do (BUILD_SPEC 4.2 rule 8)
+ * ------------------------------------------------------------------ */
+
+type ChangeState = { status: TemplateStatus; usage: number };
+
+/**
+ * True for a draft no inspection uses: the one kind of version that changes
+ * in place. The editor saves over it (lib/templates planTemplateEdit) and it
+ * takes a source file. Every other version changes through a new version,
+ * including a draft an admin has already started an inspection from (an
+ * admin may pick a draft, lib/templates selectTemplate).
+ */
+export function changesInPlace(row: ChangeState): boolean {
+  return row.status === "draft" && row.usage === 0;
+}
+
+export type VersionOffers = {
+  /** "Edit draft": the editor saves over this version. */
+  edit: boolean;
+  /** "New version": a draft copy, for a version that cannot change in place. */
+  newVersion: boolean;
+  /** "Activate" or "Activate again"; what still blocks it is listed apart (activationBlockers). */
+  activate: boolean;
+  /** "Retire": the active version only. */
+  retire: boolean;
+};
+
+/** The actions a version's page offers: always a way to change it, and activate or retire. */
+export function versionOffers(row: ChangeState): VersionOffers {
+  const inPlace = changesInPlace(row);
+  return { edit: inPlace, newVersion: !inPlace, activate: row.status !== "active", retire: row.status === "active" };
+}
+
+/**
+ * How to fix a version, in the words of the action its page offers: in the
+ * editor while it changes in place, otherwise through a new version.
+ */
+export function changeAdvice(row: ChangeState): { unresolved: string; outdated: string; settings: string } {
+  return changesInPlace(row)
+    ? {
+        unresolved: "Open it in the editor and save it without problems.",
+        outdated: "Open it in the editor and save it: it resolves again.",
+        settings: "Fix them in the editor.",
+      }
+    : {
+        unresolved: "Make a new version and fix it in the editor.",
+        outdated: "Make a new version: it resolves again.",
+        settings: "Make a new version and fix them in the editor.",
+      };
+}
+
+/**
+ * Why a version with no source file cannot take one, to end a sentence, or
+ * null when it can: the rule of sourceChangeBlocker().
+ */
+function whyNoSourceFile(row: ChangeState): string | null {
+  if (changesInPlace(row)) return null;
+  return row.usage > 0 ? "it is used by inspections, so it can no longer take one" : "only a draft takes one";
+}
+
+/* ------------------------------------------------------------------ *
  * Warnings about one version
  * ------------------------------------------------------------------ */
 
@@ -697,30 +762,32 @@ export function configProblems(template: ResolvedTemplate, registry: ModuleRegis
 
 /** Reasons this version cannot be activated, in the order to fix them. Empty when it can. */
 export function activationBlockers(
-  detail: Pick<TemplateVersionDetail, "status" | "version" | "resolution" | "coverageConfirmedAt" | "sourceFilePath">,
+  detail: Pick<TemplateVersionDetail, "status" | "usage" | "version" | "resolution" | "coverageConfirmedAt" | "sourceFilePath">,
   problems: readonly ConfigProblem[],
 ): string[] {
   if (detail.status === "active") return [];
+  const advice = changeAdvice(detail);
   const blockers: string[] = [];
   if (detail.resolution.state === "missing") {
-    blockers.push(`Version ${detail.version} has not resolved. Open it in the editor and save it without problems.`);
+    blockers.push(`Version ${detail.version} has not resolved. ${advice.unresolved}`);
   } else if (detail.resolution.state === "invalid") {
-    blockers.push(
-      `Version ${detail.version} was resolved by an earlier build of the app and cannot be read now. Make a new version: it resolves again.`,
-    );
+    blockers.push(`Version ${detail.version} was resolved by an earlier build of the app and cannot be read now. ${advice.outdated}`);
   }
   if (problems.length > 0) {
     const names = problems.map((problem) => problem.title).join(", ");
-    blockers.push(`Settings of ${names} no longer fit the module${problems.length === 1 ? "" : "s"}. Make a new version and fix them in the editor.`);
+    blockers.push(`Settings of ${names} no longer fit the module${problems.length === 1 ? "" : "s"}. ${advice.settings}`);
   }
-  if (detail.sourceFilePath === null && detail.status !== "draft") {
-    // Only a draft takes a source file, and the checklist is checked against it.
-    blockers.push(
-      `Version ${detail.version} has no source file, and only a draft takes one: make a new version, upload the form to it and confirm its checklist (BUILD_SPEC 4.2 rule 10).`,
-    );
-    return blockers;
+  if (detail.sourceFilePath === null) {
+    const why = whyNoSourceFile(detail);
+    if (why !== null) {
+      // The checklist is checked against the file, so this version can never be confirmed.
+      blockers.push(
+        `Version ${detail.version} has no source file, and ${why}: make a new version, upload the form to it and confirm its checklist (BUILD_SPEC 4.2 rule 10).`,
+      );
+      return blockers;
+    }
+    blockers.push("Upload the source form or report first (BUILD_SPEC 4.2 rule 10).");
   }
-  if (detail.sourceFilePath === null) blockers.push("Upload the source form or report first (BUILD_SPEC 4.2 rule 10).");
   if (detail.coverageConfirmedAt === null) blockers.push("Confirm the coverage checklist first (BUILD_SPEC 4.2 rule 10).");
   return blockers;
 }
@@ -1248,16 +1315,17 @@ export function coverageChecklist(template: ResolvedTemplate): CoverageChecklist
 
 /** Why coverage cannot be confirmed yet, or null when the admin may confirm it. */
 export function coverageBlocker(
-  detail: Pick<TemplateVersionDetail, "status" | "version" | "sourceFilePath" | "resolution" | "coverageConfirmedAt">,
+  detail: Pick<TemplateVersionDetail, "status" | "usage" | "version" | "sourceFilePath" | "resolution" | "coverageConfirmedAt">,
   checklist: CoverageChecklist | null,
 ): string | null {
   if (detail.resolution.state !== "ok" || !checklist) {
-    return "This version has not resolved, so there is nothing to check yet. Fix it in the editor first.";
+    return `This version has not resolved, so there is nothing to check yet. ${changeAdvice(detail).unresolved}`;
   }
   if (detail.sourceFilePath === null) {
-    return detail.status === "draft"
+    const why = whyNoSourceFile(detail);
+    return why === null
       ? "Upload the source form or report first: the checklist is checked against it."
-      : `Version ${detail.version} has no source file to check against, and only a draft takes one. Make a new version, upload the form to it and confirm its checklist there.`;
+      : `Version ${detail.version} has no source file to check against, and ${why}. Make a new version, upload the form to it and confirm its checklist there.`;
   }
   if (checklist.blocking) {
     const count = checklist.missing;
@@ -1275,10 +1343,11 @@ export function allSectionsTicked(checklist: CoverageChecklist, ticked: readonly
 
 /**
  * Why a version's source file cannot change, or null when it can: only a
- * draft that no inspection uses. An active or retired version was checked
- * and activated against its file; a new version takes a different one.
- * `hasFile` picks the words: a version that never had a file (one added
- * outside the app) gets one through a new version too.
+ * draft that no inspection uses (changesInPlace). An active or retired
+ * version was checked and activated against its file, and a version in use
+ * is frozen; a new version takes a different file. `hasFile` picks the
+ * words: a version that never had a file (one added outside the app) gets
+ * one through a new version too.
  */
 export function sourceChangeBlocker(row: {
   version: number;
@@ -1286,6 +1355,7 @@ export function sourceChangeBlocker(row: {
   usage: number;
   hasFile: boolean;
 }): string | null {
+  if (changesInPlace(row)) return null;
   const attach = row.hasFile
     ? "Make a new version to attach a different form."
     : "Make a new version and upload the form to it.";
@@ -1294,13 +1364,10 @@ export function sourceChangeBlocker(row: {
       ? `Version ${row.version} is used by inspections, so its source file stays as it is. ${attach}`
       : `Version ${row.version} is used by inspections, so it can no longer change. ${attach}`;
   }
-  if (row.status !== "draft") {
-    const status = TEMPLATE_STATUS_LABEL[row.status].toLowerCase();
-    return row.hasFile
-      ? `Version ${row.version} is ${status}, so its source file stays as it was checked. ${attach}`
-      : `Version ${row.version} is ${status}, and only a draft takes a source file. ${attach}`;
-  }
-  return null;
+  const status = TEMPLATE_STATUS_LABEL[row.status].toLowerCase();
+  return row.hasFile
+    ? `Version ${row.version} is ${status}, so its source file stays as it was checked. ${attach}`
+    : `Version ${row.version} is ${status}, and only a draft takes a source file. ${attach}`;
 }
 
 /** sourceChangeBlocker() for a row as the actions read it. */
@@ -1393,9 +1460,28 @@ function extendsOf(definition: unknown): string | null {
 }
 
 /**
- * The bases of a definition, down its extends chain: each base's active
- * version, or its highest version when none is active. The lookup
- * resolveTemplate() needs.
+ * The version of a base template that a new version is resolved against:
+ * its active version, else its newest retired one, as neither changes any
+ * more. Never a draft: a draft is saved over in place, so a template built
+ * on it would keep content nobody activated, and the stale-base check
+ * (lib/templates staleBases) compares version numbers only, so it would
+ * never tell. Null when the base has neither.
+ */
+export function baseVersionOf<T extends { version: number; status: TemplateStatus }>(rows: readonly T[]): T | null {
+  const active = rows.find((row) => row.status === "active");
+  if (active) return active;
+  return rows.reduce<T | null>(
+    (newest, row) => (row.status === "retired" && (newest === null || row.version > newest.version) ? row : newest),
+    null,
+  );
+}
+
+/**
+ * The bases of a definition, down its extends chain, each at the version
+ * baseVersionOf() picks: the lookup resolveTemplate() needs. A base with no
+ * active or retired version ends the chain, so the copy does not resolve
+ * and is saved unresolved; the editor then says the base has no active
+ * version.
  */
 export async function loadBases(supabase: DatabaseClient, definition: unknown): Promise<TemplateLookup> {
   const bases: TemplateBase[] = [];
@@ -1409,7 +1495,7 @@ export async function loadBases(supabase: DatabaseClient, definition: unknown): 
       .eq("code", code)
       .order("version", { ascending: false });
     if (error) throw new Error(`Could not read base template ${code}: ${error.message}`);
-    const chosen = data.find((row) => row.status === "active") ?? data[0];
+    const chosen = baseVersionOf(data);
     if (!chosen) break;
     bases.push({ definition: chosen.definition, version: chosen.version });
     code = extendsOf(chosen.definition);

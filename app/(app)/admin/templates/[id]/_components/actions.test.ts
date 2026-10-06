@@ -456,6 +456,29 @@ describe("confirmCoverage", () => {
     });
     expect(writes()).toEqual([]);
   });
+
+  it("sends a draft an inspection uses, with no source file, to a new version", async () => {
+    fakeSupabase({ query: (query) => templateReads(row({ source_file_path: null, inspections: [{ count: 2 }] }))(query) ?? OK });
+    const result = await confirmCoverage(IDLE, form({ templateId: ID, seen: SEEN, attested: "yes" }));
+    expect(result).toEqual({
+      status: "error",
+      message:
+        "Version 1 has no source file to check against, and it is used by inspections, so it can no longer take one. Make a new version, upload the form to it and confirm its checklist there.",
+    });
+    expect(writes()).toEqual([]);
+  });
+
+  it("confirms a draft an inspection uses that has its source file: coverage is not frozen content", async () => {
+    fakeSupabase({
+      query: (query) =>
+        kind(query) === "update"
+          ? { data: { id: ID }, error: null }
+          : (templateReads(row({ inspections: [{ count: 1 }] }))(query) ?? OK),
+    });
+    const result = await confirmCoverage(IDLE, form({ templateId: ID, seen: SEEN, attested: "yes" }));
+    expect(result).toEqual({ status: "success", message: "Coverage confirmed for ROOT_EG version 1. It can be activated now." });
+    expect(writes()).toHaveLength(1);
+  });
 });
 
 /* ------------------------------------------------------------------ *
@@ -531,6 +554,23 @@ describe("activateVersion", () => {
       expect(await activateVersion(IDLE, form({ templateId: ID, seen: SEEN }))).toEqual({ status: "error", message });
       expect(writes()).toEqual([]);
     }
+  });
+
+  it("activates a draft an inspection already uses as it is: a status change, not an edit", async () => {
+    const used = () => row({ version: 2, coverage_confirmed_at: confirmed, inspections: [{ count: 1 }] });
+    fakeSupabase({
+      query: (query) => {
+        const payload = args(query, "update")?.[0] as { status?: string } | undefined;
+        if (payload?.status === "active") return { data: { id: ID }, error: null };
+        return templateReads(used(), [used()])(query) ?? OK;
+      },
+    });
+
+    expect(await activateVersion(IDLE, form({ templateId: ID, seen: SEEN }))).toEqual({
+      status: "success",
+      message: "ROOT_EG version 2 is active. New inspections start from it.",
+    });
+    expect(writes().map((query) => args(query, "update"))).toEqual([[{ status: "active" }]]);
   });
 
   it("refuses a version changed since the page read it", async () => {
@@ -643,5 +683,64 @@ describe("createNewVersion", () => {
       message: "You do not have permission to do that.",
     });
     expect(queries).toEqual([]);
+  });
+
+  it("copies a draft an inspection already uses: the way forward for a frozen draft", async () => {
+    fakeSupabase({
+      query: (query) => {
+        if (kind(query) === "insert") return { data: { id: NEW_ID }, error: null };
+        if (selected(query) === "version") return { data: [{ version: 1 }], error: null };
+        return templateReads(row({ source_file_path: null, inspections: [{ count: 2 }] }))(query) ?? OK;
+      },
+    });
+
+    const thrown = await createNewVersion(IDLE, form({ templateId: ID, seen: SEEN })).catch((error: unknown) => error);
+
+    expect(redirectOf(thrown)).toBe(`/admin/templates/${NEW_ID}/edit`);
+    expect(args(writes()[0], "insert")?.[0]).toMatchObject({ code: "ROOT_EG", version: 2, status: "draft", source_file_path: null });
+  });
+
+  describe("against the template it extends", () => {
+    const child = definitionOf("CHILD_EG", "BASE_EG");
+    const base = (version: number, status: string) => ({ version, status, definition: definitionOf("BASE_EG") });
+
+    /** Makes a new version of an active CHILD_EG while BASE_EG has `bases`; returns the row it inserts. */
+    async function newVersionWith(bases: ReturnType<typeof base>[]) {
+      const current = row({
+        code: "CHILD_EG",
+        extends_code: "BASE_EG",
+        status: "active",
+        definition: child,
+        resolved: resolvedOf(child, [definitionOf("BASE_EG")]),
+      });
+      fakeSupabase({
+        query: (query) => {
+          if (kind(query) === "insert") return { data: { id: NEW_ID }, error: null };
+          if (selected(query) === "version") return { data: [{ version: 1 }], error: null };
+          if (selected(query) === "version, status, definition" && calledWith(query, "eq", "code", "BASE_EG")) {
+            return { data: bases, error: null };
+          }
+          return templateReads(current)(query) ?? OK;
+        },
+      });
+      const thrown = await createNewVersion(IDLE, form({ templateId: ID, seen: SEEN })).catch((error: unknown) => error);
+      expect(redirectOf(thrown)).toBe(`/admin/templates/${NEW_ID}/edit`);
+      return args(writes()[0], "insert")?.[0] as { resolved: ResolvedTemplate | null };
+    }
+
+    it("resolves against the base's active version, never a newer draft", async () => {
+      const inserted = await newVersionWith([base(3, "draft"), base(2, "active"), base(1, "retired")]);
+      expect(inserted.resolved?.bases).toEqual([{ code: "BASE_EG", version: 2 }]);
+    });
+
+    it("falls back to the base's newest retired version", async () => {
+      const inserted = await newVersionWith([base(3, "draft"), base(2, "retired"), base(1, "retired")]);
+      expect(inserted.resolved?.bases).toEqual([{ code: "BASE_EG", version: 2 }]);
+    });
+
+    it("stays unresolved when the base has only drafts, which can still change: the editor says why", async () => {
+      const inserted = await newVersionWith([base(2, "draft"), base(1, "draft")]);
+      expect(inserted.resolved).toBeNull();
+    });
   });
 });

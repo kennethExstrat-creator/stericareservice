@@ -30,6 +30,8 @@ export type CoverageChecklistProps = {
   confirmed: { by: string; at: string } | null;
   /** Why it cannot be confirmed yet (no source file, a field lost), or null. */
   blocker: string | null;
+  /** What to do while the version has not resolved: in the editor, or through a new version. */
+  unresolvedAdvice: string;
   sourceFileName: string | null;
 };
 
@@ -58,7 +60,16 @@ function countText(count: number, one: string, many: string): string {
  * every box is ticked, Confirm coverage records who checked it and when;
  * only then can the version be activated.
  */
-export function CoverageChecklist({ templateId, seen, code, checklist, confirmed, blocker, sourceFileName }: CoverageChecklistProps) {
+export function CoverageChecklist({
+  templateId,
+  seen,
+  code,
+  checklist,
+  confirmed,
+  blocker,
+  unresolvedAdvice,
+  sourceFileName,
+}: CoverageChecklistProps) {
   const [ticked, setTicked] = useState<ReadonlySet<string>>(() => new Set());
   const [attested, setAttested] = useState(false);
   const attestId = useId();
@@ -84,8 +95,7 @@ export function CoverageChecklist({ templateId, seen, code, checklist, confirmed
   if (!checklist) {
     return (
       <p className="text-sm text-muted-foreground touch:text-base">
-        This version has not resolved, so there is nothing to check yet. Open it in the editor and save it without
-        problems.
+        This version has not resolved, so there is nothing to check yet. {unresolvedAdvice}
       </p>
     );
   }

@@ -4,13 +4,16 @@ import { moduleSpec, seedModuleConfigs, sourceFields, TEMPLATES, type TemplateCo
 import type { JsonValue } from "@/lib/schemas/common";
 import { MODULE_KEYS, type ModuleKey } from "@/lib/schemas/module-result";
 import type { ResolvedTemplate, TemplateDefinition } from "@/lib/schemas/template";
-import { lookupFrom, resolveTemplateOrThrow, type TemplateBase } from "@/lib/templates";
+import { lookupFrom, planTemplateEdit, resolveTemplateOrThrow, type TemplateBase, type TemplateStatus } from "@/lib/templates";
 import { defineModule, stubModule, type ModuleRegistry } from "@/modules/_framework";
 import {
   ABANDONED_UPLOAD_MS,
   activationBlockers,
   activationPlan,
   allSectionsTicked,
+  baseVersionOf,
+  changeAdvice,
+  changesInPlace,
   configProblems,
   countOf,
   CoverageConfirmSchema,
@@ -44,10 +47,12 @@ import {
   sourceObjectName,
   staleBasesOf,
   templateEditPath,
+  TemplateIdSchema,
   templatePath,
   toVersionSummary,
   unusedSources,
   usageText,
+  versionOffers,
   VersionTargetSchema,
   withSourceFile,
   type CoverageChecklist,
@@ -305,6 +310,13 @@ describe("source files", () => {
     expect(sourceChangeBlocker({ ...row, status: "active", usage: 4 })).toBe(
       "Version 2 is used by inspections, so its source file stays as it is. Make a new version to attach a different form.",
     );
+    // A draft an admin already started an inspection from is frozen like any other version in use.
+    expect(sourceChangeBlocker({ ...row, status: "draft", usage: 1 })).toBe(
+      "Version 2 is used by inspections, so its source file stays as it is. Make a new version to attach a different form.",
+    );
+    expect(sourceChangeBlocker({ ...row, hasFile: false, status: "draft", usage: 2 })).toBe(
+      "Version 2 is used by inspections, so it can no longer change. Make a new version and upload the form to it.",
+    );
   });
 
   it("sends a version that never had a file (one added outside the app) to a new version for it", () => {
@@ -360,6 +372,14 @@ describe("action input", () => {
     ).toEqual({ templateId: "1b4e28ba-2fa1-4d2b-9f3a-1c2d3e4f5a6b", seen: "2026-10-06T06:00:00+00:00" });
     expect(VersionTargetSchema.safeParse({ templateId: "nope", seen: "x" }).success).toBe(false);
     expect(VersionTargetSchema.safeParse({ templateId: "1b4e28ba-2fa1-4d2b-9f3a-1c2d3e4f5a6b", seen: "" }).success).toBe(false);
+  });
+
+  it("takes any id Postgres takes, not only RFC 4122 ones (a seed script's fixed ids)", () => {
+    expect(TemplateIdSchema.parse("30000000-0000-0000-0000-000000000001")).toBe("30000000-0000-0000-0000-000000000001");
+    expect(TemplateIdSchema.parse("ABCDEF00-0000-0000-0000-00000000000A")).toBe("abcdef00-0000-0000-0000-00000000000a");
+    for (const id of ["not-an-id", "30000000-0000-0000-0000-00000000001", "30000000000000000000000000000001"]) {
+      expect(TemplateIdSchema.safeParse(id).success, id).toBe(false);
+    }
   });
 
   it("needs the last tick to confirm coverage", () => {
@@ -591,6 +611,40 @@ describe("activation", () => {
     expect(activationBlockers(detail({ status: "retired" }), [])).toEqual([]);
   });
 
+  it("sends a draft an inspection already uses, with no source file, to a new version too", () => {
+    const used = detail({ status: "draft", usage: 2, sourceFilePath: null, coverageConfirmedAt: null });
+    // Not "upload the source form first": a version in use can no longer take one (sourceChangeBlocker).
+    expect(sourceChangeBlocker({ ...used, hasFile: false })).not.toBeNull();
+    expect(activationBlockers(used, [])).toEqual([
+      "Version 2 has no source file, and it is used by inspections, so it can no longer take one: make a new version, upload the form to it and confirm its checklist (BUILD_SPEC 4.2 rule 10).",
+    ]);
+    // With its file and a confirmed checklist it can still be activated as it is: a status change, not an edit.
+    expect(activationBlockers(detail({ status: "draft", usage: 2 }), [])).toEqual([]);
+  });
+
+  it("says how to fix a version in the words of what its page offers", () => {
+    const problem = [{ key: "header" as const, title: "Manufacturer Information", messages: ["x"] }];
+    // A draft no inspection uses is fixed in the editor.
+    expect(activationBlockers(detail({ resolution: { state: "missing" } }), [])[0]).toBe(
+      "Version 2 has not resolved. Open it in the editor and save it without problems.",
+    );
+    expect(activationBlockers(detail(), problem)[0]).toBe(
+      "Settings of Manufacturer Information no longer fit the module. Fix them in the editor.",
+    );
+    // Any other version through a new version.
+    for (const frozen of [{ status: "draft" as const, usage: 1 }, { status: "retired" as const, usage: 0 }]) {
+      expect(activationBlockers(detail({ ...frozen, resolution: { state: "missing" } }), [])[0]).toBe(
+        "Version 2 has not resolved. Make a new version and fix it in the editor.",
+      );
+      expect(activationBlockers(detail({ ...frozen, resolution: { state: "invalid", issues: [] } }), [])[0]).toMatch(
+        /earlier build of the app and cannot be read now\. Make a new version: it resolves again\.$/,
+      );
+      expect(activationBlockers(detail(frozen), problem)[0]).toBe(
+        "Settings of Manufacturer Information no longer fit the module. Make a new version and fix them in the editor.",
+      );
+    }
+  });
+
   it("retires the active version of the code first", () => {
     const versions = [
       version({ id: "v3", version: 3, status: "draft", coverageConfirmedAt: "2026-10-06T00:00:00Z" }),
@@ -606,6 +660,48 @@ describe("activation", () => {
       "v4",
     );
     expect(unresolved.ok).toBe(false);
+  });
+});
+
+describe("what a version can still do", () => {
+  const states: { status: TemplateStatus; usage: number }[] = [
+    { status: "draft", usage: 0 },
+    { status: "draft", usage: 3 },
+    { status: "active", usage: 0 },
+    { status: "active", usage: 3 },
+    { status: "retired", usage: 0 },
+    { status: "retired", usage: 3 },
+  ];
+
+  it("changes only a draft no inspection uses in place, as the editor decides (planTemplateEdit)", () => {
+    for (const state of states) {
+      const plan = planTemplateEdit({ id: "v", status: state.status, inUse: state.usage > 0 }, [1]);
+      expect(changesInPlace(state), JSON.stringify(state)).toBe(plan.kind === "update");
+      // The source file follows the same rule.
+      expect(sourceChangeBlocker({ ...state, version: 1, hasFile: true }) === null, JSON.stringify(state)).toBe(
+        changesInPlace(state),
+      );
+    }
+  });
+
+  it("offers Edit draft for a draft no inspection uses and New version for every other version", () => {
+    expect(versionOffers({ status: "draft", usage: 0 })).toEqual({ edit: true, newVersion: false, activate: true, retire: false });
+    // A draft an admin started an inspection from: frozen, so a new version is the way forward.
+    expect(versionOffers({ status: "draft", usage: 2 })).toEqual({ edit: false, newVersion: true, activate: true, retire: false });
+    expect(versionOffers({ status: "active", usage: 0 })).toEqual({ edit: false, newVersion: true, activate: false, retire: true });
+    expect(versionOffers({ status: "retired", usage: 5 })).toEqual({ edit: false, newVersion: true, activate: true, retire: false });
+    // Always a way to change it, never both.
+    for (const state of states) {
+      const offers = versionOffers(state);
+      expect(offers.edit !== offers.newVersion, JSON.stringify(state)).toBe(true);
+      expect(offers.activate !== offers.retire, JSON.stringify(state)).toBe(true);
+    }
+  });
+
+  it("words its advice after the action offered", () => {
+    expect(changeAdvice({ status: "draft", usage: 0 }).unresolved).toMatch(/^Open it in the editor/);
+    expect(changeAdvice({ status: "draft", usage: 1 }).unresolved).toMatch(/^Make a new version/);
+    expect(changeAdvice({ status: "active", usage: 0 }).settings).toMatch(/^Make a new version/);
   });
 });
 
@@ -880,7 +976,18 @@ describe("coverage checklist", () => {
     expect(coverageBlocker(detail({ status: "active", sourceFilePath: null }), checklist)).toMatch(
       /^Version 2 has no source file to check against, and only a draft takes one\. Make a new version/,
     );
-    expect(coverageBlocker(detail({ resolution: { state: "missing" } }), null)).toMatch(/has not resolved/);
+    // A draft in use cannot take the file any more: not "upload it first".
+    expect(coverageBlocker(detail({ usage: 1, sourceFilePath: null }), checklist)).toBe(
+      "Version 2 has no source file to check against, and it is used by inspections, so it can no longer take one. Make a new version, upload the form to it and confirm its checklist there.",
+    );
+    // With its file it can still be confirmed: coverage is not part of the frozen content.
+    expect(coverageBlocker(detail({ usage: 1, coverageConfirmedAt: null }), checklist)).toBeNull();
+    expect(coverageBlocker(detail({ resolution: { state: "missing" } }), null)).toBe(
+      "This version has not resolved, so there is nothing to check yet. Open it in the editor and save it without problems.",
+    );
+    expect(coverageBlocker(detail({ status: "retired", resolution: { state: "missing" } }), null)).toMatch(
+      /nothing to check yet\. Make a new version and fix it in the editor\.$/,
+    );
   });
 });
 
@@ -901,6 +1008,16 @@ describe("new version", () => {
   it("numbers it after the highest version of the code", () => {
     expect(nextVersionOf([])).toBe(1);
     expect(nextVersionOf([{ version: 1 }, { version: 3 }, { version: 2 }])).toBe(4);
+  });
+
+  it("builds on a base's active version, else its newest retired one, never a draft", () => {
+    const base = (version: number, status: TemplateStatus) => ({ version, status });
+    expect(baseVersionOf([base(4, "draft"), base(3, "active"), base(2, "retired")])).toEqual(base(3, "active"));
+    // In any order.
+    expect(baseVersionOf([base(1, "retired"), base(5, "draft"), base(3, "retired")])).toEqual(base(3, "retired"));
+    // A draft can still be saved over in place: build on nothing rather than on it.
+    expect(baseVersionOf([base(2, "draft"), base(1, "draft")])).toBeNull();
+    expect(baseVersionOf([])).toBeNull();
   });
 
   it("writes a draft row, scope from the definition, coverage to confirm again", () => {

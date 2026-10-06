@@ -3,10 +3,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { ArrowLeftIcon } from "lucide-react";
-import { z } from "zod";
 import { PageHeader } from "@/components/qc";
 import {
   activationBlockers,
+  changeAdvice,
+  changesInPlace,
   configProblems,
   coverageBlocker,
   coverageChecklist,
@@ -27,9 +28,11 @@ import {
   sourceFileType,
   staleBasesOf,
   templateEditPath,
+  TemplateIdSchema,
   templatePath,
   TEMPLATES_PATH,
   UNIT_LABEL,
+  versionOffers,
   type SourceFileInfo,
 } from "@/lib/admin/templates";
 import { requireAdmin } from "@/lib/auth/session";
@@ -44,10 +47,10 @@ import { DetailsPanel, Notices, Panel, VersionsPanel } from "./_components/versi
 
 /** One read per request, shared by the title and the page. A malformed id is simply not found. */
 const loadVersion = cache(async (id: string) => {
-  const parsed = z.uuid().safeParse(id);
+  const parsed = TemplateIdSchema.safeParse(id);
   if (!parsed.success) return null;
   const supabase = await createClient();
-  return loadTemplateVersion(supabase, parsed.data.toLowerCase());
+  return loadTemplateVersion(supabase, parsed.data);
 });
 
 /**
@@ -67,7 +70,8 @@ export async function generateMetadata({ params }: PageProps<"/admin/templates/[
  * version. Its resolved modules in order with their wording, its custom
  * modules, the source form (upload on a draft, download always), the field
  * coverage checklist, and activate, retire or a new version. A version an
- * inspection uses is frozen; the page says so and offers a new version.
+ * inspection uses is frozen, a draft included; the page says so and offers
+ * a new version. Only a draft no inspection uses is edited in place.
  */
 export default async function TemplateVersionPage({ params }: PageProps<"/admin/templates/[id]">) {
   await requireAdmin();
@@ -84,8 +88,9 @@ export default async function TemplateVersionPage({ params }: PageProps<"/admin/
   const stale = staleBasesOf(detail);
   const ties = scopeTies(detail);
   const activeOfCode = detail.versions.find((entry) => entry.status === "active" && entry.id !== detail.id) ?? null;
-  // Newest first: the code's latest draft, when it is another version.
-  const openDraft = detail.versions.find((entry) => entry.status === "draft" && entry.id !== detail.id) ?? null;
+  // Newest first: the code's latest draft that can still be edited, when it is another version.
+  const openDraft = detail.versions.find((entry) => entry.id !== detail.id && changesInPlace(entry)) ?? null;
+  const advice = changeAdvice(detail);
   const baseActive = detail.extendsCode
     ? detail.activeTemplates.find((entry) => entry.code === detail.extendsCode) ?? null
     : null;
@@ -126,6 +131,8 @@ export default async function TemplateVersionPage({ params }: PageProps<"/admin/
             code={detail.code}
             version={detail.version}
             status={detail.status}
+            offers={versionOffers(detail)}
+            hasSourceFile={detail.sourceFilePath !== null}
             editHref={templateEditPath(detail.id)}
             canActivate={blockers.length === 0}
             activationBlockersId={blockersId}
@@ -200,7 +207,7 @@ export default async function TemplateVersionPage({ params }: PageProps<"/admin/
               <ModulesList sections={sections} />
             ) : (
               <p className="text-sm text-muted-foreground touch:text-base">
-                Nothing to show until this version resolves. Open it in the editor and save it without problems.
+                Nothing to show until this version resolves. {advice.unresolved}
               </p>
             )}
           </Panel>
@@ -216,6 +223,7 @@ export default async function TemplateVersionPage({ params }: PageProps<"/admin/
                   : null
               }
               blocker={detail.coverageConfirmedAt ? null : coverageBlocker(detail, checklist)}
+              unresolvedAdvice={advice.unresolved}
               sourceFileName={source?.name ?? null}
             />
           </Panel>

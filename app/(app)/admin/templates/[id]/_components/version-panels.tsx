@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { CircleCheckIcon, InfoIcon, LockIcon, OctagonXIcon, TriangleAlertIcon, type LucideIcon } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
+  changeAdvice,
   PRODUCT_TYPE_LABEL,
   STANDARD_LABEL,
   templatePath,
@@ -102,7 +103,12 @@ export function DetailsPanel({ view }: { view: DetailsView }) {
           {detail.extendsCode ? (
             <>
               {view.baseHref ? (
-                <Link href={view.baseHref} className="font-medium text-brand-600 underline-offset-4 hover:underline focus-ring">
+                // On touch, 10 px of padding above and below makes the target 44 px (docs/DESIGN.md); the
+                // same negative margin keeps the text on its line, level with its label, even when it wraps.
+                <Link
+                  href={view.baseHref}
+                  className="inline-flex rounded-sm font-medium break-all text-brand-600 underline-offset-4 hover:underline focus-ring touch:-my-2.5 touch:py-2.5"
+                >
                   {detail.extendsCode}
                 </Link>
               ) : (
@@ -228,6 +234,8 @@ export type NoticesView = {
 
 export function Notices({ view }: { view: NoticesView }) {
   const { detail, stale, ties, problems, blockers, blockersId } = view;
+  // In the words of what the page offers: the editor for a draft no inspection uses, else a new version.
+  const advice = changeAdvice(detail);
   const notices: ReactNode[] = [];
 
   if (detail.usage > 0) {
@@ -242,15 +250,14 @@ export function Notices({ view }: { view: NoticesView }) {
   if (detail.resolution.state === "missing") {
     notices.push(
       <Notice key="unresolved" tone="warn" title="Not resolved">
-        This version has not been resolved down its extends chain, so it shows no modules and cannot be activated. Open it
-        in the editor and save it without problems.
+        This version has not been resolved down its extends chain, so it shows no modules and cannot be activated.{" "}
+        {advice.unresolved}
       </Notice>,
     );
   } else if (detail.resolution.state === "invalid") {
     notices.push(
       <Notice key="invalid" tone="warn" title="Resolved by an earlier build">
-        The stored resolution of this version cannot be read now, so it cannot be activated. Make a new version: it resolves
-        again.
+        The stored resolution of this version cannot be read now, so it cannot be activated. {advice.outdated}
         <ul>
           {detail.resolution.issues.map((issue) => (
             <li key={issue}>{issue}</li>
@@ -274,8 +281,7 @@ export function Notices({ view }: { view: NoticesView }) {
   if (problems.length > 0) {
     notices.push(
       <Notice key="config" tone="fail" title="Settings that no longer fit their modules">
-        Inspections would show a settings error in these modules, so this version cannot be activated. Make a new version
-        and fix them in the editor.
+        Inspections would show a settings error in these modules, so this version cannot be activated. {advice.settings}
         <ul>
           {problems.map((problem) => (
             <li key={problem.key}>
@@ -291,7 +297,7 @@ export function Notices({ view }: { view: NoticesView }) {
       base.active === null ? (
         <Notice key={`stale-${base.code}`} tone="warn" title={`${base.code} has no active version`}>
           This version was built on {base.code} version {base.resolvedWith}, which is not active now. It keeps what it took
-          from {base.code}; a new version would be built on {base.code}&rsquo;s newest version.
+          from {base.code}. Once {base.code} has an active version, a new version takes in its changes.
         </Notice>
       ) : (
         <Notice key={`stale-${base.code}`} tone="warn" title={`${base.code} has moved on`}>

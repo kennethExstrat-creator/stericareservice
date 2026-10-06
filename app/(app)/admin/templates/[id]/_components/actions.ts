@@ -289,6 +289,7 @@ export async function confirmCoverage(_previous: ActionResult, formData: FormDat
     const blocker = coverageBlocker(
       {
         status: row.status,
+        usage: row.usage,
         version: row.version,
         sourceFilePath: row.source_file_path,
         resolution,
@@ -455,8 +456,10 @@ export async function retireVersion(_previous: ActionResult, formData: FormData)
 
 /**
  * Copies this version's definition into a new draft version (BUILD_SPEC 4.2
- * rule 8), resolved against the bases as they are now, and opens it in the
- * template editor.
+ * rule 8), resolved against the bases as they are now (each at its active
+ * version, else its newest retired one: loadBases), and opens it in the
+ * template editor. Any version can be copied, a draft an inspection already
+ * uses included: that is the way forward for it.
  */
 export async function createNewVersion(_previous: ActionResult, formData: FormData): Promise<ActionResult> {
   const created = await guarded<{ status: "created"; id: string }>("createNewVersion", async () => {

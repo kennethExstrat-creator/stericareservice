@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import type { ActionResult, TemplateStatus } from "@/lib/admin/templates";
+import type { ActionResult, TemplateStatus, VersionOffers } from "@/lib/admin/templates";
 import { activateVersion, createNewVersion, retireVersion } from "./actions";
 
 type Kind = "activate" | "retire" | "new-version";
@@ -31,6 +31,14 @@ export type VersionActionsProps = {
   code: string;
   version: number;
   status: TemplateStatus;
+  /**
+   * Which actions to offer (lib/admin/templates versionOffers): Edit draft
+   * for a draft no inspection uses, New version for every other version (a
+   * draft an inspection uses included), Activate or Retire.
+   */
+  offers: VersionOffers;
+  /** A new version copies the source file; without one, it says to upload the form to it. */
+  hasSourceFile: boolean;
   /** The template editor for this version. */
   editHref: string;
   /** False while something blocks activation; the page lists what (activationBlockersId). */
@@ -51,7 +59,7 @@ const IDLE: ActionResult = { status: "idle" };
 
 /** The version's header actions: edit a draft, make a new version, activate, retire. */
 export function VersionActions(props: VersionActionsProps) {
-  const { status, editHref, canActivate, activationBlockersId } = props;
+  const { status, offers, editHref, canActivate, activationBlockersId } = props;
   const [kind, setKind] = useState<Kind | null>(null);
   const activateRef = useRef<HTMLButtonElement>(null);
   const retireRef = useRef<HTMLButtonElement>(null);
@@ -60,25 +68,27 @@ export function VersionActions(props: VersionActionsProps) {
 
   return (
     <>
-      {status === "draft" ? (
+      {offers.edit && (
         <Button asChild variant="outline">
           <Link href={editHref}>
             <PencilLineIcon aria-hidden />
             Edit draft
           </Link>
         </Button>
-      ) : (
+      )}
+      {offers.newVersion && (
         <Button ref={newVersionRef} variant="outline" onClick={() => setKind("new-version")}>
           <CopyPlusIcon aria-hidden />
           New version
         </Button>
       )}
-      {status === "active" ? (
+      {offers.retire && (
         <Button ref={retireRef} variant="outline" onClick={() => setKind("retire")}>
           <ArchiveIcon aria-hidden />
           Retire
         </Button>
-      ) : (
+      )}
+      {offers.activate && (
         <Button
           ref={activateRef}
           disabled={!canActivate}
@@ -155,12 +165,14 @@ function confirmation(kind: Kind, props: VersionActionsProps): Confirmation {
         title: `Make version ${nextVersion} of ${code}?`,
         description: (
           <>
-            Version {nextVersion} starts as a draft copy of version {version}, with the same source file, and opens in the
-            template editor.{" "}
+            Version {nextVersion} starts as a draft copy of version {version}
+            {props.hasSourceFile ? ", with the same source file," : ""} and opens in the template editor.{" "}
             {props.status === "active" || activeVersion !== null
               ? `New inspections keep starting from version ${props.status === "active" ? version : activeVersion} until you activate version ${nextVersion}.`
               : `Inspectors can start from it once you activate it.`}{" "}
-            You confirm its coverage checklist again before activating it.
+            {props.hasSourceFile
+              ? "You confirm its coverage checklist again before activating it."
+              : `Version ${version} has no source file: upload the form to version ${nextVersion}, then confirm its coverage checklist before activating it.`}
             {openDraft && (
               <>
                 {" "}
