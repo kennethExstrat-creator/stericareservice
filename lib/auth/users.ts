@@ -87,10 +87,9 @@ export function authConfirmUrl(): string {
 
 /**
  * - `active`: may sign in and read data.
- * - `pending`: never active yet. New auth accounts start inactive (a safety net
- *   in case public sign-up is switched on), so an account that has never
- *   signed in and was never banned is waiting for an admin, not blocked by one.
- * - `deactivated`: blocked by an admin.
+ * - `pending`: never let in. New auth accounts start inactive (a safety net in
+ *   case public sign-up is switched on) and wait for an admin.
+ * - `deactivated`: shut out by an admin.
  */
 export type AccountStatus = "active" | "pending" | "deactivated";
 
@@ -100,12 +99,34 @@ export type SignInDetails = {
   bannedUntil: string | null;
 };
 
-export function accountStatus(active: boolean, signIn: SignInDetails | null | undefined, now: number = Date.now()): AccountStatus {
-  if (active) return "active";
-  // Without Auth details there is no telling a new account from a blocked one.
-  if (!signIn) return "deactivated";
-  const banned = signIn.bannedUntil !== null && Date.parse(signIn.bannedUntil) > now;
-  return !signIn.lastSignInAt && !banned ? "pending" : "deactivated";
+type ProfileState = { active: boolean; created_at: string; updated_at: string };
+
+/**
+ * True while a profile is exactly as the sign-up trigger made it. Insert sets
+ * created_at and updated_at to the same instant and every update moves
+ * updated_at (set_updated_at), so activating, deactivating or any other
+ * change ends it. A sign-in attempt does not touch the profile.
+ */
+export function isUntouched(profile: Pick<ProfileState, "created_at" | "updated_at">): boolean {
+  return Date.parse(profile.updated_at) === Date.parse(profile.created_at);
+}
+
+/** True while Supabase Auth bans the account (deactivation bans for a century). */
+export function isBanned(bannedUntil: string | null | undefined, now: number = Date.now()): boolean {
+  return bannedUntil ? Date.parse(bannedUntil) > now : false;
+}
+
+/**
+ * An inactive account is pending only when it can never have been active:
+ * its profile is untouched since sign-up (so no admin ever activated or
+ * deactivated it) and Supabase Auth does not ban it. This holds even after
+ * the person tried to sign in, which the last sign-in time cannot tell.
+ * Every other inactive account counts as deactivated: calling a blocked
+ * person "pending" could invite an admin to let them back in.
+ */
+export function accountStatus(profile: ProfileState, bannedUntil?: string | null, now: number = Date.now()): AccountStatus {
+  if (profile.active) return "active";
+  return isUntouched(profile) && !isBanned(bannedUntil, now) ? "pending" : "deactivated";
 }
 
 /* ------------------------------------------------------------------ *
@@ -122,6 +143,12 @@ export type UserListItem = {
   createdAt: string;
   /** Null when they never signed in, or when sign-in details are unavailable. */
   lastSignInAt: string | null;
+  /**
+   * Active, yet Supabase Auth still bans them, so they cannot sign in: left by
+   * a deactivation and a reactivation at the same moment, or a ban set in the
+   * Supabase dashboard. Reactivating lifts it.
+   */
+  signInBlocked: boolean;
   isSelf: boolean;
 };
 
@@ -144,13 +171,14 @@ const byName = new Intl.Collator("en-GB", { sensitivity: "base", numeric: true }
 /**
  * Everyone with a profile, read through the signed-in admin's own client (RLS
  * lets admins read every profile), merged with sign-in details from Supabase
- * Auth when the secret key is set. Call it only after requireAdmin().
+ * Auth when the secret key is set (last sign-in, bans). Call it only after
+ * requireAdmin().
  */
 export async function getUserDirectory(viewerId: string): Promise<UserDirectory> {
   const supabase = await createClient();
   const { data: profiles, error } = await supabase
     .from("profiles")
-    .select("id, email, full_name, role, active, created_at");
+    .select("id, email, full_name, role, active, created_at, updated_at");
   if (error) throw new Error(`Could not load the user list: ${error.message}`);
 
   let adminApi: AdminApiState = "missing-key";
@@ -167,16 +195,16 @@ export async function getUserDirectory(viewerId: string): Promise<UserDirectory>
 
   const now = Date.now();
   const users = (profiles ?? []).map((profile): UserListItem => {
-    // Someone missing from the Auth listing is unknown, never assumed new.
     const signIn = signIns?.get(profile.id) ?? null;
     return {
       id: profile.id,
       email: profile.email ?? "",
       fullName: profile.full_name,
       role: profile.role,
-      status: accountStatus(profile.active, signIn, now),
+      status: accountStatus(profile, signIn?.bannedUntil, now),
       createdAt: profile.created_at,
       lastSignInAt: signIn?.lastSignInAt ?? null,
+      signInBlocked: profile.active && isBanned(signIn?.bannedUntil, now),
       isSelf: profile.id === viewerId,
     };
   });
@@ -249,6 +277,15 @@ export function isEmailTaken(error: ErrorLike): boolean {
 }
 
 /**
+ * Supabase Auth refused the address itself, before any email: it checks that
+ * an address can receive mail (a domain that does not exist, like the
+ * test.local accounts, fails).
+ */
+export function isEmailRejected(error: ErrorLike): boolean {
+  return error.code === "email_address_invalid";
+}
+
+/**
  * An Auth error from sending an invite or a password link. The built-in
  * mailer only delivers to the project's team and a few emails an hour, so
  * those two cases point at custom SMTP.
@@ -281,10 +318,12 @@ export function describeEmailError(error: ErrorLike, what: "invite" | "password 
     }
     return `${subject} could not be sent: Supabase's email limit for this hour has been reached. Try again later, or ${SMTP_HELP}.`;
   }
-  if (error.code === "email_address_invalid") {
-    return "Supabase refused this email address as invalid. Check it for typos.";
+  if (isEmailRejected(error)) {
+    return what === "invite"
+      ? "Supabase refused this address: it does not look able to receive email (for example, its domain does not exist). Check it for typos."
+      : "The password link could not be sent: Supabase refused this address because it does not look able to receive email.";
   }
-  if (/sending|smtp|mail/i.test(message)) {
+  if (/error sending|smtp|mailer/i.test(message)) {
     return `${subject} could not be sent. Check the email settings in Supabase, or ${SMTP_HELP}.`;
   }
   return `${subject} could not be sent: ${message || "Supabase did not say why"}.`;

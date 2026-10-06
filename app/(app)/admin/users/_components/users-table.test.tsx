@@ -24,6 +24,7 @@ const USERS: UserListItem[] = [
     // 17:30 UTC on the 5th is already the 6th in Malaysia.
     createdAt: "2026-10-05T17:30:00Z",
     lastSignInAt: "2026-10-06T01:00:00Z",
+    signInBlocked: false,
     isSelf: true,
   },
   {
@@ -34,6 +35,7 @@ const USERS: UserListItem[] = [
     status: "deactivated",
     createdAt: "2026-09-01T02:00:00Z",
     lastSignInAt: "2026-09-30T02:00:00Z",
+    signInBlocked: false,
     isSelf: false,
   },
   {
@@ -44,6 +46,7 @@ const USERS: UserListItem[] = [
     status: "pending",
     createdAt: "2026-10-06T03:00:00Z",
     lastSignInAt: null,
+    signInBlocked: false,
     isSelf: false,
   },
 ];
@@ -92,6 +95,12 @@ describe("UsersTable", () => {
     expect(admin).toContain('aria-label="Actions for Test Admin"');
     expect(olga).toContain('aria-label="Actions for Olga Other"');
     expect(pending).toContain('aria-label="Actions for new@test.local"');
+  });
+
+  it("flags an active account whose sign-in Supabase still blocks", () => {
+    const blocked = renderToStaticMarkup(<UsersTable users={[{ ...USERS[1], status: "active", signInBlocked: true }]} showSignIns />);
+    expect(blocked).toContain("Sign-in blocked");
+    expect(html).not.toContain("Sign-in blocked");
   });
 
   it("drops the sign-in column when sign-in details are unavailable", () => {

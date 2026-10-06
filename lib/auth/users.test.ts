@@ -19,7 +19,10 @@ import {
   findProfileByEmail,
   firstFieldErrors,
   getUserDirectory,
+  isBanned,
+  isEmailRejected,
   isEmailTaken,
+  isUntouched,
 } from "./users";
 
 const VIEWER = "7c2d4e1a-0b3f-4a5c-9d8e-1f2a3b4c5d6e";
@@ -76,31 +79,50 @@ describe("role and target schemas", () => {
 
 describe("accountStatus", () => {
   const now = Date.parse("2026-10-06T08:00:00Z");
-  const never = { lastSignInAt: null, bannedUntil: null };
+  const created = "2026-10-01T09:00:00.123456+00:00";
+  // As sign-up made it: insert sets both timestamps to the same instant.
+  const untouched = (active: boolean) => ({ active, created_at: created, updated_at: created });
+  // Changed since: activated, deactivated, renamed, its role changed...
+  const changed = (active: boolean) => ({ active, created_at: created, updated_at: "2026-10-02T10:00:00Z" });
+  const bannedUntil = "2126-09-12T08:00:00Z";
 
   it("is active whenever the profile is active", () => {
-    expect(accountStatus(true, never, now)).toBe("active");
-    expect(accountStatus(true, null, now)).toBe("active");
+    expect(accountStatus(changed(true), null, now)).toBe("active");
+    expect(accountStatus(untouched(true), null, now)).toBe("active");
   });
 
-  it("is pending for an inactive account that never signed in and was never banned", () => {
-    expect(accountStatus(false, never, now)).toBe("pending");
+  it("is pending while the inactive profile is as sign-up made it, sign-in details or not", () => {
+    // The person may have tried to sign in: Auth let them, the app did not.
+    expect(accountStatus(untouched(false), null, now)).toBe("pending");
+    expect(accountStatus(untouched(false), undefined, now)).toBe("pending");
   });
 
-  it("is deactivated once the person has signed in before", () => {
-    expect(accountStatus(false, { lastSignInAt: "2026-10-01T09:00:00Z", bannedUntil: null }, now)).toBe("deactivated");
+  it("is deactivated once anyone changed the inactive profile", () => {
+    expect(accountStatus(changed(false), null, now)).toBe("deactivated");
   });
 
-  it("is deactivated for a banned account, even one that never signed in", () => {
-    expect(accountStatus(false, { lastSignInAt: null, bannedUntil: "2126-09-12T08:00:00Z" }, now)).toBe("deactivated");
+  it("is deactivated while Supabase Auth bans the account, untouched or not", () => {
+    expect(accountStatus(untouched(false), bannedUntil, now)).toBe("deactivated");
+    expect(accountStatus(changed(false), bannedUntil, now)).toBe("deactivated");
   });
 
   it("ignores a ban that has run out", () => {
-    expect(accountStatus(false, { lastSignInAt: null, bannedUntil: "2026-10-05T08:00:00Z" }, now)).toBe("pending");
+    expect(accountStatus(untouched(false), "2026-10-05T08:00:00Z", now)).toBe("pending");
+  });
+});
+
+describe("isUntouched and isBanned", () => {
+  it("compares the timestamps as instants, not as text", () => {
+    expect(isUntouched({ created_at: "2026-10-06T08:00:00.123+00:00", updated_at: "2026-10-06T08:00:00.123Z" })).toBe(true);
+    expect(isUntouched({ created_at: "2026-10-06T08:00:00Z", updated_at: "2026-10-06T08:00:05Z" })).toBe(false);
   });
 
-  it("falls back to deactivated without sign-in details", () => {
-    expect(accountStatus(false, null, now)).toBe("deactivated");
+  it("counts a ban only until it runs out", () => {
+    const now = Date.parse("2026-10-06T08:00:00Z");
+    expect(isBanned("2126-09-12T08:00:00Z", now)).toBe(true);
+    expect(isBanned("2026-10-05T08:00:00Z", now)).toBe(false);
+    expect(isBanned(null, now)).toBe(false);
+    expect(isBanned(undefined, now)).toBe(false);
   });
 });
 
@@ -141,8 +163,18 @@ describe("errors in plain words", () => {
     );
   });
 
-  it("names a refused address and passes other Auth messages through", () => {
-    expect(describeEmailError({ code: "email_address_invalid", message: "Email address is invalid" }, "invite")).toMatch(/invalid/);
+  it("explains an address Supabase refuses before any email (the live project refuses test.local)", () => {
+    const refused = { code: "email_address_invalid", status: 400, message: 'Email address "x@test.local" is invalid' };
+    expect(isEmailRejected(refused)).toBe(true);
+    expect(describeEmailError(refused, "invite")).toBe(
+      "Supabase refused this address: it does not look able to receive email (for example, its domain does not exist). Check it for typos.",
+    );
+    expect(describeEmailError(refused, "password link")).toMatch(/^The password link could not be sent: Supabase refused/);
+    // "Email" in a message is not a mailer failure.
+    expect(describeEmailError({ message: "Email address is invalid" }, "invite")).not.toContain("SMTP");
+  });
+
+  it("passes other Auth messages through", () => {
     expect(describeEmailError({ code: "unexpected_failure", status: 500, message: "Error sending invite email" }, "invite")).toMatch(
       /could not be sent.*custom SMTP/,
     );
@@ -206,9 +238,12 @@ function query(result: Result, calls: Array<[string, unknown[]]> = []) {
 }
 
 const PROFILES = [
-  { id: VIEWER, email: "admin@test.local", full_name: "Test Admin", role: "admin", active: true, created_at: "2026-10-01T00:00:00Z" },
-  { id: OTHER, email: "olga@test.local", full_name: "olga Other", role: "inspector", active: false, created_at: "2026-10-02T00:00:00Z" },
-  { id: NEW, email: "new@test.local", full_name: null, role: "inspector", active: false, created_at: "2026-10-03T00:00:00Z" },
+  // Activated by an admin after sign-up.
+  { id: VIEWER, email: "admin@test.local", full_name: "Test Admin", role: "admin", active: true, created_at: "2026-10-01T00:00:00Z", updated_at: "2026-10-01T00:05:00Z" },
+  // Deactivated later.
+  { id: OTHER, email: "olga@test.local", full_name: "olga Other", role: "inspector", active: false, created_at: "2026-10-02T00:00:00Z", updated_at: "2026-10-04T00:00:00Z" },
+  // As sign-up made it: never activated.
+  { id: NEW, email: "new@test.local", full_name: null, role: "inspector", active: false, created_at: "2026-10-03T00:00:00.5Z", updated_at: "2026-10-03T00:00:00.5Z" },
 ];
 
 describe("getUserDirectory", () => {
@@ -244,32 +279,97 @@ describe("getUserDirectory", () => {
     ]);
   });
 
-  it("follows Auth's paging, and never calls someone missing from it pending", async () => {
+  it("follows Auth's paging", async () => {
     vi.mocked(isAdminClientConfigured).mockReturnValue(true);
     const listUsers = vi
       .fn()
       .mockResolvedValueOnce({ data: { users: [{ id: VIEWER }], nextPage: 2 }, error: null })
-      .mockResolvedValueOnce({ data: { users: [{ id: OTHER }], nextPage: null }, error: null });
+      .mockResolvedValueOnce({ data: { users: [{ id: OTHER, last_sign_in_at: "2026-10-04T01:00:00Z" }], nextPage: null }, error: null });
     vi.mocked(createAdminClient).mockReturnValue({ auth: { admin: { listUsers } } } as never);
 
     const { users } = await getUserDirectory(VIEWER);
 
+    expect(listUsers).toHaveBeenCalledTimes(2);
     expect(listUsers).toHaveBeenNthCalledWith(2, { page: 2, perPage: 1000 });
-    expect(Object.fromEntries(users.map((user) => [user.email, user.status]))).toEqual({
-      "admin@test.local": "active",
-      "olga@test.local": "pending",
-      "new@test.local": "deactivated", // not in the listing: unknown, so not "pending"
+    expect(users.find((user) => user.id === OTHER)?.lastSignInAt).toBe("2026-10-04T01:00:00Z");
+  });
+
+  it("keeps a never-activated account pending after its owner tried to sign in", async () => {
+    vi.mocked(isAdminClientConfigured).mockReturnValue(true);
+    vi.mocked(createAdminClient).mockReturnValue({
+      auth: {
+        admin: {
+          listUsers: vi.fn().mockResolvedValue({
+            data: { users: [{ id: NEW, last_sign_in_at: "2026-10-03T00:02:00Z" }] },
+            error: null,
+          }),
+        },
+      },
+    } as never);
+
+    const { users } = await getUserDirectory(VIEWER);
+
+    expect(users.find((user) => user.id === NEW)).toMatchObject({ status: "pending", lastSignInAt: "2026-10-03T00:02:00Z" });
+  });
+
+  it("flags an active account that Supabase Auth still bans", async () => {
+    vi.mocked(isAdminClientConfigured).mockReturnValue(true);
+    vi.mocked(createAdminClient).mockReturnValue({
+      auth: {
+        admin: {
+          listUsers: vi.fn().mockResolvedValue({
+            data: {
+              users: [
+                { id: VIEWER, banned_until: "2126-09-12T00:00:00Z" },
+                { id: OTHER, banned_until: "2126-09-12T00:00:00Z" },
+              ],
+            },
+            error: null,
+          }),
+        },
+      },
+    } as never);
+
+    const { users } = await getUserDirectory(VIEWER);
+
+    // Active and banned: blocked. Inactive and banned: simply deactivated.
+    expect(Object.fromEntries(users.map((user) => [user.email, [user.status, user.signInBlocked]]))).toEqual({
+      "admin@test.local": ["active", true],
+      "olga@test.local": ["deactivated", false],
+      "new@test.local": ["pending", false],
     });
   });
 
-  it("shows Active and Deactivated only, and says why, without the secret key", async () => {
+  it("calls a banned account deactivated, even one never activated", async () => {
+    vi.mocked(isAdminClientConfigured).mockReturnValue(true);
+    vi.mocked(createAdminClient).mockReturnValue({
+      auth: {
+        admin: {
+          listUsers: vi.fn().mockResolvedValue({
+            data: { users: [{ id: NEW, banned_until: "2126-09-12T00:00:00Z" }] },
+            error: null,
+          }),
+        },
+      },
+    } as never);
+
+    const { users } = await getUserDirectory(VIEWER);
+
+    expect(users.find((user) => user.id === NEW)?.status).toBe("deactivated");
+  });
+
+  it("still tells pending from deactivated without the secret key, and says the key is missing", async () => {
     vi.mocked(isAdminClientConfigured).mockReturnValue(false);
 
     const { users, adminApi } = await getUserDirectory(VIEWER);
 
     expect(adminApi).toBe("missing-key");
     expect(createAdminClient).not.toHaveBeenCalled();
-    expect(users.map((user) => user.status)).toEqual(["deactivated", "deactivated", "active"]);
+    expect(users.map((user) => [user.email, user.status, user.lastSignInAt])).toEqual([
+      ["new@test.local", "pending", null],
+      ["olga@test.local", "deactivated", null],
+      ["admin@test.local", "active", null],
+    ]);
   });
 
   it("still lists everyone when Supabase Auth fails", async () => {

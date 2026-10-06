@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useActionState, useId, useRef, useState, type ReactNode, type RefObject } from "react";
 import {
   BanIcon,
   EllipsisIcon,
   KeyRoundIcon,
+  LockOpenIcon,
   OctagonXIcon,
   ShieldCheckIcon,
   UserCheckIcon,
@@ -59,6 +60,7 @@ const MENU_ITEM: Record<Kind, { label: string; icon: LucideIcon }> = {
   "make-admin": { label: "Make admin", icon: ShieldCheckIcon },
   "make-inspector": { label: "Make inspector", icon: UserRoundIcon },
   "send-link": { label: "Send password link", icon: KeyRoundIcon },
+  unblock: { label: "Lift sign-in block", icon: LockOpenIcon },
   deactivate: { label: "Deactivate", icon: BanIcon },
   reactivate: { label: "Reactivate", icon: UserCheckIcon },
   activate: { label: "Activate", icon: UserCheckIcon },
@@ -100,6 +102,16 @@ function confirmation(kind: Kind, user: UserActionsTarget): Confirmation {
         action: sendPasswordLink,
         fields: target,
       };
+    case "unblock":
+      return {
+        title: `Let ${user.name} sign in again?`,
+        description:
+          "Their account is active, but Supabase still blocks their sign-in, for example after a deactivation and a reactivation at the same moment. This lifts the block.",
+        confirm: "Lift block",
+        pending: "Lifting…",
+        action: reactivateUser,
+        fields: target,
+      };
     case "deactivate":
       return {
         title: `Deactivate ${user.name}?`,
@@ -138,6 +150,7 @@ export function UserActions({ user }: { user: UserActionsTarget }) {
   const [kind, setKind] = useState<Kind | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const openingDialog = useRef(false);
+  const noteId = useId();
   const groups = menuGroups(user);
 
   if (groups.length === 0) return null;
@@ -154,6 +167,8 @@ export function UserActions({ user }: { user: UserActionsTarget }) {
         <DropdownMenuContent
           align="end"
           className="w-60"
+          // Arrow keys move between items only, so the note is the menu's description.
+          aria-describedby={user.isSelf ? noteId : undefined}
           onCloseAutoFocus={(event) => {
             // The dialog takes focus; giving it back to the trigger would steal it.
             if (openingDialog.current) event.preventDefault();
@@ -182,6 +197,14 @@ export function UserActions({ user }: { user: UserActionsTarget }) {
               })}
             </DropdownMenuGroup>
           ))}
+          {user.isSelf && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel id={noteId} className="font-normal whitespace-normal touch:text-sm">
+                Only another admin can change your role or deactivate you.
+              </DropdownMenuLabel>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 

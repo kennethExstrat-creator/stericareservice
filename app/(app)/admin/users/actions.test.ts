@@ -60,6 +60,8 @@ function fakeClient(respond: Responder = () => OK_EMPTY) {
     admin: {
       inviteUserByEmail: vi.fn().mockResolvedValue({ data: { user: { id: NEW } }, error: null }),
       updateUserById: vi.fn().mockResolvedValue({ data: { user: {} }, error: null }),
+      // Deactivated accounts are banned; tests that need a pending one say so.
+      getUserById: vi.fn().mockResolvedValue({ data: { user: { banned_until: "2126-09-12T08:00:00Z" } }, error: null }),
     },
   };
   return { client: { from, auth }, queries };
@@ -149,11 +151,18 @@ describe("every action", () => {
 });
 
 describe("inviteUser", () => {
+  const SIGNED_UP = "2026-10-06T10:00:00.123456+00:00";
+  /** The profile the invite created, as the sign-up trigger made it. */
+  const fresh = { id: NEW, active: false, created_at: SIGNED_UP, updated_at: SIGNED_UP };
+  /** The admin client's answers: the fresh profile on read, `update` on update. */
+  const afterInvite =
+    (update: Result, read: Result = { data: fresh, error: null }): Responder =>
+    (query) =>
+      isUpdate(query) ? update : read;
+  const nobodyHasIt: Responder = () => ({ data: [], error: null });
+
   it("invites through the admin client, then activates the new profile with its role and name", async () => {
-    useClients(
-      () => ({ data: [], error: null }), // nobody has the address yet
-      (query) => (isUpdate(query) ? { data: [{ id: NEW }], error: null } : OK_EMPTY),
-    );
+    useClients(nobodyHasIt, afterInvite({ data: [{ id: NEW }], error: null }));
 
     const result = await inviteUser(IDLE, inviteForm());
 
@@ -169,28 +178,55 @@ describe("inviteUser", () => {
     expect(update?.table).toBe("profiles");
     expect(arg(update, "update")).toEqual({ role: "admin", full_name: "Jane Tan", active: true });
     expect(hasCall(update, "eq", "id", NEW)).toBe(true);
+    // Only if nobody changed it since the read.
+    expect(hasCall(update, "eq", "updated_at", SIGNED_UP)).toBe(true);
     expect(refresh).toHaveBeenCalledOnce();
   });
 
+  it("leaves alone an account an admin already handled, which Supabase answers with a resent invite", async () => {
+    // An unconfirmed account that an admin deactivated: the invite reaches it
+    // when two admins invite at once, or the address check missed it.
+    useClients(nobodyHasIt, afterInvite({ data: [{ id: NEW }], error: null }, {
+      data: { ...fresh, updated_at: "2026-10-06T11:00:00Z" },
+      error: null,
+    }));
+
+    const result = await inviteUser(IDLE, inviteForm());
+
+    expect(result).toMatchObject({ status: "error", fieldErrors: { email: expect.stringContaining("not active") } });
+    expect(adminClient.queries.some(isUpdate)).toBe(false);
+  });
+
   it("says so plainly when the invite went out but the account could not be activated", async () => {
-    useClients(
-      () => ({ data: [], error: null }),
-      (query) => (isUpdate(query) ? { data: null, error: { code: "57014", message: "statement timeout" } } : OK_EMPTY),
-    );
+    useClients(nobodyHasIt, afterInvite({ data: null, error: { code: "57014", message: "statement timeout" } }));
 
     const result = await inviteUser(IDLE, inviteForm());
 
     expect(result).toEqual({
       status: "warning",
       message:
-        "Invite sent to jane.tan@example.com, but the account could not be activated. Choose Activate next to Jane Tan in the list.",
+        "Invite sent to jane.tan@example.com, but the account could not be activated. Choose Activate next to Jane Tan, then Make admin.",
     });
     expect(refresh).toHaveBeenCalledOnce();
   });
 
-  it("treats an update that touched no row as not activated", async () => {
-    useClients(() => ({ data: [], error: null }), (query) => (isUpdate(query) ? { data: [], error: null } : OK_EMPTY));
+  it("only asks for Activate when the invitee is an inspector", async () => {
+    useClients(nobodyHasIt, afterInvite({ data: null, error: { code: "57014", message: "statement timeout" } }));
+    expect(await inviteUser(IDLE, inviteForm({ role: "inspector" }))).toMatchObject({
+      status: "warning",
+      message: expect.stringMatching(/Choose Activate next to Jane Tan\.$/),
+    });
+  });
+
+  it("treats an update that matched no row (changed since the read) as not activated", async () => {
+    useClients(nobodyHasIt, afterInvite({ data: [], error: null }));
     expect((await inviteUser(IDLE, inviteForm())).status).toBe("warning");
+  });
+
+  it("treats a profile it cannot read as not activated", async () => {
+    useClients(nobodyHasIt, afterInvite({ data: [{ id: NEW }], error: null }, { data: null, error: { message: "timeout" } }));
+    expect((await inviteUser(IDLE, inviteForm())).status).toBe("warning");
+    expect(adminClient.queries.some(isUpdate)).toBe(false);
   });
 
   it("is switched off without the secret key, before touching Supabase", async () => {
@@ -201,7 +237,7 @@ describe("inviteUser", () => {
     expect(createClient).not.toHaveBeenCalled();
   });
 
-  it("explains a mailer that refuses the address, and points at custom SMTP", async () => {
+  it("explains a built-in mailer that refuses a non-team address, and points at custom SMTP", async () => {
     useClients(() => ({ data: [], error: null }));
     adminClient.client.auth.admin.inviteUserByEmail.mockResolvedValue({
       data: { user: null },
@@ -209,17 +245,33 @@ describe("inviteUser", () => {
         name: "AuthApiError",
         code: "email_address_not_authorized",
         status: 400,
-        message: 'Email address "e2e-users-x@test.local" cannot be used as it is not authorized',
+        message: 'Email address "inspector@factory.example" cannot be used as it is not authorized',
       },
     });
 
-    const result = await inviteUser(IDLE, inviteForm({ email: "e2e-users-x@test.local" }));
+    const result = await inviteUser(IDLE, inviteForm({ email: "inspector@factory.example" }));
 
     expect(result.status).toBe("error");
     expect(result).toMatchObject({ message: expect.stringContaining("The invite email could not be sent") });
     expect(result).toMatchObject({ message: expect.stringContaining("custom SMTP") });
     expect(adminClient.queries.some(isUpdate)).toBe(false);
     expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("puts an address Supabase refuses next to the email field", async () => {
+    useClients(() => ({ data: [], error: null }));
+    adminClient.client.auth.admin.inviteUserByEmail.mockResolvedValue({
+      data: { user: null },
+      error: { code: "email_address_invalid", status: 400, message: 'Email address "x@test.local" is invalid' },
+    });
+
+    const result = await inviteUser(IDLE, inviteForm({ email: "x@test.local" }));
+
+    expect(result).toMatchObject({
+      status: "error",
+      fieldErrors: { email: expect.stringContaining("does not look able to receive email") },
+    });
+    expect(adminClient.queries.some(isUpdate)).toBe(false);
   });
 
   it("stops at an address that already has an account, without sending anything", async () => {
@@ -318,6 +370,14 @@ describe("deactivateUser", () => {
     expect(refresh).toHaveBeenCalledOnce();
   });
 
+  it("bans nobody when the profile update matches no row", async () => {
+    useClients(() => ({ data: null, error: null }));
+
+    expect(await deactivateUser(IDLE, form({ userId: OTHER }))).toEqual({ status: "error", message: MESSAGES.userNotFound });
+    expect(adminClient.client.auth.admin.updateUserById).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
   it("refuses to let admins deactivate themselves", async () => {
     expect(await deactivateUser(IDLE, form({ userId: SELF }))).toEqual({
       status: "error",
@@ -363,13 +423,15 @@ describe("deactivateUser", () => {
 });
 
 describe("reactivateUser", () => {
+  const activated: Responder = (query) => ({ data: isUpdate(query) ? { id: OTHER } : profile(OTHER), error: null });
+
   it("lifts the ban before activating the profile", async () => {
-    useClients((query) => ({ data: isUpdate(query) ? { id: OTHER } : profile(OTHER), error: null }));
+    useClients(activated);
 
     const result = await reactivateUser(IDLE, form({ userId: OTHER }));
 
     expect(result).toEqual({ status: "success", message: "Olga Other is active and can sign in." });
-    expect(adminClient.client.auth.admin.updateUserById).toHaveBeenCalledWith(OTHER, { ban_duration: "none" });
+    expect(adminClient.client.auth.admin.updateUserById).toHaveBeenCalledExactlyOnceWith(OTHER, { ban_duration: "none" });
     const update = userClient.queries.find(isUpdate);
     expect(arg(update, "update")).toEqual({ active: true });
     const unbannedAt = adminClient.client.auth.admin.updateUserById.mock.invocationCallOrder[0];
@@ -378,34 +440,115 @@ describe("reactivateUser", () => {
     expect(refresh).toHaveBeenCalledOnce();
   });
 
+  it("activates a pending account, which was never banned, without touching Auth", async () => {
+    useClients(activated);
+    adminClient.client.auth.admin.getUserById.mockResolvedValue({ data: { user: { banned_until: null } }, error: null });
+
+    expect(await reactivateUser(IDLE, form({ userId: OTHER }))).toMatchObject({ status: "success" });
+    expect(adminClient.client.auth.admin.updateUserById).not.toHaveBeenCalled();
+    expect(arg(userClient.queries.find(isUpdate), "update")).toEqual({ active: true });
+  });
+
   it("leaves the account blocked when the ban cannot be lifted", async () => {
     useClients(() => ({ data: profile(OTHER), error: null }));
     adminClient.client.auth.admin.updateUserById.mockResolvedValue({
       data: { user: null },
-      error: { status: 404, message: "User not found" },
+      error: { status: 500, message: "Database error updating user" },
     });
 
     const result = await reactivateUser(IDLE, form({ userId: OTHER }));
 
     expect(result).toEqual({
       status: "error",
-      message: "Olga Other could not be reactivated: Supabase did not lift their sign-in block (User not found).",
+      message: "Olga Other was not activated: Supabase did not lift their sign-in block (Database error updating user).",
     });
     expect(userClient.queries.some(isUpdate)).toBe(false);
     expect(refresh).not.toHaveBeenCalled();
   });
+
+  it("puts the ban back when the profile cannot be activated, so nothing changes", async () => {
+    useClients((query) =>
+      isUpdate(query)
+        ? { data: null, error: { code: "57014", message: "statement timeout" } }
+        : { data: profile(OTHER), error: null },
+    );
+
+    const result = await reactivateUser(IDLE, form({ userId: OTHER }));
+
+    expect(result).toEqual({
+      status: "error",
+      message: "Olga Other was not activated. The change could not be saved: statement timeout.",
+    });
+    expect(adminClient.client.auth.admin.updateUserById.mock.calls).toEqual([
+      [OTHER, { ban_duration: "none" }],
+      [OTHER, { ban_duration: "876000h" }],
+    ]);
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("says so when the ban could not be put back either", async () => {
+    useClients((query) =>
+      isUpdate(query)
+        ? { data: null, error: { code: "57014", message: "statement timeout" } }
+        : { data: profile(OTHER), error: null },
+    );
+    adminClient.client.auth.admin.updateUserById
+      .mockResolvedValueOnce({ data: { user: {} }, error: null })
+      .mockResolvedValueOnce({ data: { user: null }, error: { status: 500, message: "Database error updating user" } });
+
+    expect(await reactivateUser(IDLE, form({ userId: OTHER }))).toMatchObject({
+      status: "error",
+      message: expect.stringContaining("Their sign-in block was lifted and could not be put back"),
+    });
+  });
+
+  it("stops when Supabase Auth cannot say whether the account is banned", async () => {
+    useClients(() => ({ data: profile(OTHER), error: null }));
+    adminClient.client.auth.admin.getUserById.mockResolvedValue({
+      data: { user: null },
+      error: { status: 503, message: "Service unavailable" },
+    });
+
+    expect(await reactivateUser(IDLE, form({ userId: OTHER }))).toEqual({
+      status: "error",
+      message: "Olga Other was not activated: Supabase Auth did not answer (Service unavailable). Try again.",
+    });
+    expect(userClient.queries.some(isUpdate)).toBe(false);
+  });
+
+  it("activates without the secret key, and says an old ban may remain", async () => {
+    vi.mocked(isAdminClientConfigured).mockReturnValue(false);
+    useClients(activated);
+
+    expect(await reactivateUser(IDLE, form({ userId: OTHER }))).toMatchObject({
+      status: "warning",
+      message: expect.stringContaining("SUPABASE_SECRET_KEY"),
+    });
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
 });
 
 describe("sendPasswordLink", () => {
-  it("emails the address on the profile, with the confirm route as redirect", async () => {
+  it("emails the address on the profile through the secret-key client, with the confirm route as redirect", async () => {
     useClients(() => ({ data: profile(OTHER, { active: true }), error: null }));
 
     const result = await sendPasswordLink(IDLE, form({ userId: OTHER, email: "attacker@example.com" }));
 
     expect(result).toEqual({ status: "success", message: "Password link sent to olga@test.local." });
-    expect(userClient.client.auth.resetPasswordForEmail).toHaveBeenCalledWith("olga@test.local", {
+    expect(adminClient.client.auth.resetPasswordForEmail).toHaveBeenCalledExactlyOnceWith("olga@test.local", {
       redirectTo: "https://qc.example.com/auth/confirm",
     });
+    // Not the admin's own client: that would leave a PKCE code verifier in their cookies.
+    expect(userClient.client.auth.resetPasswordForEmail).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the admin's own client without the secret key", async () => {
+    vi.mocked(isAdminClientConfigured).mockReturnValue(false);
+    useClients(() => ({ data: profile(OTHER, { active: true }), error: null }));
+
+    expect(await sendPasswordLink(IDLE, form({ userId: OTHER }))).toMatchObject({ status: "success" });
+    expect(userClient.client.auth.resetPasswordForEmail).toHaveBeenCalledOnce();
+    expect(createAdminClient).not.toHaveBeenCalled();
   });
 
   it("refuses accounts that cannot sign in", async () => {
@@ -414,12 +557,13 @@ describe("sendPasswordLink", () => {
       status: "error",
       message: expect.stringContaining("Activate it first"),
     });
+    expect(adminClient.client.auth.resetPasswordForEmail).not.toHaveBeenCalled();
     expect(userClient.client.auth.resetPasswordForEmail).not.toHaveBeenCalled();
   });
 
   it("explains a refused email", async () => {
     useClients(() => ({ data: profile(OTHER, { active: true }), error: null }));
-    userClient.client.auth.resetPasswordForEmail.mockResolvedValue({
+    adminClient.client.auth.resetPasswordForEmail.mockResolvedValue({
       data: null,
       error: { code: "over_email_send_rate_limit", status: 429, message: "email rate limit exceeded" },
     });

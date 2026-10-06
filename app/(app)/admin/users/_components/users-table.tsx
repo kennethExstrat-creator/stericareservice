@@ -1,3 +1,4 @@
+import { LockIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { displayName, type UserListItem } from "@/lib/auth/users";
@@ -63,7 +64,15 @@ export function UsersTable({ users, showSignIns }: { users: UserListItem[]; show
                   <RoleLabel role={user.role} />
                 </TableCell>
                 <TableCell>
-                  <AccountStatusBadge status={user.status} />
+                  <div className="flex flex-col items-start gap-1">
+                    <AccountStatusBadge status={user.status} />
+                    {user.signInBlocked && (
+                      <span className="inline-flex items-center gap-1 text-sm font-medium text-warn">
+                        <LockIcon aria-hidden className="size-3.5" />
+                        Sign-in blocked
+                      </span>
+                    )}
+                  </div>
                 </TableCell>
                 {showSignIns && (
                   <TableCell>
@@ -81,6 +90,7 @@ export function UsersTable({ users, showSignIns }: { users: UserListItem[]; show
                       email: user.email,
                       role: user.role,
                       status: user.status,
+                      signInBlocked: user.signInBlocked,
                       isSelf: user.isSelf,
                     }}
                   />

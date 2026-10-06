@@ -7,6 +7,7 @@ const person = (overrides: Partial<UserActionsTarget> = {}): UserActionsTarget =
   email: "olga@test.local",
   role: "inspector",
   status: "active",
+  signInBlocked: false,
   isSelf: false,
   ...overrides,
 });
@@ -27,11 +28,17 @@ describe("menuGroups", () => {
     expect(self).not.toContain("make-inspector");
   });
 
-  it("activates an account that was never active, and sends it no links yet", () => {
-    expect(menuGroups(person({ status: "pending" }))).toEqual([["activate", "make-admin"]]);
+  it("only activates an account that was never active: no links, no role change yet", () => {
+    expect(menuGroups(person({ status: "pending" }))).toEqual([["activate"]]);
+    expect(menuGroups(person({ status: "pending", role: "admin" }))).toEqual([["activate"]]);
   });
 
   it("reactivates a deactivated account, and sends it no links", () => {
     expect(menuGroups(person({ status: "deactivated", role: "admin" }))).toEqual([["reactivate", "make-inspector"]]);
+  });
+
+  it("lifts a blocked sign-in before any password link", () => {
+    expect(menuGroups(person({ signInBlocked: true }))).toEqual([["make-admin", "unblock"], ["deactivate"]]);
+    expect(menuGroups(person({ signInBlocked: true, isSelf: true, role: "admin" }))).toEqual([["unblock"]]);
   });
 });

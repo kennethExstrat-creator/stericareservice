@@ -18,7 +18,10 @@ import {
   firstFieldErrors,
   firstIssue,
   formFields,
+  isBanned,
+  isEmailRejected,
   isEmailTaken,
+  isUntouched,
   type InviteField,
 } from "@/lib/auth/users";
 import { createAdminClient, isAdminClientConfigured } from "@/lib/supabase/admin";
@@ -93,22 +96,38 @@ export async function inviteUser(_previous: ActionResult, formData: FormData): P
     if (error) {
       if (isEmailTaken(error)) return emailTaken(true);
       console.error("[admin/users] invite refused", error.code, error.message);
-      return fail(describeEmailError(error, "invite"));
+      const message = describeEmailError(error, "invite");
+      // A refused address belongs next to the field the admin typed it in.
+      return isEmailRejected(error) ? fail(message, { email: message }) : fail(message);
     }
 
     // New accounts start inactive (a safety net should public sign-up ever be
-    // switched on). The invite is the admin's decision, so it activates this one.
-    const { data: activated, error: activationError } = await admin
+    // switched on). The invite is the admin's decision, so it activates the
+    // account it created. Supabase answers an invite to an address that has
+    // an unconfirmed account by sending it again, so only a profile nobody has
+    // handled yet is changed: one an admin deactivated stays deactivated.
+    const { data: created, error: readError } = await admin
       .from("profiles")
-      .update({ role, full_name: fullName, active: true })
+      .select("id, active, created_at, updated_at")
       .eq("id", data.user.id)
-      .select("id");
+      .maybeSingle();
+    if (created && !readError && !isUntouched(created)) return emailTaken(created.active);
+
+    const { data: activated, error: activationError } = created
+      ? await admin
+          .from("profiles")
+          .update({ role, full_name: fullName, active: true })
+          .eq("id", created.id)
+          // Unchanged since the read above, or the update matches nothing.
+          .eq("updated_at", created.updated_at)
+          .select("id")
+      : { data: null, error: readError };
     refresh();
     if (activationError || !activated?.length) {
       console.error("[admin/users] invite sent but the profile was not activated", activationError);
-      return warn(
-        `Invite sent to ${email}, but the account could not be activated. Choose Activate next to ${fullName} in the list.`,
-      );
+      // The profile stays as sign-up made it, so the list shows it as pending.
+      const next = role === "admin" ? `Choose Activate next to ${fullName}, then Make admin.` : `Choose Activate next to ${fullName}.`;
+      return warn(`Invite sent to ${email}, but the account could not be activated. ${next}`);
     }
     return ok(`Invite sent to ${email}. They choose a password from the link in the email.`);
   });
@@ -204,16 +223,25 @@ export async function reactivateUser(_previous: ActionResult, formData: FormData
     if (!current) return fail(MESSAGES.userNotFound);
     const name = displayName(current.full_name, current.email);
 
-    // The ban goes first: if the profile update then fails, the account stays
-    // blocked by RLS and the session guard, never half open.
     const canLiftBan = isAdminClientConfigured();
-    if (canLiftBan) {
-      const { error: unbanError } = await createAdminClient().auth.admin.updateUserById(userId, {
-        ban_duration: UNBAN,
-      });
-      if (unbanError) {
-        console.error("[admin/users] could not lift the ban", unbanError.code, unbanError.message);
-        return fail(`${name} could not be reactivated: Supabase did not lift their sign-in block (${unbanError.message}).`);
+    const admin = canLiftBan ? createAdminClient() : null;
+
+    // The ban goes first: until the profile is active as well, RLS and the
+    // session guard still block them. A pending account was never banned.
+    let unbanned = false;
+    if (admin) {
+      const { data: authUser, error: authError } = await admin.auth.admin.getUserById(userId);
+      if (authError) {
+        console.error("[admin/users] could not read the auth user", authError.code, authError.message);
+        return fail(`${name} was not activated: Supabase Auth did not answer (${authError.message}). Try again.`);
+      }
+      if (isBanned(authUser.user.banned_until)) {
+        const { error: unbanError } = await admin.auth.admin.updateUserById(userId, { ban_duration: UNBAN });
+        if (unbanError) {
+          console.error("[admin/users] could not lift the ban", unbanError.code, unbanError.message);
+          return fail(`${name} was not activated: Supabase did not lift their sign-in block (${unbanError.message}).`);
+        }
+        unbanned = true;
       }
     }
 
@@ -223,8 +251,20 @@ export async function reactivateUser(_previous: ActionResult, formData: FormData
       .eq("id", userId)
       .select("id")
       .maybeSingle();
-    if (error) return fail(describeProfileError(error));
-    if (!profile) return fail(MESSAGES.userNotFound);
+    if (error || !profile) {
+      const reason = error ? `${name} was not activated. ${describeProfileError(error)}` : MESSAGES.userNotFound;
+      // Put the ban back, so a failed attempt changes nothing.
+      if (admin && unbanned) {
+        const { error: rebanError } = await admin.auth.admin.updateUserById(userId, { ban_duration: BAN_DURATION });
+        if (rebanError) {
+          console.error("[admin/users] activation failed and the ban could not be restored", rebanError.message);
+          return fail(
+            `${reason} Their sign-in block was lifted and could not be put back, but the account is still inactive, so they see nothing. Try again.`,
+          );
+        }
+      }
+      return fail(reason);
+    }
     refresh();
 
     if (!canLiftBan) {
@@ -257,7 +297,12 @@ export async function sendPasswordLink(_previous: ActionResult, formData: FormDa
     const name = displayName(profile.full_name, profile.email);
     if (!profile.active) return fail(`${name} cannot sign in until the account is active. Activate it first.`);
 
-    const { error: sendError } = await supabase.auth.resetPasswordForEmail(profile.email, {
+    // Sent through the secret-key client when there is one: the admin's own
+    // client would start a PKCE flow and leave its code verifier in the
+    // admin's cookies. The email link carries a token hash that
+    // /auth/confirm verifies on any device either way.
+    const mailer = isAdminClientConfigured() ? createAdminClient().auth : supabase.auth;
+    const { error: sendError } = await mailer.resetPasswordForEmail(profile.email, {
       redirectTo: authConfirmUrl(),
     });
     if (sendError) {
