@@ -77,17 +77,21 @@ export async function startAiReview(input: StartAiReviewInput): Promise<StartAiR
   if (!AI_STATUSES.includes(record.status)) return { ok: false, reason: "not_reviewable", message: NOT_REVIEWABLE };
 
   // One review at a time per version: a second request would be paid for twice.
+  // This check answers the usual case; two requests at the same moment both
+  // pass it, and the database's unique index on pending reviews refuses the
+  // second insert (below).
   if (running.error) return databaseError("Could not check for a review in progress.", running.error);
   for (const review of running.data.map(parseStoredReview)) {
     if (isStale(review, now)) {
       // Its server stopped before it could answer; record that, then go on.
-      await client
+      const stopped = await client
         .from("ai_reviews")
         .update({ status: "failed", summary: STOPPED_MESSAGE })
         .eq("id", review.id)
         .eq("status", "pending");
+      if (stopped.error) return databaseError("Could not close a review that stopped.", stopped.error);
     } else if (sameInstant(review.inspectionUpdatedAt, record.updatedAt)) {
-      return { ok: false, reason: "pending", message: `${ALREADY_PENDING} It appears here when it is ready.` };
+      return alreadyPending();
     }
   }
 
@@ -107,7 +111,11 @@ export async function startAiReview(input: StartAiReviewInput): Promise<StartAiR
     })
     .select("id")
     .single();
-  if (inserted.error) return databaseError("Could not save the review request.", inserted.error);
+  if (inserted.error) {
+    // ai_reviews_one_pending_per_version: another request for this version got in first.
+    if (inserted.error.code === UNIQUE_VIOLATION) return alreadyPending();
+    return databaseError("Could not save the review request.", inserted.error);
+  }
   const reviewId = inserted.data.id;
 
   await logInspectionEvent(client, record.id, "ai_review.requested", {
@@ -220,6 +228,13 @@ export async function scheduleAiReviewOnSubmit(inspectionId: string): Promise<St
  */
 function backgroundWriter(fallback: ExportClient): ExportClient {
   return isAdminClientConfigured() ? createAdminClient() : fallback;
+}
+
+/** Postgres unique_violation. */
+const UNIQUE_VIOLATION = "23505";
+
+function alreadyPending(): StartAiReviewResult {
+  return { ok: false, reason: "pending", message: `${ALREADY_PENDING} It appears here when it is ready.` };
 }
 
 function databaseError(message: string, error: { code?: string; message: string }): StartAiReviewResult {

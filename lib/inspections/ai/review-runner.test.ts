@@ -55,6 +55,24 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+/** A pending review older than any reviewer may take: its server stopped before it answered. */
+function staleReviewRow() {
+  return {
+    id: "99999999-9999-4999-8999-0000000000aa",
+    inspection_id: IDS.inspection,
+    inspection_updated_at: UPDATED_AT,
+    status: "pending",
+    model: "mock",
+    suggested_result: null,
+    confidence: null,
+    summary: null,
+    findings: [],
+    questions: [],
+    created_at: new Date(NOW - STALE_REVIEW_MS - 1).toISOString(),
+    updated_at: new Date(NOW - STALE_REVIEW_MS - 1).toISOString(),
+  };
+}
+
 describe("startAiReview", () => {
   it("stores a pending review of the current version, logs the request and writes the opinion in the background", async () => {
     const db = fake();
@@ -120,32 +138,53 @@ describe("startAiReview", () => {
     expect(reviews(db)).toHaveLength(1);
   });
 
-  it("records a review that never got an answer as stopped, then starts a new one", async () => {
-    const db = fake({
-      ...makeTables(),
-      ai_reviews: [
-        {
-          id: "99999999-9999-4999-8999-0000000000aa",
-          inspection_id: IDS.inspection,
-          inspection_updated_at: UPDATED_AT,
-          status: "pending",
-          model: "mock",
-          suggested_result: null,
-          confidence: null,
-          summary: null,
-          findings: [],
-          questions: [],
-          created_at: new Date(NOW - STALE_REVIEW_MS - 1).toISOString(),
-          updated_at: new Date(NOW - STALE_REVIEW_MS - 1).toISOString(),
-        },
-      ],
+  it("answers that one is being written when the database refuses a second pending review (two requests at once)", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    // The other request inserted its pending row between this one's check and its insert;
+    // the unique index ai_reviews_one_pending_per_version refuses this one.
+    const db = createFakeSupabase({
+      tables: makeTables(),
+      objects: makeObjects(),
+      now: () => new Date(NOW).toISOString(),
+      failQuery: (query) =>
+        query.table === "ai_reviews" && query.operation === "insert"
+          ? { code: "23505", message: 'duplicate key value violates unique constraint "ai_reviews_one_pending_per_version"' }
+          : null,
     });
+    const started = await startAiReview({ client: db.client, inspectionId: IDS.inspection, trigger: "admin", viewer: ADMIN, now: () => NOW });
+    expect(started).toEqual({ ok: false, reason: "pending", message: `${ALREADY_PENDING} It appears here when it is ready.` });
+    // Nothing is sent to the reviewer, and no request is logged.
+    expect(scheduled).toEqual([]);
+    expect(db.rpcCalls).toEqual([]);
+  });
+
+  it("records a review that never got an answer as stopped, then starts a new one", async () => {
+    const db = fake({ ...makeTables(), ai_reviews: [staleReviewRow()] });
     const started = await startAiReview({ client: db.client, inspectionId: IDS.inspection, trigger: "admin", viewer: ADMIN, now: () => NOW });
     expect(started.ok).toBe(true);
     expect(reviews(db).map((review) => [review.status, review.summary])).toEqual([
       ["failed", STOPPED_MESSAGE],
       ["pending", undefined],
     ]);
+  });
+
+  it("starts no review when a review that got no answer cannot be closed", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const db = createFakeSupabase({
+      tables: { ...makeTables(), ai_reviews: [staleReviewRow()] },
+      objects: makeObjects(),
+      now: () => new Date(NOW).toISOString(),
+      failQuery: (query) =>
+        query.table === "ai_reviews" && query.operation === "update" ? { code: "57014", message: "canceling statement" } : null,
+    });
+    const started = await startAiReview({ client: db.client, inspectionId: IDS.inspection, trigger: "admin", viewer: ADMIN, now: () => NOW });
+    expect(started).toEqual({
+      ok: false,
+      reason: "database_error",
+      message: "Could not close a review that stopped. Try again.",
+    });
+    expect(reviews(db).map((review) => review.status)).toEqual(["pending"]);
+    expect(scheduled).toEqual([]);
   });
 
   it("answers not found to someone who may not export the inspection", async () => {
