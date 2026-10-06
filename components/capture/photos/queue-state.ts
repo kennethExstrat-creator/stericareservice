@@ -2,7 +2,7 @@
 // the queue itself), with its words and the counting rules. Pure and free of
 // browser code, so photo-model's rules are unit-tested without IndexedDB or
 // Supabase.
-import type { UploadQueueSnapshot } from "@/lib/photos/upload-queue";
+import type { UploadItem, UploadQueueSnapshot } from "@/lib/photos/upload-queue";
 
 export type QueuePhase =
   /** Not started: no photo screen has asked for it yet. */
@@ -34,6 +34,14 @@ export interface PhotoQueueState {
    * the upload, so a tile does not flash while its signed URL loads.
    */
   previews: Readonly<Record<string, string | null>>;
+  /**
+   * Uploads that left the queue (finished here or in another tab) and whose
+   * rows the inspection's media store has not read yet, by id. The screens
+   * keep showing them as uploaded meanwhile, so a finished photo never
+   * blinks out of its slot; the media store forgets them once it holds the
+   * rows (media-store.ts).
+   */
+  settled: Readonly<Record<string, UploadItem>>;
 }
 
 export const NOTHING_PREPARING: PreparingCount = { photos: 0, files: 0 };
@@ -58,6 +66,7 @@ export const INITIAL_QUEUE_STATE: PhotoQueueState = {
   preparing: {},
   preparingByModule: {},
   previews: {},
+  settled: {},
 };
 
 export const QUEUE_PROBLEMS = {

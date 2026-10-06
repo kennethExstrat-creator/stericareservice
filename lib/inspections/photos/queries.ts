@@ -141,38 +141,41 @@ export async function loadInspectionMedia(
   };
 }
 
-/** Photos by id with fresh URLs: those the upload queue just finished. Missing ids are left out. */
+/**
+ * Photos by id with fresh URLs: those the upload queue just finished. Missing
+ * ids are left out. `complete` is false when some URLs could not be signed.
+ */
 export async function loadPhotos(
   client: Client,
   ids: readonly string[],
   { ttlSeconds = SIGNED_URL_TTL_SECONDS }: Pick<LoadOptions, "ttlSeconds"> = {},
-): Promise<{ ok: true; photos: MediaPhoto[] } | { ok: false }> {
+): Promise<{ ok: true; photos: MediaPhoto[]; complete: boolean } | { ok: false }> {
   const wanted = ids.filter((id) => UUID_PATTERN.test(id));
-  if (wanted.length === 0) return { ok: true, photos: [] };
+  if (wanted.length === 0) return { ok: true, photos: [], complete: true };
   const { data, error } = await client.from("inspection_photos").select(PHOTO_COLUMNS).in("id", wanted);
   if (error) {
     logFailure("new photos", error);
     return { ok: false };
   }
   const signed = await signPaths(client, PHOTO_BUCKET, photoObjectPaths(data), ttlSeconds);
-  return { ok: true, photos: data.map((row) => toMediaPhoto(row, signed.urls)) };
+  return { ok: true, photos: data.map((row) => toMediaPhoto(row, signed.urls)), complete: signed.complete };
 }
 
-/** Files by id with fresh URLs. */
+/** Files by id with fresh URLs. `complete` is false when some URLs could not be signed. */
 export async function loadFiles(
   client: Client,
   ids: readonly string[],
   { ttlSeconds = SIGNED_URL_TTL_SECONDS }: Pick<LoadOptions, "ttlSeconds"> = {},
-): Promise<{ ok: true; files: MediaFile[] } | { ok: false }> {
+): Promise<{ ok: true; files: MediaFile[]; complete: boolean } | { ok: false }> {
   const wanted = ids.filter((id) => UUID_PATTERN.test(id));
-  if (wanted.length === 0) return { ok: true, files: [] };
+  if (wanted.length === 0) return { ok: true, files: [], complete: true };
   const { data, error } = await client.from("inspection_files").select(FILE_COLUMNS).in("id", wanted);
   if (error) {
     logFailure("new files", error);
     return { ok: false };
   }
   const signed = await signPaths(client, FILE_BUCKET, data.map((row) => row.storage_path), ttlSeconds);
-  return { ok: true, files: data.map((row) => toMediaFile(row, signed.urls)) };
+  return { ok: true, files: data.map((row) => toMediaFile(row, signed.urls)), complete: signed.complete };
 }
 
 /**

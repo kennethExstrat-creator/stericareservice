@@ -41,6 +41,9 @@ const SHOWABLE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 /** Items the queue let go of without this page removing them: uploaded (here or in another tab). */
 export type SettledListener = (items: readonly UploadItem[]) => void;
 
+/** A retag or caption the server took for a photo whose row this page has not read yet. */
+export type SettledChange = Pick<UploadItem, "id" | "moduleKey" | "target" | "caption">;
+
 export interface AddPhotosInput {
   inspectionId: string;
   files: readonly File[];
@@ -56,7 +59,8 @@ export interface AddFilesInput {
   onQueued?: (file: { id: string; name: string }) => void;
 }
 
-class PhotoQueueStore {
+/** Exported for tests; the app uses the one `photoQueueStore` below. */
+export class PhotoQueueStore {
   private state: PhotoQueueState = INITIAL_QUEUE_STATE;
   private queue: UploadQueue | null = null;
   private starting: Promise<UploadQueue | null> | null = null;
@@ -261,6 +265,29 @@ class PhotoQueueStore {
     this.setState({ previews });
   }
 
+  /** Stops showing finished uploads as such: the media store holds their rows now, or they are gone. */
+  forgetSettled(ids: Iterable<string>): void {
+    let settled: Record<string, UploadItem> | null = null;
+    for (const id of ids) {
+      if (!(id in this.state.settled)) continue;
+      settled ??= { ...this.state.settled };
+      delete settled[id];
+    }
+    if (settled) this.setState({ settled });
+  }
+
+  /**
+   * Shows a retag or caption the server took for a finished upload whose row
+   * is not read yet. False when no such upload is shown.
+   */
+  patchSettled(change: SettledChange): boolean {
+    const item = this.state.settled[change.id];
+    if (!item) return false;
+    const next = { ...item, moduleKey: change.moduleKey, target: change.target, caption: change.caption };
+    this.setState({ settled: { ...this.state.settled, [change.id]: next } });
+    return true;
+  }
+
   /**
    * The submit check (BUILD_SPEC 8.1): nothing being prepared and nothing
    * kept on this device for the inspection, other tabs included. Without an
@@ -349,8 +376,15 @@ class PhotoQueueStore {
       settled.push(item);
     }
     this.lastItems = current;
-    this.setState({ queue: snapshot });
-    if (settled.length > 0) for (const listener of [...this.settledListeners]) listener(settled);
+    if (settled.length === 0) {
+      this.setState({ queue: snapshot });
+      return;
+    }
+    // In the same update as the queue that no longer has them: a finished photo is never in neither list.
+    const kept = { ...this.state.settled };
+    for (const item of settled) kept[item.id] = item;
+    this.setState({ queue: snapshot, settled: kept });
+    for (const listener of [...this.settledListeners]) listener(settled);
   }
 
   private bumpPreparing(inspectionId: string, slot: string, kind: keyof PreparingCount, by: number): void {

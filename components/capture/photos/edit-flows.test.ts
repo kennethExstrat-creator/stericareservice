@@ -6,7 +6,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const fakes = vi.hoisted(() => ({
-  media: { applyPhoto: vi.fn(), removePhoto: vi.fn(), removeFile: vi.fn() },
+  media: { applyPhoto: vi.fn(), removePhoto: vi.fn(), removeFile: vi.fn(), load: vi.fn(async () => undefined) },
   queue: {
     retag: vi.fn(async (): Promise<boolean> => true),
     remove: vi.fn(async (): Promise<boolean> => true),
@@ -25,6 +25,7 @@ vi.mock("./queue-store", () => ({ photoQueueStore: fakes.queue }));
 import { deleteInspectionFile, deletePhoto, updatePhotoTags } from "@/lib/inspections/photos/actions";
 import { IDLE_PHOTO_ACTION, PHOTO_MESSAGES, type PhotoChange } from "@/lib/inspections/photos/messages";
 import { deleteSlotFile, deleteSlotPhoto, REMOVED_FILE, REMOVED_PHOTO, savePhotoEdit } from "./edit-flows";
+import { refreshInspectionMedia } from "./hooks";
 import { mediaStore } from "./media-store";
 
 const INSPECTION = "0b5c7d1e-2f3a-4b5c-8d9e-0f1a2b3c4d5e";
@@ -161,5 +162,18 @@ describe("deleteSlotFile", () => {
       message: PHOTO_MESSAGES.fileGone,
     });
     expect(fakes.media.removeFile).not.toHaveBeenCalled();
+  });
+});
+
+describe("refreshInspectionMedia", () => {
+  it("loads the inspection's photos and rights again for a screen that changed its status itself", async () => {
+    vi.stubGlobal("window", new EventTarget());
+    try {
+      await refreshInspectionMedia(INSPECTION);
+      expect(mediaStore).toHaveBeenCalledWith(INSPECTION);
+      expect(fakes.media.load).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

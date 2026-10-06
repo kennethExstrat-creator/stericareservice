@@ -72,6 +72,17 @@ export function useInspectionMedia(inspectionId: string): MediaState {
 }
 
 /**
+ * Loads an inspection's photos, files and the user's rights on them again,
+ * keeping what is on screen meanwhile: for a screen that changed the
+ * inspection's status itself (submit, reopen, approve) and stays where it is.
+ * Screens shown again after client-side navigation load again by themselves.
+ */
+export function refreshInspectionMedia(inspectionId: string): Promise<void> {
+  if (typeof window === "undefined") return Promise.resolve();
+  return mediaStore(inspectionId).load();
+}
+
+/**
  * The upload state of an inspection, for the capture screen: a pending
  * badge, and a submit button that waits while `blocking` (BUILD_SPEC 8.1),
  * with `message` as the reason. Check `photoUploadsSettled()` once more on

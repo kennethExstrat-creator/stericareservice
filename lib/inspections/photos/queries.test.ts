@@ -229,15 +229,29 @@ describe("loadPhotos and loadFiles", () => {
     tables.inspection_photos = { data: [photoRow(PHOTO)], error: null };
     const result = await loadPhotos(fakeClient(), [PHOTO, "not-an-id"]);
     expect(queries[0].calls).toContainEqual(["in", ["id", [PHOTO]]]);
-    expect(result).toEqual({ ok: true, photos: [expect.objectContaining({ id: PHOTO, fullUrl: expect.stringContaining(PHOTO) })] });
+    expect(result).toEqual({
+      ok: true,
+      photos: [expect.objectContaining({ id: PHOTO, fullUrl: expect.stringContaining(PHOTO) })],
+      complete: true,
+    });
 
     const files = await loadFiles(fakeClient(), [FILE]);
-    expect(files).toEqual({ ok: true, files: [expect.objectContaining({ id: FILE, url: expect.stringContaining(FILE) })] });
+    expect(files).toEqual({ ok: true, files: [expect.objectContaining({ id: FILE, url: expect.stringContaining(FILE) })], complete: true });
+  });
+
+  it("say when some URLs could not be signed, so the screen signs them again soon", async () => {
+    tables.inspection_photos = { data: [photoRow(PHOTO)], error: null };
+    signing.mockResolvedValueOnce({ data: null, error: { message: "timeout" } });
+    expect(await loadPhotos(fakeClient(), [PHOTO])).toEqual({
+      ok: true,
+      photos: [expect.objectContaining({ id: PHOTO, thumbUrl: null, fullUrl: null })],
+      complete: false,
+    });
   });
 
   it("do not query for nothing, and report a failed read", async () => {
-    expect(await loadPhotos(fakeClient(), [])).toEqual({ ok: true, photos: [] });
-    expect(await loadFiles(fakeClient(), ["x"])).toEqual({ ok: true, files: [] });
+    expect(await loadPhotos(fakeClient(), [])).toEqual({ ok: true, photos: [], complete: true });
+    expect(await loadFiles(fakeClient(), ["x"])).toEqual({ ok: true, files: [], complete: true });
     expect(queries).toEqual([]);
     tables.inspection_files = { data: null, error: { message: "timeout" } };
     expect(await loadFiles(fakeClient(), [FILE])).toEqual({ ok: false });
