@@ -8,14 +8,21 @@
 // previous size while vertical scrolling stays native; a swipe never starts
 // in the field being edited, and a half-typed value elsewhere is stored for
 // its own size before the panel changes. Controlled: the module owns the
-// active size. With wide="all" the tab bar hides from 1280 px and every size
-// shows side by side instead. SizeStatusStrip is the compact form for
-// summary rows.
+// active size; a value that is not ordered shows the first size and the
+// module is told. With wide="all" the tab bar hides from 1280 px and every
+// size shows side by side instead, as long as the panel's tables fit (a
+// CounterTable reports the width it needs); otherwise the tabs stay. The
+// bar's height is published as --size-tabs-bar, so table headers inside can
+// stick below it. SizeStatusStrip is the compact form for summary rows.
 import {
+  useCallback,
   useEffect,
+  useEffectEvent,
   useId,
+  useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent,
   type MouseEvent,
   type PointerEvent,
@@ -26,7 +33,11 @@ import type { Status } from "@/lib/design/status";
 import { formatSize, type SizeOption } from "@/lib/format";
 import { ResultChip } from "./result-chip";
 import { rovingIndex } from "./roving";
+import { activeSize, showsSideBySide } from "./selection";
+import { SizeTabsContext, type SizeTabsState } from "./size-tabs-context";
 import { NO_SWIPE_SELECTOR, stepValue, swipeStep, type SwipePoint } from "./swipe";
+import { useAnnouncement } from "./use-announcement";
+import { useMediaQuery, WIDE_QUERY } from "./use-media-query";
 
 /** A result as a status, or a per-size result from calc (`evaluation.result.perSize`). */
 export type ResultLike = Status | { readonly status: Status; readonly summary?: string };
@@ -40,6 +51,7 @@ function statusOf(result: ResultLike | undefined): Status {
 type SizeTabsProps = {
   /** Ordered sizes, canonical, in template order (`context.sizes`). */
   sizes: readonly string[];
+  /** The size on screen. One that is not ordered shows the first size, and onValueChange is called with it. */
   value: string;
   onValueChange: (size: string) => void;
   /** The template's sizes (`context.templateSizes`), for labels such as "Medium". */
@@ -48,7 +60,10 @@ type SizeTabsProps = {
   results?: SizeResults;
   /** Accessible name of the tab list. */
   label?: string;
-  /** "tabs" keeps tabs at every width; "all" shows every size side by side from 1280 px. */
+  /**
+   * "tabs" keeps tabs at every width; "all" shows every size side by side from
+   * 1280 px while the panel fits (tabs again where it does not).
+   */
   wide?: "tabs" | "all";
   /** Turn sizes with a horizontal swipe on touch. */
   swipe?: boolean;
@@ -84,17 +99,65 @@ export function SizeTabs({
   const baseId = useId();
   const tabId = (index: number) => `${baseId}-tab-${index}`;
   const panelId = (index: number) => `${baseId}-panel-${index}`;
-  // A value that is no longer ordered falls back to the first size.
-  const activeIndex = Math.max(0, sizes.indexOf(value));
-  const current = sizes[activeIndex];
+  // A value that is no longer ordered (or set before sizes were) shows the first size.
+  const current = activeSize(sizes, value);
+  const activeIndex = current === undefined ? -1 : sizes.indexOf(current);
   const sizeText = (size: string) => formatSize(size, { sizes: templateSizes });
 
+  // ...and the module is told, so its own state (a CounterTable's
+  // activeColumn, the size in photo tags) is the size on screen.
+  const adopt = useEffectEvent((size: string) => onValueChange(size));
+  useEffect(() => {
+    if (current !== undefined && current !== value) adopt(current);
+  }, [current, value]);
+
+  const rootRef = useRef<HTMLDivElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const tabs = useRef(new Map<number, HTMLButtonElement>());
   const gesture = useRef<{ pointerId: number; start: SwipePoint } | null>(null);
   // When a swipe ended: the click its lifted finger may still produce is not a press.
   const swipedAt = useRef<number | null>(null);
-  const [announcement, setAnnouncement] = useState("");
+  const [announcement, announce] = useAnnouncement();
+
+  // Side by side only while the widest table fits; the width and the bar's
+  // height are measured on the client (null until then: CSS alone decides).
+  const [width, setWidth] = useState<number | null>(null);
+  const [barHeight, setBarHeight] = useState<number | null>(null);
+  const [needs, setNeeds] = useState<ReadonlyMap<string, number>>(() => new Map());
+  const requireWidth = useCallback((id: string, needed: number | null) => {
+    setNeeds((previous) => {
+      if (needed === null ? !previous.has(id) : previous.get(id) === needed) return previous;
+      const next = new Map(previous);
+      if (needed === null) next.delete(id);
+      else next.set(id, needed);
+      return next;
+    });
+  }, []);
+  const sideBySide = showsSideBySide(wide, width, Math.max(0, ...needs.values()));
+  const hideBarWhenWide = sideBySide && !actions;
+  // From 1280 px with every size on screen there are no tabs to label the panels.
+  const allShown = useMediaQuery(WIDE_QUERY) && sideBySide;
+
+  const hasSizes = current !== undefined;
+  useEffect(() => {
+    const root = rootRef.current;
+    const bar = barRef.current;
+    if (!root || typeof ResizeObserver === "undefined") return;
+    const measure = () => {
+      setWidth(root.clientWidth);
+      setBarHeight(bar ? bar.offsetHeight : 0);
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(root);
+    if (bar) observer.observe(bar);
+    return () => observer.disconnect();
+  }, [hasSizes]);
+
+  const context = useMemo<SizeTabsState | null>(
+    () => (current === undefined ? null : { size: current, sideBySide, requireWidth }),
+    [current, sideBySide, requireWidth],
+  );
 
   // Keep the active tab in view when the bar scrolls sideways, without
   // scrolling the page (scrollIntoView would).
@@ -114,7 +177,7 @@ export function SizeTabs({
     if (next === null) return;
     event.preventDefault();
     tabs.current.get(next)?.focus();
-    if (sizes[next] !== current) onValueChange(sizes[next]);
+    if (sizes[next] !== value) onValueChange(sizes[next]);
   };
 
   const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
@@ -134,7 +197,7 @@ export function SizeTabs({
   const onPointerUp = (event: PointerEvent<HTMLDivElement>) => {
     const started = gesture.current;
     gesture.current = null;
-    if (!started || started.pointerId !== event.pointerId) return;
+    if (!started || started.pointerId !== event.pointerId || current === undefined) return;
     const step = swipeStep(started.start, { x: event.clientX, y: event.clientY, time: event.timeStamp });
     const next = stepValue(sizes, current, step);
     if (next === null) return;
@@ -144,7 +207,7 @@ export function SizeTabs({
     const active = document.activeElement;
     if (active instanceof HTMLElement && event.currentTarget.contains(active)) active.blur();
     onValueChange(next);
-    setAnnouncement(`Size ${sizeText(next)}`);
+    announce(`Size ${sizeText(next)}`);
   };
 
   const swipeHandlers = {
@@ -165,11 +228,9 @@ export function SizeTabs({
     },
   };
 
-  const hideTabsWhenWide = wide === "all";
-
-  if (sizes.length === 0 || current === undefined) {
+  if (current === undefined) {
     return (
-      <div data-slot="size-tabs" className={cn("min-w-0", className)}>
+      <div ref={rootRef} data-slot="size-tabs" className={cn("min-w-0", className)}>
         <p className="rounded-lg border border-dashed border-not-done-border bg-not-done-tint px-4 py-3 text-sm text-not-done touch:text-base">
           {emptyMessage}
         </p>
@@ -177,64 +238,73 @@ export function SizeTabs({
     );
   }
 
+  // A tab panel's attributes, unless every size is on screen (no tabs then).
+  const panelRole = (index: number) =>
+    allShown ? {} : { role: "tabpanel", id: panelId(index), "aria-labelledby": tabId(index) };
+
   let panels: ReactNode = null;
+  let everyPanel = false;
   if (typeof children === "function") {
-    panels =
-      wide === "all" ? (
-        <div className="min-w-0 xl:grid xl:grid-cols-[repeat(auto-fit,minmax(18rem,1fr))] xl:gap-6">
-          {sizes.map((size, index) => (
-            <div
-              key={size}
-              role="tabpanel"
-              id={panelId(index)}
-              aria-labelledby={tabId(index)}
-              data-active={size === current || undefined}
-              className={cn("min-w-0 space-y-3", size !== current && "max-xl:hidden", panelClassName)}
-            >
-              <p className="hidden font-display text-base font-semibold text-foreground xl:block">
-                Size {sizeText(size)}
-              </p>
-              {children(size)}
-            </div>
-          ))}
-        </div>
-      ) : (
-        // Keyed by size: a half-typed cell never carries over to the next size.
-        <div
-          key={current}
-          role="tabpanel"
-          id={panelId(activeIndex)}
-          aria-labelledby={tabId(activeIndex)}
-          className={cn("min-w-0", panelClassName)}
-        >
-          {children(current)}
-        </div>
-      );
+    everyPanel = sideBySide;
+    panels = sideBySide ? (
+      <div className="min-w-0 xl:grid xl:grid-cols-[repeat(auto-fit,minmax(18rem,1fr))] xl:gap-6">
+        {sizes.map((size, index) => (
+          <div
+            key={size}
+            {...panelRole(index)}
+            data-active={size === current || undefined}
+            className={cn("min-w-0 space-y-3", size !== current && "max-xl:hidden", panelClassName)}
+          >
+            <p className="hidden font-display text-base font-semibold text-foreground xl:block">
+              Size {sizeText(size)}
+            </p>
+            {children(size)}
+          </div>
+        ))}
+      </div>
+    ) : (
+      // Keyed by size: a half-typed cell never carries over to the next size.
+      <div key={current} {...panelRole(activeIndex)} className={cn("min-w-0", panelClassName)}>
+        {children(current)}
+      </div>
+    );
   } else if (children !== undefined && children !== null && children !== false) {
     panels = (
-      <div
-        role="tabpanel"
-        id={panelId(activeIndex)}
-        aria-labelledby={tabId(activeIndex)}
-        className={cn("min-w-0", panelClassName)}
-      >
+      <div {...panelRole(activeIndex)} className={cn("min-w-0", panelClassName)}>
         {children}
       </div>
     );
   }
 
+  // aria-controls names only panels that are rendered.
+  const controls = (index: number) =>
+    panels && !allShown && (everyPanel || index === activeIndex) ? panelId(index) : undefined;
+
   return (
-    <div data-slot="size-tabs" className={cn("min-w-0 space-y-4", className)}>
+    <div
+      ref={rootRef}
+      data-slot="size-tabs"
+      data-side-by-side={sideBySide || undefined}
+      // The bar's height for headers that stick below it; until measured, the
+      // tabs' height (h-8 or touch:h-11, p-1, py-2 and the border).
+      style={barHeight === null ? undefined : ({ "--size-tabs-bar": `${barHeight}px` } as CSSProperties)}
+      className={cn(
+        "min-w-0 space-y-4 [--size-tabs-bar:calc(3.5rem_+_1px)] touch:[--size-tabs-bar:calc(4.25rem_+_1px)]",
+        hideBarWhenWide && "xl:[--size-tabs-bar:0px]",
+        className,
+      )}
+    >
       <div
+        ref={barRef}
         data-slot="size-tabs-bar"
         className={cn(
           "sticky top-[var(--capture-sticky-top,0px)] z-20 flex items-center gap-3 border-b border-border bg-card py-2",
-          hideTabsWhenWide && !actions && "xl:hidden",
+          hideBarWhenWide && "xl:hidden",
         )}
       >
         <div
           ref={scrollerRef}
-          className={cn("relative min-w-0 flex-1 overflow-x-auto [scrollbar-width:none]", hideTabsWhenWide && "xl:hidden")}
+          className={cn("relative min-w-0 flex-1 overflow-x-auto [scrollbar-width:none]", sideBySide && "xl:hidden")}
         >
           <div
             role="tablist"
@@ -256,15 +326,20 @@ export function SizeTabs({
                   role="tab"
                   id={tabId(index)}
                   aria-selected={selected}
-                  aria-controls={panels ? panelId(index) : undefined}
+                  aria-controls={controls(index)}
                   tabIndex={selected ? 0 : -1}
                   data-active={selected || undefined}
                   data-size={size}
-                  onClick={() => size !== current && onValueChange(size)}
+                  // Compared with the module's value, not the size shown: a tap
+                  // always reaches the module, even while its value is stale.
+                  onClick={() => size !== value && onValueChange(size)}
                   onKeyDown={onTabKeyDown(index)}
                   className={cn(
                     "inline-flex h-8 min-w-12 shrink-0 items-center justify-center gap-2 rounded-full px-3 text-sm font-semibold whitespace-nowrap tabular-nums outline-none transition-colors",
-                    "text-slate-700 hover:bg-card hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+                    // Outset, not inset: the selected tab (the one keyboard focus lands on) is
+                    // filled brand-500, where an inset brand-500 ring would not show. The
+                    // tab list's 4 px padding leaves room for it inside the scroller.
+                    "text-slate-700 hover:bg-card hover:text-foreground focus-ring",
                     "data-active:bg-primary data-active:text-primary-foreground data-active:shadow-sm data-active:hover:bg-brand-600",
                     "touch:h-11 touch:min-w-14 touch:px-4 touch:text-base",
                   )}
@@ -286,9 +361,13 @@ export function SizeTabs({
       </div>
 
       {panels && (
-        <div data-slot="size-tabs-panels" className="min-w-0 touch-pan-y touch-pinch-zoom" {...swipeHandlers}>
-          {panels}
-        </div>
+        // Tables follow the tabs only in a node panel; a per-size function
+        // panel is one size already, and its tables show their own columns.
+        <SizeTabsContext.Provider value={typeof children === "function" ? null : context}>
+          <div data-slot="size-tabs-panels" className="min-w-0 touch-pan-y touch-pinch-zoom" {...swipeHandlers}>
+            {panels}
+          </div>
+        </SizeTabsContext.Provider>
       )}
       <p className="sr-only" aria-live="polite">
         {announcement}
@@ -318,7 +397,7 @@ export function SizeStatusStrip({
   className,
 }: SizeStatusStripProps) {
   const pill =
-    "inline-flex h-6 items-center gap-1 rounded-full border border-border bg-card py-0.5 pr-0.5 pl-2 text-xs font-semibold text-foreground tabular-nums touch:h-7 touch:text-sm";
+    "inline-flex h-6 items-center gap-1 rounded-full border border-border bg-card py-0.5 pr-0.5 pl-2 text-xs font-semibold text-foreground tabular-nums touch:h-8 touch:text-base";
   return (
     <ul aria-label={label} data-slot="size-status-strip" className={cn("flex flex-wrap items-center gap-1.5", className)}>
       {sizes.map((size) => {
@@ -331,14 +410,14 @@ export function SizeStatusStrip({
           </>
         );
         return (
-          <li key={size} data-status={status}>
+          <li key={size} data-status={status} className="relative">
             {onSelect ? (
               <button
                 type="button"
                 onClick={() => onSelect(size)}
                 className={cn(
                   pill,
-                  "outline-none hover:border-primary hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 touch:h-11 touch:pr-1.5 touch:pl-3",
+                  "hover:border-primary hover:bg-accent focus-ring touch:h-11 touch:pr-1.5 touch:pl-3",
                 )}
               >
                 <span className="sr-only">Size </span>

@@ -201,7 +201,7 @@ export function NumericCell({
         )}
       </div>
       {showError && invalid && (
-        <p id={errorId} className="mt-1.5 text-sm text-fail">
+        <p id={errorId} className="mt-1.5 text-sm text-fail touch:text-base">
           {rejectionMessage(invalid)}
         </p>
       )}

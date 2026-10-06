@@ -1,9 +1,10 @@
 "use client";
 
 // +/- counter for defect counts (BUILD_SPEC 8: counts by tapping, never
-// typing). Holding a button repeats; Arrow, Page, Home and End keys work
-// anywhere in the group (stepper-keys.ts). Buttons stay focusable at the
-// limits (aria-disabled) so keyboard focus is never dropped; a disabled
+// typing). Holding a button repeats; a finger that slides off the press (a
+// swipe to the next size) ends it without counting. Arrow, Page, Home and End
+// keys work anywhere in the group (stepper-keys.ts). Buttons stay focusable at
+// the limits (aria-disabled) so keyboard focus is never dropped; a disabled
 // stepper (an approved inspection) leaves the tab order.
 import {
   useEffect,
@@ -15,7 +16,7 @@ import {
 } from "react";
 import { MinusIcon, PlusIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { clampCount, stepperKeyValue } from "./stepper-keys";
+import { clampCount, isDrag, stepperKeyValue } from "./stepper-keys";
 
 const REPEAT_DELAY_MS = 450;
 const REPEAT_INTERVAL_MS = 75;
@@ -29,6 +30,11 @@ type StepperProps = {
   max?: number;
   step?: number;
   disabled?: boolean;
+  /**
+   * Say the new value after a button press (default). Off where the parent
+   * says more in one message, as CounterTable does with its total.
+   */
+  announce?: boolean;
   id?: string;
   className?: string;
 };
@@ -46,16 +52,21 @@ export function Stepper({
   max,
   step = 1,
   disabled = false,
+  announce = true,
   id,
   className,
 }: StepperProps) {
   const [announcement, setAnnouncement] = useState("");
-  // Long-press state lives outside render: the value it steps from and
-  // whether it fired, so the click that ends the press does not add one more.
-  const press = useRef<{ timer?: ReturnType<typeof setTimeout>; value: number; fired: boolean }>({
-    value,
-    fired: false,
-  });
+  // Long-press state lives outside render: the value it steps from, whether
+  // it fired (so the click that ends the press does not add one more), where
+  // the pointer went down and whether it has since moved like a drag.
+  const press = useRef<{
+    timer?: ReturnType<typeof setTimeout>;
+    value: number;
+    fired: boolean;
+    start: { x: number; y: number } | null;
+    dragged: boolean;
+  }>({ value, fired: false, start: null, dragged: false });
 
   useEffect(() => {
     const state = press.current;
@@ -71,9 +82,12 @@ export function Stepper({
     press.current.timer = undefined;
   };
 
-  const startRepeat = (event: PointerEvent<HTMLButtonElement>, direction: 1 | -1) => {
+  const startRepeat = (event: PointerEvent<HTMLButtonElement>, direction: 1 | -1, enabled: boolean) => {
     if (event.button !== 0) return;
     stopRepeat();
+    press.current.start = { x: event.clientX, y: event.clientY };
+    press.current.dragged = false;
+    if (!enabled) return;
     press.current.value = value;
     press.current.fired = false;
     const tick = (delay: number) => {
@@ -89,7 +103,22 @@ export function Stepper({
     tick(REPEAT_DELAY_MS);
   };
 
+  // Touch keeps the pointer on the button while the finger moves, so leaving
+  // the button never ends a hold: moving like a drag does (stepper-keys.ts).
+  const onPointerMove = (event: PointerEvent<HTMLButtonElement>) => {
+    const start = press.current.start;
+    if (!start || press.current.dragged || !isDrag(start, { x: event.clientX, y: event.clientY })) return;
+    press.current.dragged = true;
+    stopRepeat();
+  };
+
   const stepBy = (direction: 1 | -1) => {
+    // A drag is not a press: whatever click ends it counts nothing more.
+    if (press.current.dragged) {
+      press.current.dragged = false;
+      press.current.fired = false;
+      return;
+    }
     if (press.current.fired) {
       press.current.fired = false;
       setAnnouncement(String(press.current.value));
@@ -102,8 +131,11 @@ export function Stepper({
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    // A long press released off the button leaves no click to consume its flag.
-    if (event.key === "Enter" || event.key === " ") press.current.fired = false;
+    // A long press or a drag released off the button leaves no click to consume its flags.
+    if (event.key === "Enter" || event.key === " ") {
+      press.current.fired = false;
+      press.current.dragged = false;
+    }
     if (disabled) return;
     const next = stepperKeyValue(event.key, value, { min, max, step });
     if (next === null) return;
@@ -135,7 +167,8 @@ export function Stepper({
         aria-disabled={!canDecrease}
         tabIndex={disabled ? -1 : undefined}
         className={cn(BUTTON, "text-foreground hover:bg-muted active:bg-slate-200")}
-        onPointerDown={(event) => canDecrease && startRepeat(event, -1)}
+        onPointerDown={(event) => startRepeat(event, -1, canDecrease)}
+        onPointerMove={onPointerMove}
         onPointerUp={stopRepeat}
         onPointerLeave={stopRepeat}
         onPointerCancel={stopRepeat}
@@ -162,7 +195,8 @@ export function Stepper({
         aria-disabled={!canIncrease}
         tabIndex={disabled ? -1 : undefined}
         className={cn(BUTTON, "bg-secondary text-secondary-foreground hover:bg-brand-200 active:bg-brand-300")}
-        onPointerDown={(event) => canIncrease && startRepeat(event, 1)}
+        onPointerDown={(event) => startRepeat(event, 1, canIncrease)}
+        onPointerMove={onPointerMove}
         onPointerUp={stopRepeat}
         onPointerLeave={stopRepeat}
         onPointerCancel={stopRepeat}
@@ -171,9 +205,11 @@ export function Stepper({
       >
         <PlusIcon aria-hidden />
       </button>
-      <span className="sr-only" aria-live="polite">
-        {announcement}
-      </span>
+      {announce && (
+        <span className="sr-only" aria-live="polite">
+          {announcement}
+        </span>
+      )}
     </div>
   );
 }
