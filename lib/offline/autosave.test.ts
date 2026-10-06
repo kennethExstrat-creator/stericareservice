@@ -1,9 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FakeInspectionServer } from "./__fixtures__/fake-server";
-import { createAutosave, type AutosaveStatus } from "./autosave";
+import {
+  AUTOSAVE_LOCK_WAIT_MS,
+  BUSY_MESSAGE,
+  SUPERSEDED_MESSAGE,
+  createAutosave,
+  type AutosaveStatus,
+} from "./autosave";
 import { manualConnectivity, type ManualConnectivity } from "./connectivity";
-import { draftKey } from "./drafts";
+import { draftKey, listUnsavedDrafts } from "./drafts";
 import { createMemoryStore, type KeyValueStore } from "./kv";
+import { pageLock, type WriterLock } from "./lock";
+import type { AutosaveTransport } from "./protocol";
 import { contentHash } from "./stable-json";
 
 type Data = { modules: { weight?: { values: number[] }; visual?: { thin_spot: number } } };
@@ -22,13 +30,26 @@ function setup({
   server = new FakeInspectionServer<Data>(d(0)),
   store = createMemoryStore<unknown>(),
   net = manualConnectivity(true),
-}: { server?: FakeInspectionServer<Data>; store?: KeyValueStore<unknown>; net?: ManualConnectivity } = {}) {
+  lock = pageLock(),
+  transport = server.transport(),
+  persistent,
+}: {
+  server?: FakeInspectionServer<Data>;
+  store?: KeyValueStore<unknown>;
+  net?: ManualConnectivity;
+  /** Controllers given the same lock are tabs of a browser with Web Locks; separate locks, a browser without. */
+  lock?: WriterLock;
+  transport?: AutosaveTransport<Data>;
+  persistent?: boolean;
+} = {}) {
   const hidden = new Set<() => void>();
   const autosave = createAutosave<Data>({
     inspectionId: INSPECTION,
     userId: USER,
-    transport: server.transport(),
+    transport,
     store,
+    persistent,
+    lock,
     connectivity: net,
     lifecycle: {
       onHidden(listener) {
@@ -549,6 +570,21 @@ describe("autosave: local copy problems and stopping", () => {
     expect(autosave.getSnapshot().localCopy).toBe(false);
   });
 
+  it("on the in-memory fallback, says a reload would lose changes the server does not have yet", async () => {
+    const { server, autosave } = setup({ persistent: false });
+    await autosave.start(server.copy());
+    expect(autosave.getSnapshot()).toMatchObject({ status: "saved", localCopy: false });
+
+    server.reachable = false;
+    autosave.change(d(1));
+    await advance(800);
+    expect(autosave.getSnapshot()).toMatchObject({ status: "error", error: { reason: "storage" }, localCopy: false });
+
+    server.reachable = true;
+    await advance(1000);
+    expect(autosave.getSnapshot()).toMatchObject({ status: "saved", error: null });
+  });
+
   it("stop() keeps unsaved changes for the next start and ignores later signals", async () => {
     const { server, store, net, autosave } = setup();
     await autosave.start(server.copy());
@@ -564,5 +600,195 @@ describe("autosave: local copy problems and stopping", () => {
     expect(server.requests).toHaveLength(1);
     expect(await autosave.flush()).toMatchObject({ ok: false, reason: "stopped" });
     expect(await store.get(KEY)).toMatchObject({ data: d(1), revision: 1, syncedRevision: 0 });
+  });
+
+  it("sends nothing and arms no timer when stopped while the local copy is written before a send", async () => {
+    const memory = createMemoryStore<unknown>();
+    let gate: (() => void) | null = null;
+    const slow: KeyValueStore<unknown> = {
+      ...memory,
+      put: async (key, value) => {
+        if (key === KEY && gate === null) await new Promise<void>((resolve) => (gate = resolve));
+        return memory.put(key, value);
+      },
+    };
+    const { server, autosave } = setup({ store: slow });
+    await autosave.start(server.copy());
+    autosave.change(d(1));
+    await advance(800);
+    expect(gate).not.toBeNull();
+
+    const stopped = autosave.stop();
+    (gate as unknown as () => void)();
+    await advance(0);
+    await stopped;
+    expect(server.requests).toHaveLength(0);
+    expect(vi.getTimerCount()).toBe(0);
+    expect(await memory.get(KEY)).toMatchObject({ data: d(1), revision: 1, syncedRevision: 0 });
+  });
+});
+
+describe("autosave: one writer per inspection on a device", () => {
+  it("keeps a second tab read-only while the first one is editing (Web Locks)", async () => {
+    const server = new FakeInspectionServer<Data>(d(0));
+    const store = createMemoryStore<unknown>();
+    const lock = pageLock();
+    const first = setup({ server, store, lock });
+    await first.autosave.start(server.copy());
+    first.autosave.change(d(1));
+    await advance(800);
+
+    const second = setup({ server, store, lock });
+    const starting = second.autosave.start(server.copy());
+    await advance(AUTOSAVE_LOCK_WAIT_MS);
+    expect(await starting).toEqual({ kind: "busy", data: d(1) });
+    expect(second.autosave.getSnapshot()).toMatchObject({
+      status: "error",
+      error: { reason: "other_tab", message: BUSY_MESSAGE },
+      localCopy: false,
+    });
+    expect(() => second.autosave.change(d(9))).toThrow(BUSY_MESSAGE);
+    expect(await second.autosave.flush()).toMatchObject({ ok: false, reason: "other_tab" });
+    await second.autosave.stop();
+
+    // Once the first tab lets go (closed, or its screen left), the next one takes over its copy.
+    first.autosave.change(d(2));
+    await first.autosave.stop();
+    const third = setup({ server, store, lock });
+    expect(await third.autosave.start(server.copy())).toMatchObject({ kind: "restored", data: d(2) });
+    await advance(0);
+    expect(server.data).toEqual(d(2));
+  });
+
+  it("lets a screen replaced in the same tab finish its last write first, and never write after it", async () => {
+    const server = new FakeInspectionServer<Data>(d(0));
+    const store = createMemoryStore<unknown>();
+    const lock = pageLock();
+    const first = setup({ server, store, lock });
+    await first.autosave.start(server.copy());
+    first.autosave.change(d(1));
+    server.hold();
+    await advance(800);
+    expect(server.requests).toHaveLength(1);
+    const stopping = first.autosave.stop();
+
+    // The new screen's requests never come back, so its local copy stays unsynced.
+    const silent: AutosaveTransport<Data> = { save: () => new Promise(() => undefined) };
+    const second = setup({ server, store, lock, transport: silent });
+    expect(await second.autosave.start(server.copy())).toMatchObject({ kind: "restored", data: d(1) });
+    await stopping;
+    second.autosave.change(d(2));
+    await advance(0);
+
+    // The first screen's request lands and answers late: its answer must not touch the local copy.
+    server.release();
+    await advance(0);
+    expect(server.data).toEqual(d(1));
+    expect(await store.get(KEY)).toMatchObject({ data: d(2), revision: 2, syncedRevision: 0 });
+
+    // The page dies; the next start keeps d(2), recognising d(1) on the server as this device's own save.
+    const third = setup({ server, store });
+    expect(await third.autosave.start(server.copy())).toMatchObject({ kind: "restored", data: d(2) });
+    await advance(0);
+    expect(server.data).toEqual(d(2));
+  });
+
+  it("hands the lock over only after its last write, so the next screen sees every change", async () => {
+    const server = new FakeInspectionServer<Data>(d(0));
+    const memory = createMemoryStore<unknown>();
+    let gate: (() => void) | null = null;
+    let slow = false;
+    const store: KeyValueStore<unknown> = {
+      ...memory,
+      put: async (key, value) => {
+        if (slow) await new Promise<void>((resolve) => (gate = resolve));
+        return memory.put(key, value);
+      },
+    };
+    const lock = pageLock();
+    const first = setup({ server, store, lock });
+    await first.autosave.start(server.copy());
+    await advance(0);
+    slow = true;
+    first.autosave.change(d(1));
+    await advance(0);
+    // d(2) waits behind the write of d(1) when the screen goes.
+    first.autosave.change(d(2));
+    const stopping = first.autosave.stop();
+
+    const second = setup({ server, store, lock });
+    const starting = second.autosave.start(server.copy());
+    await advance(0);
+    slow = false;
+    (gate as unknown as () => void)();
+    await stopping;
+    expect(await starting).toMatchObject({ kind: "restored", data: d(2) });
+  });
+
+  it("never lets an answer that arrives after stop() touch the local copy", async () => {
+    const { server, store, autosave } = setup();
+    await autosave.start(server.copy());
+    autosave.change(d(1));
+    server.hold();
+    await advance(800);
+    await autosave.stop();
+    const atStop = await store.get(KEY);
+    expect(atStop).toMatchObject({ data: d(1), revision: 1, syncedRevision: 0 });
+
+    server.release();
+    await advance(0);
+    expect(server.data).toEqual(d(1));
+    expect(await store.get(KEY)).toEqual(atStop);
+  });
+
+  it("without Web Locks, never writes over another tab's unsynced copy, and asks on the next start", async () => {
+    const server = new FakeInspectionServer<Data>(d(0));
+    const store = createMemoryStore<unknown>();
+    // Separate locks: no lock spans the tabs (an insecure origin).
+    const tabA = setup({ server, store });
+    // Tab B's requests never get through.
+    const tabB = setup({
+      server,
+      store,
+      transport: {
+        save: async () => {
+          throw new TypeError("Load failed");
+        },
+      },
+    });
+    await tabA.autosave.start(server.copy());
+    await advance(0);
+    await tabB.autosave.start(server.copy());
+    await advance(0);
+
+    // Tab B is edited while it has no connection, then goes to the background.
+    const typedInB: Data = { modules: { weight: { values: [9.1, 9.2, 9.3] } } };
+    tabB.autosave.change(typedInB);
+    await advance(800);
+    expect(tabB.autosave.getSnapshot().status).toBe("offline");
+
+    // Tab A is edited next: it finds tab B's copy and steps back instead of writing over it.
+    tabA.autosave.change(d(1));
+    await advance(0);
+    expect(tabA.autosave.getSnapshot()).toMatchObject({
+      status: "error",
+      error: { reason: "other_tab", message: SUPERSEDED_MESSAGE },
+      localCopy: false,
+    });
+    expect(await store.get(KEY)).toMatchObject({ data: typedInB, syncedRevision: 0 });
+    expect(await listUnsavedDrafts(store, USER)).toHaveLength(1);
+
+    // It still saves to the server, where compare-and-set keeps both sides honest, but it cannot submit.
+    await advance(800);
+    expect(server.data).toEqual(d(1));
+    expect(await tabA.autosave.flush()).toMatchObject({ ok: false, reason: "other_tab" });
+
+    // iPadOS discards tab B. On the next start both versions exist and the inspector chooses.
+    const reload = setup({ server, store });
+    expect(await reload.autosave.start(server.copy())).toMatchObject({
+      kind: "conflict",
+      local: { data: typedInB },
+      server: { data: d(1) },
+    });
   });
 });

@@ -2,16 +2,22 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { version } from "./__fixtures__/fake-server";
 import {
+  discardSetAsideDraft,
   draftKey,
+  draftStamp,
   findUnsavedDraft,
+  listSetAsideDrafts,
   listUnsavedDrafts,
   pruneSyncedDrafts,
   readDraft,
   reconcile,
+  restoreSetAsideDraft,
   writeDraft,
+  writerLockName,
   type LocalDraft,
 } from "./drafts";
 import { createMemoryStore } from "./kv";
+import { pageLock } from "./lock";
 import { contentHash } from "./stable-json";
 
 type Data = { modules: Record<string, unknown> };
@@ -119,8 +125,17 @@ describe("local copy records", () => {
     const store = createMemoryStore<unknown>();
     await writeDraft(store, draft());
     expect(await store.keys()).toEqual([draftKey(owner)]);
-    expect(await readDraft<Data>(store, owner)).toEqual({ status: "ok", draft: draft() });
+    expect(await readDraft<Data>(store, owner)).toEqual({ status: "ok", draft: draft(), stamp: draftStamp(draft()) });
     expect(await readDraft<Data>(store, { ...owner, userId: "user-2" })).toEqual({ status: "missing" });
+  });
+
+  it("stamps a stored copy so that any later write by anyone shows", () => {
+    const stamp = draftStamp(draft({ writer: "tab-a" }));
+    expect(stamp).toMatch(/^[0-9a-f]{16}$/);
+    expect(draftStamp(structuredClone(draft({ writer: "tab-a" })))).toBe(stamp);
+    expect(draftStamp(draft({ writer: "tab-b" }))).not.toBe(stamp);
+    expect(draftStamp(draft({ writer: "tab-a", syncedRevision: 3 }))).not.toBe(stamp);
+    expect(draftStamp({ v: 2, data: "from a newer app" })).toBeNull();
   });
 
   it("sets an unreadable copy aside instead of deleting or applying it", async () => {
@@ -164,5 +179,63 @@ describe("local copy records", () => {
       "draft:user-2:insp-1",
       `unreadable:user-1:insp-9:${NOW}`,
     ]);
+  });
+});
+
+describe("set-aside copies", () => {
+  const schema = z.object({ modules: z.record(z.string(), z.unknown()) });
+  const oldShape = draft({ data: { modules: "old shape" } as unknown as Data });
+
+  it("lists a user's set-aside copies, which the sign-out warning counts too", async () => {
+    const store = createMemoryStore<unknown>();
+    await writeDraft(store, oldShape);
+    await readDraft(store, owner, schema, NOW);
+    await store.put(`unreadable:user-2:insp-1:${NOW}`, { theirs: true });
+
+    expect(await listSetAsideDrafts(store, "user-1")).toEqual([
+      { key: `unreadable:user-1:insp-1:${NOW}`, inspectionId: "insp-1", setAsideAt: NOW, value: oldShape },
+    ]);
+    expect(await listUnsavedDrafts(store, "user-1")).toEqual([]);
+  });
+
+  it("puts one back as the local copy for the next start to read again", async () => {
+    const store = createMemoryStore<unknown>();
+    await writeDraft(store, oldShape);
+    await readDraft(store, owner, schema, NOW);
+    const [{ key }] = await listSetAsideDrafts(store, "user-1");
+
+    expect(await restoreSetAsideDraft(store, key, pageLock())).toBe(true);
+    expect(await store.keys()).toEqual([draftKey(owner)]);
+    expect(await readDraft(store, owner)).toMatchObject({ status: "ok", draft: { data: { modules: "old shape" } } });
+  });
+
+  it("never restores over unsaved or unreadable work, nor while the inspection is open", async () => {
+    const store = createMemoryStore<unknown>();
+    const key = `unreadable:user-1:insp-1:${NOW}`;
+    await store.put(key, oldShape);
+
+    await writeDraft(store, draft());
+    expect(await restoreSetAsideDraft(store, key, pageLock())).toBe(false);
+    await store.put(draftKey(owner), { v: 7 });
+    expect(await restoreSetAsideDraft(store, key, pageLock())).toBe(false);
+
+    await writeDraft(store, draft({ syncedRevision: 3 }));
+    const lock = pageLock();
+    const release = await lock.acquire(writerLockName(owner), 0);
+    expect(await restoreSetAsideDraft(store, key, lock)).toBe(false);
+    release?.();
+    expect(await restoreSetAsideDraft(store, key, lock)).toBe(true);
+    expect(await restoreSetAsideDraft(store, key, lock)).toBe(false);
+    expect(await restoreSetAsideDraft(store, "draft:user-1:insp-1", lock)).toBe(false);
+  });
+
+  it("discards one for good, and only set-aside keys", async () => {
+    const store = createMemoryStore<unknown>();
+    const key = `unreadable:user-1:insp-1:${NOW}`;
+    await store.put(key, oldShape);
+    await writeDraft(store, draft());
+    await discardSetAsideDraft(store, key);
+    await discardSetAsideDraft(store, draftKey(owner));
+    expect(await store.keys()).toEqual([draftKey(owner)]);
   });
 });

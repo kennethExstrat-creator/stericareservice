@@ -2,17 +2,22 @@ import { z } from "zod";
 import { AUTOSAVE_BACKOFF, backoffDelay, type Backoff } from "./backoff";
 import { defaultConnectivity, defaultLifecycle, type Connectivity, type PageLifecycle } from "./connectivity";
 import {
+  LocalDraftSchema,
   MAX_SENT_HASHES,
+  draftKey,
   hasUnsavedChanges,
   readDraft,
   reconcile,
   writeDraft,
+  writerLockName,
   type DraftOwner,
   type LocalDraft,
   type Reconciliation,
 } from "./drafts";
 import { FAILURE_MESSAGES, isRetryable, thrownFailure, type Failure, type FailureReason } from "./failures";
+import { newId } from "./id";
 import type { KeyValueStore } from "./kv";
+import { defaultWriterLock, type ReleaseLock, type WriterLock } from "./lock";
 import { saveOutcomeSchema, type AutosaveTransport, type SaveOutcome, type ServerCopy } from "./protocol";
 import { contentHash } from "./stable-json";
 
@@ -22,7 +27,9 @@ import { contentHash } from "./stable-json";
  * Every change is written to the local copy first, then saved after a
  * quiet spell through the transport, one request at a time, with
  * compare-and-set on the server's updated_at. Failures retry with backoff;
- * a conflict waits for the inspector.
+ * a conflict waits for the inspector. One controller per user and
+ * inspection writes the local copy at a time: it holds a lock from
+ * start() to stop().
  * ------------------------------------------------------------------ */
 
 export const AUTOSAVE_DEBOUNCE_MS = 800;
@@ -31,16 +38,23 @@ export const AUTOSAVE_MAX_WAIT_MS = 5_000;
 /** After this a request counts as stalled: the pill shows offline and the request is aborted if the transport supports it. */
 export const AUTOSAVE_REQUEST_TIMEOUT_MS = 30_000;
 export const AUTOSAVE_FLUSH_TIMEOUT_MS = 20_000;
+/** How long start() waits for the inspection's lock: ample for the screen it replaces in this tab to let go. */
+export const AUTOSAVE_LOCK_WAIT_MS = 3_000;
 /** Automatic re-sends after the server moved through this device's own writes, before asking the inspector. */
 const MAX_REBASES = 3;
 
 export const CONFLICT_MESSAGE = "This inspection was changed on another device while this one had unsaved changes.";
 export const STORAGE_MESSAGE =
   "Changes cannot be kept on this device and are not saved yet. Keep this page open until the connection is back.";
+export const BUSY_MESSAGE =
+  "This inspection is open in another tab on this device. Continue there, or close that tab and reload this page.";
+export const SUPERSEDED_MESSAGE =
+  "This inspection was opened in another tab on this device. Continue there: changes made in this tab are no longer kept on this device.";
 
 export type AutosaveStatus = "saved" | "saving" | "offline" | "error";
 
-export type AutosaveErrorReason = FailureReason | "conflict" | "storage";
+/** `other_tab`: another tab on this device is the writer of this inspection (BUSY_MESSAGE, SUPERSEDED_MESSAGE). */
+export type AutosaveErrorReason = FailureReason | "conflict" | "storage" | "other_tab";
 
 export interface AutosaveError {
   reason: AutosaveErrorReason;
@@ -66,7 +80,11 @@ export interface AutosaveSnapshot<T> {
   conflict: AutosaveConflict<T> | null;
   /** Device time (ms) of the next automatic retry. */
   retryAt: number | null;
-  /** False when changes cannot be kept on this device (no IndexedDB, or it failed). */
+  /**
+   * False when changes cannot be kept on this device: the in-memory fallback
+   * (`persistent: false`), a failed read or write of the local copy, or
+   * another tab owning it.
+   */
   localCopy: boolean;
 }
 
@@ -76,7 +94,9 @@ export type StartResult<T> =
   /** Unsaved changes from this device were applied and are being saved: render `data`. */
   | { kind: "restored"; data: T; changedAt: number }
   /** Ask the inspector, then call resolveConflict(). Saving waits until then. */
-  | { kind: "conflict"; local: { data: T; changedAt: number }; server: ServerCopy<T> };
+  | { kind: "conflict"; local: { data: T; changedAt: number }; server: ServerCopy<T> }
+  /** Another tab on this device is editing this inspection: show `data` read-only with BUSY_MESSAGE. Nothing is saved here. */
+  | { kind: "busy"; data: T };
 
 export type FlushResult =
   | { ok: true }
@@ -88,8 +108,17 @@ export interface AutosaveOptions<T> {
   transport: AutosaveTransport<T>;
   /** The "drafts" store of the offline database (lib/offline/db.ts). */
   store: KeyValueStore<unknown>;
-  /** Checks a restored local copy; one that fails is set aside, never applied or deleted. */
+  /** False when `store` does not survive a reload: the in-memory fallback (`db.persistent`). */
+  persistent?: boolean;
+  /**
+   * Checks a restored local copy; one that fails is set aside, never applied
+   * or deleted. A draft schema: shape and types, not completeness, since an
+   * inspection in progress is incomplete (docs/OFFLINE.md, "The transport").
+   */
   dataSchema?: z.ZodType<T>;
+  /** One controller per user and inspection across this browser's tabs. Web Locks by default. */
+  lock?: WriterLock;
+  lockWaitMs?: number;
   connectivity?: Connectivity;
   lifecycle?: PageLifecycle;
   debounceMs?: number;
@@ -101,7 +130,10 @@ export interface AutosaveOptions<T> {
 }
 
 export interface AutosaveController<T> {
-  /** Loads the local copy and settles it against the server's copy (the page's data). Call once. */
+  /**
+   * Takes the inspection's lock, loads the local copy and settles it against
+   * the server's copy (the page's data). Call once.
+   */
   start(server: ServerCopy<T>): Promise<StartResult<T>>;
   /** The inspector changed something: pass the whole new data (a new object, as React state is). */
   change(data: T): void;
@@ -114,7 +146,11 @@ export interface AutosaveController<T> {
   /** For useSyncExternalStore. */
   subscribe(listener: () => void): () => void;
   getSnapshot(): AutosaveSnapshot<T>;
-  /** Stops timers and listeners; unsaved changes stay in the local copy for the next start. */
+  /**
+   * Stops timers and listeners, writes the local copy a last time and lets
+   * go of the lock; unsaved changes stay in the local copy for the next
+   * start. Answers that arrive later no longer touch the local copy.
+   */
   stop(): Promise<void>;
 }
 
@@ -130,12 +166,17 @@ const STOPPED: FlushResult = { ok: false, reason: "stopped", message: "Autosave 
 // Shared objects keep the snapshot identical between emits (useSyncExternalStore compares by reference).
 const CONFLICT_ERROR: AutosaveError = { reason: "conflict", message: CONFLICT_MESSAGE };
 const STORAGE_ERROR: AutosaveError = { reason: "storage", message: STORAGE_MESSAGE };
+const BUSY_ERROR: AutosaveError = { reason: "other_tab", message: BUSY_MESSAGE };
+const SUPERSEDED_ERROR: AutosaveError = { reason: "other_tab", message: SUPERSEDED_MESSAGE };
 
 class Autosave<T> implements AutosaveController<T> {
   private readonly owner: DraftOwner;
   private readonly transport: AutosaveTransport<T>;
   private readonly store: KeyValueStore<unknown>;
+  private readonly persistent: boolean;
   private readonly dataSchema?: z.ZodType<T>;
+  private readonly lock: WriterLock;
+  private readonly lockWaitMs: number;
   private readonly connectivity: Connectivity;
   private readonly lifecycle: PageLifecycle;
   private readonly debounceMs: number;
@@ -144,8 +185,18 @@ class Autosave<T> implements AutosaveController<T> {
   private readonly backoff: Backoff;
   private readonly now: () => number;
   private readonly random: () => number;
+  /** Marks the local copy as written by this controller. */
+  private readonly writer = newId();
 
-  private phase: "new" | "starting" | "running" | "stopped" = "new";
+  /** busy: another tab holds the inspection's lock; this controller never runs. */
+  private phase: "new" | "starting" | "running" | "busy" | "stopped" = "new";
+  private release: ReleaseLock | null = null;
+  /** draftStamp() of the local copy this controller took over at start, if there was one. */
+  private adopted: string | null = null;
+  /** Set once stop() has written the last local copy: the next controller owns it. */
+  private fenced = false;
+  /** Another controller has written the local copy since this one took it over (a second tab without Web Locks). */
+  private superseded = false;
   private draft: LocalDraft<T> | null = null;
   private inflight = false;
   /** More changes arrived while a request was in flight. */
@@ -181,7 +232,10 @@ class Autosave<T> implements AutosaveController<T> {
     this.owner = { userId: options.userId, inspectionId: options.inspectionId };
     this.transport = options.transport;
     this.store = options.store;
+    this.persistent = options.persistent ?? true;
     this.dataSchema = options.dataSchema;
+    this.lock = options.lock ?? defaultWriterLock();
+    this.lockWaitMs = options.lockWaitMs ?? AUTOSAVE_LOCK_WAIT_MS;
     this.connectivity = options.connectivity ?? defaultConnectivity();
     this.lifecycle = options.lifecycle ?? defaultLifecycle();
     this.debounceMs = options.debounceMs ?? AUTOSAVE_DEBOUNCE_MS;
@@ -202,11 +256,27 @@ class Autosave<T> implements AutosaveController<T> {
     if (this.phase !== "new") throw new Error("Autosave has already been started.");
     this.phase = "starting";
 
+    // Two writers would overwrite each other's local copy, so a second tab gets "busy".
+    // In this tab, a screen being replaced lets go once its last write is done.
+    this.release = await this.lock.acquire(writerLockName(this.owner), this.lockWaitMs);
+    if (this.phase !== "starting") {
+      this.releaseLock();
+      return { kind: "current", data: server.data };
+    }
+    if (!this.release) {
+      this.phase = "busy";
+      this.emit();
+      return { kind: "busy", data: server.data };
+    }
+
     let local: LocalDraft<T> | null = null;
     let setAside = false;
     try {
       const read = await readDraft(this.store, this.owner, this.dataSchema, this.now());
-      if (read.status === "ok") local = read.draft;
+      if (read.status === "ok") {
+        local = read.draft;
+        this.adopted = read.stamp;
+      }
       setAside = read.status === "unreadable";
     } catch (error) {
       this.localDisabled = true;
@@ -215,7 +285,10 @@ class Autosave<T> implements AutosaveController<T> {
 
     const outcome = reconcile(local, server, this.owner, this.now());
     // Stopped while loading (the screen unmounted): report, but run nothing.
-    if (this.phase !== "starting") return startResult(outcome, setAside);
+    if (this.phase !== "starting") {
+      this.releaseLock();
+      return startResult(outcome, setAside);
+    }
 
     this.phase = "running";
     this.online = this.connectivity.isOnline();
@@ -248,7 +321,10 @@ class Autosave<T> implements AutosaveController<T> {
   }
 
   flush({ timeoutMs = AUTOSAVE_FLUSH_TIMEOUT_MS }: { timeoutMs?: number } = {}): Promise<FlushResult> {
+    if (this.phase === "busy") return Promise.resolve({ ok: false, ...BUSY_ERROR });
     if (this.phase !== "running" || !this.draft) return Promise.resolve(STOPPED);
+    // The tab that took over may hold changes this one never saw: submit from there.
+    if (this.superseded) return Promise.resolve({ ok: false, ...SUPERSEDED_ERROR });
     if (this.conflict) return Promise.resolve({ ok: false, reason: "conflict", message: CONFLICT_MESSAGE });
     if (!this.inflight && !hasUnsavedChanges(this.draft)) return Promise.resolve({ ok: true });
 
@@ -327,13 +403,18 @@ class Autosave<T> implements AutosaveController<T> {
 
   async stop(): Promise<void> {
     if (this.phase === "stopped") return;
-    const wasRunning = this.phase === "running";
+    const previous = this.phase;
     this.phase = "stopped";
     for (const name of Object.keys(this.timers) as TimerName[]) this.clear(name);
     for (const cleanup of this.cleanups.splice(0)) cleanup();
     for (const resolve of [...this.waiters]) resolve(STOPPED);
     this.listeners.clear();
-    if (wasRunning) await this.persist();
+    if (previous === "running") await this.persist();
+    // The next controller owns the local copy now. A request still in flight may land on the
+    // server; the next start recognises it by its hash (sentHashes), so its answer is not needed here.
+    this.fenced = true;
+    // A start() still loading lets go itself once it sees the stop.
+    if (previous !== "starting") this.releaseLock();
   }
 
   /* ---------------------------------------------------------------- *
@@ -373,6 +454,11 @@ class Autosave<T> implements AutosaveController<T> {
     this.emit();
     // The local copy, which now remembers this payload, is on disk before the request leaves.
     await this.persist();
+    // Stopped meanwhile: the next start sends it.
+    if (this.phase !== "running") {
+      this.inflight = false;
+      return;
+    }
 
     const abort = new AbortController();
     this.timers.timeout = setTimeout(() => {
@@ -490,7 +576,8 @@ class Autosave<T> implements AutosaveController<T> {
   private settle(): void {
     if (this.waiters.size === 0 || this.inflight || !this.draft) return;
     let result: FlushResult | null = null;
-    if (this.conflict) result = { ok: false, reason: "conflict", message: CONFLICT_MESSAGE };
+    if (this.superseded) result = { ok: false, ...SUPERSEDED_ERROR };
+    else if (this.conflict) result = { ok: false, reason: "conflict", message: CONFLICT_MESSAGE };
     else if (!hasUnsavedChanges(this.draft)) result = { ok: true };
     else if (this.failure) result = { ok: false, reason: this.failure.reason, message: this.failure.message };
     if (!result) return;
@@ -523,16 +610,24 @@ class Autosave<T> implements AutosaveController<T> {
    * Local copy
    * ---------------------------------------------------------------- */
 
-  /** Resolves once the local copy holds the state at the time of the call (or the write failed). */
+  /** Resolves once the local copy holds the state at the time of the call (or the write failed or was refused). */
   private persist(): Promise<void> {
-    if (this.localDisabled || !this.draft) return Promise.resolve();
+    if (!this.writable() || !this.draft) return Promise.resolve();
     if (!this.queuedWrite) {
       const write = this.lastWrite.then(async () => {
         this.queuedWrite = null;
         const draft = this.draft;
-        if (!draft) return;
+        if (!draft || !this.writable()) return;
         try {
-          await writeDraft(this.store, draft);
+          if (!(await this.ownsLocalCopy())) {
+            // Never write over another tab's copy: it may hold changes that exist nowhere else.
+            // This tab still saves to the server, where compare-and-set catches any clash.
+            this.superseded = true;
+            this.settle();
+            this.emit();
+            return;
+          }
+          await writeDraft(this.store, { ...draft, writer: this.writer });
           if (this.localError !== null) {
             this.localError = null;
             this.emit();
@@ -546,6 +641,32 @@ class Autosave<T> implements AutosaveController<T> {
       this.lastWrite = write;
     }
     return this.queuedWrite;
+  }
+
+  private writable(): boolean {
+    return !this.localDisabled && !this.fenced && !this.superseded;
+  }
+
+  /**
+   * Nobody else has written the local copy since this controller took it
+   * over. With Web Locks no one can; without them (an insecure origin) a
+   * second tab is caught at its next write. The read and the write are two
+   * transactions, so two tabs writing within the same few milliseconds can
+   * still slip past; the later one is caught at its following write.
+   */
+  private async ownsLocalCopy(): Promise<boolean> {
+    const stored = await this.store.get(draftKey(this.owner));
+    if (stored === undefined) return true;
+    const envelope = LocalDraftSchema.safeParse(stored);
+    // A record this version cannot read: another tab runs a newer app version.
+    if (!envelope.success) return false;
+    if (envelope.data.writer === this.writer) return true;
+    return this.adopted !== null && contentHash(envelope.data) === this.adopted;
+  }
+
+  private releaseLock(): void {
+    this.release?.();
+    this.release = null;
   }
 
   /* ---------------------------------------------------------------- *
@@ -563,17 +684,28 @@ class Autosave<T> implements AutosaveController<T> {
       error,
       conflict: this.conflict,
       retryAt: this.retryAt,
-      localCopy: !this.localDisabled && this.localError === null,
+      localCopy: this.keepsLocalCopy(),
     };
   }
 
+  private keepsLocalCopy(): boolean {
+    return (
+      this.persistent &&
+      this.phase !== "busy" &&
+      !this.superseded &&
+      !this.localDisabled &&
+      this.localError === null
+    );
+  }
+
   private describe(pending: boolean): { status: AutosaveStatus; error: AutosaveError | null } {
+    if (this.phase === "busy") return { status: "error", error: BUSY_ERROR };
+    if (this.superseded) return { status: "error", error: SUPERSEDED_ERROR };
     if (this.conflict) return { status: "error", error: CONFLICT_ERROR };
     if (this.failure && !isRetryable(this.failure.reason)) return { status: "error", error: this.failure };
     if (!pending) return { status: "saved", error: null };
     const struggling = this.failure !== null || !this.online || this.slow;
-    const kept = !this.localDisabled && this.localError === null;
-    if (struggling && !kept) return { status: "error", error: STORAGE_ERROR };
+    if (struggling && !this.keepsLocalCopy()) return { status: "error", error: STORAGE_ERROR };
     if (this.failure?.reason === "unauthorized") return { status: "error", error: this.failure };
     if (struggling) return { status: "offline", error: this.failure };
     return { status: "saving", error: null };
@@ -594,11 +726,12 @@ class Autosave<T> implements AutosaveController<T> {
 
   private requireDraft(): LocalDraft<T> {
     if (this.phase === "stopped") throw new Error("Autosave has been stopped.");
+    if (this.phase === "busy") throw new Error(BUSY_MESSAGE);
     if (this.phase !== "running" || !this.draft) throw new Error("Call start() before change().");
     return this.draft;
   }
 
-  /** In-flight answers may arrive after stop(); they still update the local copy. */
+  /** In-flight answers may arrive after stop(); they update memory only (the local copy is fenced). */
   private requireAnyDraft(): LocalDraft<T> {
     if (!this.draft) throw new Error("Autosave has no data.");
     return this.draft;

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { KeyValueStore } from "./kv";
+import { defaultWriterLock, type WriterLock } from "./lock";
 import type { ServerCopy } from "./protocol";
 import { contentHash } from "./stable-json";
 import { compareVersions } from "./version";
@@ -34,6 +35,8 @@ export const LocalDraftSchema = z
     changedAt: z.number(),
     /** Device time (ms) of the last save the server confirmed. */
     savedAt: z.number().nullable(),
+    /** The autosave controller that wrote this copy, so another one can tell it has been overtaken. */
+    writer: z.string().min(1).optional(),
   })
   .refine((draft) => draft.syncedRevision <= draft.revision, { message: "syncedRevision is ahead of revision." });
 
@@ -50,6 +53,17 @@ const QUARANTINE_PREFIX = "unreadable:";
 /** One local copy per user and inspection: a shared iPad never mixes two inspectors' work. */
 export function draftKey({ userId, inspectionId }: DraftOwner): string {
   return `${DRAFT_PREFIX}${userId}:${inspectionId}`;
+}
+
+/** The lock that makes one autosave controller at a time the writer of that local copy (lib/offline/lock.ts). */
+export function writerLockName({ userId, inspectionId }: DraftOwner): string {
+  return `stericare-autosave:${userId}:${inspectionId}`;
+}
+
+/** Identifies a stored copy exactly: changes whenever anyone writes it. Null when it is not a copy this version reads. */
+export function draftStamp(raw: unknown): string | null {
+  const envelope = LocalDraftSchema.safeParse(raw);
+  return envelope.success ? contentHash(envelope.data) : null;
 }
 
 export function hasUnsavedChanges(draft: Pick<LocalDraft, "revision" | "syncedRevision">): boolean {
@@ -137,7 +151,8 @@ export function reconcile<T>(
 
 export type DraftRead<T> =
   | { status: "missing" }
-  | { status: "ok"; draft: LocalDraft<T> }
+  /** `stamp`: draftStamp() of the stored record, to tell later whether anyone else has written it since. */
+  | { status: "ok"; draft: LocalDraft<T>; stamp: string }
   /** Stored, but not in a shape this version reads: it was set aside under another key, never deleted. */
   | { status: "unreadable"; quarantinedAs: string };
 
@@ -161,7 +176,11 @@ export async function readDraft<T>(
   const sameOwner =
     envelope.success && envelope.data.userId === owner.userId && envelope.data.inspectionId === owner.inspectionId;
   if (envelope.success && sameOwner && (!data || data.success)) {
-    return { status: "ok", draft: { ...envelope.data, data: (data ? data.data : envelope.data.data) as T } };
+    return {
+      status: "ok",
+      draft: { ...envelope.data, data: (data ? data.data : envelope.data.data) as T },
+      stamp: contentHash(envelope.data),
+    };
   }
 
   const quarantinedAs = `${QUARANTINE_PREFIX}${owner.userId}:${owner.inspectionId}:${now}`;
@@ -189,7 +208,12 @@ export function discardDraft(store: KeyValueStore<unknown>, owner: DraftOwner): 
   return store.delete(draftKey(owner));
 }
 
-/** Inspections with changes only this device has, e.g. to warn before signing out. */
+/**
+ * Inspections with changes only this device has, e.g. to warn before
+ * signing out. Set-aside copies are listed by listSetAsideDrafts. A copy
+ * whose last save landed after its screen closed is listed until the
+ * inspection is opened again, which settles it.
+ */
 export async function listUnsavedDrafts(store: KeyValueStore<unknown>, userId: string): Promise<LocalDraft[]> {
   const prefix = `${DRAFT_PREFIX}${userId}:`;
   const drafts: LocalDraft[] = [];
@@ -199,6 +223,75 @@ export async function listUnsavedDrafts(store: KeyValueStore<unknown>, userId: s
     if (parsed.success && hasUnsavedChanges(parsed.data)) drafts.push(parsed.data);
   }
   return drafts;
+}
+
+/* ------------------------------------------------------------------ *
+ * Set-aside copies: local copies this version could not read
+ * ------------------------------------------------------------------ */
+
+export interface SetAsideDraft {
+  /** Pass to restoreSetAsideDraft or discardSetAsideDraft. */
+  key: string;
+  inspectionId: string;
+  /** Device time (ms) it was set aside. */
+  setAsideAt: number;
+  /** The record as stored, for a later app version or for support. */
+  value: unknown;
+}
+
+const SET_ASIDE_KEY = /^unreadable:([^:]+):([^:]+):(\d+)$/;
+
+function parseSetAsideKey(key: string): (DraftOwner & { setAsideAt: number }) | null {
+  const match = SET_ASIDE_KEY.exec(key);
+  return match ? { userId: match[1], inspectionId: match[2], setAsideAt: Number(match[3]) } : null;
+}
+
+/** A user's set-aside copies: unsynced work this version could not read. Warn about them before signing out too. */
+export async function listSetAsideDrafts(store: KeyValueStore<unknown>, userId: string): Promise<SetAsideDraft[]> {
+  const found: SetAsideDraft[] = [];
+  for (const key of await store.keys()) {
+    const parsed = parseSetAsideKey(key);
+    if (!parsed || parsed.userId !== userId) continue;
+    found.push({ key, inspectionId: parsed.inspectionId, setAsideAt: parsed.setAsideAt, value: await store.get(key) });
+  }
+  return found;
+}
+
+/**
+ * Puts a set-aside copy back as its inspection's local copy, e.g. after an
+ * app update that reads it again: the next start() applies it under the
+ * reload rule, or sets it aside again. Returns false, changing nothing,
+ * while the inspection is open in a tab or its current local copy has
+ * unsaved changes of its own.
+ */
+export async function restoreSetAsideDraft(
+  store: KeyValueStore<unknown>,
+  key: string,
+  lock: WriterLock = defaultWriterLock(),
+): Promise<boolean> {
+  const owner = parseSetAsideKey(key);
+  if (!owner) return false;
+  const release = await lock.acquire(writerLockName(owner), 0);
+  if (!release) return false;
+  try {
+    const value = await store.get(key);
+    if (value === undefined) return false;
+    const current = await store.get(draftKey(owner));
+    if (current !== undefined) {
+      const envelope = LocalDraftSchema.safeParse(current);
+      if (!envelope.success || hasUnsavedChanges(envelope.data)) return false;
+    }
+    await store.put(draftKey(owner), value);
+    await store.delete(key);
+    return true;
+  } finally {
+    release();
+  }
+}
+
+/** Deletes a set-aside copy for good, once the inspector has decided it is not needed. */
+export async function discardSetAsideDraft(store: KeyValueStore<unknown>, key: string): Promise<void> {
+  if (parseSetAsideKey(key)) await store.delete(key);
 }
 
 /**

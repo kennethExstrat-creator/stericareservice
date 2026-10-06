@@ -7,8 +7,11 @@ export {
   AUTOSAVE_MAX_WAIT_MS,
   AUTOSAVE_REQUEST_TIMEOUT_MS,
   AUTOSAVE_FLUSH_TIMEOUT_MS,
+  AUTOSAVE_LOCK_WAIT_MS,
   CONFLICT_MESSAGE,
   STORAGE_MESSAGE,
+  BUSY_MESSAGE,
+  SUPERSEDED_MESSAGE,
   type AutosaveController,
   type AutosaveOptions,
   type AutosaveSnapshot,
@@ -36,13 +39,19 @@ export {
 export {
   reconcile,
   draftKey,
+  writerLockName,
   findUnsavedDraft,
   discardDraft,
   listUnsavedDrafts,
+  listSetAsideDrafts,
+  restoreSetAsideDraft,
+  discardSetAsideDraft,
   pruneSyncedDrafts,
   type LocalDraft,
   type Reconciliation,
+  type SetAsideDraft,
 } from "./drafts";
+export { defaultWriterLock, pageLock, webLock, type ReleaseLock, type WriterLock } from "./lock";
 export {
   openOfflineDatabase,
   getOfflineDatabase,
