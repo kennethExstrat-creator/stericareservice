@@ -22,6 +22,9 @@ const ERROR_PAGE = process.env.SHELL_E2E_ERROR_PAGE;
 const SLOW_PAGE = process.env.SHELL_E2E_SLOW_PAGE;
 const ROOT_ERROR_PAGE = process.env.SHELL_E2E_ROOT_ERROR_PAGE;
 
+/** The error screens' tab title (components/shell/error-screen.tsx). */
+const ERROR_TITLE = "This page did not load · SteriCare QC";
+
 /** The desktop layout starts at 1280 px (BUILD_SPEC 8). */
 const isDesktop = (page: Page) => (page.viewportSize()?.width ?? 0) >= 1280;
 
@@ -129,7 +132,11 @@ test.describe("signed out", () => {
     test.skip(!ROOT_ERROR_PAGE, "Set SHELL_E2E_ROOT_ERROR_PAGE to a page outside the shell that throws.");
     const response = await page.goto(ROOT_ERROR_PAGE!);
     expect(response?.status()).toBe(500);
-    await expect(page.getByRole("heading", { name: "This page did not load" })).toBeVisible();
+    const heading = page.getByRole("heading", { name: "This page did not load" });
+    await expect(heading).toBeVisible();
+    // Focus on the heading, so VoiceOver reads what happened; the tab says it too.
+    await expect(heading).toBeFocused();
+    await expect(page).toHaveTitle(ERROR_TITLE);
     await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
     await expect(page.getByText(/^Reference:/)).toBeVisible();
     await expect(page.getByRole("link", { name: "SteriCare home" })).toBeVisible();
@@ -190,6 +197,57 @@ test.describe("as the admin", () => {
     }
   });
 
+  test("the top bar fits narrow iPad windows", async ({ page }) => {
+    test.skip(test.info().project.name !== "ipad-portrait", "Sets its own iPad window sizes; once is enough.");
+    await page.goto("/admin");
+    await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
+    const topBar = page.getByTestId("shell-top-bar");
+    const nav = topBar.getByRole("navigation", { name: "Main" });
+    const trigger = topBar.getByRole("button", { name: /account menu/ });
+
+    // A long name (the test account's is short; it must not change): the
+    // name gives way, never the tabs. Swapped in once React has hydrated the
+    // button (its DOM node carries React's fiber key), or hydration would
+    // report a mismatch.
+    await expect
+      .poll(() => trigger.evaluate((element) => Object.keys(element).some((key) => key.startsWith("__reactFiber$"))))
+      .toBe(true);
+    const name = (await trigger.getAttribute("aria-label"))!.replace(/, account menu$/, "");
+    const longName = "Maximiliana Wolfeschlegelsteinhausen-Bergdorff";
+    await trigger.getByText(name, { exact: true }).evaluate((element, text) => {
+      element.textContent = text;
+    }, longName);
+    const nameText = trigger.getByText(longName, { exact: true });
+
+    // iPad mini portrait, half Split View, Slide Over.
+    for (const width of [744, 585, 320]) {
+      await page.setViewportSize({ width, height: 1180 });
+      const bar = await trigger.boundingBox();
+      expect(bar, `${width} px`).not.toBeNull();
+      for (const tab of await nav.getByRole("link").all()) {
+        const box = (await tab.boundingBox())!;
+        expect(box.x + box.width, `${width} px: tab clear of the account menu`).toBeLessThanOrEqual(bar!.x);
+        expect(box.height).toBeGreaterThanOrEqual(44);
+      }
+      expect(bar!.x + bar!.width, `${width} px: account menu inside the window`).toBeLessThanOrEqual(width);
+      expect(bar!.height).toBeGreaterThanOrEqual(44);
+      expect(await topBar.evaluate((element) => element.scrollWidth <= element.clientWidth), `${width} px`).toBe(true);
+
+      if (width === 744) {
+        // Shortened with an ellipsis, still there.
+        await expect(nameText).toBeVisible();
+        expect(await nameText.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+        await shot(page, "admin-top-bar-744", false);
+      } else {
+        // Only the avatar: the name is in the menu and the button's label.
+        await expect(nameText).toBeHidden();
+      }
+    }
+    // Tabs keep their names for screen readers when only the icons show.
+    await expect(nav.getByRole("link")).toHaveText(["Inspections", "Admin"]);
+    await shot(page, "admin-top-bar-320", false);
+  });
+
   test("the admin overview shows status, never secrets", async ({ page }) => {
     await page.goto("/admin");
     for (const card of ["Supabase", "Sign-in emails", "AI second opinion", "AI report"]) {
@@ -199,6 +257,16 @@ test.describe("as the admin", () => {
     await expect(page.getByRole("link", { name: /Every inspection/ })).toHaveAttribute("href", "/inspections");
     await expect(page.getByRole("link", { name: /Set-up guide/ })).toHaveAttribute("target", "_blank");
     await expect(page).toHaveTitle("Admin overview · SteriCare QC");
+
+    // The email links start with the Supabase project's Site URL: the card says
+    // what it must be (this app's address, as getSiteUrl() reads it) and links
+    // to the setting.
+    const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL?.trim() || "http://localhost:3000").replace(/\/+$/, "");
+    await expect(page.getByText(`${siteUrl}/**`, { exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Open the URL settings/ })).toHaveAttribute(
+      "href",
+      /^https:\/\/supabase\.com\/dashboard\/project\/[a-z0-9]+\/auth\/url-configuration$/,
+    );
 
     const html = await page.content();
     for (const name of ["SUPABASE_SECRET_KEY", "SUPABASE_DB_URL", "ANTHROPIC_API_KEY", "AI_WEBHOOK_SECRET", "AI_REVIEW_WEBHOOK_URL", "AI_REPORT_WEBHOOK_URL"]) {
@@ -257,11 +325,28 @@ test.describe("as the admin", () => {
   test("an error in a page shows inside the shell", async ({ page }) => {
     test.skip(!ERROR_PAGE, "Set SHELL_E2E_ERROR_PAGE to a page that throws.");
     await page.goto(ERROR_PAGE!);
-    await expect(page.getByRole("heading", { name: "This page did not load" })).toBeVisible();
+    const heading = page.getByRole("heading", { name: "This page did not load" });
+    await expect(heading).toBeVisible();
+    // The message replaces the page: focus goes to its heading, not <body>.
+    await expect(heading).toBeFocused();
     await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Go to inspections" })).toBeVisible();
     await expect(shellBar(page)).toBeVisible();
     await shot(page, "admin-error");
+
+    // A retry that fails again says so again.
+    await page.getByRole("button", { name: "Try again" }).click();
+    await expect(heading).toBeFocused();
+
+    // After a client-side navigation (away through the nav, then Back) the tab
+    // title changes and Next's route announcer reads it out.
+    const away = isDesktop(page) ? "Overview" : "Admin";
+    await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: away }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
+    await page.goBack();
+    await expect(heading).toBeFocused();
+    await expect(page).toHaveTitle(ERROR_TITLE);
+    await expect(page.locator("#__next-route-announcer__")).toHaveText(ERROR_TITLE);
   });
 
   test("a page loading shows the skeleton inside the shell", async ({ page }) => {
