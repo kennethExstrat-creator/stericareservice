@@ -20,6 +20,7 @@ export const definition = defineModule<DyeLeakData, DyeLeakConfig, DyeLeakComput
   defaultConfig: DYE_LEAK_DEFAULT_CONFIG,
   perSize: true,
   calc: calcDyeLeak,
+  loadCapture: () => import("./Capture"),
 });
 
 export type { DyeLeakData, DyeLeakSize } from "./schema";
