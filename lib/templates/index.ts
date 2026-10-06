@@ -7,11 +7,12 @@ export {
   lookupFrom,
   MAX_EXTENDS_DEPTH,
   type ResolveOptions,
+  type TemplateBase,
   type TemplateLookup,
   type TemplateProblem,
   type TemplateResolution,
 } from "./resolve";
-export { mergeConfig, isJsonObject, type JsonObject } from "./merge";
+export { mergeConfig, isJsonObject, isTagged, TAG_KEY, type JsonObject } from "./merge";
 export { applyListedOrder, pinEnds } from "./module-order";
 export {
   selectTemplate,
@@ -38,8 +39,10 @@ export {
   nextVersion,
   planTemplateEdit,
   planActivation,
+  staleBases,
   templateRowFields,
   type ActivationPlan,
+  type StaleBase,
   type TemplateEditPlan,
   type TemplateEditTarget,
   type TemplateRowFields,

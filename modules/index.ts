@@ -25,7 +25,11 @@ export function evaluateInspection(input: EvaluateInput): InspectionEvaluation {
   return evaluateWith(input, MODULE_REGISTRY);
 }
 
-/** A template definition resolved down its extends chain against the real modules. */
+/**
+ * A template definition resolved down its extends chain against the real
+ * modules. `getBase(code)` gives a base's definition and version, usually
+ * its active version.
+ */
 export function resolveTemplate(definition: unknown, getBase: TemplateLookup): TemplateResolution {
   return resolveWith(definition, { getBase, registry: MODULE_REGISTRY });
 }

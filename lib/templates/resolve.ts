@@ -4,7 +4,8 @@
 // and carried, sizes in their canonical spelling. The result is stored in
 // `templates.resolved` with the version, so it is computed when a version
 // is saved, not on every read: a new base version reaches a child when the
-// child is saved again.
+// child is saved again. `bases` records the version of each base it was
+// built from, so the editor can tell when that is due (staleBases).
 //
 // Down the chain, root first:
 // - include, title: the nearest template that sets them wins;
@@ -48,8 +49,11 @@ export type TemplateResolution =
   | { ok: true; template: ResolvedTemplate }
   | { ok: false; problems: TemplateProblem[] };
 
-/** A base template's definition by code (usually its active version), or undefined. */
-export type TemplateLookup = (code: string) => unknown;
+/** A base template: one version's definition (usually the active version) and its number. */
+export type TemplateBase = { definition: unknown; version: number };
+
+/** A base template by code, or undefined when there is none. */
+export type TemplateLookup = (code: string) => TemplateBase | null | undefined;
 
 export type ResolveOptions = {
   getBase: TemplateLookup;
@@ -57,7 +61,8 @@ export type ResolveOptions = {
   registry: ModuleRegistry;
 };
 
-type ChainEntry = { code: string; definition: TemplateDefinition };
+/** `version` is null for the template being resolved: its row holds its version. */
+type ChainEntry = { code: string; version: number | null; definition: TemplateDefinition };
 
 type MergedModule = {
   key: ModuleKey;
@@ -91,6 +96,7 @@ export function resolveTemplate(definition: unknown, { getBase, registry }: Reso
     code: leaf.code,
     name: leaf.name,
     chain: leafFirst.map((entry) => entry.code),
+    bases: leafFirst.slice(1).flatMap(({ code, version }) => (version === null ? [] : [{ code, version }])),
     scope: leaf.scope,
     unit: leaf.unit,
     sizes: leaf.sizes.map((size) => {
@@ -131,12 +137,12 @@ export function resolveTemplateOrThrow(definition: unknown, options: ResolveOpti
   throw new Error(`Template does not resolve:\n${lines.join("\n")}`);
 }
 
-/** A lookup over definitions held in memory, by code. */
-export function lookupFrom(definitions: readonly unknown[]): TemplateLookup {
-  const byCode = new Map<string, unknown>();
-  for (const definition of definitions) {
-    const code = codeOf(definition);
-    if (code !== null) byCode.set(code, definition);
+/** A lookup over template versions held in memory, by code; a later entry for a code replaces an earlier one. */
+export function lookupFrom(templates: readonly TemplateBase[]): TemplateLookup {
+  const byCode = new Map<string, TemplateBase>();
+  for (const template of templates) {
+    const code = codeOf(template.definition);
+    if (code !== null) byCode.set(code, template);
   }
   return (code) => byCode.get(code);
 }
@@ -148,6 +154,7 @@ function loadChain(
 ): { ok: true; entries: ChainEntry[] } | { ok: false; problems: TemplateProblem[] } {
   const entries: ChainEntry[] = [];
   let current = definition;
+  let version: number | null = null;
   let requested: string | null = null;
 
   for (;;) {
@@ -175,7 +182,7 @@ function loadChain(
       const loop = [...entries.map((entry) => entry.code), found.code].join(" -> ");
       return fail(`Templates extend each other in a loop: ${loop}.`);
     }
-    entries.push({ code: found.code, definition: found });
+    entries.push({ code: found.code, version, definition: found });
     if (found.extends === undefined) return { ok: true, entries };
     if (entries.length >= MAX_EXTENDS_DEPTH) {
       return fail(`More than ${MAX_EXTENDS_DEPTH} templates in the extends chain.`);
@@ -184,7 +191,11 @@ function loadChain(
     if (base === undefined || base === null) {
       return fail(`Base template ${found.extends} was not found.`);
     }
-    current = base;
+    if (!Number.isInteger(base.version) || base.version < 1) {
+      return fail(`Base template ${found.extends} came without a valid version number.`);
+    }
+    current = base.definition;
+    version = base.version;
     requested = found.extends;
   }
 }

@@ -219,10 +219,11 @@ describe("ModuleOverridesSchema", () => {
 describe("ResolvedTemplateSchema", () => {
   function resolved(): ResolvedTemplate {
     return {
-      format: 1,
+      format: 2,
       code: "BASE_EG",
       name: "Base examination gloves",
       chain: ["BASE_EG"],
+      bases: [],
       scope: { productType: "examination", standard: "EN455" },
       unit: "pcs",
       sizes: [{ value: "M", label: "M" }],
@@ -246,7 +247,18 @@ describe("ResolvedTemplateSchema", () => {
     ]);
   });
 
-  it("rejects an unknown format", () => {
-    expect(issuePaths(ResolvedTemplateSchema, { ...resolved(), format: 2 })).toEqual(["format"]);
+  it("rejects another format, such as format 1 without base versions", () => {
+    expect(issuePaths(ResolvedTemplateSchema, { ...resolved(), format: 1 })).toEqual(["format"]);
+  });
+
+  it("records the version of each base, in chain order", () => {
+    const child = { ...resolved(), code: "CHILD_EG", chain: ["CHILD_EG", "BASE_EG"], bases: [{ code: "BASE_EG", version: 3 }] };
+    expect(issuePaths(ResolvedTemplateSchema, child)).toEqual([]);
+    expect(issuePaths(ResolvedTemplateSchema, { ...child, bases: [] })).toEqual(["bases"]);
+    expect(issuePaths(ResolvedTemplateSchema, { ...child, bases: [{ code: "OTHER_EG", version: 3 }] })).toEqual(["bases"]);
+    expect(issuePaths(ResolvedTemplateSchema, { ...child, bases: [{ code: "BASE_EG", version: 0 }] })).toEqual([
+      "bases.0.version",
+    ]);
+    expect(issuePaths(ResolvedTemplateSchema, { ...child, chain: ["BASE_EG", "BASE_EG"] })).toEqual(["bases"]);
   });
 });

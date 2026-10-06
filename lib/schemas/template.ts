@@ -269,9 +269,17 @@ export type ModuleOverrides = z.infer<typeof ModuleOverridesSchema>;
  * from the root down, validated by the module's config schema). Frozen
  * with the template version, so an inspection keeps the wording and
  * config it started with. Bump RESOLVED_TEMPLATE_FORMAT on breaking changes.
+ * Format 2 records each base's version (`bases`).
  * ------------------------------------------------------------------ */
 
-export const RESOLVED_TEMPLATE_FORMAT = 1;
+export const RESOLVED_TEMPLATE_FORMAT = 2;
+
+/** A base template's version a resolution was built from (4.2 rules 8 and 10). */
+export const ResolvedBaseSchema = z.strictObject({
+  code: TemplateCodeSchema,
+  version: z.number().int().min(1),
+});
+export type ResolvedBase = z.infer<typeof ResolvedBaseSchema>;
 
 export const ResolvedModuleSchema = z.strictObject({
   key: ModuleKeySchema,
@@ -292,21 +300,34 @@ export const ResolvedSizeSchema = z.strictObject({
 });
 export type ResolvedSize = z.infer<typeof ResolvedSizeSchema>;
 
-export const ResolvedTemplateSchema = z.strictObject({
-  format: z.literal(RESOLVED_TEMPLATE_FORMAT),
-  code: TemplateCodeSchema,
-  name: z.string().min(1),
-  /** This template's code, then each base up to the root: ["SAFEDON_EG", "STD_EG"]. */
-  chain: z.array(TemplateCodeSchema).min(1),
-  scope: TemplateScopeSchema,
-  unit: TemplateUnitSchema,
-  sizes: z.array(ResolvedSizeSchema).min(1),
-  /** Every module the chain mentions, in final order; `header` first and `conclusion` last. */
-  modules: z.array(ResolvedModuleSchema).min(2),
-  customModules: z.array(CustomModuleSchema),
-  report: TemplateReportSchema,
-  sourceFile: z.string().min(1).nullable(),
-});
+export const ResolvedTemplateSchema = z
+  .strictObject({
+    format: z.literal(RESOLVED_TEMPLATE_FORMAT),
+    code: TemplateCodeSchema,
+    name: z.string().min(1),
+    /** This template's code, then each base up to the root: ["SAFEDON_EG", "STD_EG"]. */
+    chain: z.array(TemplateCodeSchema).min(1),
+    /**
+     * Each base as resolved, nearest first: [{ code: "STD_EG", version: 3 }].
+     * A newer active version of a base reaches this template only when it is
+     * saved again (lib/templates staleBases).
+     */
+    bases: z.array(ResolvedBaseSchema),
+    scope: TemplateScopeSchema,
+    unit: TemplateUnitSchema,
+    sizes: z.array(ResolvedSizeSchema).min(1),
+    /** Every module the chain mentions, in final order; `header` first and `conclusion` last. */
+    modules: z.array(ResolvedModuleSchema).min(2),
+    customModules: z.array(CustomModuleSchema),
+    report: TemplateReportSchema,
+    sourceFile: z.string().min(1).nullable(),
+  })
+  .superRefine((template, ctx) => {
+    const codes = template.bases.map((base) => base.code);
+    if (template.chain[0] !== template.code || codes.join() !== template.chain.slice(1).join()) {
+      ctx.addIssue({ code: "custom", path: ["bases"], message: "chain must be this template's code, then the bases." });
+    }
+  });
 export type ResolvedTemplate = z.infer<typeof ResolvedTemplateSchema>;
 
 function isAlwaysOn(key: ModuleKey): boolean {

@@ -350,7 +350,7 @@ A template (BUILD_SPEC 4.3, `TemplateDefinitionSchema`) lists modules in report 
 - `order_lots` and `sampling_plan`: they give the ordered sizes and the sample sizes (n) other modules need; without them every per-size module would stay not done with nothing saying why. Switch off the modules that use them instead;
 - a module whose value a custom field shows (`mapsTo`): the field would show and edit a switched-off module.
 
-**Versions** (4.2 rule 8): `planTemplateEdit` edits an unused draft in place and makes a new version of anything else; `planActivation` requires the coverage checklist and retires the active version first. The database freezes a version once an inspection uses it.
+**Versions** (4.2 rule 8): `planTemplateEdit` edits an unused draft in place and makes a new version of anything else; `planActivation` requires the coverage checklist and retires the active version first. The database freezes a version once an inspection uses it. A resolved template records which version of each base it was built from (`bases`), and `staleBases` tells when a base has moved on.
 
 ## 13. Validation and the suggested result
 
@@ -373,7 +373,8 @@ const saved = parseModuleData(definition, readModuleEntry(data, "modules", key))
 // evaluation: its report.modules entry, onChange: (next) => writeModuleData(data, "modules", key, next)
 ```
 
-- **Saving a template version**: `resolveTemplate(definition, getBase)` from `@/modules` resolves against the real modules (`getBase` returns a base's definition, usually its active version; `lookupFrom(definitions)` builds one). On success, write `templateRowFields(definition, resolved)` to the `templates` row; on failure, show each problem's `template`, `path` and `message` in the editor.
+- **Saving a template version**: `resolveTemplate(definition, getBase)` from `@/modules` resolves against the real modules. `getBase(code)` returns `{ definition, version }` of a base, usually its active version; `lookupFrom([{ definition, version }, ...])` builds one over versions held in memory. On success, write `templateRowFields(definition, resolved)` to the `templates` row; on failure, show each problem's `template`, `path` and `message` in the editor.
+- **Stale children**: the resolved template records the version of each base it was built from (`bases`). `staleBases(resolved, activeVersionOf)` lists the bases with a different active version since, so the editor can show that the template must be saved again (a new version) to take in their changes.
 - **Errors block submit; warnings go into the export.** Each issue has `moduleKey` and `path` for the link. `exportIssuesOf(issues, key)` gives a module's `warnings` and `errors` in the export's shape; `templateSections(template)` gives modules and custom modules in screen and export order; `inspectionRowValues(context)` gives `po_no`, `product_name` and `lot_numbers` for the inspection row.
 - **Suggested result** (`suggestResult`, the conclusion's suggestion and `inspections.suggested_result`), over the included modules except the conclusion:
   1. **fail** if any module failed;

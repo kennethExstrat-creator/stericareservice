@@ -88,6 +88,7 @@ export function makeTestTemplate(
     code: "TEST_EG",
     name: "Test examination gloves",
     chain: ["TEST_EG"],
+    bases: [],
     scope: { productType: "examination", standard: "EN455" },
     unit: "pcs",
     sizes: EXAMINATION_SIZES.map((value) => ({ value, label: value })),

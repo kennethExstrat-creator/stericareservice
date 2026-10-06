@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ModuleOverride, ResolvedTemplate } from "@/lib/schemas/template";
 import { TEST_ADMIN_ID, TEST_REGISTRY } from "@/modules/_framework/__fixtures__/test-registry";
-import { baseEg, clientEg } from "./__fixtures__/definitions";
+import { asVersions, baseEg, clientEg } from "./__fixtures__/definitions";
 import {
   applyModuleOverrides,
   excludedForInspection,
@@ -14,7 +14,7 @@ import { lookupFrom, resolveTemplateOrThrow } from "./resolve";
 const OVERRIDE: ModuleOverride = { reason: "Lab report not available for this lot", by: TEST_ADMIN_ID, at: "2026-10-06T08:00:00.000Z" };
 
 function client(): ResolvedTemplate {
-  return resolveTemplateOrThrow(clientEg(), { getBase: lookupFrom([baseEg()]), registry: TEST_REGISTRY });
+  return resolveTemplateOrThrow(clientEg(), { getBase: lookupFrom(asVersions([baseEg()])), registry: TEST_REGISTRY });
 }
 
 describe("applyModuleOverrides (BUILD_SPEC 4.4)", () => {

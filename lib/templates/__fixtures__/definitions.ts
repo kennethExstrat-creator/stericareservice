@@ -5,6 +5,12 @@
 // (modules/_framework/__fixtures__/test-registry.ts).
 import type { TemplateDefinition } from "@/lib/schemas/template";
 import { TEST_CLIENT_ID, TEST_MANUFACTURER_ID } from "@/modules/_framework/__fixtures__/test-registry";
+import type { TemplateBase } from "../resolve";
+
+/** Template versions for lookupFrom: each definition at the same version. */
+export function asVersions(definitions: readonly unknown[], version = 1): TemplateBase[] {
+  return definitions.map((definition) => ({ definition, version }));
+}
 
 export function baseEg(): TemplateDefinition {
   return {

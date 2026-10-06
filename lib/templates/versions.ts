@@ -55,6 +55,23 @@ export function planActivation(versionsOfCode: readonly VersionRow[], targetId: 
   return { ok: true, retire, activate: targetId };
 }
 
+export type StaleBase = { code: string; resolvedWith: number; active: number | null };
+
+/**
+ * Bases whose active version is not the one this template was resolved
+ * against: save the template again (a new version) to take in their changes.
+ * `active` is null when the base has no active version any more.
+ */
+export function staleBases(
+  template: Pick<ResolvedTemplate, "bases">,
+  activeVersionOf: (code: string) => number | null | undefined,
+): StaleBase[] {
+  return template.bases.flatMap(({ code, version }) => {
+    const active = activeVersionOf(code) ?? null;
+    return active === version ? [] : [{ code, resolvedWith: version, active }];
+  });
+}
+
 export type TemplateRowFields = Pick<
   TablesInsert<"templates">,
   | "code"

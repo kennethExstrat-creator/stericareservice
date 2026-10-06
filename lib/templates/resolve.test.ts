@@ -3,7 +3,7 @@ import type { ModuleKey } from "@/lib/schemas/module-result";
 import type { ResolvedTemplate, TemplateDefinition } from "@/lib/schemas/template";
 import { TEST_REGISTRY } from "@/modules/_framework/__fixtures__/test-registry";
 import { labelFor } from "@/modules/_framework/labels";
-import { baseEg, clientEg, clientFactoryEg } from "./__fixtures__/definitions";
+import { asVersions, baseEg, clientEg, clientFactoryEg } from "./__fixtures__/definitions";
 import {
   lookupFrom,
   MAX_EXTENDS_DEPTH,
@@ -13,7 +13,12 @@ import {
   type TemplateProblem,
 } from "./resolve";
 
-const library = () => lookupFrom([baseEg(), clientEg(), clientFactoryEg()]);
+const library = () =>
+  lookupFrom([
+    { definition: baseEg(), version: 3 },
+    { definition: clientEg(), version: 2 },
+    { definition: clientFactoryEg(), version: 1 },
+  ]);
 
 function resolved(definition: unknown, getBase: TemplateLookup = library()): ResolvedTemplate {
   return resolveTemplateOrThrow(definition, { getBase, registry: TEST_REGISTRY });
@@ -55,8 +60,9 @@ const STD_ORDER: ModuleKey[] = [
 describe("resolveTemplate: a template without a base", () => {
   it("keeps the report order and fills in the module defaults", () => {
     const template = resolved(baseEg());
-    expect(template.format).toBe(1);
+    expect(template.format).toBe(2);
     expect(template.chain).toEqual(["BASE_EG"]);
+    expect(template.bases).toEqual([]);
     expect(keys(template)).toEqual(STD_ORDER);
     expect(included(template)).toEqual(STD_ORDER);
     expect(moduleOf(template, "glove_info").title).toBe("Glove Information");
@@ -107,6 +113,7 @@ describe("resolveTemplate: extends", () => {
   it("applies the client template's removals, additions and reordering", () => {
     const template = resolved(clientEg());
     expect(template.chain).toEqual(["CLIENT_EG", "BASE_EG"]);
+    expect(template.bases).toEqual([{ code: "BASE_EG", version: 3 }]);
     expect(keys(template)).toEqual([
       "header",
       "glove_info",
@@ -195,6 +202,11 @@ describe("resolveTemplate: extends", () => {
   it("resolves three levels: switched back on, relabelled, reconfigured, report inherited", () => {
     const template = resolved(clientFactoryEg());
     expect(template.chain).toEqual(["CLIENT_FACTORY_EG", "CLIENT_EG", "BASE_EG"]);
+    // The versions each base was resolved against, nearest first (4.2 rules 8 and 10).
+    expect(template.bases).toEqual([
+      { code: "CLIENT_EG", version: 2 },
+      { code: "BASE_EG", version: 3 },
+    ]);
     expect(keys(template)).toEqual(keys(resolved(clientEg())));
     expect(included(template)).toContain("force_at_break");
     const visual = moduleOf(template, "visual");
@@ -222,7 +234,7 @@ describe("resolveTemplate: extends", () => {
         { key: "first", title: "First, reworded", after: "weight", layout: "fields", fields: [{ key: "a", label: "A", type: "text" }] },
       ],
     };
-    const template = resolved(child, lookupFrom([base]));
+    const template = resolved(child, lookupFrom(asVersions([base])));
     expect(template.customModules.map((custom) => [custom.key, custom.title, custom.after])).toEqual([
       ["first", "First, reworded", "weight"],
       ["second", "Second", "labeling"],
@@ -240,7 +252,7 @@ describe("resolveTemplate: problems", () => {
   it("detects templates that extend each other", () => {
     const a = { ...baseEg(), code: "LOOP_A", extends: "LOOP_B" };
     const b = { ...baseEg(), code: "LOOP_B", extends: "LOOP_A" };
-    expect(problemsOf(a, lookupFrom([a, b]))).toEqual([
+    expect(problemsOf(a, lookupFrom(asVersions([a, b])))).toEqual([
       { template: "LOOP_A", path: ["extends"], message: "Templates extend each other in a loop: LOOP_A -> LOOP_B -> LOOP_A." },
     ]);
   });
@@ -251,21 +263,27 @@ describe("resolveTemplate: problems", () => {
       code: `LEVEL_${index}`,
       ...(index < MAX_EXTENDS_DEPTH ? { extends: `LEVEL_${index + 1}` } : {}),
     }));
-    const problems = problemsOf(chain[0], lookupFrom(chain));
+    const problems = problemsOf(chain[0], lookupFrom(asVersions(chain)));
     expect(problems).toHaveLength(1);
     expect(problems[0].message).toContain(`More than ${MAX_EXTENDS_DEPTH}`);
   });
 
   it("reports a base's own schema problems under the base's code", () => {
     const base = { ...baseEg(), modules: [{ key: "labelling", include: true }] };
-    expect(problemsOf(clientEg(), lookupFrom([base]))).toEqual([
+    expect(problemsOf(clientEg(), lookupFrom(asVersions([base])))).toEqual([
       expect.objectContaining({ template: "BASE_EG", path: ["modules", 0, "key"] }),
     ]);
   });
 
   it("reports a lookup that answers with another template", () => {
-    expect(problemsOf(clientEg(), () => clientFactoryEg())).toEqual([
+    expect(problemsOf(clientEg(), () => ({ definition: clientFactoryEg(), version: 1 }))).toEqual([
       expect.objectContaining({ template: "CLIENT_FACTORY_EG", path: ["code"] }),
+    ]);
+  });
+
+  it("reports a base that comes without a valid version number", () => {
+    expect(problemsOf(clientEg(), () => ({ definition: baseEg(), version: 0 }))).toEqual([
+      { template: "CLIENT_EG", path: ["extends"], message: "Base template BASE_EG came without a valid version number." },
     ]);
   });
 
@@ -398,8 +416,10 @@ describe("resolveTemplateOrThrow and lookupFrom", () => {
   });
 
   it("finds definitions by code and ignores values without one", () => {
-    const lookup = lookupFrom([baseEg(), null, "STD_EG", { name: "no code" }]);
-    expect(lookup("BASE_EG")).toEqual(baseEg());
+    const lookup = lookupFrom(asVersions([baseEg(), null, "STD_EG", { name: "no code" }]));
+    expect(lookup("BASE_EG")).toEqual({ definition: baseEg(), version: 1 });
     expect(lookup("STD_EG")).toBeUndefined();
+    const later = lookupFrom([...asVersions([baseEg()], 1), ...asVersions([baseEg()], 2)]);
+    expect(later("BASE_EG")?.version).toBe(2);
   });
 });
