@@ -47,13 +47,18 @@ export interface AqlError {
   message: string;
 }
 
-const singleSampling = (limits: { ac: number; re: number }) => limits.re === limits.ac + 1;
-const RE_IS_AC_PLUS_ONE = { message: "Re must be Ac + 1 in a single sampling plan.", path: ["re"] };
+/**
+ * Re = Ac + 1, the single sampling rule. zod 4 refuses .pick() and .omit() on
+ * a schema that has it, so a module composes from a plan shape and adds this
+ * check back: `z.object({ ...SampleSizePlanShape, holes }).check(singleSamplingCheck)`.
+ */
+export const singleSamplingCheck = z.refine<{ ac: number; re: number }>((limits) => limits.re === limits.ac + 1, {
+  message: "Re must be Ac + 1 in a single sampling plan.",
+  path: ["re"],
+});
 
 /** Accept with at most Ac defects; reject at Re = Ac + 1 or more. */
-export const AcceptanceLimitsSchema = z
-  .object({ ac: z.int().min(0), re: z.int().min(1) })
-  .refine(singleSampling, RE_IS_AC_PLUS_ONE);
+export const AcceptanceLimitsSchema = z.object({ ac: z.int().min(0), re: z.int().min(1) }).check(singleSamplingCheck);
 export type AcceptanceLimits = z.infer<typeof AcceptanceLimitsSchema>;
 
 /** What decide returns for the defects found against a plan. */
@@ -79,15 +84,16 @@ const planFields = {
   arrow: z.enum(["up", "down"]).nullable(),
 };
 
+/** SampleSizePlanSchema's fields without the Re = Ac + 1 check, for modules to compose from. */
+export const SampleSizePlanShape = {
+  ...planFields,
+  /** Items inspected, as entered. */
+  sampleSize: z.int().min(2),
+  warnings: z.array(AqlWarningSchema),
+};
+
 /** The plan for a sample already inspected (watertight, visual). */
-export const SampleSizePlanSchema = z
-  .object({
-    ...planFields,
-    /** Items inspected, as entered. */
-    sampleSize: z.int().min(2),
-    warnings: z.array(AqlWarningSchema),
-  })
-  .refine(singleSampling, RE_IS_AC_PLUS_ONE);
+export const SampleSizePlanSchema = z.object(SampleSizePlanShape).check(singleSamplingCheck);
 export type SampleSizePlan = z.infer<typeof SampleSizePlanSchema>;
 
 const lotFields = {
@@ -98,10 +104,11 @@ const lotFields = {
   sampleSize: z.int().min(0).nullable(),
 };
 
+/** LotSizePlanSchema's fields without the Re = Ac + 1 check, for modules to compose from. */
+export const LotSizePlanShape = { ...planFields, ...lotFields, warnings: z.array(AqlWarningSchema) };
+
 /** The plan for a lot at an inspection level and AQL: Table 1, then Table 2-A. */
-export const LotSizePlanSchema = z
-  .object({ ...planFields, ...lotFields, warnings: z.array(AqlWarningSchema) })
-  .refine(singleSampling, RE_IS_AC_PLUS_ONE);
+export const LotSizePlanSchema = z.object(LotSizePlanShape).check(singleSamplingCheck);
 export type LotSizePlan = z.infer<typeof LotSizePlanSchema>;
 
 /** Table 1 alone: the code letter and sample size an inspection level asks for. */

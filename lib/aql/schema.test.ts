@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { ExportIssueSchema } from "@/lib/schemas";
 import { decide } from "./decision";
-import { planFromSampleSize, type AqlResult } from "./plan";
+import { planFromLotSize, planFromSampleSize, type AqlResult } from "./plan";
 import {
   AcceptanceLimitsSchema,
   AqlSchema,
   CodeLetterSchema,
   DecisionSchema,
   InspectionLevelSchema,
+  LotSizePlanShape,
+  SampleSizePlanShape,
+  singleSamplingCheck,
   StandardSampleSizeSchema,
 } from "./schema";
 import { TABLE_2A_AQLS } from "./tables";
@@ -68,6 +72,28 @@ describe("DecisionSchema", () => {
     expect(DecisionSchema.options).toEqual(["accept", "reject", "incomplete"]);
     const short = planOf(planFromSampleSize({ sampleSize: 8, aql: 4.0 }));
     for (const defects of [0, 2]) expect(DecisionSchema.parse(decide(defects, short))).toBe(decide(defects, short));
+  });
+});
+
+describe("plan shapes", () => {
+  it("compose into a module's computed values with pick, omit and extend, keeping Re = Ac + 1", () => {
+    const SizeComputedSchema = z
+      .object(SampleSizePlanShape)
+      .omit({ warnings: true })
+      .extend({ holes: z.int().min(0), decision: DecisionSchema })
+      .check(singleSamplingCheck);
+    const plan = planOf(planFromSampleSize({ sampleSize: 80, aql: 1.5 }));
+    const computed = SizeComputedSchema.parse({ ...plan, holes: 1, decision: decide(1, plan) });
+    expect(computed).toMatchObject({ codeLetter: "J", n: 80, ac: 3, re: 4, holes: 1, decision: "accept" });
+    expect(computed).not.toHaveProperty("warnings");
+    const issues = SizeComputedSchema.safeParse({ ...computed, re: 5 }).error?.issues;
+    expect(issues?.map(({ path, message }) => ({ path, message }))).toEqual([
+      { path: ["re"], message: "Re must be Ac + 1 in a single sampling plan." },
+    ]);
+
+    const LetterSchema = z.object(LotSizePlanShape).pick({ codeLetter: true, usedLetter: true, n: true });
+    const lotPlan = planOf(planFromLotSize({ lotSize: 100, level: "I", aql: 4.0 }));
+    expect(LetterSchema.parse(lotPlan)).toEqual({ codeLetter: "D", usedLetter: "E", n: 13 });
   });
 });
 

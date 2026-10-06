@@ -45,6 +45,16 @@ Input the tables cannot take comes back as `{ ok: false, error: { code, message 
 | `sample_below_plan` | from a lot size, the sample taken is smaller than the plan's `n` |
 | `sample_exceeds_lot` | the plan's `n` is not smaller than the lot: inspect every item |
 
+zod 4 refuses `.pick()`, `.omit()` and `.partial()` on a schema with a refinement, and the plan schemas carry the Re = Ac + 1 check. A module composes its computed values from the unrefined `SampleSizePlanShape` or `LotSizePlanShape` and adds `singleSamplingCheck` back:
+
+```ts
+const WatertightSizeSchema = z
+  .object(SampleSizePlanShape)
+  .omit({ warnings: true }) // the warnings go into the module's export warnings
+  .extend({ holes: z.int().min(0), decision: DecisionSchema })
+  .check(singleSamplingCheck);
+```
+
 ## Rules
 
 1. **From the sample size.** The example reports set n directly. n maps to its code letter: 2 A, 3 B, 5 C, 8 D, 13 E, 20 F, 32 G, 50 H, 80 J, 125 K, 200 L, 315 M, 500 N, 800 P, 1250 Q, 2000 R. Any other n is read as the largest standard n below it, with `nonstandard_sample` (100 reads as J, n 80; anything above 2000 as R). n below 2 is an error.
@@ -64,7 +74,7 @@ Input the tables cannot take comes back as `{ ok: false, error: { code, message 
 - `watertight`: per size (and hand), `planFromSampleSize({ sampleSize: tested, aql })`, then `decide(holes, plan)`. `accept` is pass and `reject` is fail. `incomplete` is never shown as passed: the module shows not done (BUILD_SPEC 6.2 rule 5, since the rest of the sample is missing) with the plan's `sample_too_small` warning, which names the n required.
 - `visual`: the same per class, with the class's AQL; critical is AQL 0.
 - `labeling`: `decide(defects, labelingPlan())` per level. Limits alone only give `accept` or `reject`.
-- Modules store the plan in `computed` and copy its warnings into the export with the size.
+- Modules store the plan in `computed`, composing its schema as shown under [API](#api), and copy its warnings into the export with the size.
 
 `lib/aql/plan.test.ts` holds every row of the BUILD_SPEC 7 table and the AQL checks of `docs/examples/expected-results.md`, including the corrected STD_EG limits (code N: watertight 14 / 15, major 21 / 22, minor 21 / 22 via code M). `lib/aql/decision.test.ts` checks every Table 2-A cell: no arrow down accepts on the smaller sample.
 
