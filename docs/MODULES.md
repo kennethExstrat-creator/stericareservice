@@ -52,7 +52,7 @@ A module is a `ModuleDefinition` (`modules/_framework/contract.ts`), declared wi
 | `dataSchema` | yes | zod schema of what the inspector enters, as saved in `data.modules.<key>`. |
 | `emptyData()` | yes | A new empty record on every call. |
 | `configSchema` | yes | zod schema of the template config. |
-| `defaultConfig` | yes | Config when a template says nothing. Templates deep-merge over it. |
+| `defaultConfig` | yes | Config when a template says nothing. Templates merge over it (section 6). |
 | `calc(input)` | yes | Pure: `{ result, computed, issues }` from data, config and context. |
 | `perSize` | no (false) | Data kept per ordered size under `sizes`. |
 | `handSplit` | no (false) | Can record right and left hands apart; `config.handSplit` switches it on. |
@@ -172,7 +172,7 @@ export const definition = defineModule<GloveInfoData, GloveInfoConfig, GloveInfo
 - **Numbers are numbers (6.2 rules 1 to 3).** A numeric cell holds `number | null`. Text such as `"2 42"`, `"1/80"` or a date never gets past the schema; saved data that does is reported as an `invalid_data` error with the path. Parse typed or pasted text with `readDecimalCell` / `readCountCell` (lib/stats' strict parser; `NumericCell` in `components/qc` uses the same one).
 - **Never store what is computed (rule 2).** Totals, averages, medians, rates, code letters and accept/reject limits go in `computed`, not in data.
 - **Strict objects.** `z.strictObject`, so a mistyped key is an error instead of silently kept or dropped.
-- **Per size.** A per-size module (`perSize: true`) keeps its data under `sizes`, keyed by canonical size: build the schema with `perSizeData(rowSchema)` and add module-wide fields with `.extend({...})`. The framework keeps sizes that are not in the order out of your calc, your result and the export, and warns about the ignored data (rule 4).
+- **Per size.** A per-size module (`perSize: true`) keeps its data under `sizes`, keyed by canonical size: build the schema with `perSizeData(rowSchema)` and add module-wide fields with `.extend({...})`. The framework keeps sizes that are not in the order out of your calc, your result and the export, and warns about the ignored data (rule 4). That data stays saved: Capture still receives it and hands it back unchanged (section 10), so it returns if the size is ordered again.
 - **Hand split.** Modules with `handSplit: true` (watertight, visual) have a boolean `handSplit` in their config; with it on, keep each size's data per hand, e.g. `sizes.M = { R: {...}, L: {...} }`. `HANDS`, `HandSchema` and `isHandSplit(definition, config)` are in the framework.
 - **The comment is not yours.** Every module carries an inspector comment, which the framework stores under the reserved key `comment` in your entry and strips before your schema sees the data. Do not define `comment`.
 - **Box numbers (rule 7)** are carton numbers picked from `context.cartons[size]`; store the number, not an index into the list.
@@ -267,7 +267,7 @@ It also overrides the status: nothing saved means not done; per-size results onl
 | 2. Totals, averages, medians, rates, code letters, limits are computed | Compute in calc, return in `computed`, show read-only | |
 | 3. Counts never turn into dates; dates use pickers | `CountCellSchema`, steppers; `DateCellSchema` with a date picker | |
 | 4. Sizes not in order_lots appear nowhere | Loop over `context.sizes` | Drops unordered sizes from data, results and export; `size_not_ordered` warning; `size_duplicate` for a second spelling of an ordered size |
-| 5. Missing data shows "Not done", never "Passed" | Return `not_done` until complete | Forces not done without data or for missing sizes; `module_not_done` warning |
+| 5. Missing data shows "Not done", never "Passed" | Return `not_done` until complete | Forces not done without data or for missing sizes; `module_not_done` warning, an error for the conclusion |
 | 6. Cartons unique per size, 1 to the order quantity, count = sampled cases | `carton_sampling`: errors with paths; result fail | Carton list into the context, unique |
 | 7. Box numbers picked from that size's carton list | Pick from `context.cartons[size]`; error when a saved box is not in it | |
 | 8. The sample size sets code letter and limits; a plan that does not match n cannot be saved | Use `lib/aql`; an error when n does not fit the plan | |
@@ -406,11 +406,11 @@ const saved = parseModuleData(definition, readModuleEntry(data, "modules", key))
 ## 15. Before you hand in
 
 - [ ] `index.ts` exports `definition` from `defineModule`; the stub is gone.
-- [ ] Title and labels follow the reports; summaries and messages use `input.labels`.
+- [ ] Title and labels follow the reports; summaries and messages read `input.labels` with `labelFor`; dotted keys where one key is worded twice.
 - [ ] Data schema: strict objects, cell schemas, `perSizeData` for per-size modules, no `comment`.
-- [ ] Config schema: strict, described, JSON-Schema friendly; defaults parse.
+- [ ] Config schema: strict, described, JSON-Schema friendly; defaults parse; specs with `SpecSchema`, other unions tagged by `kind`.
 - [ ] calc: not done until complete; per-size results for every ordered size; computed values in `computed`; wrong data raises issues with paths.
-- [ ] Source modules: `contribute` returns only your parts of the context.
+- [ ] Source modules: `contribute` returns only your parts of the context, tested on filled data too.
 - [ ] `checkModuleContract(definition)` is `[]`; every rule in your brief has a test; expected results reproduced with placeholders.
-- [ ] `Capture.tsx` uses `components/qc`, reads labels from props, reports focus for photo tags; `loadCapture` set.
+- [ ] `Capture.tsx` uses `components/qc`, reads labels from props with `labelFor`, shows only `context.sizes`, hands the whole data back to `onChange`, reports focus for photo tags; `loadCapture` set.
 - [ ] `npm run check` passes.
