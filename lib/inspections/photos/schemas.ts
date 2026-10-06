@@ -18,8 +18,12 @@ export type FieldErrors<K extends string> = Partial<Record<K, string>>;
 const blankToUndefined = (value: unknown) => (typeof value === "string" && value.trim() === "" ? undefined : value);
 const blankToNull = (value: unknown) => (value === undefined || (typeof value === "string" && value.trim() === "") ? null : value);
 
-export const PhotoIdSchema = z.string().regex(UUID_PATTERN, { error: "This photo could not be found." });
-export const FileIdSchema = z.string().regex(UUID_PATTERN, { error: "This file could not be found." });
+const PHOTO_NOT_FOUND = "This photo could not be found.";
+const FILE_NOT_FOUND = "This file could not be found.";
+
+/** A missing or malformed id reads as not found, never as zod's own words. */
+export const PhotoIdSchema = z.string({ error: PHOTO_NOT_FOUND }).regex(UUID_PATTERN, { error: PHOTO_NOT_FOUND });
+export const FileIdSchema = z.string({ error: FILE_NOT_FOUND }).regex(UUID_PATTERN, { error: FILE_NOT_FOUND });
 
 export const ModuleTagSchema = z
   .string()
