@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useId, useState } from "react";
+import { useActionState, useId, useRef, useState } from "react";
 import { InfoIcon, OctagonXIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -120,9 +120,11 @@ export function MapLabelDialog({
   label: OneOffLabel;
   codes: readonly CodeOption[];
   onClose: () => void;
-  returnFocus: () => void;
+  /** Puts the keyboard back once the dialog has closed; `mapped` when the label's row is about to go. */
+  returnFocus: (mapped: boolean) => void;
 }) {
   const id = useId();
+  const mapped = useRef(false);
   const [mode, setMode] = useState<Mode>("existing");
   const [code, setCode] = useState("");
   const [values, setValues] = useState({
@@ -143,6 +145,7 @@ export function MapLabelDialog({
           ? failed<MapField>(MESSAGES.checkFields, { code: "Choose a code." })
           : await mapDefectLabel(previous, formData).catch(unreachable);
       if (result.status === "success") {
+        mapped.current = true;
         toast.success(result.message);
         onClose();
       } else if (result.status === "warning") {
@@ -186,8 +189,9 @@ export function MapLabelDialog({
         if (!open && !pending) onClose();
       }}
     >
+      {/* Header and buttons stay put; only the fields scroll when the screen is short (iPad landscape). */}
       <DialogContent
-        className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg"
+        className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
         onInteractOutside={(event) => {
           if (pending) event.preventDefault();
         }}
@@ -195,12 +199,13 @@ export function MapLabelDialog({
           if (pending) event.preventDefault();
         }}
         onCloseAutoFocus={(event) => {
+          // Opened from code, so Radix has no Trigger to go back to.
           event.preventDefault();
-          returnFocus();
+          returnFocus(mapped.current);
         }}
       >
-        <form action={formAction} noValidate className="grid gap-6">
-          <DialogHeader>
+        <form action={formAction} noValidate className="flex min-h-0 flex-1 flex-col">
+          <DialogHeader className="border-b border-border px-6 pt-6 pb-5">
             <DialogTitle className="pr-8 text-lg font-bold [overflow-wrap:anywhere]">Map “{label.label}”</DialogTitle>
             <DialogDescription>
               {inspection.refNo} · {whereLabel(label)} · {foundSummary(label, inspection.sizes)}.{" "}
@@ -210,107 +215,110 @@ export function MapLabelDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <input type="hidden" name="inspectionId" value={inspection.id} />
-          <input type="hidden" name="target" value={JSON.stringify(target)} />
-          <input type="hidden" name="mode" value={mode} />
+          {/* Relative, so screen-reader-only text inside stays anchored in the scroller. */}
+          <div className="relative flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-5">
+            <input type="hidden" name="inspectionId" value={inspection.id} />
+            <input type="hidden" name="target" value={JSON.stringify(target)} />
+            <input type="hidden" name="mode" value={mode} />
 
-          <FieldSet className="gap-3">
-            <FieldLegend variant="label" className="mb-0">
-              Map to
-            </FieldLegend>
-            <RadioGroup
-              value={mode}
-              onValueChange={(value) => {
-                setMode(value as Mode);
-                setErrors({});
-              }}
-              className="grid gap-3 sm:grid-cols-2"
-            >
-              {MODES.map((option) => (
-                <FieldLabel key={option.value} htmlFor={`${id}-mode-${option.value}`}>
-                  <Field orientation="horizontal">
-                    <RadioGroupItem value={option.value} id={`${id}-mode-${option.value}`} />
-                    <FieldContent>
-                      <FieldTitle>{option.title}</FieldTitle>
-                      <FieldDescription>{option.description}</FieldDescription>
-                    </FieldContent>
-                  </Field>
-                </FieldLabel>
-              ))}
-            </RadioGroup>
-          </FieldSet>
-
-          {mode === "existing" ? (
-            <Field data-invalid={errors.code ? true : undefined} className="gap-2">
-              <FieldLabel htmlFor={`${id}-code`}>Defect code</FieldLabel>
-              <Select
-                name="code"
-                value={code}
+            <FieldSet className="gap-3">
+              <FieldLegend variant="label" className="mb-0">
+                Map to
+              </FieldLegend>
+              <RadioGroup
+                value={mode}
                 onValueChange={(value) => {
-                  setCode(value);
-                  if (errors.code) setErrors((current) => ({ ...current, code: undefined }));
+                  setMode(value as Mode);
+                  setErrors({});
                 }}
+                className="grid gap-3 sm:grid-cols-2"
               >
-                <SelectTrigger
-                  id={`${id}-code`}
-                  className="w-full"
-                  aria-invalid={errors.code ? true : undefined}
-                  aria-describedby={`${id}-code-description${errors.code ? ` ${id}-code-error` : ""}`}
+                {MODES.map((option) => (
+                  <FieldLabel key={option.value} htmlFor={`${id}-mode-${option.value}`}>
+                    <Field orientation="horizontal">
+                      <RadioGroupItem value={option.value} id={`${id}-mode-${option.value}`} />
+                      <FieldContent>
+                        <FieldTitle>{option.title}</FieldTitle>
+                        <FieldDescription>{option.description}</FieldDescription>
+                      </FieldContent>
+                    </Field>
+                  </FieldLabel>
+                ))}
+              </RadioGroup>
+            </FieldSet>
+
+            {mode === "existing" ? (
+              <Field data-invalid={errors.code ? true : undefined} className="gap-2">
+                <FieldLabel htmlFor={`${id}-code`}>Defect code</FieldLabel>
+                <Select
+                  name="code"
+                  value={code}
+                  onValueChange={(value) => {
+                    setCode(value);
+                    if (errors.code) setErrors((current) => ({ ...current, code: undefined }));
+                  }}
                 >
-                  <SelectValue placeholder="Choose a code" />
-                </SelectTrigger>
-                <SelectContent position="popper" className="max-h-80">
-                  {suggested.length > 0 && (
-                    <>
-                      <SelectGroup>
-                        <SelectLabel>Suggested</SelectLabel>
-                        {suggested.map((option) => (
-                          <CodeItem key={option.code} option={option} />
-                        ))}
-                      </SelectGroup>
-                      <SelectSeparator />
-                    </>
-                  )}
-                  <SelectGroup>
-                    <SelectLabel>{suggested.length > 0 ? "Every other active code" : "Active codes"}</SelectLabel>
-                    {others.map((option) => (
-                      <CodeItem key={option.code} option={option} />
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              <FieldDescription id={`${id}-code-description`}>
-                {suggested.length > 0
-                  ? `Suggested from the label’s words: ${suggested.map((option) => option.name).join(", ")}.`
-                  : "Inactive codes are not offered."}
-              </FieldDescription>
-              {errors.code && <FieldError id={`${id}-code-error`}>{errors.code}</FieldError>}
-              {note && <Note>{note}</Note>}
-            </Field>
-          ) : (
-            <FieldGroup className="gap-5">
-              <TextField
-                {...field("newCode")}
-                label="Code"
-                code
-                onCommit={(value) => setValues((current) => ({ ...current, newCode: normaliseCode(value) }))}
-                description={`${CODE_RULE} It cannot change once saved.`}
-              />
-              <TextField {...field("name")} label="Name" />
-              <TextField {...field("description")} label="Description" multiline description="Optional." />
-              {note && <Note>{note}</Note>}
-            </FieldGroup>
-          )}
+                  <SelectTrigger
+                    id={`${id}-code`}
+                    className="w-full"
+                    aria-invalid={errors.code ? true : undefined}
+                    aria-describedby={`${id}-code-description${errors.code ? ` ${id}-code-error` : ""}`}
+                  >
+                    <SelectValue placeholder="Choose a code" />
+                  </SelectTrigger>
+                  <SelectContent position="popper" className="max-h-80">
+                    {suggested.length > 0 && (
+                      <>
+                        <SelectGroup>
+                          <SelectLabel>Suggested</SelectLabel>
+                          {suggested.map((option) => (
+                            <CodeItem key={option.code} option={option} />
+                          ))}
+                        </SelectGroup>
+                        <SelectSeparator />
+                      </>
+                    )}
+                    <SelectGroup>
+                      <SelectLabel>{suggested.length > 0 ? "Every other active code" : "Active codes"}</SelectLabel>
+                      {others.map((option) => (
+                        <CodeItem key={option.code} option={option} />
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <FieldDescription id={`${id}-code-description`}>
+                  {suggested.length > 0
+                    ? `Suggested from the label’s words: ${suggested.map((option) => option.name).join(", ")}.`
+                    : "Inactive codes are not offered."}
+                </FieldDescription>
+                {errors.code && <FieldError id={`${id}-code-error`}>{errors.code}</FieldError>}
+                {note && <Note>{note}</Note>}
+              </Field>
+            ) : (
+              <FieldGroup className="gap-5">
+                <TextField
+                  {...field("newCode")}
+                  label="Code"
+                  code
+                  onCommit={(value) => setValues((current) => ({ ...current, newCode: normaliseCode(value) }))}
+                  description={`${CODE_RULE} It cannot change once saved.`}
+                />
+                <TextField {...field("name")} label="Name" />
+                <TextField {...field("description")} label="Description" multiline description="Optional." />
+                {note && <Note>{note}</Note>}
+              </FieldGroup>
+            )}
 
-          {/* role="alert": read out as soon as it appears. */}
-          {formError && (
-            <Alert variant="destructive">
-              <OctagonXIcon aria-hidden />
-              <AlertDescription className="text-destructive">{formError}</AlertDescription>
-            </Alert>
-          )}
+            {/* role="alert": read out as soon as it appears. */}
+            {formError && (
+              <Alert variant="destructive">
+                <OctagonXIcon aria-hidden />
+                <AlertDescription className="text-destructive">{formError}</AlertDescription>
+              </Alert>
+            )}
+          </div>
 
-          <DialogFooter>
+          <DialogFooter className="border-t border-border px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
             <DialogClose asChild>
               <Button type="button" variant="outline" disabled={pending}>
                 Cancel

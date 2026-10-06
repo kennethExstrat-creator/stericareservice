@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { FlagIcon, InfoIcon } from "lucide-react";
 import { InspectionStatusBadge } from "@/app/(app)/inspections/_components/inspection-status-badge";
@@ -22,13 +22,29 @@ import { cn } from "@/lib/utils";
 import { UnmappedBadge } from "./badges";
 import { EmptyState } from "./list-parts";
 import { MapLabelDialog, type CodeOption } from "./map-label-dialog";
+import { focusFirst } from "./panel";
 
 // Compact rows with a mouse, about 36 px around the 32 px Map button; 44 px controls on touch.
 const HEAD = "h-9 px-3 text-sm font-medium text-muted-foreground first:pl-4 last:pr-4 md:first:pl-5 md:last:pr-5 touch:h-11";
 const CELL =
   "px-3 py-1.5 align-middle whitespace-normal first:pl-4 last:pr-4 md:first:pl-5 md:last:pr-5 fine:py-0.5 touch:py-2.5";
 
-type Mapping = { inspection: InspectionLabels; label: OneOffLabel; headingId: string };
+type Mapping = { inspection: InspectionLabels; label: OneOffLabel };
+
+/**
+ * The app shell's <main> (MAIN_CONTENT_ID in components/shell/app-shell.tsx,
+ * focusable with tabIndex -1). Not imported: that module is server-side and
+ * would bring the shell's nav config into the browser.
+ */
+const MAIN_CONTENT_ID = "main-content";
+
+/** The id of an inspection card's heading, which takes the focus when a row it held has gone. */
+function headingIdOf(inspectionId: string): string {
+  return `labels-of-${inspectionId}`;
+}
+
+const headingOf = (inspectionId: string | undefined) =>
+  inspectionId ? document.getElementById(headingIdOf(inspectionId)) : null;
 
 /**
  * The one-off labels on inspections that are not approved, one card per
@@ -55,9 +71,9 @@ export function UnmappedView({ inspections, codes }: { inspections: InspectionLa
         <InspectionCard
           key={inspection.id}
           inspection={inspection}
-          onMap={(label, button, headingId) => {
+          onMap={(label, button) => {
             trigger.current = button;
-            setMapping({ inspection, label, headingId });
+            setMapping({ inspection, label });
           }}
         />
       ))}
@@ -68,11 +84,21 @@ export function UnmappedView({ inspections, codes }: { inspections: InspectionLa
           label={mapping.label}
           codes={codes}
           onClose={() => setMapping(null)}
-          // Back to the Map button; once the label is mapped its row is gone, so to the inspection's heading.
-          returnFocus={() => {
-            const button = trigger.current;
-            const target = button && document.contains(button) ? button : document.getElementById(mapping.headingId);
-            target?.focus();
+          returnFocus={(mapped) => {
+            const { inspection } = mapping;
+            if (!mapped) {
+              focusFirst([trigger.current, headingOf(inspection.id)]);
+              return;
+            }
+            // The label's row goes with the refresh, and its card too when the label was its last:
+            // the card's heading, else the next card's (or the one before), else the page.
+            const index = inspections.findIndex((other) => other.id === inspection.id);
+            const neighbour = inspections[index + 1] ?? inspections[index - 1];
+            focusFirst([
+              inspection.labels.length > 1 ? headingOf(inspection.id) : null,
+              headingOf(neighbour?.id),
+              document.getElementById(MAIN_CONTENT_ID),
+            ]);
           }}
         />
       )}
@@ -90,9 +116,9 @@ function InspectionCard({
   onMap,
 }: {
   inspection: InspectionLabels;
-  onMap: (label: OneOffLabel, button: HTMLElement, headingId: string) => void;
+  onMap: (label: OneOffLabel, button: HTMLElement) => void;
 }) {
-  const headingId = useId();
+  const headingId = headingIdOf(inspection.id);
   const mappable = canMap(inspection.status);
   const waiting = WAITING[inspection.status];
   const facts = [
@@ -109,7 +135,8 @@ function InspectionCard({
     >
       <header className="flex flex-col gap-1.5 border-b border-border px-4 py-3 md:flex-row md:items-center md:justify-between md:gap-4 md:px-5">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <h2 id={headingId} tabIndex={-1} className="text-lg font-bold text-foreground outline-none">
+          {/* Focusable from code: it takes the keyboard when a row it held has been mapped. */}
+          <h2 id={headingId} tabIndex={-1} className="rounded-sm text-lg font-bold text-foreground focus-ring">
             <Link
               href={inspectionHref(inspection.id, inspection.status)}
               className="rounded-sm text-brand-600 tabular-nums underline-offset-4 hover:underline focus-ring"
@@ -174,7 +201,7 @@ function InspectionCard({
                       variant="outline"
                       size="sm"
                       aria-label={`Map “${label.label}” on ${inspection.refNo}`}
-                      onClick={(event) => onMap(label, event.currentTarget, headingId)}
+                      onClick={(event) => onMap(label, event.currentTarget)}
                     >
                       Map
                     </Button>
