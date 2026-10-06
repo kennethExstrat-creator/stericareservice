@@ -21,6 +21,8 @@ import {
   useDataUpdater,
   useIssueFocus,
 } from "@/components/qc";
+// The kit's touch size for small pills; not exported from @/components/qc yet.
+import { SMALL_PILL_TOUCH } from "@/components/qc/status-pill";
 import { labelFor, type CaptureProps } from "@/modules/_framework";
 import { formatMinimum, judgeAverage, MEASURE_RULES, specCaption, type TensileOutcome } from "./calc";
 import { TENSILE_MEASURES } from "./config";
@@ -132,7 +134,7 @@ function LabReportStatus({ label, attached }: { label: string; attached: boolean
         <span className="text-foreground">Attached</span>
       ) : (
         <>
-          <StatusPill size="sm" status="not_done" label="Not attached" />
+          <StatusPill size="sm" status="not_done" label="Not attached" className={SMALL_PILL_TOUCH} />
           <span className="text-muted-foreground">Required before this section is done.</span>
         </>
       )}
@@ -147,7 +149,7 @@ function SpecHint({ caption, minimum, outcome }: { caption: string; minimum: str
       <span className="tabular-nums">
         {caption} {minimum}
       </span>
-      <StatusPill size="sm" status={outcome} />
+      <StatusPill size="sm" status={outcome} className={SMALL_PILL_TOUCH} />
     </span>
   );
 }

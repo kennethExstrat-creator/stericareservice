@@ -112,6 +112,13 @@ describe("tensile capture", () => {
     expect(statuses(render({ data }), "status-pill")).toEqual(["pass", "pass", "fail", "not_done", "pass", "pass", "pass", "pass"]);
   });
 
+  it("sizes its pills for touch as the kit's own small pills: 16 px on iPad (docs/DESIGN.md)", () => {
+    const pills = tags(render({ data: { ...EXAMPLE, labReport: null } }), 'data-slot="status-pill"');
+    // Eight verdicts and the lab report's "Not attached".
+    expect(pills).toHaveLength(9);
+    expect(pills.filter((pill) => !pill.includes("touch:text-base"))).toEqual([]);
+  });
+
   it("says the lab report is required until it is attached", () => {
     const html = render({ data: { ...EXAMPLE, labReport: null } });
     expect(html).toContain(">Lab report</span>");
