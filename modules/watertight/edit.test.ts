@@ -8,6 +8,7 @@ import {
   oneOffRowKey,
   readHoles,
   readOneOff,
+  removeOneOff,
   setHoles,
   setOneOff,
   setOtherDescription,
@@ -118,5 +119,31 @@ describe("watertight edits", () => {
     expect(oneOffLabels(saved, ["S", "M"], false)).toEqual([]);
     expect(oneOffRowKey(" Near  the thumb")).toBe("unmapped:near the thumb");
     expect(labelKey("A  B ")).toBe("a b");
+  });
+
+  it("takes a one-off row added by mistake off the ordered sizes, never one that counts holes", () => {
+    const saved = data({
+      M: { unmapped: [{ label: "Near thumb", count: 0 }, { label: "Seam", count: 1 }] },
+      S: { unmapped: [{ label: "near  thumb", count: 0 }] },
+      XL: { unmapped: [{ label: "Near thumb", count: 0 }] },
+    });
+    const next = removeOneOff(saved, "Near thumb", ["S", "M"], false);
+    expect(next.sizes.M.unmapped).toEqual([{ label: "Seam", count: 1 }]);
+    expect(next.sizes.S.unmapped).toEqual([]);
+    // Not ordered: kept for when it is ordered again (6.2 rule 4).
+    expect(next.sizes.XL).toBe(saved.sizes.XL);
+    expect(oneOffLabels(next, ["S", "M"], false)).toEqual(["Seam"]);
+    // A label with holes stays; nothing to take off is the same data.
+    expect(removeOneOff(saved, "Seam", ["S", "M"], false)).toBe(saved);
+    expect(WatertightDataSchema.safeParse(next).success).toBe(true);
+  });
+
+  it("takes it off both hands with a hand split", () => {
+    const saved = data({
+      "7.0": { R: { unmapped: [{ label: "Near thumb", count: 0 }] }, L: { unmapped: [{ label: "Near thumb", count: 0 }] } },
+    });
+    const next = removeOneOff(saved, "Near thumb", ["7.0"], true);
+    expect(next.sizes["7.0"].R?.unmapped).toEqual([]);
+    expect(next.sizes["7.0"].L?.unmapped).toEqual([]);
   });
 });

@@ -215,6 +215,13 @@ describe("visual capture", () => {
     expect(tagsWith(html, 'data-unmapped="true"')).toHaveLength(1);
     expect(totals(html)).toEqual([0, 0, 1]);
     expect(html.match(/Defect not in the list/g)).toHaveLength(3);
+    // One added by mistake, counting nothing, can be taken off.
+    expect(html).not.toContain("Remove Faint print");
+    const mistake = render({
+      sizes: { M: { ...inspectedAll(500), minor: { inspected: 500, unmapped: [{ label: "Faint print", count: 0 }] } } },
+      context: M_500(),
+    });
+    expect(mistake.match(/aria-label="Remove Faint print"/g)).toHaveLength(1);
   });
 
   it("is read-only for an approved inspection", () => {

@@ -184,6 +184,11 @@ describe("watertight capture", () => {
     expect(html).toContain("Near the thumb<span class=\"sr-only\"> (unmapped label)</span>");
     expect(html).toContain("Defect not in the list");
     expect(totals(html)).toEqual([2]);
+    // With holes counted it cannot be taken off; one added by mistake can, unless read-only.
+    expect(html).not.toContain("Remove Near the thumb");
+    const mistake = { sizes: { M: { tested: 500, unmapped: [{ label: "Near the thumb", count: 0 }] } }, context: M_500() };
+    expect(render(mistake)).toContain('aria-label="Remove Near the thumb"');
+    expect(render({ ...mistake, readOnly: true })).not.toContain("Remove Near the thumb");
   });
 
   it("asks where the holes under 'Other :' were, showing calc's note", () => {

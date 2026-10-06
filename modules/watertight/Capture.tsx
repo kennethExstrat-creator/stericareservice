@@ -46,6 +46,7 @@ import {
   oneOffRowKey,
   readHoles,
   readOneOff,
+  removeOneOff,
   setHoles,
   setOneOff,
   setOtherDescription,
@@ -96,7 +97,7 @@ export default function WatertightCapture({
     ...locations.map((location) => ({ key: location.code, label: location.label })),
     // Saved under a code the list lacks: calc counts them, so they show, flagged.
     ...unlistedCodes(data, sizes, split, listed).map((code) => ({ key: code, label: code, unmapped: true })),
-    ...oneOffs.map((label) => ({ key: oneOffRowKey(label), label, unmapped: true })),
+    ...oneOffs.map((label) => ({ key: oneOffRowKey(label), label, unmapped: true, removable: true })),
   ];
 
   const computed = evaluation?.computed.sizes;
@@ -142,6 +143,10 @@ export default function WatertightCapture({
     const cell: HoleCell = split ? { size, hand: shownHands[0] } : { size };
     // Unchanged (the label is already a row) is no change at all.
     update((current) => addOneOff(current, cell, label, locations, sizes, split));
+  };
+  const removeRow = (key: string) => {
+    const label = oneOffByRow.get(key);
+    if (label !== undefined) update((current) => removeOneOff(current, label, sizes, split));
   };
   /** calc's messages about the value at `path`: errors show in red under the field, warnings in amber. */
   const messagesAt = (path: IssuePath, level: "error" | "warning") => {
@@ -229,6 +234,7 @@ export default function WatertightCapture({
             showResult
             onAddRow={readOnly ? undefined : addRow}
             addRowLabel={labelFor(labels, "unmapped")}
+            onRemoveRow={readOnly ? undefined : removeRow}
             onCellFocus={(cell) =>
               onFocusChange?.({
                 size: cell.column,

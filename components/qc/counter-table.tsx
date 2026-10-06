@@ -13,8 +13,8 @@
 // its totals to the bottom of the screen while the table is in view. The
 // label column has a fixed width, so a label sits next to its steppers and
 // stacked tables (defect classes) line up.
-import { useContext, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { FlagIcon, PlusIcon } from "lucide-react";
+import { useContext, useEffect, useId, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
+import { FlagIcon, PlusIcon, XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { STATUS_LABEL, type Status } from "@/lib/design/status";
 import { formatCount, formatLimits, type AcceptanceLimits } from "@/lib/format";
@@ -47,6 +47,12 @@ export type CounterRow = {
   unmapped?: boolean;
   /** A short definition under the label, e.g. Safedon's "Cuff should be at least 2 cm out". */
   hint?: string;
+  /**
+   * A row the inspector added (a one-off label): with onRemoveRow it can be
+   * taken off again while it counts nothing in any column, e.g. one added by
+   * mistake.
+   */
+  removable?: boolean;
 };
 
 export type CounterColumn = {
@@ -137,6 +143,8 @@ type CounterTableProps = {
   /** Enables "Other defect": called with the trimmed one-off label. */
   onAddRow?: (label: string) => void;
   addRowLabel?: string;
+  /** Takes a removable row off (its key), offered while the row counts nothing. */
+  onRemoveRow?: (key: string) => void;
   /** For photo tags: the cell that has focus. */
   onCellFocus?: (cell: CounterCell) => void;
   /** Marks each cell for issue links (useIssueFocus). */
@@ -172,6 +180,7 @@ export function CounterTable({
   summaryRows = [],
   onAddRow,
   addRowLabel = "Other defect",
+  onRemoveRow,
   onCellFocus,
   cellIssuePath,
   readOnly = false,
@@ -221,20 +230,39 @@ export function CounterTable({
   // The last cell tapped. What is said about it is worked out from the props
   // rendered after the tap, so the verdict spoken is the one on the chip.
   const [touched, setTouched] = useState<CounterCell | null>(null);
+  const [removed, setRemoved] = useState<string | null>(null);
   const change = (cell: CounterCell, next: number) => {
     onCountChange(cell, next);
     setTouched(cell);
+    setRemoved(null);
   };
   const touchedColumn = touched ? columns.find((column) => column.key === touched.column) : undefined;
   const announcement =
-    touched && touchedColumn
-      ? counterAnnouncement({
-          count: countOf(getCount(touched)),
-          column: nameOf(touchedColumn),
-          total: totalOf(touchedColumn),
-          verdict: withResult && statusOf(touchedColumn) !== "not_done" ? resultLabel(statusOf(touchedColumn)) : null,
-        })
-      : "";
+    removed !== null
+      ? `${removed} removed.`
+      : touched && touchedColumn
+        ? counterAnnouncement({
+            count: countOf(getCount(touched)),
+            column: nameOf(touchedColumn),
+            total: totalOf(touchedColumn),
+            verdict: withResult && statusOf(touchedColumn) !== "not_done" ? resultLabel(statusOf(touchedColumn)) : null,
+          })
+        : "";
+
+  // A row comes off only while it counts nothing anywhere, so no tapped count is lost with it.
+  const addRowButton = useRef<HTMLButtonElement | null>(null);
+  const canRemove = (row: CounterRow) =>
+    row.removable === true &&
+    onRemoveRow !== undefined &&
+    !readOnly &&
+    columns.every((column) => columnTotal([row], column.key, hands, getCount) === 0);
+  const remove = (row: CounterRow) => {
+    onRemoveRow?.(row.key);
+    setTouched(null);
+    setRemoved(row.label);
+    // Its button goes with it: keep the focus in the table's own controls.
+    addRowButton.current?.focus();
+  };
 
   return (
     <div data-slot="counter-table" className={cn("min-w-0 space-y-3", className)}>
@@ -350,6 +378,18 @@ export function CounterTable({
                         <span className="block text-xs text-muted-foreground touch:text-sm">{row.hint}</span>
                       )}
                     </span>
+                    {canRemove(row) && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        aria-label={`Remove ${row.label}`}
+                        className="-my-0.5 ml-auto text-muted-foreground"
+                        onClick={() => remove(row)}
+                      >
+                        <XIcon aria-hidden />
+                      </Button>
+                    )}
                   </span>
                 </th>
                 {columns.map((column) =>
@@ -437,7 +477,7 @@ export function CounterTable({
         </table>
       </div>
 
-      {onAddRow && !readOnly && <AddLabel label={addRowLabel} onAdd={onAddRow} />}
+      {onAddRow && !readOnly && <AddLabel label={addRowLabel} onAdd={onAddRow} buttonRef={addRowButton} />}
       <p className="sr-only" aria-live="polite">
         {announcement}
       </p>
@@ -446,11 +486,20 @@ export function CounterTable({
 }
 
 /** "Other defect": a button that opens a one-line form for a one-off label. */
-function AddLabel({ label, onAdd }: { label: string; onAdd: (label: string) => void }) {
+function AddLabel({
+  label,
+  onAdd,
+  buttonRef,
+}: {
+  label: string;
+  onAdd: (label: string) => void;
+  /** The opener, for the table to hand focus to. */
+  buttonRef?: RefObject<HTMLButtonElement | null>;
+}) {
   const id = useId();
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
-  const opener = useRef<HTMLButtonElement>(null);
+  const opener = useRef<HTMLButtonElement | null>(null);
   const returnFocus = useRef(false);
 
   // Closing the form unmounts the focused field; hand focus back to its opener.
@@ -477,7 +526,10 @@ function AddLabel({ label, onAdd }: { label: string; onAdd: (label: string) => v
   if (!adding) {
     return (
       <Button
-        ref={opener}
+        ref={(node) => {
+          opener.current = node;
+          if (buttonRef) buttonRef.current = node;
+        }}
         type="button"
         variant="ghost"
         size="sm"

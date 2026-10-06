@@ -362,6 +362,18 @@ describe("CounterTable", () => {
     expect(html).toContain("One-off");
   });
 
+  it("offers to take off a one-off row the inspector added, only while it counts nothing", () => {
+    const added: CounterRow[] = [...rows, { key: "unmapped:near thumb", label: "Near thumb", unmapped: true, removable: true }];
+    const html = render({ rows: added, onRemoveRow: noop, onAddRow: noop });
+    expect(html).toContain('aria-label="Remove Near thumb"');
+    // Torn cuff counts 1 in size M; it is not removable anyway.
+    expect(html).not.toContain('aria-label="Remove Torn cuff"');
+    const counted = render({ rows: [...rows.slice(0, 2), { ...rows[2], removable: true }], onRemoveRow: noop });
+    expect(counted).not.toContain("Remove Torn cuff");
+    expect(render({ rows: added, onRemoveRow: noop, readOnly: true })).not.toContain("Remove Near thumb");
+    expect(render({ rows: added })).not.toContain("Remove Near thumb");
+  });
+
   it("offers a one-off defect only with onAddRow", () => {
     expect(render()).not.toContain("Other defect");
     expect(render({ onAddRow: noop })).toContain("Other defect");

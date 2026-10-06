@@ -7,6 +7,7 @@ import {
   oneOffRowKey,
   readCount,
   readOneOff,
+  removeOneOff,
   setCount,
   setInspected,
   setOneOff,
@@ -95,5 +96,24 @@ describe("visual edits", () => {
     expect(oneOffLabels(next, ["S", "M"], "minor", true)).toEqual([]);
     expect(oneOffLabels(next, ["M"], "major", false)).toEqual([]);
     expect(oneOffRowKey("Seam  mark")).toBe("unmapped:seam mark");
+  });
+
+  it("takes a class's one-off row added by mistake off the ordered sizes, never one that counts defects", () => {
+    const saved = data({
+      M: {
+        major: { unmapped: [{ label: "Faint print", count: 0 }, { label: "Seam mark", count: 2 }] },
+        minor: { unmapped: [{ label: "Faint print", count: 0 }] },
+      },
+      XL: { major: { unmapped: [{ label: "Faint print", count: 0 }] } },
+    });
+    const next = removeOneOff(saved, "major", "faint  print", ["M"], false);
+    expect(next.sizes.M.major.unmapped).toEqual([{ label: "Seam mark", count: 2 }]);
+    // Another class's row of the same words is its own.
+    expect(next.sizes.M.minor.unmapped).toEqual([{ label: "Faint print", count: 0 }]);
+    expect(next.sizes.XL).toBe(saved.sizes.XL);
+    expect(removeOneOff(saved, "major", "Seam mark", ["M"], false)).toBe(saved);
+    const split = data({ "7.0": { L: { major: { unmapped: [{ label: "Faint print", count: 0 }] } } } });
+    expect(removeOneOff(split, "major", "Faint print", ["7.0"], true).sizes["7.0"].L?.major.unmapped).toEqual([]);
+    expect(VisualDataSchema.safeParse(next).success).toBe(true);
   });
 });

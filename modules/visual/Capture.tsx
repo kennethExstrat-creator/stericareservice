@@ -45,6 +45,7 @@ import {
   oneOffRowKey,
   readCount,
   readOneOff,
+  removeOneOff,
   setCount,
   setInspected,
   setOneOff,
@@ -225,7 +226,7 @@ function ClassSection({
     ...defects.map((defect) => ({ key: defect.code, label: defect.label })),
     // Saved under a code the list lacks: calc counts them, so they show, flagged.
     ...unlistedCodes(data, sizes, cls, split, listed).map((code) => ({ key: code, label: code, unmapped: true })),
-    ...oneOffs.map((label) => ({ key: oneOffRowKey(label), label, unmapped: true })),
+    ...oneOffs.map((label) => ({ key: oneOffRowKey(label), label, unmapped: true, removable: true })),
   ];
 
   const computed = evaluation?.computed.sizes;
@@ -270,6 +271,10 @@ function ClassSection({
     const cell: DefectCell = split ? { size, cls, hand: shownHands[0] } : { size, cls };
     // Unchanged (the label is already a row of the class) is no change at all.
     update((current) => addOneOff(current, cell, label, defects, sizes, split));
+  };
+  const removeRow = (key: string) => {
+    const label = oneOffByRow.get(key);
+    if (label !== undefined) update((current) => removeOneOff(current, cls, label, sizes, split));
   };
   /** calc's messages about the value at `path`: errors show in red under the field, warnings in amber. */
   const messagesAt = (path: IssuePath, level: "error" | "warning") => {
@@ -339,6 +344,7 @@ function ClassSection({
         showResult
         onAddRow={readOnly ? undefined : addRow}
         addRowLabel={labelFor(labels, "unmapped")}
+        onRemoveRow={readOnly ? undefined : removeRow}
         onCellFocus={(cell) =>
           onFocusChange?.({
             size: cell.column,
