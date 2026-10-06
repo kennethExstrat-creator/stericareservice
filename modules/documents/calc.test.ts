@@ -5,6 +5,7 @@ import { checkModuleContract, makeTestContext, makeTestTemplate } from "@/module
 import { SAFEDON_EG_EXAMPLE, STD_EG_EXAMPLE } from "@/tests/fixtures/examples";
 import { calcDocuments, isExpired } from "./calc";
 import { DOCUMENT_ITEMS, DOCUMENTS_DEFAULT_CONFIG, DOCUMENTS_LABELS, type DocumentItem, type DocumentsConfig } from "./config";
+import { withItemValues } from "./edit";
 import { definition } from "./index";
 import { emptyDocuments, type DocumentEntry, type DocumentsData } from "./schema";
 
@@ -79,6 +80,27 @@ describe("documents", () => {
       status: "pass",
       summary: "4 Verified, 1 Not verified, 1 NA.",
     });
+  });
+
+  it("has no verdict when nothing on the checklist is verified: a pass would stand on nothing", () => {
+    const every = (status: DocumentEntry["status"]) =>
+      documents(Object.fromEntries(DOCUMENT_ITEMS.map((key) => [key, { status }])));
+    expect(calcDocuments(input(every("not_verified"))).result).toEqual({ status: "info", summary: "6 Not verified." });
+    expect(calcDocuments(input(every("na"))).result).toEqual({ status: "info", summary: "6 NA." });
+    const mixed = documents({
+      certificateOfAnalysis: { status: "na" },
+      labTestReports: { status: "not_verified" },
+      sterilisation: { status: "na" },
+      iso13485: { status: "not_verified" },
+      fdaCe: { status: "na" },
+      declarationOfOrigin: { status: "not_verified" },
+    });
+    const output = calcDocuments(input(mixed));
+    expect(output.result).toEqual({ status: "info", summary: "3 Not verified, 3 NA." });
+    expect(Object.values(output.computed.itemStatus)).toEqual(Array(6).fill("info"));
+    // One verified item is enough for a pass.
+    const one = withItemValues(every("na"), "fdaCe", { status: "verified" });
+    expect(calcDocuments(input(one)).result).toEqual({ status: "pass", summary: "1 Verified, 5 NA." });
   });
 
   it("fails when a required item is not verified, or marked NA", () => {

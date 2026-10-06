@@ -1,6 +1,8 @@
 // BUILD_SPEC 6.1 documents: fail if a required item is not verified; warn if
 // an item has expired (its expiry date is before the inspection date, from
-// the context); pass otherwise. Not done while an item on the checklist has no
+// the context); pass otherwise, but only with at least one item verified:
+// with every item not verified or NA there is no verdict (info), as a pass
+// would stand on nothing. Not done while an item on the checklist has no
 // status (6.2 rule 5). Items the template switches off are ignored.
 import type { ModuleStatus } from "@/lib/schemas/module-result";
 import {
@@ -109,6 +111,7 @@ export function calcDocuments({
   if (requiredNotVerified.length > 0) return { result: { status: "fail", summary }, computed, issues };
   if (open.length > 0) return { result: notDone(summary), computed, issues };
   if (lapsed.length > 0) return { result: { status: "warn", summary }, computed, issues };
+  if (counts.verified === 0) return { result: { status: "info", summary }, computed, issues };
   return { result: { status: "pass", summary }, computed, issues };
 }
 
