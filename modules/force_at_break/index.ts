@@ -21,6 +21,7 @@ export const definition = defineModule<ForceAtBreakData, ForceAtBreakConfig, For
   defaultConfig: FORCE_AT_BREAK_DEFAULT_CONFIG,
   perSize: true,
   calc: calcForceAtBreak,
+  loadCapture: () => import("./Capture"),
 });
 
 export type { ForceAtBreakData } from "./schema";

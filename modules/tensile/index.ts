@@ -16,6 +16,7 @@ export const definition = defineModule<TensileData, TensileConfig, TensileComput
   defaultConfig: TENSILE_DEFAULT_CONFIG,
   perSize: true,
   calc: calcTensile,
+  loadCapture: () => import("./Capture"),
 });
 
 export type { TensileData } from "./schema";
