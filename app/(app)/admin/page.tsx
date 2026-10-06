@@ -24,9 +24,16 @@ import { isAdminClientConfigured } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 
-export const metadata: Metadata = {
-  title: "Admin overview",
-};
+/**
+ * The title checks the role too. Next resolves metadata on its own, so a
+ * static title would still name this page on an inspector's 404 (in the tab
+ * and the HTML); notFound() here swaps in the 404 page's metadata. The
+ * session is cached per request, so this adds no query.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  await requireAdmin();
+  return { title: "Admin overview" };
+}
 
 /** Where the set-up steps live (README "Supabase setup"). */
 const README_SETUP_URL = "https://github.com/kennethExstrat-creator/stericareservice/blob/main/README.md#supabase-setup";

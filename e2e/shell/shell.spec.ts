@@ -174,10 +174,11 @@ test.describe("as the admin", () => {
       await expect(nav.getByRole("link")).toHaveText(["Inspections", "Admin"]);
       await expect(nav.getByRole("link", { name: "Admin" })).toHaveAttribute("aria-current", "page");
       await expect(nav.getByRole("link", { name: "Inspections" })).not.toHaveAttribute("aria-current", "page");
-      // Tabs are touch targets.
+      // Tabs and the logo's home link are touch targets.
       for (const tab of await nav.getByRole("link").all()) {
         expect((await tab.boundingBox())?.height).toBeGreaterThanOrEqual(44);
       }
+      expect((await topBar.getByRole("link", { name: "SteriCare home" }).boundingBox())?.height).toBeGreaterThanOrEqual(44);
       // No sidebar, so the admin pages are listed at the top of the page.
       const section = page.getByRole("navigation", { name: "Admin" });
       await expect(section.getByRole("link")).toHaveText(["Overview", "Users"]);
@@ -284,6 +285,9 @@ test.describe("as the inspector", () => {
     const response = await page.goto("/admin");
     await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
     expect(response?.status()).toBe(404);
+    // Nothing gives the admin area away: not the tab title, not the HTML.
+    await expect(page).toHaveTitle("Page not found · SteriCare QC");
+    expect(await response?.text()).not.toContain("Admin overview");
     await expect(page.getByText("Overview")).toHaveCount(0);
     await expect(page.locator('a[href^="/admin"]')).toHaveCount(0);
     await shot(page, "inspector-admin-404");
