@@ -8,7 +8,7 @@ import { validateInspection } from "./validate";
 
 const INSPECTOR = { id: "00000000-0000-4000-8000-000000000101", name: "Inspector A" };
 
-function stdEgData(cartonsM: number[]): InspectionData {
+function stdEgData(cartonsM: number[], finalResult: "pass" | "fail" | "hold" | null = "pass"): InspectionData {
   return {
     modules: {
       header: { poNo: "PO-0001", productName: "Brand X nitrile", client: null },
@@ -17,10 +17,13 @@ function stdEgData(cartonsM: number[]): InspectionData {
       sampling_plan: { sizes: { M: { cases: 5, watertightVisual: 500, dimensions: 13 } } },
       carton_sampling: { sizes: { M: cartonsM } },
       weight: { sizes: { M: { values: Array.from({ length: 13 }, () => 2.9) } } },
+      ...(finalResult === null ? {} : { conclusion: { finalResult, remark: null } }),
     },
     custom: {},
   };
 }
+
+const VALID_CARTONS = [32, 578, 1186, 2389, 2865];
 
 function validate(data: InspectionData) {
   const template = makeTestTemplate(TEST_REGISTRY, [
@@ -51,17 +54,37 @@ describe("validateInspection", () => {
   });
 
   it("allows submit with warnings, which go into the export", () => {
-    const report = validate(stdEgData([32, 578, 1186, 2389, 2865]));
+    const report = validate(stdEgData(VALID_CARTONS));
     expect(report.canSubmit).toBe(true);
     expect(report.errors).toEqual([]);
-    expect(report.warnings.map((issue) => [issue.moduleKey, issue.code])).toEqual([
-      ["weight", "weight_deviation"],
-      ["conclusion", "module_not_done"],
+    expect(report.warnings.map((issue) => [issue.moduleKey, issue.code])).toEqual([["weight", "weight_deviation"]]);
+  });
+
+  it("allows submit with a module not done: the inspection goes on hold", () => {
+    const data = stdEgData(VALID_CARTONS, "hold");
+    data.modules = { ...data.modules, weight: { sizes: { M: { values: [2.9] } } } };
+    const report = validate(data);
+    expect(report.canSubmit).toBe(true);
+    expect(report.warnings.map((issue) => [issue.moduleKey, issue.code])).toEqual([["weight", "module_not_done"]]);
+    expect(report.suggested.result).toBe("hold");
+  });
+
+  it("blocks submit until the conclusion has its final result (BUILD_SPEC 6.1 conclusion)", () => {
+    const report = validate(stdEgData(VALID_CARTONS, null));
+    expect(report.canSubmit).toBe(false);
+    expect(report.errors).toEqual([
+      {
+        level: "error",
+        moduleKey: "conclusion",
+        code: "module_not_done",
+        message: "Conclusion must be complete before submit: No final result.",
+        path: [],
+      },
     ]);
   });
 
   it("carries the results and the suggested result with the issues", () => {
-    const report = validate(stdEgData([32, 578, 1186, 2389, 2865]));
+    const report = validate(stdEgData(VALID_CARTONS));
     expect(report.modules.map((module) => [module.key, module.result.status])).toEqual([
       ["header", "info"],
       ["glove_info", "info"],
@@ -69,7 +92,7 @@ describe("validateInspection", () => {
       ["sampling_plan", "info"],
       ["carton_sampling", "pass"],
       ["weight", "warn"],
-      ["conclusion", "not_done"],
+      ["conclusion", "pass"],
     ]);
     expect(report.suggested).toMatchObject({ result: "pass", warned: ["weight"] });
   });
@@ -106,7 +129,11 @@ describe("validateInspection with the app's modules", () => {
       ["conclusion", "not_done"],
     ]);
     expect(report.modules[1].result.summary).toBe("Finger-textured, 240 mm minimum; indicative weight 3.5 g (size M).");
-    expect(report.canSubmit).toBe(true);
+    // Until the conclusion is built, nothing can be submitted.
+    expect(report.errors.map((issue) => [issue.moduleKey, issue.message])).toEqual([
+      ["conclusion", "Conclusion must be complete before submit: Not built yet"],
+    ]);
+    expect(report.canSubmit).toBe(false);
     expect(report.suggested.result).toBe("hold");
     expect(validateInspection(data, template, context, MODULE_REGISTRY)).toEqual(report);
   });

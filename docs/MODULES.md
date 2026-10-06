@@ -57,6 +57,7 @@ A module is a `ModuleDefinition` (`modules/_framework/contract.ts`), declared wi
 | `perSize` | no (false) | Data kept per ordered size under `sizes`. |
 | `handSplit` | no (false) | Can record right and left hands apart; `config.handSplit` switches it on. |
 | `dependsOn` | no (none) | Modules whose results `calc` reads; `"all"` for the conclusion. |
+| `requiredForSubmit` | no (false) | Submit waits until the module is done: its "not done" becomes an error. Only the conclusion sets it (section 14); ask before setting it anywhere else. |
 | `canonicalPaths` | no (none) | Entered values a template's custom field may map to (`Field.mapsTo`). |
 | `contribute(input)` | no | Pure: what the module adds to the shared context. Only for the source modules (section 7). |
 | `loadCapture()` | no | `() => import("./Capture")`: the capture UI, loaded on demand. |
@@ -239,13 +240,13 @@ Readers: `samplingFor(context, size)` (empty values when missing), `cartonsFor(c
 - `message`: one sentence for the inspector, with the template's labels and the values: "Carton 578 is entered twice for size M."
 - `path`: where the problem is **inside your data**, for the link in the issue list: `["sizes", "M", 12]` is the 13th carton of size M. `[]` points at the module.
 - `size`: the size it concerns, when there is one.
-- Missing values are not issues: they make the module not done, and the framework adds one `module_not_done` warning per module. Raise issues for **wrong** data.
+- Missing values are not issues: they make the module not done, and the framework adds one `module_not_done` issue per module, a warning, or an error that blocks submit when the module has `requiredForSubmit` (the conclusion). Raise issues for **wrong** data.
 
 **What the framework does for every module**, whatever calc returns:
 
 | Code | Level | When |
 |---|---|---|
-| `module_not_done` | warning | The final status is not done (rule 5). |
+| `module_not_done` | warning; error with `requiredForSubmit` | The final status is not done (rule 5). |
 | `size_not_ordered` | warning | Data saved for a size not in the order; ignored (rule 4). |
 | `invalid_data` | error | Saved data fails your schema (text in a numeric cell, rule 1). |
 | `invalid_config` | error | The template's config fails your schema. |
@@ -367,7 +368,7 @@ const report = validateInspection(data, template, context);
   3. **hold** if no module gave a verdict (nothing tested);
   4. **pass** otherwise, with the modules that warned listed.
 
-  It never changes the final result: the inspector decides, and an admin reviews. A module not done is a warning, not an error, so an inspection can be submitted on hold (for example while a lab report is pending).
+  It never changes the final result: the inspector decides, and an admin reviews. A module not done is a warning, not an error, so an inspection can be submitted on hold (for example while a lab report is pending). The exception is the conclusion (`requiredForSubmit`): submit waits until the inspector has chosen the final result, so `inspections.result` is never empty on a submitted inspection.
 
 ## 14. Notes per module
 
@@ -384,7 +385,7 @@ const report = validateInspection(data, template, context);
 | `force_at_break`, `tensile` | yes | Lab report files are uploaded by the screen with the module key; keep a file id in data if the module needs it. Spec minimums (6 N; 14 MPa, 500%) with `SpecSchema`. |
 | `watertight`, `visual` | yes | `handSplit`. n from `context.sampling[size].watertightVisual`; limits from `lib/aql` with AQL from config or `context.aql`. Any critical defect fails. Hole locations and the defect list per class are defect codes in config; label them per code, or per class with a dotted key where one code is worded twice (`minor.bead_defective`, section 6). |
 | `dispensing_packing`, `dispensing_safedon`, `labeling` | yes | Box numbers from `context.cartons[size]` (rule 7). Labelling is Accept 0 / Reject 1; its checks are canonical keys (`lot_no`, `mfg_date`, `expiry_date`, `artwork`, `carton_no`), labelled per level with a dotted key where the wording differs (`carton.lot_no`). Safedon's dispensing defects are defect codes (`no_cuff`, `finger_out`, ...). |
-| `conclusion` | no | Always on. Keep `dependsOn: "all"`; compute the suggestion with `suggestResult` over `input.results`, put it in `computed.suggestedResult`; the final result is the inspector's. |
+| `conclusion` | no | Always on. Keep `dependsOn: "all"` and `requiredForSubmit: true` (the registry test checks it). Compute the suggestion with `suggestResult` over `input.results` and put it in `computed.suggestedResult`; the final result is the inspector's. Not done until the final result is chosen (and the signature, if Kenneth confirms it is required): that blocks submit. Status from the final result: pass is `pass`, fail is `fail`, hold is `warn`, since a module status has no hold. |
 | `dye_leak` | yes | Optional module (Phase 3). |
 | `documents`, `loading` | no | Optional modules (Phase 3). |
 

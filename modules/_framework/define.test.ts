@@ -29,6 +29,7 @@ describe("defineModule", () => {
       perSize: false,
       handSplit: false,
       dependsOn: [],
+      requiredForSubmit: false,
       stub: false,
     });
     expect(checkModuleContract(validModule())).toEqual([]);

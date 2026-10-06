@@ -115,6 +115,11 @@ export interface ModuleDefinition<TData = unknown, TConfig = unknown, TComputed 
   readonly handSplit: boolean;
   /** Modules whose results calc reads (`input.results`), computed first; "all" for the conclusion. */
   readonly dependsOn: readonly ModuleKey[] | "all";
+  /**
+   * Submit waits until this module is done: its "not done" is an error, not
+   * a warning. The conclusion, which holds the final result.
+   */
+  readonly requiredForSubmit: boolean;
   /** Entered values a custom field may map to. */
   readonly canonicalPaths: readonly CanonicalPath[];
   /** A placeholder from the framework: calc says "Not built yet". */

@@ -51,6 +51,18 @@ describe("framework issues", () => {
     expect(notDoneIssues("Weight", { status: "pass", summary: "" })).toEqual([]);
   });
 
+  it("block submit for a module required for submit, such as the conclusion", () => {
+    expect(notDoneIssues("Conclusion", { status: "not_done", summary: "No final result." }, true)).toEqual([
+      {
+        level: "error",
+        code: "module_not_done",
+        message: "Conclusion must be complete before submit: No final result.",
+        path: [],
+      },
+    ]);
+    expect(notDoneIssues("Conclusion", { status: "warn", summary: "Final result: hold." }, true)).toEqual([]);
+  });
+
   it("turn schema errors into errors with paths into the data", () => {
     const schema = z.strictObject({ sizes: z.record(z.string(), z.array(z.number())) });
     const parsed = schema.safeParse({ sizes: { M: [243, "2 42"] } });

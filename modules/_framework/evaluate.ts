@@ -183,7 +183,7 @@ function evaluateModule(
     issues.push(...(own.success ? own.data : invalidOutputIssues(title, "issue list")));
 
     const final = enforceResultRules(result.data, rules);
-    issues.push(...notDoneIssues(title, final));
+    issues.push(...notDoneIssues(title, final, definition.requiredForSubmit));
     return {
       ...base,
       config: config.data,

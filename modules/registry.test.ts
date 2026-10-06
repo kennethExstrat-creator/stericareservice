@@ -27,6 +27,13 @@ describe("module registry", () => {
     expect(checkModuleContract(MODULE_REGISTRY[key])).toEqual([]);
   });
 
+  it("makes submit wait for the conclusion, which holds the final result, and for no other module", () => {
+    const required = Object.values(MODULE_REGISTRY)
+      .filter((definition) => definition.requiredForSubmit)
+      .map((definition) => definition.key);
+    expect(required).toEqual(["conclusion"]);
+  });
+
   it("orders all modules without a dependency loop, the conclusion last", () => {
     const order = calcOrder(MODULE_KEYS, MODULE_REGISTRY);
     expect([...order].sort()).toEqual([...MODULE_KEYS].sort());

@@ -10,7 +10,7 @@ import { errorIssue, warningIssue, type CalcIssue, type IssuePath, type Validati
 export const FRAMEWORK_ISSUE_CODES = {
   /** 6.2.4: data saved for a size that is not in order_lots. Ignored, kept in the database. */
   sizeNotOrdered: "size_not_ordered",
-  /** 6.2.5: the module is not done. */
+  /** 6.2.5: the module is not done. A warning, or an error for a module required for submit. */
   moduleNotDone: "module_not_done",
   /** Saved data does not match the module's data schema (text in a numeric cell, rule 6.2.1). */
   invalidData: "invalid_data",
@@ -68,10 +68,22 @@ export function sizeNotOrderedIssues(ignored: readonly string[], title: string):
   );
 }
 
-/** 6.2.5: one warning per module that is not done; the link goes to the module. */
-export function notDoneIssues(title: string, result: ModuleResult): CalcIssue[] {
+/**
+ * 6.2.5: one issue per module that is not done; the link goes to the module.
+ * A warning, so an inspection can be submitted on hold, except for a module
+ * required for submit (the conclusion): then an error.
+ */
+export function notDoneIssues(title: string, result: ModuleResult, requiredForSubmit = false): CalcIssue[] {
   if (result.status !== "not_done") return [];
   const detail = result.summary.trim();
+  if (requiredForSubmit) {
+    return [
+      errorIssue(
+        CODES.moduleNotDone,
+        detail ? `${title} must be complete before submit: ${detail}` : `${title} must be complete before submit.`,
+      ),
+    ];
+  }
   return [warningIssue(CODES.moduleNotDone, detail ? `${title} is not done: ${detail}` : `${title} is not done.`)];
 }
 

@@ -31,6 +31,8 @@ export type ModuleSpec<TData, TConfig, TComputed extends JsonObject> = {
   handSplit?: boolean;
   /** Default none. */
   dependsOn?: readonly ModuleKey[] | "all";
+  /** Default false: not done is a warning, and the inspection can be submitted on hold. */
+  requiredForSubmit?: boolean;
   /** Default none. */
   canonicalPaths?: readonly CanonicalPath[];
   calc: (input: CalcInput<NoInfer<TData>, NoInfer<TConfig>>) => CalcOutput<TComputed>;
@@ -40,12 +42,20 @@ export type ModuleSpec<TData, TConfig, TComputed extends JsonObject> = {
 
 /**
  * Declares a module. Leaves out what most modules do not need: not per size,
- * no hand split, no dependencies, no mappable paths.
+ * no hand split, no dependencies, not required for submit, no mappable paths.
  */
 export function defineModule<TData, TConfig, TComputed extends JsonObject = JsonObject>(
   spec: ModuleSpec<TData, TConfig, TComputed>,
 ): ModuleDefinition<TData, TConfig, TComputed> {
-  return { perSize: false, handSplit: false, dependsOn: [], canonicalPaths: [], ...spec, stub: false };
+  return {
+    perSize: false,
+    handSplit: false,
+    dependsOn: [],
+    requiredForSubmit: false,
+    canonicalPaths: [],
+    ...spec,
+    stub: false,
+  };
 }
 
 export const NOT_BUILT_SUMMARY = "Not built yet";
@@ -56,6 +66,7 @@ export type StubSpec = {
   perSize?: boolean;
   handSplit?: boolean;
   dependsOn?: readonly ModuleKey[] | "all";
+  requiredForSubmit?: boolean;
 };
 
 type StubData = Record<string, unknown>;
@@ -75,6 +86,7 @@ export function stubModule({
   perSize = false,
   handSplit = false,
   dependsOn = [],
+  requiredForSubmit = false,
 }: StubSpec): ModuleDefinition<StubData, JsonObject, JsonObject> {
   return {
     key,
@@ -87,6 +99,7 @@ export function stubModule({
     perSize,
     handSplit,
     dependsOn,
+    requiredForSubmit,
     canonicalPaths: [],
     stub: true,
     calc: () => ({ result: { status: "not_done", summary: NOT_BUILT_SUMMARY }, computed: {}, issues: [] }),

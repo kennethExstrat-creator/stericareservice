@@ -335,6 +335,7 @@ const conclusion = defineModule({
   key: "conclusion",
   title: TITLES.conclusion,
   dependsOn: "all",
+  requiredForSubmit: true,
   labels: { finalResult: "Conclusion", remark: "Remark" },
   dataSchema: z.strictObject({
     finalResult: z.enum(["pass", "fail", "hold"]).nullable().default(null),

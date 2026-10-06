@@ -114,7 +114,16 @@ describe("evaluateInspection: the STD_EG example flow (expected results B)", () 
     const data = exampleB();
     data.modules = { ...data.modules, carton_sampling: { sizes: { M: [32, 609, 578, 2389, 1186] } } };
     const evaluation = evaluate(data);
-    expect(evaluation.issues.filter((issue) => issue.level === "error")).toEqual([]);
+    // Only the inspector's final result is still missing, and submit waits for it.
+    expect(evaluation.issues.filter((issue) => issue.level === "error")).toEqual([
+      {
+        level: "error",
+        moduleKey: "conclusion",
+        code: "module_not_done",
+        message: "Conclusion must be complete before submit: No final result.",
+        path: [],
+      },
+    ]);
     expect(evaluation.suggested).toEqual({
       result: "pass",
       failed: [],
@@ -327,10 +336,12 @@ describe("evaluateInspection: custom modules", () => {
 });
 
 describe("evaluateInspection: an empty inspection", () => {
-  it("is not done anywhere and suggests hold", () => {
+  it("is not done anywhere, suggests hold, and has one error: the conclusion's final result", () => {
     const evaluation = evaluate(emptyInspectionData());
     expect(evaluation.modules.every((module) => module.result.status === "not_done")).toBe(true);
     expect(evaluation.suggested.result).toBe("hold");
-    expect(evaluation.issues.every((issue) => issue.level === "warning")).toBe(true);
+    expect(evaluation.issues.filter((issue) => issue.level === "error").map((issue) => [issue.moduleKey, issue.code])).toEqual([
+      ["conclusion", "module_not_done"],
+    ]);
   });
 });
