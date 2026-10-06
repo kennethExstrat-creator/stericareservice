@@ -31,7 +31,7 @@ Set these in `.env.local` (Vercel: Project Settings > Environment Variables). Em
 | `AI_WEBHOOK_SECRET` | | Signs both webhooks. At least 16 characters: `openssl rand -hex 32`. |
 | `ANTHROPIC_API_KEY` | | Runs the second opinion directly on Claude. Server only. |
 | `AI_REVIEW_MODEL` | `claude-opus-5-5` | Claude model for the second opinion: a Claude API model id, starting with `claude-`. |
-| `AI_REVIEW_EFFORT` | `high` | `low`, `medium`, `high`, `xhigh` or `max`. |
+| `AI_REVIEW_EFFORT` | `high` | `low`, `medium`, `high`, `xhigh` or `max`. `xhigh` and `max` get 64,000 output tokens and up to 30 minutes per review. |
 | `AI_REVIEW_MAX_PHOTOS` | `6` | Photos attached to a Claude review, 0 to 20. |
 | `ENABLE_MOCK_AI` | | `true` allows the mock reviewer and mock receivers in a production build (for a preview deployment). |
 
@@ -54,8 +54,8 @@ Server code calls `requestAiReview(exportDoc)` and `requestAiReport(exportDoc)` 
 | `not_connected` | Nothing configured for this hand-off. |
 | `misconfigured` | A variable is invalid, or Claude rejected the API key or model. The message names the variable. |
 | `refused` | Claude declined, and no fallback model completed the review. |
-| `invalid_response` | The answer was not valid JSON in the expected shape, was cut off, or named modules or photos that are not in the inspection. |
-| `timeout` | No answer in time. |
+| `invalid_response` | The answer was not valid JSON in the expected shape, was cut off or broke off, or named modules or photos that are not in the inspection. |
+| `timeout` | No complete answer within the time limit. |
 | `error` | HTTP or network error, rate limit, outage, or an export that failed validation. |
 
 ## Webhook contract
@@ -84,8 +84,8 @@ The body is the inspection export, schema version `"1"` (`ExportSchema`):
 | `template` | `code`, `version`, `standard`, `productType`, the inspection's `client` and `manufacturer` (`{ id, name }` or null), `reportTitle`, `clientLogoUrl`, `sourceFile`. |
 | `modules[]` | Included modules in template order: `key`, `title` and `labels` as on the source form, `data` (entered), `computed` (totals, statistics, code letters, limits), `result` (`status` pass, fail, warn, info or not_done, `summary`, `perSize`), `warnings`, `errors`, inspector `comment`. |
 | `excludedModules[]` | Modules switched off for this inspection: `key`, `title`, `reason`. |
-| `custom[]` | One-off template fields: `key`, `title`, `after`, `layout`, `fields`, `values`. |
-| `photos[]`, `files[]` | Signed URLs valid for 24 hours, with `moduleKey`, target (for example `size:M/defect:thin_spot/box:253`), caption, `includeInReport` and `flagged` (an unconverted original, often HEIC). `moduleKey` is `null` for a photo or file not tagged with a module (for example a desktop upload not yet retagged): the database columns `inspection_photos.module_key` and `inspection_files.module_key` allow it, so the export does too. |
+| `custom[]` | One-off template fields: `key`, `title`, `after`, `layout`, `fields`, `values`. A custom `key` is never a library module key: every key in `lib/schemas/module-result.ts` is reserved, optional modules included, so a key names one section wherever it appears. |
+| `photos[]`, `files[]` | Signed URLs valid for 24 hours, with `moduleKey`, target (for example `size:M/defect:thin_spot/box:253`), caption, `includeInReport` and `flagged` (an unconverted original, often HEIC). `moduleKey` is `null` for a photo or file not tagged with a module (for example a desktop upload not yet retagged): the database columns `inspection_photos.module_key` and `inspection_files.module_key` allow it, so the export does too. An empty or blank tag is read as `null`, so receivers only ever see `null` for untagged. |
 | `conclusion` | `suggestedResult` (computed), `finalResult` (the inspector's), `remark`, `inspector`, `date`. |
 
 `data`, `computed` and custom `values` are plain JSON whose shape per module is defined in Phase 2. A filled example: `lib/ai/__fixtures__/std-eg-export.ts`.
@@ -94,7 +94,7 @@ The body is the inspection export, schema version `"1"` (`ExportSchema`):
 
 Answer with a 2xx status and JSON within the time limit: 90 seconds for a review, 180 seconds for a report. Redirects are not followed and bodies over 1 MB are rejected. The app does not retry.
 
-Report (`AiReportResponseSchema`):
+Report (`AiReportResponseSchema`, `lib/schemas/ai-report.ts`):
 
 ```json
 { "reportUrl": "https://reports.example.com/INS-2026-0001.pdf" }
@@ -195,20 +195,21 @@ The review receiver answers with the mock review: a finding for each module that
 
 Set `ANTHROPIC_API_KEY` (console.anthropic.com > API Keys) and leave `AI_REVIEW_WEBHOOK_URL` empty. The model is `claude-opus-5-5` unless `AI_REVIEW_MODEL` says otherwise.
 
-What `lib/ai/providers/claude.ts` sends, in one non-streaming request:
+What `lib/ai/providers/claude.ts` sends, in one streamed request (`client.beta.messages.stream`):
 
 - **System prompt** (`lib/ai/prompts/review-system.ts`): a senior glove QC auditor (ISO 2859-1 with AQL, EN 455, ASTM D6319, this app's modules) giving a second opinion. It lists what to check (weight deviation, duplicate or out-of-range carton numbers, boxes not in the carton list, critical defects, results that do not follow from the data, sizes not ordered, totals, dates), how to calibrate confidence and how to grade severity. It is byte-stable and sent with `cache_control`, so repeat reviews within 5 minutes read it from the cache.
 - **User turn**: the export inside `<inspection_export>` tags, then up to `AI_REVIEW_MAX_PHOTOS` photos as image URLs (include-in-report photos first; flagged photos are skipped because the API cannot read them), each labelled with its photo id. Signed URLs are removed from the JSON text, and so is the inspector's email.
-- **Depth**: thinking is always on for Claude Opus 5.5; `output_config.effort` is set from `AI_REVIEW_EFFORT` (the API default would be `medium`). No `temperature`, `thinking` or prefill: this model rejects them. `max_tokens` is 16,000 for thinking plus the answer, which suits `high`; `xhigh` and `max` think longer and can run out of room, which comes back as a cut-off answer.
-- **Structured output**: `output_config.format` carries a JSON schema generated from `AiReviewSchema`. The SDK's `zodOutputFormat` is not used: in SDK 0.131 its transform turns `enum` into description text (so `pass | fail | hold` would not be enforced) and its parser throws on a cut-off answer before `stop_reason` can be read. `lib/ai/providers/claude-format.ts` keeps the enums and returns `null` instead of throwing; `stop_reason` is checked first and the answer is validated again with zod.
+- **Depth**: thinking is always on for Claude Opus 5.5; `output_config.effort` is set from `AI_REVIEW_EFFORT` (the API default would be `medium`). No `temperature`, `thinking` or prefill: this model rejects them. `max_tokens` covers thinking plus the answer: 16,000 at `low`, `medium` and `high`, and 64,000 at `xhigh` and `max`, which think longer (Anthropic advises at least 64K at those levels). An answer that still runs out of room comes back as a cut-off answer.
+- **Structured output**: `output_config.format` carries a JSON schema generated from `AiReviewSchema`. Structured outputs are generally available, so they need no beta header. The SDK's `zodOutputFormat` is not used: in SDK 0.131 its transform turns `enum` into description text (so `pass | fail | hold` would not be enforced), and its parser throws on a cut-off answer, which fails the stream before `stop_reason` can be read. `lib/ai/providers/claude-format.ts` keeps the enums and leaves parsing to the provider, which checks `stop_reason` first and then validates the last text block with zod. When a fallback model takes over mid-stream, the declined model's partial text comes before the fallback model's answer.
 - **Refusal fallbacks are enabled**: `fallbacks: "default"` with the beta header `server-side-fallback-2026-07-01`. If Claude Opus 5.5's safety classifiers decline the request, the API reruns it on the fallback model Anthropic recommends for that category, in the same call. The `model` stored with the review is the one that wrote it. Only when the whole chain declines does the outcome become `refused`.
-- **Limits**: 300 seconds per attempt and one retry (the SDK retries rate limits, overloads and dropped connections and honours `retry-after`). If a request with photos is rejected as invalid (for example an expired photo link), it is sent once more without photos.
+- **Streaming and the time limit**: the answer streams in as Claude writes it. A non-streaming call that thinks for minutes risks HTTP timeouts, and anything above about 16,000 output tokens has to stream. One time limit covers the whole review, retries included: 10 minutes at `low` to `high`, and 30 minutes at `xhigh` and `max` (the SDK's own estimate for that many output tokens). `requestAiReview(exportDoc, { timeoutMs })` overrides it.
+- **Retries**: the SDK's own retries are off, because the SDK would rerun a timed-out review from the start and it would be billed twice. The provider retries only failures that come back before Claude writes anything: rate limits (429), overloads (529) and other 5xx answers, and connections that never opened. It retries at most twice, honouring `retry-after` (otherwise it waits 1 second, then 2). A wait of more than a minute, or one that would pass the time limit, is reported instead. A timeout, or an error after the stream opened, is never retried; the admin can run the review again. If a request with photos is rejected as invalid (for example an expired photo link), it is sent once more without photos.
 
 Other models: the request shape targets Claude Opus 5.x. Effort, structured outputs and `fallbacks` are not supported by every model; an unsupported combination comes back as `error` with the API's explanation.
 
 ### Cost
 
-Claude Opus 5.5 costs 4 USD per million input tokens and 20 USD per million output tokens; cache reads cost 0.20 USD per million. A review reads the system prompt (about 2,300 tokens), the export (about 4,000 tokens for one size, more for several) and the photos (up to about 4,800 tokens each at 2,048 px), then writes thinking plus the answer. As a rough guide, expect about 0.15 to 0.50 USD per review at `high` effort with six photos. Each successful Claude outcome carries `usage` (input, output and cache tokens): log it, or give `ai_reviews` a column for it, to track real cost. Lower `AI_REVIEW_EFFORT` or `AI_REVIEW_MAX_PHOTOS` to spend less.
+Claude Opus 5.5 costs 4 USD per million input tokens and 20 USD per million output tokens; cache reads cost 0.20 USD per million. A review reads the system prompt (about 2,300 tokens), the export (about 4,000 tokens for one size, more for several) and the photos (up to about 4,800 tokens each at 2,048 px), then writes thinking plus the answer. As a rough guide, expect about 0.15 to 0.50 USD per review at `high` effort with six photos. At `xhigh` and `max` the output budget is 64,000 tokens, so one review can spend up to about 1.30 USD on output alone. Each successful Claude outcome carries `usage` (input, output and cache tokens): log it, or give `ai_reviews` a column for it, to track real cost. Lower `AI_REVIEW_EFFORT` or `AI_REVIEW_MAX_PHOTOS` to spend less.
 
 ## Data handling
 
@@ -223,5 +224,5 @@ The slot is built; Phase 3 wires it into the app:
 
 - `GET /api/inspections/[id]/export` builds the export (owner or admin only) and validates it with `ExportSchema`, with 24-hour signed URLs.
 - "Send to AI report" (admin, submitted or approved inspections) calls `requestAiReport` and stores `report_url`; when not connected it offers the JSON download.
-- The second opinion runs on submit (a template setting) or from an admin button: an `ai_reviews` row per inspection version (`inspection_updated_at`), `pending` then `done` or `failed`, with model, suggested result, confidence, summary, findings and questions. A Claude review can take minutes, so run it in the background (for example `after()`) and raise the route's `maxDuration`.
+- The second opinion runs on submit (a template setting) or from an admin button: an `ai_reviews` row per inspection version (`inspection_updated_at`), `pending` then `done` or `failed`, with model, suggested result, confidence, summary, findings and questions. A Claude review can take minutes (the time limit is 10 minutes, 30 at `xhigh` and `max`), so run it in the background (for example `after()`) with a `maxDuration` above that limit. Where the platform caps function time lower, pass a shorter `timeoutMs` or keep `AI_REVIEW_EFFORT` at `high` or below.
 - The review panel: the system's computed results, the inspector's result and comments, and the AI's opinion side by side, with agree, disagree (note required) or fixed per finding stored in `ai_review_actions` and the audit log.
