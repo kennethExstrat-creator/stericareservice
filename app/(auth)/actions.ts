@@ -1,12 +1,13 @@
 "use server";
 
 import {
+  isAuthError,
   isAuthRetryableFetchError,
   isAuthSessionMissingError,
   isAuthWeakPasswordError,
   type AuthError,
 } from "@supabase/supabase-js";
-import { revalidatePath } from "next/cache";
+import { refresh, revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   fieldErrors,
@@ -24,6 +25,7 @@ import { HOME_PATH, safeNextPath } from "@/lib/auth/routes";
 import { authorizeAction, getSession } from "@/lib/auth/session";
 import { getSiteUrl, isSupabaseConfigured } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
+import { sessionStartedByRecentLink } from "./link-session";
 
 /**
  * Server Actions for the sign-in screens. Each is a public POST endpoint:
@@ -32,7 +34,8 @@ import { createClient } from "@/lib/supabase/server";
  *
  * signIn and requestPasswordReset serve signed-out visitors, so there is no
  * session to authorise; the credentials and the email link are the check.
- * updatePassword needs the session an invite or reset link creates.
+ * updatePassword calls authorizeAction() first and then also needs a session
+ * that an invite or reset link started (./link-session.ts).
  */
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
@@ -40,6 +43,18 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 function text(formData: FormData, name: string): string {
   const value = formData.get(name);
   return typeof value === "string" ? value : "";
+}
+
+/**
+ * Server log for failures the user only sees as a generic message: the HTTP
+ * status and Supabase's error code, never the email address or a password.
+ */
+function logFailure(step: string, error: unknown): void {
+  if (isAuthError(error)) {
+    console.error(`[auth] ${step} failed: status ${error.status ?? "none"}, code ${error.code ?? error.name}`);
+  } else {
+    console.error(`[auth] ${step} failed: ${error instanceof Error ? `${error.name}: ${error.message}` : String(error)}`);
+  }
 }
 
 // ---- Sign in ---------------------------------------------------------------
@@ -68,7 +83,8 @@ export async function signIn(previous: SignInState, formData: FormData): Promise
       password: parsed.data.password,
     });
     if (error) return failed(signInFailure(error));
-  } catch {
+  } catch (error) {
+    logFailure("sign-in", error);
     return failed(MESSAGES.serviceUnavailable);
   }
 
@@ -82,7 +98,18 @@ export async function signIn(previous: SignInState, formData: FormData): Promise
 
   // A shared iPad may have cached another inspector's pages: start fresh.
   revalidatePath("/", "layout");
-  redirect(safeNextPath(parsed.data.next));
+  redirect(destinationAfterSignIn(parsed.data.next));
+}
+
+/**
+ * Where sign-in leads: ?next= when it is a path on this site, else the
+ * inspections list. safeNextPath used to let "/.//evil.example" through as
+ * "//evil.example" (another site to a browser); main has fixed that, and this
+ * second check stays as defence in depth.
+ */
+function destinationAfterSignIn(next: string | null | undefined): string {
+  const path = safeNextPath(next);
+  return path.startsWith("/") && !path.startsWith("//") ? path : HOME_PATH;
 }
 
 /**
@@ -92,8 +119,14 @@ export async function signIn(previous: SignInState, formData: FormData): Promise
  */
 function signInFailure(error: AuthError): string {
   const status = error.status ?? 0;
-  if (status === 429) return MESSAGES.signInRateLimited;
-  if (status === 0 || status >= 500 || isAuthRetryableFetchError(error)) return MESSAGES.serviceUnavailable;
+  if (status === 429) {
+    logFailure("sign-in", error);
+    return MESSAGES.signInRateLimited;
+  }
+  if (status === 0 || status >= 500 || isAuthRetryableFetchError(error)) {
+    logFailure("sign-in", error);
+    return MESSAGES.serviceUnavailable;
+  }
   return MESSAGES.invalidCredentials;
 }
 
@@ -101,24 +134,30 @@ function signInFailure(error: AuthError): string {
 async function profileStatus(supabase: SupabaseServerClient): Promise<"active" | "blocked" | "unknown"> {
   try {
     const { data, error } = await supabase.rpc("my_profile_status");
-    if (error) return "unknown";
+    if (error) {
+      logFailure("profile check", error);
+      return "unknown";
+    }
     const status = data?.[0];
     return status?.active ? "active" : "blocked";
-  } catch {
+  } catch (error) {
+    logFailure("profile check", error);
     return "unknown";
   }
 }
 
 /**
- * Ends the session sign-in just created. Should Supabase fail to revoke it, the
- * cookies stay, but the session guard (lib/auth/session.ts) still turns the
- * account away on the next request and clears them through /auth/sign-out.
+ * Ends the session sign-in just created. A local sign-out clears the cookies
+ * even when Supabase cannot revoke the session; if anything were left, the
+ * session guard (lib/auth/session.ts) still turns the account away on the next
+ * request and clears it through /auth/sign-out.
  */
 async function signOutQuietly(supabase: SupabaseServerClient): Promise<void> {
   try {
-    await supabase.auth.signOut({ scope: "local" });
-  } catch {
-    // See above: the guard is the backstop.
+    const { error } = await supabase.auth.signOut({ scope: "local" });
+    if (error) logFailure("sign-out after the profile check", error);
+  } catch (error) {
+    logFailure("sign-out after the profile check", error);
   }
 }
 
@@ -142,11 +181,14 @@ export async function requestPasswordReset(
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${getSiteUrl()}/auth/confirm`,
     });
-    if (error && isRequestRateLimit(error)) {
-      return { status: "error", attempt, email, message: MESSAGES.resetRateLimited };
+    if (error) {
+      // Logged even when the user is told "sent": a full mail quota or a broken
+      // mailer must not fail silently.
+      logFailure("reset request", error);
+      if (isRequestRateLimit(error)) return { status: "error", attempt, email, message: MESSAGES.resetRateLimited };
     }
-  } catch {
-    // Same answer whatever happened: see below.
+  } catch (error) {
+    logFailure("reset request", error);
   }
 
   // Unknown addresses, refused emails and server errors all get this reply.
@@ -175,7 +217,9 @@ export async function updatePassword(
 
   const auth = await authorizeAction();
   if (!auth.ok) {
-    // getSession() is cached per request: this reads the result authorizeAction used.
+    // Only on this failure path: look again to tell an expired link from a
+    // blocked account. (React's cache() does not memoise inside Server Actions,
+    // so this repeats the session check rather than reading a cached result.)
     const session = await getSession();
     if (session.status === "signed-out") {
       return { status: "error", attempt, message: MESSAGES.linkExpired, expired: true };
@@ -185,6 +229,20 @@ export async function updatePassword(
       attempt,
       message: session.status === "deactivated" ? MESSAGES.deactivated : auth.error,
     };
+  }
+
+  // A password session, or a link opened over an hour ago, cannot set a password.
+  // refresh() re-renders the page, which then explains this and offers to sign out.
+  let fromRecentLink: boolean;
+  try {
+    fromRecentLink = await sessionStartedByRecentLink();
+  } catch (error) {
+    logFailure("link session check", error);
+    return { status: "error", attempt, message: MESSAGES.updateFailed };
+  }
+  if (!fromRecentLink) {
+    refresh();
+    return { status: "error", attempt, message: MESSAGES.linkSessionRequired };
   }
 
   const parsed = ResetPasswordSchema.safeParse({
@@ -199,7 +257,8 @@ export async function updatePassword(
     const supabase = await createClient();
     const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
     if (error) return { status: "error", attempt, ...updateFailure(error) };
-  } catch {
+  } catch (error) {
+    logFailure("password update", error);
     return { status: "error", attempt, message: MESSAGES.updateFailed };
   }
 
@@ -208,7 +267,10 @@ export async function updatePassword(
 }
 
 function updateFailure(error: AuthError): Pick<ResetPasswordState, "message" | "fieldErrors" | "expired"> {
-  if (error.status === 429) return { message: MESSAGES.updateRateLimited };
+  if (error.status === 429) {
+    logFailure("password update", error);
+    return { message: MESSAGES.updateRateLimited };
+  }
   if (error.code === "same_password") return { fieldErrors: { password: MESSAGES.samePassword } };
   if (isAuthWeakPasswordError(error)) {
     const breached = error.reasons.includes("pwned");
@@ -223,5 +285,6 @@ function updateFailure(error: AuthError): Pick<ResetPasswordState, "message" | "
   ) {
     return { message: MESSAGES.linkExpired, expired: true };
   }
+  logFailure("password update", error);
   return { message: MESSAGES.updateFailed };
 }

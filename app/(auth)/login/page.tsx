@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { loginNotice } from "@/lib/auth/forms";
 import { isSupabaseConfigured } from "@/lib/env";
 import { AuthHeading } from "../_components/auth-heading";
-import { AuthNotice } from "../_components/auth-notice";
 import { SetupNotice } from "../_components/setup-notice";
 import { LoginForm } from "./login-form";
 
@@ -17,13 +16,11 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   if (!isSupabaseConfigured()) return <SetupNotice />;
 
   const { error, next } = await searchParams;
-  const notice = loginNotice(error);
 
   return (
     <div className="space-y-6">
       <AuthHeading title="Sign in" description="Accounts are created by your SteriCare administrator." />
-      {notice && <AuthNotice {...notice} />}
-      <LoginForm next={Array.isArray(next) ? next[0] : next} />
+      <LoginForm next={Array.isArray(next) ? next[0] : next} notice={loginNotice(error)} />
     </div>
   );
 }

@@ -66,12 +66,18 @@ test.describe("signing in", () => {
     await expect(page).toHaveURL(/\/inspections\?status=submitted$/);
   });
 
-  test("an external ?next= is ignored", async ({ page }, testInfo) => {
-    onlyIn(testInfo, "ipad-portrait");
-    await open(page, "/login?next=https%3A%2F%2Fevil.example%2Fphish");
-    await signInThroughForm(page, testInfo, TEST_ACCOUNTS.inspector, TEST_PASSWORD);
-    await expect(page).toHaveURL(/^http:\/\/localhost:\d+\/inspections$/);
-  });
+  for (const [project, next] of [
+    ["ipad-portrait", "https://evil.example/phish"],
+    // Collapses to "//evil.example" inside safeNextPath (fixed on main); signIn checks again.
+    ["ipad-landscape", "/.//evil.example"],
+  ] as const) {
+    test(`an external ?next= is ignored: ${next}`, async ({ page }, testInfo) => {
+      onlyIn(testInfo, project);
+      await open(page, `/login?next=${encodeURIComponent(next)}`);
+      await signInThroughForm(page, testInfo, TEST_ACCOUNTS.inspector, TEST_PASSWORD);
+      await expect(page).toHaveURL(/^http:\/\/localhost:\d+\/inspections$/);
+    });
+  }
 });
 
 test.describe("a deactivated account", () => {

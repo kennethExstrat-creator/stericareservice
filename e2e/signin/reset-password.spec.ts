@@ -1,6 +1,6 @@
 import type { Page, TestInfo } from "@playwright/test";
 import { createTestAdminClient, throwawayEmail } from "../support/admin";
-import { sessionCookies } from "../support/session";
+import { sessionCookies, signIn, TEST_ACCOUNTS } from "../support/session";
 import { expect, onlyIn, open, press, shot, test } from "./support";
 
 // The password screen with a real session from a real email link. The links
@@ -70,8 +70,12 @@ test("a reset link: rules up front, checked on the server, then saved", async ({
   await expect(rules.nth(1)).toHaveAttribute("data-met", "true");
   await shot(page, testInfo, "reset-password-rules-met");
 
-  // The server holds the same line: a mismatch, then a password without digits.
+  // Enter in the new password moves on to the empty confirmation.
   await password.fill(newPassword);
+  await password.press("Enter");
+  await expect(confirm).toBeFocused();
+
+  // The server holds the same line: a mismatch, then a password without digits.
   await confirm.fill(`${newPassword}x`);
   await submit(page, testInfo, "Save new password");
   await expect(page.getByText("The passwords do not match.")).toBeVisible();
@@ -117,6 +121,24 @@ test("an invite link: welcome, then set a password", async ({ page, accounts }, 
   await confirm.fill("Invited-2026-gloves");
   await submit(page, testInfo, "Set password");
   await expect(page).toHaveURL(/\/inspections$/);
+});
+
+test("a password sign-in cannot set a password here", async ({ page, context, baseURL }, testInfo) => {
+  // Someone holding a device left signed in must not be able to lock the owner out.
+  await signIn(context, baseURL!, TEST_ACCOUNTS.inspector);
+  await open(page, "/reset-password?flow=recovery");
+
+  await expect(page.getByRole("heading", { level: 1, name: "Use your email link" })).toBeVisible();
+  await expect(page.getByLabel("New password", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Back to inspections" })).toHaveAttribute("href", "/inspections");
+  await expect(page).toHaveTitle("Use your email link · SteriCare QC");
+  await shot(page, testInfo, "reset-password-signed-in");
+
+  // The way to a new link: sign out (this device only), then "Forgot password?".
+  await press(page.getByRole("button", { name: "Sign out" }), testInfo);
+  await expect(page).toHaveURL(/\/login$/);
+  const cookies = await context.cookies();
+  expect(cookies.filter((cookie) => /^sb-.+-auth-token/.test(cookie.name))).toHaveLength(0);
 });
 
 test("a deactivated account that opens a reset link is signed out", async ({ page, context, accounts }, testInfo) => {

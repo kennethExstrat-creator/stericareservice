@@ -19,12 +19,13 @@ export function AuthNotice({
   description,
   action,
   icon,
+  id,
   className,
-}: LoginNotice & { icon?: typeof InfoIcon; className?: string }) {
+}: LoginNotice & { icon?: typeof InfoIcon; id?: string; className?: string }) {
   const { Icon: ToneIcon, role, className: toneClass } = TONES[tone];
   const Icon = icon ?? ToneIcon;
   return (
-    <Alert role={role} data-tone={tone} className={cn(toneClass, className)}>
+    <Alert id={id} role={role} data-tone={tone} className={cn(toneClass, className)}>
       <Icon aria-hidden />
       <AlertTitle className="font-semibold">{title}</AlertTitle>
       {(description || action) && (

@@ -114,6 +114,16 @@ test.describe("/login", () => {
     });
   }
 
+  test("the ?error= banner goes once the user tries again", async ({ page }, testInfo) => {
+    await open(page, "/login?error=link_invalid");
+    const banner = page.getByText("That link has expired or was already used.");
+    await expect(banner).toBeVisible();
+    // An empty submit is answered without calling Supabase.
+    await press(page.getByRole("button", { name: "Sign in" }), testInfo);
+    await expect(page.getByText("Enter your email address.")).toBeVisible();
+    await expect(banner).toHaveCount(0);
+  });
+
   test("unknown ?error= codes show nothing", async ({ page }) => {
     await open(page, "/login?error=Your%20account%20is%20locked.%20Call%20us");
     await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();

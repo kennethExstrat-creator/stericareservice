@@ -17,6 +17,7 @@ const { Redirect, mocks } = vi.hoisted(() => {
       getSession: vi.fn(),
       requireUser: vi.fn(),
       isSupabaseConfigured: vi.fn(),
+      getClaims: vi.fn(),
     },
   };
 });
@@ -30,8 +31,8 @@ vi.mock("@/lib/env", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/env")>()),
   isSupabaseConfigured: mocks.isSupabaseConfigured,
 }));
-vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ auth: { getClaims: mocks.getClaims } }) }));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), refresh: vi.fn() }));
 vi.mock("next/navigation", () => ({
   redirect: (url: string) => {
     throw new Redirect(url);
@@ -58,7 +59,13 @@ beforeEach(() => {
   mocks.isSupabaseConfigured.mockReturnValue(true);
   mocks.getSession.mockResolvedValue({ status: "active", user: INSPECTOR } satisfies SessionState);
   mocks.requireUser.mockResolvedValue(INSPECTOR);
+  // By default the session came from an email link a moment ago.
+  mocks.getClaims.mockResolvedValue(signedInWith("otp"));
 });
+
+function signedInWith(method: string) {
+  return { data: { claims: { amr: [{ method, timestamp: Date.now() / 1000 - 10 }] } }, error: null };
+}
 
 describe("/login", () => {
   it("shows email, password and the way to reset, but no sign-up", async () => {
@@ -151,6 +158,17 @@ describe("/reset-password", () => {
   it("shows the setup notice while Supabase is not configured", async () => {
     mocks.getSession.mockResolvedValue({ status: "unconfigured" } satisfies SessionState);
     expect(await html(ResetPasswordPage(query()))).toContain("Connect Supabase");
+  });
+
+  it("sends a password session to the email link instead of showing the form", async () => {
+    mocks.getClaims.mockResolvedValue(signedInWith("password"));
+    const page = await html(ResetPasswordPage(query({ flow: "recovery" })));
+    expect(page).toContain("Use your email link");
+    expect(page).toContain("opened in the last hour");
+    expect(page).toContain(">Sign out<");
+    expect(page).toContain('href="/inspections"');
+    expect(page).not.toContain('name="password"');
+    expect(await resetMetadata(query())).toEqual({ title: "Use your email link" });
   });
 });
 

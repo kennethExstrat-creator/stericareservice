@@ -1,5 +1,5 @@
 import { AuthApiError, AuthRetryableFetchError, AuthSessionMissingError, AuthWeakPasswordError } from "@supabase/supabase-js";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import {
   INITIAL_FORGOT_PASSWORD_STATE,
   INITIAL_RESET_PASSWORD_STATE,
@@ -24,6 +24,7 @@ const { Redirect, mocks } = vi.hoisted(() => {
       getSession: vi.fn(),
       isSupabaseConfigured: vi.fn(),
       revalidatePath: vi.fn(),
+      refresh: vi.fn(),
     },
   };
 });
@@ -37,7 +38,7 @@ vi.mock("@/lib/env", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/env")>()),
   isSupabaseConfigured: mocks.isSupabaseConfigured,
 }));
-vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
+vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath, refresh: mocks.refresh }));
 vi.mock("next/navigation", () => ({
   redirect: (url: string) => {
     throw new Redirect(url);
@@ -49,6 +50,11 @@ const { requestPasswordReset, signIn, updatePassword } = await import("./actions
 const PASSWORD = "Glove-check-2026";
 const INSPECTOR = { id: "user-1", email: "inspector@test.local", fullName: "Test Inspector", role: "inspector" as const };
 
+/** JWT claims of a session; by default one a reset link started ten seconds ago. */
+function claims(method = "otp", ageSeconds = 10) {
+  return { data: { claims: { sub: INSPECTOR.id, amr: [{ method, timestamp: Date.now() / 1000 - ageSeconds }] } }, error: null };
+}
+
 /** A Supabase server client whose auth calls succeed unless a test says otherwise. */
 function fakeSupabase() {
   return {
@@ -57,12 +63,14 @@ function fakeSupabase() {
       signOut: vi.fn(async () => ({ error: null })),
       resetPasswordForEmail: vi.fn(async () => ({ data: {}, error: null })),
       updateUser: vi.fn(async () => ({ data: { user: { id: INSPECTOR.id } }, error: null })),
+      getClaims: vi.fn(async () => claims()),
     },
     rpc: vi.fn(async () => ({ data: [{ active: true, role: "inspector" }], error: null })),
   };
 }
 
 let supabase: ReturnType<typeof fakeSupabase>;
+let consoleError: MockInstance<typeof console.error>;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -72,11 +80,19 @@ beforeEach(() => {
   mocks.authorizeAction.mockResolvedValue({ ok: true, user: INSPECTOR } satisfies ActionAuth);
   mocks.getSession.mockResolvedValue({ status: "active", user: INSPECTOR } satisfies SessionState);
   vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://qc.example.com/");
+  // The actions log unexpected failures; keep the test output clean and check what they say.
+  consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  consoleError.mockRestore();
 });
+
+/** Everything the actions logged, as one string. */
+function logged(): string {
+  return consoleError.mock.calls.map((call) => call.join(" ")).join("\n");
+}
 
 function form(fields: Record<string, string>) {
   const data = new FormData();
@@ -114,6 +130,11 @@ describe("signIn", () => {
     ["a protocol-relative URL", "//evil.example"],
     ["a backslash trick", "/\\evil.example"],
     ["the sign-in screen itself", "/login"],
+    // Dot segments collapse to "//evil.example" after safeNextPath's own "//" check.
+    ["a dot segment before //", "/.//evil.example"],
+    ["a parent segment before //", "/..//evil.example"],
+    ["an encoded dot segment", "/%2e//evil.example"],
+    ["a folder and parent segment", "/x/..//evil.example"],
   ])("goes to /inspections for %s", async (_label, next) => {
     const fields = next === undefined ? credentials : { ...credentials, next };
     expect(await redirectOf(signIn(INITIAL_SIGN_IN_STATE, form(fields)))).toBe("/inspections");
@@ -360,9 +381,86 @@ describe("updatePassword", () => {
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
-  it("survives a client that throws", async () => {
+  it("survives a client that throws while checking the link", async () => {
     mocks.createClient.mockRejectedValueOnce(new Error("boom"));
     const state = await updatePassword(INITIAL_RESET_PASSWORD_STATE, form(passwords));
     expect(state.message).toBe(MESSAGES.updateFailed);
+    expect(supabase.auth.updateUser).not.toHaveBeenCalled();
+  });
+
+  it("survives a client that throws while saving", async () => {
+    mocks.createClient.mockResolvedValueOnce(supabase).mockRejectedValueOnce(new Error("boom"));
+    const state = await updatePassword(INITIAL_RESET_PASSWORD_STATE, form(passwords));
+    expect(state.message).toBe(MESSAGES.updateFailed);
+    expect(logged()).toContain("password update failed: Error: boom");
+  });
+
+  describe("needs a session that an invite or reset link started in the last hour", () => {
+    it.each([
+      ["a password sign-in", claims("password", 10)],
+      ["a link opened over an hour ago", claims("otp", 60 * 60 + 5)],
+      ["a session without an amr claim", { data: { claims: { sub: INSPECTOR.id } }, error: null }],
+      ["claims that do not verify", { data: null, error: new AuthApiError("invalid JWT", 401, "bad_jwt") }],
+    ])("refuses %s and re-renders the page", async (_label, result) => {
+      supabase.auth.getClaims.mockResolvedValueOnce(result as never);
+
+      const state = await updatePassword(INITIAL_RESET_PASSWORD_STATE, form(passwords));
+
+      expect(state).toEqual({ status: "error", attempt: 1, message: MESSAGES.linkSessionRequired });
+      expect(mocks.refresh).toHaveBeenCalled();
+      expect(supabase.auth.updateUser).not.toHaveBeenCalled();
+    });
+
+    it("checks it before it looks at the input", async () => {
+      supabase.auth.getClaims.mockResolvedValueOnce(claims("password", 10) as never);
+      const state = await updatePassword(INITIAL_RESET_PASSWORD_STATE, form({ password: "x", confirm: "y" }));
+      expect(state.fieldErrors).toBeUndefined();
+      expect(state.message).toBe(MESSAGES.linkSessionRequired);
+    });
+
+    it("accepts an invite or reset link opened 59 minutes ago", async () => {
+      supabase.auth.getClaims.mockResolvedValueOnce(claims("otp", 59 * 60) as never);
+      expect(await redirectOf(updatePassword(INITIAL_RESET_PASSWORD_STATE, form(passwords)))).toBe("/inspections");
+    });
+  });
+});
+
+describe("server log", () => {
+  const credentials = { email: "inspector@test.local", password: PASSWORD };
+
+  it("records unexpected sign-in failures by status and code, never the email", async () => {
+    supabase.auth.signInWithPassword.mockResolvedValueOnce({
+      data: { user: null, session: null },
+      error: new AuthRetryableFetchError("Service Unavailable", 503),
+    } as never);
+    await signIn(INITIAL_SIGN_IN_STATE, form(credentials));
+    expect(logged()).toContain("[auth] sign-in failed: status 503");
+    expect(logged()).not.toContain("inspector@test.local");
+  });
+
+  it("keeps quiet about a plain wrong password", async () => {
+    supabase.auth.signInWithPassword.mockResolvedValueOnce({
+      data: { user: null, session: null },
+      error: new AuthApiError("Invalid login credentials", 400, "invalid_credentials"),
+    } as never);
+    await signIn(INITIAL_SIGN_IN_STATE, form(credentials));
+    expect(consoleError).not.toHaveBeenCalled();
+  });
+
+  it("records a full mail quota while the form still says sent", async () => {
+    supabase.auth.resetPasswordForEmail.mockResolvedValueOnce({
+      data: {},
+      error: new AuthApiError("Email rate limit exceeded", 429, "over_email_send_rate_limit"),
+    } as never);
+    const state = await requestPasswordReset(INITIAL_FORGOT_PASSWORD_STATE, form({ email: "someone@test.local" }));
+    expect(state.status).toBe("sent");
+    expect(logged()).toContain("[auth] reset request failed: status 429, code over_email_send_rate_limit");
+    expect(logged()).not.toContain("someone@test.local");
+  });
+
+  it("records a failed profile check", async () => {
+    supabase.rpc.mockResolvedValueOnce({ data: null, error: { message: "connection reset" } } as never);
+    await signIn(INITIAL_SIGN_IN_STATE, form(credentials));
+    expect(logged()).toContain("[auth] profile check failed");
   });
 });

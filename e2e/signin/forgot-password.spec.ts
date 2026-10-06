@@ -14,7 +14,10 @@ test("a reset request always gets the same confirmation", async ({ page }, testI
   await page.getByLabel("Email").fill(email.toUpperCase());
   await press(page.getByRole("button", { name: "Send reset link" }), testInfo);
 
-  await expect(page.getByRole("heading", { level: 1, name: "Check your email" })).toBeFocused();
+  const heading = page.getByRole("heading", { level: 1, name: "Check your email" });
+  await expect(heading).toBeFocused();
+  // Focus lands on the title, and a screen reader reads the confirmation with it.
+  await expect(heading).toHaveAccessibleDescription(/If an account exists for that email, a reset link is on its way\./);
   await expect(page.getByRole("main").getByRole("status")).toContainText(
     "If an account exists for that email, a reset link is on its way.",
   );

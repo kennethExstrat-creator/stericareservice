@@ -4,13 +4,17 @@ import Link from "next/link";
 import { useActionState, useEffect, useRef, type KeyboardEvent } from "react";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { INITIAL_SIGN_IN_STATE } from "@/lib/auth/forms";
+import { INITIAL_SIGN_IN_STATE, type LoginNotice } from "@/lib/auth/forms";
 import { signIn } from "../actions";
 import { AuthNotice } from "../_components/auth-notice";
 import { PasswordInput } from "../_components/password-input";
 import { SubmitButton } from "../_components/submit-button";
 
-export function LoginForm({ next }: { next?: string }) {
+/**
+ * `notice` is the ?error= banner. It goes once the user tries again, so it
+ * never sits above the answer to a new attempt.
+ */
+export function LoginForm({ next, notice }: { next?: string; notice: LoginNotice | null }) {
   const [state, formAction] = useActionState(signIn, INITIAL_SIGN_IN_STATE);
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
@@ -34,6 +38,7 @@ export function LoginForm({ next }: { next?: string }) {
 
   return (
     <form action={formAction} noValidate className="space-y-5">
+      {notice && state.attempt === 0 && <AuthNotice {...notice} />}
       {state.message && <AuthNotice key={state.attempt} tone="error" title={state.message} />}
       <input type="hidden" name="next" value={next ?? ""} />
 

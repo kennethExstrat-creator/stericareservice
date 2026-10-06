@@ -1,7 +1,7 @@
 "use client";
 
 import { CircleCheckIcon, CircleIcon } from "lucide-react";
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { INITIAL_RESET_PASSWORD_STATE, PASSWORD_RULES, type PasswordFlow } from "@/lib/auth/forms";
 import { cn } from "@/lib/utils";
@@ -16,6 +16,7 @@ export function ResetPasswordForm({ flow, email }: { flow: PasswordFlow; email: 
   const [state, formAction] = useActionState(updatePassword, INITIAL_RESET_PASSWORD_STATE);
   const [password, setPassword] = useState("");
   const passwordRef = useRef<HTMLInputElement>(null);
+  const confirmRef = useRef<HTMLInputElement>(null);
   const passwordError = state.fieldErrors?.password;
   const confirmError = state.fieldErrors?.confirm;
 
@@ -24,6 +25,14 @@ export function ResetPasswordForm({ flow, email }: { flow: PasswordFlow; email: 
     if (state.attempt === 0 || state.expired) return;
     passwordRef.current?.focus();
   }, [state]);
+
+  // Enter in the new password moves on to an empty confirmation instead of submitting.
+  function onPasswordKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter" && !confirmRef.current?.value) {
+      event.preventDefault();
+      confirmRef.current?.focus();
+    }
+  }
 
   return (
     <form action={formAction} onReset={() => setPassword("")} noValidate className="space-y-5">
@@ -51,6 +60,7 @@ export function ResetPasswordForm({ flow, email }: { flow: PasswordFlow; email: 
           aria-invalid={passwordError ? true : undefined}
           aria-describedby={passwordError ? `reset-password-error ${POLICY_ID}` : POLICY_ID}
           onChange={(event) => setPassword(event.currentTarget.value)}
+          onKeyDown={onPasswordKeyDown}
         />
         <PasswordRules id={POLICY_ID} value={password} />
         <FieldError id="reset-password-error" role={undefined}>
@@ -61,6 +71,7 @@ export function ResetPasswordForm({ flow, email }: { flow: PasswordFlow; email: 
       <Field data-invalid={confirmError ? true : undefined}>
         <FieldLabel htmlFor="reset-confirm">Confirm new password</FieldLabel>
         <PasswordInput
+          ref={confirmRef}
           id="reset-confirm"
           name="confirm"
           autoComplete="new-password"

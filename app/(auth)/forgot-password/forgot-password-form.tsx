@@ -12,6 +12,7 @@ import { BackToSignIn } from "../_components/back-to-sign-in";
 import { SubmitButton } from "../_components/submit-button";
 
 const TITLE_ID = "forgot-password-title";
+const SENT_ID = "forgot-password-sent";
 
 export function ForgotPasswordForm() {
   const [state, formAction] = useActionState(requestPasswordReset, INITIAL_FORGOT_PASSWORD_STATE);
@@ -29,8 +30,10 @@ export function ForgotPasswordForm() {
   if (sent) {
     return (
       <div className="space-y-6">
-        <AuthHeading titleId={TITLE_ID} title="Check your email" />
+        {/* Focus lands on the title; the description makes a screen reader read the confirmation too. */}
+        <AuthHeading titleId={TITLE_ID} title="Check your email" describedBy={SENT_ID} />
         <AuthNotice
+          id={SENT_ID}
           tone="info"
           icon={MailCheckIcon}
           title={MESSAGES.resetSent}
