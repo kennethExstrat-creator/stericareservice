@@ -3,6 +3,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { InspectionListRow } from "@/lib/inspections/query";
+import { inspectionHref } from "./inspection-href";
 import { InspectionStatusBadge } from "./inspection-status-badge";
 import { InspectionTable } from "./inspection-table";
 
@@ -54,7 +55,7 @@ describe("InspectionTable", () => {
 
   it("makes the ref the row header and writes the date the British way", () => {
     const html = renderToStaticMarkup(<InspectionTable rows={[ROW]} role="inspector" caption="Your inspections" />);
-    expect(html).toMatch(/<th[^>]*scope="row"[^>]*><span[^>]*>INS-2026-0001<\/span>/);
+    expect(html).toMatch(/<th[^>]*scope="row"[^>]*><a[^>]*>INS-2026-0001<span class="sr-only">/);
     expect(html).toContain('<time dateTime="2026-10-06"');
     expect(html).toContain("6 Oct 2026");
     expect(html).toContain('<caption class="sr-only">Your inspections</caption>');
@@ -118,6 +119,73 @@ describe("InspectionTable", () => {
       expect(html).toContain(`<span class="sr-only">${label}</span>`);
     }
     expect(html).not.toContain(">PO <");
+  });
+});
+
+describe("the ref opens the inspection", () => {
+  const STATUSES = ["draft", "submitted", "approved", "reopened"] as const;
+  const ID = ROW.id;
+
+  /** The row header's link: its href and the text a screen reader reads as its name. */
+  function refLink(html: string): { href: string; name: string; tag: string } {
+    const match = /<th[^>]*scope="row"[^>]*>(<a [^>]*>)(.*?)<\/a>/.exec(html);
+    if (!match) throw new Error("no link in the row header");
+    return {
+      tag: match[1],
+      href: /href="([^"]*)"/.exec(match[1])?.[1] ?? "",
+      name: match[2].replace(/<[^>]+>/g, ""),
+    };
+  }
+
+  it.each(["inspector", "admin"] as const)("sends the %s to capture while it can change, to the review after", (role) => {
+    const expected = {
+      draft: `/inspections/${ID}`,
+      reopened: `/inspections/${ID}`,
+      submitted: `/inspections/${ID}/review`,
+      approved: `/inspections/${ID}/review`,
+    };
+    for (const status of STATUSES) {
+      const html = renderToStaticMarkup(<InspectionTable rows={[{ ...ROW, status }]} role={role} caption="x" />);
+      expect(refLink(html).href, status).toBe(expected[status]);
+      expect(inspectionHref(ID, status)).toBe(expected[status]);
+    }
+  });
+
+  it.each([
+    ["draft", "INS-2026-0001, Draft"],
+    ["submitted", "INS-2026-0001, Submitted"],
+    ["approved", "INS-2026-0001, Approved"],
+    ["reopened", "INS-2026-0001, Reopened"],
+  ] as const)("names a %s inspection by its ref and status", (status, name) => {
+    const html = renderToStaticMarkup(<InspectionTable rows={[{ ...ROW, status }]} role="inspector" caption="x" />);
+    expect(refLink(html).name).toBe(name);
+    // The status words are for screen readers; the eye has the Status column.
+    expect(html).toContain(`<span class="sr-only">, ${name.split(", ")[1]}</span>`);
+  });
+
+  it("is one link per row, with the folded PO beside it, not inside", () => {
+    const html = renderToStaticMarkup(
+      <InspectionTable rows={[ROW, { ...ROW, id: "9b0b4c55-1b6e-4c50-9a39-0f6f1e1f0002", refNo: "INS-2026-0002" }]} role="admin" caption="x" />,
+    );
+    expect(html.match(/<a /g)).toHaveLength(2);
+    const [ref] = cells(html);
+    expect(ref).toMatch(/<\/a><span class="[^"]*lg:hidden[^"]*"><span[^>]*>PO PO-0001<\/span><\/span><\/th>$/);
+  });
+
+  it("covers its whole cell on touch, and reads as a link with a mouse", () => {
+    const html = renderToStaticMarkup(<InspectionTable rows={[ROW]} role="inspector" caption="x" />);
+    const { tag } = refLink(html);
+    expect(html).toMatch(/<th[^>]*class="[^"]*\brelative\b[^"]*"[^>]*scope="row"|<th[^>]*scope="row"[^>]*class="[^"]*\brelative\b/);
+    expect(tag).toContain("touch:after:absolute touch:after:inset-0");
+    expect(tag).toMatch(/\btext-brand-600\b/);
+    expect(tag).toMatch(/\bfocus-ring\b/);
+    // Never `relative` itself: the touch target would shrink to the text.
+    expect(tag).not.toMatch(/class="[^"]*\brelative\b/);
+  });
+
+  it("dims the list while the inspection opens, like the list's own links", () => {
+    const html = renderToStaticMarkup(<InspectionTable rows={[ROW]} role="inspector" caption="x" />);
+    expect(html).toMatch(/<a [^>]*>INS-2026-0001<span class="sr-only">, Submitted<\/span><span aria-hidden="true" hidden=""><\/span><\/a>/);
   });
 });
 
