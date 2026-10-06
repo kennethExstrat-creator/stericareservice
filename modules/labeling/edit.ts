@@ -64,3 +64,14 @@ export function withAddedBox(data: LabelingData, size: string, level: LabelingLe
 export function boxSlots(entry: LabelingLevelData, planned: number): number {
   return entry.inspected ?? planned;
 }
+
+/**
+ * The box pickers on screen, by position: each box picked, then one empty
+ * picker (null) for the next box while fewer are picked than boxSlots. Kept
+ * by position, the picker a box was just picked in or cleared from stays on
+ * screen, so keyboard focus can go back to it.
+ */
+export function boxPickers(entry: LabelingLevelData, planned: number, readOnly: boolean): (number | null)[] {
+  const next = !readOnly && entry.boxNos.length < boxSlots(entry, planned);
+  return next ? [...entry.boxNos, null] : [...entry.boxNos];
+}

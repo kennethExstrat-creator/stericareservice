@@ -147,7 +147,17 @@ describe("labeling capture", () => {
       "Box # 1, Carton Box, size M",
     ]);
     expect(pickers[1]).toContain('aria-invalid="true"');
+    // The picker keeps its own description for screen readers; on screen the problem is listed under the row.
     expect(html).toContain("Box 2336 is not in the carton list for size M.");
+    expect(html).toMatch(/<p class="[^"]*text-fail[^"]*">Box 2336 \(Dispenser Box\) is not in the size M carton list\.<\/p>/);
+  });
+
+  it("asks for the boxes inspected where the count is, when a defect fails the level first", () => {
+    const html = render({ sizes: { M: { ...RECORDED.sizes.M, inner: { inspected: null, boxNos: [], defects: { lot_no: 1 } } } } });
+    expect(html).toContain('aria-label="Record 3 boxes inspected: Dispenser Box, size M"');
+    expect(html).toMatch(
+      /<p class="[^"]*text-warn[^"]*">Dispenser Box, size M: 1 defect found but the boxes inspected are not recorded\.<\/p>/,
+    );
   });
 
   it("marks every value for the links in the issue list", () => {

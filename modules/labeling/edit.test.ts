@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { batchDataChanges, createDataUpdater } from "@/components/qc/data-updater";
-import { boxSlots, levelEntry, withAddedBox, withBox, withDefectCount, withInspected, withLevel } from "./edit";
+import { boxPickers, boxSlots, levelEntry, withAddedBox, withBox, withDefectCount, withInspected, withLevel } from "./edit";
 import { emptyLabeling, emptyLabelingSize, LabelingDataSchema, type LabelingData } from "./schema";
 
 const KEPT: LabelingData = {
@@ -88,5 +88,25 @@ describe("labeling edits", () => {
     expect(boxSlots(emptyLabelingSize().inner, 3)).toBe(3);
     expect(boxSlots({ ...emptyLabelingSize().inner, inspected: 5 }, 3)).toBe(5);
     expect(boxSlots({ ...emptyLabelingSize().inner, inspected: 0 }, 3)).toBe(0);
+  });
+
+  it("keep each box picker in its place, so the one just used stays on screen", () => {
+    const pickers = (data: LabelingData, readOnly = false) => boxPickers(levelEntry(data, "M", "inner"), 3, readOnly);
+    let data = withInspected(emptyLabeling(), "M", "inner", 3);
+    expect(pickers(data)).toEqual([null]);
+    // A box picked in the empty picker lands in that picker's place; the next empty one follows it.
+    data = withAddedBox(data, "M", "inner", 13);
+    expect(pickers(data)).toEqual([13, null]);
+    data = withAddedBox(data, "M", "inner", 299);
+    data = withAddedBox(data, "M", "inner", 337);
+    expect(pickers(data)).toEqual([13, 299, 337]);
+    // A cleared picker keeps its place: the boxes after it move up, and the empty picker comes back last.
+    data = withBox(data, "M", "inner", 1, null);
+    expect(pickers(data)).toEqual([13, 337, null]);
+    data = withBox(data, "M", "inner", 1, null);
+    expect(pickers(data)).toEqual([13, null]);
+    // The planned n until the count is recorded; no empty picker while read-only.
+    expect(boxPickers(emptyLabelingSize().inner, 1, false)).toEqual([null]);
+    expect(pickers(data, true)).toEqual([13]);
   });
 });

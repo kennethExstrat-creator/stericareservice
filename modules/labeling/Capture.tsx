@@ -7,8 +7,9 @@
 // a counter per check with the live total and the Accept 0 / Reject 1 chip.
 // Every edit goes through useDataUpdater (docs/CAPTURE_KIT.md), built from
 // the latest data, so edits in one event never undo each other.
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { CheckIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   BoxPicker,
@@ -28,7 +29,7 @@ import { cartonsFor, labelFor, type CaptureProps } from "@/modules/_framework";
 import type { LabelingComputed, LabelingConfig, LabelingData } from ".";
 import { checkLabel, includedLevels, levelFieldLabel, levelLabel } from "./calc";
 import type { LabelingCheck, LabelingLevel } from "./config";
-import { boxSlots, levelEntry, withAddedBox, withBox, withDefectCount, withInspected } from "./edit";
+import { boxPickers, levelEntry, withAddedBox, withBox, withDefectCount, withInspected } from "./edit";
 
 type Props = CaptureProps<LabelingData, LabelingConfig, LabelingComputed>;
 
@@ -112,93 +113,112 @@ function LevelPanel({
   const path = ["sizes", size, level];
   const issues = evaluation?.issues ?? [];
   const inspectedIssue = findIssue(issues, [...path, "inspected"]);
-  // A box missing from the carton list shows on its own picker; the others under the row.
+  // Every box problem, a box missing from the carton list included, is listed under the pickers.
   const boxIssues = issues.filter(
     (issue) =>
-      issue.code !== "box_not_in_carton_list" &&
       issue.path.length >= 4 &&
       path.every((segment, index) => issue.path[index] === segment) &&
       issue.path[3] === "boxNos",
   );
   const cartons = cartonsFor(context, size);
-  const showNextBox = !readOnly && entry.boxNos.length < boxSlots(entry, levelConfig.n);
+  const pickers = boxPickers(entry, levelConfig.n, readOnly);
   const boxLabel = labelFor(labels, "boxNos");
   const inspectedLabel = labelFor(labels, "inspected");
+  const countRow = useRef<HTMLDivElement>(null);
+  // The size whose Record button had keyboard focus: the stepper that replaces the button takes it over.
+  const focusStepper = useRef<string | null>(null);
+
+  useLayoutEffect(() => {
+    const pending = focusStepper.current;
+    if (pending === null) return;
+    if (pending !== size) {
+      focusStepper.current = null;
+      return;
+    }
+    if (entry.inspected === null) return;
+    focusStepper.current = null;
+    countRow.current?.querySelector<HTMLElement>('[role="spinbutton"]')?.focus();
+  });
 
   return (
     <ModuleSection title={name} issuePath={path} className="xl:border-t-0 xl:pt-0">
       <div className="space-y-1.5">
         <div
-          className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2"
+          ref={countRow}
+          // The label over the counter table's label column and the count over its count column, side by side.
+          className="grid grid-cols-[minmax(0,16rem)_8rem] items-center touch:grid-cols-[minmax(0,16rem)_10rem]"
           onFocus={() => onFocusChange?.({ size })}
           {...issuePathProps([...path, "inspected"])}
         >
-          <div className="min-w-0">
+          <div className="min-w-0 pr-3">
             <span className="block text-sm font-medium text-foreground touch:text-base">{inspectedLabel}</span>
             <span className="block text-sm text-muted-foreground touch:text-base">Plan {levelConfig.n}</span>
           </div>
-          {readOnly ? (
-            <span className="text-base font-semibold tabular-nums">{entry.inspected ?? "—"}</span>
-          ) : entry.inspected === null ? (
-            <Button
-              type="button"
-              variant="outline"
-              aria-label={`Record ${levelConfig.n} ${levelConfig.n === 1 ? "box" : "boxes"} inspected: ${where}`}
-              onClick={() => update((current) => withInspected(current, size, level, levelConfig.n))}
-            >
-              <CheckIcon aria-hidden />
-              Record {levelConfig.n}
-            </Button>
-          ) : (
-            <Stepper
-              label={`${inspectedLabel}, ${where}`}
-              value={entry.inspected}
-              min={0}
-              max={MAX_INSPECTED}
-              onValueChange={(next) => update((current) => withInspected(current, size, level, next))}
-            />
-          )}
+          <div className="flex justify-center">
+            {readOnly ? (
+              <span className="text-base font-semibold tabular-nums">{entry.inspected ?? "—"}</span>
+            ) : entry.inspected === null ? (
+              <Button
+                type="button"
+                variant="outline"
+                aria-label={`Record ${levelConfig.n} ${levelConfig.n === 1 ? "box" : "boxes"} inspected: ${where}`}
+                onClick={(event) => {
+                  if (event.currentTarget === document.activeElement) focusStepper.current = size;
+                  update((current) => withInspected(current, size, level, levelConfig.n));
+                }}
+              >
+                <CheckIcon aria-hidden />
+                Record {levelConfig.n}
+              </Button>
+            ) : (
+              <Stepper
+                label={`${inspectedLabel}, ${where}`}
+                value={entry.inspected}
+                min={0}
+                max={MAX_INSPECTED}
+                onValueChange={(next) => update((current) => withInspected(current, size, level, next))}
+              />
+            )}
+          </div>
         </div>
-        {inspectedIssue && <p className="text-sm text-warn touch:text-base">{inspectedIssue.message}</p>}
+        {inspectedIssue && (
+          <p className={cn("text-sm touch:text-base", inspectedIssue.level === "error" ? "text-fail" : "text-warn")}>
+            {inspectedIssue.message}
+          </p>
+        )}
       </div>
 
-      {(entry.boxNos.length > 0 || showNextBox) && (
+      {pickers.length > 0 && (
         <div className="space-y-1.5" {...issuePathProps([...path, "boxNos"])}>
           <span className="block text-sm font-medium text-foreground touch:text-base">{boxLabel}</span>
           <div className="flex flex-wrap items-start gap-2">
-            {entry.boxNos.map((box, index) => (
+            {pickers.map((box, index) => (
               <BoxPicker
+                // By position, so the picker a box was picked in or cleared from stays and gets the focus back.
                 key={index}
-                className="w-32"
+                // Its own error text would wrap in this narrow column: the problems are listed
+                // full width below, and the text stays for screen readers.
+                className="relative w-32 space-y-0 [&>p]:sr-only"
                 value={box}
                 cartons={cartons}
                 used={entry.boxNos}
                 label={`${boxLabel} ${index + 1}, ${where}`}
                 sizeLabel={sizeText}
-                onValueChange={(next) => update((current) => withBox(current, size, level, index, next))}
-                onFocus={() => onFocusChange?.({ size, box })}
-                issuePath={[...path, "boxNos", index]}
+                onValueChange={(next) => {
+                  if (box !== null) update((current) => withBox(current, size, level, index, next));
+                  else if (next !== null) update((current) => withAddedBox(current, size, level, next));
+                }}
+                onFocus={() => onFocusChange?.(box === null ? { size } : { size, box })}
+                issuePath={box === null ? undefined : [...path, "boxNos", index]}
                 readOnly={readOnly}
               />
             ))}
-            {showNextBox && (
-              <BoxPicker
-                key={`next-${entry.boxNos.length}`}
-                className="w-32"
-                value={null}
-                cartons={cartons}
-                used={entry.boxNos}
-                label={`${boxLabel} ${entry.boxNos.length + 1}, ${where}`}
-                sizeLabel={sizeText}
-                onValueChange={(next) => {
-                  if (next !== null) update((current) => withAddedBox(current, size, level, next));
-                }}
-                onFocus={() => onFocusChange?.({ size })}
-              />
-            )}
           </div>
           {boxIssues.map((issue) => (
-            <p key={`${issue.code}:${issue.path.join("/")}`} className="text-sm text-fail touch:text-base">
+            <p
+              key={`${issue.code}:${issue.path.join("/")}`}
+              className={cn("text-sm touch:text-base", issue.level === "error" ? "text-fail" : "text-warn")}
+            >
               {issue.message}
             </p>
           ))}
