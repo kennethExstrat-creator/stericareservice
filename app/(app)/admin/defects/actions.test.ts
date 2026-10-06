@@ -101,7 +101,7 @@ afterEach(() => {
  * ------------------------------------------------------------------ */
 
 describe("every action", () => {
-  const target = JSON.stringify({ module: "visual", kind: "unmapped", size: "M", path: ["major"], label: "Torn cuff" });
+  const target = JSON.stringify({ module: "visual", kind: "unmapped", defectClass: "major", label: "Torn cuff" });
   const calls: Array<[string, () => Promise<ActionResult>]> = [
     ["saveDefectCode", () => saveDefectCode(IDLE, form({ mode: "create", code: "torn_cuff", name: "Torn cuff", description: "" }))],
     ["setDefectCodeActive", () => setDefectCodeActive(IDLE, form({ code: "stain", active: "false" }))],
@@ -342,7 +342,7 @@ describe("deleteDefectCode", () => {
  * ------------------------------------------------------------------ */
 
 describe("mapDefectLabel", () => {
-  const target = { module: "visual", kind: "unmapped", size: "M", path: ["major"], label: "Torn cuff" };
+  const target = { module: "visual", kind: "unmapped", defectClass: "major", label: "Torn cuff" };
   const data = () => ({
     modules: {
       visual: { sizes: { M: { major: { counts: { stain: 1 }, unmapped: [{ label: "Torn cuff", count: 2 }] } } } },
@@ -414,16 +414,58 @@ describe("mapDefectLabel", () => {
       changes: {
         module: "visual",
         kind: "unmapped",
-        size: "M",
-        hand: null,
         class: "major",
         label: "Torn cuff",
-        count: 2,
         code: "stain",
+        count: 2,
+        places: [{ size: "M", hand: null, count: 2 }],
         new_code: false,
       },
     });
     expect(refresh).toHaveBeenCalled();
+  });
+
+  it("maps the label in every size it was counted in, at once", async () => {
+    const twoSizes = {
+      modules: {
+        visual: {
+          sizes: {
+            M: { major: { counts: { stain: 1 }, unmapped: [{ label: "Torn cuff", count: 2 }] } },
+            L: { major: { counts: {}, unmapped: [{ label: "torn cuff", count: 1 }] } },
+          },
+        },
+      },
+      custom: {},
+    };
+    useClient(respond({ rows: [inspection({ data: twoSizes })] }));
+
+    expect(await map()).toMatchObject({ status: "success" });
+    expect(updates()).toHaveLength(1);
+    expect(arg(updates()[0], "update")).toEqual({
+      data: {
+        modules: {
+          visual: {
+            sizes: {
+              M: { major: { counts: { stain: 3 }, unmapped: [] } },
+              L: { major: { counts: { stain: 1 }, unmapped: [] } },
+            },
+          },
+        },
+        custom: {},
+      },
+    });
+    expect(fake.client.rpc).toHaveBeenCalledWith(
+      "log_inspection_event",
+      expect.objectContaining({
+        changes: expect.objectContaining({
+          count: 3,
+          places: [
+            { size: "M", hand: null, count: 2 },
+            { size: "L", hand: null, count: 1 },
+          ],
+        }),
+      }),
+    );
   });
 
   it("adds a new code first when asked, then maps the label to it", async () => {
@@ -462,7 +504,7 @@ describe("mapDefectLabel", () => {
 
   it("calls a broken target or an unknown mode out of date", async () => {
     expect(await map({ target: "{not json" })).toEqual({ status: "error", message: MESSAGES.stale });
-    expect(await map({ target: JSON.stringify({ ...target, path: ["__proto__"] }) })).toEqual({
+    expect(await map({ target: JSON.stringify({ ...target, defectClass: null }) })).toEqual({
       status: "error",
       message: MESSAGES.stale,
     });

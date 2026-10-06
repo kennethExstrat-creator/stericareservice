@@ -2,10 +2,11 @@ import { unstable_rethrow } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { DEFECT_CLASSES, type DefectClass } from "@/lib/coverage/keys";
+import { formatSizeHand, type SizeOption } from "@/lib/format";
 import type { InspectionStatus } from "@/lib/schemas/common";
 import { compareSizes } from "@/lib/sizes";
 import type { Database } from "@/lib/supabase/database.types";
-import { HAND_LABEL, HANDS, type Hand } from "@/modules/_framework/hands";
+import { HANDS, type Hand } from "@/modules/_framework/hands";
 
 /**
  * Defect codes and how labels map to them, for /admin/defects (BUILD_SPEC
@@ -24,7 +25,9 @@ import { HAND_LABEL, HANDS, type Hand } from "@/modules/_framework/hands";
  * nests its classes; one-off labels are `unmapped: [{ label, count }]` next
  * to the code counts (`counts` in visual, `holes` in watertight), and the
  * watertight report's "Other :" row is `holes.hole_other` with its
- * `otherDescription`.
+ * `otherDescription`. A one-off label is one label per inspection and visual
+ * class, whatever size and hand it was counted in, as the capture screen
+ * shows it: it is listed and mapped once.
  */
 
 export type DatabaseClient = SupabaseClient<Database>;
@@ -39,9 +42,9 @@ export const LABEL_MAPPING_PATH = "/admin/defects/labels";
 export const UNMAPPED_PATH = "/admin/defects/unmapped";
 export const TEMPLATES_PATH = "/admin/templates";
 
-/** The template editor for one version (BUILD_SPEC 10, /admin/templates). */
+/** The template editor for one version (BUILD_SPEC 10): /admin/templates/<version id>/edit. */
 export function templateEditorHref(templateId: string): string {
-  return `${TEMPLATES_PATH}/${templateId}`;
+  return `${TEMPLATES_PATH}/${templateId}/edit`;
 }
 
 /** An inspection as an admin opens it: the review screen once submitted, the capture screen before. */
@@ -677,67 +680,76 @@ export const COUNT_MAP_KEY: Readonly<Record<LabelModule, "holes" | "counts">> = 
 
 export const MODULE_LABEL: Readonly<Record<LabelModule, string>> = { watertight: "Watertight", visual: "Visual" };
 
+/** The longest "Other :" description a module saves (lib/validation's TextCellSchema). */
+const OTHER_DESCRIPTION_MAX = 2000;
+
 /**
  * How deep below a size's entry labels are looked for: hand and class, in
  * either order, with room for one grouping key a module may add (`classes`).
  */
 const MAX_DEPTH = 3;
 
-const DataKeySchema = z
-  .string()
-  .min(1)
-  .max(40)
-  .refine(isSafeKey, { error: MESSAGES.stale });
+/**
+ * One-off labels compare as the capture screen compares them, without case
+ * or extra spaces: "Torn cuff" in size M and "torn  cuff" in size L are one
+ * label, shown as one row there.
+ */
+export function labelKey(label: string): string {
+  return oneLine(label).toLowerCase();
+}
 
-/** Where a one-off label sits in an inspection's data, and what it says. Sent back by the map form. */
+/**
+ * A one-off label as the map form names it: where it was recorded (the
+ * module, the kind, and the visual class, which is its severity) and its
+ * words. Mapping takes it in every size and hand it was recorded in.
+ */
 export const LabelTargetSchema = z
   .object({
     module: z.enum(LABEL_MODULES),
     kind: z.enum(LABEL_KINDS),
-    /** The key under `sizes`, as saved. */
-    size: DataKeySchema,
-    /** Keys from the size's entry down to the object that holds the label, e.g. ["R", "major"]. */
-    path: z.array(DataKeySchema).max(MAX_DEPTH),
+    /** The visual class it was recorded under. Null for watertight. */
+    defectClass: z.enum(DEFECT_CLASSES).nullable(),
     label: z.string().overwrite(oneLine).min(1).max(LIMITS.label),
   })
+  .refine((target) => (target.module === "visual") === (target.defectClass !== null), { error: MESSAGES.stale })
   .refine((target) => target.kind === "unmapped" || target.module === "watertight", { error: MESSAGES.stale });
 export type LabelTarget = z.output<typeof LabelTargetSchema>;
 
-/** A one-off label as found in an inspection's data. */
-export type FoundLabel = LabelTarget & {
+/** A size (and hand) a label was recorded in. */
+export type LabelPlace = {
+  /** The key under `sizes`, as saved. */
+  size: string;
   hand: Hand | null;
-  /** The visual class it was recorded under: its severity. Null for watertight. */
-  defectClass: DefectClass | null;
-  /** How many, or null when a saved count is not a whole number (the inspection needs fixing first). */
+  /** How many there, or null when a saved count is not a whole number. */
+  count: number | null;
+};
+
+/** A one-off label as found in an inspection's data, with every place it was recorded. */
+export type FoundLabel = LabelTarget & {
+  /** In size order; right hand before left. */
+  places: LabelPlace[];
+  /** Every place together, or null when a count is unreadable (the inspection needs fixing first). */
   count: number | null;
 };
 
 const isHand = (key: string): key is Hand => (HANDS as readonly string[]).includes(key);
 const isDefectClass = (key: string): key is DefectClass => (DEFECT_CLASSES as readonly string[]).includes(key);
+const handRank = (hand: Hand | null) => (hand === null ? -1 : HANDS.indexOf(hand));
+const classRank = (defectClass: DefectClass | null) => (defectClass === null ? -1 : DEFECT_CLASSES.indexOf(defectClass));
 
-/**
- * Every one-off label in an inspection's data: visual and watertight
- * `unmapped` lists, and watertight "Other :" locations. The same label twice
- * in one list is one entry with the counts added. Sorted in report order:
- * module, size, hand, class.
- */
-export function findOneOffLabels(data: unknown): FoundLabel[] {
-  const modules = isRecord(data) ? ownRecord(data, "modules") : null;
-  if (!modules) return [];
-
-  const found: FoundLabel[] = [];
-  for (const moduleKey of LABEL_MODULES) {
-    const sizes = ownRecord(ownRecord(modules, moduleKey) ?? {}, "sizes");
-    if (!sizes) continue;
-    for (const size of Object.keys(sizes)) {
-      const entry = ownRecord(sizes, size);
-      if (entry && size.length <= 40) walk(entry, [], (holder, path) => collect(holder, path, moduleKey, size, found));
-    }
-  }
-  return found.sort(compareFound);
+function comparePlaces(a: Pick<LabelPlace, "size" | "hand">, b: Pick<LabelPlace, "size" | "hand">): number {
+  return compareSizes(a.size, b.size) || handRank(a.hand) - handRank(b.hand);
 }
 
-function walk(node: JsonRecord, path: string[], visit: (holder: JsonRecord, path: string[]) => void): void {
+/** A sum of counts that stays null once one of them is unreadable. */
+function addCounts(a: number | null, b: number | null): number | null {
+  return a === null || b === null ? null : a + b;
+}
+
+/** An object in a module's data that may hold one-off labels, and where it sits. */
+type Holder = { size: string; hand: Hand | null; defectClass: DefectClass | null; node: JsonRecord };
+
+function walk(node: JsonRecord, path: string[], visit: (node: JsonRecord, path: string[]) => void): void {
   visit(node, path);
   if (path.length >= MAX_DEPTH) return;
   for (const key of Object.keys(node)) {
@@ -747,46 +759,102 @@ function walk(node: JsonRecord, path: string[], visit: (holder: JsonRecord, path
   }
 }
 
-function collect(holder: JsonRecord, path: string[], moduleKey: LabelModule, size: string, out: FoundLabel[]): void {
-  const hand = path.find(isHand) ?? null;
-  const defectClass = moduleKey === "visual" ? (path.find(isDefectClass) ?? null) : null;
-  const place = { module: moduleKey, size, path, hand, defectClass };
+/**
+ * Every object of a module's data that may hold one-off labels: each size's
+ * entry and the hands and classes below it, in size order. Visual labels
+ * count only under a class, so a visual object outside one is left out.
+ */
+function holdersOf(modules: JsonRecord, moduleKey: LabelModule): Holder[] {
+  const sizes = ownRecord(ownRecord(modules, moduleKey) ?? {}, "sizes");
+  if (!sizes) return [];
+  const holders: Holder[] = [];
+  for (const size of Object.keys(sizes).sort(compareSizes)) {
+    const entry = size.length <= 40 ? ownRecord(sizes, size) : null;
+    if (!entry) continue;
+    walk(entry, [], (node, path) => {
+      const defectClass = moduleKey === "visual" ? (path.find(isDefectClass) ?? null) : null;
+      if (moduleKey === "visual" && defectClass === null) return;
+      holders.push({ size, hand: path.find(isHand) ?? null, defectClass, node });
+    });
+  }
+  return holders;
+}
 
-  const list = Object.hasOwn(holder, "unmapped") ? holder.unmapped : undefined;
+/** The labels one object records, each with its count there. One label entered twice adds up. */
+function labelsIn(node: JsonRecord, moduleKey: LabelModule): { kind: LabelKind; label: string; count: number | null }[] {
+  const unmapped = new Map<string, { kind: LabelKind; label: string; count: number | null }>();
+  const list = Object.hasOwn(node, "unmapped") ? node.unmapped : undefined;
   if (Array.isArray(list)) {
-    const counts = new Map<string, number | null>();
     for (const entry of list) {
       if (!isRecord(entry) || typeof entry.label !== "string") continue;
       const label = oneLine(entry.label);
       if (!label || label.length > LIMITS.label) continue;
+      const held = unmapped.get(labelKey(label));
       const count = readCount(entry.count);
-      const before = counts.has(label) ? (counts.get(label) ?? null) : 0;
-      counts.set(label, before === null || count === null ? null : before + count);
+      unmapped.set(labelKey(label), held ? { ...held, count: addCounts(held.count, count) } : { kind: "unmapped", label, count });
     }
-    for (const [label, count] of counts) out.push({ ...place, kind: "unmapped", label, count });
   }
+  const found = [...unmapped.values()];
 
-  if (moduleKey === "watertight" && Object.hasOwn(holder, "otherDescription") && typeof holder.otherDescription === "string") {
-    const label = oneLine(holder.otherDescription);
+  if (moduleKey === "watertight" && Object.hasOwn(node, "otherDescription") && typeof node.otherDescription === "string") {
+    const label = oneLine(node.otherDescription);
     if (label && label.length <= LIMITS.label) {
-      const holes = Object.hasOwn(holder, "holes") ? holder.holes : undefined;
-      const count = holes === undefined || holes === null ? 0 : isRecord(holes) ? readCount(holes[OTHER_HOLE_CODE]) : null;
-      out.push({ ...place, defectClass: null, kind: "other", label, count });
+      const holes = Object.hasOwn(node, "holes") ? node.holes : undefined;
+      const count =
+        holes === undefined || holes === null
+          ? 0
+          : isRecord(holes)
+            ? readCount(Object.hasOwn(holes, OTHER_HOLE_CODE) ? holes[OTHER_HOLE_CODE] : undefined)
+            : null;
+      found.push({ kind: "other", label, count });
     }
   }
+  return found;
 }
 
 function compareFound(a: FoundLabel, b: FoundLabel): number {
-  const handRank = (hand: Hand | null) => (hand === null ? -1 : HANDS.indexOf(hand));
-  const classRank = (defectClass: DefectClass | null) => (defectClass === null ? -1 : DEFECT_CLASSES.indexOf(defectClass));
   return (
     LABEL_MODULES.indexOf(a.module) - LABEL_MODULES.indexOf(b.module) ||
-    compareSizes(a.size, b.size) ||
-    handRank(a.hand) - handRank(b.hand) ||
     classRank(a.defectClass) - classRank(b.defectClass) ||
     LABEL_KINDS.indexOf(a.kind) - LABEL_KINDS.indexOf(b.kind) ||
+    comparePlaces(a.places[0], b.places[0]) ||
     a.label.localeCompare(b.label)
   );
+}
+
+/**
+ * Every one-off label in an inspection's data: the visual and watertight
+ * `unmapped` lists, and watertight "Other :" locations. A label recorded in
+ * several sizes or hands is one entry, with each place and its count, as
+ * the capture screen shows it as one row; it keeps the spelling of the first
+ * size. The same words in another visual class are another label: the class
+ * is its severity. Sorted in report order: module, class, one-off labels
+ * before "Other :" rows, then the size each was first recorded in.
+ */
+export function findOneOffLabels(data: unknown): FoundLabel[] {
+  const modules = isRecord(data) ? ownRecord(data, "modules") : null;
+  if (!modules) return [];
+
+  const groups = new Map<string, FoundLabel>();
+  for (const moduleKey of LABEL_MODULES) {
+    for (const { size, hand, defectClass, node } of holdersOf(modules, moduleKey)) {
+      for (const { kind, label, count } of labelsIn(node, moduleKey)) {
+        const id = [moduleKey, kind, defectClass ?? "", labelKey(label)].join("|");
+        let group = groups.get(id);
+        if (!group) {
+          group = { module: moduleKey, kind, defectClass, label, places: [], count: 0 };
+          groups.set(id, group);
+        }
+        const place = group.places.find((held) => held.size === size && held.hand === hand);
+        if (place) place.count = addCounts(place.count, count);
+        else group.places.push({ size, hand, count });
+        group.count = addCounts(group.count, count);
+      }
+    }
+  }
+  const found = [...groups.values()];
+  for (const label of found) label.places.sort(comparePlaces);
+  return found.sort(compareFound);
 }
 
 /** "Visual · Major", "Watertight", "Watertight · Other" (the report's "Other :" row) */
@@ -797,16 +865,27 @@ export function whereLabel(label: Pick<FoundLabel, "module" | "kind" | "defectCl
   return parts.join(" · ");
 }
 
-/** "Size M", "Size 7.0 · Right hand" */
-export function sizeLabel(label: Pick<FoundLabel, "size" | "hand">): string {
-  return label.hand ? `Size ${label.size} · ${HAND_LABEL[label.hand]}` : `Size ${label.size}`;
+/** "Size M", "Size 7.0, right hand"; a template's own size labels win ("Size Medium"). */
+export function placeLabel(place: Pick<LabelPlace, "size" | "hand">, sizes?: readonly SizeOption[]): string {
+  return formatSizeHand(place.size, place.hand, { sizes });
 }
 
-/** "2 found", "1 hole" */
-export function countLabel(label: Pick<FoundLabel, "module" | "count">): string {
-  if (label.count === null) return "Count unreadable";
-  if (label.module === "watertight") return `${label.count} ${label.count === 1 ? "hole" : "holes"}`;
-  return `${label.count} found`;
+/** "2 found", "1 hole", or that a count cannot be read. */
+export function countLabel(module: LabelModule, count: number | null): string {
+  if (count === null) return "count unreadable";
+  if (module === "watertight") return `${count} ${count === 1 ? "hole" : "holes"}`;
+  return `${count} found`;
+}
+
+/** Where a label was recorded and how many, on one line: "Size M: 2 found", "Size M: 1; Size L: 2 (3 found in all)". */
+export function foundSummary(label: Pick<FoundLabel, "module" | "places" | "count">, sizes?: readonly SizeOption[]): string {
+  if (label.places.length === 1) {
+    const [place] = label.places;
+    return `${placeLabel(place, sizes)}: ${countLabel(label.module, place.count)}`;
+  }
+  const each = label.places.map((place) => `${placeLabel(place, sizes)}: ${place.count ?? "unreadable"}`);
+  const total = label.count === null ? "total unreadable" : `${countLabel(label.module, label.count)} in all`;
+  return `${each.join("; ")} (${total})`;
 }
 
 /* ------------------------------------------------------------------ *
@@ -819,27 +898,18 @@ export type MappingProblem = "not_found" | "invalid_count" | "same_code" | "inva
 export type MappingChange = {
   module: LabelModule;
   kind: LabelKind;
-  size: string;
-  hand: Hand | null;
   defectClass: DefectClass | null;
   label: string;
-  count: number;
   code: string;
+  /** Moved to the code, every place together. */
+  count: number;
+  /** Each size (and hand) the label was mapped in, with the count moved there. */
+  places: { size: string; hand: Hand | null; count: number }[];
 };
 
 export type MappingOutcome =
   | { ok: true; data: JsonRecord; change: MappingChange }
   | { ok: false; problem: MappingProblem };
-
-/** The object a target points at, inside data that is already a copy. */
-function holderOf(data: JsonRecord, target: LabelTarget): JsonRecord | null {
-  let node = ownRecord(ownRecord(ownRecord(data, "modules") ?? {}, target.module) ?? {}, "sizes");
-  for (const key of [target.size, ...target.path]) {
-    if (!node) return null;
-    node = ownRecord(node, key);
-  }
-  return node;
-}
 
 /** The count map next to a label, created when it is missing; null when something else is saved there. */
 function countMapOf(holder: JsonRecord, key: "holes" | "counts"): JsonRecord | null {
@@ -850,80 +920,112 @@ function countMapOf(holder: JsonRecord, key: "holes" | "counts"): JsonRecord | n
   return isRecord(map) ? map : null;
 }
 
+/** Adds `count` to `code` in a count map; false when the count saved there is not a whole number. */
+function addToCode(map: JsonRecord, code: string, count: number): boolean {
+  const current = readCount(Object.hasOwn(map, code) ? map[code] : undefined);
+  if (current === null) return false;
+  map[code] = current + count;
+  return true;
+}
+
 /**
- * Records that a one-off label is `code` (BUILD_SPEC 4.2 rule 4): the label
- * leaves the module's `unmapped` list and its count joins `code` in the count
- * map beside it (`counts` in visual, `holes` in watertight), in the same
- * size, hand and class, so it counts with that code from then on. A
- * watertight "Other :" location moves its count from hole_other to `code`
- * and its description is cleared. Totals do not change: one-off labels
- * already count towards them.
+ * The words of a one-off hole counted as "Other :" from now on say where it
+ * is, as the report's row needs: they become the row's description, or join
+ * the one written there.
+ */
+function describeOther(holder: JsonRecord, label: string): void {
+  const current = Object.hasOwn(holder, "otherDescription") ? holder.otherDescription : undefined;
+  if (current === undefined || current === null || (typeof current === "string" && !current.trim())) {
+    holder.otherDescription = label;
+    return;
+  }
+  if (typeof current !== "string" || labelKey(current).includes(labelKey(label))) return;
+  const joined = `${oneLine(current)}; ${label}`;
+  if (joined.length <= OTHER_DESCRIPTION_MAX) holder.otherDescription = joined;
+}
+
+/** What mapping did in one object: the count moved, a problem, or null when the label is not there. */
+type Moved = number | MappingProblem | null;
+
+/** A one-off label's entries leave `unmapped`, and their count joins `code` in the count map beside them. */
+function mapUnmappedIn(holder: JsonRecord, target: LabelTarget, code: string): Moved {
+  const list = Object.hasOwn(holder, "unmapped") ? holder.unmapped : undefined;
+  if (!Array.isArray(list)) return null;
+  const key = labelKey(target.label);
+  const matches = (entry: unknown) => isRecord(entry) && typeof entry.label === "string" && labelKey(entry.label) === key;
+  const matching = list.filter(matches);
+  if (matching.length === 0) return null;
+
+  let total = 0;
+  for (const entry of matching) {
+    const count = readCount((entry as JsonRecord).count);
+    if (count === null) return "invalid_count";
+    total += count;
+  }
+  if (total > 0) {
+    const map = countMapOf(holder, COUNT_MAP_KEY[target.module]);
+    if (!map) return "invalid_data";
+    if (!addToCode(map, code, total)) return "invalid_count";
+    if (target.module === "watertight" && code === OTHER_HOLE_CODE) describeOther(holder, target.label);
+  }
+  holder.unmapped = list.filter((entry) => !matches(entry));
+  return total;
+}
+
+/** An "Other :" location's holes move from hole_other to `code`, and its description goes. */
+function mapOtherIn(holder: JsonRecord, target: LabelTarget, code: string): Moved {
+  const description = Object.hasOwn(holder, "otherDescription") ? holder.otherDescription : undefined;
+  if (typeof description !== "string" || labelKey(description) !== labelKey(target.label)) return null;
+
+  const holes = Object.hasOwn(holder, "holes") ? holder.holes : undefined;
+  if (holes !== undefined && holes !== null && !isRecord(holes)) return "invalid_data";
+  const other = isRecord(holes) ? readCount(Object.hasOwn(holes, OTHER_HOLE_CODE) ? holes[OTHER_HOLE_CODE] : undefined) : 0;
+  if (other === null) return "invalid_count";
+  if (other > 0) {
+    const map = countMapOf(holder, "holes");
+    if (!map) return "invalid_data";
+    if (!addToCode(map, code, other)) return "invalid_count";
+    // As the capture screen saves a location with no holes: without a key.
+    delete map[OTHER_HOLE_CODE];
+  }
+  holder.otherDescription = null;
+  return other;
+}
+
+/**
+ * Records that a one-off label is `code` (BUILD_SPEC 4.2 rule 4), in every
+ * size and hand it was recorded in: its entries leave the `unmapped` list and
+ * their count joins `code` in the count map beside them (`counts` in visual,
+ * `holes` in watertight), in the same size, hand and class, so it counts with
+ * that code from then on. A one-off hole mapped to hole_other becomes the
+ * "Other :" row's description. An "Other :" location moves its holes from
+ * hole_other to `code`, and its description goes. Totals do not change:
+ * one-off labels already count towards them.
  *
- * Pure: returns new data and never changes `data`.
+ * All or nothing, and pure: returns new data and never changes `data`.
  */
 export function mapOneOffLabel(data: unknown, target: LabelTarget, code: string): MappingOutcome {
   if (!isRecord(data)) return { ok: false, problem: "invalid_data" };
+  if (target.kind === "other" && code === OTHER_HOLE_CODE) return { ok: false, problem: "same_code" };
+
   const copy = structuredClone(data);
-  const holder = holderOf(copy, target);
-  if (!holder) return { ok: false, problem: "not_found" };
-
-  const path = target.path;
-  const change = {
-    module: target.module,
-    kind: target.kind,
-    size: target.size,
-    hand: path.find(isHand) ?? null,
-    defectClass: target.module === "visual" ? (path.find(isDefectClass) ?? null) : null,
-    label: target.label,
-    code,
-  };
-  const mapKey = COUNT_MAP_KEY[target.module];
-
-  if (target.kind === "unmapped") {
-    const list = Object.hasOwn(holder, "unmapped") ? holder.unmapped : undefined;
-    if (!Array.isArray(list)) return { ok: false, problem: "not_found" };
-    const matches = (entry: unknown) =>
-      isRecord(entry) && typeof entry.label === "string" && oneLine(entry.label) === target.label;
-    const matching = list.filter(matches);
-    if (matching.length === 0) return { ok: false, problem: "not_found" };
-
-    let total = 0;
-    for (const entry of matching) {
-      const count = readCount((entry as JsonRecord).count);
-      if (count === null) return { ok: false, problem: "invalid_count" };
-      total += count;
-    }
-    if (total > 0) {
-      const map = countMapOf(holder, mapKey);
-      if (!map) return { ok: false, problem: "invalid_data" };
-      const current = readCount(Object.hasOwn(map, code) ? map[code] : undefined);
-      if (current === null) return { ok: false, problem: "invalid_count" };
-      map[code] = current + total;
-    }
-    holder.unmapped = list.filter((entry) => !matches(entry));
-    return { ok: true, data: copy, change: { ...change, count: total } };
+  const modules = ownRecord(copy, "modules");
+  const places: MappingChange["places"] = [];
+  for (const { size, hand, defectClass, node } of modules ? holdersOf(modules, target.module) : []) {
+    if (defectClass !== target.defectClass) continue;
+    const moved = target.kind === "unmapped" ? mapUnmappedIn(node, target, code) : mapOtherIn(node, target, code);
+    if (moved === null) continue;
+    if (typeof moved === "string") return { ok: false, problem: moved };
+    const place = places.find((held) => held.size === size && held.hand === hand);
+    if (place) place.count += moved;
+    else places.push({ size, hand, count: moved });
   }
+  if (places.length === 0) return { ok: false, problem: "not_found" };
 
-  // The watertight "Other :" row.
-  if (target.module !== "watertight") return { ok: false, problem: "not_found" };
-  const description = Object.hasOwn(holder, "otherDescription") ? holder.otherDescription : undefined;
-  if (typeof description !== "string" || oneLine(description) !== target.label) return { ok: false, problem: "not_found" };
-  if (code === OTHER_HOLE_CODE) return { ok: false, problem: "same_code" };
-
-  const holes = Object.hasOwn(holder, "holes") ? holder.holes : undefined;
-  if (holes !== undefined && holes !== null && !isRecord(holes)) return { ok: false, problem: "invalid_data" };
-  const other = isRecord(holes) ? readCount(holes[OTHER_HOLE_CODE]) : 0;
-  if (other === null) return { ok: false, problem: "invalid_count" };
-  if (other > 0) {
-    const map = countMapOf(holder, "holes");
-    if (!map) return { ok: false, problem: "invalid_data" };
-    const current = readCount(Object.hasOwn(map, code) ? map[code] : undefined);
-    if (current === null) return { ok: false, problem: "invalid_count" };
-    map[code] = current + other;
-    map[OTHER_HOLE_CODE] = 0;
-  }
-  holder.otherDescription = null;
-  return { ok: true, data: copy, change: { ...change, count: other } };
+  places.sort(comparePlaces);
+  const { module, kind, defectClass, label } = target;
+  const count = places.reduce((total, place) => total + place.count, 0);
+  return { ok: true, data: copy, change: { module, kind, defectClass, label, code, count, places } };
 }
 
 /** A mapping that could not be recorded, in plain words. */
@@ -934,7 +1036,7 @@ export function describeMappingProblem(problem: MappingProblem, refNo: string): 
     case "invalid_count":
       return `A count on ${refNo} is not a whole number, so the label cannot be mapped. Fix it on the inspection first.`;
     case "same_code":
-      return "This hole is already counted as Hole, other location. Choose another code.";
+      return "These holes already count as Hole, other location. Choose another code.";
     case "invalid_data":
       return `The saved data of ${refNo} is not in the expected shape, so the label cannot be mapped.`;
   }
@@ -1167,10 +1269,16 @@ export function canMap(status: InspectionStatus): boolean {
 
 /** A one-off label as the unmapped tab shows it. */
 export type OneOffLabel = FoundLabel & {
-  /** Unique on the page: inspection and place. */
+  /** Unique on the page: inspection, where and the label. */
   id: string;
   /** Codes it probably means, best first. */
   suggestions: string[];
+  /**
+   * The codes the inspection's template lists where the label was recorded:
+   * the class's defects, or the hole locations. A code outside them still
+   * counts, and the inspection shows it as an extra row.
+   */
+  listed: string[];
   /** A code for "add as a new code". */
   newCode: string;
 };
@@ -1183,8 +1291,21 @@ export type InspectionLabels = {
   inspectionDate: string;
   inspector: string | null;
   template: { id: string; code: string; version: number } | null;
+  /** The template's sizes, for their own labels ("Medium"); empty without a template. */
+  sizes: SizeOption[];
   labels: OneOffLabel[];
 };
+
+const SizeOptionSchema = z.object({ value: z.string(), label: z.string().optional() });
+
+/** The sizes of a resolved template (`templates.resolved`), as far as they can be read. */
+function templateSizes(resolved: unknown): SizeOption[] {
+  if (!isRecord(resolved) || !Array.isArray(resolved.sizes)) return [];
+  return resolved.sizes.flatMap((item) => {
+    const parsed = SizeOptionSchema.safeParse(item);
+    return parsed.success ? [parsed.data] : [];
+  });
+}
 
 /** An open inspection as read for its one-off labels: only the visual and watertight parts of its data. */
 export type InspectionQueryRow = {
@@ -1220,7 +1341,8 @@ export async function loadOpenInspections(supabase: DatabaseClient): Promise<Ins
 /**
  * The inspections with one-off labels, the ones that can be mapped first,
  * then in the order given (newest first), each label with the codes it
- * probably means and a code for adding it as a new one.
+ * probably means, the codes its template lists in its place, and a code for
+ * adding it as a new one.
  */
 export function buildInspectionLabels(
   rows: readonly InspectionQueryRow[],
@@ -1241,7 +1363,7 @@ export function buildInspectionLabels(
     if (found.length === 0) continue;
     const template = templateById.get(row.template_id) ?? null;
     const labels = found.map((label): OneOffLabel => {
-      const preferred = (template?.labels?.labels ?? [])
+      const listed = (template?.labels?.labels ?? [])
         .filter((entry) =>
           label.module === "visual"
             ? entry.section === "visual" && entry.defectClass === label.defectClass
@@ -1250,8 +1372,9 @@ export function buildInspectionLabels(
         .map((entry) => entry.code);
       return {
         ...label,
-        id: [row.id, label.module, label.kind, label.size, ...label.path, label.label].join("|"),
-        suggestions: suggestCodes(label.label, active, { preferred, wording }),
+        id: [row.id, label.module, label.kind, label.defectClass ?? "", labelKey(label.label)].join("|"),
+        suggestions: suggestCodes(label.label, active, { preferred: listed, wording }),
+        listed: [...new Set(listed)],
         newCode: suggestNewCode(label.label, label.module, taken),
       };
     });
@@ -1262,6 +1385,7 @@ export function buildInspectionLabels(
       inspectionDate: row.inspection_date,
       inspector: row.inspector ? row.inspector.full_name?.trim() || row.inspector.email?.trim() || null : null,
       template: template ? { id: template.id, code: template.code, version: template.version } : null,
+      sizes: template ? templateSizes(template.resolved) : [],
       labels,
     });
   }

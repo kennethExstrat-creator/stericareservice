@@ -26,16 +26,18 @@ import {
   fieldErrors,
   filterLabelMaps,
   findOneOffLabels,
+  foundSummary,
   inspectionHref,
   labelCount,
+  labelKey,
   listOf,
   mapOneOffLabel,
   matchesSearch,
   mentionsCode,
   normaliseCode,
+  placeLabel,
   readCount,
   searchText,
-  sizeLabel,
   suggestCodes,
   suggestNewCode,
   templateEditorHref,
@@ -62,6 +64,7 @@ function resolvedOf(code: TemplateCode) {
     name: `${code} template`,
     chain: [code],
     bases: [],
+    sizes: [{ value: "M", label: "Medium" }],
     modules: templateModuleKeys(code).map((key) => ({
       key,
       include: true,
@@ -121,11 +124,14 @@ const visualData = () => ({
 const target = (overrides: Partial<LabelTarget> = {}): LabelTarget => ({
   module: "visual",
   kind: "unmapped",
-  size: "M",
-  path: ["major"],
+  defectClass: "major",
   label: "Torn cuff",
   ...overrides,
 });
+
+/** A watertight label: no class. */
+const holeTarget = (overrides: Partial<LabelTarget> = {}): LabelTarget =>
+  target({ module: "watertight", defectClass: null, ...overrides });
 
 /* ------------------------------------------------------------------ *
  * Codes
@@ -372,20 +378,75 @@ describe("mentionsCode", () => {
  * ------------------------------------------------------------------ */
 
 describe("findOneOffLabels", () => {
-  it("finds visual one-off labels per size and class, with their counts", () => {
+  it("finds visual one-off labels per class, with where and how many", () => {
     expect(findOneOffLabels(visualData())).toEqual([
-      { module: "visual", kind: "unmapped", size: "M", path: ["major"], hand: null, defectClass: "major", label: "Torn cuff", count: 2 },
-      { module: "visual", kind: "unmapped", size: "M", path: ["minor"], hand: null, defectClass: "minor", label: "Sticky edge", count: 1 },
+      {
+        module: "visual",
+        kind: "unmapped",
+        defectClass: "major",
+        label: "Torn cuff",
+        places: [{ size: "M", hand: null, count: 2 }],
+        count: 2,
+      },
+      {
+        module: "visual",
+        kind: "unmapped",
+        defectClass: "minor",
+        label: "Sticky edge",
+        places: [{ size: "M", hand: null, count: 1 }],
+        count: 1,
+      },
     ]);
   });
 
-  it("follows the hand split, whichever of hand and class comes first", () => {
+  it("takes a label counted in several sizes as one, in size order, with the first size's spelling", () => {
+    const data = {
+      modules: {
+        visual: {
+          sizes: {
+            L: { major: { counts: {}, unmapped: [{ label: "torn  cuff", count: 2 }] } },
+            M: {
+              major: { counts: {}, unmapped: [{ label: "Torn cuff", count: 1 }] },
+              // The same words in another class are another label: the class is its severity.
+              minor: { counts: {}, unmapped: [{ label: "Torn cuff", count: 4 }] },
+            },
+            XL: { major: { counts: {}, unmapped: [{ label: "TORN CUFF", count: "2 42" }] } },
+          },
+        },
+      },
+    };
+    expect(findOneOffLabels(data)).toEqual([
+      {
+        module: "visual",
+        kind: "unmapped",
+        defectClass: "major",
+        label: "Torn cuff",
+        places: [
+          { size: "M", hand: null, count: 1 },
+          { size: "L", hand: null, count: 2 },
+          { size: "XL", hand: null, count: null },
+        ],
+        count: null,
+      },
+      {
+        module: "visual",
+        kind: "unmapped",
+        defectClass: "minor",
+        label: "Torn cuff",
+        places: [{ size: "M", hand: null, count: 4 }],
+        count: 4,
+      },
+    ]);
+  });
+
+  it("follows the hand split, whichever of hand and class comes first, right before left", () => {
     const data = {
       modules: {
         visual: {
           sizes: {
             "7.0": {
               major: { inspected: 32 },
+              L: { major: { counts: {}, unmapped: [{ label: "Torn cuff", count: 2 }] } },
               R: { major: { counts: {}, unmapped: [{ label: "Torn cuff", count: 1 }] } },
               minor: { L: { counts: {}, unmapped: [{ label: "Pinhole", count: 2 }] } },
             },
@@ -393,9 +454,17 @@ describe("findOneOffLabels", () => {
         },
       },
     };
-    expect(findOneOffLabels(data).map((label) => [label.path.join("/"), label.hand, label.defectClass, label.label])).toEqual([
-      ["R/major", "R", "major", "Torn cuff"],
-      ["minor/L", "L", "minor", "Pinhole"],
+    expect(findOneOffLabels(data).map((label) => [label.defectClass, label.label, label.places, label.count])).toEqual([
+      [
+        "major",
+        "Torn cuff",
+        [
+          { size: "7.0", hand: "R", count: 1 },
+          { size: "7.0", hand: "L", count: 2 },
+        ],
+        3,
+      ],
+      ["minor", "Pinhole", [{ size: "7.0", hand: "L", count: 2 }], 2],
     ]);
   });
 
@@ -423,11 +492,10 @@ describe("findOneOffLabels", () => {
         },
       },
     };
-    expect(findOneOffLabels(data).map((label) => [label.label, label.count])).toEqual([
-      ["Blister", null],
-      ["Gap", 0],
-      ["torn cuff", 1],
-      ["Torn cuff", 3],
+    expect(findOneOffLabels(data).map((label) => [label.label, label.count, label.places.length])).toEqual([
+      ["Blister", null, 1],
+      ["Gap", 0, 1],
+      ["Torn cuff", 4, 1],
     ]);
   });
 
@@ -447,23 +515,50 @@ describe("findOneOffLabels", () => {
       },
     };
     expect(findOneOffLabels(data)).toEqual([
-      { module: "watertight", kind: "other", size: "M", path: [], hand: null, defectClass: null, label: "Thumb tip", count: 2 },
-      { module: "watertight", kind: "unmapped", size: "7.5", path: ["R"], hand: "R", defectClass: null, label: "Seam leak", count: 1 },
-      { module: "watertight", kind: "other", size: "7.5", path: ["L"], hand: "L", defectClass: null, label: "Wrist", count: 0 },
+      {
+        module: "watertight",
+        kind: "unmapped",
+        defectClass: null,
+        label: "Seam leak",
+        places: [{ size: "7.5", hand: "R", count: 1 }],
+        count: 1,
+      },
+      {
+        module: "watertight",
+        kind: "other",
+        defectClass: null,
+        label: "Thumb tip",
+        places: [{ size: "M", hand: null, count: 2 }],
+        count: 2,
+      },
+      {
+        module: "watertight",
+        kind: "other",
+        defectClass: null,
+        label: "Wrist",
+        places: [{ size: "7.5", hand: "L", count: 0 }],
+        count: 0,
+      },
     ]);
   });
 
-  it("lists watertight before visual, sizes in size order", () => {
+  it("lists watertight before visual, then by class and the size each was first found in", () => {
     const data = {
       modules: {
-        visual: { sizes: { XL: { major: { unmapped: [{ label: "B", count: 1 }] } }, S: { major: { unmapped: [{ label: "A", count: 1 }] } } } },
+        visual: {
+          sizes: {
+            XL: { major: { unmapped: [{ label: "B", count: 1 }] } },
+            S: { major: { unmapped: [{ label: "A", count: 1 }] }, critical: { unmapped: [{ label: "D", count: 1 }] } },
+          },
+        },
         watertight: { sizes: { L: { unmapped: [{ label: "C", count: 1 }] } } },
       },
     };
-    expect(findOneOffLabels(data).map((label) => `${label.module} ${label.size} ${label.label}`)).toEqual([
-      "watertight L C",
-      "visual S A",
-      "visual XL B",
+    expect(findOneOffLabels(data).map((label) => `${label.module} ${label.defectClass} ${label.places[0].size} ${label.label}`)).toEqual([
+      "watertight null L C",
+      "visual critical S D",
+      "visual major S A",
+      "visual major XL B",
     ]);
   });
 
@@ -474,25 +569,47 @@ describe("findOneOffLabels", () => {
     expect(findOneOffLabels({ modules: { visual: { sizes: [] } } })).toEqual([]);
     expect(findOneOffLabels({ modules: { visual: { unmapped: [{ label: "No size", count: 1 }] } } })).toEqual([]);
     expect(findOneOffLabels({ modules: { dimensions: { sizes: { M: { unmapped: [{ label: "X", count: 1 }] } } } } })).toEqual([]);
+    // A visual label outside a class counts nowhere, so it is not listed either.
+    expect(findOneOffLabels({ modules: { visual: { sizes: { M: { R: { unmapped: [{ label: "X", count: 1 }] } } } } } })).toEqual([]);
     // Deeper than size, hand, class and one grouping key.
-    const deep = { modules: { visual: { sizes: { M: { a: { b: { c: { d: { unmapped: [{ label: "X", count: 1 }] } } } } } } } } };
+    const deep = { modules: { visual: { sizes: { M: { a: { b: { c: { major: { unmapped: [{ label: "X", count: 1 }] } } } } } } } } };
     expect(findOneOffLabels(deep)).toEqual([]);
     const grouped = { modules: { visual: { sizes: { M: { R: { classes: { major: { unmapped: [{ label: "X", count: 1 }] } } } } } } } };
-    expect(findOneOffLabels(grouped).map((label) => [label.path.join("/"), label.hand, label.defectClass])).toEqual([
-      ["R/classes/major", "R", "major"],
+    expect(findOneOffLabels(grouped).map((label) => [label.places, label.defectClass])).toEqual([
+      [[{ size: "M", hand: "R", count: 1 }], "major"],
     ]);
   });
 
-  it("says where a label is, in words", () => {
+  it("compares labels as the capture screen does: without case or extra spaces", () => {
+    expect(labelKey("  Torn \n CUFF ")).toBe("torn cuff");
+  });
+
+  it("says where a label is and how many, in words", () => {
     const [major] = findOneOffLabels(visualData());
     expect(whereLabel(major)).toBe("Visual · Major");
-    expect(sizeLabel(major)).toBe("Size M");
-    expect(countLabel(major)).toBe("2 found");
     expect(whereLabel({ module: "watertight", kind: "other", defectClass: null })).toBe("Watertight · Other");
-    expect(sizeLabel({ size: "7.0", hand: "L" })).toBe("Size 7.0 · Left hand");
-    expect(countLabel({ module: "watertight", count: 1 })).toBe("1 hole");
-    expect(countLabel({ module: "watertight", count: 3 })).toBe("3 holes");
-    expect(countLabel({ module: "visual", count: null })).toBe("Count unreadable");
+    expect(placeLabel({ size: "7.0", hand: "L" })).toBe("Size 7.0, left hand");
+    expect(placeLabel({ size: "M", hand: null }, [{ value: "M", label: "Medium" }])).toBe("Size Medium");
+    expect(countLabel("visual", 2)).toBe("2 found");
+    expect(countLabel("watertight", 1)).toBe("1 hole");
+    expect(countLabel("watertight", 3)).toBe("3 holes");
+    expect(countLabel("visual", null)).toBe("count unreadable");
+    expect(foundSummary(major)).toBe("Size M: 2 found");
+    const places = [
+      { size: "M", hand: null, count: 1 },
+      { size: "L", hand: null, count: 2 },
+    ];
+    expect(foundSummary({ module: "watertight", places, count: 3 })).toBe("Size M: 1; Size L: 2 (3 holes in all)");
+    expect(
+      foundSummary({
+        module: "visual",
+        places: [
+          { size: "M", hand: "R", count: null },
+          { size: "M", hand: "L", count: 1 },
+        ],
+        count: null,
+      }),
+    ).toBe("Size M, right hand: unreadable; Size M, left hand: 1 (total unreadable)");
   });
 });
 
@@ -510,12 +627,11 @@ describe("mapOneOffLabel", () => {
     expect(outcome.change).toEqual({
       module: "visual",
       kind: "unmapped",
-      size: "M",
-      hand: null,
       defectClass: "major",
       label: "Torn cuff",
-      count: 2,
       code: "stain",
+      count: 2,
+      places: [{ size: "M", hand: null, count: 2 }],
     });
     // Pure: the input is untouched, and everything else is kept, the comment too.
     expect(JSON.stringify(data)).toBe(before);
@@ -523,10 +639,81 @@ describe("mapOneOffLabel", () => {
     expect((outcome.data as ReturnType<typeof visualData>).modules.visual.sizes.M.minor.unmapped).toHaveLength(1);
   });
 
+  it("maps the label in every size at once, each count in its own size, and leaves other classes", () => {
+    const data = {
+      modules: {
+        visual: {
+          sizes: {
+            M: {
+              major: {
+                counts: { stain: 1 },
+                unmapped: [
+                  { label: "Torn cuff", count: 1 },
+                  { label: "Blister", count: 1 },
+                ],
+              },
+              minor: { counts: {}, unmapped: [{ label: "Torn cuff", count: 5 }] },
+            },
+            L: { major: { counts: {}, unmapped: [{ label: "torn  cuff", count: 2 }] } },
+          },
+        },
+      },
+    };
+    const outcome = mapOneOffLabel(data, target(), "faulty_cuff");
+    expect(outcome.ok && outcome.data.modules).toEqual({
+      visual: {
+        sizes: {
+          M: {
+            major: { counts: { stain: 1, faulty_cuff: 1 }, unmapped: [{ label: "Blister", count: 1 }] },
+            minor: { counts: {}, unmapped: [{ label: "Torn cuff", count: 5 }] },
+          },
+          L: { major: { counts: { faulty_cuff: 2 }, unmapped: [] } },
+        },
+      },
+    });
+    expect(outcome.ok && outcome.change).toMatchObject({
+      count: 3,
+      places: [
+        { size: "M", hand: null, count: 1 },
+        { size: "L", hand: null, count: 2 },
+      ],
+    });
+  });
+
+  it("follows the hand split, each hand's count to its own hand", () => {
+    const data = {
+      modules: {
+        visual: {
+          sizes: {
+            "7.0": {
+              R: { major: { counts: {}, unmapped: [{ label: "Torn cuff", count: 1 }] } },
+              L: { major: { counts: { faulty_cuff: 1 }, unmapped: [{ label: "Torn cuff", count: 2 }] } },
+            },
+          },
+        },
+      },
+    };
+    const outcome = mapOneOffLabel(data, target(), "faulty_cuff");
+    expect(outcome.ok && outcome.data.modules).toEqual({
+      visual: {
+        sizes: {
+          "7.0": {
+            R: { major: { counts: { faulty_cuff: 1 }, unmapped: [] } },
+            L: { major: { counts: { faulty_cuff: 3 }, unmapped: [] } },
+          },
+        },
+      },
+    });
+    expect(outcome.ok && outcome.change.places).toEqual([
+      { size: "7.0", hand: "R", count: 1 },
+      { size: "7.0", hand: "L", count: 2 },
+    ]);
+  });
+
   it("adds a code the count map does not have yet, creating the map when missing", () => {
     const data = visualData();
     delete (data.modules.visual.sizes.M.minor as { counts?: unknown }).counts;
-    const outcome = mapOneOffLabel(data, target({ path: ["minor"], label: "Sticky edge" }), "sticky_pleats");
+    const outcome = mapOneOffLabel(data, target({ defectClass: "minor", label: "Sticky edge" }), "sticky_pleats");
     expect(outcome.ok && (outcome.data as typeof data).modules.visual.sizes.M.minor).toEqual({
       inspected: 80,
       counts: { sticky_pleats: 1 },
@@ -565,50 +752,79 @@ describe("mapOneOffLabel", () => {
     expect(outcome.ok && outcome.data.modules).toEqual({ visual: { sizes: { M: { major: { unmapped: [] } } } } });
   });
 
-  it("follows the hand split path", () => {
-    const data = {
-      modules: { visual: { sizes: { "7.0": { R: { major: { counts: {}, unmapped: [{ label: "Torn cuff", count: 1 }] } } } } } },
-    };
-    const outcome = mapOneOffLabel(data, target({ size: "7.0", path: ["R", "major"] }), "faulty_cuff");
-    expect(outcome.ok && outcome.change).toMatchObject({ hand: "R", defectClass: "major", count: 1 });
-    expect(outcome.ok && outcome.data.modules).toEqual({
-      visual: { sizes: { "7.0": { R: { major: { counts: { faulty_cuff: 1 }, unmapped: [] } } } } },
-    });
-  });
-
   it("moves a watertight one-off label into the holes", () => {
     const data = { modules: { watertight: { sizes: { M: { tested: 80, holes: { hole_palm: 1 }, unmapped: [{ label: "Seam", count: 1 }] } } } } };
-    const outcome = mapOneOffLabel(data, target({ module: "watertight", path: [], label: "Seam" }), "hole_cuff");
+    const outcome = mapOneOffLabel(data, holeTarget({ label: "Seam" }), "hole_cuff");
     expect(outcome.ok && outcome.data.modules).toEqual({
       watertight: { sizes: { M: { tested: 80, holes: { hole_palm: 1, hole_cuff: 1 }, unmapped: [] } } },
     });
   });
 
-  it("moves an Other : hole to the code and clears its description", () => {
+  it("writes a one-off hole mapped to Other : as the row's description, or adds it to the one there", () => {
     const data = {
-      modules: { watertight: { sizes: { M: { tested: 80, holes: { hole_other: 2, hole_finger: 1 }, otherDescription: "Thumb tip" } } } },
+      modules: {
+        watertight: {
+          sizes: {
+            M: { holes: {}, otherDescription: null, unmapped: [{ label: "Seam leak", count: 1 }] },
+            L: { holes: { hole_other: 1 }, otherDescription: "Wrist", unmapped: [{ label: "Seam leak", count: 2 }] },
+            XL: { holes: {}, otherDescription: "seam leak at the wrist", unmapped: [{ label: "Seam leak", count: 1 }] },
+            S: { holes: {}, otherDescription: null, unmapped: [{ label: "Seam leak", count: 0 }] },
+          },
+        },
+      },
     };
-    const outcome = mapOneOffLabel(data, target({ module: "watertight", kind: "other", path: [], label: "Thumb tip" }), "hole_finger");
+    const outcome = mapOneOffLabel(data, holeTarget({ label: "Seam leak" }), "hole_other");
     expect(outcome.ok && outcome.data.modules).toEqual({
-      watertight: { sizes: { M: { tested: 80, holes: { hole_other: 0, hole_finger: 3 }, otherDescription: null } } },
+      watertight: {
+        sizes: {
+          M: { holes: { hole_other: 1 }, otherDescription: "Seam leak", unmapped: [] },
+          L: { holes: { hole_other: 3 }, otherDescription: "Wrist; Seam leak", unmapped: [] },
+          // Already said there; and nothing counted in S, so nothing to describe.
+          XL: { holes: { hole_other: 1 }, otherDescription: "seam leak at the wrist", unmapped: [] },
+          S: { holes: {}, otherDescription: null, unmapped: [] },
+        },
+      },
     });
-    expect(outcome.ok && outcome.change).toMatchObject({ kind: "other", count: 2, code: "hole_finger" });
+  });
+
+  it("moves an Other : location's holes to the code, in every size, and clears its description", () => {
+    const data = {
+      modules: {
+        watertight: {
+          sizes: {
+            M: { tested: 80, holes: { hole_other: 2, hole_finger: 1 }, otherDescription: "Thumb tip" },
+            L: { tested: 80, holes: { hole_other: 1 }, otherDescription: "thumb  tip" },
+          },
+        },
+      },
+    };
+    const outcome = mapOneOffLabel(data, holeTarget({ kind: "other", label: "Thumb tip" }), "hole_finger");
+    // As the capture screen saves a location with no holes: without a key.
+    expect(outcome.ok && outcome.data.modules).toEqual({
+      watertight: {
+        sizes: {
+          M: { tested: 80, holes: { hole_finger: 3 }, otherDescription: null },
+          L: { tested: 80, holes: { hole_finger: 1 }, otherDescription: null },
+        },
+      },
+    });
+    expect(outcome.ok && outcome.change).toMatchObject({ kind: "other", count: 3, code: "hole_finger" });
   });
 
   it("clears an Other : description with nothing counted", () => {
     const data = { modules: { watertight: { sizes: { M: { otherDescription: "Wrist" } } } } };
-    const outcome = mapOneOffLabel(data, target({ module: "watertight", kind: "other", path: [], label: "Wrist" }), "hole_cuff");
+    const outcome = mapOneOffLabel(data, holeTarget({ kind: "other", label: "Wrist" }), "hole_cuff");
     expect(outcome.ok && outcome.data.modules).toEqual({ watertight: { sizes: { M: { otherDescription: null } } } });
   });
 
-  it("refuses what it cannot do safely", () => {
+  it("refuses what it cannot do safely, and changes nothing then", () => {
     const problem = (data: unknown, to: LabelTarget, code = "stain") => {
       const outcome = mapOneOffLabel(data, to, code);
       return outcome.ok ? "ok" : outcome.problem;
     };
     expect(problem(visualData(), target({ label: "Gone" }))).toBe("not_found");
-    expect(problem(visualData(), target({ path: ["critical"] }))).toBe("not_found");
-    expect(problem(visualData(), target({ size: "XL" }))).toBe("not_found");
+    expect(problem(visualData(), target({ defectClass: "critical" }))).toBe("not_found");
+    expect(problem(visualData(), holeTarget())).toBe("not_found");
     expect(problem({ modules: {} }, target())).toBe("not_found");
     expect(problem("text", target())).toBe("invalid_data");
 
@@ -620,9 +836,21 @@ describe("mapOneOffLabel", () => {
     expect(problem(badExisting, target())).toBe("invalid_count");
     const badMap = { modules: { visual: { sizes: { M: { major: { counts: [1], unmapped: [{ label: "Torn cuff", count: 1 }] } } } } } };
     expect(problem(badMap, target())).toBe("invalid_data");
+    // All or nothing: a size that cannot be mapped stops the others too.
+    const badInOneSize = {
+      modules: {
+        visual: {
+          sizes: {
+            M: { major: { unmapped: [{ label: "Torn cuff", count: 1 }] } },
+            L: { major: { unmapped: [{ label: "Torn cuff", count: -2 }] } },
+          },
+        },
+      },
+    };
+    expect(problem(badInOneSize, target())).toBe("invalid_count");
 
     const other = { modules: { watertight: { sizes: { M: { holes: { hole_other: 1 }, otherDescription: "Thumb" } } } } };
-    const otherTarget = target({ module: "watertight", kind: "other", path: [], label: "Thumb" });
+    const otherTarget = holeTarget({ kind: "other", label: "Thumb" });
     expect(problem(other, otherTarget, "hole_other")).toBe("same_code");
     expect(problem(other, { ...otherTarget, label: "Wrist" })).toBe("not_found");
     expect(problem({ modules: { watertight: { sizes: { M: { holes: 3, otherDescription: "Thumb" } } } } }, otherTarget)).toBe(
@@ -637,26 +865,29 @@ describe("mapOneOffLabel", () => {
     expect(describeMappingProblem("not_found", "INS-2026-0042")).toBe(
       "This label is no longer on INS-2026-0042: someone has mapped or changed it. Reload the page.",
     );
-    expect(describeMappingProblem("same_code", "INS-2026-0042")).toMatch(/already counted as Hole, other location/);
+    expect(describeMappingProblem("same_code", "INS-2026-0042")).toMatch(/already count as Hole, other location/);
   });
 });
 
 describe("label targets from the page", () => {
   it("accepts what findOneOffLabels finds", () => {
     for (const found of findOneOffLabels(visualData())) {
-      const { module, kind, size, path, label } = found;
-      expect(LabelTargetSchema.safeParse({ module, kind, size, path, label }).success).toBe(true);
+      const { module, kind, defectClass, label } = found;
+      expect(LabelTargetSchema.safeParse({ module, kind, defectClass, label }).success).toBe(true);
     }
+    expect(LabelTargetSchema.safeParse(holeTarget({ kind: "other" })).success).toBe(true);
   });
 
-  it("refuses paths that lead out of the data, too deep, or an Other : row outside watertight", () => {
+  it("refuses a target that does not fit its module", () => {
     const parse = (overrides: Record<string, unknown>) => LabelTargetSchema.safeParse({ ...target(), ...overrides }).success;
-    expect(parse({ path: ["__proto__"] })).toBe(false);
-    expect(parse({ size: "constructor" })).toBe(false);
-    expect(parse({ path: ["a", "b", "c", "d"] })).toBe(false);
-    expect(parse({ path: ["R", "classes", "major"] })).toBe(true);
+    // Visual labels sit in a class; watertight ones in none.
+    expect(parse({ defectClass: null })).toBe(false);
+    expect(parse({ module: "watertight" })).toBe(false);
+    expect(parse({ defectClass: "fatal" })).toBe(false);
+    // Only the watertight test has an Other : row.
     expect(parse({ kind: "other" })).toBe(false);
     expect(parse({ label: "  " })).toBe(false);
+    expect(parse({ label: "x".repeat(501) })).toBe(false);
     expect(parse({ module: "dimensions" })).toBe(false);
   });
 
@@ -728,6 +959,8 @@ describe("buildInspectionLabels", () => {
       inspectionDate: "2026-10-06",
       inspector: "inspector@test.local",
       template: { id: "template-1", code: "STD_EG", version: 1 },
+      // The template's sizes, for its own size labels.
+      sizes: [{ value: "M", label: "Medium" }],
     });
   });
 
@@ -738,7 +971,11 @@ describe("buildInspectionLabels", () => {
     expect(tornCuff.suggestions).toEqual(["torn_cuff", "faulty_cuff", "hole_cuff"]);
     // torn_cuff is taken, so the new code gets a number.
     expect(tornCuff.newCode).toBe("torn_cuff_2");
-    expect(tornCuff.id).toBe("0001|visual|unmapped|M|major|Torn cuff");
+    expect(tornCuff.id).toBe("0001|visual|unmapped|major|torn cuff");
+    // What STD_EG lists where the label was found: its major defects, not its minor ones.
+    expect(tornCuff.listed).toContain("stain");
+    expect(tornCuff.listed).toContain("bead_defective");
+    expect(tornCuff.listed).not.toContain("dirt_small");
   });
 
   it("keeps an inspection whose template is gone, without one", () => {
@@ -747,7 +984,9 @@ describe("buildInspectionLabels", () => {
       templates: [],
     });
     expect(inspection.template).toBeNull();
+    expect(inspection.sizes).toEqual([]);
     expect(inspection.labels).toHaveLength(2);
+    expect(inspection.labels.every((label) => label.listed.length === 0)).toBe(true);
   });
 });
 
@@ -842,7 +1081,7 @@ describe("helpers", () => {
   });
 
   it("links to the template editor, the inspection and a filled-in add panel", () => {
-    expect(templateEditorHref("abc")).toBe("/admin/templates/abc");
+    expect(templateEditorHref("abc")).toBe("/admin/templates/abc/edit");
     expect(inspectionHref("abc", "submitted")).toBe("/inspections/abc/review");
     expect(inspectionHref("abc", "draft")).toBe("/inspections/abc");
     expect(addCodeHref("torn_cuff", "Torn cuff & tear")).toBe("/admin/defects?add=torn_cuff&name=Torn+cuff+%26+tear");

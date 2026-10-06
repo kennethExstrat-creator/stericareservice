@@ -273,10 +273,10 @@ async function saveMapping(supabase: DatabaseClient, id: string, target: LabelTa
 /**
  * Maps an inspector's one-off label (BUILD_SPEC 4.2 rule 4, 8) to a code:
  * one that exists, or a new one added from the label. The mapping is
- * recorded on the inspection's data, so the label counts with that code
- * from then on, and logged in the inspection's audit trail. Only submitted
- * inspections: drafts and reopened ones are still the inspector's to change,
- * and approved ones are final.
+ * recorded on the inspection's data, in every size and hand the label was
+ * counted in, so it counts with that code from then on, and logged in the
+ * inspection's audit trail. Only submitted inspections: drafts and reopened
+ * ones are still the inspector's to change, and approved ones are final.
  */
 export async function mapDefectLabel(_previous: MapLabelResult, formData: FormData): Promise<MapLabelResult> {
   return guarded("mapDefectLabel", async (): Promise<MapLabelResult> => {
@@ -372,12 +372,11 @@ export async function mapDefectLabel(_previous: MapLabelResult, formData: FormDa
       changes: {
         module: change.module,
         kind: change.kind,
-        size: change.size,
-        hand: change.hand,
         class: change.defectClass,
         label: change.label,
-        count: change.count,
         code: change.code,
+        count: change.count,
+        places: change.places,
         new_code: added,
       },
     });

@@ -7,15 +7,17 @@ import { InspectionStatusBadge } from "@/app/(app)/inspections/_components/inspe
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatInspectionDate } from "@/lib/inspections/format";
+import type { SizeOption } from "@/lib/format";
 import {
   canMap,
+  countLabel,
   inspectionHref,
+  placeLabel,
   templateVersionLabel,
   whereLabel,
   type InspectionLabels,
   type OneOffLabel,
 } from "@/lib/admin/defects";
-import { HAND_LABEL } from "@/modules/_framework/hands";
 import { cn } from "@/lib/utils";
 import { UnmappedBadge } from "./badges";
 import { EmptyState } from "./list-parts";
@@ -30,8 +32,9 @@ type Mapping = { inspection: InspectionLabels; label: OneOffLabel; headingId: st
 
 /**
  * The one-off labels on inspections that are not approved, one card per
- * inspection: where each came from (inspection, module, class, size, hand)
- * and how many, with Map for a submitted inspection.
+ * inspection: where each came from (module and class, then each size and
+ * hand with its count), with Map for a submitted inspection. A label counted
+ * in several sizes is one row, mapped once.
  */
 export function UnmappedView({ inspections, codes }: { inspections: InspectionLabels[]; codes: CodeOption[] }) {
   const [mapping, setMapping] = useState<Mapping | null>(null);
@@ -133,14 +136,11 @@ function InspectionCard({
             <TableHead scope="col" className={HEAD}>
               Label
             </TableHead>
-            <TableHead scope="col" className={cn(HEAD, "w-40 touch:w-44")}>
+            <TableHead scope="col" className={cn(HEAD, "w-36 touch:w-40")}>
               Where
             </TableHead>
-            <TableHead scope="col" className={cn(HEAD, "w-28 touch:w-36")}>
-              Size
-            </TableHead>
-            <TableHead scope="col" className={cn(HEAD, "w-20 text-right touch:w-24")}>
-              Count
+            <TableHead scope="col" className={cn(HEAD, "w-52 touch:w-56")}>
+              Found
             </TableHead>
             {mappable && (
               <TableHead scope="col" className={cn(HEAD, "w-24 touch:w-28")}>
@@ -151,7 +151,7 @@ function InspectionCard({
         </TableHeader>
         <TableBody>
           {inspection.labels.map((label) => (
-            <TableRow key={label.id} data-label={label.label} data-kind={label.kind}>
+            <TableRow key={label.id} data-label={label.label} data-kind={label.kind} className="hover:bg-transparent">
               <TableHead scope="row" className={cn(CELL, "h-auto font-normal touch:h-auto")}>
                 {/* One line on desktop when it fits; the badge wraps under a long label. */}
                 <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -161,11 +161,8 @@ function InspectionCard({
                 </span>
               </TableHead>
               <TableCell className={CELL}>{whereLabel(label)}</TableCell>
-              <TableCell className={cn(CELL, "tabular-nums")}>
-                {label.hand ? `${label.size} · ${HAND_LABEL[label.hand]}` : label.size}
-              </TableCell>
-              <TableCell className={cn(CELL, "text-right tabular-nums")}>
-                {label.count === null ? <span className="text-warn">Unreadable</span> : label.count}
+              <TableCell className={CELL}>
+                <Found label={label} sizes={inspection.sizes} />
               </TableCell>
               {mappable && (
                 <TableCell className={cn(CELL, "text-right")}>
@@ -189,5 +186,29 @@ function InspectionCard({
         </TableBody>
       </Table>
     </section>
+  );
+}
+
+/**
+ * Each size (and hand) the label was counted in, with its count, and the
+ * total when there is more than one. A count that is not a whole number
+ * shows as unreadable.
+ */
+function Found({ label, sizes }: { label: OneOffLabel; sizes: readonly SizeOption[] }) {
+  const count = (value: number | null) =>
+    value === null ? <span className="font-medium text-warn">unreadable</span> : <span className="tabular-nums">{value}</span>;
+  return (
+    <ul className="flex flex-col gap-0.5" data-found>
+      {label.places.map((place) => (
+        <li key={`${place.size}-${place.hand ?? ""}`}>
+          {placeLabel(place, sizes)}: {count(place.count)}
+        </li>
+      ))}
+      {label.places.length > 1 && (
+        <li className="font-medium text-foreground">
+          {label.count === null ? "Total unreadable" : `${countLabel(label.module, label.count)} in all`}
+        </li>
+      )}
+    </ul>
   );
 }

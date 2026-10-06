@@ -184,7 +184,7 @@ describe("/admin/defects/labels", () => {
     expect(html).toContain("Oil stain");
     expect(html).toContain("Not a defect code");
     expect(html).toContain('href="/admin/defects?add=torn_cuff&amp;name=Torn+cuff"');
-    expect(html).toContain('href="/admin/templates/template-1"');
+    expect(html).toContain('href="/admin/templates/template-1/edit"');
     expect(html).toContain("Switched off in this template: minor defects.");
     expect(html).toContain("1 label needs attention");
   });
@@ -215,6 +215,29 @@ describe("/admin/defects/unmapped", () => {
     expect(html.slice(draft)).toContain("A draft: the inspector may still change these labels.");
     expect(html).toContain('href="/inspections/00000000-0000-4000-8000-000000000001/review"');
     expect(html).toContain("STD_EG v2 · 6 Oct 2026 · Ivy Inspector");
+  });
+
+  it("shows a label counted in several sizes once, with each size's count and the total", async () => {
+    const twoSizes: InspectionQueryRow = {
+      ...row("00000000-0000-4000-8000-000000000003", "submitted"),
+      visual: {
+        sizes: {
+          L: { major: { counts: {}, unmapped: [{ label: "pinhole  near thumb", count: 2 }] } },
+          M: { major: { counts: {}, unmapped: [{ label: "Pinhole near thumb", count: 1 }] } },
+        },
+      },
+    };
+    const codes = [code("stain", "Stain")];
+    vi.mocked(loadDefectsData).mockResolvedValue(
+      data({ codes, inspections: buildInspectionLabels([twoSizes], { codes, templates: [template()] }) }),
+    );
+    const html = await render(UnmappedLabelsPage());
+    const text = html.replace(/<!-- -->/g, "").replace(/<[^>]+>/g, "|");
+    expect(html.match(/Map “Pinhole near thumb”/g)).toHaveLength(1);
+    expect(text).toContain("|Size M: |1|");
+    expect(text).toContain("|Size L: |2|");
+    expect(text).toContain("|3 found in all|");
+    expect(text.indexOf("Size M")).toBeLessThan(text.indexOf("Size L"));
   });
 
   it("says when nothing waits", async () => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useId, useState } from "react";
-import { OctagonXIcon } from "lucide-react";
+import { InfoIcon, OctagonXIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -38,17 +38,19 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import {
+  CLASS_LABEL,
   CODE_RULE,
   IDLE,
   LIMITS,
   MESSAGES,
-  countLabel,
   failed,
+  foundSummary,
   normaliseCode,
-  sizeLabel,
+  templateVersionLabel,
   unreachable,
   whereLabel,
   type InspectionLabels,
+  type LabelTarget,
   type MapField,
   type OneOffLabel,
 } from "@/lib/admin/defects";
@@ -62,7 +64,7 @@ type Mode = "existing" | "new";
 type FieldErrors = Partial<Record<MapField, string>>;
 
 const MODES: { value: Mode; title: string; description: string }[] = [
-  { value: "existing", title: "A defect code", description: "One of the active codes." },
+  { value: "existing", title: "An existing code", description: "One of the active codes." },
   { value: "new", title: "A new code", description: "Add a code for this label first." },
 ];
 
@@ -78,10 +80,34 @@ function CodeItem({ option }: { option: CodeOption }) {
   );
 }
 
+/** A note under a field: what a choice means beyond the field itself. */
+function Note({ children }: { children: string }) {
+  return (
+    <p className="flex gap-2 text-sm text-muted-foreground" data-note>
+      <InfoIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
+      <span>{children}</span>
+    </p>
+  );
+}
+
 /**
- * Map one one-off label to a code: an active one (the likeliest first), or a
- * new one added from the label. The Server Action records it on the
- * inspection's data, so the label counts with that code from then on.
+ * What the template lacks when the label counts as `code`: a code outside
+ * the list where the label was recorded still counts, as an extra row on the
+ * inspection, but inspectors can only tap it once the template lists it.
+ */
+function offListNote(inspection: InspectionLabels, label: OneOffLabel, choice: CodeOption | null): string | null {
+  if (!inspection.template || label.listed.length === 0 || (choice && label.listed.includes(choice.code))) return null;
+  const list =
+    label.defectClass === null ? "hole locations" : `${CLASS_LABEL[label.defectClass].toLowerCase()} defects`;
+  const subject = choice ? `${choice.name} (${choice.code}) is not` : "A new code is not";
+  return `${subject} one of ${templateVersionLabel(inspection.template)}’s ${list}. It still counts, as an extra row on the inspection; add it in the template editor so inspectors can tap it next time.`;
+}
+
+/**
+ * Map one one-off label to a code, in every size and hand it was counted in:
+ * an active code (the likeliest first), or a new one added from the label.
+ * The Server Action records it on the inspection's data, so the label counts
+ * with that code from then on.
  */
 export function MapLabelDialog({
   inspection,
@@ -134,7 +160,10 @@ export function MapLabelDialog({
   );
 
   const formError = state.status === "error" && !state.fieldErrors ? state.message : null;
-  const target = { module: label.module, kind: label.kind, size: label.size, path: label.path, label: label.label };
+  const target: LabelTarget = { module: label.module, kind: label.kind, defectClass: label.defectClass, label: label.label };
+  // Shown once a code is chosen, or always for a new code: the template does not list it yet.
+  const chosen = codes.find((option) => option.code === code) ?? null;
+  const note = mode === "existing" ? (chosen ? offListNote(inspection, label, chosen) : null) : offListNote(inspection, label, null);
 
   function field(name: "newCode" | "name" | "description") {
     return {
@@ -174,10 +203,10 @@ export function MapLabelDialog({
           <DialogHeader>
             <DialogTitle className="pr-8 text-lg font-bold [overflow-wrap:anywhere]">Map “{label.label}”</DialogTitle>
             <DialogDescription>
-              {inspection.refNo} · {whereLabel(label)} · {sizeLabel(label)} · {countLabel(label)}.{" "}
+              {inspection.refNo} · {whereLabel(label)} · {foundSummary(label, inspection.sizes)}.{" "}
               {label.kind === "other"
-                ? "It is counted as Hole, other location until you map it. Its count then moves to the code you choose."
-                : "Its count then counts as the code you choose, in the same size and class."}
+                ? "These holes count as Hole, other location until you map them; then they count as the code you choose."
+                : "From then on it counts as the code you choose, in every size where it was found."}
             </DialogDescription>
           </DialogHeader>
 
@@ -256,6 +285,7 @@ export function MapLabelDialog({
                   : "Inactive codes are not offered."}
               </FieldDescription>
               {errors.code && <FieldError id={`${id}-code-error`}>{errors.code}</FieldError>}
+              {note && <Note>{note}</Note>}
             </Field>
           ) : (
             <FieldGroup className="gap-5">
@@ -268,6 +298,7 @@ export function MapLabelDialog({
               />
               <TextField {...field("name")} label="Name" />
               <TextField {...field("description")} label="Description" multiline description="Optional." />
+              {note && <Note>{note}</Note>}
             </FieldGroup>
           )}
 
