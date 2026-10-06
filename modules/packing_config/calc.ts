@@ -2,7 +2,10 @@
 // (BUILD_SPEC 6.2 rule 5). "warn" when the gloves per case, as printed, is
 // not the gloves per inner unit times the inner units per case (6.1): that
 // check is computed, never typed (rule 2). The counts reach order_lots and
-// the sampling plan through the context.
+// the sampling plan through the context. The onsite forms' Packing Mode text
+// is never waited for, even where the template shows it (every seed template
+// does): BUILD_SPEC 6.1 bases this result on the counts alone, and neither
+// report prints the text.
 import { formatCount } from "@/lib/aql";
 import {
   errorIssue,

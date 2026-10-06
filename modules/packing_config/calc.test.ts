@@ -73,7 +73,7 @@ describe("packing_config", () => {
     expect(noTotal.computed.glovesPerCaseCheck).toBe(2000);
   });
 
-  it("does not wait for the packing mode, which only the onsite forms have", () => {
+  it("never waits for the onsite packing mode, even where the template shows it: the result rests on the counts (6.1)", () => {
     const shown: PackingConfigConfig = { ...PACKING_CONFIG_DEFAULT_CONFIG, fields: { packingMode: true } };
     expect(calcPackingConfig(input(STD_EG, { config: shown })).result.status).toBe("info");
   });
