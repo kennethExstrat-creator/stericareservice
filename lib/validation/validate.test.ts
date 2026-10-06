@@ -129,10 +129,8 @@ describe("validateInspection with the app's modules", () => {
       ["conclusion", "not_done"],
     ]);
     expect(report.modules[1].result.summary).toBe("Finger-textured, 240 mm minimum; indicative weight 3.5 g (size M).");
-    // Until the conclusion is built, nothing can be submitted.
-    expect(report.errors.map((issue) => [issue.moduleKey, issue.message])).toEqual([
-      ["conclusion", "Conclusion must be complete before submit: Not built yet"],
-    ]);
+    // An unfinished conclusion blocks submit, whatever it lists as missing.
+    expect(report.errors.map((issue) => [issue.moduleKey, issue.code])).toEqual([["conclusion", "module_not_done"]]);
     expect(report.canSubmit).toBe(false);
     expect(report.suggested.result).toBe("hold");
     expect(validateInspection(data, template, context, MODULE_REGISTRY)).toEqual(report);
