@@ -26,12 +26,14 @@ import { suggestResult, type SuggestedResult } from "@/lib/validation/suggested-
 import type { AnyModuleDefinition, JsonObject, ModuleRegistry } from "./contract";
 import type { InspectionContext } from "./context";
 import { readModuleEntry, type InspectionData } from "./data";
+import { effectiveLabels } from "./labels";
 import { calcOrder, resultsFor } from "./order";
 import { parseCanonicalPath, readPath } from "./paths";
 
 export type ModuleEvaluation<TComputed extends JsonObject = JsonObject> = {
   key: ModuleKey;
   title: string;
+  /** The template's labels over the module's defaults (effectiveLabels): what calc saw and the export shows. */
   labels: Readonly<Record<string, string>>;
   /** Effective config as parsed; the template's raw config when it is invalid. */
   config: unknown;
@@ -113,7 +115,8 @@ function evaluateModule(
   context: InspectionContext,
   results: Partial<Record<ModuleKey, ModuleResult>>,
 ): ModuleEvaluation {
-  const { key, title, labels } = resolved;
+  const { key, title } = resolved;
+  const labels = effectiveLabels(definition, resolved);
   const entry = readModuleEntry(data, "modules", key);
   const rules = { perSize: definition.perSize, sizes: context.sizes, hasData: entry.hasData };
   const base = { key, title, labels, hasData: entry.hasData, comment: entry.comment, stub: definition.stub };

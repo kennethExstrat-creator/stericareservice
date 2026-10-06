@@ -100,7 +100,12 @@ export function clientFactoryEg(): TemplateDefinition {
     sizes: [{ value: "S" }, { value: "M" }],
     modules: [
       { key: "force_at_break", include: true },
-      { key: "visual", include: true, labels: { thin_spot: "Thin spot" }, config: { handSplit: true } },
+      {
+        key: "visual",
+        include: true,
+        labels: { thin_spot: "Thin spot", "major.bead_defective": "Bead defect" },
+        config: { handSplit: true },
+      },
     ],
   };
 }

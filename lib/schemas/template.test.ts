@@ -111,6 +111,17 @@ describe("TemplateDefinitionSchema", () => {
     expect(issuePaths(TemplateDefinitionSchema, labelled)).toContain("modules.0.labels.factoryGloveCode");
   });
 
+  it("accepts label keys for one class or level, such as minor.bead_defective, and rejects malformed ones", () => {
+    const labelled = baseDefinition();
+    labelled.modules[0].labels = { "major.bead_defective": "Defective bead", "minor.bead_defective": "Defective beads" };
+    expect(issuePaths(TemplateDefinitionSchema, labelled)).toEqual([]);
+    for (const key of ["minor.", ".bead_defective", "minor..bead_defective", "1st.label", "minor bead"]) {
+      const broken = baseDefinition();
+      broken.modules[0].labels = { [key]: "Label" };
+      expect(issuePaths(TemplateDefinitionSchema, broken)).toContain(`modules.0.labels.${key}`);
+    }
+  });
+
   it("rejects repeated custom module keys", () => {
     const definition = { ...baseDefinition(), customModules: [customModule(), customModule()] };
     expect(issuePaths(TemplateDefinitionSchema, definition)).toEqual(["customModules.1.key"]);

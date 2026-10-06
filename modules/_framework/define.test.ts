@@ -109,8 +109,14 @@ describe("checkModuleContract", () => {
     ["a contribution it does not own", { contribute: () => ({ sizes: ["M"] }) }, "which only order_lots may provide"],
     ["a non-JSON default", { configSchema: z.any(), defaultConfig: { at: new Date(0) } }, "defaultConfig is not plain JSON"],
     ["a malformed issue", { calc: () => ({ result: { status: "not_done", summary: "" }, computed: {}, issues: [{ level: "fatal" }] }) }, "malformed issues"],
+    ["a malformed label key", { labels: { "minor.": "Defective beads" } }, 'label key "minor." is not a canonical key'],
   ])("flags %s", (_name, change, message) => {
     const broken = { ...validModule(), ...change } as unknown as Parameters<typeof checkModuleContract>[0];
     expect(checkModuleContract(broken)).toEqual(expect.arrayContaining([expect.stringContaining(message)]));
+  });
+
+  it("accepts label keys for one class or level", () => {
+    const labelled = { ...validModule(), labels: { bead_defective: "Defective bead", "minor.bead_defective": "Defective beads" } };
+    expect(checkModuleContract(labelled)).toEqual([]);
   });
 });

@@ -21,6 +21,7 @@ export interface CalcInput<TData, TConfig> {
   readonly config: TConfig;
   /** Heading and labels in the template's wording, for summaries and messages. */
   readonly title: string;
+  /** Your defaults with the template's wording on top. Read them with `labelFor`. */
   readonly labels: Readonly<Record<string, string>>;
   /** Numbers that flow forward: sizes, header, packing, sampling, cartons, indicative weight, AQL. */
   readonly context: InspectionContext;
@@ -69,6 +70,7 @@ export interface CaptureProps<TData = unknown, TConfig = unknown, TComputed exte
   readonly config: TConfig;
   /** Read-only on screen: section and result labels come from the template (6.2 rule 11). */
   readonly title: string;
+  /** `effectiveLabels(definition, resolvedModule)`, as calc gets them. Read them with `labelFor`. */
   readonly labels: Readonly<Record<string, string>>;
   readonly context: InspectionContext;
   /** The latest result, computed values and issues: live totals, chips and inline errors. */
@@ -94,7 +96,10 @@ export interface ModuleDefinition<TData = unknown, TConfig = unknown, TComputed 
   readonly key: ModuleKey;
   /** Default heading; a template's title replaces it (4.2 rule 3). */
   readonly title: string;
-  /** Default field labels by canonical key; a template's labels replace them key by key. */
+  /**
+   * Default labels by canonical key, or by dotted path for wording in one
+   * place only (`minor.bead_defective`); a template's labels replace them key by key.
+   */
   readonly labels: Readonly<Record<string, string>>;
   /** Saved data in `data.modules.<key>`. Draft-tolerant: every value may still be missing. */
   readonly dataSchema: z.ZodType<TData>;

@@ -7,6 +7,7 @@ import type { CalcOutput, ModuleRegistry } from "./contract";
 import { emptyInspectionData, type InspectionData } from "./data";
 import { defineModule, NOT_BUILT_SUMMARY, stubModule } from "./define";
 import { evaluateInspection, type InspectionEvaluation } from "./evaluate";
+import { labelFor } from "./labels";
 import { makeTestTemplate } from "./testing";
 
 const MODULES: ModuleKey[] = [
@@ -199,6 +200,26 @@ describe("evaluateInspection: framework rules for every module", () => {
   it("requires the inspector (6.2 rule 11)", () => {
     const evaluation = evaluate(exampleB(), undefined, TEST_REGISTRY, {});
     expect(evaluation.issues).toContainEqual(expect.objectContaining({ moduleKey: "header", code: "inspector_missing" }));
+  });
+});
+
+describe("evaluateInspection: labels", () => {
+  it("fills a label the module added after the template was saved, keeping the saved wording", () => {
+    const later = defineModule({
+      ...stubModule({ key: "glove_info", title: "Glove Information" }),
+      labels: { colour: "Glove colour", surfaceTexture: "Glove surface texture" },
+      calc: ({ labels }): CalcOutput => ({
+        result: { status: "info", summary: `${labelFor(labels, "colour")}; ${labelFor(labels, "surfaceTexture")}.` },
+        computed: {},
+        issues: [],
+      }),
+    });
+    // Saved when glove_info had no surfaceTexture label.
+    const template = makeTestTemplate(TEST_REGISTRY, [{ key: "glove_info", labels: { colour: "Colour of glove" } }]);
+    const data: InspectionData = { modules: { glove_info: { colour: "Blue" } }, custom: {} };
+    const gloveInfo = moduleOf(evaluate(data, template, registryWith({ glove_info: later })), "glove_info");
+    expect(gloveInfo.result.summary).toBe("Colour of glove; Glove surface texture.");
+    expect(gloveInfo.labels).toEqual({ colour: "Colour of glove", surfaceTexture: "Glove surface texture" });
   });
 });
 

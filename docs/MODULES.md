@@ -48,7 +48,7 @@ A module is a `ModuleDefinition` (`modules/_framework/contract.ts`), declared wi
 |---|---|---|
 | `key` | yes | The module key (`lib/schemas/module-result.ts`). Also the folder name and the key in `data.modules`. |
 | `title` | yes | Default heading. A template's `title` replaces it with the client's or manufacturer's wording (4.2 rule 3). |
-| `labels` | yes | Default field labels, keyed by canonical field key. A template's `labels` replace them key by key. |
+| `labels` | yes | Default labels, keyed by canonical key, or by a dotted path where one key is worded differently in one place (`minor.bead_defective`). A template's `labels` replace them key by key (section 6). |
 | `dataSchema` | yes | zod schema of what the inspector enters, as saved in `data.modules.<key>`. |
 | `emptyData()` | yes | A new empty record on every call. |
 | `configSchema` | yes | zod schema of the template config. |
@@ -69,7 +69,7 @@ A module is a `ModuleDefinition` (`modules/_framework/contract.ts`), declared wi
 |---|---|
 | `data` | Saved data parsed by your schema (`emptyData()` when nothing is saved). For a per-size module, only ordered sizes remain. |
 | `config` | Effective config: your defaults, then each template down the extends chain, validated by your schema. |
-| `title`, `labels` | Effective wording. Use these in summaries and messages, never hard-coded labels. |
+| `title`, `labels` | Effective wording: your default labels with the template's on top. Use these in summaries and messages, read with `labelFor`, never hard-coded labels. |
 | `context` | The inspection context (section 7). |
 | `results` | Results of the modules in `dependsOn` that the inspection includes. |
 | `hasData` | Anything is saved for the module. |
@@ -124,13 +124,13 @@ export function calcGloveInfo({ data, config, labels }: CalcInput<GloveInfoData,
   const shown = GLOVE_INFO_FIELDS.filter((field) => config.fields[field]);
   const issues: CalcIssue[] = [];
   if (config.fields.indicativeWeight && data.indicativeWeight !== null && data.indicativeWeight <= 0) {
-    issues.push(errorIssue("indicative_weight_not_positive", `${labels.indicativeWeight}: must be more than 0 g.`, {
+    issues.push(errorIssue("indicative_weight_not_positive", `${labelFor(labels, "indicativeWeight")}: must be more than 0 g.`, {
       path: ["indicativeWeight"],
     }));
   }
   const missing = shown.filter((field) => !isFilled(data, field));
   if (missing.length > 0) {
-    return { result: notDone(`Missing: ${missing.map((field) => labels[field]).join(", ")}.`), computed: {}, issues };
+    return { result: notDone(`Missing: ${missing.map((field) => labelFor(labels, field)).join(", ")}.`), computed: {}, issues };
   }
   return { result: { status: "info", summary: summarise(data, config) }, computed: {}, issues };
 }
@@ -180,7 +180,10 @@ export const definition = defineModule<GloveInfoData, GloveInfoConfig, GloveInfo
 ## 6. Config, title and labels
 
 - **Defaults first (4.2 rule 1).** Default title and labels follow `docs/forms/reports/`, with `[sic]` typos fixed. Where the two reports differ, pick the STD_EG wording and let SAFEDON_EG's template override it.
-- **Labels are keyed by canonical field key.** Use your data keys, plus defect codes, check keys or measure keys where your config lists them (a template may label `thin_spot` "Thin spot"). Read every label from `input.labels` (calc) or `props.labels` (Capture): never hard-code wording.
+- **Labels are keyed by canonical key.** Use your data keys, plus the keys your config lists: defect codes, hole locations, check keys, measures (a template may label `thin_spot` "Thin spot"). When one key needs different wording in different places, key the label by a dotted path: STD_EG words `bead_defective` "Defective bead" under major and "Defective beads" under minor, so the labels are `major.bead_defective` and `minor.bead_defective` (or `bead_defective` for the common wording and `minor.bead_defective` for the exception). Templates override dotted keys like any other.
+- **Read labels with `labelFor`.** `labelFor(input.labels, "minor", "bead_defective")` (calc) or `labelFor(props.labels, ...)` (Capture) reads `minor.bead_defective`, then `bead_defective`, and shows the key itself when neither is set. Never hard-code wording, and do not read `labels[key]` directly: a key the template does not have would print "undefined".
+- **Defect lists.** Defect lists in config hold canonical defect codes (`defect_codes`, BUILD_SPEC 11), so "Stain" at one client and "Oil stain" at another count together (4.2 rule 4). Severity is the class the template lists a code under, and the label is per code, or per class with a dotted key. A key that is not in `defect_codes` is an unmapped label: allowed, given a snake case key and a label, and flagged for an admin by the template editor. An inspector's one-off defect label (BUILD_SPEC 8) is data, not config: keep it in your data with its label.
+- **Labels you add later.** A resolved template keeps the labels of the day it was saved; the framework lays them over your current defaults (`effectiveLabels`), so a label key you add later shows its default in older templates. Saved wording always wins.
 - **Config schema.** Strict objects, enums, numbers, booleans and arrays, with `.describe()` on what an admin edits: the template editor generates its form from your schema with `z.toJSONSchema()`, so no transforms. The contract check fails if the schema cannot become JSON Schema.
 - **How templates merge config.** Your `defaultConfig`, then each template from the root of the extends chain down. Objects merge key by key; a **tagged object** (one with a `kind` key, such as a spec) is one value and is replaced whole; everything else replaces too: arrays (a defect list, the measures), numbers, strings, booleans, `null`. So a child template writes `{ classes: { major: { aql: 1.5 } } }` to change one AQL and keeps the rest; to change one defect in a list it writes the whole list; to change a spec it writes the whole spec, and may change its kind: STD_EG's XS width `{ kind: "max", max: 80 }` becomes SAFEDON_EG's `{ kind: "tolerance", nominal: 76, tolerance: 4 }` with no `max` left over. The merged result must parse with your schema, or the template does not save.
 - **Specs.** Use `SpecSchema` from the framework for every specification limit (min, max, range, nominal ± tolerance, NA). It is lib/stats' `Spec`, so `checkSpec` and `formatSpec` take it as parsed, and it is tagged by `kind`, so templates replace it whole. If your config has another union of object shapes, discriminate it on `kind` too (`z.discriminatedUnion("kind", [...])`); a union without a `kind` key would be merged key by key into a mix of two shapes.
@@ -288,7 +291,7 @@ Then add `loadCapture: () => import("./Capture")` to your definition.
 | Prop | What |
 |---|---|
 | `data`, `config` | Parsed with your schemas. |
-| `title`, `labels` | The template's wording. Read-only: never editable on the capture screen (rule 11). |
+| `title`, `labels` | The template's wording over your defaults, as calc gets them; read labels with `labelFor`. Read-only: never editable on the capture screen (rule 11). |
 | `context` | Sizes, n, cartons and the rest, as in calc. |
 | `evaluation` | The latest `result`, `computed` and `issues` for your module: live totals, accept/reject chips, inline errors. |
 | `onChange(next)` | Replace your data; the screen merges it into the inspection and autosaves. |
@@ -378,8 +381,8 @@ const report = validateInspection(data, template, context);
 | `dimensions` | yes | n from `context.sampling[size].dimensions` or config; `summarizeColumn` and `checkSpec` in `lib/stats`; median or average from config. Specs per size and measure with `SpecSchema`, e.g. `specs: z.record(CanonicalSizeSchema, z.strictObject({ length: SpecSchema, ... }).partial())`. |
 | `weight` | yes | Compare with `context.indicativeWeight` when its size matches; warn beyond the threshold (rule 9). The optional spec is `SpecSchema.nullable()`. |
 | `force_at_break`, `tensile` | yes | Lab report files are uploaded by the screen with the module key; keep a file id in data if the module needs it. Spec minimums (6 N; 14 MPa, 500%) with `SpecSchema`. |
-| `watertight`, `visual` | yes | `handSplit`. n from `context.sampling[size].watertightVisual`; limits from `lib/aql` with AQL from config or `context.aql`. Any critical defect fails. |
-| `dispensing_packing`, `dispensing_safedon`, `labeling` | yes | Box numbers from `context.cartons[size]` (rule 7). Labelling is Accept 0 / Reject 1. |
+| `watertight`, `visual` | yes | `handSplit`. n from `context.sampling[size].watertightVisual`; limits from `lib/aql` with AQL from config or `context.aql`. Any critical defect fails. Hole locations and the defect list per class are defect codes in config; label them per code, or per class with a dotted key where one code is worded twice (`minor.bead_defective`, section 6). |
+| `dispensing_packing`, `dispensing_safedon`, `labeling` | yes | Box numbers from `context.cartons[size]` (rule 7). Labelling is Accept 0 / Reject 1; its checks are canonical keys (`lot_no`, `mfg_date`, `expiry_date`, `artwork`, `carton_no`), labelled per level with a dotted key where the wording differs (`carton.lot_no`). Safedon's dispensing defects are defect codes (`no_cuff`, `finger_out`, ...). |
 | `conclusion` | no | Always on. Keep `dependsOn: "all"`; compute the suggestion with `suggestResult` over `input.results`, put it in `computed.suggestedResult`; the final result is the inspector's. |
 | `dye_leak` | yes | Optional module (Phase 3). |
 | `documents`, `loading` | no | Optional modules (Phase 3). |

@@ -17,6 +17,7 @@ export type {
 } from "./contract";
 export { defineModule, stubModule, NOT_BUILT_SUMMARY, type ModuleSpec, type StubSpec } from "./define";
 export { SpecSchema } from "./config-schemas";
+export { labelFor, effectiveLabels, type Labels } from "./labels";
 export {
   AQL_DEFAULTS,
   CONTEXT_SOURCES,

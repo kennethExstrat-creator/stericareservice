@@ -300,7 +300,13 @@ const visual = defineModule({
   title: TITLES.visual,
   perSize: true,
   handSplit: true,
-  labels: { thin_spot: "Thin spot on glove body", stain: "Oil stain" },
+  // One wording per defect code, and per class where STD_EG words one defect twice.
+  labels: {
+    thin_spot: "Thin spot on glove body",
+    stain: "Oil stain",
+    bead_defective: "Defective bead",
+    "minor.bead_defective": "Defective beads",
+  },
   dataSchema: perSizeData(z.strictObject({ critical: CountCellSchema, major: CountCellSchema })),
   emptyData: () => ({ sizes: {} }),
   configSchema: z.strictObject({
@@ -311,8 +317,8 @@ const visual = defineModule({
     handSplit: false,
     classes: {
       critical: { aql: 0, defects: ["embedded_insect", "embedded_metal"] },
-      major: { aql: 2.5, defects: ["thin_spot", "stain"] },
-      minor: { aql: 4.0, defects: ["dirt_small"] },
+      major: { aql: 2.5, defects: ["thin_spot", "stain", "bead_defective"] },
+      minor: { aql: 4.0, defects: ["dirt_small", "bead_defective"] },
     },
   },
   calc: ({ data, context }): CalcOutput => {

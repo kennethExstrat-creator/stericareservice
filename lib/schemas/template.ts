@@ -29,8 +29,14 @@ export const TemplateCodeSchema = z
 
 /** Custom module keys: stored as keys of `data.custom`. */
 const CUSTOM_KEY_PATTERN = /^[a-z][a-z0-9_]*$/;
-/** Field and label keys: canonical keys such as `indicativeWeight` or a defect code such as `thin_spot`. */
+/** Field keys: canonical keys such as `indicativeWeight`. */
 const FIELD_KEY_PATTERN = /^[A-Za-z][A-Za-z0-9_]*$/;
+/**
+ * Label keys: a canonical key (`indicativeWeight`, a defect code such as
+ * `thin_spot`) or a dotted path for wording in one place only, such as a
+ * defect in one class: `minor.bead_defective`.
+ */
+export const LABEL_KEY_PATTERN = /^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)*$/;
 
 /** `modules.<module key>.<path>`: where a custom field's value is stored (Field.mapsTo). */
 export const CANONICAL_PATH_PATTERN = /^modules\.[a-z][a-z0-9_]*(?:\.[A-Za-z0-9_]+)+$/;
@@ -55,7 +61,9 @@ export const TemplateSizeSchema = z.strictObject({
 export type TemplateSize = z.infer<typeof TemplateSizeSchema>;
 
 const LabelsSchema = z.record(
-  z.string().regex(FIELD_KEY_PATTERN, { error: "Label keys are canonical field keys, e.g. indicativeWeight." }),
+  z.string().regex(LABEL_KEY_PATTERN, {
+    error: "Label keys are canonical keys, e.g. indicativeWeight, or dotted paths such as minor.bead_defective.",
+  }),
   z.string().trim().min(1),
 );
 
@@ -67,7 +75,7 @@ export const ModuleConfigSchema = z.strictObject({
   include: z.boolean(),
   /** Heading in the source form's wording. */
   title: z.string().trim().min(1).optional(),
-  /** Field label overrides, keyed by canonical field key. */
+  /** Label overrides by canonical key, or by dotted path for one class or level: `minor.bead_defective`. */
   labels: LabelsSchema.optional(),
   /** Validated by that module's config schema when the template is resolved. */
   config: JsonObjectSchema.optional(),

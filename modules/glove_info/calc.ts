@@ -5,6 +5,7 @@ import { formatDecimal } from "@/lib/stats";
 import {
   errorIssue,
   isBlank,
+  labelFor,
   notDone,
   type CalcInput,
   type CalcIssue,
@@ -29,7 +30,7 @@ export function calcGloveInfo({
   const weight = data.indicativeWeight;
   if (config.fields.indicativeWeight && weight !== null && weight <= 0) {
     issues.push(
-      errorIssue("indicative_weight_not_positive", `${labels.indicativeWeight}: must be more than 0 g.`, {
+      errorIssue("indicative_weight_not_positive", `${labelFor(labels, "indicativeWeight")}: must be more than 0 g.`, {
         path: ["indicativeWeight"],
       }),
     );
@@ -40,7 +41,11 @@ export function calcGloveInfo({
   }
   const missing = shown.filter((field) => !isFilled(data, field));
   if (missing.length > 0) {
-    return { result: notDone(`Missing: ${missing.map((field) => labels[field]).join(", ")}.`), computed: {}, issues };
+    return {
+      result: notDone(`Missing: ${missing.map((field) => labelFor(labels, field)).join(", ")}.`),
+      computed: {},
+      issues,
+    };
   }
   return { result: { status: "info", summary: summarise(data, config) }, computed: {}, issues };
 }

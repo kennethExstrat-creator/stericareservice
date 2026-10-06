@@ -4,6 +4,7 @@ import { z } from "zod";
 import { ModuleResultSchema, isModuleKey, type ModuleKey } from "@/lib/schemas/module-result";
 import {
   JsonObjectSchema,
+  LABEL_KEY_PATTERN,
   RESOLVED_TEMPLATE_FORMAT,
   type ResolvedModule,
   type ResolvedTemplate,
@@ -113,7 +114,7 @@ export function checkModuleContract(definition: AnyModuleDefinition): string[] {
   if (!isModuleKey(definition.key)) add("key is not a module key of lib/schemas/module-result.ts");
   if (definition.title.trim() === "") add("title is empty");
   for (const [key, label] of Object.entries(definition.labels)) {
-    if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(key)) add(`label key "${key}" is not a canonical field key`);
+    if (!LABEL_KEY_PATTERN.test(key)) add(`label key "${key}" is not a canonical key or a dotted path of them`);
     if (label.trim() === "") add(`label "${key}" is empty`);
   }
 

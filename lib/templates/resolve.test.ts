@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ModuleKey } from "@/lib/schemas/module-result";
 import type { ResolvedTemplate, TemplateDefinition } from "@/lib/schemas/template";
 import { TEST_REGISTRY } from "@/modules/_framework/__fixtures__/test-registry";
+import { labelFor } from "@/modules/_framework/labels";
 import { baseEg, clientEg, clientFactoryEg } from "./__fixtures__/definitions";
 import {
   lookupFrom,
@@ -144,7 +145,7 @@ describe("resolveTemplate: extends", () => {
       classes: {
         critical: { aql: 0, defects: ["embedded_insect", "embedded_metal"] },
         major: { aql: 2.5, defects: ["thin_spot", "powder_mark"] },
-        minor: { aql: 4, defects: ["dirt_small"] },
+        minor: { aql: 4, defects: ["dirt_small", "bead_defective"] },
       },
     });
     expect(moduleOf(template, "weight").config).toEqual({ n: 1, warnThresholdPct: 10 });
@@ -199,6 +200,10 @@ describe("resolveTemplate: extends", () => {
     const visual = moduleOf(template, "visual");
     expect(visual.labels.thin_spot).toBe("Thin spot");
     expect(visual.labels.stain).toBe("Oil stain");
+    // One defect worded per class (4.2 rule 4): the template's major wording, the module's minor one.
+    expect(labelFor(visual.labels, "major", "bead_defective")).toBe("Bead defect");
+    expect(labelFor(visual.labels, "minor", "bead_defective")).toBe("Defective beads");
+    expect(labelFor(visual.labels, "major", "thin_spot")).toBe("Thin spot");
     expect(visual.config).toMatchObject({ handSplit: true, classes: { major: { defects: ["thin_spot", "powder_mark"] } } });
     expect(template.report.showClientLogo).toBe(true);
   });
