@@ -29,7 +29,7 @@ export {
   type LotSizeInput,
   type SampleSizeInput,
 } from "./plan";
-export { decide, labelingPlan, DEFAULT_AQL, resolveAqls, type AqlCheck, type Decision } from "./decision";
+export { decide, labelingPlan, DEFAULT_AQL, resolveAqls, type AqlCheck, type DecisionPlan } from "./decision";
 export { describePlan, formatAql, formatCount } from "./format";
 export {
   AcceptanceLimitsSchema,
@@ -39,6 +39,7 @@ export {
   AqlWarningCodeSchema,
   AqlWarningSchema,
   CodeLetterSchema,
+  DecisionSchema,
   InspectionLevelSchema,
   LotSampleSchema,
   LotSizePlanSchema,
@@ -50,6 +51,7 @@ export {
   type AqlErrorCode,
   type AqlWarning,
   type AqlWarningCode,
+  type Decision,
   type LotSample,
   type LotSizePlan,
   type SampleSizePlan,

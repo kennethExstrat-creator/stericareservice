@@ -56,6 +56,15 @@ export const AcceptanceLimitsSchema = z
   .refine(singleSampling, RE_IS_AC_PLUS_ONE);
 export type AcceptanceLimits = z.infer<typeof AcceptanceLimitsSchema>;
 
+/** What decide returns for the defects found against a plan. */
+export const DecisionSchema = z.enum([
+  "accept",
+  "reject",
+  // Fewer items inspected than the plan's n and fewer than Re defects found: never a pass.
+  "incomplete",
+]);
+export type Decision = z.infer<typeof DecisionSchema>;
+
 const planFields = {
   /** The code letter the table was entered at: from the sample size, or from the lot size (Table 1). */
   codeLetter: CodeLetterSchema,

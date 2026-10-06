@@ -1,14 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { ExportIssueSchema } from "@/lib/schemas";
-import { planFromSampleSize } from "./plan";
+import { decide } from "./decision";
+import { planFromSampleSize, type AqlResult } from "./plan";
 import {
   AcceptanceLimitsSchema,
   AqlSchema,
   CodeLetterSchema,
+  DecisionSchema,
   InspectionLevelSchema,
   StandardSampleSizeSchema,
 } from "./schema";
 import { TABLE_2A_AQLS } from "./tables";
+
+function planOf<T>(result: AqlResult<T>): T {
+  if (!result.ok) throw new Error(`${result.error.code}: ${result.error.message}`);
+  return result.plan;
+}
 
 const accepts = (schema: { safeParse: (value: unknown) => { success: boolean } }, value: unknown) =>
   schema.safeParse(value).success;
@@ -53,6 +60,14 @@ describe("AcceptanceLimitsSchema", () => {
     for (const limits of [{ ac: 3, re: 5 }, { ac: -1, re: 0 }, { ac: 1.5, re: 2.5 }, { ac: 1 }]) {
       expect(accepts(AcceptanceLimitsSchema, limits), JSON.stringify(limits)).toBe(false);
     }
+  });
+});
+
+describe("DecisionSchema", () => {
+  it("holds what decide returns", () => {
+    expect(DecisionSchema.options).toEqual(["accept", "reject", "incomplete"]);
+    const short = planOf(planFromSampleSize({ sampleSize: 8, aql: 4.0 }));
+    for (const defects of [0, 2]) expect(DecisionSchema.parse(decide(defects, short))).toBe(decide(defects, short));
   });
 });
 
