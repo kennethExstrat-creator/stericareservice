@@ -183,7 +183,8 @@ export const LOGIN_NOTICES = {
   link_invalid: {
     tone: "warning",
     title: "That link has expired or was already used.",
-    description: "Links work once and expire after a short time. Ask for a new one, or ask your administrator to resend your invite.",
+    description:
+      "Links work once and expire after a short time. Ask for a new one, or ask your administrator to resend your invite.",
     action: { href: "/forgot-password", label: "Get a new reset link" },
   },
   session_expired: {

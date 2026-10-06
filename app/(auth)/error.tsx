@@ -22,7 +22,14 @@ export default function AuthError({ error, retry }: { error: Error & { digest?: 
         description={
           <>
             We could not load this screen. Try again in a minute; if it keeps happening, tell your SteriCare
-            administrator{error.digest ? <> and quote code <span className="font-mono text-foreground">{error.digest}</span></> : null}.
+            administrator
+            {error.digest && (
+              <>
+                {" "}
+                and quote code <span className="font-mono text-foreground">{error.digest}</span>
+              </>
+            )}
+            .
           </>
         }
       />

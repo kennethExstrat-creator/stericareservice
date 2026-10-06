@@ -39,9 +39,12 @@ describe("EmailSchema", () => {
 });
 
 describe("NewPasswordSchema (supabase/config.toml: 10 characters, letters_digits)", () => {
-  it.each(["Glove-check-2026", "abcdefghi1", "1234567890a", "with spaces 9 ok", "ÄÖÜäöü-mix-9a"])("accepts %j", (value) => {
-    expect(NewPasswordSchema.safeParse(value).success).toBe(true);
-  });
+  it.each(["Glove-check-2026", "abcdefghi1", "1234567890a", "with spaces 9 ok", "ÄÖÜäöü-mix-9a"])(
+    "accepts %j",
+    (value) => {
+      expect(NewPasswordSchema.safeParse(value).success).toBe(true);
+    },
+  );
 
   it.each([
     ["", MESSAGES.newPasswordRequired],

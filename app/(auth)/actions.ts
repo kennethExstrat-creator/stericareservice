@@ -1,6 +1,11 @@
 "use server";
 
-import { isAuthRetryableFetchError, isAuthSessionMissingError, isAuthWeakPasswordError, type AuthError } from "@supabase/supabase-js";
+import {
+  isAuthRetryableFetchError,
+  isAuthSessionMissingError,
+  isAuthWeakPasswordError,
+  type AuthError,
+} from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
@@ -104,11 +109,16 @@ async function profileStatus(supabase: SupabaseServerClient): Promise<"active" |
   }
 }
 
+/**
+ * Ends the session sign-in just created. Should Supabase fail to revoke it, the
+ * cookies stay, but the session guard (lib/auth/session.ts) still turns the
+ * account away on the next request and clears them through /auth/sign-out.
+ */
 async function signOutQuietly(supabase: SupabaseServerClient): Promise<void> {
   try {
     await supabase.auth.signOut({ scope: "local" });
   } catch {
-    // The cookies are cleared locally even when the revoke call fails.
+    // See above: the guard is the backstop.
   }
 }
 
@@ -121,7 +131,8 @@ export async function requestPasswordReset(
   const attempt = previous.attempt + 1;
   const parsed = ForgotPasswordSchema.safeParse({ email: formData.get("email") });
   if (!parsed.success) {
-    return { status: "error", attempt, email: text(formData, "email").trim(), fieldErrors: fieldErrors<"email">(parsed.error) };
+    const typed = text(formData, "email").trim();
+    return { status: "error", attempt, email: typed, fieldErrors: fieldErrors<"email">(parsed.error) };
   }
   const { email } = parsed.data;
   if (!isSupabaseConfigured()) return { status: "error", attempt, email, message: MESSAGES.notConfigured };
@@ -143,10 +154,12 @@ export async function requestPasswordReset(
 }
 
 /**
- * Supabase answers an unknown address with success and only reaches its email
- * limits (one email per address per minute, the hourly quota) for real
- * accounts. So only the per-IP request limit, which every address hits alike,
- * may show as "too many requests"; the email limits get the usual reply.
+ * Supabase answers an unknown address with plain success, while its email
+ * limits (one email per address a minute, the mailer's hourly quota) are only
+ * reached when it is about to send, that is for a real account. An email-limit
+ * error could therefore reveal that the account exists, so it gets the usual
+ * reply; only the per-IP request limit, which every address hits alike, shows
+ * as "too many requests".
  */
 function isRequestRateLimit(error: AuthError): boolean {
   return error.status === 429 && error.code !== "over_email_send_rate_limit";
@@ -198,7 +211,8 @@ function updateFailure(error: AuthError): Pick<ResetPasswordState, "message" | "
   if (error.status === 429) return { message: MESSAGES.updateRateLimited };
   if (error.code === "same_password") return { fieldErrors: { password: MESSAGES.samePassword } };
   if (isAuthWeakPasswordError(error)) {
-    return { fieldErrors: { password: error.reasons.includes("pwned") ? MESSAGES.pwnedPassword : MESSAGES.weakPassword } };
+    const breached = error.reasons.includes("pwned");
+    return { fieldErrors: { password: breached ? MESSAGES.pwnedPassword : MESSAGES.weakPassword } };
   }
   if (
     isAuthSessionMissingError(error) ||

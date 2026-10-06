@@ -49,7 +49,7 @@ export function ResetPasswordForm({ flow, email }: { flow: PasswordFlow; email: 
           enterKeyHint="next"
           required
           aria-invalid={passwordError ? true : undefined}
-          aria-describedby={passwordError ? `${POLICY_ID} reset-password-error` : POLICY_ID}
+          aria-describedby={passwordError ? `reset-password-error ${POLICY_ID}` : POLICY_ID}
           onChange={(event) => setPassword(event.currentTarget.value)}
         />
         <PasswordRules id={POLICY_ID} value={password} />

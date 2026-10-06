@@ -234,7 +234,10 @@ describe("requestPasswordReset", () => {
   it.each([
     ["an unknown address (Supabase answers success)", null],
     ["a refused address", new AuthApiError("Email address not authorized", 400, "email_address_not_authorized")],
-    ["the per-address resend limit", new AuthApiError("For security purposes, you can only request this after 42 seconds.", 429, "over_email_send_rate_limit")],
+    [
+      "the per-address resend limit",
+      new AuthApiError("For security purposes, you can only request this after 42 seconds.", 429, "over_email_send_rate_limit"),
+    ],
     ["a mailer failure", new AuthApiError("Error sending recovery email", 500, "unexpected_failure")],
     ["a network failure", new AuthRetryableFetchError("fetch failed", 0)],
   ])("gives the same confirmation for %s", async (_label, error) => {
@@ -325,13 +328,30 @@ describe("updatePassword", () => {
     expect(supabase.auth.updateUser).not.toHaveBeenCalled();
   });
 
+  const expired = { message: MESSAGES.linkExpired, expired: true };
   it.each([
-    ["the current password", new AuthApiError("New password should be different from the old password.", 422, "same_password"), { fieldErrors: { password: MESSAGES.samePassword } }],
-    ["a breached password", new AuthWeakPasswordError("Password is known to be weak", 422, ["pwned"]), { fieldErrors: { password: MESSAGES.pwnedPassword } }],
-    ["a stricter project policy", new AuthWeakPasswordError("Password should contain…", 422, ["characters"]), { fieldErrors: { password: MESSAGES.weakPassword } }],
-    ["a lost session", new AuthSessionMissingError(), { message: MESSAGES.linkExpired, expired: true }],
-    ["an expired session", new AuthApiError("Session not found", 403, "session_not_found"), { message: MESSAGES.linkExpired, expired: true }],
-    ["a rate limit", new AuthApiError("Request rate limit reached", 429, "over_request_rate_limit"), { message: MESSAGES.updateRateLimited }],
+    [
+      "the current password",
+      new AuthApiError("New password should be different from the old password.", 422, "same_password"),
+      { fieldErrors: { password: MESSAGES.samePassword } },
+    ],
+    [
+      "a breached password",
+      new AuthWeakPasswordError("Password is known to be weak", 422, ["pwned"]),
+      { fieldErrors: { password: MESSAGES.pwnedPassword } },
+    ],
+    [
+      "a stricter project policy",
+      new AuthWeakPasswordError("Password should contain…", 422, ["characters"]),
+      { fieldErrors: { password: MESSAGES.weakPassword } },
+    ],
+    ["a lost session", new AuthSessionMissingError(), expired],
+    ["an expired session", new AuthApiError("Session not found", 403, "session_not_found"), expired],
+    [
+      "a rate limit",
+      new AuthApiError("Request rate limit reached", 429, "over_request_rate_limit"),
+      { message: MESSAGES.updateRateLimited },
+    ],
     ["a server error", new AuthApiError("Database error", 500, "unexpected_failure"), { message: MESSAGES.updateFailed }],
   ])("explains %s", async (_label, error, expected) => {
     supabase.auth.updateUser.mockResolvedValueOnce({ data: { user: null }, error } as never);
