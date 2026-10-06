@@ -27,6 +27,14 @@ test("the inspector lands on the inspections list", async ({ page, context, base
 });
 ```
 
+## Screenshots on the iPad projects
+
+Playwright's `fullPage: true` capture drops touch emulation while it resizes, so an "iPad"
+full-page shot comes out at desktop density (coarse-pointer styles such as 44 px targets and
+16 px text disappear). On `ipad-portrait` and `ipad-landscape`, take viewport screenshots while
+scrolling (or stitch them) instead of `fullPage`, and assert sizes with `boundingBox()` rather
+than from a full-page image.
+
 ## Rules for the shared database
 
 - Never change, deactivate or delete `inspector@test.local`, `admin@test.local` or real accounts.
