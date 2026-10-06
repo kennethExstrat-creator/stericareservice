@@ -38,8 +38,8 @@ describe("navForRole", () => {
     expect(admin.entries.map((entry) => [entry.key, entry.kind])).toEqual([
       ["overview", "link"],
       ["users", "link"],
-      ["manufacturers", "planned"],
-      ["clients", "planned"],
+      ["manufacturers", "link"],
+      ["clients", "link"],
       ["defects", "planned"],
       ["templates", "planned"],
     ]);
@@ -47,19 +47,21 @@ describe("navForRole", () => {
 
   it("shows the Phase 3 screens as planned entries with no link", () => {
     const planned = navForRole("admin").flatMap((section) => section.entries.filter((entry) => entry.kind === "planned"));
-    expect(planned.map((entry) => entry.label)).toEqual(["Manufacturers", "Clients", "Defects", "Templates"]);
+    expect(planned.map((entry) => entry.label)).toEqual(["Defects", "Templates"]);
     for (const entry of planned) {
       expect(entry).not.toHaveProperty("href");
       expect(entry.kind === "planned" && entry.phase).toBe("Phase 3");
     }
   });
 
-  it("links Overview and Users to their pages", () => {
+  it("links Overview, Users, Manufacturers and Clients to their pages", () => {
     const links = navLinks(navForRole("admin"));
     expect(links.map((link) => [link.label, link.href, link.match])).toEqual([
       ["Inspections", "/inspections", "prefix"],
       ["Overview", "/admin", "exact"],
       ["Users", "/admin/users", "prefix"],
+      ["Manufacturers", "/admin/manufacturers", "prefix"],
+      ["Clients", "/admin/clients", "prefix"],
     ]);
   });
 
@@ -161,7 +163,7 @@ describe("plannedByPhase", () => {
   it("groups the admin's planned screens under Phase 3, in order", () => {
     const entries = navForRole("admin").flatMap((section) => section.entries);
     expect(plannedByPhase(entries)).toEqual([
-      { phase: "Phase 3", labels: ["Manufacturers", "Clients", "Defects", "Templates"] },
+      { phase: "Phase 3", labels: ["Defects", "Templates"] },
     ]);
   });
 
