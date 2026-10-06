@@ -1,10 +1,13 @@
 // Server-rendered markup checks: accessible names, states and computed
 // footers. Interaction (keys, paste) is covered by grid-navigation.test.ts.
+import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { STATUSES } from "@/lib/design/status";
 import { DefectChip } from "./defect-chip";
+import { DefectChipGroup } from "./defect-chip-group";
 import { MeasurementGrid, type Measure } from "./measurement-grid";
+import { ModuleCard } from "./module-card";
 import { NumericCell } from "./numeric-cell";
 import { PhotoTile } from "./photo-tile";
 import { ProgressTracker } from "./progress-tracker";
@@ -14,6 +17,90 @@ import { StatusPill } from "./status-pill";
 import { Stepper } from "./stepper";
 
 const noop = () => {};
+
+const VOID_ELEMENTS = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"]);
+const POSITIONING = ["relative", "absolute", "fixed", "sticky", "sr-only"];
+
+/**
+ * The sr-only elements in some markup that have no positioned ancestor in it.
+ * sr-only is position: absolute, so without one its 1 px box is laid out
+ * against the page: inside a horizontally scrolling tab bar or table it
+ * escapes the scroller and widens the whole page (design review D1).
+ */
+function unanchoredSrOnly(html: string): string[] {
+  const open: { tag: string; positioned: boolean }[] = [];
+  const found: string[] = [];
+  for (const [, closing, tag, attributes, selfClosing] of html.matchAll(/<(\/?)([a-zA-Z][\w-]*)([^>]*?)(\/?)>/g)) {
+    if (closing) {
+      const index = open.map((element) => element.tag).lastIndexOf(tag);
+      if (index !== -1) open.length = index;
+      continue;
+    }
+    const classes = (/\sclass="([^"]*)"/.exec(attributes)?.[1] ?? "").split(/\s+/);
+    if (classes.includes("sr-only") && !open.some((element) => element.positioned)) {
+      found.push(`<${tag}${attributes}>`);
+    }
+    if (VOID_ELEMENTS.has(tag) || selfClosing) continue;
+    open.push({ tag, positioned: classes.some((name) => POSITIONING.includes(name)) });
+  }
+  return found;
+}
+
+describe("screen-reader text stays inside its component (D1)", () => {
+  it("finds an unanchored label, as ResultChip had in a scrolling tab bar", () => {
+    const html = '<div class="overflow-x-auto"><span class="inline-flex"><span class="sr-only">Passed</span></span></div>';
+    expect(unanchoredSrOnly(html)).toHaveLength(1);
+    expect(unanchoredSrOnly(html.replace('"inline-flex"', '"relative inline-flex"'))).toEqual([]);
+  });
+
+  const measures: Measure[] = [{ key: "width", label: "Width", unit: "mm", decimals: 0 }];
+  const components: [string, ReactElement][] = [
+    ["ResultChip", <ResultChip key="chip" status="pass" />],
+    ["ResultChip not done", <ResultChip key="chip-empty" status="not_done" />],
+    ["SaveStatus", <SaveStatus key="save" state="offline" pendingUploads={2} />],
+    ["Stepper", <Stepper key="stepper" label="Holes, palm" value={1} onValueChange={noop} />],
+    ["DefectChip", <DefectChip key="chip" label="Torn cuff" count={1} unmapped onIncrement={noop} onDecrement={noop} />],
+    [
+      "DefectChipGroup",
+      <DefectChipGroup
+        key="group"
+        legend="Major Defects"
+        items={[{ key: "hole", label: "Hole", count: 2 }]}
+        onCountChange={noop}
+        onAddLabel={noop}
+      />,
+    ],
+    [
+      "MeasurementGrid",
+      <MeasurementGrid key="grid" caption="Dimension" measures={measures} values={{}} onValuesChange={noop} statistic="median" />,
+    ],
+    [
+      "ModuleCard",
+      <ModuleCard key="card" title="Packing" status="not_done" comment="" onCommentChange={noop} onFiles={noop} />,
+    ],
+    ["PhotoTile", <PhotoTile key="photo" alt="IMG_0042.HEIC" tags={{ module: "Dimensions" }} state="flagged" onOpen={noop} />],
+    [
+      "ProgressTracker bar",
+      <ProgressTracker key="bar" steps={[{ key: "a", label: "Header", state: "done" }]} activeKey="a" onStepSelect={noop} />,
+    ],
+    [
+      "ProgressTracker list",
+      <ProgressTracker
+        key="list"
+        variant="list"
+        steps={[{ key: "a", label: "Header", state: "done", result: "pass" }]}
+        activeKey="a"
+        onStepSelect={noop}
+      />,
+    ],
+  ];
+
+  it.each(components)("%s anchors its sr-only text", (_, element) => {
+    const html = renderToStaticMarkup(element);
+    expect(html).toContain("sr-only");
+    expect(unanchoredSrOnly(html)).toEqual([]);
+  });
+});
 
 describe("StatusPill", () => {
   it.each(STATUSES)("shows %s as an icon and words, never colour alone", (status) => {

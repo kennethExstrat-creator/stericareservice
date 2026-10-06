@@ -131,7 +131,7 @@ export function Stepper({
       data-disabled={disabled || undefined}
       onKeyDown={onKeyDown}
       className={cn(
-        "inline-flex items-center gap-1 rounded-full border border-input bg-card p-0.5 shadow-xs select-none [-webkit-touch-callout:none] data-disabled:opacity-50",
+        "relative inline-flex items-center gap-1 rounded-full border border-input bg-card p-0.5 shadow-xs select-none [-webkit-touch-callout:none] data-disabled:opacity-50",
         className,
       )}
     >

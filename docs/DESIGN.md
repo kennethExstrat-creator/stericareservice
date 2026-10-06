@@ -70,7 +70,7 @@ Only state transitions: 150 ms `ease-out-expo` is the default for every `transit
 | Button | Pill. Primary solid brand-500 / white, hover brand-600, a 1 px press; no lift, scale or gradient. Outline: white with slate-300 edge. Focus: brand-500 border and 3 px brand-500/50 ring. Links brand-600 (brand-500 is 4.43:1 on mist) | `ui.tsx.txt` (shape); fill app |
 | Field | White, slate-300 border, label above, error text below in fail red. Read-only fields sit on slate-100: computed values, never typed (BUILD_SPEC 6.2 rule 2) | `contact-form.tsx` |
 | Card / ModuleCard | White, slate-200 edge, soft shadow (`shadow-sm`), xl radius, no hover lift. ModuleCard: template-wording title, StatusPill, body, inspector comment, "Take photo" (rear camera) and "Add from library" | `ui.tsx.txt` Card |
-| StatusPill, ResultChip | Icon + words; ResultChip is a 20 px disc with a glyph and a screen-reader label, for module tabs. Not done stays an empty dashed ring | app |
+| StatusPill, ResultChip | Icon + words; ResultChip is a 20 px disc with a glyph and a screen-reader label, for module tabs; the disc is positioned so the label never escapes a scrolling tab bar. Not done stays an empty dashed ring | app |
 | SaveStatus | Saved (neutral), Saving (brand), Offline (will sync) (warn amber); pending uploads as a brand count badge | app (BUILD_SPEC 8) |
 | Stepper | − value +, hold to repeat, Arrow/Page/Home/End keys, value announced; minus stays focusable but aria-disabled at 0 | app |
 | DefectChip(Group) | Tap adds one, attached minus removes one, live total. Unmapped one-off labels: dashed amber edge and a flag | app |
@@ -89,4 +89,5 @@ Only state transitions: 150 ms `ease-out-expo` is the default for every `transit
 - **Do** keep the gradient to the logo, login, one accent word in a large title and the active progress step. **Don't** put body text, buttons or tables on it.
 - **Do** design for 44 px on iPad and 16 px field text. **Don't** shrink a touch target to fit a row.
 - **Do** keep transitions at 150 ms ease-out-expo. **Don't** add hover lifts, scale, parallax or scroll animation.
+- **Do** make a component that holds `sr-only` text `relative`. **Don't** leave that text unanchored: in a horizontally scrolling tab bar or table it escapes the scroller and widens the page at iPad widths.
 - **Do** keep secondary text at slate-600 or darker. **Don't** add a dark mode (the `dark:` variant is inert on purpose).

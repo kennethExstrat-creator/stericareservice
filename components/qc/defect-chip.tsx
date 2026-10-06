@@ -45,7 +45,7 @@ export function DefectChip({
       data-active={active || undefined}
       data-unmapped={unmapped || undefined}
       className={cn(
-        "inline-flex max-w-full items-stretch rounded-full border bg-card text-foreground shadow-xs transition-colors",
+        "relative inline-flex max-w-full items-stretch rounded-full border bg-card text-foreground shadow-xs transition-colors",
         "border-input data-active:border-primary data-active:bg-brand-50 data-active:text-brand-700",
         "data-unmapped:border-dashed data-unmapped:border-warn-border data-active:data-unmapped:border-warn-border",
         disabled && "opacity-50",

@@ -65,7 +65,7 @@ export function LayoutSection() {
         {/* iPad: top tab bar */}
         <div className="xl:hidden">
           <MockTopBar />
-          <div className="no-scrollbar flex gap-1 overflow-x-auto border-b border-border bg-card px-3">
+          <div className="no-scrollbar relative flex gap-1 overflow-x-auto border-b border-border bg-card px-3">
             {MODULE_STEPS.map((step) => (
               <span
                 key={step.key}

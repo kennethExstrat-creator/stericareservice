@@ -1,6 +1,8 @@
 // Compact result for module tabs: a filled disc with a glyph whose shape
 // carries the meaning, plus a screen-reader label. Not done stays an empty
-// dashed ring, so an unfinished module never looks like a result.
+// dashed ring, so an unfinished module never looks like a result. The disc is
+// positioned so its sr-only label stays inside it: in a horizontally scrolling
+// tab bar an unanchored label would widen the whole page.
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { STATUS_LABEL, STATUS_SOLID_CLASS, STATUS_TINT_CLASS, type Status } from "@/lib/design/status";
@@ -38,7 +40,7 @@ export function ResultChip({
       data-slot="result-chip"
       data-status={status}
       className={cn(
-        "inline-flex size-5 shrink-0 items-center justify-center rounded-full border",
+        "relative inline-flex size-5 shrink-0 items-center justify-center rounded-full border",
         status === "not_done" ? STATUS_TINT_CLASS.not_done : STATUS_SOLID_CLASS[status],
         className,
       )}

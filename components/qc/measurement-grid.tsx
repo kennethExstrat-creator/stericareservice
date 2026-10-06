@@ -162,7 +162,7 @@ export function MeasurementGrid({
   return (
     <div
       data-slot="measurement-grid"
-      className={cn("overflow-hidden rounded-lg border border-border bg-card", className)}
+      className={cn("relative overflow-hidden rounded-lg border border-border bg-card", className)}
     >
       {/* Scroll padding keeps a focused cell clear of the sticky header and footer. */}
       <div className="max-h-[75svh] scroll-pt-16 scroll-pb-28 overflow-auto overscroll-contain touch:scroll-pb-36">

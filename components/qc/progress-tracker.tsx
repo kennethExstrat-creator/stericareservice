@@ -134,7 +134,7 @@ export function ProgressTracker({
                     {step.label}: {STATE_LABEL[step.state]}
                   </span>
                 </>,
-                "flex h-6 w-full items-center rounded-full touch:h-11",
+                "relative flex h-6 w-full items-center rounded-full touch:h-11",
               )}
             </li>
           );
