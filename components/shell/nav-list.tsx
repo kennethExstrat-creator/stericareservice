@@ -10,8 +10,8 @@ import { NavLink } from "./nav-link";
 /* ---- Desktop sidebar: sections as a vertical list ---------------------- */
 
 const SIDEBAR_LINK = cn(
-  "group relative flex h-9 items-center gap-3 rounded-md px-3 text-sm font-medium text-foreground outline-none transition-colors",
-  "hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 touch:h-11 touch:text-base",
+  "group relative flex h-9 items-center gap-3 rounded-md px-3 text-sm font-medium text-foreground transition-colors",
+  "hover:bg-muted focus-ring-inset touch:h-11 touch:text-base",
   // Current page: tinted, bold, and a brand bar on the left edge.
   "aria-[current]:bg-accent aria-[current]:font-semibold aria-[current]:text-accent-foreground",
   "before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full aria-[current]:before:bg-brand-500",
@@ -64,8 +64,8 @@ function SidebarEntry({ entry }: { entry: NavEntry }) {
 /* ---- iPad top bar: one tab per section ---------------------------------- */
 
 const TAB_LINK = cn(
-  "group relative inline-flex h-full items-center gap-2 px-3 text-sm font-medium whitespace-nowrap text-muted-foreground outline-none transition-colors",
-  "hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset touch:px-4 touch:text-base",
+  "group relative inline-flex h-full items-center gap-2 px-3 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors",
+  "hover:text-foreground focus-ring-inset touch:px-4 touch:text-base",
   // Current section: dark, bold and underlined in brand blue.
   "aria-[current]:font-semibold aria-[current]:text-foreground",
   "after:absolute after:inset-x-2 after:bottom-0 after:h-[3px] after:rounded-t-full aria-[current]:after:bg-brand-500",
@@ -92,8 +92,8 @@ export function TabNav({ sections, className }: { sections: readonly NavSection[
 /* ---- iPad section row: the current section's own pages ------------------ */
 
 const SECTION_LINK = cn(
-  "inline-flex h-9 items-center gap-2 rounded-full border border-border bg-card px-4 text-sm font-medium whitespace-nowrap text-foreground outline-none transition-colors",
-  "hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 touch:h-11 touch:text-base",
+  "inline-flex h-9 items-center gap-2 rounded-full border border-border bg-card px-4 text-sm font-medium whitespace-nowrap text-foreground transition-colors",
+  "hover:bg-muted focus-ring touch:h-11 touch:text-base",
   "aria-[current]:border-brand-200 aria-[current]:bg-accent aria-[current]:font-semibold aria-[current]:text-accent-foreground",
 );
 

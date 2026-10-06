@@ -59,7 +59,7 @@ function SkipLink() {
       className={cn(
         "sr-only focus:not-sr-only focus:fixed focus:top-[calc(0.75rem_+_env(safe-area-inset-top))] focus:left-3 focus:z-50",
         "focus:rounded-full focus:bg-card focus:px-4 focus:py-2.5 focus:text-sm focus:font-semibold focus:text-brand-700",
-        "focus:shadow-md focus:ring-3 focus:ring-ring/50 focus:outline-none",
+        "focus:shadow-md focus-ring",
       )}
     >
       Skip to content

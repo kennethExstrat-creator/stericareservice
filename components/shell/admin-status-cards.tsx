@@ -343,7 +343,7 @@ function ExternalLink({ href, children }: { href: string; children: ReactNode })
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="inline-flex min-h-9 items-center gap-1.5 text-sm font-semibold text-brand-600 underline-offset-4 outline-none hover:underline focus-visible:rounded-sm focus-visible:ring-3 focus-visible:ring-ring/50 touch:min-h-11"
+      className="inline-flex min-h-9 items-center gap-1.5 text-sm font-semibold text-brand-600 underline-offset-4 hover:underline focus-visible:rounded-sm focus-ring touch:min-h-11"
     >
       {children}
       <ExternalLinkIcon aria-hidden className="size-4" />
