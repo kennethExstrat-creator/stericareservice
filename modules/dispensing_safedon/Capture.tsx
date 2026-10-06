@@ -124,6 +124,8 @@ function SafedonSizePanel({ size, props, update, active, onActive, requested, on
   const computed = evaluation?.computed.sizes?.[size];
   const result = evaluation?.result.perSize?.[size];
   const sizeName = formatSize(size, { sizes: context.templateSizes, prefix: true });
+  // Inside the picker's sentences: "Box 2336 is not in the carton list for size M."
+  const pickerSize = `size ${formatSize(size, { sizes: context.templateSizes })}`;
   const boxLabel = labelFor(labels, "boxNo");
   const indices = Array.from({ length: columns }, (_, index) => index);
   const boxNoAt = (index: number) => boxes[index]?.boxNo ?? null;
@@ -181,14 +183,16 @@ function SafedonSizePanel({ size, props, update, active, onActive, requested, on
               // A link to anything about this box without a cell of its own (a count under a
               // defect the template does not list) lands here.
               {...issuePathProps(["sizes", size, "boxes", index])}
-              className="flex min-w-0 items-center gap-1 rounded-lg border border-border bg-card p-0.5 data-active:border-primary data-active:bg-brand-50"
+              className="flex min-w-0 items-center gap-1 rounded-lg border border-border bg-card p-1 data-active:border-primary data-active:bg-brand-50"
             >
+              {/* Outset focus ring, as SizeTabs' filled tab: the pressed button is brand-500,
+                  where an inset brand-500 ring would vanish. The item's 4 px padding holds it. */}
               <button
                 type="button"
                 aria-pressed={index === counted}
                 aria-label={`Count column ${index + 1}`}
                 onClick={() => select(index)}
-                className="inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-md px-1 text-sm font-semibold text-muted-foreground tabular-nums outline-none hover:bg-accent focus-ring-inset aria-pressed:bg-primary aria-pressed:text-primary-foreground touch:h-11 touch:min-w-11 touch:text-base"
+                className="inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-md px-1 text-sm font-semibold text-muted-foreground tabular-nums outline-none hover:bg-accent focus-ring aria-pressed:bg-primary aria-pressed:text-primary-foreground touch:h-11 touch:min-w-11 touch:text-base"
               >
                 {index + 1}
               </button>
@@ -196,7 +200,7 @@ function SafedonSizePanel({ size, props, update, active, onActive, requested, on
                 variant="cell"
                 className="min-w-0 flex-1"
                 label={`${boxLabel}, column ${index + 1}`}
-                sizeLabel={sizeName.toLowerCase()}
+                sizeLabel={pickerSize}
                 value={boxNoAt(index)}
                 cartons={cartons}
                 used={used}

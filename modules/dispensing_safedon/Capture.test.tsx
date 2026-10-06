@@ -121,6 +121,22 @@ describe("dispensing_safedon capture", () => {
     const picker = (column: number) => new RegExp(`<button[^>]*aria-label="Box #, column ${column}"[^>]*>`).exec(html)?.[0];
     expect(picker(2)).toContain('aria-invalid="true"');
     expect(picker(1)).not.toContain('aria-invalid="true"');
+    // The picker names the size as the tabs and calc do.
+    expect(html).toContain(`Box ${stray} is not in the carton list for size XS.`);
+  });
+
+  it("keeps keyboard focus visible on the pressed column button", () => {
+    const html = render();
+    const column = (index: number) => new RegExp(`<button[^>]*aria-label="Count column ${index}"[^>]*>`).exec(html)?.[0] ?? "";
+    expect(column(1)).toContain('aria-pressed="true"');
+    expect(column(1)).toContain("aria-pressed:bg-primary");
+    // Outset, as SizeTabs' filled tab: an inset brand-500 ring would vanish on the brand-500
+    // fill. The box's 4 px padding holds the ring.
+    const classes = (/class="([^"]*)"/.exec(column(1))?.[1] ?? "").split(" ");
+    expect(classes).toContain("focus-ring");
+    expect(classes).not.toContain("focus-ring-inset");
+    const box = /<li[^>]*data-active="true"[^>]*>/.exec(html)?.[0] ?? "";
+    expect((/class="([^"]*)"/.exec(box)?.[1] ?? "").split(" ")).toContain("p-1");
   });
 
   it("counts the six defects by tapping, with the app's definitions as hints", () => {
