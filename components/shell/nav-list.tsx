@@ -71,6 +71,7 @@ const TAB_LINK = cn(
   "after:absolute after:inset-x-2 after:bottom-0 after:h-[3px] after:rounded-t-full aria-[current]:after:bg-brand-500",
 );
 
+/** Below 480 px (Slide Over) a tab shows its icon only; the label stays for screen readers. */
 export function TabNav({ sections, className }: { sections: readonly NavSection[]; className?: string }) {
   return (
     <nav aria-label="Main" className={cn("h-full", className)}>
@@ -79,7 +80,7 @@ export function TabNav({ sections, className }: { sections: readonly NavSection[
           <li key={key} className="flex">
             <NavLink href={tab.href} match={tab.match} className={TAB_LINK}>
               <NavIcon name={tab.icon} className="size-4 shrink-0 text-slate-500 group-aria-[current]:text-brand-600" />
-              {tab.label}
+              <span className="max-[30rem]:sr-only">{tab.label}</span>
             </NavLink>
           </li>
         ))}

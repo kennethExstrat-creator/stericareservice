@@ -33,13 +33,19 @@ export function UserMenu({ user, variant }: UserMenuProps) {
     <DropdownMenu>
       {variant === "bar" ? (
         <DropdownMenuTrigger asChild>
+          {/*
+            Right-aligned (ml-auto). It is what gives way when the bar runs out of
+            room (app-shell.tsx): min-w-0 and shrink let the name truncate, and
+            below 640 px only the avatar shows. The name stays in the label and
+            the menu.
+          */}
           <Button
             variant="ghost"
             aria-label={label}
-            className="h-10 gap-2 pr-3 pl-1 touch:h-11 touch:pr-3 touch:pl-1 touch:text-sm"
+            className="ml-auto h-10 min-w-0 shrink gap-2 pr-3 pl-1 touch:h-11 touch:pr-3 touch:pl-1 touch:text-sm"
           >
             <UserAvatar user={user} />
-            <span className="max-w-48 truncate font-medium">{user.name}</span>
+            <span className="max-w-48 truncate font-medium max-sm:hidden">{user.name}</span>
             <ChevronDownIcon aria-hidden className="text-slate-500" />
           </Button>
         </DropdownMenuTrigger>

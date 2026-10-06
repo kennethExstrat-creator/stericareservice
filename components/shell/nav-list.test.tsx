@@ -74,6 +74,13 @@ describe("TabNav", () => {
     expect(linkHrefs(html)).toEqual(["/inspections"]);
     expect(html).not.toContain("Admin");
   });
+
+  it("keeps each label in its link when narrow windows show only the icon", () => {
+    const html = render("/admin", <TabNav sections={navForRole("admin")} />);
+    for (const label of ["Inspections", "Admin"]) {
+      expect(html).toMatch(new RegExp(`<a [^>]*>.*?<span class="max-\\[30rem\\]:sr-only">${label}</span></a>`));
+    }
+  });
 });
 
 describe("SectionNav", () => {

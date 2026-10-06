@@ -67,7 +67,15 @@ function SkipLink() {
   );
 }
 
-/** iPad and narrow windows: logo, section tabs, user menu. */
+/**
+ * iPad and narrow windows: logo, section tabs, user menu.
+ *
+ * The tabs keep their width and the account name gives way when room runs
+ * out (iPad mini portrait, Split View): it truncates, and below 640 px only
+ * the avatar shows (user-menu.tsx), with the logo's mark in place of the
+ * wordmark. Below 480 px (Slide Over) the tabs show their icons only
+ * (nav-list.tsx). Nothing overlaps and the bar never scrolls sideways.
+ */
 function TopBar({ user, nav }: { user: ShellUser; nav: readonly NavSection[] }) {
   return (
     <header
@@ -75,9 +83,10 @@ function TopBar({ user, nav }: { user: ShellUser; nav: readonly NavSection[] }) 
       className="sticky top-0 z-40 border-b border-border bg-card pt-[env(safe-area-inset-top)] xl:hidden"
     >
       <div className="flex h-16 items-center gap-4 pr-[max(1rem,env(safe-area-inset-right))] pl-[max(1.5rem,env(safe-area-inset-left))]">
-        <Logo variant="horizontal" href={HOME_PATH} loading="eager" className={LOGO_TOUCH_TARGET} />
+        <Logo variant="horizontal" href={HOME_PATH} loading="eager" className={cn(LOGO_TOUCH_TARGET, "max-sm:hidden")} />
+        <Logo variant="mark" href={HOME_PATH} className={cn(LOGO_TOUCH_TARGET, "sm:hidden")} />
         <span aria-hidden className="h-7 w-px shrink-0 bg-border" />
-        <TabNav sections={nav} className="min-w-0 flex-1" />
+        <TabNav sections={nav} className="shrink-0" />
         <UserMenu user={user} variant="bar" />
       </div>
     </header>
