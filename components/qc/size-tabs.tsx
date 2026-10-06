@@ -264,7 +264,7 @@ export function SizeTabs({
                   onKeyDown={onTabKeyDown(index)}
                   className={cn(
                     "inline-flex h-8 min-w-12 shrink-0 items-center justify-center gap-2 rounded-full px-3 text-sm font-semibold whitespace-nowrap tabular-nums outline-none transition-colors",
-                    "text-slate-700 hover:bg-card hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+                    "text-slate-700 hover:bg-card hover:text-foreground focus-ring-inset",
                     "data-active:bg-primary data-active:text-primary-foreground data-active:shadow-sm data-active:hover:bg-brand-600",
                     "touch:h-11 touch:min-w-14 touch:px-4 touch:text-base",
                   )}
@@ -338,7 +338,7 @@ export function SizeStatusStrip({
                 onClick={() => onSelect(size)}
                 className={cn(
                   pill,
-                  "outline-none hover:border-primary hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 touch:h-11 touch:pr-1.5 touch:pl-3",
+                  "hover:border-primary hover:bg-accent focus-ring touch:h-11 touch:pr-1.5 touch:pl-3",
                 )}
               >
                 <span className="sr-only">Size </span>
