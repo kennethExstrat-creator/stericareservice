@@ -67,7 +67,10 @@ function group(page: Page, key: string) {
 
 async function chooseOption(page: Page, combobox: ReturnType<Page["getByRole"]>, option: string) {
   await press(combobox);
-  await press(page.getByRole("option", { name: option, exact: true }));
+  const item = page.getByRole("option", { name: option, exact: true });
+  // Clear of the list's scroll arrows, which would take the tap instead.
+  await item.scrollIntoViewIfNeeded();
+  await press(item);
   await expect(combobox).toContainText(option);
 }
 
@@ -172,6 +175,8 @@ test("the inspector adds photos and a lab report, then retags, captions, views a
 
   await test.step("retag and caption: the photo moves to Visual Inspection with its size and defect", async () => {
     const card = dimensions.locator(`[data-photo-id="${bigId}"]`);
+    await expectTouchTarget(card.getByRole("button", { name: /^Edit tags and caption/ }));
+    await expectTouchTarget(card.getByRole("button", { name: /^Delete photo/ }));
     await press(card.getByRole("button", { name: /^Edit tags and caption/ }));
     const dialog = page.getByRole("dialog", { name: /^Edit photo/ });
     await expect(dialog).toBeVisible();
