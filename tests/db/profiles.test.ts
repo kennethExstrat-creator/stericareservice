@@ -19,7 +19,7 @@ describe("auth.users -> profiles", { timeout: 30_000 }, () => {
     db = await createTestDb({
       // Kenneth may sign up in the dashboard before the migrations run.
       beforeMigrations: async (fresh) => {
-        await createAuthUser(fresh, { email: "early@test.local", fullName: "Early Bird" });
+        await createAuthUser(fresh, { email: "early@test.local", fullName: "Early Bird", active: false });
       },
     });
   }, 120_000);
@@ -28,19 +28,26 @@ describe("auth.users -> profiles", { timeout: 30_000 }, () => {
     await db?.close();
   });
 
-  it("creates an inactive inspector profile, even when user metadata claims admin", async () => {
+  it("creates an inspector profile even when user metadata claims admin", async () => {
     const id = await createAuthUser(db, {
       email: "mallory@test.local",
       fullName: "  Mallory  ",
-      metadata: { role: "admin", is_admin: true, active: true },
+      metadata: { role: "admin", is_admin: true },
     });
     const profile = await profileAsOwner(db, id);
     expect(profile).toMatchObject({
       role: "inspector",
-      active: false,
+      active: true,
       email: "mallory@test.local",
       full_name: "Mallory",
     });
+  });
+
+  it("starts new accounts inactive until an admin activates them", async () => {
+    const id = await createAuthUser(db, { email: "selfsignup@test.local", active: false });
+    expect(await profileAsOwner(db, id)).toMatchObject({ role: "inspector", active: false });
+    const visible = await asUser(db, id, (tx) => column<string>(tx, "select id from public.profiles"));
+    expect(visible).toEqual([]);
   });
 
   it("leaves full_name empty when the metadata has none", async () => {
@@ -49,12 +56,12 @@ describe("auth.users -> profiles", { timeout: 30_000 }, () => {
   });
 
   it("gives users created before the migration an inactive profile", async () => {
-    const profiles = await asOwner(db, (tx) =>
-      tx.query<Pick<Profile, "email" | "role" | "active">>(
-        "select email, role, active from public.profiles where email = 'early@test.local'",
+    const rows = await asOwner(db, (tx) =>
+      tx.query<{ email: string; active: boolean }>(
+        "select email, active from public.profiles where email = 'early@test.local'",
       ),
     );
-    expect(profiles.rows).toEqual([{ email: "early@test.local", role: "inspector", active: false }]);
+    expect(rows.rows).toEqual([{ email: "early@test.local", active: false }]);
   });
 
   it("keeps profiles.email in sync with auth.users", async () => {
