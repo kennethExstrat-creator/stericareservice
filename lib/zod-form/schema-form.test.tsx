@@ -4,6 +4,7 @@
 // (values.ts, the editor's model tests, e2e/editor).
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { stubModule } from "@/modules/_framework";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import { describeSchema } from "./describe";
 import { issuesByPath, parseWithMessages, pathKey } from "./issues";
@@ -177,7 +178,9 @@ describe("SchemaForm", () => {
   });
 
   it("keeps a stub's settings as JSON text", () => {
-    const html = render(MODULE_REGISTRY.loading.configSchema, { anything: [1, 2] });
+    // A placeholder of its own: every registry module is built now.
+    const stub = stubModule({ key: "loading", title: "Loading" });
+    const html = render(stub.configSchema, { anything: [1, 2] });
     expect(html).toContain('data-record-key="anything"');
     expect(html).toContain("font-mono");
   });
