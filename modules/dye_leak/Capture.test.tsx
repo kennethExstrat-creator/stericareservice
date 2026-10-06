@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { CaptureProps, InspectionContext, ModuleEvaluation } from "@/modules/_framework";
 import { makeSampling, makeTestContext } from "@/modules/_framework/testing";
+import { STD_EG_EXAMPLE, STD_EG_EXPECTED } from "@/tests/fixtures/examples";
 import { calcDyeLeak, type DyeLeakComputed } from "./calc";
 import Capture from "./Capture";
 import { DYE_LEAK_DEFAULT_CONFIG, DYE_LEAK_LABELS, DYE_LEAK_TITLE, type DyeLeakConfig } from "./config";
@@ -81,6 +82,20 @@ describe("dye_leak capture", () => {
     const chips = tagsWith(html, 'data-slot="result-chip"').map((chip) => /data-status="([a-z_]+)"/.exec(chip)?.[1]);
     expect(chips.slice(0, 2)).toEqual(["pass", "not_done"]);
     expect(html).not.toContain('data-size="7.5"');
+  });
+
+  it("has no tab, panel or result for the sizes the STD_EG example did not order (expected results)", () => {
+    const ordered = [...STD_EG_EXAMPLE.sizesOrdered];
+    const unordered = STD_EG_EXPECTED.unorderedSizes.sizes;
+    const context = makeTestContext({ sizes: ordered, sampling: { M: makeSampling({ pouchesDyeLeak: 13 }) } });
+    // Data saved for every size of the report: the unordered ones stay saved but show nowhere.
+    const sizes = Object.fromEntries(
+      [...ordered, ...unordered].map((key) => [key, { pouchesTested: 13, pouchesFailed: 0, notes: null }]),
+    );
+    const html = render({ sizes }, { context });
+    expect(tagsWith(html, 'role="tab"').map((tab) => /data-size="([^"]+)"/.exec(tab)?.[1])).toEqual(["M"]);
+    expect(html.match(/Pouches failed: 0 of 13\./g)).toHaveLength(1);
+    expect(html).not.toMatch(/aria-label="[^"]*Size (XS|S|L|XL)"/);
   });
 
   it("offers the plan and a one-tap clean result before anything is entered, never a 0", () => {
