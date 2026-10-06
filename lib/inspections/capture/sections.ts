@@ -102,15 +102,24 @@ export function initialSectionKey(sections: readonly CaptureSection[], requested
   return findSection(sections, requested)?.key ?? sections.find(isIncluded)?.key ?? sections[0]?.key ?? null;
 }
 
-/** The included sections before and after `key`, for the Previous and Next buttons. */
+/**
+ * The included sections before and after `key` in screen order, for the
+ * Previous and Next buttons. Switched-off sections are stepped over; from
+ * one of them, the buttons go to the included sections around it.
+ */
 export function neighbours(
   sections: readonly CaptureSection[],
   key: string,
 ): { previous: IncludedSection | null; next: IncludedSection | null } {
-  const included = sections.filter(isIncluded);
-  const index = included.findIndex((section) => section.key === key);
-  if (index === -1) return { previous: null, next: included[0] ?? null };
-  return { previous: included[index - 1] ?? null, next: included[index + 1] ?? null };
+  const index = sections.findIndex((section) => section.key === key);
+  if (index === -1) return { previous: null, next: sections.find(isIncluded) ?? null };
+  let previous: IncludedSection | null = null;
+  for (let before = index - 1; before >= 0 && previous === null; before -= 1) {
+    const section = sections[before];
+    if (isIncluded(section)) previous = section;
+  }
+  const next = sections.slice(index + 1).find(isIncluded) ?? null;
+  return { previous, next };
 }
 
 /** The included sections as ProgressTracker steps, each with its result. */

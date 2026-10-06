@@ -435,6 +435,7 @@ export function CaptureScreen({
           {/* Below 1280 px: the sticky section tab bar with the save pill. */}
           <div
             ref={barRef}
+            data-slot="capture-bar"
             className={cn(
               "sticky top-(--shell-top) z-30 flex items-center gap-3 border-b border-border bg-card xl:hidden",
               "-mr-[max(1.5rem,env(safe-area-inset-right))] -ml-[max(1.5rem,env(safe-area-inset-left))] pr-[max(1.5rem,env(safe-area-inset-right))] pl-[max(0.75rem,env(safe-area-inset-left))]",
@@ -468,6 +469,7 @@ export function CaptureScreen({
               effective={evaluation.template}
               overrides={overrides}
               overrideAuthors={overrideAuthors}
+              userId={user.id}
               data={data}
               report={report}
               context={context}
@@ -546,6 +548,8 @@ type ActiveSectionProps = {
   effective: ResolvedTemplate;
   overrides: ModuleOverrides;
   overrideAuthors: Readonly<Record<string, string>>;
+  /** The signed-in user: "Switched off by you". */
+  userId: string;
   data: InspectionData;
   report: ReturnType<typeof evaluateCapture>["report"];
   context: ReturnType<typeof evaluateCapture>["context"];
@@ -572,6 +576,7 @@ function ActiveSection({
   effective,
   overrides,
   overrideAuthors,
+  userId,
   data,
   report,
   context,
@@ -596,7 +601,7 @@ function ActiveSection({
           moduleKey={section.key}
           title={section.title}
           override={section.override}
-          author={overrideAuthors[section.override.by] ?? null}
+          author={section.override.by === userId ? "you" : (overrideAuthors[section.override.by] ?? null)}
           canSwitch={access.canSwitchModules}
           onChanged={onOverridesChange}
         />

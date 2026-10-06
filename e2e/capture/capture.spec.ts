@@ -83,6 +83,52 @@ async function expectNoPageScroll(page: Page) {
   expect(overflow, "the page scrolls sideways").toBeLessThanOrEqual(0);
 }
 
+/**
+ * The capture kit's sticky offsets (docs/CAPTURE_KIT.md): --capture-sticky-top
+ * is where the screen's own bars end (the shell's top bar and, below 1280 px,
+ * the section bar, measured while it is stuck), nothing is stuck at the
+ * bottom, and the page's scroll padding clears at least the top bars.
+ */
+async function expectStickyOffsets(page: Page) {
+  // Scrolled just past the section bar's place (with room to scroll, however
+  // short the section is), so it is stuck while its section is on screen.
+  await page.evaluate(() => {
+    document.body.style.paddingBottom = "3000px";
+    const bar = document.querySelector<HTMLElement>('[data-slot="capture-bar"]');
+    if (bar && bar.getClientRects().length > 0) {
+      window.scrollBy(0, bar.getBoundingClientRect().top - (Number.parseFloat(getComputedStyle(bar).top) || 0) + 40);
+    }
+  });
+  const read = () =>
+    page.evaluate(() => {
+      const root = document.querySelector<HTMLElement>('[data-slot="capture-screen"]');
+      const bar = document.querySelector<HTMLElement>('[data-slot="capture-bar"]');
+      const top = Number.parseFloat(root?.style.getPropertyValue("--capture-sticky-top") ?? "");
+      const shown = bar !== null && bar.getClientRects().length > 0;
+      return {
+        top,
+        bottom: Number.parseFloat(root?.style.getPropertyValue("--capture-sticky-bottom") ?? ""),
+        barBottom: shown ? Math.round(bar.getBoundingClientRect().bottom) : 0,
+        clears: Number.parseFloat(document.documentElement.style.scrollPaddingTop) >= top,
+      };
+    });
+  if (isDesktop()) {
+    // From 1280 px there is no top bar and the sidebar takes the sections.
+    await expect.poll(read).toEqual({ top: 0, bottom: 0, barBottom: 0, clears: true });
+  } else {
+    await expect
+      .poll(async () => {
+        const offsets = await read();
+        return offsets.top > 0 && Math.abs(offsets.top - offsets.barBottom) <= 1 && offsets.bottom === 0 && offsets.clears;
+      }, { message: "--capture-sticky-top is where the stuck section bar ends" })
+      .toBe(true);
+  }
+  await page.evaluate(() => {
+    document.body.style.paddingBottom = "";
+    window.scrollTo(0, 0);
+  });
+}
+
 async function signInAs(context: BrowserContext, baseURL: string, account: keyof typeof TEST_ACCOUNTS) {
   await context.clearCookies();
   await signIn(context, baseURL, TEST_ACCOUNTS[account]);
@@ -134,6 +180,7 @@ test("the inspector opens the inspection and moves between sections", async ({ p
 
   await openSection(page, "Glove Information");
   await expect(page).toHaveURL(/module=glove_info/);
+  await expectStickyOffsets(page);
   await openSection(page, "Site notes");
   await openSection(page, "Weight (g)");
   await expect(page.getByText("This section arrives in a later build.")).toBeVisible();

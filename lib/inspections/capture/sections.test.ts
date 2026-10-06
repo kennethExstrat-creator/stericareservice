@@ -93,8 +93,10 @@ describe("navigation helpers", () => {
     expect(neighbours(sections, "order_lots")).toMatchObject({ previous: { key: "site_notes" }, next: { key: "weight" } });
     expect(neighbours(sections, "header").previous).toBeNull();
     expect(neighbours(sections, "conclusion").next).toBeNull();
-    // From a switched-off section, Next goes to the first section.
-    expect(neighbours(sections, "packing_config")).toMatchObject({ previous: null, next: { key: "header" } });
+    // From a switched-off section, the buttons go to the sections around it.
+    expect(neighbours(sections, "packing_config")).toMatchObject({ previous: { key: "order_lots" }, next: { key: "weight" } });
+    // An unknown key starts at the first section.
+    expect(neighbours(sections, "nothing")).toMatchObject({ previous: null, next: { key: "header" } });
   });
 
   it("gives the progress tracker the included sections with their results", () => {
