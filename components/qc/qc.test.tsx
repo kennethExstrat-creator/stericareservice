@@ -116,6 +116,22 @@ describe("StatusPill", () => {
   it("takes the template's wording", () => {
     expect(renderToStaticMarkup(<StatusPill status="pass" label="Accept" />)).toContain(">Accept<");
   });
+
+  it.each(["sm", "md"] as const)("reads 16 px on touch at size %s, without a class of its own", (size) => {
+    const html = renderToStaticMarkup(<StatusPill status="fail" size={size} />);
+    expect(html).toContain("touch:text-base");
+    expect(html).toContain("touch:h-8");
+  });
+
+  it("stays compact with a mouse at the small size", () => {
+    expect(renderToStaticMarkup(<StatusPill status="pass" size="sm" />)).toMatch(/class="[^"]*\bh-6\b[^"]*\btext-xs\b/);
+  });
+
+  it("lets a caller size it for a compact list", () => {
+    const html = renderToStaticMarkup(<StatusPill status="pass" size="sm" className="touch:h-7 touch:text-sm" />);
+    expect(html).toContain("touch:text-sm");
+    expect(html).not.toContain("touch:text-base");
+  });
 });
 
 describe("ResultChip", () => {

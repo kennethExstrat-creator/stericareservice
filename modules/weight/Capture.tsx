@@ -31,8 +31,6 @@ import {
   type InvalidEntry,
   type MeasurementValues,
 } from "@/components/qc";
-// The kit's own touch size for small pills; @/components/qc does not export it yet.
-import { SMALL_PILL_TOUCH } from "@/components/qc/status-pill";
 import { Button } from "@/components/ui/button";
 import { formatNumber, formatSpec } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -334,7 +332,7 @@ function statusWord(status: ModuleStatus | undefined, labels: Labels): string | 
 
 function ResultPill({ status, labels }: { status: ModuleStatus | undefined; labels: Labels }) {
   const shown = status ?? "not_done";
-  return <StatusPill size="sm" status={shown} label={statusWord(shown, labels)} className={SMALL_PILL_TOUCH} />;
+  return <StatusPill size="sm" status={shown} label={statusWord(shown, labels)} />;
 }
 
 /**
@@ -366,12 +364,7 @@ function DeviationNote({
       <span className="text-muted-foreground tabular-nums">
         {`indicative ${formatNumber(indicative.grams, { unit: "g" })}, threshold ${threshold}`}
       </span>
-      <StatusPill
-        size="sm"
-        status={beyond ? "warn" : "info"}
-        label={beyond ? undefined : `Within ${threshold}`}
-        className={SMALL_PILL_TOUCH}
-      />
+      <StatusPill size="sm" status={beyond ? "warn" : "info"} label={beyond ? undefined : `Within ${threshold}`} />
     </p>
   );
 }

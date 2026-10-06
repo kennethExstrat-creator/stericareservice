@@ -34,7 +34,7 @@ import { HAND_WORD } from "./hand-toggle";
 import { issuePathProps, type IssuePath } from "./issue-path";
 import { activeColumnKey } from "./selection";
 import { SizeTabsContext } from "./size-tabs-context";
-import { SMALL_PILL_TOUCH, StatusPill } from "./status-pill";
+import { StatusPill } from "./status-pill";
 import { Stepper } from "./stepper";
 import { COARSE_QUERY, useMediaQuery } from "./use-media-query";
 
@@ -417,12 +417,7 @@ export function CounterTable({
                   const status = statusOf(column);
                   return (
                     <td key={column.key} colSpan={span} className={cn(FOOT, "border-b-0 border-l", hidden(column))}>
-                      <StatusPill
-                        size="sm"
-                        status={status}
-                        label={resultLabel(status)}
-                        className={cn("mx-auto", SMALL_PILL_TOUCH)}
-                      />
+                      <StatusPill size="sm" status={status} label={resultLabel(status)} className="mx-auto" />
                     </td>
                   );
                 })}
