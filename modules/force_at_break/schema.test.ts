@@ -129,11 +129,14 @@ describe("force_at_break config", () => {
     }
   });
 
-  it("becomes JSON Schema with descriptions, for the template editor's form", () => {
-    const schema = z.toJSONSchema(ForceAtBreakConfigSchema) as { properties: Record<string, { description?: string }> };
+  it("becomes JSON Schema with descriptions and units, for the template editor's form", () => {
+    const schema = z.toJSONSchema(ForceAtBreakConfigSchema) as {
+      properties: Record<string, { description?: string; unit?: string }>;
+    };
     for (const key of ["n", "specMin", "standardLabel", "decimals"]) {
       expect(schema.properties[key].description, key).toBeTruthy();
     }
+    expect(schema.properties.specMin.unit).toBe("N");
   });
 });
 
