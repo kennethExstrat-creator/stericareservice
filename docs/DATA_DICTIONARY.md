@@ -16,7 +16,7 @@ UPDATE_DATA_DICTIONARY=1 npx vitest run lib/coverage/doc.test.ts
 |---|---|---|
 | `lib/coverage/fields.ts` | Per module: data fields, config fields, captions, default labels (STD_EG wording), other templates' wording | Module engineers: `modules/<key>/schema.ts` and `config.ts` |
 | `lib/coverage/templates.ts` | Per template: modules on and their order, sizes, unit, report title, every module's config values, custom modules, what is still to confirm. `seedModuleConfigs(code)` gives BUILD_SPEC 4.3 `ModuleConfig` values | Template seeds `STD_EG`, `SAFEDON_EG`, `STD_SG` |
-| `lib/coverage/defects.ts` | Defect labels per template and class in report order, mapped to the codes of `supabase/seed.sql`; hole locations; the Safedon dispensing defects | Template seeds, defect mapping screen |
+| `lib/coverage/defects.ts` | Defect labels per template and class in report order, mapped to the codes of `supabase/seed.sql`; hole locations; the Safedon dispensing defects; stickiness codes; labelling checks per level | Template seeds, defect mapping screen |
 | `lib/coverage/sources.ts` | Every field of every source document, verbatim, with stable ids and where it goes | Coverage checklist (rule 4.2.10) |
 | `lib/coverage/keys.ts` | Closed key lists: measures, sampling columns, header fields, labelling levels and checks, inner units, inspection levels, code letters | All of the above |
 

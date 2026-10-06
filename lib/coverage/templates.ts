@@ -6,7 +6,18 @@ import type { FieldType, ProductType, Standard } from "@/lib/schemas/common";
 import type { ModuleKey } from "@/lib/schemas/module-result";
 import type { Spec } from "@/lib/stats/spec";
 import type { StatisticKind } from "@/lib/stats/statistics";
-import { SAFEDON_DISPENSING_DEFECTS, VISUAL_DEFECTS, WATERTIGHT_LOCATIONS, type DefectLabel } from "./defects";
+import {
+  LABELLING_CHECK_LISTS,
+  listItems,
+  safedonDefectItems,
+  stickinessCodes,
+  VISUAL_DEFECTS,
+  WATERTIGHT_LOCATIONS,
+  type LabellingCheckLabel,
+  type ListItem,
+  type SafedonDefectConfig,
+  type StickinessCode,
+} from "./defects";
 import { captionLabel, fieldLabel, moduleSpec, moduleTitle, type ConfigKey } from "./fields";
 import {
   DEFECT_CLASSES,
@@ -19,7 +30,6 @@ import {
   type HeaderField,
   type InnerUnit,
   type InspectionLevel,
-  type LabellingCheck,
   type LabellingLevel,
   type LoadingField,
   type Measure,
@@ -33,17 +43,14 @@ import type { SourceId, TemplateCode } from "./types";
 
 type EmptyConfig = Record<never, never>;
 
-export type ListItem = { readonly code: string; readonly label: string };
 export type SizeSpecs<K extends string> = Readonly<Record<string, Readonly<Partial<Record<K, Spec>>>>>;
 export type RowCount = { readonly default: number; readonly bySize?: Readonly<Record<string, number>> };
-export type StickinessCode = ListItem & { readonly pass: boolean };
 export type ClassConfig = { readonly include: boolean; readonly aql: number; readonly defects: readonly ListItem[] };
 export type LevelConfig = {
   readonly include: boolean;
   readonly n: number;
-  readonly checks: readonly (ListItem & { readonly code: LabellingCheck })[];
+  readonly checks: readonly LabellingCheckLabel[];
 };
-export type SafedonDefectConfig = ListItem & { readonly hint: string };
 
 export type ModuleConfigValues = {
   readonly header: {
@@ -210,8 +217,6 @@ const EG_SIZES = sizes("XS", "S", "M", "L", "XL");
 const allOn = <K extends string>(keys: readonly K[]) =>
   Object.fromEntries(keys.map((key) => [key, true])) as Record<K, boolean>;
 
-const listItems = (list: readonly DefectLabel[]): readonly ListItem[] => list.map(({ code, label }) => ({ code, label }));
-
 /** The AQLs of BUILD_SPEC 7 and the reports' headings: critical 0.0, major 2.5, minor 4.0. */
 export const VISUAL_AQL: Readonly<Record<DefectClass, number>> = { critical: 0, major: 2.5, minor: 4 };
 export const WATERTIGHT_AQL = 1.5;
@@ -222,20 +227,6 @@ function visualClasses(template: TemplateCode): Readonly<Record<DefectClass, Cla
     DEFECT_CLASSES.map((cls) => [cls, { include: true, aql: VISUAL_AQL[cls], defects: listItems(lists[cls]) }]),
   ) as Record<DefectClass, ClassConfig>;
 }
-
-/** Stickiness codes of the STD_EG report legend, least to most sticky. */
-export const STICKINESS_CODES: readonly (StickinessCode & { readonly printed?: string })[] = [
-  { code: "A", label: "Non sticky", pass: true },
-  { code: "B", label: "A mix of non sticky to lightly sticky", pass: true },
-  {
-    code: "B1",
-    label: "A mix of non sticky to light stickiness at the bead",
-    printed: "A mix of non sticky to light sickiness at the bead",
-    pass: true,
-  },
-  { code: "C", label: "Lightly sticky but dispensable", pass: true },
-  { code: "D", label: "Too sticky & affect dispensing", pass: false },
-];
 
 const STD_EG_SAMPLING_COLUMNS: Readonly<Record<SamplingColumn, boolean>> = {
   cases: true,
@@ -322,7 +313,7 @@ const STD_EG: TemplateSpec = {
       config: {
         minLayeringPct: 70,
         minDispensingPct: 80,
-        stickinessCodes: STICKINESS_CODES.map(({ code, label, pass }) => ({ code, label, pass })),
+        stickinessCodes: stickinessCodes(),
         boxesPerSize: { default: 13, bySize: { XL: 5 } },
       },
     },
@@ -330,25 +321,8 @@ const STD_EG: TemplateSpec = {
       key: "labeling",
       config: {
         levels: {
-          inner: {
-            include: true,
-            n: 3,
-            checks: [
-              { code: "lot_no", label: "Wrong / No lot number" },
-              { code: "mfg_date", label: "Wrong / No mfg. date" },
-              { code: "artwork", label: "Wrong artwork print" },
-            ],
-          },
-          carton: {
-            include: true,
-            n: 1,
-            checks: [
-              { code: "lot_no", label: "Wrong / No lot number" },
-              { code: "mfg_date", label: "Wrong / No mfg. date" },
-              { code: "artwork", label: "Wrong artwork print" },
-              { code: "carton_no", label: "No carton number printed" },
-            ],
-          },
+          inner: { include: true, n: 3, checks: LABELLING_CHECK_LISTS.STD_EG.inner },
+          carton: { include: true, n: 1, checks: LABELLING_CHECK_LISTS.STD_EG.carton },
         },
       },
     },
@@ -452,7 +426,7 @@ const SAFEDON_EG: TemplateSpec = {
     {
       key: "dispensing_safedon",
       config: {
-        defects: SAFEDON_DISPENSING_DEFECTS.map(({ code, label, hint }) => ({ code, label, hint })),
+        defects: safedonDefectItems(),
         glovesPerPack: 125,
         maxRatePct: 5,
         boxesPerSize: { default: 13 },
@@ -462,27 +436,8 @@ const SAFEDON_EG: TemplateSpec = {
       key: "labeling",
       config: {
         levels: {
-          inner: {
-            include: true,
-            n: 3,
-            checks: [
-              { code: "lot_no", label: "Wrong / No lot number" },
-              { code: "mfg_date", label: "Wrong / No mfg. date" },
-              { code: "expiry_date", label: "Wrong / No expiry date" },
-              { code: "artwork", label: "Wrong artwork print" },
-            ],
-          },
-          carton: {
-            include: true,
-            n: 1,
-            checks: [
-              { code: "lot_no", label: "Wrong / No lot number" },
-              { code: "mfg_date", label: "Wrong / No mfg. date" },
-              { code: "expiry_date", label: "Wrong / No expiry date" },
-              { code: "artwork", label: "Wrong artwork print" },
-              { code: "carton_no", label: "No carton number" },
-            ],
-          },
+          inner: { include: true, n: 3, checks: LABELLING_CHECK_LISTS.SAFEDON_EG.inner },
+          carton: { include: true, n: 1, checks: LABELLING_CHECK_LISTS.SAFEDON_EG.carton },
         },
       },
     },

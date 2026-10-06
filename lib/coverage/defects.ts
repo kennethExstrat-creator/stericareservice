@@ -1,8 +1,9 @@
 // Defect labels per template, in report order, mapped to the canonical codes
 // of supabase/seed.sql (BUILD_SPEC 4.2 rule 4, 11). Severity is the class a
 // template puts a code in: "Defective bead" is major in STD_EG while
-// "Defective beads" is minor, both bead_defective.
-import type { DefectClass } from "./keys";
+// "Defective beads" is minor, both bead_defective. Also the other coded
+// lists a template fixes: stickiness codes and labelling checks.
+import type { DefectClass, LabellingCheck, LabellingLevel } from "./keys";
 import type { TemplateCode } from "./types";
 
 export type DefectLabel = {
@@ -13,6 +14,14 @@ export type DefectLabel = {
   /** As printed, where it differs from `label` ([sic]). */
   readonly printed?: string;
 };
+
+/** A coded list entry as a module config holds it: a code and the template's label. */
+export type ListItem = { readonly code: string; readonly label: string };
+
+/** A list as a config holds it: code and label only. */
+export function listItems(list: readonly DefectLabel[]): readonly ListItem[] {
+  return list.map(({ code, label }) => ({ code, label }));
+}
 
 /* ------------------------------------------------------------------ *
  * Visual inspection
@@ -162,6 +171,78 @@ export const SAFEDON_DISPENSING_DEFECTS: readonly DispensingDefect[] = [
     printedHint: "Deformed or out of shaped cuff which causes dispensing problem",
   },
 ];
+
+/** A Safedon dispensing defect as the config holds it: code, label and the hint shown in the app. */
+export type SafedonDefectConfig = ListItem & { readonly hint: string };
+
+export function safedonDefectItems(): readonly SafedonDefectConfig[] {
+  return SAFEDON_DISPENSING_DEFECTS.map(({ code, label, hint }) => ({ code, label, hint }));
+}
+
+/* ------------------------------------------------------------------ *
+ * Stickiness codes (STD_EG report page 4)
+ * ------------------------------------------------------------------ */
+
+export type StickinessCode = ListItem & { readonly pass: boolean };
+
+/** Stickiness codes of the STD_EG report legend, least to most sticky. */
+export const STICKINESS_CODES: readonly (StickinessCode & { readonly printed?: string })[] = [
+  { code: "A", label: "Non sticky", pass: true },
+  { code: "B", label: "A mix of non sticky to lightly sticky", pass: true },
+  {
+    code: "B1",
+    label: "A mix of non sticky to light stickiness at the bead",
+    printed: "A mix of non sticky to light sickiness at the bead",
+    pass: true,
+  },
+  { code: "C", label: "Lightly sticky but dispensable", pass: true },
+  { code: "D", label: "Too sticky & affect dispensing", pass: false },
+];
+
+/** The codes as a config holds them: code, label and pass. */
+export function stickinessCodes(): readonly StickinessCode[] {
+  return STICKINESS_CODES.map(({ code, label, pass }) => ({ code, label, pass }));
+}
+
+/* ------------------------------------------------------------------ *
+ * Labelling checks per level (BUILD_SPEC 11), in report order
+ * ------------------------------------------------------------------ */
+
+export type LabellingCheckLabel = ListItem & { readonly code: LabellingCheck };
+
+/** The checks each report prints per level. STD_SG has no labelling module. */
+export const LABELLING_CHECK_LISTS: Readonly<
+  Record<"STD_EG" | "SAFEDON_EG", Readonly<Record<LabellingLevel, readonly LabellingCheckLabel[]>>>
+> = {
+  STD_EG: {
+    inner: [
+      { code: "lot_no", label: "Wrong / No lot number" },
+      { code: "mfg_date", label: "Wrong / No mfg. date" },
+      { code: "artwork", label: "Wrong artwork print" },
+    ],
+    carton: [
+      { code: "lot_no", label: "Wrong / No lot number" },
+      { code: "mfg_date", label: "Wrong / No mfg. date" },
+      { code: "artwork", label: "Wrong artwork print" },
+      { code: "carton_no", label: "No carton number printed" },
+    ],
+  },
+  SAFEDON_EG: {
+    inner: [
+      { code: "lot_no", label: "Wrong / No lot number" },
+      { code: "mfg_date", label: "Wrong / No mfg. date" },
+      { code: "expiry_date", label: "Wrong / No expiry date" },
+      { code: "artwork", label: "Wrong artwork print" },
+    ],
+    carton: [
+      { code: "lot_no", label: "Wrong / No lot number" },
+      { code: "mfg_date", label: "Wrong / No mfg. date" },
+      { code: "expiry_date", label: "Wrong / No expiry date" },
+      { code: "artwork", label: "Wrong artwork print" },
+      { code: "carton_no", label: "No carton number" },
+    ],
+  },
+};
 
 /** Every defect code a template uses, for the seed check. */
 export function defectCodesUsed(): ReadonlySet<string> {

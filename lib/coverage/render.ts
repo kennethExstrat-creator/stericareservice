@@ -4,11 +4,11 @@
 //   UPDATE_DATA_DICTIONARY=1 npx vitest run lib/coverage/doc.test.ts
 import { MODULE_KEYS, type ModuleKey } from "@/lib/schemas/module-result";
 import { formatSpec } from "@/lib/stats/spec";
-import { SAFEDON_DISPENSING_DEFECTS, VISUAL_DEFECTS, WATERTIGHT_LOCATIONS } from "./defects";
+import { SAFEDON_DISPENSING_DEFECTS, STICKINESS_CODES, VISUAL_DEFECTS, WATERTIGHT_LOCATIONS } from "./defects";
 import { moduleSpec, moduleTitle, VALIDATION_RULES } from "./fields";
 import { DEFECT_CLASSES, MEASURES } from "./keys";
 import { SOURCE_DOCUMENTS, sourceFields } from "./sources";
-import { labelOverrides, STICKINESS_CODES, TEMPLATES, type TemplateModule, type TemplateSpec } from "./templates";
+import { labelOverrides, TEMPLATES, type TemplateModule, type TemplateSpec } from "./templates";
 import {
   isConfigTarget,
   isCustomTarget,
