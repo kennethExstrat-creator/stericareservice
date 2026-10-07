@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
+import { INSPECTOR_IN_CHARGE } from "@/lib/auth/org";
 import { signIn, TEST_ACCOUNTS } from "../support/session";
 import { chooseRowAction, pickLead, pickRole, rowFor, statusOf, teamsReady, toast } from "../users/support";
 import { createOrgFixture, type Account, type OrgFixture } from "./fixtures";
@@ -97,10 +98,11 @@ test.describe("a lead inspector", () => {
       await expect(listRow(page, inspection.ref)).toBeVisible();
     }
     await expect(listRow(page, beaDraft.ref)).toHaveCount(0);
-    await expect(page.getByText("Your team", { exact: true })).toBeVisible();
+    // The list's eyebrow, in whichever case the list writes it (e2e/list checks its words).
+    await expect(page.getByText(/^Your team$/i)).toBeVisible();
 
     // Who is in charge of each, the lead's own included, in a column of its own.
-    await expect(page.getByRole("columnheader", { name: "Inspector in charge", exact: true })).toHaveCount(1);
+    await expect(page.getByRole("columnheader", { name: INSPECTOR_IN_CHARGE, exact: true })).toHaveCount(1);
     await expect(listRow(page, ivanDraft.ref)).toContainText(fixture.ivan.name, { useInnerText: true });
     await expect(listRow(page, idaApproved.ref)).toContainText(fixture.ida.name, { useInnerText: true });
     await expect(listRow(page, linaDraft.ref)).toContainText(fixture.linaLead.name, { useInnerText: true });
@@ -159,9 +161,9 @@ test.describe("a lead inspector", () => {
     await expect(listRow(page, ivanSubmitted.ref)).toBeVisible();
     await expect(listRow(page, idaApproved.ref)).toHaveCount(0);
     await expect(listRow(page, linaDraft.ref)).toHaveCount(0);
-    // Only their own, so no Inspector in charge column.
-    await expect(page.getByRole("columnheader", { name: "Inspector in charge", exact: true, includeHidden: true })).toHaveCount(0);
-    await expect(page.getByText("Your inspections", { exact: true })).toBeVisible();
+    // Only their own, so no Inspector in Charge column.
+    await expect(page.getByRole("columnheader", { name: INSPECTOR_IN_CHARGE, exact: true, includeHidden: true })).toHaveCount(0);
+    await expect(page.getByText(/^Your inspections$/i)).toBeVisible();
   });
 });
 
@@ -173,12 +175,12 @@ test.describe("an admin on /admin/users", () => {
   test("sees each person's role and lead, and one lead's team at a time", async ({ page }) => {
     const errors = watchConsole(page);
     await page.goto("/admin/users");
-    await expect(rowFor(page, fixture.linaLead.email)).toContainText("Lead inspector");
+    await expect(rowFor(page, fixture.linaLead.email)).toContainText("Lead Inspector");
     await expect(rowFor(page, fixture.ivan.email)).toContainText(fixture.linaLead.name);
     await expect(rowFor(page, fixture.bea.email)).toContainText(fixture.leoLead.name);
 
     await page.getByRole("combobox", { name: "Team", exact: true }).click();
-    await page.getByRole("option", { name: `${fixture.linaLead.name}'s team (2)` }).click();
+    await page.getByRole("option", { name: `${fixture.linaLead.name}'s Team (2)`, exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/admin/users\\?team=${fixture.linaLead.id}$`));
     await expect(page.getByRole("status").filter({ hasText: `${fixture.linaLead.name}'s team: 2 inspectors.` })).toBeVisible();
     const rows = page.locator("tbody tr");
@@ -193,8 +195,8 @@ test.describe("an admin on /admin/users", () => {
     await page.goto("/admin/users");
     const alert = page.getByTestId("no-lead-alert");
     await expect(alert).toBeVisible();
-    // Other accounts in no team may be listed too: "Show them" for one person, "Show only them" for more.
-    const link = alert.getByRole("link", { name: /^Show (only )?them$/ });
+    // Other accounts in no team may be listed too: "Show Them" for one person, "Show Only Them" for more.
+    const link = alert.getByRole("link", { name: /^Show (Only )?Them$/ });
     if (isTouch()) {
       // 44 px on touch (docs/DESIGN.md, Density).
       expect((await link.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
@@ -210,11 +212,11 @@ test.describe("an admin on /admin/users", () => {
   test("moves an inspector to another lead's team, out of the old lead's view", async ({ page, browser, baseURL }) => {
     await page.goto("/admin/users");
     const row = rowFor(page, fixture.ida.email);
-    const dialog = await chooseRowAction(page, row, "Change lead inspector");
+    const dialog = await chooseRowAction(page, row, "Change Lead Inspector");
     await expect(dialog).toContainText(`They work in ${fixture.linaLead.name}'s team now.`);
     await pickLead(page, dialog, fixture.leoLead.name);
     await shot(page, "change-lead");
-    await dialog.getByRole("button", { name: "Save lead inspector" }).click();
+    await dialog.getByRole("button", { name: "Save Lead Inspector", exact: true }).click();
     await expect(toast(page, `${fixture.ida.name} now works in ${fixture.leoLead.name}'s team.`)).toBeVisible();
     await expect(row).toContainText(fixture.leoLead.name);
 
@@ -244,37 +246,37 @@ test.describe("an admin on /admin/users", () => {
 
   test("will not demote a lead whose team has members, and keeps every choice after the refusal", async ({ page }) => {
     await page.goto("/admin/users");
-    const dialog = await chooseRowAction(page, rowFor(page, fixture.leoLead.email), "Change role");
+    const dialog = await chooseRowAction(page, rowFor(page, fixture.leoLead.email), "Change Role");
     await pickRole(dialog, "Inspector");
     await expect(dialog.locator('[data-slot="team-note"]')).toContainText(`${fixture.leoLead.name} leads 2 inspectors`);
     await pickLead(page, dialog, fixture.linaLead.name);
-    await dialog.getByRole("button", { name: "Save role" }).click();
+    await dialog.getByRole("button", { name: "Save Role", exact: true }).click();
 
     await expect(dialog.getByRole("alert").filter({ hasText: `${fixture.leoLead.name} leads 2 inspectors` })).toBeVisible();
     // React resets a form after its action; this one submits by hand, so the Radix choices stay.
     await expect(dialog.getByRole("radio", { name: /^Inspector\b/ })).toBeChecked();
-    await expect(dialog.getByRole("combobox", { name: "Lead inspector" })).toHaveText(fixture.linaLead.name);
+    await expect(dialog.getByRole("combobox", { name: "Lead Inspector" })).toHaveText(fixture.linaLead.name);
     await shot(page, "demote-lead-refused");
     await dialog.getByRole("button", { name: "Cancel" }).click();
-    await expect(rowFor(page, fixture.leoLead.email)).toContainText("Lead inspector");
+    await expect(rowFor(page, fixture.leoLead.email)).toContainText("Lead Inspector");
   });
 
   test("makes an inspector a lead inspector, and back into a team", async ({ page }) => {
     await page.goto("/admin/users");
     const row = rowFor(page, fixture.ivan.email);
 
-    let dialog = await chooseRowAction(page, row, "Change role");
-    await pickRole(dialog, "Lead inspector");
-    await expect(dialog.getByRole("combobox", { name: "Lead inspector" })).toHaveCount(0);
+    let dialog = await chooseRowAction(page, row, "Change Role");
+    await pickRole(dialog, "Lead Inspector");
+    await expect(dialog.getByRole("combobox", { name: "Lead Inspector" })).toHaveCount(0);
     await shot(page, "make-lead");
-    await dialog.getByRole("button", { name: "Save role" }).click();
+    await dialog.getByRole("button", { name: "Save Role", exact: true }).click();
     await expect(toast(page, `${fixture.ivan.name} is now a lead inspector.`)).toBeVisible();
-    await expect(row).toContainText("Lead inspector");
+    await expect(row).toContainText("Lead Inspector");
 
-    dialog = await chooseRowAction(page, row, "Change role");
+    dialog = await chooseRowAction(page, row, "Change Role");
     await pickRole(dialog, "Inspector");
     await pickLead(page, dialog, fixture.linaLead.name);
-    await dialog.getByRole("button", { name: "Save role" }).click();
+    await dialog.getByRole("button", { name: "Save Role", exact: true }).click();
     await expect(toast(page, `${fixture.ivan.name} is now an inspector in ${fixture.linaLead.name}'s team.`)).toBeVisible();
     await expect(row).toContainText(fixture.linaLead.name);
   });
@@ -282,12 +284,12 @@ test.describe("an admin on /admin/users", () => {
   test("activating an inspector asks for their lead first", async ({ page }) => {
     await page.goto("/admin/users");
     const row = rowFor(page, fixture.pat.email);
-    await expect(statusOf(row)).toHaveText("Pending activation");
+    await expect(statusOf(row)).toHaveText("Pending Activation");
 
     const dialog = await chooseRowAction(page, row, "Activate");
     await expect(dialog.getByRole("radio", { name: /^Inspector\b/ })).toBeChecked();
     await dialog.getByRole("button", { name: "Activate" }).click();
-    const lead = dialog.getByRole("combobox", { name: "Lead inspector" });
+    const lead = dialog.getByRole("combobox", { name: "Lead Inspector" });
     await expect(lead).toHaveAttribute("aria-invalid", "true");
     await expect(lead).toHaveAccessibleDescription("Choose their lead inspector.");
     await expect(lead).toBeFocused();
@@ -304,17 +306,17 @@ test.describe("an admin on /admin/users", () => {
 
   test("a refused invite keeps the role and the lead chosen", async ({ page }) => {
     await page.goto("/admin/users");
-    await page.getByRole("button", { name: "Invite user" }).click();
-    const dialog = page.getByRole("dialog", { name: "Invite a user" });
-    await dialog.getByLabel("Full name").fill("E2E Org Invitee");
+    await page.getByRole("button", { name: "Invite User", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Invite a User", exact: true });
+    await dialog.getByLabel("Full Name", { exact: true }).fill("E2E Org Invitee");
     // Already an account: refused before any email, whatever the mailer.
-    await dialog.getByLabel("Email").fill(fixture.bea.email);
+    await dialog.getByLabel("Email", { exact: true }).fill(fixture.bea.email);
     await pickLead(page, dialog, fixture.leoLead.name);
-    await dialog.getByRole("button", { name: "Send invite" }).click();
+    await dialog.getByRole("button", { name: "Send Invite", exact: true }).click();
 
     await expect(dialog.getByText(/That email already has an account/)).toBeVisible();
     await expect(dialog.getByRole("radio", { name: /^Inspector\b/ })).toBeChecked();
-    await expect(dialog.getByRole("combobox", { name: "Lead inspector" })).toHaveText(fixture.leoLead.name);
+    await expect(dialog.getByRole("combobox", { name: "Lead Inspector" })).toHaveText(fixture.leoLead.name);
     await shot(page, "invite-refused");
     await dialog.getByRole("button", { name: "Cancel" }).click();
   });

@@ -19,9 +19,9 @@ test("without the secret key, invites are off and the page says why", async ({ p
   await expect(page.getByRole("alert").filter({ hasText: "Invites are switched off" })).toContainText(
     "SUPABASE_SECRET_KEY",
   );
-  await expect(page.getByRole("button", { name: "Invite user" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Invite User", exact: true })).toBeDisabled();
   // Sign-in details need the key: no last sign-in column, plain Active / Deactivated.
-  await expect(page.getByRole("columnheader", { name: "Last signed in" })).toHaveCount(0);
+  await expect(page.getByRole("columnheader", { name: "Last Signed In", exact: true })).toHaveCount(0);
   await expect(statusOf(rowFor(page, TEST_ACCOUNTS.admin))).toHaveText("Active");
   await shot(page, "no-secret-key");
 });
