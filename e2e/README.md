@@ -69,6 +69,14 @@ order's tab (`lib/inspections/capture/sections.ts` `SHOWN_WITH`). Scope by the m
 The template's titles and labels are the clients' words and can change wording or case: match them
 with a case-insensitive pattern, or read them from the page or the fixture, rather than typing them out.
 
+The app words them in Title Case (docs/DESIGN.md): the module defaults and the seed templates
+(`lib/templates/definitions`) do, so a fixture resolved from them reads "Glove Colour" and "Packing
+Configuration". The live STD_EG, SAFEDON_EG and STD_SG keep the wording they were seeded with until
+`npm run seed:templates` writes new versions of them (`-- --apply --replace`), so the acceptance specs
+that run on them (`std-eg`, `safedon-eg`, the STD_SG part of `sg-and-flows`) quote the seed's wording
+and match it whatever its case (`named`, `{ ignoreCase: true }`), and find a field whose words differ
+between the two, such as STD_SG's packing counts, by its issue path.
+
 ## Screenshots on the iPad projects
 
 Playwright's `fullPage: true` capture drops touch emulation while it resizes, so an "iPad"
