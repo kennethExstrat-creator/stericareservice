@@ -239,7 +239,8 @@ test("the inspector opens the inspection and moves between sections", async ({ p
   } else {
     await expect(slot.getByText(/Drop photos here/)).toBeVisible();
   }
-  await expect(slot.getByText("No photos yet.")).toBeVisible();
+  // With the add controls shown, the count in the heading row is the empty state (no "No photos yet." line).
+  await expect(slot.getByText("0 photos")).toBeVisible();
   await openSection(page, "Site notes");
   await openSection(page, WEIGHT);
   await expect(page.getByText("This section arrives in a later build.")).toHaveCount(0);

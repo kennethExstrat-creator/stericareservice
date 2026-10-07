@@ -84,7 +84,9 @@ export function SectionFrame({
       <div className="space-y-5 px-5 py-5">{children}</div>
       {footer && (
         // The photo slot sizes its tiles to its own width (a container), so it never sits in an auto-sized column.
-        <footer className="grid gap-5 rounded-b-xl border-t border-border bg-slate-50 px-5 py-4 xl:grid-cols-2 xl:items-start xl:gap-6">
+        // Side by side, the comment and the photo slot share two rows (subgrid): their headings on one line,
+        // and the comment box and the photo box starting and ending together.
+        <footer className="grid gap-5 rounded-b-xl border-t border-border bg-slate-50 px-5 py-4 xl:grid-cols-2 xl:grid-rows-[auto_1fr] xl:gap-x-6 xl:gap-y-3">
           {footer}
         </footer>
       )}
@@ -117,8 +119,12 @@ export function SectionComment({
     if (!blank && (value ?? "") !== text) setText(value ?? "");
   }
   return (
-    <div className="space-y-2">
-      <Label htmlFor={id}>Inspector comment</Label>
+    // Beside the photo slot (SectionFrame's footer): the heading in its first row, the box filling its second.
+    <div className="grid gap-2 xl:row-span-2 xl:grid-rows-subgrid xl:gap-y-3">
+      {/* Styled as the photo slot's heading, so the two read as one row. */}
+      <Label htmlFor={id} className="font-display text-base leading-snug font-semibold">
+        Inspector comment
+      </Label>
       <Textarea
         id={id}
         value={text}
@@ -131,6 +137,7 @@ export function SectionComment({
         aria-readonly={readOnly || undefined}
         placeholder={readOnly ? undefined : "Anything the report should mention"}
         rows={2}
+        className="xl:h-full"
       />
     </div>
   );

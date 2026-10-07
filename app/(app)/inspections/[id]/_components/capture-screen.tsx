@@ -885,7 +885,14 @@ function ActiveSection({
         onChange={(text) => onCommentChange(namespace, section.key, text)}
         readOnly={readOnly}
       />
-      <PhotoSlot inspectionId={inspectionId} moduleKey={section.key} focus={photoFocus} readOnly={readOnly} />
+      {/* Side by side with the comment, its heading and its box take the footer's two rows. */}
+      <PhotoSlot
+        inspectionId={inspectionId}
+        moduleKey={section.key}
+        focus={photoFocus}
+        readOnly={readOnly}
+        className="xl:row-span-2 xl:grid xl:grid-rows-subgrid"
+      />
     </>
   );
 

@@ -178,6 +178,10 @@ export function ModulePhotos({
           {queuedCount > 0 ? `, ${queuedCount} not uploaded yet` : ""}
         </p>
       </div>
+
+      {/* Everything under the heading in one block: beside the inspector comment (SectionFrame's
+          footer), the heading row and this block are the two rows the comment's label and box share. */}
+      <div className="flex min-w-0 flex-col gap-3">
       {description && <div className="-mt-1 text-sm text-muted-foreground">{description}</div>}
 
       {showNotices && <UploadNotices inspectionId={inspectionId} />}
@@ -234,8 +238,9 @@ export function ModulePhotos({
           <LoaderCircleIcon aria-hidden className="size-4 animate-spin" />
           Loading photos…
         </p>
-      ) : variant === "capture" && preparing.photos === 0 && media.status !== "error" ? (
-        // After a failed load the notice above says what is known instead.
+      ) : variant === "capture" && preparing.photos === 0 && media.status !== "error" && !(showAddControls && canAdd) ? (
+        // After a failed load the notice above says what is known instead. With the add controls
+        // below, "0 photos" in the heading row says it already, and the box starts level with the comment's.
         <p className="text-sm text-muted-foreground">{canAdd ? "No photos yet." : "No photos."}</p>
       ) : null}
 
@@ -246,17 +251,19 @@ export function ModulePhotos({
         </p>
       )}
 
-      {showAddControls && canAdd && (
-        <PhotoAddControls
-          onFiles={addPhotos}
-          target={moduleKey === null ? undefined : moduleTitle(moduleKey, options)}
-          compact={variant === "gallery"}
-        />
-      )}
       {canAdd && nextTags && (
         <p data-slot="next-tags" className="text-sm text-muted-foreground">
           New photos are tagged {nextTags}.
         </p>
+      )}
+      {showAddControls && canAdd && (
+        // Last, so its bottom meets the comment box's; it grows when a long comment makes the row taller.
+        <PhotoAddControls
+          onFiles={addPhotos}
+          target={moduleKey === null ? undefined : moduleTitle(moduleKey, options)}
+          compact={variant === "gallery"}
+          className="flex-1"
+        />
       )}
 
       {editingPhoto && (
@@ -289,6 +296,7 @@ export function ModulePhotos({
           onOpenIdChange={setViewing}
         />
       )}
+      </div>
     </section>
   );
 }

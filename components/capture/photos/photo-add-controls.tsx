@@ -87,7 +87,8 @@ export function PhotoAddControls({ onFiles, disabled = false, target, compact = 
       {/* Desktop: drop several, or choose them. */}
       <div
         className={cn(
-          "hidden items-center gap-3 rounded-lg border border-dashed border-slate-300 bg-card text-sm text-muted-foreground fine:flex",
+          // h-full: fills the room its parent gives it (beside the inspector comment, the comment box's height).
+          "hidden h-full items-center gap-3 rounded-lg border border-dashed border-slate-300 bg-card text-sm text-muted-foreground fine:flex",
           "transition-colors data-dragging:border-primary data-dragging:bg-brand-50",
           compact ? "px-3 py-2" : "flex-col justify-center px-4 py-6 text-center",
         )}
