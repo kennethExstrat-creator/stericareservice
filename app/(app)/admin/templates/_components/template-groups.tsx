@@ -28,12 +28,12 @@ const LONG_TEXT = "block truncate touch:line-clamp-2 touch:whitespace-normal tou
 
 function clientText(version: TemplateVersionSummary): string {
   if (version.clientName) return version.clientName;
-  return version.clientId ? "A client no longer listed" : "Any client";
+  return version.clientId ? "A client no longer listed" : "Any Client";
 }
 
 function manufacturerText(version: TemplateVersionSummary): string {
   if (version.manufacturerName) return version.manufacturerName;
-  return version.manufacturerId ? "A manufacturer no longer listed" : "Any manufacturer";
+  return version.manufacturerId ? "A manufacturer no longer listed" : "Any Manufacturer";
 }
 
 function Text({ children, muted = false }: { children: string; muted?: boolean }) {

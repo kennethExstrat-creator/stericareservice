@@ -96,10 +96,10 @@ export function DetailsPanel({ view }: { view: DetailsView }) {
           {PRODUCT_TYPE_LABEL[detail.productType]} · {STANDARD_LABEL[detail.standard]}
         </Row>
         <Row term="Client">
-          {detail.clientName ?? (detail.clientId ? "A client no longer listed" : "Any client")}
+          {detail.clientName ?? (detail.clientId ? "A client no longer listed" : "Any Client")}
         </Row>
         <Row term="Manufacturer">
-          {detail.manufacturerName ?? (detail.manufacturerId ? "A manufacturer no longer listed" : "Any manufacturer")}
+          {detail.manufacturerName ?? (detail.manufacturerId ? "A manufacturer no longer listed" : "Any Manufacturer")}
         </Row>
         <Row term="Extends">
           {detail.extendsCode ? (

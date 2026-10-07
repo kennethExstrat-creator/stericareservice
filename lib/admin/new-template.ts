@@ -22,7 +22,7 @@ import { LETTER_SIZES, NUMERIC_SIZES } from "@/lib/sizes";
 /** "No base": a template of its own, header and conclusion to start with. */
 export const NO_BASE = "none";
 
-/** "Any client", "Any manufacturer": the template is not scoped to one. */
+/** "Any Client", "Any Manufacturer": the template is not scoped to one. */
 export const ANY = "any";
 
 export const NEW_TEMPLATE_FIELDS = ["code", "name", "base", "productType", "standard", "clientId", "manufacturerId"] as const;
