@@ -263,7 +263,7 @@ const OFFLINE_SECTIONS = [
   { key: "order_lots", title: "Order" },
   DIMENSION,
   VISUAL,
-  { key: "watertight", title: "Freedom from Holes by watertight test" },
+  { key: "watertight", title: "Freedom From Holes by Watertight Test" },
   { key: "dispensing_safedon", title: "Glove Dispensing Inspection" },
   NOTES_SECTION,
   { key: "conclusion", title: "Conclusion" },
@@ -367,13 +367,13 @@ test("in WebKit, a tap on + tags the next photo with its size and defect", async
     await formReady(page);
     await sizeTab(page, "M").tap();
 
-    const before = await page.getByRole("spinbutton", { name: "Thin spot on glove body, Size M" }).textContent();
-    await page.getByRole("button", { name: "Increase Thin spot on glove body, Size M" }).tap();
-    await expect(page.getByRole("spinbutton", { name: "Thin spot on glove body, Size M" })).toHaveText(String(Number(before) + 1));
+    const before = await page.getByRole("spinbutton", { name: "Thin Spot on Glove Body, Size M" }).textContent();
+    await page.getByRole("button", { name: "Increase Thin Spot on Glove Body, Size M" }).tap();
+    await expect(page.getByRole("spinbutton", { name: "Thin Spot on Glove Body, Size M" })).toHaveText(String(Number(before) + 1));
     // WebKit leaves a tapped button unfocused: the tag comes from the press itself.
     expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe("BUTTON");
     await expect(page.locator('[data-slot="next-tags"]:visible')).toHaveText(
-      "New photos are tagged Size M · Thin spot on glove body.",
+      "New photos are tagged Size M · Thin Spot on Glove Body.",
     );
     await page.screenshot({ path: `screenshots/capture/final-webkit-${project()}-tagged.png`, animations: "disabled" });
 
@@ -420,7 +420,7 @@ test("the submit confirmation names the result as every pill does, and a clean p
 
   const warned = await confirm(fixture.warnedPassId);
   await expect(warned.locator('[data-slot="status-pill"]')).toHaveText("Passed");
-  await expect(warned.locator('[data-slot="suggested-reasons"]')).toHaveText("Warnings: Dye leak test.");
+  await expect(warned.locator('[data-slot="suggested-reasons"]')).toHaveText("Warnings: Dye Leak Test.");
   await expect(warned).toContainText("1 warning goes into the report.");
   await expect(warned).not.toContainText(/\b(Pass|Fail|Hold)\b[.:]/);
   await shot(page, "submit-warned-pass");
@@ -484,7 +484,7 @@ test("the desktop sidebar shows long section titles on two lines, each named in 
   const rows = [
     { title: "Dimension", lines: 1 },
     { title: "Manufacturer Information", lines: 2 },
-    { title: "Freedom from Holes by watertight test", lines: 2 },
+    { title: "Freedom From Holes by Watertight Test", lines: 2 },
     { title: "Glove Dispensing Inspection", lines: 2 },
     { title: NOTES_SECTION.title, lines: 2 },
   ];

@@ -16,8 +16,8 @@ import { createCaptureFixture, fixtureDefinition, type CaptureFixture } from "./
 // The Mac running these is shared with other builds: generous waits, never sleeps.
 test.describe.configure({ mode: "serial", timeout: 120_000 });
 
-const WEIGHT = "Weight (g) - average of 13 gloves per size";
-const TENSILE = "Physical Properties average (Refer to attached lab. reports)";
+const WEIGHT = "Weight (g) - Average of 13 Gloves per Size";
+const TENSILE = "Physical Properties Average (Refer to Attached Lab. Reports)";
 
 let fixture: CaptureFixture;
 
@@ -313,13 +313,13 @@ test("typing into glove information saves, and the value is there after a reload
   await expect(body).toBeVisible();
   await expect(page.getByText("A simplified form")).toHaveCount(0);
   await expect(body.locator("label")).toHaveText([
-    "Glove surface texture",
-    "Indicative weight (size M)",
-    "Glove colour",
-    "Glove length",
+    "Glove Surface Texture",
+    "Indicative Weight (Size M)",
+    "Glove Colour",
+    "Glove Length",
   ]);
-  const texture = page.getByLabel("Glove surface texture");
-  const weight = page.getByLabel("Indicative weight (size M)");
+  const texture = page.getByLabel("Glove Surface Texture");
+  const weight = page.getByLabel("Indicative Weight (Size M)");
   await expect(weight).toHaveAttribute("inputmode", "decimal");
   await expect(body.getByText("g", { exact: true })).toBeVisible();
   if (isTouch()) expect((await weight.boundingBox())!.height).toBeGreaterThanOrEqual(44);
@@ -330,10 +330,10 @@ test("typing into glove information saves, and the value is there after a reload
   await expect(weight).toBeFocused();
   await weight.fill("0");
   await weight.press("Enter");
-  await expect(page.getByLabel("Glove colour")).toBeFocused();
+  await expect(page.getByLabel("Glove Colour")).toBeFocused();
   await expect(body.locator("p", { hasText: "Must be more than 0." })).toBeVisible();
 
-  const colour = page.getByLabel("Glove colour");
+  const colour = page.getByLabel("Glove Colour");
   await colour.fill("Blue");
   await weight.fill("3.5");
   await weight.press("Tab");
@@ -346,8 +346,8 @@ test("typing into glove information saves, and the value is there after a reload
   await shot(page, "glove-info-saved");
 
   await page.reload();
-  await expect(page.getByLabel("Glove colour")).toHaveValue("Blue");
-  await expect(page.getByLabel("Indicative weight (size M)")).toHaveValue("3.5");
+  await expect(page.getByLabel("Glove Colour")).toHaveValue("Blue");
+  await expect(page.getByLabel("Indicative Weight (Size M)")).toHaveValue("3.5");
 
   // A custom section of the template saves the same way.
   await openSection(page, "Site notes");
@@ -380,7 +380,7 @@ test("a field mapped to the glove colour keeps fast typing and an edit mid-word"
 
   // It is the glove information's own colour.
   await openSection(page, "Glove Information");
-  await expect(page.getByLabel("Glove colour")).toHaveValue("Midnight-x blue");
+  await expect(page.getByLabel("Glove Colour")).toHaveValue("Midnight-x blue");
   expect(hydration()).toEqual([]);
 });
 
@@ -423,7 +423,7 @@ test("a number typed just before Photos is saved, though the tap leaves the focu
 }) => {
   await signInAs(context, baseURL!, "inspector");
   await page.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
-  const weight = page.getByLabel("Indicative weight (size M)");
+  const weight = page.getByLabel("Indicative Weight (Size M)");
   await expect(weight).toBeEditable();
   await weight.fill("4.2");
   await expect(weight).toBeFocused();
@@ -451,7 +451,7 @@ test("a change made just before leaving the screen reaches the server", async ({
     );
     await expect(page).toHaveURL(/module=glove_info/, { timeout: 2_000 });
   }).toPass({ timeout: 15_000 });
-  const colour = page.getByLabel("Glove colour");
+  const colour = page.getByLabel("Glove Colour");
   await expect(colour).toBeEditable();
   await colour.fill("Navy");
   await page.goBack();
@@ -482,7 +482,7 @@ async function openFromList(page: Page) {
 
 /** Types into the indicative weight and leaves the focus in it: not committed yet. */
 async function typeWeight(page: Page, value: string) {
-  const weight = page.getByLabel("Indicative weight (size M)");
+  const weight = page.getByLabel("Indicative Weight (Size M)");
   await expect(weight).toBeEditable();
   await weight.fill(value);
   await expect(weight).toBeFocused();
@@ -578,7 +578,7 @@ test("a shell link asks before leaving a change this browser keeps no copy of; S
     await expect(dialog).toBeHidden();
     await expect(link).toBeFocused();
     await expect(page).toHaveURL(/module=glove_info/);
-    await expect(page.getByLabel("Indicative weight (size M)")).toHaveValue("4.9");
+    await expect(page.getByLabel("Indicative Weight (Size M)")).toHaveValue("4.9");
   } finally {
     await saves.release();
   }
@@ -598,7 +598,7 @@ test("Sign out asks while the last change is only on this device, and Stay signe
 }) => {
   await signInAs(context, baseURL!, "inspector");
   await page.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
-  const colour = page.getByLabel("Glove colour");
+  const colour = page.getByLabel("Glove Colour");
   await expect(colour).toBeEditable();
   await expect(savePill(page)).toHaveAttribute("data-state", "saved");
   const saves = await holdSaves(page);
@@ -642,7 +642,7 @@ test("a number still being typed is saved at once when the page is hidden (the i
   });
   // Well inside the autosave's 5 s at most: the hidden page sent it at once.
   await expectStoredWeight(4.8);
-  await expect(page.getByLabel("Indicative weight (size M)")).toHaveValue("4.8");
+  await expect(page.getByLabel("Indicative Weight (Size M)")).toHaveValue("4.8");
 });
 
 test("a number still being typed is there after a reload", async ({ page, context, baseURL }) => {
@@ -651,7 +651,7 @@ test("a number still being typed is there after a reload", async ({ page, contex
   await expect(savePill(page)).toHaveAttribute("data-state", "saved");
   await typeWeight(page, "5.1");
   await page.reload();
-  await expect(page.getByLabel("Indicative weight (size M)")).toHaveValue("5.1");
+  await expect(page.getByLabel("Indicative Weight (Size M)")).toHaveValue("5.1");
   await expectStoredWeight(5.1);
 });
 
@@ -668,7 +668,7 @@ test("a number still being typed is there when the inspection is opened again af
   await closing.close({ runBeforeUnload: true });
 
   await page.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
-  await expect(page.getByLabel("Indicative weight (size M)")).toHaveValue("5.3");
+  await expect(page.getByLabel("Indicative Weight (Size M)")).toHaveValue("5.3");
   await expectStoredWeight(5.3);
 });
 
@@ -676,10 +676,10 @@ test("without a connection the pill says Offline (Will Sync), then saves", async
   test.skip(!isDesktop(), "One size is enough: the pill is the same component everywhere.");
   await signInAs(context, baseURL!, "inspector");
   await page.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
-  await expect(page.getByLabel("Glove colour")).toBeEditable();
+  await expect(page.getByLabel("Glove Colour")).toBeEditable();
 
   await context.setOffline(true);
-  await page.getByLabel("Glove length").fill("240 mm minimum");
+  await page.getByLabel("Glove Length").fill("240 mm minimum");
   await expect(savePill(page)).toHaveAttribute("data-state", "offline", { timeout: 15_000 });
   await viewportShot(page, "offline");
   await context.setOffline(false);
@@ -697,7 +697,7 @@ test("a change kept on this device while saves fail comes back after a reload, a
   test.skip(!isDesktop(), "One size is enough: the local copy is the same everywhere.");
   await signInAs(context, baseURL!, "inspector");
   await page.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
-  const texture = page.getByLabel("Glove surface texture");
+  const texture = page.getByLabel("Glove Surface Texture");
   await expect(texture).toBeEditable();
 
   // The signal drops for saves only (Server Actions are POSTs): the page itself still reloads.
@@ -710,7 +710,7 @@ test("a change kept on this device while saves fail comes back after a reload, a
 
   await page.reload();
   await expect(page.getByText("Unsaved changes from this device were restored")).toBeVisible();
-  await expect(page.getByLabel("Glove surface texture")).toHaveValue("Textured fingertips");
+  await expect(page.getByLabel("Glove Surface Texture")).toHaveValue("Textured fingertips");
   await expect
     .poll(async () => (await storedData(fixture.inspectionId)).data, { timeout: 15_000 })
     .toMatchObject({ modules: { glove_info: { surfaceTexture: "Textured fingertips" } } });
@@ -721,7 +721,7 @@ test("an edit saved on another device meanwhile asks which version to keep", asy
   test.skip(!isDesktop(), "One size is enough: the question is the same everywhere.");
   await signInAs(context, baseURL!, "inspector");
   await page.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
-  const colour = page.getByLabel("Glove colour");
+  const colour = page.getByLabel("Glove Colour");
   await expect(colour).toBeEditable();
 
   // Another device saves a different colour (a plain update moves updated_at on).
@@ -759,7 +759,7 @@ test("a section switched off on another device leaves this screen at the next sa
   test.skip(!isDesktop(), "One size is enough: the save is the same everywhere.");
   await signInAs(context, baseURL!, "inspector");
   await page.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
-  const colour = page.getByLabel("Glove colour");
+  const colour = page.getByLabel("Glove Colour");
   await expect(colour).toBeEditable();
   const sections = page.getByRole("navigation", { name: "Sections" });
   await expect(sections).not.toContainText("Switched Off");
@@ -804,9 +804,9 @@ test("saved values a section no longer reads are listed, and removed in one conf
   const panel = page.locator('[data-slot="unreadable-data"]');
   await expect(panel).toContainText("A value saved for this section cannot be read.");
   await expect(panel.getByRole("listitem")).toHaveCount(1);
-  await expect(panel.getByRole("listitem")).toContainText("Indicative weight (size M)");
+  await expect(panel.getByRole("listitem")).toContainText("Indicative Weight (Size M)");
   // The form stays closed until someone decides: its first edit would drop the value unasked.
-  await expect(page.getByLabel("Glove colour")).toHaveCount(0);
+  await expect(page.getByLabel("Glove Colour")).toHaveCount(0);
   // Read-only until autosave has started; the shot shows the screen once it can be changed.
   const remove = panel.getByRole("button", { name: "Remove the Values That Cannot Be Read" });
   await expect(remove).toBeVisible();
@@ -830,8 +830,8 @@ test("saved values a section no longer reads are listed, and removed in one conf
   await viewportShot(page, "unreadable-values-confirm");
   await activate(dialog.getByRole("button", { name: "Remove It" }));
 
-  await expect(page.getByLabel("Glove colour")).toHaveValue("Sea green");
-  await expect(page.getByLabel("Indicative weight (size M)")).toHaveValue("");
+  await expect(page.getByLabel("Glove Colour")).toHaveValue("Sea green");
+  await expect(page.getByLabel("Indicative Weight (Size M)")).toHaveValue("");
   // The list went, and the button that opened the dialog with it: the section's title takes the focus, not the page.
   await expect(page.getByRole("heading", { level: 2, name: "Glove Information", exact: true })).toBeFocused();
   await shot(page, "unreadable-values-removed");
@@ -953,7 +953,7 @@ test("Pending lists one short task per section, what submit needs first", async 
   }
   await expect(sheet).not.toContainText("is not done");
   await expect(sheet).not.toContainText("must be complete before submit");
-  await expect(sheet).not.toContainText(/Suggested result/i);
+  await expect(sheet).not.toContainText(/Suggested Result/i);
   for (const row of await tasks.all()) {
     const box = (await row.locator('[data-slot="task-status"]').boundingBox())!;
     // One line of 14 px text (20 px) at most.
@@ -1311,7 +1311,7 @@ test("a second tab on the same inspection is read-only, with no red save pill", 
   test.skip(!isDesktop(), "One size is enough: the lock is the same everywhere.");
   await signInAs(context, baseURL!, "inspector");
   await page.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
-  await expect(page.getByLabel("Glove colour")).toBeEditable();
+  await expect(page.getByLabel("Glove Colour")).toBeEditable();
 
   const second = await context.newPage();
   try {
@@ -1319,7 +1319,7 @@ test("a second tab on the same inspection is read-only, with no red save pill", 
     await expect(second.getByText("This inspection is open in another tab on this device.")).toBeVisible({
       timeout: 15_000,
     });
-    await expect(second.getByLabel("Glove colour")).not.toBeEditable();
+    await expect(second.getByLabel("Glove Colour")).not.toBeEditable();
     // Nothing is wrong here: the notice says what to do, and no pill says "Not Saved".
     await expect(savePill(second)).toHaveCount(0);
     await viewportShot(second, "second-tab");
@@ -1393,7 +1393,7 @@ test("a reopened inspection says who reopened it, when, and what to change", asy
   // Reopened here with the secret key: no person did it.
   await expect(notice).toContainText(/The system reopened it on \d{1,2} \w{3} \d{4}, \d{2}:\d{2}\. Make the changes, then submit it again\./);
   await expect(notice).toContainText("What to Change: Size M weights are missing.");
-  await expect(page.getByLabel("Glove colour")).toBeEditable();
+  await expect(page.getByLabel("Glove Colour")).toBeEditable();
   await shot(page, "reopened");
 });
 
@@ -1404,7 +1404,7 @@ test("submitted on another device: the next save is refused, with the review and
 }) => {
   await signInAs(context, baseURL!, "inspector");
   await page.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
-  const colour = page.getByLabel("Glove colour");
+  const colour = page.getByLabel("Glove Colour");
   await expect(colour).toBeEditable();
 
   await fixture.setStatus("submitted");
@@ -1425,7 +1425,7 @@ test("a submitted inspection is read-only for the inspector", async ({ page, con
   await signInAs(context, baseURL!, "inspector");
   await page.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
   await expect(page.getByText("Submitted for review: read-only.")).toBeVisible();
-  await expect(page.getByLabel("Glove colour")).not.toBeEditable();
+  await expect(page.getByLabel("Glove Colour")).not.toBeEditable();
   await expect(page.getByRole("button", { name: "Submit", exact: true })).toHaveCount(0);
   await shot(page, "read-only");
 });

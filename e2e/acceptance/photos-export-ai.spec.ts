@@ -67,11 +67,11 @@ const expect = baseExpect.configure({ timeout: 20_000 });
 test.skip(({ hasTouch }) => !hasTouch, "The capture runs on an iPad project; the desktop checks open their own context.");
 
 const TITLES = {
-  weight: "Weight (g) - average of 13 gloves per size",
+  weight: "Weight (g) - Average of 13 Gloves per Size",
   visual: "Visual Inspection",
   dispensing_packing: "Glove Packing Check",
   labeling: "Packaging Labeling Inspection",
-  force_at_break: "Force At Break in Newton (Refer to attached where applicable)",
+  force_at_break: "Force at Break in Newton (Refer to Attached Where Applicable)",
 } as const;
 
 type PhotoModule = "weight" | "visual" | "dispensing_packing" | "labeling";
@@ -103,8 +103,8 @@ const PLAN: readonly {
       { name: "thin-spot-2.jpg", width: 900, height: 1200, label: "Spot 2" },
     ],
     // The count itself: a tapped + takes no focus on WebKit (checked on its own below).
-    focus: (frame) => frame.getByRole("spinbutton", { name: "Thin spot on glove body, Size M", exact: true }).tap(),
-    tags: "Size M · Thin spot on glove body",
+    focus: (frame) => frame.getByRole("spinbutton", { name: "Thin Spot on Glove Body, Size M", exact: true }).tap(),
+    tags: "Size M · Thin Spot on Glove Body",
     target: "size:M/defect:thin_spot",
   },
   {
@@ -248,19 +248,19 @@ test("photos from four modules on the iPad, the export and the AI second opinion
       await tab.goto(`${capturePath}?module=visual`);
       await formLoaded(tab);
       const frame = sectionFrame(tab);
-      const count = frame.getByRole("spinbutton", { name: "Thin spot on glove body, Size M", exact: true });
+      const count = frame.getByRole("spinbutton", { name: "Thin Spot on Glove Body, Size M", exact: true });
       await expect(count).toHaveAttribute("aria-valuenow", "5");
-      await frame.getByRole("button", { name: "Increase Thin spot on glove body, Size M", exact: true }).tap();
+      await frame.getByRole("button", { name: "Increase Thin Spot on Glove Body, Size M", exact: true }).tap();
       await expect(count).toHaveAttribute("aria-valuenow", "6");
       await view(tab, "0-webkit-visual-after-plus");
       // BUILD_SPEC 8.1: tagged with the size and the defect in focus, as a Chromium tap tags it (F1:
       // the counter reports the cell it is pressed in, as WebKit never focuses a tapped button).
       await expect(nextTags(frame), "WebKit: the defect just counted with + is what the next photo is tagged with").toHaveText(
-        "New photos are tagged Size M · Thin spot on glove body.",
+        "New photos are tagged Size M · Thin Spot on Glove Body.",
         { timeout: 5_000 },
       );
       // The count back as the example has it, saved before the iPad's own browser opens the inspection.
-      await frame.getByRole("button", { name: "Decrease Thin spot on glove body, Size M", exact: true }).tap();
+      await frame.getByRole("button", { name: "Decrease Thin Spot on Glove Body, Size M", exact: true }).tap();
       await expect(count).toHaveAttribute("aria-valuenow", "5");
       await expect(tab.locator('[data-slot="save-status"]:visible').first()).toHaveAttribute("data-state", "saved", { timeout: 30_000 });
       await ipad.close();

@@ -244,7 +244,7 @@ test("the most specific template wins: client and manufacturer, client, manufact
     "Manufacturer Information: factory address, product name, product code and factory glove code",
   );
   await expect(summary).toContainText("Glove Information: every field");
-  await expect(summary).toContainText("Packing configuration: every field");
+  await expect(summary).toContainText("Packing Configuration: every field");
   await expect(summary).toContainText("Never copied: PO number, dates, lots, sampling, test results, comments and photos.");
   await expect(summary).toContainText(`Same template as last time (${FIXTURE_TEMPLATE_CODE} version 1): its specs and AQL carry over.`);
   await expect(productName).toHaveValue(PREVIOUS.productName);

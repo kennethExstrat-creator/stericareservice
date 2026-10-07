@@ -66,14 +66,14 @@ test("two devices on one draft: the second device's edit is never lost silently"
     await Promise.all([openCapture(ipad.page, draft.id, "glove_info"), openCapture(desk.page, draft.id, "glove_info")]);
 
     // The iPad changes the colour and saves.
-    await typeInto(ipad.page.getByLabel("Glove colour"), "Blue from the iPad");
+    await typeInto(ipad.page.getByLabel("Glove Colour"), "Blue from the iPad");
     await expect.poll(async () => (await fx.row(draft.id))?.data.modules.glove_info.colour, { timeout: 20_000 }).toBe(
       "Blue from the iPad",
     );
     await expect(savePill(ipad.page)).toHaveAttribute("data-state", "saved");
 
     // The desktop, opened before that save, changes the texture: its save finds a version it never saw.
-    await typeInto(desk.page.getByLabel("Glove surface texture"), "Textured on the desktop");
+    await typeInto(desk.page.getByLabel("Glove Surface Texture"), "Textured on the desktop");
     const question = desk.page.getByRole("alertdialog", { name: "This Inspection Was Changed on Another Device" });
     await expect(question).toBeVisible({ timeout: 20_000 });
     await expect(question).toContainText("Choose which version to keep. The other one is replaced.");
@@ -95,12 +95,12 @@ test("two devices on one draft: the second device's edit is never lost silently"
     await expect(savePill(desk.page)).toHaveAttribute("data-state", "saved");
     // Meanwhile the iPad still shows its colour as saved: nothing tells it the server replaced it
     // until its next save asks (by design, C1: the question offers whole versions, no field merge).
-    await expect(ipad.page.getByLabel("Glove colour")).toHaveValue("Blue from the iPad");
+    await expect(ipad.page.getByLabel("Glove Colour")).toHaveValue("Blue from the iPad");
     await expect(savePill(ipad.page)).toHaveAttribute("data-state", "saved");
     await shot(ipad.page, "two-devices-ipad-still-saved-after-replace");
 
     // The iPad, still showing its own colour, edits again: it is asked too, and does not overwrite the desktop's version.
-    await typeInto(ipad.page.getByLabel("Glove length"), "250 mm on the iPad");
+    await typeInto(ipad.page.getByLabel("Glove Length"), "250 mm on the iPad");
     const ipadQuestion = ipad.page.getByRole("alertdialog", { name: "This Inspection Was Changed on Another Device" });
     await expect(ipadQuestion).toBeVisible({ timeout: 20_000 });
     expect((await fx.row(draft.id))?.data.modules.glove_info).toMatchObject({
@@ -112,9 +112,9 @@ test("two devices on one draft: the second device's edit is never lost silently"
     // The iPad takes the desktop's version: its screen shows it, and saving goes on from there.
     await press(ipadQuestion.getByRole("button", { name: "Use the Version From the Other Device" }), true);
     await expect(ipadQuestion).toBeHidden();
-    await expect(ipad.page.getByLabel("Glove surface texture")).toHaveValue("Textured on the desktop");
-    await expect(ipad.page.getByLabel("Glove colour")).toHaveValue("Original blue");
-    await typeInto(ipad.page.getByLabel("Glove length"), "245 mm, agreed");
+    await expect(ipad.page.getByLabel("Glove Surface Texture")).toHaveValue("Textured on the desktop");
+    await expect(ipad.page.getByLabel("Glove Colour")).toHaveValue("Original blue");
+    await typeInto(ipad.page.getByLabel("Glove Length"), "245 mm, agreed");
     await expect
       .poll(async () => (await fx.row(draft.id))?.data.modules.glove_info, { timeout: 20_000 })
       .toMatchObject({ surfaceTexture: "Textured on the desktop", length: "245 mm, agreed" });
@@ -145,9 +145,9 @@ test("two devices with the iPad on WebKit (Chrome for iPad's engine): the questi
     await Promise.all([openCapture(ipad, draft.id, "glove_info"), openCapture(desk.page, draft.id, "glove_info")]);
 
     // The desktop saves first; the iPad, which never saw that version, is asked.
-    await typeInto(desk.page.getByLabel("Glove colour"), "Desktop colour");
+    await typeInto(desk.page.getByLabel("Glove Colour"), "Desktop colour");
     await expect.poll(async () => (await fx.row(draft.id))?.data.modules.glove_info.colour, { timeout: 20_000 }).toBe("Desktop colour");
-    await typeInto(ipad.getByLabel("Glove length"), "WebKit iPad length");
+    await typeInto(ipad.getByLabel("Glove Length"), "WebKit iPad length");
     const question = ipad.getByRole("alertdialog", { name: "This Inspection Was Changed on Another Device" });
     await expect(question).toBeVisible({ timeout: 20_000 });
     await shot(ipad, "webkit-ipad-question");
@@ -158,7 +158,7 @@ test("two devices with the iPad on WebKit (Chrome for iPad's engine): the questi
     await expect
       .poll(async () => (await fx.row(draft.id))?.data.modules.glove_info, { timeout: 20_000 })
       .toMatchObject({ colour: "Original blue", length: "WebKit iPad length" });
-    await typeInto(desk.page.getByLabel("Glove surface texture"), "Desktop texture");
+    await typeInto(desk.page.getByLabel("Glove Surface Texture"), "Desktop texture");
     await expect(desk.page.getByRole("alertdialog", { name: "This Inspection Was Changed on Another Device" })).toBeVisible({
       timeout: 20_000,
     });
@@ -186,14 +186,14 @@ test("two devices: an edit made offline, a reload with it pending, and a stale s
 
     // The iPad loses its connection and the inspector keeps typing: the pill says it will sync.
     await ipad.context.setOffline(true);
-    await typeInto(ipad.page.getByLabel("Glove colour"), "Typed offline on the iPad");
+    await typeInto(ipad.page.getByLabel("Glove Colour"), "Typed offline on the iPad");
     await expect(savePill(ipad.page)).toHaveAttribute("data-state", "offline", { timeout: 30_000 });
     await shot(ipad.page, "offline-pill");
     const offlineCopy = await localCopy(ipad.page, session.userId, draft.id);
     expect(offlineCopy?.data.modules.glove_info.colour).toBe("Typed offline on the iPad");
 
     // Meanwhile the desktop saves another change.
-    await typeInto(desk.page.getByLabel("Glove length"), "260 mm on the desktop");
+    await typeInto(desk.page.getByLabel("Glove Length"), "260 mm on the desktop");
     await expect.poll(async () => (await fx.row(draft.id))?.data.modules.glove_info.length, { timeout: 20_000 }).toBe(
       "260 mm on the desktop",
     );
@@ -209,7 +209,7 @@ test("two devices: an edit made offline, a reload with it pending, and a stale s
     await ipad.page.reload();
     await expect(ipad.page.locator('[data-slot="capture-screen"]')).toBeVisible();
     await expect(question).toBeVisible({ timeout: 20_000 });
-    await expect(ipad.page.getByLabel("Glove colour")).toHaveValue("Typed offline on the iPad");
+    await expect(ipad.page.getByLabel("Glove Colour")).toHaveValue("Typed offline on the iPad");
     await shot(ipad.page, "offline-reload-question");
     await press(question.getByRole("button", { name: "Keep the Changes on This Device" }), true);
     await expect
@@ -217,7 +217,7 @@ test("two devices: an edit made offline, a reload with it pending, and a stale s
       .toMatchObject({ colour: "Typed offline on the iPad", length: "240 mm" });
 
     // The desktop still shows its own length, which the iPad's version replaced. Submitting from that stale screen is refused.
-    await expect(desk.page.getByLabel("Glove length")).toHaveValue("260 mm on the desktop");
+    await expect(desk.page.getByLabel("Glove Length")).toHaveValue("260 mm on the desktop");
     await press(desk.page.getByRole("button", { name: "Submit", exact: true }), false);
     const confirm = desk.page.getByRole("alertdialog", { name: `Submit ${draft.refNo} for Review?` });
     await press(confirm.getByRole("button", { name: "Submit for Review" }), false);
@@ -389,7 +389,7 @@ test("an approved inspection is read-only everywhere: capture, photos, review, l
       const { writes } = recordWrites(who.page);
       await openCapture(who.page, target.id, "glove_info", { editable: false });
       await expect(who.page.locator('[data-notice="approved"]')).toContainText("Approved: this inspection is read-only.");
-      const colour = who.page.getByLabel("Glove colour");
+      const colour = who.page.getByLabel("Glove Colour");
       await expect(colour).not.toBeEditable();
       await colour.click();
       await who.page.keyboard.type("changed");
@@ -531,7 +531,7 @@ test("Delete: a draft only, its owner's or by an admin; the deletion record stay
     });
 
     // The iPad that still had it open is told its next change was not saved, and keeps it on the device.
-    await typeInto(ipad.page.getByLabel("Glove colour"), "Typed after the delete");
+    await typeInto(ipad.page.getByLabel("Glove Colour"), "Typed after the delete");
     await expect(ipad.page.locator('[data-notice="save-error"]')).toContainText("Not saved.", { timeout: 20_000 });
     const kept = await localCopy(ipad.page, inspectorSession.userId, mine.id);
     expect(kept?.data.modules.glove_info.colour).toBe("Typed after the delete");
@@ -781,7 +781,7 @@ test("a lead inspector reads a team draft and writes nothing: no autosave, no lo
 
     await openCapture(page, team.id, "glove_info", { editable: false });
     await expect(page.locator('[data-notice="not-yours"]')).toContainText("This inspection belongs to another inspector: read-only.");
-    const colour = page.getByLabel("Glove colour");
+    const colour = page.getByLabel("Glove Colour");
     await expect(colour).not.toBeEditable();
     await colour.tap();
     await page.keyboard.type("Lead typing");
@@ -1099,8 +1099,8 @@ test("the inspection's number and search columns follow the data: PO, lots, prod
     await expect(viewer.locator(`tbody tr[data-ref="${draft.refNo}"]`)).toContainText(newPo);
 
     // Product name and date.
-    await typeInto(page.getByLabel("Product Name (Brand, code & description)"), `E2E Final Glove ${tag} renamed`);
-    const date = page.getByLabel("Inspection date", { exact: true });
+    await typeInto(page.getByLabel("Product Name (Brand, Code & Description)"), `E2E Final Glove ${tag} renamed`);
+    const date = page.getByLabel("Inspection Date", { exact: true });
     await date.fill("2026-10-05");
     await date.press("Tab");
     await expect

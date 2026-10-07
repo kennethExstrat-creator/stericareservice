@@ -43,7 +43,7 @@ const SEED = {
 } as const;
 
 /** The custom section after Safedon's dispensing, whose title starts like it (the sidebar's two lines). */
-export const NOTES_SECTION = { key: "dispensing_notes", title: "Glove Dispensing Inspection: onsite notes" } as const;
+export const NOTES_SECTION = { key: "dispensing_notes", title: "Glove Dispensing Inspection: Onsite Notes" } as const;
 
 function captureDefinition(): TemplateDefinition {
   return {

@@ -76,10 +76,13 @@ async function signInAs(context: BrowserContext, baseURL: string) {
   await context.addCookies(session.map((cookie) => ({ ...cookie, url: baseURL })));
 }
 
-/** The open section's frame, once its module's code has loaded and the screen can be changed. */
+/**
+ * The section's frame by its key, once its module's code has loaded and the screen can be changed. By
+ * its key: a page can show two frames (packing configuration below the order, e2e/README.md).
+ */
 async function openModule(page: Page, key: string, { editable = true }: { editable?: boolean } = {}) {
   await page.goto(`/inspections/${fixture.inspectionId}?module=${key}`);
-  const frame = page.locator('[data-slot="section-frame"]');
+  const frame = page.locator(`[data-section-key="${key}"]`);
   await expect(frame.getByText("Loading the form…")).toHaveCount(0);
   // Saving has started (the controls take changes) before anything is typed or tapped.
   if (editable) await expect(frame.locator('[data-slot="photo-add"]')).toBeVisible();
@@ -155,9 +158,9 @@ test("a grid whose module keeps a paste's overflow leaves it to the module: forc
   const frame = await openModule(page, "force_at_break");
   await showSizeM(frame);
   const grid = frame.locator('[data-slot="measurement-grid"]:visible').first();
-  const first = grid.getByRole("textbox", { name: "Force at break (N), No. 1", exact: true });
+  const first = grid.getByRole("textbox", { name: "Force at Break (N), No. 1", exact: true });
   await expect(first).toBeEditable();
-  const rows = await grid.getByRole("textbox", { name: /^Force at break \(N\), No\. \d+$/ }).count();
+  const rows = await grid.getByRole("textbox", { name: /^Force at Break \(N\), No\. \d+$/ }).count();
   const readings = Array.from({ length: rows + 2 }, (_, index) => (6.1 + index / 10).toFixed(1));
   await first.focus();
   await paste(first, readings.join("\n"));
@@ -191,7 +194,7 @@ test("a pasted column longer than a table of fields lists what did not fit acros
 }) => {
   await signInAs(context, baseURL!);
   const frame = await openModule(page, "order_lots");
-  const first = frame.getByRole("textbox", { name: "Qty (cases), Size S", exact: true });
+  const first = frame.getByRole("textbox", { name: "Qty (Cases), Size S", exact: true });
   await expect(first).toBeEditable();
   await first.focus();
   // Three sizes, five values: S and M, nothing for L (a blank line), and two more.
@@ -306,8 +309,8 @@ test("Safedon's box switcher holds at either end and keeps the focus", async ({ 
 test("a one-off defect row taken off leaves the focus in its table", async ({ page, context, baseURL }) => {
   await signInAs(context, baseURL!);
   const frame = await openModule(page, "visual");
-  // The first class's "Defect not in the list"; while its form is open the button gives way to it.
-  const add = frame.getByRole("button", { name: "Defect not in the list" }).first();
+  // The first class's "Defect Not in the List"; while its form is open the button gives way to it.
+  const add = frame.getByRole("button", { name: "Defect Not in the List" }).first();
   for (const label of ["Seam", "Tear"]) {
     await press(add);
     const field = frame.getByPlaceholder("Describe the defect");
@@ -349,12 +352,12 @@ test("documents and loading say what new photos are tagged with", async ({ page,
   await shot(page, "documents-tag-line", line);
 
   frame = await openModule(page, "loading");
-  const stages = frame.getByRole("radiogroup", { name: "Loading stage" });
-  const section = frame.getByRole("region", { name: "Loading stage" });
+  const stages = frame.getByRole("radiogroup", { name: "Loading Stage" });
+  const section = frame.getByRole("region", { name: "Loading Stage" });
   await expect(section).toContainText("Pick the stage before taking its photos, so each photo is tagged with it.");
-  await press(stages.getByRole("radio", { name: "Doors closed" }));
-  await expect(section).toContainText("Photos taken now are tagged “Doors closed”.");
-  await expect(nextTags(frame)).toHaveText("New photos are tagged Doors closed.");
+  await press(stages.getByRole("radio", { name: "Doors Closed" }));
+  await expect(section).toContainText("Photos taken now are tagged “Doors Closed”.");
+  await expect(nextTags(frame)).toHaveText("New photos are tagged Doors Closed.");
   await shot(page, "loading-tag-line", section);
 });
 

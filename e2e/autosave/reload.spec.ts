@@ -140,8 +140,8 @@ for (const { way, grams, complete } of WAYS) {
     baseURL,
   }) => {
     await open(page, baseURL, "glove_info");
-    const texture = page.getByLabel("Glove surface texture");
-    const weight = page.getByLabel("Indicative weight (size M)");
+    const texture = page.getByLabel("Glove Surface Texture");
+    const weight = page.getByLabel("Indicative Weight (Size M)");
     await expect(texture).toBeEditable();
     await texture.fill(`Smooth (${way})`);
     await weight.fill(String(grams));
@@ -150,9 +150,9 @@ for (const { way, grams, complete } of WAYS) {
 
     await expect(page).toHaveURL(/module=glove_info/);
     await expect(page.getByRole("heading", { level: 2, name: "Glove Information" })).toBeVisible();
-    await expect(page.getByLabel("Glove surface texture")).toHaveValue(`Smooth (${way})`);
-    await expect(page.getByLabel("Indicative weight (size M)")).toHaveValue(String(grams));
-    await expectLandedOn(page, page.getByLabel("Indicative weight (size M)"), { label: "Indicative weight (size M)" });
+    await expect(page.getByLabel("Glove Surface Texture")).toHaveValue(`Smooth (${way})`);
+    await expect(page.getByLabel("Indicative Weight (Size M)")).toHaveValue(String(grams));
+    await expectLandedOn(page, page.getByLabel("Indicative Weight (Size M)"), { label: "Indicative Weight (Size M)" });
     if (way === "Tab") await shot(page, "landed-glove-info");
     await expectStored({ modules: { glove_info: { surfaceTexture: `Smooth (${way})`, indicativeWeight: grams } } });
   });
@@ -160,8 +160,8 @@ for (const { way, grams, complete } of WAYS) {
 
 test("a reload mid-typing keeps the half-typed number and text, and lands on the field being typed in", async ({ page, baseURL }) => {
   await open(page, baseURL, "glove_info");
-  const colour = page.getByLabel("Glove colour");
-  const weight = page.getByLabel("Indicative weight (size M)");
+  const colour = page.getByLabel("Glove Colour");
+  const weight = page.getByLabel("Indicative Weight (Size M)");
   await expect(colour).toBeEditable();
   await colour.fill("Nitr");
   // Not completed: the focus stays in the number, which keeps its text until it is left.
@@ -169,9 +169,9 @@ test("a reload mid-typing keeps the half-typed number and text, and lands on the
   await expect(weight).toBeFocused();
   await page.reload();
 
-  await expect(page.getByLabel("Glove colour")).toHaveValue("Nitr");
-  await expect(page.getByLabel("Indicative weight (size M)")).toHaveValue("4.25");
-  await expectLandedOn(page, page.getByLabel("Indicative weight (size M)"));
+  await expect(page.getByLabel("Glove Colour")).toHaveValue("Nitr");
+  await expect(page.getByLabel("Indicative Weight (Size M)")).toHaveValue("4.25");
+  await expectLandedOn(page, page.getByLabel("Indicative Weight (Size M)"));
   await expectStored({ modules: { glove_info: { colour: "Nitr", indicativeWeight: 4.25 } } });
 });
 
@@ -219,7 +219,7 @@ test("a value of one size lands on that size again", async ({ page, baseURL }) =
 test("a count in box 3 of a one-box-at-a-time module lands on box 3 again", async ({ page, baseURL }) => {
   await fixture.setModules({ order_lots: { sizes: { S: { qtyCases: 10 } } } });
   await open(page, baseURL, "dispensing_safedon");
-  const count = page.getByRole("button", { name: "Increase No cuff, Column 3", exact: true });
+  const count = page.getByRole("button", { name: "Increase No Cuff, Column 3", exact: true });
   // On the iPads one box shows at a time: step to the third. From 1280 px without a touchscreen every box is side by side.
   if (!isDesktop()) {
     await press(page.getByRole("button", { name: "Next Box" }));
@@ -229,8 +229,8 @@ test("a count in box 3 of a one-box-at-a-time module lands on box 3 again", asyn
   await page.reload();
 
   // The module turns back to box 3 itself (its reveal, as an issue link would), without focusing it.
-  const again = page.getByRole("button", { name: "Increase No cuff, Column 3", exact: true });
-  await expectLandedOn(page, again, { label: "Increase No cuff, Column 3" });
+  const again = page.getByRole("button", { name: "Increase No Cuff, Column 3", exact: true });
+  await expectLandedOn(page, again, { label: "Increase No Cuff, Column 3" });
   if (!isDesktop()) await expect(page.locator('[data-slot="section-frame"]')).toContainText(/· 3 \/ \d+/);
   await shot(page, "landed-safedon-box-3");
   await expect
@@ -262,7 +262,7 @@ test("a count typed in packing configuration, below the order on its page, lands
   const again = gloves(page.locator('[data-section-key="packing_config"]'));
   await expect(again).toHaveValue(/^1,?000$/);
   await expectLandedOn(page, again);
-  await expect(announcement(page)).toHaveText(/^Back where you stopped: # gloves per case$/i);
+  await expect(announcement(page)).toHaveText(/^Back where you stopped: # Gloves per Case$/i);
   await shot(page, "landed-packing");
   await expectStored({ modules: { packing_config: { glovesPerCase: 1000 } } });
 });
@@ -287,11 +287,11 @@ test("a field out of view after the reload is scrolled to the middle of the scre
 test("with reduced motion the ring stays still for its moment instead of fading", async ({ page, baseURL }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await open(page, baseURL, "glove_info");
-  const colour = page.getByLabel("Glove colour");
+  const colour = page.getByLabel("Glove Colour");
   await colour.fill("Navy");
   await page.reload();
-  const again = page.getByLabel("Glove colour");
-  await expectLandedOn(page, again, { label: "Glove colour" });
+  const again = page.getByLabel("Glove Colour");
+  await expectLandedOn(page, again, { label: "Glove Colour" });
   const frames = await again.evaluate((element) =>
     element.getAnimations().flatMap((animation) => (animation.effect as KeyframeEffect).getKeyframes().map((frame) => frame.boxShadow)),
   );
@@ -308,7 +308,7 @@ for (const act of ["a tap", "a scroll"] as const) {
   test(`${act} while the page is still starting cancels the landing`, async ({ page, baseURL }) => {
     test.skip(act === "a scroll" && isWebKit(), "Playwright cannot scroll mobile WebKit by wheel or touch; the tap covers it there.");
     await open(page, baseURL, "glove_info");
-    const weight = page.getByLabel("Indicative weight (size M)");
+    const weight = page.getByLabel("Indicative Weight (Size M)");
     await weight.fill("3.7");
     await weight.press("Tab");
     // Saved before the reload: this test is about input while the page starts, not a save still on its way,
@@ -325,7 +325,7 @@ for (const act of ["a tap", "a scroll"] as const) {
     }, `stericare-autosave:${fixture.inspectorId}:${fixture.inspectionId}`);
     await page.reload();
     await hydrated(page);
-    const again = page.getByLabel("Indicative weight (size M)");
+    const again = page.getByLabel("Indicative Weight (Size M)");
     expect(await again.isEditable(), "saving has not started yet").toBe(false);
     if (act === "a tap") {
       await press(page.getByRole("heading", { level: 1 }));
@@ -348,12 +348,12 @@ for (const act of ["a tap", "a scroll"] as const) {
 
 test("opened again inside the app, or afresh, the screen starts at its section's top", async ({ page, baseURL }) => {
   await open(page, baseURL, "glove_info");
-  const weight = page.getByLabel("Indicative weight (size M)");
+  const weight = page.getByLabel("Indicative Weight (Size M)");
   await expect(weight).toBeEditable();
   await weight.fill("3.9");
   await weight.press("Tab");
   await page.reload();
-  await expectLandedOn(page, page.getByLabel("Indicative weight (size M)"));
+  await expectLandedOn(page, page.getByLabel("Indicative Weight (Size M)"));
 
   // Back to the list and in again, inside the app: no landing.
   await press(page.getByRole("link", { name: /^Back/ }));
@@ -365,14 +365,14 @@ test("opened again inside the app, or afresh, the screen starts at its section's
     );
     await expect(page).toHaveURL(/module=glove_info/, { timeout: 2_000 });
   }).toPass({ timeout: 15_000 });
-  await expect(page.getByLabel("Indicative weight (size M)")).toHaveValue("3.9");
+  await expect(page.getByLabel("Indicative Weight (Size M)")).toHaveValue("3.9");
   await expectNoLanding(page);
 
   // Opened afresh (a link, the address bar): no landing either.
   await page.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
-  await expect(page.getByLabel("Indicative weight (size M)")).toHaveValue("3.9");
+  await expect(page.getByLabel("Indicative Weight (Size M)")).toHaveValue("3.9");
   await expectNoLanding(page);
-  await expect(page.getByLabel("Indicative weight (size M)")).not.toBeFocused();
+  await expect(page.getByLabel("Indicative Weight (Size M)")).not.toBeFocused();
 });
 
 /** Where the capture screen puts a section title it brings into view: this far below the sticky bars (capture-screen.tsx). */

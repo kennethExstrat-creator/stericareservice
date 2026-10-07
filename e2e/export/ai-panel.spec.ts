@@ -137,7 +137,7 @@ test("an admin requests a second opinion and compares it with the system and the
   // (with the scale photo as evidence), labelling not done, and the final result of hold.
   const comparison = panel(page).getByTestId("ai-comparison");
   const weight = comparison.locator("section[data-section$='-weight']");
-  await expect(weight).toContainText("Weight (g) - average of 13 gloves per size");
+  await expect(weight).toContainText("Weight (g) - Average of 13 Gloves per Size");
   await expect(weight).toContainText("17.1% below the indicative 3.5 g");
   await expect(weight.locator("article[data-finding]")).toHaveCount(1);
   await expect(comparison.locator("section[data-section$='-labeling'] article[data-finding]")).toHaveCount(1);
