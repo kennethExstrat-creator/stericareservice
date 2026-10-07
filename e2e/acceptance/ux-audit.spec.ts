@@ -449,6 +449,13 @@ test.describe("inspector", () => {
       });
     });
     await step(auditor, "new-inspection-empty-submit", async () => {
+      // The form keeps what was chosen in the tab until Create or Cancel (UX-04): drop the
+      // draft the reload kept, so the form opens empty and Create is refused.
+      await page.evaluate(() => {
+        for (const key of Object.keys(sessionStorage)) {
+          if (key.startsWith("stericare:new-inspection:")) sessionStorage.removeItem(key);
+        }
+      });
       await open(page, "/inspections/new");
       await press(page, page.getByRole("button", { name: "Create inspection" }));
       await settle(page);
