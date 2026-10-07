@@ -9,9 +9,9 @@ import { chooseTemplate, type PreviousProduct, type TemplateChoice } from "@/lib
 import { buildSeedBundle, SEED_TEMPLATES } from "@/lib/templates/definitions";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import { toTemplateOption } from "../_lib/options";
-import type { TemplateOption } from "../_lib/types";
+import { PREVIOUS_SHOWN, type TemplateOption } from "../_lib/types";
 import { ChoiceCard } from "./choice-card";
-import { PREVIOUS_SHOWN, PreviousPicker } from "./previous-picker";
+import { PreviousPicker } from "./previous-picker";
 import { TemplatePanel, type PickState } from "./template-panel";
 import { RadioGroup } from "@/components/ui/radio-group";
 

@@ -4,7 +4,6 @@
 // in e2e/new/draft.spec.ts.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NO_CLIENT, type PreviousProduct } from "@/lib/inspections/create";
-import { PREVIOUS_SHOWN } from "../_components/previous-picker";
 import {
   draftKey,
   foundDraftStore,
@@ -18,7 +17,7 @@ import {
   type NewInspectionChoices,
   type OfferedChoices,
 } from "./draft";
-import type { TemplateOption } from "./types";
+import { PREVIOUS_SHOWN, type TemplateOption } from "./types";
 
 /** sessionStorage in memory, optionally refusing writes as a full or blocked one does. */
 function memoryStorage(options: { refuseWrites?: boolean } = {}): DraftStorage & { items: Map<string, string> } {

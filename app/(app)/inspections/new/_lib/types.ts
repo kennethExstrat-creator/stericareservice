@@ -32,6 +32,9 @@ export type NewInspectionOptions = {
   previous: PreviousProduct[];
 };
 
+/** "Start from previous" offers at most this many products, newest first. */
+export const PREVIOUS_SHOWN = 12;
+
 export const STANDARD_LABEL: Readonly<Record<Standard, string>> = {
   EN455: "EN 455",
   ASTM_D6319: "ASTM D6319",

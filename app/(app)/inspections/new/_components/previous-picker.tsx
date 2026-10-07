@@ -18,15 +18,12 @@ import {
 import { formatInspectionDate } from "@/lib/inspections/format";
 import { InspectionStatusBadge } from "../../_components/inspection-status-badge";
 import { specsNote } from "../_lib/text";
-import type { TemplateOption } from "../_lib/types";
+import { PREVIOUS_SHOWN, type TemplateOption } from "../_lib/types";
 import { ChoiceCard } from "./choice-card";
 import { Panel } from "./panel";
 
 /** The picker's value for "copy nothing". */
 export const START_BLANK = "blank";
-
-/** At most this many products are offered, newest first. */
-export const PREVIOUS_SHOWN = 12;
 
 type PreviousPickerProps = {
   id: string;

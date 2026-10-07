@@ -15,8 +15,7 @@
 import { z } from "zod";
 import { NO_CLIENT, previousFor } from "@/lib/inspections/create";
 import { ProductTypeSchema, type ProductType } from "@/lib/schemas/common";
-import { PREVIOUS_SHOWN } from "../_components/previous-picker";
-import type { Option, PreviousProduct, TemplateOption } from "./types";
+import { PREVIOUS_SHOWN, type Option, type PreviousProduct, type TemplateOption } from "./types";
 
 const PREFIX = "stericare:new-inspection:";
 
