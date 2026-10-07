@@ -3,7 +3,16 @@ import type { ModuleOverrides } from "@/lib/schemas/template";
 import type { ValidationIssue } from "@/lib/validation";
 import { filledData, TEST_ADMIN_ID, TEST_META, TEST_REGISTRY, testTemplate } from "./__fixtures__/capture";
 import { evaluateCapture } from "./evaluate";
-import { countIssues, describeIssueCounts, groupIssues, issueKey, issueTarget, unseenIssues } from "./issues";
+import {
+  blockedSubmitMessage,
+  countIssues,
+  describePending,
+  groupIssues,
+  issueKey,
+  issueTarget,
+  taskText,
+  unseenIssues,
+} from "./issues";
 import { captureSections } from "./sections";
 
 function evaluated(overrides: ModuleOverrides = {}) {
@@ -39,14 +48,20 @@ describe("groupIssues", () => {
 });
 
 describe("counts and links", () => {
-  it("counts errors and warnings and words them", () => {
+  it("counts errors and warnings, and words them as tasks: all to do, and what submit needs", () => {
     const { report } = evaluated();
     const counts = countIssues(report.issues);
     expect(counts.errors).toBeGreaterThan(0);
-    expect(describeIssueCounts({ errors: 0, warnings: 0 })).toBe("No issues");
-    expect(describeIssueCounts({ errors: 1, warnings: 0 })).toBe("1 error");
-    expect(describeIssueCounts({ errors: 2, warnings: 5 })).toBe("2 errors and 5 warnings");
-    expect(describeIssueCounts({ errors: 0, warnings: 1 })).toBe("1 warning");
+    expect(describePending({ errors: 0, warnings: 0 })).toBe("Nothing pending");
+    expect(describePending({ errors: 0, warnings: 1 })).toBe("1 to do");
+    expect(describePending({ errors: 1, warnings: 12 })).toBe("13 to do · 1 needed before you submit");
+    expect(describePending({ errors: 2, warnings: 0 })).toBe("2 to do · 2 needed before you submit");
+    expect(describePending({ errors: 1, warnings: 2 }, ", ")).toBe("3 to do, 1 needed before you submit");
+  });
+
+  it("says what submit needs when it is refused", () => {
+    expect(blockedSubmitMessage(1)).toBe("1 item is needed before you can submit.");
+    expect(blockedSubmitMessage(3)).toBe("3 items are needed before you can submit.");
   });
 
   it("links an issue to its section and path, with a stable key", () => {
@@ -61,6 +76,55 @@ describe("counts and links", () => {
     expect(issueTarget(issue)).toEqual({ sectionKey: "weight", path: ["sizes", "M", 3] });
     expect(issueKey(issue)).toBe(issueKey({ ...issue }));
     expect(issueKey(issue)).not.toBe(issueKey({ ...issue, path: ["sizes", "M", 4] }));
+  });
+});
+
+describe("taskText", () => {
+  const notDone = (message: string, level: ValidationIssue["level"] = "warning"): ValidationIssue => ({
+    level,
+    moduleKey: "glove_info",
+    code: "module_not_done",
+    message,
+    path: [],
+  });
+
+  it("leaves the section's own words out of its not-done task: the heading says them", () => {
+    expect(taskText(notDone("Glove Information is not done: Missing: Glove colour, Glove length."), "Glove Information")).toBe(
+      "Missing: Glove colour, Glove length.",
+    );
+    expect(taskText(notDone("Conclusion must be complete before submit: No final result.", "error"), "Conclusion")).toBe(
+      "No final result.",
+    );
+    expect(taskText(notDone("Tensile is not done: size S: not entered."), "Tensile")).toBe("Size S: not entered.");
+  });
+
+  it("says Not done yet. when the section gave nothing more", () => {
+    expect(taskText(notDone("Tensile is not done."), "Tensile")).toBe("Not done yet.");
+    expect(taskText(notDone("Conclusion must be complete before submit.", "error"), "Conclusion")).toBe("Not done yet.");
+  });
+
+  it("keeps the whole message under another title, and for every other issue", () => {
+    expect(taskText(notDone("Weight is not done: Missing: values."), "Glove Information")).toBe("Weight is not done: Missing: values.");
+    const required: ValidationIssue = {
+      level: "error",
+      moduleKey: "site_notes",
+      code: "custom_required",
+      message: "Container seal intact is required.",
+      path: ["sealIntact"],
+    };
+    expect(taskText(required, "Site notes")).toBe("Container seal intact is required.");
+  });
+
+  it("strips the not-done messages lib/validation writes", () => {
+    const { report, sections } = evaluated();
+    const groups = groupIssues(report.issues, sections);
+    const tasks = groups.flatMap((group) =>
+      [...group.errors, ...group.warnings]
+        .filter((issue) => issue.code === "module_not_done")
+        .map((issue) => taskText(issue, group.title)),
+    );
+    expect(tasks.length).toBeGreaterThan(0);
+    for (const task of tasks) expect(task).not.toMatch(/is not done|must be complete before submit/);
   });
 });
 

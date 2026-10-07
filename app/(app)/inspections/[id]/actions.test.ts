@@ -375,7 +375,7 @@ describe("submitInspection", () => {
     const data = { modules: { ...COMPLETE.modules, conclusion: { finalResult: null, remark: null } }, custom: {} };
     useClient(() => ({ data: row({ data }), error: null }));
     const result = await submit(data);
-    expect(result).toMatchObject({ status: "blocked", message: "Fix this error before submitting.", overrides: {} });
+    expect(result).toMatchObject({ status: "blocked", message: "1 item is needed before you can submit.", overrides: {} });
     expect(result.status === "blocked" && result.errors.map((issue) => issue.moduleKey)).toEqual(["conclusion"]);
     expect(client.queries.filter(isUpdate)).toHaveLength(0);
   });

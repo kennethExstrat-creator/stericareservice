@@ -7,6 +7,7 @@ import { scheduleAiReviewOnSubmit } from "@/lib/inspections/ai";
 import { captureAccess, isEditableStatus } from "@/lib/inspections/capture/access";
 import { changedEntryProblems, describeProblems } from "@/lib/inspections/capture/changes";
 import { evaluateCapture } from "@/lib/inspections/capture/evaluate";
+import { blockedSubmitMessage } from "@/lib/inspections/capture/issues";
 import { loadCaptureInspection, type CaptureInspection } from "@/lib/inspections/capture/load";
 import { mirroredColumns } from "@/lib/inspections/capture/mirror";
 import {
@@ -193,7 +194,7 @@ export async function submitInspection(input: unknown): Promise<SubmitResult> {
       if (errors.length > 0) {
         return {
           status: "blocked",
-          message: `Fix ${errors.length === 1 ? "this error" : `these ${errors.length} errors`} before submitting.`,
+          message: blockedSubmitMessage(errors.length),
           errors,
           overrides: row.overrides,
         };
