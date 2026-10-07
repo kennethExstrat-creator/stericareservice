@@ -16,6 +16,7 @@ import { createTestAdminClient, deleteTestInspection, throwawayEmail } from "../
  *   Lina Lead's team: Ivan (a draft and a submitted inspection), Ida (an approved one)
  *   Leo Lead's team:  Bea (a draft)
  *   Lina's own draft, and Pat, an inspector account nobody has activated yet
+ *   Gail, an active inspector in no team, as accounts from before teams are
  *
  * Names carry the run's suffix, so a crashed run's leftovers never match.
  */
@@ -37,6 +38,8 @@ export type OrgFixture = {
   bea: Account;
   /** Never activated: an inspector in no team, waiting for an admin. */
   pat: Account;
+  /** Active and in no team (the secret key may leave an inspector so): the Users screen's problem to fix. */
+  gail: Account;
   inspections: {
     ivanDraft: FixtureInspection;
     ivanSubmitted: FixtureInspection;
@@ -164,6 +167,7 @@ export async function createOrgFixture(): Promise<OrgFixture> {
     const ida = await account("E2E Ida Inspector", { active: true, lead_id: linaLead.id });
     const bea = await account("E2E Bea Inspector", { active: true, lead_id: leoLead.id });
     const pat = await account("E2E Pat Pending", null);
+    const gail = await account("E2E Gail Grandfathered", { active: true });
 
     const resolution = resolveTemplate(DEFINITION, lookupFrom([]));
     if (!resolution.ok) fail("resolving the fixture template", { message: JSON.stringify(resolution.problems) });
@@ -211,7 +215,7 @@ export async function createOrgFixture(): Promise<OrgFixture> {
     const approved = await admin.from("inspections").update({ status: "approved" }).eq("id", byKey.idaApproved.id);
     if (approved.error) fail("approving", approved.error);
 
-    return { linaLead, ivan, ida, leoLead, bea, pat, inspections: byKey, cleanup };
+    return { linaLead, ivan, ida, leoLead, bea, pat, gail, inspections: byKey, cleanup };
   } catch (error) {
     // afterAll gets no fixture to clean up, so remove what was made so far.
     await cleanup().catch(() => undefined);

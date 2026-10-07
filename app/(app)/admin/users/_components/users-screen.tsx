@@ -24,6 +24,10 @@ import { UsersTable } from "./users-table";
 /** How many names an alert lists before "and N more". */
 const NAMES_SHOWN = 5;
 
+/** An alert's action link, on its own line: 44 px tall on touch (docs/DESIGN.md, Density) without crowding the text above. */
+const ALERT_LINK =
+  "rounded-sm font-semibold text-warn underline underline-offset-4 focus-ring touch:inline-flex touch:min-h-11 touch:items-center";
+
 function people(count: number): string {
   return count === 1 ? "1 person" : `${count} people`;
 }
@@ -157,11 +161,13 @@ function NoLeadAlert({ people: missing }: { people: UserListItem[] }) {
     <Alert className="border-warn-border bg-warn-tint text-warn" data-testid="no-lead-alert">
       <TriangleAlertIcon aria-hidden />
       <AlertTitle>{`${inspectors(missing.length)} ${one ? "has" : "have"} no lead inspector`}</AlertTitle>
-      <AlertDescription className="text-warn">
+      <AlertDescription className="text-warn [&_p:not(:last-child)]:mb-1">
         <p>
           {listed} {one ? "works" : "work"} in no team, so no lead inspector sees {one ? "their" : "those"} inspections.
-          Choose Change lead inspector next to {one ? "their name" : "each name"}.{" "}
-          <Link href={teamHref(NO_LEAD)} className="font-semibold text-warn underline underline-offset-4 focus-ring">
+          Choose Change lead inspector next to {one ? "their name" : "each name"}.
+        </p>
+        <p>
+          <Link href={teamHref(NO_LEAD)} className={ALERT_LINK}>
             Show {one ? "them" : "only them"}
           </Link>
         </p>

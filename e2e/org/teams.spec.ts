@@ -168,6 +168,24 @@ test.describe("an admin on /admin/users", () => {
     expect(errors).toEqual([]);
   });
 
+  test("lists active inspectors in no team, with a link to only them that a finger finds", async ({ page }) => {
+    await page.goto("/admin/users");
+    const alert = page.getByTestId("no-lead-alert");
+    await expect(alert).toBeVisible();
+    // Other accounts in no team may be listed too: "Show them" for one person, "Show only them" for more.
+    const link = alert.getByRole("link", { name: /^Show (only )?them$/ });
+    if (isTouch()) {
+      // 44 px on touch (docs/DESIGN.md, Density).
+      expect((await link.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+    }
+    await shot(page, "no-lead-alert");
+
+    await link.click();
+    await expect(page).toHaveURL(/\/admin\/users\?team=none$/);
+    await expect(rowFor(page, fixture.gail.email)).toBeVisible();
+    await expect(rowFor(page, fixture.ivan.email)).toHaveCount(0);
+  });
+
   test("moves an inspector to another lead's team, out of the old lead's view", async ({ page, browser, baseURL }) => {
     await page.goto("/admin/users");
     const row = rowFor(page, fixture.ida.email);

@@ -177,7 +177,10 @@ describe("/admin/users: lead inspectors and teams", () => {
     const alert = html.slice(html.indexOf('data-testid="no-lead-alert"'));
     expect(alert).toContain("1 inspector has no lead inspector");
     expect(alert).toContain("Gail Grandfathered works in no team, so no lead inspector sees their inspections.");
-    expect(alert).toContain('href="/admin/users?team=none"');
+    // On its own line, and 44 px tall on touch (docs/DESIGN.md, Density): e2e/org measures it.
+    const link = alert.match(/<a[^>]*href="\/admin\/users\?team=none"[^>]*>/)?.[0] ?? "";
+    expect(link).toMatch(/touch:inline-flex touch:min-h-11 touch:items-center/);
+    expect(alert).toMatch(/<p><a[^>]*>Show them<\/a><\/p>/);
   });
 
   it("shows one lead's team, the lead first", async () => {
