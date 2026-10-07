@@ -15,7 +15,7 @@ export const MAX_SEARCH_LENGTH = 100;
 const MAX_PAGE = 100_000;
 
 export type InspectionListFilters = {
-  /** Ref, PO or exact lot number (lib/inspections/postgrest.ts). */
+  /** Ref, PO, lot or carton number (listSearchFilter in lib/inspections/query.ts). */
   q?: string;
   status?: InspectionStatus;
   /** Client id. */

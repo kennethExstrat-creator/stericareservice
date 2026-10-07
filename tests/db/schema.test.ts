@@ -134,12 +134,23 @@ describe("schema guards", { timeout: 30_000 }, () => {
     "20261007151500_delete_draft_inspection.sql",
     "20261007170000_lead_inspectors.sql",
     "20261007190000_inspector_writes_through_the_app.sql",
+    "20261007193000_admins_delete_drafts_only.sql",
   ])("applies %s again without changing the schema", async (name) => {
     const before = await schemaSnapshot(db);
     const migration = (await readMigrations()).find((file) => file.name === name);
     expect(migration).toBeDefined();
     await applyAsOwner(db, migration!);
     expect(await schemaSnapshot(db)).toEqual(before);
+  });
+
+  // Migration 20261007193000 (data audit D1): signed-in users, admins included,
+  // delete an inspection only through delete_draft_inspection().
+  it("has no policy that lets a signed-in user delete an inspection", async () => {
+    const result = await db.query<{ policyname: string }>(
+      `select policyname from pg_policies
+        where schemaname = 'public' and tablename = 'inspections' and cmd in ('DELETE', 'ALL')`,
+    );
+    expect(result.rows).toEqual([]);
   });
 
   it("keeps the functions that write for an inspector to the service role", async () => {

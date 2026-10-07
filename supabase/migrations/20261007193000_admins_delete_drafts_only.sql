@@ -1,0 +1,30 @@
+-- Admins delete drafts only, in the database too (final audit, 7 October
+-- 2026: data D1).
+--
+-- Before: row level security let an admin's own session delete any
+-- inspection (the policy inspections_delete, 20261006000400); the guard
+-- refuses only an approved one. So an admin's session token, which the
+-- browser holds, and the publishable key were enough to delete a submitted or
+-- reopened inspection through the Data API, and its audit history with it,
+-- although 20261007151500 says "Submitted, reopened and approved inspections
+-- stay. The rule is enforced here, where every request meets it." The app
+-- never deletes an inspection directly (the list's Delete calls
+-- delete_draft_inspection()), so this can be applied at any time.
+--
+-- Now no policy lets a signed-in user delete an inspection. A DELETE through
+-- the Data API matches no row for an admin, as it always did for an
+-- inspector: it removes nothing and is not an error (PostgREST answers with
+-- no rows). Signed-in users delete through delete_draft_inspection() only: a
+-- draft that was never submitted, their own or, as an admin, anyone's. It
+-- runs as the owner (security definer), which row level security does not
+-- apply to, so it never needed the policy.
+--
+-- Unchanged: the service role keeps its maintenance deletes (it bypasses row
+-- level security, and the guard still refuses it an approved inspection), and
+-- end-to-end teardown deletes the inspections of test accounts through
+-- delete_test_inspection(). authenticated keeps the DELETE privilege, which
+-- matches no row without a policy.
+--
+-- Idempotent: running it again changes nothing.
+
+drop policy if exists inspections_delete on public.inspections;

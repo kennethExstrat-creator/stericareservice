@@ -17,7 +17,8 @@ import { asAnon, asOwner, asService, asUser, column, createAuthUser, createTestD
  * public.delete_draft_inspection() (migration 20261007151500): the inspections
  * list's Delete. An active user deletes a draft that was never submitted,
  * their own or, as an admin, anyone's; its evidence goes with it and a record
- * of the deletion stays.
+ * of the deletion stays. Since migration 20261007193000 it is the only delete
+ * a signed-in user has, admins included.
  */
 
 type AuditRow = Tables<"audit_log">;
@@ -266,26 +267,36 @@ describe("delete_draft_inspection()", { timeout: 30_000 }, () => {
     expect(await exists(db, draft.id)).toBe(true);
   });
 
-  it("leaves inspectors without a delete of their own: the table still refuses them", async () => {
+  it("is the only delete signed-in users have: the table refuses a direct one, from an admin too", async () => {
     const draft = await createInspection(db, people.inspector, templateId);
-    const result = await asUser(db, people.inspector, (tx) =>
-      tx.query("delete from public.inspections where id = $1", [draft.id]),
-    );
-    expect(result.affectedRows).toBe(0);
+    for (const caller of [people.inspector, people.admin]) {
+      const result = await asUser(db, caller, (tx) =>
+        tx.query("delete from public.inspections where id = $1", [draft.id]),
+      );
+      expect(result.affectedRows, caller).toBe(0);
+    }
     expect(await exists(db, draft.id)).toBe(true);
+    expect(await deletionRecords(db, draft.id)).toEqual([]);
   });
 
   it("leaves the record of any other deletion as it was", async () => {
-    const draft = await createInspection(db, people.inspector, templateId);
-    await asUser(db, people.admin, (tx) => tx.query("delete from public.inspections where id = $1", [draft.id]));
+    const direct = await createInspection(db, people.inspector, templateId);
+    const teardown = await createInspection(db, people.inspector, templateId);
+    // Maintenance with the secret key, and end-to-end teardown.
+    await asService(db, async (tx) => {
+      await tx.query("delete from public.inspections where id = $1", [direct.id]);
+      await tx.query("select public.delete_test_inspection($1)", [teardown.id]);
+    });
 
-    expect(await deletionRecords(db, draft.id)).toEqual([
-      {
-        inspection_id: null,
-        actor_id: people.admin,
-        changes: { inspection_id: draft.id, ref_no: draft.ref_no, status: "draft" },
-      },
-    ]);
+    for (const draft of [direct, teardown]) {
+      expect(await deletionRecords(db, draft.id)).toEqual([
+        {
+          inspection_id: null,
+          actor_id: null,
+          changes: { inspection_id: draft.id, ref_no: draft.ref_no, status: "draft" },
+        },
+      ]);
+    }
   });
 
   it("only adds its context to the record of the inspection it names", async () => {
