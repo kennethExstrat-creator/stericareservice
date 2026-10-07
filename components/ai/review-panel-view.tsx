@@ -95,7 +95,7 @@ export function AiReviewPanelView({ model, className }: { model: AiPanelModel; c
   );
 }
 
-/** The panel's heading, which its sections name themselves by (`ai-panel-title`); also over the panel's quiet states (ai-review-panel.tsx). */
+/** The panel's heading: its section is labelled by `ai-panel-title`. The quiet states in ai-review-panel.tsx carry it too. */
 export function AiPanelTitle() {
   return (
     <h2 id="ai-panel-title" className="flex items-center gap-2 text-2xl font-bold tracking-tight text-foreground">
