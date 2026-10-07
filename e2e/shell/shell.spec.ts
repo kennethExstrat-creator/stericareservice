@@ -1,14 +1,16 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { sessionCookies, signIn, TEST_ACCOUNTS } from "../support/session";
+import { createShellFixture, type ShellFixture } from "./fixtures";
 
 /**
- * The app shell, the admin overview, the manifest and the 404 and error
- * screens (BUILD_SPEC 8, 10, 12 Phase 1), at the three sizes in
+ * The app shell, the admin overview, Sign out, the manifest and the 404 and
+ * error screens (BUILD_SPEC 8, 10, 12), at the three sizes in
  * playwright.config.ts. Screenshots go to screenshots/shell/ (git-ignored).
  *
- * The inspector has no shell page of their own until the inspections list is
- * merged, and nothing in the app throws on purpose, so four checks take a
- * page from the environment and skip without one:
+ * The admin's tests that need a template version or an inspection make their
+ * own (./fixtures.ts) and delete them afterwards. Nothing in the app throws or
+ * stalls on purpose, so three checks take a page from the environment and
+ * skip without one; a fourth can point at another shell page:
  *
  *   SHELL_E2E_PAGE             a signed-in page inside the shell (default
  *                              /inspections; skipped while it is a 404)
@@ -25,22 +27,61 @@ const ROOT_ERROR_PAGE = process.env.SHELL_E2E_ROOT_ERROR_PAGE;
 /** The error screens' tab title (components/shell/error-screen.tsx). */
 const ERROR_TITLE = "This page did not load · SteriCare QC";
 
+/** The admin section's pages, in the nav's order (components/shell/nav.ts). */
+const ADMIN_PAGES = ["Overview", "Users", "Manufacturers", "Clients", "Defects", "Templates"];
+
+/** Photo uploads to Storage (lib/photos/supabase-adapters.ts). */
+const PHOTO_UPLOADS = "**/storage/v1/object/inspection-photos/**";
+
+/** What Sign out says while photos or files wait on this device (components/shell/sign-out-check.ts). */
+const UPLOADS_WAITING = "Some photos or files are still only on this device. They will not upload while you are signed out";
+
+// Dev servers compile each page on its first visit, and the Mac running these is shared.
+test.describe.configure({ timeout: 90_000 });
+
 /** The desktop layout starts at 1280 px (BUILD_SPEC 8). */
 const isDesktop = (page: Page) => (page.viewportSize()?.width ?? 0) >= 1280;
 
+const isTouch = () => Boolean(test.info().project.use.hasTouch);
+
+/**
+ * A screenshot under screenshots/shell/. Full page on the desktop. A full-page
+ * capture drops touch emulation while it resizes (e2e/README.md), so the iPads
+ * get the viewport, scrolled: name.png, or name-1.png, name-2.png ... for a
+ * longer page. `fullPage` false takes the viewport as it is (a menu, a
+ * dialog). caret "initial" leaves the inputs alone: Playwright's caret hiding
+ * writes a style attribute, which React would report as a hydration mismatch
+ * if it landed first.
+ */
 async function shot(page: Page, name: string, fullPage = true) {
   // Hide the dev-only Next.js indicator: it sits on top of the sidebar's user block.
   await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
-  await page.screenshot({
-    path: `screenshots/shell/${test.info().project.name}-${name}.png`,
-    fullPage,
-    animations: "disabled",
-  });
+  const path = (part = "") => `screenshots/shell/${test.info().project.name}-${name}${part}.png`;
+  const options = { animations: "disabled", caret: "initial" } as const;
+  if (!fullPage || !isTouch()) {
+    await page.screenshot({ ...options, path: path(), fullPage });
+    return;
+  }
+  const { height, viewport } = await page.evaluate(() => ({
+    height: document.documentElement.scrollHeight,
+    viewport: window.innerHeight,
+  }));
+  const parts = Math.max(1, Math.ceil(height / viewport));
+  for (let part = 0; part < parts; part++) {
+    await page.evaluate((top) => window.scrollTo(0, top), part * viewport);
+    await page.screenshot({ ...options, path: path(parts > 1 ? `-${part + 1}` : "") });
+  }
+  await page.evaluate(() => window.scrollTo(0, 0));
 }
 
 /** The visible bar: the sidebar from 1280 px, the top bar below. */
 function shellBar(page: Page) {
   return page.getByTestId(isDesktop(page) ? "shell-sidebar" : "shell-top-bar");
+}
+
+/** Where the admin pages are listed: the sidebar from 1280 px, the row at the top of the page below. */
+function adminPages(page: Page) {
+  return page.getByRole("navigation", { name: isDesktop(page) ? "Main" : "Admin" });
 }
 
 type SessionCookie = Awaited<ReturnType<typeof sessionCookies>>[number];
@@ -63,6 +104,11 @@ function addSession(context: BrowserContext, baseURL: string, cookies: SessionCo
   return context.addCookies(cookies.map((cookie) => ({ ...cookie, url: baseURL })));
 }
 
+/** The Supabase session cookies the browser holds. */
+async function authCookies(context: BrowserContext) {
+  return (await context.cookies()).filter((cookie) => cookie.name.includes("-auth-token"));
+}
+
 async function openUserMenu(page: Page) {
   await page.getByRole("button", { name: /account menu/ }).click();
   const menu = page.getByRole("menu");
@@ -70,6 +116,28 @@ async function openUserMenu(page: Page) {
   // Let the 100 ms zoom-in finish, or sizes are measured mid-scale.
   await menu.evaluate((element) => Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished)));
   return menu;
+}
+
+/** A photo as the iPad's library hands it over: a JPEG drawn by the browser. */
+async function drawPhoto(page: Page) {
+  const dataUrl = await page.evaluate(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 800;
+    canvas.height = 600;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("No 2D canvas");
+    context.fillStyle = "#0074d6";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "#ffffff";
+    context.font = "bold 96px sans-serif";
+    context.fillText("Glove", 80, 340);
+    return canvas.toDataURL("image/jpeg", 0.9);
+  });
+  return {
+    name: "glove-palm.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from(dataUrl.slice(dataUrl.indexOf(",") + 1), "base64"),
+  };
 }
 
 // React reports hydration mismatches as console errors; none are allowed.
@@ -165,12 +233,11 @@ test.describe("as the admin", () => {
       await expect(topBar).toBeHidden();
       await expect(sidebar.getByRole("link", { name: "SteriCare home" })).toBeVisible();
       await expect(nav.getByText("Admin", { exact: true })).toBeVisible();
-      await expect(nav.getByRole("link")).toHaveText(["Inspections", "Overview", "Users", "Manufacturers", "Clients"]);
+      // Every admin screen is a link; nothing is announced as coming.
+      await expect(nav.getByRole("link")).toHaveText(["Inspections", ...ADMIN_PAGES]);
       await expect(nav.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
-      for (const planned of ["Defects", "Templates"]) {
-        await expect(nav.getByText(planned, { exact: true })).toBeVisible();
-      }
-      await expect(nav.getByText("Phase 3")).toHaveCount(2);
+      await expect(nav.locator("a[aria-current]")).toHaveCount(1);
+      await expect(nav.getByText(/Phase \d|coming/i)).toHaveCount(0);
       // The sidebar stays put while the page scrolls.
       const box = await sidebar.boundingBox();
       expect(box?.height).toBe(page.viewportSize()?.height);
@@ -186,11 +253,14 @@ test.describe("as the admin", () => {
         expect((await tab.boundingBox())?.height).toBeGreaterThanOrEqual(44);
       }
       expect((await topBar.getByRole("link", { name: "SteriCare home" }).boundingBox())?.height).toBeGreaterThanOrEqual(44);
-      // No sidebar, so the admin pages are listed at the top of the page.
+      // No sidebar, so the admin pages are listed at the top of the page: every one a link.
       const section = page.getByRole("navigation", { name: "Admin" });
-      await expect(section.getByRole("link")).toHaveText(["Overview", "Users", "Manufacturers", "Clients"]);
+      await expect(section.getByRole("link")).toHaveText(ADMIN_PAGES);
       await expect(section.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
-      await expect(section.getByText("Defects and Templates")).toBeVisible();
+      await expect(section.getByText(/Coming in|Phase \d/)).toHaveCount(0);
+      for (const pill of await section.getByRole("link").all()) {
+        expect((await pill.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+      }
       // The top bar sticks while the page scrolls.
       await page.mouse.wheel(0, 600);
       await expect.poll(async () => (await topBar.boundingBox())?.y).toBe(0);
@@ -248,18 +318,49 @@ test.describe("as the admin", () => {
     }
     // Tabs keep their names for screen readers when only the icons show.
     await expect(nav.getByRole("link")).toHaveText(["Inspections", "Admin"]);
+    // The admin row wraps rather than widening the page.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await shot(page, "admin-top-bar-320", false);
   });
 
-  test("the admin overview shows status, never secrets", async ({ page }) => {
+  test("the admin overview: what waits, every admin screen, the status, never secrets", async ({ page }) => {
     await page.goto("/admin");
+    await expect(page).toHaveTitle("Admin overview · SteriCare QC");
+
+    // What waits for an admin: the submitted inspections, counted, and linked filtered.
+    const waiting = page.getByRole("region", { name: "Inspections", exact: true });
+    const awaiting = waiting.getByRole("link", { name: /^Awaiting approval\b/ });
+    await expect(awaiting).toHaveAttribute("href", "/inspections?status=submitted");
+    await expect(awaiting).toContainText(
+      /\d+ submitted inspections? to approve or reopen\.|Nothing to approve: no inspection is submitted\./,
+    );
+    await expect(waiting.getByRole("link", { name: /Every inspection/ })).toHaveAttribute("href", "/inspections");
+
+    // Every admin screen, unmapped defect labels beside the codes; nothing announced as coming.
+    const setUp = page.getByRole("region", { name: "Set-up", exact: true });
+    const screens: [RegExp, string][] = [
+      [/^Users\b.*Invite people/, "/admin/users"],
+      [/^Manufacturers\b/, "/admin/manufacturers"],
+      [/^Clients\b/, "/admin/clients"],
+      [/^Defect codes\b/, "/admin/defects"],
+      [/^Unmapped labels\b/, "/admin/defects/unmapped"],
+      [/^Templates\b/, "/admin/templates"],
+    ];
+    await expect(setUp.getByRole("link")).toHaveCount(screens.length);
+    for (const [name, href] of screens) {
+      await expect(setUp.getByRole("link", { name }), href).toHaveAttribute("href", href);
+    }
+    await expect(page.getByText(/Coming in|Phase \d|next build/)).toHaveCount(0);
+    if (isTouch()) {
+      for (const link of [awaiting, ...(await setUp.getByRole("link").all())]) {
+        expect((await link.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+      }
+    }
+
     for (const card of ["Supabase", "Sign-in emails", "AI second opinion", "AI report"]) {
       await expect(page.getByRole("heading", { level: 3, name: card })).toBeVisible();
     }
-    await expect(page.getByRole("link", { name: /Invite people/ })).toHaveAttribute("href", "/admin/users");
-    await expect(page.getByRole("link", { name: /Every inspection/ })).toHaveAttribute("href", "/inspections");
     await expect(page.getByRole("link", { name: /Set-up guide/ })).toHaveAttribute("target", "_blank");
-    await expect(page).toHaveTitle("Admin overview · SteriCare QC");
 
     // The email links start with the Supabase project's Site URL: the card says
     // what it must be (this app's address, as getSiteUrl() reads it) and links
@@ -277,6 +378,11 @@ test.describe("as the admin", () => {
       if (value) expect(html.includes(value), `${name} must not reach the page`).toBe(false);
     }
     await shot(page, "admin-overview");
+
+    // Awaiting approval opens the list, filtered to what an admin approves or reopens.
+    await awaiting.click();
+    await expect(page).toHaveURL(/\/inspections\?status=submitted$/);
+    await expect(page.getByRole("combobox", { name: "Status" })).toHaveText("Submitted");
   });
 
   test("the user menu shows who is signed in", async ({ page }) => {
@@ -287,7 +393,7 @@ test.describe("as the admin", () => {
     const signOut = menu.getByRole("menuitem", { name: "Sign out" });
     await expect(signOut).toBeVisible();
     expect((await signOut.boundingBox())?.height).toBeGreaterThanOrEqual(isDesktop(page) ? 28 : 44);
-    await shot(page, "admin-user-menu");
+    await shot(page, "admin-user-menu", false);
     await page.keyboard.press("Escape");
     await expect(menu).toBeHidden();
   });
@@ -311,15 +417,17 @@ test.describe("as the admin", () => {
     await expect(page).toHaveURL(/\/inspections$/);
   });
 
-  test("Sign out ends the session", async ({ page, context, baseURL }) => {
+  test("Sign out ends the session at once when nothing waits on this device", async ({ page, context, baseURL }) => {
     // A session of its own: signing out revokes it, and the other tests share theirs.
     await context.clearCookies();
     await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
     await page.goto("/admin");
     const menu = await openUserMenu(page);
     await menu.getByRole("menuitem", { name: "Sign out" }).click();
+    // No question first: straight to sign-in.
     await expect(page).toHaveURL(/\/login$/);
-    expect((await context.cookies()).filter((cookie) => cookie.name.includes("-auth-token"))).toEqual([]);
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    expect(await authCookies(context)).toEqual([]);
 
     await page.goto("/admin");
     await expect(page).toHaveURL(/\/login\?next=%2Fadmin$/);
@@ -359,6 +467,94 @@ test.describe("as the admin", () => {
     await expect(shellBar(page)).toBeVisible();
     await shot(page, "admin-loading", false);
   });
+
+  test.describe("with a template version and an inspection of its own", () => {
+    let fixture: ShellFixture;
+
+    test.beforeAll(async ({}, testInfo) => {
+      fixture = await createShellFixture(testInfo.project.name);
+    });
+
+    test.afterAll(async () => {
+      await fixture?.cleanup();
+    });
+
+    test("Defects and Templates stay current on the pages below them", async ({ page }) => {
+      const below = [
+        { path: "/admin/defects/labels", entry: "Defects", heading: "Defects" },
+        { path: `/admin/templates/${fixture.templateId}/edit`, entry: "Templates", heading: null },
+      ];
+      for (const { path, entry, heading } of below) {
+        await page.goto(path);
+        if (heading) await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
+        // Inside the section, not the page itself: "true", never "page", and only this entry.
+        const pages = adminPages(page);
+        await expect(pages.getByRole("link", { name: entry, exact: true }), path).toHaveAttribute("aria-current", "true");
+        await expect(pages.locator("a[aria-current]"), path).toHaveCount(1);
+        if (!isDesktop(page)) {
+          const tabs = page.getByRole("navigation", { name: "Main" });
+          await expect(tabs.getByRole("link", { name: "Admin" })).toHaveAttribute("aria-current", "true");
+          await expect(tabs.locator("a[aria-current]")).toHaveCount(1);
+        }
+        await shot(page, `admin-nav-${entry.toLowerCase()}-below`, false);
+      }
+
+      // Back up to the list, where the entry is the page itself.
+      const templates = adminPages(page).getByRole("link", { name: "Templates", exact: true });
+      await templates.click();
+      await expect(page).toHaveURL(/\/admin\/templates$/);
+      await expect(page.getByRole("heading", { level: 1, name: "Templates" })).toBeVisible();
+      await expect(templates).toHaveAttribute("aria-current", "page");
+    });
+
+    test("Sign out asks first while a photo waits on this device", async ({ page, context, baseURL }) => {
+      // A session of its own: signing out revokes it, and the other tests share theirs.
+      await context.clearCookies();
+      await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
+      // Uploads fail as on a dropped connection, so the photo stays on this device.
+      await page.route(PHOTO_UPLOADS, (route) => route.abort("internetdisconnected"));
+      const gallery = `/inspections/${fixture.inspectionId}/photos`;
+      await page.goto(gallery);
+      await expect(page.getByRole("heading", { level: 1, name: "Photos and files" })).toBeVisible();
+      await page.locator('input[data-photo-input="library"]').setInputFiles(await drawPhoto(page));
+      const badge = page.locator('[data-slot="upload-badge"]');
+      await expect(badge).toHaveAttribute("data-count", "1", { timeout: 20_000 });
+
+      const dialog = page.getByRole("alertdialog", { name: "Sign out now?" });
+      const stay = dialog.getByRole("button", { name: "Stay signed in" });
+      await (await openUserMenu(page)).getByRole("menuitem", { name: "Sign out" }).click();
+      await expect(dialog).toBeVisible();
+      await expect(dialog).toContainText(UPLOADS_WAITING);
+      await expect(dialog.getByRole("button", { name: "Sign out anyway" })).toBeVisible();
+      // Staying is the default: it has the focus, and the menu has handed over to the dialog.
+      await expect(stay).toBeFocused();
+      await expect(page.getByRole("menu")).toHaveCount(0);
+      if (isTouch()) expect((await stay.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+      await shot(page, "admin-sign-out-photo-waiting", false);
+
+      // Stay: still signed in, on the same page, the photo still waiting, focus back on the menu button.
+      await stay.click();
+      await expect(dialog).toBeHidden();
+      await expect(page).toHaveURL(new RegExp(`${gallery}$`));
+      await expect(page.getByRole("button", { name: /account menu/ })).toBeFocused();
+      expect(await authCookies(context)).not.toEqual([]);
+      await expect(badge).toHaveAttribute("data-count", "1");
+
+      // From any other page too, reached through the shell's nav: the check covers every inspection on this device.
+      const nav = page.getByRole("navigation", { name: "Main" });
+      await nav.getByRole("link", { name: isDesktop(page) ? "Overview" : "Admin", exact: true }).click();
+      await expect(page).toHaveURL(/\/admin$/);
+      await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
+      await (await openUserMenu(page)).getByRole("menuitem", { name: "Sign out" }).click();
+      await expect(dialog).toBeVisible();
+      await expect(dialog).toContainText(UPLOADS_WAITING);
+
+      // Sign out anyway: the session ends, and the photo stays on this device for the next sign-in.
+      await dialog.getByRole("button", { name: "Sign out anyway" }).click();
+      await expect(page).toHaveURL(/\/login$/);
+      expect(await authCookies(context)).toEqual([]);
+    });
+  });
 });
 
 test.describe("as the inspector", () => {
@@ -397,6 +593,6 @@ test.describe("as the inspector", () => {
     const menu = await openUserMenu(page);
     await expect(menu.getByText(TEST_ACCOUNTS.inspector)).toBeVisible();
     await expect(menu.getByText("Inspector", { exact: true })).toBeVisible();
-    await shot(page, "inspector-user-menu");
+    await shot(page, "inspector-user-menu", false);
   });
 });
