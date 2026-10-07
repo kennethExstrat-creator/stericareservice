@@ -102,26 +102,37 @@ Focus is never hidden under a sticky bar (WCAG 2.4.11). The page's scroll paddin
 
 ## Capitalisation
 
-Kenneth's rule (8 October 2026): labels start every word with a capital letter. Sentences keep sentence case.
+Kenneth's rule (8 October 2026): "all the labels should be capital letter for all first letter". Labels are in Title Case; sentences keep sentence case.
 
-**Title Case** for the labels and short names the app writes itself:
+**Title Case** for the labels and short names the app itself writes:
 
-- form field labels and legends, with their note: "Product Name (Optional)";
-- table column headers;
-- titles of pages (and of the browser tab), eyebrows, cards, sections, sheets and dialogs: "New Inspection", "Sign Out Now?";
-- tab names, navigation and menu items: "Sign Out";
-- button and link texts that name an action: "Start From Previous", "Submit for Review", "Go to Inspections";
-- status pills, badges and chips: Passed, Failed, Warning, On Hold, Info, Not Done.
+- form field labels and legends, with their note: "Product Name (Optional)", "Inspector Comment", "Map To";
+- table column headers, those only a screen reader hears included: "Inspector in Charge", "Used By", "Last Signed In";
+- titles of pages (and of the browser tab), eyebrows, cards, sections, sheets and dialogs, also when phrased as a question: "New Inspection", "Your Team", "Before You Submit", "Leave This Page?", "Submit INS-2026-0001 for Review?". A notice or an alert has a title too ("Read Only", "Keep This Page Open", "The Last Request Failed"); the text under it is its body, a sentence;
+- empty-state titles: "No Inspections Yet", "No Clients Match “PPE”", "The Clients Could Not Be Loaded";
+- tab names, navigation and menu items: "Custom Modules", "Sign Out", "Change Name";
+- button and link texts that name an action: "Start From Previous", "Submit for Review", "Go to Inspections", "Add From Library". An icon button's name is its text: "Clear Search", "Show Password";
+- status pills, badges and chips: Passed, Failed, Warning, On Hold, Info, Not Done, "Not Attached", "In Report", "Chosen by an Admin".
 
-Every word starts with a capital letter, except these small words when they are not the first word: a, an, the, and, but, or, nor, of, in, on, at, to, by, for, per, via, vs, as. So "Product Type", "Date of Inspection", "Gloves per Case", "Inspector in Charge", "Not Done", "On Hold". Each part of a hyphenated word starts with a capital: "Follow-Up", "Sign-In Emails". A small word that belongs to its verb keeps its capital ("Sign In", "Stay Signed In", but "Back to Sign In"). Eyebrows and the sidebar's section headings are set in capitals by CSS; their text is still written in Title Case, which is what a screen reader reads.
+How a label is written:
 
-**Stays as written:**
+- Every word starts with a capital letter, except these small words in the middle of a label: a, an, the, and, but, or, nor, of, in, on, at, to, by, for, per, via, vs, as. So "Date of Inspection", "Gloves per Case", "Inspector in Charge", "Use 500 for Every Class".
+- The first and the last word always start with a capital, a small word included: "Used In", "Map To", "Shown As", "Base Moved On".
+- A particle that belongs to its verb keeps its capital: "Sign In", "Switch Off", "Switch Back On", "Stay Signed In" (but "Back to Sign In", where "to" is no particle).
+- The first word after a colon or an opening bracket starts with a capital: "Reopened: Changes Needed", "No: Keeps Its Own Value", "Not Tagged (Tag Them Later)", "Accent: Logo Teal (The Brand, Never a Result)".
+- Each part of a hyphenated word starts with a capital: "Sign-In", "Set-Up", "One-Off Label".
 
-- Sentences: descriptions, hints, placeholders ("Choose the client"), help text, errors, toasts, notices, empty-state text, confirmations and the text `aria-describedby` points to. A sentence that quotes a label quotes it as shown: "Sign out, then choose “Forgot Password?”."
-- Codes and abbreviations (PO, SO, AQL, INS-2026-0001, ID), units (mm, g, N, %, pcs, pairs) and the names of people, clients, manufacturers, products and templates.
-- The clients' words that templates take from the paper forms and reports: module titles, field labels and captions defined in templates (`lib/templates/definitions/seed-bundle.json`), listed verbatim in `lib/coverage/fields.ts` and the coverage matrix of `docs/DATA_DICTIONARY.md` ("Total # carton", "# glove per inner box", "Packing configuration"), and the template's conclusion words (PASSED, FAILED, HOLD). They stay as printed until Kenneth decides.
+Eyebrows and the sidebar's section headings are set in capitals by CSS; their text is still written in Title Case, which is what a screen reader reads.
 
-An accessible name that repeats a visible label follows it (WCAG 2.5.3, see Do / Don't): a link that reads Open in Template Editor is named "Open in Template Editor: SAFEDON_EG v2". Tests hold labels to the rule with `lowerCaseWords(label)` in `lib/design/capitalisation.ts`, which names the words that break it.
+**Unchanged:**
+
+- Sentences: descriptions, hints, placeholders ("Choose the client"), help text, errors, toasts, notices and alert bodies, empty-state text under the title, confirmations, and the text `aria-describedby` points to. A notice whose only line is a sentence ending in a full stop stays one ("Your session has ended. Sign in again."). A sentence that quotes a label quotes it as shown: "Sign out, then choose “Forgot Password?”.", "Choose Agree, Disagree or Fixed.", "Start one with New Inspection."
+- Codes and abbreviations (PO, SO, AQL, INS-2026-0001, ID, STD_EG), units (mm, g, N, %, pcs, pairs) and the names of people, clients, manufacturers, products and templates.
+- For now, the clients' words that templates take from the paper forms: module titles, field labels and captions in `lib/coverage` (listed verbatim in `lib/coverage/fields.ts` and the coverage matrix of `docs/DATA_DICTIONARY.md`), `lib/templates/definitions` and the module defaults ("Total # carton", "# glove per inner box", "Packing configuration"), and the template's conclusion words (PASSED, FAILED, HOLD). A change right after this one puts those in Title Case too (Kenneth said yes), together with packing on the order's page. A label the app builds around them changes only its own words: "Weight (g), Size M", "Other : description (Size M, Right Hand)".
+
+An accessible name (`aria-label`) that repeats a visible label follows it (WCAG 2.5.3, see Do / Don't): a link that reads Open in Template Editor is named "Open in Template Editor: SAFEDON_EG v2", the photo card's Edit button "Edit tags and caption: …". A name only a screen reader hears that repeats no visible label, such as a region's "Sections and progress" or a table's caption, is no label and keeps its words.
+
+Tests hold labels to the rule with `lowerCaseWords(label)` in `lib/design/capitalisation.ts`, which names the words that break it; code that writes a label from a key (the template editor's config forms, the review's history) decides each small word with `staysLowerCase` from the same file.
 
 ## Do / Don't
 
@@ -134,5 +145,5 @@ An accessible name that repeats a visible label follows it (WCAG 2.5.3, see Do /
 - **Do** use `focus-ring` or `focus-ring-inset` for keyboard focus. **Don't** use shadcn's `focus-visible:ring-ring/50` halo, or translucent text such as `text-foreground/60`: both render lighter than the token the test measures.
 - **Do** make a component that holds `sr-only` text `relative`. **Don't** leave that text unanchored: in a horizontally scrolling tab bar or table it escapes the scroller and widens the page at iPad widths.
 - **Do** keep secondary text at slate-600 or darker. **Don't** add a dark mode (the `dark:` variant is inert on purpose).
-- **Do** write labels in Title Case and sentences in sentence case (Capitalisation): the pill says Not Done, the line under it "Not done: Visual Inspection." **Don't** capitalise a description, a toast or the clients' printed words ("# glove per inner box" stays as printed).
+- **Do** write labels in Title Case and sentences in sentence case (Capitalisation): the pill says Not Done, the line under it "Not done: Visual Inspection."; a label ends on a capital ("Used In"). **Don't** capitalise a description, a toast or, until the change that follows, the clients' printed words ("# glove per inner box" stays as printed).
 - **Do** start a control's accessible name with the words it shows, so a speech user can say what they see (WCAG 2.5.3): `aria-label="Open in Template Editor: SAFEDON_EG v2"`, or the visible text plus `sr-only` detail and no `aria-label`. **Don't** name it in other words ("Open SAFEDON_EG v2 in the Template Editor" on a link that reads "Open in Template Editor").
