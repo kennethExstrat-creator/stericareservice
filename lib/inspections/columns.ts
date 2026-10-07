@@ -46,7 +46,7 @@ const ACTIONS_COLUMN: InspectionColumn = { key: "actions", label: "Actions", srO
 /**
  * The list's columns in order (BUILD_SPEC 10), the row actions last.
  * Inspectors only ever see their own inspections, so only admins and lead
- * inspectors (who see their team's) get the Inspector in charge column.
+ * inspectors (who see their team's) get the Inspector in Charge column.
  */
 export function inspectionListColumns(viewer: { role: UserRole; isLead?: boolean }): readonly InspectionColumn[] {
   return seesTeamInspections(viewer) ? [...COLUMNS, INSPECTOR_COLUMN, ACTIONS_COLUMN] : [...COLUMNS, ACTIONS_COLUMN];

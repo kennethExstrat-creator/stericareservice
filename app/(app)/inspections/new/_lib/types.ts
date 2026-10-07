@@ -40,7 +40,7 @@ export const STANDARD_LABEL: Readonly<Record<Standard, string>> = {
   ASTM_D6319: "ASTM D6319",
   ASTM_D3578: "ASTM D3578",
   ASTM_D3577: "ASTM D3577",
-  custom: "Standard to be confirmed",
+  custom: "Standard to Be Confirmed",
 };
 
 export type { PreviousProduct, ProductType };

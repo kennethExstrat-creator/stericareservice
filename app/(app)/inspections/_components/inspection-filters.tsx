@@ -70,7 +70,7 @@ export function InspectionFilters({
   });
 
   // The search box holds a draft until it is submitted. Whenever the list
-  // moves to other filters (a search, a picker, Clear filters, the back
+  // moves to other filters (a search, a picker, Clear Filters, the back
   // button) the box follows the URL, so it never shows a search that is not
   // applied. The page number is not part of it: paging keeps a draft. Text
   // typed while this bar's own navigation is on its way is the next search,
@@ -183,7 +183,7 @@ export function InspectionFilters({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL}>All statuses</SelectItem>
+            <SelectItem value={ALL}>All Statuses</SelectItem>
             {STATUSES.map((status) => (
               <SelectItem key={status} value={status}>
                 {INSPECTION_STATUS_LABEL[status]}
@@ -204,7 +204,7 @@ export function InspectionFilters({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL}>All clients</SelectItem>
+            <SelectItem value={ALL}>All Clients</SelectItem>
             {clients.map((client) => (
               <SelectItem key={client.id} value={client.id}>
                 <span className="truncate">{client.label}</span>
@@ -225,7 +225,7 @@ export function InspectionFilters({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL}>All manufacturers</SelectItem>
+            <SelectItem value={ALL}>All Manufacturers</SelectItem>
             {manufacturers.map((manufacturer) => (
               <SelectItem key={manufacturer.id} value={manufacturer.id}>
                 <span className="truncate">{manufacturer.label}</span>

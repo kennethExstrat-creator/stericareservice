@@ -32,15 +32,15 @@ export const metadata: Metadata = {
 
 /** The eyebrow above the title and the table's caption, by whose inspections the user sees. */
 const HEADING: Readonly<Record<InspectionScope, { eyebrow: string; caption: string }>> = {
-  all: { eyebrow: "All inspectors", caption: "Inspections by every inspector, newest first" },
-  team: { eyebrow: "Your team", caption: "Your team's inspections and your own, newest first" },
-  own: { eyebrow: "Your inspections", caption: "Your inspections, newest first" },
+  all: { eyebrow: "All Inspectors", caption: "Inspections by every inspector, newest first" },
+  team: { eyebrow: "Your Team", caption: "Your team's inspections and your own, newest first" },
+  own: { eyebrow: "Your Inspections", caption: "Your inspections, newest first" },
 };
 
 /**
  * The inspections list (BUILD_SPEC 10): inspectors see their own, lead
  * inspectors their own and their team's (read-only), admins everyone's; the
- * last two with an Inspector in charge column. Row Level Security does the scoping;
+ * last two with an Inspector in Charge column. Row Level Security does the scoping;
  * this page only reads through the signed-in user's client. Filters live in
  * the URL (lib/inspections/search-params.ts), so a view can be shared. Each
  * row ends with its actions: Continue, Review or View, and Delete on a draft
@@ -146,9 +146,9 @@ function describeCount(filters: InspectionListFilters, total: number, shown: num
 }
 
 /**
- * The count above the table, with Clear filters when the list is filtered.
+ * The count above the table, with Clear Filters when the list is filtered.
  * The count is where focus lands after a link in the list goes away; Clear
- * filters sends it to the search box, ready for the next search.
+ * Filters sends it to the search box, ready for the next search.
  */
 function ListSummary({ filters, total, shown }: { filters: InspectionListFilters; total: number; shown: number }) {
   return (
@@ -159,7 +159,7 @@ function ListSummary({ filters, total, shown }: { filters: InspectionListFilters
       {hasActiveFilters(filters) && (
         <Button asChild variant="link" size="sm" className="px-0 touch:px-0">
           <ListLink href={INSPECTIONS_PATH} focusAfter="search">
-            Clear filters
+            Clear Filters
           </ListLink>
         </Button>
       )}

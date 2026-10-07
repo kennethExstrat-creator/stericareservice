@@ -11,7 +11,7 @@
 // deletion it moves to the main action of the row that took the deleted
 // one's place, or, when there is none, to the start of the results (the
 // count above the table, or the heading of the state shown instead, such as
-// "No inspections yet"), which reads out what is left. It moves once the
+// "No Inspections Yet"), which reads out what is left. It moves once the
 // dialog has gone and the list without the row is on screen, whichever comes
 // last. If the inspection turned out to be gone or no longer a draft, the
 // list is refreshed behind the message, and closing the dialog puts focus on
@@ -217,7 +217,7 @@ export function InspectionResults({
               </AlertDialogCancel>
               <Button type="button" variant="destructive" disabled={pending} onClick={confirm}>
                 {pending && <Spinner aria-hidden />}
-                {pending ? "Deleting…" : "Delete inspection"}
+                {pending ? "Deleting…" : "Delete Inspection"}
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>

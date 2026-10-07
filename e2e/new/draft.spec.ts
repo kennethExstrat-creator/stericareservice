@@ -85,7 +85,7 @@ async function findOrder(): Promise<{ adminId: string; order: Order }> {
     if (seen.has(picks)) continue;
     seen.add(picks);
     if (temporary(row.template.code) || temporary(row.product_name)) continue;
-    const client = row.client_id === null ? "No client" : stableClients.find((entry) => entry.id === row.client_id)?.name;
+    const client = row.client_id === null ? "No Client" : stableClients.find((entry) => entry.id === row.client_id)?.name;
     const manufacturer = stableManufacturers.find((entry) => entry.id === row.manufacturer_id);
     if (client === undefined || !manufacturer) continue;
     candidates.push({
@@ -105,7 +105,7 @@ async function findOrder(): Promise<{ adminId: string; order: Order }> {
   if (!manufacturer) throw new Error("No manufacturers yet: the form cannot be filled in.");
   return {
     adminId: profile.data!.id,
-    order: { client: stableClients[0]?.name ?? "No client", manufacturer: label(manufacturer), productType: "examination", previousId: null },
+    order: { client: stableClients[0]?.name ?? "No Client", manufacturer: label(manufacturer), productType: "examination", previousId: null },
   };
 }
 
@@ -173,13 +173,13 @@ test("a reload brings back every choice and the typed name; Cancel drops them", 
   const hydration = watchConsole(page);
   await page.goto("/inspections/new");
   await hydrated(page);
-  const productName = page.getByRole("textbox", { name: /Product name/ });
+  const productName = page.getByRole("textbox", { name: /Product Name/ });
   const productType = page
-    .getByRole("group", { name: "Product type" })
-    .getByRole("radio", { name: order.productType === "examination" ? /^Examination gloves/ : /^Surgical gloves/ });
+    .getByRole("group", { name: "Product Type" })
+    .getByRole("radio", { name: order.productType === "examination" ? /^Examination gloves/i : /^Surgical gloves/i });
   const previous = page.getByTestId("previous-picker");
-  const startBlank = previous.getByRole("radio", { name: /^Start blank/ });
-  const templatePicker = page.getByRole("combobox", { name: "Use another template" });
+  const startBlank = previous.getByRole("radio", { name: /^Start Blank/ });
+  const templatePicker = page.getByRole("combobox", { name: "Use Another Template" });
   const reason = page.getByTestId("choice-reason");
 
   // Typed first, while no template can switch the field off.
@@ -231,7 +231,7 @@ test("a reload brings back every choice and the typed name; Cancel drops them", 
   expect((await drafts(page))[key]).toEqual(stored);
   await shot(page, "restored");
 
-  // What was typed under the earlier inspection's name comes back with Start blank, and stays so.
+  // What was typed under the earlier inspection's name comes back with Start Blank, and stays so.
   if (order.previousId) {
     await press(startBlank);
     await expect(productName).toHaveValue(TYPED);

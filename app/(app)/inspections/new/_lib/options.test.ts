@@ -6,7 +6,7 @@ import { buildSeedBundle, SEED_TEMPLATES } from "@/lib/templates/definitions";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import { COPIED_MODULE_KEYS } from "@/lib/inspections/create";
 import { loadNewInspectionOptions, PREVIOUS_SCAN_LIMIT, PREVIOUS_SELECT, toTemplateOption } from "./options";
-import { specsNote, templateLabel } from "./text";
+import { overrideOptionLabel, specsNote, templateInSentence, templateLabel } from "./text";
 
 const bundle = new Map(buildSeedBundle(SEED_TEMPLATES, MODULE_REGISTRY).templates.map((entry) => [entry.code, entry]));
 
@@ -183,8 +183,20 @@ describe("loading the page's lists", () => {
 describe("the wording the form's parts share", () => {
   const product = { templateCode: "STD_EG", templateVersion: 2 };
 
-  it("names a template version", () => {
-    expect(templateLabel({ code: "STD_EG", version: 3 })).toBe("STD_EG version 3");
+  it("names a template version in Title Case as a label, and in lower case within a sentence", () => {
+    expect(templateLabel({ code: "STD_EG", version: 3 })).toBe("STD_EG Version 3");
+    expect(templateInSentence({ code: "STD_EG", version: 3 })).toBe("STD_EG version 3");
+  });
+
+  it("lists another template for the admin with its draft and unusable marks in Title Case", () => {
+    expect(overrideOptionLabel({ code: "STD_EG", version: 2, status: "active", ready: true })).toBe("STD_EG Version 2");
+    expect(overrideOptionLabel({ code: "STD_EG", version: 3, status: "draft", ready: true })).toBe("STD_EG Version 3 · Draft");
+    expect(overrideOptionLabel({ code: "STD_EG", version: 1, status: "active", ready: false })).toBe(
+      "STD_EG Version 1 · Cannot Be Used Yet",
+    );
+    expect(overrideOptionLabel({ code: "STD_EG", version: 4, status: "draft", ready: false })).toBe(
+      "STD_EG Version 4 · Draft · Cannot Be Used Yet",
+    );
   });
 
   it("says whether specs and AQL are last time's", () => {

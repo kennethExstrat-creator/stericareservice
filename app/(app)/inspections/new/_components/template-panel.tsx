@@ -5,11 +5,11 @@
 // choose another template that is not retired. The Server Action decides
 // again from the database; this is what the inspector sees before creating.
 import { CheckIcon, CircleDashedIcon, LayoutTemplateIcon, TriangleAlertIcon } from "lucide-react";
-import { FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
+import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { choiceReason, PRODUCT_TYPE_LABEL, type TemplateChoice } from "@/lib/inspections/create";
 import type { ProductType } from "@/lib/schemas/common";
-import { templateLabel } from "../_lib/text";
+import { overrideOptionLabel, templateInSentence, templateLabel } from "../_lib/text";
 import { STANDARD_LABEL, type TemplateOption } from "../_lib/types";
 import { Panel } from "./panel";
 
@@ -41,7 +41,7 @@ export function TemplatePanel(props: TemplatePanelProps) {
   const announcement = waiting
     ? ""
     : chosen && choice?.ok
-      ? `Template: ${chosen.name}, ${templateLabel(chosen)}.`
+      ? `Template: ${chosen.name}, ${templateInSentence(chosen)}.`
       : choice && !choice.ok
         ? choice.message
         : "";
@@ -142,7 +142,7 @@ function Chosen({
           {template.sections.length > 0 && (
             <details className="text-sm touch:text-base">
               <summary className="w-fit cursor-pointer rounded-md py-1 font-medium text-brand-600 focus-ring-inset touch:py-2.5">
-                Show the sections
+                Show the Sections
               </summary>
               <ol className="mt-2 list-decimal space-y-1 pl-5 text-foreground marker:text-muted-foreground">
                 {template.sections.map((title, index) => (
@@ -160,7 +160,7 @@ function Chosen({
       )}
       {ties.length > 0 && (
         <p className="text-sm text-muted-foreground touch:text-base">
-          Also applies just as closely: {ties.map(templateLabel).join(", ")}. The first by code was taken.
+          Also applies just as closely: {ties.map(templateInSentence).join(", ")}. The first by code was taken.
         </p>
       )}
     </div>
@@ -195,8 +195,9 @@ function OverridePicker({
   const forType = overrides.filter((template) => template.productType === productType);
   const automatic = choice?.ok && choice.specificity !== "override" ? choice.template : null;
   return (
-    <div className="flex flex-col gap-1.5 border-t border-border pt-4">
-      <FieldLabel htmlFor={`${id}-template`}>Use another template</FieldLabel>
+    // A Field like every other on the form: 12 px between the label, the picker and the hint.
+    <Field data-invalid={overrideError ? true : undefined} className="border-t border-border pt-4">
+      <FieldLabel htmlFor={`${id}-template`}>Use Another Template</FieldLabel>
       <Select
         value={overrideId || AUTOMATIC}
         onValueChange={(value) => onOverrideChange?.(value === AUTOMATIC ? "" : value)}
@@ -215,11 +216,7 @@ function OverridePicker({
           {forType.length > 0 && <SelectSeparator />}
           {forType.map((template) => (
             <SelectItem key={template.id} value={template.id} disabled={!template.ready}>
-              <span className="truncate">
-                {templateLabel(template)}
-                {template.status === "draft" ? " · Draft" : ""}
-                {template.ready ? "" : " · cannot be used yet"}
-              </span>
+              <span className="truncate">{overrideOptionLabel(template)}</span>
             </SelectItem>
           ))}
         </SelectContent>
@@ -232,6 +229,6 @@ function OverridePicker({
           recorded.
         </FieldDescription>
       )}
-    </div>
+    </Field>
   );
 }

@@ -66,7 +66,7 @@ describe("whose inspections a user sees", () => {
     expect(seesTeamInspections({ role: "inspector", isLead: true })).toBe(true);
     expect(seesTeamInspections({ role: "inspector" })).toBe(false);
     expect(isLeadInspector({ role: "admin", isLead: true })).toBe(false);
-    expect(INSPECTOR_IN_CHARGE).toBe("Inspector in charge");
+    expect(INSPECTOR_IN_CHARGE).toBe("Inspector in Charge");
   });
 });
 

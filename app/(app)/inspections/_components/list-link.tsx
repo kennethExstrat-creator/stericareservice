@@ -6,8 +6,8 @@
 // the Next.js "Building interactive apps" guide), so a slow answer never looks
 // like a dead tap.
 //
-// Most of these links are gone once the new list renders (Clear filters,
-// Go to the list, Try again, Next on the last page but one). Followed while it
+// Most of these links are gone once the new list renders (Clear Filters,
+// Go to the List, Try Again, Next on the last page but one). Followed while it
 // has focus, the link asks the list to move focus on (list-focus.tsx) instead
 // of letting it drop to <body>.
 import Link, { useLinkStatus } from "next/link";

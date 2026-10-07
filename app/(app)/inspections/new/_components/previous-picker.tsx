@@ -1,6 +1,6 @@
 "use client";
 
-// "Start from previous" (BUILD_SPEC 8): the latest inspection of each product
+// "Start From Previous" (BUILD_SPEC 8): the latest inspection of each product
 // for the chosen client, manufacturer and product type, and exactly what it
 // copies (lib/inspections/create.ts PREVIOUS_COPY): only what the earlier
 // inspection holds and this template shows. Specs and AQL come with the
@@ -56,7 +56,7 @@ export function PreviousPicker({
     <Panel
       headingId={`${id}-previous-heading`}
       icon={HistoryIcon}
-      title="Start from previous"
+      title="Start From Previous"
       description="Optional. Copies the product's details from its last inspection for this client and manufacturer."
       descriptionId={`${id}-previous-hint`}
       className="gap-4"
@@ -84,7 +84,7 @@ export function PreviousPicker({
             <ChoiceCard
               id={`${id}-previous-blank`}
               value={START_BLANK}
-              title="Start blank"
+              title="Start Blank"
               description="Nothing is copied."
             />
             {shown.map((product) => (
@@ -126,7 +126,7 @@ function CopySummary({ product, template }: { product: PreviousProduct; template
     <div data-testid="copy-summary" className="flex flex-col gap-3 rounded-lg bg-muted p-4 text-sm touch:text-base">
       <p className="flex items-center gap-2 font-semibold text-foreground">
         <CopyIcon aria-hidden className="size-4 shrink-0" />
-        {copied.length > 0 ? `Copied from ${product.refNo}` : `Nothing to copy from ${product.refNo}`}
+        {copied.length > 0 ? `Copied From ${product.refNo}` : `Nothing to Copy From ${product.refNo}`}
       </p>
       {copied.length > 0 ? (
         <>

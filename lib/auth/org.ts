@@ -113,7 +113,7 @@ export function seesTeamInspections(user: { role: UserRole; isLead?: boolean }):
 }
 
 /** The inspections list column for admins and lead inspectors. */
-export const INSPECTOR_IN_CHARGE = "Inspector in charge";
+export const INSPECTOR_IN_CHARGE = "Inspector in Charge";
 
 /** "Ivan", "Ivan and Olga", "Ivan, Olga and Tom". */
 export function listNames(names: readonly string[]): string {

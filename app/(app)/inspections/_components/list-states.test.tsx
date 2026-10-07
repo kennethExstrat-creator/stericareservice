@@ -10,9 +10,9 @@ describe("NoInspectionsYet", () => {
   it("tells an inspector they see only their own", () => {
     const html = renderToStaticMarkup(<NoInspectionsYet scope="own" />);
     expect(html).toContain("<h2");
-    expect(html).toContain("No inspections yet");
+    expect(html).toContain("No Inspections Yet");
     expect(html).toContain("You see only your own; admins see everyone&#x27;s.");
-    expect(html).toContain("Start one with New inspection.");
+    expect(html).toContain("Start one with New Inspection.");
     expect(html).not.toContain("next build");
   });
 
@@ -34,10 +34,10 @@ describe("NoMatches", () => {
     const html = renderToStaticMarkup(
       <NoMatches filters={{ q: "E2E-LOT-A", status: "draft", client: CLIENT, page: 1 }} names={{ client: "Client A" }} />,
     );
-    expect(html).toContain("No inspections match");
+    expect(html).toContain("No Inspections Match");
     expect(html).toContain("Nothing matches “E2E-LOT-A”, status Draft, client Client A.");
     expect(html).toContain("Search matches part of a ref or PO number, or a whole lot or carton number.");
-    expect(html).toMatch(/<a[^>]*href="\/inspections"[^>]*>Clear filters/);
+    expect(html).toMatch(/<a[^>]*href="\/inspections"[^>]*>Clear Filters/);
   });
 
   it("leaves out the search hint when nothing was searched", () => {
@@ -50,15 +50,15 @@ describe("NoMatches", () => {
 describe("PastTheEnd", () => {
   it("names the missing page and links to the last one, keeping the filters", () => {
     const html = renderToStaticMarkup(<PastTheEnd filters={{ status: "draft", page: 9 }} total={120} pageCount={3} />);
-    expect(html).toContain("There is no page 9");
+    expect(html).toContain("There Is No Page 9");
     expect(html).toContain("There are 120 inspections, on 3 pages.");
-    expect(html).toMatch(/<a[^>]*href="\/inspections\?status=draft&amp;page=3"[^>]*>Go to page 3/);
+    expect(html).toMatch(/<a[^>]*href="\/inspections\?status=draft&amp;page=3"[^>]*>Go to Page 3/);
   });
 
   it("links back to the list when everything fits on one page", () => {
     const html = renderToStaticMarkup(<PastTheEnd filters={{ page: 2 }} total={1} pageCount={1} />);
     expect(html).toContain("There is 1 inspection, all on one page.");
-    expect(html).toMatch(/<a[^>]*href="\/inspections"[^>]*>Go to the list/);
+    expect(html).toMatch(/<a[^>]*href="\/inspections"[^>]*>Go to the List/);
   });
 });
 
@@ -66,8 +66,8 @@ describe("LoadFailed", () => {
   it("says what to do without technical details", () => {
     const html = renderToStaticMarkup(<LoadFailed retryHref="/inspections?status=draft" />);
     expect(html).toContain('data-list-state="error"');
-    expect(html).toContain("The inspections could not be loaded");
-    expect(html).toMatch(/<a[^>]*href="\/inspections\?status=draft"[^>]*>Try again/);
+    expect(html).toContain("The Inspections Could Not Be Loaded");
+    expect(html).toMatch(/<a[^>]*href="\/inspections\?status=draft"[^>]*>Try Again/);
   });
 });
 

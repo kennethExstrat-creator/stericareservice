@@ -42,7 +42,7 @@ function option(code: "STD_EG" | "SAFEDON_EG" | "STD_SG", extra: Record<string, 
 const ALL_PICKED: PickState[] = [
   { label: "Client", done: true },
   { label: "Manufacturer", done: true },
-  { label: "Product type", done: true },
+  { label: "Product Type", done: true },
 ];
 
 function panel(props: {
@@ -83,7 +83,7 @@ describe("the template panel", () => {
       picks: [
         { label: "Client", done: true },
         { label: "Manufacturer", done: false },
-        { label: "Product type", done: false },
+        { label: "Product Type", done: false },
       ],
     });
     expect(html).toContain("The template follows from the client, manufacturer and product type.");
@@ -98,13 +98,14 @@ describe("the template panel", () => {
     const html = panel({ templates: [option("STD_EG"), option("SAFEDON_EG", { client_id: CLIENT })] });
     expect(html).toContain('data-code="SAFEDON_EG"');
     expect(html).toContain("Safedon examination gloves (ASTM D6319)");
-    expect(html).toContain("SAFEDON_EG version 1 · ASTM D6319");
+    // A label names the version in Title Case; the announcement is a sentence.
+    expect(html).toContain("SAFEDON_EG Version 1 · ASTM D6319");
     expect(html).toContain("For Polyco Healthline");
     expect(html).toContain("XS, S, M, L, XL");
     expect(html).toContain("(pieces)");
-    expect(html).toContain("Show the sections");
+    expect(html).toContain("Show the Sections");
     expect(html).toContain("Template: Safedon examination gloves (ASTM D6319), SAFEDON_EG version 1.");
-    expect(html).not.toContain("Use another template");
+    expect(html).not.toContain("Use Another Template");
   });
 
   it("says when no active template fits, and tells an admin what to do", () => {
@@ -114,32 +115,49 @@ describe("the template panel", () => {
     expect(inspector).not.toContain("Choose a template below");
     const admin = panel({ role: "admin", templates: [option("STD_EG")], productType: "surgical" });
     expect(admin).toContain("Choose a template below, or activate one first.");
-    expect(admin).toContain("Use another template");
+    expect(admin).toContain("Use Another Template");
   });
 
   it("gives an admin the choice of another template, and shows ties to admins only", () => {
     const templates = [option("STD_EG"), option("STD_EG", { code: "OTHER_EG" })];
     const admin = panel({ role: "admin", templates });
-    // The picker's options render when it opens (e2e/new checks "Automatic: <code> version <n>").
-    expect(admin).toContain("Use another template");
+    // The picker's options render when it opens (e2e/new checks "Automatic: <code> Version <n>";
+    // options.test.ts the options' words).
+    expect(admin).toContain("Use Another Template");
     expect(admin).toContain('data-code="OTHER_EG"');
     expect(admin).toContain("Also applies just as closely: STD_EG version 1. The first by code was taken.");
     const inspector = panel({ templates });
     expect(inspector).not.toContain("Also applies just as closely");
   });
 
+  it("puts the admin's picker as far below its label as every other field's, the hint as far below it", () => {
+    const html = panel({ role: "admin", templates: [option("STD_EG")] });
+    // A Field, as Client, Manufacturer and Product Name are: 12 px (gap-3) between its parts, not 6.
+    const field = /<div role="group" data-slot="field"[^>]*class="([^"]*)"[^>]*><label data-slot="field-label"[^>]*for="t-template"/.exec(
+      html,
+    )?.[1].split(" ");
+    expect(field).toContain("gap-3");
+    expect(field).not.toContain("gap-1.5");
+    expect(field).toContain("border-t");
+  });
+
   it("warns when an admin picks a draft: using it freezes it", () => {
     const draft = option("STD_EG", { code: "DRAFT_EG", status: "draft" });
     const html = panel({ role: "admin", templates: [option("STD_EG"), draft], overrideId: draft.id });
     expect(html).toContain("Chosen by an admin");
-    expect(html).toContain("DRAFT_EG version 1 · EN 455 · Draft");
+    expect(html).toContain("DRAFT_EG Version 1 · EN 455 · Draft");
     expect(html).toContain("A draft is frozen once an inspection uses it: later edits become a new version.");
+  });
+
+  it("names a standard still to be confirmed in Title Case, like the others' names", () => {
+    const html = panel({ templates: [option("STD_EG", { standard: "custom" })] });
+    expect(html).toContain("STD_EG Version 1 · Standard to Be Confirmed");
   });
 
   it("says when the version picked cannot be used yet", () => {
     const html = panel({ templates: [option("STD_EG", { resolved: { code: "STD_EG" } })] });
     expect(html).toContain("This version cannot be used yet: an admin needs to save it again.");
-    expect(html).not.toContain("Show the sections");
+    expect(html).not.toContain("Show the Sections");
   });
 });
 
@@ -186,7 +204,7 @@ describe("start from previous", () => {
   it("offers the latest inspection of each product, the most recent first, and says when it stops", () => {
     const products = Array.from({ length: PREVIOUS_SHOWN + 2 }, (_, index) => product(index + 1));
     const html = picker({ products });
-    expect(html).toContain("Start blank");
+    expect(html).toContain("Start Blank");
     expect(html).toContain("Nitrile 1");
     expect(html).toContain(`Nitrile ${PREVIOUS_SHOWN}`);
     expect(html).not.toContain(`Nitrile ${PREVIOUS_SHOWN + 1}`);
@@ -204,7 +222,7 @@ describe("start from previous", () => {
   it("lists what the chosen inspection copies into this template, and what never", () => {
     const chosen = product(7, { templateVersion: 1 });
     const html = picker({ products: [chosen], value: chosen.inspectionId, template: option("STD_EG") });
-    expect(html).toContain("Copied from INS-2026-0007");
+    expect(html).toContain("Copied From INS-2026-0007");
     expect(html).toContain("Manufacturer Information: factory address, product name, product code and factory glove code");
     expect(html).toContain("Glove Information: every field");
     expect(html).toContain("Packing configuration: every field");
@@ -224,7 +242,7 @@ describe("start from previous", () => {
   it("lists only the sections the earlier inspection has something in", () => {
     const chosen = product(9, { copies: { header: ["productName"] } });
     const html = picker({ products: [chosen], value: chosen.inspectionId, template: option("SAFEDON_EG") });
-    expect(html).toContain("Copied from INS-2026-0009");
+    expect(html).toContain("Copied From INS-2026-0009");
     expect(html).toContain("Manufacturer Information: product name<");
     expect(html).not.toContain("Glove Information");
     expect(html).not.toContain("Packing configuration");
@@ -233,16 +251,16 @@ describe("start from previous", () => {
   it("says when an earlier inspection has nothing to copy", () => {
     const chosen = product(10, { copies: {}, productName: null });
     const html = picker({ products: [chosen], value: chosen.inspectionId, template: option("STD_EG") });
-    expect(html).toContain("Nothing to copy from INS-2026-0010");
+    expect(html).toContain("Nothing to Copy From INS-2026-0010");
     expect(html).toContain("It holds no product details this template uses, so nothing is copied.");
-    expect(html).not.toContain("Copied from");
+    expect(html).not.toContain("Copied From");
     expect(html).not.toContain("Never copied");
     // Specs and AQL still come with the template.
     expect(html).toContain("Same template as last time (STD_EG version 1): its specs and AQL carry over.");
     // A factory glove code alone is nothing to copy into a template without one.
     const glove = product(11, { copies: { header: ["factoryGloveCode"] } });
     expect(picker({ products: [glove], value: glove.inspectionId, template: option("SAFEDON_EG") })).toContain(
-      "Nothing to copy from INS-2026-0011",
+      "Nothing to Copy From INS-2026-0011",
     );
     // Before a template is chosen: what it holds.
     expect(picker({ products: [glove], value: glove.inspectionId })).toContain(

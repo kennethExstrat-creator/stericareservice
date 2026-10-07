@@ -53,7 +53,7 @@ describe("InspectionTable", () => {
     expect(html).not.toContain("Test Inspector");
   });
 
-  it("gives admins and lead inspectors the Inspector in charge column, with the name in its own cell", () => {
+  it("gives admins and lead inspectors the Inspector in Charge column, with the name in its own cell", () => {
     for (const viewer of [AS_ADMIN, AS_LEAD]) {
       const html = render([ROW], viewer);
       expect(headers(html)).toEqual([
@@ -65,7 +65,7 @@ describe("InspectionTable", () => {
         "Manufacturer",
         "Product",
         "PO",
-        "Inspector in charge",
+        "Inspector in Charge",
         "Actions",
       ]);
       expect(cells(html)[8]).toContain('title="Test Inspector">Test Inspector</span>');
