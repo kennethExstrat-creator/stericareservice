@@ -490,8 +490,26 @@ export function CaptureScreen({
     setIssuesOpen(true);
   }, [closeBlocked]);
 
+  // When the inspector last pressed or typed anything. An issue link's
+  // fallback below never takes focus from what they did after the link, such
+  // as a box list opened on the cell it found (a portal outside the panel,
+  // which would close).
+  const lastInputAt = useRef(0);
+  useEffect(() => {
+    const note = () => {
+      lastInputAt.current = performance.now();
+    };
+    window.addEventListener("pointerdown", note, true);
+    window.addEventListener("keydown", note, true);
+    return () => {
+      window.removeEventListener("pointerdown", note, true);
+      window.removeEventListener("keydown", note, true);
+    };
+  }, []);
+
   const goToIssue = useCallback(
     (issue: ValidationIssue) => {
+      const linkedAt = performance.now();
       setIssuesOpen(false);
       closeBlocked();
       const sectionKey = issue.moduleKey;
@@ -509,8 +527,10 @@ export function CaptureScreen({
         // A new array for every click (docs/CAPTURE_KIT.md, "Issue links"):
         // useIssueFocus follows each one once, so the same link twice still works.
         setFocusRequest({ sectionKey, path: [...issue.path] });
-        // Nothing in the section took focus (a form without marks): its title does.
+        // Nothing in the section took focus (a form without marks): its title
+        // does, unless the inspector has pressed or typed since the link.
         window.setTimeout(() => {
+          if (lastInputAt.current > linkedAt) return;
           const panel = document.getElementById(panelId);
           const heading = headingRef.current;
           if (panel && heading && !panel.contains(document.activeElement)) {
