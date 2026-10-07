@@ -44,6 +44,12 @@ test("the inspector lands on the inspections list", async ({ page, context, base
 });
 ```
 
+Supabase allows about 30 sign-ins in five minutes for the whole machine, and a failed test restarts
+its worker, whose hooks sign in again. For a series of runs, `E2E_SESSION_CACHE=<directory>` keeps
+each session `sessionCookies()` signs in there and hands it out again, to other workers, projects and
+runs, while its access token has half an hour left; `sign-ins.log` in it lists each real sign-in.
+The files hold live tokens: use a private temporary directory and delete it afterwards.
+
 ## Screenshots on the iPad projects
 
 Playwright's `fullPage: true` capture drops touch emulation while it resizes, so an "iPad"
