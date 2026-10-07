@@ -39,7 +39,7 @@ export function LoadedAiReviewPanel({ load, className }: { load: AiPanelLoad; cl
       <CircleAlertIcon aria-hidden className="mt-0.5 size-5 shrink-0 text-fail" />
       <div className="space-y-1">
         <h2 id="ai-panel-title" className="text-base font-bold text-fail">
-          The AI panel could not be loaded
+          The AI Panel Could Not Be Loaded
         </h2>
         <p className="text-sm text-foreground">{load.message}</p>
       </div>

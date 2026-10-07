@@ -179,7 +179,7 @@ describe("/inspections/[id]/review", () => {
     vi.mocked(loadAiPanel).mockResolvedValue({ ok: false, reason: "unavailable", message: "Could not read the AI reviews. Try again." });
     const html = await render(reviewData());
     expect(html).toContain('data-testid="ai-panel-unavailable"');
-    expect(html).toContain("The AI panel could not be loaded");
+    expect(html).toContain("The AI Panel Could Not Be Loaded");
     expect(html).toContain("Could not read the AI reviews. Try again.");
     expect(html).toContain('id="modules"');
   });
@@ -204,7 +204,7 @@ describe("/inspections/[id]/review", () => {
     expect(ai).toContain("The second opinion and the AI report need this inspection&#x27;s results, which could not be worked out.");
     // Not-done slate, not fail red: the review's checks and module results give the cause, and only they do.
     expect(ai).not.toMatch(/fail/);
-    expect(html).not.toContain("The AI panel could not be loaded");
+    expect(html).not.toContain("The AI Panel Could Not Be Loaded");
     expect(html).not.toContain("which could not be read.");
     expect(html.split(cause)).toHaveLength(3);
     // Nothing to request or download: the export needs the results too.
