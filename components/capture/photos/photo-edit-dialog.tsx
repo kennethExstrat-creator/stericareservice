@@ -323,7 +323,9 @@ function EditForm({
 
         {showHand && (
           <FieldSet className="gap-3" aria-describedby={described("hand", errors.hand)}>
-            <FieldLegend variant="label" className="mb-0">
+            {/* A fieldset's legend is no flex item, so the FieldSet's gap never reaches it: its own mb-3
+                keeps the 12 px a Field has between label and control, and leading-snug the FieldLabel's line. */}
+            <FieldLegend variant="label" className="leading-snug">
               Hand
             </FieldLegend>
             <RadioGroup
@@ -408,7 +410,8 @@ function EditForm({
 
         {records.has("level") && (
           <FieldSet className="gap-3" aria-describedby={described("level", errors.level)}>
-            <FieldLegend variant="label" className="mb-0">
+            {/* As Hand's: the legend's own margin, not the FieldSet's gap, keeps it off the choices. */}
+            <FieldLegend variant="label" className="leading-snug">
               Level
             </FieldLegend>
             <RadioGroup
