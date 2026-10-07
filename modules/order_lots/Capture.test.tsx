@@ -93,6 +93,21 @@ describe("order_lots capture", () => {
     expect(html).toContain('value="Manufacturer B"');
   });
 
+  it("types lot numbers in capitals on the iPad, without corrections, and keeps them as typed", () => {
+    const lotFields = tagsWith(render(SAFEDON_EG_EXAMPLE), 'aria-label="Lot Number, Size [^"]*: add"');
+    expect(lotFields).toHaveLength(5);
+    for (const field of lotFields) {
+      expect(field).toContain('autoCapitalize="characters"');
+      expect(field).toContain('autoCorrect="off"');
+      expect(field).toContain('spellCheck="false"');
+      expect(field).toContain('autoComplete="off"');
+    }
+    // Only the keyboard: a lot in small letters (pasted, or typed on a keyboard) shows as it is kept.
+    const data = orderData(SAFEDON_EG_EXAMPLE.order);
+    const lower = { sizes: { ...data.sizes, M: { ...data.sizes.M!, lotNumbers: ["lot-b03"] } } };
+    expect(render(SAFEDON_EG_EXAMPLE, { data: lower })).toContain(">lot-b03</span>");
+  });
+
   it("takes no more in a lot or a packing site than the schema keeps, so the order always loads", () => {
     const html = render(SAFEDON_EG_EXAMPLE);
     const lotFields = tagsWith(html, 'aria-label="Lot Number, Size [^"]*: add"');

@@ -341,6 +341,9 @@ function LotNumbers({
           placeholder={lots.length === 0 ? "Add lot" : "Add"}
           enterKeyHint="enter"
           autoComplete="off"
+          // The iPad's keyboard types capitals, as lot numbers are written; a lot is kept as typed.
+          autoCapitalize="characters"
+          autoCorrect="off"
           spellCheck={false}
           className="h-8 min-w-20 flex-1 rounded-md bg-transparent px-1.5 outline-none placeholder:text-muted-foreground focus-visible:bg-card focus-ring-inset touch:h-11"
         />
