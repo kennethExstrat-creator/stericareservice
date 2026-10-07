@@ -74,7 +74,7 @@ test("two devices on one draft: the second device's edit is never lost silently"
 
     // The desktop, opened before that save, changes the texture: its save finds a version it never saw.
     await typeInto(desk.page.getByLabel("Glove surface texture"), "Textured on the desktop");
-    const question = desk.page.getByRole("alertdialog", { name: "This inspection was changed on another device" });
+    const question = desk.page.getByRole("alertdialog", { name: "This Inspection Was Changed on Another Device" });
     await expect(question).toBeVisible({ timeout: 20_000 });
     await expect(question).toContainText("Choose which version to keep. The other one is replaced.");
     await shot(desk.page, "two-devices-desktop-question");
@@ -87,7 +87,7 @@ test("two devices on one draft: the second device's edit is never lost silently"
     expect(deskCopy!.revision).toBeGreaterThan(deskCopy!.syncedRevision);
 
     // The desktop keeps its version: the server takes it whole (the iPad's colour is replaced, as the question said).
-    await press(question.getByRole("button", { name: "Keep the changes on this device" }), false);
+    await press(question.getByRole("button", { name: "Keep the Changes on This Device" }), false);
     await expect(question).toBeHidden();
     await expect
       .poll(async () => (await fx.row(draft.id))?.data.modules.glove_info, { timeout: 20_000 })
@@ -101,7 +101,7 @@ test("two devices on one draft: the second device's edit is never lost silently"
 
     // The iPad, still showing its own colour, edits again: it is asked too, and does not overwrite the desktop's version.
     await typeInto(ipad.page.getByLabel("Glove length"), "250 mm on the iPad");
-    const ipadQuestion = ipad.page.getByRole("alertdialog", { name: "This inspection was changed on another device" });
+    const ipadQuestion = ipad.page.getByRole("alertdialog", { name: "This Inspection Was Changed on Another Device" });
     await expect(ipadQuestion).toBeVisible({ timeout: 20_000 });
     expect((await fx.row(draft.id))?.data.modules.glove_info).toMatchObject({
       surfaceTexture: "Textured on the desktop",
@@ -110,7 +110,7 @@ test("two devices on one draft: the second device's edit is never lost silently"
     await shot(ipad.page, "two-devices-ipad-question");
 
     // The iPad takes the desktop's version: its screen shows it, and saving goes on from there.
-    await press(ipadQuestion.getByRole("button", { name: "Use the version from the other device" }), true);
+    await press(ipadQuestion.getByRole("button", { name: "Use the Version From the Other Device" }), true);
     await expect(ipadQuestion).toBeHidden();
     await expect(ipad.page.getByLabel("Glove surface texture")).toHaveValue("Textured on the desktop");
     await expect(ipad.page.getByLabel("Glove colour")).toHaveValue("Original blue");
@@ -148,18 +148,18 @@ test("two devices with the iPad on WebKit (Chrome for iPad's engine): the questi
     await typeInto(desk.page.getByLabel("Glove colour"), "Desktop colour");
     await expect.poll(async () => (await fx.row(draft.id))?.data.modules.glove_info.colour, { timeout: 20_000 }).toBe("Desktop colour");
     await typeInto(ipad.getByLabel("Glove length"), "WebKit iPad length");
-    const question = ipad.getByRole("alertdialog", { name: "This inspection was changed on another device" });
+    const question = ipad.getByRole("alertdialog", { name: "This Inspection Was Changed on Another Device" });
     await expect(question).toBeVisible({ timeout: 20_000 });
     await shot(ipad, "webkit-ipad-question");
     expect((await fx.row(draft.id))?.data.modules.glove_info).toMatchObject({ colour: "Desktop colour", length: "240 mm" });
 
     // Keeping the iPad's version replaces the desktop's colour; the desktop's next edit is asked about in turn.
-    await question.getByRole("button", { name: "Keep the changes on this device" }).tap();
+    await question.getByRole("button", { name: "Keep the Changes on This Device" }).tap();
     await expect
       .poll(async () => (await fx.row(draft.id))?.data.modules.glove_info, { timeout: 20_000 })
       .toMatchObject({ colour: "Original blue", length: "WebKit iPad length" });
     await typeInto(desk.page.getByLabel("Glove surface texture"), "Desktop texture");
-    await expect(desk.page.getByRole("alertdialog", { name: "This inspection was changed on another device" })).toBeVisible({
+    await expect(desk.page.getByRole("alertdialog", { name: "This Inspection Was Changed on Another Device" })).toBeVisible({
       timeout: 20_000,
     });
     expect((await fx.row(draft.id))?.data.modules.glove_info.surfaceTexture).toBe("Finger-textured");
@@ -201,7 +201,7 @@ test("two devices: an edit made offline, a reload with it pending, and a stale s
     // Back online, the iPad's save finds the desktop's version: it asks instead of overwriting.
     await ipad.context.setOffline(false);
     await ipad.page.evaluate(() => window.dispatchEvent(new Event("online")));
-    const question = ipad.page.getByRole("alertdialog", { name: "This inspection was changed on another device" });
+    const question = ipad.page.getByRole("alertdialog", { name: "This Inspection Was Changed on Another Device" });
     await expect(question).toBeVisible({ timeout: 45_000 });
     expect((await fx.row(draft.id))?.data.modules.glove_info).toMatchObject({ colour: "Original blue", length: "260 mm on the desktop" });
 
@@ -211,7 +211,7 @@ test("two devices: an edit made offline, a reload with it pending, and a stale s
     await expect(question).toBeVisible({ timeout: 20_000 });
     await expect(ipad.page.getByLabel("Glove colour")).toHaveValue("Typed offline on the iPad");
     await shot(ipad.page, "offline-reload-question");
-    await press(question.getByRole("button", { name: "Keep the changes on this device" }), true);
+    await press(question.getByRole("button", { name: "Keep the Changes on This Device" }), true);
     await expect
       .poll(async () => (await fx.row(draft.id))?.data.modules.glove_info, { timeout: 20_000 })
       .toMatchObject({ colour: "Typed offline on the iPad", length: "240 mm" });
@@ -219,8 +219,8 @@ test("two devices: an edit made offline, a reload with it pending, and a stale s
     // The desktop still shows its own length, which the iPad's version replaced. Submitting from that stale screen is refused.
     await expect(desk.page.getByLabel("Glove length")).toHaveValue("260 mm on the desktop");
     await press(desk.page.getByRole("button", { name: "Submit", exact: true }), false);
-    const confirm = desk.page.getByRole("alertdialog", { name: `Submit ${draft.refNo} for review?` });
-    await press(confirm.getByRole("button", { name: "Submit for review" }), false);
+    const confirm = desk.page.getByRole("alertdialog", { name: `Submit ${draft.refNo} for Review?` });
+    await press(confirm.getByRole("button", { name: "Submit for Review" }), false);
     await expect(confirm.getByRole("alert")).toContainText("This inspection changed on another device since this one last saved.", {
       timeout: 20_000,
     });
@@ -265,8 +265,8 @@ test("the life cycle: draft, submitted, reopened, submitted again, approved, eac
       )
       .toEqual({ result: "hold", remarks: "Lifecycle remark one" });
     await press(ipad.page.getByRole("button", { name: "Submit", exact: true }), true);
-    const confirm = ipad.page.getByRole("alertdialog", { name: `Submit ${draft.refNo} for review?` });
-    await press(confirm.getByRole("button", { name: "Submit for review" }), true);
+    const confirm = ipad.page.getByRole("alertdialog", { name: `Submit ${draft.refNo} for Review?` });
+    await press(confirm.getByRole("button", { name: "Submit for Review" }), true);
     await expect(ipad.page).toHaveURL(new RegExp(`/inspections/${draft.id}/review$`), { timeout: 30_000 });
     let row = await fx.row(draft.id);
     expect(row).toMatchObject({ status: "submitted", result: "hold", remarks: "Lifecycle remark one" });
@@ -305,9 +305,9 @@ test("the life cycle: draft, submitted, reopened, submitted again, approved, eac
     await desk.page.reload();
     await press(desk.page.getByRole("button", { name: "Reopen" }), false);
     const reopen = desk.page.getByRole("alertdialog", { name: `Reopen ${draft.refNo}?` });
-    await reopen.getByRole("textbox", { name: "What should the inspector change?" }).fill("Lifecycle: say why it is on hold.");
+    await reopen.getByRole("textbox", { name: "What Should the Inspector Change?" }).fill("Lifecycle: say why it is on hold.");
     await press(reopen.getByRole("button", { name: "Reopen" }), false);
-    await expect(desk.page.getByRole("heading", { name: "Reopened for changes" })).toBeVisible({ timeout: 20_000 });
+    await expect(desk.page.getByRole("heading", { name: "Reopened for Changes" })).toBeVisible({ timeout: 20_000 });
     expect((await fx.row(draft.id))?.status).toBe("reopened");
 
     // 4. The inspector sees why, changes it and submits again.
@@ -317,7 +317,7 @@ test("the life cycle: draft, submitted, reopened, submitted again, approved, eac
     await expect.poll(async () => (await fx.row(draft.id))?.remarks, { timeout: 20_000 }).toBe("Lifecycle remark two: lab report pending");
     await press(ipad.page.getByRole("button", { name: "Submit", exact: true }), true);
     await press(
-      ipad.page.getByRole("alertdialog", { name: `Submit ${draft.refNo} for review?` }).getByRole("button", { name: "Submit for review" }),
+      ipad.page.getByRole("alertdialog", { name: `Submit ${draft.refNo} for Review?` }).getByRole("button", { name: "Submit for Review" }),
       true,
     );
     await expect(ipad.page).toHaveURL(new RegExp(`/inspections/${draft.id}/review$`), { timeout: 30_000 });
@@ -395,7 +395,7 @@ test("an approved inspection is read-only everywhere: capture, photos, review, l
       await who.page.keyboard.type("changed");
       await expect(colour).toHaveValue(before!.data.modules.glove_info.colour as string);
       await expect(who.page.getByRole("button", { name: "Submit", exact: true })).toHaveCount(0);
-      await expect(who.page.getByRole("button", { name: "Switch off" })).toHaveCount(0);
+      await expect(who.page.getByRole("button", { name: "Switch Off" })).toHaveCount(0);
       await expect(savePill(who.page)).toHaveCount(0);
       await expect(who.page.locator('[data-slot="section-frame"] input[type="file"]')).toHaveCount(0);
       await who.page.goto(`/inspections/${target.id}?module=conclusion`);
@@ -406,7 +406,7 @@ test("an approved inspection is read-only everywhere: capture, photos, review, l
       expect(writes, `${who.name}: writes from the capture screen`).toEqual([]);
 
       await who.page.goto(`/inspections/${target.id}/photos`);
-      await expect(who.page.getByRole("heading", { level: 1, name: "Photos and files" })).toBeVisible();
+      await expect(who.page.getByRole("heading", { level: 1, name: "Photos and Files" })).toBeVisible();
       await expect(who.page.locator('input[type="file"]')).toHaveCount(0);
       await expect(who.page.getByRole("button", { name: /^Delete/ })).toHaveCount(0);
 
@@ -513,7 +513,7 @@ test("Delete: a draft only, its owner's or by an admin; the deletion record stay
     await press(draftRow.getByRole("button", { name: `Delete ${mine.refNo}` }), false);
     const dialog = adminDesk.page.getByRole("alertdialog", { name: `Delete ${mine.refNo}?` });
     await expect(dialog).toContainText("The draft is deleted with all its photos and files. This cannot be undone.");
-    await press(dialog.getByRole("button", { name: "Delete inspection" }), false);
+    await press(dialog.getByRole("button", { name: "Delete Inspection" }), false);
     await expect(adminDesk.page.getByText(`${mine.refNo} deleted.`)).toBeVisible({ timeout: 20_000 });
     await expect(draftRow).toHaveCount(0);
     expect(await fx.row(mine.id)).toBeNull();
@@ -611,8 +611,8 @@ test("a template version in use cannot be edited: the editor is read-only, New v
     const removed = await adminSession.client.from("templates").delete().eq("id", fx.templateId).select("id");
     expect(removed.error?.code, "a used version cannot be deleted either").toMatch(/^(23503|23001)$/);
 
-    // New version: a draft copy, opened in the editor.
-    await press(locked.getByRole("button", { name: "New version" }), false);
+    // New Version: a draft copy, opened in the editor.
+    await press(locked.getByRole("button", { name: "New Version" }), false);
     await desk.page.waitForURL((url) => /\/admin\/templates\/[0-9a-f-]{36}\/edit$/.test(url.pathname) && !url.pathname.includes(fx.templateId), {
       timeout: 30_000,
     });
@@ -677,7 +677,7 @@ test("an admin may still replace a used version's source file (by design, T2); w
 });
 
 /* ------------------------------------------------------------------ *
- * Start from previous
+ * Start From Previous
  * ------------------------------------------------------------------ */
 
 test("start from previous copies the product's details and nothing else", async ({ browser, baseURL }) => {
@@ -705,14 +705,14 @@ test("start from previous copies the product's details and nothing else", async 
       await press(page.getByRole("combobox", { name: label }), true);
       await press(page.getByRole("option", { name: option }), true);
     }
-    await press(page.getByRole("radio", { name: /Examination gloves/ }), true);
+    await press(page.getByRole("radio", { name: /^Examination Gloves/ }), true);
     await expect(page.getByTestId("chosen-template")).toHaveAttribute("data-code", fx.templateCode);
     await press(page.getByRole("radio", { name: new RegExp(productName) }), true);
     const summary = page.getByTestId("copy-summary");
-    await expect(summary).toContainText(`Copied from ${previous.refNo}`);
+    await expect(summary).toContainText(`Copied From ${previous.refNo}`);
     await expect(summary).toContainText("Never copied: PO number, dates, lots, sampling, test results, comments and photos.");
     await shot(page, "start-from-previous");
-    await press(page.getByRole("button", { name: "Create inspection" }), true);
+    await press(page.getByRole("button", { name: "Create Inspection" }), true);
     await expect(page).toHaveURL(/\/inspections\/[0-9a-f-]{36}$/, { timeout: 60_000 });
     const id = page.url().split("/").at(-1)!;
 
@@ -800,7 +800,7 @@ test("a lead inspector reads a team draft and writes nothing: no autosave, no lo
     await expect(page).toHaveURL(/\/inspections$/);
 
     await page.goto(`/inspections/${team.id}/photos`);
-    await expect(page.getByRole("heading", { level: 1, name: "Photos and files" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Photos and Files" })).toBeVisible();
     await expect(page.locator('input[type="file"]')).toHaveCount(0);
     await page.goto(`/inspections/${team.id}/review`);
     await expect(page.getByRole("heading", { level: 1, name: team.refNo })).toBeVisible();
@@ -846,7 +846,7 @@ test("a lead inspector reads a team draft and writes nothing: no autosave, no lo
   }
 });
 
-test("a lead's list names who each team inspection belongs to: the Inspector in charge column (L1)", async ({ browser, baseURL }) => {
+test("a lead's list names who each team inspection belongs to: the Inspector in Charge column (L1)", async ({ browser, baseURL }) => {
   const others = await fx.createInspection("other", { data: readyData(`LST${fx.suffix}`) });
   const leadSession = await fx.session("lead");
   const desk = await device(browser, baseURL!, leadSession, "desktop", "lead-desktop");
@@ -856,9 +856,9 @@ test("a lead's list names who each team inspection belongs to: the Inspector in 
     await desk.page.screenshot({ path: `${SHOTS}/lead-list.png`, fullPage: true });
     const headers = (await desk.page.locator("thead th").allInnerTexts()).map((text) => text.trim());
     test.info().annotations.push({ type: "evidence", description: JSON.stringify(headers) });
-    expect(headers).toContain("Inspector in charge");
-    await expect(desk.page.getByText("Your team", { exact: true })).toBeVisible();
-    await expect(desk.page.getByText("Your inspections", { exact: true })).toHaveCount(0);
+    expect(headers).toContain("Inspector in Charge");
+    await expect(desk.page.getByText("Your Team", { exact: true })).toBeVisible();
+    await expect(desk.page.getByText("Your Inspections", { exact: true })).toHaveCount(0);
     // The team member's inspection names them.
     const row = desk.page.locator(`tbody tr[data-ref="${others.refNo}"]`);
     await expect(row).toBeVisible();
@@ -872,10 +872,10 @@ test("a lead's list names who each team inspection belongs to: the Inspector in 
  * The row mirrors the data: conclusion, PO, lots, product, date
  * ------------------------------------------------------------------ */
 
-/** The final result and remark the review shows (its "Final result (inspector)" card). */
+/** The final result and remark the review shows (its "Final Result (Inspector)" card). */
 async function reviewDecision(page: import("@playwright/test").Page, id: string) {
   await page.goto(`/inspections/${id}/review`);
-  const card = page.locator("h3", { hasText: "Final result (inspector)" }).locator("xpath=..");
+  const card = page.locator("h3", { hasText: "Final Result (Inspector)" }).locator("xpath=..");
   await expect(card).toBeVisible();
   return {
     result: await card.locator('[data-slot="status-pill"]').first().getAttribute("data-status"),
@@ -963,7 +963,7 @@ test("with its date cleared, the chosen final result shows in the review, and th
       description: JSON.stringify({ data: row?.data.modules.conclusion, rowResult: row?.result, inList, inReview }),
     });
     // The row's result is the conclusion's, which is not done without its date: the list says
-    // Not done; the review shows what the inspector chose.
+    // Not Done; the review shows what the inspector chose.
     expect(row?.data.modules.conclusion).toMatchObject({ finalResult: "fail", date: null });
     expect(row?.result).toBeNull();
     expect(inList, "the list's Result").toBe("not_done");

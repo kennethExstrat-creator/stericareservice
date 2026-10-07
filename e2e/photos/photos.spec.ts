@@ -32,7 +32,7 @@ import {
 import { THIN_SPOT_LABEL, TITLES } from "./template";
 
 /**
- * Photos and files (BUILD_SPEC 8.1) against the live project, at the three
+ * Photos and Files (BUILD_SPEC 8.1) against the live project, at the three
  * sizes in playwright.config.ts, through the gallery at
  * /inspections/[id]/photos: real images drawn by the browser go in through
  * the file inputs, are processed and queued on the device, upload to
@@ -128,8 +128,8 @@ test("the inspector adds photos and a lab report, then retags, captions, views a
     await expect(dimensions.getByRole("heading", { name: TITLES.dimensions })).toBeVisible();
     await expect(dimensions.locator('[data-slot="photo-card"]')).toHaveCount(2);
     await expect(page.locator('[data-slot="upload-badge"]')).toHaveAttribute("data-count", "2");
-    // The tile's words (components/qc/photo-tile.tsx), in whatever case the kit writes them.
-    await expect(dimensions.getByText(/Waiting to upload|Uploading/i).first()).toBeVisible();
+    // The tile's words (components/qc/photo-tile.tsx).
+    await expect(dimensions.getByText(/Waiting to Upload|Uploading/).first()).toBeVisible();
     await expect(dimensions.getByText("2 photos, 2 not uploaded yet")).toBeVisible();
     await shot(page, "2-waiting");
 
@@ -322,7 +322,7 @@ test("offline, photos wait on the device and upload when the connection is back"
 
   await context.setOffline(false);
   await expect(watertight.locator('[data-slot="photo-card"][data-upload-state="uploaded"]')).toHaveCount(1, { timeout: 30_000 });
-  await expect(watertight.getByText("Needs conversion")).toBeVisible();
+  await expect(watertight.getByText("Needs Conversion")).toBeVisible();
   await expect(page.locator('[data-slot="upload-notice"]')).toHaveCount(0);
   const flagged = (await photoRows(fixture.inspectionId)).find((row) => row.module_key === "watertight");
   expect(flagged).toMatchObject({ flagged: true, thumb_path: null, width: null, height: null });
@@ -369,8 +369,8 @@ test("the admin chooses report photos", async ({ page, context, baseURL }) => {
   const include = card.getByRole("switch");
   await expect(include).not.toBeChecked();
   await include.click();
-  // The tile's badge, in the kit's case; never the admin's "Include in Report".
-  await expect(card.getByText(/^In report$/i)).toBeVisible();
+  // The tile's badge; never the admin's "Include in Report".
+  await expect(card.getByText("In Report", { exact: true })).toBeVisible();
   await expect.poll(async () => (await photoRows(fixture.inspectionId)).find((row) => row.id === photo.id)?.include_in_report).toBe(true);
   await shot(page, "10-admin");
 
@@ -397,9 +397,9 @@ test("once submitted, the inspector sees the photos read-only", async ({ page, c
     await setInspectionStatus(fixture.inspectionId, "submitted");
     await held.release();
     await expect(card).toHaveAttribute("data-upload-state", "failed", { timeout: 30_000 });
-    await expect(card.locator('[data-slot="upload-stopped"]')).toHaveText(/^Upload stopped$/i);
+    await expect(card.locator('[data-slot="upload-stopped"]')).toHaveText("Upload Stopped");
     await expect(card).toContainText("This inspection can no longer be changed from this account. Ask an admin to reopen it, then try again.");
-    await expect(card.getByText("Waiting to upload")).toBeHidden();
+    await expect(card.getByText("Waiting to Upload")).toBeHidden();
     await expect(card).not.toContainText("row-level security");
     await expect(page.locator('[data-slot="upload-badge"]')).toHaveAttribute("data-state", "failed");
     await shot(page, "12-upload-stopped");
@@ -414,7 +414,7 @@ test("once submitted, the inspector sees the photos read-only", async ({ page, c
   await expect(page.getByRole("heading", { name: "Add Photos", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^(Edit tags and caption|Delete photo)/ })).toHaveCount(0);
   await expect(page.getByRole("switch")).toHaveCount(0);
-  await expect(group(page, "visual").getByText(/^In report$/i)).toBeVisible();
+  await expect(group(page, "visual").getByText("In Report", { exact: true })).toBeVisible();
   const slot = page.locator('[data-slot="file-slot"][data-module="force_at_break"]');
   await expect(slot.locator("input[data-file-input]")).toHaveCount(0);
   await expect(slot.getByRole("button", { name: /^Delete/ })).toHaveCount(0);
@@ -430,7 +430,7 @@ test("an inspector cannot see or change another inspector's photos", async ({ pa
     await test.step("the gallery of their inspection is a 404", async () => {
       await signIn(context, baseURL!, TEST_ACCOUNTS.inspector);
       await page.goto(`/inspections/${other.inspectionId}/photos`);
-      await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Page Not Found" })).toBeVisible();
       await expect(page.getByText("Another inspector's photo")).toHaveCount(0);
       await shot(page, "13-other-inspector");
     });

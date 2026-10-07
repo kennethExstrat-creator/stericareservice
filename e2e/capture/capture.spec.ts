@@ -467,7 +467,7 @@ test("a number still being typed reaches the server when a shell link is tapped"
 });
 
 /* ------------------------------------------------------------------ *
- * The shell's links and Sign out ask the screen first (the shell's leave
+ * The shell's links and Sign Out ask the screen first (the shell's leave
  * guard): they wait for the last save, and ask the inspector only when the
  * change would be lost.
  * ------------------------------------------------------------------ */
@@ -521,13 +521,13 @@ test("a shell link asks before leaving a change this browser keeps no copy of; S
     await press(link);
 
     // The shell left the field, the screen tried to send it, and nothing on the device keeps it: it asks.
-    const dialog = page.getByRole("alertdialog", { name: "Leave this page?" });
+    const dialog = page.getByRole("alertdialog", { name: "Leave This Page?" });
     await expect(dialog).toBeVisible({ timeout: 15_000 });
     await expect(dialog).toContainText(
       `Your last changes to ${fixture.refNo} are not saved yet, and this browser keeps no copy of them, so they would be lost.`,
     );
     await viewportShot(page, "leave-asks");
-    await press(dialog.getByRole("button", { name: "Stay on this page" }));
+    await press(dialog.getByRole("button", { name: "Stay on This Page" }));
     await expect(dialog).toBeHidden();
     await expect(link).toBeFocused();
     await expect(page).toHaveURL(/module=glove_info/);
@@ -541,7 +541,7 @@ test("a shell link asks before leaving a change this browser keeps no copy of; S
   await expect(savePill(page)).toHaveAttribute("data-state", "saved", { timeout: 15_000 });
   await press(shellInspectionsLink(page));
   await expect(page).toHaveURL(/\/inspections$/);
-  await expect(page.getByRole("alertdialog", { name: "Leave this page?" })).toHaveCount(0);
+  await expect(page.getByRole("alertdialog", { name: "Leave This Page?" })).toHaveCount(0);
 });
 
 test("Sign out asks while the last change is only on this device, and Stay signed in keeps it", async ({
@@ -558,16 +558,16 @@ test("Sign out asks while the last change is only on this device, and Stay signe
   try {
     await colour.fill("Amber");
     await press(page.getByRole("button", { name: /account menu/ }));
-    await press(page.getByRole("menuitem", { name: "Sign out" }));
+    await press(page.getByRole("menuitem", { name: "Sign Out" }));
 
-    // This device keeps a copy, but it cannot send it while the inspector is signed out: Sign out asks.
-    const dialog = page.getByRole("alertdialog", { name: "Sign out now?" });
+    // This device keeps a copy, but it cannot send it while the inspector is signed out: Sign Out asks.
+    const dialog = page.getByRole("alertdialog", { name: "Sign Out Now?" });
     await expect(dialog).toBeVisible({ timeout: 15_000 });
     await expect(dialog).toContainText(
       `Your last changes to ${fixture.refNo} are still only on this device. They are not saved while you are signed out: they are saved when you next sign in here and open the inspection.`,
     );
     await viewportShot(page, "sign-out-asks");
-    await press(dialog.getByRole("button", { name: "Stay signed in" }));
+    await press(dialog.getByRole("button", { name: "Stay Signed In" }));
     await expect(dialog).toBeHidden();
     await expect(page).toHaveURL(/module=glove_info/);
     await expect(colour).toHaveValue("Amber");
@@ -625,7 +625,7 @@ test("a number still being typed is there when the inspection is opened again af
   await expectStoredWeight(5.3);
 });
 
-test("without a connection the pill says Offline (will sync), then saves", async ({ page, context, baseURL }) => {
+test("without a connection the pill says Offline (Will Sync), then saves", async ({ page, context, baseURL }) => {
   test.skip(!isDesktop(), "One size is enough: the pill is the same component everywhere.");
   await signInAs(context, baseURL!, "inspector");
   await page.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
@@ -1008,7 +1008,7 @@ test("a second tab on the same inspection is read-only, with no red save pill", 
       timeout: 15_000,
     });
     await expect(second.getByLabel("Glove colour")).not.toBeEditable();
-    // Nothing is wrong here: the notice says what to do, and no pill says "Not saved".
+    // Nothing is wrong here: the notice says what to do, and no pill says "Not Saved".
     await expect(savePill(second)).toHaveCount(0);
     await viewportShot(second, "second-tab");
   } finally {
@@ -1076,11 +1076,11 @@ test("a reopened inspection says who reopened it, when, and what to change", asy
   await page.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
 
   const notice = page.locator('[data-notice="reopened"]');
-  // The notice's title and label are the review's words (lib/inspections/review/notice.ts), in whatever case it writes them.
-  await expect(notice).toContainText(/Reopened: changes needed\./i);
+  // The notice's title and label are the review's words (lib/inspections/review/notice.ts).
+  await expect(notice).toContainText("Reopened: Changes Needed.");
   // Reopened here with the secret key: no person did it.
   await expect(notice).toContainText(/The system reopened it on \d{1,2} \w{3} \d{4}, \d{2}:\d{2}\. Make the changes, then submit it again\./);
-  await expect(notice).toContainText(/What to change: Size M weights are missing\./i);
+  await expect(notice).toContainText("What to Change: Size M weights are missing.");
   await expect(page.getByLabel("Glove colour")).toBeEditable();
   await shot(page, "reopened");
 });
@@ -1121,7 +1121,7 @@ test("a submitted inspection is read-only for the inspector", async ({ page, con
 test("an inspection that cannot be opened is not found, inside the shell", async ({ page, context, baseURL }) => {
   await signInAs(context, baseURL!, "inspector");
   await page.goto("/inspections/00000000-0000-4000-8000-000000000000");
-  await expect(page.getByRole("heading", { level: 1, name: "Page not found" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Page Not Found" })).toBeVisible();
   await expect(page).toHaveTitle(/Page Not Found/i);
   // One frame: the shell's, with its navigation. Not the standalone page's logo bar inside it.
   await expect(page.locator("main")).toHaveCount(1);

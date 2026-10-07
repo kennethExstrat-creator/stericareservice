@@ -211,13 +211,13 @@ async function paste(field: Locator, text: string) {
 
 async function openPending(page: Page) {
   await press(page.getByRole("button", { name: /^Pending/ }).first());
-  const sheet = page.getByRole("dialog", { name: /^(Pending|Before you submit)$/ });
+  const sheet = page.getByRole("dialog", { name: /^(Pending|Before You Submit)$/ });
   await expect(sheet).toBeVisible();
   return sheet;
 }
 
 async function closePending(page: Page) {
-  const sheet = page.getByRole("dialog", { name: /^(Pending|Before you submit)$/ });
+  const sheet = page.getByRole("dialog", { name: /^(Pending|Before You Submit)$/ });
   await press(sheet.getByRole("button", { name: "Close" }));
   await expect(sheet).toBeHidden();
 }
@@ -261,15 +261,15 @@ test("(a) an STD_SG inspection with right and left hands and dye leak works on t
   /* New inspection: no client, Hartalega, surgical gloves: the standard surgical template. */
   await page.goto("/inspections/new");
   await press(page.getByRole("combobox", { name: "Client" }));
-  await press(page.getByRole("option", { name: "No client" }));
+  await press(page.getByRole("option", { name: "No Client" }));
   await press(page.getByRole("combobox", { name: "Manufacturer" }));
   await press(page.getByRole("option", { name: /^Hartalega NGC/ }));
-  await press(page.getByRole("radio", { name: /Surgical gloves/ }));
+  await press(page.getByRole("radio", { name: /^Surgical Gloves/ }));
   await expect(page.getByTestId("chosen-template")).toHaveAttribute("data-code", "STD_SG");
-  await expect(page.getByTestId("choice-reason")).toHaveText("Standard template for surgical gloves");
-  await page.getByRole("textbox", { name: /^Product name/ }).fill(SG_PRODUCT_NAME);
+  await expect(page.getByTestId("choice-reason")).toHaveText("Standard Template for Surgical Gloves");
+  await page.getByRole("textbox", { name: /^Product Name/ }).fill(SG_PRODUCT_NAME);
   await shot(page, "a-new-inspection");
-  await press(page.getByRole("button", { name: "Create inspection" }));
+  await press(page.getByRole("button", { name: "Create Inspection" }));
   await expect(page).toHaveURL(INSPECTION_URL, { timeout: 30_000 });
   sgId = INSPECTION_URL.exec(new URL(page.url()).pathname)![1];
   await captureReady(page);
@@ -327,7 +327,7 @@ test("(a) an STD_SG inspection with right and left hands and dye leak works on t
   const plan = async (size: string, values: Record<string, string>) => {
     await chooseSize(page, size);
     for (const [label, value] of Object.entries(values)) {
-      await enter(page.getByRole("textbox", { name: `${label}, size ${size}` }), value);
+      await enter(page.getByRole("textbox", { name: `${label}, Size ${size}` }), value);
     }
   };
   const planned = { Case: "5", "Inner Box": "5", "# Gloves dimension": "13", "# Gloves (FAB)": "13", "# pouches (dye leak test)": "13" };
@@ -338,13 +338,13 @@ test("(a) an STD_SG inspection with right and left hands and dye leak works on t
   /* Watertight: holes per hand; both hands count against one limit per size */
   await openSection(page, "Watertight Inspection");
   const hands = page.getByRole("radiogroup", { name: "Hand" });
-  await expect(hands.getByRole("radio", { name: "Both hands" })).toHaveAttribute("aria-checked", "true");
+  await expect(hands.getByRole("radio", { name: "Both Hands" })).toHaveAttribute("aria-checked", "true");
   await chooseSize(page, "6.5");
   await press(page.getByRole("button", { name: "Use 80 for size 6.5" }));
-  await expect(page.getByRole("textbox", { name: /^No\. of sample tested\s*, size 6\.5$/ })).toHaveValue("80");
-  await step(page, "Palm, Size 6.5, right hand", 1);
-  await step(page, "Finger, Size 6.5, left hand", 1);
-  await step(page, "Between fingers (crotch), Size 6.5, left hand", 1);
+  await expect(page.getByRole("textbox", { name: /^No\. of sample tested\s*, Size 6\.5$/ })).toHaveValue("80");
+  await step(page, "Palm, Size 6.5, Right Hand", 1);
+  await step(page, "Finger, Size 6.5, Left Hand", 1);
+  await step(page, "Between fingers (crotch), Size 6.5, Left Hand", 1);
   const watertightTable = panel(page).getByRole("table", { name: "Watertight Inspection" });
   await expectRow(watertightTable, /^Defect Limit/, /3\D+4/);
   await expectRow(watertightTable, /^Total WTT/, "3");
@@ -352,35 +352,35 @@ test("(a) an STD_SG inspection with right and left hands and dye leak works on t
   await expectSizeStatus(page, "6.5", "Passed");
   await shot(page, "a-watertight-6.5");
   // A photo taken now is tagged with the size and the hand on screen (BUILD_SPEC 8.1).
-  await press(hands.getByRole("radio", { name: "Right hand" }));
+  await press(hands.getByRole("radio", { name: "Right Hand" }));
   const nextTags = panel(page).locator('[data-slot="next-tags"]');
   await expect(nextTags).toContainText("6.5");
-  await expect(nextTags).toContainText(/right hand/i);
+  await expect(nextTags).toContainText("Right Hand");
   console.log(`[a] photo tags with the right hand on screen: ${await nextTags.innerText()}`);
-  await press(hands.getByRole("radio", { name: "Both hands" }));
+  await press(hands.getByRole("radio", { name: "Both Hands" }));
 
   await chooseSize(page, "7.5");
   await press(page.getByRole("button", { name: "Use 125 for size 7.5" }));
-  await step(page, "Cuff, Size 7.5, right hand", 2);
-  await step(page, "Palm, Size 7.5, left hand", 2);
-  await step(page, "Other :, Size 7.5, left hand", 1);
-  await page.getByRole("textbox", { name: /^Other : description \(Size 7\.5, left hand\)/ }).fill("Near the thumb tip");
+  await step(page, "Cuff, Size 7.5, Right Hand", 2);
+  await step(page, "Palm, Size 7.5, Left Hand", 2);
+  await step(page, "Other :, Size 7.5, Left Hand", 1);
+  await page.getByRole("textbox", { name: /^Other : description \(Size 7\.5, Left Hand\)/ }).fill("Near the thumb tip");
   await expectRow(watertightTable, /^Defect Limit/, /5\D+6/);
   await expectRow(watertightTable, /^Total WTT/, "5");
   await expectRow(watertightTable, /^Freedom from holes/, "Passed");
   // One more hole on the left hand: 2 right + 4 left reach Reject 6 for the size, though neither hand alone does.
-  await step(page, "Between fingers (crotch), Size 7.5, left hand", 1);
+  await step(page, "Between fingers (crotch), Size 7.5, Left Hand", 1);
   await expectRow(watertightTable, /^Total WTT/, "6");
   await expectRow(watertightTable, /^Freedom from holes/, "Failed");
   await expectSizeStatus(page, "7.5", "Failed");
   await expectSectionStatus(page, "Watertight Inspection", "Failed");
   await shot(page, "a-watertight-7.5-failed");
   // Only the left hand on screen: its steppers, not the right hand's.
-  await press(hands.getByRole("radio", { name: "Left hand" }));
-  await expect(page.getByRole("spinbutton", { name: "Palm, Size 7.5, left hand" })).toBeVisible();
-  await expect(page.getByRole("spinbutton", { name: "Palm, Size 7.5, right hand" })).toHaveCount(0);
-  await step(page, "Between fingers (crotch), Size 7.5, left hand", 1, "Decrease");
-  await press(hands.getByRole("radio", { name: "Both hands" }));
+  await press(hands.getByRole("radio", { name: "Left Hand" }));
+  await expect(page.getByRole("spinbutton", { name: "Palm, Size 7.5, Left Hand" })).toBeVisible();
+  await expect(page.getByRole("spinbutton", { name: "Palm, Size 7.5, Right Hand" })).toHaveCount(0);
+  await step(page, "Between fingers (crotch), Size 7.5, Left Hand", 1, "Decrease");
+  await press(hands.getByRole("radio", { name: "Both Hands" }));
   await expectRow(watertightTable, /^Total WTT/, "5");
   await expectSizeStatus(page, "7.5", "Passed");
   await expectSectionStatus(page, "Watertight Inspection", "Passed");
@@ -388,29 +388,29 @@ test("(a) an STD_SG inspection with right and left hands and dye leak works on t
   /* Visual: three classes per size, per hand */
   await openSection(page, "Visual Inspection");
   await chooseSize(page, "6.5");
-  await press(page.getByRole("button", { name: "Use 80 for every class of size 6.5" }));
-  await step(page, "Thin spot on glove body, Size 6.5, right hand", 2);
-  await step(page, "Oil stain, Size 6.5, left hand", 1);
-  await step(page, "Small dirt / stain, Size 6.5, right hand", 1);
-  await step(page, "Sticky pleats (< 5mm), Size 6.5, left hand", 2);
+  await press(page.getByRole("button", { name: "Use 80 for Every Class of size 6.5" }));
+  await step(page, "Thin spot on glove body, Size 6.5, Right Hand", 2);
+  await step(page, "Oil stain, Size 6.5, Left Hand", 1);
+  await step(page, "Small dirt / stain, Size 6.5, Right Hand", 1);
+  await step(page, "Sticky pleats (< 5mm), Size 6.5, Left Hand", 2);
   await chooseSize(page, "7.5");
-  await press(page.getByRole("button", { name: "Use 125 for every class of size 7.5" }));
+  await press(page.getByRole("button", { name: "Use 125 for Every Class of size 7.5" }));
   // A critical defect on either hand fails the size at once.
-  await step(page, "Embedded Insects, Size 7.5, left hand", 1);
+  await step(page, "Embedded Insects, Size 7.5, Left Hand", 1);
   const critical = panel(page).getByRole("table", { name: /^Critical Defects/ });
   await expectRow(critical, /^Disposition - Visual Critical/, "Failed");
   await expectSizeStatus(page, "7.5", "Failed");
   await expectSectionStatus(page, "Visual Inspection", "Failed");
   await shot(page, "a-visual-7.5-critical");
-  await step(page, "Embedded Insects, Size 7.5, left hand", 1, "Decrease");
-  await step(page, "Big Lumps (>2mm), Size 7.5, right hand", 1);
-  await step(page, "Rolled bead, Size 7.5, left hand", 1);
+  await step(page, "Embedded Insects, Size 7.5, Left Hand", 1, "Decrease");
+  await step(page, "Big Lumps (>2mm), Size 7.5, Right Hand", 1);
+  await step(page, "Rolled bead, Size 7.5, Left Hand", 1);
   // A defect the list does not have, counted on the left hand: kept unmapped for an admin.
   const minor = panel(page).getByRole("region", { name: "Minor defect" });
   await press(minor.getByRole("button", { name: "Defect not in the list" }));
   await minor.getByRole("textbox", { name: "Defect not in the list" }).fill("Glove stuck to pouch");
   await press(minor.getByRole("button", { name: "Add", exact: true }));
-  await step(page, "Glove stuck to pouch, Size 7.5, left hand", 1);
+  await step(page, "Glove stuck to pouch, Size 7.5, Left Hand", 1);
   await expect(minor.getByRole("rowheader", { name: /^Glove stuck to pouch/ })).toHaveAttribute("data-unmapped", "true");
   await expectSectionStatus(page, "Visual Inspection", "Passed");
 
@@ -426,10 +426,10 @@ test("(a) an STD_SG inspection with right and left hands and dye leak works on t
   await openSection(page, "Dye leak test");
   await chooseSize(page, "6.5");
   await expect(panel(page)).toContainText(/Pouches planned:\s*13/);
-  await press(page.getByRole("button", { name: "No leaks, Pouches failed, Size 6.5" }));
+  await press(page.getByRole("button", { name: "No Leaks, Pouches failed, Size 6.5" }));
   await expect(page.getByRole("spinbutton", { name: "Pouches tested, Size 6.5" })).toHaveAttribute("aria-valuenow", "13");
   await chooseSize(page, "7.5");
-  await press(page.getByRole("button", { name: "No leaks, Pouches failed, Size 7.5" }));
+  await press(page.getByRole("button", { name: "No Leaks, Pouches failed, Size 7.5" }));
   await step(page, "Pouches failed, Size 7.5", 1);
   await expectSectionStatus(page, "Dye leak test", "Failed");
   await shot(page, "a-dye-leak-failed");
@@ -508,11 +508,11 @@ test("(a) an STD_SG inspection with right and left hands and dye leak works on t
   test.info().annotations.push({ type: "pending before submit", description: pendingText });
 
   await press(page.getByRole("button", { name: "Submit", exact: true }));
-  const confirm = page.getByRole("alertdialog", { name: `Submit ${row.ref_no} for review?` });
+  const confirm = page.getByRole("alertdialog", { name: `Submit ${row.ref_no} for Review?` });
   await expect(confirm).toBeVisible();
   await expect(confirm).toContainText("Pass");
   await shot(page, "a-submit");
-  await press(confirm.getByRole("button", { name: "Submit for review" }));
+  await press(confirm.getByRole("button", { name: "Submit for Review" }));
   await expect(page).toHaveURL(new RegExp(`/inspections/${sgId}/review$`), { timeout: 60_000 });
 
   /* The review */
@@ -699,7 +699,7 @@ test("(c1) losing the connection mid-entry loses nothing: offline, the inspector
   await context.setOffline(true);
   await page.getByRole("textbox", { name: "Glove surface texture" }).fill(OFFLINE.texture);
   await expect(savePill(page)).toHaveAttribute("data-state", "offline", { timeout: 20_000 });
-  await expect(savePill(page)).toHaveText("Offline (will sync)");
+  await expect(savePill(page)).toHaveText("Offline (Will Sync)");
   await shot(page, "c1-offline");
   await enter(page.getByRole("textbox", { name: "Indicative weight (size M)" }), OFFLINE.weight);
   await page.getByRole("textbox", { name: "Glove length" }).fill(OFFLINE.length);
@@ -715,8 +715,8 @@ test("(c1) losing the connection mid-entry loses nothing: offline, the inspector
     await expect(cell).toBeEditable();
     await enter(cell, reading);
   }
-  await page.getByRole("textbox", { name: "Inspector comment" }).fill(OFFLINE.comment);
-  await page.getByRole("textbox", { name: "Inspector comment" }).press("Tab");
+  await page.getByRole("textbox", { name: "Inspector Comment" }).fill(OFFLINE.comment);
+  await page.getByRole("textbox", { name: "Inspector Comment" }).press("Tab");
   await expect(savePill(page)).toHaveAttribute("data-state", "offline");
 
   // Nothing of it is on the server yet; all of it is on the iPad.
@@ -947,11 +947,11 @@ test("(b2) an admin switches a module off for one inspection with a reason: gone
   try {
     await desk.page.goto(`/inspections/${fixture.inspectionId}?module=${OVERRIDE_OFF}`);
     await expect(desk.page.getByRole("heading", { level: 2, name: title })).toBeVisible({ timeout: 30_000 });
-    await desk.page.getByRole("button", { name: "Switch off" }).click();
-    const dialog = desk.page.getByRole("dialog", { name: `Switch off ${title}?` });
+    await desk.page.getByRole("button", { name: "Switch Off" }).click();
+    const dialog = desk.page.getByRole("dialog", { name: `Switch Off ${title}?` });
     await expect(dialog).toBeVisible();
     await dialog.getByRole("textbox", { name: "Reason" }).fill(OVERRIDE_REASON);
-    await dialog.getByRole("button", { name: "Switch off" }).click();
+    await dialog.getByRole("button", { name: "Switch Off" }).click();
     await expect(dialog).toBeHidden({ timeout: 30_000 });
     await expect(desk.page.locator('[data-slot="section-frame"]')).toContainText("is switched off for this inspection");
     await expect(desk.page.locator('[data-slot="section-frame"]')).toContainText(OVERRIDE_REASON);
@@ -994,9 +994,9 @@ test("(b2) an admin switches a module off for one inspection with a reason: gone
   await panel(page).getByRole("textbox", { name: "Date" }).fill(todayInMalaysia());
   await expect(savePill(page)).toHaveAttribute("data-state", "saved", { timeout: 30_000 });
   await press(page.getByRole("button", { name: "Submit", exact: true }));
-  const confirm = page.getByRole("alertdialog", { name: `Submit ${fixture.refNo} for review?` });
+  const confirm = page.getByRole("alertdialog", { name: `Submit ${fixture.refNo} for Review?` });
   await expect(confirm).toBeVisible();
-  await press(confirm.getByRole("button", { name: "Submit for review" }));
+  await press(confirm.getByRole("button", { name: "Submit for Review" }));
   await expect(page).toHaveURL(new RegExp(`/inspections/${fixture.inspectionId}/review$`), { timeout: 60_000 });
 
   // The review: neither module among the results; force at break listed as switched off, with the reason.

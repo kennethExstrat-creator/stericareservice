@@ -98,8 +98,8 @@ test.describe("a lead inspector", () => {
       await expect(listRow(page, inspection.ref)).toBeVisible();
     }
     await expect(listRow(page, beaDraft.ref)).toHaveCount(0);
-    // The list's eyebrow, in whichever case the list writes it (e2e/list checks its words).
-    await expect(page.getByText(/^Your team$/i)).toBeVisible();
+    // The list's eyebrow.
+    await expect(page.getByText("Your Team", { exact: true })).toBeVisible();
 
     // Who is in charge of each, the lead's own included, in a column of its own.
     await expect(page.getByRole("columnheader", { name: INSPECTOR_IN_CHARGE, exact: true })).toHaveCount(1);
@@ -141,14 +141,14 @@ test.describe("a lead inspector", () => {
     await expect(page.getByText(fixture.ivan.name).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Approve" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Reopen" })).toHaveCount(0);
-    await expect(page.getByRole("link", { name: "Open inspection" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Open Inspection" })).toBeVisible();
     await shot(page, "lead-team-review");
   });
 
   test("cannot open another team's inspection", async ({ page, context, baseURL }) => {
     await signIn(context, baseURL!, fixture.linaLead.email, fixture.linaLead.password);
     await page.goto(`/inspections/${fixture.inspections.beaDraft.id}/review`);
-    await expect(page.getByRole("heading", { name: "Inspection not found" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Inspection Not Found" })).toBeVisible();
     await expect(page.getByText(fixture.inspections.beaDraft.ref)).toHaveCount(0);
     await shot(page, "lead-other-team");
   });
@@ -163,7 +163,7 @@ test.describe("a lead inspector", () => {
     await expect(listRow(page, linaDraft.ref)).toHaveCount(0);
     // Only their own, so no Inspector in Charge column.
     await expect(page.getByRole("columnheader", { name: INSPECTOR_IN_CHARGE, exact: true, includeHidden: true })).toHaveCount(0);
-    await expect(page.getByText(/^Your inspections$/i)).toBeVisible();
+    await expect(page.getByText("Your Inspections", { exact: true })).toBeVisible();
   });
 });
 

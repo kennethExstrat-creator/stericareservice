@@ -282,8 +282,8 @@ test("photos from four modules on the iPad, the export and the AI second opinion
       await expect(page.getByRole("heading", { level: 2, name: TITLES[plan.module], exact: true })).toBeVisible();
       const slot = frame.locator(`[data-slot="module-photos"][data-module="${plan.module}"]`);
       // The iPad's two buttons (BUILD_SPEC 8.1).
-      await expect(slot.getByRole("button", { name: "Take photo" })).toBeVisible();
-      await expect(slot.getByRole("button", { name: "Add from library" })).toBeVisible();
+      await expect(slot.getByRole("button", { name: "Take Photo" })).toBeVisible();
+      await expect(slot.getByRole("button", { name: "Add From Library" })).toBeVisible();
       // F4: a per-size module tags new photos with the size it shows as it opens, nothing touched yet.
       await expect(nextTags(frame), `${plan.module} as it opens`).toHaveText("New photos are tagged Size M.");
       await plan.focus(frame, page);
@@ -303,7 +303,7 @@ test("photos from four modules on the iPad, the export and the AI second opinion
 
   await test.step("iPad: the lab report attached in force at break, kept by the module", async () => {
     const frame = await openSection(page, TITLES.force_at_break);
-    await expect(frame.locator('[data-slot="lab-report"]')).toContainText("Not attached");
+    await expect(frame.locator('[data-slot="lab-report"]')).toContainText("Not Attached");
     const slot = frame.locator('[data-slot="file-slot"][data-module="force_at_break"]');
     await slot.locator("input[data-file-input]").setInputFiles(LAB_REPORT);
     await expect(slot.locator('[data-slot="file-row"][data-upload-state="uploaded"]')).toHaveCount(1, { timeout: 60_000 });
@@ -343,11 +343,11 @@ test("photos from four modules on the iPad, the export and the AI second opinion
 
   await test.step("iPad: submit, with nothing left to upload", async () => {
     await press(page.getByRole("button", { name: "Submit", exact: true }), true);
-    const dialog = page.getByRole("alertdialog", { name: `Submit ${fixture.refNo} for review?` });
+    const dialog = page.getByRole("alertdialog", { name: `Submit ${fixture.refNo} for Review?` });
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole("button", { name: "Submit for review" })).toBeEnabled({ timeout: 30_000 });
+    await expect(dialog.getByRole("button", { name: "Submit for Review" })).toBeEnabled({ timeout: 30_000 });
     await view(page, "3-ipad-submit");
-    await press(dialog.getByRole("button", { name: "Submit for review" }), true);
+    await press(dialog.getByRole("button", { name: "Submit for Review" }), true);
     await expect(page).toHaveURL(new RegExp(`/inspections/${fixture.inspectionId}/review$`), { timeout: 60_000 });
     const row = await inspectionRow(fixture.inspectionId);
     expect(row).toMatchObject({ status: "submitted", result: "pass", remarks: WORDS.remark });
@@ -366,9 +366,9 @@ test("photos from four modules on the iPad, the export and the AI second opinion
     await test.step("desktop, the inspector: the gallery shows every photo in its module with its tags, read-only", async () => {
       await accounts.signIn(desktop, baseURL!, "inspector");
       await screen.goto(`${capturePath}/photos`);
-      await expect(screen.getByRole("heading", { level: 1, name: "Photos and files" })).toBeVisible();
+      await expect(screen.getByRole("heading", { level: 1, name: "Photos and Files" })).toBeVisible();
       await expect(screen.getByText(/This inspection has been submitted/)).toBeVisible();
-      await expect(screen.getByRole("heading", { name: "Add photos", exact: true })).toHaveCount(0);
+      await expect(screen.getByRole("heading", { name: "Add Photos", exact: true })).toHaveCount(0);
       for (const key of ["weight", "visual", "dispensing_packing", "labeling"] as const) {
         const group = screen.locator(`[data-group="${key}"]`);
         await expect(group.getByRole("heading", { name: TITLES[key], exact: true })).toBeVisible();
@@ -409,7 +409,7 @@ test("photos from four modules on the iPad, the export and the AI second opinion
       for (const photo of photos) {
         const card = screen.locator(`[data-photo-id="${photo.id}"]`);
         await card.getByRole("switch").click();
-        await expect(card.getByText("In report", { exact: true })).toBeVisible();
+        await expect(card.getByText("In Report", { exact: true })).toBeVisible();
       }
       await expect
         .poll(async () => (await photoRows(fixture.inspectionId)).every((row) => row.include_in_report))
@@ -530,21 +530,21 @@ test("photos from four modules on the iPad, the export and the AI second opinion
       const exported = doc;
       await screen.goto(`${capturePath}/review`);
       const panel = screen.getByTestId("ai-panel");
-      await expect(panel.getByRole("heading", { level: 2, name: "AI second opinion" })).toBeVisible();
+      await expect(panel.getByRole("heading", { level: 2, name: "AI Second Opinion" })).toBeVisible();
       await expect(panel.getByTestId("ai-review-not-connected"), "the server runs the mock reviewer").toHaveCount(0);
-      await press(panel.getByRole("button", { name: "Request AI second opinion" }), false);
+      await press(panel.getByRole("button", { name: "Request AI Second Opinion" }), false);
       const comparison = panel.getByTestId("ai-comparison");
       await expect(comparison).toBeVisible({ timeout: 90_000 });
       await expect(panel.getByTestId("ai-review-meta")).toContainText("Mock reviewer (test data only)");
 
       // The three columns of BUILD_SPEC 9.2, under one heading row at this width.
-      for (const title of ["System (computed)", "Inspector", "AI second opinion"]) {
+      for (const title of ["System (Computed)", "Inspector", "AI Second Opinion"]) {
         await expect(comparison.getByText(title, { exact: true }).first()).toBeVisible();
       }
 
       const overall = comparison.locator("section[data-section$='-overall']");
-      await expect(overall).toContainText("Suggested result");
-      await expect(overall).toContainText("Final result");
+      await expect(overall).toContainText("Suggested Result");
+      await expect(overall).toContainText("Final Result");
       await expect(overall).toContainText(WORDS.remark);
       await expect(overall).toContainText("Mock second opinion (test data, no AI model).");
 

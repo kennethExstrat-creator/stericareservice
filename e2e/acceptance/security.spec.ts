@@ -362,7 +362,7 @@ function actionCases(): ActionCase[] {
     { name: "submitInspection", kind: "user", path: capture, args: [{ inspectionId: i.mDraft.id, dataHash: "0000000000000000" }] },
     { name: "switchModuleOff", kind: "admin", path: capture, args: [{ status: "idle" }, form({ inspectionId: i.mDraft.id, moduleKey: "glove_info", reason: "Security e2e" })] },
     { name: "switchModuleOn", kind: "admin", path: capture, args: [{ status: "idle" }, form({ inspectionId: i.mDraft.id, moduleKey: "glove_info" })] },
-    // Photos and files.
+    // Photos and Files.
     { name: "updatePhotoTags", kind: "user", path: photos, args: [{ status: "idle" }, form({ photoId: media.mDraftPhoto.id, moduleKey: "glove_info", caption: "changed by a probe" })] },
     { name: "deletePhoto", kind: "user", path: photos, args: [{ status: "idle" }, form({ photoId: media.mDraftPhoto.id })] },
     { name: "deleteInspectionFile", kind: "user", path: photos, args: [{ status: "idle" }, form({ fileId: media.mDraftFile.id })] },
@@ -381,6 +381,7 @@ function actionCases(): ActionCase[] {
     { name: "deactivateUser", kind: "admin", path: "/admin/users", args: [{ status: "idle" }, form({ userId: R })] },
     { name: "reactivateUser", kind: "admin", path: "/admin/users", args: [{ status: "idle" }, form({ userId: R, role: "inspector", leadId: "" })] },
     { name: "sendPasswordLink", kind: "admin", path: "/admin/users", args: [{ status: "idle" }, form({ userId: R })] },
+    { name: "renameUser", kind: "admin", path: "/admin/users", args: [{ status: "idle" }, form({ userId: R, fullName: "Probe" })] },
     // Admin: reference data.
     { name: "saveManufacturer", kind: "admin", path: "/admin/manufacturers", args: [{ status: "idle" }, form({ id: R, version: "x", name: "Probe" })] },
     { name: "deleteManufacturer", kind: "admin", path: "/admin/manufacturers", args: [{ status: "idle" }, form({ id: R })] },
@@ -1114,7 +1115,7 @@ test("SEC-03: an inspector cannot add an admin's or the system's events to the a
   await page.goto(`/inspections/${i.mApproved.id}/review`);
   await expect(page.getByRole("heading", { name: "History", exact: true })).toBeVisible();
   await expect(page.locator("li[data-kind]").first()).toBeVisible();
-  for (const text of ["Sent to the AI report", "Reason for reopening", "Module settings changed for this inspection", "Approved by phone"]) {
+  for (const text of ["Sent to the AI Report", "Reason for Reopening", "Module Settings Changed for This Inspection", "Approved by phone"]) {
     await expect(page.getByText(text), text).toHaveCount(0);
   }
   await page.screenshot({ path: `${SHOTS}/sec-03-history-without-forged-events.png`, fullPage: true });

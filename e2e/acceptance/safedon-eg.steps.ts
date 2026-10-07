@@ -376,7 +376,7 @@ export async function enterSampling(page: Page): Promise<void> {
     await showSize(page, size);
     const row = REPORT.sampling[size]!;
     for (const [label, field] of SAMPLING_COLUMNS) {
-      await typeNumber(section.getByRole("textbox", { name: `${label}, size ${size}`, exact: true }), row[field]);
+      await typeNumber(section.getByRole("textbox", { name: `${label}, Size ${size}`, exact: true }), row[field]);
     }
   }
 }
@@ -462,7 +462,7 @@ export async function enterTensile(page: Page): Promise<void> {
 export async function enterWeight(page: Page): Promise<void> {
   await openSection(page, "weight");
   for (const size of SIZES) {
-    await typeNumber(frame(page).getByRole("textbox", { name: `Weight (g), size ${size}`, exact: true }), REPORT.weight[size]!.values![0]);
+    await typeNumber(frame(page).getByRole("textbox", { name: `Weight (g), Size ${size}`, exact: true }), REPORT.weight[size]!.values![0]);
   }
 }
 
@@ -477,8 +477,8 @@ export async function enterWatertight(page: Page): Promise<void> {
     await showSize(page, size);
     const entry = REPORT.watertight.perSize[size]!;
     await press(section.getByRole("button", { name: `Use ${entry.tested} for size ${size}`, exact: true }));
-    // ", size XS" is screen-reader text beside the label: Chromium names it with a space before the comma.
-    await expect(section.getByRole("textbox", { name: new RegExp(`^No\\. of sample tested ?, size ${size}$`) })).toHaveValue(
+    // ", Size XS" is screen-reader text beside the label: Chromium names it with a space before the comma.
+    await expect(section.getByRole("textbox", { name: new RegExp(`^No\\. of sample tested ?, Size ${size}$`) })).toHaveValue(
       String(entry.tested),
     );
     for (const [code, count] of Object.entries(entry.holes)) {
@@ -500,7 +500,7 @@ export async function enterVisual(page: Page): Promise<void> {
   for (const size of SIZES) {
     await showSize(page, size);
     const inspected = REPORT.visual.critical.perSize[size]!.inspected;
-    await press(section.getByRole("button", { name: `Use ${inspected} for every class of size ${size}`, exact: true }));
+    await press(section.getByRole("button", { name: `Use ${inspected} for Every Class of size ${size}`, exact: true }));
   }
 }
 
@@ -627,10 +627,10 @@ export async function expectReview(page: Page, refNo: string, names: { client: s
 
   // Conclusion: pass, suggested and final.
   const verdict = page.locator("#result");
-  await expect(verdict).toContainText("Suggested by the app");
+  await expect(verdict).toContainText("Suggested by the App");
   // Why, under the pill: the reasons only, never the result again.
   await expect(verdict.locator("[data-slot='suggested-reasons']")).toHaveText("Warnings: Sampling Plan.");
-  // Suggested by the app, then the inspector's final result.
+  // Suggested by the App, then the inspector's final result.
   await expect(verdict.locator("[data-slot='status-pill']").nth(0)).toHaveText("Passed");
   await expect(verdict.locator("[data-slot='status-pill']").nth(1)).toHaveText("Passed");
   await expect(verdict).toContainText("No errors");

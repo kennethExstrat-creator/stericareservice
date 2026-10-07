@@ -284,7 +284,7 @@ test("an admin builds a template from a base without code changes, and an inspec
     }).toPass({ timeout: 30_000 });
 
     await choose(dialog, page, "Build on", new RegExp(`^${fixture.base.code}`));
-    // Where it applies starts as the base's.
+    // Where It Applies starts as the base's.
     await expect(dialog.getByRole("combobox", { name: "Product Type" })).toHaveText("Examination Gloves");
     await expect(dialog.getByRole("combobox", { name: "Standard" })).toHaveText("EN 455");
     await expect(dialog.locator("[data-note]")).toContainText(
@@ -549,7 +549,7 @@ test("an admin builds a template from a base without code changes, and an inspec
     // The most specific active template wins (BUILD_SPEC 4.4): the client's at this manufacturer, not the base.
     const chosen = page.getByTestId("chosen-template");
     await expect(chosen).toHaveAttribute("data-code", fixture.newCode);
-    await press(page.getByText("Show the sections"));
+    await press(page.getByText("Show the Sections"));
     await expect(chosen.getByRole("listitem")).toHaveText(SECTIONS);
     await page.getByRole("textbox", { name: /Product name/i }).fill("E2E admin flow nitrile gloves");
     await shot(page, "11-new-inspection");
@@ -564,7 +564,7 @@ test("an admin builds a template from a base without code changes, and an inspec
 
   let inspectionId = "";
   await test.step("Create starts it, on the capture screen", async () => {
-    await press(page.getByRole("button", { name: "Create inspection" }));
+    await press(page.getByRole("button", { name: "Create Inspection" }));
     await expect(page).toHaveURL(INSPECTION_URL, { timeout: 90_000 });
     inspectionId = page.url().split("/").at(-1)!;
   });
@@ -574,7 +574,8 @@ test("an admin builds a template from a base without code changes, and an inspec
     await expect(captureSections(page)).toHaveText(SECTIONS.map((title) => new RegExp(`^${escapeRegExp(title)}`)));
     const nav = isDesktop() ? page.getByRole("navigation", { name: "Sections" }) : page.getByRole("tablist", { name: "Sections" });
     for (const title of SWITCHED_OFF) await expect(nav).not.toContainText(title);
-    await expect(nav).not.toContainText("Switched off");
+    // The sidebar's Switched Off group, in any case (CSS sets it in capitals).
+    await expect(nav).not.toContainText(/Switched off/i);
     await expectNoPageScroll(page);
     await shot(page, "12-capture");
 

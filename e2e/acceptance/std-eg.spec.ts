@@ -12,7 +12,7 @@ import { signIn, TEST_ACCOUNTS } from "../support/session";
  * cartons, boxes, codes and dates).
  *
  * As inspector@test.local on a 13 inch iPad in landscape (1366 x 1024,
- * touch): /inspections/new picks No client, Hartalega NGC and examination
+ * touch): /inspections/new picks No Client, Hartalega NGC and examination
  * gloves, which resolves the standard template STD_EG; then the report goes
  * in section by section with taps, the numeric keypad (typed, Enter moving
  * on) and pasted columns where a grid takes them. Only the fixture's values
@@ -351,22 +351,22 @@ test("the STD_EG example entered on the iPad gives every expected result", async
 
   await test.step("New inspection: no client, Hartalega NGC, examination gloves resolve STD_EG", async () => {
     await page.goto("/inspections/new");
-    await expect(page.getByRole("heading", { level: 1, name: "New inspection" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "New Inspection" })).toBeVisible();
     const choose = async (label: string, option: string) => {
       await page.getByRole("combobox", { name: label }).tap();
       await page.getByRole("option", { name: option, exact: true }).tap();
       await expect(page.getByRole("combobox", { name: label })).toHaveText(option);
     };
-    await choose("Client", "No client");
+    await choose("Client", "No Client");
     await choose("Manufacturer", HARTALEGA.label);
-    await page.getByRole("radio", { name: /Examination gloves/ }).tap();
+    await page.getByRole("radio", { name: /^Examination Gloves/ }).tap();
     await expect(page.getByTestId("chosen-template")).toHaveAttribute("data-code", EXPECTED.template);
-    await check(page.getByTestId("choice-reason")).toHaveText("Standard template for examination gloves");
-    await check(page.getByTestId("chosen-template")).toContainText("STD_EG version 1 · EN 455");
+    await check(page.getByTestId("choice-reason")).toHaveText("Standard Template for Examination Gloves");
+    await check(page.getByTestId("chosen-template")).toContainText("STD_EG Version 1 · EN 455");
     await check(page.getByTestId("chosen-template")).toContainText("XS, S, M, L, XL (pieces)");
-    await page.getByRole("textbox", { name: /Product name/ }).fill(REPORT.header.productName);
+    await page.getByRole("textbox", { name: /Product Name/ }).fill(REPORT.header.productName);
     await shot(page, "01-new");
-    await page.getByRole("button", { name: "Create inspection" }).tap();
+    await page.getByRole("button", { name: "Create Inspection" }).tap();
     await expect(page).toHaveURL(INSPECTION_URL, { timeout: 90_000 });
     inspectionId = INSPECTION_URL.exec(page.url())![1];
     writeFileSync(LEFTOVER, JSON.stringify({ id: inspectionId }));
@@ -445,7 +445,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
   await test.step("Sampling Plan: the seven counts in one run, Enter moving on; level I gives code N, 500", async () => {
     const frame = await next(page, SECTION.sampling);
     await expectOnlySizeM(page, SECTION.sampling);
-    await frame.getByRole("textbox", { name: "Case, size M", exact: true }).tap();
+    await frame.getByRole("textbox", { name: "Case, Size M", exact: true }).tap();
     for (const value of [
       SAMPLING.cases,
       SAMPLING.inners,
@@ -458,7 +458,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
       await page.keyboard.type(String(value));
       await page.keyboard.press("Enter");
     }
-    await check(frame.getByRole("textbox", { name: "# inner box for packaging & dispensing inspection, size M", exact: true })).toHaveValue(
+    await check(frame.getByRole("textbox", { name: "# inner box for packaging & dispensing inspection, Size M", exact: true })).toHaveValue(
       String(SAMPLING.dispensingInners),
     );
     const facts = frame.getByRole("tabpanel", { name: /^Size M\b/ });
@@ -631,12 +631,12 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await check(frame.getByRole("textbox", { name: `Weight (g), No. ${WEIGHT.gloves}`, exact: true })).toHaveValue(
       WEIGHT.averageG.toFixed(2),
     );
-    const table = frame.getByRole("table", { name: "Weight (g), size M" });
+    const table = frame.getByRole("table", { name: "Weight (g), Size M" });
     const expected = EXPECT_WEIGHT;
     await check(row(table, "Average"), expected.check).toHaveAccessibleName(`Average ${expected.averageG.toFixed(2)}`);
     const deviation = frame.locator('[data-slot="weight-deviation"]');
     await check(deviation, expected.check).toContainText(new RegExp(`[-−]${escapeRegExp(String(Math.abs(expected.deviationPct)))}%`));
-    await check(deviation, expected.check).toContainText(`indicative ${expected.indicativeG} g, threshold ${expected.thresholdPct}%`);
+    await check(deviation, expected.check).toContainText(`Indicative ${expected.indicativeG} g, Threshold ${expected.thresholdPct}%`);
     await check(deviation.locator('[data-slot="status-pill"]'), expected.check).toHaveAttribute("data-status", "warn");
     await check(sectionStatus(page), expected.check).toHaveAttribute("data-status", expected.status);
     await check(sectionSummary(page)).toContainText(
@@ -687,7 +687,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
   await test.step("Visual: 500 for every class in one tap, 8 major defects tapped; 0 / 1, 21 / 22, 21 / 22", async () => {
     const frame = await next(page, SECTION.visual);
     await expectOnlySizeM(page, SECTION.visual);
-    await frame.getByRole("button", { name: `Use ${REPORT.visual.major.perSize.M?.inspected} for every class of size M` }).tap();
+    await frame.getByRole("button", { name: `Use ${REPORT.visual.major.perSize.M?.inspected} for Every Class of size M` }).tap();
     for (const cls of ["critical", "major", "minor"] as const) {
       const block = REPORT.visual[cls];
       for (const defect of block.rows) {
@@ -818,7 +818,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await page.goto(`/inspections/${id}/review`);
     await expect(page.getByRole("heading", { level: 1, name: /^INS-\d{4}-\d+$/ })).toBeVisible();
     const result = page.getByRole("region", { name: "Result", exact: true });
-    await check(result).toContainText(/Suggested by the app\s*Failed/);
+    await check(result).toContainText(/Suggested by the App\s*Failed/);
     await check(result).toContainText("2 errors");
     await check(page.locator('li[data-module="carton_sampling"]')).toHaveAttribute("data-status", "fail");
     await check(page.locator('li[data-module="carton_sampling"] [data-issue][data-level="error"]')).toContainText(CARTON_ERROR.message);
@@ -831,7 +831,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await sectionReady(page, SECTION.conclusion);
     await waitSaved(page);
     await page.getByRole("button", { name: "Submit", exact: true }).tap();
-    const sheet = page.getByRole("dialog", { name: "Before you submit" });
+    const sheet = page.getByRole("dialog", { name: "Before You Submit" });
     await expect(sheet, EXPECTED.cartonList.check).toBeVisible();
     await check(sheet.getByRole("alert")).toHaveText("2 items are needed before you can submit.");
     await shot(page, "17-submit-blocked");
@@ -926,27 +926,27 @@ test("the STD_EG example entered on the iPad gives every expected result", async
 
   await test.step("Submit: suggested Pass with one warning for the report; it lands on the review", async () => {
     await page.getByRole("button", { name: "Submit", exact: true }).tap();
-    const dialog = page.getByRole("alertdialog", { name: /^Submit INS-\d{4}-\d+ for review\?$/ });
+    const dialog = page.getByRole("alertdialog", { name: /^Submit INS-\d{4}-\d+ for Review\?$/ });
     await expect(dialog).toBeVisible();
-    await check(dialog).toContainText(/Suggested result\s*Pass/);
+    await check(dialog).toContainText(/Suggested Result\s*Pass/);
     await check(dialog).toContainText(`1 warning goes into the report.`);
     await shot(page, "22-submit");
-    await dialog.getByRole("button", { name: "Submit for review" }).tap();
+    await dialog.getByRole("button", { name: "Submit for Review" }).tap();
     await expect(page).toHaveURL(new RegExp(`/inspections/${id}/review$`), { timeout: 60_000 });
   });
 
   await test.step("Review page: every module's result as expected, sizes M only", async () => {
     await expect(page.getByRole("heading", { level: 1, name: /^INS-\d{4}-\d+$/ })).toBeVisible();
     const result = page.getByRole("region", { name: "Result", exact: true });
-    await check(result, EXPECTED.conclusion.check).toContainText(/Suggested by the app\s*Passed/);
-    await check(result).toContainText(/Final result \(inspector\)\s*Passed/);
+    await check(result, EXPECTED.conclusion.check).toContainText(/Suggested by the App\s*Passed/);
+    await check(result).toContainText(/Final Result \(Inspector\)\s*Passed/);
     await check(result).toContainText("No errors");
     await check(result).toContainText("1 warning");
     await check(result).toContainText("Every module is done");
     const facts = page.locator("dl").filter({ hasText: "Inspector" }).first();
     await check(facts, EXPECTED.inspector.check).toContainText(new RegExp(`Inspector\\s*${escapeRegExp(inspectorName)}`));
     await check(facts).toContainText(new RegExp(`PO\\s*${escapeRegExp(REPORT.header.po.printed)}`));
-    await check(facts).toContainText(new RegExp(`Lot numbers\\s*${escapeRegExp(ORDER.lots.join(", "))}`));
+    await check(facts).toContainText(new RegExp(`Lot Numbers\\s*${escapeRegExp(ORDER.lots.join(", "))}`));
     const moduleRow = (key: string) => page.locator(`li[data-module="${key}"]`);
     const sizeLine = (key: string) => moduleRow(key).locator(`li[data-size="${SIZE}"]`);
     await check(moduleRow("order_lots"), EXPECTED.totals.check).toContainText(

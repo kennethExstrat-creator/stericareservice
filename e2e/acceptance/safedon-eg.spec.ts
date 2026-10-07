@@ -176,26 +176,26 @@ test("the inspector starts it on /inspections/new: the SAFEDON_EG client at the 
   };
   await choose("Client", names.client);
   await choose("Manufacturer", names.manufacturer);
-  await press(page.getByRole("radio", { name: /Examination gloves/ }));
+  await press(page.getByRole("radio", { name: /^Examination Gloves/ }));
 
   // The client's own template wins (BUILD_SPEC 4.4): the live, active version.
   const { data: live, error } = await admin.from("templates").select("id, version").eq("code", "SAFEDON_EG").eq("status", "active").single();
   if (error) throw new Error(`Finding the active SAFEDON_EG: ${error.message}`);
   const chosen = page.getByTestId("chosen-template");
   await expect(chosen).toHaveAttribute("data-code", "SAFEDON_EG");
-  await expect(chosen).toContainText(`SAFEDON_EG version ${live.version} · ASTM D6319`);
+  await expect(chosen).toContainText(`SAFEDON_EG Version ${live.version} · ASTM D6319`);
   await expect(chosen).toContainText("XS, S, M, L, XL (pieces)");
   await expect(page.getByTestId("choice-reason")).toHaveText(`For ${names.client}`);
-  await expect(page.getByRole("radio", { name: "Start blank" })).toBeChecked();
-  await page.getByRole("textbox", { name: /Product name/ }).fill(HEADER.productName);
+  await expect(page.getByRole("radio", { name: "Start Blank" })).toBeChecked();
+  await page.getByRole("textbox", { name: /Product Name/ }).fill(HEADER.productName);
   await shot(page, "01-new");
-  await press(page.getByRole("button", { name: "Create inspection" }));
+  await press(page.getByRole("button", { name: "Create Inspection" }));
 
   await expect(page).toHaveURL(INSPECTION_URL, { timeout: 90_000 });
   inspectionId = INSPECTION_URL.exec(page.url())![1];
   // Marked at once, so a run that dies from here on is cleaned up by the next.
   await openSection(page, "header");
-  await frame(page).getByRole("textbox", { name: "Inspector comment" }).fill(MARKER);
+  await frame(page).getByRole("textbox", { name: "Inspector Comment" }).fill(MARKER);
   await saved(page);
   await expectStoredModule(admin, inspectionId, "header", { comment: MARKER });
 
@@ -213,7 +213,7 @@ test("the inspector starts it on /inspections/new: the SAFEDON_EG client at the 
   await expect(page.locator("main p").filter({ hasText: names.client }).first()).toHaveText(
     new RegExp(`^${escapeRegExp(names.client)}\\s*·\\s*${escapeRegExp(names.manufacturer)}$`),
   );
-  const back = await page.getByRole("link", { name: "Back to inspections" }).boundingBox();
+  const back = await page.getByRole("link", { name: "Back to Inspections" }).boundingBox();
   const submit = await page.getByRole("button", { name: "Submit", exact: true }).boundingBox();
   expect(back!.x).toBeGreaterThan(submit!.x + submit!.width);
   await expect(page.getByRole("tablist", { name: "Sections" })).toBeVisible();
@@ -338,7 +338,7 @@ test("Dimension: the five size S cells typed with a space are refused, and S sta
     ).toBeVisible();
   }
   await expect(section.locator('[data-slot="measurement-grid"]').getByRole("button", { name: /^No\. \d+, / })).toHaveCount(refused.length);
-  // Not done, never Passed (6.2 rule 5). Meanwhile the footer averages the readings stored so far, marked "12 of 13":
+  // Not Done, never Passed (6.2 rule 5). Meanwhile the footer averages the readings stored so far, marked "12 of 13":
   // the report's own average over its numeric cells, never a result.
   await expect(section.locator('[role="tab"][data-size="S"]')).toHaveAccessibleName(/Not Done/);
   await expect(dimensionFooter(page, 2)).toHaveText(["Not Done", "A", "Not Done", "Not Done"]);
@@ -616,13 +616,13 @@ test("nothing typed is lost on a reload, and only the sampling warnings are pend
 test("submit: suggested Pass, the four warnings go into the report, and the review opens", async ({ page, baseURL }) => {
   await openCapture(page, baseURL);
   await press(page.getByRole("button", { name: "Submit", exact: true }));
-  const dialog = page.getByRole("alertdialog", { name: `Submit ${refNo} for review?` });
+  const dialog = page.getByRole("alertdialog", { name: `Submit ${refNo} for Review?` });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole("definition").first()).toHaveText("Passed");
   await expect(dialog.locator('[data-slot="suggested-reasons"]')).toHaveText("Warnings: Sampling Plan.");
   await expect(dialog).toContainText(`${EXPECTED.warnings.length} warnings go into the report.`);
   await viewShot(page, "16-submit");
-  await press(dialog.getByRole("button", { name: "Submit for review" }));
+  await press(dialog.getByRole("button", { name: "Submit for Review" }));
   await expect(page).toHaveURL(new RegExp(`/inspections/${inspectionId}/review$`), { timeout: 60_000 });
   expect(await stored(admin, inspectionId!)).toMatchObject({ status: "submitted", suggested_result: "pass", result: "pass" });
 });

@@ -582,7 +582,7 @@ test.describe("inspector", () => {
         }
       });
       await open(page, "/inspections/new");
-      await press(page, page.getByRole("button", { name: "Create inspection" }));
+      await press(page, page.getByRole("button", { name: "Create Inspection" }));
       await settle(page);
       // Nothing chosen: refused on the form. Should one ever be created, it goes again at once.
       const created = /\/inspections\/([0-9a-f-]{36})/.exec(page.url());
@@ -870,7 +870,7 @@ test.describe("admin", () => {
     });
 
     await step(auditor, "users-team-filter", async () => {
-      const showTeam = page.getByRole("button", { name: /Show their team/ }).or(page.getByRole("link", { name: /Show their team/ }));
+      const showTeam = page.getByRole("button", { name: /Show Their Team/ }).or(page.getByRole("link", { name: /Show Their Team/ }));
       if (await showTeam.count()) {
         await press(page, showTeam.first());
         await page.waitForLoadState("networkidle").catch(() => undefined);
@@ -881,7 +881,7 @@ test.describe("admin", () => {
 
     await step(auditor, "users-invite-dialog", async () => {
       await open(page, "/admin/users");
-      await press(page, page.getByRole("button", { name: "Invite user" }));
+      await press(page, page.getByRole("button", { name: "Invite User" }));
       await expect(page.getByRole("dialog")).toBeVisible();
       await settle(page);
       await audit(auditor, "users-invite-dialog", { shot: "viewport", within: "[role=dialog]", tabs: 14 });
@@ -895,7 +895,7 @@ test.describe("admin", () => {
     await open(page, "/admin/manufacturers");
     await audit(auditor, "manufacturers", { tabs: 30 });
     await step(auditor, "manufacturers-add-panel", async () => {
-      await press(page, page.getByRole("button", { name: "Add manufacturer" }).first());
+      await press(page, page.getByRole("button", { name: "Add Manufacturer" }).first());
       await expect(page.getByRole("dialog")).toBeVisible();
       await settle(page);
       await audit(auditor, "manufacturers-add-panel", { shot: "viewport", within: "[role=dialog]", tabs: 14 });
@@ -912,7 +912,7 @@ test.describe("admin", () => {
     await open(page, "/admin/clients");
     await audit(auditor, "clients", { tabs: 30 });
     await step(auditor, "clients-add-panel", async () => {
-      await press(page, page.getByRole("button", { name: "Add client" }).first());
+      await press(page, page.getByRole("button", { name: "Add Client" }).first());
       await expect(page.getByRole("dialog")).toBeVisible();
       await settle(page);
       await audit(auditor, "clients-add-panel", { shot: "viewport", within: "[role=dialog]", tabs: 14 });
@@ -959,7 +959,7 @@ test.describe("admin", () => {
     await audit(auditor, "templates", { tabs: 30, maxParts: 8 });
 
     await step(auditor, "templates-new-dialog", async () => {
-      await press(page, page.getByRole("button", { name: "New template" }));
+      await press(page, page.getByRole("button", { name: "New Template" }));
       await expect(page.getByRole("dialog")).toBeVisible();
       await settle(page);
       await audit(auditor, "templates-new-dialog", { shot: "viewport", within: "[role=dialog]", tabs: 14 });
@@ -996,7 +996,7 @@ test.describe("admin", () => {
       await audit(auditor, "editor-module-visual", { maxParts: 10 });
       if (await page.getByRole("dialog").count()) await closeOverlay(page);
     });
-    for (const tab of ["Custom modules", "Details", "JSON", "Preview"]) {
+    for (const tab of ["Custom Modules", "Details", "JSON", "Preview"]) {
       await step(auditor, `editor-${tab}`, async () => {
         await press(page, page.getByRole("tab", { name: tab, exact: true }));
         await page.waitForTimeout(400);
@@ -1004,8 +1004,8 @@ test.describe("admin", () => {
       });
     }
     await step(auditor, "editor-add-custom-module", async () => {
-      await press(page, page.getByRole("tab", { name: "Custom modules", exact: true }));
-      await press(page, page.getByRole("button", { name: "Add custom module" }).first());
+      await press(page, page.getByRole("tab", { name: "Custom Modules", exact: true }));
+      await press(page, page.getByRole("button", { name: "Add Custom Module" }).first());
       await page.waitForTimeout(400);
       await settle(page);
       await audit(auditor, "editor-custom-module-form", { maxParts: 8 });
@@ -1019,15 +1019,15 @@ test.describe("admin", () => {
       await page.waitForTimeout(1_500);
       await page.reload();
       await page.waitForLoadState("networkidle").catch(() => undefined);
-      const restore = page.getByRole("button", { name: "Restore changes" });
+      const restore = page.getByRole("button", { name: "Restore Changes" });
       const offered = await restore.isVisible({ timeout: 10_000 }).catch(() => false);
       await audit(auditor, "editor-after-reload", {
         axe: false,
         shot: "viewport",
-        notes: [`typed template name after a reload: ${offered ? "offered back (Restore changes)" : "lost"}`],
+        notes: [`typed template name after a reload: ${offered ? "offered back (Restore Changes)" : "lost"}`],
       });
       // Nothing is saved: the copy on the device goes.
-      if (offered) await press(page, page.getByRole("button", { name: "Discard them" }));
+      if (offered) await press(page, page.getByRole("button", { name: "Discard Them" }));
     });
   });
 
@@ -1038,7 +1038,7 @@ test.describe("admin", () => {
     await audit(auditor, "capture-admin-stdsg", { tabs: 30, notes: await captureFacts(page) });
     await step(auditor, "capture-admin-switch-off-dialog", async () => {
       await openSection(page, "dye_leak");
-      await press(page, page.getByRole("button", { name: /Switch off/ }).first());
+      await press(page, page.getByRole("button", { name: /Switch Off/ }).first());
       await expect(page.getByRole("dialog").or(page.getByRole("alertdialog"))).toBeVisible();
       await settle(page);
       await audit(auditor, "capture-admin-switch-off-dialog", { shot: "viewport", tabs: 8 });
@@ -1047,7 +1047,7 @@ test.describe("admin", () => {
       await page.getByLabel("Reason").fill(reason);
       await page.reload();
       await captureReady(page);
-      await press(page, page.getByRole("button", { name: /Switch off/ }).first());
+      await press(page, page.getByRole("button", { name: /Switch Off/ }).first());
       await expect(page.getByRole("dialog").or(page.getByRole("alertdialog"))).toBeVisible();
       const kept = await valueAfterReload(page.getByLabel("Reason"), reason);
       await audit(auditor, "capture-admin-switch-off-after-reload", {
@@ -1081,12 +1081,12 @@ test.describe("admin", () => {
       await audit(auditor, "review-reopen-dialog", { shot: "viewport", within: "[role=alertdialog]", tabs: 6 });
       // Kenneth: nothing typed is ever lost on a reload. The reason, typed, then the page reloaded.
       const reason = "Recount the carton list for size M (UX audit).";
-      await page.getByLabel("What should the inspector change?").fill(reason);
+      await page.getByLabel("What Should the Inspector Change?").fill(reason);
       await page.reload();
       await page.waitForLoadState("networkidle").catch(() => undefined);
       await press(page, page.getByRole("button", { name: "Reopen" }).first());
       await expect(page.getByRole("alertdialog")).toBeVisible();
-      const kept = await valueAfterReload(page.getByLabel("What should the inspector change?"), reason);
+      const kept = await valueAfterReload(page.getByLabel("What Should the Inspector Change?"), reason);
       await audit(auditor, "review-reopen-after-reload", {
         shot: "viewport",
         axe: false,
@@ -1096,7 +1096,7 @@ test.describe("admin", () => {
       await closeOverlay(page);
     });
     await step(auditor, "review-ai-opinion", async () => {
-      // "Request a new second opinion" once one exists (a kept set from an earlier run).
+      // "Request a New Second Opinion" once one exists (a kept set from an earlier run).
       const request = page.getByRole("button", { name: /^Request (AI|a new) second opinion/ }).first();
       await press(page, request);
       // The mock answers within seconds; the panel polls until the comparison shows (its description
@@ -1134,10 +1134,10 @@ test.describe("admin", () => {
       await audit(auditor, "review-ai-disagree-note", { maxParts: 12 });
       // The admin's note, typed, then the page reloaded: the choice and the note come back (UX-08).
       const note = "The sample plan follows the client's own level (UX audit).";
-      await page.getByLabel("Why do you disagree?").first().fill(note);
+      await page.getByLabel("Why Do You Disagree?").first().fill(note);
       await page.reload();
       await page.waitForLoadState("networkidle").catch(() => undefined);
-      const field = page.getByLabel("Why do you disagree?").first();
+      const field = page.getByLabel("Why Do You Disagree?").first();
       const typed = await valueAfterReload(field, note);
       const kept = (await field.count()) ? typed : "(no note field: the choice is gone too)";
       await audit(auditor, "review-ai-note-after-reload", {

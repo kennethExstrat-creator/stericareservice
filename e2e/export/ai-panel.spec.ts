@@ -263,7 +263,7 @@ test("a dropped connection leaves the decision form and its note in place", asyn
     await context.setOffline(false);
   }
   // The error is on the form, not the page: the note is still there, and so is focus.
-  await expect(page.getByText("This page did not load")).toHaveCount(0);
+  await expect(page.getByText("This Page Did Not Load")).toHaveCount(0);
   await expect(first.getByRole("textbox")).toHaveValue(OFFLINE_NOTE);
   await expect(first.getByRole("button", { name: "Save Decision" })).toBeFocused();
   await shot(page, "admin-decision-offline");

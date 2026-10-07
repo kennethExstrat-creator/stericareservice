@@ -41,7 +41,7 @@ test("an inspector gets a 404 for /admin/users", async ({ page, context, baseURL
   const response = await page.goto("/admin/users");
 
   expect(response?.status()).toBe(404);
-  // The app's own 404 page ("Page not found") or Next's default one.
+  // The app's own 404 page ("Page Not Found") or Next's default one.
   await expect(page.getByText(/page not found|could not be found/i).first()).toBeVisible();
   await expect(page.getByRole("heading", { name: "Users", level: 1 })).toHaveCount(0);
   await expect(page.getByText(TEST_ACCOUNTS.admin)).toHaveCount(0);
