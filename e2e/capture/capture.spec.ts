@@ -584,9 +584,12 @@ test("saved values a section no longer reads are listed, and removed in one conf
   await expect(panel.getByRole("listitem")).toContainText("Indicative weight (size M)");
   // The form stays closed until someone decides: its first edit would drop the value unasked.
   await expect(page.getByLabel("Glove colour")).toHaveCount(0);
+  // Read-only until autosave has started; the shot shows the screen once it can be changed.
+  const remove = panel.getByRole("button", { name: "Remove the values that cannot be read" });
+  await expect(remove).toBeVisible();
   await shot(page, "unreadable-values");
 
-  await press(panel.getByRole("button", { name: "Remove the values that cannot be read" }));
+  await press(remove);
   const dialog = page.getByRole("alertdialog", { name: "Remove this value?" });
   await expect(dialog).toBeVisible();
   await viewportShot(page, "unreadable-values-confirm");
