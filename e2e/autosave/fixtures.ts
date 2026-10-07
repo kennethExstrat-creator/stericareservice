@@ -27,8 +27,9 @@ const SEED = {
 
 /**
  * header, glove_info, the custom "Site notes" (text, yes/no, number),
- * order_lots, tensile (per size), dispensing_safedon (per size, one box at a
- * time on the iPad) and conclusion.
+ * order_lots with packing_config on its page, tensile (per size),
+ * dispensing_safedon (per size, one box at a time on the iPad) and
+ * conclusion.
  */
 function definition(): TemplateDefinition {
   return {
@@ -41,6 +42,7 @@ function definition(): TemplateDefinition {
       { key: "header", include: true },
       { key: "glove_info", include: true },
       { key: "order_lots", include: true },
+      { key: "packing_config", include: true },
       { key: "tensile", include: true },
       { key: "dispensing_safedon", include: true },
       { key: "conclusion", include: true },

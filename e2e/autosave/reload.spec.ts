@@ -243,6 +243,30 @@ test("a count in box 3 of a one-box-at-a-time module lands on box 3 again", asyn
     .toBe(1);
 });
 
+test("a count typed in packing configuration, below the order on its page, lands there again after a reload", async ({
+  page,
+  baseURL,
+}) => {
+  await fixture.setModules({ order_lots: { sizes: { S: { qtyCases: 10 } } } });
+  await open(page, baseURL, "order_lots");
+  // Packing's own field, by its issue path and its module's frame: the order's page shows both modules.
+  const gloves = (frame: Locator) => frame.locator(`[data-issue-path='["glovesPerCase"]'] input`);
+  const packing = page.locator('[data-section-key="packing_config"]');
+  await expect(gloves(packing)).toBeEditable();
+  await gloves(packing).fill("1000");
+  await gloves(packing).press("Tab");
+  await page.reload();
+
+  // The same page: the order's, with packing below it.
+  await expect(page).toHaveURL(/module=order_lots/);
+  const again = gloves(page.locator('[data-section-key="packing_config"]'));
+  await expect(again).toHaveValue(/^1,?000$/);
+  await expectLandedOn(page, again);
+  await expect(announcement(page)).toHaveText(/^Back where you stopped: # gloves per case$/i);
+  await shot(page, "landed-packing");
+  await expectStored({ modules: { packing_config: { glovesPerCase: 1000 } } });
+});
+
 test("a field out of view after the reload is scrolled to the middle of the screen", async ({ page, baseURL }) => {
   // A short screen, so the section comment at the bottom of glove information is out of view at the top of the page.
   await page.setViewportSize({ width: page.viewportSize()!.width, height: 560 });

@@ -4,7 +4,7 @@ import { drawImage, holdUploads, labReportPdf } from "../photos/support";
 import { createTestAdminClient } from "../support/admin";
 import { expectNoPageScroll } from "../support/layout";
 import { sessionCookies, TEST_ACCOUNTS } from "../support/session";
-import { createCaptureFixture, type CaptureFixture } from "./fixtures";
+import { createCaptureFixture, fixtureDefinition, type CaptureFixture } from "./fixtures";
 
 /**
  * /inspections/[id], the capture screen (BUILD_SPEC 8 and 10), against the
@@ -167,6 +167,53 @@ async function openSection(page: Page, title: string) {
 /** Waits for the open section's form: a module's code loads the first time its section opens. */
 async function formLoaded(page: Page) {
   await expect(page.locator('[data-slot="section-frame"]').getByText("Loading the form…")).toHaveCount(0);
+}
+
+/**
+ * A section's frame by its module (or custom module) key: a page may show
+ * two (packing configuration below the order), and the template's titles
+ * and labels are the clients' words, which may change.
+ */
+function frameOf(page: Page, key: string) {
+  return page.locator(`[data-section-key="${key}"]`);
+}
+
+/** A section's title, its frame's h2. */
+function titleOf(page: Page, key: string) {
+  return frameOf(page, key).getByRole("heading", { level: 2 });
+}
+
+/** A module's number field by its issue path (data-issue-path), whatever its label says. */
+function fieldAt(frame: Locator, path: readonly (string | number)[]) {
+  return frame.locator(`[data-issue-path='${JSON.stringify(path)}'] input`);
+}
+
+/**
+ * The page whose first section is `key` is open: its tab is selected (found
+ * by the sections it shows), or from 1280 px its sidebar row is the current
+ * one (named by that section's title).
+ */
+async function expectPageOpen(page: Page, key: string) {
+  if (isDesktop()) {
+    const title = (await titleOf(page, key).innerText()).trim();
+    const current = page.getByRole("navigation", { name: "Sections" }).locator('li[aria-current="step"] button');
+    await expect(current).toHaveAttribute("title", title);
+  } else {
+    await expect(page.locator(`[role="tab"][data-sections~="${key}"]`)).toHaveAttribute("aria-selected", "true");
+  }
+}
+
+/** Wholly in the window, below the screen's sticky bars (--capture-sticky-top). */
+async function expectBelowBars(target: Locator) {
+  await expect(target).toBeInViewport({ ratio: 1 });
+  const { top, stickyTop } = await target.evaluate((element) => {
+    const root = document.querySelector<HTMLElement>('[data-slot="capture-screen"]');
+    return {
+      top: element.getBoundingClientRect().top,
+      stickyTop: Number.parseFloat(root?.style.getPropertyValue("--capture-sticky-top") ?? "") || 0,
+    };
+  });
+  expect(top, "below the sticky bars").toBeGreaterThanOrEqual(stickyTop - 1);
 }
 
 /** The size the open section's size tabs show; null without tabs, or with every size side by side. */
@@ -945,13 +992,189 @@ test("submit with errors is blocked, and each error links to its section", async
   await shot(page, "issue-link");
 });
 
+/* ------------------------------------------------------------------ *
+ * Packing configuration on the order's page (Kenneth: "packing
+ * configuration should go with order, if not how the total # glove be
+ * calculated if the relied input is in the next page")
+ * ------------------------------------------------------------------ */
+
+/** The template's title of a custom section of the fixture. */
+function customTitle(key: string): string {
+  const custom = fixtureDefinition().customModules?.find((entry) => entry.key === key);
+  if (!custom) throw new Error(`No custom section ${key} in the fixture.`);
+  return custom.title;
+}
+
+test("the order's page shows packing configuration below the order, and packing fills in the order's total gloves", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  await fixture.setModules({
+    order_lots: { sizes: { S: { qtyCases: 10 }, M: { qtyCases: 20 }, L: { qtyCases: 5 } } },
+    packing_config: {},
+  });
+  const hydration = watchConsole(page);
+  await signInAs(context, baseURL!, "inspector");
+  await page.goto(`/inspections/${fixture.inspectionId}?module=order_lots`);
+  const order = frameOf(page, "order_lots");
+  const packing = frameOf(page, "packing_config");
+  await expect(titleOf(page, "order_lots")).toBeVisible();
+  await expect(titleOf(page, "packing_config")).toBeVisible();
+  await expectPageOpen(page, "order_lots");
+
+  // One page, two frames: the order's, then packing's right below it, each with its own title, result, comment and photos.
+  const frames = page.locator('[data-slot="capture-page"] > [data-slot="section-frame"]');
+  await expect(frames).toHaveCount(2);
+  expect(await frames.evaluateAll((all) => all.map((frame) => frame.getAttribute("data-section-key")))).toEqual([
+    "order_lots",
+    "packing_config",
+  ]);
+  const [orderBox, packingBox] = await Promise.all([order.boundingBox(), packing.boundingBox()]);
+  expect(packingBox!.y).toBeGreaterThanOrEqual(orderBox!.y + orderBox!.height);
+  for (const frame of [order, packing]) {
+    await expect(frame.locator('header [data-slot="status-pill"]')).toHaveCount(1);
+    await expect(frame.getByRole("textbox", { name: /^Inspector Comment/ })).toHaveCount(1);
+    await expect(frame.locator('[data-slot="module-photos"]')).toHaveCount(1);
+  }
+  // Each has a name of its own: two comment fields and two photo regions on one page are told apart.
+  const orderTitle = (await titleOf(page, "order_lots").innerText()).trim();
+  const packingTitle = (await titleOf(page, "packing_config").innerText()).trim();
+  const named = (words: string, title: string) => new RegExp(`^${escapeRegExp(words)}\\s*, ${escapeRegExp(title)}$`);
+  await expect(order.getByRole("textbox", { name: named("Inspector Comment", orderTitle) })).toBeVisible();
+  await expect(packing.getByRole("textbox", { name: named("Inspector Comment", packingTitle) })).toBeVisible();
+  await expect(order.getByRole("region", { name: named("Photos", orderTitle) })).toBeVisible();
+  await expect(packing.getByRole("region", { name: named("Photos", packingTitle) })).toBeVisible();
+
+  // No page of its own: eight steps (header, glove information, site notes, the order's page, box checks, weight, tensile, conclusion).
+  if (isDesktop()) {
+    await expect(page.getByRole("navigation", { name: "Sections" }).locator("ol > li")).toHaveCount(8);
+  } else {
+    const tabs = page.getByRole("tablist", { name: "Sections" }).getByRole("tab");
+    await expect(tabs).toHaveCount(8);
+    await expect(page.locator('[role="tab"][data-section="packing_config"]')).toHaveCount(0);
+    await expect(page.locator('[role="tab"][data-sections="order_lots packing_config"]')).toHaveAttribute("aria-selected", "true");
+  }
+  await expect(page.getByText(/^\d+ of 8 done$/).filter({ visible: true })).toHaveCount(1);
+
+  // The order's total gloves wait for packing; typed in below it, they fill in on the same page.
+  const totalGloves = order.locator("dl > div").filter({ has: page.locator("dt", { hasText: /^total # gloves$/i }) }).locator("dd");
+  await expect(totalGloves.locator('[data-slot="figure"]')).toHaveAttribute("data-empty", "");
+  const perInner = fieldAt(packing, ["glovesPerInner"]);
+  await expect(perInner).toBeEditable();
+  await perInner.fill("100");
+  // Enter walks packing's own fields.
+  await perInner.press("Enter");
+  const inners = fieldAt(packing, ["innersPerCase"]);
+  await expect(inners).toBeFocused();
+  await inners.fill("10");
+  await inners.press("Enter");
+  // 35 cases of 100 × 10 gloves.
+  await expect(totalGloves).toHaveText("35,000");
+  const perCase = fieldAt(packing, ["glovesPerCase"]);
+  await expect(perCase).toBeFocused();
+  await perCase.fill("1000");
+  await perCase.press("Tab");
+  await expect(totalGloves).toHaveText("35,000");
+  await expect(packing.locator('header [data-slot="status-pill"]')).toHaveAttribute("data-status", "info");
+  await expect
+    .poll(async () => (await storedData(fixture.inspectionId)).data, { timeout: 15_000 })
+    .toMatchObject({ modules: { packing_config: { glovesPerInner: 100, innersPerCase: 10, glovesPerCase: 1000 } } });
+  await expectNoPageScroll(page);
+  await shot(page, "order-page");
+
+  // Previous and Next go by page: from the order's, Next is the custom section after it; Previous comes back to the order.
+  const nav = page.getByRole("navigation", { name: "Previous and next section" });
+  await press(nav.getByRole("button", { name: `Next: ${customTitle("e2e_box_checks")}`, exact: true }));
+  await expect(titleOf(page, "e2e_box_checks")).toBeFocused();
+  await expect(page).toHaveURL(/module=e2e_box_checks/);
+  await press(nav.getByRole("button", { name: `Previous: ${orderTitle}`, exact: true }));
+  await expect(titleOf(page, "order_lots")).toBeFocused();
+  await expect(titleOf(page, "packing_config")).toBeVisible();
+  await expect(page).toHaveURL(/module=order_lots/);
+  expect(hydration()).toEqual([]);
+});
+
+test("opened on packing configuration (?module=packing_config), the order's page brings packing's title into view", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  // A short window, so packing's title starts below it.
+  await page.setViewportSize({ width: page.viewportSize()!.width, height: 640 });
+  await signInAs(context, baseURL!, "inspector");
+  await page.goto(`/inspections/${fixture.inspectionId}?module=packing_config`);
+  await expect(titleOf(page, "order_lots")).toBeAttached();
+  await expectPageOpen(page, "order_lots");
+  await expectBelowBars(titleOf(page, "packing_config"));
+  // Brought into view, not focused: nothing asked for it.
+  await expect(titleOf(page, "packing_config")).not.toBeFocused();
+});
+
+test("Pending's row for packing configuration opens the order's page with packing's title focused below the bars", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  const before = ((await storedData(fixture.inspectionId)).data as { modules: Record<string, unknown> }).modules.packing_config;
+  // Nothing entered: packing is not done, and its row links to the section itself (no field to focus).
+  await fixture.setModules({ packing_config: {} });
+  try {
+    await signInAs(context, baseURL!, "inspector");
+    await page.goto(`/inspections/${fixture.inspectionId}?module=header`);
+    await expect(savePill(page)).toHaveAttribute("data-state", "saved");
+    await press(page.getByRole("button", { name: /^Pending/ }));
+    const sheet = page.getByRole("dialog", { name: "Pending" });
+    // One row per module: packing keeps its own.
+    const rows = await sheet.locator("[data-task]").evaluateAll((all) => all.map((row) => row.getAttribute("data-task")));
+    expect(rows.filter((key) => key === "packing_config")).toHaveLength(1);
+    await press(sheet.locator('[data-task="packing_config"]'));
+    await expect(sheet).toBeHidden();
+
+    await expect(page).toHaveURL(/module=packing_config/);
+    await expectPageOpen(page, "order_lots");
+    await expect(titleOf(page, "packing_config")).toBeFocused();
+    await expectBelowBars(titleOf(page, "packing_config"));
+    await viewportShot(page, "pending-packing");
+  } finally {
+    await fixture.setModules({ packing_config: before });
+  }
+});
+
+test("a packing configuration issue in Pending opens the order's page on its field", async ({ page, context, baseURL }) => {
+  const before = ((await storedData(fixture.inspectionId)).data as { modules: Record<string, unknown> }).modules.packing_config;
+  // 100 per inner box × 10 inner boxes is not the 999 per case printed: a warning on the gloves per case.
+  await fixture.setModules({ packing_config: { glovesPerInner: 100, innersPerCase: 10, glovesPerCase: 999 } });
+  try {
+    await signInAs(context, baseURL!, "inspector");
+    await page.goto(`/inspections/${fixture.inspectionId}?module=header`);
+    await expect(savePill(page)).toHaveAttribute("data-state", "saved");
+    await press(page.getByRole("button", { name: /^Pending/ }));
+    const sheet = page.getByRole("dialog", { name: "Pending" });
+    await press(sheet.locator('[data-task="packing_config"]'));
+    await expect(sheet).toBeHidden();
+
+    await expect(page).toHaveURL(/module=packing_config/);
+    await expectPageOpen(page, "order_lots");
+    const perCase = fieldAt(frameOf(page, "packing_config"), ["glovesPerCase"]);
+    await expect(perCase).toBeFocused();
+    await expect(perCase).toHaveValue("999");
+    await expectBelowBars(perCase);
+  } finally {
+    await fixture.setModules({ packing_config: before });
+  }
+});
+
 test("an admin switches a section off for this inspection, and back on", async ({ page, context, baseURL }) => {
   await signInAs(context, baseURL!, "admin");
   await page.goto(`/inspections/${fixture.inspectionId}?module=packing_config`);
-  await expect(page.getByRole("heading", { level: 2, name: "Packing configuration" })).toBeVisible();
+  const packing = frameOf(page, "packing_config");
+  await expect(titleOf(page, "packing_config")).toBeVisible();
+  // Packing configuration is on the order's page: the order's tab is the open one.
+  await expectPageOpen(page, "order_lots");
 
-  await press(page.getByRole("button", { name: "Switch Off" }));
-  const dialog = page.getByRole("dialog", { name: /Switch Off Packing configuration/ });
+  await press(packing.getByRole("button", { name: /^Switch Off/ }));
+  const dialog = page.getByRole("dialog", { name: /^Switch Off packing configuration\?$/i });
   await expect(dialog).toBeVisible();
   // A reason is required.
   await press(dialog.getByRole("button", { name: "Switch Off" }));
@@ -960,9 +1183,11 @@ test("an admin switches a section off for this inspection, and back on", async (
   await viewportShot(page, "switch-off-dialog");
   await press(dialog.getByRole("button", { name: "Switch Off" }));
   await expect(dialog).toBeHidden();
-  await expect(page.getByText("Packing configuration is switched off for this inspection.").first()).toBeVisible();
+  await expect(page.getByText(/packing configuration is switched off for this inspection\./i).first()).toBeVisible();
   // The Switch Off button went with the section's controls: focus is on the section's title.
-  await expect(page.getByRole("heading", { level: 2, name: "Packing configuration" })).toBeFocused();
+  await expect(titleOf(page, "packing_config")).toBeFocused();
+  // Switched off, it is a page of its own again, at the end of the tabs (in the sidebar's Switched Off group).
+  await expectPageOpen(page, "packing_config");
   await expect(page.getByText("Not part of this order (e2e)")).toBeVisible();
   await expect
     .poll(async () => (await storedData(fixture.inspectionId)).module_overrides)
@@ -974,8 +1199,13 @@ test("an admin switches a section off for this inspection, and back on", async (
   if (isDesktop()) await expect(page.getByRole("navigation", { name: "Sections" })).toContainText("Switched Off");
 
   await press(page.getByRole("button", { name: "Switch Back On" }));
-  await expect(page.getByRole("button", { name: "Switch Off" })).toBeVisible();
-  await expect(page.getByRole("heading", { level: 2, name: "Packing configuration" })).toBeFocused();
+  await expect(packing.getByRole("button", { name: /^Switch Off/ })).toBeVisible();
+  await expect(titleOf(page, "packing_config")).toBeFocused();
+  // Back on the order's page, below the order, its title in view.
+  await expectPageOpen(page, "order_lots");
+  await expect(titleOf(page, "order_lots")).toBeVisible();
+  await expectBelowBars(titleOf(page, "packing_config"));
+  await expect(page).toHaveURL(/module=packing_config/);
   await expect.poll(async () => (await storedData(fixture.inspectionId)).module_overrides).toEqual({});
 
   // Both changes are in the audit log, with the reason (log_inspection_event).
