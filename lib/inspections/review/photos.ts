@@ -6,7 +6,7 @@
 // defect names.
 import type { PhotoTags } from "@/components/qc/photo-tags";
 import { formatHand, formatSize, formatSizeHand, type SizeOption } from "@/lib/format";
-import { EMPTY_TAG_OPTIONS, itemName, levelName, tagOptionsFromTemplate } from "@/lib/inspections/photos/view";
+import { EMPTY_TAG_OPTIONS, itemName, levelName, tagOptionsFromTemplate, UNTAGGED_TITLE } from "@/lib/inspections/photos/view";
 import { parseTarget, type PhotoTarget } from "@/lib/photos/target";
 import { isModuleKey } from "@/lib/schemas/module-result";
 import type { ResolvedTemplate } from "@/lib/schemas/template";
@@ -40,7 +40,8 @@ export type ReviewPhoto = {
   takenAt: string | null;
 };
 
-export const UNTAGGED = "Not tagged";
+/** A photo tagged with no module, in the gallery's words. */
+export const UNTAGGED = UNTAGGED_TITLE;
 
 /** Section titles, labels, sizes, packaging levels and list entries in the template's wording, for photo tags. */
 export type SectionWording = {
