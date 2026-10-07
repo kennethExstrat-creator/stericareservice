@@ -260,16 +260,16 @@ export function ModuleList({
                     <span id={`module-meta-${key}`} className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                       <span className="font-mono">{key}</span>
                       {!view.include && <Tag>Off</Tag>}
-                      {stubs.has(key) && <Tag>Not built yet</Tag>}
+                      {stubs.has(key) && <Tag>Not Built Yet</Tag>}
                       {view.changed && <Tag tone="brand">Changed</Tag>}
-                      {problems > 0 && <Tag tone="fail">{problems === 1 ? "1 problem" : `${problems} problems`}</Tag>}
+                      {problems > 0 && <Tag tone="fail">{problems === 1 ? "1 Problem" : `${problems} Problems`}</Tag>}
                     </span>
                   </span>
                   <ChevronRightIcon aria-hidden className="size-4 shrink-0 text-slate-500" />
                 </button>
 
                 <div className="flex shrink-0 items-center gap-2 pl-1">
-                  {pinned && <span className="text-xs text-muted-foreground max-sm:sr-only">Always on</span>}
+                  {pinned && <span className="text-xs text-muted-foreground max-sm:sr-only">Always On</span>}
                   <Switch
                     checked={view.include}
                     disabled={pinned || !editable}
@@ -297,7 +297,7 @@ export function ModuleList({
               className="-mx-2 flex min-h-11 w-[calc(100%+1rem)] items-center gap-2 rounded-md px-2 text-left hover:bg-muted focus-ring-inset fine:min-h-9"
             >
               <ChevronRightIcon aria-hidden className={cn("size-4 text-slate-500 transition-transform", showUnused && "rotate-90")} />
-              Not in this template
+              Not in This Template
               <span className="font-normal text-muted-foreground">({unused.length})</span>
             </button>
           </h2>
@@ -312,7 +312,7 @@ export function ModuleList({
                   <span className="text-sm font-semibold text-muted-foreground">{titleOf(key)}</span>
                   <span className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                     <span className="font-mono">{key}</span>
-                    {stubs.has(key) && <Tag>Not built yet</Tag>}
+                    {stubs.has(key) && <Tag>Not Built Yet</Tag>}
                   </span>
                 </span>
                 {editable && (

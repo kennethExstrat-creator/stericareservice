@@ -47,7 +47,7 @@ function sectionName(name: string): string {
 /** "Report · STD_EG" from "reports/STD_EG.md". */
 function documentTab(document: CoverageDocument): string {
   const file = document.file.split("/").pop()?.replace(/\.md$/, "") ?? document.file;
-  return `${document.kind === "report" ? "Report" : "Onsite form"} · ${file}`;
+  return `${document.kind === "report" ? "Report" : "Onsite Form"} · ${file}`;
 }
 
 function countText(count: number, one: string, many: string): string {
@@ -112,7 +112,7 @@ export function CoverageChecklist({
 
       {confirmed ? (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <StatusPill status="pass" label="Coverage confirmed" />
+          <StatusPill status="pass" label="Coverage Confirmed" />
           <p className="text-sm text-muted-foreground">
             By {confirmed.by} on {confirmed.at}.
           </p>
@@ -201,7 +201,7 @@ export function CoverageChecklist({
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <Button type="submit" disabled={!ready || pending}>
               {pending && <Spinner aria-hidden />}
-              {pending ? "Confirming…" : "Confirm coverage"}
+              {pending ? "Confirming…" : "Confirm Coverage"}
             </Button>
             <p id={statusId} aria-live="polite" className="text-sm text-muted-foreground tabular-nums">
               {sections > 0 ? `${checked} of ${countText(sections, "section", "sections")} checked. ` : ""}
@@ -228,7 +228,7 @@ function Intro({ checklist, code }: { checklist: Checklist; code: string }) {
       return (
         <p className="max-w-3xl text-sm text-muted-foreground touch:text-base">
           {code}&rsquo;s own form is not in the field inventory, so this list holds the fields of the forms its base{" "}
-          {checklist.inventoryCode} is built from, as this version keeps them. A field marked Left out is one this version
+          {checklist.inventoryCode} is built from, as this version keeps them. A field marked Left Out is one this version
           drops: tick its section once you are sure that is meant. Then check the uploaded file itself against the modules
           above.
         </p>
@@ -374,7 +374,7 @@ function Row({ row, mode }: { row: CoverageRow; mode: Checklist["mode"] }) {
         <StatusPill
           size="sm"
           status={row.covered ? "pass" : missingStatus}
-          label={row.covered ? "Kept" : mode === "own" ? "Missing" : "Left out"}
+          label={row.covered ? "Kept" : mode === "own" ? "Missing" : "Left Out"}
           className="touch:h-7 touch:gap-1.5 touch:px-2.5 touch:text-sm touch:[&>svg]:size-4"
         />
       </td>

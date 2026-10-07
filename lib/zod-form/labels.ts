@@ -1,8 +1,9 @@
 // Words for keys and options the schema does not title itself. A form's
 // caller can do better (a module's own labels, a template's sizes); these
-// are the fallback: "minLayeringPct" reads "Min layering %". The form and
-// anything that points into it (a list of problems) name a field the same
-// way: fieldLabel for one setting, pathLabels for each step of a path.
+// are the fallback, in Title Case like every label the app writes:
+// "minLayeringPct" reads "Min Layering %". The form and anything that points
+// into it (a list of problems) name a field the same way: fieldLabel for one
+// setting, pathLabels for each step of a path.
 import { formatNumber } from "@/lib/format";
 import type { FormNode, FormProperty, FormScalar, NumberNode } from "./describe";
 import type { FormPath } from "./issues";
@@ -39,8 +40,32 @@ const WORDS: Readonly<Record<string, string>> = {
   l: "L",
 };
 
-/** "minLayeringPct" -> "Min layering %", "hole_crotch" -> "Hole crotch", "n" -> "n". */
-export function humanize(key: string): string {
+/** Words a Title Case label keeps in lower case after its first word: "Gloves per Size", "Shown as". */
+const SMALL_WORDS: ReadonlySet<string> = new Set([
+  "a",
+  "an",
+  "the",
+  "and",
+  "but",
+  "or",
+  "nor",
+  "of",
+  "in",
+  "on",
+  "at",
+  "to",
+  "by",
+  "for",
+  "per",
+  "via",
+  "vs",
+  "as",
+]);
+
+const capitalised = (word: string) => word.charAt(0).toUpperCase() + word.slice(1);
+
+/** A key's words, each cased by `wordCase` (given in lower case) unless it is an abbreviation or a code. */
+function spell(key: string, wordCase: (word: string, index: number) => string): string {
   if (key.length <= 1) return key;
   const words = key
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
@@ -52,9 +77,23 @@ export function humanize(key: string): string {
     if (known) return known;
     // Keep acronyms and codes as written: "EN455", "S-1", "XL".
     if (/^[A-Z0-9]{2,}$/.test(word)) return word;
-    return index === 0 ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() : word.toLowerCase();
+    return wordCase(word.toLowerCase(), index);
   });
   return spelled.join(" ");
+}
+
+/**
+ * A key as a label, in Title Case: every word capitalised but the small
+ * words after the first. "minLayeringPct" -> "Min Layering %",
+ * "hole_crotch" -> "Hole Crotch", "boxesPerSize" -> "Boxes per Size", "n" -> "n".
+ */
+export function humanize(key: string): string {
+  return spell(key, (word, index) => (index > 0 && SMALL_WORDS.has(word) ? word : capitalised(word)));
+}
+
+/** A key as the words of a value, not a label: only the first capitalised. "torn_cuff" -> "Torn cuff". */
+export function humanizeValue(key: string): string {
+  return spell(key, (word, index) => (index === 0 ? capitalised(word) : word));
 }
 
 /** An option as shown: text as humanized, numbers and codes as they are. */

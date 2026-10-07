@@ -70,7 +70,7 @@ export type FlowFixture = {
   base: { id: string; code: string; definition: TemplateDefinition; resolved: ResolvedTemplate };
   /** The code the spec gives its new template. */
   newCode: string;
-  /** A code another admin takes while the New template form is open. */
+  /** A code another admin takes while the New Template form is open. */
   takenCode: string;
   inspectorId: string;
   cleanup: () => Promise<void>;
@@ -132,7 +132,7 @@ export async function createFlowFixture(project: string): Promise<FlowFixture> {
   }
 }
 
-/** Another admin's template, made while the New template form is open: a draft of its own, scoped to the run's client. */
+/** Another admin's template, made while the New Template form is open: a draft of its own, scoped to the run's client. */
 export async function takeCode(code: string, clientId: string): Promise<void> {
   const definition: TemplateDefinition = {
     code,

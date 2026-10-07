@@ -60,7 +60,7 @@ export function LabelMapView({ maps, initialQuery }: { maps: TemplateLabelMap[];
         title="No templates yet"
         action={
           <Button asChild variant="outline">
-            <Link href={TEMPLATES_PATH}>Go to templates</Link>
+            <Link href={TEMPLATES_PATH}>Go to Templates</Link>
           </Button>
         }
       >
@@ -108,8 +108,8 @@ function TemplateCard({ map }: { map: TemplateLabelMap }) {
         </div>
         {/* Named by its words first, then the version it opens (WCAG 2.5.3). */}
         <Button asChild variant="outline" size="sm" className="self-start">
-          <Link href={templateEditorHref(map.id)} aria-label={`Open in template editor: ${map.code} v${map.version}`}>
-            Open in template editor
+          <Link href={templateEditorHref(map.id)} aria-label={`Open in Template Editor: ${map.code} v${map.version}`}>
+            Open in Template Editor
             <ArrowRightIcon aria-hidden />
           </Link>
         </Button>
@@ -181,13 +181,13 @@ function SectionTable({ map, section, rows }: { map: TemplateLabelMap; section: 
         <TableHeader className="bg-slate-50">
           <TableRow className="hover:bg-transparent">
             <TableHead scope="col" className={HEAD}>
-              Label on this template
+              Label on This Template
             </TableHead>
             <TableHead scope="col" className={cn(HEAD, "w-[38%] md:w-[30%]")}>
-              Defect code
+              Defect Code
             </TableHead>
             <TableHead scope="col" className={cn(HEAD, "hidden w-[30%] md:table-cell")}>
-              Code name
+              Code Name
             </TableHead>
           </TableRow>
         </TableHeader>
@@ -196,7 +196,7 @@ function SectionTable({ map, section, rows }: { map: TemplateLabelMap; section: 
             {defectClass && (
               <TableRow className="bg-slate-50 hover:bg-slate-50">
                 <TableHead colSpan={3} scope="rowgroup" className={cn(CELL, "h-auto font-semibold text-foreground")}>
-                  {CLASS_LABEL[defectClass]} defects
+                  {CLASS_LABEL[defectClass]} Defects
                   {map.classAql[defectClass] !== undefined && (
                     <span className="font-normal text-muted-foreground">
                       {" "}
@@ -235,9 +235,9 @@ function LabelTableRow({ row }: { row: LabelRow }) {
         {row.state === "unknown" ? (
           <Button asChild variant="link" size="sm" className="h-auto px-0 touch:h-11 touch:px-0">
             {/* The name says which code; it starts with the words on screen (WCAG 2.5.3). */}
-            <Link href={addCodeHref(row.code, row.label)} aria-label={`Add this code: ${row.code}`}>
+            <Link href={addCodeHref(row.code, row.label)} aria-label={`Add This Code: ${row.code}`}>
               <PlusIcon aria-hidden />
-              Add this code
+              Add This Code
             </Link>
           </Button>
         ) : (

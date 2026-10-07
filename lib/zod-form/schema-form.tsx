@@ -665,7 +665,7 @@ function RecordGroup({ node, value, onChange, path, label, onRemove, unit }: Fie
         <AddEntry
           id={`${id}-new-key`}
           label={label}
-          noun={node.key.marker === "size" ? "size" : "entry"}
+          noun={node.key.marker === "size" ? "Size" : "Entry"}
           options={available}
           pattern={node.key.pattern}
           taken={keys}
@@ -687,7 +687,7 @@ function AddEntry({
 }: {
   id: string;
   label: string;
-  /** What a key is, for "Add a size". */
+  /** What a key is, for "Add a Size". */
   noun: string;
   options?: readonly KeyOption[];
   pattern?: string;
@@ -700,7 +700,7 @@ function AddEntry({
       <div className="flex flex-wrap items-end gap-2">
         <div className="grid gap-1.5">
           <Label htmlFor={id}>
-            Add {noun === "entry" ? "an" : "a"} {noun}
+            Add {noun === "Entry" ? "an" : "a"} {noun}
             <span className="sr-only"> to {label}</span>
           </Label>
           <OptionSelect
@@ -737,7 +737,7 @@ function AddKeyForm({
   return (
     <div className="flex flex-wrap items-end gap-2" data-slot="add-key">
       <div className="grid gap-1.5">
-        <Label htmlFor={id}>New key in {label.toLowerCase()}</Label>
+        <Label htmlFor={id}>New Key in {label}</Label>
         <Input
           id={id}
           className="w-48 font-mono"
@@ -807,7 +807,7 @@ function ArrayGroup({ node, value, onChange, path, label, onRemove, unit }: Fiel
     <div>
       <Button type="button" variant="outline" size="sm" onClick={() => onChange([...list, emptyValue(items)])}>
         <PlusIcon aria-hidden />
-        Add {itemLabel.toLowerCase()}
+        Add {itemLabel}
       </Button>
     </div>
   );
@@ -1186,7 +1186,10 @@ function UnionField({ node, value, onChange, path, label, onRemove, hideLabel, u
   const fields = variant?.node.properties.filter((property) => property.key !== node.discriminator) ?? [];
 
   return (
-    <fieldset className="grid min-w-0 gap-3" data-slot="form-group" data-kind="union">
+    // No border and no padding, unlike the other groups: a fieldset's rendered legend is not a grid item, so gap-3
+    // misses it and the legend's own margin keeps it off the Type row. Not when the legend sits in its Reset or
+    // Remove row (a div, a grid item) or is sr-only (absolutely positioned).
+    <fieldset className="grid min-w-0 gap-3 [&>legend]:mb-3" data-slot="form-group" data-kind="union">
       <FieldHeader label={label} as="legend" path={path} overridable={!unit} onRemove={onRemove} hidden={hideLabel} />
       <div className="flex flex-wrap items-start gap-3">
         <div className="grid gap-1.5">

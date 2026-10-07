@@ -135,7 +135,7 @@ export function ClientPanel({ open, target, item, onClose, onCreated, onDeleted,
       busy={busy}
       onClose={onClose}
       returnFocus={returnFocus}
-      title={editing ? "Edit client" : "Add client"}
+      title={editing ? "Edit Client" : "Add Client"}
       description={
         editing
           ? "The name and logo as they should appear on reports."
@@ -153,7 +153,7 @@ export function ClientPanel({ open, target, item, onClose, onCreated, onDeleted,
             </Button>
             <Button type="submit" form={formId} disabled={busy}>
               {pending && <Spinner aria-hidden />}
-              {pending ? (editing ? "Saving…" : "Adding…") : editing ? "Save changes" : "Add client"}
+              {pending ? (editing ? "Saving…" : "Adding…") : editing ? "Save Changes" : "Add Client"}
             </Button>
           </>
         )

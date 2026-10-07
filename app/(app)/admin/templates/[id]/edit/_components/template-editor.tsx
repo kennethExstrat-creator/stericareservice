@@ -4,7 +4,7 @@
 // order, wording and settings; custom modules; the template's details; the
 // JSON; a live capture preview. The draft lives here until Save, which
 // writes the definition and its resolution (actions.ts). A version that is
-// in use, active or retired opens read only, with "New version".
+// in use, active or retired opens read only, with "New Version".
 //
 // Unsaved changes are not lost by accident: any link out of the page asks
 // first (the shell's too), the browser asks before a reload or close where
@@ -244,7 +244,7 @@ export function TemplateEditor({
     sizes,
     defectCodes,
     scopeOptions,
-    resetLabel: inheritance.bases[0] ? `Use ${inheritance.bases[0].code}'s` : "Use default",
+    resetLabel: inheritance.bases[0] ? `Use ${inheritance.bases[0].code}'s` : "Use Default",
   };
 
   const [saveState, saveAction, saving] = useActionState(async (previous: SaveResult, formData: FormData) => {
@@ -441,7 +441,7 @@ export function TemplateEditor({
   return (
     <div ref={rootRef} className="grid gap-6" data-testid="template-editor" data-editable={editable}>
       <PageHeader
-        eyebrow="Admin · Template editor"
+        eyebrow="Admin · Template Editor"
         title={typeof draft.name === "string" && draft.name.trim() !== "" ? draft.name : template.code}
         description={<p data-testid="template-meta">{meta.join(" · ")}</p>}
         actions={
@@ -450,14 +450,14 @@ export function TemplateEditor({
             <Button asChild variant="outline">
               <Link href={TEMPLATES_PATH}>
                 <ArrowLeftIcon aria-hidden />
-                All templates
+                All Templates
               </Link>
             </Button>
             {/* BUILD_SPEC 4.5 step 4: the source file, the coverage checklist and activation are on the version's page. */}
             <Button asChild variant="outline">
               <Link href={`${TEMPLATES_PATH}/${template.id}`} data-testid="version-page-link">
                 <ClipboardCheckIcon aria-hidden />
-                Checklist and activation
+                Checklist and Activation
               </Link>
             </Button>
           </>
@@ -477,11 +477,11 @@ export function TemplateEditor({
           }}
         >
           <AlertDialogHeader>
-            <AlertDialogTitle>Leave without saving?</AlertDialogTitle>
+            <AlertDialogTitle>Leave Without Saving?</AlertDialogTitle>
             <AlertDialogDescription>Your changes to this draft are not saved yet. Leaving drops them.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogCancel>Keep Editing</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 const to = leaving;
@@ -508,10 +508,10 @@ export function TemplateEditor({
             <div className="flex flex-wrap gap-2">
               <Button type="button" onClick={restoreBackup}>
                 <HistoryIcon aria-hidden />
-                Restore changes
+                Restore Changes
               </Button>
               <Button type="button" variant="outline" onClick={discardBackup}>
-                Discard them
+                Discard Them
               </Button>
             </div>
           </AlertDescription>
@@ -574,7 +574,7 @@ export function TemplateEditor({
         >
           <TabsList className="max-w-full flex-wrap justify-start">
             <TabsTrigger value="modules">Modules</TabsTrigger>
-            <TabsTrigger value="custom">Custom modules</TabsTrigger>
+            <TabsTrigger value="custom">Custom Modules</TabsTrigger>
             <TabsTrigger value="details">Details</TabsTrigger>
             <TabsTrigger value="json">JSON</TabsTrigger>
             <TabsTrigger value="preview">Preview</TabsTrigger>
@@ -783,19 +783,19 @@ function SaveState({
     text = "Saving…";
     tone = "border-brand-200 bg-brand-50 text-brand-700";
   } else if (!editable) {
-    text = "Read only";
+    text = "Read Only";
     tone = "border-border bg-card text-muted-foreground";
   } else if (problems > 0) {
-    text = problems === 1 ? "1 problem" : `${problems} problems`;
+    text = problems === 1 ? "1 Problem" : `${problems} Problems`;
     tone = "border-fail-border bg-fail-tint text-fail";
   } else if (dirty) {
-    text = "Unsaved changes";
+    text = "Unsaved Changes";
     tone = "border-warn-border bg-warn-tint text-warn";
   } else if (resolveDue) {
-    text = resolveDue === "resolution" ? "Not resolved yet" : "Base moved on";
+    text = resolveDue === "resolution" ? "Not Resolved Yet" : "Base Moved on";
     tone = "border-warn-border bg-warn-tint text-warn";
   } else {
-    text = result.status === "saved" ? "Saved" : "No changes";
+    text = result.status === "saved" ? "Saved" : "No Changes";
     tone = "border-border bg-card text-muted-foreground";
   }
   return (
@@ -827,12 +827,12 @@ function DiscardChanges({ onDiscard, focusAfter }: { onDiscard: () => void; focu
         }}
       >
         <AlertDialogHeader>
-          <AlertDialogTitle>Discard your changes?</AlertDialogTitle>
+          <AlertDialogTitle>Discard Your Changes?</AlertDialogTitle>
           <AlertDialogDescription>The template goes back to how it was last saved.</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Keep editing</AlertDialogCancel>
-          <AlertDialogAction onClick={onDiscard}>Discard changes</AlertDialogAction>
+          <AlertDialogCancel>Keep Editing</AlertDialogCancel>
+          <AlertDialogAction onClick={onDiscard}>Discard Changes</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

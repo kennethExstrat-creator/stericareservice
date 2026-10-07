@@ -24,7 +24,7 @@ export async function generateMetadata(): Promise<Metadata> {
  * /admin/templates (BUILD_SPEC 4.2 rules 8 to 10, 10): every template by
  * code with its versions, status, scope, base template and how many
  * inspections use each version. A version opens its own page (coverage,
- * source file, activation); New template builds one on an active template
+ * source file, activation); New Template builds one on an active template
  * (BUILD_SPEC 4.5 step 2). Inspectors get a 404 from requireAdmin(); the
  * admin layout is not a security boundary, so this page checks for itself.
  *
@@ -36,7 +36,7 @@ export default async function TemplatesPage() {
   const [list, bases, scope] = await Promise.all([
     listTemplates(supabase),
     loadBaseOptions(supabase),
-    // Without the clients and manufacturers a new template could not be scoped: no New template then.
+    // Without the clients and manufacturers a new template could not be scoped: no New Template then.
     loadScopeOptions(supabase).catch((error: unknown) => {
       console.error("[admin/templates] could not read the clients and manufacturers", error);
       return null;
@@ -86,7 +86,7 @@ export default async function TemplatesPage() {
             </EmptyTitle>
             <EmptyDescription className="text-base text-muted-foreground fine:text-sm">
               Templates appear here by code, with every version. Inspectors can start inspections once a template has
-              an active version. New template starts one.
+              an active version. New Template starts one.
             </EmptyDescription>
           </EmptyHeader>
         </Empty>

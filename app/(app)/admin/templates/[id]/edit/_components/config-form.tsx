@@ -11,7 +11,7 @@ import { ExternalLinkIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { addCodeHref } from "@/lib/admin/defects";
 import type { ModuleKey } from "@/lib/schemas/module-result";
-import { getAt, humanize, type FormNode, type FormPath } from "@/lib/zod-form";
+import { getAt, humanizeValue, type FormNode, type FormPath } from "@/lib/zod-form";
 import { SchemaForm, type SchemaFormHooks } from "@/lib/zod-form/schema-form";
 import { canRemoveConfigAt, isConfigOverridden, resetConfigAt, setConfig, type ModuleView } from "../_lib/model";
 import { configIssues } from "../_lib/problems";
@@ -88,7 +88,7 @@ function UnknownCodeNote({ code, name }: { code: string; name: string }): ReactN
       <span>Not one of the defect codes: inspections count it apart, and it is flagged for an admin to map.</span>
       <Button asChild variant="outline" size="xs" className="text-foreground">
         <a href={addCodeHref(code, name)} target="_blank" rel="noopener noreferrer">
-          Add {code} as a defect code
+          Add {code} as a Defect Code
           <ExternalLinkIcon aria-hidden />
           <span className="sr-only"> (opens in a new tab)</span>
         </a>
@@ -97,10 +97,13 @@ function UnknownCodeNote({ code, name }: { code: string; name: string }): ReactN
   );
 }
 
-/** What a listed code is called: the label next to it in its list item (locations, defects), else its key in words. */
+/**
+ * What a listed code is called: the label next to it in its list item (locations, defects), else its key in
+ * words. A name for the new code, so worded as a value ("Torn cuff"), not as a label.
+ */
 function codeName(config: unknown, path: FormPath, code: string): string {
   const label = path.at(-1) === "code" ? getAt(config, [...path.slice(0, -1), "label"]) : undefined;
-  return typeof label === "string" && label.trim() !== "" ? label.trim() : humanize(code);
+  return typeof label === "string" && label.trim() !== "" ? label.trim() : humanizeValue(code);
 }
 
 /** Ids of the config fields of a module: `config-weight-n`. */

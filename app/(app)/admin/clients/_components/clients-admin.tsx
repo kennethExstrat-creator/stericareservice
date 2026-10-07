@@ -34,7 +34,7 @@ export function ClientsAdmin({ clients, initialQuery }: { clients: ClientItem[];
         actions={
           <Button ref={addButton} onClick={add}>
             <PlusIcon aria-hidden />
-            Add client
+            Add Client
           </Button>
         }
       />
@@ -46,7 +46,7 @@ export function ClientsAdmin({ clients, initialQuery }: { clients: ClientItem[];
           description="Add the companies you inspect for, with their logos, so templates and inspections can refer to them."
           action={
             <Button variant="outline" onClick={add}>
-              Add your first client
+              Add Your First Client
             </Button>
           }
         />

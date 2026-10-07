@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { describeSchema, type FormNode } from "./describe";
 import { z } from "zod";
-import { humanize, numberRange, optionText } from "./labels";
+import { humanize, humanizeValue, numberRange, optionText } from "./labels";
 import { deepEqual, emptyValue, emptyVariant, getAt, moveItem, setAt, variantOf } from "./values";
 import { DimensionsLikeSchema, DispensingLikeSchema, MARKERS, WatertightLikeSchema } from "./__fixtures__/schemas";
 
@@ -87,13 +87,22 @@ describe("emptyValue", () => {
 });
 
 describe("labels", () => {
-  it("humanizes keys", () => {
-    expect(humanize("minLayeringPct")).toBe("Min layering %");
-    expect(humanize("indicativeWeightSize")).toBe("Indicative weight size");
-    expect(humanize("hole_crotch")).toBe("Hole crotch");
+  it("humanizes keys as Title Case labels", () => {
+    expect(humanize("minLayeringPct")).toBe("Min Layering %");
+    expect(humanize("indicativeWeightSize")).toBe("Indicative Weight Size");
+    expect(humanize("hole_crotch")).toBe("Hole Crotch");
+    // The small words stay lower case after the first word.
+    expect(humanize("boxesPerSize")).toBe("Boxes per Size");
+    expect(humanize("forTheRecord")).toBe("For the Record");
     expect(humanize("aql")).toBe("AQL");
     expect(humanize("n")).toBe("n");
     expect(humanize("EN455")).toBe("EN455");
+  });
+
+  it("words a key as a value with only its first word capitalised", () => {
+    expect(humanizeValue("torn_cuff")).toBe("Torn cuff");
+    expect(humanizeValue("embeddedInsect")).toBe("Embedded insect");
+    expect(humanizeValue("aql")).toBe("AQL");
   });
 
   it("shows options as written when they are codes", () => {

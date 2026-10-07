@@ -39,8 +39,8 @@ describe("placeLabels", () => {
     const { context } = scopeOf(draft);
     const broken = setConfig(draft, context, "weight", { n: 0, warnThresholdPct: -1 });
     expect(named(broken)).toEqual([
-      "Weight (g) - average of 13 gloves per size › Settings › Gloves weighed",
-      "Weight (g) - average of 13 gloves per size › Settings › Warn threshold %",
+      "Weight (g) - average of 13 gloves per size › Settings › Gloves Weighed",
+      "Weight (g) - average of 13 gloves per size › Settings › Warn Threshold %",
     ]);
   });
 
@@ -63,10 +63,10 @@ describe("placeLabels", () => {
       "Settings",
       "Levels",
       "Inner",
-      "Boxes to inspect",
+      "Boxes to Inspect",
     ]);
-    expect(at({ area: "module", moduleKey: "dye_leak", part: "config", path: ["n"] }).at(-1)).toBe("Pouches to test");
-    expect(at({ area: "module", moduleKey: "force_at_break", part: "config", path: ["n"] }).at(-1)).toBe("Gloves tested");
+    expect(at({ area: "module", moduleKey: "dye_leak", part: "config", path: ["n"] }).at(-1)).toBe("Pouches to Test");
+    expect(at({ area: "module", moduleKey: "force_at_break", part: "config", path: ["n"] }).at(-1)).toBe("Gloves Tested");
   });
 
   it("names a label by the wording it replaces, and the module's switch and heading by their fields", () => {
@@ -81,7 +81,7 @@ describe("placeLabels", () => {
       MODULE_REGISTRY.header.labels.poNo,
     ]);
     expect(placeLabels({ area: "module", moduleKey: "order_lots", part: "include", path: [] }, scope).slice(1)).toEqual([
-      "Include this module",
+      "Include This Module",
     ]);
     expect(placeLabels({ area: "module", moduleKey: "header", part: "title", path: [] }, scope).slice(1)).toEqual(["Heading"]);
   });
@@ -102,12 +102,12 @@ describe("placeLabels", () => {
     const scope = scopeOf(draft);
     const where = (path: (string | number)[]) =>
       placeLabels({ area: "custom", index: 0, customKey: "glove_type", path }, scope).join(" › ");
-    expect(where(["fields", 1, "min"])).toBe("Custom module Glove type › Fields › 2. Cuff length › Lowest value");
-    expect(where(["fields", 0, "mapsTo"])).toBe("Custom module Glove type › Fields › 1. Glove type › Shows a module's value");
-    expect(where(["grid", "columns", "default"])).toBe("Custom module Glove type › Repeated columns › Columns to start with");
-    expect(where(["grid", "repeatPer"])).toBe("Custom module Glove type › Repeated columns › One grid for each ordered size");
-    expect(where(["after"])).toBe("Custom module Glove type › Comes after");
-    expect(where([])).toBe("Custom module Glove type");
+    expect(where(["fields", 1, "min"])).toBe("Custom Module Glove type › Fields › 2. Cuff length › Lowest Value");
+    expect(where(["fields", 0, "mapsTo"])).toBe("Custom Module Glove type › Fields › 1. Glove type › Shows a Module's Value");
+    expect(where(["grid", "columns", "default"])).toBe("Custom Module Glove type › Repeated Columns › Columns to Start With");
+    expect(where(["grid", "repeatPer"])).toBe("Custom Module Glove type › Repeated Columns › One Grid for Each Ordered Size");
+    expect(where(["after"])).toBe("Custom Module Glove type › Comes After");
+    expect(where([])).toBe("Custom Module Glove type");
     // A field without a label yet is named by its place, as its form heads it.
     expect(customFieldName({ label: " " }, 2)).toBe("3. Field 3");
     expect(customPathLabels(undefined, ["fields", 4, "label"])).toEqual(["Fields", "5. Field 5", "Label"]);
@@ -116,14 +116,14 @@ describe("placeLabels", () => {
   it("names the template's own fields as the Details tab does, and the rest by tab", () => {
     const scope = scopeOf(stdEg());
     const where = (path: (string | number)[]) => placeLabels({ area: "template", path }, scope).join(" › ");
-    expect(where(["scope", "clientId"])).toBe("Details › Where it applies › Client");
-    expect(where(["ai", "reviewOnSubmit"])).toBe("Details › AI second opinion on submit");
+    expect(where(["scope", "clientId"])).toBe("Details › Where It Applies › Client");
+    expect(where(["ai", "reviewOnSubmit"])).toBe("Details › AI Second Opinion on Submit");
     expect(where(["sizes", 1, "label"])).toBe("Details › Sizes › Size 2 › Shown as");
-    expect(where(["report", "showClientLogo"])).toBe("Details › AI report › Show the client's logo");
+    expect(where(["report", "showClientLogo"])).toBe("Details › AI Report › Show the Client's Logo");
     expect(where(["unit"])).toBe("Details › Counted in");
-    expect(where(["extends"])).toBe("Details › Base template");
-    expect(where(["json"])).toBe("JSON tab");
-    expect(where(["sourceFile"])).toBe("Template › Source file");
+    expect(where(["extends"])).toBe("Details › Base Template");
+    expect(where(["json"])).toBe("JSON Tab");
+    expect(where(["sourceFile"])).toBe("Template › Source File");
   });
 
   it("names every problem of a broken draft without a bare schema key", () => {
@@ -135,7 +135,7 @@ describe("placeLabels", () => {
     const names = named(broken);
     expect(names.length).toBeGreaterThanOrEqual(3);
     for (const name of names) expect(name.split(" › ")).not.toContain("n");
-    expect(names).toEqual(expect.arrayContaining([expect.stringMatching(/› Gloves weighed$/), expect.stringMatching(/› Gloves tested$/), "Details › Name"]));
+    expect(names).toEqual(expect.arrayContaining([expect.stringMatching(/› Gloves Weighed$/), expect.stringMatching(/› Gloves Tested$/), "Details › Name"]));
   });
 });
 
@@ -147,7 +147,7 @@ describe("serverProblem", () => {
       const found = serverProblem(draft, problem, draft.code);
       return [placeLabels(found.place, scope).join(" › "), found.message];
     };
-    const weight = "Weight (g) - average of 13 gloves per size › Settings › Gloves weighed";
+    const weight = "Weight (g) - average of 13 gloves per size › Settings › Gloves Weighed";
     // A definition that did not parse: TemplateDefinitionSchema's path, modules by position.
     const at = draft.modules.findIndex((entry) => entry.key === "weight");
     expect(where({ template: "", path: ["modules", at, "config", "n"], message: "Must be 1 or more." })).toEqual([
@@ -161,7 +161,7 @@ describe("serverProblem", () => {
     ]);
     // ...or in a base, which the admin changes through the base template.
     expect(where({ template: "BASE_EG", path: ["modules", "visual", "config"], message: "Unknown defect." })).toEqual([
-      "Details › Base template",
+      "Details › Base Template",
       "In base template BASE_EG: Unknown defect.",
     ]);
   });

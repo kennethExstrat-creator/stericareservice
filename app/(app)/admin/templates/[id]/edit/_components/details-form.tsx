@@ -37,8 +37,8 @@ export const AI_ON_SUBMIT_ID = fieldId("details", ["ai", "reviewOnSubmit"]);
 const OPTION_LABELS: Readonly<Record<string, string>> = { pcs: "Pieces (pcs)", pairs: "Pairs" };
 
 const PRODUCT_TYPE_LABELS: Readonly<Record<z.infer<typeof ProductTypeSchema>, string>> = {
-  examination: "Examination gloves",
-  surgical: "Surgical gloves",
+  examination: "Examination Gloves",
+  surgical: "Surgical Gloves",
 };
 
 const STANDARD_LABELS: Readonly<Record<z.infer<typeof StandardSchema>, string>> = {
@@ -127,7 +127,7 @@ function AiFields({ api }: { api: EditorApi }) {
       data-testid="template-ai"
     >
       <h3 id="details-ai-heading" className="text-base font-bold text-foreground">
-        AI second opinion
+        AI Second Opinion
       </h3>
       <div className="flex items-start gap-3">
         <Switch
@@ -219,12 +219,12 @@ function ScopeFields({ api }: { api: EditorApi }) {
     {
       key: "clientId",
       label: SCOPE_LABELS.clientId,
-      options: referenceOptions("Any client", api.scopeOptions.clients, scope.clientId),
+      options: referenceOptions("Any Client", api.scopeOptions.clients, scope.clientId),
     },
     {
       key: "manufacturerId",
       label: SCOPE_LABELS.manufacturerId,
-      options: referenceOptions("Any manufacturer", api.scopeOptions.manufacturers, scope.manufacturerId),
+      options: referenceOptions("Any Manufacturer", api.scopeOptions.manufacturers, scope.manufacturerId),
     },
   ];
 
@@ -276,7 +276,7 @@ function ScopeFields({ api }: { api: EditorApi }) {
   );
 }
 
-/** "Any client", then the clients by name; an id that is not among them stays choosable, named as unknown. */
+/** "Any Client", then the clients by name; an id that is not among them stays choosable, named as unknown. */
 function referenceOptions(none: string, options: readonly ReferenceOption[], current: unknown): SelectOption[] {
   const listed: SelectOption[] = [{ value: null, label: none }, ...options.map((option) => ({ value: option.id, label: option.name }))];
   if (typeof current === "string" && !options.some((option) => option.id === current)) {

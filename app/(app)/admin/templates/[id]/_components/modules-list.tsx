@@ -48,7 +48,7 @@ function IncludeChip({ section }: { section: ModuleView }) {
   if (section.alwaysOn) {
     return (
       <Chip icon={LockIcon} className="border-brand-200 bg-brand-50 text-brand-700">
-        Always on
+        Always On
       </Chip>
     );
   }
@@ -88,7 +88,7 @@ function ModuleItem({ section }: { section: ModuleView }) {
           </h3>
           <IncludeChip section={section} />
           {section.notBuilt && (
-            <span className="text-sm text-muted-foreground">Module not built yet</span>
+            <span className="text-sm text-muted-foreground">Module Not Built Yet</span>
           )}
         </div>
         <p className="text-sm text-muted-foreground">

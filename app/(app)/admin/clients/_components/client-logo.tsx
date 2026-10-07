@@ -151,12 +151,12 @@ export function ClientLogo({ clientId, clientName, logo, onPendingChange }: Clie
           onClick={() => inputRef.current?.click()}
         >
           {pending ? <Spinner aria-hidden /> : <UploadIcon aria-hidden />}
-          {pending ? "Uploading…" : logo ? "Replace logo" : "Upload logo"}
+          {pending ? "Uploading…" : logo ? "Replace Logo" : "Upload Logo"}
         </Button>
         {logo && (
           <Button ref={removeButton} type="button" variant="ghost" disabled={pending} onClick={() => setRemoving(true)}>
             <Trash2Icon aria-hidden />
-            Remove logo
+            Remove Logo
           </Button>
         )}
       </form>
@@ -230,7 +230,7 @@ function ConfirmRemoveLogo({
       >
         <form action={formAction} className="grid gap-6">
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove the logo?</AlertDialogTitle>
+            <AlertDialogTitle>Remove the Logo?</AlertDialogTitle>
             <AlertDialogDescription>
               Reports for {clientName} show no logo until you upload a new one. The file is deleted.
             </AlertDialogDescription>
@@ -250,7 +250,7 @@ function ConfirmRemoveLogo({
             </AlertDialogCancel>
             <Button type="submit" variant="destructive" disabled={pending}>
               {pending && <Spinner aria-hidden />}
-              {pending ? "Removing…" : "Remove logo"}
+              {pending ? "Removing…" : "Remove Logo"}
             </Button>
           </AlertDialogFooter>
         </form>

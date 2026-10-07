@@ -33,7 +33,7 @@ export function ProblemsSummary({
     >
       <h2 id="problems-heading" className="flex items-center gap-2 text-base font-bold text-fail">
         <OctagonXIcon aria-hidden className="size-5" />
-        {problems.length === 1 ? "1 problem to fix before saving" : `${problems.length} problems to fix before saving`}
+        {problems.length === 1 ? "1 Problem to Fix Before Saving" : `${problems.length} Problems to Fix Before Saving`}
       </h2>
       <ul className="grid gap-1">
         {shown.map((problem) => (
@@ -53,7 +53,7 @@ export function ProblemsSummary({
         <div>
           <Button type="button" variant="ghost" size="sm" onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>
             {expanded ? <ChevronUpIcon aria-hidden /> : <ChevronDownIcon aria-hidden />}
-            {expanded ? "Show fewer" : `Show all ${problems.length}`}
+            {expanded ? "Show Fewer" : `Show All ${problems.length}`}
           </Button>
         </div>
       )}

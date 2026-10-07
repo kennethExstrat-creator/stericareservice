@@ -58,14 +58,14 @@ export function CodeProblemBadge({ state }: { state: "unknown" | "inactive" }) {
     <Badge
       slot="code-problem"
       icon={TriangleAlertIcon}
-      label="Not a defect code"
+      label="Not a Defect Code"
       className="border-warn-border bg-warn-tint text-warn"
     />
   ) : (
     <Badge
       slot="code-problem"
       icon={CircleDashedIcon}
-      label="Inactive code"
+      label="Inactive Code"
       className="border-dashed border-warn-border bg-card text-warn"
     />
   );

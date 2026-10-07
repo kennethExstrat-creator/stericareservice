@@ -135,7 +135,7 @@ export function DetailsPanel({ view }: { view: DetailsView }) {
           </Row>
         )}
         {view.aiOnSubmit !== null && (
-          <Row term="AI second opinion">{view.aiOnSubmit ? "On submit, and when an admin asks" : "Only when an admin asks"}</Row>
+          <Row term="AI Second Opinion">{view.aiOnSubmit ? "On submit, and when an admin asks" : "Only when an admin asks"}</Row>
         )}
         <Row term="Used by">{usageText(detail.usage)}</Row>
         <Row term="Coverage">
@@ -149,7 +149,7 @@ export function DetailsPanel({ view }: { view: DetailsView }) {
           )}
         </Row>
         <Row term="Created">{view.createdText}</Row>
-        <Row term="Last changed">{view.updatedText}</Row>
+        <Row term="Last Changed">{view.updatedText}</Row>
       </dl>
     </Panel>
   );

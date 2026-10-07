@@ -17,9 +17,9 @@ export const CONFIG_MARKERS: readonly FormMarker[] = [
 export const SPEC_KINDS: Readonly<Record<string, string>> = {
   min: "Minimum (≥)",
   max: "Maximum (≤)",
-  range: "Range (min – max)",
-  tolerance: "Nominal ± tolerance",
-  na: "NA (not judged)",
+  range: "Range (Min – Max)",
+  tolerance: "Nominal ± Tolerance",
+  na: "NA (Not Judged)",
 };
 
 /** Settings of a stub: any JSON until the module is built. */
@@ -41,10 +41,10 @@ export function configNodeOf(definition: AnyModuleDefinition): FormNode {
  * the form reads the title first.
  */
 export const SETTING_NAMES: Readonly<Partial<Record<ModuleKey, Readonly<Record<string, string>>>>> = {
-  weight: { n: "Gloves weighed" },
-  force_at_break: { n: "Gloves tested" },
-  labeling: { n: "Boxes to inspect" },
-  dye_leak: { n: "Pouches to test" },
+  weight: { n: "Gloves Weighed" },
+  force_at_break: { n: "Gloves Tested" },
+  labeling: { n: "Boxes to Inspect" },
+  dye_leak: { n: "Pouches to Test" },
 };
 
 /**

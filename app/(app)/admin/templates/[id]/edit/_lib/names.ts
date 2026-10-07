@@ -14,7 +14,7 @@ import { configNodeOf, settingNaming } from "./settings";
 
 /** The parts of a module's details panel (module-details.tsx). */
 export const MODULE_PART_LABELS = {
-  include: "Include this module",
+  include: "Include This Module",
   title: "Heading",
   labels: "Labels",
   config: "Settings",
@@ -25,18 +25,18 @@ export const MODULE_PART_LABELS = {
 export const CUSTOM_MODULE_LABELS = {
   title: "Title",
   key: "Key",
-  after: "Comes after",
+  after: "Comes After",
   layout: "Layout",
-  grid: "Repeated columns",
+  grid: "Repeated Columns",
   fields: "Fields",
 } as const;
 
 /** The repeated columns of a grid (custom-module-form.tsx). */
 export const CUSTOM_GRID_LABELS = {
-  label: "Column heading",
-  default: "Columns to start with",
-  addable: "The inspector can add columns",
-  repeatPer: "One grid for each ordered size",
+  label: "Column Heading",
+  default: "Columns to Start With",
+  addable: "The Inspector Can Add Columns",
+  repeatPer: "One Grid for Each Ordered Size",
 } as const;
 
 /** One field of a custom module (custom-module-form.tsx). */
@@ -45,12 +45,12 @@ export const CUSTOM_FIELD_LABELS = {
   key: "Key",
   type: "Type",
   unit: "Unit",
-  min: "Lowest value",
-  max: "Highest value",
-  options: "Options, one per line",
+  min: "Lowest Value",
+  max: "Highest Value",
+  options: "Options, One per Line",
   hint: "Hint",
-  mapsTo: "Shows a module's value",
-  required: "Required before submit",
+  mapsTo: "Shows a Module's Value",
+  required: "Required Before Submit",
 } as const;
 
 /** A custom field as its form heads it: "2. Cuff length", or "Field 2" before it has a label. */
@@ -70,9 +70,9 @@ export type NamingScope = {
 
 /**
  * Where a problem is, as the steps the admin takes to get there:
- * ["Weight (g)", "Settings", "Gloves weighed"],
- * ["Custom module Glove type", "Fields", "2. Cuff length", "Lowest value"],
- * ["Details", "Where it applies", "Client"], ["JSON tab"].
+ * ["Weight (g)", "Settings", "Gloves Weighed"],
+ * ["Custom Module Glove type", "Fields", "2. Cuff length", "Lowest Value"],
+ * ["Details", "Where It Applies", "Client"], ["JSON Tab"].
  */
 export function placeLabels(place: ProblemPlace, scope: NamingScope): string[] {
   switch (place.area) {
@@ -81,10 +81,10 @@ export function placeLabels(place: ProblemPlace, scope: NamingScope): string[] {
     case "custom": {
       const custom = ownCustomModules(scope.draft)[place.index];
       const title = typeof custom?.title === "string" && custom.title.trim() ? custom.title.trim() : `#${place.index + 1}`;
-      return [`Custom module ${title}`, ...customPathLabels(custom, place.path)];
+      return [`Custom Module ${title}`, ...customPathLabels(custom, place.path)];
     }
     case "template":
-      if (place.path[0] === "json") return ["JSON tab"];
+      if (place.path[0] === "json") return ["JSON Tab"];
       if (isDetailPath(place.path)) return ["Details", ...detailPathLabels(place.path)];
       return ["Template", ...place.path.map(stepName)];
   }

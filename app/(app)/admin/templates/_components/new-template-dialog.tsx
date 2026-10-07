@@ -1,6 +1,6 @@
 "use client";
 
-// "New template" on /admin/templates (BUILD_SPEC 4.5 step 2): a code, a name,
+// "New Template" on /admin/templates (BUILD_SPEC 4.5 step 2): a code, a name,
 // the template to build on and where it applies; Create writes version 1 as
 // a draft and opens the template editor (actions.ts). The form is submitted
 // by hand (lib/admin/submit.ts): it holds Radix Selects, which React's reset
@@ -55,8 +55,8 @@ import { createTemplate } from "../actions";
 export type ScopeOption = { id: string; name: string };
 
 const PRODUCT_TYPE_LABEL: Readonly<Record<ProductType, string>> = {
-  examination: "Examination gloves",
-  surgical: "Surgical gloves",
+  examination: "Examination Gloves",
+  surgical: "Surgical Gloves",
 };
 
 const STANDARD_LABEL: Readonly<Record<Standard, string>> = {
@@ -102,7 +102,7 @@ export function NewTemplateDialog(props: NewTemplateProps) {
       <DialogTrigger asChild>
         <Button>
           <FilePlus2Icon aria-hidden />
-          New template
+          New Template
         </Button>
       </DialogTrigger>
       {/* Header and buttons stay put; only the fields scroll when the screen is short (iPad landscape). */}
@@ -295,7 +295,7 @@ function NewTemplateForm({
       data-testid="new-template-form"
     >
       <DialogHeader className="border-b border-border px-6 pt-6 pb-5">
-        <DialogTitle className="pr-8 text-lg font-bold">New template</DialogTitle>
+        <DialogTitle className="pr-8 text-lg font-bold">New Template</DialogTitle>
         <DialogDescription>
           Build on the template closest to the new form, then switch modules, wording and settings in the editor until
           every field of the form is covered.
@@ -329,7 +329,7 @@ function NewTemplateForm({
                   ...(bases.length > 0
                     ? [
                         {
-                          label: "Active templates",
+                          label: "Active Templates",
                           options: bases.map((option) => ({
                             value: option.code,
                             label: option.code,
@@ -355,7 +355,7 @@ function NewTemplateForm({
             <div className="grid gap-5 sm:grid-cols-2">
               {select(
                 "productType",
-                "Product type",
+                "Product Type",
                 productType,
                 setProductType,
                 ProductTypeSchema.options.map((option) => ({ value: option, label: PRODUCT_TYPE_LABEL[option] })),
@@ -374,7 +374,7 @@ function NewTemplateForm({
                 "Client",
                 clientId,
                 setClientId,
-                [{ value: ANY, label: "Any client" }, ...clients.map((option) => ({ value: option.id, label: option.name }))],
+                [{ value: ANY, label: "Any Client" }, ...clients.map((option) => ({ value: option.id, label: option.name }))],
                 { description: "A client's own template wins over the standard one for its inspections." },
               )}
               {select(
@@ -383,7 +383,7 @@ function NewTemplateForm({
                 manufacturerId,
                 setManufacturerId,
                 [
-                  { value: ANY, label: "Any manufacturer" },
+                  { value: ANY, label: "Any Manufacturer" },
                   ...manufacturers.map((option) => ({ value: option.id, label: option.name })),
                 ],
               )}
@@ -408,7 +408,7 @@ function NewTemplateForm({
         </DialogClose>
         <Button type="submit" disabled={pending}>
           {pending && <Spinner aria-hidden />}
-          {pending ? "Creating…" : "Create and edit"}
+          {pending ? "Creating…" : "Create and Edit"}
         </Button>
       </DialogFooter>
     </form>

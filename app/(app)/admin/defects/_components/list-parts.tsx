@@ -58,7 +58,7 @@ export function NoMatches({ query, many, onClear }: { query: string; many: strin
       title={`No ${many} match “${query.trim()}”`}
       action={
         <Button type="button" variant="outline" onClick={onClear}>
-          Clear search
+          Clear Search
         </Button>
       }
     >

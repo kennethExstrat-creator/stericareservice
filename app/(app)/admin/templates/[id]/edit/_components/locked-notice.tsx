@@ -45,7 +45,7 @@ export function LockedNotice({
         <div className="flex flex-wrap items-center gap-2">
           {draft && (
             <Button asChild variant="outline">
-              <Link href={`/admin/templates/${draft.id}/edit`}>Open draft version {draft.version}</Link>
+              <Link href={`/admin/templates/${draft.id}/edit`}>Open Draft Version {draft.version}</Link>
             </Button>
           )}
           <form action={action}>
@@ -53,7 +53,7 @@ export function LockedNotice({
             {carry && <input type="hidden" name="definition" value={carry} />}
             <Button type="submit" variant={draft ? "outline" : "default"} disabled={pending}>
               {pending ? <Spinner aria-hidden /> : <CopyPlusIcon aria-hidden />}
-              {pending ? "Making a new version…" : "New version"}
+              {pending ? "Making a New Version…" : "New Version"}
             </Button>
           </form>
         </div>

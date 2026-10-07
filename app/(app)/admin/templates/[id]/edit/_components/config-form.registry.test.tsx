@@ -51,7 +51,7 @@ function render(draft: Draft, context: EditorContext, key: ModuleKey, problems: 
     sizes: SIZES,
     defectCodes: [{ code: "hole_finger", name: "Finger", active: true }],
     scopeOptions: { clients: [], manufacturers: [] },
-    resetLabel: "Use default",
+    resetLabel: "Use Default",
   };
   return renderToStaticMarkup(<ConfigForm api={api} view={moduleView(draft, context, key)} />);
 }
@@ -154,10 +154,10 @@ describe("every module's settings form (MODULE_REGISTRY)", () => {
     expect(raw).toEqual([]);
     // The ones the schemas leave untitled, as the admin reads them.
     const html = render(draft, context, "weight");
-    expect(html).toMatch(/for="config-weight-n"[^>]*>Gloves weighed</);
-    expect(render(draft, context, "force_at_break")).toMatch(/for="config-force_at_break-n"[^>]*>Gloves tested</);
-    expect(render(draft, context, "labeling")).toMatch(/for="config-labeling-levels-inner-n"[^>]*>Boxes to inspect</);
-    expect(render(draft, context, "dye_leak")).toMatch(/for="config-dye_leak-n"[^>]*>Pouches to test</);
+    expect(html).toMatch(/for="config-weight-n"[^>]*>Gloves Weighed</);
+    expect(render(draft, context, "force_at_break")).toMatch(/for="config-force_at_break-n"[^>]*>Gloves Tested</);
+    expect(render(draft, context, "labeling")).toMatch(/for="config-labeling-levels-inner-n"[^>]*>Boxes to Inspect</);
+    expect(render(draft, context, "dye_leak")).toMatch(/for="config-dye_leak-n"[^>]*>Pouches to Test</);
   });
 
   it("shows each seed template's settings and writes them back unchanged", () => {

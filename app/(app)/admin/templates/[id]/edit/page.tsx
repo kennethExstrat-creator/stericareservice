@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: PageProps<"/admin/templates/[
  * /admin/templates/[id]/edit (BUILD_SPEC 4.5 and 10): the template editor for
  * one version. Admins only; inspectors get a 404 from requireAdmin(). A draft
  * no inspection uses is edited and saved here; any other version opens read
- * only, with "New version".
+ * only, with "New Version".
  *
  * No outer padding or width: the app shell's main area provides both.
  */

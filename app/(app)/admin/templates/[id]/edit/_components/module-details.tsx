@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import type { ModuleKey } from "@/lib/schemas/module-result";
 import { cn } from "@/lib/utils";
 import { isAlwaysOn, moduleView, resetModule, setInclude, setTitle } from "../_lib/model";
+import { MODULE_PART_LABELS } from "../_lib/names";
 import { problemsOfModule } from "../_lib/problems";
 import { ConfigForm } from "./config-form";
 import type { EditorApi } from "./editor-api";
@@ -58,8 +59,8 @@ export function ModuleDetails({
           </h2>
           <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <span className="font-mono">{moduleKey}</span>
-            {definition.stub && <span>· Not built yet</span>}
-            {definition.perSize && <span>· Per size</span>}
+            {definition.stub && <span>· Not Built Yet</span>}
+            {definition.perSize && <span>· Per Size</span>}
           </p>
         </div>
         {api.editable && view.changed && (
@@ -70,12 +71,12 @@ export function ModuleDetails({
             onClick={() => api.update((draft) => resetModule(draft, moduleKey))}
           >
             <RotateCcwIcon aria-hidden />
-            Undo this template&apos;s changes
+            Undo This Template&apos;s Changes
           </Button>
         )}
       </header>
 
-      <Section title="In this template">
+      <Section title="In This Template">
         <div className="flex items-start gap-3">
           <Switch
             id={includeFieldId(moduleKey)}
@@ -89,7 +90,7 @@ export function ModuleDetails({
             aria-invalid={includeProblems.length > 0 ? true : undefined}
           />
           <div className="grid gap-1">
-            <Label htmlFor={includeFieldId(moduleKey)}>{pinned ? "Always on" : "Include this module"}</Label>
+            <Label htmlFor={includeFieldId(moduleKey)}>{pinned ? "Always On" : MODULE_PART_LABELS.include}</Label>
             <p id={`${includeFieldId(moduleKey)}-hint`} className="text-sm text-muted-foreground">
               {pinned
                 ? "Header and conclusion are in every template; switch their fields off in the settings instead."
@@ -109,11 +110,11 @@ export function ModuleDetails({
               <>
                 <Button type="button" variant="outline" size="sm" disabled={first} onClick={() => onMove(position - 1)}>
                   <ArrowUpIcon aria-hidden />
-                  Move up
+                  Move Up
                 </Button>
                 <Button type="button" variant="outline" size="sm" disabled={last} onClick={() => onMove(position + 1)}>
                   <ArrowDownIcon aria-hidden />
-                  Move down
+                  Move Down
                 </Button>
               </>
             )}
@@ -123,7 +124,7 @@ export function ModuleDetails({
 
       <Section title="Heading">
         <div className="grid gap-1.5">
-          <Label htmlFor={titleFieldId(moduleKey)}>Heading in the form&apos;s wording</Label>
+          <Label htmlFor={titleFieldId(moduleKey)}>Heading in the Form&apos;s Wording</Label>
           <Input
             id={titleFieldId(moduleKey)}
             value={view.entry?.title ?? ""}
@@ -154,7 +155,7 @@ export function ModuleDetails({
             ? "This module is not built yet, so its settings are free-form JSON. They are checked against its own settings once it lands."
             : "Generated from the module's settings. Values this template sets are marked Changed and can be reset."
         }
-        badge={configProblemCount > 0 ? `${configProblemCount} to fix` : undefined}
+        badge={configProblemCount > 0 ? `${configProblemCount} to Fix` : undefined}
       >
         <ConfigForm api={api} view={view} />
       </Section>

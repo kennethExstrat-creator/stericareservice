@@ -81,12 +81,12 @@ describe("SchemaForm", () => {
       'aria-describedby="form-minLayeringPct-range form-minLayeringPct-description"',
     );
     expect(html).toContain("Whole number, 1 to 500.");
-    expect(html).toContain('aria-label="Move Stickiness code 1 down"');
-    expect(html).toContain('aria-label="Remove Stickiness code 2"');
-    expect(html).toContain("Add stickiness code");
+    expect(html).toContain('aria-label="Move Stickiness Code 1 down"');
+    expect(html).toContain('aria-label="Remove Stickiness Code 2"');
+    expect(html).toContain("Add Stickiness Code");
     // The record's entry, and the sizes still free to add.
     expect(html).toContain('data-record-key="XL"');
-    expect(html).toContain('Add a size<span class="sr-only"> to By size</span>');
+    expect(html).toContain('Add a Size<span class="sr-only"> to By Size</span>');
   });
 
   it("puts each message on its field and wires it for screen readers", () => {
@@ -129,10 +129,10 @@ describe("SchemaForm", () => {
     // One header names each column once, with its description.
     expect(html.match(/data-slot="row-header"/g)).toHaveLength(1);
     // Each row is a group named by its item; its labels give way to the header from 640 px.
-    expect(html).toContain('<legend class="sr-only">Stickiness code 2</legend>');
+    expect(html).toContain('<legend class="sr-only">Stickiness Code 2</legend>');
     expect(html).toMatch(/<label[^>]*class="[^"]*sm:sr-only[^"]*"[^>]*for="form-stickinessCodes-1-code"/);
     expect(tagWithId(html, "form-stickinessCodes-1-pass")).toContain('role="switch"');
-    expect(html).toContain('aria-label="Remove Stickiness code 2"');
+    expect(html).toContain('aria-label="Remove Stickiness Code 2"');
   });
 
   it("offers a tagged union's variants by name, and keeps the values of the one chosen", () => {
@@ -148,6 +148,9 @@ describe("SchemaForm", () => {
       { hooks: { variantLabel: (marker, value) => (marker === "spec" && value === "min" ? "Minimum (≥)" : undefined) } },
     );
     expect(tagWithId(html, "form-specs-0-specs-length-type")).toContain('role="combobox"');
+    // No border to seat its legend in, and a rendered legend is not a grid item: the legend's own margin keeps it
+    // off the Type row.
+    expect(html).toMatch(/<fieldset class="[^"]*\[&amp;&gt;legend\]:mb-3[^"]*" data-slot="form-group" data-kind="union">/);
     expect(html).toContain('value="240"');
     // Optional measures without a spec can be added.
     expect(html).toContain('aria-label="Add Width"');
@@ -166,12 +169,12 @@ describe("SchemaForm", () => {
       },
     });
     expect(html.match(/>Changed</g)).toHaveLength(1);
-    expect(html).toContain('aria-label="Use STD_EG&#x27;s: Min layering %"');
+    expect(html).toContain('aria-label="Use STD_EG&#x27;s: Min Layering %"');
   });
 
   it("reads only: no add, move or remove, inputs read-only, switches disabled", () => {
     const html = render(DispensingLikeSchema, DISPENSING, { readOnly: true });
-    expect(html).not.toContain("Add stickiness code");
+    expect(html).not.toContain("Add Stickiness Code");
     expect(html).not.toContain("Remove");
     expect(html).toMatch(/readOnly=""|readonly=""/);
     expect(html).toContain('disabled=""');

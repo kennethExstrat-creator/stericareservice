@@ -151,9 +151,9 @@ describe("the titles", () => {
   const notFound = Object.assign(new Error("NEXT_HTTP_ERROR_FALLBACK;404"), { digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
 
   it.each([
-    ["Defect codes", codesMetadata],
-    ["Label mapping", labelsMetadata],
-    ["Unmapped labels", unmappedMetadata],
+    ["Defect Codes", codesMetadata],
+    ["Label Mapping", labelsMetadata],
+    ["Unmapped Labels", unmappedMetadata],
   ])("names %s only for an admin", async (title, generate) => {
     expect(await generate()).toEqual({ title });
     expect(requireAdmin).toHaveBeenCalledOnce();
@@ -215,7 +215,7 @@ describe("/admin/defects", () => {
     vi.mocked(loadDefectsData).mockResolvedValue(data({ codes: [], templates: [], inspections: [] }));
     const html = await render(DefectCodesPage(props()));
     expect(html).toContain("No defect codes yet");
-    expect(html).toContain("Add your first code");
+    expect(html).toContain("Add Your First Code");
   });
 });
 
@@ -223,11 +223,11 @@ describe("/admin/defects/labels", () => {
   it("shows each label with its code and class, and flags a label without a code", async () => {
     const html = await render(LabelMappingPage(props()));
     expect(html).toContain("STD_EG <span");
-    expect(html).toContain("Critical defects");
+    expect(html).toContain("Critical Defects");
     expect(html).toContain("AQL 0.0");
     expect(html).toContain("AQL from the client, else 2.5");
     expect(html).toContain("Oil stain");
-    expect(html).toContain("Not a defect code");
+    expect(html).toContain("Not a Defect Code");
     expect(html).toContain('href="/admin/defects?add=torn_cuff&amp;name=Torn+cuff"');
     expect(html).toContain('href="/admin/templates/template-1/edit"');
     expect(html).toContain("Switched off in this template: minor defects.");

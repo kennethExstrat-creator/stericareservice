@@ -185,7 +185,7 @@ test("the admin edits a draft: switches, order, wording, settings, a custom fiel
   const saveState = page.getByTestId("save-state");
   const save = page.getByRole("button", { name: "Save", exact: true });
   // The draft has no stored resolution yet: Save resolves and stores it, changed or not.
-  await expect(saveState).toHaveText("Not resolved yet");
+  await expect(saveState).toHaveText("Not Resolved Yet");
   await expect(save).toBeEnabled();
   await expect(page.getByTestId("resolve-due")).toContainText("Not resolved yet");
   await expectNoPageScroll(page);
@@ -205,12 +205,12 @@ test("the admin edits a draft: switches, order, wording, settings, a custom fiel
   await press(visualSwitch);
   await expect(visualSwitch).toHaveAttribute("aria-checked", "false");
   await expect(row(page, "visual")).toHaveAttribute("data-included", "false");
-  await expect(saveState).toHaveText("Unsaved changes");
+  await expect(saveState).toHaveText("Unsaved Changes");
   await shot(page, "2-module-off");
   await press(visualSwitch);
   await expect(visualSwitch).toHaveAttribute("aria-checked", "true");
 
-  // Reorder: arrow keys on the handle and a mouse drag on the desktop, Move down on the iPads.
+  // Reorder: arrow keys on the handle and a mouse drag on the desktop, Move Down on the iPads.
   const expectedOrder = isDesktop()
     ? ["header", "glove_info", "sampling_plan", "order_lots", "packing_config", "visual", "watertight", "conclusion"]
     : ["header", "glove_info", "order_lots", "packing_config", "sampling_plan", "visual", "watertight", "conclusion"];
@@ -224,7 +224,7 @@ test("the admin edits a draft: switches, order, wording, settings, a custom fiel
     await dragRow(page, row(page, "sampling_plan"), row(page, "order_lots"));
   } else {
     const details = await openDetails(page, "watertight");
-    await press(details.getByRole("button", { name: "Move down" }));
+    await press(details.getByRole("button", { name: "Move Down" }));
     await expect(details.getByText("Position 7 of 8")).toBeVisible();
     await closeDetails(page);
   }
@@ -267,7 +267,7 @@ test("the admin edits a draft: switches, order, wording, settings, a custom fiel
   await press(row(page, "order_lots").getByRole("switch"));
   const problems = page.getByTestId("problems");
   await expect(problems).toContainText("so order_lots must be on");
-  await expect(saveState).toHaveText("1 problem");
+  await expect(saveState).toHaveText("1 Problem");
   await expect(save).toBeDisabled();
   await shot(page, "4-problem");
   await press(problems.getByRole("button", { name: /Order/ }));
@@ -278,19 +278,19 @@ test("the admin edits a draft: switches, order, wording, settings, a custom fiel
   await closeDetails(page);
 
   // A custom module with a field of each kind it needs.
-  await press(page.getByRole("tab", { name: "Custom modules" }));
+  await press(page.getByRole("tab", { name: "Custom Modules" }));
   await expect(page.getByText("No custom modules")).toBeVisible();
-  await press(page.getByRole("button", { name: "Add custom module" }).first());
+  await press(page.getByRole("button", { name: "Add Custom Module" }).first());
   const form = page.getByTestId("custom-module-form");
   await form.locator("#custom-0-title").fill("Glove type");
   await form.locator("#custom-0-key").fill("glove_type");
   await form.locator("#custom-0-fields-0-label").fill("Glove type");
   await form.locator("#custom-0-fields-0-key").fill("gloveType");
   await press(form.locator("#custom-0-fields-0-type"));
-  await press(page.getByRole("option", { name: "Choice from a list" }));
+  await press(page.getByRole("option", { name: "Choice From a List" }));
   await expect(page.getByTestId("problems")).toContainText("A select field needs at least one option.");
   await form.locator("#custom-0-fields-0-options").fill("Nitrile\nLatex");
-  await press(form.getByRole("button", { name: "Add field" }));
+  await press(form.getByRole("button", { name: "Add Field" }));
   await form.locator("#custom-0-fields-1-label").fill("Cuff length");
   await form.locator("#custom-0-fields-1-key").fill("cuffLength");
   await press(form.locator("#custom-0-fields-1-type"));
@@ -310,7 +310,7 @@ test("the admin edits a draft: switches, order, wording, settings, a custom fiel
   await expect(entryProblem).toContainText(notANumber);
   await expect(save).toBeDisabled();
   await shot(page, "5a-closed-with-problem");
-  await press(entryProblem.getByRole("button", { name: /Custom module Glove type/ }));
+  await press(entryProblem.getByRole("button", { name: /Custom Module Glove type/ }));
   await expect(min).toHaveValue("2 40");
   await expect(min).toBeFocused();
   await min.fill("240");
@@ -338,9 +338,9 @@ test("the admin edits a draft: switches, order, wording, settings, a custom fiel
   await press(page.getByRole("tab", { name: "Details" }));
   const detailsTab = page.getByTestId("template-details");
   await expect(detailsTab.locator("#details-name")).toHaveValue(TEMPLATE_NAME);
-  await expect(detailsTab.locator("#details-scope-productType")).toContainText("Examination gloves");
+  await expect(detailsTab.locator("#details-scope-productType")).toContainText("Examination Gloves");
   await expect(detailsTab.locator("#details-scope-standard")).toContainText("EN 455");
-  await expect(detailsTab.locator("#details-scope-clientId")).toContainText("Any client");
+  await expect(detailsTab.locator("#details-scope-clientId")).toContainText("Any Client");
   await expect(detailsTab.locator("#details-code")).toHaveValue(draft.code);
   await expect(detailsTab.locator("#details-extends")).toHaveValue("None");
   await shot(page, "6-details");
@@ -352,7 +352,7 @@ test("the admin edits a draft: switches, order, wording, settings, a custom fiel
   await expect(page.getByText("name: Enter a value.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Apply JSON" })).toBeDisabled();
   await shot(page, "7-json-problem");
-  await press(page.getByRole("button", { name: "Undo JSON edits" }));
+  await press(page.getByRole("button", { name: "Undo JSON Edits" }));
   await expect(page.getByText("Valid template definition.")).toBeVisible();
 
   // The preview draws every included module, the custom one in its place.
@@ -369,12 +369,12 @@ test("the admin edits a draft: switches, order, wording, settings, a custom fiel
   await expectNoPageScroll(page);
   await shot(page, "8-preview");
 
-  // Leaving with unsaved changes asks first, and Keep editing hands the focus back to the link.
-  const allTemplates = page.getByRole("link", { name: "All templates" });
+  // Leaving with unsaved changes asks first, and Keep Editing hands the focus back to the link.
+  const allTemplates = page.getByRole("link", { name: "All Templates" });
   await press(allTemplates);
-  const leave = page.getByRole("alertdialog", { name: "Leave without saving?" });
+  const leave = page.getByRole("alertdialog", { name: "Leave Without Saving?" });
   await expect(leave).toBeVisible();
-  await press(leave.getByRole("button", { name: "Keep editing" }));
+  await press(leave.getByRole("button", { name: "Keep Editing" }));
   await expect(leave).toBeHidden();
   await expect(page).toHaveURL(new RegExp(`/admin/templates/${draft.id}/edit$`));
   await expect(allTemplates).toBeFocused();
@@ -387,7 +387,7 @@ test("the admin edits a draft: switches, order, wording, settings, a custom fiel
   await press(shellLink);
   await expect(leave).toBeVisible();
   await shot(page, "8b-leave-from-shell");
-  await press(leave.getByRole("button", { name: "Keep editing" }));
+  await press(leave.getByRole("button", { name: "Keep Editing" }));
   await expect(leave).toBeHidden();
   await expect(page).toHaveURL(new RegExp(`/admin/templates/${draft.id}/edit$`));
   await expect(shellLink).toBeFocused();
@@ -399,13 +399,13 @@ test("the admin edits a draft: switches, order, wording, settings, a custom fiel
   await expect(offer).toBeVisible();
   await expect.poll(moduleOrder(page)).toEqual(INITIAL_ORDER);
   await shot(page, "8c-restore-offer");
-  await press(offer.getByRole("button", { name: "Restore changes" }));
+  await press(offer.getByRole("button", { name: "Restore Changes" }));
   await expect(offer).toHaveCount(0);
   await expect.poll(moduleOrder(page)).toEqual(expectedOrder);
   await expect(row(page, "glove_info")).toContainText("Glove Details");
 
   // Save, and what it stored.
-  await expect(saveState).toHaveText("Unsaved changes");
+  await expect(saveState).toHaveText("Unsaved Changes");
   await press(save);
   // The action resolves and writes, then the page re-renders: give a slow dev server time.
   await expect(saveState).toHaveText("Saved", { timeout: 30_000 });
@@ -432,14 +432,14 @@ test("the admin edits a draft: switches, order, wording, settings, a custom fiel
   // Reload: it is all still there, nothing is unsaved, and no copy is offered.
   await page.reload();
   await expect.poll(moduleOrder(page)).toEqual(expectedOrder);
-  await expect(saveState).toHaveText("No changes");
+  await expect(saveState).toHaveText("No Changes");
   await expect(page.getByTestId("resolve-due")).toHaveCount(0);
   await expect(page.getByTestId("restore-offer")).toHaveCount(0);
   const again = await openDetails(page, "glove_info");
   await expect(again.locator("#label-glove_info-colour")).toHaveValue("Colour of glove");
   await expect(again.locator("#config-glove_info-fields-length")).toHaveAttribute("aria-checked", "false");
   await closeDetails(page);
-  await press(page.getByRole("tab", { name: "Custom modules" }));
+  await press(page.getByRole("tab", { name: "Custom Modules" }));
   await expect(page.locator('[data-custom-key="glove_type"]')).toContainText("Cuff length");
   await shot(page, "10-reloaded");
   expect(hydration()).toEqual([]);
@@ -456,7 +456,7 @@ test("a number setting emptied and typed again keeps what is typed, not what it 
     await page.goto(`/admin/templates/${numbers.id}/edit`);
     await expect(row(page, "weight")).toBeVisible();
     test.skip(
-      await row(page, "weight").getByText("Not built yet").isVisible(),
+      await row(page, "weight").getByText("Not Built Yet").isVisible(),
       "weight is still a stub on this branch: its settings are JSON until the module lands.",
     );
     const details = await openDetails(page, "weight");
@@ -474,10 +474,10 @@ test("a number setting emptied and typed again keeps what is typed, not what it 
     await expect(details.locator("#config-weight-n-errors")).toHaveCount(0);
     await n.blur();
     await expect(n).toHaveValue("5");
-    await expect(page.getByTestId("save-state")).toHaveText("Unsaved changes");
+    await expect(page.getByTestId("save-state")).toHaveText("Unsaved Changes");
     await shot(page, "13-number-retyped");
-    // Use default goes back to the inherited value.
-    await press(details.getByRole("button", { name: /^Use default: / }).first());
+    // Use Default goes back to the inherited value.
+    await press(details.getByRole("button", { name: /^Use Default: / }).first());
     await expect(n).toHaveValue("13");
   } finally {
     await numbers.cleanup();
@@ -493,7 +493,7 @@ test("a retired version reads only and offers a new version", async ({ page, con
     await expect(page.getByTestId("locked")).toContainText("Version 1 is retired, so it cannot be changed.");
     await expect(page.getByRole("button", { name: "Save", exact: true })).toHaveCount(0);
     await expect(row(page, "glove_info").getByRole("switch")).toBeDisabled();
-    await expect(page.getByRole("button", { name: "New version" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "New Version" })).toBeVisible();
     await expectNoPageScroll(page);
     await shot(page, "11-read-only");
   } finally {
@@ -514,7 +514,7 @@ test("a version in use reads only, and New version makes the next draft", async 
     await expect(row(page, "visual").getByRole("switch")).toBeDisabled();
     await shot(page, "11-read-only");
 
-    await page.getByRole("button", { name: "New version" }).click();
+    await page.getByRole("button", { name: "New Version" }).click();
     await expect(page).not.toHaveURL(new RegExp(used.id), { timeout: 30_000 });
     await expect(page.getByTestId("template-meta")).toContainText(`${used.code} · Version 2 · Draft`);
     await expect(page.getByTestId("locked")).toHaveCount(0);

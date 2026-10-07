@@ -98,7 +98,7 @@ describe("/admin/manufacturers", () => {
   it("invites the first manufacturer when there are none", async () => {
     const html = await render([]);
     expect(html).toContain("No manufacturers yet");
-    expect(html).toContain("Add your first manufacturer");
+    expect(html).toContain("Add Your First Manufacturer");
     expect(html).not.toContain("<table");
   });
 });

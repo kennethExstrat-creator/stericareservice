@@ -61,7 +61,7 @@ export function LabelOverrides({
               >
                 <div className="grid min-w-0 gap-0.5 md:pt-2">
                   <Label htmlFor={id} className="leading-snug">
-                    {fallback ?? "No default wording"}
+                    {fallback ?? "No Default Wording"}
                   </Label>
                   <span className="font-mono text-xs break-all text-muted-foreground">{labelKey}</span>
                 </div>
@@ -138,7 +138,7 @@ function AddLabel({
 
   return (
     <div className="grid gap-2 rounded-lg border border-dashed border-border p-3" data-testid="add-label">
-      <p className="text-sm font-medium text-foreground">Add a label</p>
+      <p className="text-sm font-medium text-foreground">Add a Label</p>
       <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)_auto] md:items-end">
         <div className="grid gap-1.5">
           <Label htmlFor={`${id}-key`}>Key</Label>
@@ -177,7 +177,7 @@ function AddLabel({
         </div>
         <Button type="button" variant="outline" onClick={add}>
           <PlusIcon aria-hidden />
-          Add label
+          Add Label
         </Button>
       </div>
       {error && (

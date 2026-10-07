@@ -31,7 +31,7 @@ export default function ManufacturersError({ error, retry }: { error: Error & { 
         <EmptyContent>
           <Button onClick={() => retry()}>
             <RotateCwIcon aria-hidden />
-            Try again
+            Try Again
           </Button>
           {error.digest && <p className="text-sm text-muted-foreground">Reference: {error.digest}</p>}
         </EmptyContent>

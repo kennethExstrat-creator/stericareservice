@@ -37,7 +37,7 @@ export function ClientsTable({
             <TableHead className={cn("w-0 pl-4", HEAD)}>Logo</TableHead>
             <TableHead className={HEAD}>Name</TableHead>
             <TableHead className={cn("hidden xl:table-cell", HEAD)}>Notes</TableHead>
-            <TableHead className={HEAD}>In use</TableHead>
+            <TableHead className={HEAD}>In Use</TableHead>
             <TableHead className={cn("w-0 pr-4", HEAD)}>
               <span className="sr-only">Actions</span>
             </TableHead>
@@ -90,7 +90,7 @@ export function LogoThumbnail({ logo }: { logo: LogoPreview | null }) {
   if (!logo) {
     return (
       <span className={cn(box, "border border-dashed border-slate-300 bg-slate-50 text-xs text-muted-foreground")}>
-        No logo
+        No Logo
       </span>
     );
   }

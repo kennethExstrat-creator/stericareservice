@@ -73,20 +73,20 @@ describe("pathLabels", () => {
     // A record keyed by size: the size as the template names it.
     const dispensing = describeSchema(DispensingLikeSchema, { markers: MARKERS });
     expect(pathLabels(dispensing, ["boxesPerSize", "bySize", "M"], HOOKS)).toEqual([
-      "Boxes per size",
-      "By size",
+      "Boxes per Size",
+      "By Size",
       "Medium (M)",
     ]);
     expect(pathLabels(dispensing, ["stickinessCodes", 2, "pass"])).toEqual([
-      "Stickiness codes",
-      "Stickiness code 3",
+      "Stickiness Codes",
+      "Stickiness Code 3",
       "Pass",
     ]);
   });
 
   it("names steps past what the schema describes by their keys, in words", () => {
     const watertight = describeSchema(WatertightLikeSchema, { markers: MARKERS });
-    expect(pathLabels(watertight, ["locations", 0, "extraKey"])).toEqual(["Locations", "Location 1", "Extra key"]);
+    expect(pathLabels(watertight, ["locations", 0, "extraKey"])).toEqual(["Locations", "Location 1", "Extra Key"]);
     expect(pathLabels(describeSchema(z.strictObject({ data: z.unknown() })), ["data", "rows", 3])).toEqual([
       "Data",
       "Rows",

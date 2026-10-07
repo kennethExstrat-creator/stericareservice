@@ -23,7 +23,7 @@ import { createClient } from "@/lib/supabase/server";
  */
 export async function generateMetadata(): Promise<Metadata> {
   await requireAdmin();
-  return { title: "Admin overview" };
+  return { title: "Admin Overview" };
 }
 
 /**
@@ -59,11 +59,11 @@ export default async function AdminOverviewPage() {
         <InspectionShortcuts awaitingApproval={awaitingApproval} />
       </Section>
 
-      <Section id="admin-screens" title="Set-up">
+      <Section id="admin-screens" title="Set-Up">
         <AdminScreenLinks />
       </Section>
 
-      <Section id="system-status" title="System status">
+      <Section id="system-status" title="System Status">
         <div className="grid gap-6 lg:grid-cols-2">
           <SupabaseCard env={supabaseEnv} secretKeySet={secretKeySet} database={database} />
           <EmailCard env={supabaseEnv} siteUrl={siteUrl} />
