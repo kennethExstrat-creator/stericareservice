@@ -63,7 +63,11 @@ describe("inspection reference numbers", { timeout: 30_000 }, () => {
           "insert into public.inspections (template_id, inspector_id) values ($1, $2) returning id, ref_no",
           [templateId, people.inspector],
         );
-        await tx.query("delete from public.inspections where id = $1", [made.rows[0].id]);
+        // The list's Delete; an admin's own DELETE matches no row (migration 20261007193000).
+        const deleted = await column<{ ref_no: string } | null>(tx, "select public.delete_draft_inspection($1)", [
+          made.rows[0].id,
+        ]);
+        expect(deleted).toEqual([expect.objectContaining({ ref_no: made.rows[0].ref_no })]);
         return tx.query("insert into public.inspections (template_id, inspector_id, ref_no) values ($1, $2, $3)", [
           templateId,
           people.inspector,

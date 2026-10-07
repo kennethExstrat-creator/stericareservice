@@ -164,8 +164,8 @@ describe("storage policies", { timeout: 30_000 }, () => {
       const gone = await createInspection(db, people.inspector, templateId);
       const leftover = `${gone.id}/${randomUUID()}.jpg`;
       await asUser(db, people.inspector, (tx) => upload(tx, "inspection-photos", leftover));
-      // The app removes the folder first; here the file stays behind.
-      await asUser(db, people.admin, (tx) => tx.query("delete from public.inspections where id = $1", [gone.id]));
+      // The list's Delete removes the folder once the row is gone; here the file stays behind.
+      await asUser(db, people.admin, (tx) => tx.query("select public.delete_draft_inspection($1)", [gone.id]));
 
       const reuse = (tx: Tx, inspectorId: string) =>
         tx.query("insert into public.inspections (id, template_id, inspector_id) values ($1, $2, $3)", [
