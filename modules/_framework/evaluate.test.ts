@@ -140,7 +140,7 @@ describe("evaluateInspection: the STD_EG example flow (expected results B)", () 
       failed: [],
       notDone: [],
       warned: ["weight"],
-      summary: "Pass. Warnings: Weight (g).",
+      summary: "Warnings: Weight (g).",
     });
     const conclusion = moduleOf(evaluation, "conclusion");
     expect(conclusion.result.status).toBe("not_done");

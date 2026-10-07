@@ -201,7 +201,11 @@ describe("buildAiPanelModel: reviews", () => {
 describe("buildAiPanelModel: the three columns", () => {
   it("puts the overall results side by side: suggested, the inspector's final result and remark, the AI's view", () => {
     const { overall } = model();
-    expect(overall.system).toEqual({ result: "fail", summary: expect.stringContaining("Fail") });
+    // Why, in the sections' own titles; the pill beside it names the result.
+    expect(overall.system).toEqual({
+      result: "fail",
+      summary: "Failed: Finished Goods Sampling Information (carton number). Warnings: Packing configuration, Weight (g).",
+    });
     expect(overall.inspector).toEqual({
       name: "Inspector A",
       finalResult: "hold",

@@ -151,6 +151,7 @@ export type AiPanelModel = {
   /** Every other review, newest first. */
   history: ReviewModel[];
   overall: {
+    /** The suggestion, and why in one line ("Failed: …. Warnings: …."): empty for a clean pass. */
     system: { result: InspectionResult; summary: string };
     inspector: { name: string; finalResult: InspectionResult | null; remark: string | null; comment: string | null };
     ai: { findings: FindingModel[]; questions: QuestionModel[] };
