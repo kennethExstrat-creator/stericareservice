@@ -31,7 +31,7 @@ export const VALIDATION_RULES: Readonly<Record<RuleNumber, string>> = {
   2: "Totals, averages, medians, rates, code letters and accept/reject limits are computed, never typed.",
   3: "Counts never turn into dates; dates use date pickers.",
   4: "Sizes not in order_lots appear in no module.",
-  5: "A module with missing data shows Not done, never Passed.",
+  5: "A module with missing data shows Not Done, never Passed.",
   6: "Carton numbers are unique per size, from 1 to the order quantity, as many as the sampled cases.",
   7: "Box numbers in dispensing_packing, dispensing_safedon and labeling are picked from the size's carton list.",
   8: "The sample size sets the code letter and limits; a plan that does not match the sample size cannot be saved.",

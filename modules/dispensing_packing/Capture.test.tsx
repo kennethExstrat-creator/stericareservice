@@ -202,7 +202,7 @@ describe("dispensing_packing capture", () => {
     expect(readOnly).not.toContain("lucide-chevron-down");
   });
 
-  it("shows calc's averages and Passed live, and Not done until the boxes are complete", () => {
+  it("shows calc's averages and Passed live, and Not Done until the boxes are complete", () => {
     const html = render();
     expect(html).toContain("88.3");
     expect(html).toContain("90.3");
@@ -215,7 +215,7 @@ describe("dispensing_packing capture", () => {
     expect(count(render({ evaluated: false }), 'data-outcome="not_done"')).toBe(3);
   });
 
-  it("still renders, everything Not done, when the engine could not compute the module", () => {
+  it("still renders, everything Not Done, when the engine could not compute the module", () => {
     const html = render({ broken: true });
     expect(count(html, 'data-outcome="not_done"')).toBe(3);
     expect(html).toContain("Sampling code letter —");

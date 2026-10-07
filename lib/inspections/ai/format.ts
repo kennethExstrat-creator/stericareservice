@@ -23,7 +23,7 @@ export function formatDateTime(iso: string): string {
   return Number.isNaN(time) ? iso : DATE_TIME.format(time);
 }
 
-/** Overall results share the status colours and words: hold is the amber "On hold". */
+/** Overall results share the status colours and words: hold is the amber "On Hold". */
 export const RESULT_STATUS: Readonly<Record<InspectionResult, Status>> = {
   pass: "pass",
   fail: "fail",

@@ -4,7 +4,7 @@ import { summarizeColumn } from "./column";
 const lengths = [243, 245, 242, 244, 246, 243, 241, 244, 245, 243, 242, 244, 243];
 
 describe("summarizeColumn", () => {
-  it("is Not done with no statistic before any value is entered", () => {
+  it("is Not Done with no statistic before any value is entered", () => {
     expect(summarizeColumn([], 13, "median", { kind: "min", min: 240 }, 0)).toEqual({
       count: 0,
       statistic: null,

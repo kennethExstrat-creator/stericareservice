@@ -326,7 +326,7 @@ function SizeGrid({
 
 /* Shared pieces ---------------------------------------------------------- */
 
-/** The template's word for a result: "Passed" or "A"; Warning and Not done as the app says them. */
+/** The template's word for a result: "Passed" or "A"; Warning and Not Done as the app says them. */
 function statusWord(status: ModuleStatus | undefined, labels: Labels): string | undefined {
   return status === "pass" || status === "fail" || status === "info" ? labelFor(labels, status) : undefined;
 }

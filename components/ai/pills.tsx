@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * An overall result: the system's suggestion, the inspector's final result or
- * the AI's suggestion, worded as everywhere else (Passed, Failed, On hold).
+ * the AI's suggestion, worded as everywhere else (Passed, Failed, On Hold).
  */
 export function ResultPill({
   result,

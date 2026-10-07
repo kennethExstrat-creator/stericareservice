@@ -103,7 +103,7 @@ column.
 | 2 | Totals, averages, medians, rates, code letters and accept/reject limits are computed, never typed. | `order_lots`, `packing_config`, `sampling_plan`, `carton_sampling`, `dimensions`, `weight`, `force_at_break`, `tensile`, `watertight`, `visual`, `dispensing_packing`, `dispensing_safedon`, `labeling`, `conclusion`, `dye_leak`, `documents`, `loading` |
 | 3 | Counts never turn into dates; dates use date pickers. | `header`, `conclusion`, `documents` |
 | 4 | Sizes not in order_lots appear in no module. | `order_lots`, `sampling_plan`, `carton_sampling`, `dimensions`, `weight`, `force_at_break`, `tensile`, `watertight`, `visual`, `dispensing_packing`, `dispensing_safedon`, `labeling`, `dye_leak` |
-| 5 | A module with missing data shows Not done, never Passed. | `dimensions`, `weight`, `force_at_break`, `tensile`, `watertight`, `visual`, `dispensing_packing`, `dispensing_safedon`, `labeling`, `dye_leak`, `documents` |
+| 5 | A module with missing data shows Not Done, never Passed. | `dimensions`, `weight`, `force_at_break`, `tensile`, `watertight`, `visual`, `dispensing_packing`, `dispensing_safedon`, `labeling`, `dye_leak`, `documents` |
 | 6 | Carton numbers are unique per size, from 1 to the order quantity, as many as the sampled cases. | `sampling_plan`, `carton_sampling` |
 | 7 | Box numbers in dispensing_packing, dispensing_safedon and labeling are picked from the size's carton list. | `dispensing_packing`, `dispensing_safedon`, `labeling` |
 | 8 | The sample size sets the code letter and limits; a plan that does not match the sample size cannot be saved. | `sampling_plan`, `watertight`, `visual` |

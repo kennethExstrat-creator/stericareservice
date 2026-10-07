@@ -12,7 +12,7 @@ import { inTemplateOrder } from "./format";
 /**
  * The status a module's pill shows. A module status has no hold, so the
  * conclusion records the inspector's HOLD as a warning (modules/conclusion/
- * calc.ts); the review shows it as the final result reads it, "On hold" with
+ * calc.ts); the review shows it as the final result reads it, "On Hold" with
  * the pause icon, in the same amber (docs/DESIGN.md: warn and hold differ in
  * label, icon and tint). Every other result is shown as it is.
  */

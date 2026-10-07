@@ -4,7 +4,7 @@
 // errors and warnings; "not done" is its own result, so the framework's
 // not-done warning is not repeated under it. Nor is a sentence twice: a
 // summary that only strings the per-size lines together stays out, and the
-// conclusion's HOLD reads "On hold", as the final result does
+// conclusion's HOLD reads "On Hold", as the final result does
 // (lib/inspections/review/results.ts).
 //
 // Desktop (from 1024 px): one row per module in three columns under a
@@ -139,7 +139,7 @@ function Row({
 }
 
 function ModuleRow({ entry, issues, context }: { entry: ModuleEvaluation; issues: ValidationIssue[]; context: InspectionContext }) {
-  // The conclusion's HOLD reads "On hold", as the final result does.
+  // The conclusion's HOLD reads "On Hold", as the final result does.
   const status = shownStatus(entry);
   const sizes = sizeResults(entry, context);
   // Without the sentences the per-size lines below repeat.

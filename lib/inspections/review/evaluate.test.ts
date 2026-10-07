@@ -193,7 +193,7 @@ describe("evaluateStoredInspection with the inspection's files (docs/MODULES.md 
 describe("isListedIssue and summariseIssues", () => {
   it("lists every issue but the not-done warning, which the module's own result shows", () => {
     expect(isListedIssue({ code: "module_not_done", level: "warning" })).toBe(false);
-    // Not done on a module required for submit is an error, and stays listed.
+    // Not Done on a module required for submit is an error, and stays listed.
     expect(isListedIssue({ code: "module_not_done", level: "error" })).toBe(true);
     expect(isListedIssue({ code: "weight_deviation", level: "warning" })).toBe(true);
   });

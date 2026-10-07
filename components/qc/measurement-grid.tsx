@@ -56,7 +56,7 @@ export type { MeasurementCell, MeasurementChange, MeasurementValues } from "./gr
  * say) then never shows a median or a verdict calc does not give.
  */
 export type MeasureSummary = {
-  /** The statistic over the readings calc counts (unrounded is fine); null while it has none: Not done. */
+  /** The statistic over the readings calc counts (unrounded is fine); null while it has none: Not Done. */
   statistic: number | null;
   /** pass or fail on the printed statistic, na with no spec to judge by, not_done while readings are missing or refused. */
   outcome: ColumnOutcome;

@@ -1,7 +1,7 @@
 "use client";
 
 // The conclusion on the capture screen: the suggested result (computed from
-// every module, read-only), its pill saying Passed, Failed or On hold as every
+// every module, read-only), its pill saying Passed, Failed or On Hold as every
 // result pill does, with why under it as the submit confirmation and the
 // review say it; next to it the inspector's final result, chosen in the
 // template's words (PASSED, FAILED, HOLD; docs/DESIGN.md), and a warning when

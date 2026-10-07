@@ -12,7 +12,7 @@
 // (and later an admin) decides.
 //
 // Why the suggestion is what it is, in words: suggestionReasons below. The
-// result itself is a pill in docs/DESIGN.md's words (Passed, Failed, On hold),
+// result itself is a pill in docs/DESIGN.md's words (Passed, Failed, On Hold),
 // so no reason restates the overall result (as "Pass.", "Fail:" and "Hold:"
 // did) and a clean pass has none.
 import type { InspectionResult } from "@/lib/schemas/common";
@@ -76,7 +76,7 @@ export function suggestionReasons(
   if (suggested.failed.length > 0) reasons.push(`Failed: ${names(suggested.failed)}.`);
   if (suggested.notDone.length > 0) reasons.push(`Not done: ${names(suggested.notDone)}.`);
   if (suggested.warned.length > 0) reasons.push(`Warnings: ${names(suggested.warned)}.`);
-  // On hold with nothing failed or missing: nothing was tested.
+  // On Hold with nothing failed or missing: nothing was tested.
   if (reasons.length === 0 && suggested.result === "hold") reasons.push("No module has a result yet.");
   return reasons;
 }

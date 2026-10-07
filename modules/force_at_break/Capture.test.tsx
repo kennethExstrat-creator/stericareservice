@@ -189,7 +189,7 @@ describe("force_at_break capture", () => {
     const data = { sizes: { M: { values: [...READINGS.slice(0, 12), 0] } }, labReport: null };
     const html = render({ data });
     const pills = tags(html, 'data-slot="status-pill"').map((pill) => /data-status="([a-z_]+)"/.exec(pill)?.[1]);
-    // The median cell and the verdict cell both read Not done.
+    // The median cell and the verdict cell both read Not Done.
     expect(pills).toEqual(["not_done", "not_done"]);
     expect(html).not.toContain(">Passed<");
   });

@@ -3,7 +3,7 @@
 // "Weight 2.90 g · NA", "3 / 625 (0.48%) · ≤ 5% · Passed". RequirementList is
 // the table form for a module's summary; SpecValue the inline form. The
 // value is judged at the precision it is shown (as MeasurementGrid does);
-// a missing value is Not done, never Passed (BUILD_SPEC 6.2 rule 5).
+// a missing value is Not Done, never Passed (BUILD_SPEC 6.2 rule 5).
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { STATUS_LABEL, type Status } from "@/lib/design/status";

@@ -1,6 +1,6 @@
 // Where an inspection is in its workflow: draft, submitted, approved,
 // reopened. Deliberately not a StatusPill: the result colours (green, red,
-// amber, and the slate dashed ring of Not done) stay with the Result column,
+// amber, and the slate dashed ring of Not Done) stay with the Result column,
 // so an approved inspection that failed never shows a green tick and a
 // reopened one on hold never shows two amber pills side by side. Workflow
 // states use brand blue and plain slate only; shapes differ as well as tones,

@@ -8,7 +8,7 @@
 // included, saves what is not saved yet, and asks the server to move the
 // inspection to submitted, which checks the saved data once more and opens
 // the review. The suggested result is a pill in DESIGN.md's words (Passed,
-// Failed, On hold), with the reasons under it only when there are any
+// Failed, On Hold), with the reasons under it only when there are any
 // (suggestion.ts): a clean pass says nothing twice.
 import { useActionState, useState } from "react";
 import { unstable_rethrow } from "next/navigation";
@@ -181,7 +181,7 @@ export function SubmitControl({
 
 /**
  * The confirmation's summary: the suggested result as a pill in DESIGN.md's
- * words (Passed, Failed, On hold, as every pill outside the Conclusion
+ * words (Passed, Failed, On Hold, as every pill outside the Conclusion
  * section), why in a line each only when there is something to say (none for
  * a clean pass: the pill says it), and how many warnings go into the report.
  */

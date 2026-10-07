@@ -56,7 +56,7 @@ describe("SizeTabs", () => {
     expect(panel).toContain(`aria-labelledby="${tabId}"`);
   });
 
-  it("shows a result chip per size, Not done where calc has none", () => {
+  it("shows a result chip per size, Not Done where calc has none", () => {
     const html = render({ results: { XS: "pass", S: { status: "fail", summary: "2 holes" } } });
     const chips = tagsWith(html, 'data-slot="result-chip"');
     expect(chips).toHaveLength(5);
@@ -709,7 +709,7 @@ describe("AttachmentStatus", () => {
     expect(renderToStaticMarkup(<AttachmentStatus label="Lab report" state="attached" />)).toContain(">Attached<");
   });
 
-  it("reads Not done for a required file that is not attached, and says why", () => {
+  it("reads Not Done for a required file that is not attached, and says why", () => {
     const html = renderToStaticMarkup(<AttachmentStatus label="Lab report" state="none" required />);
     expect(tagsWith(html, 'data-slot="status-pill"')[0]).toContain('data-status="not_done"');
     expect(html).toContain(">Not Attached<");
@@ -737,7 +737,7 @@ describe("AttachmentStatus", () => {
     expect(renderToStaticMarkup(<AttachmentStatus label="Lab report" state="missing" />)).toContain(
       "not among this inspection&#x27;s files. It may still be uploading from another device",
     );
-    // A required one is Not done, and the warning says why in place of the requirement.
+    // A required one is Not Done, and the warning says why in place of the requirement.
     const required = renderToStaticMarkup(<AttachmentStatus label="Lab report" state="missing" required warning={MISSING} />);
     expect(tagsWith(required, 'data-slot="status-pill"')[0]).toContain('data-status="not_done"');
     expect(required).toContain(MISSING_HTML);

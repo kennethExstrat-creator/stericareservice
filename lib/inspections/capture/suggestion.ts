@@ -1,6 +1,6 @@
 // What the submit confirmation says under the suggested result (BUILD_SPEC
 // 6.1 conclusion): the pill names the result in DESIGN.md's words (Passed,
-// Failed, On hold, as every result pill does), and these lines say why,
+// Failed, On Hold, as every result pill does), and these lines say why,
 // worded as the Conclusion section words them one screen before: "Failed:
 // …", "Not done: …", "Warnings: …", each with the sections in the template's
 // wording. A clean pass has nothing to add, so nothing repeats the pill. The
