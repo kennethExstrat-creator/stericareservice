@@ -152,7 +152,7 @@ describe("HandToggle", () => {
     expect(html).toContain('aria-label="Hand"');
     const radios = tagsWith(html, 'role="radio"');
     expect(radios).toHaveLength(2);
-    expect(radios.find((radio) => radio.includes('aria-checked="true"'))).toContain('aria-label="Left hand"');
+    expect(radios.find((radio) => radio.includes('aria-checked="true"'))).toContain('aria-label="Left Hand"');
     expect(radios.filter((radio) => radio.includes('tabindex="0"'))).toHaveLength(1);
   });
 
@@ -168,12 +168,12 @@ describe("HandToggle", () => {
     const html = renderToStaticMarkup(<HandToggle value="both" onValueChange={noop} allowBoth />);
     const radios = tagsWith(html, 'role="radio"');
     expect(radios).toHaveLength(3);
-    expect(radios.find((radio) => radio.includes('aria-checked="true"'))).toContain('aria-label="Both hands"');
+    expect(radios.find((radio) => radio.includes('aria-checked="true"'))).toContain('aria-label="Both Hands"');
   });
 
   it("reads Both as the right hand when Both is not offered", () => {
     const html = renderToStaticMarkup(<HandToggle value="both" onValueChange={noop} />);
-    expect(tagsWith(html, 'aria-checked="true"')[0]).toContain('aria-label="Right hand"');
+    expect(tagsWith(html, 'aria-checked="true"')[0]).toContain('aria-label="Right Hand"');
   });
 
   it("can show its label", () => {
@@ -307,17 +307,17 @@ describe("CounterTable", () => {
 
   it("has no limit or result rows without limits", () => {
     const html = render({ columns: [{ key: "1", label: "Box 1" }] });
-    expect(html).not.toContain("Defect limit");
+    expect(html).not.toContain("Defect Limit");
     expect(html).not.toContain('data-slot="status-pill"');
-    expect(html).toContain("Total defects found");
+    expect(html).toContain("Total Defects Found");
   });
 
   it("totals both hands, even with one on screen", () => {
     const html = render({ hands: ["R", "L"], visibleHands: ["R"], columns: [columns[1]] });
     // M: crotch 1 + torn cuff 1 count without a hand; palm L 4 is off screen.
     expect(html).toMatch(/text-base font-bold[^>]*>4</);
-    expect(html).toContain('aria-label="Increase Palm, size M, right hand"');
-    expect(html).not.toContain("left hand");
+    expect(html).toContain('aria-label="Increase Palm, size M, Right Hand"');
+    expect(html).not.toContain("Left Hand");
   });
 
   it("splits each column into Right and Left sharing one total", () => {
@@ -325,8 +325,8 @@ describe("CounterTable", () => {
     expect(html.match(/role="spinbutton"/g)).toHaveLength(rows.length * columns.length * 2);
     expect(html).toContain('colSpan="2"');
     // Words under the size, so size L over the left hand never reads "L" over "L".
-    expect(html).toContain('Right<span class="sr-only"> hand</span>');
-    expect(html).toContain('Left<span class="sr-only"> hand</span>');
+    expect(html).toContain('Right<span class="sr-only"> Hand</span>');
+    expect(html).toContain('Left<span class="sr-only"> Hand</span>');
   });
 
   it("shows only the active column below 1280 px", () => {
@@ -410,8 +410,8 @@ describe("CounterTable", () => {
   });
 
   it("offers a one-off defect only with onAddRow", () => {
-    expect(render()).not.toContain("Other defect");
-    expect(render({ onAddRow: noop })).toContain("Other defect");
+    expect(render()).not.toContain("Other Defect");
+    expect(render({ onAddRow: noop })).toContain("Other Defect");
     expect(render({ onAddRow: noop, addRowLabel: "Other location" })).toContain("Other location");
   });
 
@@ -432,7 +432,7 @@ describe("CounterTable", () => {
   it("shows plain counts read-only", () => {
     const html = render({ readOnly: true, onAddRow: noop });
     expect(html).not.toContain('role="spinbutton"');
-    expect(html).not.toContain("Other defect");
+    expect(html).not.toContain("Other Defect");
     expect(html).toMatch(/font-semibold tabular-nums">2</);
   });
 });
@@ -712,14 +712,14 @@ describe("AttachmentStatus", () => {
   it("reads Not done for a required file that is not attached, and says why", () => {
     const html = renderToStaticMarkup(<AttachmentStatus label="Lab report" state="none" required />);
     expect(tagsWith(html, 'data-slot="status-pill"')[0]).toContain('data-status="not_done"');
-    expect(html).toContain(">Not attached<");
+    expect(html).toContain(">Not Attached<");
     expect(html).toContain("Required before this section is done.");
   });
 
   it("is a plain line for an optional file that is not attached", () => {
     const html = renderToStaticMarkup(<AttachmentStatus label="Lab report" state="none" />);
     expect(html).not.toContain('data-slot="status-pill"');
-    expect(html).toContain(">Not attached<");
+    expect(html).toContain(">Not Attached<");
     expect(html).not.toContain("text-warn");
   });
 
@@ -729,7 +729,7 @@ describe("AttachmentStatus", () => {
     expect(line).toContain('data-state="missing"');
     expect(line).not.toContain("data-attached");
     expect(html).not.toContain(">Attached<");
-    expect(html).toContain(">Not attached<");
+    expect(html).toContain(">Not Attached<");
     expect(html).toContain("lucide-file-x");
     expect(tagsWith(html, "text-warn")).toHaveLength(1);
     expect(html).toContain(MISSING_HTML);

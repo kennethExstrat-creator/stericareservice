@@ -79,7 +79,7 @@ export type RemovalFocus =
 
 /**
  * Where removing row `index` of `rowCount` (counted before the removal)
- * leaves the focus: "Other defect" while its opener is on screen; else (its
+ * leaves the focus: "Other Defect" while its opener is on screen; else (its
  * form is open, or the table offers none) the row that takes the removed
  * one's place, or the one before it for the last row; else the table itself.
  * Never the page, where a keyboard or switch user would lose their place.

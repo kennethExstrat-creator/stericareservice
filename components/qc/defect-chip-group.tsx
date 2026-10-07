@@ -24,7 +24,7 @@ type DefectChipGroupProps = {
   description?: ReactNode;
   items: readonly DefectChipItem[];
   onCountChange: (key: string, count: number) => void;
-  /** Enables "Other defect": called with the trimmed one-off label. */
+  /** Enables "Other Defect": called with the trimmed one-off label. */
   onAddLabel?: (label: string) => void;
   disabled?: boolean;
   className?: string;
@@ -120,7 +120,7 @@ export function DefectChipGroup({
                 onKeyDown={(event) => {
                   if (event.key === "Escape") closeForm();
                 }}
-                aria-label="Other defect label"
+                aria-label="Other Defect Label"
                 placeholder="Describe the defect"
                 maxLength={80}
                 className="h-8 rounded-full px-3 sm:w-56"
@@ -142,7 +142,7 @@ export function DefectChipGroup({
               onClick={() => setAdding(true)}
             >
               <PlusIcon aria-hidden />
-              Other defect
+              Other Defect
             </Button>
           ))}
       </div>

@@ -167,7 +167,7 @@ describe("SaveStatus", () => {
   it("is a status region with the pending upload count spelled out", () => {
     const html = renderToStaticMarkup(<SaveStatus state="offline" pendingUploads={3} />);
     expect(html).toContain('role="status"');
-    expect(html).toContain("Offline (will sync)");
+    expect(html).toContain("Offline (Will Sync)");
     expect(html).toContain("photos waiting to upload");
   });
 
@@ -182,10 +182,10 @@ describe("SaveStatus", () => {
     for (const pill of pills) expect(pill).toMatch(/touch:h-8 touch:text-base/);
   });
 
-  it("says Not saved in fail red when saving needs the inspector, keeping the upload count", () => {
+  it("says Not Saved in fail red when saving needs the inspector, keeping the upload count", () => {
     const html = renderToStaticMarkup(<SaveStatus state="error" pendingUploads={1} />);
     expect(html).toContain('data-state="error"');
-    expect(html).toContain("Not saved");
+    expect(html).toContain("Not Saved");
     expect(html).toContain("text-fail");
     expect(html).toContain("lucide-cloud-alert");
     expect(html).toContain("photo waiting to upload");
@@ -196,7 +196,7 @@ describe("tagLine", () => {
   it("names what was in focus when the photo was taken", () => {
     expect(tagLine({ module: "Dimensions", size: "M", box: "253" })).toBe("Dimensions · Size M · Box 253");
     expect(tagLine({ module: "Watertight", size: "7.0", hand: "L", defect: "Palm" })).toBe(
-      "Watertight · Size 7.0 · Left hand · Palm",
+      "Watertight · Size 7.0 · Left Hand · Palm",
     );
   });
 
@@ -238,10 +238,10 @@ describe("CountField", () => {
     );
 
   it("asks for the count with one button while it is not entered, never showing 0", () => {
-    const html = render({ startLabel: "No leaks" });
-    expect(html).toContain('aria-label="No leaks, Pouches failed, Size 7.0"');
+    const html = render({ startLabel: "No Leaks" });
+    expect(html).toContain('aria-label="No Leaks, Pouches failed, Size 7.0"');
     expect(html).not.toContain('role="spinbutton"');
-    expect(render()).toContain(">Start counting<");
+    expect(render()).toContain(">Start Counting<");
   });
 
   it("is a stepper with a way back to not entered once it is", () => {
@@ -462,7 +462,7 @@ describe("PhotoTile", () => {
 
   it("explains a flagged file without a preview", () => {
     const html = renderToStaticMarkup(<PhotoTile alt="IMG_0042.HEIC" tags={tags} state="flagged" />);
-    expect(html).toContain("Needs conversion");
+    expect(html).toContain("Needs Conversion");
     expect(html).toContain("No preview");
   });
 
@@ -470,7 +470,7 @@ describe("PhotoTile", () => {
     const html = renderToStaticMarkup(<PhotoTile src="blob:local" alt="Glove" tags={tags} state="failed" progress={40} />);
     expect(html).toContain('data-state="failed"');
     expect(html).toMatch(/data-slot="upload-stopped" class="[^"]*border-fail-border bg-fail-tint text-fail/);
-    expect(html).toContain("Upload stopped");
+    expect(html).toContain("Upload Stopped");
     expect(html).toContain("lucide-cloud-alert");
     expect(html).not.toContain('role="progressbar"');
     expect(html).not.toContain("Uploading");
@@ -485,7 +485,7 @@ describe("PhotoTile", () => {
 
   it("only shows admin and selection controls when handlers are given", () => {
     const plain = renderToStaticMarkup(<PhotoTile src="/x.svg" alt="Glove" tags={tags} state="uploaded" />);
-    expect(plain).not.toContain("Include in report");
+    expect(plain).not.toContain("Include in Report");
     const admin = renderToStaticMarkup(
       <PhotoTile
         src="/x.svg"
@@ -497,7 +497,8 @@ describe("PhotoTile", () => {
         onSelectedChange={noop}
       />,
     );
-    expect(admin).toContain("Include in report");
+    expect(admin).toContain("Include in Report");
+    expect(admin).toContain("In Report");
     expect(admin).toContain("Select photo: Glove");
   });
 });

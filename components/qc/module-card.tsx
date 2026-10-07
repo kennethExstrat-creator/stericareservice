@@ -45,7 +45,7 @@ export function ModuleCard({
   children,
   comment,
   onCommentChange,
-  commentLabel = "Inspector comment",
+  commentLabel = "Inspector Comment",
   onFiles,
   photoCount = 0,
   disabled = false,
@@ -104,11 +104,11 @@ export function ModuleCard({
         <div className="relative flex flex-wrap items-center gap-2">
           <Button type="button" variant="outline" disabled={disabled} onClick={() => camera.current?.click()}>
             <CameraIcon aria-hidden />
-            Take photo
+            Take Photo
           </Button>
           <Button type="button" variant="outline" disabled={disabled} onClick={() => library.current?.click()}>
             <ImagesIcon aria-hidden />
-            Add from library
+            Add From Library
           </Button>
           {photoCount > 0 && (
             <span className="text-sm text-muted-foreground tabular-nums">

@@ -15,10 +15,13 @@ export type HandView = "R" | "L" | "both";
 /** A hand as a word, for the toggle and the hand headings: never "L", which is also a size. */
 export const HAND_WORD: Readonly<Record<"R" | "L", string>> = { R: "Right", L: "Left" };
 
+/** A hand's full name, in Title Case as the app's labels are: the toggle's names, a count's accessible name. */
+export const HAND_NAME: Readonly<Record<"R" | "L", string>> = { R: `${HAND_WORD.R} Hand`, L: `${HAND_WORD.L} Hand` };
+
 const OPTIONS: readonly { value: HandView; word: string; name: string }[] = [
-  { value: "R", word: HAND_WORD.R, name: "Right hand" },
-  { value: "L", word: HAND_WORD.L, name: "Left hand" },
-  { value: "both", word: "Both", name: "Both hands" },
+  { value: "R", word: HAND_WORD.R, name: HAND_NAME.R },
+  { value: "L", word: HAND_WORD.L, name: HAND_NAME.L },
+  { value: "both", word: "Both", name: "Both Hands" },
 ];
 
 /** The hands a HandView shows, in R, L order. */
