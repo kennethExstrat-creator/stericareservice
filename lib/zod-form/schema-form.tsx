@@ -235,7 +235,9 @@ function FieldHeader({
   if (!overridden && !onRemove) return title;
   const resetLabel = hooks.resetLabel ?? "Reset";
   return (
-    <div className="flex min-h-6 flex-wrap items-center justify-between gap-x-3 gap-y-1">
+    // min-w-0 down from the field: a grid item is as wide as its content at least, so the long reset label below
+    // would widen the column past the card instead of ending in its ellipsis.
+    <div className="flex min-h-6 min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
       {title}
       {/* A long base code ("Use CLIENT_A_NITRILE_EG's") wraps under the name, then ends in an ellipsis: never past the card. */}
       <span className="flex max-w-full min-w-0 flex-wrap items-center gap-1">
@@ -456,8 +458,8 @@ function BooleanField({ node, value, onChange, path, label, onRemove, hideLabel,
   const descriptionId = `${id}-description`;
   const errors = issuesAt(issues, path);
   return (
-    <div className="grid gap-1.5" data-slot="form-field" data-kind="boolean">
-      <div className={cn("flex gap-3", hideLabel ? "min-h-9 items-center touch:min-h-11" : "items-start")}>
+    <div className="grid min-w-0 gap-1.5" data-slot="form-field" data-kind="boolean">
+      <div className={cn("flex min-w-0 gap-3", hideLabel ? "min-h-9 items-center touch:min-h-11" : "items-start")}>
         <Switch
           id={id}
           checked={value === true}

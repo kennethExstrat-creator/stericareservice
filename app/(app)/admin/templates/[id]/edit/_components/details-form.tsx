@@ -140,7 +140,7 @@ function AiFields({ api }: { api: EditorApi }) {
           className="mt-0.5 touch:mt-0"
         />
         <div className="grid min-w-0 flex-1 gap-1">
-          <div className="flex min-h-6 flex-wrap items-center justify-between gap-x-3 gap-y-1">
+          <div className="flex min-h-6 min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
             <Label htmlFor={AI_ON_SUBMIT_ID} className="leading-snug">
               {label}
             </Label>

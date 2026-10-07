@@ -413,11 +413,26 @@ test("an admin builds a template from a base without code changes, and an inspec
     await expect(length).toHaveAttribute("aria-checked", "false");
     await expect(details.getByText("Changed", { exact: true })).toHaveCount(1);
     await expect(details.locator("#label-glove_info-colour")).toHaveValue(WORDS.colourLabel);
+    // "Use <base>'s" goes back to what the base sets; a long base code ends in an ellipsis inside the details.
+    const reset = details.getByRole("button", { name: `Use ${fixture.base.code}'s: Glove length`, exact: true });
+    await reset.scrollIntoViewIfNeeded();
     await view(page, "4-module-details");
+    const [resetBox, detailsBox] = [await reset.boundingBox(), await details.boundingBox()];
+    expect(resetBox!.x + resetBox!.width, "the reset button runs past the details").toBeLessThanOrEqual(
+      detailsBox!.x + detailsBox!.width,
+    );
     await closeDetails(page);
     await expect(moduleRow(page, "visual")).toContainText(WORDS.visualTitle);
     await expect(moduleRow(page, "documents")).toContainText(WORDS.documentsTitle);
     await shot(page, "5-modules-changed");
+
+    // Spec values carry the module's canonical unit (BUILD_SPEC 4.2 rule 5): a dimension's in mm.
+    details = await openDetails(page, "dimensions");
+    const lengthSpec = details.locator('input[id^="config-dimensions-specs-0-specs-length-"]').first();
+    await lengthSpec.scrollIntoViewIfNeeded();
+    await expect(lengthSpec.locator("xpath=..").locator('[data-slot="input-group-addon"]')).toHaveText("mm");
+    await view(page, "5b-dimension-specs");
+    await closeDetails(page);
 
     // A custom field, after the labelling inspection.
     await press(page.getByRole("tab", { name: "Custom modules" }));
