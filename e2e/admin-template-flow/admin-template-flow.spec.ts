@@ -22,10 +22,12 @@ import {
  * two modules off and one on, a module moved, a heading and a field label in
  * the client's words, a setting changed, a custom field added, the AI second
  * opinion switched on, saved; on its version page the source file, the
- * coverage checklist and activation; an inspection started from it on
- * /inspections/new; and the capture screen shows exactly the modules
- * switched on, in order, in the template's words. Everything is deleted in
- * afterAll. Screenshots go to screenshots/admin/flow/.
+ * coverage checklist and activation; /inspections/new picks it for the
+ * client at its manufacturer; and an inspection started from it shows on the
+ * capture screen exactly the modules switched on, in order, in the
+ * template's words: on iPad portrait (the tab bar) and the desktop (the
+ * sidebar), one inspection each, as each draws a live ref number. Everything
+ * is deleted in afterAll. Screenshots go to screenshots/admin/flow/.
  */
 
 // Server Actions answer with the page re-rendered, which a dev server on a busy machine can take seconds over.
@@ -543,7 +545,6 @@ test("an admin builds a template from a base without code changes, and an inspec
     await shot(page, "10-version-active");
   });
 
-  let inspectionId = "";
   await test.step("a new inspection for the client at Hartalega starts from it", async () => {
     await page.goto("/inspections/new");
     await choose(page, page, "Client", fixture.clientName);
@@ -556,6 +557,17 @@ test("an admin builds a template from a base without code changes, and an inspec
     await expect(chosen.getByRole("listitem")).toHaveText(SECTIONS);
     await page.getByRole("textbox", { name: /Product name/ }).fill("E2E admin flow nitrile gloves");
     await shot(page, "11-new-inspection");
+  });
+
+  // Each inspection draws a number from the live ref sequence (e2e/README.md): one per layout of the capture
+  // screen. iPad landscape has iPad portrait's tab bar, so its run ends at the template the screen picked.
+  if (test.info().project.name === "ipad-landscape") {
+    expect(hydration()).toEqual([]);
+    return;
+  }
+
+  let inspectionId = "";
+  await test.step("Create starts it, on the capture screen", async () => {
     await press(page.getByRole("button", { name: "Create inspection" }));
     await expect(page).toHaveURL(INSPECTION_URL, { timeout: 90_000 });
     inspectionId = page.url().split("/").at(-1)!;
