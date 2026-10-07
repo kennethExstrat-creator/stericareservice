@@ -30,6 +30,6 @@ describe("words", () => {
   });
 
   it("names every overall result", () => {
-    expect(RESULT_LABEL).toEqual({ pass: "Passed", fail: "Failed", hold: "On hold" });
+    expect(RESULT_LABEL).toEqual({ pass: "Passed", fail: "Failed", hold: "On Hold" });
   });
 });

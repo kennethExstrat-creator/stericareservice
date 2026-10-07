@@ -266,7 +266,7 @@ describe("documents capture", () => {
     );
     expect(pills).toEqual([
       ["fail", "Not verified"],
-      ["not_done", "Not done"],
+      ["not_done", "Not Done"],
     ]);
   });
 
@@ -329,7 +329,7 @@ describe("documents capture", () => {
     const verified = withIso({ status: "verified" });
     expect(pills(render(verified, { config: REQUIRED_ISO, labels }))).toEqual([
       ["pass", "Verified"],
-      ["not_done", "Not done"],
+      ["not_done", "Not Done"],
     ]);
     // NA was just tapped; calc still says verified: the chip keeps calc's verdict in its own word.
     expect(pills(render(withIso({ status: "na" }), { config: REQUIRED_ISO, evaluated: verified }))[0]).toEqual([

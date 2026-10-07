@@ -127,7 +127,7 @@ test("an admin requests a second opinion and compares it with the system and the
   const overall = panel(page).locator("section[data-section$='-overall']");
   await expect(overall).toContainText("Suggested result");
   await expect(overall).toContainText("Final result");
-  await expect(overall).toContainText("On hold");
+  await expect(overall).toContainText("On Hold");
   // The mock asks about the empty remark.
   await expect(overall).toContainText("What should the client know about this result?");
   await expect(panel(page).getByTestId("ai-review-meta")).toContainText("Mock reviewer (test data only)");

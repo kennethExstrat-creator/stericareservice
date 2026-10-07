@@ -105,7 +105,7 @@ describe("conclusion capture", () => {
     expect(pillLabels(passed)).toEqual(["Passed"]);
     expect(suggestedBox(passed)).not.toContain("<ul");
     const nothing = render({}, { labeling: "off" });
-    expect(pillLabels(nothing)).toEqual(["On hold"]);
+    expect(pillLabels(nothing)).toEqual(["On Hold"]);
     expect(suggestedBox(nothing).match(/No module has a result yet\./g)).toHaveLength(1);
   });
 

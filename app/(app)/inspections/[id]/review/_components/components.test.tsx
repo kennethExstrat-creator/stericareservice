@@ -145,7 +145,7 @@ describe("ModuleResults", () => {
     const conclusion = row(held, "module-conclusion");
     expect(conclusion).toContain('data-status="hold"');
     expect(conclusion).toContain('data-slot="status-pill" data-status="hold"');
-    expect(text(conclusion)).toContain("On hold");
+    expect(text(conclusion)).toContain("On Hold");
     expect(text(conclusion)).not.toContain("Warning");
   });
 });

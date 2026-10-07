@@ -26,7 +26,7 @@ export function formatDateTime(iso: string): string {
 export const RESULT_LABEL: Readonly<Record<InspectionResult, string>> = {
   pass: "Passed",
   fail: "Failed",
-  hold: "On hold",
+  hold: "On Hold",
 };
 
 /** Sizes in the order the template lists them; unknown sizes last, as given. */

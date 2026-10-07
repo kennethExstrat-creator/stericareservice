@@ -11,7 +11,7 @@ import { expectNoPageScroll, isTouch, press, reviewPath, sessions, shot, viewSho
  *
  * - each module's result says a sentence once: a summary that only strings
  *   the per-size lines together stays out, a note it adds stays;
- * - the inspector's HOLD reads "On hold" in the conclusion's row, as in the
+ * - the inspector's HOLD reads "On Hold" in the conclusion's row, as in the
  *   final result, not "Warning";
  * - a labelling photo of the carton says so, on the report photos and as the
  *   AI's evidence, and the evidence names defects in words, not codes;
@@ -58,7 +58,7 @@ async function occurrences(locator: Locator, sentence: string): Promise<number> 
   return text.split(sentence).length - 1;
 }
 
-test("each module's result says a sentence once, and the inspector's HOLD reads On hold", async ({ page, context, baseURL }) => {
+test("each module's result says a sentence once, and the inspector's HOLD reads On Hold", async ({ page, context, baseURL }) => {
   const hydration = watchConsole(page);
   await as.signIn(context, baseURL!, "admin");
   await page.goto(reviewPath(fixture.inspectionId));
@@ -81,15 +81,15 @@ test("each module's result says a sentence once, and the inspector's HOLD reads 
   // A headline of its own stays whole, above the size's own line.
   await expect(moduleRow(page, "weight").locator("p").first()).toHaveText(/^Average: M 2\.90 g \(17\.1% below the indicative 3\.5 g/);
 
-  // The conclusion's pill matches the final result: On hold, the pause icon, the hold tint.
+  // The conclusion's pill matches the final result: On Hold, the pause icon, the hold tint.
   const conclusion = moduleRow(page, "conclusion");
   await expect(conclusion).toHaveAttribute("data-status", "hold");
   const pill = conclusion.locator("[data-slot=status-pill]").first();
   await expect(pill).toHaveAttribute("data-status", "hold");
-  await expect(pill).toHaveText("On hold");
+  await expect(pill).toHaveText("On Hold");
   await expect(conclusion.getByText("Warning", { exact: true })).toHaveCount(0);
   // As the final result says it (the suggestion is on hold too).
-  await expect(page.getByRole("region", { name: "Result" }).getByText("On hold", { exact: true }).last()).toBeVisible();
+  await expect(page.getByRole("region", { name: "Result" }).getByText("On Hold", { exact: true }).last()).toBeVisible();
 
   await conclusion.scrollIntoViewIfNeeded();
   await viewShot(page, "wording-conclusion-hold");

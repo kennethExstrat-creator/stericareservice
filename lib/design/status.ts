@@ -5,13 +5,14 @@ import type { Status } from "./tokens";
 export type { Status } from "./tokens";
 export { STATUSES } from "./tokens";
 
+/** The pill words, in Title Case like every label (docs/DESIGN.md, Capitalisation). */
 export const STATUS_LABEL: Readonly<Record<Status, string>> = {
   pass: "Passed",
   fail: "Failed",
   warn: "Warning",
-  hold: "On hold",
+  hold: "On Hold",
   info: "Info",
-  not_done: "Not done",
+  not_done: "Not Done",
 };
 
 /** Tinted pill: status text on its tint. not_done is dashed, so empty reads as empty. */

@@ -1,5 +1,5 @@
 // The conclusion's HOLD on the capture screen reads as the review and the
-// final result read it: On hold with the pause glyph, on the section's tab,
+// final result read it: On Hold with the pause glyph, on the section's tab,
 // its pill and its row in the sidebar, and it counts as done, while the
 // module records a warning (lib/inspections/capture/sections.ts).
 import { renderToStaticMarkup } from "react-dom/server";
@@ -37,18 +37,18 @@ describe("the conclusion's HOLD on the capture screen", () => {
   const conclusion = findSection(sections, "conclusion");
   if (!conclusion || !isIncluded(conclusion)) throw new Error("The fixture has a conclusion.");
 
-  it("reads On hold with the pause glyph on the section's tab, never Warning", () => {
+  it("reads On Hold with the pause glyph on the section's tab, never Warning", () => {
     const html = renderToStaticMarkup(
       <SectionTabs sections={sections} activeKey="conclusion" onSelect={noop} panelId="panel" idPrefix="cap" />,
     );
     const tab = element(html, "button", 'data-section="conclusion"');
     expect(tab).toContain('data-status="hold"');
     expect(tab).toContain(PAUSE);
-    expect(tab).toContain('<span class="sr-only">On hold</span>');
+    expect(tab).toContain('<span class="sr-only">On Hold</span>');
     expect(tab).not.toContain("Warning");
   });
 
-  it("reads On hold with the pause icon on the section's pill", () => {
+  it("reads On Hold with the pause icon on the section's pill", () => {
     const html = renderToStaticMarkup(
       <SectionFrame id="panel" title={conclusion.title} status={conclusion.status} summary={conclusion.summary}>
         <p>Body</p>
@@ -57,7 +57,7 @@ describe("the conclusion's HOLD on the capture screen", () => {
     const pill = element(html, "span", 'data-slot="status-pill"');
     expect(pill).toContain('data-status="hold"');
     expect(pill).toContain("lucide-circle-pause");
-    expect(pill).toContain("<span>On hold</span>");
+    expect(pill).toContain("<span>On Hold</span>");
     expect(html).not.toContain("Warning");
   });
 
