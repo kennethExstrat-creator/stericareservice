@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { activationNeedsPlacement, leadChoicesFor, MENU_LABEL, menuGroups, type UserActionsTarget } from "./user-menu";
+import {
+  activationNeedsPlacement,
+  DIALOG_TITLE,
+  leadChoicesFor,
+  MENU_LABEL,
+  menuGroups,
+  type UserActionsTarget,
+} from "./user-menu";
 
 const LEAD = { id: "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d", name: "Lina Lead" };
 
@@ -75,6 +82,29 @@ describe("MENU_LABEL", () => {
       reactivate: "Reactivate",
       activate: "Activate",
     });
+  });
+});
+
+describe("DIALOG_TITLE", () => {
+  it("titles each dialog for the person in Title Case, the small words in lower case, a question keeping its mark", () => {
+    const titles = Object.fromEntries(Object.entries(DIALOG_TITLE).map(([kind, title]) => [kind, title("Olga Other")]));
+    expect(titles).toEqual({
+      "change-name": "Change Olga Other's Name",
+      "change-role": "Change Olga Other's Role",
+      "change-lead": "Change Olga Other's Lead Inspector",
+      "send-link": "Send a Password Link to Olga Other?",
+      // "In" belongs to the verb here, as in the Sign In button.
+      unblock: "Let Olga Other Sign In Again?",
+      deactivate: "Deactivate Olga Other?",
+      "leads-team": "Olga Other Still Leads a Team",
+      reactivate: "Reactivate Olga Other?",
+      activate: "Activate Olga Other?",
+    });
+  });
+
+  it("leaves the name as it is: a name is no label, nor is the email shown for someone with none", () => {
+    expect(DIALOG_TITLE["send-link"]("olga@test.local")).toBe("Send a Password Link to olga@test.local?");
+    expect(DIALOG_TITLE["leads-team"]("ngan boon keat")).toBe("ngan boon keat Still Leads a Team");
   });
 });
 

@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 import { renameUser, type ActionResult } from "../actions";
 import { SCROLLING_DIALOG } from "./role-fields";
 import { unreachable } from "./unreachable";
-import type { UserActionsTarget } from "./user-menu";
+import { DIALOG_TITLE, type UserActionsTarget } from "./user-menu";
 
 const IDLE: ActionResult = { status: "idle" };
 
@@ -92,7 +92,7 @@ export function RenameDialog({
       >
         <form onSubmit={submitAction(formAction, pending)} noValidate className="grid gap-6" data-testid="rename-form">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold">{`Change ${user.name}'s Name`}</DialogTitle>
+            <DialogTitle className="text-lg font-bold">{DIALOG_TITLE["change-name"](user.name)}</DialogTitle>
             <DialogDescription>The app shows the new name wherever it names them, their inspections included.</DialogDescription>
           </DialogHeader>
 

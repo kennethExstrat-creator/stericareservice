@@ -237,7 +237,7 @@ test.describe("an admin on /admin/users", () => {
   test("will not deactivate a lead whose team has members, and says who to move first", async ({ page }) => {
     await page.goto("/admin/users");
     const dialog = await chooseRowAction(page, rowFor(page, fixture.linaLead.email), "Deactivate");
-    await expect(dialog).toContainText(`${fixture.linaLead.name} still leads a team`);
+    await expect(dialog).toContainText(`${fixture.linaLead.name} Still Leads a Team`);
     await expect(dialog).toContainText(`${fixture.linaLead.name} leads 1 inspector: ${fixture.ivan.name}.`);
     await shot(page, "deactivate-lead-refused");
     await dialog.getByRole("button", { name: "Close" }).click();

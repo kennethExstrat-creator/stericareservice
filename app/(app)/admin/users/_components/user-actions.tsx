@@ -64,6 +64,7 @@ import { focusRole, LeadField, RoleField, roleChoicesFor, SCROLLING_DIALOG } fro
 import { unreachable } from "./unreachable";
 import {
   activationNeedsPlacement,
+  DIALOG_TITLE,
   leadChoicesFor,
   MENU_LABEL,
   menuGroups,
@@ -96,12 +97,13 @@ type Confirmation = {
 };
 
 function confirmation(kind: "send-link" | "unblock" | "deactivate" | "reactivate" | "activate", user: UserActionsTarget): Confirmation {
+  const title = DIALOG_TITLE[kind](user.name);
   const target = { userId: user.id };
   const team = user.lead ? ` They are back in ${user.lead.name}'s team.` : "";
   switch (kind) {
     case "send-link":
       return {
-        title: `Send a password link to ${user.name}?`,
+        title,
         description: (
           <>
             We email <span className="font-medium text-foreground">{user.email}</span> a link to choose a new password.
@@ -115,7 +117,7 @@ function confirmation(kind: "send-link" | "unblock" | "deactivate" | "reactivate
       };
     case "unblock":
       return {
-        title: `Let ${user.name} sign in again?`,
+        title,
         description:
           "Their account is active, but Supabase still blocks their sign-in, for example after a deactivation and a reactivation at the same moment. This lifts the block.",
         confirm: "Lift Block",
@@ -125,7 +127,7 @@ function confirmation(kind: "send-link" | "unblock" | "deactivate" | "reactivate
       };
     case "deactivate":
       return {
-        title: `Deactivate ${user.name}?`,
+        title,
         description:
           "They lose access straight away: they are signed out on their next page load and cannot sign in or see any data until an admin reactivates them. Their inspections stay as they are.",
         confirm: "Deactivate",
@@ -136,7 +138,7 @@ function confirmation(kind: "send-link" | "unblock" | "deactivate" | "reactivate
       };
     case "reactivate":
       return {
-        title: `Reactivate ${user.name}?`,
+        title,
         description: `They can sign in again with their current password and pick up where they left off.${team}`,
         confirm: "Reactivate",
         pending: "Reactivating…",
@@ -145,7 +147,7 @@ function confirmation(kind: "send-link" | "unblock" | "deactivate" | "reactivate
       };
     case "activate":
       return {
-        title: `Activate ${user.name}?`,
+        title,
         description: `This account has never been active. Once activated they can sign in with their password, or choose one from a password link.${team}`,
         confirm: "Activate",
         pending: "Activating…",
@@ -237,7 +239,7 @@ export function UserActions({
         <PlacementDialog
           key={kind}
           user={user}
-          title={`Change ${user.name}'s Role`}
+          title={DIALOG_TITLE["change-role"](user.name)}
           description={teams ? currentPlacement(user.role, user.lead?.name ?? null) : "Only admins manage users and approve inspections."}
           confirm="Save Role"
           pending="Saving…"
@@ -254,7 +256,7 @@ export function UserActions({
         <PlacementDialog
           key={kind}
           user={user}
-          title={`Change ${user.name}'s Lead Inspector`}
+          title={DIALOG_TITLE["change-lead"](user.name)}
           description={user.lead ? `They work in ${user.lead.name}'s team now.` : "They are in no lead inspector's team yet."}
           confirm="Save Lead Inspector"
           pending="Saving…"
@@ -271,7 +273,7 @@ export function UserActions({
         <PlacementDialog
           key={kind}
           user={user}
-          title={`${kind === "activate" ? "Activate" : "Reactivate"} ${user.name}?`}
+          title={DIALOG_TITLE[kind](user.name)}
           description="An inspector works in a lead inspector's team. Choose their role, and their lead inspector if they are an inspector."
           confirm={kind === "activate" ? "Activate" : "Reactivate"}
           pending={kind === "activate" ? "Activating…" : "Reactivating…"}
@@ -563,7 +565,7 @@ function LeadsTeamDialog({
         }}
       >
         <AlertDialogHeader>
-          <AlertDialogTitle>{`${user.name} still leads a team`}</AlertDialogTitle>
+          <AlertDialogTitle>{DIALOG_TITLE["leads-team"](user.name)}</AlertDialogTitle>
           <AlertDialogDescription>{TEAM_MESSAGES.leadsTeam(user.name, user.team)}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

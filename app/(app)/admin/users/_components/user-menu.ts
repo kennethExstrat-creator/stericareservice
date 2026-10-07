@@ -44,6 +44,25 @@ export const MENU_LABEL: Readonly<Record<MenuAction, string>> = {
 };
 
 /**
+ * The title of the dialog each item opens, naming the person: titles are
+ * labels too, so in Title Case, a question keeping its question mark. "In"
+ * keeps its capital in "Sign In", where it belongs to the verb. Deactivate on
+ * someone who still leads a team opens "leads-team" instead, which says who
+ * to move first.
+ */
+export const DIALOG_TITLE: Readonly<Record<MenuAction | "leads-team", (name: string) => string>> = {
+  "change-name": (name) => `Change ${name}'s Name`,
+  "change-role": (name) => `Change ${name}'s Role`,
+  "change-lead": (name) => `Change ${name}'s Lead Inspector`,
+  "send-link": (name) => `Send a Password Link to ${name}?`,
+  unblock: (name) => `Let ${name} Sign In Again?`,
+  deactivate: (name) => `Deactivate ${name}?`,
+  "leads-team": (name) => `${name} Still Leads a Team`,
+  reactivate: (name) => `Reactivate ${name}?`,
+  activate: (name) => `Activate ${name}?`,
+};
+
+/**
  * What an admin can do to this person, in menu groups. Anyone's name can
  * change, the admin's own included, active or deactivated. Nobody can change
  * their own role or deactivate themselves (the actions refuse it too), and
