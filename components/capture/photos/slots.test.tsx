@@ -12,7 +12,7 @@ vi.mock("./upload-notices", async () => {
   const { createElement } = await import("react");
   return { UploadNotices: () => createElement("div", { "data-slot": "upload-notices" }) };
 });
-import { EMPTY_TAG_OPTIONS, tagOptionsFromTemplate } from "@/lib/inspections/photos/view";
+import { EMPTY_TAG_OPTIONS, moduleTitle, tagOptionsFromTemplate } from "@/lib/inspections/photos/view";
 import { FileSlot, useInspectionFiles } from "../files";
 import { useUploadsWaiting } from "./hooks";
 import { nextTagLine, toViewerPhoto } from "./module-photos";
@@ -82,6 +82,16 @@ describe("PhotoSlot", () => {
     const html = render(<PhotoSlot inspectionId={INSPECTION} moduleKey="dimensions" focus={{ size: "S" }} showAddControls={false} />);
     expect(html).not.toMatch(/Take photo/i);
     expect(html).toContain("New photos are tagged Size S.");
+  });
+
+  it("reads the iPad's two buttons out with where the photos go, as the desktop's Choose Photos", () => {
+    const html = render(<PhotoSlot inspectionId={INSPECTION} moduleKey="watertight" focus={focus} />);
+    // No template loaded on the server: the module's title from its key.
+    const target = moduleTitle("watertight", EMPTY_TAG_OPTIONS);
+    for (const button of ["Take Photo", "Add From Library", "Choose Photos"]) {
+      expect(html).toContain(`${button}<span class="sr-only"> for ${target}</span></button>`);
+    }
+    expect(unanchoredSrOnly(html)).toEqual([]);
   });
 
   it("shows the notices about photos waiting on this device, unless another slot on the page does", () => {
