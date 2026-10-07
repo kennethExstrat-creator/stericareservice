@@ -1,6 +1,7 @@
-// Server-rendered markup of the list table: which columns each role gets, the
-// cells folded for the iPad, states spelled out in words, and each row's
-// actions (Continue, Review or View, and Delete on a draft).
+// Server-rendered markup of the list table: which columns each role gets, one
+// value per cell on one line, the sideways scroller with the ref and the
+// actions pinned, states spelled out in words, and each row's actions
+// (Continue, Review or View, and Delete on a draft).
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { InspectionListRow } from "@/lib/inspections/query";
@@ -43,12 +44,6 @@ function cells(html: string): string[] {
   return [...first.matchAll(/<t[hd]\b[^>]*>(.*?)<\/t[hd]>/g)].map((match) => match[0]);
 }
 
-/** A value folded under another one, shown below the breakpoint `until`. */
-function folded(until: "lg" | "xl", text: string): RegExp {
-  const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`<span class="[^"]*\\b${until}:hidden\\b[^"]*"><span class="[^"]*" title="${escaped}">${escaped}</span></span>`);
-}
-
 describe("InspectionTable", () => {
   it("gives inspectors no Inspector column, and the row actions last", () => {
     const html = render([{ ...ROW, inspector: null }]);
@@ -56,101 +51,55 @@ describe("InspectionTable", () => {
     expect(html).not.toContain("Test Inspector");
   });
 
-  it("gives admins the Inspector column with the name, folded under the date on the iPad", () => {
+  it("gives admins the Inspector column with the name in its own cell", () => {
     const html = render([ROW], AS_ADMIN);
-    expect(headers(html).slice(-2)).toEqual(["Inspector", "Actions"]);
-    expect(html).toMatch(/<th[^>]*class="[^"]*hidden xl:table-cell[^"]*"[^>]*>Inspector<\/th>/);
-    const [ref, date] = cells(html);
-    expect(date).toMatch(folded("xl", "Test Inspector"));
-    // iPad portrait has no date column: the name joins the ref.
-    expect(ref).toMatch(folded("lg", "Test Inspector"));
+    expect(headers(html)).toEqual(["Ref", "Date", "Client", "Manufacturer", "Product", "PO", "Status", "Result", "Inspector", "Actions"]);
+    expect(cells(html)[8]).toContain('title="Test Inspector">Test Inspector</span>');
   });
 
-  it("heads each row with its ref as plain bold text on one line, not a link", () => {
-    const html = render([ROW]);
-    expect(html).toMatch(
-      /<th[^>]*scope="row"[^>]*><span class="block font-semibold whitespace-nowrap tabular-nums">INS-2026-0001<\/span>/,
-    );
-    const [ref] = cells(html);
+  it("heads each row with its ref as plain text, pinned on the left", () => {
+    const [ref] = cells(render([ROW]));
+    expect(ref).toMatch(/^<th[^>]*scope="row"[^>]*>/);
+    expect(ref).toMatch(/class="[^"]*\bsticky left-0\b/);
+    expect(ref).toContain('<span class="font-semibold tabular-nums">INS-2026-0001</span>');
     expect(ref).not.toContain("<a ");
-    expect(html).toContain('<caption class="sr-only">x</caption>');
   });
 
-  it("writes the date the British way on one line, and under the ref in iPad portrait", () => {
-    const html = render([ROW]);
-    const [ref, date] = cells(html);
-    expect(date).toContain('<time dateTime="2026-10-06" class="block whitespace-nowrap tabular-nums">6 Oct 2026</time>');
-    expect(date).toMatch(/^<td[^>]*class="[^"]*hidden lg:table-cell/);
-    expect(ref).toMatch(/<span class="[^"]*\blg:hidden\b[^"]*"><time dateTime="2026-10-06"[^>]*>6 Oct 2026<\/time><\/span>/);
-  });
-
-  it("folds the PO under the ref, and the manufacturer and product under the client, on the iPad", () => {
-    const [ref, , client] = cells(render([ROW]));
-    expect(ref).toMatch(folded("xl", "PO PO-0001"));
-    expect(client).toMatch(folded("lg", "Manufacturer B · Factory 1"));
-    expect(client).toMatch(folded("lg", "Nitrile examination gloves"));
-  });
-
-  it("folds the product under the manufacturer for iPad landscape, so it shows on every iPad", () => {
-    const [, , , manufacturer, product] = cells(render([ROW]));
-    expect(manufacturer).toMatch(/^<td[^>]*class="[^"]*hidden lg:table-cell/);
-    expect(manufacturer).toMatch(folded("xl", "Nitrile examination gloves"));
-    expect(product).toMatch(/^<td[^>]*class="[^"]*hidden 2xl:fine:table-cell/);
-    expect(product).toContain('title="Nitrile examination gloves">Nitrile examination gloves</span>');
-  });
-
-  it("puts the result under the status on the iPad, named for screen readers", () => {
-    const [, , , , , , status, result] = cells(render([ROW]));
+  it("puts every value in its own column, one per cell, with nothing folded under another", () => {
+    const html = render([ROW], AS_ADMIN);
+    const [ref, date, client, manufacturer, product, po, status, result, inspector] = cells(html);
+    const text = (cellHtml: string) => cellHtml.replace(/<[^>]+>/g, "");
+    expect(text(ref)).toBe("INS-2026-0001");
+    expect(date).toContain('<time dateTime="2026-10-06" class="tabular-nums">6 Oct 2026</time>');
+    expect(text(date)).toBe("6 Oct 2026");
+    expect(text(client)).toBe("Client A");
+    expect(text(manufacturer)).toBe("Manufacturer B · Factory 1");
+    expect(text(product)).toBe("Nitrile examination gloves");
+    expect(text(po)).toBe("PO-0001");
     expect(status).toContain('data-status="submitted"');
-    expect(status).toMatch(
-      /<span class="relative block xl:hidden"><span class="sr-only">Result: <\/span><span data-slot="status-pill" data-status="fail"/,
-    );
-    expect(result).toMatch(/^<td[^>]*class="[^"]*hidden xl:table-cell/);
-    expect(result).toContain('data-status="fail"');
+    expect(status).not.toContain("status-pill");
+    expect(result).toContain('data-slot="status-pill" data-status="fail"');
+    expect(text(inspector)).toBe("Test Inspector");
+    // No breakpoint hides a column or a value any more.
+    expect(html).not.toMatch(/\b(?:lg|xl|2xl):(?:hidden|table-cell)\b|\bhidden (?:lg|xl|2xl)/);
   });
 
-  it("gives every value without a column of its own on the iPad a place that shows", () => {
-    // Columns of their own from 1024 px (lg) or only in the desktop layout (xl): header and cell each.
-    const asInspector = render([{ ...ROW, inspector: null }]);
-    expect(asInspector.match(/hidden lg:table-cell/g)).toHaveLength(4); // date and manufacturer
-    expect(asInspector.match(/hidden xl:table-cell/g)).toHaveLength(4); // PO and result
-    const asAdmin = render([ROW], AS_ADMIN);
-    expect(asAdmin.match(/hidden xl:table-cell/g)).toHaveLength(6); // PO, result and inspector
-  });
-
-  it("has the product give way on desktops narrower than 1536 px for every role", () => {
-    for (const viewer of [AS_INSPECTOR, AS_ADMIN]) {
-      const html = render([ROW], viewer);
-      expect(html).toMatch(/<th[^>]*class="[^"]*hidden 2xl:fine:table-cell[^"]*"[^>]*>Product<\/th>/);
-      expect(html.match(/hidden 2xl:fine:table-cell/g)).toHaveLength(2); // the product's header and cell
-      const [, , , manufacturer] = cells(html);
-      // On the iPad the product still shows, under the manufacturer.
-      expect(manufacturer).toMatch(folded("xl", "Nitrile examination gloves"));
-    }
-  });
-
-  it("wraps long names onto a second line on touch and keeps one line with a tooltip for a mouse", () => {
+  it("keeps every row on one line: no wrapping, a long name cut past 24rem with the full text in its tooltip", () => {
     const html = render([ROW], AS_ADMIN);
-    const [, , client, manufacturer, product, po, , , inspector] = cells(html);
-    for (const cell of [client, manufacturer, product, po, inspector]) {
-      expect(cell).toMatch(
-        /<span class="block truncate touch:line-clamp-2 touch:whitespace-normal touch:break-words" title="[^"]+">/,
-      );
-    }
-    // A breakpoint never hides the element that wraps: touch:line-clamp-2 sets display and would win.
-    expect(html).not.toMatch(/class="[^"]*(lg|xl):hidden[^"]*line-clamp|class="[^"]*line-clamp[^"]*(lg|xl):hidden/);
+    expect(html).toMatch(/<table[^>]*class="[^"]*\bwhitespace-nowrap\b/);
+    expect(html).not.toMatch(/line-clamp|whitespace-normal|break-words/);
+    expect(html).toContain('<span class="block max-w-96 truncate" title="Manufacturer B · Factory 1">');
   });
 
-  it("lays the table out at fixed widths so it never scrolls sideways, with room for the actions", () => {
+  it("scrolls sideways inside a card that takes the focus, with the actions pinned on the right", () => {
     const html = render([ROW], AS_ADMIN);
-    expect(html).toMatch(/<table[^>]*class="[^"]*table-fixed/);
-    expect(html).toMatch(/<th[^>]*class="[^"]*w-40 fine:w-32[^"]*"[^>]*>Ref<\/th>/);
-    expect(html).toMatch(/<th[^>]*class="[^"]*w-46 fine:w-37[^"]*"[^>]*><span class="sr-only">Actions<\/span><\/th>/);
-  });
-
-  it("gives the PO its full width in an inspector's list, and 16 px less in admins', which has the Inspector column", () => {
-    expect(render([ROW])).toMatch(/<th[^>]*class="[^"]*w-36 fine:w-32[^"]*"[^>]*>PO<\/th>/);
-    expect(render([ROW], AS_ADMIN)).toMatch(/<th[^>]*class="[^"]*w-36 fine:w-28[^"]*"[^>]*>PO<\/th>/);
+    expect(html).toMatch(/^<div role="region" aria-label="x" tabindex="0" data-slot="table-scroller"[^>]*class="[^"]*\boverflow-x-auto\b[^"]*\boverscroll-x-contain\b/);
+    expect(html).toMatch(/<table[^>]*class="[^"]*\bw-max min-w-full\b/);
+    expect(html).toMatch(/<table[^>]*class="[^"]*\bborder-separate\b/);
+    expect(cells(html).at(-1)).toMatch(/^<td[^>]*class="[^"]*\bsticky right-0\b/);
+    expect(html).toMatch(/<th[^>]*class="[^"]*\bsticky right-0\b[^"]*"[^>]*><span class="sr-only">Actions<\/span><\/th>/);
+    // The pinned cells are opaque, so what scrolls under them never shows through.
+    for (const pinned of [cells(html)[0], cells(html).at(-1)!]) expect(pinned).toMatch(/\bbg-card\b/);
   });
 
   it("shows Not done until the final result is set, never a pass", () => {
