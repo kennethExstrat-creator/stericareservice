@@ -1,0 +1,117 @@
+// Where the inspector stopped, for a page loaded again in place: a pull to
+// refresh on the iPad, a reload, a tab the system dropped. Every value is
+// kept already (autosave, the local copy), and ?module= reopens the section;
+// this remembers the last field that stored a value, per inspection, in the
+// tab's sessionStorage, so the screen can bring that field back into view.
+// These are the parts without the DOM: the stored spot, whether this load
+// lands on it, and which field on screen it is. use-landing-spot.ts does the
+// DOM.
+import { z } from "zod";
+
+const STORAGE_PREFIX = "stericare:capture-landing:";
+
+const LandingSpotSchema = z.object({
+  v: z.literal(1),
+  /** The section the field is in (a module or custom module key). */
+  section: z.string().min(1),
+  /** The issue path of the field or of its closest marked container, as issuePathKey writes it. */
+  path: z.string().nullable(),
+  /** The field's accessible name: its label. */
+  name: z.string().nullable(),
+  /** Which of the fields with the same path and name it is, in reading order. */
+  nth: z.number().int().min(0),
+  /** The size tab it was under, in a per-size module. */
+  size: z.string().nullable(),
+});
+
+export type LandingSpot = z.infer<typeof LandingSpotSchema>;
+
+/** How a field on screen is told apart from the others in its section. */
+export type FieldSignature = { path: string | null; name: string | null };
+
+export function landingStorageKey(inspectionId: string): string {
+  return `${STORAGE_PREFIX}${inspectionId}`;
+}
+
+/** The spot stored for the inspection; null when none, or unreadable. Storage may be missing or refuse (private mode). */
+export function readLandingSpot(storage: Pick<Storage, "getItem"> | null, inspectionId: string): LandingSpot | null {
+  try {
+    const raw = storage?.getItem(landingStorageKey(inspectionId));
+    if (!raw) return null;
+    const parsed = LandingSpotSchema.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Stores the spot; false when storage refused it. Nothing else depends on it: the values are saved anyway. */
+export function writeLandingSpot(storage: Pick<Storage, "setItem"> | null, inspectionId: string, spot: LandingSpot): boolean {
+  try {
+    if (!storage) return false;
+    storage.setItem(landingStorageKey(inspectionId), JSON.stringify(spot));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** How the document was loaded: PerformanceNavigationTiming's type and URL, and Chrome's document.wasDiscarded. */
+export type DocumentLoad = { type: string | null; url: string | null; wasDiscarded?: boolean };
+
+/**
+ * Whether the screen at `pathname` came with a document loaded again in
+ * place: a reload (pull to refresh), Back or Forward into a page the browser
+ * no longer kept, or a tab the system discarded and loaded again. Not when
+ * it was opened afresh, or inside the app after the document loaded another
+ * page.
+ */
+export function isReturnLoad(load: DocumentLoad, pathname: string): boolean {
+  if (!load.url) return false;
+  let loadedPath: string;
+  try {
+    loadedPath = new URL(load.url).pathname;
+  } catch {
+    return false;
+  }
+  if (trimSlash(loadedPath) !== trimSlash(pathname)) return false;
+  return load.type === "reload" || load.type === "back_forward" || load.wasDiscarded === true;
+}
+
+function trimSlash(path: string): string {
+  return path.length > 1 && path.endsWith("/") ? path.slice(0, -1) : path;
+}
+
+function sameSignature(a: FieldSignature, b: FieldSignature): boolean {
+  return a.name === b.name && a.path === b.path;
+}
+
+/** Which of the fields with the same signature `fields[index]` is, in reading order. */
+export function nthOfSignature(fields: readonly FieldSignature[], index: number): number {
+  let nth = 0;
+  for (let earlier = 0; earlier < index; earlier++) if (sameSignature(fields[earlier], fields[index])) nth++;
+  return nth;
+}
+
+/**
+ * The field on screen the spot points at: the nth with its path and name
+ * (the last of them when there are fewer now), else the first with its path
+ * (a label that changed with its value, such as a picker's), else the only
+ * one with its name when it had no path. -1 when none.
+ */
+export function matchLandingField(fields: readonly FieldSignature[], spot: Pick<LandingSpot, "path" | "name" | "nth">): number {
+  const same = indicesWhere(fields, (field) => sameSignature(field, spot));
+  if (same.length > 0) return same[Math.min(spot.nth, same.length - 1)];
+  if (spot.path !== null) {
+    const onPath = indicesWhere(fields, (field) => field.path === spot.path);
+    if (onPath.length > 0) return onPath[0];
+    return -1;
+  }
+  if (spot.name === null) return -1;
+  const named = indicesWhere(fields, (field) => field.name === spot.name);
+  return named.length === 1 ? named[0] : -1;
+}
+
+function indicesWhere<T>(items: readonly T[], test: (item: T) => boolean): number[] {
+  return items.flatMap((item, index) => (test(item) ? [index] : []));
+}
