@@ -125,6 +125,20 @@ describe("refused entries in the Pending panel", () => {
     expect(issues.every((issue) => issue.level === "warning" && issue.code === REFUSED_ENTRY_CODE)).toBe(true);
   });
 
+  it("lists a packing configuration entry right after the order's, as the order's page shows them", () => {
+    const { sections, context } = evaluated();
+    const kept = refusedEntriesFrom([
+      entry({ path: ["sizes", "M", "values", 0], label: "Weight, No. 1" }),
+      entry({ section: "packing_config", path: ["glovesPerCase"], label: "# gloves per case", raw: "1 000" }),
+      entry({ section: "order_lots", path: ["lots", 0, "qtyCases"], label: "Qty (cases), Size M", raw: "1o" }),
+    ]);
+    expect(refusedTaskIssues(kept, sections, context.sizes).map((issue) => issue.moduleKey)).toEqual([
+      "order_lots",
+      "packing_config",
+      "weight",
+    ]);
+  });
+
   it("leaves out the entries of a section switched off", () => {
     const { sections, context } = evaluated({
       weight: { reason: "Not ordered.", by: TEST_ADMIN_ID, at: "2026-10-06T08:00:00.000Z" },

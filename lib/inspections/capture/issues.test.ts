@@ -20,13 +20,17 @@ import {
   unseenIssues,
   type TaskContext,
 } from "./issues";
-import { captureSections } from "./sections";
+import { capturePages, captureSections } from "./sections";
 
-function evaluated(overrides: ModuleOverrides = {}) {
-  const data = filledData();
+function evaluated(overrides: ModuleOverrides = {}, data = filledData()) {
   const evaluation = evaluateCapture({ template: testTemplate(), overrides, data, meta: TEST_META }, TEST_REGISTRY);
-  return { ...evaluation, sections: captureSections(evaluation.template, evaluation.report, data) };
+  const sections = captureSections(evaluation.template, evaluation.report, data);
+  return { ...evaluation, sections, pages: capturePages(sections) };
 }
+
+const OFF: ModuleOverrides = {
+  packing_config: { reason: "n/a", by: TEST_ADMIN_ID, at: "2026-10-06T08:00:00.000Z" },
+};
 
 describe("groupIssues", () => {
   it("groups issues under their section's title in screen order, errors apart from warnings", () => {
@@ -71,9 +75,53 @@ describe("counts and links", () => {
       size: "M",
       path: ["sizes", "M", 3],
     };
-    expect(issueTarget(issue)).toEqual({ sectionKey: "weight", path: ["sizes", "M", 3] });
+    const { pages } = evaluated();
+    expect(issueTarget(issue, pages)).toEqual({ pageKey: "weight", sectionKey: "weight", path: ["sizes", "M", 3] });
     expect(issueKey(issue)).toBe(issueKey({ ...issue }));
     expect(issueKey(issue)).not.toBe(issueKey({ ...issue, path: ["sizes", "M", 4] }));
+  });
+
+  it("links a packing configuration issue to the order's page, at packing's own field", () => {
+    const issue: ValidationIssue = {
+      level: "warning",
+      moduleKey: "packing_config",
+      code: "gloves_per_case_mismatch",
+      message: "Gloves per case is not inner x per case.",
+      path: ["glovesPerCase"],
+    };
+    expect(issueTarget(issue, evaluated().pages)).toEqual({
+      pageKey: "order_lots",
+      sectionKey: "packing_config",
+      path: ["glovesPerCase"],
+    });
+    // Switched off, packing is a page of its own (its issues have no link then: groupIssues).
+    expect(issueTarget(issue, evaluated(OFF).pages).pageKey).toBe("packing_config");
+  });
+});
+
+describe("Pending on the order's page", () => {
+  it("keeps one row per module, packing configuration's right after the order's", () => {
+    const filled = filledData();
+    // Packing filled in but not adding up: a warning of its own.
+    const data = {
+      ...filled,
+      modules: { ...filled.modules, packing_config: { glovesPerInner: 100, innersPerCase: 10, glovesPerCase: 999 } },
+    };
+    const { report, sections } = evaluated({}, data);
+    // A warning of the order's, listed after packing's: the rows still follow the screen.
+    const issues: ValidationIssue[] = [
+      ...report.issues,
+      { level: "warning", moduleKey: "order_lots", code: "something_new", message: "Check the lot.", path: [] },
+    ];
+    const rows = pendingTasks(groupIssues(issues, sections), sections, report.modules).filter((row) => !row.needed);
+    const keys = rows.map((row) => row.key);
+    expect(keys.filter((key) => key === "order_lots" || key === "packing_config")).toEqual(["order_lots", "packing_config"]);
+    expect(keys.indexOf("packing_config")).toBe(keys.indexOf("order_lots") + 1);
+    expect(rows.find((row) => row.key === "packing_config")).toMatchObject({
+      linkable: true,
+      status: "Numbers do not match",
+      first: { path: ["glovesPerCase"] },
+    });
   });
 });
 

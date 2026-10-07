@@ -14,7 +14,7 @@ const STORAGE_PREFIX = "stericare:capture-landing:";
 
 const LandingSpotSchema = z.object({
   v: z.literal(1),
-  /** The section the field is in (a module or custom module key). */
+  /** The section the field is in (a module or custom module key), also where its page shows another. */
   section: z.string().min(1),
   /** The issue path of the field or of its closest marked container, as issuePathKey writes it. */
   path: z.string().nullable(),
@@ -83,6 +83,15 @@ export function isReturnLoad(load: DocumentLoad, pathname: string): boolean {
 
 function trimSlash(path: string): string {
   return path.length > 1 && path.endsWith("/") ? path.slice(0, -1) : path;
+}
+
+/**
+ * Whether the spot is on the page that opened: one of the sections it shows
+ * (lib/inspections/capture/sections.ts pageSectionKeys). A spot kept in
+ * packing configuration lands on the order's page, which shows it.
+ */
+export function landsOnPage(spot: Pick<LandingSpot, "section">, sectionKeys: readonly string[]): boolean {
+  return sectionKeys.includes(spot.section);
 }
 
 function sameSignature(a: FieldSignature, b: FieldSignature): boolean {

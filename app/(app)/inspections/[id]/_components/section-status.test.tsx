@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { ProgressTracker } from "@/components/qc";
 import { filledData, TEST_META, TEST_REGISTRY, testTemplate } from "@/lib/inspections/capture/__fixtures__/capture";
 import { evaluateCapture } from "@/lib/inspections/capture/evaluate";
-import { captureSections, findSection, isIncluded, progressSteps } from "@/lib/inspections/capture/sections";
+import { capturePages, captureSections, findSection, isIncluded, progressSteps } from "@/lib/inspections/capture/sections";
 import { SectionFrame } from "./section-frame";
 import { SectionList } from "./section-list";
 import { SectionTabs } from "./section-tabs";
@@ -34,12 +34,13 @@ function element(html: string, tag: string, attribute: string): string {
 
 describe("the conclusion's HOLD on the capture screen", () => {
   const sections = holdSections();
+  const pages = capturePages(sections);
   const conclusion = findSection(sections, "conclusion");
   if (!conclusion || !isIncluded(conclusion)) throw new Error("The fixture has a conclusion.");
 
   it("reads On Hold with the pause glyph on the section's tab, never Warning", () => {
     const html = renderToStaticMarkup(
-      <SectionTabs sections={sections} activeKey="conclusion" onSelect={noop} panelId="panel" idPrefix="cap" />,
+      <SectionTabs pages={pages} activeKey="conclusion" onSelect={noop} panelId="panel" idPrefix="cap" />,
     );
     const tab = element(html, "button", 'data-section="conclusion"');
     expect(tab).toContain('data-status="hold"');
@@ -62,13 +63,13 @@ describe("the conclusion's HOLD on the capture screen", () => {
   });
 
   it("is done and on hold in the desktop sidebar, and done on the iPad's progress bar", () => {
-    const list = renderToStaticMarkup(<SectionList sections={sections} activeKey="conclusion" onSelect={noop} />);
+    const list = renderToStaticMarkup(<SectionList pages={pages} activeKey="conclusion" onSelect={noop} />);
     const row = element(list, "button", 'title="Conclusion"');
     expect(row).toContain('<span class="sr-only">, Done</span>');
     expect(row).toContain('data-status="hold"');
     expect(row).toContain(PAUSE);
 
-    const steps = progressSteps(sections);
+    const steps = progressSteps(pages);
     const bar = renderToStaticMarkup(<ProgressTracker steps={steps} activeKey="conclusion" />);
     expect(bar).toContain("Conclusion: Done");
     const done = steps.filter((step) => step.state === "done").length;

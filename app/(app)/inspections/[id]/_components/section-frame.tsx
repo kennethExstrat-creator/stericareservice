@@ -5,7 +5,9 @@
 // body, inspector comment) with the photo slot in the footer where
 // ModuleCard has its own two photo buttons (components/capture/photos
 // PhotoSlot: the buttons and the section's photos). The body is the
-// module's Capture, a plain form, or a notice.
+// module's Capture, a plain form, or a notice. A page of two sections
+// (lib/inspections/capture/sections.ts SHOWN_WITH: packing configuration
+// below the order) holds a frame for each in a PagePanel.
 import { useId, useState, type ReactNode, type Ref } from "react";
 import { StatusPill } from "@/components/qc";
 import { Label } from "@/components/ui/label";
@@ -15,8 +17,10 @@ import type { Status } from "@/lib/design/status";
 import { cn } from "@/lib/utils";
 
 type SectionFrameProps = {
-  /** The panel id the section tabs point at. */
+  /** The panel id the section tabs point at; on a page of several sections, the frame's own. */
   id: string;
+  /** The section's module (or custom module) key, as `data-section-key`: landing spots and specs find the frame by it. */
+  sectionKey?: string;
   /**
    * The id of the tab that opens this section, while the tab bar is how
    * sections are chosen (below 1280 px): the frame is then that tab's
@@ -40,6 +44,7 @@ type SectionFrameProps = {
 
 export function SectionFrame({
   id,
+  sectionKey,
   tabLabelledBy,
   title,
   status,
@@ -58,6 +63,7 @@ export function SectionFrame({
       role={tabLabelledBy ? "tabpanel" : undefined}
       aria-labelledby={tabLabelledBy ?? titleId}
       data-slot="section-frame"
+      data-section-key={sectionKey}
       className={cn("rounded-xl bg-card text-card-foreground shadow-sm ring-1 ring-border", className)}
     >
       {/* The result stays top right, however long the summary: the summary runs full width below. */}
@@ -92,6 +98,26 @@ export function SectionFrame({
         </footer>
       )}
     </section>
+  );
+}
+
+/**
+ * The open page when it holds more than one section (packing configuration
+ * below the order): below 1280 px the open tab's panel, named by that tab,
+ * from 1280 px a plain block, holding a SectionFrame per section, each a
+ * region named by its title. A page of one section is that section's frame.
+ */
+export function PagePanel({ id, tabLabelledBy, children }: { id: string; tabLabelledBy?: string; children: ReactNode }) {
+  return (
+    <div
+      id={id}
+      data-slot="capture-page"
+      role={tabLabelledBy ? "tabpanel" : undefined}
+      aria-labelledby={tabLabelledBy}
+      className="flex flex-col gap-4"
+    >
+      {children}
+    </div>
   );
 }
 

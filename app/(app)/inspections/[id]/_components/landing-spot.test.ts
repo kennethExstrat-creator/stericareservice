@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   isReturnLoad,
   landingStorageKey,
+  landsOnPage,
   matchLandingField,
   nthOfSignature,
   parsePathKey,
@@ -103,6 +104,30 @@ describe("which loads land on the spot", () => {
   it("does not without a navigation entry", () => {
     expect(isReturnLoad({ type: null, url: null }, path)).toBe(false);
     expect(isReturnLoad({ type: "reload", url: "not a url" }, path)).toBe(false);
+  });
+});
+
+describe("which page a spot lands on", () => {
+  const packing: LandingSpot = { v: 1, section: "packing_config", path: '["glovesPerCase"]', name: "# gloves per case", nth: 0 };
+
+  it("lands on the page showing its section: packing configuration's on the order's page", () => {
+    expect(landsOnPage(packing, ["order_lots", "packing_config"])).toBe(true);
+    expect(landsOnPage({ ...packing, section: "order_lots" }, ["order_lots", "packing_config"])).toBe(true);
+    // Switched off, packing is a page of its own; the order's page alone does not show it.
+    expect(landsOnPage(packing, ["packing_config"])).toBe(true);
+    expect(landsOnPage(packing, ["order_lots"])).toBe(false);
+  });
+
+  it("does not on another page, nor on none", () => {
+    expect(landsOnPage(SPOT, ["order_lots", "packing_config"])).toBe(false);
+    expect(landsOnPage(SPOT, ["tensile"])).toBe(true);
+    expect(landsOnPage(SPOT, [])).toBe(false);
+  });
+
+  it("reads a spot kept before packing joined the order's page as it was: its section names the module", () => {
+    const storage = memoryStorage();
+    storage.items.set(landingStorageKey(OWNER), JSON.stringify(packing));
+    expect(readLandingSpot(storage, OWNER)).toEqual(packing);
   });
 });
 

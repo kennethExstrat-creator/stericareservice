@@ -272,9 +272,10 @@ export function CustomBody({
   );
 }
 
+/** A form still loading. The screen waits for none to be left before it scrolls to a section below another (capture-screen.tsx). */
 export function BodySkeleton() {
   return (
-    <div role="status" aria-live="polite" className="space-y-3">
+    <div role="status" aria-live="polite" data-slot="body-skeleton" className="space-y-3">
       <span className="sr-only">Loading the form…</span>
       <Skeleton aria-hidden className="h-4 w-48 bg-slate-200" />
       <Skeleton aria-hidden className="h-11 w-full bg-slate-200" />
