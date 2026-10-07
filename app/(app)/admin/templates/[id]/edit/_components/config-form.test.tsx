@@ -109,6 +109,19 @@ describe("ConfigForm", () => {
     expect(html.match(/Not one of the defect codes/g)).toHaveLength(1);
   });
 
+  it("links a code that is not a defect code to the defects screen, its add panel filled in, in a new tab", () => {
+    const html = render("watertight");
+    const note = html.match(/<span[^>]*data-unknown-code="pin_hole"[^>]*>.*?<\/a><\/span>/)?.[0] ?? "";
+    // Named by the label next to it in the list: "Pin hole".
+    expect(note).toContain('href="/admin/defects?add=pin_hole&amp;name=Pin+hole"');
+    expect(note).toContain('target="_blank"');
+    expect(note).toContain('rel="noopener noreferrer"');
+    expect(note).toContain("Add pin_hole as a defect code");
+    expect(note).toContain('<span class="sr-only"> (opens in a new tab)</span>');
+    // A known code has no note and no link.
+    expect(html).not.toContain('data-unknown-code="hole_finger"');
+  });
+
   it("says what a number accepts", () => {
     expect(render("watertight")).toContain('<p id="config-watertight-aql-range" class="text-sm text-muted-foreground">0 to 10.</p>');
   });

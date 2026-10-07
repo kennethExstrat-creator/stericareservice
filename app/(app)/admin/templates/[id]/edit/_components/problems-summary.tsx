@@ -1,49 +1,29 @@
 "use client";
 
 // What stops the draft from saving, each a link to where it is fixed
-// (BUILD_SPEC 6.2: "list each problem with a link").
+// (BUILD_SPEC 6.2: "list each problem with a link"), named by the labels the
+// admin sees on the way there (../_lib/names.ts), never by schema keys.
 import { useState } from "react";
 import { ChevronDownIcon, ChevronUpIcon, OctagonXIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { humanize } from "@/lib/zod-form";
 import type { EditorProblem, ProblemPlace } from "../_lib/problems";
 
 const SHOWN = 5;
 
-const PART_LABEL = {
-  include: "Switch",
-  title: "Heading",
-  labels: "Labels",
-  config: "Settings",
-  entry: "Entry",
-} as const;
-
 export function ProblemsSummary({
   problems,
-  titleOf,
-  customTitleOf,
+  whereOf,
   onGo,
 }: {
   problems: readonly EditorProblem[];
-  titleOf: (place: Extract<ProblemPlace, { area: "module" }>) => string;
-  customTitleOf: (index: number) => string;
+  /** The steps to a problem's place: ["Weight (g)", "Settings", "Gloves weighed"]. */
+  whereOf: (place: ProblemPlace) => readonly string[];
   onGo: (place: ProblemPlace) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   if (problems.length === 0) return null;
   const shown = expanded ? problems : problems.slice(0, SHOWN);
-
-  const where = (place: ProblemPlace): string => {
-    const path = place.path.map((segment) => (typeof segment === "number" ? `#${segment + 1}` : humanize(segment)));
-    switch (place.area) {
-      case "module":
-        return [titleOf(place), PART_LABEL[place.part], ...(place.part === "labels" ? place.path.map(String) : path)].join(" › ");
-      case "custom":
-        return [`Custom module ${customTitleOf(place.index)}`, ...path].join(" › ");
-      case "template":
-        return place.path[0] === "json" ? "JSON tab" : ["Template", ...path].join(" › ");
-    }
-  };
+  const where = (place: ProblemPlace): string => whereOf(place).join(" › ");
 
   return (
     <section

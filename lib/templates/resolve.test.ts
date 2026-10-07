@@ -220,6 +220,17 @@ describe("resolveTemplate: extends", () => {
     expect(template.report.showClientLogo).toBe(true);
   });
 
+  it("takes the AI second opinion setting from the nearest template that sets it, and leaves it out when none does", () => {
+    const base = (ai?: boolean) => ({ ...baseEg(), ...(ai === undefined ? {} : { ai: { reviewOnSubmit: ai } }) });
+    const child = (ai?: boolean) => ({ ...clientEg(), ...(ai === undefined ? {} : { ai: { reviewOnSubmit: ai } }) });
+    // Nobody sets it: off, and nothing in the resolution (stored resolutions and the seed bundle read the same).
+    expect(resolved(child(), lookupFrom(asVersions([base()])))).not.toHaveProperty("ai");
+    // Inherited from the base, overridden by the child either way.
+    expect(resolved(child(), lookupFrom(asVersions([base(true)]))).ai).toEqual({ reviewOnSubmit: true });
+    expect(resolved(child(false), lookupFrom(asVersions([base(true)]))).ai).toEqual({ reviewOnSubmit: false });
+    expect(resolved(child(true), lookupFrom(asVersions([base()]))).ai).toEqual({ reviewOnSubmit: true });
+  });
+
   it("replaces a base custom module with the child's of the same key, in place", () => {
     const base = {
       ...baseEg(),

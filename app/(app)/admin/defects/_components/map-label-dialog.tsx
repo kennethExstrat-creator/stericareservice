@@ -54,6 +54,7 @@ import {
   type MapField,
   type OneOffLabel,
 } from "@/lib/admin/defects";
+import { submitAction } from "@/lib/admin/submit";
 import { mapDefectLabel, type MapLabelResult } from "../actions";
 import { TextField } from "./text-field";
 
@@ -204,7 +205,9 @@ export function MapLabelDialog({
           returnFocus(mapped.current);
         }}
       >
-        <form action={formAction} noValidate className="flex min-h-0 flex-1 flex-col">
+        {/* Submitted by hand: React resets a form after its action, and the mode and the code would go back to
+            their first values on that reset, so a refused mapping keeps every choice (lib/admin/submit.ts). */}
+        <form onSubmit={submitAction(formAction, pending)} noValidate className="flex min-h-0 flex-1 flex-col">
           <DialogHeader className="border-b border-border px-6 pt-6 pb-5">
             <DialogTitle className="pr-8 text-lg font-bold [overflow-wrap:anywhere]">Map “{label.label}”</DialogTitle>
             <DialogDescription>

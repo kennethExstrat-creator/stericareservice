@@ -29,6 +29,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Spinner } from "@/components/ui/spinner";
+import { submitAction } from "@/lib/admin/submit";
 import type { InviteField, UserRole } from "@/lib/auth/users";
 import { inviteUser, type ActionResult } from "../actions";
 import { unreachable } from "./unreachable";
@@ -93,7 +94,8 @@ function InviteForm({ onDone, onPendingChange }: { onDone: () => void; onPending
   const id = useId();
   const nameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
-  // Controlled, so a failed invite keeps what the admin typed.
+  // Controlled, and submitted by hand (submitAction): React resets a form after its action, and the role's
+  // RadioGroup would go back to Inspector on that reset, so a failed invite keeps everything the admin chose.
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<UserRole>("inspector");
@@ -127,7 +129,7 @@ function InviteForm({ onDone, onPendingChange }: { onDone: () => void; onPending
   const roleError = fieldErrors.role;
 
   return (
-    <form action={formAction} noValidate className="grid gap-6">
+    <form onSubmit={submitAction(formAction, pending)} noValidate className="grid gap-6">
       <DialogHeader>
         <DialogTitle className="text-lg font-bold">Invite a user</DialogTitle>
         <DialogDescription>They get an email with a link to choose a password and sign in.</DialogDescription>

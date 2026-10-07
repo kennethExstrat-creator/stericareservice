@@ -25,6 +25,7 @@ import {
   templateRow,
   templatesOfCode,
   toast,
+  touchTemplate,
   watchConsole,
   type FixtureClient,
   type FixtureTemplate,
@@ -292,10 +293,22 @@ test("the checklist is ticked section by section, then confirmed", async ({ page
     for (const box of await panel.getByRole("checkbox").all()) await box.check();
   }
   await expect(checklist.getByRole("button", { name: "Confirm coverage" })).toBeDisabled();
-  await checklist.getByRole("checkbox", { name: /I have checked Client-variant-form\.pdf/ }).check();
+  const attest = checklist.getByRole("checkbox", { name: /I have checked Client-variant-form\.pdf/ });
+  await attest.check();
   await expect(checklist.getByText("Ready to confirm.")).toBeVisible();
   await shot(page, "checklist-ticked");
 
+  // Refused (someone saved the version since the page was read): every tick stays, the last one too.
+  // React resets a form after its action, which must not clear the Checkbox.
+  await touchTemplate(client.id);
+  await checklist.getByRole("button", { name: "Confirm coverage" }).click();
+  await expect(checklist.getByRole("alert").filter({ hasText: "Someone changed this version" })).toBeVisible(ACTION);
+  await expect(attest).toBeChecked();
+  await expect(checklist.getByText("Ready to confirm.")).toBeVisible();
+  expect((await templateRow(client.id)).coverage_confirmed_at).toBeNull();
+  await shot(page, "checklist-refused");
+
+  // The page took in the newer version (refresh()): confirming again goes through.
   await checklist.getByRole("button", { name: "Confirm coverage" }).click();
   await expect(toast(page, /Coverage confirmed for .* It can be activated now\./)).toBeVisible(ACTION);
   await expect(checklist.getByText("Coverage confirmed")).toBeVisible(ACTION);

@@ -146,9 +146,10 @@ function database(answers: Answers) {
       const next = inserts.shift() ?? { id: NEW_ID };
       return "error" in next ? { data: null, error: next.error } : { data: next, error: null };
     }
-    if (selected(query) === "definition, version") return { data: [], error: null };
     if (selected(query) === "version") return { data: (answers.versions ?? [1]).map((version) => ({ version })), error: null };
-    return { data: answers.row === undefined ? row() : answers.row, error: null };
+    // The row, with the inspections that use it as PostgREST embeds the count (New version reads it so).
+    const found = answers.row === undefined ? row() : answers.row;
+    return { data: found && { ...found, inspections: [{ count: answers.inUse ?? 0 }] }, error: null };
   });
 }
 
@@ -345,7 +346,27 @@ describe("createTemplateVersion", () => {
 
   it("keeps the database's words for the log", async () => {
     database({ inUse: 1, inserts: [{ error: { code: "XX000", message: "internal detail" } }] });
-    expect(await createTemplateVersion(VERSION_IDLE, versionForm())).toEqual({ status: "error", message: UNEXPECTED });
+    expect(await createTemplateVersion(VERSION_IDLE, versionForm())).toEqual({
+      status: "error",
+      message: "Something went wrong on the server. Try again, and reload the page if it keeps happening.",
+    });
     expect(console.error).toHaveBeenCalledWith("[admin/templates] new version refused", "XX000", "internal detail");
+  });
+
+  it("refuses changes carried over that are not JSON at all, like changes with problems", async () => {
+    database({ inUse: 1 });
+    expect(await createTemplateVersion(VERSION_IDLE, form({ id: ID, definition: "{not json" }))).toEqual({
+      status: "error",
+      message: "Your changes have problems, so they cannot go into a new version. Reload to start from the saved version.",
+    });
+    expect(writes()).toEqual([]);
+  });
+
+  it("says when the version is gone", async () => {
+    database({ row: null });
+    expect(await createTemplateVersion(VERSION_IDLE, versionForm())).toEqual({
+      status: "error",
+      message: "This template version no longer exists. Go back to the templates list.",
+    });
   });
 });

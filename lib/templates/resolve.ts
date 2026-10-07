@@ -17,7 +17,8 @@
 // - custom modules: inherited; a child's custom module with the same key
 //   replaces the base's in place.
 // Scope, unit, sizes, name and source file are the template's own; the
-// report settings are inherited when a child has none.
+// report and AI settings are inherited when a child has none (the AI
+// settings stay out of the result when no template in the chain sets them).
 import { ALWAYS_ON_MODULE_KEYS, type ModuleKey } from "@/lib/schemas/module-result";
 import {
   RESOLVED_TEMPLATE_FORMAT,
@@ -109,6 +110,7 @@ export function resolveTemplate(definition: unknown, { getBase, registry }: Reso
       title: leaf.name,
       showClientLogo: false,
     },
+    ...aiSettingsOf(leafFirst),
     sourceFile: leaf.sourceFile ?? null,
   };
   if (problems.length > 0) return { ok: false, problems };
@@ -323,6 +325,16 @@ function checkCustomModules(
       else mapped.set(field.mapsTo, `${custom.key}.${field.key}`);
     });
   }
+}
+
+/**
+ * The AI settings of the nearest template that sets them (BUILD_SPEC 9.2).
+ * None when no template in the chain does: off, and a resolution stays as
+ * it was before the setting existed.
+ */
+function aiSettingsOf(leafFirst: readonly ChainEntry[]): Pick<ResolvedTemplate, "ai"> {
+  const ai = leafFirst.find((entry) => entry.definition.ai)?.definition.ai;
+  return ai ? { ai } : {};
 }
 
 function codeOf(value: unknown): string | null {

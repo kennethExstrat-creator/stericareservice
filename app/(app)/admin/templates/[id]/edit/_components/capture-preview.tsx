@@ -4,7 +4,10 @@
 // every included module, drawn by the module's own Capture from
 // modules/registry.ts with nothing entered and read-only, in the template's
 // order with its wording, custom modules in their places. It follows the
-// draft as it is edited, unsaved changes included.
+// draft as it is edited, unsaved changes included. A Capture that fails is
+// caught on its own card, which names the module; the rest still show.
+// Files cannot be attached here (no FileSlotProvider): the modules that keep
+// a lab report or certificate say so in their slot.
 import { Component, lazy, Suspense, useMemo, useState, type ComponentType, type ReactNode } from "react";
 import { CameraIcon } from "lucide-react";
 import { ModuleCard } from "@/components/qc";
@@ -140,7 +143,7 @@ function PreviewModule({
     body = <p className="text-sm text-destructive">The settings of this module do not read, so it cannot be shown.</p>;
   } else {
     body = (
-      <CaptureBoundary key={JSON.stringify(resolvedModule)}>
+      <CaptureBoundary key={JSON.stringify(resolvedModule)} title={resolvedModule.title} moduleKey={resolvedModule.key}>
         <Suspense fallback={<Skeleton className="h-32 w-full" />}>
           <Capture
             data={data.data}
@@ -177,19 +180,44 @@ function PreviewModule({
   );
 }
 
-class CaptureBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+type BoundaryProps = {
+  /** The module's heading in this template, and its key: both name it, for the admin and for a developer. */
+  title: string;
+  moduleKey: ModuleKey;
+  children: ReactNode;
+};
+
+/**
+ * One module's Capture, caught on its own: a module whose capture screen
+ * throws (or whose code does not load) shows what failed, named, on its card.
+ */
+export class CaptureBoundary extends Component<BoundaryProps, { error: Error | null }> {
   state: { error: Error | null } = { error: null };
 
   static getDerivedStateFromError(error: Error) {
     return { error };
   }
 
+  componentDidCatch(error: Error) {
+    console.error(`[template editor] the capture preview of ${this.props.moduleKey} failed`, error);
+  }
+
   render() {
-    if (this.state.error) {
+    const { error } = this.state;
+    if (error) {
+      const { title, moduleKey } = this.props;
       return (
-        <p className="text-sm text-destructive">
-          This module&apos;s capture screen failed to draw: {this.state.error.message}
-        </p>
+        <div
+          role="alert"
+          data-preview-error={moduleKey}
+          className="grid gap-1 rounded-lg border border-fail-border bg-fail-tint px-4 py-3 text-sm text-fail"
+        >
+          <p className="font-semibold">
+            The capture screen of {title} ({moduleKey}) failed to draw.
+          </p>
+          <p className="break-words">{error.message || "No reason was given."}</p>
+          <p>The other modules still show. The inspection screen may fail the same way: tell the developers.</p>
+        </div>
       );
     }
     return this.props.children;

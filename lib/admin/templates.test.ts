@@ -1010,12 +1010,13 @@ describe("new version", () => {
     expect(nextVersionOf([{ version: 1 }, { version: 3 }, { version: 2 }])).toBe(4);
   });
 
-  it("builds on a base's active version, else its newest retired one, never a draft", () => {
+  it("builds on a base's active version only, as the editor does: never a draft, never a retired one", () => {
     const base = (version: number, status: TemplateStatus) => ({ version, status });
     expect(baseVersionOf([base(4, "draft"), base(3, "active"), base(2, "retired")])).toEqual(base(3, "active"));
     // In any order.
-    expect(baseVersionOf([base(1, "retired"), base(5, "draft"), base(3, "retired")])).toEqual(base(3, "retired"));
-    // A draft can still be saved over in place: build on nothing rather than on it.
+    expect(baseVersionOf([base(1, "retired"), base(5, "draft"), base(3, "active")])).toEqual(base(3, "active"));
+    // A retired base is no base to build on; a draft can still be saved over in place.
+    expect(baseVersionOf([base(1, "retired"), base(5, "draft"), base(3, "retired")])).toBeNull();
     expect(baseVersionOf([base(2, "draft"), base(1, "draft")])).toBeNull();
     expect(baseVersionOf([])).toBeNull();
   });

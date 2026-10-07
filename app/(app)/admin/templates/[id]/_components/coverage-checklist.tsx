@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { submitAction } from "@/lib/admin/submit";
 import type {
   ActionResult,
   CoverageChecklist as Checklist,
@@ -151,7 +152,12 @@ export function CoverageChecklist({
       )}
 
       {!readOnly && (
-        <form action={formAction} className="flex flex-col gap-4 rounded-lg border border-border bg-slate-50 p-4">
+        // Submitted by hand: React resets a form after its action, and the last tick would clear itself on that
+        // reset, so a refused confirmation keeps it (lib/admin/submit.ts).
+        <form
+          onSubmit={submitAction(formAction, pending)}
+          className="flex flex-col gap-4 rounded-lg border border-border bg-slate-50 p-4"
+        >
           <input type="hidden" name="templateId" value={templateId} />
           <input type="hidden" name="seen" value={seen} />
           {[...ticked].map((key) => (

@@ -375,6 +375,14 @@ test.describe("as an admin", () => {
     await expect(dialog.getByLabel("Code", { exact: true })).toHaveValue("e2e_sticky_edge");
     await expect(dialog.getByLabel("Name", { exact: true })).toHaveValue(LABELS.stickyEdge);
     await expect(dialog.locator("[data-note]")).toContainText("A new code is not one of E2E_DEFECTS v1’s minor defects.");
+    // A refused code keeps every choice: React resets a form after its action, which must not flip
+    // "Map to" back to an existing code nor clear what was typed.
+    await dialog.getByLabel("Code", { exact: true }).fill("9_sticky");
+    await press(dialog.getByRole("button", { name: "Add code and map" }));
+    await expect(dialog.getByText("Start the code with a letter, e.g. torn_cuff.")).toBeVisible();
+    await expect(dialog.getByRole("radio", { name: /A new code/ })).toBeChecked();
+    await expect(dialog.getByLabel("Code", { exact: true })).toHaveValue("9_sticky");
+    await expect(dialog.getByLabel("Name", { exact: true })).toHaveValue(LABELS.stickyEdge);
     await dialog.getByLabel("Code", { exact: true }).fill("e2e_defect_y");
     await shot(page, "map-new-code", { scroll: false });
     await press(dialog.getByRole("button", { name: "Add code and map" }));

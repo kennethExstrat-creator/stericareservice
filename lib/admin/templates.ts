@@ -23,6 +23,7 @@ import {
   type SourceTarget,
   type TemplateCode,
 } from "@/lib/coverage";
+import type { BaseOption } from "@/lib/admin/new-template";
 import type { ProductType, Standard } from "@/lib/schemas/common";
 import { ALWAYS_ON_MODULE_KEYS, type ModuleKey } from "@/lib/schemas/module-result";
 import { normaliseSize } from "@/lib/sizes";
@@ -40,6 +41,7 @@ import {
   MAX_EXTENDS_DEPTH,
   nextVersion,
   planActivation,
+  resolveTemplate,
   staleBases,
   type ActivationPlan,
   type StaleBase,
@@ -503,6 +505,39 @@ export async function listTemplates(supabase: DatabaseClient): Promise<TemplateL
     return { ok: false };
   }
   return { ok: true, groups: groupTemplates((data as unknown as ListRow[]).map(toVersionSummary)) };
+}
+
+/**
+ * What a new template can build on (BUILD_SPEC 4.5 step 2): the active
+ * version of every template, by code, with the sizes and unit the new one
+ * starts with. A version whose definition does not read is left out.
+ */
+export async function loadBaseOptions(supabase: DatabaseClient): Promise<BaseOption[]> {
+  const { data, error } = await supabase
+    .from("templates")
+    .select("version, definition")
+    .eq("status", "active")
+    .order("code");
+  if (error) {
+    console.error("[admin/templates] could not read the active templates", error.code, error.message);
+    return [];
+  }
+  return data.flatMap((row) => {
+    const parsed = TemplateDefinitionSchema.safeParse(row.definition);
+    if (!parsed.success) return [];
+    const definition = parsed.data;
+    return [
+      {
+        code: definition.code,
+        name: definition.name,
+        version: row.version,
+        productType: definition.scope.productType,
+        standard: definition.scope.standard,
+        sizes: definition.sizes.map((size) => normaliseSize(size.value) ?? size.value).join(", "),
+        unit: definition.unit,
+      },
+    ];
+  });
 }
 
 /* ------------------------------------------------------------------ *
@@ -1460,27 +1495,26 @@ function extendsOf(definition: unknown): string | null {
 }
 
 /**
- * The version of a base template that a new version is resolved against:
- * its active version, else its newest retired one, as neither changes any
- * more. Never a draft: a draft is saved over in place, so a template built
- * on it would keep content nobody activated, and the stale-base check
+ * The version of a base template another template is resolved against: its
+ * active version, and only that, wherever a template is resolved on the
+ * server (a save, a new version, a new template) and in the editor alike.
+ * Never a draft: a draft is saved over in place, so a template built on it
+ * would keep content nobody activated, and the stale-base check
  * (lib/templates staleBases) compares version numbers only, so it would
- * never tell. Null when the base has neither.
+ * never tell. Never a retired one either: a base nobody may start from is no
+ * base to build on, and the editor would refuse to save what it resolved.
+ * Null when the base has no active version: the template then does not
+ * resolve, and the editor and the version page say why.
  */
 export function baseVersionOf<T extends { version: number; status: TemplateStatus }>(rows: readonly T[]): T | null {
-  const active = rows.find((row) => row.status === "active");
-  if (active) return active;
-  return rows.reduce<T | null>(
-    (newest, row) => (row.status === "retired" && (newest === null || row.version > newest.version) ? row : newest),
-    null,
-  );
+  return rows.find((row) => row.status === "active") ?? null;
 }
 
 /**
- * The bases of a definition, down its extends chain, each at the version
- * baseVersionOf() picks: the lookup resolveTemplate() needs. A base with no
- * active or retired version ends the chain, so the copy does not resolve
- * and is saved unresolved; the editor then says the base has no active
+ * The bases of a definition, down its extends chain, each at its active
+ * version (baseVersionOf): the lookup resolveTemplate() needs. A base with
+ * no active version ends the chain, so the template does not resolve; a
+ * copy is then saved unresolved, and the editor says the base has no active
  * version.
  */
 export async function loadBases(supabase: DatabaseClient, definition: unknown): Promise<TemplateLookup> {
@@ -1501,6 +1535,93 @@ export async function loadBases(supabase: DatabaseClient, definition: unknown): 
     code = extendsOf(chosen.definition);
   }
   return lookupFrom(bases);
+}
+
+export type NewVersionOutcome =
+  | { ok: true; id: string; version: number }
+  | {
+      ok: false;
+      /** The version is gone; it is a draft that changes in place; the changes carried over do not read; anything else. */
+      reason: "not_found" | "editable" | "carried" | "refused";
+      message: string;
+    };
+
+const NEW_VERSION_COLUMNS =
+  "id, code, version, status, extends_code, product_type, standard, client_id, manufacturer_id, definition, source_file_path, inspections(count)";
+
+/**
+ * A new draft version of a template (BUILD_SPEC 4.2 rule 8): one rule for
+ * the version page's New version and the editor's.
+ *
+ * - Only for a version that cannot change in place (used by an inspection,
+ *   active or retired). A draft no inspection uses is changed directly.
+ * - It starts from the version's definition, or from `carried`, the
+ *   editor's unsaved changes made while the version locked, which must read
+ *   as a template of the same code.
+ * - It keeps the source file the version holds (the column, which the
+ *   screens keep current), so the new draft is checked against the same
+ *   form; its coverage starts unconfirmed, as each version is checked.
+ * - It is resolved against each base's active version (loadBases), or saved
+ *   unresolved when that fails, for the editor to list the problems.
+ * - It takes the number after the code's highest version, counted again
+ *   when another admin takes that number at the same moment.
+ *
+ * Runs on the caller's client, so RLS and the templates guard check it.
+ */
+export async function makeNewVersion(
+  supabase: DatabaseClient,
+  request: { id: string; carried?: unknown },
+  registry: ModuleRegistry,
+): Promise<NewVersionOutcome> {
+  const { data, error } = await supabase.from("templates").select(NEW_VERSION_COLUMNS).eq("id", request.id).maybeSingle();
+  if (error) throw new Error(`Could not read template ${request.id}: ${error.message}`);
+  if (!data) return { ok: false, reason: "not_found", message: MESSAGES.notFound };
+  const row = data as unknown as NewVersionSource & {
+    version: number;
+    status: TemplateStatus;
+    definition: Json;
+    source_file_path: string | null;
+    inspections: unknown;
+  };
+  if (changesInPlace({ status: row.status, usage: countOf(row.inspections) })) {
+    return { ok: false, reason: "editable", message: `Version ${row.version} is a draft no inspection uses: change it directly.` };
+  }
+
+  let start: Json = row.definition;
+  if (request.carried !== undefined) {
+    const carried = TemplateDefinitionSchema.safeParse(request.carried);
+    if (!carried.success || carried.data.code !== row.code) {
+      return {
+        ok: false,
+        reason: "carried",
+        message: "Your changes have problems, so they cannot go into a new version. Reload to start from the saved version.",
+      };
+    }
+    start = carried.data as unknown as Json;
+  }
+  const definition = definitionForNewVersion(start, row.source_file_path);
+  const parsed = TemplateDefinitionSchema.safeParse(definition);
+  const resolution = parsed.success
+    ? resolveTemplate(parsed.data, { getBase: await loadBases(supabase, parsed.data), registry })
+    : null;
+  const resolved = resolution?.ok ? resolution.template : null;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { data: versions, error: readError } = await supabase.from("templates").select("version").eq("code", row.code);
+    if (readError) throw new Error(`Could not read the versions of ${row.code}: ${readError.message}`);
+    const version = nextVersionOf(versions);
+    const { data: created, error: insertError } = await supabase
+      .from("templates")
+      .insert(newVersionRow(row, definition, resolved, version))
+      .select("id")
+      .single();
+    if (!insertError) return { ok: true, id: created.id, version };
+    // Inserting a draft can only clash on (code, version): someone took the number. Count again.
+    if (insertError.code === "23505") continue;
+    console.error("[admin/templates] new version refused", insertError.code, insertError.message);
+    return { ok: false, reason: "refused", message: describeTemplateError(insertError, row) };
+  }
+  return { ok: false, reason: "refused", message: describeTemplateError({ code: "23505", message: "templates_code_version_key" }, row) };
 }
 
 /* ------------------------------------------------------------------ *

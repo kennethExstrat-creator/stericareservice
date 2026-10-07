@@ -8,6 +8,7 @@ import { ALWAYS_ON_MODULE_KEYS, type ModuleKey } from "@/lib/schemas/module-resu
 import {
   TemplateDefinitionSchema,
   type CustomModule,
+  type TemplateAi,
   type TemplateDefinition,
   type TemplateReport,
 } from "@/lib/schemas/template";
@@ -41,6 +42,8 @@ export type Inheritance = {
   modules: ReadonlyMap<ModuleKey, InheritedModule>;
   customModules: CustomModule[];
   report: TemplateReport | null;
+  /** The AI second opinion setting of the nearest base that sets it (BUILD_SPEC 9.2). */
+  ai: TemplateAi | null;
   /** Why the chain stopped short: a base that is missing or does not read. */
   problems: string[];
 };
@@ -51,6 +54,7 @@ export const NO_INHERITANCE: Inheritance = {
   modules: new Map(),
   customModules: [],
   report: null,
+  ai: null,
   problems: [],
 };
 
@@ -117,6 +121,7 @@ export function inheritanceOf(
     modules,
     customModules: [...custom.values()],
     report: chain.entries.find((entry) => entry.definition.report)?.definition.report ?? null,
+    ai: chain.entries.find((entry) => entry.definition.ai)?.definition.ai ?? null,
     problems: chain.problems,
   };
 }

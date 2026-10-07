@@ -13,10 +13,17 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowLeftIcon, HistoryIcon, LoaderCircleIcon, OctagonXIcon, SaveIcon, Undo2Icon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  ClipboardCheckIcon,
+  HistoryIcon,
+  LoaderCircleIcon,
+  OctagonXIcon,
+  SaveIcon,
+  Undo2Icon,
+} from "lucide-react";
 import { toast } from "sonner";
-import { PageHeader } from "@/components/qc";
-import { useMediaQuery } from "@/components/qc/use-media-query";
+import { PageHeader, useMediaQuery } from "@/components/qc";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -51,6 +58,7 @@ import {
   sweepBackups,
   writeBackup,
 } from "../_lib/backup";
+import { isDetailPath } from "../_lib/details";
 import { inheritanceOf } from "../_lib/inheritance";
 import { leavingTo } from "../_lib/leave";
 import type { DefectCodeOption, EditorTemplate, ReferenceOption } from "../_lib/load";
@@ -59,7 +67,6 @@ import {
   moduleOrder,
   moduleView,
   moveModule,
-  ownCustomModules,
   setInclude,
   unusedModules,
   type Draft,
@@ -72,15 +79,17 @@ import {
   placeId,
   problemsOfModule,
   scopeProblems,
+  serverProblem,
   type DraftError,
   type ProblemPlace,
 } from "../_lib/problems";
+import { placeLabels } from "../_lib/names";
 import { lockedReason, SAVE_IDLE, type SaveResult } from "../_lib/results";
 import { CapturePreview } from "./capture-preview";
 import { configFieldPrefix } from "./config-form";
 import { customFieldId } from "./custom-module-form";
 import { CustomModules } from "./custom-modules";
-import { DetailsForm, isDetailPath } from "./details-form";
+import { DetailsForm } from "./details-form";
 import type { EditorApi } from "./editor-api";
 import { JsonView } from "./json-view";
 import { labelFieldId } from "./label-overrides";
@@ -438,13 +447,22 @@ export function TemplateEditor({
         title={typeof draft.name === "string" && draft.name.trim() !== "" ? draft.name : template.code}
         description={<p data-testid="template-meta">{meta.join(" · ")}</p>}
         actions={
-          // With unsaved changes, the editor asks before it follows (see the link guard above).
-          <Button asChild variant="outline">
-            <Link href={TEMPLATES_PATH}>
-              <ArrowLeftIcon aria-hidden />
-              All templates
-            </Link>
-          </Button>
+          // With unsaved changes, the editor asks before it follows either link (see the link guard above).
+          <>
+            <Button asChild variant="outline">
+              <Link href={TEMPLATES_PATH}>
+                <ArrowLeftIcon aria-hidden />
+                All templates
+              </Link>
+            </Button>
+            {/* BUILD_SPEC 4.5 step 4: the source file, the coverage checklist and activation are on the version's page. */}
+            <Button asChild variant="outline">
+              <Link href={`${TEMPLATES_PATH}/${template.id}`} data-testid="version-page-link">
+                <ClipboardCheckIcon aria-hidden />
+                Checklist and activation
+              </Link>
+            </Button>
+          </>
         }
       />
       <AlertDialog
@@ -604,11 +622,15 @@ export function TemplateEditor({
               <p>{saveState.message}</p>
               {saveState.status === "error" && saveState.problems && (
                 <ul className="list-disc pl-5">
-                  {saveState.problems.slice(0, 10).map((problem, index) => (
-                    <li key={index}>
-                      {[problem.template, problem.path.join(".")].filter(Boolean).join(" ")}: {problem.message}
-                    </li>
-                  ))}
+                  {saveState.problems.slice(0, 10).map((problem, index) => {
+                    // Named as the problem list names places: by the labels on the way there, never by keys.
+                    const found = serverProblem(draft, problem, template.code);
+                    return (
+                      <li key={index}>
+                        {placeLabels(found.place, { draft, context, sizes, shapeOk }).join(" › ")}: {found.message}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </AlertDescription>
@@ -618,8 +640,7 @@ export function TemplateEditor({
         {editable && (
           <ProblemsSummary
             problems={problems}
-            titleOf={(place) => titleOf(place.moduleKey)}
-            customTitleOf={(index) => ownCustomModules(draft)[index]?.title || `#${index + 1}`}
+            whereOf={(place) => placeLabels(place, { draft, context, sizes, shapeOk })}
             onGo={go}
           />
         )}
