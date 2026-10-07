@@ -133,7 +133,7 @@ describe("PhotoSlot", () => {
   });
 
   it("names its photos after its section on a page of two, and Photos alone otherwise", () => {
-    const title = "Packing configuration";
+    const title = "Packing Configuration";
     const html = render(<PhotoSlot inspectionId={INSPECTION} moduleKey="packing_config" nameContext={title} />);
     // The region is named by its heading: two regions on one page never share a name.
     const heading = /<section aria-labelledby="([^"]+)"/.exec(html)?.[1];

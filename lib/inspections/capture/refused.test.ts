@@ -129,8 +129,8 @@ describe("refused entries in the Pending panel", () => {
     const { sections, context } = evaluated();
     const kept = refusedEntriesFrom([
       entry({ path: ["sizes", "M", "values", 0], label: "Weight, No. 1" }),
-      entry({ section: "packing_config", path: ["glovesPerCase"], label: "# gloves per case", raw: "1 000" }),
-      entry({ section: "order_lots", path: ["lots", 0, "qtyCases"], label: "Qty (cases), Size M", raw: "1o" }),
+      entry({ section: "packing_config", path: ["glovesPerCase"], label: "# Gloves per Case", raw: "1 000" }),
+      entry({ section: "order_lots", path: ["lots", 0, "qtyCases"], label: "Qty (Cases), Size M", raw: "1o" }),
     ]);
     expect(refusedTaskIssues(kept, sections, context.sizes).map((issue) => issue.moduleKey)).toEqual([
       "order_lots",

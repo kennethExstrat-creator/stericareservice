@@ -108,7 +108,7 @@ describe("which loads land on the spot", () => {
 });
 
 describe("which page a spot lands on", () => {
-  const packing: LandingSpot = { v: 1, section: "packing_config", path: '["glovesPerCase"]', name: "# gloves per case", nth: 0 };
+  const packing: LandingSpot = { v: 1, section: "packing_config", path: '["glovesPerCase"]', name: "# Gloves per Case", nth: 0 };
 
   it("lands on the page showing its section: packing configuration's on the order's page", () => {
     expect(landsOnPage(packing, ["order_lots", "packing_config"])).toBe(true);

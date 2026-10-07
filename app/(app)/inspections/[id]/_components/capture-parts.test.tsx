@@ -47,7 +47,7 @@ const SECTIONS: CaptureSection[] = [
 ];
 
 /** The packing module's title in the fixtures below. */
-const PACKING_TITLE = "Packing configuration";
+const PACKING_TITLE = "Packing Configuration";
 
 /** The order filled in and packing configuration not adding up: one page, the order's, each module with its result. */
 const ORDER_PAGE: CaptureSection[] = [
@@ -429,11 +429,11 @@ describe("SectionErrorBoundary (a section's form that did not show)", () => {
   });
 
   it("reads Try Again out with its section's title on a page of two, where the other form may not show either", () => {
-    const boundary = new SectionErrorBoundary({ title: "Packing configuration", nameContext: "Packing configuration", children: <p>Form</p> });
+    const boundary = new SectionErrorBoundary({ title: PACKING_TITLE, nameContext: PACKING_TITLE, children: <p>Form</p> });
     boundary.state = { error: chunkError, online: false };
     const html = renderToStaticMarkup(<>{boundary.render()}</>);
     expect(html).toMatch(
-      /<button[^>]*class="[^"]*\brelative\b[^"]*"[^>]*>(?:(?!<\/button>).)*Try Again<span class="sr-only">, Packing configuration<\/span><\/button>/,
+      /<button[^>]*class="[^"]*\brelative\b[^"]*"[^>]*>(?:(?!<\/button>).)*Try Again<span class="sr-only">, Packing Configuration<\/span><\/button>/,
     );
     expect(shown(chunkError, false)).toContain("Try Again</button>");
   });

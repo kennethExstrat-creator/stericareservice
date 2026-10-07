@@ -43,7 +43,7 @@ describe("SwitchOffDialog", () => {
   });
 
   it("is read out as Switch Off and its section's title on a page of two, the title for screen readers only", () => {
-    const title = "Packing configuration";
+    const title = "Packing Configuration";
     const html = renderToStaticMarkup(
       <SwitchOffDialog inspectionId={INSPECTION} moduleKey="packing_config" title={title} nameContext={title} onChanged={() => {}} />,
     );
