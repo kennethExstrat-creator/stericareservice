@@ -48,7 +48,7 @@ export function Comparison({ model, review }: { model: AiPanelModel; review: Rev
             <LabelledPill label="Suggested result">
               <ResultPill result={model.overall.system.result} />
             </LabelledPill>
-            <p className="text-sm text-foreground">{model.overall.system.summary}</p>
+            {model.overall.system.summary && <p className="text-sm text-foreground">{model.overall.system.summary}</p>}
           </Cell>
           <Cell label={COLUMN_TITLES.inspector}>
             <LabelledPill label="Final result">
