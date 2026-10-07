@@ -15,6 +15,13 @@ describe("target strings", () => {
     expect(buildTarget({})).toBeNull();
   });
 
+  it("lists the packaging level and the item last, so older targets read the same", () => {
+    expect(buildTarget({ level: "carton", box: 253, defect: "lot_no", size: "M" })).toBe(
+      "size:M/defect:lot_no/box:253/level:carton",
+    );
+    expect(buildTarget({ item: "doorsClosed" })).toBe("item:doorsClosed");
+  });
+
   it("encodes values that hold the separators, such as one-off defect labels", () => {
     expect(buildTarget({ defect: "Small dirt / stain: cuff" })).toBe("defect:Small%20dirt%20%2F%20stain%3A%20cuff");
     expect(parseTarget("defect:Small%20dirt%20%2F%20stain%3A%20cuff")).toEqual({
@@ -30,6 +37,8 @@ describe("target strings", () => {
     { size: "6.5", hand: "L", defect: "hole_crotch" },
     { size: "S", hand: "R", defect: "Thin ring between fingers (crotch)", box: 4999 },
     { defect: "Kotoran / noda" },
+    { size: "L", box: 12, defect: "artwork", level: "inner" },
+    { item: "certificateOfAnalysis" },
   ])("round-trips %o", (target) => {
     expect(parseTarget(buildTarget(target))).toEqual({ ok: true, target });
   });
@@ -49,6 +58,8 @@ describe("target strings", () => {
     ["box:0", /box/],
     ["box:12a", /box/],
     ["size:", /size/],
+    ["level:pallet", /level/],
+    ["item:doors%20closed", /item/],
   ])("rejects %s", (text, error) => {
     const parsed = parseTarget(text);
     expect(parsed.ok).toBe(false);
@@ -75,6 +86,26 @@ describe("autoTag", () => {
     });
     expect(autoTag({ moduleKey: "dimensions", ...focus })).toEqual({ moduleKey: "dimensions", target: { size: "M" } });
     expect(autoTag({ moduleKey: "header", ...focus })).toEqual({ moduleKey: "header", target: {} });
+  });
+
+  it("records labelling's packaging level and the item of documents and loading", () => {
+    expect(autoTag({ moduleKey: "labeling", ...focus, level: "carton" })).toEqual({
+      moduleKey: "labeling",
+      target: { size: "M", defect: "thin_spot", box: 253, level: "carton" },
+    });
+    expect(autoTag({ moduleKey: "documents", ...focus, item: "iso13485" })).toEqual({
+      moduleKey: "documents",
+      target: { item: "iso13485" },
+    });
+    expect(autoTag({ moduleKey: "loading", size: "M", item: "doorsClosed", level: "inner" })).toEqual({
+      moduleKey: "loading",
+      target: { item: "doorsClosed" },
+    });
+    // An item does not follow the inspector into a module without a list of its own.
+    expect(autoTag({ moduleKey: "dimensions", size: "M", item: "doorsClosed" })).toEqual({
+      moduleKey: "dimensions",
+      target: { size: "M" },
+    });
   });
 
   it("tags a custom module with the size only", () => {

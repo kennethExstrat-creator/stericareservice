@@ -3,7 +3,7 @@
 // before a retag. Forms post plain strings; these turn them into a tag.
 import { z } from "zod";
 import { UUID_PATTERN } from "@/lib/offline/id";
-import type { PhotoTarget } from "@/lib/photos/target";
+import { ITEM_KEY_PATTERN, PackagingLevelSchema, type PhotoTarget } from "@/lib/photos/target";
 import { targetForModule } from "./view";
 
 /** Longest caption kept: a sentence or two for the report, not a notebook. */
@@ -12,7 +12,7 @@ export const CAPTION_MAX_LENGTH = 500;
 /** Module keys and custom module keys share one shape (lib/schemas/template.ts). */
 const MODULE_TAG_PATTERN = /^[a-z][a-z0-9_]*$/;
 
-export type PhotoTagField = "moduleKey" | "size" | "hand" | "defect" | "box" | "caption";
+export type PhotoTagField = "moduleKey" | "size" | "hand" | "defect" | "box" | "level" | "item" | "caption";
 export type FieldErrors<K extends string> = Partial<Record<K, string>>;
 
 const blankToUndefined = (value: unknown) => (typeof value === "string" && value.trim() === "" ? undefined : value);
@@ -60,6 +60,14 @@ export const PhotoTagFormSchema = z.object({
       .pipe(z.number().int().min(1, { error: "Box numbers start at 1." }))
       .optional(),
   ),
+  level: z.preprocess(
+    blankToUndefined,
+    z.enum(PackagingLevelSchema.options, { error: "Choose the inner unit or the carton." }).optional(),
+  ),
+  item: z.preprocess(
+    blankToUndefined,
+    z.string().trim().regex(ITEM_KEY_PATTERN, { error: "Choose an item from the list." }).optional(),
+  ),
   caption: CaptionSchema,
 });
 
@@ -89,18 +97,30 @@ function fieldErrorsOf<K extends string>(error: z.ZodError, fields: readonly K[]
   return errors;
 }
 
-const TAG_FIELDS: readonly (PhotoTagField | "photoId")[] = ["photoId", "moduleKey", "size", "hand", "defect", "box", "caption"];
+const TAG_FIELDS: readonly (PhotoTagField | "photoId")[] = [
+  "photoId",
+  "moduleKey",
+  "size",
+  "hand",
+  "defect",
+  "box",
+  "level",
+  "item",
+  "caption",
+];
 
 /** The retag and caption form as a tag. Parts of the target the module does not record are dropped. */
 export function parsePhotoTagForm(formData: FormData): ParseResult<PhotoTagInput, PhotoTagField | "photoId"> {
   const parsed = PhotoTagFormSchema.safeParse(Object.fromEntries(TAG_FIELDS.map((name) => [name, formText(formData, name) ?? undefined])));
   if (!parsed.success) return { ok: false, fieldErrors: fieldErrorsOf(parsed.error, TAG_FIELDS) };
-  const { photoId, moduleKey, size, hand, defect, box, caption } = parsed.data;
+  const { photoId, moduleKey, size, hand, defect, box, level, item, caption } = parsed.data;
   const target: PhotoTarget = {};
   if (size !== undefined) target.size = size;
   if (hand !== undefined) target.hand = hand;
   if (defect !== undefined) target.defect = defect;
   if (box !== undefined) target.box = box;
+  if (level !== undefined) target.level = level;
+  if (item !== undefined) target.item = item;
   return { ok: true, data: { photoId, moduleKey, target: targetForModule(moduleKey, target), caption } };
 }
 

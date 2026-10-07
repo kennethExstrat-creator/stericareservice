@@ -9,6 +9,8 @@ import {
   EMPTY_TAG_OPTIONS,
   groupByModule,
   humanizeKey,
+  itemName,
+  levelName,
   moduleOption,
   moduleTitle,
   photoObjectPaths,
@@ -61,7 +63,18 @@ function resolvedTemplate() {
         labels: { thin_spot: "Thin spot", "minor.bead_defective": "Defective beads", critical: "Critical" },
       }),
       module("dispensing_packing", "Glove Dispensing & Packing"),
-      module("labeling", "Labelling", { include: false }),
+      module("labeling", "Labelling", { include: false, labels: { innerLevel: "Plastic pack" } }),
+      module("documents", "Documents", {
+        labels: { iso13485: "ISO 13485 certificate" },
+        config: {
+          items: [
+            { key: "iso13485", include: true, required: true },
+            { key: "fdaCe", include: false, required: false },
+            { key: "certificateOfAnalysis", include: true, required: false },
+          ],
+        },
+      }),
+      module("loading", "Loading", { labels: { doorsClosed: "Doors shut" } }),
       module("conclusion", "Conclusion"),
     ],
     customModules: [
@@ -188,9 +201,31 @@ describe("tag options from the template", () => {
       ["watertight", true],
       ["visual", true],
       ["dispensing_packing", true],
+      ["documents", true],
+      ["loading", true],
       ["conclusion", true],
       ["labeling", false],
     ]);
+  });
+
+  it("words labelling's levels and lists the entries of documents and loading, in the template's order and words", () => {
+    // Labelling is switched off in the template: its photos keep their words all the same.
+    expect(options.levels?.labeling).toEqual([
+      { value: "inner", label: "Plastic pack" },
+      { value: "carton", label: "Carton Box" },
+    ]);
+    expect(options.items?.documents).toEqual([
+      { value: "iso13485", label: "ISO 13485 certificate" },
+      { value: "certificateOfAnalysis", label: "Certificate of analysis" },
+    ]);
+    expect(options.items?.loading?.map((choice) => choice.label)).toEqual([
+      "Empty container",
+      "Half loaded",
+      "Fully loaded",
+      "Doors shut",
+      "Sealed",
+    ]);
+    expect(options.items?.visual).toBeUndefined();
   });
 
   it("knows what each module records, and where hands are split", () => {
@@ -313,6 +348,25 @@ describe("displayTags", () => {
     expect(displayTags("dispensing_packing", "size:S/box:253", options)).toMatchObject({ size: "S", box: "253" });
   });
 
+  it("words the packaging level and the item last, in the template's words", () => {
+    expect(displayTags("labeling", "size:M/defect:lot_no/box:253/level:inner", options)).toMatchObject({
+      module: "Labelling",
+      size: "M",
+      box: "253",
+      item: "Plastic pack",
+    });
+    expect(displayTags("loading", "item:doorsClosed", options, { withModule: false })).toEqual({
+      module: "",
+      item: "Doors shut",
+    });
+    // A document the checklist leaves out, in the module's own words; an unknown one by its key in words.
+    expect(displayTags("documents", "item:declarationOfOrigin", options).item).toBe("Declaration of origin");
+    expect(itemName("documents", "fdaCe", options)).toBe("FDA / CE certificates");
+    expect(itemName("documents", "millCertificate", options)).toBe("Mill certificate");
+    expect(levelName("dimensions", "inner", options)).toBe("Inner unit");
+    expect(levelName("labeling", "carton", EMPTY_TAG_OPTIONS)).toBe("Carton");
+  });
+
   it("leaves the module out under the module's own heading, unless nothing else is tagged", () => {
     expect(displayTags("visual", "size:M", options, { withModule: false }).module).toBe("");
     expect(displayTags("visual", null, options, { withModule: false }).module).toBe("Visual Inspection");
@@ -330,13 +384,14 @@ describe("displayTags", () => {
 });
 
 describe("targetForModule", () => {
-  const everything = { size: "M", hand: "L" as const, defect: "stain", box: 12 };
+  const everything = { size: "M", hand: "L" as const, defect: "stain", box: 12, level: "carton" as const, item: "sealed" };
 
   it("keeps only what the module records", () => {
     expect(targetForModule("dimensions", everything)).toEqual({ size: "M" });
     expect(targetForModule("dispensing_packing", everything)).toEqual({ size: "M", box: 12 });
     expect(targetForModule("visual", everything)).toEqual({ size: "M", hand: "L", defect: "stain" });
-    expect(targetForModule("labeling", everything)).toEqual({ size: "M", defect: "stain", box: 12 });
+    expect(targetForModule("labeling", everything)).toEqual({ size: "M", defect: "stain", box: 12, level: "carton" });
+    expect(targetForModule("loading", everything)).toEqual({ item: "sealed" });
     expect(targetForModule("header", everything)).toEqual({});
     expect(targetForModule("pallet_check", everything)).toEqual({ size: "M" });
     expect(targetForModule(null, everything)).toEqual({});

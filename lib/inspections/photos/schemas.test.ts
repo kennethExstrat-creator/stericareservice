@@ -48,6 +48,24 @@ describe("parsePhotoTagForm", () => {
     expect(boxed).toMatchObject({ ok: true, data: { target: { size: "S", box: 253 } } });
   });
 
+  it("reads labelling's packaging level and the item of documents and loading", () => {
+    expect(
+      parsePhotoTagForm(form({ photoId: PHOTO, moduleKey: "labeling", size: "M", box: "253", defect: "lot_no", level: "carton" })),
+    ).toMatchObject({ ok: true, data: { target: { size: "M", box: 253, defect: "lot_no", level: "carton" } } });
+    expect(parsePhotoTagForm(form({ photoId: PHOTO, moduleKey: "loading", item: "doorsClosed", level: "inner" }))).toMatchObject({
+      ok: true,
+      data: { target: { item: "doorsClosed" } },
+    });
+    expect(parsePhotoTagForm(form({ photoId: PHOTO, moduleKey: "documents", item: "", level: "" }))).toMatchObject({
+      ok: true,
+      data: { target: {} },
+    });
+    expect(parsePhotoTagForm(form({ photoId: PHOTO, moduleKey: "labeling", level: "pallet", item: "../x" }))).toEqual({
+      ok: false,
+      fieldErrors: { level: "Choose the inner unit or the carton.", item: "Choose an item from the list." },
+    });
+  });
+
   it("takes custom module keys, which record the size", () => {
     expect(parsePhotoTagForm(form({ photoId: PHOTO, moduleKey: "pallet_check", size: "L", hand: "L" }))).toMatchObject({
       ok: true,

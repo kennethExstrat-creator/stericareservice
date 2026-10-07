@@ -18,6 +18,10 @@ export interface PhotoFocus {
   readonly hand?: "R" | "L" | null;
   readonly defect?: string | null;
   readonly box?: number | null;
+  /** Labelling's packaging level. */
+  readonly level?: "inner" | "carton" | null;
+  /** An entry of the module's own list: a document, a loading stage. */
+  readonly item?: string | null;
 }
 
 /** The signed-in user, from PhotoQueueProvider. Null: the queue reads it from the session. */

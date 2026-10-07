@@ -143,7 +143,14 @@ describe("loadInspectionMedia", () => {
     ]);
     expect(media.files).toEqual([expect.objectContaining({ id: FILE, url: signedUrl("b", `${INSPECTION}/${FILE}.pdf`) })]);
     // The template did not parse: no modules or sizes, but the defect list stays.
-    expect(media.options).toEqual({ modules: [], sizes: [], defects: [{ code: "stain", name: "Stain" }], defectLabels: {} });
+    expect(media.options).toEqual({
+      modules: [],
+      sizes: [],
+      defects: [{ code: "stain", name: "Stain" }],
+      defectLabels: {},
+      levels: {},
+      items: {},
+    });
   });
 
   it("reads oldest first, for this inspection only", async () => {
