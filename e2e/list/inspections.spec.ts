@@ -7,7 +7,8 @@ import { countVisibleInspections, createListFixture, FIXTURE_CLIENT_NAME, HOSTIL
  * in playwright.config.ts. Screenshots go to screenshots/list/.
  */
 
-const HINT = "Inspection capture arrives in the next build";
+/** The empty list's pointer to the button above it. */
+const START_HINT = "Start one with New inspection.";
 /** B's seeded manufacturer, with the factory that tells the company's plants apart. */
 const TERANG_NUSA_LABEL = "Terang Nusa Sdn. Bhd. · TG Factory 40";
 
@@ -89,7 +90,8 @@ test.describe("before there are any inspections", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Inspections" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "No inspections yet" })).toBeVisible();
     await expect(page.getByText("You see only your own; admins see everyone's.")).toBeVisible();
-    await expect(page.getByText(HINT)).toBeVisible();
+    await expect(page.getByText(START_HINT)).toBeVisible();
+    await expect(page.getByRole("link", { name: "New inspection" })).toHaveAttribute("href", "/inspections/new");
     // Nothing to search yet, so no filter bar.
     await expect(page.getByRole("search")).toHaveCount(0);
     await expectNoPageScroll(page);
@@ -162,7 +164,7 @@ test.describe("with inspections", () => {
       // 44 px rows and controls, 16 px field text.
       expect((await row(page, refs.A).boundingBox())!.height).toBeGreaterThanOrEqual(44);
       expect((await page.getByRole("combobox", { name: "Status" }).boundingBox())!.height).toBeGreaterThanOrEqual(44);
-      expect((await page.getByRole("button", { name: "New inspection" }).boundingBox())!.height).toBeGreaterThanOrEqual(44);
+      expect((await page.getByRole("link", { name: "New inspection" }).boundingBox())!.height).toBeGreaterThanOrEqual(44);
       const fontSize = await page.getByRole("searchbox", { name: "Search" }).evaluate((input) => getComputedStyle(input).fontSize);
       expect(fontSize).toBe("16px");
       // No tooltips on touch: a long manufacturer wraps rather than losing its factory.
@@ -397,18 +399,91 @@ test.describe("with inspections", () => {
     await expect(page.getByRole("link", { name: "Clear filters" })).toHaveCount(0);
   });
 
-  test("New inspection is switched off and says why", async ({ page, context, baseURL }) => {
+  test("New inspection opens the new inspection screen", async ({ page, context, baseURL }) => {
     await signIn(context, baseURL!, TEST_ACCOUNTS.inspector);
     await page.goto("/inspections");
-    const button = page.getByRole("button", { name: "New inspection" });
+    const link = page.getByRole("link", { name: "New inspection" });
 
-    await expect(button).toHaveAttribute("aria-disabled", "true");
-    // aria-disabled, so Playwright only taps it when forced; a finger on an iPad just taps.
-    if (isTouch()) await button.tap({ force: true });
-    else await button.hover();
-    await expect(page.getByRole("tooltip")).toHaveText(HINT);
-    await button.click({ force: true });
+    await expect(link).toHaveAttribute("href", "/inspections/new");
+    await expect(link).not.toHaveAttribute("aria-disabled");
+    await press(link);
+    await expect(page).toHaveURL(/\/inspections\/new$/);
+    await expect(page.getByRole("heading", { level: 1, name: "New inspection" })).toBeVisible();
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+  });
+
+  test("the inspector opens a draft on the capture screen and a submitted one on its review", async ({
+    page,
+    context,
+    baseURL,
+  }) => {
+    const hydration = watchConsole(page);
+    await signIn(context, baseURL!, TEST_ACCOUNTS.inspector);
+    await page.goto("/inspections");
+    const { refs, ids } = fixture;
+
+    // Named by ref and status, for screen readers and the link list alike.
+    const draft = row(page, refs.A).getByRole("link", { name: `${refs.A}, Draft` });
+    await expect(draft).toHaveAttribute("href", `/inspections/${ids.A}`);
+    await expect(row(page, refs.B).getByRole("link", { name: `${refs.B}, Submitted` })).toHaveAttribute(
+      "href",
+      `/inspections/${ids.B}/review`,
+    );
+    await expect(row(page, refs.D).getByRole("link", { name: `${refs.D}, Approved` })).toHaveAttribute(
+      "href",
+      `/inspections/${ids.D}/review`,
+    );
+    // One link per row: the ref. Nothing else in a row takes a tab stop.
+    await expect(row(page, refs.A).getByRole("link")).toHaveCount(1);
+
+    if (isTouch()) {
+      // The whole ref cell is the target, as tall as the row: tap its far corner, away from the text.
+      const cell = row(page, refs.A).getByRole("rowheader");
+      const box = (await cell.boundingBox())!;
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      await shot(page, "inspector-list-links");
+      await cell.tap({ position: { x: box.width - 6, y: box.height - 4 } });
+    } else {
+      // Keyboard: the link takes focus and Enter follows it.
+      await draft.focus();
+      await expect(draft).toBeFocused();
+      await shot(page, "inspector-list-links");
+      await page.keyboard.press("Enter");
+    }
+    await expect(page).toHaveURL(new RegExp(`/inspections/${ids.A}$`));
+    await expect(page.getByRole("heading", { level: 1, name: refs.A })).toBeVisible();
+    await expect(page).toHaveTitle(new RegExp(`^${refs.A}\\b`));
+
+    await page.goBack();
     await expect(page).toHaveURL(/\/inspections$/);
-    await shot(page, "new-inspection-hint");
+    await press(row(page, refs.B).getByRole("link", { name: `${refs.B}, Submitted` }));
+    await expect(page).toHaveURL(new RegExp(`/inspections/${ids.B}/review$`));
+    await expect(page.getByRole("heading", { level: 1, name: refs.B })).toBeVisible();
+    await expect(page).toHaveTitle(new RegExp(`^Review ${refs.B}\\b`));
+    expect(hydration()).toEqual([]);
+  });
+
+  test("the admin opens a reopened inspection on the capture screen and an approved one on its review", async ({
+    page,
+    context,
+    baseURL,
+  }) => {
+    await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
+    await page.goto("/inspections");
+    const { refs, ids } = fixture;
+
+    // Another inspector's draft opens on capture too: admins edit every open inspection.
+    await expect(row(page, refs.A).getByRole("link", { name: `${refs.A}, Draft` })).toHaveAttribute(
+      "href",
+      `/inspections/${ids.A}`,
+    );
+    await press(row(page, refs.C).getByRole("link", { name: `${refs.C}, Reopened` }));
+    await expect(page).toHaveURL(new RegExp(`/inspections/${ids.C}$`));
+    await expect(page.getByRole("heading", { level: 1, name: refs.C })).toBeVisible();
+
+    await page.goBack();
+    await press(row(page, refs.D).getByRole("link", { name: `${refs.D}, Approved` }));
+    await expect(page).toHaveURL(new RegExp(`/inspections/${ids.D}/review$`));
+    await expect(page.getByRole("heading", { level: 1, name: refs.D })).toBeVisible();
   });
 });
