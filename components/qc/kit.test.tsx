@@ -668,7 +668,10 @@ describe("NumberField", () => {
 });
 
 describe("AttachmentStatus", () => {
-  const MISSING = "Lab report: the file attached here is no longer with this inspection. Attach it again.";
+  // calc's message, worded by the framework's missingFileMessage.
+  const MISSING =
+    "Lab report: the file attached here is not among this inspection's files. It may still be uploading from another device; if it was deleted, attach it again.";
+  const MISSING_HTML = MISSING.replaceAll("'", "&#x27;");
 
   it("says the file is attached, by name where the screen knows it, and takes an issue link's focus", () => {
     const html = renderToStaticMarkup(
@@ -699,7 +702,7 @@ describe("AttachmentStatus", () => {
     expect(html).not.toContain("text-warn");
   });
 
-  it("never reads Attached for a kept file the inspection no longer holds: calc's warning in amber", () => {
+  it("never reads Attached for a kept file that is not among the inspection's files: calc's warning in amber", () => {
     const html = renderToStaticMarkup(<AttachmentStatus label="Lab report" state="missing" warning={MISSING} />);
     const line = tagsWith(html, 'data-slot="attachment-status"')[0];
     expect(line).toContain('data-state="missing"');
@@ -708,15 +711,15 @@ describe("AttachmentStatus", () => {
     expect(html).toContain(">Not attached<");
     expect(html).toContain("lucide-file-x");
     expect(tagsWith(html, "text-warn")).toHaveLength(1);
-    expect(html).toContain(MISSING);
+    expect(html).toContain(MISSING_HTML);
     // Before calc's message arrives, the line still says what happened.
     expect(renderToStaticMarkup(<AttachmentStatus label="Lab report" state="missing" />)).toContain(
-      "no longer with this inspection",
+      "not among this inspection&#x27;s files. It may still be uploading from another device",
     );
     // A required one is Not done, and the warning says why in place of the requirement.
     const required = renderToStaticMarkup(<AttachmentStatus label="Lab report" state="missing" required warning={MISSING} />);
     expect(tagsWith(required, 'data-slot="status-pill"')[0]).toContain('data-status="not_done"');
-    expect(required).toContain(MISSING);
+    expect(required).toContain(MISSING_HTML);
     expect(required).not.toContain("Required before this section is done.");
   });
 

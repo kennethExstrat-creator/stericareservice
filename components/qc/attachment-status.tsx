@@ -2,17 +2,22 @@
 // tensile), a certificate (documents). The screen's file slot beside it (the
 // framework's ModuleFileSlot, BUILD_SPEC 8.1) attaches the file; this line
 // only shows calc's state, so it carries no frame of its own and sits in the
-// module's section with the slot. A kept file the inspection no longer holds
-// (deleted since) is missing, never Attached. A required file that is not
-// attached reads as Not done, with why. With no control of its own, the line
-// takes an issue link's focus itself, as a notice does.
+// module's section with the slot. A kept file that is not among the
+// inspection's files (deleted, or still uploading from another device) is
+// missing, never Attached. A required file that is not attached reads as Not
+// done, with why. With no control of its own, the line takes an issue link's
+// focus itself, as a notice does.
 import { FileCheckIcon, FileTextIcon, FileXIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { issueNoticeProps, type IssuePath } from "./issue-path";
 import { StatusIcon } from "./status-icon";
 import { StatusPill } from "./status-pill";
 
-/** The framework's HeldFileState: none kept, attached, or kept but no longer with the inspection. */
+/**
+ * The framework's HeldFileState (modules/_framework/files.ts), which modules
+ * pass as it is: none kept, attached, or kept but not among the inspection's
+ * files.
+ */
 export type AttachmentState = "none" | "attached" | "missing";
 
 type AttachmentStatusProps = {
@@ -29,18 +34,25 @@ type AttachmentStatusProps = {
   className?: string;
 } & (
   | {
-      /** calc's state for the kept file: `heldFileState(context, data.labReport)`. */
+      /**
+       * The kept file's state as calc reads it: `moduleFileState(context, …)`
+       * for a module's one file (a lab report), `heldFileState(context, id)`
+       * for a file kept per entry. Never `id !== null`: a file deleted since
+       * would read Attached.
+       */
       state: AttachmentState;
       attached?: never;
     }
   | {
-      /** @deprecated Pass `state`: true or false cannot tell a file deleted since from none. */
+      /** @deprecated Pass `state`: true or false cannot tell a missing file from an attached one. */
       attached: boolean;
       state?: never;
     }
 );
 
-const MISSING = "The file attached here is no longer with this inspection. Attach it again.";
+// The framework's missingFileMessage, less the name the line already shows.
+const MISSING =
+  "The file attached here is not among this inspection's files. It may still be uploading from another device; if it was deleted, attach it again.";
 
 export function AttachmentStatus({
   label,
@@ -54,7 +66,7 @@ export function AttachmentStatus({
 }: AttachmentStatusProps) {
   const shown: AttachmentState = state ?? (attached ? "attached" : "none");
   const warnings = (typeof warning === "string" ? [warning] : (warning ?? [])).filter((text) => text !== "");
-  // A file deleted since is never silent, even before calc's message arrives.
+  // A missing file is never silent, even before calc's message arrives.
   const notes = warnings.length > 0 ? warnings : shown === "missing" ? [MISSING] : [];
   const Icon = shown === "attached" ? FileCheckIcon : shown === "missing" ? FileXIcon : FileTextIcon;
   return (
