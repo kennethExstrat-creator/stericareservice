@@ -10,7 +10,7 @@ vi.mock("next/navigation", () => ({ usePathname: () => "/inspections/0b5c7d1e-2f
 
 import type { UploadItem } from "@/lib/photos/upload-queue";
 import { usePhotoQueue, usePhotoUploadStatus } from "./hooks";
-import { PhotoCard } from "./photo-card";
+import { PhotoCard, tileState } from "./photo-card";
 import type { PhotoUploadStatus, SlotPhoto } from "./photo-model";
 import { EMPTY_QUEUE_SNAPSHOT, INITIAL_QUEUE_STATE, QUEUE_PROBLEMS, type PhotoQueueState } from "./queue-state";
 import { UploadNotices } from "./upload-notices";
@@ -179,20 +179,33 @@ describe("PhotoCard", () => {
       />,
     );
 
-  it("keeps every tile's image 4:3, portrait photos included", () => {
-    expect(card({})).toContain("[&amp;&gt;div:first-child]:overflow-hidden");
+  it("keeps every tile's image 4:3, portrait photos included (the kit tile's own box)", () => {
+    const html = card({});
+    expect(html).toMatch(/data-slot="photo-image" class="[^"]*aspect-\[4\/3\][^"]*overflow-hidden/);
+    // No workaround of the card's own any more.
+    expect(html).not.toContain("[&amp;&gt;div:first-child]");
   });
 
-  it("shows a stopped upload as stopped, with what to do, instead of 'Waiting to upload'", () => {
+  it("shows a stopped upload as the tile's stopped state, with what to do, instead of 'Waiting to upload'", () => {
     const reason = "This inspection can no longer be changed from this account. Ask an admin to reopen it, then try again.";
     const html = card({ queued: true, state: "failed", progress: 0, error: reason, thumbUrl: "blob:local" });
-    expect(html).toContain('data-slot="upload-stopped"');
-    expect(html).toContain("Upload stopped");
+    expect(html).toContain('data-state="failed"');
+    expect(html).toMatch(/data-slot="upload-stopped"[^>]*>.*Upload stopped/);
     expect(html).toContain(reason);
-    // The kit tile's pending badge and progress bar give way (hidden), so they never contradict it.
-    expect(html).toContain("[&amp;&gt;div:first-child&gt;span]:hidden");
+    // Never waiting, never a progress bar: the tile says stopped and nothing else.
+    expect(html).not.toContain("Waiting to upload");
+    expect(html).not.toContain('role="progressbar"');
+    expect(html.match(/Upload stopped/g)).toHaveLength(1);
     expect(html).toContain("Try again");
     expect(html).toContain("Remove");
+  });
+
+  it("maps each upload state to the tile's", () => {
+    expect(tileState({ state: "waiting", flagged: false })).toBe("pending");
+    expect(tileState({ state: "uploading", flagged: false })).toBe("pending");
+    expect(tileState({ state: "failed", flagged: true })).toBe("failed");
+    expect(tileState({ state: "uploaded", flagged: true })).toBe("flagged");
+    expect(tileState({ state: "uploaded", flagged: false })).toBe("uploaded");
   });
 
   it("offers the report choice only once the photo's row is read", () => {
