@@ -22,10 +22,10 @@ const ROWS: AuditRow[] = [
 describe("reopenNote", () => {
   it("tells the inspector who reopened it, when, and what to change", () => {
     expect(reopenNote("reopened", ROWS, inspector, people)).toEqual({
-      title: "Reopened: changes needed",
+      title: "Reopened: Changes Needed",
       // Row level security hides the admin's profile from an inspector.
       body: "An admin reopened it on 7 Oct 2026, 09:05. Make the changes, then submit it again.",
-      reason: { label: "What to change", text: "Size M weights are missing.\nAdd them." },
+      reason: { label: "What to Change", text: "Size M weights are missing.\nAdd them." },
     });
   });
 
@@ -33,7 +33,7 @@ describe("reopenNote", () => {
     const named = ROWS.map((row) => (row.actorId === ADMIN ? { ...row, actor: { full_name: "Admin A", email: null } } : row));
     const admin = { viewerId: ADMIN, viewerName: "Admin A", inspectorId: INSPECTOR, inspectorName: "Inspector A" };
     expect(reopenNote("reopened", named, { id: ADMIN, role: "admin" }, admin)).toMatchObject({
-      title: "Reopened for changes",
+      title: "Reopened for Changes",
       body: "Admin A reopened it on 7 Oct 2026, 09:05. Inspector A can change it and submit it again.",
       reason: { label: "Reason", text: "Size M weights are missing.\nAdd them." },
     });
