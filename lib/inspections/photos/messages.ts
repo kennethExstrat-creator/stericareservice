@@ -34,3 +34,16 @@ export const PHOTO_MESSAGES = {
 } as const;
 
 export const IDLE_PHOTO_ACTION: PhotoActionState = { status: "idle" };
+
+/** Chrome's, Safari's and Firefox's words for a request that never reached the server. */
+const NO_CONNECTION = /Failed to fetch|NetworkError|Load failed|network connection was lost/i;
+
+/**
+ * A request that never reached the server: no connection (the factory
+ * Wi-Fi), or the page going away mid-request. Logged as a warning, not an
+ * error: nothing is broken, and the screen says so or tries again.
+ */
+export function isNoConnection(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  return NO_CONNECTION.test(message);
+}

@@ -46,6 +46,7 @@ const change: PhotoChange = { id: PHOTO, moduleKey: "dispensing_packing", target
 
 beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.spyOn(console, "warn").mockImplementation(() => {});
   for (const mock of [fakes.media.applyPhoto, fakes.media.removePhoto, fakes.media.removeFile, fakes.queue.forgetPreview]) mock.mockClear();
   fakes.queue.retag.mockReset().mockResolvedValue(true);
   fakes.queue.remove.mockReset().mockResolvedValue(true);
@@ -95,6 +96,22 @@ describe("savePhotoEdit", () => {
     const result = await savePhotoEdit(INSPECTION, { id: PHOTO, queued: false }, IDLE_PHOTO_ACTION, retagForm());
     expect(result).toEqual({ status: "error", message: UNREACHABLE });
     expect(fakes.media.applyPhoto).not.toHaveBeenCalled();
+  });
+
+  it("logs a dropped connection as a warning, and any other failure as an error", async () => {
+    vi.mocked(console.warn).mockClear();
+    vi.mocked(console.error).mockClear();
+    vi.mocked(updatePhotoTags).mockRejectedValueOnce(new TypeError("Load failed"));
+    await savePhotoEdit(INSPECTION, { id: PHOTO, queued: false }, IDLE_PHOTO_ACTION, retagForm());
+    expect(console.warn).toHaveBeenCalledTimes(1);
+    expect(console.error).not.toHaveBeenCalled();
+
+    vi.mocked(updatePhotoTags).mockRejectedValueOnce(new Error("Server Action was not found"));
+    expect(await savePhotoEdit(INSPECTION, { id: PHOTO, queued: false }, IDLE_PHOTO_ACTION, retagForm())).toEqual({
+      status: "error",
+      message: UNREACHABLE,
+    });
+    expect(console.error).toHaveBeenCalledTimes(1);
   });
 
   it("passes a refusal on as it came", async () => {
