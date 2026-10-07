@@ -18,7 +18,8 @@
 // asks the guards: nothing to lose, it follows the link; otherwise it asks
 // the user. While the guards answer (a save on its way, up to 3 s), the
 // tapped link is dimmed, and a tap on another link changes where to go: the
-// last one chosen wins (leaveRequests).
+// last one chosen wins (leaveRequests). A link in the page followed
+// meanwhile wins over them all: the answer is then dropped.
 //
 // `display: contents`: the wrapper adds no box, so the sticky top bar and the
 // sidebar lay out as before.
@@ -61,6 +62,7 @@ export function LeaveGuardArea({ children }: { children: ReactNode }) {
       event.preventDefault();
       leaveRequests.waiting()?.link.removeAttribute(WAITING);
       link.setAttribute(WAITING, "");
+      const page = window.location.pathname;
       void leaveRequests
         .ask({ to, link }, async () => {
           commitFocusedField(element);
@@ -72,6 +74,8 @@ export function LeaveGuardArea({ children }: { children: ReactNode }) {
           if (!answer) return;
           const { request, reasons } = answer;
           request.link.removeAttribute(WAITING);
+          // Left meanwhile by a link in the page: the answer was about a page that is gone.
+          if (window.location.pathname !== page) return;
           opener.current = request.link;
           if (reasons.length === 0) router.push(request.to);
           else setLeaving({ to: request.to, reasons });
