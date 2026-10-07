@@ -73,7 +73,7 @@ describe("parseWithMessages", () => {
       stickinessCodes: [{ code: "A", label: "Non sticky", pass: true }],
       boxesPerSize: { default: null, bySize: { M: "1,234" } },
     });
-    expect(issuesAt(issues, ["minLayeringPct"])).toEqual(["“2 40” is not a number. Remove the space: one number only, e.g. 2.42."]);
+    expect(issuesAt(issues, ["minLayeringPct"])).toEqual(["“2 40” is not a number: remove the space (240)."]);
     // Emptied, a required number is null: asked for, never inherited in its place.
     expect(issuesAt(issues, ["boxesPerSize", "default"])).toEqual(["Enter a number."]);
     expect(issuesAt(issues, ["boxesPerSize", "bySize", "M"])).toEqual([
@@ -85,6 +85,11 @@ describe("parseWithMessages", () => {
     ]);
     expect(notANumber(" ")).toBe("Enter a number.");
     expect(notANumber("abc")).toBe("“abc” is not a number. Numbers only, e.g. 2.42.");
+    // The entry is quoted once; without the space "2,4 0" is no plain number, so none is named.
+    expect(notANumber(" 0 .5 ")).toBe("“0 .5” is not a number: remove the space (0.5).");
+    expect(notANumber("2,4 0")).toBe("“2,4 0” is not a number: remove the space.");
+    // A line break in a number written in the JSON is a space too.
+    expect(notANumber("2\n40")).toBe("“2\n40” is not a number: remove the space (240).");
   });
 
   it("reads a module's real config schema the same way", () => {

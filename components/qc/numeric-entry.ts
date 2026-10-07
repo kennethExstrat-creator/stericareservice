@@ -100,9 +100,12 @@ export function pasteAction(readOnly: boolean, spreads: boolean): "refuse" | "sp
 }
 
 /**
- * The words for a rejected entry, shown under a field and announced when the
- * cell is left, e.g. "Width, No. 3: “2 42” is not stored. One number per cell…".
+ * The words for a rejected entry, shown under a field, listed and announced
+ * when the cell is left, e.g. "Width, No. 3: “2 42” is not stored. One number
+ * per cell: remove the space (242).". The entry is quoted once: the reason's
+ * own quote of it (lib/stats: “2 42” → 242) is left out.
  */
 export function rejectionMessage(entry: InvalidEntry, where?: string): string {
-  return `${where ? `${where}: ` : ""}“${entry.raw}” is not stored. ${entry.error}`;
+  const reason = entry.error.replace(` (“${entry.raw.trim()}” → `, " (");
+  return `${where ? `${where}: ` : ""}“${entry.raw}” is not stored. ${reason}`;
 }

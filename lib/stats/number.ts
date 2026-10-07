@@ -43,7 +43,13 @@ export function parseDecimal(raw: string): ParseDecimalResult {
   }
 
   if (/^-?[\d.,]+(?:\s+[\d.,]+)+$/.test(text)) {
-    return { ok: false, error: "One number per cell: remove the space, e.g. 2.42." };
+    // Show what removing the space gives: "2 42" is 242, and an example such
+    // as 2.42 would steer the inspector to a reading that fails the spec.
+    const joined = text.replace(/\s+/g, "");
+    const error = PLAIN.test(joined)
+      ? `One number per cell: remove the space (“${text}” → ${joined}).`
+      : "One number per cell: remove the space.";
+    return { ok: false, error };
   }
   return { ok: false, error: "Numbers only, e.g. 2.42." };
 }

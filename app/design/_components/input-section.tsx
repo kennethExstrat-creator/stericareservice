@@ -21,7 +21,7 @@ export function InputSection() {
   const [palm, setPalm] = useState<number | null>(null);
   const [palmInvalid, setPalmInvalid] = useState<InvalidEntry | null>({
     raw: "2 42",
-    error: "One number per cell: remove the space, e.g. 2.42.",
+    error: "One number per cell: remove the space (“2 42” → 242).",
   });
   const [verified, setVerified] = useState(true);
   const [handSplit, setHandSplit] = useState(false);

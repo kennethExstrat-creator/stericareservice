@@ -217,7 +217,7 @@ describe("applyPaste", () => {
     const result = applyPaste(paste("245\n2 42\n246", 0, 0), measures, rows, values, {});
     expect(result.values.length).toEqual([245, null, 246, 243, 244]);
     expect(result.invalid).toEqual({
-      "length:1": { raw: "2 42", error: "One number per cell: remove the space, e.g. 2.42." },
+      "length:1": { raw: "2 42", error: "One number per cell: remove the space (“2 42” → 242)." },
     });
     expect(result.notice).toBe("Pasted 3 values. 1 not stored.");
   });
