@@ -133,6 +133,8 @@ export function toListRow(row: ListQueryRow, reader: ListReader): InspectionList
 /**
  * One page of inspections, newest first (inspection date, then creation), with
  * the total for the filters. `reader` only shapes the rows; RLS does the scoping.
+ * On a project without SEARCH_COLUMNS_MIGRATION (Postgres answers 42703, no
+ * such column) a search runs again without the search columns.
  */
 export function listInspections(
   supabase: Client,

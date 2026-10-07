@@ -145,7 +145,7 @@ export function InspectionFilters({
               type="search"
               value={search}
               onChange={(event) => onSearchChange(event.target.value)}
-              placeholder="Ref, PO, lot or carton number"
+              placeholder="Ref, PO, lot or carton"
               maxLength={MAX_SEARCH_LENGTH}
               enterKeyHint="search"
               autoCapitalize="characters"
