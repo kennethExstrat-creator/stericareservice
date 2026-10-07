@@ -42,14 +42,6 @@ import { formatSizeRate } from "./text";
 type Props = CaptureProps<DispensingSafedonData, DispensingSafedonConfig, DispensingSafedonComputed>;
 type Update = (change: DataChange<DispensingSafedonData>) => void;
 
-// From 1280 px every box column sits side by side, 13 by default, far wider
-// than the module: the table scrolls sideways inside its frame with the
-// defect labels pinned. A table cell's width is no minimum, and the label
-// column (the first cell of each row) would shrink to one letter a line to
-// make room; at its 16rem minimum (COUNTER_WIDTHS.label) it keeps the labels
-// and their hints readable.
-const DESKTOP_LABEL_COLUMN = "xl:[&_tr>th:first-child]:min-w-64";
-
 export default function Capture({
   data,
   config,
@@ -256,7 +248,6 @@ function SafedonSizePanel({ size, props, update, active, onActive, requested, on
         }
       >
         <CounterTable
-          className={DESKTOP_LABEL_COLUMN}
           caption={`${labelFor(labels, "counts")}, ${sizeName}`}
           rows={config.defects.map((defect) => ({
             key: defect.code,
