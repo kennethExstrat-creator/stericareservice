@@ -6,6 +6,7 @@ import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { getAiStatus } from "@/lib/ai";
+import { lowerCaseWords } from "@/lib/design/capitalisation";
 import { AiReportCard, AiReviewCard, EmailCard, SupabaseCard, type DatabaseSummary } from "./admin-status-cards";
 
 // Placeholders: none of these values may appear in the markup.
@@ -199,5 +200,41 @@ describe("AiReportCard", () => {
     expect(text).toContain("Configuration Error");
     expect(text).toContain("AI_REPORT_WEBHOOK_URL is not a valid URL.");
     expect(html).not.toContain("placeholder-value");
+  });
+});
+
+describe("the cards' labels", () => {
+  it("title each card, row and pill in Title Case (docs/DESIGN.md, Capitalisation)", () => {
+    const html = [
+      render(<SupabaseCard env={null} secretKeySet={false} database={{ accounts: null, reference: null }} />).html,
+      render(<EmailCard env={ENV} siteUrl="https://qc.example.com" />).html,
+      render(<AiReviewCard status={getAiStatus({ AI_REVIEW_PROVIDER: "mock" }).review} />).html,
+      render(<AiReportCard status={getAiStatus({}).report} />).html,
+    ].join("");
+    const all = (pattern: RegExp) => [...html.matchAll(pattern)].map((match) => match[1]);
+    const titles = all(/<h3>([^<]+)<\/h3>/g);
+    const rows = all(/<dt[^>]*>([^<]+)<\/dt>/g);
+    const pills = all(/data-slot="status-pill"[^>]*>.*?<span>([^<]+)<\/span>/g);
+    expect(titles).toEqual(["Supabase", "Sign-In Emails", "AI Second Opinion", "AI Report"]);
+    expect(rows).toEqual([
+      "Project",
+      "URL and Publishable Key",
+      "Secret Key (Server Only)",
+      "Accounts",
+      "Reference Data",
+      "Provider",
+      "Provider",
+    ]);
+    expect(pills).toEqual([
+      "Needs Attention",
+      "Missing",
+      "Missing",
+      "Not Readable",
+      "Not Readable",
+      "Check by Hand",
+      "Test Data Only",
+      "Not Connected",
+    ]);
+    for (const label of [...titles, ...rows, ...pills]) expect(lowerCaseWords(label), label).toEqual([]);
   });
 });

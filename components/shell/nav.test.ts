@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFECTS_PATH } from "@/lib/admin/defects";
 import { TEMPLATES_PATH } from "@/lib/admin/templates";
+import { lowerCaseWords } from "@/lib/design/capitalisation";
 import {
   activeSection,
   ariaCurrentFor,
@@ -110,6 +111,16 @@ describe("navForRole", () => {
     navForRole("inspector");
     navForRole("admin");
     expect(JSON.stringify(NAV)).toBe(before);
+  });
+
+  it("names every tab, section and entry in Title Case (docs/DESIGN.md, Capitalisation)", () => {
+    const labels = NAV.flatMap((section) => [
+      section.tab.label,
+      ...(section.label ? [section.label] : []),
+      ...section.entries.map((entry) => entry.label),
+    ]);
+    expect(labels.length).toBeGreaterThan(0);
+    for (const label of labels) expect(lowerCaseWords(label), label).toEqual([]);
   });
 });
 

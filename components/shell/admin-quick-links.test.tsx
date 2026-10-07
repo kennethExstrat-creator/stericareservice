@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { DEFECTS_PATH, TEMPLATES_PATH as DEFECTS_TEMPLATES_PATH, UNMAPPED_PATH } from "@/lib/admin/defects";
 import { TEMPLATES_PATH } from "@/lib/admin/templates";
+import { lowerCaseWords } from "@/lib/design/capitalisation";
 import { parseInspectionSearchParams } from "@/lib/inspections/search-params";
 import { AdminScreenLinks, AWAITING_APPROVAL_HREF, InspectionShortcuts, UNMAPPED_LABELS_HREF } from "./admin-quick-links";
 
@@ -63,6 +64,22 @@ describe("AdminScreenLinks", () => {
   it("announces nothing as coming later", () => {
     const { text } = render(<AdminScreenLinks />);
     expect(text).not.toMatch(/Coming|Phase \d|next build/i);
+  });
+
+  it("titles every card in Title Case (docs/DESIGN.md, Capitalisation)", () => {
+    const html = render(<AdminScreenLinks />).html + render(<InspectionShortcuts awaitingApproval={2} />).html;
+    const titles = [...html.matchAll(/<span class="font-display[^"]*">([^<]+)<\/span>/g)].map((match) => match[1]);
+    expect(titles).toEqual([
+      "Users",
+      "Manufacturers",
+      "Clients",
+      "Defect Codes",
+      "Unmapped Labels",
+      "Templates",
+      "Awaiting Approval",
+      "All Inspections",
+    ]);
+    for (const title of titles) expect(lowerCaseWords(title), title).toEqual([]);
   });
 });
 
