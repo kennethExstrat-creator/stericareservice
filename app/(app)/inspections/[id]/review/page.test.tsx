@@ -115,6 +115,24 @@ describe("/inspections/[id]/review", () => {
     expect(html).toContain("Waiting for review");
   });
 
+  // Lead inspectors read their team's inspections (migration 20261007170000), read-only.
+  it.each(["submitted", "draft", "reopened", "approved"] as const)(
+    "shows a lead inspector their team's %s inspection read-only: no approve, reopen or editing, and no AI panel",
+    async (status) => {
+      const lead = { id: "00000000-0000-4000-8000-000000000103", name: "Lina Lead", role: "inspector" as const };
+      // The AI panel follows the export's rule (owner or admin): a lead gets nothing.
+      vi.mocked(loadAiPanel).mockResolvedValue({ ok: false, reason: "not_found", message: "Inspection not found." });
+      const html = await render(reviewData({ viewer: lead, inspection: reviewInspection({ status }) }));
+      expect(button(html, "Approve")).toBe(false);
+      expect(button(html, "Reopen")).toBe(false);
+      expect(link(html, "Open inspection")).toBe(true);
+      expect(link(html, "Continue inspection")).toBe(false);
+      expect(link(html, "Make changes")).toBe(false);
+      expect(html).not.toContain('data-testid="ai-panel"');
+      if (status === "submitted") expect(html).toContain("An admin checks it next, and only an admin can reopen it for changes.");
+    },
+  );
+
   it.each([
     ["reopened", "Make changes"],
     ["draft", "Continue inspection"],

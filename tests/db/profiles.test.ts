@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Tables } from "@/lib/supabase/database.types";
-import { createPeople, promoteToAdmin, type People } from "./fixtures";
+import { createLead, createPeople, promoteToAdmin, type People } from "./fixtures";
 import { asOwner, asUser, column, createAuthUser, createTestDb, pgError, type Db } from "./harness";
 
 type Profile = Tables<"profiles">;
@@ -157,9 +157,15 @@ describe("profiles: who can read and change what", { timeout: 30_000 }, () => {
       ),
     );
     expect(result.rows[0]).toMatchObject({ full_name: "Olga O.", active: false });
-    await asUser(db, people.admin, (tx) =>
-      tx.query("update public.profiles set active = true where id = $1", [people.otherInspector]),
+    // Back in, in a lead inspector's team: an active inspector needs one (migration 20261007170000).
+    const lead = await createLead(db, "lead@test.local", "Lina Lead");
+    const back = await asUser(db, people.admin, (tx) =>
+      tx.query<Profile>("update public.profiles set active = true, lead_id = $2 where id = $1 returning *", [
+        people.otherInspector,
+        lead,
+      ]),
     );
+    expect(back.rows[0]).toMatchObject({ active: true, lead_id: lead, is_lead: false });
   });
 
   it("stops an admin changing another user's email or signature", async () => {
@@ -184,12 +190,17 @@ describe("profiles: who can read and change what", { timeout: 30_000 }, () => {
       asUser(db, userId, (tx) =>
         tx.query<{ active: boolean; role: string }>("select * from public.my_profile_status()"),
       );
-    expect((await status(people.inspector)).rows).toEqual([{ active: true, role: "inspector" }]);
+    expect((await status(people.inspector)).rows).toEqual([
+      { active: true, role: "inspector", is_lead: false, lead_id: null },
+    ]);
 
     await asUser(db, people.admin, (tx) =>
       tx.query("update public.profiles set active = false where id = $1", [people.otherInspector]),
     );
-    expect((await status(people.otherInspector)).rows).toEqual([{ active: false, role: "inspector" }]);
+    // Their place in a team stays with them while they are away.
+    expect((await status(people.otherInspector)).rows).toEqual([
+      { active: false, role: "inspector", is_lead: false, lead_id: expect.any(String) },
+    ]);
     const visible = await asUser(db, people.otherInspector, (tx) =>
       column<string>(tx, "select id from public.profiles"),
     );
@@ -241,8 +252,9 @@ describe("the last active admin", { timeout: 30_000 }, () => {
 
   it("can step down once another admin is active", async () => {
     await promoteToAdmin(db, people.otherInspector);
+    // Down to lead inspector, who needs no lead of their own (migration 20261007170000).
     await asUser(db, people.admin, (tx) =>
-      tx.query("update public.profiles set role = 'inspector' where id = $1", [people.admin]),
+      tx.query("update public.profiles set role = 'inspector', is_lead = true where id = $1", [people.admin]),
     );
     const roles = await asOwner(db, (tx) =>
       column<string>(tx, "select role::text from public.profiles where role = 'admin' and active"),

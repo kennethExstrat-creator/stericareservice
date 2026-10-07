@@ -29,8 +29,10 @@ function on(iso: string | null): string {
 
 /**
  * The inspector reads their own inspection as "you"; anyone else reads it as
- * the inspector's. A submitted one waits for an admin, so admins read it as
- * theirs to review, their own inspections included.
+ * the inspector's: an admin, or a lead inspector reading their team's
+ * (read-only: only admins approve and reopen). A submitted one waits for an
+ * admin, so admins read it as theirs to review, their own inspections
+ * included.
  */
 export function statusNotice(
   inspection: NoticeInspection,
@@ -62,7 +64,9 @@ export function statusNotice(
         : {
             status: "submitted",
             title: "Waiting for review",
-            body: `You submitted it${on(inspection.submittedAt)}. An admin checks it next. If something must change, ask an admin to reopen it.`,
+            body: own
+              ? `You submitted it${on(inspection.submittedAt)}. An admin checks it next. If something must change, ask an admin to reopen it.`
+              : `${inspector} submitted it${on(inspection.submittedAt)}. An admin checks it next, and only an admin can reopen it for changes.`,
             reason: null,
           };
 

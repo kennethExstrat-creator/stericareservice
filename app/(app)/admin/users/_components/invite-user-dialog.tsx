@@ -15,41 +15,36 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  FieldLegend,
-  FieldSet,
-  FieldTitle,
-} from "@/components/ui/field";
+import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Spinner } from "@/components/ui/spinner";
 import { submitAction } from "@/lib/admin/submit";
-import type { InviteField, UserRole } from "@/lib/auth/users";
+import { needsLead, type RoleChoice } from "@/lib/auth/org";
+import type { LeadOption, UserField } from "@/lib/auth/users";
 import { inviteUser, type ActionResult } from "../actions";
+import { cn } from "@/lib/utils";
+import { focusRole, LeadField, RoleField, roleChoicesFor, SCROLLING_DIALOG } from "./role-fields";
 import { unreachable } from "./unreachable";
 
-const ROLE_OPTIONS: { value: UserRole; label: string; description: string }[] = [
-  { value: "inspector", label: "Inspector", description: "Records inspections and sees their own." },
-  {
-    value: "admin",
-    label: "Admin",
-    description: "Also manages users, templates and reference data, and approves inspections.",
-  },
-];
-
-type FieldErrors = Partial<Record<InviteField, string>>;
+type FieldErrors = Partial<Record<UserField, string>>;
 
 /**
  * "Invite user": the button and its dialog. Disabled, with the reason shown on
  * the page, when the server has no secret key to send invites with.
  */
-export function InviteUserDialog({ disabled = false, label = "Invite user" }: { disabled?: boolean; label?: string }) {
+export function InviteUserDialog({
+  disabled = false,
+  label = "Invite user",
+  teams = true,
+  leads = [],
+}: {
+  disabled?: boolean;
+  label?: string;
+  /** False until the project has lead inspectors (migration 20261007170000): roles only. */
+  teams?: boolean;
+  /** Active lead inspectors, for an inspector's lead. */
+  leads?: readonly LeadOption[];
+}) {
   const [open, setOpen] = useState(false);
   // A fresh form, with empty fields and no old errors, every time it opens.
   const [formKey, setFormKey] = useState(0);
@@ -71,13 +66,15 @@ export function InviteUserDialog({ disabled = false, label = "Invite user" }: { 
         </Button>
       </DialogTrigger>
       <DialogContent
-        className="sm:max-w-lg"
+        className={cn("sm:max-w-lg", SCROLLING_DIALOG)}
         onInteractOutside={(event) => {
           if (pending.current) event.preventDefault();
         }}
       >
         <InviteForm
           key={formKey}
+          teams={teams}
+          leads={leads}
           onPendingChange={(value) => {
             pending.current = value;
           }}
@@ -90,15 +87,29 @@ export function InviteUserDialog({ disabled = false, label = "Invite user" }: { 
 
 const IDLE: ActionResult = { status: "idle" };
 
-function InviteForm({ onDone, onPendingChange }: { onDone: () => void; onPendingChange: (pending: boolean) => void }) {
+function InviteForm({
+  teams,
+  leads,
+  onDone,
+  onPendingChange,
+}: {
+  teams: boolean;
+  leads: readonly LeadOption[];
+  onDone: () => void;
+  onPendingChange: (pending: boolean) => void;
+}) {
   const id = useId();
   const nameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
+  const roleRef = useRef<HTMLDivElement>(null);
+  const leadRef = useRef<HTMLButtonElement>(null);
   // Controlled, and submitted by hand (submitAction): React resets a form after its action, and the role's
-  // RadioGroup would go back to Inspector on that reset, so a failed invite keeps everything the admin chose.
+  // RadioGroup and the lead's Select would go back to their first values on that reset, so a failed invite
+  // keeps everything the admin chose.
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<UserRole>("inspector");
+  const [role, setRole] = useState<RoleChoice>("inspector");
+  const [leadId, setLeadId] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const [state, formAction, pending] = useActionState(async (previous: ActionResult, formData: FormData) => {
@@ -107,8 +118,12 @@ function InviteForm({ onDone, onPendingChange }: { onDone: () => void; onPending
       const result = await inviteUser(previous, formData).catch(unreachable);
       const errors = result.status === "error" ? (result.fieldErrors ?? {}) : {};
       setFieldErrors(errors);
+      // To the first field marked, in the form's order. With nobody to lead
+      // them the action marks the role, not the empty, disabled picker.
       if (errors.fullName) nameRef.current?.focus();
       else if (errors.email) emailRef.current?.focus();
+      else if (errors.role) focusRole(roleRef.current);
+      else if (errors.leadId) leadRef.current?.focus();
 
       if (result.status === "success") {
         toast.success(result.message);
@@ -126,7 +141,6 @@ function InviteForm({ onDone, onPendingChange }: { onDone: () => void; onPending
   const formError = state.status === "error" && !state.fieldErrors ? state.message : null;
   const nameError = fieldErrors.fullName;
   const emailError = fieldErrors.email;
-  const roleError = fieldErrors.role;
 
   return (
     <form onSubmit={submitAction(formAction, pending)} noValidate className="grid gap-6">
@@ -178,31 +192,31 @@ function InviteForm({ onDone, onPendingChange }: { onDone: () => void; onPending
           {emailError && <FieldError id={`${id}-email-error`}>{emailError}</FieldError>}
         </Field>
 
-        <FieldSet className="gap-3" aria-describedby={roleError ? `${id}-role-error` : undefined}>
-          <FieldLegend variant="label" className="mb-0">
-            Role
-          </FieldLegend>
-          <RadioGroup
-            name="role"
-            value={role}
-            onValueChange={(value) => setRole(value as UserRole)}
-            className="grid gap-3 sm:grid-cols-2"
-            aria-invalid={roleError ? true : undefined}
-          >
-            {ROLE_OPTIONS.map((option) => (
-              <FieldLabel key={option.value} htmlFor={`${id}-role-${option.value}`}>
-                <Field orientation="horizontal">
-                  <RadioGroupItem value={option.value} id={`${id}-role-${option.value}`} />
-                  <FieldContent>
-                    <FieldTitle>{option.label}</FieldTitle>
-                    <FieldDescription>{option.description}</FieldDescription>
-                  </FieldContent>
-                </Field>
-              </FieldLabel>
-            ))}
-          </RadioGroup>
-          {roleError && <FieldError id={`${id}-role-error`}>{roleError}</FieldError>}
-        </FieldSet>
+        <RoleField
+          id={id}
+          value={role}
+          choices={roleChoicesFor(teams)}
+          error={fieldErrors.role}
+          groupRef={roleRef}
+          onChange={(next) => {
+            setRole(next);
+            if (fieldErrors.role) setFieldErrors((errors) => ({ ...errors, role: undefined }));
+          }}
+        />
+
+        {teams && needsLead(role) && (
+          <LeadField
+            id={id}
+            value={leadId}
+            leads={leads}
+            error={fieldErrors.leadId}
+            triggerRef={leadRef}
+            onChange={(next) => {
+              setLeadId(next);
+              if (fieldErrors.leadId) setFieldErrors((errors) => ({ ...errors, leadId: undefined }));
+            }}
+          />
+        )}
       </FieldGroup>
 
       {formError && (

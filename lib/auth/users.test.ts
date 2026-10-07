@@ -6,6 +6,8 @@ vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn(), isAdminClie
 import { createAdminClient, isAdminClientConfigured } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
+  ActivateSchema,
+  AssignLeadSchema,
   BAN_DURATION,
   ChangeRoleSchema,
   InviteUserSchema,
@@ -44,7 +46,7 @@ describe("InviteUserSchema", () => {
     [{ email: "jane@", fullName: "Jane", role: "inspector" }, "email", "Enter a valid email address, like name@example.com."],
     [{ email: "jane@example.com", fullName: "   ", role: "inspector" }, "fullName", "Enter their full name."],
     [{ email: "jane@example.com", fullName: "x".repeat(121), role: "inspector" }, "fullName", "Keep the name under 120 characters."],
-    [{ email: "jane@example.com", fullName: "Jane", role: "owner" }, "role", "Choose Inspector or Admin."],
+    [{ email: "jane@example.com", fullName: "Jane", role: "owner" }, "role", "Choose Inspector, Lead inspector or Admin."],
     // A field missing from the form arrives as null.
     [{ email: null, fullName: null, role: null }, "email", "Enter their email address."],
   ])("explains what is wrong with %j", (input, field, message) => {
@@ -58,7 +60,7 @@ describe("InviteUserSchema", () => {
     expect(firstFieldErrors(result.error!)).toEqual({
       email: "Enter their email address.",
       fullName: "Enter their full name.",
-      role: "Choose Inspector or Admin.",
+      role: "Choose Inspector, Lead inspector or Admin.",
     });
   });
 });
@@ -82,6 +84,33 @@ describe("role and target schemas", () => {
       expect(UserTargetSchema.safeParse({ userId }).success).toBe(false);
     }
     expect(ChangeRoleSchema.safeParse({ userId: OTHER, role: "superuser" }).success).toBe(false);
+  });
+});
+
+describe("the lead inspector in a form", () => {
+  it("takes a lead id, lower-cased, and reads an empty choice as none", () => {
+    expect(ChangeRoleSchema.parse({ userId: OTHER, role: "inspector", leadId: NEW.toUpperCase() })).toMatchObject({
+      role: "inspector",
+      leadId: NEW,
+    });
+    expect(ChangeRoleSchema.parse({ userId: OTHER, role: "lead", leadId: "" }).leadId).toBeUndefined();
+    expect(InviteUserSchema.parse({ email: "a@example.com", fullName: "A", role: "lead", leadId: null }).leadId).toBeUndefined();
+    expect(ChangeRoleSchema.safeParse({ userId: OTHER, role: "inspector", leadId: "lina" }).success).toBe(false);
+  });
+
+  it("needs a lead to move someone to another team", () => {
+    expect(AssignLeadSchema.parse({ userId: OTHER, leadId: NEW })).toEqual({ userId: OTHER, leadId: NEW });
+    const missing = AssignLeadSchema.safeParse({ userId: OTHER, leadId: "" });
+    expect(missing.error?.issues[0].message).toBe("Choose their lead inspector.");
+  });
+
+  it("lets an activation carry a role and a lead, or neither", () => {
+    expect(ActivateSchema.parse({ userId: OTHER, role: "", leadId: "" })).toEqual({ userId: OTHER });
+    expect(ActivateSchema.parse({ userId: OTHER, role: "inspector", leadId: NEW })).toEqual({
+      userId: OTHER,
+      role: "inspector",
+      leadId: NEW,
+    });
   });
 });
 
@@ -202,6 +231,26 @@ describe("errors in plain words", () => {
     expect(describeProfileError({ code: "42501", message: "only an admin can change role or active" })).toBe(MESSAGES.notAllowed);
     expect(describeProfileError({ code: "08006", message: "connection failure" })).toBe(
       "The change could not be saved: connection failure.",
+    );
+  });
+
+  // The database's words for the team rules (migration 20261007170000), when something changed in between.
+  it.each([
+    ["an active inspector needs a lead inspector", "Choose their lead inspector."],
+    ["the lead inspector must be an active lead inspector", "That lead inspector is not an active lead inspector any more. Reload the page and choose another."],
+    [
+      "this lead inspector still leads 2 inspector(s): assign them to another lead inspector first",
+      "They still lead a team. Choose another lead inspector for each person in it first, then try again.",
+    ],
+    ["nobody is their own lead inspector", "Nobody can be their own lead inspector. Choose someone else."],
+    ["an admin is not a lead inspector and is in no team", "Admins and lead inspectors work in no lead inspector's team. Reload the page and try again."],
+  ])("turns the team rule %j into a sentence", (message, expected) => {
+    expect(describeProfileError({ code: "23514", message })).toBe(expected);
+  });
+
+  it("says when the database has no lead inspectors yet", () => {
+    expect(describeProfileError({ code: "PGRST204", message: "Could not find the 'is_lead' column of 'profiles' in the schema cache" })).toMatch(
+      /^Lead inspectors need a database update first/,
     );
   });
 });
@@ -398,6 +447,87 @@ describe("getUserDirectory", () => {
       from: vi.fn(() => query({ data: null, error: { message: "relation does not exist" } })),
     } as never);
     await expect(getUserDirectory(VIEWER)).rejects.toThrow("Could not load the user list: relation does not exist");
+  });
+});
+
+describe("getUserDirectory with lead inspectors", () => {
+  const LEAD = "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d";
+  const OLD_LEAD = "2c3d4e5f-6071-4b8c-9d0e-1f2a3b4c5d6e";
+  const MEMBER = "3d4e5f60-7182-4c9d-8e0f-2a3b4c5d6e7f";
+  const created = "2026-10-01T00:00:00Z";
+  const touched = "2026-10-02T00:00:00Z";
+  const row = (id: string, email: string, full_name: string | null, extra: Record<string, unknown>) => ({
+    id,
+    email,
+    full_name,
+    role: "inspector",
+    active: true,
+    created_at: created,
+    updated_at: touched,
+    is_lead: false,
+    lead_id: null,
+    ...extra,
+  });
+  const ROWS = [
+    row(VIEWER, "admin@test.local", "Test Admin", { role: "admin" }),
+    row(LEAD, "lina@test.local", "Lina Lead", { is_lead: true }),
+    row(OLD_LEAD, "otto@test.local", "Otto Old", { is_lead: true, active: false }),
+    row(MEMBER, "ivan@test.local", "Ivan Inspector", { lead_id: LEAD }),
+    row(OTHER, "olga@test.local", "Olga Other", { lead_id: LEAD, active: false }),
+    // From before teams: active, in no team.
+    row(NEW, "gail@test.local", "Gail Grandfathered", {}),
+  ];
+
+  afterEach(() => vi.resetAllMocks());
+
+  it("gives each person their role, lead and team, flags inspectors in no team, and lists the active leads", async () => {
+    vi.mocked(isAdminClientConfigured).mockReturnValue(false);
+    vi.mocked(createClient).mockResolvedValue({ from: vi.fn(() => query({ data: ROWS, error: null })) } as never);
+
+    const { users, teams, leads } = await getUserDirectory(VIEWER);
+
+    expect(teams).toBe(true);
+    const byEmail = Object.fromEntries(users.map((user) => [user.email, user]));
+    expect(byEmail["lina@test.local"]).toMatchObject({
+      roleChoice: "lead",
+      lead: null,
+      team: [
+        { id: MEMBER, name: "Ivan Inspector", active: true },
+        { id: OTHER, name: "Olga Other", active: false },
+      ],
+      missingLead: false,
+    });
+    expect(byEmail["ivan@test.local"]).toMatchObject({ roleChoice: "inspector", lead: { id: LEAD, name: "Lina Lead" }, team: [] });
+    expect(byEmail["admin@test.local"]).toMatchObject({ roleChoice: "admin", lead: null, missingLead: false });
+    expect(byEmail["gail@test.local"]).toMatchObject({ roleChoice: "inspector", lead: null, missingLead: true });
+    // A deactivated lead cannot take anyone on.
+    expect(leads).toEqual([{ id: LEAD, name: "Lina Lead", teamSize: 2 }]);
+  });
+
+  it("works with roles only on a project without the lead inspector columns", async () => {
+    vi.mocked(isAdminClientConfigured).mockReturnValue(false);
+    const calls: Array<[string, unknown[]]> = [];
+    let reads = 0;
+    vi.mocked(createClient).mockResolvedValue({
+      from: vi.fn(() => {
+        reads += 1;
+        return reads === 1
+          ? query({ data: null, error: { code: "42703", message: "column profiles.is_lead does not exist" } }, calls)
+          : query({ data: PROFILES, error: null }, calls);
+      }),
+    } as never);
+
+    const { users, teams, leads } = await getUserDirectory(VIEWER);
+
+    expect(teams).toBe(false);
+    expect(leads).toEqual([]);
+    expect(users).toHaveLength(3);
+    // Nobody is flagged for a team the project does not have yet.
+    expect(users.every((user) => !user.missingLead && user.lead === null && user.roleChoice !== "lead")).toBe(true);
+    expect(calls.filter(([method]) => method === "select").map(([, args]) => args[0])).toEqual([
+      "id, email, full_name, role, active, created_at, updated_at, is_lead, lead_id",
+      "id, email, full_name, role, active, created_at, updated_at",
+    ]);
   });
 });
 

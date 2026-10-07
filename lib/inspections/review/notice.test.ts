@@ -39,6 +39,25 @@ describe("statusNotice", () => {
     });
   });
 
+  // Lead inspectors read their team's inspections (migration 20261007170000), read-only.
+  it("tells a lead inspector whose submitted inspection it is, and that an admin decides", () => {
+    const lead = { id: "00000000-0000-4000-8000-000000000103", role: "inspector" } as const;
+    expect(statusNotice(inspection(), lead, [])).toEqual({
+      status: "submitted",
+      title: "Waiting for review",
+      body: "Inspector A submitted it on 5 Oct 2026, 14:30. An admin checks it next, and only an admin can reopen it for changes.",
+      reason: null,
+    });
+    expect(statusNotice(inspection({ status: "draft" }), lead, []).body).toBe(
+      "Inspector A has not submitted it yet. The results below show what is saved so far.",
+    );
+    expect(statusNotice(inspection({ status: "reopened" }), lead, [reopen({ kind: "admin" }, "Retest size M.")])).toMatchObject({
+      title: "Reopened for changes",
+      body: "An admin reopened it on 6 Oct 2026, 10:00. Inspector A can change it and submit it again.",
+      reason: { label: "Reason", text: "Retest size M." },
+    });
+  });
+
   it("gives an admin's own submitted inspection to them to review", () => {
     const own = inspection({ inspector: { id: ADMIN, name: "Admin A" } });
     expect(statusNotice(own, admin, []).body).toMatch(/^You submitted it on .* Check the results/);

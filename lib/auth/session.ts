@@ -19,6 +19,14 @@ export type SessionUser = {
   email: string;
   fullName: string | null;
   role: UserRole;
+  /**
+   * A lead inspector (role inspector, lib/auth/org.ts): also reads every
+   * inspection of their team. getSession() always sets it; absent (test
+   * doubles, code written before teams) means not a lead.
+   */
+  isLead?: boolean;
+  /** The lead inspector who manages them; null for admins, lead inspectors and inspectors in no team yet. */
+  leadId?: string | null;
 };
 
 export type SessionState =
@@ -32,11 +40,12 @@ export const DEACTIVATED_PATH = "/auth/sign-out?reason=deactivated";
 
 /**
  * Resolves the session once per request (React `cache`): the JWT is verified by
- * getClaims(), then my_profile_status() reports role and active flag. That
- * function is security definer, so it still answers for a deactivated user,
- * whose RLS-protected profile row is otherwise invisible. The name and email
- * come from that row, read in parallel; RLS only returns it to active users,
- * the only ones who need it.
+ * getClaims(), then my_profile_status() reports role, active flag, lead
+ * inspector flag and lead. That function is security definer, so it still
+ * answers for a deactivated user, whose RLS-protected profile row is otherwise
+ * invisible. The name and email come from that row, read in parallel; RLS only
+ * returns it to active users, the only ones who need it. On a project without
+ * migration 20261007170000 the function has no lead columns: nobody is a lead.
  */
 export const getSession = cache(async (): Promise<SessionState> => {
   if (!isSupabaseConfigured()) return { status: "unconfigured" };
@@ -66,6 +75,8 @@ export const getSession = cache(async (): Promise<SessionState> => {
       email: profile?.email ?? auth.claims.email ?? "",
       fullName: profile?.full_name ?? null,
       role: status.role,
+      isLead: status.role === "inspector" && status.is_lead === true,
+      leadId: status.role === "inspector" ? (status.lead_id ?? null) : null,
     },
   };
 });

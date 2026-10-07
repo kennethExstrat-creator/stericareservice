@@ -3,6 +3,10 @@
 // - Draft and reopened inspections are edited here, by their inspector or an
 //   admin. Row Level Security agrees: inspectors update their own only while
 //   draft or reopened; admins update any inspection that is not approved.
+// - Anyone else who can open it reads it: a lead inspector looking at their
+//   team's inspection (role inspector, not the owner) gets "not_yours", and
+//   the database refuses them every change too (migration 20261007170000:
+//   leads only read their team's rows). Only the owner and admins edit.
 // - Submitted inspections are read-only here. An admin who needs a change
 //   reopens the inspection from the review screen, so what the reviewer sees
 //   never moves underneath them.
