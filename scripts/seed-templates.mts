@@ -11,10 +11,10 @@
  * npm run seed:templates runs node --env-file-if-exists=.env.local
  * scripts/seed-templates.mts, so it writes to the Supabase project that
  * .env.local names, and says which. Options go after the --. npm takes an
- * option written before it
- * (npm run seed:templates --drafts) as its own, and the script never sees
- * it. npm leaves a trace of it in an npm_config_ variable, so the script then
- * stops without writing and shows the command with the options after the --.
+ * option written before it (npm run seed:templates --drafts) as its own, and
+ * the script never sees it. npm leaves a trace of it in an npm_config_
+ * variable, so the script then stops without writing and shows the command
+ * with the options after the --.
  *
  * Run order on a project:
  *   1. supabase/seed.sql (npx supabase db push --include-seed): reference
