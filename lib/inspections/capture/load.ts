@@ -2,7 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import type { InspectionResult, InspectionStatus } from "@/lib/schemas/common";
-import { ResolvedTemplateSchema, type ModuleOverrides, type ResolvedTemplate } from "@/lib/schemas/template";
+import { aiReviewOnSubmit, ResolvedTemplateSchema, type ModuleOverrides, type ResolvedTemplate } from "@/lib/schemas/template";
 import type { Database } from "@/lib/supabase/database.types";
 import { parseModuleOverrides } from "@/lib/templates";
 import type { InspectionData, InspectionFileRef } from "@/modules/_framework";
@@ -114,8 +114,7 @@ export async function loadFileRefs(client: Client, inspectionId: string): Promis
 }
 
 export function toCaptureLoad(row: CaptureRow): CaptureLoad {
-  // The AI setting is read on its own (reviewOnSubmitOf), so a schema that does not know it yet still reads the rest.
-  const resolved = ResolvedTemplateSchema.safeParse(withoutAiSetting(row.template?.resolved));
+  const resolved = ResolvedTemplateSchema.safeParse(row.template?.resolved);
   if (!row.template || !resolved.success) {
     const first = resolved.success ? null : resolved.error.issues[0];
     return {
@@ -145,7 +144,7 @@ export function toCaptureLoad(row: CaptureRow): CaptureLoad {
         code: row.template.code,
         version: row.template.version,
         resolved: resolved.data,
-        aiReviewOnSubmit: reviewOnSubmitOf(row.template.resolved),
+        aiReviewOnSubmit: aiReviewOnSubmit(resolved.data),
       },
       meta: {
         refNo: row.ref_no,
@@ -157,24 +156,6 @@ export function toCaptureLoad(row: CaptureRow): CaptureLoad {
       manufacturerLabel: row.manufacturer ? manufacturerLabel(row.manufacturer) : null,
     },
   };
-}
-
-/**
- * `templates.resolved.ai.reviewOnSubmit` as stored (BUILD_SPEC 9.2): the
- * template asks for the AI second opinion on submit. Read from the row
- * itself, so it holds whichever schema version parsed the rest; off when
- * the template and its bases leave it out.
- */
-export function reviewOnSubmitOf(resolved: unknown): boolean {
-  if (!isRecord(resolved) || !isRecord(resolved.ai)) return false;
-  return resolved.ai.reviewOnSubmit === true;
-}
-
-function withoutAiSetting(resolved: unknown): unknown {
-  if (!isRecord(resolved) || !("ai" in resolved)) return resolved;
-  const rest = { ...resolved };
-  delete rest.ai;
-  return rest;
 }
 
 /**

@@ -5,7 +5,6 @@ import {
   loadCaptureInspection,
   loadOverrideAuthors,
   normaliseData,
-  reviewOnSubmitOf,
   toCaptureLoad,
 } from "./load";
 
@@ -70,17 +69,17 @@ describe("toCaptureLoad", () => {
     });
   });
 
-  it("reads the template's AI setting on its own, off when it says nothing", () => {
+  it("reads the template's AI setting through its schema, off when it says nothing", () => {
     const withAi = (ai: unknown) => row({ template: { id: "t1", code: "TEST_EG", version: 4, resolved: { ...testTemplate(), ai } } });
     const asked = toCaptureLoad(withAi({ reviewOnSubmit: true }));
     expect(asked.kind === "found" && asked.inspection.template.aiReviewOnSubmit).toBe(true);
-    expect(asked.kind === "found" && "ai" in asked.inspection.template.resolved).toBe(false);
+    expect(asked.kind === "found" && asked.inspection.template.resolved.ai).toEqual({ reviewOnSubmit: true });
     const off = toCaptureLoad(withAi({ reviewOnSubmit: false }));
     expect(off.kind === "found" && off.inspection.template.aiReviewOnSubmit).toBe(false);
     const silent = toCaptureLoad(row());
     expect(silent.kind === "found" && silent.inspection.template.aiReviewOnSubmit).toBe(false);
-    expect(reviewOnSubmitOf({ ai: { reviewOnSubmit: "yes" } })).toBe(false);
-    expect(reviewOnSubmitOf(null)).toBe(false);
+    // A setting the schema refuses is an unreadable template like any other part, not a guess.
+    expect(toCaptureLoad(withAi({ reviewOnSubmit: "yes" })).kind).toBe("template_unreadable");
   });
 
   it("says when the template version cannot be read, rather than guessing", () => {
