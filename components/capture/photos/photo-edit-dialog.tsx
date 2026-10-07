@@ -54,6 +54,8 @@ import {
   type PhotoTagOptions,
 } from "@/lib/inspections/photos/view";
 import { parseTarget, type PhotoTarget } from "@/lib/photos/target";
+// The loading module's own caption for its stage picker: its config only, no module code.
+import { LOADING_LABELS } from "@/modules/loading/config";
 import { savePhotoEdit } from "./edit-flows";
 import { PhotoUserContext } from "./hooks";
 import type { SlotPhoto } from "./photo-model";
@@ -63,8 +65,13 @@ const NONE = "__none__";
 
 const FOCUSABLE = "button, input, textarea, select, [tabindex]:not([tabindex='-1'])";
 
-/** What a module's own list holds, as the field is named. */
-const ITEM_FIELD_LABEL: Readonly<Record<string, string>> = { documents: "Document", loading: "Loading Stage" };
+/**
+ * What a module's own list holds, as the field is named: loading's stage
+ * picker by the module's own caption, word for word as lib/coverage lists it
+ * (the tag options do not carry a template's rewording of it); a documents
+ * checklist entry in the app's word.
+ */
+const ITEM_FIELD_LABEL: Readonly<Record<string, string>> = { documents: "Document", loading: LOADING_LABELS.loadingStage };
 
 /** The choice for a tag the photo does not have: no hand, level or list entry recorded. */
 const NOT_RECORDED = "Not Recorded";

@@ -7,6 +7,7 @@
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { defaultLabels } from "@/lib/coverage/fields";
 import type { PhotoTagOptions } from "@/lib/inspections/photos/view";
 
 // The dialog is drawn in place: a portal draws nothing on the server.
@@ -124,5 +125,11 @@ describe("PhotoEditDialog", () => {
     // The levels in the module's words, after the app's own "Not Recorded".
     expect(choices(level)).toEqual(["Not Recorded", "Dispenser Box", "Carton Box"]);
     expect(level).toContain(">Box (Carton Number)</label>");
+  });
+
+  it("names loading's stage picker in the loading module's words, as lib/coverage lists them", () => {
+    // A template's caption, not the app's own label: it stays as printed (the loading form reads the same).
+    const html = draw({ moduleKey: "loading", target: "item:sealed" });
+    expect(html).toContain(`>${defaultLabels("loading").loadingStage}</label>`);
   });
 });
