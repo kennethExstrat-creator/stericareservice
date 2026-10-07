@@ -36,12 +36,16 @@ export type AuditEntry = {
   detail: string | null;
 };
 
-/** Titles of events server actions log with log_inspection_event(). Others are worded from their action. */
+/**
+ * Titles of events server actions log with log_inspection_event(). Others are
+ * worded from their action. Titles in Title Case, as every title the app
+ * writes (Kenneth, 8 October 2026).
+ */
 const EVENT_TITLES: Readonly<Record<string, string>> = {
-  module_override: "Module settings changed for this inspection",
-  "ai_report.sent": "Sent to the AI report",
-  "ai_review.requested": "AI second opinion requested",
-  [REOPEN_EVENT]: "Reason for reopening",
+  module_override: "Module Settings Changed for This Inspection",
+  "ai_report.sent": "Sent to the AI Report",
+  "ai_review.requested": "AI Second Opinion Requested",
+  [REOPEN_EVENT]: "Reason for Reopening",
 };
 
 export function buildAuditTrail(rows: readonly AuditRow[], people: KnownPeople): AuditEntry[] {
@@ -96,13 +100,13 @@ function statusChange(changes: unknown): Pick<AuditEntry, "kind" | "title"> {
   const to = InspectionStatusSchema.safeParse(record.to);
   if (to.success && to.data === "submitted") {
     return from.success && from.data === "reopened"
-      ? { kind: "resubmitted", title: "Submitted again" }
+      ? { kind: "resubmitted", title: "Submitted Again" }
       : { kind: "submitted", title: "Submitted" };
   }
   if (to.success && to.data === "approved") return { kind: "approved", title: "Approved" };
   if (to.success && to.data === "reopened") return { kind: "reopened", title: "Reopened" };
-  const word = (status: typeof from) => (status.success ? INSPECTION_STATUS_LABEL[status.data].toLowerCase() : "unknown");
-  return { kind: "status", title: `Status changed from ${word(from)} to ${word(to)}` };
+  const word = (status: typeof from) => (status.success ? INSPECTION_STATUS_LABEL[status.data] : "Unknown");
+  return { kind: "status", title: `Status Changed From ${word(from)} to ${word(to)}` };
 }
 
 /** A reason or note logged with an event, if it has one. */
@@ -115,15 +119,26 @@ function detailOf(changes: unknown): string | null {
   return null;
 }
 
-/** `ai_review.failed` as "AI review failed". */
+/** Words a title keeps in lower case, except as its first word. */
+const SMALL_WORDS: ReadonlySet<string> = new Set([
+  "a", "an", "the", "and", "but", "or", "nor", "of", "in", "on", "at", "to", "by", "for", "per", "via", "vs", "as",
+]);
+
+/** `ai_review.failed` as "AI Review Failed": a title, each word capitalised but the small ones. */
 export function humanise(action: string): string {
-  const words = action
-    .split(/[._]+/)
-    .filter(Boolean)
-    .map((word) => (word === "ai" ? "AI" : word));
+  const words = action.split(/[._]+/).filter(Boolean);
   if (words.length === 0) return "Event";
-  const [first, ...rest] = words;
-  return [first.charAt(0).toUpperCase() + first.slice(1), ...rest].join(" ");
+  return words
+    .map((word, index) => {
+      if (word.toLowerCase() === "ai") return "AI";
+      if (index > 0 && SMALL_WORDS.has(word.toLowerCase())) return word.toLowerCase();
+      // Each part of a hyphenated word: "Follow-Up".
+      return word
+        .split("-")
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join("-");
+    })
+    .join(" ");
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
