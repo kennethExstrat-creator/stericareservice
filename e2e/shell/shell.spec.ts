@@ -433,6 +433,9 @@ test.describe("as the admin", () => {
     await shot(page, "admin-404");
     await page.getByRole("link", { name: "Go to inspections" }).click();
     await expect(page).toHaveURL(/\/inspections$/);
+    // Rendered in full before the test closes the page, so the server never streams into a closed tab.
+    await expect(page.getByRole("heading", { level: 1, name: "Inspections" })).toBeVisible();
+    await expect(page.locator('section[aria-label="Inspections"] [role="status"]')).not.toBeEmpty();
   });
 
   test("Sign out ends the session at once when nothing waits on this device", async ({ page, context, baseURL }) => {
