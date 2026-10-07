@@ -1,5 +1,6 @@
 import { expect as baseExpect, test, type Locator, type Page } from "@playwright/test";
 import { signIn, TEST_ACCOUNTS } from "../support/session";
+import { chromeNames } from "../users/support";
 import {
   changeCode,
   createDefectsFixture,
@@ -345,6 +346,12 @@ test.describe("as an admin", () => {
     let dialog = page.getByRole("dialog", { name: `Map “${LABELS.tornCuff}”` });
     await expect(dialog).toBeVisible();
     await expect(dialog).toContainText("Size M: 2; Size L: 1 (3 found in all)");
+    // "Map to" named and described as a screen reader hears it, in Chrome's own tree: getByRole finds
+    // the names even where Chrome has none.
+    expect(await chromeNames(dialog, "radio")).toEqual([
+      { name: "An existing code", description: "One of the active codes." },
+      { name: "A new code", description: "Add a code for this label first." },
+    ]);
     await press(dialog.getByRole("button", { name: "Map label" }));
     await expect(dialog.getByText("Choose a code.")).toBeVisible();
     // Never a hole location or a Safedon dispensing fault for a visual defect: they would count where

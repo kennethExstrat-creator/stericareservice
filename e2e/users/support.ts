@@ -180,3 +180,44 @@ export async function pickLead(page: Page, dialog: Locator, name: string): Promi
   await dialog.getByRole("combobox", { name: "Lead inspector" }).click();
   await page.getByRole("option", { name, exact: true }).click();
 }
+
+export type ChromeName = { name: string; description: string };
+
+/**
+ * The elements with `role` inside `scope`, in order, named and described as
+ * Chrome itself computes it: read from its accessibility tree over the
+ * DevTools protocol, so Chromium projects only. Playwright's getByRole
+ * computes names on its own and can find a name where Chrome finds none, as
+ * it did for a radio inside its card's label (see
+ * app/(app)/admin/_components/radio-card.tsx). A screen reader hears Chrome's.
+ */
+export async function chromeNames(scope: Locator, role: string): Promise<ChromeName[]> {
+  const page = scope.page();
+  const mark = randomUUID();
+  await scope.evaluate((element, value) => element.setAttribute("data-chrome-names", value), mark);
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    await cdp.send("Accessibility.enable");
+    const { result } = await cdp.send("Runtime.evaluate", {
+      expression: `document.querySelector('[data-chrome-names="${mark}"]')`,
+    });
+    if (!result.objectId) throw new Error("chromeNames: the scope left the page.");
+    const { nodes } = await cdp.send("Accessibility.queryAXTree", { objectId: result.objectId, role });
+    // The query also returns nodes left out of the tree, such as Radix's hidden native radios.
+    return nodes
+      .filter((node) => !node.ignored)
+      .map((node) => ({ name: String(node.name?.value ?? ""), description: String(node.description?.value ?? "") }));
+  } finally {
+    await cdp.detach();
+    await scope.evaluate((element) => element.removeAttribute("data-chrome-names")).catch(() => undefined);
+  }
+}
+
+/** The role radios of the invite, change role and activate dialogs, as Chrome names them. */
+export function roleRadios(teams: boolean): ChromeName[] {
+  return [
+    { name: "Inspector", description: "Records inspections and sees their own." },
+    ...(teams ? [{ name: "Lead inspector", description: "Also sees their team's inspections, read-only." }] : []),
+    { name: "Admin", description: "Manages users and templates, and approves inspections." },
+  ];
+}
