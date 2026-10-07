@@ -8,6 +8,11 @@ import { drawImage, watchConsole } from "../photos/support";
 import { createTestAdminClient, deleteTestInspection } from "../support/admin";
 import { sessionCookies, TEST_ACCOUNTS } from "../support/session";
 
+/** Today in Malaysia, as the database dates a new inspection: a conclusion dated earlier would add a warning. */
+function todayInMalaysia(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur" }).format(new Date());
+}
+
 /**
  * The capture screen's halves of two fixes first made on the review, as an
  * admin on a draft of the test inspector's:
@@ -144,7 +149,7 @@ async function insertRows(admin: AdminClient, browser: Browser): Promise<Fixture
 
   // Inserts never send id or ref_no: the database draws the ref number. The inspector chose HOLD, with its date.
   const data = {
-    modules: { order_lots: { sizes: { M: { qtyCases: 10 } } }, conclusion: { finalResult: "hold", date: "2026-10-07" } },
+    modules: { order_lots: { sizes: { M: { qtyCases: 10 } } }, conclusion: { finalResult: "hold", date: todayInMalaysia() } },
     custom: {},
   };
   const { data: inspection, error: inspectionError } = await admin

@@ -113,12 +113,20 @@ function submitDefinition(): TemplateDefinition {
 const CAPTURE_DATA = { order_lots: { sizes: { S: { qtyCases: 100 }, M: { qtyCases: 200 } } } } as const;
 
 /** Nothing left to do: 13 pouches tested, none failed (a clean pass), or 5 of 13 (a pass with a warning). */
+/**
+ * Today in Malaysia, as the database dates a new inspection: the conclusion
+ * is dated the same day, so it raises no "before the inspection date" warning.
+ */
+function todayInMalaysia(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur" }).format(new Date());
+}
+
 function submitData(pouchesTested: number) {
   return {
     header: { poNo: "PO-E2E-FINAL" },
     order_lots: { sizes: { M: { qtyCases: 10, lotNumbers: ["LOT-E2E-FINAL"] } } },
     dye_leak: { sizes: { M: { pouchesTested, pouchesFailed: 0 } } },
-    conclusion: { finalResult: "pass", date: "2026-10-07" },
+    conclusion: { finalResult: "pass", date: todayInMalaysia() },
   };
 }
 
