@@ -1058,26 +1058,24 @@ function IssuesButton({
   onClick: () => void;
   className?: string;
 }) {
+  // Calm on purpose (Kenneth: red and amber counts felt alarming): "Pending" with a blue dot
+  // while anything is open; the counts and what blocks submit are read out, and shown in the sheet.
+  const open = errors + warnings;
   return (
     <Button type="button" variant="outline" onClick={onClick} className={className} data-action="issues" aria-haspopup="dialog">
       <span className="inline-flex items-center gap-1.5">
         <ListChecksIcon aria-hidden />
-        Issues
+        Pending
       </span>
-      <span className="inline-flex items-center gap-1">
-        {errors > 0 && (
-          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-fail-solid px-1.5 text-xs font-bold text-fail-solid-foreground tabular-nums">
-            {errors}
-            <span className="sr-only">{errors === 1 ? " error" : " errors"}</span>
+      {open > 0 && (
+        <>
+          <span aria-hidden data-slot="pending-dot" className="size-2.5 shrink-0 rounded-full bg-primary" />
+          <span className="sr-only">
+            {`: ${open} open`}
+            {errors > 0 ? `, ${errors} to fix before submit` : ""}
           </span>
-        )}
-        {warnings > 0 && (
-          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-warn-solid px-1.5 text-xs font-bold text-warn-solid-foreground tabular-nums">
-            {warnings}
-            <span className="sr-only">{warnings === 1 ? " warning" : " warnings"}</span>
-          </span>
-        )}
-      </span>
+        </>
+      )}
     </Button>
   );
 }

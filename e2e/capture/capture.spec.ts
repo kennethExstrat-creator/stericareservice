@@ -745,8 +745,8 @@ test("submit with errors is blocked, and each error links to its section", async
   expect((await storedData(fixture.inspectionId)).status).toBe("draft");
 
   // The required custom field is listed too, and its link focuses the field.
-  await press(page.getByRole("button", { name: /^Issues/ }));
-  await press(page.getByRole("dialog", { name: "Issues" }).getByRole("button", { name: /Container seal intact is required/ }));
+  await press(page.getByRole("button", { name: /^Pending/ }));
+  await press(page.getByRole("dialog", { name: "Pending" }).getByRole("button", { name: /Container seal intact is required/ }));
   await expect(page.getByRole("heading", { level: 2, name: "Site notes" })).toBeVisible();
   await expect(page.getByRole("radiogroup", { name: "Container seal intact" }).getByRole("radio").first()).toBeFocused();
   await shot(page, "issue-link");

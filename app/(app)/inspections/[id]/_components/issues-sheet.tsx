@@ -56,7 +56,7 @@ export function IssuesSheet({
         }}
       >
         <SheetHeader className="border-b border-border px-5 pt-5 pb-4">
-          <SheetTitle className="text-lg font-bold">{blockedMessage ? "Before you submit" : "Issues"}</SheetTitle>
+          <SheetTitle className="text-lg font-bold">{blockedMessage ? "Before you submit" : "Pending"}</SheetTitle>
           <SheetDescription>
             {describeIssueCounts(counts)}. Errors stop the inspection being submitted; warnings go into the report.
           </SheetDescription>
