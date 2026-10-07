@@ -148,6 +148,9 @@ describe("SchemaForm", () => {
       { hooks: { variantLabel: (marker, value) => (marker === "spec" && value === "min" ? "Minimum (≥)" : undefined) } },
     );
     expect(tagWithId(html, "form-specs-0-specs-length-type")).toContain('role="combobox"');
+    // No border to seat its legend in, and a rendered legend is not a grid item: the legend's own margin keeps it
+    // off the Type row.
+    expect(html).toMatch(/<fieldset class="[^"]*\[&amp;&gt;legend\]:mb-3[^"]*" data-slot="form-group" data-kind="union">/);
     expect(html).toContain('value="240"');
     // Optional measures without a spec can be added.
     expect(html).toContain('aria-label="Add Width"');

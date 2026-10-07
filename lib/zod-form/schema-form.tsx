@@ -1186,7 +1186,10 @@ function UnionField({ node, value, onChange, path, label, onRemove, hideLabel, u
   const fields = variant?.node.properties.filter((property) => property.key !== node.discriminator) ?? [];
 
   return (
-    <fieldset className="grid min-w-0 gap-3" data-slot="form-group" data-kind="union">
+    // No border and no padding, unlike the other groups: a fieldset's rendered legend is not a grid item, so gap-3
+    // misses it and the legend's own margin keeps it off the Type row. Not when the legend sits in its Reset or
+    // Remove row (a div, a grid item) or is sr-only (absolutely positioned).
+    <fieldset className="grid min-w-0 gap-3 [&>legend]:mb-3" data-slot="form-group" data-kind="union">
       <FieldHeader label={label} as="legend" path={path} overridable={!unit} onRemove={onRemove} hidden={hideLabel} />
       <div className="flex flex-wrap items-start gap-3">
         <div className="grid gap-1.5">
