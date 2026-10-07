@@ -87,7 +87,7 @@ describe("recordFindingDecision", () => {
     const db = fake();
     expect(await recordFindingDecision(db.client, { reviewId: REVIEW_ID, findingId: "F1", action: "ignore", note: "" })).toMatchObject({
       ok: false,
-      fieldErrors: { action: "Choose agree, disagree or fixed." },
+      fieldErrors: { action: "Choose Agree, Disagree or Fixed." },
     });
     expect(db.queries).toEqual([]);
   });

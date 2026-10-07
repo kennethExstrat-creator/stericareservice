@@ -77,7 +77,7 @@ test.describe("reviewing inspections", () => {
     await expect(facts).toContainText("E2E-LOT-A1, E2E-LOT-A2");
     await expect(facts).toContainText("Test Inspector");
     await expect(facts).toContainText("5 Oct 2026");
-    await expect(facts).toContainText("E2E_REVIEW version 1");
+    await expect(facts).toContainText("E2E_REVIEW Version 1");
 
     // The inspector's decision beside the app's suggestion; the remark from the conclusion, the row has none yet.
     const result = page.getByRole("region", { name: "Result" });

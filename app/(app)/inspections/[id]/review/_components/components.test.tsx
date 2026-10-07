@@ -57,7 +57,8 @@ describe("ModuleResults", () => {
   it("titles the section and its columns in Title Case", () => {
     const content = text(html);
     expect(content.startsWith("Module Results ")).toBe(true);
-    expect(content).toContain("Module Result Inspector's Comment");
+    // The section's comment by the name the capture screen gives it.
+    expect(content).toContain("Module Result Inspector Comment");
   });
 
   it("lists every included module and custom section in the template's order", () => {
@@ -295,7 +296,7 @@ describe("InspectionFacts", () => {
     expect(html).toContain("Lot Numbers LOT-M-0001, LOT-L-0001");
     expect(html).toContain("Inspection Date 5 Oct 2026");
     expect(html).toContain("Approved 6 Oct 2026, 15:00 by an admin");
-    expect(html).toContain("Template TEST_EG version 3 Test examination gloves");
+    expect(html).toContain("Template TEST_EG Version 3 Test examination gloves");
   });
 
   it("keeps the second line of a fact apart from the first when read out", () => {
@@ -308,7 +309,7 @@ describe("InspectionFacts", () => {
       ),
     );
     expect(html).toContain("6 Oct 2026, 15:00 by an admin");
-    expect(html).toContain("TEST_EG version 3 Test examination gloves");
+    expect(html).toContain("TEST_EG Version 3 Test examination gloves");
   });
 
   it("says what is missing instead of leaving gaps", () => {

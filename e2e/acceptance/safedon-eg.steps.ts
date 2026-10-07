@@ -623,7 +623,7 @@ export async function expectReview(page: Page, refNo: string, names: { client: s
   await expect(facts).toContainText(HEADER.productName);
   await expect(facts).toContainText("LOT-B01, LOT-B02, LOT-B03, LOT-B04");
   await expect(facts).toContainText("Test Inspector");
-  await expect(facts).toContainText(/SAFEDON_EG version \d+/);
+  await expect(facts).toContainText(/SAFEDON_EG Version \d+/);
 
   // Conclusion: pass, suggested and final.
   const verdict = page.locator("#result");

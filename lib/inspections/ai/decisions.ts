@@ -48,7 +48,7 @@ export async function recordFindingDecision(
     for (const issue of parsed.error.issues) {
       const field = issue.path[0];
       if (field === "note" && !fieldErrors.note) fieldErrors.note = issue.message;
-      if (field === "action" && !fieldErrors.action) fieldErrors.action = "Choose agree, disagree or fixed.";
+      if (field === "action" && !fieldErrors.action) fieldErrors.action = "Choose Agree, Disagree or Fixed.";
     }
     if (fieldErrors.note || fieldErrors.action) {
       return { ok: false, message: fieldErrors.action ?? fieldErrors.note ?? "Check the decision.", fieldErrors };

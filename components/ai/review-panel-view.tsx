@@ -28,7 +28,7 @@ export function AiReviewPanelView({ model, className }: { model: AiPanelModel; c
           <AiPanelTitle />
           <p className="text-sm text-muted-foreground">
             {viewer.isAdmin
-              ? "The AI suggests and never changes a result. Record agree, disagree or fixed for each finding."
+              ? "The AI suggests and never changes a result. Record Agree, Disagree or Fixed for each finding."
               : "The AI suggests and never changes a result. An admin decides on each finding."}
           </p>
         </div>

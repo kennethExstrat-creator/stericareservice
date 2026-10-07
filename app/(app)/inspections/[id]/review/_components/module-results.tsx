@@ -65,7 +65,7 @@ export function ModuleResults({ evaluation }: { evaluation: ReviewEvaluation }) 
         >
           <span>Module</span>
           <span>Result</span>
-          <span>Inspector&apos;s Comment</span>
+          <span>Inspector Comment</span>
         </div>
         <ol className="divide-y divide-border">
           {sections.map((section) => {
@@ -118,7 +118,7 @@ function Row({
       <div className="relative min-w-0 space-y-1">
         {comment ? (
           <>
-            <p className="text-sm font-medium text-muted-foreground lg:sr-only">Inspector&apos;s Comment</p>
+            <p className="text-sm font-medium text-muted-foreground lg:sr-only">Inspector Comment</p>
             <blockquote
               className={cn("border-l-2 border-brand-300 pl-3 whitespace-pre-line text-foreground [overflow-wrap:anywhere]", TEXT)}
             >
@@ -129,7 +129,7 @@ function Row({
           <p className={cn("text-muted-foreground", TEXT)}>
             <span className="lg:hidden">No comment from the inspector</span>
             <span className="hidden lg:inline">
-              <span className="sr-only">Inspector&apos;s Comment: </span>No comment
+              <span className="sr-only">Inspector Comment: </span>No comment
             </span>
           </p>
         )}

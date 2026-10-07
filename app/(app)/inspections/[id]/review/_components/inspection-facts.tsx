@@ -59,7 +59,7 @@ export function InspectionFacts({
         <Fact label="Template">
           {template ? (
             <>
-              {template.code} version {template.version}
+              {template.code} Version {template.version}
               {template.name && (
                 <>
                   {" "}
