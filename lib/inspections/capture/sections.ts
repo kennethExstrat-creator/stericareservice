@@ -3,8 +3,11 @@
 // module it follows, and the modules an admin switched off for this
 // inspection, in their place but marked off. Modules the template itself
 // leaves out are not listed at all. Each section carries its result for the
-// chip, its progress for the tracker and its issue counts.
-import type { ModuleKey, ModuleStatus } from "@/lib/schemas/module-result";
+// chip and the pill, as the review shows it (the conclusion's HOLD reads On
+// hold, not Warning), its progress for the tracker and its issue counts.
+import type { Status } from "@/lib/design/status";
+import { shownStatus } from "@/lib/inspections/review/results";
+import type { ModuleKey } from "@/lib/schemas/module-result";
 import type { CustomModule, ModuleOverride, ResolvedTemplate } from "@/lib/schemas/template";
 import type { ValidationReport } from "@/lib/validation";
 import { readModuleEntry, type InspectionData } from "@/modules/_framework";
@@ -13,7 +16,7 @@ import { readModuleEntry, type InspectionData } from "@/modules/_framework";
 export type SectionProgress = "done" | "in_progress" | "not_started";
 
 /** A ProgressTracker step with the section's result. */
-export type SectionStep = { key: string; label: string; state: SectionProgress; result: ModuleStatus };
+export type SectionStep = { key: string; label: string; state: SectionProgress; result: Status };
 
 type Counts = { errors: number; warnings: number };
 
@@ -22,7 +25,12 @@ export type CaptureSection =
       kind: "module";
       key: ModuleKey;
       title: string;
-      status: ModuleStatus;
+      /**
+       * The result as shown: the module's status, except the conclusion's
+       * HOLD, which its status records as warn (shownStatus). The
+       * suggestion and submit read the module's own status.
+       */
+      status: Status;
       summary: string;
       progress: SectionProgress;
       /** A placeholder module from the framework: "Not built yet". */
@@ -32,7 +40,7 @@ export type CaptureSection =
       kind: "custom";
       key: string;
       title: string;
-      status: ModuleStatus;
+      status: Status;
       summary: string;
       progress: SectionProgress;
       custom: CustomModule;
@@ -66,7 +74,7 @@ export function captureSections(
   for (const entry of template.modules) {
     if (entry.include) {
       const evaluation = report.modules.find((candidate) => candidate.key === entry.key);
-      const status = evaluation?.result.status ?? "not_done";
+      const status = evaluation ? shownStatus(evaluation) : "not_done";
       const hasData = evaluation?.hasData ?? false;
       sections.push({
         kind: "module",
@@ -137,8 +145,8 @@ export function progressSummary(sections: readonly CaptureSection[]): { done: nu
   return { done: included.filter((section) => section.progress === "done").length, total: included.length };
 }
 
-/** Done once it has a result; in progress while something is entered; not started otherwise. */
-export function progressOf(status: ModuleStatus, hasData: boolean): SectionProgress {
+/** Done once it has a result, on hold too; in progress while something is entered; not started otherwise. */
+export function progressOf(status: Status, hasData: boolean): SectionProgress {
   if (status !== "not_done") return "done";
   return hasData ? "in_progress" : "not_started";
 }
@@ -169,7 +177,7 @@ function customSection(
 ): CaptureSection {
   const own = counts.get(custom.key) ?? NO_ISSUES;
   const hasData = readModuleEntry(data, "custom", custom.key).hasData || hasMappedValues(custom, report);
-  const status: ModuleStatus = hasData && own.errors === 0 ? "info" : "not_done";
+  const status: Status = hasData && own.errors === 0 ? "info" : "not_done";
   return {
     kind: "custom",
     key: custom.key,
