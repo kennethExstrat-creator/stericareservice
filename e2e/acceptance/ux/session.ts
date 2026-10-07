@@ -1,17 +1,29 @@
 import { test, type BrowserContext, type Page } from "@playwright/test";
-import { sessionCookies } from "../../support/session";
+import { sessionCookies, sessionExpiry, type SessionCookie } from "../../support/session";
 
-type SessionCookie = Awaited<ReturnType<typeof sessionCookies>>[number];
+/** Sessions this worker signed in, by account: every describe and test of the spec shares them. */
+const signedIn = new Map<string, SessionCookie[]>();
+/** A test may take a few minutes: hand out a session only while its access token outlives one by far. */
+const MIN_LEFT_MS = 15 * 60 * 1000;
 
 /**
- * One sign-in per account and project, shared by the describe's tests: the
+ * One sign-in per account and worker, shared by every describe and test: the
  * shared project rate-limits sign-ins (about 30 in a few minutes), and other
- * specs sign in too. A limit hit waits a minute and tries again, twice.
+ * specs sign in too. A session is signed in again only when its access token
+ * runs low (with E2E_SESSION_CACHE, e2e/support/session.ts may hand out one
+ * another worker or run signed in). A limit hit waits a minute and tries
+ * again, twice.
  */
 export async function signInOnce(email: string, password?: string): Promise<SessionCookie[]> {
+  const key = `${email.toLowerCase()}\n${password ?? ""}`;
+  const known = signedIn.get(key);
+  const expiry = known ? sessionExpiry(known) : null;
+  if (known && expiry !== null && expiry - Date.now() >= MIN_LEFT_MS) return known;
   for (let attempt = 0; ; attempt++) {
     try {
-      return await sessionCookies(email, password);
+      const cookies = await sessionCookies(email, password);
+      signedIn.set(key, cookies);
+      return cookies;
     } catch (error) {
       if (attempt >= 2 || !/rate limit|too many/i.test(String(error))) throw error;
       await new Promise((resolve) => setTimeout(resolve, 65_000));
