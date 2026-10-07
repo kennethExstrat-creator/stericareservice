@@ -18,6 +18,7 @@
 import { SearchIcon, XIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useId, useOptimistic, useRef, useState, useTransition, type FormEvent } from "react";
+import { Button } from "@/components/ui/button";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -130,39 +131,42 @@ export function InspectionFilters({
     >
       <div className="flex flex-col gap-1.5 md:col-span-3 lg:col-span-1">
         <Label htmlFor={`${id}-q`}>Search</Label>
-        <InputGroup>
-          <InputGroupAddon>
-            {isPending ? <Spinner aria-label="Updating the list" /> : <SearchIcon aria-hidden />}
-          </InputGroupAddon>
-          <InputGroupInput
-            {...SEARCH_FOCUS_TARGET}
-            ref={searchRef}
-            id={`${id}-q`}
-            name="q"
-            type="search"
-            value={search}
-            onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Ref, PO or lot number"
-            maxLength={MAX_SEARCH_LENGTH}
-            enterKeyHint="search"
-            autoCapitalize="characters"
-            autoCorrect="off"
-            autoComplete="off"
-            spellCheck={false}
-            aria-describedby={`${id}-q-hint`}
-            className="[&::-webkit-search-cancel-button]:appearance-none"
-          />
-          <InputGroupAddon align="inline-end">
+        {/* The Search button sits beside the field, the clear button inside it. */}
+        <div className="flex items-center gap-2">
+          <InputGroup className="flex-1">
+            <InputGroupAddon>
+              {isPending ? <Spinner aria-label="Updating the list" /> : <SearchIcon aria-hidden />}
+            </InputGroupAddon>
+            <InputGroupInput
+              {...SEARCH_FOCUS_TARGET}
+              ref={searchRef}
+              id={`${id}-q`}
+              name="q"
+              type="search"
+              value={search}
+              onChange={(event) => onSearchChange(event.target.value)}
+              placeholder="Ref, PO or lot number"
+              maxLength={MAX_SEARCH_LENGTH}
+              enterKeyHint="search"
+              autoCapitalize="characters"
+              autoCorrect="off"
+              autoComplete="off"
+              spellCheck={false}
+              aria-describedby={`${id}-q-hint`}
+              className="[&::-webkit-search-cancel-button]:appearance-none"
+            />
             {search && (
-              <InputGroupButton size="icon-xs" aria-label="Clear search" onClick={clearSearch}>
-                <XIcon aria-hidden />
-              </InputGroupButton>
+              <InputGroupAddon align="inline-end">
+                <InputGroupButton size="icon-xs" aria-label="Clear search" onClick={clearSearch}>
+                  <XIcon aria-hidden />
+                </InputGroupButton>
+              </InputGroupAddon>
             )}
-            <InputGroupButton type="submit" variant="secondary" size="sm">
-              Search
-            </InputGroupButton>
-          </InputGroupAddon>
-        </InputGroup>
+          </InputGroup>
+          <Button type="submit" variant="secondary" className="shrink-0">
+            Search
+          </Button>
+        </div>
         <p id={`${id}-q-hint`} className="sr-only">
           Matches part of a ref or PO number, or a whole lot number.
         </p>
