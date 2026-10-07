@@ -40,7 +40,7 @@ export function SizeBlock({ size, className, ...props }: ComponentProps<"div"> &
 }
 
 /**
- * Words that tell the sizes apart, such as ", size XS" in a field's label:
+ * Words that tell the sizes apart, such as ", Size XS" in a field's label:
  * always read out, and shown from 1280 px where the sizes sit side by side.
  */
 export function SideBySideText({ className, ...props }: ComponentProps<"span">) {

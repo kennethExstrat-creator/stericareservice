@@ -32,7 +32,7 @@ export { batchDataChanges, createDataUpdater, type DataChange, type DataUpdater 
 export { useMediaQuery, WIDE_QUERY, COARSE_QUERY } from "./use-media-query";
 export { SizeTabs, SizeStatusStrip, type ResultLike, type SizeResults } from "./size-tabs";
 export { SizeBlock, SideBySideText, useSizeTabsLayout, type SizeTabsLayout } from "./size-block";
-export { HandToggle, handsOf, type HandView } from "./hand-toggle";
+export { HandToggle, handsOf, HAND_NAME, type HandView } from "./hand-toggle";
 export { BoxPicker } from "./box-picker";
 export {
   CounterTable,

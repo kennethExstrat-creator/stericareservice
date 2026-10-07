@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import {
   bestOption,
   boxListChange,
+  boxListHeading,
   boxOptions,
   isUnlisted,
   moveInGrid,
@@ -36,7 +37,7 @@ import {
   splitPastedValues,
   valuesPastEnd,
 } from "./field-navigation";
-import { handsOf, shownHandView } from "./hand-toggle";
+import { HAND_NAME, HAND_WORD, handsOf, shownHandView } from "./hand-toggle";
 import {
   findIssue,
   issueNoticeProps,
@@ -319,6 +320,14 @@ describe("box options", () => {
     expect(readBoxNumber("abc")).toBeNull();
   });
 
+  it("heads the list in Title Case, the size worded for sentences or not", () => {
+    expect(boxListHeading("size M")).toBe("Cartons · Size M");
+    expect(boxListHeading("size Medium")).toBe("Cartons · Size Medium");
+    expect(boxListHeading("Size 7.0")).toBe("Cartons · Size 7.0");
+    expect(boxListHeading()).toBe("Cartons");
+    expect(boxListHeading(" ")).toBe("Cartons");
+  });
+
   it("opens the list only where the box can change, reporting the box in focus as it opens", () => {
     expect(boxListChange(true, false)).toEqual({ open: true, reportFocus: true });
     expect(boxListChange(false, false)).toEqual({ open: false, reportFocus: false });
@@ -560,6 +569,12 @@ describe("handsOf", () => {
     expect(handsOf("R")).toEqual(["R"]);
     expect(handsOf("L")).toEqual(["L"]);
     expect(handsOf("both")).toEqual(["R", "L"]);
+  });
+
+  it("names each hand in full, Title Case as a label is, after the word on its button", () => {
+    expect(HAND_NAME).toEqual({ R: "Right Hand", L: "Left Hand" });
+    expect(HAND_NAME.R.startsWith(HAND_WORD.R)).toBe(true);
+    expect(HAND_NAME.L.startsWith(HAND_WORD.L)).toBe(true);
   });
 });
 

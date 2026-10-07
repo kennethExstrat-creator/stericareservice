@@ -151,7 +151,7 @@ export default function VisualCapture({
                   >
                     {planned !== null && (
                       <span>
-                        <SideBySideText>Size {sizeName(entry)}: </SideBySideText>Sampling plan: {planned}
+                        <SideBySideText>Size {sizeName(entry)}: </SideBySideText>Sampling Plan: {planned}
                       </span>
                     )}
                     {!readOnly && planned !== null && missing && (
@@ -162,7 +162,7 @@ export default function VisualCapture({
                         className="touch:text-base"
                         onClick={() => update((current) => fillInspected(current, entry, included, planned))}
                       >
-                        Use {planned} for every class
+                        Use {planned} for Every Class
                         <span className="sr-only"> of size {sizeName(entry)}</span>
                       </Button>
                     )}
@@ -307,11 +307,11 @@ function ClassSection({
               {/* Only what was entered, no placeholder: an empty field is a class not yet inspected. */}
               <NumberField
                 label={
-                  // One element: the Label is a flex row, and ", size XS" must follow the text without a gap.
+                  // One element: the Label is a flex row, and ", Size XS" must follow the text without a gap.
                   <span>
                     {labelFor(labels, "inspected")}
                     <span className="sr-only">, {classLabel(labels, cls)}</span>
-                    <SideBySideText>, size {formatSize(entry, { sizes: context.templateSizes })}</SideBySideText>
+                    <SideBySideText>, Size {formatSize(entry, { sizes: context.templateSizes })}</SideBySideText>
                   </span>
                 }
                 value={data.sizes[entry]?.[cls].inspected ?? null}

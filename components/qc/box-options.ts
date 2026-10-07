@@ -12,6 +12,15 @@ export function boxListChange(next: boolean, readOnly: boolean): { open: boolean
   return readOnly ? null : { open: next, reportFocus: next };
 }
 
+/**
+ * The box list's heading: "Cartons", or "Cartons · Size M" for the picker's
+ * `sizeLabel` ("size M", worded for its sentences), Title Case as a heading is.
+ */
+export function boxListHeading(sizeLabel?: string): string {
+  const size = sizeLabel?.trim() ?? "";
+  return size === "" ? "Cartons" : `Cartons · ${size.charAt(0).toUpperCase()}${size.slice(1)}`;
+}
+
 /** The size's carton numbers to offer: unique whole numbers from 1, ascending, filtered by the digits typed. */
 export function boxOptions(cartons: readonly number[], query = ""): number[] {
   const digits = query.replace(/\D/g, "");

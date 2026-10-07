@@ -62,6 +62,15 @@ const ONE_COLUMN_GRID = "max-w-md [&_table]:min-w-0";
 const HEAD = "border-b border-border bg-slate-50 px-3 py-2 font-semibold text-foreground";
 const CELL = "border-b border-border px-3 py-1.5 align-middle touch:py-2";
 
+/**
+ * The template's label for one size, the size worded as its tab and the Size
+ * column word it: "Weight (g), Size M". A heading, a cell's name and the link
+ * to the cell in the problem list alike.
+ */
+function forSize(label: string, context: Props["context"], size: string): string {
+  return `${label}, Size ${sizeLabel(context, size)}`;
+}
+
 export default function Capture(props: Props) {
   const update = useDataUpdater(props.data, props.onChange);
   return props.config.n === 1 ? (
@@ -96,6 +105,8 @@ function OneValuePerSize({
   if (context.sizes.length === 0) return <SizeTabs sizes={context.sizes} value="" onValueChange={() => undefined} />;
   const withSpecs = context.sizes.some((size) => specFor(config, size) !== undefined);
   const inputId = (size: string) => `${idBase}-${size}`;
+  // The cell's name, which the link to it in the problem list repeats.
+  const cellLabel = (size: string) => forSize(labelFor(labels, "values"), context, size);
   const valueOf = (size: string) => data.sizes[size]?.values[0] ?? null;
 
   const write = (size: string, value: number | null) => {
@@ -111,9 +122,7 @@ function OneValuePerSize({
 
   const problems: EntryProblem[] = context.sizes.flatMap((size) => {
     const entry = rejected[size];
-    return entry && valueOf(size) === null
-      ? [{ key: size, label: `${labelFor(labels, "values")}, size ${sizeLabel(context, size)}`, entry, inputId: inputId(size) }]
-      : [];
+    return entry && valueOf(size) === null ? [{ key: size, label: cellLabel(size), entry, inputId: inputId(size) }] : [];
   });
 
   return (
@@ -154,7 +163,7 @@ function OneValuePerSize({
                       // One column: Enter runs down the sizes, a pasted column fills them.
                       group="values"
                       id={inputId(size)}
-                      label={`${labelFor(labels, "values")}, size ${sizeLabel(context, size)}`}
+                      label={cellLabel(size)}
                       value={valueOf(size)}
                       onValueChange={(value) => write(size, value)}
                       onInvalidChange={(entry) => track(size, entry)}
@@ -248,15 +257,16 @@ function SizeGrid({
   readOnly,
   onFocusChange,
 }: Props & { size: string; root: RefObject<HTMLDivElement | null>; update: Update }) {
-  const name = sizeLabel(context, size);
   const status = evaluation?.result.perSize?.[size]?.status;
   const label = labelFor(labels, "values");
+  // The section's heading, and the grid's name.
+  const heading = forSize(label, context, size);
   // A module whose config or data is broken comes back with no computed values.
   const computed: Partial<WeightComputed> | undefined = evaluation?.computed;
 
   return (
     <ModuleSection
-      title={`${label}, size ${name}`}
+      title={heading}
       description={`${labelFor(labels, "average")} of ${config.n} gloves`}
       status={status}
       statusLabel={statusWord(status, labels)}
@@ -271,7 +281,7 @@ function SizeGrid({
         }}
       >
         <MeasurementGrid
-          caption={`${label}, size ${name}`}
+          caption={heading}
           measures={[
             {
               key: VALUES_COLUMN,
@@ -327,8 +337,9 @@ function ResultPill({ status, labels }: { status: ModuleStatus | undefined; labe
 }
 
 /**
- * "Deviation from indicative weight −17.1% · indicative 3.5 g, threshold 10% ·
- * Warning", for that size only. Within the threshold the note says so in a
+ * "Deviation from indicative weight, Size M −17.1% · Indicative 3.5 g,
+ * Threshold 10% · Warning", for that size only: the template's label, then
+ * the app's own in Title Case. Within the threshold the note says so in a
  * neutral pill: the deviation is no verdict on the weight, only a spec is.
  */
 function DeviationNote({
@@ -350,12 +361,10 @@ function DeviationNote({
       {...issueNoticeProps(["sizes", size, "values"])}
       className="relative flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-slate-50 px-3 py-2 text-sm outline-none focus-ring touch:text-base"
     >
-      <span className="text-muted-foreground">
-        {labelFor(labels, "deviationPct")}, size {sizeLabel(context, size)}
-      </span>
+      <span className="text-muted-foreground">{forSize(labelFor(labels, "deviationPct"), context, size)}</span>
       <Figure value={deviation} decimals={1} unit="%" className="font-semibold text-foreground" />
       <span className="text-muted-foreground tabular-nums">
-        {`indicative ${formatNumber(indicative.grams, { unit: "g" })}, threshold ${threshold}`}
+        {`Indicative ${formatNumber(indicative.grams, { unit: "g" })}, Threshold ${threshold}`}
       </span>
       <StatusPill size="sm" status={beyond ? "warn" : "info"} label={beyond ? undefined : `Within ${threshold}`} />
     </p>
@@ -423,7 +432,7 @@ function IssueLinks({
                   aria-describedby={messageId}
                   onClick={() => onRemoveUncounted(size)}
                 >
-                  Remove the values that are not counted
+                  Remove the Values That Are Not Counted
                 </Button>
               )}
             </li>

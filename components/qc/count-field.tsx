@@ -2,7 +2,7 @@
 
 // A count tapped with a Stepper that can also be not entered yet (BUILD_SPEC
 // 6.2 rule 5): until it is entered it shows one button that sets the starting
-// value ("13 as planned", "No leaks"), so "not entered" never looks like 0;
+// value ("13 as Planned", "No Leaks"), so "not entered" never looks like 0;
 // a clear button takes it back to not entered. Read-only, it is the number,
 // or a dash. calc's error or warnings about the count show below it.
 import { useEffect, useRef } from "react";
@@ -25,7 +25,7 @@ type CountFieldProps = {
   start?: number;
   /** Replaces setting `start`, e.g. an edit that also fills another count. */
   onStart?: () => void;
-  /** Words on the start button, e.g. "13 as planned" or "No leaks". */
+  /** Words on the start button, in Title Case as every button is, e.g. "13 as Planned" or "No Leaks". */
   startLabel?: string;
   min?: number;
   /** Ignored while below the value, so a stored count above it can still be lowered. */
@@ -47,7 +47,7 @@ export function CountField({
   onValueChange,
   start = 0,
   onStart,
-  startLabel = "Start counting",
+  startLabel = "Start Counting",
   min = 0,
   max,
   error,

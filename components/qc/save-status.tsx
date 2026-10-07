@@ -1,7 +1,8 @@
 // Autosave state for the capture screen (BUILD_SPEC 8): Saved, Saving,
-// Offline (will sync), or Not saved when saving needs the inspector (a
+// Offline (Will Sync), or Not Saved when saving needs the inspector (a
 // conflict, a refused save), with the photo upload queue as a count badge.
-// Both read 16 px on iPad, as StatusPill does.
+// Both read 16 px on iPad, as StatusPill does. A pill's words are Title
+// Case, as every label's.
 import { CloudAlertIcon, CloudCheckIcon, CloudOffIcon, LoaderCircleIcon, UploadIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -19,13 +20,13 @@ const STATE = {
     className: "border-brand-200 bg-brand-50 text-brand-700 [&>svg]:animate-spin",
   },
   offline: {
-    label: "Offline (will sync)",
+    label: "Offline (Will Sync)",
     Icon: CloudOffIcon,
     className: "border-warn-border bg-warn-tint text-warn",
   },
   // Two words in the pill: the screen says what happened and what to do beside it.
   error: {
-    label: "Not saved",
+    label: "Not Saved",
     Icon: CloudAlertIcon,
     className: "border-fail-border bg-fail-tint text-fail",
   },

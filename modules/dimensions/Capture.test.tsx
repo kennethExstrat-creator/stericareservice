@@ -103,7 +103,7 @@ describe("dimensions capture", () => {
   it("offers to remove the readings past the planned gloves, which have no row, unless read-only", () => {
     // The sampling plan went down to 10 gloves after 13 were measured.
     const planned = makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ dimensions: 10 }) } });
-    const action = "Remove the readings that are not counted";
+    const action = "Remove the Readings That Are Not Counted";
     const html = render("STD_EG", stdEg, planned);
     expect(html).toContain(`>${action}</button>`);
     // The button is described by its warning, which names the size and the gloves.

@@ -14,7 +14,8 @@ export type PhotoTags = {
   item?: string;
 };
 
-const HAND: Readonly<Record<string, string>> = { R: "Right hand", L: "Left hand" };
+/** A tag is a short name, Title Case as the app's labels are (HandToggle names the hands the same way). */
+const HAND: Readonly<Record<string, string>> = { R: "Right Hand", L: "Left Hand" };
 
 /**
  * "Dimensions · Size M · Box 253", "Labelling · Size M · Lot no. · Box 253 ·

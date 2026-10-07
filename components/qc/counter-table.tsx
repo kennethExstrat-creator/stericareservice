@@ -32,7 +32,7 @@ import {
   type CounterHand,
   type CountReader,
 } from "./counter-model";
-import { HAND_WORD } from "./hand-toggle";
+import { HAND_NAME, HAND_WORD } from "./hand-toggle";
 import { issuePathProps, type IssuePath } from "./issue-path";
 import { activeColumnKey } from "./selection";
 import { SizeTabsContext } from "./size-tabs-context";
@@ -112,9 +112,9 @@ export type CounterSummaryRow = {
 
 const DEFAULT_LABELS: CounterTableLabels = {
   rowHeader: "Defect",
-  inspected: "No. inspected",
-  limits: "Defect limit",
-  total: "Total defects found",
+  inspected: "No. Inspected",
+  limits: "Defect Limit",
+  total: "Total Defects Found",
   result: "Result",
   accept: "Accept",
   reject: "Reject",
@@ -148,7 +148,7 @@ type CounterTableProps = {
   /** Default: shown when any column has `limits` or `status`. */
   showResult?: boolean;
   summaryRows?: readonly CounterSummaryRow[];
-  /** Enables "Other defect": called with the trimmed one-off label. */
+  /** Enables "Other Defect": called with the trimmed one-off label. */
   onAddRow?: (label: string) => void;
   addRowLabel?: string;
   /** Takes a removable row off (its key), offered while the row counts nothing. */
@@ -196,7 +196,7 @@ export function CounterTable({
   showResult,
   summaryRows = [],
   onAddRow,
-  addRowLabel = "Other defect",
+  addRowLabel = "Other Defect",
   onRemoveRow,
   onCellFocus,
   cellIssuePath,
@@ -351,7 +351,7 @@ export function CounterTable({
                       {hand && (
                         <>
                           {HAND_WORD[hand]}
-                          <span className="sr-only"> hand</span>
+                          <span className="sr-only"> Hand</span>
                         </>
                       )}
                     </th>
@@ -450,9 +450,8 @@ export function CounterTable({
                   sides.map((hand, index) => {
                     const cell = cellOf(row, column, hand);
                     const count = countOf(getCount(cell));
-                    const name = [row.label, nameOf(column), hand && `${HAND_WORD[hand].toLowerCase()} hand`]
-                      .filter(Boolean)
-                      .join(", ");
+                    // The hand as its heading shows it: "Right" over the column, "Right Hand" in full.
+                    const name = [row.label, nameOf(column), hand && HAND_NAME[hand]].filter(Boolean).join(", ");
                     return (
                       <td
                         key={`${column.key}:${hand}`}
@@ -575,7 +574,7 @@ function firstShownCount(row: HTMLTableRowElement | undefined): HTMLElement | nu
   return counts.find((count) => count.getClientRects().length > 0) ?? null;
 }
 
-/** "Other defect": a button that opens a one-line form for a one-off label. */
+/** "Other Defect": a button that opens a one-line form for a one-off label. */
 function AddLabel({
   label,
   onAdd,

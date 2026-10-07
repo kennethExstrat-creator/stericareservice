@@ -20,6 +20,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import {
   bestOption,
   boxListChange,
+  boxListHeading,
   boxOptions,
   isUnlisted,
   moveInGrid,
@@ -39,7 +40,7 @@ type BoxPickerProps = {
   used?: readonly (number | null | undefined)[];
   /** Accessible name, e.g. "Box #, item 3". */
   label: string;
-  /** For messages, e.g. "size M". */
+  /** For messages, e.g. "size M"; the list's heading capitalises it ("Cartons · Size M"). */
   sizeLabel?: string;
   /** "field" stands alone with its error below; "cell" fills a table cell. */
   variant?: "field" | "cell";
@@ -217,9 +218,7 @@ export function BoxPicker({
           }}
         >
           <div className="flex items-baseline justify-between gap-3">
-            <p className="font-display text-base font-semibold text-foreground">
-              Cartons{sizeLabel ? ` · ${sizeLabel}` : ""}
-            </p>
+            <p className="font-display text-base font-semibold text-foreground">{boxListHeading(sizeLabel)}</p>
             <p className="text-xs text-muted-foreground tabular-nums touch:text-sm">
               {hasList ? `${listed.length} sampled` : "No list yet"}
             </p>
@@ -321,7 +320,7 @@ export function BoxPicker({
                   onKeyDown={onSearchKeyDown}
                 />
                 <Button type="button" size="sm" disabled={typed === null} onClick={() => typed !== null && pick(typed)}>
-                  {typed === null ? "Use box" : `Use box ${typed}`}
+                  {typed === null ? "Use Box" : `Use Box ${typed}`}
                 </Button>
               </div>
               {query.trim() !== "" && typed === null && (
@@ -332,7 +331,7 @@ export function BoxPicker({
 
           {value !== null && (
             <Button type="button" variant="ghost" size="sm" className="self-start" onClick={() => pick(null)}>
-              Clear box
+              Clear Box
             </Button>
           )}
         </PopoverContent>

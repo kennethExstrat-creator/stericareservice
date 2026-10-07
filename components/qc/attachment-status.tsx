@@ -50,6 +50,9 @@ type AttachmentStatusProps = {
     }
 );
 
+/** The state's words, in the pill and without it: Title Case, as a status is. */
+const NOT_ATTACHED = "Not Attached";
+
 // The framework's missingFileMessage, less the name the line already shows.
 const MISSING =
   "The file attached here is not among this inspection's files. It may still be uploading from another device; if it was deleted, attach it again.";
@@ -86,11 +89,11 @@ export function AttachmentStatus({
         <span className="min-w-0 text-foreground [overflow-wrap:anywhere]">{fileName ?? "Attached"}</span>
       ) : required ? (
         <>
-          <StatusPill size="sm" status="not_done" label="Not attached" />
+          <StatusPill size="sm" status="not_done" label={NOT_ATTACHED} />
           {notes.length === 0 && <span className="text-muted-foreground">Required before this section is done.</span>}
         </>
       ) : (
-        <span className="text-muted-foreground">Not attached</span>
+        <span className="text-muted-foreground">{NOT_ATTACHED}</span>
       )}
       {notes.map((note) => (
         <p key={note} className="flex basis-full items-start gap-1.5 text-warn">

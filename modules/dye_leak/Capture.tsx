@@ -3,7 +3,7 @@
 // Dye leak capture (BUILD_SPEC 6.1 dye_leak, 8 "Speed"): one panel per
 // ordered size (tabs on iPad, side by side from 1280 px). Counts are tapped,
 // never typed: the pouches tested start from the plan (sampling plan, else
-// config n), "No leaks" records a clean size in one tap, and the stepper
+// config n), "No Leaks" records a clean size in one tap, and the stepper
 // counts leaking pouches. Every size tab carries calc's result. Every change
 // goes through useDataUpdater, built from the latest data (edit.ts).
 import { useId, useRef, useState } from "react";
@@ -119,7 +119,7 @@ export default function Capture({
                 value={entry.pouchesTested}
                 onValueChange={(pouchesTested) => setValues(key, { pouchesTested })}
                 start={planned ?? 0}
-                startLabel={planned === null ? "Start counting" : `${planned} as planned`}
+                startLabel={planned === null ? "Start Counting" : `${planned} as Planned`}
                 issuePath={path("pouchesTested")}
                 {...messageProps(message("pouchesTested"))}
                 readOnly={readOnly}
@@ -131,7 +131,7 @@ export default function Capture({
                 onValueChange={(pouchesFailed) => setValues(key, { pouchesFailed })}
                 start={0}
                 onStart={() => update((current) => withNoLeaks(current, key, planned))}
-                startLabel="No leaks"
+                startLabel="No Leaks"
                 max={entry.pouchesTested ?? undefined}
                 issuePath={path("pouchesFailed")}
                 {...messageProps(message("pouchesFailed"))}

@@ -14,6 +14,7 @@ import {
   CounterTable,
   EnterGroup,
   findIssue,
+  HAND_NAME,
   HandToggle,
   handsOf,
   issuePathKey,
@@ -34,7 +35,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { STATUS_LABEL } from "@/lib/design/status";
-import { formatSize, formatSizeHand } from "@/lib/format";
+import { formatSize } from "@/lib/format";
 import { HANDS, initialSize, labelFor, samplingFor, type CaptureProps, type Hand } from "@/modules/_framework";
 import { ShownSizeReport } from "@/modules/_framework/shown-size";
 import type { WatertightComputed, WatertightConfig, WatertightData } from ".";
@@ -265,7 +266,10 @@ export default function WatertightCapture({
                   <OtherField
                     key={`${entry}:${hand ?? ""}`}
                     label={labelFor(labels, "otherDescription")}
-                    where={formatSizeHand(entry, hand, { sizes: context.templateSizes })}
+                    // In the label, so Title Case as a label is: "Size M, Right Hand".
+                    where={[formatSize(entry, { sizes: context.templateSizes, prefix: true }), hand && HAND_NAME[hand]]
+                      .filter(Boolean)
+                      .join(", ")}
                     path={path}
                     value={text}
                     note={findIssue(evaluation?.issues, path)?.message ?? null}
@@ -328,10 +332,10 @@ function TestedField({
     <SizeBlock size={size} className="relative min-w-0 space-y-2" {...issuePathProps(path)}>
       <NumberField
         label={
-          // One element: the Label is a flex row, and ", size XS" must follow the text without a gap.
+          // One element: the Label is a flex row, and ", Size XS" must follow the text without a gap.
           <span>
             {label}
-            <SideBySideText>, size {sizeName}</SideBySideText>
+            <SideBySideText>, Size {sizeName}</SideBySideText>
           </span>
         }
         value={tested}
@@ -346,7 +350,7 @@ function TestedField({
       />
       {planned !== null && (
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground touch:text-base">
-          <span>Sampling plan: {planned}</span>
+          <span>Sampling Plan: {planned}</span>
           {!readOnly && tested === null && (
             <Button
               type="button"

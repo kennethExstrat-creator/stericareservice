@@ -63,7 +63,7 @@ export default function Capture({
   useReportShownSize(sizeOnTabs(context.sizes, size), onFocusChange);
   // The box column being counted, per size (the one shown on iPad).
   const [active, setActive] = useState<Record<string, number>>({});
-  // Columns asked for with "Add box", per size, beyond the plan.
+  // Columns asked for with "Add Box", per size, beyond the plan.
   const [requested, setRequested] = useState<Record<string, number>>({});
 
   useIssueFocus(focusPath, {
@@ -180,7 +180,7 @@ function SafedonSizePanel({ size, props, update, active, onActive, requested, on
               }}
             >
               <PlusIcon aria-hidden />
-              Add box
+              Add Box
             </Button>
           )
         }

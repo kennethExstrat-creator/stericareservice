@@ -34,7 +34,7 @@ Import from `@/lib/offline` and `@/lib/photos`.
 
 Writes resolve when their transaction commits, with strict durability, and ask for the commit as soon as the write is issued (`IDBTransaction.commit()`), so a write made as a tab closes reaches the database. A connection iPadOS dropped while the page sat in the background is reopened once and the call retried. Records carry a format version (`v: 1`) and are checked with zod when read; a local copy that no longer validates is set aside (`unreadable:...`), never deleted or applied.
 
-Where IndexedDB is missing or refused (some private windows), the same interface runs in memory and `db.persistent` is false. Pass `persistent: db.persistent` to `createAutosave` (the Supabase upload queue reads it itself): `snapshot.localCopy` is then false in both, and the pill shows the storage error instead of "Offline (will sync)" while changes are not on the server, since a reload would lose them.
+Where IndexedDB is missing or refused (some private windows), the same interface runs in memory and `db.persistent` is false. Pass `persistent: db.persistent` to `createAutosave` (the Supabase upload queue reads it itself): `snapshot.localCopy` is then false in both, and the pill shows the storage error instead of "Offline (Will Sync)" while changes are not on the server, since a reload would lose them.
 
 Call `requestPersistentStorage()` once after sign-in. Safari may otherwise evict site data after weeks without a visit; a home screen web app is exempt.
 
@@ -72,14 +72,14 @@ How it behaves:
 
 | Failure | Pill | What happens |
 |---|---|---|
-| network (offline, dropped, timeout), server (5xx) | Offline (will sync) | Retry after 1, 2, 4 ... 30 s (minus up to 20% jitter); at once on the `online` event; every 30 s while the browser says offline |
+| network (offline, dropped, timeout), server (5xx) | Offline (Will Sync) | Retry after 1, 2, 4 ... 30 s (minus up to 20% jitter); at once on the `online` event; every 30 s while the browser says offline |
 | unauthorized (session ended) | error: "Sign in again to sync" | Keeps retrying; resumes by itself once the session is back |
 | forbidden (submitted, or not this user's), invalid, not_found | error | Waits: the next change or `retryNow()` tries again |
 | conflict | error | Waits for the inspector (see below) |
 | other_tab | error | Another tab on this device is the writer (see "One writer per inspection") |
 | the local copy cannot be kept (a failed write, or the in-memory fallback), and the server does not have the changes yet | error: storage | Only memory holds the changes: keep the page open |
 
-A request that takes longer than 30 s shows Offline (will sync) and is aborted if the transport accepts the `AbortSignal`. A Server Action cannot be aborted, so the controller waits for it rather than piling up requests.
+A request that takes longer than 30 s shows Offline (Will Sync) and is aborted if the transport accepts the `AbortSignal`. A Server Action cannot be aborted, so the controller waits for it rather than piling up requests.
 
 `getSnapshot()` returns `{ status, pending, lastSavedAt, online, error, conflict, retryAt, localCopy }`, the same object until something changes, for `useSyncExternalStore`. `status` is `saved | saving | offline | error`.
 
@@ -134,7 +134,7 @@ The rule: write `data` only while the row's `updated_at` still equals `baseUpdat
 
 A lost session reads as `unauthorized` (sign in again), not `forbidden`: without a session supabase-js sends the publishable key, PostgREST runs the request as anon and answers 401.
 
-With `experimental.useOffline` turned on in `next.config.ts`, Next.js holds a Server Action while offline instead of rejecting it. The controller copes: the pill shows Offline (will sync) after 30 s, nothing else is sent meanwhile, and the held request runs when the connection returns.
+With `experimental.useOffline` turned on in `next.config.ts`, Next.js holds a Server Action while offline instead of rejecting it. The controller copes: the pill shows Offline (Will Sync) after 30 s, nothing else is sent meanwhile, and the held request runs when the connection returns.
 
 ### Reload and conflicts
 
@@ -238,7 +238,7 @@ const id = await queue.enqueuePhoto({ inspectionId, photo, tag: autoTag(focus) }
    - `restored`: a short notice, "Unsaved changes from this iPad were restored."
    - `conflict`: a dialog with the two choices above. `setAside`: "An older unsaved copy could not be read and was kept aside."
    - `busy`: the data read-only, with `BUSY_MESSAGE` and a Reload button.
-3. **Status pill**: `SaveStatus` (`components/qc/save-status.tsx`) from `useSyncExternalStore(autosave.subscribe, autosave.getSnapshot)`: `saved` Saved (with `lastSavedAt`), `saving` Saving, `offline` Offline (will sync), `error` Not saved; the notice under the header carries `error.message` and an action (Try again: `retryNow()`; Sign in; Reload).
+3. **Status pill**: `SaveStatus` (`components/qc/save-status.tsx`) from `useSyncExternalStore(autosave.subscribe, autosave.getSnapshot)`: `saved` Saved (with `lastSavedAt`), `saving` Saving, `offline` Offline (Will Sync), `error` Not Saved; the notice under the header carries `error.message` and an action (Try again: `retryNow()`; Sign in; Reload).
 4. **Queue badge**: `PhotoUploadBadge` (`components/capture/photos`) beside the pill: the count from the page's queue, red when an upload stopped, and unknown rather than 0 while the queue is still reading this device.
 5. **Photo and file slots**: `PhotoSlot` in every section's footer, tagged with `autoTag(focus)` from the module, the size tab, hand and the defect, box, level or item in focus; `FileSlot` for lab reports and certificates through the modules' file slot (docs/MODULES.md 10.1), with `useInspectionFiles(id)` (uploaded and queued files) as the context's `files`. The page wraps the screen in `PhotoQueueProvider` so the queue starts at once, offline too.
 6. **Photo tiles** for queued items: `PhotoTile` with `state` `pending` (or `flagged`), `progress * 100`, and `src` from `URL.createObjectURL(await queue.preview(id))` (revoke it on unmount). Uploaded photos come from `inspection_photos` with signed URLs. Show `snapshot.retagFailures` as a notice ("The new tag of a photo could not be saved") and dismiss it once seen.
@@ -254,7 +254,7 @@ const id = await queue.enqueuePhoto({ inspectionId, photo, tag: autoTag(focus) }
 - **Full offline mode is Later** (BUILD_SPEC 12). There is no service worker: a page that is reloaded or opened while offline does not load. Nothing is lost: the local copy and the queue are on the device and sync when the page next loads online. Editing continues offline only on a page that is already open, in every section of it, also one not opened before ("What the capture screen wires", item 11).
 - **Capture time of non-JPEG photos.** HEIC, PNG and WebP Exif is not read; their capture time is the file's `lastModified`. iPadOS converts camera photos to JPEG for the web, so this mostly affects files dragged in on a desktop.
 - **HEIC and HEIF originals keep their metadata**, GPS included, until converted: the browser could not decode them, and their metadata cannot be removed without decoding. The conversion step (server side, later) must strip it. Flagged JPEG, PNG and WebP originals are cleaned before upload.
-- **Files are uploaded as they are**, metadata included. A certificate photographed with the iPad camera is better taken with "Take photo", which processes it.
+- **Files are uploaded as they are**, metadata included. A certificate photographed with the iPad camera is better taken with "Take Photo", which processes it.
 - **A photo being processed when the page reloads is lost**: it is kept only once enqueued, a fraction of a second later.
 - **Processing runs on the main thread** (about 100 to 300 ms a photo on an iPad). It could move to a worker with OffscreenCanvas if bursts of library photos feel slow.
 - **A second tab on the same inspection** is read-only where Web Locks exist (every supported browser over HTTPS). Without them (plain http on the LAN in development) a second tab steps back at its first write instead of overwriting the first tab's copy, and two tabs writing within the same few milliseconds can still slip past that check once.

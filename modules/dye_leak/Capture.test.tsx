@@ -105,12 +105,12 @@ describe("dye_leak capture", () => {
     for (const label of ["Pouches tested", "Pouches failed"]) {
       expect(html).toMatch(new RegExp(`${label}</dt><dd[^>]*><span data-slot="figure" data-empty=""`));
     }
-    expect(html).toContain("13 as planned");
-    expect(html).toContain("No leaks");
+    expect(html).toContain("13 as Planned");
+    expect(html).toContain("No Leaks");
     expect(html).not.toContain('role="spinbutton"');
     // Named with the count and the size, since every size's buttons may be on screen at once.
-    expect(html).toContain('aria-label="13 as planned, Pouches tested, Size 6.5"');
-    expect(html).toContain('aria-label="No leaks, Pouches failed, Size 7.0"');
+    expect(html).toContain('aria-label="13 as Planned, Pouches tested, Size 6.5"');
+    expect(html).toContain('aria-label="No Leaks, Pouches failed, Size 7.0"');
   });
 
   it("counts entered values with steppers named by size, and lists the totals", () => {
@@ -145,7 +145,7 @@ describe("dye_leak capture", () => {
     expect(planned(render({ sizes: {} }, { config: { n: 5 }, context: unplanned }))).toEqual(["13", "5"]);
     const html = render({ sizes: {} }, { context: unplanned });
     expect(planned(html)).toEqual(["13", null]);
-    expect(html).toContain("Start counting");
+    expect(html).toContain("Start Counting");
   });
 
   it("shows an error from calc under the count it points at", () => {
@@ -162,8 +162,8 @@ describe("dye_leak capture", () => {
 
   it("is read-only on an approved inspection: counts become numbers, nothing to start or clear", () => {
     const html = render({ sizes: { "6.5": { pouchesTested: 13, pouchesFailed: 0, notes: "Fine." } } }, { readOnly: true });
-    expect(html).not.toContain("No leaks");
-    expect(html).not.toContain("as planned");
+    expect(html).not.toContain("No Leaks");
+    expect(html).not.toContain("as Planned");
     expect(html).not.toContain("Clear Pouches");
     expect(html).not.toContain('role="spinbutton"');
     expect(html).toMatch(/Pouches failed<\/span><span data-slot="figure"[^>]*>0<\/span>/);

@@ -114,7 +114,7 @@ describe("watertight capture", () => {
 
   it("offers the sampling plan's n until the gloves tested are entered", () => {
     const empty = render({ sizes: {}, context: M_500() });
-    expect(empty).toContain("Sampling plan: 500");
+    expect(empty).toContain("Sampling Plan: 500");
     expect(empty).toMatch(/Use 500<span class="sr-only"> for size M<\/span>/);
     // 16 px text on touch, as every field's; size sm alone keeps 14 px there.
     expect(/<button[^>]*>Use 500/.exec(empty)?.[0]).toContain("touch:text-base");
@@ -141,9 +141,9 @@ describe("watertight capture", () => {
     expect(fields[1]).toContain("max-xl:hidden");
     expect(fields[1]).toContain('data-slot="size-block"');
     expect(tagsWith(html, 'data-slot="size-tabs"')[0]).toContain("data-side-by-side");
-    // One element in the flex Label, so ", size M" follows the text with no gap when it shows.
+    // One element in the flex Label, so ", Size M" follows the text with no gap when it shows.
     expect(html).toMatch(
-      /<label[^>]*><span>No\. of sample tested<span class="sr-only xl:not-sr-only">, size M<\/span><\/span><\/label>/,
+      /<label[^>]*><span>No\. of sample tested<span class="sr-only xl:not-sr-only">, Size M<\/span><\/span><\/label>/,
     );
   });
 
@@ -173,8 +173,8 @@ describe("watertight capture", () => {
       config: { ...WATERTIGHT_DEFAULT_CONFIG, handSplit: true },
     });
     expect(tagsWith(html, 'role="radio"')).toHaveLength(3);
-    expect(html).toContain('aria-label="Increase Palm, Size 7.0, right hand"');
-    expect(html).toContain('aria-label="Increase Palm, Size 7.0, left hand"');
+    expect(html).toContain('aria-label="Increase Palm, Size 7.0, Right Hand"');
+    expect(html).toContain('aria-label="Increase Palm, Size 7.0, Left Hand"');
     expect(totals(html)).toEqual([2]);
   });
 
@@ -194,8 +194,25 @@ describe("watertight capture", () => {
   it("asks where the holes under 'Other :' were, showing calc's note", () => {
     const html = render({ sizes: { M: { tested: 500, holes: { hole_other: 1 } } }, context: M_500() });
     expect(html).toContain("Other : description");
+    // The size it is for, in the label: Title Case, as the app's labels are.
+    expect(html).toContain(">(Size M)</span>");
     expect(html).toContain("Size M: 1 hole under &quot;Other :&quot; without saying where.");
     expect(render({ sizes: { M: { tested: 500 } }, context: M_500() })).not.toContain("Other : description");
+  });
+
+  it("names the hand too where the template splits hands, as the hand toggle names it", () => {
+    const html = render({
+      sizes: { "7.0": { tested: 125, R: { holes: { hole_other: 1 } } } },
+      context: makeTestContext({
+        sizes: ["7.0"],
+        templateSizes: [{ value: "7.0", label: "7.0" }],
+        sampling: { "7.0": makeSampling({ watertightVisual: 125 }) },
+      }),
+      config: { ...WATERTIGHT_DEFAULT_CONFIG, handSplit: true },
+    });
+    expect(html).toContain(">(Size 7.0, Right Hand)</span>");
+    // calc's note is a sentence, so it keeps its own words.
+    expect(html).toContain("Size 7.0, right hand: 1 hole under &quot;Other :&quot; without saying where.");
   });
 
   it("is read-only for an approved inspection: numbers, no steppers or buttons to change them", () => {

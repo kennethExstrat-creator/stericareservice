@@ -111,7 +111,7 @@ export default function Capture({
           {suggested ? (
             <StatusPill status={STATUS_OF[suggested]} className={PILL_TOUCH} />
           ) : (
-            <StatusPill status="not_done" label="Not calculated yet" className={PILL_TOUCH} />
+            <StatusPill status="not_done" label="Not Calculated Yet" className={PILL_TOUCH} />
           )}
           {reasons.length > 0 && (
             <ul className="space-y-0.5 text-sm text-muted-foreground touch:text-base">

@@ -27,7 +27,7 @@ type PhotoTileProps = {
   /** Upload progress, 0 to 100, while pending. */
   progress?: number;
   includeInReport?: boolean;
-  /** Admin only: shows the "Include in report" switch. */
+  /** Admin only: shows the "Include in Report" switch. */
   onIncludeInReportChange?: (include: boolean) => void;
   selected?: boolean;
   /** Shows a selection checkbox. */
@@ -44,15 +44,16 @@ const STATE_BADGE = {
   pending: { Icon: CloudUploadIcon, className: "border-brand-200 bg-brand-50 text-brand-700" },
   uploaded: { Icon: CheckIcon, className: "border-border bg-card text-muted-foreground" },
   flagged: { Icon: FileWarningIcon, className: "border-warn-border bg-warn-tint text-warn" },
-  // As SaveStatus says Not saved: the icon of a cloud that needs attention, in fail red.
+  // As SaveStatus says Not Saved: the icon of a cloud that needs attention, in fail red.
   failed: { Icon: CloudAlertIcon, className: "border-fail-border bg-fail-tint text-fail" },
 } as const;
 
+/** The badge's words: Title Case, as a status is. */
 function stateText(state: PhotoState, progress: number): string {
-  if (state === "flagged") return "Needs conversion";
+  if (state === "flagged") return "Needs Conversion";
   if (state === "uploaded") return "Uploaded";
-  if (state === "failed") return "Upload stopped";
-  return progress > 0 ? `Uploading ${Math.round(progress)}%` : "Waiting to upload";
+  if (state === "failed") return "Upload Stopped";
+  return progress > 0 ? `Uploading ${Math.round(progress)}%` : "Waiting to Upload";
 }
 
 export function PhotoTile({
@@ -131,7 +132,7 @@ export function PhotoTile({
         {includeInReport && (
           <span className={cn(BADGE, "absolute bottom-2 left-2 border-primary bg-primary text-primary-foreground")}>
             <CheckIcon aria-hidden />
-            In report
+            In Report
           </span>
         )}
 
@@ -158,7 +159,7 @@ export function PhotoTile({
         )}
         {onIncludeInReportChange && (
           <label className="mt-auto flex items-center justify-between gap-3 pt-2 text-sm font-medium text-foreground">
-            Include in report
+            Include in Report
             <Switch checked={includeInReport} onCheckedChange={onIncludeInReportChange} />
           </label>
         )}
