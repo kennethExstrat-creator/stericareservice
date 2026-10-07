@@ -10,7 +10,10 @@
 // back, and pasting a column of values fills this field and the ones after.
 // A paste is one change: each field stores its value by its own rules inside
 // batchDataChanges, so a module that writes through useDataUpdater receives
-// one onChange with every value. PercentField is the same with "%" and 0 to 100.
+// one onChange with every value. What a paste leaves out (values past the
+// run's last field, other spreadsheet columns) shows on screen: under the
+// field pasted into, or for cells in a table, across the foot of their
+// EnterGroup. PercentField is the same with "%" and 0 to 100.
 import {
   createContext,
   useContext,
@@ -31,28 +34,55 @@ import {
   FILL_EVENT,
   fillRun,
   groupFields,
+  leftOutAnything,
   neighbour,
   pasteNotice,
   planFieldPaste,
+  valuesPastEnd,
   type FillRequest,
+  type PasteLeftOut,
   type PasteResult,
 } from "./field-navigation";
 import { issuePathProps, type IssuePath } from "./issue-path";
 import { NumericCell, type InvalidEntry } from "./numeric-cell";
 import { readEntry } from "./numeric-entry";
+import { PasteNotice } from "./paste-notice";
 import { StatusIcon } from "./status-icon";
 import { useAnnouncement } from "./use-announcement";
 
 const InGroup = createContext(false);
 
-/** A run of fields: Enter moves through them in reading order; a pasted column fills down. */
+/** What a cell's paste left out, and the cell it was pasted into (the focus goes back there on Dismiss). */
+type GroupPasteNotice = { leftOut: PasteLeftOut; field: HTMLInputElement };
+
+/** An EnterGroup's place for its cells' paste notices: null clears it (a paste that fit). */
+const GroupNotices = createContext<((notice: GroupPasteNotice | null) => void) | null>(null);
+
+/**
+ * A run of fields: Enter moves through them in reading order; a pasted column
+ * fills down. When a paste into one of its cells leaves values out, the notice
+ * runs across the group's foot (a table's frame), after its content.
+ */
 export function EnterGroup({ className, children, ...props }: ComponentProps<"div">) {
+  const [notice, setNotice] = useState<GroupPasteNotice | null>(null);
   return (
     <InGroup.Provider value>
-      {/* data-enter-scope: ENTER_SCOPE_ATTRIBUTE */}
-      <div {...props} data-enter-scope="" data-slot="enter-group" className={className}>
-        {children}
-      </div>
+      <GroupNotices.Provider value={setNotice}>
+        {/* data-enter-scope: ENTER_SCOPE_ATTRIBUTE */}
+        <div {...props} data-enter-scope="" data-slot="enter-group" className={className}>
+          {children}
+          {notice && (
+            <PasteNotice
+              variant="strip"
+              leftOut={notice.leftOut}
+              onDismiss={() => {
+                if (notice.field.isConnected) notice.field.focus();
+                setNotice(null);
+              }}
+            />
+          )}
+        </div>
+      </GroupNotices.Provider>
     </InGroup.Provider>
   );
 }
@@ -134,7 +164,10 @@ export function NumberField({
   const errorId = `${inputId}-calc-error`;
   const warningId = `${inputId}-calc-warning`;
   const inGroup = useContext(InGroup) || group !== undefined;
+  const groupNotices = useContext(GroupNotices);
   const input = useRef<HTMLInputElement>(null);
+  // What the last paste into this field left out, where the field shows it itself.
+  const [leftOut, setLeftOut] = useState<PasteLeftOut | null>(null);
   const [ownInvalid, setOwnInvalidState] = useState<InvalidEntry | null>(null);
   const setOwnInvalid = (entry: InvalidEntry | null) => {
     setOwnInvalidState(entry);
@@ -217,13 +250,24 @@ export function NumberField({
     const plan = own ? planFieldPaste(text, { column: Boolean(group) }) : null;
     if (!own || !plan) return false;
     const fields = inGroup ? groupFields(own) : [own];
+    const start = fields.indexOf(own);
     let result: PasteResult = { filled: 0, rejected: 0, skipped: 0 };
     // One change for the whole paste (useDataUpdater): every value lands, not just the last.
     batchDataChanges(() => {
-      result = fillRun(plan.values, fields, fields.indexOf(own), fill);
+      result = fillRun(plan.values, fields, start, fill);
     });
     announce(pasteNotice({ ...result, leftOut: plan.leftOut }));
+    // On screen too, until dismissed or the next paste: a paste that fit takes an earlier notice away.
+    const left: PasteLeftOut = { pastEnd: valuesPastEnd(plan.values, fields.length, start), otherColumns: plan.leftOut };
+    const shown = leftOutAnything(left) ? left : null;
+    if (variant === "cell" && groupNotices) groupNotices(shown && { leftOut: shown, field: own });
+    else setLeftOut(shown);
     return true;
+  };
+
+  const dismissLeftOut = () => {
+    input.current?.focus();
+    setLeftOut(null);
   };
 
   const name = labelText(label, unit);
@@ -304,6 +348,8 @@ export function NumberField({
           </span>
         )}
         {live}
+        {/* A cell outside an EnterGroup has no group foot to show it: it shows under the cell. */}
+        {leftOut && <PasteNotice className="mt-1" leftOut={leftOut} onDismiss={dismissLeftOut} />}
       </div>
     );
   }
@@ -334,6 +380,7 @@ export function NumberField({
           ))}
         </div>
       )}
+      {leftOut && <PasteNotice leftOut={leftOut} onDismiss={dismissLeftOut} />}
       {live}
     </div>
   );

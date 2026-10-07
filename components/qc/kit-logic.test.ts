@@ -26,11 +26,15 @@ import {
 import { batchDataChanges, createDataUpdater, type DataChange } from "./data-updater";
 import {
   fillRun,
+  leftOutAnything,
+  leftOutMessages,
+  listValues,
   neighbour,
   parsePastedRows,
   pasteNotice,
   planFieldPaste,
   splitPastedValues,
+  valuesPastEnd,
 } from "./field-navigation";
 import { handsOf, shownHandView } from "./hand-toggle";
 import {
@@ -355,6 +359,39 @@ describe("parsePastedRows and planFieldPaste", () => {
     expect(planFieldPaste("88", { column: true })).toBeNull();
     expect(planFieldPaste("88\n", { column: false })).toBeNull();
     expect(planFieldPaste("88\t", { column: true })).toBeNull();
+  });
+});
+
+describe("what a paste left out, on screen", () => {
+  it("finds the values past the run's last field, as fillRun skips them, blanks left out", () => {
+    // Five fields, pasted into the fourth: two fit.
+    expect(valuesPastEnd(["88", "90", "87", "", "91"], 5, 3)).toEqual(["87", "91"]);
+    expect(valuesPastEnd(["88", "90"], 5, 0)).toEqual([]);
+    // A field that is not in the run takes nothing.
+    expect(valuesPastEnd(["88", "90"], 5, -1)).toEqual(["88", "90"]);
+  });
+
+  it("lists the values as pasted, cut short when there are many or they run long", () => {
+    expect(listValues(["7.1"])).toBe("“7.1”");
+    expect(listValues(["7.1", "2 42"])).toBe("“7.1” and “2 42”");
+    expect(listValues(["1", "2", "3", "4", "5", "6", "7", "8", "9"])).toBe("“1”, “2”, “3”, “4”, “5”, “6” and 3 more");
+    expect(listValues(["9".repeat(40)])).toBe(`“${"9".repeat(17)}…”`);
+  });
+
+  it("says in plain words what was not stored, and nothing when everything fit", () => {
+    expect(leftOutMessages({ pastEnd: ["7.1", "7.2"], otherColumns: 0 })).toEqual([
+      "2 pasted values did not fit and were not stored: “7.1” and “7.2”.",
+    ]);
+    expect(leftOutMessages({ pastEnd: ["7.1"], otherColumns: 1 })).toEqual([
+      "1 pasted value did not fit and was not stored: “7.1”.",
+      "Only the first column is used here: 1 value from other columns was not stored.",
+    ]);
+    expect(leftOutMessages({ pastEnd: [], otherColumns: 3 })).toEqual([
+      "Only the first column is used here: 3 values from other columns were not stored.",
+    ]);
+    expect(leftOutMessages({ pastEnd: [], otherColumns: 0 })).toEqual([]);
+    expect(leftOutAnything({ pastEnd: [], otherColumns: 0 })).toBe(false);
+    expect(leftOutAnything({ pastEnd: ["7.1"], otherColumns: 0 })).toBe(true);
   });
 });
 
