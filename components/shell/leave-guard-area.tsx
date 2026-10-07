@@ -82,9 +82,10 @@ export function LeaveGuardArea({ children }: { children: ReactNode }) {
   }, [router]);
 
   return (
+    // A waiting link dims what it shows, not itself: opacity on the link would fade its focus ring too (docs/DESIGN.md, Focus).
     <div
       ref={area}
-      className="contents [&_a[data-leave-waiting]]:cursor-progress [&_a[data-leave-waiting]]:opacity-60"
+      className="contents [&_a[data-leave-waiting]]:cursor-progress [&_a[data-leave-waiting]>*]:opacity-60"
     >
       {children}
       <PendingWorkDialog

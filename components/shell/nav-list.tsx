@@ -115,7 +115,8 @@ export function SectionNav({ section, className }: { section: NavSection; classN
         {links.map((entry) => (
           <li key={entry.key} className="flex">
             <NavLink href={entry.href} match={entry.match} className={SECTION_LINK}>
-              {entry.label}
+              {/* An element, so a link waiting to leave dims its label and not its focus ring (leave-guard-area.tsx). */}
+              <span>{entry.label}</span>
             </NavLink>
           </li>
         ))}
