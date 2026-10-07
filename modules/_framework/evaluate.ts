@@ -11,11 +11,20 @@ import { JsonObjectSchema, type CustomModule, type ResolvedModule, type Resolved
 import { excludedForInspection } from "@/lib/templates/overrides";
 import { sectionOrder } from "@/lib/templates/sections";
 import { evaluateCustomValues } from "@/lib/validation/custom";
-import { sortIssues, stampIssues, ValidationIssueSchema, type CalcIssue, type ValidationIssue } from "@/lib/validation/issues";
+import {
+  IssuePathSchema,
+  sortIssues,
+  stampIssues,
+  ValidationIssueSchema,
+  type CalcIssue,
+  type IssuePath,
+  type ValidationIssue,
+} from "@/lib/validation/issues";
 import { enforceResultRules, notDone, perSizeResults } from "@/lib/validation/results";
 import {
   calcFailedIssues,
   contributeFailedIssues,
+  describeDataPath,
   inspectorIssues,
   invalidConfigIssues,
   invalidDataIssues,
@@ -26,9 +35,9 @@ import {
   sizeNotOrderedIssues,
 } from "@/lib/validation/rules";
 import { suggestResult, type SuggestedResult } from "@/lib/validation/suggested-result";
-import type { AnyModuleDefinition, JsonObject, ModuleRegistry } from "./contract";
-import type { InspectionContext } from "./context";
-import { parseModuleData, readModuleEntry, type InspectionData } from "./data";
+import type { AnyModuleDefinition, JsonObject, ModuleDefinition, ModuleRegistry } from "./contract";
+import { readableData, type InspectionContext } from "./context";
+import { parseModuleData, readModuleEntry, type InspectionData, type ModuleEntry } from "./data";
 import { effectiveLabels } from "./labels";
 import { calcOrder, resultsFor } from "./order";
 import { parseCanonicalPath, readPath } from "./paths";
@@ -152,7 +161,13 @@ function evaluateModule(
     }
     const parsed = parseModuleData(definition, entry);
     if (!parsed.success) {
-      return broken(config.data, null, "Saved data could not be read.", invalidDataIssues(title, parsed.error));
+      return broken(config.data, null, "Saved data could not be read.", [
+        ...contributed,
+        ...invalidDataIssues(title, parsed.error, [], {
+          describe: (path) => describeDataPath(path, labels),
+          consequence: unreadableConsequence(definition, entry),
+        }),
+      ]);
     }
 
     const { data: moduleData, ignored, duplicates } = definition.perSize
@@ -192,7 +207,7 @@ function evaluateModule(
     issues.push(...(own.success ? own.data : invalidOutputIssues(title, "issue list")));
 
     const final = enforceResultRules(result.data, rules);
-    issues.push(...notDoneIssues(title, final, definition.requiredForSubmit));
+    issues.push(...notDoneIssues(title, final, definition.requiredForSubmit, notDonePathOf(output)));
     return {
       ...base,
       config: config.data,
@@ -204,6 +219,40 @@ function evaluateModule(
   } catch (error) {
     return broken(resolved.config, null, "Could not be calculated.", [...contributed, ...calcFailedIssues(title, error)]);
   }
+}
+
+/** The field calc names for its not-done link, when it is a valid path; else the module. */
+function notDonePathOf(output: { readonly notDonePath?: unknown }): IssuePath {
+  const path = IssuePathSchema.safeParse(output.notDonePath ?? []);
+  return path.success ? path.data : [];
+}
+
+/**
+ * What the other modules do while a source module's saved data cannot be
+ * read in full: they use what can be read (readableData), or get nothing
+ * from it. Said on each of its invalid_data errors, so a size that drops out
+ * of every module is never a silent loss.
+ */
+function unreadableConsequence(definition: AnyModuleDefinition, entry: ModuleEntry): string {
+  if (!definition.contribute) return "";
+  return readableData(definition, entry) === null
+    ? "Until it is corrected, the other sections get nothing from this one."
+    : "Until it is corrected, the other sections use the rest of what is saved here.";
+}
+
+/**
+ * One module's evaluation with its computed values typed as the module
+ * declares them, for code that holds the definition: a module's own tests,
+ * a screen that renders one module's Capture. Null when the inspection does
+ * not include the module.
+ */
+export function evaluationOf<TComputed extends JsonObject>(
+  evaluation: Pick<InspectionEvaluation, "modules">,
+  definition: Pick<ModuleDefinition<unknown, unknown, TComputed>, "key" | "calc">,
+): ModuleEvaluation<TComputed> | null {
+  const found = evaluation.modules.find((entry) => entry.key === definition.key);
+  // computed was checked to be a JSON object; its shape is the module's own (calc built it).
+  return (found as ModuleEvaluation<TComputed> | undefined) ?? null;
 }
 
 function evaluateCustomModule(

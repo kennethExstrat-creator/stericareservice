@@ -25,7 +25,7 @@ import {
 } from "@/components/qc";
 import { STATUS_LABEL } from "@/lib/design/status";
 import { formatSize } from "@/lib/format";
-import { cartonsFor, labelFor, type CaptureProps } from "@/modules/_framework";
+import { cartonsFor, initialSize, labelFor, type CaptureProps } from "@/modules/_framework";
 import type { LabelingComputed, LabelingConfig, LabelingData } from ".";
 import { checkLabel, includedLevels, levelFieldLabel, levelLabel } from "./calc";
 import type { LabelingCheck, LabelingLevel } from "./config";
@@ -47,8 +47,8 @@ export default function Capture({ onChange, focusPath, ...props }: Props) {
   const { data, config, context, evaluation, onFocusChange } = props;
   const update = useDataUpdater(data, onChange);
   const root = useRef<HTMLDivElement>(null);
-  // SizeTabs corrects a size that is not (or no longer) ordered.
-  const [size, setSize] = useState(context.sizes[0] ?? "");
+  // Opens on the size chosen in the last module; SizeTabs corrects a size that is not (or no longer) ordered.
+  const [size, setSize] = useState(() => initialSize(context, props.focus));
   const levels = includedLevels(config);
 
   useIssueFocus(focusPath, {
@@ -147,7 +147,7 @@ function LevelPanel({
           ref={countRow}
           // The label over the counter table's label column and the count over its count column, side by side.
           className="grid grid-cols-[minmax(0,16rem)_8rem] items-center touch:grid-cols-[minmax(0,16rem)_10rem]"
-          onFocus={() => onFocusChange?.({ size })}
+          onFocus={() => onFocusChange?.({ size, level })}
           {...issuePathProps([...path, "inspected"])}
         >
           <div className="min-w-0 pr-3">
@@ -208,7 +208,7 @@ function LevelPanel({
                   if (box !== null) update((current) => withBox(current, size, level, index, next));
                   else if (next !== null) update((current) => withAddedBox(current, size, level, next));
                 }}
-                onFocus={() => onFocusChange?.(box === null ? { size } : { size, box })}
+                onFocus={() => onFocusChange?.(box === null ? { size, level } : { size, level, box })}
                 issuePath={box === null ? undefined : [...path, "boxNos", index]}
                 readOnly={readOnly}
               />
@@ -253,7 +253,7 @@ function LevelPanel({
           accept: STATUS_LABEL.pass,
           reject: STATUS_LABEL.fail,
         }}
-        onCellFocus={({ row }) => onFocusChange?.({ size, defect: row })}
+        onCellFocus={({ row }) => onFocusChange?.({ size, level, defect: row })}
         cellIssuePath={({ row }) => [...path, "defects", row]}
         readOnly={readOnly}
       />

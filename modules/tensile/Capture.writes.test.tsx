@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { IssuePath } from "@/components/qc";
 import { batchDataChanges } from "@/components/qc/data-updater";
+import { FileSlotProvider, type FileSlotRequest } from "@/modules/_framework/file-slot";
 import { makeTestContext } from "@/modules/_framework/testing";
 import Capture from "./Capture";
 import { TENSILE_DEFAULT_CONFIG, TENSILE_LABELS, TENSILE_TITLE } from "./config";
@@ -26,24 +27,36 @@ vi.mock("@/components/qc", async (importOriginal) => ({
 const CONTEXT = makeTestContext({ sizes: ["XS", "S", "M", "L"] });
 const LAB_REPORT_ID = "00000000-0000-4000-8000-000000000402";
 
-/** Renders the body once and returns its fields in screen order and every onChange the screen received. */
+/**
+ * Renders the body once, inside a screen's file slot, and returns its fields
+ * in screen order, the file slot's request and every onChange the screen
+ * received.
+ */
 function renderFields(data: TensileData) {
   kit.fields.length = 0;
   const changes: TensileData[] = [];
+  const slots: FileSlotRequest[] = [];
   renderToStaticMarkup(
-    <Capture
-      data={data}
-      config={TENSILE_DEFAULT_CONFIG}
-      title={TENSILE_TITLE}
-      labels={TENSILE_LABELS}
-      context={CONTEXT}
-      evaluation={null}
-      focusPath={null}
-      readOnly={false}
-      onChange={(next) => changes.push(next)}
-    />,
+    <FileSlotProvider
+      render={(request) => {
+        slots.push(request);
+        return null;
+      }}
+    >
+      <Capture
+        data={data}
+        config={TENSILE_DEFAULT_CONFIG}
+        title={TENSILE_TITLE}
+        labels={TENSILE_LABELS}
+        context={CONTEXT}
+        evaluation={null}
+        focusPath={null}
+        readOnly={false}
+        onChange={(next) => changes.push(next)}
+      />
+    </FileSlotProvider>,
   );
-  return { fields: [...kit.fields], changes };
+  return { fields: [...kit.fields], slots, changes };
 }
 
 describe("tensile capture writes", () => {
@@ -73,6 +86,19 @@ describe("tensile capture writes", () => {
         labReport: LAB_REPORT_ID,
       },
     ]);
+  });
+
+  it("keeps the lab report the file slot attaches, and drops it when that file is deleted", () => {
+    const REPORT = "00000000-0000-4000-8000-000000000409";
+    const { slots, changes } = renderFields({ sizes: { XS: { tensileStrength: 34.18, elongationAtBreak: null } }, labReport: null });
+    expect(slots).toEqual([expect.objectContaining({ moduleKey: "tensile", kind: "lab_report", focus: { size: "XS" } })]);
+    slots[0].onAdded({ id: REPORT, name: "Tensile report.pdf", kind: "lab_report" });
+    expect(changes.at(-1)).toEqual({ sizes: { XS: { tensileStrength: 34.18, elongationAtBreak: null } }, labReport: REPORT });
+    // Another of the module's files goes: the lab report stays.
+    slots[0].onRemoved(LAB_REPORT_ID);
+    expect(changes).toHaveLength(1);
+    slots[0].onRemoved(REPORT);
+    expect(changes.at(-1)?.labReport).toBeNull();
   });
 
   it("keeps two fields' changes made before the screen renders again, and every saved size", () => {

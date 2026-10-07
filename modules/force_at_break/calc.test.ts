@@ -281,6 +281,33 @@ describe("force_at_break", () => {
     expect(withReport.result).toEqual(without.result);
   });
 
+  it("counts a lab report of the module added in the gallery once the inspection's files are known", () => {
+    const values = readingsWithMedian(6.537);
+    const gallery = makeTestContext({ sizes: ["M"], files: [{ id: LAB_REPORT_ID, moduleKey: "force_at_break", kind: "lab_report" }] });
+    const output = calcForceAtBreak(input({ M: { values } }, { at: gallery, labReport: null }));
+    expect(output.computed.labReportAttached).toBe(true);
+    expect(output.issues).toEqual([]);
+  });
+
+  it("says when the lab report kept here is not among the inspection's files, without changing the result", () => {
+    const values = readingsWithMedian(6.537);
+    const held = makeTestContext({ sizes: ["M"], files: [{ id: LAB_REPORT_ID, moduleKey: "force_at_break", kind: "lab_report" }] });
+    const kept = calcForceAtBreak(input({ M: { values } }, { at: held, labReport: LAB_REPORT_ID }));
+    expect(kept.computed.labReportAttached).toBe(true);
+    expect(kept.issues).toEqual([]);
+    const gone = calcForceAtBreak(input({ M: { values } }, { at: makeTestContext({ sizes: ["M"], files: [] }), labReport: LAB_REPORT_ID }));
+    expect(gone.computed.labReportAttached).toBe(false);
+    expect(gone.issues).toEqual([
+      {
+        level: "warning",
+        code: "lab_report_missing",
+        message: "Lab report: the file attached here is not among this inspection's files. It may still be uploading from another device; if it was deleted, attach it again.",
+        path: ["labReport"],
+      },
+    ]);
+    expect(gone.result).toEqual(kept.result);
+  });
+
   it("computes the dictionary's computed keys per size, and keeps the spec with them for the export", () => {
     const output = calcForceAtBreak(input({ M: { values: readingsWithMedian(6.537) } }));
     expect(Object.keys(output.computed.sizes.M)).toEqual(expect.arrayContaining(dataKeys("force_at_break", "computed")));

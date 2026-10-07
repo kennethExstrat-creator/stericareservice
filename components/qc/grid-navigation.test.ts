@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { applyPaste, caretOf, cellKey, planPaste, targetCell, type PastePlan } from "./grid-navigation";
+import {
+  applyPaste,
+  caretOf,
+  cellKey,
+  labelColumnWidth,
+  planPaste,
+  targetCell,
+  type PastePlan,
+} from "./grid-navigation";
 
 const size = { rows: 13, cols: 5 };
 
@@ -171,11 +179,41 @@ describe("applyPaste", () => {
     expect(Object.keys(result.invalid)).toHaveLength(4);
   });
 
+  it("reports every cell it reached, with the value each now holds, for onCellsChange", () => {
+    const result = applyPaste(paste("243\t95\n2 42\t96", 1, 0), measures, rows, { length: [240] }, {});
+    expect(result.changes).toEqual([
+      { row: 1, measure: "length", value: 243 },
+      { row: 1, measure: "width", value: 95 },
+      { row: 2, measure: "length", value: null },
+      { row: 2, measure: "width", value: 96 },
+    ]);
+  });
+
+  it("refuses a measure's exclusive minimum", () => {
+    const exclusive = [{ key: "force", min: 0, minExclusive: true }];
+    const plan = planPaste("6.5\n0\n6.6", { row: 0, col: 0 }, { rows, cols: 1 });
+    if (!plan) throw new Error("expected a multi-value paste");
+    const result = applyPaste(plan, exclusive, rows, {}, {});
+    expect(result.values.force).toEqual([6.5, null, 6.6, null, null]);
+    expect(result.invalid[cellKey("force", 1)]?.error).toBe("Must be more than 0.");
+  });
+
   it("does not change the values or rejections it was given", () => {
     const values = Object.freeze({ length: Object.freeze([240, 241, 242, 243, 244]) });
     const invalid = Object.freeze({ "length:0": { raw: "x", error: "Numbers only, e.g. 2.42." } });
     applyPaste(paste("1\n2", 0, 0), measures, rows, values, invalid);
     expect(values.length).toEqual([240, 241, 242, 243, 244]);
     expect(invalid).toHaveProperty("length:0");
+  });
+});
+
+describe("labelColumnWidth", () => {
+  it("fits the longest caption on one line, so 'Passed / Failed' never wraps", () => {
+    expect(labelColumnWidth(["No.", "Median", "Spec.", "Passed / Failed"])).toBe("clamp(3.5rem, calc(15ch + 2rem), 16rem)");
+  });
+
+  it("keeps the glove numbers' width for short captions, and wraps only past 16 rem", () => {
+    expect(labelColumnWidth(["No.", "P/F"])).toBe("clamp(3.5rem, calc(3ch + 2rem), 16rem)");
+    expect(labelColumnWidth([])).toBe("clamp(3.5rem, calc(0ch + 2rem), 16rem)");
   });
 });

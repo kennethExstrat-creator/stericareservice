@@ -85,9 +85,16 @@ describe("packing_config capture", () => {
     expect(tagsOf(html, "input")).toHaveLength(3);
   });
 
-  it("warns beside the check when the gloves per case does not match", () => {
+  it("warns on the gloves per case when it does not match the computed check", () => {
     const html = render({ data: { ...packingData(STD_EG_EXAMPLE.packing), glovesPerCase: 2500 } });
-    expect(html).toContain("# gloves per case 2,500 is not # glove per inner box × # inners per case: 200 × 10 = 2,000.");
+    const message = "# gloves per case 2,500 is not # glove per inner box × # inners per case: 200 × 10 = 2,000.";
+    expect(html.split(message)).toHaveLength(2);
+    // NumberField's amber warning, which describes the field it points at.
+    const warning = /<div id="([^"]+-calc-warning)"[^>]*text-warn[^>]*>[\s\S]*?<\/div>/.exec(html);
+    expect(warning?.[0]).toContain(message);
+    const field = tagsOf(html, "input").find((input) => input.includes(`aria-describedby="${warning?.[1]}"`));
+    expect(field).toMatch(/id="[^"]*-glovesPerCase"/);
+    expect(tagsOf(html, "input").filter((input) => input.includes("calc-warning"))).toHaveLength(1);
   });
 
   it("shows the packing mode only where the template does", () => {

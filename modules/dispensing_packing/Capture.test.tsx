@@ -3,7 +3,6 @@
 // in components/qc; the calculations in calc.test.ts.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { SMALL_PILL_TOUCH } from "@/components/qc/status-pill";
 import type { InspectionContext, ModuleEvaluation } from "@/modules/_framework";
 import { makeSampling, makeTestContext } from "@/modules/_framework/testing";
 import { cartonList, STD_EG_EXAMPLE } from "@/tests/fixtures/examples";
@@ -80,8 +79,6 @@ function render({
 }
 
 const count = (html: string, text: string) => html.split(text).length - 1;
-/** Text as renderToStaticMarkup escapes it inside an attribute. */
-const inMarkup = (text: string) => text.replace(/&/g, "&amp;").replace(/>/g, "&gt;");
 
 describe("dispensing_packing capture", () => {
   it("shows only the ordered sizes, whatever is saved for others (6.2 rule 4)", () => {
@@ -145,9 +142,11 @@ describe("dispensing_packing capture", () => {
     expect(count(html, '<option value="B1">B1</option>')).toBe(13);
     expect(html).toContain("A mix of non sticky to light stickiness at the bead");
     expect(html).toContain("Glove stickiness Code");
-    // The legend's pills at the kit's own touch size, 16 px on iPad.
+    // The legend's pills at the kit's touch size, 16 px on iPad.
     const legend = /<dl[\s\S]*?<\/dl>/.exec(html)?.[0] ?? "";
-    expect(count(legend, inMarkup(SMALL_PILL_TOUCH))).toBe(DISPENSING_PACKING_DEFAULT_CONFIG.stickinessCodes.length);
+    const pills = legend.match(/<span[^>]*data-slot="status-pill"[^>]*>/g) ?? [];
+    expect(pills).toHaveLength(DISPENSING_PACKING_DEFAULT_CONFIG.stickinessCodes.length);
+    expect(pills.every((pill) => pill.includes("touch:text-base"))).toBe(true);
   });
 
   it("shows each stickiness cell as a picker: a chevron, and Pick while empty", () => {

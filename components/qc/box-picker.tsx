@@ -40,7 +40,10 @@ type BoxPickerProps = {
   readOnly?: boolean;
   /** Marks the control for issue links (useIssueFocus). */
   issuePath?: IssuePath;
-  /** For photo tags: the box is in focus. */
+  /**
+   * For photo tags: the box is in focus, or its list opened. Safari does not
+   * focus a button on a tap, so on iPad the opening is what reports it.
+   */
   onFocus?: () => void;
   id?: string;
   className?: string;
@@ -105,6 +108,7 @@ export function BoxPicker({
       setQuery("");
       setActive(value !== null && listed.includes(value) ? value : null);
       setColumns(window.matchMedia("(pointer: fine)").matches ? 5 : 4);
+      onFocus?.();
     }
     setOpen(next);
   };

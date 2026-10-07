@@ -5,7 +5,7 @@ How to build an inspection module on the module framework (BUILD_SPEC 4, 6 and 6
 | Path | What |
 |---|---|
 | `modules/<key>/` | One folder per module key. Yours to replace; nothing else changes when you do. |
-| `modules/_framework/` | The contract, the inspection context, the engine, the test kit. Import it as `@/modules/_framework`. |
+| `modules/_framework/` | The contract, the inspection context, the engine, the test kit. Import it as `@/modules/_framework`; its one React part, the file slot, as `@/modules/_framework/file-slot` (Capture only). |
 | `modules/registry.ts` | Maps every key to `modules/<key>/index.ts`. Never edited. |
 | `modules/index.ts` | The app's entry point (`@/modules`): the registry bound into the engine, for screens and server actions. |
 | `lib/templates/` | Template resolution, selection, per-inspection overrides, versions. |
@@ -17,7 +17,7 @@ How to build an inspection module on the module framework (BUILD_SPEC 4, 6 and 6
 
 - **Your folder only.** Each module engineer owns `modules/<key>/` for their keys. Do not edit `modules/registry.ts`, `modules/_framework/`, `lib/templates/`, `lib/validation/`, `lib/sizes/` or `lib/schemas/`. If the framework needs to change, write down the change and ask.
 - **Replace the stub in place.** Every folder starts with an `index.ts` that calls `stubModule(...)`. Replace it with your module; keep the export name: `export const definition = defineModule({...})`.
-- **Import from these only**: `@/modules/_framework` (contract, helpers, cell schemas, `SpecSchema`, issue builders), `@/lib/stats` (median, mean, specs, strict number parsing), `@/lib/sizes`, `@/lib/aql` (code letters, Ac/Re), `@/lib/schemas`, `zod`, and your own folder. **Never** import `@/modules`, `@/modules/registry` or `@/lib/validation`: they import the modules, so your module would import itself. `modules/_framework/architecture.test.ts` fails if you do.
+- **Import from these only**: `@/modules/_framework` (contract, helpers, cell schemas, `SpecSchema`, issue builders), `@/lib/stats` (median, mean, specs, strict number parsing), `@/lib/sizes`, `@/lib/aql` (code letters, Ac/Re), `@/lib/schemas`, `zod`, and your own folder. `Capture.tsx` may also import React, `@/components/qc` and `@/components/ui` (docs/CAPTURE_KIT.md), `@/lib/format` (text for numbers, specs and sizes) and `@/modules/_framework/file-slot` (section 10.1). **Never** import `@/modules`, `@/modules/registry` or `@/lib/validation`: they import the modules, so your module would import itself. `modules/_framework/architecture.test.ts` fails if you do.
 - **Pure.** `schema.ts`, `config.ts`, `calc.ts` and `index.ts` hold data and pure functions: no React, Next, Supabase, `fetch`, `Date.now()` or randomness. The same code runs on the iPad, in server actions and in the export. Only `Capture.tsx` is React.
 - **Plain JSON.** Data, config and computed values survive `JSON.stringify` unchanged: no `Date`, `Map`, class instances, `undefined` or `NaN`.
 - **No new npm packages.**
@@ -75,7 +75,7 @@ A module is a `ModuleDefinition` (`modules/_framework/contract.ts`), declared wi
 | `results` | Results of the modules in `dependsOn` that the inspection includes. |
 | `hasData` | Anything is saved for the module. |
 
-and returns `CalcOutput`: `result` (`ModuleResult`: `status`, `summary`, `perSize`), `computed` (a JSON object: totals, statistics, code letters, limits; exported) and `issues` (section 8).
+and returns `CalcOutput`: `result` (`ModuleResult`: `status`, `summary`, `perSize`), `computed` (a JSON object: totals, statistics, code letters, limits; exported), `issues` (section 8) and, optionally, `notDonePath`: while the module is not done, the field to complete first (`["finalResult"]`, `["sizes", "M", "elongationAtBreak"]`), where the framework's `module_not_done` issue links instead of to the module as a whole.
 
 ## 4. Worked example: `glove_info`
 
@@ -176,7 +176,9 @@ export const definition = defineModule<GloveInfoData, GloveInfoConfig, GloveInfo
 - **Hand split.** Modules with `handSplit: true` (watertight, visual) have a boolean `handSplit` in their config; with it on, keep each size's data per hand, e.g. `sizes.M = { R: {...}, L: {...} }`. `HANDS`, `HandSchema` and `isHandSplit(definition, config)` are in the framework.
 - **The comment is not yours.** Every module carries an inspector comment, which the framework stores under the reserved key `comment` in your entry and strips before your schema sees the data. Do not define `comment`.
 - **Box numbers (rule 7)** are carton numbers picked from `context.cartons[size]`; store the number, not an index into the list.
+- **Files.** A lab report or certificate is an `inspection_files` row the screen uploads (section 10.1). A module that needs one keeps the row's id in its data with `FileIdCellSchema` (a UUID, null until attached): `force_at_break.labReport`, `tensile.labReport`, `documents.items.<item>.file`. Never a name or a storage path.
 - **Evolving a schema.** Saved inspections are re-read with your current schema. Add fields with defaults; never rename or retype a key without a migration.
+- **Data that no longer fits.** Saved data your schema rejects (saved before a limit existed, such as a lot number over 200 characters) is reported as `invalid_data` errors with their paths, and the module shows not done. The context is built from what can still be read: `salvageData` takes out only the values the schema rejects (a list item becomes null where the list takes null, else it is removed; a field is removed so its default applies; a field the schema cannot do without takes its parent with it), so one bad lot number never takes the ordered sizes away from every per-size module. `readableData(definition, entry)` gives the same for reading: to show what is saved, read-only, or behind one explicit "Remove the values that cannot be read" that saves it once. Never feed it to an editable Capture: its first edit would save it, and the rejected values would be gone without anyone deciding so.
 
 ## 6. Config, title and labels
 
@@ -205,16 +207,20 @@ Values entered once and read by every module that needs them (BUILD_SPEC 8, 6.2 
 | `sampling[size]` | `cases`, `innerUnits`, `gloves`, `watertightVisual`, `dimensions`, `physical`, `packagingDispensing`, `pouches`, `pouchesDyeLeak`: n for the modules that follow | `sampling_plan` |
 | `cartons[size]` | Sampled carton numbers, unique: what box pickers offer (rule 7) | `carton_sampling` |
 | `indicativeWeight` | `{ grams, size }` (rule 9) | `glove_info` |
-| `aql` | `watertight`, `critical`, `major`, `minor`, `inspectionLevel` | defaults, per client, `sampling_plan` config |
+| `aql` | `watertight`, `critical`, `major`, `minor`, `inspectionLevel` | defaults, per client, then the template's config one setting at a time (`AQL_SOURCES`; today the sampling plan's inspection level only) |
 | `template` | `code`, `name`, `productType`, `standard`, `unit` (`pcs` or `pairs`) | the template |
 | `templateSizes` | Sizes the template offers, `{ value, label }` | the template |
 | `inspection` | `refNo`, `inspector` (always recorded, rule 11), `client`, `manufacturer` | the inspection row |
+| `modules` | The modules the inspection includes, in template order, `{ key, title }` with the template's titles: how one module names another (rule 11) | the template, overrides applied |
+| `files` | The inspection's files `{ id, moduleKey, kind }` (`meta.files`, which every caller that decides a result passes, section 10.1), or `null` while they are not loaded | the inspection row's files |
 
-Readers: `samplingFor(context, size)` (empty values when missing), `cartonsFor(context, size)`, `lotSizeGloves(context, size)` (cases x gloves per case, or null), `sizeLabel(context, size)` (the template's label, e.g. "Medium").
+Readers: `samplingFor(context, size)` (empty values when missing), `cartonsFor(context, size)`, `lotSizeGloves(context, size)` (cases x gloves per case, or null), `sizeLabel(context, size)` (the template's label, e.g. "Medium"), `moduleTitle(context, key)` (the template's title, else the key in words) and `includedModules(context)`, `moduleFileState(context, { moduleKey, kind, fileId })` and `heldFileState(context, fileId)` (whether a file is attached, section 10.1), `initialSize(context, focus)` (the size a per-size Capture opens on). `modules` and `files` are optional in the type only for contexts built before they existed: read them through these readers.
 
-**Any part can be empty.** A source module that is switched off, not filled in, or not built yet leaves its part empty: no sizes, no n, no cartons, no indicative weight. (`order_lots` and `sampling_plan` cannot be switched off for one inspection, and a template with a per-size module must include `order_lots`, but both can still be empty.) Handle it: a per-size module with no ordered sizes is not done (the framework says so); with no n, it is not done; with no carton list, the box number is entered freely and not checked; with no indicative weight, `weight` has nothing to compare against.
+**Any part can be empty.** A source module that is switched off, not filled in, or not built yet leaves its part empty, apart from what its config gives: no sizes, no n, no cartons, no indicative weight. (`order_lots` and `sampling_plan` cannot be switched off for one inspection, and a template with a per-size module must include `order_lots`, but both can still be empty.) Handle it: a per-size module with no ordered sizes is not done (the framework says so); with no n, it is not done; with no carton list, the box number is entered freely and not checked; with no indicative weight, `weight` has nothing to compare against.
 
-**Source modules contribute.** The six modules in the table implement `contribute({ data, config })` and return only the parts they own (`CONTEXT_SOURCES`). Contributions read only their own saved data, and per-size maps may use any size spelling (the builder normalises and drops unordered sizes). A part another module owns is left out, and a `contribute` that throws gives nothing; either way the inspection still evaluates, without those values, and your module shows a `contribute_failed` error that blocks submit. `checkModuleContract` runs `contribute` on empty data only, so test it on filled data too.
+**Source modules contribute.** The six modules in the table implement `contribute({ data, config })` and return only the parts they own (`CONTEXT_SOURCES`; the AQL settings one by one, `AQL_SOURCES`). Contributions read only their own saved data, and per-size maps may use any size spelling (the builder normalises and drops unordered sizes). `contribute` runs on the saved data, on the empty data when nothing is saved (so what comes from config, the inspection level and the inner unit's name, is there from the start), and on what can be read when the saved data fails the schema (section 5). A part another module owns is left out, and a `contribute` that throws gives nothing; either way the inspection still evaluates, without those values, and your module shows a `contribute_failed` error that blocks submit. `checkModuleContract` runs `contribute` on empty data only, so test it on filled data too.
+
+**AQL settings, one owner each** (`AQL_SOURCES`): `watertight` may set `aql.watertight`, `visual` `aql.critical`, `aql.major` and `aql.minor`, and `sampling_plan` `aql.inspectionLevel`, each from the template's config and only when the template sets one. Today only `sampling_plan` does: `watertight` and `visual` have yet to add their `contribute` (for watertight, `({ config }) => ({ aql: { watertight: config.aql ?? undefined } })`). Once a check contributes, the template's value reaches every reader of `context.aql` (the sampling plan's lot check above all): template over client over BUILD_SPEC 7. Until then, and for a check that sets none, `context.aql` holds the client's or the default value, while the check itself applies the template's.
 
 **Calculation order.** The context is built first, from every included module's `contribute`, so every calc sees the complete context whatever the template's order. Calcs then run in template order, except that a module runs after the modules in its `dependsOn` and sees only their results. The conclusion declares `"all"` and runs last. In practice only the conclusion reads other modules' results; everything else flows through the context.
 
@@ -236,20 +242,20 @@ Readers: `samplingFor(context, size)` (empty values when missing), `cartonsFor(c
 
 **Issues** (BUILD_SPEC 6.2, last paragraph): errors block submit; warnings are allowed and go into the export. Build them with `errorIssue(code, message, { size, path })` and `warningIssue(...)`; the framework adds your module key.
 
-- `code`: snake case, stable, prefixed by what it is about: `carton_duplicate`, `carton_out_of_range`, `box_not_in_cartons`, `weight_deviation`. Screens and the AI review match on it.
+- `code`: snake case, stable, prefixed by what it is about: `carton_duplicate`, `carton_out_of_range`, `box_not_in_carton_list`, `weight_deviation`. Screens and the AI review match on it.
 - `message`: one sentence for the inspector, with the template's labels and the values: "Carton 578 is entered twice for size M."
 - `path`: where the problem is **inside your data**, for the link in the issue list: `["sizes", "M", 12]` is the 13th carton of size M. `[]` points at the module.
 - `size`: the size it concerns, when there is one.
-- Missing values are not issues: they make the module not done, and the framework adds one `module_not_done` issue per module, a warning, or an error that blocks submit when the module has `requiredForSubmit` (the conclusion). Raise issues for **wrong** data.
+- Missing values are not issues: they make the module not done, and the framework adds one `module_not_done` issue per module, a warning, or an error that blocks submit when the module has `requiredForSubmit` (the conclusion). It links to `notDonePath` when calc gives one (the conclusion's final result choice, tensile's lab report), else to the module. That issue speaks of the whole module, so a Capture showing issues beside a field reads them through `fieldIssues`: `findIssue(fieldIssues(evaluation?.issues), path)`. Raise issues for **wrong** data.
 
 **What the framework does for every module**, whatever calc returns:
 
 | Code | Level | When |
 |---|---|---|
-| `module_not_done` | warning; error with `requiredForSubmit` | The final status is not done (rule 5). |
+| `module_not_done` | warning; error with `requiredForSubmit` | The final status is not done (rule 5). Links to `notDonePath`. |
 | `size_not_ordered` | warning | Data saved for a size not in the order; ignored (rule 4). |
 | `size_duplicate` | warning | One ordered size saved under two spellings (`M` and `m`); the canonical one is used, the other ignored. |
-| `invalid_data` | error | Saved data fails your schema (text in a numeric cell, rule 1). |
+| `invalid_data` | error | Saved data fails your schema (text in a numeric cell, rule 1): one per rejected value, naming the field by your labels ("Order: size M, Lot Number no. 2 is longer than 200 characters."); for a source module, also what the other modules do meanwhile. |
 | `invalid_config` | error | The template's config fails your schema. |
 | `calc_failed` | error | Your calc, or a refinement in your schemas, threw. Only your module is affected. |
 | `contribute_failed` | error | Your `contribute` threw, or gave a part of the context another module owns. That part is left out; other modules evaluate without it. |
@@ -285,6 +291,7 @@ import type { CaptureProps } from "@/modules/_framework";
 import type { GloveInfoComputed, GloveInfoConfig, GloveInfoData } from ".";
 
 export default function Capture({ data, config, labels, context, evaluation, readOnly, onChange }: CaptureProps<GloveInfoData, GloveInfoConfig, GloveInfoComputed>) {
+  const update = useDataUpdater(data, onChange); // every change: update((current) => next), never onChange itself
   // ...components/qc: NumericCell, MeasurementGrid, Stepper, DefectChipGroup, StatusPill
 }
 ```
@@ -297,12 +304,66 @@ Then add `loadCapture: () => import("./Capture")` to your definition.
 | `title`, `labels` | The template's wording over your defaults, as calc gets them; read labels with `labelFor`. Read-only: never editable on the capture screen (rule 11). |
 | `context` | Sizes, n, cartons and the rest, as in calc. |
 | `evaluation` | The latest `result`, `computed` and `issues` for your module: live totals, accept/reject chips, inline errors. |
-| `onChange(next)` | Replace your data with the **whole** new value; the screen writes it into the inspection and autosaves. Start from `data`, so a size taken out of the order keeps its data in case it comes back (rule 4): `onChange({ ...data, sizes: { ...data.sizes, [size]: entry } })`. |
-| `onFocusChange(focus)` | Report the size, hand, defect or box in focus, so a photo taken now is tagged with it (BUILD_SPEC 8.1). |
+| `onChange(next)` | Replaces your data with the **whole** new value; the screen writes it into the inspection and autosaves. Never call it yourself: write through the kit's `useDataUpdater(data, onChange)` and build every change from `current`, so a pasted column or two changes in one event all land, and a size taken out of the order keeps its data in case it comes back (rule 4): `update((current) => ({ ...current, sizes: { ...current.sizes, [size]: entry } }))` (docs/CAPTURE_KIT.md). |
+| `onFocusChange(focus)` | Report what is in focus, so a photo taken now is tagged with it (BUILD_SPEC 8.1): `size`, `hand`, `defect` (a defect or check code), `box`, `level` (labelling's `inner` or `carton`) and `item` (an entry of your own list: a document, a loading stage). |
+| `focus` | Optional: what the screen has in focus now, as the last module reported it. Open on its size when it is ordered, so the size chosen in one module stays chosen in the next: `useState(() => initialSize(context, focus))` (documents opens on its `item` the same way). The screen keeps the size when it opens another section (section 10.1). |
 | `focusPath` | A data path to scroll to and focus, from a link in the issue list. |
 | `readOnly` | Approved, or not the user's to edit. |
 
-Follow `docs/DESIGN.md`: counts by tapping (steppers, defect chips), measurements in `NumericCell` / `MeasurementGrid` (Enter goes down, paste fills down), computed values read-only, 44 px touch targets on iPad, one block per ordered size in `context.sizes` order. Check `components/qc` before writing your own control.
+Follow `docs/DESIGN.md`: counts by tapping (steppers, defect chips), measurements in `NumericCell` / `MeasurementGrid` (Enter goes down, paste fills down), computed values read-only, 44 px touch targets on iPad, one block per ordered size in `context.sizes` order. Check `components/qc` before writing your own control. In tests, `evaluationOf(report, definition)` gives your module's evaluation with your computed type, instead of a cast.
+
+### 10.1 Files: lab reports and certificates
+
+A module never touches storage. Its Capture renders the framework's file slot and keeps the id of each file it is handed; the capture screen owns the upload (BUILD_SPEC 8.1: PDF or image to `inspection-files`, an `inspection_files` row with the module key and kind, through the page's upload queue).
+
+```tsx
+import { ModuleFileSlot } from "@/modules/_framework/file-slot";
+
+<ModuleFileSlot
+  moduleKey="tensile"
+  kind="lab_report"                                   // inspection_files.kind: lab_report, certificate, other
+  focus={{ size }}                                    // reported with each file added
+  readOnly={readOnly}
+  onAdded={(file) => update((current) => withLabReport(current, file.id))}
+  onRemoved={(fileId) => update((current) => withoutLabReport(current, fileId))}
+/>
+```
+
+- **Keep the id** with `FileIdCellSchema` (section 5). The latest file added is the one the module relies on; `onRemoved` clears the id when that file goes. calc reads it, so "the lab report is attached" is computed, the same everywhere. A module that needs one file of a kind (tensile's lab report) reads `moduleFileState(context, { moduleKey, kind, fileId: data.labReport })`: `attached` when the kept file is among the inspection's files, or when any file of the module and kind is (one added in the gallery keeps no id; another may remain after the kept one was deleted); `missing` when the files are known and neither is; `none` otherwise. A file kept per entry (a document) is that entry's only by its id: `heldFileState(context, id)`. While the inspection's files are not known, as in calc tests, a kept id counts as attached. Raise a warning with a path for `missing`, worded by `missingFileMessage(name)`: a file can be missing because it was deleted, or because it is still uploading from another device. A module that requires the file (tensile) is not done without it and links its not-done issue there (`notDonePath`).
+- **Where files cannot be attached** (no provider: the template editor's preview, a test) the slot says "Attach files on the inspection screen." and the module still shows what it keeps.
+- **Per item**: inspection_files has no item, so a module with several files of its own (documents) renders one slot and files each new file under the entry being worked on, keeping the id in that entry (`documents.items.<item>.file`). Until an entry is chosen it passes `addable={false}`: nothing can be added, and the files listed can still be deleted.
+
+**How the capture screen provides it** (`app/(app)/inspections/[id]`, the integrator): wrap the module bodies in `FileSlotProvider` with a renderer for the photos engineer's `FileSlot` (`components/capture/files`), and pass each Capture the screen's focus:
+
+```tsx
+import { FileSlot } from "@/components/capture/files";
+import { FileSlotProvider } from "@/modules/_framework/file-slot";
+
+<FileSlotProvider
+  render={(slot) => (
+    <FileSlot
+      inspectionId={inspectionId}
+      moduleKey={slot.moduleKey}
+      kind={slot.kind}
+      title={slot.title}
+      focus={slot.focus}
+      readOnly={slot.readOnly || readOnly}
+      canAdd={slot.addable}                           // FileSlot does not take these two yet: see below
+      onRemoved={slot.onRemoved}
+      onAdded={slot.onAdded}
+    />
+  )}
+>
+  ...<ModuleBody ... focus={photoFocus} />
+</FileSlotProvider>
+```
+
+- `FileSlot`'s `onAdded` gives `{ id, name, kind, moduleKey, focus }`, which `slot.onAdded` takes as it is. Do not also render a `FileSlot` of your own for force at break, tensile or documents: the module renders its slot.
+- **FileSlot needs two props first** (`components/capture/files/file-slot.tsx`, the photos engineer): `canAdd` (default true; false hides `FileAddControls` only: `const canAdd = canAddProp && !readOnly && ...`) and `onRemoved(fileId)`, called when its list deletes or unqueues a file. Until they exist, pass `readOnly={slot.readOnly || readOnly || !slot.addable}` and leave both out: documents then cannot delete before a document is chosen.
+- **`meta.files` is required** on every path that evaluates the inspection: the capture screen (uploaded rows plus this device's queued files, as the slot lists them; `null` only while they load, never `[]` for "not loaded"), the submit action, the review and the export (`inspection_files` rows as `{ id, moduleKey, kind }`). Without it a lab report deleted in the slot or the gallery still counts (FileSlot reports no deletes), one added in the gallery counts for nothing, and the capture screen and submit can disagree about tensile. `slot.onRemoved` keeps the module's own data exact once FileSlot reports deletes; it does not replace `meta.files`.
+- **The server's files lag behind a device's queue.** The module's data, with the new id, autosaves within a second; the upload creates the row when it finishes, which can take minutes on a factory network. Until then the file is missing everywhere but on the device that queued it (another iPad, the review); the warning says it may still be uploading. Submit on that device waits for its queue, so the server holds the file by then.
+- **The gallery** ("Photos and files") renders `FileSlot` for these modules without `onAdded`. With `meta.files` passed, a lab report added there attaches force at break or tensile (`moduleFileState`); a certificate added there shows in the documents slot's list, filed under no document.
+- **Keep the size across sections**: `selectSection` and `goToIssue` reset the focus with `setPhotoFocus({})`, so the next module would always open on its first size. Keep the size instead: `setPhotoFocus((focus) => (focus.size ? { size: focus.size } : {}))`.
 
 ## 11. Testing
 
@@ -321,7 +382,7 @@ Follow `docs/DESIGN.md`: counts by tapping (steppers, defect chips), measurement
   const evaluation = evaluateInspection({ template, data, context }, MODULE_REGISTRY);
   ```
 
-  Modules other than yours may still be stubs that contribute nothing: set the context parts you need with `makeTestContext` in unit tests, and only rely on built modules in engine tests.
+  Every module in the registry is built, so engine tests may rely on any of them; in unit tests, set the context parts you need with `makeTestContext` (it lists no modules and leaves the inspection's files unknown: kept file ids count as attached).
 - Run `npx vitest run modules/<key>` while working; `npm run check` before handing in. Do not run `next dev` or `next build` for module work.
 
 ## 12. Templates
@@ -342,7 +403,7 @@ A template (BUILD_SPEC 4.3, `TemplateDefinitionSchema`) lists modules in report 
 
 **Custom modules** add one-off fields (4.2 rule 2) after a module: layout `fields` (a form), `table` (a row per ordered size) or `grid` (a row per field, repeated columns such as boxes, per size with `grid.repeatPer`). A field with `mapsTo: "modules.<key>.<path>"` shows and edits your module's value instead of keeping its own; the path must be in your `canonicalPaths`, with a matching type and unit, and only one field may map to a path. Declare as canonical paths the entered values a client form might ask for under its own section (header fields, glove info, packing values).
 
-**Until your module is built** its stub accepts any config, so seed templates can be written now. Once your schema is in, every seed template must still resolve: check them in a test with `resolveTemplateOrThrow`.
+**Seed templates** (`lib/templates/definitions`) resolve against every module's real schema, and `seed-bundle.json` holds their resolution for `scripts/seed-templates.mts`. A change to a module's default config makes the bundle stale, and its test fails (as it does on a placeholder module): `lib/templates` is not yours (section 1), so ask the framework owner or the integrator to regenerate it (`UPDATE_TEMPLATE_SEEDS=1 npx vitest run lib/templates/definitions/seed-bundle.test.ts`). A changed default label does not make it stale: a resolved template keeps the wording of the day it was saved (section 6). Regenerate it before seeding if the seeds should carry the new wording.
 
 **Choosing a template** (4.4): `selectTemplate` picks the most specific active template (client and manufacturer, client, manufacturer, standard), or an admin's override. An admin can switch a module off for one inspection with a reason (`module_overrides`); `applyModuleOverrides` gives the inspection's copy of the template, which the context, the engine and the export all use. Some modules cannot be switched off for one inspection, and `moduleOverrideProblem` says why (`applyModuleOverrides` ignores such overrides):
 
@@ -358,7 +419,7 @@ For the capture screen, submit and the export (`@/modules`, `@/lib/validation`, 
 
 ```ts
 const template = applyModuleOverrides(ResolvedTemplateSchema.parse(row.resolved), parseModuleOverrides(row.module_overrides));
-const context = buildInspectionContext({ template, data, meta: { refNo, inspectionDate, inspector, client, manufacturer } });
+const context = buildInspectionContext({ template, data, meta: { refNo, inspectionDate, inspector, client, manufacturer, files } });
 const report = validateInspection(data, template, context);
 // report.modules: result, computed, issues, comment per included module, in template order
 // report.custom, report.excluded (with reasons), report.issues (screen order)
@@ -368,10 +429,15 @@ const report = validateInspection(data, template, context);
 const definition = MODULE_REGISTRY[key];
 const resolvedModule = template.modules.find((entry) => entry.key === key);
 const saved = parseModuleData(definition, readModuleEntry(data, "modules", key)); // every saved size
-// data: saved.data (when saved.success; otherwise show the module's invalid_data errors),
+// data: saved.data (when saved.success; otherwise show the module's invalid_data errors, and
+//   what can still be read read-only: readableData(definition, entry), section 5),
 // title: resolvedModule.title, labels: effectiveLabels(definition, resolvedModule), context,
-// evaluation: its report.modules entry, onChange: (next) => writeModuleData(data, "modules", key, next)
+// evaluation: its report.modules entry, onChange: (next) => writeModuleData(data, "modules", key, next),
+// focus: the focus the last module reported (onFocusChange), its size kept across sections,
+// inside FileSlotProvider (section 10.1)
 ```
+
+`meta.files` is required wherever a result counts (section 10.1): the inspection's `inspection_files` rows as `{ id, moduleKey, kind }` (on the capture screen, plus the files still queued on this device). Leave it out only until they are loaded; it is optional in the type only so that callers written before it compile.
 
 - **Saving a template version**: `resolveTemplate(definition, getBase)` from `@/modules` resolves against the real modules. `getBase(code)` returns `{ definition, version }` of a base, usually its active version; `lookupFrom([{ definition, version }, ...])` builds one over versions held in memory. On success, write `templateRowFields(definition, resolved)` to the `templates` row; on failure, show each problem's `template`, `path` and `message` in the editor.
 - **Stale children**: the resolved template records the version of each base it was built from (`bases`). `staleBases(resolved, activeVersionOf)` lists the bases with a different active version since, so the editor can show that the template must be saved again (a new version) to take in their changes.
@@ -394,14 +460,15 @@ const saved = parseModuleData(definition, readModuleEntry(data, "modules", key))
 | `packing_config` | no | Contributes `packing`. Warn if gloves per case is not inner x per case. Inner unit name from config. |
 | `sampling_plan` | yes | Contributes `sampling` (the `SamplingValues` keys) and `aql.inspectionLevel` from config. Warn when below the AQL plan (`lib/aql`, `lotSizeGloves`). |
 | `carton_sampling` | yes | Contributes `cartons`. Rule 6 errors with paths; fail on them. |
-| `dimensions` | yes | n from `context.sampling[size].dimensions` or config; `summarizeColumn` and `checkSpec` in `lib/stats`; median or average from config. Specs per size and measure with `SpecSchema`, e.g. `specs: z.record(CanonicalSizeSchema, z.strictObject({ length: SpecSchema, ... }).partial())`. |
-| `weight` | yes | Compare with `context.indicativeWeight` when its size matches; warn beyond the threshold (rule 9). The optional spec is `SpecSchema.nullable()`. |
-| `force_at_break`, `tensile` | yes | Lab report files are uploaded by the screen with the module key; keep a file id in data if the module needs it. Spec minimums (6 N; 14 MPa, 500%) with `SpecSchema`. |
+| `dimensions` | yes | n from `context.sampling[size].dimensions` or config; `summarizeColumn` and `checkSpec` in `lib/stats`; median or average from config. Specs as a list of rows, one per size, `{ size, specs: { length: SpecSchema, ... } }` (the dictionary's shape: a record keyed by size would merge two specs into one down an extends chain). |
+| `weight` | yes | Compare with `context.indicativeWeight` when its size matches; warn beyond the threshold (rule 9). The optional spec is a list of rows, `{ size, spec: SpecSchema }`. |
+| `force_at_break`, `tensile` | yes | The lab report through the file slot (section 10.1), its id kept in `labReport` and read with `moduleFileState`: optional for force at break, required for tensile (not done without it). Spec minimums (6 N; 14 MPa, 500%) as plain numbers, as the dictionary types them. |
 | `watertight`, `visual` | yes | `handSplit`. n from `context.sampling[size].watertightVisual`; limits from `lib/aql` with AQL from config or `context.aql`. Any critical defect fails. Hole locations and the defect list per class are defect codes in config; label them per code, or per class with a dotted key where one code is worded twice (`minor.bead_defective`, section 6). |
-| `dispensing_packing`, `dispensing_safedon`, `labeling` | yes | Box numbers from `context.cartons[size]` (rule 7). Labelling is Accept 0 / Reject 1; its checks are canonical keys (`lot_no`, `mfg_date`, `expiry_date`, `artwork`, `carton_no`), labelled per level with a dotted key where the wording differs (`carton.lot_no`). Safedon's dispensing defects are defect codes (`no_cuff`, `finger_out`, ...). |
-| `conclusion` | no | Always on. Keep `dependsOn: "all"` and `requiredForSubmit: true` (the registry test checks it). Compute the suggestion with `suggestResult` over `input.results` and put it in `computed.suggestedResult`; the final result is the inspector's. Not done until the final result is chosen (and the signature, if Kenneth confirms it is required): that blocks submit. Status from the final result: pass is `pass`, fail is `fail`, hold is `warn`, since a module status has no hold. |
+| `dispensing_packing`, `dispensing_safedon`, `labeling` | yes | Box numbers from `context.cartons[size]` (rule 7). Labelling is Accept 0 / Reject 1; its checks are canonical keys (`lot_no`, `mfg_date`, `expiry_date`, `artwork`, `carton_no`), labelled per level with a dotted key where the wording differs (`carton.lot_no`), and it reports the `level` in focus. Safedon's dispensing defects are defect codes (`no_cuff`, `finger_out`, ...). |
+| `conclusion` | no | Always on. Keep `dependsOn: "all"` and `requiredForSubmit: true` (the registry test checks it). Compute the suggestion with `suggestResult` over `input.results` and put it in `computed.suggestedResult`; the final result is the inspector's. Other modules are named by their titles (`moduleTitle(context, key)`). Not done until the final result is chosen (and the signature, if Kenneth confirms it is required): that blocks submit, and the blocking issue links to the choice (`notDonePath`). Status from the final result: pass is `pass`, fail is `fail`, hold is `warn`, since a module status has no hold. |
 | `dye_leak` | yes | Optional module (Phase 3). |
-| `documents`, `loading` | no | Optional modules (Phase 3). |
+| `documents` | no | Optional module. Each item keeps its file's id (`file`) through one file slot, filed under the item being worked on, nothing added until one is chosen (section 10.1); `item` in the focus, and it opens on the `item` the screen has in focus. |
+| `loading` | no | Optional module; `item` in the focus for a loading stage. |
 
 ## 15. Before you hand in
 
@@ -412,5 +479,5 @@ const saved = parseModuleData(definition, readModuleEntry(data, "modules", key))
 - [ ] calc: not done until complete; per-size results for every ordered size; computed values in `computed`; wrong data raises issues with paths.
 - [ ] Source modules: `contribute` returns only your parts of the context, tested on filled data too.
 - [ ] `checkModuleContract(definition)` is `[]`; every rule in your brief has a test; expected results reproduced with placeholders.
-- [ ] `Capture.tsx` uses `components/qc`, reads labels from props with `labelFor`, shows only `context.sizes`, hands the whole data back to `onChange`, reports focus for photo tags; `loadCapture` set.
+- [ ] `Capture.tsx` uses `components/qc`, reads labels from props with `labelFor`, shows only `context.sizes`, writes through `useDataUpdater`, reports focus for photo tags, attaches files through `ModuleFileSlot`; `loadCapture` set.
 - [ ] `npm run check` passes.
