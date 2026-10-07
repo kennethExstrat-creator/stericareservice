@@ -49,7 +49,7 @@ import {
 } from "./field-navigation";
 import { issuePathKey, issuePathProps, type IssuePath } from "./issue-path";
 import { NumericCell, type InvalidEntry } from "./numeric-cell";
-import { readEntry } from "./numeric-entry";
+import { readEntry, rejectionMessage } from "./numeric-entry";
 import { PasteNotice } from "./paste-notice";
 import { sameInvalidEntry, useRefusedEntryStore } from "./refused-entries";
 import { StatusIcon } from "./status-icon";
@@ -479,7 +479,7 @@ export function EntryProblems({ problems, className }: { problems: readonly Entr
           ) : (
             <span className="font-semibold">{label}</span>
           )}
-          : “{entry.raw}” is not stored. {entry.error}
+          : {rejectionMessage(entry)}
         </li>
       ))}
     </ul>

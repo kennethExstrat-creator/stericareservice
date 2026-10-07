@@ -788,6 +788,12 @@ describe("EntryProblems", () => {
     expect(html).toContain("“2 42” is not stored. One number per cell.");
   });
 
+  it("words an entry as the grid does, quoting it once", () => {
+    const entry = { raw: "2 42", error: "One number per cell: remove the space (“2 42” → 242)." };
+    const html = renderToStaticMarkup(<EntryProblems problems={[{ key: "a", label: "Weight, No. 3", entry }]} />);
+    expect(html).toContain("Weight, No. 3</span>: “2 42” is not stored. One number per cell: remove the space (242).");
+  });
+
   it("renders nothing without problems", () => {
     expect(renderToStaticMarkup(<EntryProblems problems={[]} />)).toBe("");
   });

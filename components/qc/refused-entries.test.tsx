@@ -57,7 +57,9 @@ describe("MeasurementGrid with the screen's refused entries", () => {
     expect(cell).toContain('aria-invalid="true"');
     expect(cell).toMatch(/aria-describedby="[^"]+-error-length-2"/);
     expect(html).toContain("No. 3, Length");
-    expect(html).toContain("“2 42” is not stored. One number per cell: remove the space (“2 42” → 242).");
+    expect(html).toContain("“2 42” is not stored. One number per cell: remove the space (242).");
+    // The entry is quoted once, nowhere with the reason's own quote of it.
+    expect(html).not.toContain("→");
     // The other cells are untouched.
     expect(inputNamed(html, "Length, No. 2")).not.toContain('aria-invalid="true"');
   });

@@ -200,12 +200,24 @@ describe("showsEntryError", () => {
 });
 
 describe("rejectionMessage", () => {
-  it("says what was not stored and why", () => {
-    expect(rejectionMessage(rejected("2 42"))).toBe(`“2 42” is not stored. ${SPACE_ERROR}`);
+  it("says what was not stored and why, quoting the entry once", () => {
+    expect(rejectionMessage(rejected("2 42"))).toBe("“2 42” is not stored. One number per cell: remove the space (242).");
   });
 
   it("names the cell for the grid's announcement, as its label does", () => {
     const entry = rejected("9 5", "One number per cell: remove the space (“9 5” → 95).");
-    expect(rejectionMessage(entry, "Width, No. 3")).toBe(`Width, No. 3: “9 5” is not stored. ${entry.error}`);
+    expect(rejectionMessage(entry, "Width, No. 3")).toBe(
+      "Width, No. 3: “9 5” is not stored. One number per cell: remove the space (95).",
+    );
+  });
+
+  it("leaves out only the reason's quote of the entry, typed with spaces around it or not", () => {
+    const message = (raw: string) => {
+      const { invalid } = commitEntry(raw);
+      return invalid && rejectionMessage(invalid);
+    };
+    expect(message(" 0 .18 ")).toBe("“ 0 .18 ” is not stored. One number per cell: remove the space (0.18).");
+    expect(message("2,4 2")).toBe("“2,4 2” is not stored. One number per cell: remove the space.");
+    expect(message("abc")).toBe("“abc” is not stored. Numbers only, e.g. 2.42.");
   });
 });
