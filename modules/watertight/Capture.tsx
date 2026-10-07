@@ -280,13 +280,9 @@ export default function WatertightCapture({
   );
 }
 
-/**
- * The most-used hole locations first (BUILD_SPEC 8), ties in the template's
- * order; "Other :" stays last, as on the forms. It orders rows only.
- */
+/** The most-used hole locations first (BUILD_SPEC 8), ties in the template's order. It orders rows only. */
 function byUsage<T extends { code: string }>(locations: readonly T[], usage: Props["defectUsage"]): T[] {
-  const used = (code: string) => (code === OTHER_LOCATION ? -1 : (usage?.[code] ?? 0));
-  return usage ? [...locations].sort((a, b) => used(b.code) - used(a.code)) : [...locations];
+  return usage ? [...locations].sort((a, b) => (usage[b.code] ?? 0) - (usage[a.code] ?? 0)) : [...locations];
 }
 
 /**
