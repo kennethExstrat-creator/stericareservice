@@ -389,7 +389,7 @@ export async function mapDefectLabel(_previous: MapLabelResult, formData: FormDa
           message =
             existing && !existing.active
               ? `There is already a code ${newCode}, and it is inactive. Reactivate it on the Codes tab, or pick another code.`
-              : `There is already a code ${newCode}. Choose it under An existing code, or pick another code.`;
+              : `There is already a code ${newCode}. Choose it under An Existing Code, or pick another code.`;
         }
         return failed(MESSAGES.checkFields, { newCode: message });
       }

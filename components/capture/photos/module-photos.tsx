@@ -59,7 +59,7 @@ export function photoAlt(photo: Pick<SlotPhoto, "caption" | "moduleKey" | "targe
 
 /**
  * What a photo added now is tagged with besides its module, in words
- * ("Size M · Right hand"): the focus the module records. Empty when nothing
+ * ("Size M · Right Hand"): the focus the module records. Empty when nothing
  * is in focus, or for the untagged slot.
  */
 export function nextTagLine(moduleKey: string | null, focus: PhotoFocus | null | undefined, options: PhotoTagOptions): string {

@@ -31,15 +31,15 @@ describe("formatSizeList", () => {
 
 describe("formatHand", () => {
   it("names the hand", () => {
-    expect(formatHand("R")).toBe("Right hand");
+    expect(formatHand("R")).toBe("Right Hand");
     expect(formatHand("L", "short")).toBe("L");
   });
 });
 
 describe("formatSizeHand", () => {
   it("names a size and hand for accessible names", () => {
-    expect(formatSizeHand("M", "R")).toBe("Size M, right hand");
-    expect(formatSizeHand("7.0", "L")).toBe("Size 7.0, left hand");
+    expect(formatSizeHand("M", "R")).toBe("Size M, Right Hand");
+    expect(formatSizeHand("7.0", "L")).toBe("Size 7.0, Left Hand");
     expect(formatSizeHand("M", null, { sizes })).toBe("Size Medium");
   });
 });

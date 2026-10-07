@@ -866,7 +866,7 @@ describe("findOneOffLabels", () => {
     const [major] = findOneOffLabels(visualData(), scope());
     expect(whereLabel(major)).toBe("Visual · Major");
     expect(whereLabel({ module: "watertight", kind: "other", defectClass: null })).toBe("Watertight · Other");
-    expect(placeLabel({ size: "7.0", hand: "L" })).toBe("Size 7.0, left hand");
+    expect(placeLabel({ size: "7.0", hand: "L" })).toBe("Size 7.0, Left Hand");
     expect(placeLabel({ size: "M", hand: null }, [{ value: "M", label: "Medium" }])).toBe("Size Medium");
     expect(countLabel("visual", 2)).toBe("2 found");
     expect(countLabel("watertight", 1)).toBe("1 hole");
@@ -887,7 +887,7 @@ describe("findOneOffLabels", () => {
         ],
         count: null,
       }),
-    ).toBe("Size M, right hand: unreadable; Size M, left hand: 1 (total unreadable)");
+    ).toBe("Size M, Right Hand: unreadable; Size M, Left Hand: 1 (total unreadable)");
   });
 });
 

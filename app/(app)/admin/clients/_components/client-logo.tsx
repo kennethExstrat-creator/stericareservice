@@ -103,7 +103,7 @@ export function ClientLogo({ clientId, clientName, logo, onPendingChange }: Clie
         {!logo ? (
           <p className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
             <ImageIcon aria-hidden className="size-6" />
-            No logo yet
+            No Logo
           </p>
         ) : logo.url !== null ? (
           // A signed URL from a private bucket: next/image would need the

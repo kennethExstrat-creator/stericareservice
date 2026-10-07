@@ -350,7 +350,7 @@ Report what is in focus whenever it changes: the size from `SizeTabs`, the hand 
 | `formatRate(defects, inspected, { grouping })` | `3 / 625 (0.48%)`, `11 / 1,000 (1.1%)` (counts grouped as every count the app prints; `grouping: false` gives the report's `11 / 1000`) |
 | `formatRatio(1, 125)`, `formatRatioDecimal(1, 125)`, `ratio` | `1/125`, `0.008` (per box) |
 | `formatLimits({ ac, re }, { style, accept, reject })`, `formatLimitParts` | `Ac 3 / Re 4`; with the template's words `Accept 3 / Reject 4`, `Acc. = 0 / Rej. = 1` (blank words fall back to the style's); the parts are the halves a narrow cell wraps between, `Accept 3 /` and `Reject 4` |
-| `formatSize(size, { sizes, prefix })`, `formatSizeList`, `formatHand`, `formatSizeHand` | `M`, `Medium`, `Size 7.0`, `Size M, right hand` |
+| `formatSize(size, { sizes, prefix })`, `formatSizeList`, `formatHand`, `formatSizeHand` | `M`, `Medium`, `Size 7.0`, `Size M, Right Hand` |
 | `fillCaption(caption, values)`, `formatCodeLetters(letters, { empty })`, `plainLabel(label)` | `{codeLetters}` filled in; `J & L`, `C, D & E`; `Layering %` as `Layering` |
 
 Show computed numbers with `Figure` (tabular figures, unit in secondary text, a dash read as "No value" when missing), with the template's `decimals` where the report fixes them.

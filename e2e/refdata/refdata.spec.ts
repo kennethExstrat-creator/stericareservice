@@ -232,7 +232,7 @@ test.describe("clients, as the admin", () => {
     // The panel stays open on the new client, ready for its logo.
     const edit = panel(page, "Edit Client");
     await expect(edit).toBeVisible();
-    await expect(edit.getByText("No logo yet")).toBeVisible();
+    await expect(edit.getByText("No Logo", { exact: true })).toBeVisible();
     await expect(footerButton(edit, "Close")).toBeVisible();
     const { data: created } = await admin.from("clients").select("id").eq("name", name).single();
     const clientId = created!.id;
@@ -312,7 +312,7 @@ test.describe("clients, as the admin", () => {
     await removeButton.click();
     await confirmRemove.getByRole("button", { name: "Remove Logo" }).click();
     await expect(page.getByText("Logo removed.")).toBeVisible();
-    await expect(reopened.getByText("No logo yet")).toBeVisible();
+    await expect(reopened.getByText("No Logo", { exact: true })).toBeVisible();
     // Remove Logo went with the logo, so the focus is on Upload Logo.
     await expect(reopened.getByRole("button", { name: "Upload Logo" })).toBeFocused();
     await expect.poll(() => logoFiles(admin, clientId)).toEqual([]);

@@ -970,7 +970,7 @@ export function whereLabel(label: Pick<FoundLabel, "module" | "kind" | "defectCl
   return parts.join(" · ");
 }
 
-/** "Size M", "Size 7.0, right hand"; a template's own size labels win ("Size Medium"). */
+/** "Size M", "Size 7.0, Right Hand", as the capture screen names the place; a template's own size labels win ("Size Medium"). */
 export function placeLabel(place: Pick<LabelPlace, "size" | "hand">, sizes?: readonly SizeOption[]): string {
   return formatSizeHand(place.size, place.hand, { sizes });
 }

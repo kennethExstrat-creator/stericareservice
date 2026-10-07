@@ -25,15 +25,19 @@ export function formatSizeList(list: readonly string[], format: Omit<SizeFormat,
 
 export type HandCode = "R" | "L";
 
-const HAND_NAME: Readonly<Record<HandCode, string>> = { R: "Right hand", L: "Left hand" };
+const HAND_NAME: Readonly<Record<HandCode, string>> = { R: "Right Hand", L: "Left Hand" };
 
-/** "R" in "short" style, "Right hand" in "long" (default). */
+/** "R" in "short" style, "Right Hand" in "long" (default), as the capture kit names a hand (HandToggle). */
 export function formatHand(hand: HandCode, style: "short" | "long" = "long"): string {
   return style === "short" ? hand : HAND_NAME[hand];
 }
 
-/** "Size M, right hand" (or "Size M" without a hand): accessible names and photo tags. */
+/**
+ * "Size M, Right Hand" (or "Size M" without a hand): labels and accessible
+ * names, in Title Case as the capture screen names the place. A sentence
+ * that says where lowers the hand itself ("Photo: …, Size M, right hand").
+ */
 export function formatSizeHand(size: string, hand?: HandCode | null, format: Omit<SizeFormat, "prefix"> = {}): string {
   const sizeText = formatSize(size, { ...format, prefix: true });
-  return hand ? `${sizeText}, ${HAND_NAME[hand].toLowerCase()}` : sizeText;
+  return hand ? `${sizeText}, ${HAND_NAME[hand]}` : sizeText;
 }

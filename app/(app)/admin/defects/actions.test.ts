@@ -654,12 +654,12 @@ describe("mapDefectLabel", () => {
     expect(await map({ mode: "new", code: "", newCode: "stain", name: "Stain" })).toEqual({
       status: "error",
       message: MESSAGES.checkFields,
-      fieldErrors: { newCode: "There is already a code stain. Choose it under An existing code, or pick another code." },
+      fieldErrors: { newCode: "There is already a code stain. Choose it under An Existing Code, or pick another code." },
     });
     expect(updates()).toEqual([]);
   });
 
-  it("says so when the code that exists is inactive, which An existing code does not offer", async () => {
+  it("says so when the code that exists is inactive, which An Existing Code does not offer", async () => {
     useClient(respond({ insertError: { code: "23505", message: "duplicate key" }, code: codeRow("stain", { active: false }) }));
     expect(await map({ mode: "new", code: "", newCode: "stain", name: "Stain" })).toEqual({
       status: "error",

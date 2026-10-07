@@ -5,7 +5,7 @@
 // finding cites the same way. Pure; the loaders sign the URLs and look up
 // defect names.
 import type { PhotoTags } from "@/components/qc/photo-tags";
-import { formatHand, formatSize, formatSizeHand, type SizeOption } from "@/lib/format";
+import { formatHand, formatSize, type SizeOption } from "@/lib/format";
 import { EMPTY_TAG_OPTIONS, itemName, levelName, tagOptionsFromTemplate, UNTAGGED_TITLE } from "@/lib/inspections/photos/view";
 import { parseTarget, type PhotoTarget } from "@/lib/photos/target";
 import { isModuleKey } from "@/lib/schemas/module-result";
@@ -150,12 +150,12 @@ export function describePhoto(
 ): Omit<ReviewPhoto, "thumbUrl" | "fullUrl"> {
   const target = targetOf(row);
   const tags = photoTags(row, wording, defectNames);
-  // "Size M, right hand", as the capture kit names a size and hand.
+  // "Size M, right hand": the text alternative is a sentence, so the hand
+  // is in lower case there, unlike the label (formatSizeHand, "Size M, Right Hand").
+  const hand = target.hand ? formatHand(target.hand).toLowerCase() : undefined;
   const where = target.size
-    ? formatSizeHand(target.size, target.hand, { sizes: wording.sizes })
-    : target.hand
-      ? formatHand(target.hand).toLowerCase()
-      : undefined;
+    ? [formatSize(target.size, { sizes: wording.sizes, prefix: true }), hand].filter(Boolean).join(", ")
+    : hand;
   const description = [tags.module, where, tags.defect, tags.box && `Box ${tags.box}`, tags.level, tags.item]
     .filter(Boolean)
     .join(", ");
