@@ -128,6 +128,9 @@ describe("force_at_break capture", () => {
     });
     expect(gone).toContain('data-state="missing"');
     expect(gone).toContain("Lab report: the file attached here is not among this inspection&#x27;s files. It may still be uploading from another device; if it was deleted, attach it again.");
+    // The issue link lands on that message, which takes the focus itself.
+    const notice = /<p[^>]*data-issue-path="\[&quot;labReport&quot;\]"[^>]*>/.exec(gone)?.[0];
+    expect(notice).toContain('tabindex="-1"');
   });
 
   it("says where the lab report is attached when the screen gives no file slot (preview, review)", () => {
@@ -165,15 +168,29 @@ describe("force_at_break capture", () => {
     ]);
   });
 
-  it("shows readings as text when read-only, with the computed footer", () => {
+  it("keeps the readings focusable on grey when read-only, with calc's footer", () => {
     const html = render({ readOnly: true });
-    expect(html).not.toContain("<input");
-    expect(html).toContain(">6.470</td>");
+    const cells = tags(html, 'data-slot="numeric-cell"');
+    expect(cells).toHaveLength(13);
+    // Read-only inputs: Tab, the arrows and issue links still reach them; nothing can change.
+    for (const cell of cells) expect(cell).toContain('readOnly=""');
+    expect(cells[0]).toContain('value="6.470"');
+    expect(html).toContain('data-readonly="true"');
     expect(html).toContain(">6.537<");
     const pills = tags(html, 'data-slot="status-pill"');
     expect(pills.map((pill) => /data-status="([a-z_]+)"/.exec(pill)?.[1])).toEqual(["pass"]);
     // 16 px on iPad, as the kit's own small pills (docs/DESIGN.md).
     expect(pills[0]).toContain("touch:text-base");
+  });
+
+  it("takes the footer's median and verdict from calc: a size calc says is not done shows neither", () => {
+    // 13 readings, one of them 0 N (saved another way): calc counts 12 and the size is not done.
+    const data = { sizes: { M: { values: [...READINGS.slice(0, 12), 0] } }, labReport: null };
+    const html = render({ data });
+    const pills = tags(html, 'data-slot="status-pill"').map((pill) => /data-status="([a-z_]+)"/.exec(pill)?.[1]);
+    // The median cell and the verdict cell both read Not done.
+    expect(pills).toEqual(["not_done", "not_done"]);
+    expect(html).not.toContain(">Passed<");
   });
 
   it("lists readings past the gloves tested, with calc's message and a way to clear them", () => {
@@ -193,8 +210,12 @@ describe("force_at_break capture", () => {
     expect(others).toEqual([]);
     expect(notice).toMatch(/^<p /);
     expect(notice).toContain('tabindex="-1"');
-    expect(notice).toContain('data-issue-path="[&quot;sizes&quot;,&quot;M&quot;,&quot;values&quot;]"');
-    expect(tags(html, "data-issue-path").filter((tag) => tag.includes("&quot;values&quot;"))).toEqual([notice]);
+    const path = 'data-issue-path="[&quot;sizes&quot;,&quot;M&quot;,&quot;values&quot;]"';
+    expect(notice).toContain(path);
+    expect(tags(html, "data-issue-path").filter((tag) => tag.includes(path))).toEqual([notice]);
+    // Each reading's cell has a path of its own: an issue on reading 3 lands there.
+    const cells = tags(html, 'data-slot="numeric-cell"');
+    expect(cells[2]).toContain('data-issue-path="[&quot;sizes&quot;,&quot;M&quot;,&quot;values&quot;,2]"');
   });
 
   it("says when the sampling plan asks for more readings than a size can take", () => {
