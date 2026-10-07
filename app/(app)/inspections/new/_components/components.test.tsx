@@ -136,6 +136,11 @@ describe("the template panel", () => {
     expect(html).toContain("A draft is frozen once an inspection uses it: later edits become a new version.");
   });
 
+  it("names a standard still to be confirmed in Title Case, like the others' names", () => {
+    const html = panel({ templates: [option("STD_EG", { standard: "custom" })] });
+    expect(html).toContain("STD_EG version 1 · Standard to Be Confirmed");
+  });
+
   it("says when the version picked cannot be used yet", () => {
     const html = panel({ templates: [option("STD_EG", { resolved: { code: "STD_EG" } })] });
     expect(html).toContain("This version cannot be used yet: an admin needs to save it again.");
