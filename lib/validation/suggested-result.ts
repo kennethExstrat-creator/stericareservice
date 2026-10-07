@@ -59,18 +59,18 @@ export function suggestResult(modules: readonly SuggestionInput[]): SuggestedRes
 }
 
 /**
- * Why the suggestion is what it is, a line per reason, as the Conclusion
- * section words it: "Failed: …", "Not done: …", "Warnings: …", each naming
- * the sections by `titleOf` (their titles in the template's wording), or "No
- * module has a result yet." when nothing was tested. None for a clean pass:
- * the result beside them says it. The submit confirmation, the review and
- * the summary above all say it this way.
+ * Why the suggestion is what it is, a line per reason: "Failed: …", "Not
+ * done: …", "Warnings: …", each naming the sections by `titleOf` (their
+ * titles in the template's wording), or "No module has a result yet." when
+ * nothing was tested. None for a clean pass: the result beside them says it.
+ * The Conclusion section, the submit confirmation, the review and the summary
+ * above all say it this way.
  */
 export function suggestionReasons(
   suggested: Pick<SuggestedResult, "result" | "failed" | "notDone" | "warned">,
-  titleOf: (key: string) => string,
+  titleOf: (key: ModuleKey) => string,
 ): string[] {
-  const names = (keys: readonly string[]) => keys.map(titleOf).join(", ");
+  const names = (keys: readonly ModuleKey[]) => keys.map(titleOf).join(", ");
   const reasons: string[] = [];
   if (suggested.failed.length > 0) reasons.push(`Failed: ${names(suggested.failed)}.`);
   if (suggested.notDone.length > 0) reasons.push(`Not done: ${names(suggested.notDone)}.`);

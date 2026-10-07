@@ -551,7 +551,7 @@ test("Labelling: 3 inner packs and 1 carton per size, 0 defects at 0 / 1, pass; 
   await enterConclusion(page);
   await saved(page);
   const conclusion = frame(page);
-  await expect(conclusion.getByRole("region", { name: "Suggested result" })).toContainText("PASSED");
+  await expect(conclusion.getByRole("region", { name: "Suggested result" }).locator("[data-slot='status-pill']")).toHaveText("Passed");
   await expect(conclusion.getByRole("region", { name: "Suggested result" })).toContainText("Warnings: Sampling Plan.");
   await expect(conclusion.getByRole("textbox", { name: "Inspected by" })).toHaveValue("Test Inspector");
   await expect(sectionStatus(page)).toHaveText("Passed");

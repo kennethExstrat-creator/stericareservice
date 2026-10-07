@@ -750,7 +750,8 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await frame.getByRole("radiogroup", { name: "Conclusion" }).getByRole("radio", { name: "PASSED" }).tap();
     await frame.getByRole("textbox", { name: "Date", exact: true }).fill(REPORT.conclusion.date.iso);
     const suggested = frame.getByRole("region", { name: "Suggested result" });
-    await check(suggested, EXPECTED.conclusion.check).toContainText("FAILED");
+    // Failed on the pill, as on every result pill; the template's FAILED stays with the choice and its warning.
+    await check(suggested.locator('[data-slot="status-pill"]'), EXPECTED.conclusion.check).toHaveText("Failed");
     await check(suggested).toContainText(`Failed: ${SECTION.cartons}.`);
     await check(suggested).toContainText(`Warnings: ${SECTION.weight}.`);
     await check(frame.getByText(`Conclusion PASSED differs from the suggestion, FAILED (failed: ${SECTION.cartons}). Explain why under Remark.`)).toBeVisible();
@@ -855,7 +856,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
   await test.step("Conclusion once corrected: the app suggests PASSED, with the weight warning", async () => {
     const frame = await openTab(page, SECTION.conclusion);
     const suggested = frame.getByRole("region", { name: "Suggested result" });
-    await check(suggested, EXPECTED.conclusion.check).toContainText("PASSED");
+    await check(suggested.locator('[data-slot="status-pill"]'), EXPECTED.conclusion.check).toHaveText("Passed");
     await check(suggested).toContainText(`Warnings: ${SECTION.weight}.`);
     await check(suggested).not.toContainText("Failed:");
     await check(frame.getByText(/differs from the suggestion/)).toHaveCount(0);

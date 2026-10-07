@@ -19,6 +19,8 @@ const SIGNED = addStroke(addStroke(null, [40, 150, 90, 60, 140, 150]), [200, 100
 
 type Options = {
   defects?: number;
+  /** "off" switches the labelling module off, so no module has a result. */
+  labeling?: "on" | "off";
   labels?: Readonly<Record<string, string>>;
   context?: InspectionContext;
   readOnly?: boolean;
@@ -28,6 +30,7 @@ function render(
   data: Partial<ConclusionData>,
   {
     defects = 0,
+    labeling: switched = "on",
     labels = CONCLUSION_LABELS,
     context = makeTestContext({ sizes: ["M"] }),
     readOnly = false,
@@ -36,7 +39,7 @@ function render(
   const conclusion = { ...emptyConclusion(), ...data };
   const template = makeTestTemplate(MODULE_REGISTRY, [
     { key: "header", include: false },
-    "labeling",
+    switched === "on" ? "labeling" : { key: "labeling", include: false },
     { key: "conclusion", labels },
   ]);
   const labeling = { sizes: { M: { inner: { inspected: 3, defects: { lot_no: defects } }, carton: { inspected: 1 } } } };
@@ -66,6 +69,13 @@ function renderPad(props: Partial<Parameters<typeof SignaturePad>[0]> = {}) {
 const tagsWith = (html: string, attribute: string): string[] =>
   Array.from(html.matchAll(new RegExp(`<[^>]*${attribute}[^>]*>`, "g")), (match) => match[0]);
 
+/** What each status pill says, in order. */
+const pillLabels = (html: string): string[] =>
+  Array.from(html.matchAll(/data-slot="status-pill"[^>]*>(?:<svg[\s\S]*?<\/svg>)?<span>([^<]*)<\/span>/g), (match) => match[1]);
+
+/** The suggested result's box. */
+const suggestedBox = (html: string): string => /<section[^>]*>([\s\S]*?)<\/section>/.exec(html)?.[1] ?? "";
+
 const radios = (html: string) =>
   tagsWith(html, 'role="radio"').map((tag) => ({
     value: /value="([a-z]+)"/.exec(tag)?.[1],
@@ -80,12 +90,23 @@ const buttons = (html: string) =>
   );
 
 describe("conclusion capture", () => {
-  it("shows the suggested result in the template's words, with the modules behind it", () => {
+  it("shows the suggested result as every result pill says it, with the modules behind it", () => {
     const html = render({}, { defects: 1 });
     expect(html).toContain("Suggested result");
     expect(tagsWith(html, 'data-slot="status-pill"')[0]).toContain('data-status="fail"');
-    expect(html).toContain("FAILED");
+    expect(pillLabels(html)).toEqual(["Failed"]);
     expect(html).toContain("Failed: Labeling.");
+    // The template's word is the choice's, not the pill's (docs/DESIGN.md, Status colours).
+    expect(html.match(/FAILED/g)).toHaveLength(1);
+  });
+
+  it("adds nothing under a clean pass, and says once why a suggestion is on hold", () => {
+    const passed = render({});
+    expect(pillLabels(passed)).toEqual(["Passed"]);
+    expect(suggestedBox(passed)).not.toContain("<ul");
+    const nothing = render({}, { labeling: "off" });
+    expect(pillLabels(nothing)).toEqual(["On hold"]);
+    expect(suggestedBox(nothing).match(/No module has a result yet\./g)).toHaveLength(1);
   });
 
   it("names the modules behind the suggestion by the template's titles", () => {

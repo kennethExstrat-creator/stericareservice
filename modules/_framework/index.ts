@@ -133,5 +133,5 @@ export {
   resultFromSizes,
   notDone,
 } from "@/lib/validation/results";
-export { suggestResult, type SuggestedResult, type SuggestionInput } from "@/lib/validation/suggested-result";
+export { suggestResult, suggestionReasons, type SuggestedResult, type SuggestionInput } from "@/lib/validation/suggested-result";
 export { describeDataPath, fieldIssues } from "@/lib/validation/rules";
