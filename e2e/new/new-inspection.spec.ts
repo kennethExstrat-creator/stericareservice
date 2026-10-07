@@ -191,6 +191,9 @@ test("the most specific template wins: client and manufacturer, client, manufact
   await expectTemplate(page, LEVEL_TEMPLATES.client.code, `For ${fixture.clientName}`);
   const productName = page.getByRole("textbox", { name: /Product name/ });
   await expect(productName).toBeDisabled();
+  await expect(productName).toHaveAttribute("placeholder", "None with this template");
+  // Greyed, not faded: faded, it read as an empty field to type in.
+  await expect(productName).toHaveCSS("opacity", "1");
   await expect(page.getByTestId("product-name-hint")).toHaveText("This template's header has no product name, so none is recorded.");
   await expectNoPageScroll(page);
   await shot(page, "level-client");

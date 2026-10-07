@@ -53,6 +53,8 @@ const IDLE: CreateInspectionState = { status: "idle" };
 
 const CHECK_FIELDS = "Check the highlighted fields.";
 const UNREACHABLE = "Could not reach the server. Check the connection, then try again.";
+/** In the product name field when the template's header has none. */
+const NO_PRODUCT_NAME = "None with this template";
 
 /** Where focus goes when a field needs attention, in reading order. */
 const FIELD_ORDER = ["clientId", "manufacturerId", "productType", "productName", "previousId", "templateId"] as const;
@@ -310,6 +312,9 @@ export function NewInspectionForm({ role, clients, manufacturers, templates, pre
                   // What was typed is kept for a template that has the field again.
                   value={nameOff ? "" : productName}
                   disabled={nameOff}
+                  // Greyed, not faded (docs/DESIGN.md): faded, it read as an empty field to type in.
+                  placeholder={nameOff ? NO_PRODUCT_NAME : undefined}
+                  className={nameOff ? "disabled:bg-muted disabled:opacity-100 disabled:shadow-none" : undefined}
                   onChange={(event) => {
                     setTypedName(event.target.value);
                     setNameFrom(null);
