@@ -264,9 +264,10 @@ test("Template editor: Shift+Tab up the Details tab clears the shell's bar and t
   await roomToScroll(page);
 
   // The room kept above a control in the tab is the bars' height and 16 px: the shell's top bar
-  // (where it shows) and the editor's as measured, two rows or one. The page's padding counts
-  // the bar on one row, a scroll margin the rest. (With focus out of the bar: the tab just
-  // pressed holds it on a mouse.)
+  // (where it shows) and the editor's as measured, two rows or one. The page's padding alone
+  // keeps it, as WebKit goes by the padding only: it counts the editor's bar as the editor
+  // measures it (--editor-bar-height on <html>), and a control has no scroll margin of its own.
+  // (With focus out of the bar: the tab just pressed holds it on a mouse.)
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   const room = await details.evaluate((section) => {
     const height = (selector: string) => {
@@ -277,13 +278,15 @@ test("Template editor: Shift+Tab up the Details tab clears the shell's bar and t
     return {
       shell: height('[data-testid="shell-top-bar"]'),
       editor: height('[data-slot="editor-bar"]'),
-      kept:
-        Number.parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) +
-        Number.parseFloat(getComputedStyle(field).scrollMarginTop),
+      measured: Number.parseFloat(document.documentElement.style.getPropertyValue("--editor-bar-height")),
+      padding: Number.parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop),
+      margin: getComputedStyle(field).scrollMarginTop,
     };
   });
   test.info().annotations.push({ type: "editor bar", description: `${room.editor} px` });
-  expect(Math.abs(room.kept - (room.shell + room.editor + ROOM_PX)), JSON.stringify(room)).toBeLessThanOrEqual(1);
+  expect(Math.abs(room.measured - room.editor), JSON.stringify(room)).toBeLessThanOrEqual(1);
+  expect(room.margin, JSON.stringify(room)).toBe("0px");
+  expect(Math.abs(room.padding - (room.shell + room.editor + ROOM_PX)), JSON.stringify(room)).toBeLessThanOrEqual(1);
 
   // From the last control in the tab back up towards the tab bar.
   await details.evaluate((section) => {

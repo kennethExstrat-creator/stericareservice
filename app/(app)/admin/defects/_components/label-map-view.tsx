@@ -106,8 +106,9 @@ function TemplateCard({ map }: { map: TemplateLabelMap }) {
           </h2>
           <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">{map.name}</p>
         </div>
+        {/* Named by its words first, then the version it opens (WCAG 2.5.3). */}
         <Button asChild variant="outline" size="sm" className="self-start">
-          <Link href={templateEditorHref(map.id)} aria-label={`Open ${map.code} v${map.version} in the template editor`}>
+          <Link href={templateEditorHref(map.id)} aria-label={`Open in template editor: ${map.code} v${map.version}`}>
             Open in template editor
             <ArrowRightIcon aria-hidden />
           </Link>

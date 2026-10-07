@@ -248,7 +248,8 @@ export function ModuleList({
                   data-edit-module={key}
                   onClick={() => onSelect(key)}
                   aria-current={selected === key ? "true" : undefined}
-                  aria-label={`Edit ${title}`}
+                  // The title it shows comes first in its name (WCAG 2.5.3).
+                  aria-label={`${title}, edit`}
                   aria-describedby={`module-meta-${key}`}
                   className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted/60 focus-ring-inset fine:min-h-9"
                 >

@@ -228,7 +228,7 @@ function moduleOrder(page: Page): () => Promise<(string | null)[]> {
 
 /** A module's details: beside the list from 1024 px, in a sheet below that (iPad portrait). */
 async function openDetails(page: Page, key: string): Promise<Locator> {
-  await press(moduleRow(page, key).getByRole("button", { name: /^Edit / }));
+  await press(moduleRow(page, key).getByRole("button", { name: /, edit$/ }));
   const details = page.locator(`[data-testid="module-details"][data-module-key="${key}"]`);
   await expect(details).toBeVisible();
   return details;

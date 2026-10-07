@@ -12,7 +12,8 @@
 // (it reports the width it needs). Its header rows stick below the size bar and
 // its totals to the bottom of the screen while the table is in view. The
 // label column has a fixed width, so a label sits next to its steppers and
-// stacked tables (defect classes) line up.
+// stacked tables (defect classes) line up, and a minimum, so a table wider
+// than its frame scrolls sideways instead of squeezing the labels.
 import { useContext, useEffect, useId, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
 import { FlagIcon, PlusIcon, XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -165,11 +166,20 @@ const INFO =
   "border-b border-border bg-slate-50 px-3 py-1 text-center text-sm font-medium text-muted-foreground tabular-nums touch:text-base";
 const FOOT = "border-b border-border bg-slate-50 px-3 py-1.5 text-center tabular-nums touch:py-2";
 // The label column has a fixed width (COUNTER_WIDTHS.label), so labels sit
-// next to their steppers and stacked tables line up. It sticks while a wide
-// table scrolls sideways; its edge is a shadow, so it draws over the first
-// value column's border instead of doubling it.
-const LABEL_COLUMN = "sticky left-0 w-64 text-left [overflow-wrap:anywhere] shadow-[1px_0_0_var(--border)]";
-const ROW_HEAD = cn(LABEL_COLUMN, "z-[1] border-b border-border bg-card px-3 align-middle font-normal text-foreground");
+// next to their steppers and stacked tables line up, and a minimum of 14rem,
+// 16rem from 1280 px (a cell's width is no minimum in table auto layout; its
+// min-width is): a table wider than its frame (Safedon's boxes side by side)
+// scrolls sideways with its labels readable, never one letter a line. A word
+// too long for it (a one-off label typed as one word) breaks rather than
+// widen it. It sticks while a wide table scrolls sideways; its edge is a
+// shadow, so it draws over the first value column's border instead of
+// doubling it.
+const LABEL_COLUMN =
+  "sticky left-0 w-64 min-w-56 xl:min-w-64 text-left [overflow-wrap:anywhere] shadow-[1px_0_0_var(--border)]";
+// One value column has nothing to scroll to: from 1280 px its labels wrap to
+// fit instead (labelling sets two levels' tables side by side there).
+const ONE_COLUMN_LABEL = "xl:min-w-0";
+const ROW_HEAD = "z-[1] border-b border-border bg-card px-3 align-middle font-normal text-foreground";
 
 export function CounterTable({
   caption,
@@ -200,6 +210,7 @@ export function CounterTable({
   const shownHands = split ? (visibleHands ?? hands).filter((hand) => hands.includes(hand)) : [];
   const sides: readonly (CounterHand | undefined)[] = shownHands.length > 0 ? shownHands : [undefined];
   const span = sides.length;
+  const labelColumn = cn(LABEL_COLUMN, columns.length * span === 1 && ONE_COLUMN_LABEL);
 
   // One column at a time, following SizeTabs when inside it.
   const active = activeColumn === undefined ? undefined : activeColumnKey(columns, activeColumn, sizeTabs?.size);
@@ -306,7 +317,7 @@ export function CounterTable({
             )}
           >
             <tr>
-              <th scope="col" rowSpan={split ? 2 : 1} className={cn(HEAD, LABEL_COLUMN, "z-[2] font-semibold")}>
+              <th scope="col" rowSpan={split ? 2 : 1} className={cn(HEAD, labelColumn, "z-[2] font-semibold")}>
                 {text.rowHeader}
               </th>
               {columns.map((column) => (
@@ -352,7 +363,7 @@ export function CounterTable({
             <tbody>
               {withInspected && (
                 <tr>
-                  <th scope="row" className={cn(INFO, LABEL_COLUMN, "z-[2]")}>
+                  <th scope="row" className={cn(INFO, labelColumn, "z-[2]")}>
                     {text.inspected}
                   </th>
                   {columns.map((column) => (
@@ -364,7 +375,7 @@ export function CounterTable({
               )}
               {withLimits && (
                 <tr>
-                  <th scope="row" className={cn(INFO, LABEL_COLUMN, "z-[2]")}>
+                  <th scope="row" className={cn(INFO, labelColumn, "z-[2]")}>
                     {text.limits}
                   </th>
                   {columns.map((column) => {
@@ -402,6 +413,7 @@ export function CounterTable({
                   scope="row"
                   data-unmapped={row.unmapped || undefined}
                   className={cn(
+                    labelColumn,
                     ROW_HEAD,
                     "py-1.5 group-has-[:focus-visible]/row:bg-brand-50 touch:py-2",
                     "data-unmapped:shadow-[inset_3px_0_0_var(--color-warn-border),1px_0_0_var(--border)]",
@@ -473,7 +485,7 @@ export function CounterTable({
 
           <tfoot className="sticky bottom-[var(--capture-sticky-bottom,0px)] z-[3]">
             <tr>
-              <th scope="row" className={cn(FOOT, LABEL_COLUMN, "z-[2] border-t-2 border-t-slate-300 font-semibold")}>
+              <th scope="row" className={cn(FOOT, labelColumn, "z-[2] border-t-2 border-t-slate-300 font-semibold")}>
                 {text.total}
               </th>
               {columns.map((column) => (
@@ -488,7 +500,7 @@ export function CounterTable({
             </tr>
             {summaryRows.map((summary) => (
               <tr key={summary.key}>
-                <th scope="row" className={cn(FOOT, LABEL_COLUMN, "z-[2] font-semibold")}>
+                <th scope="row" className={cn(FOOT, labelColumn, "z-[2] font-semibold")}>
                   {summary.label}
                 </th>
                 {columns.map((column) => (
@@ -500,7 +512,7 @@ export function CounterTable({
             ))}
             {withResult && (
               <tr>
-                <th scope="row" className={cn(FOOT, LABEL_COLUMN, "z-[2] border-b-0 font-semibold")}>
+                <th scope="row" className={cn(FOOT, labelColumn, "z-[2] border-b-0 font-semibold")}>
                   {text.result}
                 </th>
                 {columns.map((column) => {

@@ -2,8 +2,9 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * One part of the review under an H2. Anchored sections clear the iPad top
- * bar when a link scrolls to them (`--shell-top` is 0 from 1280 px).
+ * One part of the review under an H2. A link that scrolls to an anchored
+ * section lands it clear of the iPad top bar by the page's scroll padding
+ * (app/globals.css), which leaves the bar and 1rem.
  */
 export function ReviewSection({
   id,
@@ -22,7 +23,7 @@ export function ReviewSection({
 }) {
   const headingId = `${id}-heading`;
   return (
-    <section id={id} aria-labelledby={headingId} className={cn("scroll-mt-[calc(var(--shell-top)+1rem)] space-y-4", className)}>
+    <section id={id} aria-labelledby={headingId} className={cn("space-y-4", className)}>
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
         <div className="min-w-0 space-y-1">
           <h2 id={headingId} className="text-2xl font-bold tracking-tight text-foreground">

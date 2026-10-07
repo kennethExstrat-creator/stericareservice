@@ -262,10 +262,9 @@ test.describe("as an admin", () => {
     const card = page.locator(`section[data-template="${TEMPLATE_CODE}"]`);
     await expect(card).toBeVisible();
     await expect(card.locator('[data-slot="template-status"]')).toHaveText("Draft");
-    await expect(card.getByRole("link", { name: /in the template editor$/ })).toHaveAttribute(
-      "href",
-      `/admin/templates/${fixture.templateId}/edit`,
-    );
+    // Named by the words it shows first, then the version it opens (WCAG 2.5.3).
+    const editorLink = card.getByRole("link", { name: `Open in template editor: ${TEMPLATE_CODE} v1`, exact: true });
+    await expect(editorLink).toHaveAttribute("href", `/admin/templates/${fixture.templateId}/edit`);
     // Severity is the class: "Defective bead" is major, "Defective beads" minor, both bead_defective.
     const visual = card.locator('[data-section="visual"]');
     await expect(visual.locator('tbody[data-class="major"]')).toContainText("Major defects · AQL 2.5");

@@ -55,9 +55,10 @@ export function StatusScreen({
         id="status-screen-title"
         ref={titleRef}
         tabIndex={titleRef ? -1 : undefined}
-        // A focus target, not a control: no ring. The scroll margin keeps it
-        // clear of the sticky top bar when focus scrolls it into view.
-        className="mt-3 scroll-mt-[calc(var(--shell-top,0px)_+_1.5rem)] text-3xl leading-tight font-bold tracking-tight text-balance text-foreground outline-none"
+        // A focus target, not a control: no ring. When focus scrolls it into
+        // view, the page's scroll padding keeps it clear of the sticky top bar
+        // (app/globals.css: the bar and 1rem); the margin adds 0.5rem.
+        className="mt-3 scroll-mt-2 text-3xl leading-tight font-bold tracking-tight text-balance text-foreground outline-none"
       >
         {title}
       </h1>

@@ -105,7 +105,7 @@ function moduleOrder(page: Page) {
 
 /** The details of one module: beside the list from 1024 px, in a sheet below that. */
 async function openDetails(page: Page, key: string): Promise<Locator> {
-  await press(row(page, key).getByRole("button", { name: /^Edit / }));
+  await press(row(page, key).getByRole("button", { name: /, edit$/ }));
   const details = page.locator(`[data-testid="module-details"][data-module-key="${key}"]`);
   await expect(details).toBeVisible();
   return details;
@@ -232,7 +232,7 @@ test("the admin edits a draft: switches, order, wording, settings, a custom fiel
 
   if (test.info().project.name === "ipad-portrait") {
     // The module sheet hands the focus back to the Edit button that opened it, by keyboard too.
-    const edit = row(page, "glove_info").getByRole("button", { name: /^Edit / });
+    const edit = row(page, "glove_info").getByRole("button", { name: /, edit$/ });
     await edit.focus();
     await page.keyboard.press("Enter");
     const sheet = page.getByRole("dialog");

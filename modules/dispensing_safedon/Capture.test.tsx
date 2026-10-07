@@ -148,9 +148,13 @@ describe("dispensing_safedon capture", () => {
   it("keeps the defect labels at their column's width from 1280 px, where every box sits side by side", () => {
     // 13 boxes by default: the table scrolls sideways with the labels pinned, rather than
     // squeezing the label column to one letter a line (a cell's width is no minimum).
+    // CounterTable's label column keeps its minimum itself, as every box column table needs.
     const html = render();
-    const table = /<div[^>]*data-slot="counter-table"[^>]*>/.exec(html)?.[0] ?? "";
-    expect(table).toContain("xl:[&amp;_tr&gt;th:first-child]:min-w-64");
+    const table = /<table[\s\S]*?<\/table>/.exec(html)?.[0] ?? "";
+    const labels = Array.from(table.matchAll(/<th[^>]*scope="row"[^>]*>/g), (match) => match[0]);
+    expect(labels.length).toBeGreaterThan(SAFEDON_DEFECTS.length);
+    for (const label of labels) expect(label).toMatch(/class="[^"]*\bxl:min-w-64\b/);
+    expect(/<div[^>]*data-slot="counter-table"[^>]*>/.exec(html)?.[0]).not.toContain("min-w-64");
   });
 
   it("keeps keyboard focus visible on the pressed column button", () => {

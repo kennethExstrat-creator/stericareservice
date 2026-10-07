@@ -2,6 +2,14 @@
 
 Shared building blocks for every module's `Capture.tsx` (`docs/MODULES.md` section 10), so all sixteen modules look and behave the same and the look is tuned in one place. Capture renders the module body only; the screen wraps it in `ModuleCard`. Import components from `@/components/qc` and text helpers from `@/lib/format`. Check here before writing a control of your own.
 
+## Changed on 7 October 2026 (final audit)
+
+Nothing breaks, and no Capture has to change. You get:
+
+1. **Refused entries outlive their field.** The capture screen gives each section a `RefusedEntryStore` (`components/qc/refused-entries.ts`, through `RefusedEntryStoreContext`). A `NumberField` or `PercentField` with an `issuePath`, and a `MeasurementGrid` with `cellIssuePath`, keep what they refuse ("2 42" and its reason) there, by the field's issue path, instead of in their own state. So the red field or cell and its message come back after a size switch (SizeTabs shows one size's panel at a time), a section switch and a reload, until a number lands at that path, however it gets there. A field whose kept entry comes back tells your module again through `onInvalidChange`, so a list of your own (`EntryProblems`) has it after a reload too; a grid lists its cells under itself, as before. The screen keeps the entries on the device beside the local copy of the data, never in the data (docs/OFFLINE.md, "Refused entries"), lists them in the Pending panel first in their section's row ("Length, No. 3: “2 42” to retype") and lets them all go once the inspection is submitted. Without a store (read-only, a second tab, outside the capture screen) or without a path, a field keeps its entry while it is on screen, as before: give your fields their issue paths.
+2. **CounterTable reports a cell for photo tags when it is pressed and whenever its count changes**, not only when it takes focus. Safari and Chrome on the iPad never focus a tapped button, so a tap on + left the next photo without its size and defect. A swipe to the next size or a scroll that starts on a stepper is no press. `onCellFocus` may now come more often, with the same cell: keep it cheap.
+3. **CounterTable's label column keeps a minimum width** (Layout conventions, Compact tables): drop any minimum of your own on its first cells.
+
 ## Changed on 7 October 2026 (hand-offs between the packages)
 
 Nothing breaks, and no Capture has to change. You get:
@@ -92,6 +100,7 @@ function setBox(current: DispensingData, size: string, index: number, patch: Par
 | Whether a lab report or certificate is attached | `AttachmentStatus` with calc's state, beside the screen's file slot | your own copy per module |
 | A part of the module body (a defect class, a level) | `ModuleSection` | your own heading and spacing |
 | Entries rejected in your own table of fields | `EntryProblems` | a custom error list |
+| Refused text kept through a size or section switch and a reload | `issuePath` on NumberField, `cellIssuePath` on MeasurementGrid (the screen's `RefusedEntryStore`) | refused entries in your own state |
 | A link from the issue list to the field | `useIssueFocus` with `issuePathProps` / `issuePath` / `cellIssuePath`; `issueNoticeProps` on a message | scrolling by hand |
 | calc's message about a field | `error` (red) and `warning` (amber) on NumberField, DateField, CountField | amber spans in `hint` |
 | Text for specs, rates, limits, sizes, numbers, captions | `lib/format` | template strings |
@@ -103,7 +112,7 @@ function setBox(current: DispensingData, size: string, index: number, patch: Par
 - **The size on screen:** SizeTabs shows `value` when it is ordered, else the first ordered size, and calls `onValueChange` with that size, so a state that went stale (a size taken out of the order, `useState(context.sizes[0] ?? "")` before sizes exist) corrects itself. A CounterTable given `activeColumn` in SizeTabs' panel (SizeTabs' children as a node, as in the counts example, not a per-size function) shows the size the tabs show, in the same layout. So do `SizeBlock` (a size's own block beside the table: its gloves tested, its "Other :" description) and `SideBySideText` (", size XS" in a label, shown only where the sizes sit side by side, always read out); `useSizeTabsLayout()` gives `{ size, sideBySide }` for anything else. HandToggle likewise reports "R" for a "both" it does not offer.
 - **R and L sit under the size:** sub-columns of each size in `CounterTable` (`hands`), headed "Right" and "Left" (size L sits in the same bar, so never a bare "L"), switched by `HandToggle` (Right, Left, Both).
 - **Totals and accept chips are always visible:** a CounterTable given `activeColumn` in SizeTabs' panel never scrolls sideways, so its header rows stick below the size bar and its totals row to the bottom of the screen while the table is in view, on iPad and desktop. Each size tab carries its result: pass calc's per-size results (`evaluation.result.perSize`) to `SizeTabs` and `SizeStatusStrip`. A CounterTable column's `status` is that table's own result (see the Changed list); with `limits` the chip and the spoken total follow the tap at once.
-- **Compact tables:** CounterTable's label column is 16 rem and each value column fixed, so a label sits next to its steppers and stacked tables (defect classes) line up; the table is only as wide as its columns.
+- **Compact tables:** CounterTable's label column is 16 rem and each value column fixed, so a label sits next to its steppers and stacked tables (defect classes) line up; the table is only as wide as its columns. The label column keeps at least 14 rem (16 rem from 1280 px), so a table wider than its frame (Safedon's boxes side by side) scrolls sideways with its labels readable instead of squeezing them; a table of one value column (labelling's, two levels side by side from 1280 px) lets its labels wrap to fit there instead. Do not add a minimum of your own.
 - **Wording comes from the template:** `title` and `labels` from props, read with `labelFor(labels, ...)`, never typed into the code (6.2 rule 11). Every kit label prop takes the template's words.
 - **Read-only:** pass `readOnly` through. Steppers become numbers, pickers and fields become text. A MeasurementGrid's readings stay readonly inputs on grey: Tab, the arrows and issue links still reach them, and typing and pastes are refused quietly. Size tabs and the hand toggle still work: they only change the view. Never wrap kit controls in a disabled fieldset: disabled controls leave the Tab order and refuse an issue link's focus.
 - **No sideways scrolling inside a size panel on iPad.** A horizontal scroll container takes the swipe that turns the size, even when its content fits. Make per-size content fit 820 px. MeasurementGrid leaves sideways moves to the swipe while it fits its width; one that must scroll sideways keeps them, and the swipe then works outside it. A CounterTable with box columns (not following SizeTabs) scrolls sideways when the boxes do not fit: about three fit an iPad in portrait.
@@ -226,7 +235,8 @@ One `CounterTable` per class, each in a `ModuleSection` titled with the class ("
           <PercentField variant="cell" group="layering" id={`layering-${s}-${i}`}
             label={`${labelFor(labels, "layering")}, item ${i + 1}`} value={row.layering}
             onValueChange={(layering) => update((current) => setBox(current, s, i, { layering }))}
-            onInvalidChange={(entry) => setRejected(`layering-${s}-${i}`, entry)} readOnly={readOnly} />
+            onInvalidChange={(entry) => setRejected(`layering-${s}-${i}`, entry)}
+            issuePath={["sizes", s, "boxes", i, "layering"]} readOnly={readOnly} />
         </table>
       </EnterGroup>
       <EntryProblems problems={/* rejected entries whose cell is still null, with inputId for the link */} />
@@ -242,6 +252,7 @@ One `CounterTable` per class, each in a `ModuleSection` titled with the class ("
 - `BoxPicker` offers `context.cartons[size]` ascending, with search (type the digits and Enter on desktop, tap on iPad), marks boxes picked in other rows (still pickable: one carton holds many inner boxes), and shows a stored box that is not in the list as an error until replaced. With no carton list yet it takes a typed box number and does not flag it (MODULES.md section 7). Store the number, never an index.
 - `group="layering"` makes Enter walk down that column and a pasted column fill down it. A named group is one column: a block copied from a spreadsheet fills it from its first column, and the field says the other columns were left out. Without `group`, fields in one `EnterGroup` form one run in reading order, and a block fills it row by row. Values past the run's last field are listed on screen as not stored, across the foot of the `EnterGroup` for cells and for fields in a named `group`, under the field otherwise.
 - A paste is one change: each field judges its own value (its `min`, `max`, `integer`), rejected text stays on screen with its reason, and `update` hands the module one `onChange` with every value.
+- With `issuePath`, the screen's `RefusedEntryStore` keeps a rejected entry through a size switch, a section switch and a reload, and the field calls `onInvalidChange` with it again when it comes back: `setRejected`, and your `EntryProblems` list, hear of it after a reload too.
 - `label` may be an element; plain text is better in a table cell (it becomes the cell's name directly).
 
 ## A column of readings (dimensions, weight, force at break)
@@ -275,6 +286,7 @@ One `CounterTable` per class, each in a `ModuleSection` titled with the class ("
 ```
 
 - `onCellsChange` hands over only the cells a change touched, `{ row, measure, value }[]`: one for a typed reading, every pasted cell for a paste, in one call. Write them onto `current`; never rebuild columns from `values`, which may be a render behind. Keep readings past the grid's rows (the plan may grow again).
+- With `cellIssuePath`, refused readings are kept in the screen's `RefusedEntryStore`, by each cell's path: a size switch, a section switch or a reload brings the red cells and their list under the grid back, until a number lands in the cell. Without it the grid keeps them while it is on screen.
 - `summary` puts calc's figures in the footer: the statistic (printed at `decimals`), "9 of 13" while `count` is short of the rows, and the verdict. Without it the grid summarises its own cells, which disagrees with calc wherever calc refuses a stored reading (a 0 saved another way). A measure without a spec to judge by shows `labels.na`.
 - The label column is as wide as the longest footer caption ("Passed / Failed" stays on one line), up to 16 rem.
 - Read-only, the readings stay readonly inputs on grey: Tab, the arrows and Enter move through them, issue links land on them, typing and pastes are refused without a word.
@@ -295,7 +307,7 @@ One `CounterTable` per class, each in a `ModuleSection` titled with the class ("
 <SpecValue label={labelFor(labels, "average")} value={6.537} decimals={3} unit="N" spec={{ kind: "min", min: 6 }} />
 ```
 
-- Numbers only: "2 42", text, out-of-range and (with `integer`) decimals are rejected; the stored value becomes `null` and the text stays on screen with its reason. Enter moves on; Shift+Enter moves back; the iPad keyboard shows Next inside a group. `minExclusive` refuses `min` itself, for a value that must be more than it (a weight more than 0 g).
+- Numbers only: "2 42", text, out-of-range and (with `integer`) decimals are rejected; the stored value becomes `null` and the text stays on screen with its reason. With `issuePath` it stays through a size or section switch and a reload (the screen's `RefusedEntryStore`), and `onInvalidChange` hears of it again when the field comes back. Enter moves on; Shift+Enter moves back; the iPad keyboard shows Next inside a group. `minExclusive` refuses `min` itself, for a value that must be more than it (a weight more than 0 g).
 - `error` shows calc's error for a stored value in red; `warning` (one message or several) shows calc's warnings in amber, one line each with the warning icon, an amber edge, and the field described by them: a sample below the plan, a packing count that does not match. `findIssue(issues, path)` picks the issue pointing at that field, errors first.
 - A value is judged at the precision it is shown (`decimals`), as MeasurementGrid does: 13.996 at two decimals is 14.00 and meets ≥ 14.00. Missing is Not done, never Passed; a spec of NA shows no verdict.
 - A date is a `DateField` (6.2 rule 3): the browser's own picker, four-digit years, `"YYYY-MM-DD"` or null, with `error`, `warning` and `issuePath` as NumberField has; other attributes (`onKeyDown`, `enterKeyHint`) pass to the input.
@@ -326,7 +338,7 @@ It runs once for each new `focusPath` array, so pass the prop straight through. 
 
 ## Photo tags (`onFocusChange`)
 
-Report what is in focus whenever it changes: the size from `SizeTabs`, the hand from `HandToggle`, `{ size, hand, defect }` from `CounterTable`'s `onCellFocus`, `{ size, box }` from `BoxPicker`'s `onFocus` (it also fires when the box list opens: Safari never focuses a tapped button), and the size from `NumberField`'s `onFocus` and MeasurementGrid's `onCellFocus`. `CaptureFocus.level` is labelling's packaging level (`"inner"` or `"carton"`) and `item` an entry of a module's own list (a document, a loading stage); the photos taken then carry them, and the screen words them in the template's words in `PhotoTags.level`, `item` and `tagLine`. A module whose focus is a choice of its own (loading's stage picker, documents' rows) says once, beside the choice, what new photos are tagged with, never inside a row that would grow under the finger.
+Report what is in focus whenever it changes: the size from `SizeTabs`, the hand from `HandToggle`, `{ size, hand, defect }` from `CounterTable`'s `onCellFocus` (a cell reports itself when it takes focus, when it is pressed, and on every change of its count, a held button or a key: Safari and Chrome on the iPad never focus a tapped button), `{ size, box }` from `BoxPicker`'s `onFocus` (it also fires when the box list opens: Safari never focuses a tapped button), and the size from `NumberField`'s `onFocus` and MeasurementGrid's `onCellFocus`. `CaptureFocus.level` is labelling's packaging level (`"inner"` or `"carton"`) and `item` an entry of a module's own list (a document, a loading stage); the photos taken then carry them, and the screen words them in the template's words in `PhotoTags.level`, `item` and `tagLine`. A module whose focus is a choice of its own (loading's stage picker, documents' rows) says once, beside the choice, what new photos are tagged with, never inside a row that would grow under the finger.
 
 ## Text: `lib/format`
 
@@ -351,10 +363,10 @@ Show computed numbers with `Figure` (tabular figures, unit in secondary text, a 
 |---|---|---|---|
 | `SizeTabs` | Arrow keys, Home, End (automatic activation, wraps) | Swipe the panel left or right (64 px, mostly horizontal; never from the field being edited) | A half-typed value is stored for its own size before the panel changes |
 | `HandToggle` | Arrow keys (radio group) | Tap | `handsOf(view)` gives the hands to show |
-| `CounterTable` | Stepper keys: arrows, Page, Home, End | Tap and hold to repeat; a finger that slides away (a swipe) counts nothing | Live total and chip; each tap is spoken with the new total and the chip's verdict; sticky header and totals; taking a one-off row off keeps the focus in the table |
+| `CounterTable` | Stepper keys: arrows, Page, Home, End | Tap and hold to repeat; a finger that slides away (a swipe) counts nothing | Live total and chip; each tap is spoken with the new total and the chip's verdict; sticky header and totals; taking a one-off row off keeps the focus in the table; a cell reports itself for photo tags on focus, on a press and on every count change |
 | `BoxPicker` | Type digits, arrows, Enter, Escape | Tap a box; keyboard stays down | List capped to the space on screen; opening it reports focus |
-| `NumberField` | Enter, Shift+Enter, Escape restores | Decimal keypad | Paste a column to fill down the group, as one change; what did not fit is listed under the field (or the group's table) until Dismiss |
-| `MeasurementGrid` | Enter down the column, then the next; arrows; Escape restores | Decimal keypad; swipe turns the size while the grid fits | Paste a column or block from the focused cell, as one `onCellsChange`; what did not fit is listed under the grid until Dismiss; read-only keeps the keys and refuses edits |
+| `NumberField` | Enter, Shift+Enter, Escape restores | Decimal keypad | Paste a column to fill down the group, as one change; what did not fit is listed under the field (or the group's table) until Dismiss; with `issuePath` a refused entry outlives the field |
+| `MeasurementGrid` | Enter down the column, then the next; arrows; Escape restores | Decimal keypad; swipe turns the size while the grid fits | Paste a column or block from the focused cell, as one `onCellsChange`; what did not fit is listed under the grid until Dismiss; read-only keeps the keys and refuses edits; with `cellIssuePath` refused cells outlive the grid |
 | `ColumnSwitcher` | Previous and Next stay focusable at the ends (aria-disabled) | 44 px buttons | Says "Box 253 · 2 / 5" as it changes; hidden on the desktop layout (`xl`) |
 | `CountField` | Stepper keys; start and clear hand focus to each other | Tap and hold to repeat | Not entered until the start button is pressed |
 

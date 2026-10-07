@@ -356,6 +356,26 @@ describe("CounterTable", () => {
     expect(html).toContain("w-fit max-w-full");
   });
 
+  it("keeps the label column at 14rem, 16rem from 1280 px, so a wide table scrolls instead of squeezing it", () => {
+    // A cell's width is no minimum in table auto layout; its min-width is.
+    const classesOf = (tag: string) => (/class="([^"]*)"/.exec(tag)?.[1] ?? "").split(" ");
+    const labelCells = (html: string) => [...tagsWith(html, 'scope="row"'), tagsWith(html, 'scope="col"')[0]];
+    const cells = labelCells(render());
+    expect(cells).toHaveLength(rows.length + 5); // the heading, n, limit, rows, total and result
+    for (const cell of cells) {
+      expect(classesOf(cell)).toEqual(expect.arrayContaining(["w-64", "min-w-56", "xl:min-w-64", "[overflow-wrap:anywhere]"]));
+    }
+    // One value column has nothing to scroll to: from 1280 px its labels wrap to fit.
+    for (const cell of labelCells(render({ columns: [columns[0]] }))) {
+      expect(classesOf(cell)).toEqual(expect.arrayContaining(["min-w-56", "xl:min-w-0"]));
+      expect(classesOf(cell)).not.toContain("xl:min-w-64");
+    }
+    // A hand split makes two value columns of one size.
+    for (const cell of labelCells(render({ columns: [columns[0]], hands: ["R", "L"] }))) {
+      expect(classesOf(cell)).toContain("xl:min-w-64");
+    }
+  });
+
   it("gives n and the limit 16 px text on touch", () => {
     const html = render();
     const info = tagsWith(html, "font-medium text-muted-foreground tabular-nums");

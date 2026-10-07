@@ -366,16 +366,14 @@ export function TemplateEditor({
     backupStore.dismiss();
   };
 
-  // Sticky things below the bar (the details panel, capture size bars) need its height.
+  // Sticky things below the bar (the details panel, capture size bars) need its height, and so
+  // does the page's scroll padding (app/globals.css), so focus clears the bar on two rows too
+  // (WebKit goes by the padding alone): set on the editor's root and, while it is open, on <html>.
   useLayoutEffect(() => {
     const bar = barRef.current;
     const root = rootRef.current;
     if (!bar || !root) return;
-    const set = () => root.style.setProperty("--editor-bar-height", `${bar.offsetHeight}px`);
-    set();
-    const observer = new ResizeObserver(set);
-    observer.observe(bar);
-    return () => observer.disconnect();
+    return trackEditorBarHeight(bar, root, document.documentElement);
   }, []);
 
   const order = shapeOk ? moduleOrder(draft, context) : [];
@@ -740,8 +738,28 @@ export function TemplateEditor({
 }
 
 /* ------------------------------------------------------------------ *
- * The bar: where the draft stands
+ * The bar: its height, and where the draft stands
  * ------------------------------------------------------------------ */
+
+/**
+ * Keeps `--editor-bar-height` at the bar's height as it wraps and unwraps: on
+ * the editor's root and on <html> (`page`), whose scroll padding counts it.
+ * The cleanup stops watching and takes it off <html>, which outlives the editor.
+ */
+export function trackEditorBarHeight(bar: HTMLElement, root: HTMLElement, page: HTMLElement): () => void {
+  const set = () => {
+    const height = `${bar.offsetHeight}px`;
+    root.style.setProperty("--editor-bar-height", height);
+    page.style.setProperty("--editor-bar-height", height);
+  };
+  set();
+  const observer = new ResizeObserver(set);
+  observer.observe(bar);
+  return () => {
+    observer.disconnect();
+    page.style.removeProperty("--editor-bar-height");
+  };
+}
 
 function SaveState({
   saving,
