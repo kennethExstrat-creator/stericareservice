@@ -845,7 +845,7 @@ describe("coverage checklist", () => {
     expect(po.targets).toEqual([{ place: "Manufacturer Information", text: "PO Number", covered: true, reason: null }]);
     // A typo on the source keeps its printed label; the app's wording sits beside it.
     const glove = rows(checklist).find((row) => row.label === "Factrory glove code")!;
-    expect(glove.corrected).toBe("Factory glove code");
+    expect(glove.corrected).toBe("Factory Glove Code");
   });
 
   it("names the places it points to as the template editor does, in Title Case (docs/DESIGN.md, Capitalisation)", () => {
