@@ -1,5 +1,6 @@
 import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
 import { createTestAdminClient } from "../support/admin";
+import { expectNoPageScroll } from "../support/layout";
 import { sessionCookies, TEST_ACCOUNTS } from "../support/session";
 import {
   countVisibleInspections,
@@ -99,21 +100,6 @@ function watchConsole(page: Page) {
   });
   page.on("pageerror", (error) => errors.push(error.message));
   return () => errors.filter((text) => /hydrat|did not match|server rendered/i.test(text));
-}
-
-/**
- * The page itself never scrolls sideways (only the table's card does).
- * Measured against the page's layout width and the window's, never
- * window.innerWidth: on touch the browser widens innerWidth to fit content
- * that sticks out, so an overflowing page would measure as fitting.
- */
-async function expectNoPageScroll(page: Page) {
-  const viewport = page.viewportSize()!.width;
-  const { scrollWidth, clientWidth } = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
-    clientWidth: document.documentElement.clientWidth,
-  }));
-  expect(scrollWidth, "the page scrolls sideways").toBeLessThanOrEqual(Math.min(clientWidth, viewport));
 }
 
 /**
