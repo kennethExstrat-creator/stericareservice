@@ -16,6 +16,10 @@
 // last. If the inspection turned out to be gone or no longer a draft, the
 // list is refreshed behind the message, and closing the dialog puts focus on
 // that row's main action, or where the row was.
+//
+// Once a draft is deleted, this device forgets its queued photos and files
+// and its local copy too (forget-deleted-draft.ts, loaded only then): they
+// could never upload, and would stay on the device for good.
 import { OctagonXIcon, Trash2Icon } from "lucide-react";
 import { unstable_rethrow } from "next/navigation";
 import { createContext, use, useCallback, useEffect, useRef, useState, useTransition, type ReactNode } from "react";
@@ -54,6 +58,14 @@ async function askToDelete(inspectionId: string): Promise<DeleteInspectionResult
   }
 }
 
+/** In the background: the deletion has gone through whatever happens here. */
+function forgetOnThisDevice(userId: string, inspectionId: string) {
+  void import("./forget-deleted-draft").then(
+    ({ forgetDeletedDraft }) => forgetDeletedDraft({ userId, inspectionId }),
+    (error: unknown) => console.error("[inspections] Could not load the clean-up after a deletion", error),
+  );
+}
+
 /** One row's Delete, as the dialog needs it. */
 export type DeleteRequest = DeletedRow & {
   refNo: string;
@@ -86,14 +98,17 @@ function focusLanding(scope: HTMLElement, landing: Exclude<FocusLanding, "wait">
 /**
  * The results section of the list. `listKey` changes whenever the rows on
  * screen do (their ids and statuses), so a deletion's focus can wait for the
- * list without the row.
+ * list without the row. `viewerId`: the signed-in user, whose copies on this
+ * device go with a draft they delete.
  */
 export function InspectionResults({
   listKey,
+  viewerId,
   className,
   children,
 }: {
   listKey: string;
+  viewerId: string;
   className?: string;
   children: ReactNode;
 }) {
@@ -138,6 +153,7 @@ export function InspectionResults({
         deleted.current = { row: target, dialogGone: false };
         setOpen(false);
         toast.success(`${target.refNo} deleted.`);
+        forgetOnThisDevice(viewerId, target.id);
       } else {
         setError(result.message);
       }

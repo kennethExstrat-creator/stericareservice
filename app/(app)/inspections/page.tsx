@@ -88,6 +88,7 @@ export default async function InspectionsPage({ searchParams }: PageProps<"/insp
 
         <InspectionResults
           listKey={list.kind === "rows" ? list.rows.map((row) => `${row.id}:${row.status}`).join(" ") : view}
+          viewerId={user.id}
           className="flex flex-col gap-3 transition-opacity group-has-data-pending/list:opacity-60"
         >
           {/* Always rendered, so screen readers hear each new outcome after a search. */}
