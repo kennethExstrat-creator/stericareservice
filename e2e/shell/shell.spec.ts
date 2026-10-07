@@ -1,4 +1,4 @@
-import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
+import { expect, test, type BrowserContext, type Locator, type Page, type Route } from "@playwright/test";
 import { sessionCookies, signIn, TEST_ACCOUNTS } from "../support/session";
 import { createShellFixture, type ShellFixture } from "./fixtures";
 
@@ -35,6 +35,10 @@ const PHOTO_UPLOADS = "**/storage/v1/object/inspection-photos/**";
 
 /** What Sign out says while photos or files wait on this device (components/shell/sign-out-check.ts). */
 const UPLOADS_WAITING = "Some photos or files are still only on this device. They will not upload while you are signed out";
+
+/** What Sign out says when its request fails, or has no answer within SIGN_OUT_TIMEOUT_MS (15 s). */
+const SIGN_OUT_FAILED = "You are still signed in";
+const SIGN_OUT_SLOW = "Signing out is taking too long";
 
 // Dev servers compile each page on its first visit, and the Mac running these is shared.
 test.describe.configure({ timeout: 90_000 });
@@ -120,6 +124,28 @@ async function openUserMenu(page: Page) {
   await expect(menu).toBeVisible();
   await settled(menu);
   return menu;
+}
+
+/**
+ * Holds back Server Actions from now on (Sign out's is the only one these
+ * pages send): a POST carrying Next.js's next-action header. "abort" fails it
+ * as a dropped connection does; "stall" keeps it waiting, as Wi-Fi without
+ * internet does. It never reaches the server, so the session stays. The
+ * function returned lets go: stalled requests then fail.
+ */
+async function holdServerActions(page: Page, mode: "abort" | "stall") {
+  const stalled: Route[] = [];
+  const handler = async (route: Route) => {
+    const request = route.request();
+    if (request.method() !== "POST" || !(await request.headerValue("next-action"))) return route.fallback();
+    if (mode === "abort") return route.abort("internetdisconnected");
+    stalled.push(route);
+  };
+  await page.route("**/*", handler);
+  return async () => {
+    await page.unroute("**/*", handler);
+    await Promise.all(stalled.map((route) => route.abort("internetdisconnected").catch(() => undefined)));
+  };
 }
 
 /** A photo as the iPad's library hands it over: a JPEG drawn by the browser. */
@@ -456,6 +482,61 @@ test.describe("as the admin", () => {
     await expect(page).toHaveURL(/\/login\?next=%2Fadmin$/);
   });
 
+  test("Sign out that does not reach the server keeps the session and gives the menu back", async ({ page, context }) => {
+    await page.goto("/admin");
+    await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
+    const errors = watchErrors(page);
+    const release = await holdServerActions(page, "abort");
+    const menu = await openUserMenu(page);
+    await menu.getByRole("menuitem", { name: "Sign out", exact: true }).click();
+
+    await expect(page.getByText(SIGN_OUT_FAILED)).toBeVisible();
+    await expect(page.getByText("Signing out did not reach the server.")).toBeVisible();
+    await expect(menu.getByRole("menuitem", { name: "Sign out", exact: true })).toBeVisible();
+    await expect(page).toHaveURL(/\/admin$/);
+    expect(await authCookies(context)).not.toEqual([]);
+    // The page is the user's again: the menu closes.
+    await page.keyboard.press("Escape");
+    await expect(menu).toBeHidden();
+    await release();
+    // The failed request is reported by the toast, never as an error on the page.
+    expect(errors().filter((error) => !/^Sign out failed/.test(error))).toEqual([]);
+  });
+
+  test("Sign out with no answer gives the page back after its time limit", async ({ page, context }) => {
+    await page.goto("/admin");
+    await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
+    const errors = watchErrors(page);
+    const release = await holdServerActions(page, "stall");
+    try {
+      const menu = await openUserMenu(page);
+      await menu.getByRole("menuitem", { name: "Sign out", exact: true }).click();
+      // Waiting for the server: the menu says so and stays.
+      await expect(menu.getByRole("menuitem", { name: "Signing out…" })).toBeVisible();
+
+      // 15 s on, the page comes back, without claiming the request failed: it may still go through.
+      const slow = page.getByText(SIGN_OUT_SLOW);
+      await expect(slow).toBeVisible({ timeout: 25_000 });
+      await expect(page.getByText("The server has not answered yet.")).toBeVisible();
+      await expect(page.getByText(SIGN_OUT_FAILED)).toHaveCount(0);
+      await expect(menu.getByRole("menuitem", { name: "Sign out", exact: true })).toBeVisible();
+      await shot(page, "admin-sign-out-no-answer", false);
+      await page.keyboard.press("Escape");
+      await expect(menu).toBeHidden();
+      await expect(page).toHaveURL(/\/admin$/);
+      expect(await authCookies(context)).not.toEqual([]);
+      // Back at work: the shell's links go again.
+      const nav = page.getByRole("navigation", { name: "Main" });
+      await nav.getByRole("link", { name: "Inspections", exact: true }).click();
+      await expect(page).toHaveURL(/\/inspections$/);
+      await expect(page.getByRole("heading", { level: 1, name: "Inspections" })).toBeVisible();
+      await expect(page.locator('section[aria-label="Inspections"] [role="status"]')).not.toBeEmpty();
+    } finally {
+      await release();
+    }
+    expect(errors().filter((error) => !/^Sign out failed/.test(error))).toEqual([]);
+  });
+
   test("an error in a page shows inside the shell", async ({ page }) => {
     test.skip(!ERROR_PAGE, "Set SHELL_E2E_ERROR_PAGE to a page that throws.");
     await page.goto(ERROR_PAGE!);
@@ -578,11 +659,20 @@ test.describe("as the admin", () => {
       await expect(dialog).toBeVisible();
       await expect(dialog).toContainText(UPLOADS_WAITING);
 
+      // A sign-out that does not reach the server: still signed in, and the dialog keeps both choices.
+      const release = await holdServerActions(page, "abort");
+      await dialog.getByRole("button", { name: "Sign out anyway" }).click();
+      await expect(page.getByText(SIGN_OUT_FAILED)).toBeVisible();
+      await expect(dialog.getByRole("button", { name: "Sign out anyway" })).toBeEnabled();
+      await expect(stay).toBeEnabled();
+      expect(await authCookies(context)).not.toEqual([]);
+      await release();
+
       // Sign out anyway: the session ends, and the photo stays on this device for the next sign-in.
       await dialog.getByRole("button", { name: "Sign out anyway" }).click();
       await expect(page).toHaveURL(/\/login$/);
       expect(await authCookies(context)).toEqual([]);
-      expect(errors()).toEqual([]);
+      expect(errors().filter((error) => !/^Sign out failed/.test(error))).toEqual([]);
     });
   });
 });
