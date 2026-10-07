@@ -29,6 +29,8 @@ export type AxeViolation = {
   impact: string | null;
   help: string;
   /**
+   * Every node axe reports: strict mode accepts nodes one by one, so a node left out of the
+   * record would pass unseen (html and summary are cut short, the report shows a few).
    * label: the element's accessible name from aria-label or aria-labelledby, whole (axe cuts
    * it short in html). shows: the first words it shows, aria-hidden decoration (an avatar's
    * initials) passed over when it shows other text.
@@ -229,7 +231,7 @@ async function runAxe(page: Page, within?: string): Promise<{ violations: AxeVio
         id: violation.id,
         impact: violation.impact,
         help: violation.help,
-        nodes: violation.nodes.slice(0, 12).map((node) => {
+        nodes: violation.nodes.map((node) => {
           const element = elementOf(node.target);
           return {
             target: JSON.stringify(node.target),

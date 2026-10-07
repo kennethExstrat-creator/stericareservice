@@ -108,13 +108,20 @@ const ACCEPTED = {
    * DESIGN.md (Do/Don't, UX-10): a control's accessible name starts with the
    * words it shows, so a speech user can say what they see (WCAG 2.5.3). axe's
    * label-content-name-mismatch also wants the rest of what it shows in the
-   * name: the email under the account menu's name ("Test Admin, account
-   * menu"), a module's key and tags in the template editor ("Visual
-   * Inspection, edit"), a Pending row's status and sizes. UX-10's verdict: a
-   * best-practice cleanup only. A name in other words still fails.
+   * name. UX-10's verdict judged that a best-practice cleanup for two
+   * controls: the account menu (the email under its name, "Test Admin,
+   * account menu") and the template editor's module buttons (a module's key
+   * and tags, "Visual Inspection, edit"). The Pending rows ([data-task], a
+   * row's status and sizes) are this spec's addition under DESIGN.md's rule,
+   * not part of that verdict. Only these controls are accepted, and only when
+   * the name starts with the first words they show: any other control, or a
+   * name in other words, still fails.
    */
   axeNode: (rule: string, node: AxeNode) =>
-    rule === "label-content-name-mismatch" && spoken(node.shows) !== "" && spoken(node.label).startsWith(spoken(node.shows)),
+    rule === "label-content-name-mismatch" &&
+    (/^\["(button|div)\[data-(edit-module|task)=/.test(node.target) || /, account menu$/.test(node.label ?? "")) &&
+    spoken(node.shows) !== "" &&
+    spoken(node.label).startsWith(spoken(node.shows)),
   /** A stepper's value sits between its 44 px − and + as a keyboard stop; the buttons are the touch targets. */
   smallTarget: (target: ScreenRecord["layout"]["smallTargets"][number]) =>
     target.role === "spinbutton" && target.path.includes("[data-slot=stepper]"),
@@ -154,13 +161,13 @@ function checkStrict(record: ScreenRecord) {
       `${record.screen}: console`,
     )
     .toEqual([]);
-  // UX-02: going back up with Shift+Tab, no control lands under a sticky bar. A focusable panel taller
-  // than half the screen (a tab panel, the list's table) cannot come into view whole: the walk samples
-  // only its top edge, so it is left out.
+  // UX-02: going down or back up, no control lands under a sticky bar or column. A focusable panel
+  // taller than half the screen (a tab panel, the list's table) cannot come into view whole: the walk
+  // samples only its top edge, so it is left out.
   expect
     .soft(
-      record.focusBack.filter((stop) => stop.obscuredBy && stop.rect.height <= record.layout.viewport.height / 2),
-      `${record.screen}: focus under a sticky bar going back up`,
+      [...record.focus, ...record.focusBack].filter((stop) => stop.obscuredBy && stop.rect.height <= record.layout.viewport.height / 2),
+      `${record.screen}: focus under a sticky bar or column`,
     )
     .toEqual([]);
   if (isCaptureScreen(record) && !record.touch) {
@@ -1115,7 +1122,10 @@ test.describe("admin", () => {
         maxParts: 12,
         notes: [`evidence values: ${values.length}; long ones on a line of their own, left aligned: ${apart.length} of ${long.length}`],
       });
-      if (STRICT) expect.soft(long.filter((value) => !apart.includes(value)), "UX-14: long evidence values").toEqual([]);
+      if (STRICT) {
+        expect.soft(long.length, "UX-14: the mock's evidence has long values to check").toBeGreaterThan(0);
+        expect.soft(long.filter((value) => !apart.includes(value)), "UX-14: long evidence values").toEqual([]);
+      }
     });
     await step(auditor, "review-ai-disagree", async () => {
       const disagree = page.getByRole("button", { name: /^Disagree/ }).or(page.getByRole("radio", { name: /^Disagree/ })).first();
