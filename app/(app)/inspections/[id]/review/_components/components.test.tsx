@@ -217,9 +217,10 @@ describe("Verdict", () => {
 
     const evaluation = evaluated();
     if (!evaluation.ok) throw new Error("the review fixture does not evaluate");
+    // A stale summary that restates the result: the review says why from the lists, never the summary.
     const clean = {
       ...evaluation,
-      report: { ...evaluation.report, suggested: { result: "pass" as const, failed: [], notDone: [], warned: [], summary: "" } },
+      report: { ...evaluation.report, suggested: { result: "pass" as const, failed: [], notDone: [], warned: [], summary: "Pass." } },
     };
     const passed = renderToStaticMarkup(<Verdict inspection={reviewInspection({ result: "pass", savedSuggestion: "pass" })} evaluation={clean} />);
     expect(passed).not.toContain('data-slot="suggested-reasons"');
