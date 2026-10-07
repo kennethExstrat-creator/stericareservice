@@ -72,9 +72,12 @@ test("the admin sees everyone, with themselves marked and protected", async ({ p
   }
   const teams = await teamsReady();
   if (teams) {
-    // inspector@test.local is from before teams: listed as a problem until an admin chooses a lead.
-    await expect(page.getByTestId("no-lead-alert")).toBeVisible();
+    // Each lead's team, one at a time (e2e/org checks the teams themselves).
     await expect(page.getByRole("combobox", { name: "Team", exact: true })).toBeVisible();
+    // The Lead inspector column from 1024 px; below that the lead sits under the role.
+    if (page.viewportSize()!.width >= 1024) {
+      await expect(page.getByRole("columnheader", { name: "Lead inspector" })).toBeVisible();
+    }
   } else {
     await expect(page.getByTestId("teams-missing")).toContainText("20261007170000_lead_inspectors.sql");
   }
