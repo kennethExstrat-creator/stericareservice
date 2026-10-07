@@ -9,9 +9,9 @@
 // says it is attached. Until a row is chosen nothing can be added there, but
 // the files listed can still be deleted. Each row's chip, and the colour of
 // its selected status, is calc's result for the item; every change goes
-// through useDataUpdater, built from the latest data (edit.ts).
-import { useEffect, useId, useRef, useState, type RefObject } from "react";
-import { FileXIcon, PaperclipIcon } from "lucide-react";
+// through useDataUpdater, built from the latest data (edit.ts). A row that
+// keeps a file says so with the kit's attachment line.
+import { useId, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { Status } from "@/lib/design/status";
 import { Badge } from "@/components/ui/badge";
@@ -19,16 +19,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
+  AttachmentStatus,
+  DateField,
   Figure,
   findIssue,
-  issuePathKey,
   issuePathProps,
   StatusPill,
   useDataUpdater,
   useIssueFocus,
   type IssuePath,
 } from "@/components/qc";
-import { SMALL_PILL_TOUCH } from "@/components/qc/status-pill";
 import {
   fieldIssues,
   heldFileState,
@@ -86,8 +86,8 @@ export default function Capture({
   // Opens on the document the screen has in focus, when it is on the checklist.
   const [active, setActive] = useState<DocumentItem | null>(() => focusedItem(items, focus));
   const canAttach = useFileSlotRenderer() !== null;
+  // An issue link lands on the field, or on a missing file's message, which takes the focus itself.
   useIssueFocus(focusPath, { root });
-  useFollowFileLine(focusPath, root);
 
   const focusItem = (key: DocumentItem) => {
     setActive(key);
@@ -104,19 +104,24 @@ export default function Capture({
   const filing = active !== null && items.some((item) => item.key === active) ? active : null;
 
   return (
-    <div ref={root} className="space-y-4">
-      <div className="overflow-clip rounded-lg border border-border bg-card xl:grid xl:grid-cols-[minmax(12rem,1fr)_auto_minmax(9rem,12rem)_10.5rem] xl:gap-x-4">
-        {/* From 1280 px each item is one row: the columns get headings (each control has its own name). */}
+    // @container: the checklist lays out by the module's own width, not the screen's.
+    <div ref={root} className="@container space-y-4">
+      {/* From 1280 px, in a module at least 48rem wide (@3xl), each item is one row of four
+          columns, about 47rem with the default wording: the capture screen's section list
+          leaves narrower modules (at 1280 and 1366 px) the stacked rows the iPad has. A
+          template's longer status words scroll the table rather than hide a column. */}
+      <div className="overflow-clip rounded-lg border border-border bg-card xl:@3xl:grid xl:@3xl:grid-cols-[minmax(11rem,1fr)_auto_minmax(9rem,12rem)_10.5rem] xl:@3xl:gap-x-3 xl:@3xl:overflow-x-auto">
+        {/* One row per item: the columns get headings (each control has its own name). */}
         <div
           aria-hidden
-          className="hidden border-b border-border px-4 py-2 text-sm font-medium text-muted-foreground xl:col-span-full xl:grid xl:grid-cols-subgrid"
+          className="hidden border-b border-border px-4 py-2 text-sm font-medium text-muted-foreground xl:@3xl:col-span-full xl:@3xl:grid xl:@3xl:grid-cols-subgrid"
         >
           <span>{title}</span>
           <span>{labelFor(labels, "status")}</span>
           <span>{labelFor(labels, "referenceNo")}</span>
           <span>{labelFor(labels, "expiryDate")}</span>
         </div>
-        <ul className="divide-y divide-border xl:col-span-full xl:grid xl:grid-cols-subgrid">
+        <ul className="divide-y divide-border xl:@3xl:col-span-full xl:@3xl:grid xl:@3xl:grid-cols-subgrid">
           {items.map((item) => (
             <DocumentRow
               key={item.key}
@@ -204,13 +209,13 @@ export function DocumentRow({
   return (
     <li
       data-active={active || undefined}
-      className="space-y-3 px-4 py-3 data-active:bg-accent xl:col-span-full xl:grid xl:grid-cols-subgrid xl:items-start xl:gap-y-2 xl:space-y-0 xl:py-2.5"
+      className="space-y-3 px-4 py-3 data-active:bg-accent xl:@3xl:col-span-full xl:@3xl:grid xl:@3xl:grid-cols-subgrid xl:@3xl:items-start xl:@3xl:gap-y-2 xl:@3xl:space-y-0 xl:@3xl:py-2.5"
       onFocus={onFocusItem}
       onPointerDown={onFocusItem}
       {...issuePathProps(["items", item.key])}
     >
-      <div className="flex items-start justify-between gap-3 xl:flex-col xl:justify-start xl:gap-1">
-        <div className="min-w-0 space-y-1">
+      <div className="flex items-start justify-between gap-3 xl:@3xl:flex-col xl:@3xl:justify-start xl:@3xl:gap-1">
+        <div className="min-w-0 flex-1 space-y-1 xl:@3xl:w-full xl:@3xl:flex-none">
           <p id={`${uid}-name`} className="font-semibold text-foreground touch:text-base">
             {name}
           </p>
@@ -220,34 +225,23 @@ export function DocumentRow({
             </Badge>
           )}
           {fileState !== "none" && (
-            // A message, not a control: an issue link focuses it itself (useFollowFileLine).
-            <p
-              id={fileLineId}
-              data-slot="document-file"
-              data-file-state={fileState}
-              tabIndex={-1}
-              {...issuePathProps(path("file"))}
-              className={cn(
-                "flex items-start gap-1.5 rounded-sm text-sm outline-none focus-ring touch:text-base",
-                fileState === "missing" ? "text-warn" : "text-muted-foreground",
-              )}
-            >
-              {fileState === "missing" ? (
-                <FileXIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
-              ) : (
-                <PaperclipIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
-              )}
-              {fileState === "missing"
-                ? (fileIssue?.message ?? `${labelFor(labels, "file")} no longer with this inspection.`)
-                : `${labelFor(labels, "file")} attached`}
-            </p>
+            // The kit's line for the file the row keeps, with calc's warning when it is missing. It
+            // takes an issue link's focus itself, and the row's status is described by it.
+            <div id={fileLineId} data-file-state={fileState} className="pt-1">
+              <AttachmentStatus
+                label={labelFor(labels, "file")}
+                state={fileState}
+                warning={fileIssue?.message ?? null}
+                issuePath={path("file")}
+              />
+            </div>
           )}
         </div>
-        <StatusPill size="sm" status={status} label={chipLabel(status, entry.status, labels)} className={SMALL_PILL_TOUCH} />
+        <StatusPill size="sm" status={status} label={chipLabel(status, entry.status, labels)} />
       </div>
 
       <div className="space-y-1.5" {...issuePathProps(path("status"))}>
-        <span id={`${uid}-status`} className="text-sm font-medium touch:text-base xl:sr-only">
+        <span id={`${uid}-status`} className="text-sm font-medium touch:text-base xl:@3xl:sr-only">
           {labelFor(labels, "status")}
         </span>
         {readOnly ? (
@@ -266,14 +260,14 @@ export function DocumentRow({
             }}
             aria-labelledby={`${uid}-name ${uid}-status`}
             aria-describedby={fileState === "missing" ? fileLineId : undefined}
-            className="w-full flex-wrap xl:w-auto xl:flex-nowrap"
+            className="w-full flex-wrap xl:@3xl:w-auto xl:@3xl:flex-nowrap"
           >
             {DOCUMENT_STATUSES.map((value) => (
               <ToggleGroupItem
                 key={value}
                 value={value}
                 className={cn(
-                  "flex-1 rounded-full px-3 data-[state=on]:font-semibold touch:text-base xl:flex-none",
+                  "flex-1 rounded-full px-3 data-[state=on]:font-semibold touch:text-base xl:@3xl:flex-none",
                   value === entry.status && tone,
                 )}
               >
@@ -284,9 +278,10 @@ export function DocumentRow({
         )}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:contents">
+      <div className="grid gap-3 sm:grid-cols-2 xl:@3xl:contents">
         <div className="space-y-1.5" {...issuePathProps(path("referenceNo"))}>
-          <Label htmlFor={`${uid}-reference`} className="touch:text-base xl:sr-only">
+          {/* leading-snug, as DateField's label beside it, so the two fields line up. */}
+          <Label htmlFor={`${uid}-reference`} className="leading-snug touch:text-base xl:@3xl:sr-only">
             {labelFor(labels, "referenceNo")}
           </Label>
           <Input
@@ -301,29 +296,21 @@ export function DocumentRow({
             placeholder={readOnly ? undefined : labelFor(labels, "referenceNo")}
           />
         </div>
-        <div className="space-y-1.5" {...issuePathProps(path("expiryDate"))}>
-          <Label htmlFor={`${uid}-expiry`} className="touch:text-base xl:sr-only">
-            {labelFor(labels, "expiryDate")}
-          </Label>
-          <Input
-            id={`${uid}-expiry`}
-            type="date"
-            aria-label={`${labelFor(labels, "expiryDate")}, ${name}`}
-            aria-describedby={expiryIssue ? `${uid}-expiry-issue` : undefined}
-            value={entry.expiryDate ?? ""}
-            onChange={(event) => onUpdate({ expiryDate: event.target.value === "" ? null : event.target.value })}
-            readOnly={readOnly}
-            className={cn(expired === true && "border-warn-solid")}
-          />
-          {expiryIssue && (
-            <p
-              id={`${uid}-expiry-issue`}
-              className={cn("text-sm touch:text-base", expiryIssue.level === "error" ? "text-fail" : "text-warn")}
-            >
-              {expiryIssue.message}
-            </p>
-          )}
-        </div>
+        <DateField
+          id={`${uid}-expiry`}
+          // The column's heading names it in the one-row layout; the label stays for screen readers.
+          label={<span className="xl:@3xl:sr-only">{labelFor(labels, "expiryDate")}</span>}
+          className="xl:@3xl:[&>label]:mb-0"
+          aria-label={`${labelFor(labels, "expiryDate")}, ${name}`}
+          value={entry.expiryDate}
+          onValueChange={(expiryDate) => onUpdate({ expiryDate })}
+          error={expiryIssue?.level === "error" ? expiryIssue.message : null}
+          warning={expiryIssue?.level === "warning" ? expiryIssue.message : null}
+          // Expired with calc's message not in yet: the amber edge alone.
+          inputClassName={cn(expired === true && expiryIssue === undefined && "border-warn-solid")}
+          issuePath={path("expiryDate")}
+          readOnly={readOnly}
+        />
       </div>
     </li>
   );
@@ -332,25 +319,6 @@ export function DocumentRow({
 /** The document the screen has in focus (CaptureProps.focus), when it is on the checklist. */
 function focusedItem(items: readonly DocumentItemConfig[], focus: CaptureFocus | null | undefined): DocumentItem | null {
   return items.find((item) => item.key === focus?.item)?.key ?? null;
-}
-
-/**
- * An issue link to an item's file lands on its file line. The line is a
- * message, not a control, and the kit's issue focus moves focus to controls
- * only: it scrolls the line into view, and this focuses it.
- */
-function useFollowFileLine(focusPath: IssuePath | null, root: RefObject<HTMLDivElement | null>) {
-  useEffect(() => {
-    if (focusPath?.length !== 3 || focusPath[0] !== "items" || focusPath[2] !== "file") return;
-    const key = issuePathKey(focusPath);
-    const frame = requestAnimationFrame(() => {
-      const lines = root.current?.querySelectorAll<HTMLElement>('[data-slot="document-file"]') ?? [];
-      Array.from(lines)
-        .find((line) => line.dataset.issuePath === key)
-        ?.focus({ preventScroll: true });
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [focusPath, root]);
 }
 
 /**

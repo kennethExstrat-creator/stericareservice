@@ -92,7 +92,7 @@ describe("buildInspectionContext: numbers flow forward", () => {
   });
 
   it("carries packing, the indicative weight (canonical size) and the AQL defaults", () => {
-    const context = build();
+    const context = build(exampleData(), makeTestTemplate(TEST_REGISTRY, [...ALL, "watertight", "visual"]));
     expect(context.packing).toEqual({ innerUnit: "inner box", glovesPerInner: 200, innersPerCase: 10, glovesPerCase: 2000 });
     expect(context.indicativeWeight).toEqual({ grams: 3.5, size: "M" });
     expect(context.aql).toEqual(AQL_DEFAULTS);
@@ -100,10 +100,29 @@ describe("buildInspectionContext: numbers flow forward", () => {
     expect(lotSizeGloves(context, "L")).toBeNull();
   });
 
+  it("gives no AQL to a check the inspection does not run: its module is not included", () => {
+    expect(build().aql).toEqual({ watertight: null, critical: null, major: null, minor: null, inspectionLevel: null });
+    const visualOnly = build(exampleData(), makeTestTemplate(TEST_REGISTRY, [...ALL, "visual"]));
+    expect(visualOnly.aql).toEqual({ ...AQL_DEFAULTS, watertight: null });
+    // Switched off for this inspection: the same.
+    const switchedOff = makeTestTemplate(TEST_REGISTRY, [
+      ...ALL,
+      "visual",
+      {
+        key: "watertight",
+        include: false,
+        override: { reason: "Tested at the lab", by: TEST_ADMIN_ID, at: "2026-10-06T08:00:00.000Z" },
+      },
+    ]);
+    expect(build(exampleData(), switchedOff).aql.watertight).toBeNull();
+  });
+
   it("applies per-client AQL defaults, then the template's inspection level", () => {
     const template = makeTestTemplate(TEST_REGISTRY, [
       ...ALL.filter((key) => key !== "sampling_plan"),
       { key: "sampling_plan", config: { inspectionLevel: "II" } },
+      "watertight",
+      "visual",
     ]);
     const context = buildInspectionContext(
       { template, data: exampleData(), meta: META, aqlDefaults: { major: 1.5, inspectionLevel: "I" } },
@@ -249,7 +268,7 @@ describe("buildInspectionContext: numbers flow forward", () => {
       contribute: ({ config }) => ({ aql: { watertight: config.aql ?? undefined, major: 1.0 } }),
     });
     const registry = registryWith({ watertight });
-    const template = makeTestTemplate(registry, [...ALL, { key: "watertight", config: { aql: 0.65 } }]);
+    const template = makeTestTemplate(registry, [...ALL, { key: "watertight", config: { aql: 0.65 } }, "visual"]);
     const context = buildInspectionContext(
       { template, data: exampleData(), meta: META, aqlDefaults: { watertight: 1.0, major: 1.5 } },
       registry,

@@ -11,20 +11,17 @@
 // write goes through useDataUpdater, from the latest data, so a pasted block
 // lands whole in one change (docs/CAPTURE_KIT.md).
 import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
-import { FileCheckIcon, FileTextIcon, FileXIcon } from "lucide-react";
 import {
+  AttachmentStatus,
   EnterGroup,
   findIssue,
-  issuePathProps,
   NumberField,
   SizeTabs,
   StatusPill,
   useDataUpdater,
   useIssueFocus,
 } from "@/components/qc";
-// The kit's touch size for small pills; not exported from @/components/qc yet.
-import { SMALL_PILL_TOUCH } from "@/components/qc/status-pill";
-import { fieldIssues, initialSize, labelFor, type CaptureProps, type HeldFileState } from "@/modules/_framework";
+import { fieldIssues, initialSize, labelFor, type CaptureProps } from "@/modules/_framework";
 import { ModuleFileSlot } from "@/modules/_framework/file-slot";
 import { formatMinimum, judgeAverage, labReportState, MEASURE_RULES, specCaption, type TensileOutcome } from "./calc";
 import { TENSILE_MEASURES } from "./config";
@@ -65,20 +62,23 @@ export default function Capture({
   });
 
   const caption = specCaption(labelFor(labels, "specRow"), config.standardLabel);
+  const reportLabel = labelFor(labels, "labReport");
 
   return (
     // relative: screen-reader text inside never lays out against the page (docs/DESIGN.md).
     <div ref={root} data-slot="tensile" className="relative space-y-4">
       <section
         data-slot="lab-report"
-        {...issuePathProps(["labReport"])}
-        aria-label={labelFor(labels, "labReport")}
+        aria-label={reportLabel}
         className="relative space-y-3 rounded-lg border border-border bg-card px-3 py-2.5"
       >
-        <LabReportStatus
-          label={labelFor(labels, "labReport")}
+        {/* Required: until it is attached the module is not done, and its not-done link lands on this line. */}
+        <AttachmentStatus
+          label={reportLabel}
           state={labReportState(context, data.labReport)}
-          message={evaluation?.issues.find((issue) => issue.code === "lab_report_missing")?.message}
+          required
+          warning={evaluation?.issues.find((issue) => issue.code === "lab_report_missing")?.message ?? null}
+          issuePath={["labReport"]}
         />
         <ModuleFileSlot
           moduleKey="tensile"
@@ -136,38 +136,6 @@ export default function Capture({
   );
 }
 
-/**
- * Whether the lab report is attached; it is required, so until it is the
- * module is not done. The file slot below it attaches the file and the
- * module keeps its id (edit.ts withLabReport); one added in the gallery
- * counts once the inspection's files are known, and a kept file they do not
- * hold is missing, with calc's message.
- */
-function LabReportStatus({ label, state, message }: { label: string; state: HeldFileState; message?: string }) {
-  const attached = state === "attached";
-  const Icon = attached ? FileCheckIcon : state === "missing" ? FileXIcon : FileTextIcon;
-  return (
-    <div
-      data-attached={attached || undefined}
-      data-state={state}
-      className="relative flex flex-wrap items-center gap-x-3 gap-y-1 text-sm touch:text-base"
-    >
-      <Icon aria-hidden className="size-5 shrink-0 text-muted-foreground" />
-      <span className="font-medium text-foreground">{label}</span>
-      {attached ? (
-        <span className="text-foreground">Attached</span>
-      ) : (
-        <>
-          <StatusPill size="sm" status="not_done" label="Not attached" className={SMALL_PILL_TOUCH} />
-          <span className={state === "missing" ? "text-warn" : "text-muted-foreground"}>
-            {message ?? "Required before this section is done."}
-          </span>
-        </>
-      )}
-    </div>
-  );
-}
-
 /** "Spec. (ASTM D6319) ≥ 14.00 MPa" and the verdict, read with the field. */
 function SpecHint({ caption, minimum, outcome }: { caption: string; minimum: string; outcome: TensileOutcome }) {
   return (
@@ -175,7 +143,7 @@ function SpecHint({ caption, minimum, outcome }: { caption: string; minimum: str
       <span className="tabular-nums">
         {caption} {minimum}
       </span>
-      <StatusPill size="sm" status={outcome} className={SMALL_PILL_TOUCH} />
+      <StatusPill size="sm" status={outcome} />
     </span>
   );
 }

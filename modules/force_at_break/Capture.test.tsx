@@ -128,6 +128,10 @@ describe("force_at_break capture", () => {
     });
     expect(gone).toContain('data-state="missing"');
     expect(gone).toContain("Lab report: the file attached here is not among this inspection&#x27;s files. It may still be uploading from another device; if it was deleted, attach it again.");
+    // The issue link lands on the kit's attachment line, which takes the focus itself.
+    const line = /<div[^>]*data-slot="attachment-status"[^>]*>/.exec(gone)?.[0];
+    expect(line).toContain('tabindex="-1"');
+    expect(line).toContain('data-issue-path="[&quot;labReport&quot;]"');
   });
 
   it("says where the lab report is attached when the screen gives no file slot (preview, review)", () => {
@@ -165,15 +169,29 @@ describe("force_at_break capture", () => {
     ]);
   });
 
-  it("shows readings as text when read-only, with the computed footer", () => {
+  it("keeps the readings focusable on grey when read-only, with calc's footer", () => {
     const html = render({ readOnly: true });
-    expect(html).not.toContain("<input");
-    expect(html).toContain(">6.470</td>");
+    const cells = tags(html, 'data-slot="numeric-cell"');
+    expect(cells).toHaveLength(13);
+    // Read-only inputs: Tab, the arrows and issue links still reach them; nothing can change.
+    for (const cell of cells) expect(cell).toContain('readOnly=""');
+    expect(cells[0]).toContain('value="6.470"');
+    expect(html).toContain('data-readonly="true"');
     expect(html).toContain(">6.537<");
     const pills = tags(html, 'data-slot="status-pill"');
     expect(pills.map((pill) => /data-status="([a-z_]+)"/.exec(pill)?.[1])).toEqual(["pass"]);
     // 16 px on iPad, as the kit's own small pills (docs/DESIGN.md).
     expect(pills[0]).toContain("touch:text-base");
+  });
+
+  it("takes the footer's median and verdict from calc: a size calc says is not done shows neither", () => {
+    // 13 readings, one of them 0 N (saved another way): calc counts 12 and the size is not done.
+    const data = { sizes: { M: { values: [...READINGS.slice(0, 12), 0] } }, labReport: null };
+    const html = render({ data });
+    const pills = tags(html, 'data-slot="status-pill"').map((pill) => /data-status="([a-z_]+)"/.exec(pill)?.[1]);
+    // The median cell and the verdict cell both read Not done.
+    expect(pills).toEqual(["not_done", "not_done"]);
+    expect(html).not.toContain(">Passed<");
   });
 
   it("lists readings past the gloves tested, with calc's message and a way to clear them", () => {
@@ -193,8 +211,12 @@ describe("force_at_break capture", () => {
     expect(others).toEqual([]);
     expect(notice).toMatch(/^<p /);
     expect(notice).toContain('tabindex="-1"');
-    expect(notice).toContain('data-issue-path="[&quot;sizes&quot;,&quot;M&quot;,&quot;values&quot;]"');
-    expect(tags(html, "data-issue-path").filter((tag) => tag.includes("&quot;values&quot;"))).toEqual([notice]);
+    const path = 'data-issue-path="[&quot;sizes&quot;,&quot;M&quot;,&quot;values&quot;]"';
+    expect(notice).toContain(path);
+    expect(tags(html, "data-issue-path").filter((tag) => tag.includes(path))).toEqual([notice]);
+    // Each reading's cell has a path of its own: an issue on reading 3 lands there.
+    const cells = tags(html, 'data-slot="numeric-cell"');
+    expect(cells[2]).toContain('data-issue-path="[&quot;sizes&quot;,&quot;M&quot;,&quot;values&quot;,2]"');
   });
 
   it("says when the sampling plan asks for more readings than a size can take", () => {
@@ -242,5 +264,22 @@ describe("force_at_break capture", () => {
   it("keeps its screen-reader text inside a positioned box (docs/DESIGN.md, D1)", () => {
     expect(unanchoredSrOnly(render())).toEqual([]);
     expect(unanchoredSrOnly(render({ readOnly: true }))).toEqual([]);
+  });
+
+  it("puts the notes beside the readings only where the module itself is wide enough, never by the screen's width alone", () => {
+    const data = { sizes: { M: { values: [...READINGS, 6.1, 6.3] } }, labReport: null };
+    const html = render({ data });
+    // The capture screen's section list takes a share of a desktop screen: at 1280 px the module
+    // is about 616 px wide, so the panel asks the module (@container), not the viewport.
+    const [root] = tags(html, 'data-slot="force-at-break"');
+    expect(root).toMatch(/class="@container /);
+    const [panel] = tags(html, "data-panel-size");
+    const classes = /class="([^"]*)"/.exec(panel)?.[1].split(" ") ?? [];
+    expect(classes).toContain("xl:@min-[44rem]:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]");
+    expect(classes.filter((name) => /^(lg|xl|2xl):grid-cols-/.test(name))).toEqual([]);
+    // From 1280 px one column of readings stays near its glove numbers, as weight's grid does.
+    expect(tags(html, 'data-slot="measurement-grid"')[0]).toContain("xl:max-w-md xl:[&amp;_table]:min-w-0");
+    // The button that clears readings wraps rather than runs out of a narrow column.
+    expect(html).toMatch(/<button[^>]*whitespace-normal[^>]*>Clear the 2 extra readings<\/button>/);
   });
 });

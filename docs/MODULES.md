@@ -79,7 +79,7 @@ and returns `CalcOutput`: `result` (`ModuleResult`: `status`, `summary`, `perSiz
 
 ## 4. Worked example: `glove_info`
 
-Glove Information (BUILD_SPEC 6.1): surface texture, indicative weight (size M, g), colour and length, on page 1 of both reports. Result `info`. Read the four files in `modules/glove_info/`; the essentials:
+Glove Information (BUILD_SPEC 6.1): surface texture, indicative weight (size M, g), colour and length, on page 1 of both reports. Result `info`. Read the files in `modules/glove_info/`; the essentials of the four pure ones (its `Capture.tsx`, with `edit.ts`, is the smallest capture body: three text fields and a NumberField in one Enter run):
 
 **`schema.ts`**: every value may be missing while the inspection is a draft. Cells come from the framework, so a number is a number and blank is `null`:
 
@@ -160,11 +160,11 @@ export const definition = defineModule<GloveInfoData, GloveInfoConfig, GloveInfo
   ],
   calc: calcGloveInfo,
   contribute: contributeGloveInfo,
-  // loadCapture: () => import("./Capture"),   once Capture.tsx exists
+  loadCapture: () => import("./Capture"),
 });
 ```
 
-**Tests**: `schema.test.ts` (draft parsing, numbers never text, strict keys, config defaults, JSON Schema for the editor) and `calc.test.ts` (the contract check, info, not done with the template's wording, fields switched off, the error, the contribution, and one run through the engine).
+**Tests**: `schema.test.ts` (draft parsing, numbers never text, strict keys, config defaults, JSON Schema for the editor), `calc.test.ts` (the contract check, info, not done with the template's wording, fields switched off, the error, the contribution, and one run through the engine), `edit.test.ts` (the writes through the kit's updater) and `Capture.test.tsx` (the server-rendered body: wording, fields switched off, calc's error, read-only, issue paths).
 
 ## 5. Data
 
@@ -207,7 +207,7 @@ Values entered once and read by every module that needs them (BUILD_SPEC 8, 6.2 
 | `sampling[size]` | `cases`, `innerUnits`, `gloves`, `watertightVisual`, `dimensions`, `physical`, `packagingDispensing`, `pouches`, `pouchesDyeLeak`: n for the modules that follow | `sampling_plan` |
 | `cartons[size]` | Sampled carton numbers, unique: what box pickers offer (rule 7) | `carton_sampling` |
 | `indicativeWeight` | `{ grams, size }` (rule 9) | `glove_info` |
-| `aql` | `watertight`, `critical`, `major`, `minor`, `inspectionLevel` | defaults, per client, then the template's config one setting at a time (`AQL_SOURCES`; today the sampling plan's inspection level only) |
+| `aql` | `watertight`, `critical`, `major`, `minor` (`null` for a check the inspection does not run), `inspectionLevel` | defaults, per client, then the template's config one setting at a time (`AQL_SOURCES`: watertight, visual, the sampling plan) |
 | `template` | `code`, `name`, `productType`, `standard`, `unit` (`pcs` or `pairs`) | the template |
 | `templateSizes` | Sizes the template offers, `{ value, label }` | the template |
 | `inspection` | `refNo`, `inspector` (always recorded, rule 11), `client`, `manufacturer` | the inspection row |
@@ -218,9 +218,9 @@ Readers: `samplingFor(context, size)` (empty values when missing), `cartonsFor(c
 
 **Any part can be empty.** A source module that is switched off, not filled in, or not built yet leaves its part empty, apart from what its config gives: no sizes, no n, no cartons, no indicative weight. (`order_lots` and `sampling_plan` cannot be switched off for one inspection, and a template with a per-size module must include `order_lots`, but both can still be empty.) Handle it: a per-size module with no ordered sizes is not done (the framework says so); with no n, it is not done; with no carton list, the box number is entered freely and not checked; with no indicative weight, `weight` has nothing to compare against.
 
-**Source modules contribute.** The six modules in the table implement `contribute({ data, config })` and return only the parts they own (`CONTEXT_SOURCES`; the AQL settings one by one, `AQL_SOURCES`). Contributions read only their own saved data, and per-size maps may use any size spelling (the builder normalises and drops unordered sizes). `contribute` runs on the saved data, on the empty data when nothing is saved (so what comes from config, the inspection level and the inner unit's name, is there from the start), and on what can be read when the saved data fails the schema (section 5). A part another module owns is left out, and a `contribute` that throws gives nothing; either way the inspection still evaluates, without those values, and your module shows a `contribute_failed` error that blocks submit. `checkModuleContract` runs `contribute` on empty data only, so test it on filled data too.
+**Source modules contribute.** The six modules in the table implement `contribute({ data, config })` and return only the parts they own (`CONTEXT_SOURCES`; the AQL settings one by one, `AQL_SOURCES`, which `watertight` and `visual` contribute from their config). Contributions read only their own saved data, and per-size maps may use any size spelling (the builder normalises and drops unordered sizes). `contribute` runs on the saved data, on the empty data when nothing is saved (so what comes from config, the inspection level and the inner unit's name, is there from the start), and on what can be read when the saved data fails the schema (section 5). A part another module owns is left out, and a `contribute` that throws gives nothing; either way the inspection still evaluates, without those values, and your module shows a `contribute_failed` error that blocks submit. `checkModuleContract` runs `contribute` on empty data only, so test it on filled data too.
 
-**AQL settings, one owner each** (`AQL_SOURCES`): `watertight` may set `aql.watertight`, `visual` `aql.critical`, `aql.major` and `aql.minor`, and `sampling_plan` `aql.inspectionLevel`, each from the template's config and only when the template sets one. Today only `sampling_plan` does: `watertight` and `visual` have yet to add their `contribute` (for watertight, `({ config }) => ({ aql: { watertight: config.aql ?? undefined } })`). Once a check contributes, the template's value reaches every reader of `context.aql` (the sampling plan's lot check above all): template over client over BUILD_SPEC 7. Until then, and for a check that sets none, `context.aql` holds the client's or the default value, while the check itself applies the template's.
+**AQL settings, one owner each** (`AQL_SOURCES`): `watertight` sets `aql.watertight`, `visual` `aql.critical` (always 0), `aql.major` and `aql.minor`, and `sampling_plan` `aql.inspectionLevel`, each from the template's config and only when the template sets one, so the template's value reaches every reader of `context.aql` (the sampling plan's lot check above all): template over client over BUILD_SPEC 7. A check that sets none keeps the client's or the default value, which is what the check applies too. A check the inspection does not run is `null`: watertight's, and visual's three, from the start when their module is not included (switched off by the template or for this inspection), and a visual class switched off through `visual`'s contribution. The sampling plan's lot check asks for the largest n among the AQLs of the checks run, and for Table 1's n when none is run. A module that falls back on `context.aql` reads `AQL_DEFAULTS` past a `null`.
 
 **Calculation order.** The context is built first, from every included module's `contribute`, so every calc sees the complete context whatever the template's order. Calcs then run in template order, except that a module runs after the modules in its `dependsOn` and sees only their results. The conclusion declares `"all"` and runs last. In practice only the conclusion reads other modules' results; everything else flows through the context.
 
@@ -368,6 +368,7 @@ import { FileSlotProvider } from "@/modules/_framework/file-slot";
 ## 11. Testing
 
 - Vitest, files next to the code: `schema.test.ts`, `calc.test.ts`. Every rule in your brief has a test; every result in `docs/examples/expected-results.md` that your module produces has a test with placeholder identifiers.
+- `tests/acceptance/` runs both example reports through every module as whole inspections, on the seed templates as seeded (`seed-bundle.json`), and checks every row of the expected results (BUILD_SPEC 12, Phase 2). A change to a module's result, computed values or issues shows there too.
 - `expect(checkModuleContract(definition)).toEqual([])`: defaults parse, empty data parses and is not done, the config becomes JSON Schema, canonical paths exist, contributions stay in your parts. Calc runs on empty data with size M ordered, except that a source module's own parts come from its contribution on that empty data, as in the engine (an `order_lots` with nothing entered orders no size). `modules/registry.test.ts` runs it on every module too.
 - `makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ watertightVisual: 500 }) }, cartons: { M: [32, 578] } })` builds a context for calc tests (`@/modules/_framework/testing`).
 - Through the engine, with the real registry (a test may import it):
@@ -455,20 +456,22 @@ const saved = parseModuleData(definition, readModuleEntry(data, "modules", key))
 | Module | perSize | Notes for the builder |
 |---|---|---|
 | `header` | no | Always on. Contributes `header`; use its keys (`client`, `manufacturer`, `poNo`, `productName`, `productCode`, `inspectionDate`, `mfgDate`, `expiryDate`) as your data keys. Inspector from `context.inspection`, never typed. Warn if expiry is not after mfg date. Canonical paths for the text fields. |
-| `glove_info` | no | Done: the worked example. |
+| `glove_info` | no | Done: the worked example, its capture body included. |
 | `order_lots` | no | The source of sizes, so not per size itself, and the framework's per-size checks do not cover its data: reject a size entered twice yourself. Contributes `sizes` (sizes with a quantity) and `order`. Totals in `computed`, gloves from `context.packing`. Offer only `context.templateSizes`. |
 | `packing_config` | no | Contributes `packing`. Warn if gloves per case is not inner x per case. Inner unit name from config. |
 | `sampling_plan` | yes | Contributes `sampling` (the `SamplingValues` keys) and `aql.inspectionLevel` from config. Warn when below the AQL plan (`lib/aql`, `lotSizeGloves`). |
 | `carton_sampling` | yes | Contributes `cartons`. Rule 6 errors with paths; fail on them. |
 | `dimensions` | yes | n from `context.sampling[size].dimensions` or config; `summarizeColumn` and `checkSpec` in `lib/stats`; median or average from config. Specs as a list of rows, one per size, `{ size, specs: { length: SpecSchema, ... } }` (the dictionary's shape: a record keyed by size would merge two specs into one down an extends chain). |
 | `weight` | yes | Compare with `context.indicativeWeight` when its size matches; warn beyond the threshold (rule 9). The optional spec is a list of rows, `{ size, spec: SpecSchema }`. |
-| `force_at_break`, `tensile` | yes | The lab report through the file slot (section 10.1), its id kept in `labReport` and read with `moduleFileState`: optional for force at break, required for tensile (not done without it). Spec minimums (6 N; 14 MPa, 500%) as plain numbers, as the dictionary types them. |
-| `watertight`, `visual` | yes | `handSplit`. n from `context.sampling[size].watertightVisual`; limits from `lib/aql` with AQL from config or `context.aql`. Any critical defect fails. Hole locations and the defect list per class are defect codes in config; label them per code, or per class with a dotted key where one code is worded twice (`minor.bead_defective`, section 6). |
-| `dispensing_packing`, `dispensing_safedon`, `labeling` | yes | Box numbers from `context.cartons[size]` (rule 7). Labelling is Accept 0 / Reject 1; its checks are canonical keys (`lot_no`, `mfg_date`, `expiry_date`, `artwork`, `carton_no`), labelled per level with a dotted key where the wording differs (`carton.lot_no`), and it reports the `level` in focus. Safedon's dispensing defects are defect codes (`no_cuff`, `finger_out`, ...). |
+| `force_at_break`, `tensile` | yes | The lab report through the file slot (section 10.1), its id kept in `labReport` and read with `moduleFileState`: optional for force at break, required for tensile (not done without it). Spec minimums (6 N; 14 MPa, 500%) as plain numbers, as the dictionary types them. From 1280 px force at break's one column of readings is as narrow as weight's, with its notes beside it where the module is at least 44rem wide (below). |
+| `watertight`, `visual` | yes | `handSplit`. n from `context.sampling[size].watertightVisual`; limits from `lib/aql` with AQL from config or `context.aql`, and the template's AQLs contributed to the context (section 7). Any critical defect fails. Hole locations and the defect list per class are defect codes in config; label them per code, or per class with a dotted key where one code is worded twice (`minor.bead_defective`, section 6). |
+| `dispensing_packing`, `dispensing_safedon`, `labeling` | yes | Box numbers from `context.cartons[size]` (rule 7). Labelling is Accept 0 / Reject 1; its checks are canonical keys (`lot_no`, `mfg_date`, `expiry_date`, `artwork`, `carton_no`), labelled per level with a dotted key where the wording differs (`carton.lot_no`), and it reports the `level` in focus. Safedon's dispensing defects are defect codes (`no_cuff`, `finger_out`, ...). Labelling's limit words are keyed per level, as visual's critical row is per class (`innerAccept` to `cartonReject`; SAFEDON_EG prints "Acc. = 0 / Rej. = 1"): read the level's key first, else the word both levels share. |
 | `conclusion` | no | Always on. Keep `dependsOn: "all"` and `requiredForSubmit: true` (the registry test checks it). Compute the suggestion with `suggestResult` over `input.results` and put it in `computed.suggestedResult`; the final result is the inspector's. Other modules are named by their titles (`moduleTitle(context, key)`). Not done until the final result is chosen (and the signature, if Kenneth confirms it is required): that blocks submit, and the blocking issue links to the choice (`notDonePath`). Status from the final result: pass is `pass`, fail is `fail`, hold is `warn`, since a module status has no hold. |
 | `dye_leak` | yes | Optional module (Phase 3). |
-| `documents` | no | Optional module. Each item keeps its file's id (`file`) through one file slot, filed under the item being worked on, nothing added until one is chosen (section 10.1); `item` in the focus, and it opens on the `item` the screen has in focus. |
+| `documents` | no | Optional module. Each item keeps its file's id (`file`) through one file slot, filed under the item being worked on, nothing added until one is chosen (section 10.1); `item` in the focus, and it opens on the `item` the screen has in focus. One row of four columns per item from 1280 px where the module is at least 48rem wide (`xl:@3xl:`), the stacked rows otherwise (below). |
 | `loading` | no | Optional module; `item` in the focus for a loading stage. |
+
+**How wide a Capture is.** The capture screen's section list and the app's sidebar take their share of a desktop screen: the module body is about 616 px wide at 1280 px, 702 px at 1366 px, 776 px at 1440 px and at most 952 px; on the iPads it is 732 px (portrait) and 1092 px (landscape). A layout that puts parts side by side from 1280 px asks the module, not the screen: `@container` on the Capture's root and `xl:@min-[…]:` (or a named size such as `xl:@3xl:`) on the layout, so a narrow module keeps the stacked layout the iPad has (force at break, documents). Check it at 1280 and 1440 px in the capture screen itself, where the section list is.
 
 ## 15. Before you hand in
 

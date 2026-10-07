@@ -5,7 +5,7 @@ import { z } from "zod";
 
 export const FORCE_AT_BREAK_TITLE = "Force At Break in Newton (Refer to attached where applicable)";
 
-export const FORCE_AT_BREAK_LABEL_KEYS = ["values", "labReport", "median", "result", "specRow"] as const;
+export const FORCE_AT_BREAK_LABEL_KEYS = ["values", "labReport", "median", "result", "rowNo", "specRow"] as const;
 export type ForceAtBreakLabelKey = (typeof FORCE_AT_BREAK_LABEL_KEYS)[number];
 
 export const FORCE_AT_BREAK_LABELS: Readonly<Record<ForceAtBreakLabelKey, string>> = {
@@ -13,6 +13,8 @@ export const FORCE_AT_BREAK_LABELS: Readonly<Record<ForceAtBreakLabelKey, string
   labReport: "Lab report",
   median: "Median",
   result: "Passed / Failed",
+  /** The reading number column. */
+  rowNo: "No.",
   // The standard label follows in brackets when the template sets one: "Spec. (EN 455)".
   specRow: "Spec.",
 };

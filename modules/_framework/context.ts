@@ -31,20 +31,30 @@ import { salvageData, type SalvagedData } from "./salvage";
 export const INSPECTION_LEVELS = ["S-1", "S-2", "S-3", "S-4", "I", "II", "III"] as const;
 export type InspectionLevel = (typeof INSPECTION_LEVELS)[number];
 
+/** The checks on the watertight and visual sample that apply an AQL: watertight, and visual's three classes. */
+export const AQL_CHECKS = ["watertight", "critical", "major", "minor"] as const;
+export type AqlCheck = (typeof AQL_CHECKS)[number];
+
 export type AqlSettings = {
-  watertight: number;
-  critical: number;
-  major: number;
-  minor: number;
+  /**
+   * The AQL each check applies on this inspection. Null when the inspection
+   * does not run the check (watertight switched off; visual, or one of its
+   * classes, switched off), so no sampling plan needs its AQL.
+   */
+  [K in AqlCheck]: number | null;
+} & {
   /** Set by the template's sampling plan; null means n is taken as entered. */
   inspectionLevel: InspectionLevel | null;
 };
+
+/** BUILD_SPEC 7's AQLs, or a client's: every check has one. */
+export type AqlDefaults = { [K in AqlCheck]: number } & { inspectionLevel: InspectionLevel | null };
 
 /**
  * BUILD_SPEC 7 defaults. Per-client values replace them when the context is
  * built; a module's template config replaces both (template > client > app).
  */
-export const AQL_DEFAULTS: Readonly<AqlSettings> = {
+export const AQL_DEFAULTS: Readonly<AqlDefaults> = {
   watertight: 1.5,
   critical: 0,
   major: 2.5,
@@ -200,7 +210,9 @@ export const CONTEXT_SOURCES = {
  * the check that applies it, so the sampling plan's lot check sees the AQL
  * the template sets for watertight and visual (template over client over
  * BUILD_SPEC 7), and the sampling plan its inspection level. A module that
- * leaves a setting out keeps the client's or the default value.
+ * leaves a setting out keeps the client's or the default value; null says
+ * the inspection does not run that check (a visual class switched off). A
+ * check whose module the inspection does not include is null from the start.
  */
 export const AQL_SOURCES = {
   watertight: "watertight",
@@ -235,7 +247,7 @@ export type BuildContextInput = {
   data: InspectionData;
   meta?: InspectionMeta;
   /** Per-client AQL defaults (BUILD_SPEC 7). */
-  aqlDefaults?: Partial<AqlSettings>;
+  aqlDefaults?: Partial<AqlDefaults>;
 };
 
 /** Before any module contributes: template facts, the inspection row and the defaults. */
@@ -271,7 +283,7 @@ export function baseContext({ template, meta = {}, aqlDefaults = {} }: Omit<Buil
     sampling: {},
     cartons: {},
     indicativeWeight: null,
-    aql: { ...AQL_DEFAULTS, ...withoutUndefined(aqlDefaults) },
+    aql: checksRun(template, { ...AQL_DEFAULTS, ...withoutUndefined(aqlDefaults) }),
     modules: template.modules.filter((entry) => entry.include).map(({ key, title }) => ({ key, title })),
     files: meta.files ? meta.files.map((file) => ({ ...file })) : null,
     contributionErrors: [],
@@ -478,6 +490,14 @@ export function inspectionRowValues(
 }
 
 /* Helpers ------------------------------------------------------------- */
+
+/** The AQL settings with null for each check whose module the inspection does not include (AQL_SOURCES). */
+function checksRun(template: Pick<ResolvedTemplate, "modules">, aql: AqlSettings): AqlSettings {
+  const included = new Set(template.modules.filter((entry) => entry.include).map((entry) => entry.key));
+  const run = { ...aql };
+  for (const check of AQL_CHECKS) if (!included.has(AQL_SOURCES[check])) run[check] = null;
+  return run;
+}
 
 function mapSizes<T, U>(record: Readonly<Record<string, T>>, map: (value: T) => U): Record<string, U> {
   const result: Record<string, U> = {};

@@ -21,14 +21,20 @@ export const MAX_PLANNED_BOXES = 50;
 
 /**
  * STD_EG's wording (docs/DATA_DICTIONARY.md, labeling): data field keys,
- * the per-level result keys (`innerResult`, `cartonResult`) and captions.
+ * the per-level keys (`innerResult`, `cartonResult`, the limit words
+ * `innerAccept` to `cartonReject`) and captions.
  */
 export const LABELING_LABELS = {
   inspected: "No. of sampled boxes inspected",
   boxNos: "Box #",
   defects: "Defects",
   accept: "Accept",
+  // Each level's words in its limit row, read before the shared ones (SAFEDON_EG: "Acc. =", "Rej. =").
+  innerAccept: "Accept",
+  cartonAccept: "Accept",
   reject: "Reject",
+  innerReject: "Reject",
+  cartonReject: "Reject",
   total: "Total number of defects found",
   result: "Disposition (Passed / Failed)",
   // STD_EG prints the carton line as "Inner Box" [sic]; fixed here.

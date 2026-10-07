@@ -3,6 +3,16 @@
 import { z } from "zod";
 import { DecimalCellSchema, TextCellSchema } from "@/modules/_framework";
 
+/**
+ * TextCellSchema's limit (lib/validation/cells.ts). Saved data that fails the
+ * schema cannot be shown or edited (invalid_data), so the fields take no more
+ * and setText keeps no more.
+ */
+export const TEXT_MAX_LENGTH = 2000;
+
+export const GLOVE_INFO_TEXT_FIELDS = ["surfaceTexture", "colour", "length"] as const;
+export type GloveInfoTextField = (typeof GLOVE_INFO_TEXT_FIELDS)[number];
+
 export const GloveInfoDataSchema = z.strictObject({
   /** "Finger-textured". */
   surfaceTexture: TextCellSchema,

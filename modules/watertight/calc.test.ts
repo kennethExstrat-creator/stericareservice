@@ -11,6 +11,7 @@ import {
 import { lookupFrom, resolveTemplate } from "@/lib/templates";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import {
+  buildInspectionContext,
   evaluateInspection,
   stubModule,
   type CalcInput,
@@ -25,10 +26,10 @@ import {
   STD_EG_EXPECTED,
   type ExampleReport,
 } from "@/tests/fixtures/examples";
-import { aqlCaption, calcWatertight, fillCaption, listCodeLetters } from "./calc";
+import { aqlCaption, calcWatertight, contributeWatertight, fillCaption, listCodeLetters } from "./calc";
 import { WATERTIGHT_DEFAULT_CONFIG, WATERTIGHT_LABELS, WATERTIGHT_TITLE, WatertightConfigSchema, type WatertightConfig } from "./config";
 import { definition } from "./index";
-import { WatertightDataSchema, type WatertightData } from "./schema";
+import { emptyWatertight, WatertightDataSchema, type WatertightData } from "./schema";
 
 type Input = CalcInput<WatertightData, WatertightConfig>;
 
@@ -279,6 +280,25 @@ describe("watertight", () => {
       expect(output.result.status).toBe("not_done");
       expect(codesOf(output.issues)).toEqual(["aql_invalid"]);
       expect(output.computed.heading).toContain("AQL 1.2");
+    });
+
+    it("gives the template's AQL to the context, for the sampling plan's lot check (AQL_SOURCES)", () => {
+      expect(contributeWatertight({ data: emptyWatertight(), config: { ...WATERTIGHT_DEFAULT_CONFIG, aql: 0.65 } })).toEqual({
+        aql: { watertight: 0.65 },
+      });
+      // Without one the client's AQL, else BUILD_SPEC 7's, stays: what calc applies too.
+      expect(contributeWatertight({ data: emptyWatertight(), config: WATERTIGHT_DEFAULT_CONFIG })).toEqual({});
+      expect(definition.contribute).toBe(contributeWatertight);
+
+      const template = makeTestTemplate(MODULE_REGISTRY, [
+        "order_lots",
+        { key: "watertight", config: { ...WATERTIGHT_DEFAULT_CONFIG, aql: 0.65 } },
+      ]);
+      const data = { modules: {}, custom: {} };
+      const context = buildInspectionContext({ template, data, aqlDefaults: { watertight: 1.0 } }, MODULE_REGISTRY);
+      // The template's AQL over the client's, before anything is saved; the critical, major and minor checks are not run.
+      expect(context.aql).toMatchObject({ watertight: 0.65, critical: null, major: null, minor: null });
+      expect(context.contributionErrors).toEqual([]);
     });
   });
 

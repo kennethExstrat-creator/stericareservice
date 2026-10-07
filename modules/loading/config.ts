@@ -16,12 +16,15 @@ export type LoadingField = (typeof LOADING_FIELDS)[number];
 export const LOADING_STAGES = ["emptyContainer", "halfLoaded", "fullyLoaded", "doorsClosed", "sealed"] as const;
 export type LoadingStage = (typeof LOADING_STAGES)[number];
 
-export const LOADING_LABELS: Readonly<Record<LoadingField | LoadingStage | "cartonsOrdered" | "loadingStage", string>> = {
+export const LOADING_LABELS: Readonly<
+  Record<LoadingField | LoadingStage | "cartonsOrdered" | "cartonsDifference" | "loadingStage", string>
+> = {
   containerNo: "Container no.",
   sealNo: "Seal no.",
   cartonsLoaded: "Cartons loaded",
   cartonCondition: "Carton condition",
   cartonsOrdered: "Cartons ordered",
+  cartonsDifference: "Cartons loaded less ordered",
   loadingStage: "Loading stage",
   emptyContainer: "Empty container",
   halfLoaded: "Half loaded",

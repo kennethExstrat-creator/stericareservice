@@ -13,37 +13,32 @@ export function withReadings(data: ForceAtBreakData, size: string, values: Readi
   return { ...data, sizes: { ...data.sizes, [size]: { ...entry, values: withoutTrailingBlanks(values) } } };
 }
 
+/** One reading the grid changed: glove `row` (0 is glove 1), its new value. */
+export type ReadingChange = { readonly row: number; readonly value: number | null };
+
 /**
- * The grid's edit written over the size's latest readings. MeasurementGrid
- * hands back its whole column of `rows` cells, built from the readings it was
- * rendered with (`shown`): only the cells that differ from them are the edit,
- * so a change the screen has not rendered yet (an earlier cell, a paste) is
- * kept. A reading past the grid stays saved, and calc reports it, until the
- * inspector clears it: editing a cell never drops it silently.
+ * The cells MeasurementGrid changed (onCellsChange: one for a typed reading,
+ * every pasted cell for a paste) written over the size's latest readings, so
+ * a change the screen has not rendered yet is kept. A reading past the grid
+ * stays saved, and calc reports it, until the inspector clears it: editing a
+ * cell never drops it silently. The same data back when nothing changes.
  */
-export function withGridEdits(
-  data: ForceAtBreakData,
-  size: string,
-  shown: Readings,
-  column: Readings,
-  rows: number,
-): ForceAtBreakData {
-  const values = [...(data.sizes[size]?.values ?? [])];
-  let edited = false;
-  for (let index = 0; index < rows; index += 1) {
-    const next = column[index] ?? null;
-    if (next === (shown[index] ?? null)) continue;
-    while (values.length < index) values.push(null);
-    values[index] = next;
-    edited = true;
+export function withReadingChanges(data: ForceAtBreakData, size: string, changes: readonly ReadingChange[]): ForceAtBreakData {
+  const saved = data.sizes[size]?.values ?? [];
+  const pending = changes.filter(({ row, value }) => (saved[row] ?? null) !== value);
+  if (pending.length === 0) return data;
+  const values = [...saved];
+  for (const { row, value } of pending) {
+    while (values.length < row) values.push(null);
+    values[row] = value;
   }
-  return edited ? withReadings(data, size, values) : data;
+  return withReadings(data, size, values);
 }
 
 /**
  * The part of a pasted column that runs past the grid's last row, pasted
- * into row `from` of a grid of `rows`: MeasurementGrid stores a column only
- * as far as its rows, so the lab's 13 readings pasted into a plan of 10 would
+ * into row `from` of a grid of `rows`: MeasurementGrid takes a column only as
+ * far as its rows, so the lab's 13 readings pasted into a plan of 10 would
  * lose 3. Each line's first value, read as a number; text is never stored
  * (null). Empty when the paste fits, or is one value or one row.
  */

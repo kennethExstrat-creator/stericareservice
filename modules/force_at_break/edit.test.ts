@@ -6,9 +6,9 @@ import { FORCE_AT_BREAK_DEFAULT_CONFIG, FORCE_AT_BREAK_LABELS, FORCE_AT_BREAK_TI
 import {
   pastedPastGrid,
   readingsBeyond,
-  withGridEdits,
   withLabReport,
   withoutReadingsBeyond,
+  withReadingChanges,
   withReadings,
   withReadingsFrom,
 } from "./edit";
@@ -21,9 +21,9 @@ const SAVED: ForceAtBreakData = {
   labReport: null,
 };
 
-/** MeasurementGrid's onValuesChange: its whole column of `rows` cells, built from the readings it rendered. */
-function gridColumn(rendered: readonly (number | null)[], rows: number, cells: Record<number, number | null>) {
-  return Array.from({ length: rows }, (_, row) => (row in cells ? cells[row] : (rendered[row] ?? null)));
+/** MeasurementGrid's onCellsChange: the cells a change touched, row by row. */
+function cells(changes: Record<number, number | null>) {
+  return Object.entries(changes).map(([row, value]) => ({ row: Number(row), value }));
 }
 
 describe("force_at_break edits", () => {
@@ -36,27 +36,21 @@ describe("force_at_break edits", () => {
 
   it("writes the cells the grid changed over the readings, keeping any reading past the grid", () => {
     const saved = withReadings(SAVED, "M", [6.1, 6.2, 6.3, 6.4, 6.5]);
-    const shown = saved.sizes.M.values;
-    expect(withGridEdits(saved, "M", shown, gridColumn(shown, 3, { 0: 7.1, 2: null }), 3).sizes.M.values).toEqual([
-      7.1, 6.2, null, 6.4, 6.5,
-    ]);
+    expect(withReadingChanges(saved, "M", cells({ 0: 7.1, 2: null })).sizes.M.values).toEqual([7.1, 6.2, null, 6.4, 6.5]);
     // A size with nothing saved yet; cells past the last reading are padded with blanks.
-    expect(withGridEdits(SAVED, "S", [], gridColumn([], 13, { 2: 6.4 }), 13).sizes.S.values).toEqual([null, null, 6.4]);
+    expect(withReadingChanges(SAVED, "S", cells({ 2: 6.4 })).sizes.S.values).toEqual([null, null, 6.4]);
     // A cleared last cell drops the blank end.
-    expect(withGridEdits(SAVED, "M", SAVED.sizes.M.values, gridColumn(SAVED.sizes.M.values, 3, { 2: null }), 3).sizes.M.values).toEqual([
-      6.47, 6.884,
-    ]);
+    expect(withReadingChanges(SAVED, "M", cells({ 2: null })).sizes.M.values).toEqual([6.47, 6.884]);
     // Nothing changed: the same data back, so no change is saved.
-    expect(withGridEdits(SAVED, "M", SAVED.sizes.M.values, gridColumn(SAVED.sizes.M.values, 3, {}), 3)).toBe(SAVED);
+    expect(withReadingChanges(SAVED, "M", cells({ 1: 6.884 }))).toBe(SAVED);
+    expect(withReadingChanges(SAVED, "M", [])).toBe(SAVED);
   });
 
   it("keeps two grid edits made before the screen renders again, through the kit's updater (docs/CAPTURE_KIT.md)", () => {
     const changes: ForceAtBreakData[] = [];
     const updater = createDataUpdater(SAVED, (next) => changes.push(next));
-    // Both columns come from the render that showed SAVED: each cell's edit starts from the latest data.
-    const shown = SAVED.sizes.M.values;
-    updater.update((current) => withGridEdits(current, "M", shown, gridColumn(shown, 13, { 3: 6.537 }), 13));
-    updater.update((current) => withGridEdits(current, "M", shown, gridColumn(shown, 13, { 4: 6.65 }), 13));
+    updater.update((current) => withReadingChanges(current, "M", cells({ 3: 6.537 })));
+    updater.update((current) => withReadingChanges(current, "M", cells({ 4: 6.65 })));
     expect(changes.at(-1)?.sizes.M.values).toEqual([6.47, 6.884, 6.301, 6.537, 6.65]);
     // A clear in the same event starts from those edits too.
     updater.update((current) => withoutReadingsBeyond(current, "M", 4));
@@ -68,7 +62,7 @@ describe("force_at_break edits", () => {
     const updater = createDataUpdater(emptyForceAtBreak(), (next) => changes.push(next));
     const pasted = [6.47, 6.884, 6.301, 6.537, 6.65, 6.214, 6.79, 6.512, 6.611, 6.42, 6.702, 6.388, 6.58];
     batchDataChanges(() => {
-      updater.update((current) => withGridEdits(current, "M", [], pasted, 13));
+      updater.update((current) => withReadingChanges(current, "M", pasted.map((value, row) => ({ row, value }))));
     });
     expect(changes).toHaveLength(1);
     expect(changes[0].sizes.M.values).toEqual(pasted);
@@ -109,7 +103,8 @@ describe("force_at_break edits", () => {
       const updater = createDataUpdater(emptyForceAtBreak(), (next) => changes.push(next));
       // What the capture body does with the grid's change: the grid's 5 rows, then the rest of the paste.
       const past = pastedPastGrid(LAB.join("\n"), 0, 5);
-      updater.update((current) => withReadingsFrom(withGridEdits(current, "M", [], LAB.slice(0, 5), 5), "M", 5, past));
+      const grid = LAB.slice(0, 5).map((value, row) => ({ row, value }));
+      updater.update((current) => withReadingsFrom(withReadingChanges(current, "M", grid), "M", 5, past));
       expect(changes).toHaveLength(1);
       expect(changes[0].sizes.M.values).toEqual(LAB);
 
@@ -156,7 +151,7 @@ describe("force_at_break edits", () => {
   it("always gives data the schema accepts", () => {
     for (const next of [
       withReadings(SAVED, "M", [6.5, null]),
-      withGridEdits(SAVED, "L", [], gridColumn([], 13, { 4: 6.5 }), 13),
+      withReadingChanges(SAVED, "L", cells({ 4: 6.5 })),
       withoutReadingsBeyond(SAVED, "M", 1),
       withLabReport(SAVED, LAB_REPORT_ID),
     ]) {

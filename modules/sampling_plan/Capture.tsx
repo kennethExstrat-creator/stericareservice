@@ -21,7 +21,7 @@ import {
 } from "@/components/qc";
 import { formatSize } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { labelFor, lotSizeGloves, type CaptureProps, type ValidationIssue } from "@/modules/_framework";
+import { initialSize, labelFor, lotSizeGloves, type CaptureProps, type ValidationIssue } from "@/modules/_framework";
 import type { SamplingPlanComputed } from "./calc";
 import { columnGroups, shownColumns, type SamplingColumn, type SamplingPlanConfig } from "./config";
 import { withCount, type SamplingPlanData } from "./schema";
@@ -35,11 +35,13 @@ export default function Capture({
   evaluation,
   focusPath,
   readOnly,
+  focus,
   onChange,
   onFocusChange,
 }: CaptureProps<SamplingPlanData, SamplingPlanConfig, SamplingPlanComputed>) {
   const root = useRef<HTMLDivElement>(null);
-  const [active, setActive] = useState(context.sizes[0] ?? "");
+  // Opens on the size chosen in the last module (CaptureProps.focus).
+  const [active, setActive] = useState(() => initialSize(context, focus));
   const [rejected, setRejected] = useState<Readonly<Record<string, RejectedEntry>>>({});
   // Every write starts from the latest data, so a pasted run of counts keeps every value (docs/CAPTURE_KIT.md).
   const update = useDataUpdater(data, onChange);

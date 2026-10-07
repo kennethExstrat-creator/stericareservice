@@ -111,9 +111,29 @@ describe("labeling capture", () => {
     expect(html).not.toContain("Dispenser Box");
   });
 
-  it("shows the live total and the Accept 0 / Reject 1 decision from calc", () => {
+  it("shows the live total and the Accept 0 / Reject 1 decision from calc, in the template's words", () => {
     const html = render(RECORDED);
-    expect(html).toContain("Ac 0 / Re 1");
+    expect(html).toContain("Accept 0 / Reject 1");
+    expect(html).not.toContain("Ac 0 / Re 1");
+    // A template that words them its own way, keyed level first as the dictionary keys level
+    // wording: SAFEDON_EG prints both levels Acc. = 0 / Rej. = 1; one level may differ.
+    const safedon = render(RECORDED, { labels: SAFEDON_LABELS });
+    expect(safedon.match(/Acc\. = 0 \/ Rej\. = 1/g)).toHaveLength(2);
+    expect(safedon).not.toContain("Accept 0 / Reject 1");
+    const worded = render(RECORDED, { labels: { ...LABELING_LABELS, innerAccept: "Acc. =", cartonReject: "Rej. =" } });
+    expect(worded).toContain("Acc. = 0 / Reject 1");
+    expect(worded).toContain("Accept 0 / Rej. = 1");
+    // A template resolved before the dictionary keyed the level words: the words both levels
+    // share, or a dotted key added in the editor; a blank level word falls back the same way.
+    const older = Object.fromEntries(Object.entries(LABELING_LABELS).filter(([key]) => !/^(inner|carton)(Accept|Reject)$/.test(key)));
+    const shared = render(RECORDED, { labels: { ...older, accept: "Acc. =" } });
+    expect(shared.match(/Acc\. = 0 \/ Reject 1/g)).toHaveLength(2);
+    const dotted = render(RECORDED, { labels: { ...older, "inner.accept": "A =" } });
+    expect(dotted).toContain("A = 0 / Reject 1");
+    expect(dotted).toContain("Accept 0 / Reject 1");
+    const blank = render(RECORDED, { labels: { ...LABELING_LABELS, innerAccept: " ", accept: "Acc. =" } });
+    expect(blank).toContain("Acc. = 0 / Reject 1");
+    expect(blank).toContain("Accept 0 / Reject 1");
     const results = tagsWith(html, 'data-slot="status-pill"').map((pill) => /data-status="([a-z_]+)"/.exec(pill)?.[1]);
     expect(results).toEqual(["fail", "pass"]);
   });
@@ -132,7 +152,7 @@ describe("labeling capture", () => {
         onChange={noop}
       />,
     );
-    expect(html).not.toContain("Ac 0 / Re 1");
+    expect(html).not.toContain("Accept 0 / Reject 1");
     const results = tagsWith(html, 'data-slot="status-pill"').map((pill) => /data-status="([a-z_]+)"/.exec(pill)?.[1]);
     expect(results).toEqual(["not_done", "not_done"]);
   });

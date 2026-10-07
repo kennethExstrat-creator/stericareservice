@@ -102,7 +102,7 @@ describe("weight config", () => {
 describe("weight wording", () => {
   it("has the dictionary's title and default labels (STD_EG's wording)", () => {
     expect(WEIGHT_TITLE).toBe(moduleTitle("STD_EG", "weight"));
-    expect(WEIGHT_LABELS).toMatchObject(defaultLabels("weight"));
+    expect({ ...WEIGHT_LABELS }).toEqual(defaultLabels("weight"));
   });
 
   it.each(TEMPLATE_CODES)("has a label for every key %s rewords", (code) => {
@@ -113,6 +113,7 @@ describe("weight wording", () => {
 
   it("reads SAFEDON_EG's wording: 'Weight (g)', 'A / Rej.' and 'A'", () => {
     expect(moduleTitle("SAFEDON_EG", "weight")).toBe("Weight (g)");
-    expect(labelOverrides("SAFEDON_EG", "weight")).toEqual({ result: "A / Rej.", info: "A" });
+    // The weight column is part of the report's dimension table: its result row reads A or Rej. too.
+    expect(labelOverrides("SAFEDON_EG", "weight")).toEqual({ result: "A / Rej.", info: "A", pass: "A", fail: "Rej." });
   });
 });

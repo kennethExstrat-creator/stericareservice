@@ -159,21 +159,31 @@ describe("documents capture: files", () => {
     const data = emptyDocuments();
     data.items.iso13485 = { ...data.items.iso13485, status: "verified", file: FILE };
     expect(render(data)).toContain('data-file-state="attached"');
-    expect(render(data)).toContain("File attached");
+    // The kit's attachment line: the file in the template's wording, and Attached.
+    const [line] = tagsWith(render(data), 'data-slot="attachment-status"');
+    expect(line).toContain('data-attached="true"');
+    expect(render(data)).toMatch(/>File<\/span><span[^>]*>Attached<\/span>/);
     const gone = render(data, { context: makeTestContext({ ...CONTEXT, files: [] }) });
     expect(gone).toContain('data-file-state="missing"');
+    expect(gone).toMatch(/>File<\/span><span[^>]*>Not attached<\/span>/);
+    // calc's warning, in the template's wording, replaces the line's own words.
     expect(gone).toContain("ISO 13485: the file attached here is not among this inspection&#x27;s files. It may still be uploading from another device; if it was deleted, attach it again.");
+    expect(gone).not.toContain("The file attached here is not among");
   });
 
   it("gives the issue link to a missing file something to focus: the file line, which the row's status names", () => {
     const data = emptyDocuments();
     data.items.iso13485 = { ...data.items.iso13485, status: "verified", file: FILE };
     const gone = render(data, { context: makeTestContext({ ...CONTEXT, files: [] }) });
-    const [line] = tagsWith(gone, 'data-slot="document-file"');
+    // The kit's attachment line takes the focus itself (tabIndex -1), with a visible ring.
+    const [line] = tagsWith(gone, 'data-slot="attachment-status"');
+    expect(line).toContain('data-state="missing"');
     expect(line).toContain('tabindex="-1"');
     expect(line).toContain(`data-issue-path="${escapeAttribute(JSON.stringify(["items", "iso13485", "file"]))}"`);
     expect(line).toContain("focus-ring");
-    const id = /\sid="([^"]+)"/.exec(line)?.[1];
+    // The row's status is described by it.
+    const [wrapper] = tagsWith(gone, 'data-file-state="missing"');
+    const id = /\sid="([^"]+)"/.exec(wrapper)?.[1];
     expect(id).toBeDefined();
     expect(tagsWith(gone, `aria-describedby="${id}"`)).toHaveLength(1);
     // Attached: nothing to point at from the status.
@@ -238,6 +248,9 @@ describe("documents capture", () => {
   it("takes the expiry date from a date picker and shows calc's warning beside it", () => {
     const html = render(withIso({ status: "verified", expiryDate: "2025-01-31" }));
     expect(html).toMatch(/<input[^>]*type="date"[^>]*value="2025-01-31"/);
+    // The kit's DateField: four-digit years only, calc's warning in amber, the field described by it.
+    expect(html).toMatch(/<input[^>]*type="date"[^>]*max="9999-12-31"/);
+    expect(html).toMatch(/<input[^>]*type="date"[^>]*aria-describedby="[^"]*-calc-warning"/);
     expect(html).toContain("ISO 13485: Expiry date 2025-01-31 is before the inspection date 2025-04-11.");
     expect(html).toContain('data-issue-path="[&quot;items&quot;,&quot;iso13485&quot;,&quot;expiryDate&quot;]"');
   });
@@ -340,5 +353,18 @@ describe("documents capture", () => {
   it("says so when the template switches every item off", () => {
     const config = { items: DOCUMENTS_DEFAULT_CONFIG.items.map((item) => ({ ...item, include: false })) };
     expect(render(emptyDocuments(), { config })).toContain("No documents are switched on for this template.");
+  });
+
+  it("makes each item one row only where the module itself is wide enough, never by the screen's width alone", () => {
+    const html = render(emptyDocuments());
+    // The capture screen's section list leaves the module about 616 px at 1280 px and 702 px at
+    // 1366 px, too narrow for the four columns (about 47rem): those keep the stacked rows.
+    expect(html).toMatch(/^<div class="@container /);
+    const classes = Array.from(html.matchAll(/class="([^"]*)"/g), (match) => match[1].split(" ")).flat();
+    const desktop = classes.filter((name) => name.startsWith("xl:"));
+    expect(desktop.length).toBeGreaterThan(10);
+    expect(desktop.filter((name) => !name.startsWith("xl:@3xl:"))).toEqual([]);
+    // A template's longer status words scroll the table rather than hide the expiry date.
+    expect(classes).toContain("xl:@3xl:overflow-x-auto");
   });
 });

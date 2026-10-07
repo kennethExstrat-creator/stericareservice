@@ -20,7 +20,10 @@ export const VISUAL_LABELS = {
   unmapped: "Defect not in the list",
   codeLetter: "Sampling code letter",
   accept: "Accept",
+  // The critical limit row's words, read before the shared ones: STD_EG prints "Acc. = 0 / Rej. = 1".
+  criticalAccept: "Acc. =",
   reject: "Reject",
+  criticalReject: "Rej. =",
   total: "Total number of defects found",
   criticalTotal: 'Total number of "Critical Defects" found',
   majorTotal: 'Total number of "Major Defects" found',

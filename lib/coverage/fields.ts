@@ -18,6 +18,7 @@ import {
   DOCUMENT_ITEMS,
   GLOVE_INFO_FIELDS,
   HEADER_FIELDS,
+  INSPECTION_LEVELS,
   LOADING_FIELDS,
   MEASURES,
   SAMPLING_COLUMNS,
@@ -330,7 +331,7 @@ const orderLots = defineModule({
       meaning: "Packing site on or off. The size list is the template's `sizes`.",
     },
   ],
-  labels: [],
+  labels: [{ key: "size", label: "Size", meaning: "Caption of the size column." }],
   notes: ["The reports print no heading over the order table: 'Order' is the app's title for it."],
 });
 
@@ -507,6 +508,26 @@ const samplingPlan = defineModule({
       notes: "Surgical: flows forward as dye_leak.pouchesTested.",
     },
     {
+      key: "inspectionLevel",
+      label: "Inspection level",
+      type: "select",
+      options: INSPECTION_LEVELS,
+      per: [],
+      entry: "computed",
+      formula: "config inspectionLevel, else the client's; none without either. The level the plans are worked out at.",
+      rules: [2, 8],
+    },
+    {
+      key: "lotSizeGloves",
+      label: "Lot size (gloves)",
+      type: "integer",
+      unit: "pcs",
+      per: ["size"],
+      entry: "computed",
+      formula: "order_lots.lotSizeGloves: qtyCases × packing_config.glovesPerCase. The lot the inspection level's plan is for.",
+      rules: [2],
+    },
+    {
       key: "codeLetter",
       label: "Code letter",
       type: "select",
@@ -524,7 +545,8 @@ const samplingPlan = defineModule({
       unit: "pcs",
       per: ["size"],
       entry: "computed",
-      formula: "Table 2-A n for codeLetter. A glovesWatertightVisual below it raises the module warning.",
+      formula:
+        "The largest Table 2-A n for codeLetter among the AQLs the inspection checks on the watertight and visual sample (watertight, and visual's classes switched on), arrows followed; Table 1's n when it checks none. A glovesWatertightVisual below it raises the module warning.",
       rules: [2, 8],
     },
     {
@@ -566,6 +588,7 @@ const samplingPlan = defineModule({
       labels: { STD_SG: "Qty (case)" },
       meaning: "Caption of the column that shows order_lots.qtyCases again.",
     },
+    { key: "gloveSize", label: "Glove Size", meaning: "Caption of the size column on the capture screen." },
   ],
 });
 
@@ -786,6 +809,20 @@ const weight = defineModule({
   ],
   labels: [
     { key: "info", label: "Info", labels: { SAFEDON_EG: "A" }, meaning: "Word printed for a result with no spec." },
+    { key: "rowNo", label: "No.", meaning: "Caption of the glove row number column (13 gloves weighed one by one)." },
+    { key: "specRow", label: "Spec.", meaning: "Caption of the spec row (config specs, printed as lib/stats formatSpec)." },
+    {
+      key: "pass",
+      label: "Passed",
+      labels: { SAFEDON_EG: "A" },
+      meaning: "Word for pass in the result row of a size with a spec.",
+    },
+    {
+      key: "fail",
+      label: "Failed",
+      labels: { SAFEDON_EG: "Rej." },
+      meaning: "Word for fail in the result row of a size with a spec.",
+    },
   ],
 });
 
@@ -849,7 +886,10 @@ const forceAtBreak = defineModule({
     },
     { key: "decimals", type: "number", default: 3, meaning: "Decimals the median is shown with (STD_EG prints 3)." },
   ],
-  labels: [{ key: "specRow", label: "Spec.", meaning: "Caption of the spec row (≥ specMin N)." }],
+  labels: [
+    { key: "rowNo", label: "No.", meaning: "Caption of the reading number column." },
+    { key: "specRow", label: "Spec.", meaning: "Caption of the spec row (≥ specMin N)." },
+  ],
 });
 
 const tensile = defineModule({
@@ -1116,6 +1156,8 @@ const visual = defineModule({
     {
       key: "accept",
       label: "Accept",
+      // The word before the number in the limit row: STD_EG prints the critical row Acc. = 0 / Rej. = 1.
+      groupLabels: { critical: { label: "Acc. =", labels: { SAFEDON_EG: "Accept" } } },
       type: "integer",
       per: ["size", "class"],
       entry: "computed",
@@ -1125,6 +1167,7 @@ const visual = defineModule({
     {
       key: "reject",
       label: "Reject",
+      groupLabels: { critical: { label: "Rej. =", labels: { SAFEDON_EG: "Reject" } } },
       type: "integer",
       per: ["size", "class"],
       entry: "computed",
@@ -1558,6 +1601,11 @@ const labeling = defineModule({
     {
       key: "accept",
       label: "Accept",
+      // The word before the number in each level's limit row: SAFEDON_EG prints Acc. = 0 / Rej. = 1.
+      groupLabels: {
+        inner: { label: "Accept", labels: { SAFEDON_EG: "Acc. =" } },
+        carton: { label: "Accept", labels: { SAFEDON_EG: "Acc. =" } },
+      },
       type: "integer",
       per: ["size", "level"],
       entry: "computed",
@@ -1567,6 +1615,10 @@ const labeling = defineModule({
     {
       key: "reject",
       label: "Reject",
+      groupLabels: {
+        inner: { label: "Reject", labels: { SAFEDON_EG: "Rej. =" } },
+        carton: { label: "Reject", labels: { SAFEDON_EG: "Rej. =" } },
+      },
       type: "integer",
       per: ["size", "level"],
       entry: "computed",
@@ -1723,6 +1775,16 @@ const dyeLeak = defineModule({
     },
     { key: "notes", label: "Notes", type: "textarea", per: ["size"], entry: "entered" },
     {
+      key: "pouchesPlanned",
+      label: "Pouches planned",
+      type: "integer",
+      countOf: "pouches",
+      per: ["size"],
+      entry: "computed",
+      formula: "sampling_plan.pouchesDyeLeak when it plans any, else config n; none when neither does.",
+      rules: [2],
+    },
+    {
       key: "result",
       label: "Passed / Failed",
       type: "select",
@@ -1731,6 +1793,26 @@ const dyeLeak = defineModule({
       entry: "computed",
       formula: "pouchesFailed = 0 passes.",
       rules: [2, 5],
+    },
+    {
+      key: "totalTested",
+      label: "Total pouches tested",
+      type: "integer",
+      countOf: "pouches",
+      per: [],
+      entry: "computed",
+      formula: "Sum of pouchesTested over the ordered sizes that have it; none until one does.",
+      rules: [2],
+    },
+    {
+      key: "totalFailed",
+      label: "Total pouches failed",
+      type: "integer",
+      countOf: "pouches",
+      per: [],
+      entry: "computed",
+      formula: "Sum of pouchesFailed over the ordered sizes that have it; none until one does.",
+      rules: [2],
     },
   ],
   config: [
@@ -1781,6 +1863,38 @@ const documents = defineModule({
       formula: "expiryDate before header.inspectionDate.",
       rules: [2],
     },
+    {
+      key: "itemStatus",
+      label: "Item result",
+      type: "select",
+      options: ["pass", "fail", "warn", "info", "not_done"],
+      per: ["item"],
+      entry: "computed",
+      formula:
+        "not_done without a status; fail when required and not verified; warn when expired; pass when verified; info when not verified or NA and not required. The chip on the item's row.",
+      rules: [2, 5],
+    },
+    {
+      key: "counts",
+      label: "Items per status",
+      type: "count_map",
+      keyedBy: "status (verified, not_verified, na, and open for none yet)",
+      per: [],
+      entry: "computed",
+      formula: "Items on the checklist per status.",
+      rules: [2],
+    },
+    {
+      key: "fileState",
+      label: "File status",
+      type: "select",
+      options: ["none", "attached", "missing"],
+      per: ["item"],
+      entry: "computed",
+      formula:
+        "The file the item keeps against the inspection's files: none kept, attached, or missing (deleted, or still uploading from another device). Attached while the inspection's files are not known.",
+      rules: [2],
+    },
   ],
   config: [
     {
@@ -1797,6 +1911,10 @@ const documents = defineModule({
     { key: "iso13485", label: "ISO 13485", meaning: "Item label." },
     { key: "fdaCe", label: "FDA / CE certificates", meaning: "Item label." },
     { key: "declarationOfOrigin", label: "Declaration of origin", meaning: "Item label." },
+    { key: "required", label: "Required", meaning: "Badge on an item the template requires." },
+    { key: "status.verified", label: "Verified", meaning: "Word for the status verified." },
+    { key: "status.not_verified", label: "Not verified", meaning: "Word for the status not_verified." },
+    { key: "status.na", label: "NA", meaning: "Word for the status na." },
   ],
   notes: ["Not on any current form: the website's QC scope (forms/README.md)."],
 });
@@ -1832,6 +1950,16 @@ const loading = defineModule({
       formula: "order_lots.totalCartons.",
       rules: [2],
     },
+    {
+      key: "cartonsDifference",
+      label: "Cartons loaded less ordered",
+      type: "integer",
+      countOf: "cartons",
+      per: [],
+      entry: "computed",
+      formula: "cartonsLoaded − cartonsOrdered: below 0 is short, above 0 over; none until both are known.",
+      rules: [2],
+    },
   ],
   config: [
     {
@@ -1841,7 +1969,14 @@ const loading = defineModule({
       meaning: "Which fields show (BUILD_SPEC: fields on/off).",
     },
   ],
-  labels: [],
+  labels: [
+    { key: "loadingStage", label: "Loading stage", meaning: "Caption of the stage picker that tags loading photos." },
+    { key: "emptyContainer", label: "Empty container", meaning: "Loading stage, for photo tags." },
+    { key: "halfLoaded", label: "Half loaded", meaning: "Loading stage, for photo tags." },
+    { key: "fullyLoaded", label: "Fully loaded", meaning: "Loading stage, for photo tags." },
+    { key: "doorsClosed", label: "Doors closed", meaning: "Loading stage, for photo tags." },
+    { key: "sealed", label: "Sealed", meaning: "Loading stage, for photo tags." },
+  ],
   notes: [
     "Not on any current form: the website's QC scope. Loading-stage photos are the module's photos; the stages are to confirm.",
   ],

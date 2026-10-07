@@ -21,7 +21,7 @@ import {
   type IssuePath,
 } from "@/components/qc";
 import { formatSize } from "@/lib/format";
-import { labelFor, type CaptureProps } from "@/modules/_framework";
+import { initialSize, labelFor, type CaptureProps } from "@/modules/_framework";
 import { plannedPouches, type DyeLeakComputed } from "./calc";
 import type { DyeLeakConfig } from "./config";
 import { withNoLeaks, withSizeValues } from "./edit";
@@ -35,12 +35,13 @@ export default function Capture({
   evaluation,
   focusPath,
   readOnly,
+  focus,
   onChange,
   onFocusChange,
 }: CaptureProps<DyeLeakData, DyeLeakConfig, DyeLeakComputed>) {
   const update = useDataUpdater(data, onChange);
-  // SizeTabs corrects a size that is not ordered (or set before sizes were).
-  const [size, setSize] = useState(context.sizes[0] ?? "");
+  // Opens on the size chosen in the last module; SizeTabs corrects a size that is not ordered (or set before sizes were).
+  const [size, setSize] = useState(() => initialSize(context, focus));
   const root = useRef<HTMLDivElement>(null);
   useIssueFocus(focusPath, {
     root,

@@ -36,7 +36,7 @@ import {
 } from "@/lib/validation/rules";
 import { suggestResult, type SuggestedResult } from "@/lib/validation/suggested-result";
 import type { AnyModuleDefinition, JsonObject, ModuleDefinition, ModuleRegistry } from "./contract";
-import { readableData, type InspectionContext } from "./context";
+import { CONTEXT_SOURCES, readableData, type InspectionContext } from "./context";
 import { parseModuleData, readModuleEntry, type InspectionData, type ModuleEntry } from "./data";
 import { effectiveLabels } from "./labels";
 import { calcOrder, resultsFor } from "./order";
@@ -228,13 +228,19 @@ function notDonePathOf(output: { readonly notDonePath?: unknown }): IssuePath {
 }
 
 /**
+ * The modules whose saved data feeds the context (CONTEXT_SOURCES). Watertight
+ * and visual contribute too, but only their template's AQLs, never their data.
+ */
+const DATA_SOURCES: ReadonlySet<ModuleKey> = new Set(Object.values(CONTEXT_SOURCES));
+
+/**
  * What the other modules do while a source module's saved data cannot be
  * read in full: they use what can be read (readableData), or get nothing
  * from it. Said on each of its invalid_data errors, so a size that drops out
  * of every module is never a silent loss.
  */
 function unreadableConsequence(definition: AnyModuleDefinition, entry: ModuleEntry): string {
-  if (!definition.contribute) return "";
+  if (!definition.contribute || !DATA_SOURCES.has(definition.key)) return "";
   return readableData(definition, entry) === null
     ? "Until it is corrected, the other sections get nothing from this one."
     : "Until it is corrected, the other sections use the rest of what is saved here.";

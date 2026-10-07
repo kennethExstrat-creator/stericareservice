@@ -36,7 +36,7 @@ import { Button } from "@/components/ui/button";
 import { formatNumber, formatSpec } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { ModuleStatus } from "@/lib/schemas";
-import { labelFor, sizeLabel, type CaptureProps, type Labels, type ValidationIssue } from "@/modules/_framework";
+import { initialSize, labelFor, sizeLabel, type CaptureProps, type Labels, type ValidationIssue } from "@/modules/_framework";
 import { indicativeFor, specFor, type WeightComputed } from "./calc";
 import {
   firstValues,
@@ -197,10 +197,11 @@ function OneValuePerSize({
 /* Several gloves per size: a grid per size, in size tabs ---------------- */
 
 function GlovesPerSize(props: Props & { update: Update }) {
-  const { context, evaluation, focusPath, onFocusChange } = props;
+  const { context, evaluation, focusPath, focus, onFocusChange } = props;
   const root = useRef<HTMLDivElement>(null);
-  // SizeTabs shows the first ordered size while this is not one (6.2 rule 4) and says so through show.
-  const [size, setSize] = useState(context.sizes[0] ?? "");
+  // Opens on the size chosen in the last module (CaptureProps.focus). SizeTabs shows the first
+  // ordered size while this is not one (6.2 rule 4) and says so through show.
+  const [size, setSize] = useState(() => initialSize(context, focus));
 
   const show = (next: string) => {
     setSize(next);

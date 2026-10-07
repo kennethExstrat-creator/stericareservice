@@ -25,7 +25,7 @@ import {
 } from "@/components/qc";
 import { STATUS_LABEL } from "@/lib/design/status";
 import { formatSize } from "@/lib/format";
-import { cartonsFor, initialSize, labelFor, type CaptureProps } from "@/modules/_framework";
+import { cartonsFor, initialSize, labelFor, type CaptureProps, type Labels } from "@/modules/_framework";
 import type { LabelingComputed, LabelingConfig, LabelingData } from ".";
 import { checkLabel, includedLevels, levelFieldLabel, levelLabel } from "./calc";
 import type { LabelingCheck, LabelingLevel } from "./config";
@@ -247,6 +247,9 @@ function LevelPanel({
         labels={{
           rowHeader: labelFor(labels, "defects"),
           limits: labelFor(labels, "defectLimit"),
+          // The limit row in the template's words: "Accept 0 / Reject 1".
+          limitAccept: limitWord(labels, level, "accept"),
+          limitReject: limitWord(labels, level, "reject"),
           total: labelFor(labels, "total"),
           result: levelFieldLabel(labels, level, "result"),
           // The words the disposition row prints: Passed / Failed.
@@ -259,4 +262,15 @@ function LevelPanel({
       />
     </ModuleSection>
   );
+}
+
+/**
+ * A level's word in its limit row, where a template words one level's limit
+ * apart: its key level first, as the dictionary keys level wording
+ * (`innerAccept`, like `innerResult`), else a dotted key added in the editor
+ * (`inner.accept`), else the word both levels share (docs/CAPTURE_KIT.md).
+ */
+function limitWord(labels: Labels, level: LabelingLevel, word: "accept" | "reject"): string {
+  const own = labels[`${level}${word === "accept" ? "Accept" : "Reject"}`];
+  return own !== undefined && own.trim() !== "" ? own : labelFor(labels, level, word);
 }

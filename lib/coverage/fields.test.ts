@@ -15,7 +15,16 @@ import {
   type EnteredKey,
   type SystemKey,
 } from "./fields";
-import { DEFECT_CLASSES, GLOVE_INFO_FIELDS, HEADER_FIELDS, LABELLING_LEVELS, LOADING_FIELDS, MEASURES, SAMPLING_COLUMNS } from "./keys";
+import {
+  DEFECT_CLASSES,
+  GLOVE_INFO_FIELDS,
+  HEADER_FIELDS,
+  LABELLING_LEVELS,
+  LOADING_FIELDS,
+  LOADING_STAGES,
+  MEASURES,
+  SAMPLING_COLUMNS,
+} from "./keys";
 import { TEMPLATE_CODES, type Nesting } from "./types";
 
 const modules = MODULE_KEYS.map((key) => moduleSpec(key));
@@ -71,12 +80,20 @@ describe("canonical keys", () => {
     }
   });
 
-  it("uses camelCase keys", () => {
+  it("uses camelCase keys; an option's word is keyed by its field and the option (docs/MODULES.md section 6)", () => {
     for (const spec of modules) {
-      for (const key of [...spec.data, ...spec.config, ...spec.labels].map((item) => item.key)) {
+      for (const key of [...spec.data, ...spec.config].map((item) => item.key)) {
         expect(key, `${spec.key}.${key}`).toMatch(/^[a-z][a-zA-Z0-9]*$/);
       }
+      for (const { key } of spec.labels) {
+        const [field, option, ...rest] = key.split(".");
+        expect(field, `${spec.key}.${key}`).toMatch(/^[a-z][a-zA-Z0-9]*$/);
+        expect(rest, `${spec.key}.${key}`).toEqual([]);
+        // `status.not_verified`: the wording of one option of a select field.
+        if (option !== undefined) expect(dataField(spec.key, field)?.options, `${spec.key}.${key}`).toContain(option);
+      }
     }
+    expect(defaultLabels("documents")).toMatchObject({ "status.verified": "Verified", "status.na": "NA" });
   });
 
   it("keys class and level wording apart from data and caption keys (one ModuleConfig.labels namespace)", () => {
@@ -122,6 +139,7 @@ describe("canonical keys", () => {
     expect(moduleSpec("header").data.map((field) => field.key)).toEqual([...HEADER_FIELDS]);
     expect(moduleSpec("glove_info").data.map((field) => field.key)).toEqual([...GLOVE_INFO_FIELDS]);
     expect(keysOf("loading")).toEqual([...LOADING_FIELDS]);
+    expect(moduleSpec("loading").labels.map((label) => label.key)).toEqual(["loadingStage", ...LOADING_STAGES]);
   });
 });
 
