@@ -13,7 +13,9 @@
 // below the order), and stored once the page hands a change back (record).
 // The size tabs, the photo slot and links are not fields. After the reload,
 // once the page's forms have arrived (the order table arriving would push
-// packing down), the fields of the spot's section are matched by issue path
+// packing down) and, for a while, the photos of a section above the spot's
+// (the order's photos loading would move packing too, in a browser without
+// scroll anchoring), the fields of the spot's section are matched by issue path
 // and label (a field's id is not the same from one load to the next). One
 // the module does not show (another size, hand or box) is revealed through
 // that module's own reveal, as an issue link does, without focusing it
@@ -61,6 +63,19 @@ const TOGGLE_GROUP = '[role="radiogroup"], [role="toolbar"], [role="group"]';
 const SECTION_FRAME = "[data-section-key]";
 /** A form still loading on the page (section-body.tsx BodySkeleton). */
 const FORM_LOADING = '[data-slot="body-skeleton"]';
+/** A section's photos still loading (module-photos.tsx): the line gives way to the photos or to nothing. */
+const PHOTOS_LOADING = '[data-slot="photos-loading"]';
+/**
+ * What is still loading on the open page and moves what is below it once
+ * it arrives: a form, a section's photos. The screen waits for none to be
+ * left before it brings a section below another into view.
+ */
+export const STILL_LOADING = `${FORM_LOADING}, ${PHOTOS_LOADING}`;
+/**
+ * How long a landing below another section waits for that section's photos
+ * (they come over the network) before it lands anyway.
+ */
+const PHOTOS_WAIT_MS = 3_000;
 
 // One landing per document load: a screen opened again inside the app starts at its section's top.
 let loadHandled = false;
@@ -181,6 +196,7 @@ export function useLandingSpot({
     }
 
     const deadline = performance.now() + LANDING_WAIT_MS;
+    const photosDeadline = performance.now() + PHOTOS_WAIT_MS;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let tried = false;
     let revealed = false;
@@ -196,9 +212,12 @@ export function useLandingSpot({
         return;
       }
       const panel = document.getElementById(panelId);
-      // Every form on the page first: one arriving above the field would push it out of view again.
-      if (panel && !panel.querySelector(FORM_LOADING)) {
-        const frame = sectionFrame(panel, spot.section);
+      // Every form on the page first: one arriving above the field would push it out of view again. So would
+      // the photos of a section above the field's once they have loaded (packing below the order): waited for
+      // a while too, not for ever, as they come over the network.
+      const frame = panel && !panel.querySelector(FORM_LOADING) ? sectionFrame(panel, spot.section) : null;
+      const photosAbove = frame !== null && performance.now() < photosDeadline && loadingAbove(panel!, frame, PHOTOS_LOADING);
+      if (frame && !photosAbove) {
         const fields = fieldsIn(frame);
         const index = matchLandingField(
           fields.map((field) => signatureOf(field, frame)),
@@ -251,6 +270,14 @@ function sectionFrame(panel: HTMLElement, section: string): HTMLElement {
     if (frame.dataset.sectionKey === section) return frame;
   }
   return panel;
+}
+
+/** Something on the page still loading (`selector`) above `frame`, outside it: once it arrives, the frame moves. */
+function loadingAbove(panel: HTMLElement, frame: HTMLElement, selector: string): boolean {
+  for (const element of panel.querySelectorAll(selector)) {
+    if (!frame.contains(element) && element.compareDocumentPosition(frame) & Node.DOCUMENT_POSITION_FOLLOWING) return true;
+  }
+  return false;
 }
 
 /** The field an event on the open page belongs to; null outside fields. */

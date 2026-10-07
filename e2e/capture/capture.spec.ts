@@ -1108,8 +1108,14 @@ test("opened on packing configuration (?module=packing_config), the order's page
   await expect(titleOf(page, "order_lots")).toBeAttached();
   await expectPageOpen(page, "order_lots");
   await expectBelowBars(titleOf(page, "packing_config"));
+  // Still there once the page has settled: saving started, every form arrived, the photos loaded.
+  // (e2e/autosave/reload.spec.ts checks where it ends up without the browser's scroll anchoring, in WebKit too.)
+  await expect(savePill(page)).toHaveAttribute("data-state", "saved");
+  await expect(page.locator('[data-slot="body-skeleton"], [data-slot="photos-loading"]')).toHaveCount(0);
+  await expectBelowBars(titleOf(page, "packing_config"));
   // Brought into view, not focused: nothing asked for it.
   await expect(titleOf(page, "packing_config")).not.toBeFocused();
+  await viewportShot(page, "opened-on-packing");
 });
 
 test("Pending's row for packing configuration opens the order's page with packing's title focused below the bars", async ({
@@ -1171,7 +1177,6 @@ test("packing configuration switched off and back on on another device leaves th
   context,
   baseURL,
 }) => {
-  test.skip(!isDesktop(), "One size is enough: the page keeps its frames the same way everywhere.");
   const admin = createTestAdminClient();
   const { data: account, error: accountError } = await admin
     .from("profiles")
@@ -1179,6 +1184,21 @@ test("packing configuration switched off and back on on another device leaves th
     .eq("email", TEST_ACCOUNTS.admin)
     .single();
   if (accountError) throw new Error(accountError.message);
+  /**
+   * Below 1280 px the open tab's panel: the order's frame on a page of its
+   * own, the page holding both frames otherwise; one panel, whatever moved.
+   */
+  const expectPanel = async (expected: { section: string } | { slot: string }) => {
+    if (isDesktop()) return;
+    const tab = page.locator('[role="tab"][aria-selected="true"]');
+    await expect(tab).toHaveAttribute("data-section", "order_lots");
+    const panel = page.locator(`[id="${await tab.getAttribute("aria-controls")}"]`);
+    await expect(panel).toHaveAttribute("role", "tabpanel");
+    await expect(panel).toHaveAttribute("aria-labelledby", (await tab.getAttribute("id"))!);
+    if ("section" in expected) await expect(panel).toHaveAttribute("data-section-key", expected.section);
+    else await expect(panel).toHaveAttribute("data-slot", expected.slot);
+    await expect(page.locator('[role="tabpanel"]')).toHaveCount(1);
+  };
   const setOverrides = async (overrides: NonNullable<Json>) => {
     const { error } = await admin.from("inspections").update({ module_overrides: overrides }).eq("id", fixture.inspectionId);
     if (error) throw new Error(error.message);
@@ -1200,8 +1220,11 @@ test("packing configuration switched off and back on on another device leaves th
     await press(comment);
     await comment.pressSequentially("Counted");
     await expect(packing).toHaveCount(0, { timeout: 15_000 });
-    await expect(page.getByRole("navigation", { name: "Sections" })).toContainText("Switched Off");
+    // Packing has a page of its own, switched off: the sidebar's Switched Off group, or the last tab.
+    if (isDesktop()) await expect(page.getByRole("navigation", { name: "Sections" })).toContainText("Switched Off");
+    else await expect(page.locator('[role="tab"][data-sections="packing_config"]')).toHaveCount(1);
     expect(await stillShown(), "the order's frame is the same element").toBe(true);
+    await expectPanel({ section: "order_lots" });
     await expect(comment).toBeFocused();
     await page.keyboard.type(" twice");
     await expect(comment).toHaveValue("Counted twice");
@@ -1211,6 +1234,7 @@ test("packing configuration switched off and back on on another device leaves th
     await page.keyboard.type(" over");
     await expect(packing).toBeVisible({ timeout: 15_000 });
     expect(await stillShown(), "the order's frame is the same element").toBe(true);
+    await expectPanel({ slot: "capture-page" });
     await expect(comment).toBeFocused();
     await page.keyboard.type(".");
     await expect(comment).toHaveValue("Counted twice over.");

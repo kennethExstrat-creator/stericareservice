@@ -145,7 +145,7 @@ import { SectionList } from "./section-list";
 import { SectionTabs, tabId } from "./section-tabs";
 import { SubmitControl, type SubmitBlocked, type SubmitPreparation } from "./submit-control";
 import { LEAVE_FLUSH_MS, useCaptureAutosave } from "./use-capture-autosave";
-import { inspectorHasActed, landingExpected, useLandingSpot } from "./use-landing-spot";
+import { inspectorHasActed, landingExpected, STILL_LOADING, useLandingSpot } from "./use-landing-spot";
 import { useNoPullToRefresh } from "./use-no-pull-to-refresh";
 import { useRefusedEntries } from "./use-refused-entries";
 import { useStickyOffsets } from "./use-sticky-offsets";
@@ -576,10 +576,11 @@ export function CaptureScreen({
       };
       // After the panel has closed and the page is on screen. On a page of
       // several sections, once the forms above this one have arrived too
-      // (their code loads on demand): the order table arriving would push
-      // packing configuration out of view again.
+      // (their code loads on demand) and their photos have loaded: the order
+      // table arriving, or its photos taking the place of "Loading photos…",
+      // would move packing configuration again.
       requestAnimationFrame(() => {
-        if (shared) whenFormsShown(panelId, land, { acted: actedSince });
+        if (shared) whenPageSettled(panelId, land, { acted: actedSince });
         else land();
       });
     },
@@ -624,7 +625,8 @@ export function CaptureScreen({
   // header controls, Switch Back On with the panel): the switched section's
   // page opens and its title takes focus. Switched off, packing
   // configuration has a page of its own; back on, it is below the order
-  // again, its title brought into view once the order table has arrived.
+  // again, its title brought into view once the order table and its photos
+  // have arrived.
   const focusTitleFor = useRef<{ overrides: ModuleOverrides; sectionKey: string } | null>(null);
   const onSwitched = useCallback(
     (next: ModuleOverrides, sectionKey: string) => {
@@ -643,7 +645,7 @@ export function CaptureScreen({
     title?.focus({ preventScroll: true });
     if (!title || !onSharedPage(panelId)) return;
     const since = performance.now();
-    return whenFormsShown(panelId, () => revealTitle(titleFor(request.sectionKey), rootRef.current), {
+    return whenPageSettled(panelId, () => revealTitle(titleFor(request.sectionKey), rootRef.current), {
       acted: () => lastInputAt.current > since,
     });
   }, [overrides, panelId, titleFor]);
@@ -664,19 +666,26 @@ export function CaptureScreen({
 
   // Opened on a section below another on its page (?module=packing_config
   // from a link, a reload or the address bar): its title comes into view
-  // once the forms above it have arrived. Not when a reload is to land on
-  // the last field instead (use-landing-spot.ts), nor once the inspector has
-  // moved; a title already in view, as a reload's restored scroll may leave
-  // it, stays where it is.
+  // once the page has settled, as a reload's landing waits for it: saving
+  // has started (the fields turn editable and the photo buttons appear), the
+  // forms above it have arrived and their photos have loaded. Each of those
+  // moves it, and a browser without scroll anchoring would leave it out of
+  // place. Not when a reload is to land on the last field instead
+  // (use-landing-spot.ts), nor once the inspector has moved; a title already
+  // in view, as a reload's restored scroll may leave it, stays where it is.
   const revealOpenedSection = useEffectEvent(() => {
     if (!activePage || activeKey === null || activeKey === activePage.key) return;
     if (inspectorHasActed() || landingExpected({ userId: user.id, inspectionId }, activeSectionKeys)) return;
     const since = performance.now();
-    return whenFormsShown(panelId, () => revealTitle(titleFor(activeKey), rootRef.current), {
+    return whenPageSettled(panelId, () => revealTitle(titleFor(activeKey), rootRef.current), {
       acted: () => inspectorHasActed() || lastInputAt.current > since,
     });
   });
-  useEffect(() => revealOpenedSection(), []);
+  // Once saving has started, or at once where it does not run (read-only).
+  const saving = autosave.phase !== "starting";
+  useEffect(() => {
+    if (saving) return revealOpenedSection();
+  }, [saving]);
 
   // Below 1280 px the open page is the tab bar's panel; from 1280 px a region (or regions) beside the sidebar.
   const wide = useMediaQuery(WIDE_QUERY);
@@ -1397,28 +1406,29 @@ function frameFor(panelId: string, sectionKey: string): HTMLElement | null {
   return null;
 }
 
-/** How long the forms on a page may take to arrive before a title below them is brought into view anyway. */
-const FORMS_WAIT_MS = 3_000;
-const FORMS_CHECK_MS = 50;
+/** How long the forms and photos on a page may take to arrive before a title below them is brought into view anyway. */
+const SETTLE_WAIT_MS = 3_000;
+const SETTLE_CHECK_MS = 50;
 
 /**
- * Runs `then` once every form on the open page has arrived (a module's form
- * loads on demand, and the order table arriving pushes packing configuration
- * down), or after `limitMs` whatever is still loading. Stands down once
- * `acted` says the inspector pressed or typed meanwhile. Returns what stops
- * the wait.
+ * Runs `then` once every form on the open page has arrived and every
+ * section's photos have loaded (STILL_LOADING: a module's form loads on
+ * demand, and the order table arriving pushes packing configuration down;
+ * the order's photos taking the place of "Loading photos…" move it too), or
+ * after `limitMs` whatever is still loading. Stands down once `acted` says
+ * the inspector pressed or typed meanwhile. Returns what stops the wait.
  */
-function whenFormsShown(
+function whenPageSettled(
   panelId: string,
   then: () => void,
-  { acted, limitMs = FORMS_WAIT_MS }: { acted: () => boolean; limitMs?: number },
+  { acted, limitMs = SETTLE_WAIT_MS }: { acted: () => boolean; limitMs?: number },
 ): () => void {
   const deadline = performance.now() + limitMs;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const check = () => {
     if (acted()) return;
-    const loading = document.getElementById(panelId)?.querySelector('[data-slot="body-skeleton"]');
-    if (loading && performance.now() < deadline) timer = setTimeout(check, FORMS_CHECK_MS);
+    const loading = document.getElementById(panelId)?.querySelector(STILL_LOADING);
+    if (loading && performance.now() < deadline) timer = setTimeout(check, SETTLE_CHECK_MS);
     else then();
   };
   check();

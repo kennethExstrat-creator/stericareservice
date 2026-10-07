@@ -375,6 +375,53 @@ test("opened again inside the app, or afresh, the screen starts at its section's
   await expect(page.getByLabel("Indicative weight (size M)")).not.toBeFocused();
 });
 
+/** Where the capture screen puts a section title it brings into view: this far below the sticky bars (capture-screen.tsx). */
+const TITLE_GAP_PX = 16;
+
+test("opened afresh on packing configuration, below the order on its page, its title comes into view below the bars and stays there", async ({
+  page,
+  baseURL,
+}) => {
+  // A short window, so packing's title starts below it.
+  await page.setViewportSize({ width: page.viewportSize()!.width, height: 640 });
+  // Without the browser's scroll anchoring, as in a browser that has none: what the order's frame gains or loses
+  // after the title was brought up (its photo buttons once saving starts, its photos once they load) would move it.
+  await page.addInitScript(() => {
+    const noAnchoring = () => {
+      if (!document.head) return void requestAnimationFrame(noAnchoring);
+      const style = document.createElement("style");
+      style.textContent = "html, body { overflow-anchor: none !important; }";
+      document.head.append(style);
+    };
+    noAnchoring();
+  });
+  await page.context().addCookies(cookies.map((cookie) => ({ ...cookie, url: baseURL! })));
+  await page.goto(`/inspections/${fixture.inspectionId}?module=packing_config`);
+  const title = page.locator('[data-section-key="packing_config"] h2');
+  await expect(title).toBeInViewport({ ratio: 1 });
+  // Settled: saving has started (the fields editable, the photo buttons shown), every form has arrived and the photos have loaded.
+  await expect(page.locator('[data-slot="save-status"]:visible')).toHaveAttribute("data-state", "saved");
+  await expect(page.locator('[data-section-key="packing_config"] input').first()).toBeEditable();
+  await expect(page.locator('[data-slot="body-skeleton"], [data-slot="photos-loading"]')).toHaveCount(0);
+  await expectNoLanding(page);
+
+  const where = await title.evaluate((element) => {
+    const root = document.querySelector<HTMLElement>('[data-slot="capture-screen"]');
+    return {
+      top: element.getBoundingClientRect().top,
+      stickyTop: Number.parseFloat(root?.style.getPropertyValue("--capture-sticky-top") ?? "") || 0,
+      atEnd: window.scrollY >= document.documentElement.scrollHeight - window.innerHeight - 1,
+      focused: element === document.activeElement,
+    };
+  });
+  expect(where.top, "below the sticky bars").toBeGreaterThanOrEqual(where.stickyTop - 1);
+  // Where it was brought, unless the page ends before it could go that high.
+  if (!where.atEnd) expect(Math.abs(where.top - (where.stickyTop + TITLE_GAP_PX)), "just below the bars").toBeLessThanOrEqual(2);
+  // Brought into view, not focused: nothing asked for it.
+  expect(where.focused, "not focused").toBe(false);
+  await shot(page, "opened-on-packing");
+});
+
 /* ------------------------------------------------------------------ *
  * Pull to refresh
  * ------------------------------------------------------------------ */

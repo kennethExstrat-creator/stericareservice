@@ -70,8 +70,9 @@ describe("PhotoSlot", () => {
     // The rear camera for one photo, the library for several.
     expect(html).toMatch(/<input[^>]*type="file"[^>]*accept="image\/\*"[^>]*capture="environment"[^>]*data-photo-input="camera"/);
     expect(html).toMatch(/<input[^>]*type="file"[^>]*accept="image\/\*"[^>]*multiple=""[^>]*data-photo-input="library"/);
-    // The browser loads the photos: until then the slot never says there are none.
-    expect(html).toContain("Loading photos…");
+    // The browser loads the photos: until then the slot never says there are none. The capture screen waits
+    // for that line to go before it brings a section below this one into view (it moves what is below).
+    expect(html).toMatch(/<p data-slot="photos-loading"[^>]*>(?:(?!<\/p>).)*Loading photos…<\/p>/);
     expect(html).not.toContain("No photos");
     expect(unanchoredSrOnly(html)).toEqual([]);
   });

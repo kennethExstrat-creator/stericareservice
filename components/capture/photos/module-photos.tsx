@@ -246,8 +246,10 @@ export function ModulePhotos({
           })}
         </ul>
       ) : media.status === "loading" || media.status === "idle" ? (
-        // Not known yet (idle: the first render, before the browser loads them): never "No photos".
-        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+        // Not known yet (idle: the first render, before the browser loads them): never "No photos". The line
+        // then gives way to the photos or to nothing, moving what is below: the capture screen waits for it
+        // to go before it brings a section below this one into view (capture-screen.tsx, use-landing-spot.ts).
+        <p data-slot="photos-loading" className="flex items-center gap-2 text-sm text-muted-foreground">
           <LoaderCircleIcon aria-hidden className="size-4 animate-spin" />
           Loading photos…
         </p>
