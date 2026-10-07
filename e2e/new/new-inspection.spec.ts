@@ -261,7 +261,10 @@ test("the most specific template wins: client and manufacturer, client, manufact
 
 test("once seeded, the seed templates apply as BUILD_SPEC 11 scopes them", async ({ page, context, baseURL }) => {
   test.skip(test.info().project.name !== "desktop", "Reads only: one size is enough.");
-  test.skip(!(await seedTemplatesLive()), "STD_EG, SAFEDON_EG and STD_SG are not active yet (npm run seed:templates, README.md).");
+  test.skip(
+    !(await seedTemplatesLive()),
+    "STD_EG, SAFEDON_EG and STD_SG are not active yet (npm run seed:templates -- --apply, README.md step 7).",
+  );
   await signIn(context, baseURL!, TEST_ACCOUNTS.inspector);
   await page.goto("/inspections/new");
 

@@ -1,18 +1,27 @@
-// scripts/seed-templates.mts with --drafts: the seed templates written as
-// drafts for an admin to check and activate (BUILD_SPEC 4.2 rule 10, 4.5),
-// against an in-memory templates table that keeps the database's rules (one
-// active version per code, (code, version) unique). The rest of the script is
-// tested in lib/templates/definitions/seed-script.test.ts.
+// scripts/seed-templates.mts: its command line (a dry run unless --apply, and
+// nothing at all when npm took an option as its own), and --drafts, the seed
+// templates written as drafts for an admin to check and activate (BUILD_SPEC
+// 4.2 rule 10, 4.5), against an in-memory templates table that keeps the
+// database's rules (one active version per code, (code, version) unique). The
+// rest of the script is tested in lib/templates/definitions/seed-script.test.ts,
+// and the script run as npm runs it in seed-templates.cli.test.ts.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  describeDryRun,
   describeOutcome,
   parseBundle,
+  parseCommandLine,
   planTemplate,
   plannedStatus,
   prepare,
   seedTemplates,
+  swallowedByNpm,
+  USAGE,
+  writeCommand,
   type Bundle,
+  type CommandLine,
+  type RunOptions,
   type SeedDatabase,
   type SeedOptions,
   type TemplateStatus,
@@ -184,5 +193,163 @@ describe("planning one template as a draft", () => {
     expect(plannedStatus(planTemplate(wanted, [row(1, "active")], options), [row(1, "active")], options)).toBe("active");
     expect(plannedStatus(planTemplate(wanted, [], options), [], options)).toBe("draft");
     expect(plannedStatus(planTemplate(wanted, [], { refresh: false }), [], {})).toBe("active");
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * The command line
+ * ------------------------------------------------------------------ */
+
+/** What a plain npm run exports: none of the variables that betray a taken option. */
+const NPM_RUN = { npm_config_user_agent: "npm/11.12.1 node/v25.9.0 darwin arm64 workspaces/false", npm_config_npm_version: "11.12.1" };
+
+/** npm 11 expands --apply into its own shorthands -a -p -l -y. */
+const NPM_TOOK_APPLY = { npm_config_all: "true", npm_config_parseable: "true", npm_config_long: "true", npm_config_yes: "true" };
+
+const run = (seed: Partial<RunOptions["seed"]> = {}, allowStubs = false): CommandLine => ({
+  kind: "run",
+  seed: { dryRun: false, drafts: false, replace: false, refresh: false, ...seed },
+  allowStubs,
+});
+
+describe("the command line", () => {
+  it("is a dry run unless --apply is given", () => {
+    expect(parseCommandLine([], NPM_RUN)).toEqual(run({ dryRun: true }));
+    expect(parseCommandLine(["--drafts"], NPM_RUN)).toEqual(run({ dryRun: true, drafts: true }));
+    expect(parseCommandLine(["--replace", "--refresh"], NPM_RUN)).toEqual(run({ dryRun: true, replace: true, refresh: true }));
+    expect(parseCommandLine(["--dry-run"], NPM_RUN)).toEqual(run({ dryRun: true }));
+  });
+
+  it("writes with --apply, drafts with --apply --drafts, and --dry-run still wins", () => {
+    expect(parseCommandLine(["--apply"], NPM_RUN)).toEqual(run());
+    expect(parseCommandLine(["--apply", "--drafts"], NPM_RUN)).toEqual(run({ drafts: true }));
+    expect(parseCommandLine(["--apply", "--replace", "--refresh", "--allow-stubs"], NPM_RUN)).toEqual(
+      run({ replace: true, refresh: true }, true),
+    );
+    expect(parseCommandLine(["--apply", "--dry-run"], NPM_RUN)).toEqual(run({ dryRun: true }));
+    // Run with node directly: no npm_config_ variables at all.
+    expect(parseCommandLine(["--apply"], {})).toEqual(run());
+  });
+
+  it("shows the usage with --help", () => {
+    expect(parseCommandLine(["--help"], NPM_RUN)).toEqual({ kind: "help" });
+    expect(USAGE).toBe("npm run seed:templates -- [--apply] [--drafts | --replace] [--refresh] [--allow-stubs] [--dry-run]");
+  });
+
+  it("refuses what it does not know, and --drafts with --replace", () => {
+    const refused = (argv: string[]) => {
+      const command = parseCommandLine(argv, NPM_RUN);
+      return command.kind === "refuse" ? command.message.split("\n")[0] : command.kind;
+    };
+    expect(refused(["--force"])).toBe("Unknown option --force.");
+    expect(refused(["-y"])).toBe("Unknown option -y.");
+    expect(refused(["--no-apply"])).toBe("Unknown option --no-apply.");
+    expect(refused(["apply"])).toBe('Unexpected argument "apply".');
+    expect(refused(["--apply=false"])).toBe("--apply takes no value.");
+    expect(refused(["--", "--apply"])).toBe('Unexpected argument "--apply".');
+    expect(refused(["--toString"])).toBe("Unknown option --toString.");
+    expect(refused(["--apply", "--drafts", "--replace"])).toBe(
+      "Use --drafts or --replace, not both: drafts never retire an active version.",
+    );
+    const unknown = parseCommandLine(["--force"], NPM_RUN);
+    expect(unknown.kind === "refuse" && unknown.message.split("\n")[1]).toBe(`Usage: ${USAGE}`);
+  });
+});
+
+describe("options npm took as its own (written before the --)", () => {
+  // Each trace is what npm 11.12.1 handed the script for the command in the test's name.
+  it("finds each option in npm's variables, as npm 11 spells them", () => {
+    expect(swallowedByNpm(NPM_RUN)).toEqual([]);
+    expect(swallowedByNpm({ npm_config_dry_run: "true" })).toEqual(["dry-run"]);
+    expect(swallowedByNpm({ npm_config_drafts: "true" })).toEqual(["drafts"]);
+    expect(swallowedByNpm({ npm_config_refresh: "true" })).toEqual(["refresh"]);
+    expect(swallowedByNpm({ npm_config_allow_stubs: "true" })).toEqual(["allow-stubs"]);
+    expect(swallowedByNpm(NPM_TOOK_APPLY)).toEqual(["apply"]);
+    expect(swallowedByNpm({ npm_config_replace_registry_host: "true" })).toEqual(["replace"]);
+    // --replace --drafts: npm took --drafts as --replace-registry-host's value.
+    expect(swallowedByNpm({ npm_config_replace_registry_host: "--drafts" })).toEqual(["drafts", "replace"]);
+    expect(swallowedByNpm({ npm_config_replace_registry_host: "--apply" })).toEqual(["apply", "replace"]);
+    // Spelt as written, as a later npm may hand them over.
+    expect(swallowedByNpm({ npm_config_apply: "true", npm_config_replace: "true" })).toEqual(["apply", "replace"]);
+  });
+
+  it("leaves npm's own settings alone", () => {
+    expect(swallowedByNpm({ npm_config_yes: "true" })).toEqual([]);
+    expect(swallowedByNpm({ npm_config_dry_run: "false", npm_config_drafts: "" })).toEqual([]);
+    for (const host of ["npmjs", "never", "always", "registry.example.com"]) {
+      expect(swallowedByNpm({ npm_config_replace_registry_host: host })).toEqual([]);
+    }
+  });
+
+  it("npm run seed:templates --drafts -- --apply: stops, rather than write active templates", () => {
+    expect(parseCommandLine(["--apply"], { ...NPM_RUN, npm_config_drafts: "true" })).toEqual({
+      kind: "refuse",
+      message:
+        "npm took --drafts as its own option, so the script never saw it. Nothing was written.\n" +
+        "Put the options after the --: npm run seed:templates -- --apply --drafts",
+    });
+  });
+
+  it("npm run seed:templates --dry-run -- --apply: stops, rather than write", () => {
+    const command = parseCommandLine(["--apply"], { ...NPM_RUN, npm_config_dry_run: "true" });
+    expect(command.kind).toBe("refuse");
+  });
+
+  it("npm run seed:templates --replace --drafts -- --apply: names both", () => {
+    expect(parseCommandLine(["--apply"], { ...NPM_RUN, npm_config_replace_registry_host: "--drafts" })).toEqual({
+      kind: "refuse",
+      message:
+        "npm took --drafts and --replace as its own options, so the script never saw them. Nothing was written.\n" +
+        "Put the options after the --: npm run seed:templates -- --apply --drafts --replace",
+    });
+  });
+
+  it("npm run seed:templates --apply --drafts and --dry-run: stops too, though nothing would be written", () => {
+    const apply = parseCommandLine([], { ...NPM_RUN, ...NPM_TOOK_APPLY, npm_config_drafts: "true" });
+    expect(apply.kind === "refuse" && apply.message.split("\n")[1]).toBe(
+      "Put the options after the --: npm run seed:templates -- --apply --drafts",
+    );
+    const dryRun = parseCommandLine([], { ...NPM_RUN, npm_config_dry_run: "true" });
+    expect(dryRun.kind === "refuse" && dryRun.message.split("\n")[1]).toBe(
+      "Put the options after the --: npm run seed:templates -- --dry-run",
+    );
+  });
+
+  it("--help still shows the usage", () => {
+    expect(parseCommandLine(["--help"], { ...NPM_RUN, npm_config_drafts: "true" })).toEqual({ kind: "help" });
+  });
+});
+
+describe("the end of a dry run", () => {
+  const options = (seed: Partial<RunOptions["seed"]> = {}, allowStubs = false): RunOptions => ({
+    seed: { dryRun: true, drafts: false, replace: false, refresh: false, ...seed },
+    allowStubs,
+  });
+
+  it("gives the command that writes what it showed, with the same options", () => {
+    expect(writeCommand(options())).toBe("npm run seed:templates -- --apply");
+    expect(writeCommand(options({ drafts: true }))).toBe("npm run seed:templates -- --apply --drafts");
+    expect(writeCommand(options({ replace: true, refresh: true }, true))).toBe(
+      "npm run seed:templates -- --apply --replace --refresh --allow-stubs",
+    );
+  });
+
+  it("says how to write it, that there is nothing to write, or only that nothing was written when a run would stop", async () => {
+    const { db } = fakeDatabase();
+    const first = await seedTemplates(db, bundle(), { ...RUN, dryRun: true });
+    expect(describeDryRun(first, options())).toBe("Nothing was written: this was a dry run. To write it: npm run seed:templates -- --apply");
+
+    await seedTemplates(db, bundle(), RUN);
+    const again = await seedTemplates(db, bundle(), { ...RUN, dryRun: true });
+    expect(describeDryRun(again, options())).toBe("Nothing was written: this was a dry run. There is nothing to write.");
+
+    // The active versions differ from the bundle: a run without --replace stops, and describeBlocked says why.
+    const changed = await seedTemplates(db, renamed(), { ...RUN, dryRun: true });
+    expect(changed.outcomes.some((outcome) => outcome.blocked)).toBe(true);
+    expect(describeDryRun(changed, options())).toBe("Nothing was written: this was a dry run.");
+    const replacing = await seedTemplates(db, renamed(), { ...RUN, dryRun: true, replace: true });
+    expect(describeDryRun(replacing, options({ replace: true }))).toBe(
+      "Nothing was written: this was a dry run. To write it: npm run seed:templates -- --apply --replace",
+    );
   });
 });

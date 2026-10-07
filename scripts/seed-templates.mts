@@ -2,21 +2,29 @@
  * Writes the seed templates of BUILD_SPEC 11 (STD_EG, SAFEDON_EG, STD_SG) to
  * the templates table from lib/templates/definitions/seed-bundle.json:
  * active, or with --drafts as drafts for an admin to check and activate.
+ * Without --apply it is a dry run: it shows what would change and writes
+ * nothing.
  *
- *   npm run seed:templates -- --dry-run
- *   npm run seed:templates
+ *   npm run seed:templates                    dry run
+ *   npm run seed:templates -- --apply         writes it
  *
- * (npm run seed:templates runs node --env-file-if-exists=.env.local
- * scripts/seed-templates.mts; options go after the --.)
+ * npm run seed:templates runs node --env-file-if-exists=.env.local
+ * scripts/seed-templates.mts, so it writes to the Supabase project that
+ * .env.local names, and says which. Options go after the --. npm takes an
+ * option written before it
+ * (npm run seed:templates --drafts) as its own, and the script never sees
+ * it. npm leaves a trace of it in an npm_config_ variable, so the script then
+ * stops without writing and shows the command with the options after the --.
  *
  * Run order on a project:
  *   1. supabase/seed.sql (npx supabase db push --include-seed): reference
  *      data. SAFEDON_EG belongs to the client "Polyco Healthline", found by
  *      name; without it the run stops before writing anything.
- *   2. npm run seed:templates -- --dry-run: one line per template, nothing
- *      written. Check that it lists STD_EG, SAFEDON_EG (with its client) and
- *      STD_SG, and that it gives no warning about placeholder modules.
- *   3. npm run seed:templates (or -- --drafts): writes what the dry run listed.
+ *   2. npm run seed:templates: the dry run, one line per template. Check that
+ *      it lists STD_EG, SAFEDON_EG (with its client) and STD_SG, and that it
+ *      gives no warning about placeholder modules.
+ *   3. npm run seed:templates -- --apply (or --apply --drafts): writes what
+ *      the dry run listed.
  * The first seed into a project without seed templates needs no --replace.
  * A run with an unchanged bundle writes nothing. After the bundle is
  * regenerated, a changed definition (or with --refresh a changed resolution,
@@ -25,7 +33,8 @@
  * before writing anything.
  *
  * Options:
- *   --dry-run      show what would change; write nothing
+ *   --apply        write; without it the run only shows what would change
+ *   --dry-run      write nothing, even with --apply
  *   --replace      retire an active version that differs from the bundle;
  *                  without it, the run stops before writing anything
  *   --drafts       write new versions as drafts and activate or retire
@@ -359,6 +368,131 @@ export function describeBlocked(outcomes: readonly SeedOutcome[], dryRun: boolea
   );
 }
 
+/* ------------------------------------------------------------------ *
+ * The command line: pure, so it is tested without npm or a database
+ * ------------------------------------------------------------------ */
+
+export const SEED_COMMAND = "npm run seed:templates";
+export const USAGE = `${SEED_COMMAND} -- [--apply] [--drafts | --replace] [--refresh] [--allow-stubs] [--dry-run]`;
+
+const OPTIONS = {
+  apply: { type: "boolean" },
+  "dry-run": { type: "boolean" },
+  drafts: { type: "boolean" },
+  replace: { type: "boolean" },
+  refresh: { type: "boolean" },
+  "allow-stubs": { type: "boolean" },
+  help: { type: "boolean" },
+} as const;
+
+/** The options that change a run, in the order a suggested command lists them. */
+const RUN_FLAGS = ["apply", "dry-run", "drafts", "replace", "refresh", "allow-stubs"] as const;
+export type RunFlag = (typeof RUN_FLAGS)[number];
+
+export type Environment = Readonly<Record<string, string | undefined>>;
+
+/**
+ * The script's options that npm took as its own because they came before the
+ * -- (npm run seed:templates --drafts). The script never sees them; npm
+ * leaves them in npm_config_ variables, as npm 11 spells them: --apply is
+ * expanded into npm's shorthands -a -p -l -y (all, parseable, long, yes), and
+ * --replace into --replace-registry-host, which takes the next word as its
+ * value, even another option (--replace --drafts gives "--drafts").
+ */
+export function swallowedByNpm(env: Environment): RunFlag[] {
+  const set = (name: string) => env[`npm_config_${name}`] === "true";
+  const found = new Set<RunFlag>();
+  if (set("apply") || ["all", "parseable", "long", "yes"].every(set)) found.add("apply");
+  if (set("dry_run")) found.add("dry-run");
+  if (set("drafts")) found.add("drafts");
+  if (set("refresh")) found.add("refresh");
+  if (set("allow_stubs")) found.add("allow-stubs");
+  const registryHost = env.npm_config_replace_registry_host;
+  if (set("replace") || registryHost === "true" || registryHost?.startsWith("-")) {
+    found.add("replace");
+    const taken = RUN_FLAGS.find((flag) => registryHost === `--${flag}`);
+    if (taken) found.add(taken);
+  }
+  return RUN_FLAGS.filter((flag) => found.has(flag));
+}
+
+export type RunOptions = { seed: SeedOptions & { drafts: boolean }; allowStubs: boolean };
+
+export type CommandLine = { kind: "help" } | { kind: "refuse"; message: string } | ({ kind: "run" } & RunOptions);
+
+function wordList(words: readonly string[]): string {
+  return words.length <= 1 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`;
+}
+
+/**
+ * What to do, from the script's arguments and the npm_config_ variables npm
+ * set: a dry run unless --apply is given, and nothing at all when npm took
+ * one of the options as its own.
+ */
+export function parseCommandLine(argv: readonly string[], env: Environment): CommandLine {
+  const refuse = (message: string): CommandLine => ({ kind: "refuse", message: `${message}\nUsage: ${USAGE}` });
+  const { tokens } = parseArgs({ args: [...argv], options: OPTIONS, strict: false, allowPositionals: true, tokens: true });
+  const given = new Set<string>();
+  for (const token of tokens) {
+    if (token.kind === "positional") return refuse(`Unexpected argument "${token.value}".`);
+    if (token.kind !== "option") continue;
+    if (!Object.hasOwn(OPTIONS, token.name)) return refuse(`Unknown option ${token.rawName}.`);
+    if (token.value !== undefined) return refuse(`${token.rawName} takes no value.`);
+    given.add(token.name);
+  }
+  if (given.has("help")) return { kind: "help" };
+
+  const swallowed = swallowedByNpm(env);
+  if (swallowed.length > 0) {
+    const options = RUN_FLAGS.filter((flag) => given.has(flag) || swallowed.includes(flag)).map((flag) => `--${flag}`);
+    const one = swallowed.length === 1;
+    return {
+      kind: "refuse",
+      message:
+        `npm took ${wordList(swallowed.map((flag) => `--${flag}`))} as ${one ? "its own option" : "its own options"}, ` +
+        `so the script never saw ${one ? "it" : "them"}. Nothing was written.\n` +
+        `Put the options after the --: ${SEED_COMMAND} -- ${options.join(" ")}`,
+    };
+  }
+  if (given.has("drafts") && given.has("replace")) {
+    return { kind: "refuse", message: "Use --drafts or --replace, not both: drafts never retire an active version." };
+  }
+  return {
+    kind: "run",
+    seed: {
+      dryRun: given.has("dry-run") || !given.has("apply"),
+      drafts: given.has("drafts"),
+      replace: given.has("replace"),
+      refresh: given.has("refresh"),
+    },
+    allowStubs: given.has("allow-stubs"),
+  };
+}
+
+/** The command that writes what a dry run with these options showed. */
+export function writeCommand({ seed, allowStubs }: RunOptions): string {
+  const flags = [
+    "--apply",
+    ...(seed.drafts ? ["--drafts"] : []),
+    ...(seed.replace ? ["--replace"] : []),
+    ...(seed.refresh ? ["--refresh"] : []),
+    ...(allowStubs ? ["--allow-stubs"] : []),
+  ];
+  return `${SEED_COMMAND} -- ${flags.join(" ")}`;
+}
+
+/** The last line of a dry run: how to write what it showed, when a run with --apply would write it. */
+export function describeDryRun(report: SeedReport, options: RunOptions): string {
+  const head = "Nothing was written: this was a dry run.";
+  if (report.outcomes.some((outcome) => outcome.blocked)) return head;
+  if (report.outcomes.every((outcome) => outcome.plan.action === "keep")) return `${head} There is nothing to write.`;
+  return `${head} To write it: ${writeCommand(options)}`;
+}
+
+/* ------------------------------------------------------------------ *
+ * Supabase and the run
+ * ------------------------------------------------------------------ */
+
 /** The data of a Supabase answer, or an error naming what failed. */
 function dataOf<T>(what: string, result: { data: T | null; error: { message: string } | null }): T {
   if (result.error || result.data === null) throw new Error(`${what} failed: ${result.error?.message ?? "no data"}`);
@@ -390,26 +524,17 @@ function supabaseDatabase(url: string, secretKey: string): SeedDatabase {
 }
 
 async function main(): Promise<void> {
-  const { values } = parseArgs({
-    options: {
-      "dry-run": { type: "boolean", default: false },
-      replace: { type: "boolean", default: false },
-      drafts: { type: "boolean", default: false },
-      "allow-stubs": { type: "boolean", default: false },
-      refresh: { type: "boolean", default: false },
-      help: { type: "boolean", default: false },
-    },
-  });
-  if (values.help) {
-    console.log("npm run seed:templates -- [--dry-run] [--replace | --drafts] [--allow-stubs] [--refresh]");
-    console.log("Run order and options: the comment at the top of scripts/seed-templates.mts.");
+  const command = parseCommandLine(process.argv.slice(2), process.env);
+  if (command.kind === "help") {
+    console.log(USAGE);
+    console.log("Without --apply it is a dry run. Run order and options: the comment at the top of scripts/seed-templates.mts.");
     return;
   }
-  const dryRun = values["dry-run"];
-  if (values.drafts && values.replace) {
-    console.error("Use --drafts or --replace, not both: drafts never retire an active version.");
+  if (command.kind === "refuse") {
+    console.error(command.message);
     process.exit(1);
   }
+  const { dryRun } = command.seed;
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
   const secretKey = process.env.SUPABASE_SECRET_KEY?.trim();
@@ -417,6 +542,7 @@ async function main(): Promise<void> {
     console.error("Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY in .env.local first.");
     process.exit(1);
   }
+  const project = new URL(url).hostname;
 
   const bundle = parseBundle(readFileSync(BUNDLE_PATH, "utf8"));
   if (bundle.stubModules.length > 0) {
@@ -424,19 +550,14 @@ async function main(): Promise<void> {
       `The bundle was made while these modules were placeholders: ${bundle.stubModules.join(", ")}.\n` +
         `Their default labels are missing from the resolved templates. Once they are built, run\n  ${REGENERATE}\n`,
     );
-    if (!dryRun && !values["allow-stubs"]) {
+    if (!dryRun && !command.allowStubs) {
       console.error("Nothing written. Regenerate the bundle first, or pass --allow-stubs to seed it as it is.");
       process.exit(1);
     }
   }
 
-  const report = await seedTemplates(supabaseDatabase(url, secretKey), bundle, {
-    dryRun,
-    refresh: values.refresh,
-    replace: values.replace,
-    drafts: values.drafts,
-  });
-  console.log(dryRun ? "Seed templates, dry run:" : report.written ? "Seed templates:" : "Seed templates, nothing written:");
+  const report = await seedTemplates(supabaseDatabase(url, secretKey), bundle, command.seed);
+  console.log(`Seed templates in ${project}${dryRun ? ", dry run" : report.written ? "" : ", nothing written"}:`);
   for (const outcome of report.outcomes) console.log(`  ${describeOutcome(outcome, !report.written)}`);
   const blocked = describeBlocked(report.outcomes, dryRun);
   if (blocked) console.error(`\n${blocked}`);
@@ -447,7 +568,7 @@ async function main(): Promise<void> {
         "confirms the coverage checklist and activates each one under Admin > Templates, bases first.",
     );
   }
-  if (dryRun) console.log("\nNothing was written (--dry-run).");
+  if (dryRun) console.log(`\n${describeDryRun(report, command)}`);
   else if (!report.written) process.exit(1);
 }
 

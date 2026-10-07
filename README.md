@@ -105,10 +105,15 @@ deployment. Design rules and tokens: [docs/DESIGN.md](docs/DESIGN.md).
    `supabase/seed.sql`:
 
    ```bash
-   npm run seed:templates -- --dry-run    # one line per template; writes nothing
-   npm run seed:templates                 # writes them, active
-   npm run seed:templates -- --drafts     # or as drafts that an admin checks and activates
+   npm run seed:templates                         # dry run: one line per template; writes nothing
+   npm run seed:templates -- --apply              # writes them, active
+   npm run seed:templates -- --apply --drafts     # or as drafts that an admin checks and activates
    ```
+
+   It writes to the Supabase project that `.env.local` names, and says which. Nothing is
+   written without `--apply`. Options go after the `--`: npm keeps an option written before it
+   (`npm run seed:templates --drafts`) for itself, and the script then stops without writing and
+   shows the command to use instead.
 
    `SAFEDON_EG` belongs to the client Polyco Healthline, which `supabase/seed.sql` creates; the
    script finds it by name and stops before writing anything if it is missing. The dry run should
@@ -148,7 +153,7 @@ Contract, guardrails, costs and data handling: [docs/AI.md](docs/AI.md).
 | `npm run check` | Typecheck, lint and all tests |
 | `npm test` | Vitest (unit, AI layer, RLS tests on PGlite) |
 | `npm run seed:dev-users` | Local test accounts (see above) |
-| `npm run seed:templates` | The seed templates (see above); `-- --dry-run` first |
+| `npm run seed:templates` | Shows what the seed templates would change (see above); `-- --apply` writes them |
 | `npm run clean:e2e` | Lists what crashed end-to-end runs left; `-- --apply` deletes it ([e2e/README.md](e2e/README.md)) |
 | `npm run db:push` | Apply migrations to the linked project |
 | `npm run db:types` | Regenerate `lib/supabase/database.types.ts` |
