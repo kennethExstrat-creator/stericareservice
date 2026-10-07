@@ -3,13 +3,14 @@ import { redirect } from "next/navigation";
 import type { NextRequest } from "next/server";
 import { LOGIN_PATH, safeNextPath } from "@/lib/auth/routes";
 import { isSupabaseConfigured } from "@/lib/env";
-import { createClient } from "@/lib/supabase/server";
+import { createAuthClient } from "@/lib/supabase/server";
 
 /**
  * Landing route for the links in auth emails (supabase/templates/). The link
  * carries a one-time token hash; verifying it here sets the session cookie.
  * This works on any device, which the PKCE code flow cannot promise for
- * invites: the admin's browser started them, not the invitee's.
+ * invites: the admin's browser started them, not the invitee's. The check
+ * counts against the visitor's own limit for link checks (createAuthClient).
  */
 
 // Invite and recovery both end on the password screen; flow picks its wording.
@@ -26,8 +27,8 @@ export async function GET(request: NextRequest) {
 
   if (isSupabaseConfigured() && tokenHash && type && ACCEPTED.has(type)) {
     const otpType = type as EmailOtpType;
-    const supabase = await createClient();
-    const { error } = await supabase.auth.verifyOtp({ type: otpType, token_hash: tokenHash });
+    const auth = await createAuthClient();
+    const { error } = await auth.verifyOtp({ type: otpType, token_hash: tokenHash });
     if (!error) redirect(DESTINATIONS[otpType] ?? safeNextPath(searchParams.get("next")));
   }
 

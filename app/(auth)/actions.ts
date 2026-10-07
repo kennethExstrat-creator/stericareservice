@@ -24,7 +24,7 @@ import {
 import { HOME_PATH, safeNextPath } from "@/lib/auth/routes";
 import { authorizeAction, getSession } from "@/lib/auth/session";
 import { getSiteUrl, isSupabaseConfigured } from "@/lib/env";
-import { createClient } from "@/lib/supabase/server";
+import { createAuthClient, createClient } from "@/lib/supabase/server";
 import { sessionStartedByRecentLink } from "./link-session";
 
 /**
@@ -34,9 +34,11 @@ import { sessionStartedByRecentLink } from "./link-session";
  *
  * signIn and requestPasswordReset serve signed-out visitors, so there is no
  * session to authorise; the credentials and the email link are the check.
- * updatePassword calls authorizeAction() first and then also wants a session
- * that an invite or reset link started (./link-session.ts: hardening of this
- * app's screens, not a boundary Supabase Auth enforces).
+ * They call Supabase Auth through createAuthClient(), which counts each
+ * visitor against their own sign-in limit rather than everyone against the
+ * server's. updatePassword calls authorizeAction() first and then also wants a
+ * session that an invite or reset link started (./link-session.ts: hardening
+ * of this app's screens, not a boundary Supabase Auth enforces).
  */
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
@@ -78,12 +80,15 @@ export async function signIn(previous: SignInState, formData: FormData): Promise
 
   let supabase: SupabaseServerClient;
   try {
-    supabase = await createClient();
-    const { error } = await supabase.auth.signInWithPassword({
+    const auth = await createAuthClient();
+    const { error } = await auth.signInWithPassword({
       email: parsed.data.email,
       password: parsed.data.password,
     });
     if (error) return failed(signInFailure(error));
+    // From here on the user's own client, which reads the session sign-in has
+    // just stored in the cookies.
+    supabase = await createClient();
   } catch (error) {
     logFailure("sign-in", error);
     return failed(MESSAGES.serviceUnavailable);
@@ -128,6 +133,10 @@ function signInFailure(error: AuthError): string {
     logFailure("sign-in", error);
     return MESSAGES.serviceUnavailable;
   }
+  // Wrong credentials come back as 400 (422 for a malformed email). Anything
+  // else, such as a 401 for an API key Supabase refuses, is a setup problem:
+  // logged, while the visitor still learns nothing about the account.
+  if (status !== 400 && status !== 422) logFailure("sign-in", error);
   return MESSAGES.invalidCredentials;
 }
 
@@ -178,8 +187,8 @@ export async function requestPasswordReset(
   if (!isSupabaseConfigured()) return { status: "error", attempt, email, message: MESSAGES.notConfigured };
 
   try {
-    const supabase = await createClient();
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    const auth = await createAuthClient();
+    const { error } = await auth.resetPasswordForEmail(email, {
       redirectTo: `${getSiteUrl()}/auth/confirm`,
     });
     if (error) {

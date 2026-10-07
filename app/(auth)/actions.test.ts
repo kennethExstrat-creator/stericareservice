@@ -20,6 +20,7 @@ const { Redirect, mocks } = vi.hoisted(() => {
     Redirect,
     mocks: {
       createClient: vi.fn(),
+      createAuthClient: vi.fn(),
       authorizeAction: vi.fn(),
       getSession: vi.fn(),
       isSupabaseConfigured: vi.fn(),
@@ -29,7 +30,7 @@ const { Redirect, mocks } = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createClient }));
+vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createClient, createAuthClient: mocks.createAuthClient }));
 vi.mock("@/lib/auth/session", () => ({
   authorizeAction: mocks.authorizeAction,
   getSession: mocks.getSession,
@@ -55,13 +56,11 @@ function claims(method = "otp", ageSeconds = 10) {
   return { data: { claims: { sub: INSPECTOR.id, amr: [{ method, timestamp: Date.now() / 1000 - ageSeconds }] } }, error: null };
 }
 
-/** A Supabase server client whose auth calls succeed unless a test says otherwise. */
+/** The user's Supabase server client (createClient), whose calls succeed unless a test says otherwise. */
 function fakeSupabase() {
   return {
     auth: {
-      signInWithPassword: vi.fn(async () => ({ data: { user: { id: INSPECTOR.id }, session: {} }, error: null })),
       signOut: vi.fn(async () => ({ error: null })),
-      resetPasswordForEmail: vi.fn(async () => ({ data: {}, error: null })),
       updateUser: vi.fn(async () => ({ data: { user: { id: INSPECTOR.id } }, error: null })),
       getClaims: vi.fn(async () => claims()),
     },
@@ -69,13 +68,24 @@ function fakeSupabase() {
   };
 }
 
+/** The auth API createAuthClient hands out for signed-out visitors (secret key, visitor's address). */
+function fakeAuthApi() {
+  return {
+    signInWithPassword: vi.fn(async () => ({ data: { user: { id: INSPECTOR.id }, session: {} }, error: null })),
+    resetPasswordForEmail: vi.fn(async () => ({ data: {}, error: null })),
+  };
+}
+
 let supabase: ReturnType<typeof fakeSupabase>;
+let authApi: ReturnType<typeof fakeAuthApi>;
 let consoleError: MockInstance<typeof console.error>;
 
 beforeEach(() => {
   vi.clearAllMocks();
   supabase = fakeSupabase();
+  authApi = fakeAuthApi();
   mocks.createClient.mockResolvedValue(supabase);
+  mocks.createAuthClient.mockResolvedValue(authApi);
   mocks.isSupabaseConfigured.mockReturnValue(true);
   mocks.authorizeAction.mockResolvedValue({ ok: true, user: INSPECTOR } satisfies ActionAuth);
   mocks.getSession.mockResolvedValue({ status: "active", user: INSPECTOR } satisfies SessionState);
@@ -113,12 +123,16 @@ async function redirectOf(run: Promise<unknown>): Promise<string> {
 describe("signIn", () => {
   const credentials = { email: " Inspector@Test.Local ", password: PASSWORD };
 
-  it("signs in, checks the profile on the same client and follows a safe next", async () => {
+  it("signs in through the auth client, checks the profile as the user and follows a safe next", async () => {
     const url = await redirectOf(signIn(INITIAL_SIGN_IN_STATE, form({ ...credentials, next: "/inspections/abc?tab=visual" })));
 
     expect(url).toBe("/inspections/abc?tab=visual");
-    expect(supabase.auth.signInWithPassword).toHaveBeenCalledWith({ email: "inspector@test.local", password: PASSWORD });
+    expect(authApi.signInWithPassword).toHaveBeenCalledWith({ email: "inspector@test.local", password: PASSWORD });
     expect(supabase.rpc).toHaveBeenCalledWith("my_profile_status");
+    // The user's client comes after sign-in, so it reads the session sign-in stored.
+    const [signedIn] = authApi.signInWithPassword.mock.invocationCallOrder;
+    const [userClient] = mocks.createClient.mock.invocationCallOrder;
+    expect(userClient).toBeGreaterThan(signedIn);
     expect(supabase.auth.signOut).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/", "layout");
   });
@@ -141,7 +155,7 @@ describe("signIn", () => {
   });
 
   it("says only that the email or password is wrong, keeping the email", async () => {
-    supabase.auth.signInWithPassword.mockResolvedValueOnce({
+    authApi.signInWithPassword.mockResolvedValueOnce({
       data: { user: null, session: null },
       error: new AuthApiError("Invalid login credentials", 400, "invalid_credentials"),
     } as never);
@@ -154,6 +168,7 @@ describe("signIn", () => {
       email: "inspector@test.local",
       message: "Email or password is incorrect.",
     });
+    expect(mocks.createClient).not.toHaveBeenCalled();
     expect(supabase.rpc).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
@@ -163,7 +178,7 @@ describe("signIn", () => {
     ["an unconfirmed email", new AuthApiError("Email not confirmed", 400, "email_not_confirmed")],
     ["a rejected email format", new AuthApiError("Unable to validate email address", 400, "validation_failed")],
   ])("gives %s the same generic answer", async (_label, error) => {
-    supabase.auth.signInWithPassword.mockResolvedValueOnce({ data: { user: null, session: null }, error } as never);
+    authApi.signInWithPassword.mockResolvedValueOnce({ data: { user: null, session: null }, error } as never);
     const state = await signIn(INITIAL_SIGN_IN_STATE, form(credentials));
     expect(state.message).toBe(MESSAGES.invalidCredentials);
   });
@@ -193,7 +208,7 @@ describe("signIn", () => {
   });
 
   it("explains a rate limit (429)", async () => {
-    supabase.auth.signInWithPassword.mockResolvedValueOnce({
+    authApi.signInWithPassword.mockResolvedValueOnce({
       data: { user: null, session: null },
       error: new AuthApiError("Request rate limit reached", 429, "over_request_rate_limit"),
     } as never);
@@ -206,21 +221,38 @@ describe("signIn", () => {
     ["Supabase answers 503", new AuthRetryableFetchError("Service Unavailable", 503)],
     ["Supabase answers 500", new AuthApiError("Database error querying schema", 500, "unexpected_failure")],
   ])("does not blame the password when %s", async (_label, error) => {
-    supabase.auth.signInWithPassword.mockResolvedValueOnce({ data: { user: null, session: null }, error } as never);
+    authApi.signInWithPassword.mockResolvedValueOnce({ data: { user: null, session: null }, error } as never);
     const state = await signIn(INITIAL_SIGN_IN_STATE, form(credentials));
     expect(state.message).toBe(MESSAGES.serviceUnavailable);
   });
 
-  it("survives a client that throws", async () => {
+  it("gives a status no wrong password produces (an API key Supabase refuses) the generic answer too", async () => {
+    authApi.signInWithPassword.mockResolvedValueOnce({
+      data: { user: null, session: null },
+      error: new AuthApiError("Invalid API key", 401, undefined),
+    } as never);
+    const state = await signIn(INITIAL_SIGN_IN_STATE, form(credentials));
+    expect(state.message).toBe(MESSAGES.invalidCredentials);
+  });
+
+  it("survives an auth client that throws", async () => {
+    mocks.createAuthClient.mockRejectedValueOnce(new Error("boom"));
+    const state = await signIn(INITIAL_SIGN_IN_STATE, form(credentials));
+    expect(state.message).toBe(MESSAGES.serviceUnavailable);
+  });
+
+  it("survives the user's client failing after sign-in", async () => {
     mocks.createClient.mockRejectedValueOnce(new Error("boom"));
     const state = await signIn(INITIAL_SIGN_IN_STATE, form(credentials));
     expect(state.message).toBe(MESSAGES.serviceUnavailable);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
   it("refuses politely while Supabase is not configured", async () => {
     mocks.isSupabaseConfigured.mockReturnValue(false);
     const state = await signIn(INITIAL_SIGN_IN_STATE, form(credentials));
     expect(state.message).toBe(MESSAGES.notConfigured);
+    expect(mocks.createAuthClient).not.toHaveBeenCalled();
     expect(mocks.createClient).not.toHaveBeenCalled();
   });
 
@@ -232,6 +264,7 @@ describe("signIn", () => {
       email: "not-an-email",
       fieldErrors: { email: MESSAGES.emailInvalid, password: MESSAGES.passwordRequired },
     });
+    expect(mocks.createAuthClient).not.toHaveBeenCalled();
     expect(mocks.createClient).not.toHaveBeenCalled();
   });
 
@@ -246,9 +279,10 @@ describe("requestPasswordReset", () => {
   it("asks Supabase for a reset email that lands on /auth/confirm", async () => {
     const state = await requestPasswordReset(INITIAL_FORGOT_PASSWORD_STATE, form({ email: " Kenneth@Example.com " }));
 
-    expect(supabase.auth.resetPasswordForEmail).toHaveBeenCalledWith("kenneth@example.com", {
+    expect(authApi.resetPasswordForEmail).toHaveBeenCalledWith("kenneth@example.com", {
       redirectTo: "https://qc.example.com/auth/confirm",
     });
+    expect(mocks.createClient).not.toHaveBeenCalled();
     expect(state).toEqual({ status: "sent", attempt: 1, email: "kenneth@example.com" });
   });
 
@@ -262,20 +296,20 @@ describe("requestPasswordReset", () => {
     ["a mailer failure", new AuthApiError("Error sending recovery email", 500, "unexpected_failure")],
     ["a network failure", new AuthRetryableFetchError("fetch failed", 0)],
   ])("gives the same confirmation for %s", async (_label, error) => {
-    supabase.auth.resetPasswordForEmail.mockResolvedValueOnce({ data: {}, error } as never);
+    authApi.resetPasswordForEmail.mockResolvedValueOnce({ data: {}, error } as never);
     const state = await requestPasswordReset(INITIAL_FORGOT_PASSWORD_STATE, form({ email: "someone@test.local" }));
     expect(state).toEqual({ status: "sent", attempt: 1, email: "someone@test.local" });
     expect(MESSAGES.resetSent).toBe("If an account exists for that email, a reset link is on its way.");
   });
 
-  it("still confirms when the client throws", async () => {
-    mocks.createClient.mockRejectedValueOnce(new Error("boom"));
+  it("still confirms when the auth client throws", async () => {
+    mocks.createAuthClient.mockRejectedValueOnce(new Error("boom"));
     const state = await requestPasswordReset(INITIAL_FORGOT_PASSWORD_STATE, form({ email: "someone@test.local" }));
     expect(state.status).toBe("sent");
   });
 
   it("explains the request rate limit, which every address hits alike", async () => {
-    supabase.auth.resetPasswordForEmail.mockResolvedValueOnce({
+    authApi.resetPasswordForEmail.mockResolvedValueOnce({
       data: {},
       error: new AuthApiError("Request rate limit reached", 429, "over_request_rate_limit"),
     } as never);
@@ -286,14 +320,14 @@ describe("requestPasswordReset", () => {
   it("validates the email without calling Supabase", async () => {
     const state = await requestPasswordReset(INITIAL_FORGOT_PASSWORD_STATE, form({ email: "someone" }));
     expect(state).toEqual({ status: "error", attempt: 1, email: "someone", fieldErrors: { email: MESSAGES.emailInvalid } });
-    expect(mocks.createClient).not.toHaveBeenCalled();
+    expect(mocks.createAuthClient).not.toHaveBeenCalled();
   });
 
   it("refuses politely while Supabase is not configured", async () => {
     mocks.isSupabaseConfigured.mockReturnValue(false);
     const state = await requestPasswordReset(INITIAL_FORGOT_PASSWORD_STATE, form({ email: "someone@test.local" }));
     expect(state.message).toBe(MESSAGES.notConfigured);
-    expect(mocks.createClient).not.toHaveBeenCalled();
+    expect(mocks.createAuthClient).not.toHaveBeenCalled();
   });
 });
 
@@ -429,7 +463,7 @@ describe("server log", () => {
   const credentials = { email: "inspector@test.local", password: PASSWORD };
 
   it("records unexpected sign-in failures by status and code, never the email", async () => {
-    supabase.auth.signInWithPassword.mockResolvedValueOnce({
+    authApi.signInWithPassword.mockResolvedValueOnce({
       data: { user: null, session: null },
       error: new AuthRetryableFetchError("Service Unavailable", 503),
     } as never);
@@ -439,7 +473,7 @@ describe("server log", () => {
   });
 
   it("keeps quiet about a plain wrong password", async () => {
-    supabase.auth.signInWithPassword.mockResolvedValueOnce({
+    authApi.signInWithPassword.mockResolvedValueOnce({
       data: { user: null, session: null },
       error: new AuthApiError("Invalid login credentials", 400, "invalid_credentials"),
     } as never);
@@ -447,8 +481,24 @@ describe("server log", () => {
     expect(consoleError).not.toHaveBeenCalled();
   });
 
+  it("records a sign-in refused for a reason no password causes, such as the API key", async () => {
+    authApi.signInWithPassword.mockResolvedValueOnce({
+      data: { user: null, session: null },
+      error: new AuthApiError("Invalid API key", 401, undefined),
+    } as never);
+    await signIn(INITIAL_SIGN_IN_STATE, form(credentials));
+    expect(logged()).toContain("[auth] sign-in failed: status 401");
+    expect(logged()).not.toContain("inspector@test.local");
+  });
+
+  it("records the user's client failing after sign-in", async () => {
+    mocks.createClient.mockRejectedValueOnce(new Error("boom"));
+    await signIn(INITIAL_SIGN_IN_STATE, form(credentials));
+    expect(logged()).toContain("[auth] sign-in failed: Error: boom");
+  });
+
   it("records a full mail quota while the form still says sent", async () => {
-    supabase.auth.resetPasswordForEmail.mockResolvedValueOnce({
+    authApi.resetPasswordForEmail.mockResolvedValueOnce({
       data: {},
       error: new AuthApiError("Email rate limit exceeded", 429, "over_email_send_rate_limit"),
     } as never);

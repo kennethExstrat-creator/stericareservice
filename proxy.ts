@@ -1,10 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { proxyDecision } from "@/lib/auth/routes";
+import { withSecurityHeaders } from "@/lib/auth/security-headers";
 import { updateSession } from "@/lib/supabase/proxy";
 
 /**
  * Runs before every page request: refreshes the Supabase session cookie, sends
- * signed-out visitors to /login and signed-in ones away from it.
+ * signed-out visitors to /login and signed-in ones away from it, and adds the
+ * security headers (no framing by other sites, lib/auth/security-headers.ts).
  *
  * This is an optimistic check only. Roles, deactivation and data access are
  * enforced by lib/auth/session.ts in every page, Server Action and Route
@@ -21,8 +23,8 @@ export async function proxy(request: NextRequest) {
     next: searchParams.get("next"),
     signedIn: claims !== null,
   });
-  if (decision.action === "pass") return response;
-  return redirectKeepingSession(request, response, decision.location);
+  if (decision.action === "pass") return withSecurityHeaders(response);
+  return withSecurityHeaders(redirectKeepingSession(request, response, decision.location));
 }
 
 /** A redirect that still carries any refreshed auth cookies and cache headers. */
