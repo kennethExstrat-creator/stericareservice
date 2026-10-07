@@ -4,7 +4,7 @@ import { seesTeamInspections } from "@/lib/auth/org";
 import type { InspectionResult, InspectionStatus } from "@/lib/schemas/common";
 import type { Database } from "@/lib/supabase/database.types";
 import { manufacturerLabel, personLabel } from "./format";
-import { inspectionSearchFilter } from "./postgrest";
+import { arrayLiteral, inspectionSearchFilter, quoteFilterValue } from "./postgrest";
 import { PAGE_SIZE, type FilterOption, type InspectionListFilters } from "./search-params";
 
 /**
@@ -30,6 +30,38 @@ export const INSPECTION_LIST_SELECT =
 
 /** PostgREST's answer to a page past the last row. */
 const RANGE_NOT_SATISFIABLE = "PGRST103";
+
+/** Postgres: a column the query names does not exist. */
+const UNDEFINED_COLUMN = "42703";
+
+/** The migration that adds carton_numbers and lot_numbers_upper, which the full search needs. */
+export const SEARCH_COLUMNS_MIGRATION = "20261007191137_inspection_search_columns.sql";
+
+/** A carton number as it may be typed: a whole number, nine digits at most (a Postgres integer). */
+const CARTON_NUMBER = /^\d{1,9}$/;
+
+/**
+ * The list search (BUILD_SPEC 10: "Search by ref, PO, lot or carton") as one
+ * `.or()` filter. An inspection matches when its ref or PO contains the text
+ * in any case, or one of its lot numbers is the whole text as typed or in
+ * capitals (inspectionSearchFilter), or, with the search columns of
+ * SEARCH_COLUMNS_MIGRATION:
+ * - one of its lot numbers is the whole text in any case (lot_numbers_upper
+ *   holds them in capitals: an iPad saves 'Lt081315' for LT081315);
+ * - the text is a whole number and one of its sampled cartons has that
+ *   number (carton_numbers; leading zeros are ignored).
+ * Without them (`searchColumns` false), only the first part.
+ */
+export function listSearchFilter(text: string, searchColumns = true): string {
+  const conditions = [inspectionSearchFilter(text)];
+  if (searchColumns) {
+    conditions.push(`lot_numbers_upper.ov.${quoteFilterValue(arrayLiteral([text.toUpperCase()]))}`);
+    if (CARTON_NUMBER.test(text) && Number(text) >= 1) {
+      conditions.push(`carton_numbers.cs.${quoteFilterValue(`{${Number(text)}}`)}`);
+    }
+  }
+  return conditions.join(",");
+}
 
 type ListQueryRow = {
   id: string;
@@ -73,12 +105,12 @@ function logFailure(what: string, error: { code?: string; message: string }) {
 }
 
 /** The list query with the filters applied, before ordering and paging. */
-function filteredQuery(supabase: Client, filters: InspectionListFilters, head: boolean) {
+function filteredQuery(supabase: Client, filters: InspectionListFilters, head: boolean, searchColumns: boolean) {
   let query = supabase.from("inspections").select(INSPECTION_LIST_SELECT, { count: "exact", head });
   if (filters.status) query = query.eq("status", filters.status);
   if (filters.client) query = query.eq("client_id", filters.client);
   if (filters.manufacturer) query = query.eq("manufacturer_id", filters.manufacturer);
-  if (filters.q) query = query.or(inspectionSearchFilter(filters.q));
+  if (filters.q) query = query.or(listSearchFilter(filters.q, searchColumns));
   return query;
 }
 
@@ -101,25 +133,44 @@ export function toListRow(row: ListQueryRow, reader: ListReader): InspectionList
 /**
  * One page of inspections, newest first (inspection date, then creation), with
  * the total for the filters. `reader` only shapes the rows; RLS does the scoping.
+ * On a project without SEARCH_COLUMNS_MIGRATION (Postgres answers 42703, no
+ * such column) a search runs again without the search columns.
  */
-export async function listInspections(
+export function listInspections(
   supabase: Client,
   filters: InspectionListFilters,
   reader: ListReader,
 ): Promise<InspectionListResult> {
+  return listPage(supabase, filters, reader, true);
+}
+
+async function listPage(
+  supabase: Client,
+  filters: InspectionListFilters,
+  reader: ListReader,
+  searchColumns: boolean,
+): Promise<InspectionListResult> {
   const from = (filters.page - 1) * PAGE_SIZE;
-  const { data, error, count } = await filteredQuery(supabase, filters, false)
+  const { data, error, count } = await filteredQuery(supabase, filters, false, searchColumns)
     .order("inspection_date", { ascending: false })
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
     .range(from, from + PAGE_SIZE - 1);
 
   if (error) {
+    if (searchColumns && filters.q && error.code === UNDEFINED_COLUMN) {
+      // A project without the migration yet: search as before it, and say so.
+      console.warn(
+        `Inspections list: searching without carton numbers and lots in any case until ${SEARCH_COLUMNS_MIGRATION} is applied`,
+        { code: error.code, message: error.message },
+      );
+      return listPage(supabase, filters, reader, false);
+    }
     if (error.code !== RANGE_NOT_SATISFIABLE) {
       logFailure("list", error);
       return { kind: "error" };
     }
-    return pastTheEnd(supabase, filters);
+    return pastTheEnd(supabase, filters, searchColumns);
   }
 
   const total = count ?? data.length;
@@ -127,9 +178,16 @@ export async function listInspections(
   return { kind: "rows", rows: data.map((row) => toListRow(row, reader)), total };
 }
 
-/** A stale or hand-made link past the last page: count what there is instead. */
-async function pastTheEnd(supabase: Client, filters: InspectionListFilters): Promise<InspectionListResult> {
-  const { error, count } = await filteredQuery(supabase, filters, true);
+/**
+ * A stale or hand-made link past the last page: count what there is instead,
+ * with the search the page query could run (a count's error has no code).
+ */
+async function pastTheEnd(
+  supabase: Client,
+  filters: InspectionListFilters,
+  searchColumns: boolean,
+): Promise<InspectionListResult> {
+  const { error, count } = await filteredQuery(supabase, filters, true, searchColumns);
   if (error) {
     logFailure("count", error);
     return { kind: "error" };

@@ -9,6 +9,12 @@
 // hidden (data-scrolled: some is off to the left; data-more: some to the
 // right), so the pinned Ref and actions columns show an edge only then. No
 // scrollbar is drawn (Kenneth found it ugly): those edges show there is more.
+//
+// The card is positioned (relative), so the screen-reader-only text in its
+// cells ("No PO yet" and the like, the caption) is clipped by it. sr-only
+// text is position: absolute; without a positioned ancestor inside the card
+// it would sit at its place in the wide table but outside the scroller's
+// clipping, and widen the page itself (docs/DESIGN.md).
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
@@ -47,7 +53,7 @@ export function TableScroller({ label, className, children }: { label: string; c
       data-scrolled={edges.scrolled || undefined}
       data-more={edges.more || undefined}
       className={cn(
-        "group/scroller w-full overflow-x-auto overscroll-x-contain rounded-xl bg-card shadow-sm ring-1 ring-border focus-ring",
+        "group/scroller relative w-full overflow-x-auto overscroll-x-contain rounded-xl bg-card shadow-sm ring-1 ring-border focus-ring",
         // Scrolls, without drawing a scrollbar (Firefox and Chrome, then WebKit).
         "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         className,

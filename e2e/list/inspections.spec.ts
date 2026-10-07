@@ -1,6 +1,6 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
 import { createTestAdminClient } from "../support/admin";
-import { signIn, TEST_ACCOUNTS } from "../support/session";
+import { sessionCookies, TEST_ACCOUNTS } from "../support/session";
 import {
   countVisibleInspections,
   createDraftWithEvidence,
@@ -8,8 +8,12 @@ import {
   DELETE_MIGRATION,
   deleteFunctionIsLive,
   deletionRecord,
+  E_CARTONS,
   FIXTURE_CLIENT_NAME,
   HOSTILE_PO,
+  MIXED_CASE_LOT,
+  SEARCH_MIGRATION,
+  searchColumnsAreLive,
   storedObjects,
   type ListFixture,
 } from "./fixtures";
@@ -20,12 +24,30 @@ import {
  *
  * Each row ends with its actions (Kenneth, 7 October 2026): Continue,
  * Review or View, and Delete on a draft. Deleting needs the database
- * function of migration 20261007151500; until a project has it, the test
- * that deletes skips and says so.
+ * function of migration 20261007151500, and searching by carton number or
+ * by a lot in any case the columns of SEARCH_MIGRATION; until a project has
+ * them, the tests that need them skip and say so.
  */
+
+type Account = keyof typeof TEST_ACCOUNTS;
+type Cookie = Awaited<ReturnType<typeof sessionCookies>>[number];
+
+/** One sign-in per account and project, shared by the tests: Supabase limits sign-ins (about 30 in a few minutes). */
+const sessions = new Map<Account, Cookie[]>();
+
+async function signInAs(context: BrowserContext, baseURL: string, account: Account) {
+  let cookies = sessions.get(account);
+  if (!cookies) {
+    cookies = await sessionCookies(TEST_ACCOUNTS[account]);
+    sessions.set(account, cookies);
+  }
+  await context.addCookies(cookies.map((cookie) => ({ ...cookie, url: baseURL })));
+}
 
 /** The empty list's pointer to the button above it. */
 const START_HINT = "Start one with New inspection.";
+/** Opening the capture screen or a review: a dev server compiles it on first use, which can take longer than 5 s. */
+const OPENS = { timeout: 30_000 };
 /** B's seeded manufacturer, with the factory that tells the company's plants apart. */
 const TERANG_NUSA_LABEL = "Terang Nusa Sdn. Bhd. · TG Factory 40";
 
@@ -79,9 +101,72 @@ function watchConsole(page: Page) {
   return () => errors.filter((text) => /hydrat|did not match|server rendered/i.test(text));
 }
 
+/**
+ * The page itself never scrolls sideways (only the table's card does).
+ * Measured against the page's layout width and the window's, never
+ * window.innerWidth: on touch the browser widens innerWidth to fit content
+ * that sticks out, so an overflowing page would measure as fitting.
+ */
 async function expectNoPageScroll(page: Page) {
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-  expect(overflow, "the page scrolls sideways").toBeLessThanOrEqual(0);
+  const viewport = page.viewportSize()!.width;
+  const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth,
+  }));
+  expect(scrollWidth, "the page scrolls sideways").toBeLessThanOrEqual(Math.min(clientWidth, viewport));
+}
+
+/**
+ * On touch, a sideways swipe across the page heading leaves the page where
+ * it is: nothing outside the card is wider than the screen.
+ */
+async function expectPageStaysPutOnSwipe(page: Page) {
+  if (!isTouch()) return;
+  const heading = (await page.getByRole("heading", { level: 1 }).boundingBox())!;
+  const width = page.viewportSize()!.width;
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Input.synthesizeScrollGesture", {
+    x: width - 40,
+    y: Math.round(heading.y + heading.height / 2),
+    xDistance: -500,
+    gestureSourceType: "touch",
+    speed: 1500,
+  });
+  await cdp.detach();
+  const moved = await page.evaluate(() => ({
+    scrollX: window.scrollX,
+    offsetLeft: window.visualViewport?.offsetLeft ?? 0,
+    innerWidth: window.innerWidth,
+  }));
+  expect(moved, "the page moved sideways under a swipe").toEqual({ scrollX: 0, offsetLeft: 0, innerWidth: width });
+}
+
+/**
+ * Status and result show without a sideways scroll, at every size: inside
+ * the card, clear of the pinned actions on its right.
+ */
+async function expectStatusAndResultInView(page: Page) {
+  const at = await page.evaluate(() => {
+    const card = document.querySelector('[data-slot="table-scroller"]')!.getBoundingClientRect();
+    const headings = [...document.querySelectorAll("thead th")];
+    const edges = (el: Element) => {
+      const box = el.getBoundingClientRect();
+      return { left: box.left, right: box.right };
+    };
+    const named = (name: string) => headings.find((th) => th.textContent?.trim() === name);
+    return {
+      card: { left: card.left, right: card.right },
+      actions: edges(headings.at(-1)!),
+      status: named("Status") ? edges(named("Status")!) : null,
+      result: named("Result") ? edges(named("Result")!) : null,
+    };
+  });
+  for (const name of ["status", "result"] as const) {
+    const column = at[name];
+    expect(column, `the ${name} column`).not.toBeNull();
+    expect(column!.left, `the ${name} column starts inside the card`).toBeGreaterThanOrEqual(at.card.left - 1);
+    expect(column!.right, `the ${name} column ends before the pinned actions`).toBeLessThanOrEqual(at.actions.left + 1);
+  }
 }
 
 /** A name shown in full on its one line: not cut with an ellipsis. */
@@ -166,7 +251,7 @@ test.describe("before there are any inspections", () => {
   test("the inspector sees an empty list that says who sees what", async ({ page, context, baseURL }) => {
     test.skip((await countVisibleInspections("inspector")) > 0, "the shared database has inspections for this account");
     const hydration = watchConsole(page);
-    await signIn(context, baseURL!, TEST_ACCOUNTS.inspector);
+    await signInAs(context, baseURL!, "inspector");
     await page.goto("/inspections");
 
     await expect(page.getByRole("heading", { level: 1, name: "Inspections" })).toBeVisible();
@@ -183,7 +268,7 @@ test.describe("before there are any inspections", () => {
 
   test("the admin sees an empty list that says who sees what", async ({ page, context, baseURL }) => {
     test.skip((await countVisibleInspections("admin")) > 0, "the shared database already has inspections");
-    await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
+    await signInAs(context, baseURL!, "admin");
     await page.goto("/inspections");
 
     await expect(page.getByRole("heading", { name: "No inspections yet" })).toBeVisible();
@@ -210,24 +295,26 @@ test.describe("with inspections", () => {
     baseURL,
   }) => {
     const hydration = watchConsole(page);
-    await signIn(context, baseURL!, TEST_ACCOUNTS.inspector);
+    await signInAs(context, baseURL!, "inspector");
     await page.goto("/inspections");
     const { refs } = fixture;
 
     await expect(row(page, refs.B)).toBeVisible();
     await expect(row(page, refs.A)).toBeVisible();
     await expect(row(page, refs.D)).toBeVisible();
+    await expect(row(page, refs.E)).toBeVisible();
     await expect(row(page, refs.C)).toHaveCount(0);
     await expect(page.getByRole("columnheader", { name: "Inspector in charge", exact: true, includeHidden: true })).toHaveCount(0);
     await expect(row(page, refs.A)).not.toContainText("Test Inspector");
     await expect(page.getByText("Your inspections", { exact: true })).toBeVisible();
 
-    // Newest inspection date first: B (3 Oct), A (1 Oct), D (30 Sep).
+    // Newest inspection date first: B (3 Oct), A (1 Oct), D (30 Sep), E (29 Sep).
     const order = await page.locator("tbody tr[data-ref]").evaluateAll((rows) => rows.map((r) => r.getAttribute("data-ref")));
     expect(order.indexOf(refs.B)).toBeLessThan(order.indexOf(refs.A));
     expect(order.indexOf(refs.A)).toBeLessThan(order.indexOf(refs.D));
+    expect(order.indexOf(refs.D)).toBeLessThan(order.indexOf(refs.E));
 
-    // The result is in its own column on the desktop and under the status on the iPad: one of them shows.
+    // The status and the result, each in its own column.
     const result = (ref: string, text: string) => row(page, ref).getByText(text, { exact: true }).filter({ visible: true });
     await expect(row(page, refs.A).getByText("Draft")).toBeVisible();
     await expect(result(refs.A, "Not done")).toBeVisible();
@@ -246,6 +333,10 @@ test.describe("with inspections", () => {
     await expect(row(page, refs.A)).toContainText("Hartalega NGC", { useInnerText: true });
     await expect(row(page, refs.A)).toContainText("E2E-LIST-PO-100", { useInnerText: true });
     await expect(row(page, refs.A)).toContainText("1 Oct 2026", { useInnerText: true });
+    // A draft just started: a dash where nothing is chosen or typed yet, and the words for screen readers.
+    for (const missing of ["No client yet", "No manufacturer yet", "No product yet", "No PO yet"]) {
+      await expect(row(page, refs.E).getByText(missing, { exact: true }), missing).toHaveClass(/\bsr-only\b/);
+    }
 
     if (isTouch()) {
       // 44 px rows and controls, 16 px field text.
@@ -267,26 +358,43 @@ test.describe("with inspections", () => {
       await expectActionSize(action);
     }
 
-    // Every column at every size, the PO, product and result included; the actions' column is named for screen readers.
-    for (const name of ["Ref", "Date", "Client", "Manufacturer", "Product", "PO", "Status", "Result", "Actions"]) {
+    // Every column at every size, status and result straight after the ref; the actions' column is named for screen readers.
+    const columns = ["Ref", "Status", "Result", "Date", "Client", "Manufacturer", "Product", "PO", "Actions"];
+    for (const name of columns) {
       await expect(page.getByRole("columnheader", { name, exact: true }), name).toHaveCount(1);
     }
+    expect((await page.locator("thead th").allTextContents()).map((text) => text.trim())).toEqual(columns);
     await expect(row(page, refs.A)).not.toContainText("PO E2E-LIST-PO-100", { useInnerText: true });
 
+    // Only the card scrolls sideways, the screen-reader words of E's empty cells included (they stay inside it).
     await expectScrollsInItsCard(page);
+    await expectStatusAndResultInView(page);
     await shot(page, "inspector-list");
+    await expectPageStaysPutOnSwipe(page);
     expect(hydration()).toEqual([]);
   });
 
   test("the admin sees every inspection with the Inspector column", async ({ page, context, baseURL }) => {
     const hydration = watchConsole(page);
-    await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
+    await signInAs(context, baseURL!, "admin");
     await page.goto("/inspections");
     const { refs } = fixture;
 
-    for (const ref of [refs.A, refs.B, refs.C, refs.D]) await expect(row(page, ref)).toBeVisible();
-    // A column of its own at every size.
+    for (const ref of [refs.A, refs.B, refs.C, refs.D, refs.E]) await expect(row(page, ref)).toBeVisible();
+    // A column of its own at every size, just before the actions.
     await expect(page.getByRole("columnheader", { name: "Inspector in charge", exact: true })).toHaveCount(1);
+    expect((await page.locator("thead th").allTextContents()).map((text) => text.trim())).toEqual([
+      "Ref",
+      "Status",
+      "Result",
+      "Date",
+      "Client",
+      "Manufacturer",
+      "Product",
+      "PO",
+      "Inspector in charge",
+      "Actions",
+    ]);
     await expect(row(page, refs.A)).toContainText("Test Inspector", { useInnerText: true });
     await expect(row(page, refs.C)).toContainText("Test Admin", { useInnerText: true });
     await expect(row(page, refs.C).getByText("Reopened")).toBeVisible();
@@ -301,7 +409,9 @@ test.describe("with inspections", () => {
     ]);
     await expectOneLineRows(page);
     await expectScrollsInItsCard(page);
+    await expectStatusAndResultInView(page);
     await shot(page, "admin-list");
+    await expectPageStaysPutOnSwipe(page);
     expect(hydration()).toEqual([]);
   });
 
@@ -310,7 +420,7 @@ test.describe("with inspections", () => {
     context,
     baseURL,
   }) => {
-    await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
+    await signInAs(context, baseURL!, "admin");
     await page.goto("/inspections");
     const { refs } = fixture;
     await expect(row(page, refs.A)).toBeVisible();
@@ -319,14 +429,15 @@ test.describe("with inspections", () => {
     // Admins' ten columns are wider than every screen here, the 1440 px desktop with its sidebar included.
     expect(hidden, "the table is wider than its card").toBeGreaterThan(0);
 
-    /** Where the pinned cells and a column that scrolls sit, against the card's edges. */
+    /** Where the pinned cells and a column that scrolls (the client) sit, against the card's edges. */
     const positions = () =>
       page.evaluate((ref) => {
         const card = document.querySelector('[data-slot="table-scroller"]')!.getBoundingClientRect();
         const tr = document.querySelector(`tr[data-ref="${ref}"]`)!;
         const left = tr.querySelector("th")!.getBoundingClientRect();
         const right = tr.lastElementChild!.getBoundingClientRect();
-        const client = tr.children[2].getBoundingClientRect();
+        const clientColumn = [...document.querySelectorAll("thead th")].findIndex((th) => th.textContent?.trim() === "Client");
+        const client = tr.children[clientColumn].getBoundingClientRect();
         return {
           refAtLeft: Math.abs(left.left - card.left) <= 2,
           actionsAtRight: Math.abs(right.right - card.right) <= 2,
@@ -374,15 +485,21 @@ test.describe("with inspections", () => {
       expect(await at()).toBe(0);
     }).toPass({ timeout: 20_000, intervals: [50] });
     await expect(scroller).not.toHaveAttribute("data-scrolled");
-    await page.keyboard.press("ArrowRight");
-    await expect.poll(at).toBeGreaterThan(0);
+    // A press while the last smooth scroll still overshoots the edge goes into
+    // the overshoot (Chrome), so press until the card moves.
+    await expect(async () => {
+      await page.keyboard.press("ArrowRight");
+      expect(await at()).toBeGreaterThan(0);
+    }).toPass({ timeout: 20_000, intervals: [100] });
     await expect(async () => {
       await page.keyboard.press("ArrowRight");
       expect(await left()).toBeLessThanOrEqual(1);
     }).toPass({ timeout: 20_000, intervals: [50] });
     await expect(scroller).not.toHaveAttribute("data-more");
     expect(await positions()).toMatchObject({ refAtLeft: true, actionsAtRight: true });
-    // The pinned actions still work after scrolling: Continue on A.
+    // The pinned actions still work after scrolling: Continue on A, down the
+    // page as far as it is (other inspections in the shared database may come first).
+    await row(page, refs.A).evaluate((tr) => window.scrollBy(0, tr.getBoundingClientRect().top - window.innerHeight / 2));
     await expect(mainAction(page, refs.A, "Continue")).toBeInViewport();
   });
 
@@ -391,7 +508,7 @@ test.describe("with inspections", () => {
     context,
     baseURL,
   }) => {
-    await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
+    await signInAs(context, baseURL!, "admin");
     await page.goto("/inspections");
     const { refs } = fixture;
 
@@ -428,10 +545,12 @@ test.describe("with inspections", () => {
   });
 
   test("search finds a ref, part of a PO or a whole lot number", async ({ page, context, baseURL }) => {
-    await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
+    await signInAs(context, baseURL!, "admin");
     await page.goto("/inspections");
     const { refs } = fixture;
     const search = page.getByRole("searchbox", { name: "Search" });
+    // As short as it was, so it fits the narrowest search box (a 13 inch iPad held upright).
+    await expect(search).toHaveAttribute("placeholder", "Ref, PO, lot or carton");
 
     await search.fill(refs.A);
     await search.press("Enter");
@@ -452,12 +571,16 @@ test.describe("with inspections", () => {
       await expect(row(page, refs.A)).toBeVisible();
       await expect(row(page, refs.B)).toHaveCount(0);
     }
+    // A lot saved in mixed case, as typed.
+    await page.goto(`/inspections?q=${MIXED_CASE_LOT}`);
+    await expect(row(page, refs.E)).toBeVisible();
+    await expect(row(page, refs.A)).toHaveCount(0);
     await shot(page, "admin-search");
 
     // Part of a lot number is not a match: lots are matched whole.
     await page.goto("/inspections?q=E2E-LOT-A");
     await expect(page.getByRole("heading", { name: "No inspections match" })).toBeVisible();
-    await expect(page.getByText("Search matches part of a ref or PO number, or a whole lot number.")).toBeVisible();
+    await expect(page.getByText("Search matches part of a ref or PO number, or a whole lot or carton number.")).toBeVisible();
     await shot(page, "no-matches");
 
     await press(page.getByRole("link", { name: "Clear filters" }));
@@ -466,8 +589,57 @@ test.describe("with inspections", () => {
     await expect(row(page, refs.A)).toBeVisible();
   });
 
+  test("search finds a lot in any case, and a sampled carton by its number", async ({ page, context, baseURL }) => {
+    test.skip(
+      !(await searchColumnsAreLive()),
+      `Needs ${SEARCH_MIGRATION} on the project; the integrator applies it after review. Until then lots match as typed or in capitals, and carton numbers not at all.`,
+    );
+    await signInAs(context, baseURL!, "inspector");
+    const { refs } = fixture;
+    const search = page.getByRole("searchbox", { name: "Search" });
+
+    // E's lot was saved as the iPad typed it ('Lt-E2E-E5'); the carton says LT-E2E-E5. Any case finds it.
+    for (const text of [MIXED_CASE_LOT.toUpperCase(), MIXED_CASE_LOT.toLowerCase()]) {
+      await page.goto(`/inspections?${new URLSearchParams({ q: text })}`);
+      await expect(row(page, refs.E), text).toBeVisible();
+      await expect(row(page, refs.A), text).toHaveCount(0);
+    }
+
+    // A carton number, typed and run with Enter; leading zeros make no difference.
+    await page.goto("/inspections");
+    for (const text of [String(E_CARTONS[0]), `00${E_CARTONS[1]}`]) {
+      await search.fill(text);
+      await search.press("Enter");
+      await expect(page).toHaveURL(new RegExp(`\\?q=${text}$`));
+      await expect(row(page, refs.E), text).toBeVisible();
+      await expect(row(page, refs.B), text).toHaveCount(0);
+    }
+    await shot(page, "carton-search");
+
+    // Whole numbers only: part of a carton number is not a match.
+    await page.goto(`/inspections?q=${String(E_CARTONS[0]).slice(0, 4)}`);
+    await expect(page.locator('[data-slot="table-scroller"], [data-list-state="no-matches"]')).toBeVisible();
+    await expect(row(page, refs.E)).toHaveCount(0);
+  });
+
+  test("a whole number never fails the search, with or without the carton numbers", async ({ page, context, baseURL }) => {
+    await signInAs(context, baseURL!, "admin");
+    const { refs } = fixture;
+    // Until the project has SEARCH_MIGRATION, the list searches as before it: E's cartons are not found then.
+    const live = await searchColumnsAreLive();
+    // A carton number, and a number too long for one (searched as text only).
+    for (const text of [String(E_CARTONS[0]), "1234567890"]) {
+      await page.goto(`/inspections?q=${text}`);
+      await expect(page.locator('[data-slot="table-scroller"], [data-list-state="no-matches"]'), text).toBeVisible();
+      await expect(page.locator('[data-list-state="error"]'), text).toHaveCount(0);
+      await expect(row(page, refs.E), text).toHaveCount(live && text === String(E_CARTONS[0]) ? 1 : 0);
+    }
+  });
+
   test("search text with PostgREST filter syntax in it stays literal", async ({ page, context, baseURL }) => {
-    await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
+    // Fifteen searches, each a page load: more than 30 s on a busy dev server.
+    test.slow();
+    await signInAs(context, baseURL!, "admin");
     const { refs } = fixture;
 
     // Characters in HOSTILE_PO: found literally, and only there.
@@ -503,7 +675,7 @@ test.describe("with inspections", () => {
     baseURL,
   }) => {
     const hydration = watchConsole(page);
-    await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
+    await signInAs(context, baseURL!, "admin");
     const { refs } = fixture;
     const search = page.getByRole("searchbox", { name: "Search" });
     const clearSearch = page.getByRole("button", { name: "Clear search" });
@@ -544,7 +716,7 @@ test.describe("with inspections", () => {
   });
 
   test("Clear filters also clears a search that was typed but never run", async ({ page, context, baseURL }) => {
-    await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
+    await signInAs(context, baseURL!, "admin");
     await page.goto("/inspections?status=submitted");
     const search = page.getByRole("searchbox", { name: "Search" });
 
@@ -558,7 +730,7 @@ test.describe("with inspections", () => {
   });
 
   test("a link to a page past the end says so", async ({ page, context, baseURL }) => {
-    await signIn(context, baseURL!, TEST_ACCOUNTS.inspector);
+    await signInAs(context, baseURL!, "inspector");
     await page.goto("/inspections?page=9");
     await expect(page.getByRole("heading", { name: "There is no page 9" })).toBeVisible();
     await shot(page, "past-the-end");
@@ -569,7 +741,7 @@ test.describe("with inspections", () => {
   });
 
   test("invalid filters in the URL are ignored", async ({ page, context, baseURL }) => {
-    await signIn(context, baseURL!, TEST_ACCOUNTS.inspector);
+    await signInAs(context, baseURL!, "inspector");
     await page.goto(
       "/inspections?status=bogus&client=not-an-id&manufacturer=00000000-0000-4000-8000-000000000000&page=-1&q=",
     );
@@ -581,7 +753,7 @@ test.describe("with inspections", () => {
   });
 
   test("New inspection opens the new inspection screen", async ({ page, context, baseURL }) => {
-    await signIn(context, baseURL!, TEST_ACCOUNTS.inspector);
+    await signInAs(context, baseURL!, "inspector");
     await page.goto("/inspections");
     const link = page.getByRole("link", { name: "New inspection" });
 
@@ -599,7 +771,7 @@ test.describe("with inspections", () => {
     baseURL,
   }) => {
     const hydration = watchConsole(page);
-    await signIn(context, baseURL!, TEST_ACCOUNTS.inspector);
+    await signInAs(context, baseURL!, "inspector");
     await page.goto("/inspections");
     const { refs, ids } = fixture;
 
@@ -629,14 +801,14 @@ test.describe("with inspections", () => {
       await shot(page, "inspector-list-actions");
       await page.keyboard.press("Enter");
     }
-    await expect(page).toHaveURL(new RegExp(`/inspections/${ids.A}$`));
+    await expect(page).toHaveURL(new RegExp(`/inspections/${ids.A}$`), OPENS);
     await expect(page.getByRole("heading", { level: 1, name: refs.A })).toBeVisible();
     await expect(page).toHaveTitle(new RegExp(`^${refs.A}\\b`));
 
     await page.goBack();
     await expect(page).toHaveURL(/\/inspections$/);
     await press(mainAction(page, refs.B, "View"));
-    await expect(page).toHaveURL(new RegExp(`/inspections/${ids.B}/review$`));
+    await expect(page).toHaveURL(new RegExp(`/inspections/${ids.B}/review$`), OPENS);
     await expect(page.getByRole("heading", { level: 1, name: refs.B })).toBeVisible();
     await expect(page).toHaveTitle(new RegExp(`^Review ${refs.B}\\b`));
     expect(hydration()).toEqual([]);
@@ -648,7 +820,7 @@ test.describe("with inspections", () => {
     baseURL,
   }) => {
     const hydration = watchConsole(page);
-    await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
+    await signInAs(context, baseURL!, "admin");
     await page.goto("/inspections");
     const { refs, ids } = fixture;
 
@@ -666,24 +838,24 @@ test.describe("with inspections", () => {
     await shot(page, "admin-list-actions");
 
     await press(mainAction(page, refs.B, "Review"));
-    await expect(page).toHaveURL(new RegExp(`/inspections/${ids.B}/review$`));
+    await expect(page).toHaveURL(new RegExp(`/inspections/${ids.B}/review$`), OPENS);
     await expect(page.getByRole("heading", { level: 1, name: refs.B })).toBeVisible();
 
     await page.goBack();
     await press(mainAction(page, refs.C, "Continue"));
-    await expect(page).toHaveURL(new RegExp(`/inspections/${ids.C}$`));
+    await expect(page).toHaveURL(new RegExp(`/inspections/${ids.C}$`), OPENS);
     await expect(page.getByRole("heading", { level: 1, name: refs.C })).toBeVisible();
 
     await page.goBack();
     await press(mainAction(page, refs.D, "View"));
-    await expect(page).toHaveURL(new RegExp(`/inspections/${ids.D}/review$`));
+    await expect(page).toHaveURL(new RegExp(`/inspections/${ids.D}/review$`), OPENS);
     await expect(page.getByRole("heading", { level: 1, name: refs.D })).toBeVisible();
     expect(hydration()).toEqual([]);
   });
 
   test("Delete asks first, and Cancel or Escape leave the draft where it was", async ({ page, context, baseURL }) => {
     const hydration = watchConsole(page);
-    await signIn(context, baseURL!, TEST_ACCOUNTS.inspector);
+    await signInAs(context, baseURL!, "inspector");
     await page.goto("/inspections");
     const { refs } = fixture;
     const trash = deleteButton(page, refs.A);
@@ -762,7 +934,7 @@ test.describe("with inspections", () => {
         photos: [...draft.objects.photos].sort(),
         files: draft.objects.files,
       });
-      await signIn(context, baseURL!, TEST_ACCOUNTS.inspector);
+      await signInAs(context, baseURL!, "inspector");
       await page.goto("/inspections");
       const target = row(page, draft.refNo);
       await expect(target).toBeVisible();
