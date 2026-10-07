@@ -198,13 +198,33 @@ describe("formatCustomValue", () => {
 describe("Verdict", () => {
   it("sets the inspector's final result and remark beside the app's suggestion", () => {
     const html = text(renderToStaticMarkup(<Verdict inspection={reviewInspection()} evaluation={evaluated()} />));
-    expect(html).toContain("Suggested by the app Failed Fail: Finished Goods Sampling Information (carton number), Visual Inspection (AQL). Warnings: Weight (g).");
+    expect(html).toContain("Suggested by the app Failed Failed: Finished Goods Sampling Information (carton number), Visual Inspection (AQL). Warnings: Weight (g).");
     expect(html).toContain("Final result (inspector) Failed Remark Critical defect in size L.");
     expect(html).not.toContain("differs from the suggested result");
     expect(html).toContain("1 error");
     expect(html).toContain("1 warning");
     expect(html).toContain("Every module is done");
     expect(html).toContain("9 modules in this inspection.");
+  });
+
+  it("says why under the suggestion, a line each, and nothing more for a clean pass", () => {
+    const html = renderToStaticMarkup(<Verdict inspection={reviewInspection()} evaluation={evaluated()} />);
+    const reasons = html.match(/<ul data-slot="suggested-reasons"[^>]*>([\s\S]*?)<\/ul>/)?.[1] ?? "";
+    expect([...reasons.matchAll(/<li>(.*?)<\/li>/g)].map((match) => match[1])).toEqual([
+      "Failed: Finished Goods Sampling Information (carton number), Visual Inspection (AQL).",
+      "Warnings: Weight (g).",
+    ]);
+
+    const evaluation = evaluated();
+    if (!evaluation.ok) throw new Error("the review fixture does not evaluate");
+    const clean = {
+      ...evaluation,
+      report: { ...evaluation.report, suggested: { result: "pass" as const, failed: [], notDone: [], warned: [], summary: "" } },
+    };
+    const passed = renderToStaticMarkup(<Verdict inspection={reviewInspection({ result: "pass", savedSuggestion: "pass" })} evaluation={clean} />);
+    expect(passed).not.toContain('data-slot="suggested-reasons"');
+    expect(text(passed)).toContain("Suggested by the app Passed Final result (inspector) Passed");
+    expect(text(passed)).not.toMatch(/\bPass\b/);
   });
 
   it("points out a final result that differs, and a suggestion that changed since it was saved", () => {
