@@ -14,6 +14,7 @@ import {
   UnitSchema,
 } from "./common";
 import { isModuleKey, ModuleKeySchema, ModuleResultSchema } from "./module-result";
+import { TemplateUnitSchema } from "./template";
 
 /* ------------------------------------------------------------------ *
  * Inspection export (BUILD_SPEC 9.1)
@@ -45,6 +46,17 @@ export const ExportTemplateSchema = z.object({
   clientLogoUrl: HttpUrlSchema.nullable(),
   /** Signed URL of the original form or report the template was built from. */
   sourceFile: HttpUrlSchema.nullable(),
+  /**
+   * Every size the template lists, in its order, whatever was ordered: the
+   * report's fixed size rows. `label` is the size's "Shown as", else the size.
+   * This and the two below are optional, so documents written before they
+   * existed still validate.
+   */
+  sizes: z.array(z.object({ value: SizeSchema, label: z.string().min(1) })).optional(),
+  /** Gloves counted in pieces or in pairs. */
+  unit: TemplateUnitSchema.optional(),
+  /** The header on the report's pages after the first; null when the template sets none. */
+  pageHeader: z.string().min(1).nullable().optional(),
 });
 export type ExportTemplate = z.infer<typeof ExportTemplateSchema>;
 

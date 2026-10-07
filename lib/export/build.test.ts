@@ -81,6 +81,10 @@ describe("buildInspectionExport", () => {
       reportTitle: "Preshipment Inspection: Nitrile Disposable Examination Gloves",
       clientLogoUrl: expect.stringContaining(`/client-logos/${PATHS.logo}`),
       sourceFile: expect.stringContaining(`/template-sources/${PATHS.source}`),
+      // Every size the template lists, not only those ordered (size M): the report's fixed rows.
+      sizes: ["XS", "S", "M", "L", "XL"].map((value) => ({ value, label: value })),
+      unit: "pcs",
+      pageHeader: null,
     });
     // Every link is signed for 24 hours (BUILD_SPEC 9.1).
     expect(fake.signed.length).toBeGreaterThan(0);

@@ -193,6 +193,40 @@ describe("ExportSchema", () => {
     Object.assign(moduleOf(doc, "weight"), { config: { warnThresholdPct: Number.NaN } });
     expect(issuePaths(doc)).toContain("modules.8.config.warnThresholdPct");
   });
+
+  it("keeps the template's sizes, unit and running header, and accepts a document written before them", () => {
+    const doc = makeStdEgExport();
+    // Every size STD_EG lists, though only M was ordered: the report's fixed rows.
+    expect(doc.template).toMatchObject({
+      sizes: ["XS", "S", "M", "L", "XL"].map((value) => ({ value, label: value })),
+      unit: "pcs",
+      pageHeader: null,
+    });
+    doc.template.sizes = [{ value: "M", label: "Medium" }];
+    doc.template.unit = "pairs";
+    doc.template.pageHeader = "Pre-shipment Inspection : {po} {product}";
+    expect(ExportSchema.parse(JSON.parse(JSON.stringify(doc))).template).toEqual(doc.template);
+
+    const older = makeStdEgExport();
+    delete older.template.sizes;
+    delete older.template.unit;
+    delete older.template.pageHeader;
+    expect(parse(older).success).toBe(true);
+  });
+
+  it("rejects a template unit, size name or running header it cannot carry", () => {
+    const unit = makeStdEgExport();
+    Object.assign(unit.template, { unit: "boxes" });
+    expect(issuePaths(unit)).toContain("template.unit");
+
+    const label = makeStdEgExport();
+    label.template.sizes = [{ value: "M", label: "" }];
+    expect(issuePaths(label)).toContain("template.sizes.0.label");
+
+    const header = makeStdEgExport();
+    header.template.pageHeader = "";
+    expect(issuePaths(header)).toContain("template.pageHeader");
+  });
 });
 
 /*
