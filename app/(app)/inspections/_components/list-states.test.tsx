@@ -12,7 +12,8 @@ describe("NoInspectionsYet", () => {
     expect(html).toContain("<h2");
     expect(html).toContain("No inspections yet");
     expect(html).toContain("You see only your own; admins see everyone&#x27;s.");
-    expect(html).toContain("Inspection capture arrives in the next build.");
+    expect(html).toContain("Start one with New inspection.");
+    expect(html).not.toContain("next build");
   });
 
   it("tells an admin they see every inspector's", () => {

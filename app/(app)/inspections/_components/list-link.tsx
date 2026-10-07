@@ -15,7 +15,12 @@ import type { ComponentProps, MouseEvent } from "react";
 import { useRequestListFocus } from "./list-focus";
 import type { ListFocusTarget } from "./list-focus-target";
 
-function PendingMarker() {
+/**
+ * Marks the list [data-pending] while the navigation of the Link it sits in
+ * runs. Inside any next/link: a row's link uses it too, so the list dims
+ * while an inspection opens.
+ */
+export function PendingMarker() {
   const { pending } = useLinkStatus();
   return <span aria-hidden hidden data-pending={pending ? "" : undefined} />;
 }

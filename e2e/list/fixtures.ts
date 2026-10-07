@@ -1,14 +1,20 @@
+import { lookupFrom, templateRowFields } from "@/lib/templates";
+import { TemplateDefinitionSchema } from "@/lib/schemas/template";
+import { resolveTemplate } from "@/modules";
 import type { TablesInsert } from "../../lib/supabase/database.types";
 import { createTestAdminClient, deleteTestInspection } from "../support/admin";
 import { TEST_ACCOUNTS } from "../support/session";
 
 /**
- * Temporary rows for the inspections list specs. There is no capture screen
- * until Phase 2, so the specs insert inspections with the secret key and
- * delete them afterwards (e2e/README.md): each inspection through
+ * Temporary rows for the inspections list specs, inserted with the secret key
+ * (quicker and more varied than creating them through the screens) and
+ * deleted afterwards (e2e/README.md): each inspection through
  * deleteTestInspection(), since the service role may not delete an approved
  * one, then the template and the client they point at. They have no Storage
  * files. A run that died half way is cleaned up by the next.
+ *
+ * The template is resolved with the real modules, so a row's link opens a
+ * capture screen or a review that renders like any other.
  *
  * Side effects that cannot be undone through the API, by design: each
  * inspection draws a number from the ref sequence, and each deletion leaves an
@@ -19,6 +25,19 @@ type AdminClient = ReturnType<typeof createTestAdminClient>;
 
 export const FIXTURE_TEMPLATE_CODE = "E2E_LIST";
 export const FIXTURE_CLIENT_NAME = "E2E list client (temporary)";
+
+const DEFINITION = TemplateDefinitionSchema.parse({
+  code: FIXTURE_TEMPLATE_CODE,
+  name: "Inspections list e2e fixture (temporary)",
+  scope: { productType: "examination", standard: "EN455" },
+  unit: "pcs",
+  sizes: [{ value: "S" }, { value: "M" }, { value: "L" }],
+  modules: [
+    { key: "header", include: true },
+    { key: "glove_info", include: true },
+    { key: "conclusion", include: true },
+  ],
+});
 
 // Reference rows from supabase/seed.sql, which uses fixed ids.
 const SEED = {
@@ -35,6 +54,8 @@ export type FixtureKey = "A" | "B" | "C" | "D";
 export type ListFixture = {
   /** Ref numbers by key: A, B and D belong to the inspector, C to the admin. */
   refs: Record<FixtureKey, string>;
+  /** Inspection ids by key, for the pages a row opens. */
+  ids: Record<FixtureKey, string>;
   clientId: string;
   manufacturers: typeof SEED;
   cleanup: () => Promise<void>;
@@ -115,17 +136,13 @@ async function insertFixtureRows(admin: AdminClient): Promise<ListFixture> {
     .single();
   if (clientError) fail("creating the fixture client", clientError);
 
+  const resolution = resolveTemplate(DEFINITION, lookupFrom([]));
+  if (!resolution.ok) fail("resolving the fixture template", { message: JSON.stringify(resolution.problems) });
+
   // A draft template no inspector could start from; only these rows use it.
   const { data: template, error: templateError } = await admin
     .from("templates")
-    .insert({
-      code: FIXTURE_TEMPLATE_CODE,
-      version: 1,
-      product_type: "examination",
-      standard: "EN455",
-      status: "draft",
-      definition: { code: FIXTURE_TEMPLATE_CODE, name: "Inspections list e2e fixture (temporary)", modules: [] },
-    })
+    .insert({ ...templateRowFields(DEFINITION, resolution.template), version: 1, status: "draft" })
     .select("id")
     .single();
   if (templateError) fail("creating the fixture template", templateError);
@@ -209,6 +226,7 @@ async function insertFixtureRows(admin: AdminClient): Promise<ListFixture> {
 
   return {
     refs: { A: byKey.A.ref_no, B: byKey.B.ref_no, C: byKey.C.ref_no, D: byKey.D.ref_no },
+    ids: { A: byKey.A.id, B: byKey.B.id, C: byKey.C.id, D: byKey.D.id },
     clientId: client.id,
     manufacturers: SEED,
     cleanup: () => removeFixtureRows(admin),

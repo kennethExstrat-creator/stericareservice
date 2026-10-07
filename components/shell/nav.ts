@@ -36,7 +36,11 @@ export type NavLinkEntry = {
   roles: readonly UserRole[];
 };
 
-/** A screen that is planned but not built: shown, never linked. */
+/**
+ * A screen that is planned but not built: shown, never linked. Every screen
+ * of BUILD_SPEC 10 is built, so NAV has none today; the kind stays for the
+ * next screen Kenneth wants admins to see coming.
+ */
 export type NavPlannedEntry = {
   kind: "planned";
   key: string;
@@ -61,10 +65,15 @@ export type NavSection = {
 
 const EVERYONE: readonly UserRole[] = ["inspector", "admin"];
 const ADMINS: readonly UserRole[] = ["admin"];
-const PHASE_3 = "Phase 3";
 
 export const ADMIN_PATH = "/admin";
 export const ADMIN_USERS_PATH = "/admin/users";
+export const ADMIN_MANUFACTURERS_PATH = "/admin/manufacturers";
+export const ADMIN_CLIENTS_PATH = "/admin/clients";
+/** DEFECTS_PATH in lib/admin/defects.ts: the codes, with label mapping and unmapped labels below. */
+export const ADMIN_DEFECTS_PATH = "/admin/defects";
+/** TEMPLATES_PATH in lib/admin/templates.ts: the list, with each version and its editor below. */
+export const ADMIN_TEMPLATES_PATH = "/admin/templates";
 
 export const NAV: readonly NavSection[] = [
   {
@@ -92,12 +101,13 @@ export const NAV: readonly NavSection[] = [
     entries: [
       // Exact, so it is not also current on /admin/users.
       { kind: "link", key: "overview", label: "Overview", href: ADMIN_PATH, match: "exact", icon: "overview", roles: ADMINS },
+      // BUILD_SPEC 10's admin screens. Prefix: each stays current on the pages
+      // below it (/admin/defects/labels, /admin/templates/<id>/edit).
       { kind: "link", key: "users", label: "Users", href: ADMIN_USERS_PATH, match: "prefix", icon: "users", roles: ADMINS },
-      // The rest of BUILD_SPEC 10's admin screens, so admins can see what is coming.
-      { kind: "link", key: "manufacturers", label: "Manufacturers", href: "/admin/manufacturers", match: "prefix", icon: "manufacturers", roles: ADMINS },
-      { kind: "link", key: "clients", label: "Clients", href: "/admin/clients", match: "prefix", icon: "clients", roles: ADMINS },
-      { kind: "planned", key: "defects", label: "Defects", icon: "defects", phase: PHASE_3, roles: ADMINS },
-      { kind: "planned", key: "templates", label: "Templates", icon: "templates", phase: PHASE_3, roles: ADMINS },
+      { kind: "link", key: "manufacturers", label: "Manufacturers", href: ADMIN_MANUFACTURERS_PATH, match: "prefix", icon: "manufacturers", roles: ADMINS },
+      { kind: "link", key: "clients", label: "Clients", href: ADMIN_CLIENTS_PATH, match: "prefix", icon: "clients", roles: ADMINS },
+      { kind: "link", key: "defects", label: "Defects", href: ADMIN_DEFECTS_PATH, match: "prefix", icon: "defects", roles: ADMINS },
+      { kind: "link", key: "templates", label: "Templates", href: ADMIN_TEMPLATES_PATH, match: "prefix", icon: "templates", roles: ADMINS },
     ],
   },
 ];

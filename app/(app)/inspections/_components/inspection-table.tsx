@@ -11,17 +11,24 @@
 // long name stays on one line with the full text in the tooltip; on touch,
 // where nothing hovers, it wraps onto a second line.
 //
-// Rows are not links yet: /inspections/[id] arrives with capture in Phase 2,
-// which makes the ref open the inspection.
+// The ref opens the inspection (inspection-href.ts): a real link, so it takes
+// Tab and Enter, opens in a new tab and is named "INS-2026-0001, Draft" (an
+// aria-label: hidden text would make browsers name it "INS-2026-0001 , Draft").
+// On touch it covers its whole cell, the PO folded under it included, so the
+// target is the row's full height (at least 44 px). While the inspection
+// opens, the list dims like it does for its own links (list-link.tsx).
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { StatusPill } from "@/components/qc";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { inspectionListColumns, type InspectionColumn, type InspectionColumnKey } from "@/lib/inspections/columns";
-import { formatInspectionDate } from "@/lib/inspections/format";
+import { formatInspectionDate, INSPECTION_STATUS_LABEL } from "@/lib/inspections/format";
 import type { InspectionListRow } from "@/lib/inspections/query";
 import type { Database } from "@/lib/supabase/database.types";
 import { cn } from "@/lib/utils";
+import { inspectionHref } from "./inspection-href";
 import { InspectionStatusBadge } from "./inspection-status-badge";
+import { PendingMarker } from "./list-link";
 
 type UserRole = Database["public"]["Enums"]["user_role"];
 
@@ -78,12 +85,40 @@ function Folded({ until, children }: { until: "lg" | "xl"; children: string }) {
   );
 }
 
+/**
+ * The ref as the row's link: as wide as its text (cut short with an ellipsis
+ * in a narrow column), brand-600 like every link. On touch its ::after covers
+ * the cell, which is `relative`; the clipping of `truncate` does not reach it,
+ * since its containing block is the cell.
+ */
+const REF_LINK = cn(
+  "block w-fit max-w-full truncate rounded-sm font-semibold text-brand-600 tabular-nums underline-offset-4 hover:underline focus-ring",
+  "touch:after:absolute touch:after:inset-0",
+);
+
+/**
+ * The name says where the inspection is, as the Status column does, and
+ * starts with the ref the eye sees, so "INS-2026-0001" said aloud finds it.
+ */
+function refLinkName(row: Pick<InspectionListRow, "refNo" | "status">): string {
+  return `${row.refNo}, ${INSPECTION_STATUS_LABEL[row.status]}`;
+}
+
+function RefLink({ row }: { row: InspectionListRow }) {
+  return (
+    <Link href={inspectionHref(row.id, row.status)} aria-label={refLinkName(row)} className={REF_LINK}>
+      {row.refNo}
+      <PendingMarker />
+    </Link>
+  );
+}
+
 function cell(key: InspectionColumnKey, row: InspectionListRow): ReactNode {
   switch (key) {
     case "ref":
       return (
         <>
-          <span className="block truncate font-semibold text-foreground tabular-nums">{row.refNo}</span>
+          <RefLink row={row} />
           {row.po && <Folded until="lg">{`PO ${row.po}`}</Folded>}
         </>
       );
@@ -167,7 +202,8 @@ export function InspectionTable({ rows, role, caption }: { rows: InspectionListR
                   visibility(column),
                 );
                 return column.key === "ref" ? (
-                  <TableHead key={column.key} scope="row" className={cn(className, "h-auto font-normal touch:h-auto")}>
+                  // relative: the ref link's touch target is placed against the cell.
+                  <TableHead key={column.key} scope="row" className={cn(className, "relative h-auto font-normal touch:h-auto")}>
                     {cell(column.key, row)}
                   </TableHead>
                 ) : (

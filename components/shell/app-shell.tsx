@@ -10,10 +10,14 @@
 // the bars pad themselves out of the status bar and home indicator areas.
 // Sticky elements inside a page should stick below the top bar:
 // `sticky top-(--shell-top)` (0 from 1280 px, where there is no top bar).
+//
+// The bars' links ask a page with unsaved work before they leave it
+// (LeaveGuardArea, ./leave-guard.ts); Sign out does too (user-menu.tsx).
 import type { ReactNode } from "react";
 import { Logo } from "@/components/brand/logo";
 import { HOME_PATH } from "@/lib/auth/routes";
 import { cn } from "@/lib/utils";
+import { LeaveGuardArea } from "./leave-guard-area";
 import { LOGO_TOUCH_TARGET } from "./logo-link";
 import type { NavSection } from "./nav";
 import { SidebarNav, TabNav } from "./nav-list";
@@ -33,9 +37,13 @@ export function AppShell({ user, nav, children }: AppShellProps) {
   return (
     <div className="flex min-h-dvh flex-1 flex-col [--shell-top:calc(4rem_+_1px_+_env(safe-area-inset-top))] xl:flex-row xl:[--shell-top:0px]">
       <SkipLink />
-      <Sidebar user={user} nav={nav} />
+      <LeaveGuardArea>
+        <Sidebar user={user} nav={nav} />
+      </LeaveGuardArea>
       <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar user={user} nav={nav} />
+        <LeaveGuardArea>
+          <TopBar user={user} nav={nav} />
+        </LeaveGuardArea>
         <main
           id={MAIN_CONTENT_ID}
           tabIndex={-1}

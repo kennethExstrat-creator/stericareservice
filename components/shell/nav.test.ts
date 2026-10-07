@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { DEFECTS_PATH } from "@/lib/admin/defects";
+import { TEMPLATES_PATH } from "@/lib/admin/templates";
 import {
   activeSection,
   ariaCurrentFor,
@@ -40,21 +42,19 @@ describe("navForRole", () => {
       ["users", "link"],
       ["manufacturers", "link"],
       ["clients", "link"],
-      ["defects", "planned"],
-      ["templates", "planned"],
+      ["defects", "link"],
+      ["templates", "link"],
     ]);
   });
 
-  it("shows the Phase 3 screens as planned entries with no link", () => {
-    const planned = navForRole("admin").flatMap((section) => section.entries.filter((entry) => entry.kind === "planned"));
-    expect(planned.map((entry) => entry.label)).toEqual(["Defects", "Templates"]);
-    for (const entry of planned) {
-      expect(entry).not.toHaveProperty("href");
-      expect(entry.kind === "planned" && entry.phase).toBe("Phase 3");
+  it("has nothing planned: every admin screen of BUILD_SPEC 10 is built", () => {
+    for (const role of ["inspector", "admin"] as const) {
+      const entries = navForRole(role).flatMap((section) => section.entries);
+      expect(entries.filter((entry) => entry.kind === "planned")).toEqual([]);
     }
   });
 
-  it("links Overview, Users, Manufacturers and Clients to their pages", () => {
+  it("links every admin screen to its page", () => {
     const links = navLinks(navForRole("admin"));
     expect(links.map((link) => [link.label, link.href, link.match])).toEqual([
       ["Inspections", "/inspections", "prefix"],
@@ -62,7 +62,15 @@ describe("navForRole", () => {
       ["Users", "/admin/users", "prefix"],
       ["Manufacturers", "/admin/manufacturers", "prefix"],
       ["Clients", "/admin/clients", "prefix"],
+      ["Defects", "/admin/defects", "prefix"],
+      ["Templates", "/admin/templates", "prefix"],
     ]);
+  });
+
+  it("uses the paths the defects and template screens use themselves", () => {
+    const byKey = new Map(navLinks(navForRole("admin")).map((link) => [link.key, link.href]));
+    expect(byKey.get("defects")).toBe(DEFECTS_PATH);
+    expect(byKey.get("templates")).toBe(TEMPLATES_PATH);
   });
 
   it("filters entries inside a section and drops sections left empty", () => {
@@ -116,6 +124,8 @@ describe("ariaCurrentFor", () => {
   const inspections = { href: "/inspections", match: "prefix" } as const;
   const adminTab = { href: "/admin", match: "prefix" } as const;
   const overview = { href: "/admin", match: "exact" } as const;
+  const defects = { href: "/admin/defects", match: "prefix" } as const;
+  const templates = { href: "/admin/templates", match: "prefix" } as const;
 
   it.each([
     [inspections, "/inspections", "page"],
@@ -125,6 +135,11 @@ describe("ariaCurrentFor", () => {
     [adminTab, "/admin/users", "true"],
     [overview, "/admin", "page"],
     [overview, "/admin/users", undefined],
+    [defects, "/admin/defects", "page"],
+    [defects, "/admin/defects/labels", "true"],
+    [templates, "/admin/templates", "page"],
+    [templates, "/admin/templates/0b1c/edit", "true"],
+    [templates, "/admin/defects", undefined],
     [inspections, "/admin", undefined],
     [inspections, null, undefined],
   ] as const)("%o on %s is %s", (link, pathname, expected) => {
@@ -160,14 +175,13 @@ describe("isHiddenFromRole", () => {
 });
 
 describe("plannedByPhase", () => {
-  it("groups the admin's planned screens under Phase 3, in order", () => {
-    const entries = navForRole("admin").flatMap((section) => section.entries);
-    expect(plannedByPhase(entries)).toEqual([
-      { phase: "Phase 3", labels: ["Defects", "Templates"] },
-    ]);
+  it("has nothing to announce while every screen is built", () => {
+    for (const role of ["inspector", "admin"] as const) {
+      expect(plannedByPhase(navForRole(role).flatMap((section) => section.entries))).toEqual([]);
+    }
   });
 
-  it("keeps phases apart and has nothing for an inspector", () => {
+  it("groups planned screens by phase, in order", () => {
     const entries: NavEntry[] = [
       { kind: "planned", key: "a", label: "A", icon: "templates", phase: "Phase 3", roles: ["admin"] },
       { kind: "link", key: "b", label: "B", href: "/b", match: "exact", icon: "users", roles: ["admin"] },
@@ -178,7 +192,6 @@ describe("plannedByPhase", () => {
       { phase: "Phase 3", labels: ["A", "D"] },
       { phase: "Later", labels: ["C"] },
     ]);
-    expect(plannedByPhase(navForRole("inspector").flatMap((section) => section.entries))).toEqual([]);
   });
 });
 
@@ -234,6 +247,14 @@ describe("the current entry", () => {
     ["/admin", "admin", ["overview"]],
     ["/admin/users", "admin", ["users"]],
     ["/admin/users/abc", "admin", ["users"]],
+    ["/admin/manufacturers", "admin", ["manufacturers"]],
+    ["/admin/clients", "admin", ["clients"]],
+    ["/admin/defects", "admin", ["defects"]],
+    ["/admin/defects/labels", "admin", ["defects"]],
+    ["/admin/defects/unmapped", "admin", ["defects"]],
+    ["/admin/templates", "admin", ["templates"]],
+    ["/admin/templates/0b1c", "admin", ["templates"]],
+    ["/admin/templates/0b1c/edit", "admin", ["templates"]],
     ["/admin/settings", "admin", []],
     ["/", null, []],
     ["/login", null, []],
@@ -247,7 +268,17 @@ describe("the current entry", () => {
   });
 
   it("marks at most one tab and one sidebar entry for any path", () => {
-    const paths = ["/", "/inspections", "/inspections/x", "/admin", "/admin/users", "/admin/users/x", "/admin/other"];
+    const paths = [
+      "/",
+      "/inspections",
+      "/inspections/x",
+      "/admin",
+      "/admin/users",
+      "/admin/users/x",
+      "/admin/defects/labels",
+      "/admin/templates/x/edit",
+      "/admin/other",
+    ];
     for (const role of ["inspector", "admin"] as const) {
       const nav = navForRole(role);
       for (const pathname of paths) {
