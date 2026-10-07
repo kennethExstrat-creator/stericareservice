@@ -4,6 +4,8 @@ import { getSiteUrl } from "@/lib/env";
 import { createAdminClient, isAdminClientConfigured } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
+import { RoleChoiceSchema, TEAM_MESSAGES, canLead, roleChoiceOf, type RoleChoice } from "./org";
+import { isMissingTeamColumn } from "./team";
 
 /**
  * User management for /admin/users (BUILD_SPEC 3 and 10): input schemas, the
@@ -20,10 +22,6 @@ type ServerClient = Awaited<ReturnType<typeof createClient>>;
  * Input
  * ------------------------------------------------------------------ */
 
-export const USER_ROLES = ["inspector", "admin"] as const satisfies readonly UserRole[];
-
-export const RoleSchema = z.enum(USER_ROLES, { error: "Choose Inspector or Admin." });
-
 /**
  * A user id sent back by the page. The action re-reads everything else.
  * Lower-cased, the form Supabase gives ids in: Postgres and Supabase Auth
@@ -33,6 +31,16 @@ export const RoleSchema = z.enum(USER_ROLES, { error: "Choose Inspector or Admin
 export const UserIdSchema = z
   .uuid({ error: "That user could not be found. Reload the page and try again." })
   .toLowerCase();
+
+/**
+ * The lead inspector chosen in a form, lower-cased like every id. A form
+ * sends "" for no choice; whether one is needed depends on the role (and on
+ * the database having teams), so the action decides that.
+ */
+const LeadChoiceSchema = z.preprocess(
+  (value) => (value === "" || value === null ? undefined : value),
+  z.uuid({ error: TEAM_MESSAGES.leadGone }).toLowerCase().optional(),
+);
 
 export const InviteUserSchema = z.object({
   email: z
@@ -47,12 +55,30 @@ export const InviteUserSchema = z.object({
     .trim()
     .min(1, "Enter their full name.")
     .max(120, "Keep the name under 120 characters."),
-  role: RoleSchema,
+  role: RoleChoiceSchema,
+  leadId: LeadChoiceSchema,
 });
 export type InviteUserInput = z.infer<typeof InviteUserSchema>;
-export type InviteField = keyof InviteUserInput;
 
-export const ChangeRoleSchema = z.object({ userId: UserIdSchema, role: RoleSchema });
+/** Fields a user form can mark: the invite's, and the role and lead in every dialog. */
+export type UserField = "email" | "fullName" | "role" | "leadId";
+
+/** Change role: inspector (in a lead's team), lead inspector or admin. */
+export const ChangeRoleSchema = z.object({ userId: UserIdSchema, role: RoleChoiceSchema, leadId: LeadChoiceSchema });
+/** Change lead inspector: move an inspector to another team. */
+export const AssignLeadSchema = z.object({
+  userId: UserIdSchema,
+  leadId: z.preprocess(
+    (value) => (value === "" || value === null ? undefined : value),
+    z.uuid({ error: TEAM_MESSAGES.chooseLead }).toLowerCase(),
+  ),
+});
+/** Activate or reactivate; an inspector who has no lead gets their role and lead here. */
+export const ActivateSchema = z.object({
+  userId: UserIdSchema,
+  role: z.preprocess((value) => (value === "" || value === null ? undefined : value), RoleChoiceSchema.optional()),
+  leadId: LeadChoiceSchema,
+});
 export const UserTargetSchema = z.object({ userId: UserIdSchema });
 
 /** Reads a form's fields by name; missing fields arrive as null and fail validation. */
@@ -146,6 +172,8 @@ export type UserListItem = {
   email: string;
   fullName: string | null;
   role: UserRole;
+  /** Inspector, lead inspector or admin (lib/auth/org.ts). */
+  roleChoice: RoleChoice;
   status: AccountStatus;
   createdAt: string;
   /** Null when they never signed in, or when sign-in details are unavailable. */
@@ -157,7 +185,21 @@ export type UserListItem = {
    */
   signInBlocked: boolean;
   isSelf: boolean;
+  /** The lead inspector who manages them, when they are in a team. */
+  lead: { id: string; name: string } | null;
+  /** For a lead inspector: the people in their team, by name, active or not. Empty for everyone else. */
+  team: TeamMemberItem[];
+  /**
+   * An active inspector who is not a lead and is in no team: an account from
+   * before lead inspectors, or one a script set up. For an admin to fix.
+   */
+  missingLead: boolean;
 };
+
+export type TeamMemberItem = { id: string; name: string; active: boolean };
+
+/** An active lead inspector, for the lead pickers. */
+export type LeadOption = { id: string; name: string; teamSize: number };
 
 /**
  * - `ok`: sign-in details loaded with the secret key.
@@ -166,7 +208,17 @@ export type UserListItem = {
  */
 export type AdminApiState = "ok" | "missing-key" | "failed";
 
-export type UserDirectory = { users: UserListItem[]; adminApi: AdminApiState };
+export type UserDirectory = {
+  users: UserListItem[];
+  adminApi: AdminApiState;
+  /**
+   * False until the project has run migration 20261007170000: the screen
+   * then works as it did before lead inspectors and says what is needed.
+   */
+  teams: boolean;
+  /** Active lead inspectors by name: who an inspector can work under. */
+  leads: LeadOption[];
+};
 
 /** How a person is named in the list, dialogs and messages. */
 export function displayName(fullName: string | null | undefined, email: string | null | undefined): string {
@@ -175,18 +227,35 @@ export function displayName(fullName: string | null | undefined, email: string |
 
 const byName = new Intl.Collator("en-GB", { sensitivity: "base", numeric: true });
 
+type DirectoryRow = Pick<Profile, "id" | "email" | "full_name" | "role" | "active" | "created_at" | "updated_at"> & {
+  is_lead?: boolean | null;
+  lead_id?: string | null;
+};
+
+/** Everyone's profile, with their place in the teams when the database has them. */
+async function readProfiles(supabase: ServerClient): Promise<{ rows: DirectoryRow[]; teams: boolean }> {
+  const full = await supabase
+    .from("profiles")
+    .select("id, email, full_name, role, active, created_at, updated_at, is_lead, lead_id");
+  if (!isMissingTeamColumn(full.error)) {
+    if (full.error) throw new Error(`Could not load the user list: ${full.error.message}`);
+    return { rows: full.data ?? [], teams: true };
+  }
+  const legacy = await supabase.from("profiles").select("id, email, full_name, role, active, created_at, updated_at");
+  if (legacy.error) throw new Error(`Could not load the user list: ${legacy.error.message}`);
+  return { rows: legacy.data ?? [], teams: false };
+}
+
 /**
  * Everyone with a profile, read through the signed-in admin's own client (RLS
  * lets admins read every profile), merged with sign-in details from Supabase
- * Auth when the secret key is set (last sign-in, bans). Call it only after
+ * Auth when the secret key is set (last sign-in, bans), with each person's
+ * lead inspector and each lead inspector's team. Call it only after
  * requireAdmin().
  */
 export async function getUserDirectory(viewerId: string): Promise<UserDirectory> {
   const supabase = await createClient();
-  const { data: profiles, error } = await supabase
-    .from("profiles")
-    .select("id, email, full_name, role, active, created_at, updated_at");
-  if (error) throw new Error(`Could not load the user list: ${error.message}`);
+  const { rows, teams } = await readProfiles(supabase);
 
   let adminApi: AdminApiState = "missing-key";
   let signIns: Map<string, SignInDetails> | null = null;
@@ -200,19 +269,37 @@ export async function getUserDirectory(viewerId: string): Promise<UserDirectory>
     }
   }
 
+  const nameOf = (row: DirectoryRow) => displayName(row.full_name, row.email);
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const members = new Map<string, TeamMemberItem[]>();
+  for (const row of rows) {
+    if (!row.lead_id) continue;
+    const team = members.get(row.lead_id) ?? [];
+    team.push({ id: row.id, name: nameOf(row), active: row.active });
+    members.set(row.lead_id, team);
+  }
+  for (const team of members.values()) team.sort((a, b) => byName.compare(a.name, b.name));
+
   const now = Date.now();
-  const users = (profiles ?? []).map((profile): UserListItem => {
+  const users = rows.map((profile): UserListItem => {
     const signIn = signIns?.get(profile.id) ?? null;
+    const roleChoice = roleChoiceOf({ role: profile.role, isLead: profile.is_lead });
+    const leadId = profile.lead_id ?? null;
+    const lead = leadId ? byId.get(leadId) : undefined;
     return {
       id: profile.id,
       email: profile.email ?? "",
       fullName: profile.full_name,
       role: profile.role,
+      roleChoice,
       status: accountStatus(profile, signIn?.bannedUntil, now),
       createdAt: profile.created_at,
       lastSignInAt: signIn?.lastSignInAt ?? null,
       signInBlocked: profile.active && isBanned(signIn?.bannedUntil, now),
       isSelf: profile.id === viewerId,
+      lead: leadId ? { id: leadId, name: lead ? nameOf(lead) : "Unknown lead inspector" } : null,
+      team: roleChoice === "lead" ? (members.get(profile.id) ?? []) : [],
+      missingLead: teams && profile.active && roleChoice === "inspector" && leadId === null,
     };
   });
   users.sort(
@@ -220,7 +307,15 @@ export async function getUserDirectory(viewerId: string): Promise<UserDirectory>
       byName.compare(displayName(a.fullName, a.email), displayName(b.fullName, b.email)) ||
       byName.compare(a.email, b.email),
   );
-  return { users, adminApi };
+
+  const leads = teams
+    ? rows
+        .filter((row) => canLead({ role: row.role, isLead: row.is_lead, active: row.active }))
+        .map((row): LeadOption => ({ id: row.id, name: nameOf(row), teamSize: members.get(row.id)?.length ?? 0 }))
+        .sort((a, b) => byName.compare(a.name, b.name))
+    : [];
+
+  return { users, adminApi, teams, leads };
 }
 
 const PAGE_SIZE = 1000;
@@ -336,10 +431,28 @@ export function describeEmailError(error: ErrorLike, what: "invite" | "password 
   return `${subject} could not be sent: ${message || "Supabase did not say why"}.`;
 }
 
+/**
+ * The database's own words for the team rules (migration 20261007170000),
+ * which the actions check first. They show up here when something changed
+ * in between, for example another admin demoting the lead just chosen.
+ */
+const TEAM_RULE_MESSAGES: readonly [RegExp, string][] = [
+  [/needs a lead inspector/i, TEAM_MESSAGES.chooseLead],
+  [/must be an active lead inspector/i, "That lead inspector is not an active lead inspector any more. Reload the page and choose another."],
+  [/still leads/i, "They still lead a team. Choose another lead inspector for each person in it first, then try again."],
+  [/their own lead inspector/i, TEAM_MESSAGES.ownLead],
+  [/has no lead inspector of their own|is in no team/i, "Admins and lead inspectors work in no lead inspector's team. Reload the page and try again."],
+];
+
 /** A database error from changing a profile, in plain words. */
 export function describeProfileError(error: ErrorLike): string {
   const message = error.message ?? "";
   if (error.code === "23514" && /last active admin/i.test(message)) return MESSAGES.lastAdmin;
+  if (error.code === "23514") {
+    const rule = TEAM_RULE_MESSAGES.find(([pattern]) => pattern.test(message));
+    if (rule) return rule[1];
+  }
+  if (isMissingTeamColumn(error)) return TEAM_MESSAGES.teamsMissing;
   if (error.code === "42501") return MESSAGES.notAllowed;
   return `The change could not be saved: ${message || "the database did not say why"}.`;
 }

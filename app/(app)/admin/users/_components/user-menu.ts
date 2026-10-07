@@ -1,20 +1,26 @@
-import type { AccountStatus, UserRole } from "@/lib/auth/users";
+import type { RoleChoice } from "@/lib/auth/org";
+import type { AccountStatus } from "@/lib/auth/users";
 
 /** What a row's menu needs to know about a person. */
 export type UserActionsTarget = {
   id: string;
   name: string;
   email: string;
-  role: UserRole;
+  /** Inspector, lead inspector or admin. */
+  role: RoleChoice;
   status: AccountStatus;
   /** Active, but Supabase Auth still bans them (see UserListItem). */
   signInBlocked: boolean;
   isSelf: boolean;
+  /** The lead inspector who manages them, when they are in a team. */
+  lead: { id: string; name: string } | null;
+  /** For a lead inspector: the names of the people in their team. */
+  team: string[];
 };
 
 export type MenuAction =
-  | "make-admin"
-  | "make-inspector"
+  | "change-role"
+  | "change-lead"
   | "send-link"
   | "unblock"
   | "deactivate"
@@ -22,22 +28,32 @@ export type MenuAction =
   | "activate";
 
 /**
- * What an admin can do to this person, in menu groups. Nobody can demote or
- * deactivate themselves (the actions refuse it too), and password links only
- * go to accounts that can sign in: a blocked sign-in is lifted first. A
- * pending account is activated first: any other change would make it look
- * like a deactivated one.
+ * What an admin can do to this person, in menu groups. Nobody can change
+ * their own role or deactivate themselves (the actions refuse it too), and
+ * password links only go to accounts that can sign in: a blocked sign-in is
+ * lifted first. A pending account is activated first: any other change
+ * would make it look like a deactivated one. With teams (migration
+ * 20261007170000), inspectors who are not leads can be moved to another
+ * lead inspector's team.
  */
-export function menuGroups(user: UserActionsTarget): MenuAction[][] {
+export function menuGroups(user: UserActionsTarget, { teams = true }: { teams?: boolean } = {}): MenuAction[][] {
   const access: MenuAction = user.signInBlocked ? "unblock" : "send-link";
   if (user.isSelf) return user.status === "active" ? [[access]] : [];
-  const roleChange: MenuAction = user.role === "admin" ? "make-inspector" : "make-admin";
+  const team: MenuAction[] = teams && user.role === "inspector" ? ["change-lead"] : [];
   switch (user.status) {
     case "active":
-      return [[roleChange, access], ["deactivate"]];
+      return [["change-role", ...team, access], ["deactivate"]];
     case "pending":
       return [["activate"]];
     case "deactivated":
-      return [["reactivate", roleChange]];
+      return [["reactivate", "change-role", ...team]];
   }
+}
+
+/**
+ * Activating someone who would be an inspector in no team asks for their
+ * role and lead first (an active inspector works in a lead's team).
+ */
+export function activationNeedsPlacement(user: UserActionsTarget, teams: boolean): boolean {
+  return teams && user.role === "inspector" && user.lead === null;
 }

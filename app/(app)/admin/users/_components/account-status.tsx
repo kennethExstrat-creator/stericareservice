@@ -1,5 +1,14 @@
-import { BanIcon, CircleCheckIcon, ClockIcon, ShieldCheckIcon, UserRoundIcon, type LucideIcon } from "lucide-react";
-import type { AccountStatus, UserRole } from "@/lib/auth/users";
+import {
+  BanIcon,
+  CircleCheckIcon,
+  ClockIcon,
+  ShieldCheckIcon,
+  UserRoundIcon,
+  UsersRoundIcon,
+  type LucideIcon,
+} from "lucide-react";
+import { ROLE_CHOICE_LABEL, type RoleChoice } from "@/lib/auth/org";
+import type { AccountStatus } from "@/lib/auth/users";
 import { STATUS_TINT_CLASS } from "@/lib/design/status";
 import { cn } from "@/lib/utils";
 
@@ -31,19 +40,26 @@ export function AccountStatusBadge({ status }: { status: AccountStatus }) {
   );
 }
 
-export const ROLE_LABEL: Record<UserRole, string> = { inspector: "Inspector", admin: "Admin" };
+const ROLE_ICON: Record<RoleChoice, LucideIcon> = {
+  inspector: UserRoundIcon,
+  lead: UsersRoundIcon,
+  admin: ShieldCheckIcon,
+};
 
-export function RoleLabel({ role }: { role: UserRole }) {
-  const Icon = role === "admin" ? ShieldCheckIcon : UserRoundIcon;
+/** Inspector, Lead inspector or Admin: an icon and words, admins in brand blue. */
+export function RoleLabel({ role }: { role: RoleChoice }) {
+  const Icon = ROLE_ICON[role];
   return (
     <span
+      data-slot="role"
+      data-role={role}
       className={cn(
         "inline-flex items-center gap-1.5 whitespace-nowrap",
-        role === "admin" ? "font-semibold text-brand-700" : "text-foreground",
+        role === "admin" ? "font-semibold text-brand-700" : role === "lead" ? "font-medium text-foreground" : "text-foreground",
       )}
     >
       <Icon aria-hidden className="size-4 shrink-0" />
-      {ROLE_LABEL[role]}
+      {ROLE_CHOICE_LABEL[role]}
     </span>
   );
 }
