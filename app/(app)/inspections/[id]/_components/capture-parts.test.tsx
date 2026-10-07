@@ -19,6 +19,7 @@ import CaptureLoading from "../loading";
 import { CaptureHeader } from "./capture-header";
 import { CaptureNotices } from "./capture-notices";
 import { FieldControl } from "./field-control";
+import { TaskItem } from "./issues-sheet";
 import { formatOverrideTime, SwitchedOffPanel } from "./module-switch";
 import { CustomModuleForm, FallbackModuleForm } from "./plain-forms";
 import { SaveIndicator } from "./save-indicator";
@@ -75,6 +76,61 @@ describe("SectionTabs", () => {
     expect(nextTabIndex("End", 0, 4)).toBe(3);
     expect(nextTabIndex("Enter", 0, 4)).toBeNull();
     expect(nextTabIndex("ArrowRight", 0, 0)).toBeNull();
+  });
+});
+
+describe("TaskItem (the Pending panel)", () => {
+  const notDone = renderToStaticMarkup(
+    <TaskItem
+      issue={{
+        level: "warning",
+        moduleKey: "glove_info",
+        code: "module_not_done",
+        message: "Glove Information is not done: Missing: Glove colour.",
+        path: ["colour"],
+      }}
+      section={{ title: "Glove Information", linkable: true }}
+      onGo={noop}
+    />,
+  );
+  const needed = renderToStaticMarkup(
+    <TaskItem
+      issue={{
+        level: "error",
+        moduleKey: "conclusion",
+        code: "module_not_done",
+        message: "Conclusion must be complete before submit: No final result.",
+        path: [],
+      }}
+      section={{ title: "Conclusion", linkable: true }}
+      onGo={noop}
+    />,
+  );
+  const text = (html: string) => html.replace(/<[^>]+>/g, "");
+
+  it("is a button that reads its section and its task, without the section's own words twice", () => {
+    expect(notDone).toMatch(/^<button type="button"/);
+    expect(text(notDone)).toBe("Glove Information: Missing: Glove colour.");
+    expect(notDone).not.toContain("data-needed");
+    expect(notDone).not.toContain("Needed to submit");
+  });
+
+  it("shows a task submit needs with its section's name, brand circle and medium weight, read out as needed", () => {
+    // The section's name shows above the task, hidden from screen readers, which hear it once before it.
+    expect(text(needed)).toBe("Conclusion: ConclusionNo final result. Needed before you submit.");
+    expect(needed).toMatch(/<span aria-hidden="true"[^>]*>Conclusion<\/span>/);
+    expect(needed).toContain("data-needed");
+    expect(needed).toContain("font-medium");
+    expect(needed).toMatch(/lucide-circle[^"]*text-primary/);
+    expect(notDone).toMatch(/lucide-circle[^"]*text-control/);
+  });
+
+  it("looks like a task, not a warning: a checklist circle, no red or amber", () => {
+    for (const html of [notDone, needed]) {
+      expect(html).toContain("lucide-circle");
+      expect(html).not.toMatch(/\b(text|bg|border)-(fail|warn)\b/);
+      expect(html).not.toMatch(/lucide-(triangle-alert|circle-x)/);
+    }
   });
 });
 

@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { blockedSubmitMessage } from "@/lib/inspections/capture/issues";
 import type { ModuleOverrides } from "@/lib/schemas/template";
 import type { SuggestedResult, ValidationIssue } from "@/lib/validation";
 import { cn } from "@/lib/utils";
@@ -100,7 +101,7 @@ export function SubmitControl({
   const openOrBlock = () => {
     if (errorCount > 0) {
       onBlocked({
-        message: `Fix ${errorCount === 1 ? "this error" : `these ${errorCount} errors`} before submitting.`,
+        message: blockedSubmitMessage(errorCount),
         errors: null,
         overrides: null,
       });

@@ -1,8 +1,10 @@
 // The issues panel (BUILD_SPEC 6.2, last paragraph): errors block submit and
 // warnings are allowed, each listed with a link to its problem. Issues arrive
 // in screen order (lib/validation sortIssues: template order, errors first
-// within a section); here they are grouped under their section's title.
-import type { IssuePath, ValidationIssue } from "@/lib/validation";
+// within a section); here they are grouped under their section's title. The
+// screen words them as tasks ("Pending"): errors are needed before submit,
+// warnings are the rest to do.
+import { FRAMEWORK_ISSUE_CODES, type IssuePath, type ValidationIssue } from "@/lib/validation";
 import type { CaptureSection } from "./sections";
 
 export type IssueGroup = {
@@ -40,13 +42,37 @@ export function countIssues(issues: readonly Pick<ValidationIssue, "level">[]): 
   return { errors, warnings: issues.length - errors };
 }
 
-/** "2 errors and 5 warnings", "1 warning", "No issues". */
-export function describeIssueCounts({ errors, warnings }: { errors: number; warnings: number }): string {
-  const parts = [
-    errors > 0 ? `${errors} ${errors === 1 ? "error" : "errors"}` : null,
-    warnings > 0 ? `${warnings} ${warnings === 1 ? "warning" : "warnings"}` : null,
-  ].filter((part): part is string => part !== null);
-  return parts.length === 0 ? "No issues" : parts.join(" and ");
+/**
+ * Everything open as a to-do count, and what of it submit needs: "13 to do ·
+ * 1 needed before you submit", "2 to do", "Nothing pending". `separator`
+ * joins the two parts (", " where it is read out).
+ */
+export function describePending({ errors, warnings }: { errors: number; warnings: number }, separator = " · "): string {
+  const open = errors + warnings;
+  if (open === 0) return "Nothing pending";
+  return errors > 0 ? `${open} to do${separator}${errors} needed before you submit` : `${open} to do`;
+}
+
+/** Why submit was refused while errors are open: the screen's and the server's words. */
+export function blockedSubmitMessage(errors: number): string {
+  return errors === 1 ? "1 item is needed before you can submit." : `${errors} items are needed before you can submit.`;
+}
+
+const NOT_DONE = /^(.+?) (?:is not done|must be complete before submit)(?:: (.+)|\.)$/;
+
+/**
+ * An issue as a task under its section's heading. A section that is not done
+ * says so in the heading's own words ("Glove Information is not done:
+ * Missing: Glove colour."), so the task keeps what follows ("Missing: Glove
+ * colour.") or, with nothing more, "Not done yet.". Other issues read as
+ * they are. Only for the screen: the export and the review keep the message.
+ */
+export function taskText(issue: Pick<ValidationIssue, "code" | "message">, sectionTitle: string): string {
+  if (issue.code !== FRAMEWORK_ISSUE_CODES.moduleNotDone) return issue.message;
+  const match = NOT_DONE.exec(issue.message.trim());
+  if (!match || match[1] !== sectionTitle) return issue.message;
+  const detail = match[2]?.trim();
+  return detail ? `${detail.charAt(0).toUpperCase()}${detail.slice(1)}` : "Not done yet.";
 }
 
 /** Where an issue's link goes: its section, and the data path to focus there. */

@@ -62,7 +62,7 @@ import { INSPECTIONS_PATH } from "@/lib/inspections/search-params";
 import type { DefectUsage } from "@/lib/inspections/capture/defect-usage";
 import { evaluateCapture, type CaptureMeta } from "@/lib/inspections/capture/evaluate";
 import { mappedFieldValues } from "@/lib/inspections/capture/fields";
-import { countIssues, groupIssues, unseenIssues } from "@/lib/inspections/capture/issues";
+import { countIssues, describePending, groupIssues, unseenIssues } from "@/lib/inspections/capture/issues";
 import { canBeSwitchedOff } from "@/lib/inspections/capture/overrides";
 import type { ReopenNote } from "@/lib/inspections/capture/reopen";
 import {
@@ -1117,10 +1117,7 @@ function IssuesButton({
       {open > 0 && (
         <>
           <span aria-hidden data-slot="pending-dot" className="size-2.5 shrink-0 rounded-full bg-primary" />
-          <span className="sr-only">
-            {`: ${open} open`}
-            {errors > 0 ? `, ${errors} to fix before submit` : ""}
-          </span>
+          <span className="sr-only">{`: ${describePending({ errors, warnings }, ", ")}`}</span>
         </>
       )}
     </Button>
