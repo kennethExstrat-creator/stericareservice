@@ -1,7 +1,8 @@
 // The new-inspection form's draft in the tab (draft.ts): kept per user, never
-// an error when storage is missing, blocked or full, and brought back only as
-// far as the page still offers its choices. The form itself, reloaded, runs
-// in e2e/new/draft.spec.ts.
+// an error when storage is missing, blocked or full, brought back only as far
+// as the page still offers its choices, and dropped once Create has made the
+// inspection. The form itself, reloaded, runs in e2e/new/draft.spec.ts.
+import { redirect } from "next/navigation";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NO_CLIENT, type PreviousProduct } from "@/lib/inspections/create";
 import {
@@ -11,6 +12,7 @@ import {
   readDraft,
   removeDraft,
   restoreChoices,
+  rethrowNavigation,
   tabStorage,
   writeDraft,
   type DraftStorage,
@@ -33,6 +35,24 @@ function memoryStorage(options: { refuseWrites?: boolean } = {}): DraftStorage &
       items.delete(key);
     },
   };
+}
+
+/** sessionStorage the browser refuses outright, as private browsing can. */
+function blockedStorage(): DraftStorage {
+  const refuse = () => {
+    throw new DOMException("The operation is insecure.", "SecurityError");
+  };
+  return { getItem: refuse, setItem: refuse, removeItem: refuse };
+}
+
+/** What a call throws; undefined when it returns. */
+function thrownBy(call: () => void): unknown {
+  try {
+    call();
+  } catch (error) {
+    return error;
+  }
+  return undefined;
 }
 
 const CLIENT = "20000000-0000-4000-8000-000000000001";
@@ -144,17 +164,7 @@ describe("the new inspection's draft", () => {
       storage.items.set(KEY, raw);
       expect(readDraft(storage, KEY), raw).toBeNull();
     }
-    const blocked: DraftStorage = {
-      getItem: () => {
-        throw new DOMException("The operation is insecure.", "SecurityError");
-      },
-      setItem: () => {
-        throw new DOMException("The operation is insecure.", "SecurityError");
-      },
-      removeItem: () => {
-        throw new DOMException("The operation is insecure.", "SecurityError");
-      },
-    };
+    const blocked = blockedStorage();
     expect(readDraft(blocked, KEY)).toBeNull();
     expect(writeDraft(blocked, KEY, DRAFT)).toBe(false);
     expect(() => removeDraft(blocked, KEY)).not.toThrow();
@@ -189,6 +199,32 @@ describe("the new inspection's draft", () => {
     expect(reads).toBe(1);
     expect(() => unsubscribe()).not.toThrow();
     expect(foundDraftStore(() => null).get()).toBeNull();
+  });
+});
+
+describe("an error Create caught", () => {
+  // What the Server Action throws once the inspection exists: redirect() to it.
+  const created = thrownBy(() => redirect("/inspections/30000000-0000-4000-8000-000000000099"));
+
+  it("the redirect to the new inspection: the draft goes, and the redirect is thrown on for Next.js", () => {
+    expect(created).toBeInstanceOf(Error);
+    const storage = memoryStorage();
+    writeDraft(storage, KEY, DRAFT);
+    writeDraft(storage, draftKey("user-2"), NO_CHOICES);
+    expect(thrownBy(() => rethrowNavigation(created, storage, KEY))).toBe(created);
+    expect(readDraft(storage, KEY)).toBeNull();
+    // Another user's draft in the tab stays.
+    expect(readDraft(storage, draftKey("user-2"))).toEqual(NO_CHOICES);
+    // Storage that refuses still lets Next.js follow the redirect.
+    expect(thrownBy(() => rethrowNavigation(created, blockedStorage(), KEY))).toBe(created);
+    expect(thrownBy(() => rethrowNavigation(created, null, KEY))).toBe(created);
+  });
+
+  it("anything else, such as the server not reached: the draft stays for another try", () => {
+    const storage = memoryStorage();
+    writeDraft(storage, KEY, DRAFT);
+    expect(thrownBy(() => rethrowNavigation(new TypeError("Failed to fetch"), storage, KEY))).toBeUndefined();
+    expect(readDraft(storage, KEY)).toEqual(DRAFT);
   });
 });
 

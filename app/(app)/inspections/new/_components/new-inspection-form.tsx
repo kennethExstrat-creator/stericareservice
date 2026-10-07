@@ -19,7 +19,6 @@
 // back. Create and Cancel remove them.
 import { ClipboardListIcon, OctagonXIcon, PlusIcon } from "lucide-react";
 import Link from "next/link";
-import { unstable_rethrow } from "next/navigation";
 import {
   startTransition,
   useActionState,
@@ -62,6 +61,7 @@ import {
   readDraft,
   removeDraft,
   restoreChoices,
+  rethrowNavigation,
   tabStorage,
   writeDraft,
   type NewInspectionChoices,
@@ -206,14 +206,8 @@ function ChoicesForm({ storageKey, initial, role, clients, manufacturers, templa
       try {
         return settle(await createInspection(current, formData));
       } catch (error) {
-        try {
-          unstable_rethrow(error);
-        } catch (navigation) {
-          // The Server Action redirects to the new inspection by throwing: it is created, so
-          // the draft goes, and Next.js has the redirect.
-          removeDraft(tabStorage(), storageKey);
-          throw navigation;
-        }
+        // A redirect is the inspection created: the draft goes, and Next.js follows it.
+        rethrowNavigation(error, tabStorage(), storageKey);
         console.error(error);
         return settle({ status: "error", message: UNREACHABLE });
       }
