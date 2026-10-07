@@ -18,6 +18,7 @@ UPDATE_DATA_DICTIONARY=1 npx vitest run lib/coverage/doc.test.ts
 | `lib/coverage/templates.ts` | Per template: modules on and their order, sizes, unit, report title, every module's config values, custom modules, what is still to confirm. `defaultConfig(module)` is a module's default config; `seedConfig(code, module)` the config a seed writes (whole for a root template, the diff for a child); `seedModuleConfigs(code)` gives BUILD_SPEC 4.3 `ModuleConfig` values; `fieldShown` says whether a template shows a field | Template seeds `STD_EG`, `SAFEDON_EG`, `STD_SG` |
 | `lib/coverage/defects.ts` | Defect labels per template and class in report order, mapped to the codes of `supabase/seed.sql`; hole locations; the Safedon dispensing defects; stickiness codes; labelling checks per level | Template seeds, defect mapping screen |
 | `lib/coverage/sources.ts` | Every field of every source document, verbatim, with stable ids and where it goes | Coverage checklist (rule 4.2.10) |
+| `lib/coverage/wording.ts` | The forms' wording against the app's (decision 17): `sameWording` (a template label is the printed one, `[sic]` fixed, its capitals aside), `targetLabel` (what a template shows for a target) and `appWording` (the coverage matrix's App wording) | The coverage tests; the coverage matrix |
 | `lib/coverage/merge.ts` | How module config merges down an extends chain, as the framework's `lib/templates/merge.ts` does it, with `configDiff` | The tests; template seeds |
 | `lib/coverage/keys.ts` | Closed key lists: measures, sampling columns, header fields, labelling levels and checks, inner units, inspection levels, code letters | All of the above |
 
@@ -25,8 +26,9 @@ The tests check that every source field has a target and every target exists in 
 template shows; that every cell someone fills in on a source lands on an entered, recorded or custom
 field; that no module has duplicate keys; that every module key is a `ModuleKey`; that every defect
 code is in `seed.sql` (and every seeded code is used); that each template's module order is BUILD_SPEC
-11's; that `[sic]` labels are corrected; and that every label printed on the reports and on the SG
-form is the label the template shows. They also resolve every template from the module defaults down
+11's; that `[sic]` labels are corrected; that every label printed on the reports and on the SG
+form is the label the template shows, the same words in Title Case (`sameWording`); and that every
+label in `lib/coverage` is in Title Case (`lowerCaseWords`). They also resolve every template from the module defaults down
 its extends chain, merged as the framework merges, and check the result is the template's config;
 and they check every label key fits the framework's `ModuleConfig.labels`. Config keys and the
 completeness of every module's defaults are checked at compile time against the dictionary.
@@ -68,7 +70,9 @@ included. Counts of cases, inner units, pouches, boxes and cartons say what they
 
 **Labels** (rule 4.2.3). The default label of a field or caption is STD_EG's wording with `[sic]`
 typos fixed, or the source's wording where STD_EG lacks it; other templates override only what
-differs. `defaultLabels(module)` gives a module's default labels and `labelOverrides(template,
+differs. Every label is written in Title Case (decision 17): the source's words with the capitals
+of `docs/DESIGN.md`, "Packing Configuration" for the printed "Packing configuration", and so are
+the rows a template lists (defects, hole locations, labelling checks). `defaultLabels(module)` gives a module's default labels and `labelOverrides(template,
 module)` a template's overrides, both keyed as `ModuleConfig.labels` is: data field keys, caption
 keys, and class or level wording keyed group first, then field (`groupLabelKey`: `majorTotal`,
 `criticalResult`, `innerResult`), like the captions `majorHeading` and `innerLevel`. All are
@@ -761,7 +765,7 @@ To confirm:
 - `sizes`: The form has 8 size columns with blank headings: 5.5 to 9.0 assumed.
 - `report.titleLines`: No filled SG report.
 - `header.fields`: The SG form has no factory address, client or factory glove code: off.
-- `packing_config.innerUnit`: pouch (BUILD_SPEC 11), so the counts read '# gloves per pouch' and '# pouches per case' (the SG form words neither); the SG sampling plan counts both Inner Box and Pouches, so a second packing level may be needed.
+- `packing_config.innerUnit`: pouch (BUILD_SPEC 11), so the counts read '# Gloves per Pouch' and '# Pouches per Case' (the SG form words neither); the SG sampling plan counts both Inner Box and Pouches, so a second packing level may be needed.
 - `sampling_plan.inspectionLevel`: Not on the form.
 - `watertight.locations`: The form has 7 blank rows: STD_EG's locations until confirmed. AQL 1.5 is the default.
 - `watertight.handSplit`: R and L per size as on the form; tested and the limits per size (the sampling plan has one '# gloves' per size).
@@ -937,6 +941,17 @@ Where the sources or BUILD_SPEC leave a choice, the dictionary takes one. Each i
 16. **Client logo.** SAFEDON_EG prints the client's logo instead of a Client Name row: the logo is a
     report setting (`report.showClientLogo`), and the client is the inspection's
     (`inspections.client_id`, picked on /inspections/new) while the header's Client Name row is off.
+17. **Title Case.** Kenneth, 8 October 2026: the app and the report write labels in Title Case
+    (docs/DESIGN.md); the forms' wording stays in the coverage matrix. Every module title, field
+    label, class and level wording, caption and template override in `fields.ts`, the custom
+    modules in `templates.ts` and the rows of the lists in `defects.ts` (visual defects, hole
+    locations, labelling checks, the Safedon dispensing defects) take the rule's capitals, and the
+    module defaults and the seed templates follow; the export carries them to the AI report. Units
+    in brackets stay lower case ("Weight (g)"), words in brackets do not ("Qty (Cases)"); "#",
+    "No." and codes stay. Sentences stay sentences: the stickiness legend, the Safedon definitions
+    and every hint. The conclusion words keep the reports' capitals (PASSED, FAILED, HOLD). The
+    tests still prove every printed label reaches its template: `sameWording` compares the
+    printed label, `[sic]` fixed, with the template's, the first letters of its words aside.
 
 ## Open questions
 
@@ -975,7 +990,7 @@ Values that wait on Kenneth. BUILD_SPEC 13 first.
     inner box count sets the rows when entered. Confirm the XL default.
 16. **SG packing.** The SG form samples Inner Box and Pouches; `packing_config` has one inner unit
     (pouch, BUILD_SPEC 11). A second packing level may be needed. The form words no packing counts,
-    so STD_SG words them by its inner unit, "# gloves per pouch" and "# pouches per case", as the
+    so STD_SG words them by its inner unit, "# Gloves per Pouch" and "# Pouches per Case", as the
     export's `innerUnit` says: confirm the wording, and whether a pouch is counted in gloves or pairs.
 17. **Safedon** is called the manufacturer in onsite/SAFEDON_EG.md and the product line in
     reports/SAFEDON_EG.md. The dictionary treats it as the product line.
@@ -988,8 +1003,11 @@ Values that wait on Kenneth. BUILD_SPEC 13 first.
 
 ## Coverage matrix
 
-Every field of every source document, in document order: the label as printed, the app's wording
-where the source has a typo, what the cell holds and where it goes. `field[group][key]` picks a class
+Every field of every source document, in document order: the label as printed (verbatim, typos
+included), the app's wording beside it (what the template shows for the field, in Title Case with
+`[sic]` typos fixed, decision 17: `appWording`), what the cell holds and where it goes. A field the
+template splits shows each part's label ("Manufacturing Date; Expiry Date"); a Safedon definition
+shows the hint the app shows in its place. `field[group][key]` picks a class
 or level and a code; `config`, `caption` and `title` are template values; `custom` is a custom
 module field; `template` a template property; `layout` is drawn by the AI report only.
 

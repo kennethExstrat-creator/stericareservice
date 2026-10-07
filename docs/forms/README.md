@@ -8,6 +8,8 @@ Two kinds of source. Both feed the same modules (BUILD_SPEC section 6).
 | `onsite/` | The Word forms used on site (SG, EG, Safedon EG), field lists and PDFs | Secondary. Adds what the reports lack: R/L hand split, dye leak, sterile pouch sampling. |
 | `../examples/` | The two filled reports as PDF, plus expected results | Test data, and the target layout for the AI report. Contains client data: never commit it. |
 
+The labels in these folders are the clients' wording, verbatim. The app and the AI report write them in Title Case (Kenneth, 8 October 2026: `docs/DESIGN.md`, Capitalisation; `docs/AI.md`, The report's wording); the forms' wording stays in the coverage matrix of `docs/DATA_DICTIONARY.md`.
+
 ## Module coverage
 
 ✓ = recorded with results. "planned" = sample count on the form but nowhere to record results. Blank = not on the form.

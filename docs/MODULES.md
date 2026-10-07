@@ -96,15 +96,15 @@ export function emptyGloveInfo(): GloveInfoData {
 }
 ```
 
-**`config.ts`**: the defaults a template overrides. The labels are the reports' wording; the config switches fields on and off and names the size the indicative weight is for:
+**`config.ts`**: the defaults a template overrides. The labels are the reports' words in Title Case (docs/DESIGN.md, Capitalisation); the config switches fields on and off and names the size the indicative weight is for:
 
 ```ts
 export const GLOVE_INFO_TITLE = "Glove Information";
 export const GLOVE_INFO_LABELS = {
-  surfaceTexture: "Glove surface texture",
-  indicativeWeight: "Indicative weight (size M)",
-  colour: "Glove colour",
-  length: "Glove length",
+  surfaceTexture: "Glove Surface Texture",
+  indicativeWeight: "Indicative Weight (Size M)",
+  colour: "Glove Colour",
+  length: "Glove Length",
 };
 export const GloveInfoConfigSchema = z.strictObject({
   fields: z
@@ -182,10 +182,10 @@ export const definition = defineModule<GloveInfoData, GloveInfoConfig, GloveInfo
 
 ## 6. Config, title and labels
 
-- **Defaults first (4.2 rule 1).** Default title and labels follow `docs/forms/reports/`, with `[sic]` typos fixed. Where the two reports differ, pick the STD_EG wording and let SAFEDON_EG's template override it.
-- **Labels are keyed by canonical key.** Use your data keys, plus the keys your config lists: defect codes, hole locations, check keys, measures (a template may label `thin_spot` "Thin spot"). When one key needs different wording in different places, key the label by a dotted path: STD_EG words `bead_defective` "Defective bead" under major and "Defective beads" under minor, so the labels are `major.bead_defective` and `minor.bead_defective` (or `bead_defective` for the common wording and `minor.bead_defective` for the exception). Templates override dotted keys like any other.
+- **Defaults first (4.2 rule 1).** Default title and labels follow `docs/forms/reports/`, with `[sic]` typos fixed, written in Title Case (Kenneth, 8 October 2026: docs/DESIGN.md, Capitalisation; `lib/coverage` keeps the forms' wording verbatim). Where the two reports differ, pick the STD_EG wording and let SAFEDON_EG's template override it.
+- **Labels are keyed by canonical key.** Use your data keys, plus the keys your config lists: defect codes, hole locations, check keys, measures (a template may label `thin_spot` "Thin Spot"). When one key needs different wording in different places, key the label by a dotted path: STD_EG words `bead_defective` "Defective Bead" under major and "Defective Beads" under minor, so the labels are `major.bead_defective` and `minor.bead_defective` (or `bead_defective` for the common wording and `minor.bead_defective` for the exception). Templates override dotted keys like any other.
 - **Read labels with `labelFor`.** `labelFor(input.labels, "minor", "bead_defective")` (calc) or `labelFor(props.labels, ...)` (Capture) reads `minor.bead_defective`, then `bead_defective`, and shows the key itself when neither is set. Never hard-code wording, and do not read `labels[key]` directly: a key the template does not have would print "undefined".
-- **Defect lists.** Defect lists in config hold canonical defect codes (`defect_codes`, BUILD_SPEC 11), so "Stain" at one client and "Oil stain" at another count together (4.2 rule 4). Severity is the class the template lists a code under, and the label is per code, or per class with a dotted key. A key that is not in `defect_codes` is an unmapped label: allowed, given a snake case key and a label, and flagged for an admin by the template editor. An inspector's one-off defect label (BUILD_SPEC 8) is data, not config: keep it in your data with its label.
+- **Defect lists.** Defect lists in config hold canonical defect codes (`defect_codes`, BUILD_SPEC 11), so "Stain" at one client and "Oil Stain" at another count together (4.2 rule 4). Severity is the class the template lists a code under, and the label is per code, or per class with a dotted key. A key that is not in `defect_codes` is an unmapped label: allowed, given a snake case key and a label, and flagged for an admin by the template editor. An inspector's one-off defect label (BUILD_SPEC 8) is data, not config: keep it in your data with its label.
 - **Labels you add later.** A resolved template keeps the labels of the day it was saved; the framework lays them over your current defaults (`effectiveLabels`), so a label key you add later shows its default in older templates. Saved wording always wins.
 - **Config schema.** Strict objects, enums, numbers, booleans and arrays, with `.describe()` on what an admin edits: the template editor generates its form from your schema with `z.toJSONSchema()`, so no transforms. The contract check fails if the schema cannot become JSON Schema.
 - **How templates merge config.** Your `defaultConfig`, then each template from the root of the extends chain down. Objects merge key by key; a **tagged object** (one with a `kind` key, such as a spec) is one value and is replaced whole; everything else replaces too: arrays (a defect list, the measures), numbers, strings, booleans, `null`. So a child template writes `{ classes: { major: { aql: 1.5 } } }` to change one AQL and keeps the rest; to change one defect in a list it writes the whole list; to change a spec it writes the whole spec, and may change its kind: STD_EG's XS width `{ kind: "max", max: 80 }` becomes SAFEDON_EG's `{ kind: "tolerance", nominal: 76, tolerance: 4 }` with no `max` left over. The merged result must parse with your schema, or the template does not save.

@@ -4,7 +4,7 @@
 - Source: filled Excel report "Hartalega - 2466264 Poly 05I-24 Sum - Glacier Zero Safedon Nitrile" (4 pages, May 2024). Example PDF: `docs/examples/2024-05-22_SAFEDON_EG_example.pdf`
 - Page 1 carries the Polyco Healthline logo: a client-branded report. Safedon is the product line.
 - Standard profile: ASTM D6319 (average statistics, tensile strength and elongation from lab reports)
-- Labels below are verbatim, including the original spelling. `[sic]` marks a typo to fix in the app. Module keys refer to BUILD_SPEC section 6.
+- Labels below are verbatim, including the original spelling. `[sic]` marks a typo to fix in the app. The app and the AI report write these words in Title Case (Kenneth, 8 October 2026: docs/DESIGN.md, Capitalisation): "# glove per plastic pack" here is "# Glove per Plastic Pack" there. Module keys refer to BUILD_SPEC section 6.
 
 ## Page 1
 

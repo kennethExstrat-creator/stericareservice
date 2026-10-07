@@ -3,7 +3,7 @@
 - Template: `STD_EG`
 - Source: filled Excel report "TG40 Sum - 2467581 - Handsafe HN91 Blue Nitrile" (4 pages, Jul 2024). Example PDF: `docs/examples/2024-07-12_STD_EG_example.pdf`
 - Standard profile: EN 455 (median statistics, force at break in N)
-- Labels below are verbatim, including the original spelling. `[sic]` marks a typo to fix in the app. Module keys refer to BUILD_SPEC section 6.
+- Labels below are verbatim, including the original spelling. `[sic]` marks a typo to fix in the app. The app and the AI report write these words in Title Case (Kenneth, 8 October 2026: docs/DESIGN.md, Capitalisation): "Packing configuration" here is "Packing Configuration" there. Module keys refer to BUILD_SPEC section 6.
 
 ## Page 1
 
