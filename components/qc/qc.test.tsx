@@ -231,6 +231,26 @@ describe("Stepper", () => {
   });
 });
 
+describe("the kit's own words, Title Case as the app's labels are", () => {
+  it("names ModuleCard's comment and its two photo buttons", () => {
+    const html = renderToStaticMarkup(
+      <ModuleCard title="Packing" status="not_done" comment="" onCommentChange={noop} onFiles={noop} />,
+    );
+    expect(html).toContain(">Inspector Comment</label>");
+    expect(html).toContain("Take Photo</button>");
+    expect(html).toContain("Add From Library</button>");
+    // The placeholder is a sentence and keeps its words.
+    expect(html).toContain('placeholder="Anything the report should mention"');
+  });
+
+  it("offers DefectChipGroup's one-off defect as Other Defect", () => {
+    const html = renderToStaticMarkup(
+      <DefectChipGroup legend="Major Defects" items={[{ key: "hole", label: "Hole", count: 0 }]} onCountChange={noop} onAddLabel={noop} />,
+    );
+    expect(html).toContain("Other Defect</button>");
+  });
+});
+
 describe("CountField", () => {
   const render = (props: Partial<Parameters<typeof CountField>[0]> = {}) =>
     renderToStaticMarkup(
