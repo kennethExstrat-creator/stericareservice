@@ -78,11 +78,11 @@ export type FixtureManufacturer = { id: string; label: string; address: string |
 export type NewFixture = {
   clientId: string;
   clientName: string;
-  /** Has E2E_NEW_CM (with the client) and E2E_NEW_M (anyone). */
+  /** Has E2E_NEWSEED_CM (with the client) and E2E_NEWSEED_M (anyone). */
   manufacturerA: FixtureManufacturer;
   /** Has no template of its own. */
   manufacturerB: FixtureManufacturer;
-  /** E2E_NEW's id. */
+  /** E2E_NEWSEED's id. */
   templateId: string;
   /** Every fixture template's id, by code. */
   templateIds: Record<string, string>;
