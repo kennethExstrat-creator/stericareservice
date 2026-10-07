@@ -100,18 +100,23 @@ export function friendlyMessage(issue: RawIssue): string | undefined {
   }
 }
 
+/** lib/stats' advice for a number split by a space; the group is the number it names, if any (240 for "2 40"). */
+const SPACE_ADVICE = /^One number per cell: remove the space(?: \(“.*” → (.+)\))?\.$/;
+
 /**
  * Text where a number belongs: "2 40" typed into a number field, or a number
  * written in quotes in the JSON. The advice is the capture grid's (lib/stats),
- * in an admin's words: a setting is no cell.
+ * in an admin's words: a setting is no cell, and the entry is quoted once
+ * ("“2 40” is not a number: remove the space (240).").
  */
 export function notANumber(text: string): string {
   const trimmed = text.trim();
   if (trimmed === "") return "Enter a number.";
   const parsed = parseDecimal(trimmed);
   if (parsed.ok) return `Write ${trimmed} as a number, without quotes.`;
-  const advice = parsed.error.replace(/^One number per cell: remove the space/, "Remove the space: one number only");
-  return `“${trimmed}” is not a number. ${advice}`;
+  const space = SPACE_ADVICE.exec(parsed.error);
+  if (space) return `“${trimmed}” is not a number: remove the space${space[1] ? ` (${space[1]})` : ""}.`;
+  return `“${trimmed}” is not a number. ${parsed.error}`;
 }
 
 /** safeParse with the plain wording. */

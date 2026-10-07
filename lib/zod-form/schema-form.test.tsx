@@ -116,7 +116,7 @@ describe("SchemaForm", () => {
     expect(typed).toContain('aria-invalid="true"');
     expect(typed).toContain("form-minLayeringPct-errors");
     expect(html.match(/is not a number/g)).toHaveLength(1);
-    expect(html).toContain("“2 40” is not a number. Remove the space: one number only, e.g. 2.42.");
+    expect(html).toContain("“2 40” is not a number: remove the space (240).");
     // A required number emptied: empty on screen, and asked for.
     expect(tagWithId(html, "form-boxesPerSize-default")).toContain('value=""');
     expect(html).toContain(

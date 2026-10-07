@@ -14,7 +14,7 @@ import {
   type InvalidEntry,
 } from "./numeric-entry";
 
-const SPACE_ERROR = "One number per cell: remove the space, e.g. 2.42.";
+const SPACE_ERROR = "One number per cell: remove the space (“2 42” → 242).";
 const rejected = (raw: string, error = SPACE_ERROR): InvalidEntry => ({ raw, error });
 
 describe("commitEntry", () => {
@@ -205,6 +205,7 @@ describe("rejectionMessage", () => {
   });
 
   it("names the cell for the grid's announcement, as its label does", () => {
-    expect(rejectionMessage(rejected("9 5"), "Width, No. 3")).toBe(`Width, No. 3: “9 5” is not stored. ${SPACE_ERROR}`);
+    const entry = rejected("9 5", "One number per cell: remove the space (“9 5” → 95).");
+    expect(rejectionMessage(entry, "Width, No. 3")).toBe(`Width, No. 3: “9 5” is not stored. ${entry.error}`);
   });
 });

@@ -116,7 +116,7 @@ describe("collectProblems", () => {
       expect.objectContaining({ place, message: "Enter a number." }),
     ]);
     expect(check(setConfig(draft, context, "weight", { ...weight, n: "2 40" })).problems).toEqual([
-      expect.objectContaining({ place, message: "“2 40” is not a number. Remove the space: one number only, e.g. 2.42." }),
+      expect.objectContaining({ place, message: "“2 40” is not a number: remove the space (240)." }),
     ]);
   });
 

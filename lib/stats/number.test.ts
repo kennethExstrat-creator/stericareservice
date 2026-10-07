@@ -30,9 +30,15 @@ describe("parseDecimal", () => {
     expect(result.ok).toBe(false);
   });
 
-  it("rejects a reading split by a space (BUILD_SPEC 6.2 rule 1)", () => {
-    const result = parseDecimal("2 42");
-    expect(result).toEqual({ ok: false, error: expect.stringContaining("space") });
+  // The hint shows what removing the space gives: "2 42" is 242, never an
+  // example such as 2.42. Without the space, "2,4 2" is still no plain number.
+  it.each([
+    ["2 42", "One number per cell: remove the space (“2 42” → 242)."],
+    [" 0 .18 ", "One number per cell: remove the space (“0 .18” → 0.18)."],
+    ["2,4 2", "One number per cell: remove the space."],
+    ["1.2 3.4", "One number per cell: remove the space."],
+  ])("rejects %j, a reading split by a space (BUILD_SPEC 6.2 rule 1)", (raw, error) => {
+    expect(parseDecimal(raw)).toEqual({ ok: false, error });
   });
 
   it.each(["abc", "2.4.2", "1e3", "12mm", "NaN", "Infinity", "--1", "1,2,3", "+", "-", "."])(

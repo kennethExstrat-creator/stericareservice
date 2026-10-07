@@ -67,7 +67,10 @@ describe("dimensions data", () => {
   it("refuses the five cells the SAFEDON_EG inspector typed with a space, and takes the corrected numbers", () => {
     expect(SAFEDON_EG_EXPECTED.rejectedInputs).toHaveLength(5);
     for (const input of SAFEDON_EG_EXPECTED.rejectedInputs) {
-      expect(readDecimalCell(input.raw)).toEqual({ ok: false, error: "One number per cell: remove the space, e.g. 2.42." });
+      expect(readDecimalCell(input.raw)).toEqual({
+        ok: false,
+        error: `One number per cell: remove the space (“${input.raw}” → ${input.accepted}).`,
+      });
       expect(readDecimalCell(String(input.accepted))).toEqual({ ok: true, value: input.accepted });
     }
   });
