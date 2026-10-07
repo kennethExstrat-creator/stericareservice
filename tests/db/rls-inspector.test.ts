@@ -7,6 +7,9 @@ import {
   createInspection,
   createPeople,
   createTemplate,
+  insertInspection,
+  readInspection,
+  saveInspection,
   setStatus,
   visibleRows,
   type InspectionRow,
@@ -99,9 +102,20 @@ describe("RLS: inspector", { timeout: 30_000 }, () => {
 
   it("cannot create an inspection for another inspector", async () => {
     const error = await pgError(
-      createInspection(db, people.inspector, templateId, { inspector_id: people.otherInspector }),
+      insertInspection(db, people.inspector, templateId, { inspector_id: people.otherInspector }),
     );
     expect(error.code).toBe("42501");
+  });
+
+  // Security audit SEC-02: the app chooses the template and fills in the data
+  // (create_inspection(), migration 20261007190000).
+  it("cannot create even their own draft directly, from an active template", async () => {
+    const error = await pgError(insertInspection(db, people.inspector, templateId, { po_no: "PO-DIRECT" }));
+    expect(error).toMatchObject({ code: "42501", message: "inspectors create inspections through the app" });
+    const made = await asOwner(db, (tx) =>
+      column<string>(tx, "select id from public.inspections where po_no = 'PO-DIRECT'"),
+    );
+    expect(made).toEqual([]);
   });
 
   it("cannot create an inspection that is already submitted", async () => {
@@ -135,19 +149,29 @@ describe("RLS: inspector", { timeout: 30_000 }, () => {
     expect(error).toMatchObject({ code: "23514", message: expect.stringContaining("active template") });
   });
 
-  it("edits their own draft", async () => {
-    const result = await asUser(db, people.inspector, (tx) =>
-      tx.query<InspectionRow>(
-        `update public.inspections
-            set po_no = 'PO-EDITED', lot_numbers = '{L1,L2}', remarks = 'ok'
-          where id = $1 returning *`,
-        [own.id],
+  it("edits their own draft through the app, never directly", async () => {
+    const direct = await pgError(
+      asUser(db, people.inspector, (tx) =>
+        tx.query("update public.inspections set po_no = 'PO-EDITED', remarks = 'ok' where id = $1", [own.id]),
       ),
     );
-    expect(result.rows[0]).toMatchObject({ po_no: "PO-EDITED", lot_numbers: ["L1", "L2"] });
-    expect(result.rows[0].updated_at > own.updated_at).toBe(true);
+    expect(direct).toMatchObject({ code: "42501", message: "inspectors save and submit inspections through the app" });
+
+    // The capture screen's save, with the secret key, for them.
+    const saved = await saveInspection(db, people.inspector, own.id, {
+      columns: { po_no: "PO-EDITED", lot_numbers: ["L1", "L2"], remarks: "ok" },
+    });
+    expect(await readInspection(db, own.id)).toMatchObject({
+      po_no: "PO-EDITED",
+      lot_numbers: ["L1", "L2"],
+      remarks: "ok",
+      updated_at: saved,
+    });
+    expect(saved! > own.updated_at).toBe(true);
   });
 
+  // SEC-02: the data, the columns computed from it, the client and the
+  // manufacturer are written by the app's checks or not at all.
   it.each([
     ["id", "id = gen_random_uuid()"],
     ["ref_no", "ref_no = 'INS-1999-0001'"],
@@ -158,6 +182,13 @@ describe("RLS: inspector", { timeout: 30_000 }, () => {
     ["approved_at", "approved_at = now()"],
     ["report_url", "report_url = 'https://example.com/report.pdf'"],
     ["module_overrides", `module_overrides = '{"weight": {"reason": "no scale"}}'`],
+    ["data", `data = '{"modules": {"header": {"poNo": 12345}, "sampling_plan": {"anything": "goes"}}, "custom": {}}'`],
+    ["suggested_result", "suggested_result = 'pass'"],
+    ["result", "result = 'pass'"],
+    ["lot_numbers", "lot_numbers = '{FORGED-LOT}'"],
+    ["po_no", "po_no = 'FORGED-PO'"],
+    ["client_id", "client_id = (select id from public.clients limit 1)"],
+    ["manufacturer_id", "manufacturer_id = (select id from public.manufacturers limit 1)"],
   ])("cannot change %s on their own draft", async (_column, assignment) => {
     const error = await pgError(
       asUser(db, people.inspector, (tx) =>
@@ -165,6 +196,23 @@ describe("RLS: inspector", { timeout: 30_000 }, () => {
       ),
     );
     expect(error.code).toBe("42501");
+  });
+
+  // Data audit M3: BUILD_SPEC 6.2 errors block submit, and only the app looks for them.
+  it("cannot submit directly: the app submits once its checks pass", async () => {
+    const error = await pgError(
+      asUser(db, people.inspector, (tx) =>
+        tx.query("update public.inspections set status = 'submitted', result = 'pass' where id = $1", [own.id]),
+      ),
+    );
+    expect(error).toMatchObject({ code: "42501", message: "inspectors save and submit inspections through the app" });
+    const after = await asOwner(db, async (tx) => ({
+      status: (await column<string>(tx, "select status::text from public.inspections where id = $1", [own.id]))[0],
+      events: await column<string>(tx, "select action from public.audit_log where inspection_id = $1 order by id", [
+        own.id,
+      ]),
+    }));
+    expect(after).toEqual({ status: "draft", events: ["created"] });
   });
 
   it("cannot jump a draft straight to approved or reopened", async () => {
@@ -292,7 +340,7 @@ describe("RLS: inspector", { timeout: 30_000 }, () => {
 
   it("logs events on their own inspection only, and never the automatic ones", async () => {
     const logged = await asUser(db, people.inspector, (tx) =>
-      tx.query<{ id: number }>("select public.log_inspection_event($1, 'photo_deleted', '{\"count\": 1}') as id", [
+      tx.query<{ id: number }>("select public.log_inspection_event($1, 'photo.deleted', '{\"count\": 1}') as id", [
         own.id,
       ]),
     );
@@ -300,7 +348,7 @@ describe("RLS: inspector", { timeout: 30_000 }, () => {
 
     const foreign = await pgError(
       asUser(db, people.inspector, (tx) =>
-        tx.query("select public.log_inspection_event($1, 'photo_deleted')", [others.id]),
+        tx.query("select public.log_inspection_event($1, 'photo.deleted')", [others.id]),
       ),
     );
     const reserved = await pgError(

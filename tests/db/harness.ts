@@ -51,9 +51,14 @@ export interface TestDbOptions {
   seed?: boolean;
   /** Runs after the shim, before the first migration (e.g. pre-existing auth users). */
   beforeMigrations?: (db: Db) => Promise<void>;
+  /** The last migration to run (its file name): the schema of a project that has run up to it. */
+  until?: string;
 }
 
-export async function createTestDb({ seed = true, beforeMigrations }: TestDbOptions = {}): Promise<Db> {
+export async function createTestDb({ seed = true, beforeMigrations, until }: TestDbOptions = {}): Promise<Db> {
+  const migrations = await readMigrations();
+  const last = until === undefined ? migrations.length - 1 : migrations.findIndex((file) => file.name === until);
+  if (last < 0) throw new Error(`no migration named ${until}`);
   const db = await PGlite.create({
     // Timestamps and dates come back as strings, the way PostgREST returns them.
     parsers: {
@@ -66,7 +71,7 @@ export async function createTestDb({ seed = true, beforeMigrations }: TestDbOpti
   await db.exec("set timezone to 'UTC'");
   await db.exec(await readFile(shimFile, "utf8"));
   await beforeMigrations?.(db);
-  for (const migration of await readMigrations()) {
+  for (const migration of migrations.slice(0, last + 1)) {
     await applyAsOwner(db, migration);
   }
   if (seed) {

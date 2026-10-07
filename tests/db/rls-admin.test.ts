@@ -8,6 +8,8 @@ import {
   createInspection,
   createPeople,
   createTemplate,
+  insertInspection,
+  saveInspection,
   setStatus,
   TABLES,
   visibleRows,
@@ -103,7 +105,7 @@ describe("RLS: admin", { timeout: 30_000 }, () => {
   });
 
   it("creates an inspection for an inspector", async () => {
-    const made = await createInspection(db, people.admin, templateId, { inspector_id: people.inspector });
+    const made = await insertInspection(db, people.admin, templateId, { inspector_id: people.inspector });
     expect(made.inspector_id).toBe(people.inspector);
     const trail = await auditTrail(db, made.id);
     expect(trail).toEqual([
@@ -156,10 +158,8 @@ describe("RLS: admin", { timeout: 30_000 }, () => {
     const reopened = await setStatus(db, people.admin, first.id, "reopened");
     expect(reopened.status).toBe("reopened");
 
-    // Reopened is editable again by the owner, then goes back to submitted.
-    await asUser(db, people.inspector, (tx) =>
-      tx.query("update public.inspections set remarks = 'fixed carton list' where id = $1", [first.id]),
-    );
+    // Reopened is editable again by the owner, through the app, then goes back to submitted.
+    expect(await saveInspection(db, people.inspector, first.id, { columns: { remarks: "fixed carton list" } })).not.toBeNull();
     const resubmitted = await setStatus(db, people.inspector, first.id, "submitted");
     expect(resubmitted.submitted_at! >= submitted.submitted_at!).toBe(true);
 

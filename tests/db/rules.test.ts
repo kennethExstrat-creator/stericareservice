@@ -100,12 +100,18 @@ describe("inspection reference numbers", { timeout: 30_000 }, () => {
   });
 
   it("rejects data without the modules and custom objects", async () => {
-    const error = await pgError(
-      asUser(db, people.inspector, (tx) =>
-        tx.query(`insert into public.inspections (template_id, data) values ($1, '{"modules": []}')`, [templateId]),
+    const throughTheApp = await pgError(createInspection(db, people.inspector, templateId, { data: { modules: [] } }));
+    const byAnAdmin = await pgError(
+      asUser(db, people.admin, (tx) =>
+        tx.query(
+          `insert into public.inspections (template_id, inspector_id, data) values ($1, $2, '{"modules": []}')`,
+          [templateId, people.inspector],
+        ),
       ),
     );
-    expect(error.code).toBe("23514");
+    for (const error of [throughTheApp, byAnAdmin]) {
+      expect(error).toMatchObject({ code: "23514", message: expect.stringContaining("inspections_data_shape") });
+    }
   });
 
   it("finds inspections by lot number", async () => {

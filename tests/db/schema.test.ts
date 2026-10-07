@@ -111,13 +111,68 @@ describe("schema guards", { timeout: 30_000 }, () => {
   });
 
   // 20261006000700 restates rules that a project may already have, so running
-  // it again must change nothing.
+  // it again must change nothing. Later migrations restate some of its
+  // functions (20261007190000: the inspections guard, log_inspection_event()),
+  // so it is run again where it stands: on a project that has run up to it.
   it("applies the review fixes again without changing the schema", async () => {
+    const name = "20261006000700_review_fixes.sql";
+    const upToFixes = await createTestDb({ seed: false, until: name });
+    try {
+      const before = await schemaSnapshot(upToFixes);
+      const fixes = (await readMigrations()).find((file) => file.name === name);
+      expect(fixes).toBeDefined();
+      await applyAsOwner(upToFixes, fixes!);
+      expect(await schemaSnapshot(upToFixes)).toEqual(before);
+    } finally {
+      await upToFixes.close();
+    }
+  });
+
+  // The migrations that say "Idempotent: running it again changes nothing",
+  // run again on top of all of them.
+  it.each([
+    "20261007151500_delete_draft_inspection.sql",
+    "20261007170000_lead_inspectors.sql",
+    "20261007190000_inspector_writes_through_the_app.sql",
+  ])("applies %s again without changing the schema", async (name) => {
     const before = await schemaSnapshot(db);
-    const fixes = (await readMigrations()).find((file) => file.name === "20261006000700_review_fixes.sql");
-    expect(fixes).toBeDefined();
-    await applyAsOwner(db, fixes!);
+    const migration = (await readMigrations()).find((file) => file.name === name);
+    expect(migration).toBeDefined();
+    await applyAsOwner(db, migration!);
     expect(await schemaSnapshot(db)).toEqual(before);
+  });
+
+  it("keeps the functions that write for an inspector to the service role", async () => {
+    const result = await db.query<{ fn: string; anon: boolean; authenticated: boolean; service_role: boolean }>(
+      `select p.oid::regprocedure::text as fn,
+              has_function_privilege('anon', p.oid, 'execute') as anon,
+              has_function_privilege('authenticated', p.oid, 'execute') as authenticated,
+              has_function_privilege('service_role', p.oid, 'execute') as service_role
+         from pg_proc p
+        where p.pronamespace = 'public'::regnamespace
+          and p.proname in ('create_inspection', 'save_inspection', 'submit_inspection')
+        order by 1`,
+    );
+    expect(result.rows).toEqual([
+      {
+        fn: "create_inspection(uuid,uuid,uuid,uuid,jsonb,jsonb)",
+        anon: false,
+        authenticated: false,
+        service_role: true,
+      },
+      {
+        fn: "save_inspection(uuid,uuid,timestamp with time zone,jsonb,jsonb)",
+        anon: false,
+        authenticated: false,
+        service_role: true,
+      },
+      {
+        fn: "submit_inspection(uuid,uuid,timestamp with time zone,jsonb)",
+        anon: false,
+        authenticated: false,
+        service_role: true,
+      },
+    ]);
   });
 
   it("creates every bucket private", async () => {
