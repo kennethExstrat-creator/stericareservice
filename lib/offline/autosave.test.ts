@@ -312,6 +312,33 @@ describe("autosave: offline and retries", () => {
     expect(server.requests).toHaveLength(1);
     expect(server.data).toEqual(d(1));
   });
+
+  it("writes the local copy in the same task when the page is hidden, where the lock spans every tab", async () => {
+    const store = createMemoryStore<unknown>();
+    const webLock: WriterLock = { acquire: async () => Object.assign(() => undefined, { exclusive: true }) };
+    const { server, autosave, hide } = setup({ store, lock: webLock });
+    await autosave.start(server.copy());
+    await advance(0);
+    // A closing tab: reads never answer, so the usual write, which reads first, never happens.
+    const put = vi.spyOn(store, "put");
+    vi.spyOn(store, "get").mockReturnValue(new Promise(() => {}));
+    autosave.change(d(1));
+    hide();
+    expect(put).toHaveBeenCalledWith(KEY, expect.objectContaining({ revision: 1, data: d(1) }));
+  });
+
+  it("keeps reading first where the lock covers this page only: another tab may have written the copy", async () => {
+    const store = createMemoryStore<unknown>();
+    const { server, autosave, hide } = setup({ store });
+    await autosave.start(server.copy());
+    await advance(0);
+    const put = vi.spyOn(store, "put");
+    autosave.change(d(1));
+    hide();
+    expect(put).not.toHaveBeenCalled();
+    await advance(0);
+    expect(put).toHaveBeenCalledWith(KEY, expect.objectContaining({ revision: 1 }));
+  });
 });
 
 describe("autosave: versions and conflicts", () => {
