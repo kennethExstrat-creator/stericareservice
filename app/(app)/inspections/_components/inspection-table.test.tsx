@@ -49,7 +49,7 @@ function cells(html: string): string[] {
 describe("InspectionTable", () => {
   it("gives inspectors no Inspector column, and the row actions last", () => {
     const html = render([{ ...ROW, inspector: null }]);
-    expect(headers(html)).toEqual(["Ref", "Date", "Client", "Manufacturer", "Product", "PO", "Status", "Result", "Actions"]);
+    expect(headers(html)).toEqual(["Ref", "Status", "Result", "Date", "Client", "Manufacturer", "Product", "PO", "Actions"]);
     expect(html).not.toContain("Test Inspector");
   });
 
@@ -58,13 +58,13 @@ describe("InspectionTable", () => {
       const html = render([ROW], viewer);
       expect(headers(html)).toEqual([
         "Ref",
+        "Status",
+        "Result",
         "Date",
         "Client",
         "Manufacturer",
         "Product",
         "PO",
-        "Status",
-        "Result",
         "Inspector in charge",
         "Actions",
       ]);
@@ -82,7 +82,7 @@ describe("InspectionTable", () => {
 
   it("puts every value in its own column, one per cell, with nothing folded under another", () => {
     const html = render([ROW], AS_ADMIN);
-    const [ref, date, client, manufacturer, product, po, status, result, inspector] = cells(html);
+    const [ref, status, result, date, client, manufacturer, product, po, inspector] = cells(html);
     const text = (cellHtml: string) => cellHtml.replace(/<[^>]+>/g, "");
     expect(text(ref)).toBe("INS-2026-0001");
     expect(date).toContain('<time dateTime="2026-10-06" class="tabular-nums">6 Oct 2026</time>');
@@ -109,6 +109,8 @@ describe("InspectionTable", () => {
   it("scrolls sideways inside a card that takes the focus, with the actions pinned on the right", () => {
     const html = render([ROW], AS_ADMIN);
     expect(html).toMatch(/^<div role="region" aria-label="x" tabindex="0" data-slot="table-scroller"[^>]*class="[^"]*\boverflow-x-auto\b[^"]*\boverscroll-x-contain\b/);
+    // Positioned, so the sr-only text in its cells is clipped by the card instead of widening the page.
+    expect(html).toMatch(/^<div [^>]*data-slot="table-scroller"[^>]*class="[^"]*\brelative\b/);
     expect(html).toMatch(/<table[^>]*class="[^"]*\bw-max min-w-full\b/);
     expect(html).toMatch(/<table[^>]*class="[^"]*\bborder-separate\b/);
     expect(cells(html).at(-1)).toMatch(/^<td[^>]*class="[^"]*\bsticky right-0\b/);

@@ -7,16 +7,16 @@ const LEAD = { role: "inspector", isLead: true } as const;
 const ADMIN = { role: "admin" } as const;
 
 describe("inspectionListColumns", () => {
-  it("gives inspectors the list columns in BUILD_SPEC order, without Inspector, and the row actions last", () => {
+  it("gives inspectors the list columns, status and result straight after the ref, without Inspector, and the row actions last", () => {
     expect(inspectionListColumns(INSPECTOR).map((column) => column.label)).toEqual([
       "Ref",
+      "Status",
+      "Result",
       "Date",
       "Client",
       "Manufacturer",
       "Product",
       "PO",
-      "Status",
-      "Result",
       "Actions",
     ]);
   });

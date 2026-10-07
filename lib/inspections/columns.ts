@@ -22,17 +22,19 @@ export type InspectionColumn = {
 /**
  * Every column shows at every size, one line per row: when they do not fit,
  * the list scrolls sideways with the ref and the actions pinned
- * (inspection-table.tsx).
+ * (inspection-table.tsx). Status and result come straight after the ref, so
+ * they show without a sideways scroll at every size: they are what people
+ * scan the list for. The longer names follow and run past the card's edge.
  */
 const COLUMNS: readonly InspectionColumn[] = [
   { key: "ref", label: "Ref" },
+  { key: "status", label: "Status" },
+  { key: "result", label: "Result" },
   { key: "date", label: "Date" },
   { key: "client", label: "Client" },
   { key: "manufacturer", label: "Manufacturer" },
   { key: "product", label: "Product" },
   { key: "po", label: "PO" },
-  { key: "status", label: "Status" },
-  { key: "result", label: "Result" },
 ];
 
 /** Who carried each inspection out: for admins and lead inspectors, who see other people's. */
