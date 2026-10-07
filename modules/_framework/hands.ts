@@ -7,7 +7,8 @@ export const HANDS = ["R", "L"] as const;
 export const HandSchema = z.enum(HANDS);
 export type Hand = z.infer<typeof HandSchema>;
 
-export const HAND_LABEL: Readonly<Record<Hand, string>> = { R: "Right hand", L: "Left hand" };
+/** A hand as a label names it, in Title Case as the kit's HandToggle does; a sentence lowercases it ("right hand"). */
+export const HAND_LABEL: Readonly<Record<Hand, string>> = { R: "Right Hand", L: "Left Hand" };
 
 /** True when the module supports the split and its config switches it on. */
 export function isHandSplit(definition: { readonly handSplit: boolean }, config: unknown): boolean {
