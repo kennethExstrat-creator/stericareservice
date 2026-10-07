@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import type { JwtPayload } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import { getSupabasePublicEnv } from "@/lib/env";
+import { sessionCookieOptions } from "./cookie-options";
 import type { Database } from "./database.types";
 
 /**
@@ -35,6 +36,7 @@ export async function updateSession(
         for (const [key, value] of Object.entries(headers)) response.headers.set(key, value);
       },
     },
+    cookieOptions: sessionCookieOptions(request.nextUrl.protocol === "https:"),
   });
 
   // Nothing may run between creating the client and this call: getClaims()
