@@ -3,12 +3,16 @@ import { makeAiReview } from "@/lib/ai/__fixtures__/ai-review";
 import {
   aiReviewSource,
   aiReviewSourceLabel,
+  isSameVersion,
   isStale,
   parseStoredReview,
   sameInstant,
   STALE_REVIEW_MS,
   type AiReviewRow,
 } from "./stored";
+
+const CONTENT = "a".repeat(64);
+const OTHER_CONTENT = "b".repeat(64);
 
 function row(overrides: Partial<AiReviewRow> = {}): AiReviewRow {
   const review = makeAiReview();
@@ -42,6 +46,15 @@ describe("parseStoredReview", () => {
     });
     expect(review.findings.map((finding) => finding.id)).toEqual(["F1"]);
     expect(review.questions.map((question) => question.id)).toEqual(["Q1"]);
+  });
+
+  it("reads the content it reviewed, when the row has it", () => {
+    expect(parseStoredReview(row({ inspection_fingerprint: CONTENT })).inspectionFingerprint).toBe(CONTENT);
+    // Stored before the column existed, or read from a database without it yet.
+    expect(parseStoredReview(row({ inspection_fingerprint: null })).inspectionFingerprint).toBeNull();
+    expect(parseStoredReview(row()).inspectionFingerprint).toBeNull();
+    // Anything that is not a fingerprint compares by save instead of matching nothing.
+    expect(parseStoredReview(row({ inspection_fingerprint: "not a hash" })).inspectionFingerprint).toBeNull();
   });
 
   it("marks findings it cannot read instead of showing half of them", () => {
@@ -89,5 +102,22 @@ describe("sameInstant", () => {
 
   it("never matches something that is not a timestamp", () => {
     expect(sameInstant("yesterday", "yesterday")).toBe(false);
+  });
+});
+
+describe("isSameVersion", () => {
+  const SAVED = "2026-10-05T09:30:00.654321+00:00";
+  const LATER = "2026-10-06T08:00:00.000001+00:00";
+
+  it("compares by content: a save since (an approval, a report link) leaves the review current", () => {
+    const review = { inspectionFingerprint: CONTENT, inspectionUpdatedAt: SAVED };
+    expect(isSameVersion(review, { fingerprint: CONTENT, updatedAt: LATER })).toBe(true);
+    expect(isSameVersion(review, { fingerprint: OTHER_CONTENT, updatedAt: SAVED })).toBe(false);
+  });
+
+  it("compares a review stored without a fingerprint by its save", () => {
+    const review = { inspectionFingerprint: null, inspectionUpdatedAt: SAVED };
+    expect(isSameVersion(review, { fingerprint: CONTENT, updatedAt: "2026-10-05T09:30:00.654321Z" })).toBe(true);
+    expect(isSameVersion(review, { fingerprint: CONTENT, updatedAt: LATER })).toBe(false);
   });
 });

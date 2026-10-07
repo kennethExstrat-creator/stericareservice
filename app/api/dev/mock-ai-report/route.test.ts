@@ -6,7 +6,8 @@ import { GET, POST } from "./route";
 
 const ORIGIN = "http://localhost:3000";
 const SECRET = "whsec_test_0123456789abcdef";
-const BODY = JSON.stringify(makeStdEgExport());
+const EXPORT = makeStdEgExport();
+const BODY = JSON.stringify(EXPORT);
 
 // The handlers read process.env; start every test from a known state, whatever the shell exports.
 beforeEach(() => {
@@ -34,7 +35,7 @@ describe("POST /api/dev/mock-ai-report", () => {
     const response = await post(BODY);
     expect(response.status).toBe(200);
     const body = AiReportResponseSchema.parse(await response.json());
-    expect(body.reportUrl).toBe(`${ORIGIN}/api/dev/mock-ai-report?ref=INS-2024-0001`);
+    expect(body.reportUrl).toBe(`${ORIGIN}/api/dev/mock-ai-report?ref=${EXPORT.refNo}`);
   });
 
   it("verifies the signature when a secret is set", async () => {

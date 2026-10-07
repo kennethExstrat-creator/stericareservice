@@ -1,9 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { expect, test, type APIRequestContext, type Browser, type Locator, type Page } from "@playwright/test";
 import { request as playwrightRequest } from "@playwright/test";
-import { makeTestTemplate } from "../../modules/_framework/testing";
-import { MODULE_REGISTRY } from "../../modules/registry";
+import { stdEgInspectionData } from "../../lib/export/__fixtures__/std-eg";
+import { TemplateDefinitionSchema } from "../../lib/schemas/template";
 import type { Json } from "../../lib/supabase/database.types";
+import { lookupFrom, templateRowFields } from "../../lib/templates";
+import { STD_EG_SEED } from "../../lib/templates/definitions";
+import { resolveTemplate } from "../../modules";
 import { createTestAdminClient, deleteTestInspection, throwawayEmail } from "../support/admin";
 import { sessionCookies, TEST_ACCOUNTS } from "../support/session";
 
@@ -16,9 +19,13 @@ import { sessionCookies, TEST_ACCOUNTS } from "../support/session";
  * (its AI reviews, decisions and audit rows go with it), then the
  * template. A run that died half way is cleaned up by the next.
  *
- * The template is resolved against the modules as they are at run time
- * (their default config), so the fixture keeps working as the real
- * modules land; the panel and the export do not depend on their results.
+ * The inspection is the STD_EG example report (tests/fixtures/examples)
+ * in the real modules' data shapes (lib/export/__fixtures__/std-eg.ts),
+ * on a copy of the STD_EG seed template resolved against the modules as
+ * they are at run time. Submitted on hold: the weight warning is open,
+ * the labelling check was not done, dimensions were switched off for it,
+ * and the force-at-break lab report is attached. So the mock reviewer has
+ * three findings to make, and the export carries real module data.
  * ------------------------------------------------------------------ */
 
 type AdminClient = ReturnType<typeof createTestAdminClient>;
@@ -32,13 +39,33 @@ const SEED = {
 const PHOTO_BUCKET = "inspection-photos";
 const FILE_BUCKET = "inspection-files";
 
-export const EXCLUDED_REASON = "Scale out of calibration; weighed at the lab instead.";
+export const EXCLUDED_MODULE = "dimensions";
+export const EXCLUDED_REASON = "Calipers out for calibration; measured at the lab instead.";
+export const GLOVE_INFO_COMMENT = "Indicative weight from the glove spec sheet.";
+export const VISUAL_COMMENT = "Two thin spots on the body, photographed.";
+export const GLOVE_TYPE = "Nitrile, powder free";
+
+/** Modules STD_EG includes, in its order, without the one switched off for the fixture. */
+export const FIXTURE_MODULES = [
+  "header",
+  "glove_info",
+  "order_lots",
+  "packing_config",
+  "sampling_plan",
+  "carton_sampling",
+  "force_at_break",
+  "weight",
+  "watertight",
+  "visual",
+  "dispensing_packing",
+  "labeling",
+  "conclusion",
+] as const;
 
 /**
- * Where the AI panel is rendered. The review screen (/inspections/[id]/review)
- * hosts it once the integrator has wired it in; until then point
- * E2E_AI_PANEL_PATH at a page that renders <AiReviewPanel inspectionId={id} />,
- * e.g. E2E_AI_PANEL_PATH=/e2e-ai-panel/{id}.
+ * Where the AI panel is rendered: the review screen, /inspections/{id}/review.
+ * E2E_AI_PANEL_PATH points the specs at another page that renders it,
+ * e.g. E2E_AI_PANEL_PATH=/some-page/{id}.
  */
 export function panelPath(inspectionId: string): string {
   const pattern = process.env.E2E_AI_PANEL_PATH?.trim() || "/inspections/{id}/review";
@@ -55,13 +82,43 @@ export type ExportFixture = {
   refNo: string;
   inspectorId: string;
   adminId: string;
-  photoIds: { visual: string; untagged: string };
+  /** `scale`: a report photo of the weight module, which the mock reviewer cites with its weight finding. */
+  photoIds: { scale: string; untagged: string };
+  /** The force-at-break lab report, kept by id in that module's data. */
   fileId: string;
   cleanup: () => Promise<void>;
 };
 
 function fail(step: string, error: { message: string } | null): never {
   throw new Error(`Export fixture: ${step} failed: ${error?.message ?? "no data"}`);
+}
+
+/** The example's header with values that say whose rows these are in the shared database. */
+const FIXTURE_HEADER = {
+  poNo: "E2E-EXPORT-PO-0001",
+  productName: "E2E nitrile examination gloves, blue",
+  inspectionDate: "2025-04-11",
+} as const;
+const FIXTURE_LOT = "E2E-LOT-M-0001";
+
+/**
+ * The STD_EG example's data with the fixture's story: the carton errors
+ * fixed, the lab report kept by force at break, comments on glove
+ * information and visual, labelling not entered, and the inspector's final
+ * result hold with no remark.
+ */
+function fixtureData(labReportFileId: string) {
+  const data = stdEgInspectionData({
+    labReportFileId,
+    comments: { glove_info: GLOVE_INFO_COMMENT, visual: VISUAL_COMMENT },
+  });
+  const modules = { ...data.modules } as Record<string, Record<string, unknown>>;
+  modules.header = { ...modules.header, ...FIXTURE_HEADER };
+  const order = modules.order_lots as { sizes: Record<string, { lotNumbers: string[] }> };
+  modules.order_lots = { sizes: { M: { ...order.sizes.M, lotNumbers: [FIXTURE_LOT] } } };
+  delete modules.labeling;
+  modules.conclusion = { ...modules.conclusion, finalResult: "hold", remark: null };
+  return { modules, custom: { glove_type: { gloveType: GLOVE_TYPE } } };
 }
 
 /** Two JPEGs drawn in the browser: a 1200 x 900 photo of a "glove" with a circled thin spot, and its thumbnail. */
@@ -172,50 +229,21 @@ async function insertFixture(
   const inspectorId = idOf(TEST_ACCOUNTS.inspector);
   const adminId = idOf(TEST_ACCOUNTS.admin);
 
-  const resolved = makeTestTemplate(
-    MODULE_REGISTRY,
-    ["header", "glove_info", "order_lots", "packing_config", "weight", "visual", "conclusion"],
-    {
-      code,
-      name: "Export e2e fixture (temporary)",
-      chain: [code],
-      bases: [],
-      customModules: [
-        {
-          key: "glove_type",
-          title: "Glove Type",
-          after: "header",
-          layout: "fields",
-          fields: [{ key: "gloveType", label: "Glove Type", type: "text" }],
-        },
-      ],
-      report: { title: "Preshipment Inspection: Nitrile Disposable Examination Gloves", showClientLogo: false },
-    },
-  );
+  // STD_EG under the fixture's code, resolved with the modules of the day.
+  const definition = TemplateDefinitionSchema.parse({ ...STD_EG_SEED.definition(), code, name: "Export e2e fixture (temporary)" });
+  const resolution = resolveTemplate(definition, lookupFrom([]));
+  if (!resolution.ok) fail("resolving the fixture template", { message: JSON.stringify(resolution.problems) });
 
   // A draft template no inspector can start from; only this fixture uses it.
   const { data: template, error: templateError } = await admin
     .from("templates")
-    .insert({
-      code,
-      version: 1,
-      product_type: "examination",
-      standard: "EN455",
-      status: "draft",
-      definition: {
-        code,
-        name: "Export e2e fixture (temporary)",
-        scope: { productType: "examination", standard: "EN455" },
-        unit: "pcs",
-        sizes: [{ value: "M" }],
-        modules: resolved.modules.map((module) => ({ key: module.key, include: true })),
-      },
-      resolved: resolved as unknown as Json,
-    })
+    .insert({ ...templateRowFields(definition, resolution.template), version: 1, status: "draft" })
     .select("id")
     .single();
   if (templateError) fail("creating the fixture template", templateError);
 
+  const photoIds = { scale: randomUUID(), untagged: randomUUID() };
+  const fileId = randomUUID();
   const { data: inspection, error: insertError } = await admin
     .from("inspections")
     .insert({
@@ -223,38 +251,24 @@ async function insertFixture(
       inspector_id: inspectorId,
       client_id: SEED.polyco,
       manufacturer_id: SEED.terangNusa,
-      po_no: "E2E-EXPORT-PO-0001",
-      product_name: "E2E nitrile examination gloves, blue",
-      lot_numbers: ["E2E-LOT-M-0001"],
+      inspection_date: FIXTURE_HEADER.inspectionDate,
+      // What the capture screen copies into the row (lib/inspections/capture/mirror.ts).
+      po_no: FIXTURE_HEADER.poNo,
+      product_name: FIXTURE_HEADER.productName,
+      lot_numbers: [FIXTURE_LOT],
+      suggested_result: "hold",
       result: "hold",
-      module_overrides: { weight: { reason: EXCLUDED_REASON, by: adminId, at: new Date().toISOString() } },
-      data: {
-        modules: {
-          header: { poNo: "E2E-EXPORT-PO-0001", productName: "E2E nitrile examination gloves, blue" },
-          glove_info: {
-            surfaceTexture: "Finger-textured",
-            indicativeWeight: 3.5,
-            colour: "Blue",
-            length: "240 mm minimum",
-            comment: "Indicative weight from the glove spec sheet.",
-          },
-          order_lots: { lots: [{ size: "M", qtyCases: 120, lotNumbers: ["E2E-LOT-M-0001"] }] },
-          visual: { comment: "Two thin spots on the body, photographed." },
-          conclusion: { finalResult: "hold" },
-        },
-        custom: { glove_type: { gloveType: "Nitrile, powder free" } },
-      },
+      module_overrides: { [EXCLUDED_MODULE]: { reason: EXCLUDED_REASON, by: adminId, at: new Date().toISOString() } },
+      data: fixtureData(fileId) as unknown as NonNullable<Json>,
     })
     .select("id, ref_no")
     .single();
   if (insertError) fail("creating the fixture inspection", insertError);
 
-  const photoIds = { visual: randomUUID(), untagged: randomUUID() };
-  const fileId = randomUUID();
   const path = (id: string, extension = "jpg") => `${inspection.id}/${id}.${extension}`;
   const uploads: [string, string, Uint8Array, string][] = [
-    [PHOTO_BUCKET, path(photoIds.visual), images.photo, "image/jpeg"],
-    [PHOTO_BUCKET, `${inspection.id}/thumbs/${photoIds.visual}.jpg`, images.thumb, "image/jpeg"],
+    [PHOTO_BUCKET, path(photoIds.scale), images.photo, "image/jpeg"],
+    [PHOTO_BUCKET, `${inspection.id}/thumbs/${photoIds.scale}.jpg`, images.thumb, "image/jpeg"],
     [PHOTO_BUCKET, path(photoIds.untagged), images.photo, "image/jpeg"],
     [FILE_BUCKET, path(fileId, "pdf"), tinyPdf(), "application/pdf"],
   ];
@@ -265,13 +279,13 @@ async function insertFixture(
 
   const photos = await admin.from("inspection_photos").insert([
     {
-      id: photoIds.visual,
+      id: photoIds.scale,
       inspection_id: inspection.id,
-      module_key: "visual",
-      target: "size:M/defect:thin_spot",
-      storage_path: path(photoIds.visual),
-      thumb_path: `${inspection.id}/thumbs/${photoIds.visual}.jpg`,
-      caption: "Thin spot on glove body",
+      module_key: "weight",
+      target: "size:M",
+      storage_path: path(photoIds.scale),
+      thumb_path: `${inspection.id}/thumbs/${photoIds.scale}.jpg`,
+      caption: "Scale reading, 13 gloves",
       taken_at: new Date(Date.now() - 3_600_000).toISOString(),
       width: 1200,
       height: 900,
@@ -298,10 +312,10 @@ async function insertFixture(
   const files = await admin.from("inspection_files").insert({
     id: fileId,
     inspection_id: inspection.id,
-    module_key: "weight",
+    module_key: "force_at_break",
     kind: "lab_report",
     storage_path: path(fileId, "pdf"),
-    name: "Weight lab report.pdf",
+    name: "Force at break lab report.pdf",
     created_by: inspectorId,
   });
   if (files.error) fail("adding the lab report", files.error);

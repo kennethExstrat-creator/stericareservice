@@ -7,11 +7,12 @@ import {
   type ExportModule,
   type ExportPhoto,
 } from "@/lib/schemas/export";
-import { InspectionResultSchema, IsoDateSchema, type InspectionResult, type JsonValue } from "@/lib/schemas/common";
+import { IsoDateSchema, type JsonValue } from "@/lib/schemas/common";
 import { sectionOrder } from "@/lib/templates";
 import { exportIssuesOf } from "@/lib/validation";
 import { readModuleEntry, type ModuleEvaluation } from "@/modules/_framework";
 import { z } from "zod";
+import { inspectorDecision } from "./conclusion";
 import type { EvaluatedInspection } from "./evaluate";
 import type { FileRecord, InspectionRecord, PhotoRecord } from "./record";
 
@@ -120,6 +121,9 @@ function exportModule(evaluated: EvaluatedInspection, evaluation: ModuleEvaluati
     key: evaluation.key,
     title: evaluation.title,
     labels: { ...evaluation.labels },
+    // As parsed by the module, from the inspection's template version; a config
+    // the module refuses goes out as the template has it, beside its invalid_config error.
+    ...(isRecord(evaluation.config) ? { config: jsonObject(evaluation.config) } : {}),
     data: moduleData(evaluated, evaluation),
     computed: jsonObject(evaluation.computed),
     result: evaluation.result,
@@ -143,19 +147,19 @@ function moduleData(evaluated: EvaluatedInspection, evaluation: ModuleEvaluation
 /**
  * The conclusion block. The suggested result is the framework's, from this
  * evaluation. The final result and remark are what the inspector entered in
- * the conclusion module. inspections.result and inspections.remarks only
- * mirror them for lists and search (docs/OFFLINE.md), so they stand in only
- * where the module holds no value (data saved before the module was built,
- * or that no longer reads). The date is the conclusion's own (the report
- * date, DATA_DICTIONARY decision 1), or null until it is recorded.
+ * the conclusion module, the row's copies standing in where it holds none
+ * (inspectorDecision, the same rule as the review). The date is the
+ * conclusion's own (the report date, DATA_DICTIONARY decision 1), or null
+ * until it is recorded.
  */
 export function conclusionOf(record: InspectionRecord, evaluated: EvaluatedInspection): ExportConclusion {
   const saved = evaluated.report.modules.find((evaluation) => evaluation.key === "conclusion");
   const data = saved && isRecord(saved.data) ? saved.data : {};
+  const decision = inspectorDecision({ result: record.result, remarks: record.remarks }, data);
   return {
     suggestedResult: evaluated.report.suggested.result,
-    finalResult: resultOrNull(data.finalResult) ?? record.result,
-    remark: (typeof data.remark === "string" ? blankToNull(data.remark) : null) ?? blankToNull(record.remarks),
+    finalResult: decision.result,
+    remark: decision.remarks,
     inspector: evaluated.inspector,
     date: IsoDateSchema.safeParse(data.date).success ? (data.date as string) : null,
   };
@@ -181,11 +185,6 @@ function sortByModule<T extends PhotoRecord | FileRecord>(items: readonly T[], o
 function jsonObject(value: unknown): Record<string, JsonValue> {
   const copy: unknown = JSON.parse(JSON.stringify(value ?? {}));
   return isRecord(copy) ? (copy as Record<string, JsonValue>) : {};
-}
-
-function resultOrNull(value: unknown): InspectionResult | null {
-  const parsed = InspectionResultSchema.safeParse(value);
-  return parsed.success ? parsed.data : null;
 }
 
 function blankToNull(value: string | null | undefined): string | null {

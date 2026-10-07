@@ -1,10 +1,12 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fileRef } from "@/lib/export/evaluate";
 import { manufacturerLabel, personLabel } from "@/lib/inspections/format";
 import { PHOTO_BUCKET } from "@/lib/photos/paths";
 import type { InspectionResult, InspectionStatus } from "@/lib/schemas/common";
 import type { ModuleKey } from "@/lib/schemas/module-result";
 import type { Database } from "@/lib/supabase/database.types";
+import type { FileKind, InspectionFileRef } from "@/modules/_framework";
 import { actorOf, type Actor, type KnownPeople } from "./actor";
 import { buildAuditTrail, type AuditEntry } from "./audit";
 import { evaluateStoredInspection, inspectorDecision, type ReviewEvaluation } from "./evaluate";
@@ -29,6 +31,7 @@ export const REVIEW_INSPECTION_SELECT =
 
 const PHOTO_SELECT = "id, module_key, target, caption, storage_path, thumb_path, taken_at, flagged";
 const AUDIT_SELECT = "id, action, changes, at, actor_id, actor:profiles(full_name, email)";
+const FILE_SELECT = "id, module_key, kind";
 
 export type ReviewViewer = { id: string; name: string; role: UserRole };
 
@@ -50,7 +53,7 @@ export type ReviewInspection = {
   approvedAt: string | null;
   /** Who approved it, as the viewer may know them. */
   approver: Actor | null;
-  /** The inspector's final result and remark: the row's columns, else the conclusion's own (inspectorDecision). */
+  /** The inspector's final result and remark: the conclusion's own, else the row's copies (inspectorDecision). */
   result: InspectionResult | null;
   remarks: string | null;
   /** The suggestion saved with the inspection, which the app worked out when it was last saved. */
@@ -84,7 +87,7 @@ function logFailure(what: string, error: { code?: string; message: string }) {
  * load; photos and history that fail show as such instead of failing the page.
  */
 export async function loadReview(supabase: Client, inspectionId: string, viewer: ReviewViewer): Promise<ReviewLoad> {
-  const [row, photoRows, photoCount, auditRows] = await Promise.all([
+  const [row, photoRows, photoCount, auditRows, fileRows] = await Promise.all([
     supabase.from("inspections").select(REVIEW_INSPECTION_SELECT).eq("id", inspectionId).maybeSingle(),
     supabase
       .from("inspection_photos")
@@ -101,6 +104,7 @@ export async function loadReview(supabase: Client, inspectionId: string, viewer:
       .eq("inspection_id", inspectionId)
       .order("at", { ascending: true })
       .order("id", { ascending: true }),
+    supabase.from("inspection_files").select(FILE_SELECT).eq("inspection_id", inspectionId),
   ]);
 
   if (row.error) {
@@ -126,6 +130,7 @@ export async function loadReview(supabase: Client, inspectionId: string, viewer:
     inspector: { id: found.inspector_id, name: inspectorName },
     client: found.client ? { id: found.client.id, name: found.client.name } : null,
     manufacturer: found.manufacturer ? { id: found.manufacturer.id, name: found.manufacturer.name } : null,
+    files: inspectionFiles(fileRows),
   });
   const header = evaluation.ok ? evaluation.context.header : null;
   const decision = inspectorDecision({ result: found.result, remarks: found.remarks }, evaluation);
@@ -185,6 +190,24 @@ export async function loadReview(supabase: Client, inspectionId: string, viewer:
   };
 
   return { kind: "ok", review: { viewer, inspection, template, evaluation, overrides, photos, history } };
+}
+
+type FileRowsResult = {
+  data: { id: string; module_key: string | null; kind: FileKind }[] | null;
+  error: { code?: string; message: string } | null;
+};
+
+/**
+ * The inspection's files for the context. Null when they could not be read:
+ * not knowing them is not the same as having none, so a lab report kept by
+ * a module never reads as deleted because of a failed read.
+ */
+export function inspectionFiles(rows: FileRowsResult): InspectionFileRef[] | null {
+  if (rows.error || !rows.data) {
+    if (rows.error) logFailure("the files", rows.error);
+    return null;
+  }
+  return rows.data.map((file) => fileRef({ id: file.id, moduleKey: file.module_key, kind: file.kind }));
 }
 
 /** Modules switched off for this inspection, with who did it. Only admins can read other people's names. */

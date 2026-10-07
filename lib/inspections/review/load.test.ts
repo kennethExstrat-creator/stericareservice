@@ -8,7 +8,7 @@ vi.mock("@/modules/registry", async () => {
 });
 
 import { ADMIN_ID, INSPECTION_ID, INSPECTOR_ID, reviewTemplate, savedData, VERSION } from "./__fixtures__/review";
-import { loadReview, PHOTO_URL_SECONDS, type ReviewViewer } from "./load";
+import { inspectionFiles, loadReview, PHOTO_URL_SECONDS, type ReviewViewer } from "./load";
 
 type Result = { data?: unknown; error?: unknown; count?: number | null };
 type Query = { table: string; calls: Array<[string, unknown[]]> };
@@ -278,6 +278,24 @@ describe("loadReview", () => {
     if (loaded.kind !== "ok") throw new Error("expected a review");
     expect(loaded.review.photos).toEqual({ items: [], total: 2, failed: false });
     expect(createSignedUrls).not.toHaveBeenCalled();
+  });
+
+  it("reads the inspection's files for the context, by id, module and kind", async () => {
+    const { client, queries } = fakeClient(database());
+    await loadReview(client, INSPECTION_ID, admin);
+    const files = queries.find((query) => query.table === "inspection_files");
+    expect(files?.calls).toEqual([
+      ["select", ["id, module_key, kind"]],
+      ["eq", ["inspection_id", INSPECTION_ID]],
+    ]);
+  });
+
+  it("keeps not knowing the files apart from having none", () => {
+    const row = { id: PHOTO_ID, module_key: "tensile", kind: "lab_report" as const };
+    expect(inspectionFiles({ data: [row], error: null })).toEqual([{ id: PHOTO_ID, moduleKey: "tensile", kind: "lab_report" }]);
+    expect(inspectionFiles({ data: [], error: null })).toEqual([]);
+    // A failed read is not "no files": a kept lab report must not read as deleted.
+    expect(inspectionFiles({ data: null, error: { message: "files failed" } })).toBeNull();
   });
 
   it("keeps the facts when the template version cannot be read", async () => {

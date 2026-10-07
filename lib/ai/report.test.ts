@@ -112,7 +112,7 @@ describe("requestAiReport", () => {
     });
     expect(outcome).toEqual({
       ok: true,
-      reportUrl: "http://localhost:3000/api/dev/mock-ai-report?ref=INS-2024-0001",
+      reportUrl: `http://localhost:3000/api/dev/mock-ai-report?ref=${makeStdEgExport().refNo}`,
     });
   });
 });

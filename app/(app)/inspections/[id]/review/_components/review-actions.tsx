@@ -3,8 +3,8 @@
 import { useActionState, useId, useRef, useState, type ReactNode, type RefObject } from "react";
 import { CheckIcon, OctagonXIcon, RotateCcwIcon, TriangleAlertIcon } from "lucide-react";
 import { toast } from "sonner";
+import { refreshInspectionMedia } from "@/components/capture/photos";
 import { StatusPill } from "@/components/qc";
-import { SMALL_PILL_TOUCH } from "@/components/qc/status-pill";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -68,14 +68,23 @@ type DialogProps = ReviewActionsProps & {
   returnFocusTo: RefObject<HTMLButtonElement | null>;
 };
 
-/** Toast and close on success or a warning; anything else stays in the dialog. */
-function settle(result: ReviewActionResult, onClose: () => void): ReviewActionResult {
+/**
+ * Toast and close on success or a warning; anything else stays in the
+ * dialog. Either way the inspection's status may have moved on (a warning:
+ * someone else acted first), so photos and files already loaded on this
+ * device (the gallery's store, kept across client-side navigation) are read
+ * again with the user's new rights: an approved inspection's are read-only.
+ */
+export function settle(inspectionId: string, result: ReviewActionResult, onClose: () => void): ReviewActionResult {
   if (result.status === "success") {
     toast.success(result.message);
     onClose();
   } else if (result.status === "warning") {
     toast.warning(result.message, { duration: 12_000 });
     onClose();
+  }
+  if (result.status === "success" || result.status === "warning") {
+    refreshInspectionMedia(inspectionId).catch((error: unknown) => console.error("Inspection review: reading the photos again failed", error));
   }
   return result;
 }
@@ -92,7 +101,7 @@ function ApproveDialog({
 }: DialogProps) {
   const [state, formAction, pending] = useActionState(
     async (previous: ReviewActionResult, formData: FormData) =>
-      settle(await approveInspection(previous, formData).catch(unreachable), onClose),
+      settle(inspectionId, await approveInspection(previous, formData).catch(unreachable), onClose),
     IDLE,
   );
 
@@ -145,15 +154,9 @@ export function ApproveDescription({ finalResult, suggestedResult, errors }: App
             <dt className="text-muted-foreground">Final result</dt>{" "}
             <dd>
               {finalResult ? (
-                <StatusPill
-                  status={finalResult}
-                  variant="solid"
-                  size="sm"
-                  label={RESULT_LABEL[finalResult]}
-                  className={SMALL_PILL_TOUCH}
-                />
+                <StatusPill status={finalResult} variant="solid" size="sm" label={RESULT_LABEL[finalResult]} />
               ) : (
-                <StatusPill status="not_done" size="sm" label="Not chosen" className={SMALL_PILL_TOUCH} />
+                <StatusPill status="not_done" size="sm" label="Not chosen" />
               )}
             </dd>
           </div>{" "}
@@ -161,12 +164,7 @@ export function ApproveDescription({ finalResult, suggestedResult, errors }: App
             <dt className="text-muted-foreground">Suggested result</dt>{" "}
             <dd>
               {suggestedResult ? (
-                <StatusPill
-                  status={suggestedResult}
-                  size="sm"
-                  label={RESULT_LABEL[suggestedResult]}
-                  className={SMALL_PILL_TOUCH}
-                />
+                <StatusPill status={suggestedResult} size="sm" label={RESULT_LABEL[suggestedResult]} />
               ) : (
                 <span className="text-muted-foreground">Could not be worked out</span>
               )}
@@ -201,7 +199,7 @@ function ReopenDialog({ inspectionId, refNo, onClose, returnFocusTo }: DialogPro
     const fieldError = result.status === "error" ? (result.fieldErrors?.reason ?? null) : null;
     setReasonError(fieldError);
     if (fieldError) reasonRef.current?.focus();
-    return settle(result, onClose);
+    return settle(inspectionId, result, onClose);
   }, IDLE);
 
   const formError = state.status === "error" && !state.fieldErrors ? state.message : null;

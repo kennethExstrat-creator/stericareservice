@@ -1,18 +1,51 @@
 // The page's own decisions, rendered on the server: who gets which actions,
-// the title, and the 404 for anything the user may not see.
+// the title, the AI panel in its place, and the 404 for anything the user
+// may not see.
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/auth/session", () => ({ requireUser: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/inspections/review/load", () => ({ loadReview: vi.fn() }));
 vi.mock("@/lib/inspections/review/actions", () => ({ approveInspection: vi.fn(), reopenInspection: vi.fn() }));
+vi.mock("@/lib/inspections/ai", () => ({ loadAiPanel: vi.fn() }));
+vi.mock("@/lib/inspections/ai/actions", () => ({
+  requestAiSecondOpinion: vi.fn(),
+  recordAiFindingDecision: vi.fn(),
+  sendToAiReport: vi.fn(),
+  getAiReviewProgress: vi.fn(),
+}));
 
 import { requireUser } from "@/lib/auth/session";
+import { CLAUDE_MAX_TOKENS } from "@/lib/ai/providers/claude-request";
+import { claudeTimeoutMs } from "@/lib/ai/providers/claude";
+import { REPORT_WEBHOOK_TIMEOUT_MS } from "@/lib/ai/report";
+import { loadAiPanel, type AiPanelLoad } from "@/lib/inspections/ai";
+import { loadFixture, MOCK_STATUS, NOW, reviewHistory } from "@/lib/inspections/ai/__fixtures__/panel";
+import { buildAiPanelModel } from "@/lib/inspections/ai/panel-model";
 import { ADMIN_ID, INSPECTION_ID, INSPECTOR_ID, reviewData, reviewInspection } from "@/lib/inspections/review/__fixtures__/review";
 import { loadReview, type ReviewData } from "@/lib/inspections/review/load";
 import { createClient } from "@/lib/supabase/server";
-import InspectionReviewPage, { generateMetadata } from "./page";
+import InspectionReviewPage, { generateMetadata, maxDuration } from "./page";
+
+let panel: AiPanelLoad;
+
+beforeAll(async () => {
+  const { record, evaluated } = await loadFixture();
+  panel = {
+    ok: true,
+    model: buildAiPanelModel({
+      record,
+      evaluated,
+      reviews: reviewHistory(),
+      decisions: [],
+      photoLinks: { thumbs: new Map(), full: new Map() },
+      aiStatus: MOCK_STATUS,
+      isAdmin: true,
+      now: NOW,
+    }),
+  };
+});
 
 const ADMIN_USER = { id: ADMIN_ID, email: "admin@test.local", fullName: "Admin A", role: "admin" as const };
 const INSPECTOR_USER = { id: INSPECTOR_ID, email: "inspector@test.local", fullName: "Inspector A", role: "inspector" as const };
@@ -36,6 +69,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(requireUser).mockResolvedValue(ADMIN_USER);
   vi.mocked(createClient).mockResolvedValue({} as never);
+  vi.mocked(loadAiPanel).mockResolvedValue(panel);
 });
 
 describe("/inspections/[id]/review", () => {
@@ -102,14 +136,68 @@ describe("/inspections/[id]/review", () => {
     expect(plain).toContain("Submitted Client A · Product A");
   });
 
-  it("lays out every part of the review in order, the AI's slot after the result", async () => {
+  it("lays out every part of the review in order, the AI second opinion after the result", async () => {
     const html = await render(reviewData());
-    const order = ["review-status", "inspection-facts", 'id="result"', 'data-slot="ai-panel"', 'id="modules"', 'id="photos"', 'id="history"'].map(
+    const order = ["review-status", "inspection-facts", 'id="result"', 'data-testid="ai-panel"', 'id="modules"', 'id="photos"', 'id="history"'].map(
       (marker) => html.indexOf(marker),
     );
     expect(order.every((position) => position >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     // Inside the shell: no <main> of its own.
     expect(html).not.toContain("<main");
+  });
+
+  it("reads the AI panel as the signed-in user, and shows the three columns with the AI report", async () => {
+    const html = await render(reviewData());
+    expect(loadAiPanel).toHaveBeenCalledWith(ADMIN_USER, INSPECTION_ID);
+    expect(html).toContain('data-testid="ai-comparison"');
+    for (const column of ["System (computed)", "Inspector", "AI second opinion"]) expect(html).toContain(column);
+    expect(html).toContain('data-testid="ai-report"');
+    expect(link(html, "Download JSON")).toBe(true);
+  });
+
+  it("says when the AI panel could not be loaded, and leaves the rest of the review in place", async () => {
+    vi.mocked(loadAiPanel).mockResolvedValue({ ok: false, reason: "unavailable", message: "Could not read the AI reviews. Try again." });
+    const html = await render(reviewData());
+    expect(html).toContain('data-testid="ai-panel-unavailable"');
+    expect(html).toContain("The AI panel could not be loaded");
+    expect(html).toContain("Could not read the AI reviews. Try again.");
+    expect(html).toContain('id="modules"');
+  });
+
+  it("says quietly that the AI hand-offs need the results when they cannot be worked out, and leaves the cause to the review", async () => {
+    const cause =
+      "The template version this inspection uses could not be read, so its results cannot be worked out. Ask a developer to check the template.";
+    vi.mocked(loadAiPanel).mockResolvedValue({
+      ok: false,
+      reason: "unreadable",
+      message: "Inspection INS-2026-0001 uses TEST_EG version 2, which could not be read.",
+    });
+    const html = await render(reviewData({ evaluation: { ok: false, problem: "template", message: cause } }));
+
+    // In the AI panel's place, under its heading.
+    const start = html.indexOf('data-testid="ai-panel-no-results"');
+    expect(start).toBeGreaterThan(html.indexOf('id="result"'));
+    expect(start).toBeLessThan(html.indexOf('id="modules"'));
+    const ai = html.slice(start, html.indexOf("</section>", start));
+    expect(ai).toContain("AI second opinion");
+    expect(ai).toContain("Not available");
+    expect(ai).toContain("The second opinion and the AI report need this inspection&#x27;s results, which could not be worked out.");
+    // Not-done slate, not fail red: the review's checks and module results give the cause, and only they do.
+    expect(ai).not.toMatch(/fail/);
+    expect(html).not.toContain("The AI panel could not be loaded");
+    expect(html).not.toContain("which could not be read.");
+    expect(html.split(cause)).toHaveLength(3);
+    // Nothing to request or download: the export needs the results too.
+    expect(link(html, "Download JSON")).toBe(false);
+    expect(button(html, "Request AI second opinion")).toBe(false);
+  });
+
+  it("runs its Server Actions longer than the AI hand-offs may take at the default effort", () => {
+    // Claude at high effort (the default) and the report webhook, with a minute to spare for the rest.
+    expect(maxDuration * 1000).toBeGreaterThanOrEqual(claudeTimeoutMs(CLAUDE_MAX_TOKENS.high) + 60_000);
+    expect(maxDuration * 1000).toBeGreaterThan(REPORT_WEBHOOK_TIMEOUT_MS);
+    // The most Vercel allows a function on Pro: a higher value would fail the deployment.
+    expect(maxDuration).toBeLessThanOrEqual(800);
   });
 });

@@ -25,10 +25,7 @@ export function AiReviewPanelView({ model, className }: { model: AiPanelModel; c
     <section aria-labelledby="ai-panel-title" className={cn("@container/ai space-y-5", className)} data-testid="ai-panel">
       <header className="flex flex-col gap-3 @2xl/ai:flex-row @2xl/ai:items-start @2xl/ai:justify-between">
         <div className="min-w-0 space-y-1">
-          <h2 id="ai-panel-title" className="flex items-center gap-2 text-2xl font-bold tracking-tight text-foreground">
-            <SparklesIcon aria-hidden className="size-5 shrink-0 text-brand-600" />
-            AI second opinion
-          </h2>
+          <AiPanelTitle />
           <p className="text-sm text-muted-foreground">
             {viewer.isAdmin
               ? "The AI suggests and never changes a result. Record agree, disagree or fixed for each finding."
@@ -76,7 +73,9 @@ export function AiReviewPanelView({ model, className }: { model: AiPanelModel; c
           </FocusTarget>
           {!current.isCurrentVersion && (
             <Notice tone="warn" title="The inspection has changed since this opinion">
-              It was saved again at {model.inspection.savedAt} (an edit, a status change or a report link all count).
+              {current.comparedBy === "content"
+                ? "What it reviewed has changed: the entries, the modules switched off, or the lab reports and certificates."
+                : `It was saved again at ${model.inspection.savedAt} (an edit, a status change or a report link all count).`}
               {viewer.isAdmin && review.canRequest ? " Request a new second opinion to review the current version." : ""}
             </Notice>
           )}
@@ -96,6 +95,16 @@ export function AiReviewPanelView({ model, className }: { model: AiPanelModel; c
   );
 }
 
+/** The panel's heading: its section is labelled by `ai-panel-title`. The quiet states in ai-review-panel.tsx carry it too. */
+export function AiPanelTitle() {
+  return (
+    <h2 id="ai-panel-title" className="flex items-center gap-2 text-2xl font-bold tracking-tight text-foreground">
+      <SparklesIcon aria-hidden className="size-5 shrink-0 text-brand-600" />
+      AI second opinion
+    </h2>
+  );
+}
+
 function NotConnected({ model }: { model: AiPanelModel }) {
   const { review, viewer } = model;
   return (
@@ -110,10 +119,11 @@ function NotConnected({ model }: { model: AiPanelModel }) {
           <p className="text-sm break-words text-fail">{review.detail}</p>
         ) : (
           <p className="text-sm text-muted-foreground">
-            {/* Not connected is both "nothing set" and AI_REVIEW_PROVIDER=off: the hint covers both. */}
-            {viewer.isAdmin
-              ? "To connect it, set ANTHROPIC_API_KEY or AI_REVIEW_WEBHOOK_URL on the server. If AI_REVIEW_PROVIDER is set to off, change it to auto. The admin overview shows the set-up."
-              : "An admin can connect it."}
+            {!viewer.isAdmin
+              ? "An admin can connect it."
+              : review.switchedOff
+                ? "It is switched off on the server: AI_REVIEW_PROVIDER is set to off. To connect it, set it to auto, with ANTHROPIC_API_KEY or AI_REVIEW_WEBHOOK_URL set. The admin overview shows the set-up."
+                : "To connect it, set ANTHROPIC_API_KEY or AI_REVIEW_WEBHOOK_URL on the server. The admin overview shows the set-up."}
           </p>
         )}
         {(model.current || model.history.length > 0) && (

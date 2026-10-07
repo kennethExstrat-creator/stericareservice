@@ -9,12 +9,14 @@ import type { ModuleStatus } from "@/lib/schemas/module-result";
 import type { CustomModule } from "@/lib/schemas/template";
 import type { ValidationIssue } from "@/lib/validation";
 import { readModuleEntry, sizeLabel, type ModuleEvaluation } from "@/modules/_framework";
+import { inspectionFingerprint } from "./fingerprint";
 import { confidencePercent, formatDateTime, photoTagLine } from "./format";
 import {
   aiReviewSourceLabel,
+  isSameVersion,
   isStale,
-  sameInstant,
   STOPPED_MESSAGE,
+  type InspectionVersion,
   type StoredAiReview,
 } from "./stored";
 import type {
@@ -32,8 +34,9 @@ import type {
  * The review panel's view model (BUILD_SPEC 9.2): for each section of
  * the inspection, the system's computed result, the inspector's comment
  * and the AI's findings and questions, side by side; the overall results
- * on top; every review kept per inspection version. Pure: the loader
- * (panel.ts) reads, this arranges, and the tests cover the arranging.
+ * on top; every review kept per inspection version (its content,
+ * fingerprint.ts). Pure: the loader (panel.ts) reads, this arranges, and
+ * the tests cover the arranging.
  * ------------------------------------------------------------------ */
 
 /** Second opinions and the AI report are for these inspections (BUILD_SPEC 9). */
@@ -71,7 +74,9 @@ export type PanelModelInput = {
 export function buildAiPanelModel(input: PanelModelInput): AiPanelModel {
   const { record, evaluated, reviews, isAdmin, aiStatus, now } = input;
   const titles = sectionTitles(evaluated);
-  const toReview = (review: StoredAiReview) => reviewModel(review, input, titles);
+  // The version reviews are compared with: the inspection's content as it is now.
+  const version: InspectionVersion = { fingerprint: inspectionFingerprint(record), updatedAt: record.updatedAt };
+  const toReview = (review: StoredAiReview) => reviewModel(review, input, titles, version);
 
   // The AI column shows the newest finished review; a newer request that is
   // still running, failed or stopped is the attempt shown above it.
@@ -82,7 +87,7 @@ export function buildAiPanelModel(input: PanelModelInput): AiPanelModel {
 
   const reviewable = AI_STATUSES.includes(record.status);
   const runningNow = reviews.some(
-    (review) => review.status === "pending" && !isStale(review, now) && sameInstant(review.inspectionUpdatedAt, record.updatedAt),
+    (review) => review.status === "pending" && !isStale(review, now) && isSameVersion(review, version),
   );
   const reviewHandoff = handoff(aiStatus.review, isAdmin, aiStatus.review.provider === "mock");
   const reportHandoff = handoff(aiStatus.report, isAdmin, false);
@@ -114,6 +119,7 @@ export function buildAiPanelModel(input: PanelModelInput): AiPanelModel {
       ...reviewHandoff,
       canRequest: isAdmin && reviewHandoff.connected && reviewable && !runningNow,
       blockedReason: !reviewable ? NOT_REVIEWABLE : runningNow ? ALREADY_PENDING : null,
+      switchedOff: aiStatus.review.switchedOff === true,
     },
     report: {
       ...reportHandoff,
@@ -291,7 +297,12 @@ function sectionTitles(evaluated: EvaluatedInspection): Map<string, string> {
  * Reviews, findings and decisions
  * ------------------------------------------------------------------ */
 
-function reviewModel(review: StoredAiReview, input: PanelModelInput, titles: ReadonlyMap<string, string>): ReviewModel {
+function reviewModel(
+  review: StoredAiReview,
+  input: PanelModelInput,
+  titles: ReadonlyMap<string, string>,
+  version: InspectionVersion,
+): ReviewModel {
   const stale = isStale(review, input.now);
   const state = stale ? "stopped" : review.status;
   const done = review.status === "done";
@@ -301,7 +312,8 @@ function reviewModel(review: StoredAiReview, input: PanelModelInput, titles: Rea
     source: aiReviewSourceLabel(review.model),
     requestedAt: formatDateTime(review.createdAt),
     version: formatDateTime(review.inspectionUpdatedAt),
-    isCurrentVersion: sameInstant(review.inspectionUpdatedAt, input.record.updatedAt),
+    isCurrentVersion: isSameVersion(review, version),
+    comparedBy: review.inspectionFingerprint === null ? "save" : "content",
     suggestedResult: done ? review.suggestedResult : null,
     confidencePct: done ? confidencePercent(review.confidence) : null,
     summary: done ? blankToNull(review.summary) : null,

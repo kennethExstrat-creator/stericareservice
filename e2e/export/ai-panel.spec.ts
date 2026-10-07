@@ -8,33 +8,46 @@ import {
   createExportFixture,
   createInactiveInspector,
   deleteAccount,
+  EXCLUDED_MODULE,
   EXCLUDED_REASON,
   expectedAiMode,
   expectNoPageScroll,
   expectTouchTarget,
+  FIXTURE_MODULES,
+  GLOVE_INFO_COMMENT,
+  GLOVE_TYPE,
   isTouch,
   makeImages,
   panelPath,
   press,
   requestAs,
   shot,
+  VISUAL_COMMENT,
   watchConsole,
   type ExportFixture,
 } from "./support";
 
 /**
- * The AI hand-offs (BUILD_SPEC 9.1, 9.2) end to end against the live
- * project, with the dev server on the mock reviewer:
+ * The AI hand-offs (BUILD_SPEC 9.1, 9.2) end to end on the review screen,
+ * against the live project, with the dev server on the mock reviewer and
+ * the mock report service:
  *
- *   AI_REVIEW_PROVIDER=mock [AI_REPORT_WEBHOOK_URL=http://localhost:<port>/api/dev/mock-ai-report] next dev
- *   E2E_AI_PANEL_PATH=<page with the panel, {id}> npx playwright test e2e/export/ai-panel.spec.ts
+ *   AI_REVIEW_PROVIDER=mock AI_REPORT_WEBHOOK_URL=http://localhost:<port>/api/dev/mock-ai-report npx next dev -p <port>
+ *   PLAYWRIGHT_BASE_URL=http://localhost:<port> npx playwright test e2e/export/ai-panel.spec.ts
  *
- * An admin requests a second opinion on a temporary submitted inspection,
- * sees its findings beside the system's results and the inspector's, records
- * agree, disagree (a note is required) and fixed, keeps a half-made decision
- * through a dropped connection and away from a newer opinion; keyboard focus
- * follows each step; the inspector sees it read-only; the export downloads
- * and validates; the export route answers the inspector and admins only.
+ * The panel is found on /inspections/{id}/review; E2E_AI_PANEL_PATH points
+ * the specs at another page that renders it. Without AI_REPORT_WEBHOOK_URL
+ * the report test checks the JSON download instead of the hand-off.
+ *
+ * On a temporary submitted inspection of the STD_EG example (real module
+ * data, e2e/export/support.ts) an admin requests a second opinion, sees its
+ * findings beside the system's results and the inspector's (BUILD_SPEC 12,
+ * Phase 3: the AI review panel shows mock findings next to the inspector's
+ * results), records agree, disagree (a note is required) and fixed, keeps a
+ * half-made decision through a dropped connection and away from a newer
+ * opinion; keyboard focus follows each step; the inspector sees it
+ * read-only; the export downloads and validates with the real modules'
+ * data; the export route answers the inspector and admins only.
  * Screenshots go to screenshots/export/.
  */
 
@@ -115,28 +128,51 @@ test("an admin requests a second opinion and compares it with the system and the
   await expect(panel(page).getByTestId("ai-review-meta")).toContainText("Mock reviewer (test data only)");
   await expect(panel(page).getByTestId("ai-review-meta")).toContainText("(current)");
 
-  // The inspector's comments, the module switched off with its reason, and evidence photos.
-  await expect(panel(page)).toContainText("Indicative weight from the glove spec sheet.");
-  await expect(panel(page)).toContainText("Two thin spots on the body, photographed.");
-  await expect(panel(page)).toContainText(EXCLUDED_REASON);
-  const evidence = panel(page).locator(`a[href*="${fixture.photoIds.visual}"]`).first();
+  // The mock's findings next to the system's results and the inspector's: the weight warning
+  // (with the scale photo as evidence), labelling not done, and the final result of hold.
+  const comparison = panel(page).getByTestId("ai-comparison");
+  const weight = comparison.locator("section[data-section$='-weight']");
+  await expect(weight).toContainText("Weight (g) - average of 13 gloves per size");
+  await expect(weight).toContainText("17.1% below the indicative 3.5 g");
+  await expect(weight.locator("article[data-finding]")).toHaveCount(1);
+  await expect(comparison.locator("section[data-section$='-labeling'] article[data-finding]")).toHaveCount(1);
+  await expect(overall.locator("article[data-finding]")).toHaveCount(1);
+  const evidence = weight.locator(`a[href*="${fixture.photoIds.scale}"]`).first();
   await expect(evidence).toBeVisible();
   await expect(evidence.locator("img")).toHaveJSProperty("complete", true);
 
-  expect(await currentFindings(page).count()).toBeGreaterThanOrEqual(3);
+  // The inspector's comments, and the module switched off with its reason.
+  await expect(panel(page)).toContainText(GLOVE_INFO_COMMENT);
+  await expect(panel(page)).toContainText(VISUAL_COMMENT);
+  await expect(comparison.locator(`section[data-section$='-${EXCLUDED_MODULE}']`)).toContainText(EXCLUDED_REASON);
+
+  await expect(currentFindings(page)).toHaveCount(3);
   await expectNoPageScroll(page);
   await shot(page, "admin-review");
 
-  // Stored as the mock wrote it, for this version of the inspection.
+  // Stored as the mock wrote it, for this version of the inspection: its save, and its
+  // content once the database has the fingerprint column (migration 20261007113245).
   const admin = createTestAdminClient();
-  const { data: reviews } = await admin
-    .from("ai_reviews")
-    .select("status, model, inspection_updated_at")
-    .eq("inspection_id", fixture.inspectionId);
+  const reviews = await storedReviews();
   const { data: inspection } = await admin.from("inspections").select("updated_at").eq("id", fixture.inspectionId).single();
-  expect(reviews).toEqual([{ status: "done", model: "mock", inspection_updated_at: inspection?.updated_at }]);
+  expect(reviews.map(({ status, model, inspection_updated_at }) => ({ status, model, inspection_updated_at }))).toEqual([
+    { status: "done", model: "mock", inspection_updated_at: inspection?.updated_at },
+  ]);
+  const fingerprint = reviews[0].inspection_fingerprint;
+  if (fingerprint !== undefined) expect(fingerprint).toMatch(/^[0-9a-f]{64}$/);
   expect(hydration()).toEqual([]);
 });
+
+/** The fixture's AI reviews, every column: `inspection_fingerprint` is undefined while the database has no such column. */
+async function storedReviews() {
+  const { data, error } = await createTestAdminClient()
+    .from("ai_reviews")
+    .select("*")
+    .eq("inspection_id", fixture.inspectionId)
+    .order("created_at");
+  if (error) throw new Error(`Reading the AI reviews failed: ${error.message}`);
+  return data as (Omit<(typeof data)[number], "inspection_fingerprint"> & { inspection_fingerprint?: string | null })[];
+}
 
 test("the admin records agree, disagree with a note, and fixed", async ({ page, context, baseURL }) => {
   const hydration = watchConsole(page);
@@ -307,23 +343,38 @@ test("the export downloads from the panel and validates, with working 24-hour li
   expect(doc.refNo).toBe(fixture.refNo);
   expect(doc.status).toBe("submitted");
   expect(doc.template.code).toBe(PANEL_CODE);
-  expect(doc.modules.map((module) => module.key)).toEqual([
-    "header",
-    "glove_info",
-    "order_lots",
-    "packing_config",
-    "visual",
-    "conclusion",
-  ]);
-  expect(doc.excludedModules).toEqual([{ key: "weight", title: expect.any(String), reason: EXCLUDED_REASON }]);
-  expect(doc.custom).toEqual([expect.objectContaining({ key: "glove_type", values: { gloveType: "Nitrile, powder free" } })]);
-  expect(doc.modules.find((module) => module.key === "glove_info")?.comment).toBe("Indicative weight from the glove spec sheet.");
-  expect(doc.conclusion).toMatchObject({ finalResult: "hold", remark: null, inspector: { id: fixture.inspectorId } });
+  // Every STD_EG module in template order, the one switched off listed apart with its reason.
+  expect(doc.modules.map((module) => module.key)).toEqual([...FIXTURE_MODULES]);
+  expect(doc.excludedModules).toEqual([{ key: EXCLUDED_MODULE, title: "Dimension", reason: EXCLUDED_REASON }]);
+  expect(doc.custom).toEqual([expect.objectContaining({ key: "glove_type", values: { gloveType: GLOVE_TYPE } })]);
+  const moduleOf = (key: string) => doc.modules.find((module) => module.key === key);
+  expect(moduleOf("glove_info")?.comment).toBe(GLOVE_INFO_COMMENT);
+  expect(doc.conclusion).toMatchObject({
+    suggestedResult: "hold",
+    finalResult: "hold",
+    remark: null,
+    inspector: { id: fixture.inspectorId },
+    date: "2025-04-12",
+  });
 
-  expect(doc.photos.map((photo) => photo.id)).toEqual([fixture.photoIds.visual, fixture.photoIds.untagged]);
-  expect(doc.photos[0]).toMatchObject({ moduleKey: "visual", includeInReport: true, target: "size:M/defect:thin_spot" });
+  // The real modules' data, computed values, results, issues and settings.
+  expect(moduleOf("order_lots")?.data).toEqual({ sizes: { M: { qtyCases: 2900, lotNumbers: ["E2E-LOT-M-0001"], packingSite: null } } });
+  expect(moduleOf("carton_sampling")?.result.status).toBe("pass");
+  expect(moduleOf("weight")).toMatchObject({ result: { status: "warn" }, warnings: [{ code: "weight_deviation", size: "M" }] });
+  expect(moduleOf("labeling")?.result.status).toBe("not_done");
+  const forceAtBreak = moduleOf("force_at_break");
+  expect(forceAtBreak?.computed).toMatchObject({ labReportAttached: true, sizes: { M: { median: 6.537, result: "pass" } } });
+  expect(forceAtBreak?.config).toMatchObject({ specMin: 6 });
+  // The lab report a module keeps by id is in the files, with a link the report service can fetch.
+  expect(forceAtBreak?.data.labReport).toBe(fixture.fileId);
+  expect(doc.files).toEqual([
+    expect.objectContaining({ id: fixture.fileId, kind: "lab_report", moduleKey: "force_at_break", name: "Force at break lab report.pdf" }),
+  ]);
+
+  // Photos in module order: weight's report photo, then the untagged desktop upload.
+  expect(doc.photos.map((photo) => photo.id)).toEqual([fixture.photoIds.scale, fixture.photoIds.untagged]);
+  expect(doc.photos[0]).toMatchObject({ moduleKey: "weight", includeInReport: true, target: "size:M" });
   expect(doc.photos[1].moduleKey).toBeNull();
-  expect(doc.files).toEqual([expect.objectContaining({ id: fixture.fileId, kind: "lab_report", moduleKey: "weight" })]);
 
   // The signed links work, and expire after 24 hours.
   const photo = await page.request.get(doc.photos[0].url);
@@ -356,8 +407,20 @@ test("the AI report hand-off: sends to the report service, or offers the JSON wh
   const open = report.getByRole("link", { name: /Open the report/ });
   await expect(open).toBeVisible({ timeout: 90_000 });
   await expect(open).toHaveAttribute("href", new RegExp(`mock-ai-report\\?ref=${fixture.refNo}`));
-  // Storing the link saves the inspection again, so the opinion now reads as about an earlier version.
-  await expect(panel(page).getByText("The inspection has changed since this opinion")).toBeVisible();
+
+  // Storing the link saves the inspection again. An opinion keyed to the content it reviewed
+  // (migration 20261007113245) stays current; one keyed to the save alone (a database without
+  // that migration) now reads as about an earlier version.
+  await openPanel(page);
+  await expect(report.getByRole("link", { name: /Open the report/ })).toBeVisible();
+  const byContent = (await storedReviews()).every((review) => typeof review.inspection_fingerprint === "string");
+  const changed = panel(page).getByText("The inspection has changed since this opinion");
+  if (byContent) {
+    await expect(changed).toHaveCount(0);
+    await expect(panel(page).getByTestId("ai-review-meta")).toContainText("(current)");
+  } else {
+    await expect(changed).toBeVisible();
+  }
   await shot(page, "admin-report-sent");
 
   const { data } = await createTestAdminClient().from("inspections").select("report_url").eq("id", fixture.inspectionId).single();

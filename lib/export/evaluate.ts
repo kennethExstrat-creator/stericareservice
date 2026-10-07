@@ -8,6 +8,8 @@ import {
   InspectionDataSchema,
   type InspectionContext,
   type InspectionData,
+  type InspectionFileRef,
+  type InspectionMeta,
   type ModuleRegistry,
 } from "@/modules/_framework";
 import { MODULE_REGISTRY } from "@/modules/registry";
@@ -57,16 +59,31 @@ export function evaluateRecord(record: InspectionRecord, registry: ModuleRegistr
   const manufacturer = record.manufacturer
     ? { id: record.manufacturer.id, name: manufacturerLabel({ name: record.manufacturer.name, factory_name: record.manufacturer.factoryName }) }
     : null;
-  const context = buildInspectionContext(
-    {
-      template,
-      data: data.data,
-      meta: { refNo: record.refNo, inspectionDate: record.inspectionDate, inspector, client, manufacturer },
-    },
-    registry,
-  );
+  const meta = inspectionMeta({ refNo: record.refNo, inspectionDate: record.inspectionDate, inspector, client, manufacturer }, record.files);
+  const context = buildInspectionContext({ template, data: data.data, meta }, registry);
   const report = validateInspection(data.data, template, context, registry);
   return { ok: true, evaluated: { template, data: data.data, context, report, inspector, client, manufacturer } };
+}
+
+/**
+ * What the context knows about the inspection itself, with its lab reports
+ * and certificates (`files`, docs/MODULES.md 10.1 and 13): with them a module
+ * tells a file it keeps by id that has since been deleted (missing: a
+ * warning, and tensile not done) from one that is attached, and counts a lab
+ * report added in the gallery, which keeps no id. `files` null means not
+ * known (a read that failed), which the framework takes as attached; an
+ * empty list means the inspection has none.
+ */
+export function inspectionMeta(
+  meta: Omit<InspectionMeta, "files">,
+  files: readonly InspectionFileRef[] | null,
+): InspectionMeta {
+  return { ...meta, files: files === null ? null : files.map(fileRef) };
+}
+
+/** An inspection_files row (a FileRecord, say) as the context knows it: id, module and kind only. */
+export function fileRef({ id, moduleKey, kind }: InspectionFileRef): InspectionFileRef {
+  return { id, moduleKey, kind };
 }
 
 /** The inspector by name, else email; the id alone never shows. */

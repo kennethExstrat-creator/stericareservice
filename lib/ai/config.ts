@@ -51,7 +51,8 @@ export type ReviewTarget =
   | { provider: "webhook"; webhook: WebhookTarget }
   | { provider: "claude"; claude: ClaudeSettings }
   | { provider: "mock" }
-  | { provider: "off" }
+  /** `switchedOff`: AI_REVIEW_PROVIDER=off on purpose; without it, nothing is set up. */
+  | { provider: "off"; switchedOff?: true }
   | { provider: "misconfigured"; problems: string[] };
 
 export type ReportTarget =
@@ -101,7 +102,7 @@ function resolveReview(context: ResolveContext, mockEnabled: boolean): ReviewTar
 
   switch (provider.data) {
     case "off":
-      return { provider: "off" };
+      return { provider: "off", switchedOff: true };
     case "mock":
       return mockEnabled
         ? { provider: "mock" }

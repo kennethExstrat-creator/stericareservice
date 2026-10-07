@@ -11,8 +11,10 @@ import { after } from "next/server";
 import { mockReview } from "@/lib/ai/providers/mock";
 import { createFakeSupabase, type FakeSupabase } from "@/lib/export/__fixtures__/fake-supabase";
 import { IDS, makeInspectionRow, makeObjects, makeTables, UPDATED_AT } from "@/lib/export/__fixtures__/inspection";
+import { loadInspectionRecord } from "@/lib/export/record";
 import { ExportSchema, type InspectionExport } from "@/lib/schemas/export";
 import { createAdminClient, isAdminClientConfigured } from "@/lib/supabase/admin";
+import { inspectionFingerprint } from "./fingerprint";
 import { ALREADY_PENDING, NOT_REVIEWABLE } from "./panel-model";
 import { completeAiReview, scheduleAiReviewOnSubmit, startAiReview } from "./review-runner";
 import { STALE_REVIEW_MS, STOPPED_MESSAGE } from "./stored";
@@ -55,6 +57,21 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+const LATER = "2026-10-06T01:30:00.000001+00:00";
+
+function inspectionRow(db: FakeSupabase) {
+  const row = db.tables.inspections?.[0];
+  if (!row) throw new Error("no inspection row");
+  return row;
+}
+
+/** The content fingerprint of the inspection as the fake database holds it now. */
+async function currentFingerprint(db: FakeSupabase): Promise<string> {
+  const loaded = await loadInspectionRecord(db.client, IDS.inspection);
+  if (!loaded.ok) throw new Error(loaded.message);
+  return inspectionFingerprint(loaded.record);
+}
+
 /** A pending review older than any reviewer may take: its server stopped before it answered. */
 function staleReviewRow() {
   return {
@@ -85,6 +102,7 @@ describe("startAiReview", () => {
         id: started.reviewId,
         inspection_id: IDS.inspection,
         inspection_updated_at: UPDATED_AT,
+        inspection_fingerprint: await currentFingerprint(db),
         status: "pending",
         model: "mock",
       }),
@@ -136,6 +154,55 @@ describe("startAiReview", () => {
     const again = await startAiReview({ client: db.client, inspectionId: IDS.inspection, trigger: "admin", viewer: ADMIN, now: () => NOW });
     expect(again).toEqual({ ok: false, reason: "pending", message: `${ALREADY_PENDING} It appears here when it is ready.` });
     expect(reviews(db)).toHaveLength(1);
+  });
+
+  it("keeps to one review of the same content when the inspection was saved again (approved, a report link)", async () => {
+    const db = fake();
+    await startAiReview({ client: db.client, inspectionId: IDS.inspection, trigger: "admin", viewer: ADMIN, now: () => NOW });
+    Object.assign(inspectionRow(db), { status: "approved", updated_at: LATER, report_url: "https://reports.example.com/r.pdf" });
+    const again = await startAiReview({ client: db.client, inspectionId: IDS.inspection, trigger: "admin", viewer: ADMIN, now: () => NOW });
+    expect(again).toEqual({ ok: false, reason: "pending", message: `${ALREADY_PENDING} It appears here when it is ready.` });
+    expect(reviews(db)).toHaveLength(1);
+  });
+
+  it("starts a review of new content while one of the earlier content is still being written", async () => {
+    const db = fake();
+    await startAiReview({ client: db.client, inspectionId: IDS.inspection, trigger: "admin", viewer: ADMIN, now: () => NOW });
+    const before = await currentFingerprint(db);
+    Object.assign(inspectionRow(db), { remarks: "Spec sheet received: weight confirmed.", updated_at: LATER });
+    const again = await startAiReview({ client: db.client, inspectionId: IDS.inspection, trigger: "admin", viewer: ADMIN, now: () => NOW });
+    expect(again).toMatchObject({ ok: true, inspectionUpdatedAt: LATER });
+    expect(reviews(db).map((review) => review.inspection_fingerprint)).toEqual([before, await currentFingerprint(db)]);
+  });
+
+  it("compares a pending review stored without a fingerprint by its save", async () => {
+    const pending = { ...staleReviewRow(), created_at: new Date(NOW - 60_000).toISOString() };
+    const same = fake({ ...makeTables(), ai_reviews: [pending] });
+    expect(
+      await startAiReview({ client: same.client, inspectionId: IDS.inspection, trigger: "admin", viewer: ADMIN, now: () => NOW }),
+    ).toMatchObject({ ok: false, reason: "pending" });
+    const earlier = fake({ ...makeTables(), ai_reviews: [{ ...pending, inspection_updated_at: "2026-10-05T08:00:00+00:00" }] });
+    expect(
+      (await startAiReview({ client: earlier.client, inspectionId: IDS.inspection, trigger: "admin", viewer: ADMIN, now: () => NOW })).ok,
+    ).toBe(true);
+  });
+
+  it("stores the review without its fingerprint on a database that does not have the column yet", async () => {
+    // PostgREST's answer to a column it does not know (migration 20261007113245 not applied).
+    const db = createFakeSupabase({
+      tables: makeTables(),
+      objects: makeObjects(),
+      now: () => new Date(NOW).toISOString(),
+      failQuery: (query) =>
+        query.table === "ai_reviews" && query.operation === "insert" && "inspection_fingerprint" in (query.payload as object)
+          ? { code: "PGRST204", message: "Could not find the 'inspection_fingerprint' column of 'ai_reviews' in the schema cache" }
+          : null,
+    });
+    const started = await startAiReview({ client: db.client, inspectionId: IDS.inspection, trigger: "admin", viewer: ADMIN, now: () => NOW });
+    expect(started.ok).toBe(true);
+    expect(reviews(db)).toEqual([expect.objectContaining({ inspection_updated_at: UPDATED_AT, status: "pending" })]);
+    expect(reviews(db)[0]).not.toHaveProperty("inspection_fingerprint");
+    expect(scheduled).toHaveLength(1);
   });
 
   it("answers that one is being written when the database refuses a second pending review (two requests at once)", async () => {

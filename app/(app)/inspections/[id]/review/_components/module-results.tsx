@@ -9,7 +9,6 @@
 import type { ReactNode } from "react";
 import { CircleXIcon, TriangleAlertIcon } from "lucide-react";
 import { StatusPill } from "@/components/qc";
-import { SMALL_PILL_TOUCH } from "@/components/qc/status-pill";
 import { formatNumber, formatSize } from "@/lib/format";
 import { formatInspectionDate } from "@/lib/inspections/format";
 import { isListedIssue, type ReviewEvaluation } from "@/lib/inspections/review/evaluate";
@@ -143,7 +142,7 @@ function ModuleRow({ entry, issues, context }: { entry: ModuleEvaluation; issues
       id={`module-${entry.key}`}
       dataAttributes={{ "data-module": entry.key, "data-status": result.status }}
       heading={entry.title}
-      badge={<StatusPill status={result.status} size="sm" className={SMALL_PILL_TOUCH} />}
+      badge={<StatusPill status={result.status} size="sm" />}
       comment={entry.comment}
       result={
         <>
@@ -159,7 +158,7 @@ function ModuleRow({ entry, issues, context }: { entry: ModuleEvaluation; issues
                     <span className={cn("min-w-18 font-medium text-foreground", TEXT)}>
                       {formatSize(size, { sizes: context.templateSizes, prefix: true })}
                     </span>{" "}
-                    <StatusPill status={own.status} size="sm" className={SMALL_PILL_TOUCH} />{" "}
+                    <StatusPill status={own.status} size="sm" />{" "}
                     {own.summary && <span className={cn("text-muted-foreground", TEXT)}>{own.summary}</span>}
                   </li>
                 );

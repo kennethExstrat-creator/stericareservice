@@ -119,7 +119,21 @@ test.describe("reviewing inspections", () => {
       expect(await image.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
     }
 
-    await expect(page.getByRole("region", { name: "AI second opinion" })).toContainText("AI second opinion not connected");
+    // The AI second opinion between the result and the module results, with the AI report's JSON download
+    // (what it offers beyond that depends on the server's AI set-up: e2e/export covers it).
+    const ai = page.getByTestId("ai-panel");
+    await expect(ai.getByRole("heading", { level: 2, name: "AI second opinion" })).toBeVisible();
+    await expect(ai.getByTestId("ai-report").getByRole("link", { name: "Download JSON" })).toHaveAttribute(
+      "href",
+      `/api/inspections/${fixture.A.id}/export`,
+    );
+    const placed = await page.evaluate(() => {
+      const at = (selector: string) => document.querySelector(selector);
+      const before = (a: Element | null, b: Element | null) =>
+        Boolean(a && b && a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+      return before(at("#result"), at("[data-testid=ai-panel]")) && before(at("[data-testid=ai-panel]"), at("#modules"));
+    });
+    expect(placed, "the AI panel sits between the result and the module results").toBe(true);
     const history = page.getByRole("region", { name: "History" });
     await expect(history.locator("li[data-kind=submitted]")).toHaveCount(1);
 
@@ -327,6 +341,12 @@ test.describe("reviewing inspections", () => {
 
     await expect(page.getByRole("heading", { name: "Waiting for your review" })).toBeVisible();
     await expect(page.getByText("The template version this inspection uses could not be read").first()).toBeVisible();
+
+    // The AI hand-offs need the results: a quiet note in the panel's place, not an error. The checks above say why.
+    const ai = page.getByTestId("ai-panel-no-results");
+    await expect(ai.getByRole("heading", { level: 2, name: "AI second opinion" })).toBeVisible();
+    await expect(ai.getByText("Not available", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("ai-panel-unavailable")).toHaveCount(0);
 
     await press(page.getByRole("button", { name: "Approve" }));
     const dialog = page.getByRole("alertdialog", { name: `Approve ${fixture.D.refNo}?` });

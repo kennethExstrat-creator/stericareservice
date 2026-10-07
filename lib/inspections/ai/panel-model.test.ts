@@ -14,6 +14,7 @@ import {
   storedReview,
   UNKNOWN_PHOTO,
 } from "./__fixtures__/panel";
+import { inspectionFingerprint } from "./fingerprint";
 import { ALREADY_PENDING, buildAiPanelModel, NOT_REPORTABLE, NOT_REVIEWABLE, type PanelModelInput } from "./panel-model";
 import { STALE_REVIEW_MS, STOPPED_MESSAGE } from "./stored";
 
@@ -122,6 +123,41 @@ describe("buildAiPanelModel: reviews", () => {
     const stale = model({ reviews: [running], now: NOW + STALE_REVIEW_MS });
     expect(stale.attempt?.state).toBe("stopped");
     expect(stale.review.canRequest).toBe(true);
+  });
+
+  it("keeps a review of the same content current after the inspection was saved again", () => {
+    const content = inspectionFingerprint(record);
+    // Approved and its report link stored since the review: two saves, the same content.
+    const saved = { ...record, status: "approved" as const, updatedAt: "2026-10-06T03:00:00.000001+00:00", reportUrl: "https://reports.example.com/r.pdf" };
+    const panel = model({ record: saved, reviews: [storedReview({ inspectionFingerprint: content })] });
+    expect(panel.current).toMatchObject({ isCurrentVersion: true, comparedBy: "content" });
+
+    // The same review once the content changed: an earlier version, whatever the save.
+    const edited = { ...record, remarks: "Spec sheet received." };
+    const stale = model({ record: edited, reviews: [storedReview({ inspectionFingerprint: content })] });
+    expect(stale.current).toMatchObject({ isCurrentVersion: false, comparedBy: "content" });
+  });
+
+  it("compares a review stored without a fingerprint by its save", () => {
+    expect(model().current).toMatchObject({ isCurrentVersion: true, comparedBy: "save" });
+    const saved = { ...record, updatedAt: "2026-10-06T03:00:00.000001+00:00" };
+    expect(model({ record: saved }).current).toMatchObject({ isCurrentVersion: false, comparedBy: "save" });
+  });
+
+  it("waits for a review of the same content, and lets one start for new content", () => {
+    const content = inspectionFingerprint(record);
+    const running = storedReview({
+      id: REVIEW_IDS.running,
+      inspectionFingerprint: content,
+      status: "pending",
+      findings: [],
+      questions: [],
+      createdAt: new Date(NOW - 60_000).toISOString(),
+    });
+    const approved = { ...record, status: "approved" as const, updatedAt: "2026-10-06T03:00:00.000001+00:00" };
+    expect(model({ record: approved, reviews: [running] }).review).toMatchObject({ canRequest: false, blockedReason: ALREADY_PENDING });
+    const edited = { ...record, data: { modules: {}, custom: {} } };
+    expect(model({ record: edited, reviews: [running] }).review).toMatchObject({ canRequest: true, blockedReason: null });
   });
 
   it("has no current review and no attempt before the first request", () => {

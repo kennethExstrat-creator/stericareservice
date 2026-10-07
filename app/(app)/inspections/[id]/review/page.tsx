@@ -4,16 +4,17 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import { z } from "zod";
 import { ArrowLeftIcon, ClipboardListIcon, PencilLineIcon } from "lucide-react";
+import { LoadedAiReviewPanel } from "@/components/ai";
 import { PageHeader } from "@/components/qc";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth/session";
+import { loadAiPanel, type AiPanelLoad } from "@/lib/inspections/ai";
 import { approvalChecks } from "@/lib/inspections/review/approval";
 import { loadReview, type ReviewData, type ReviewInspection } from "@/lib/inspections/review/load";
 import { statusNotice } from "@/lib/inspections/review/notice";
 import { INSPECTIONS_PATH } from "@/lib/inspections/search-params";
 import { createClient } from "@/lib/supabase/server";
 import { InspectionStatusBadge } from "../../_components/inspection-status-badge";
-import { AiPanelSlot } from "./_components/ai-panel-slot";
 import { FocusOnChange } from "./_components/focus-on-change";
 import { History } from "./_components/history";
 import { InspectionFacts } from "./_components/inspection-facts";
@@ -23,6 +24,17 @@ import { ReviewActions } from "./_components/review-actions";
 import { StatusNotice, STATUS_HEADING_ID } from "./_components/status-notice";
 import { SwitchedOffModules } from "./_components/switched-off-modules";
 import { Verdict } from "./_components/verdict";
+
+/**
+ * Server Actions on this page run as long as the page may: "Request AI
+ * second opinion" writes the opinion in after() inside its action, and
+ * Claude may take up to 10 minutes at AI_REVIEW_EFFORT high, the default
+ * (claudeTimeoutMs in lib/ai/providers/claude.ts; page.test.ts keeps this
+ * above it). 800 seconds is the most Vercel allows a function on Pro. At
+ * xhigh and max a review may take 30 minutes, more than that: keep the
+ * effort at high or below there (docs/AI.md). A literal, as Next reads it.
+ */
+export const maxDuration = 800;
 
 const IdSchema = z.uuid();
 
@@ -45,6 +57,15 @@ const getReview = cache(async (id: string): Promise<ReviewData> => {
   return loaded.review;
 });
 
+/**
+ * The AI second opinion's panel (BUILD_SPEC 9.2), read as the signed-in
+ * user beside the review: the system's results and the inspector's from the
+ * export's own evaluation, and the stored opinions with their decisions.
+ */
+async function getAiPanel(id: string): Promise<AiPanelLoad> {
+  return loadAiPanel(await requireUser(), id);
+}
+
 export async function generateMetadata({ params }: PageProps<"/inspections/[id]/review">): Promise<Metadata> {
   const { id } = await params;
   const { inspection } = await getReview(id);
@@ -52,17 +73,19 @@ export async function generateMetadata({ params }: PageProps<"/inspections/[id]/
 }
 
 /**
- * /inspections/[id]/review (BUILD_SPEC 5, 9.2 and 10): the facts, every
- * included module's computed result beside the inspector's comment, the
- * issues, the modules switched off, the suggested and final result, the
- * report photos, the AI second opinion's slot and the history. Admins
- * approve or reopen a submitted inspection here; inspectors read their own.
+ * /inspections/[id]/review (BUILD_SPEC 5, 9 and 10): the facts, the
+ * suggested and final result, the AI second opinion beside the system's
+ * results and the inspector's (with the AI report), every included module's
+ * computed result beside the inspector's comment, the issues, the modules
+ * switched off, the report photos and the history. Admins approve or reopen
+ * a submitted inspection here, and run the AI hand-offs; inspectors read
+ * their own.
  *
  * No padding or <main> of its own: the app shell provides both.
  */
 export default async function InspectionReviewPage({ params }: PageProps<"/inspections/[id]/review">) {
   const { id } = await params;
-  const review = await getReview(id);
+  const [review, aiPanel] = await Promise.all([getReview(id), getAiPanel(id)]);
   const { viewer, inspection, template, evaluation, overrides, photos, history } = review;
   const isAdmin = viewer.role === "admin";
 
@@ -89,7 +112,7 @@ export default async function InspectionReviewPage({ params }: PageProps<"/inspe
 
       <InspectionFacts inspection={inspection} template={template} />
       <Verdict inspection={inspection} evaluation={evaluation} />
-      <AiPanelSlot inspectionId={inspection.id} />
+      <LoadedAiReviewPanel load={aiPanel} />
       <ModuleResults evaluation={evaluation} />
       <SwitchedOffModules overrides={overrides} />
       <ReportPhotos inspectionId={inspection.id} photos={photos} canChoose={isAdmin} />

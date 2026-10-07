@@ -54,7 +54,15 @@ export const ExportModuleSchema = z.object({
   title: z.string().min(1),
   /** Field labels as on the source form, keyed by canonical field key. */
   labels: z.record(z.string(), z.string()),
-  /** What the inspector entered. Phase 2 narrows this per module. */
+  /**
+   * The module's settings for this inspection: the template version's config
+   * over the module's defaults, as the module worked with it. Specs and
+   * limits, decimals, AQLs, the inner unit, date precision, columns and
+   * fields switched on or off. Optional, so documents written before it
+   * existed still validate.
+   */
+  config: z.record(z.string(), JsonValueSchema).optional(),
+  /** What the inspector entered, in the module's own data shape (modules/<key>/schema.ts). */
   data: z.record(z.string(), JsonValueSchema),
   /** What the app computed: totals, averages, medians, code letters, accept/reject limits. */
   computed: z.record(z.string(), JsonValueSchema),
