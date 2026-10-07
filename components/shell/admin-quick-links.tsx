@@ -50,14 +50,14 @@ export function InspectionShortcuts({ awaitingApproval }: { awaitingApproval: nu
         {
           href: AWAITING_APPROVAL_HREF,
           icon: SendIcon,
-          title: "Awaiting approval",
+          title: "Awaiting Approval",
           description: awaitingDescription(awaitingApproval),
           count: awaitingApproval ?? undefined,
         },
         {
           href: HOME_PATH,
           icon: ClipboardCheckIcon,
-          title: "All inspections",
+          title: "All Inspections",
           description: "Every inspection, from every inspector, newest first.",
         },
       ]}
@@ -92,13 +92,13 @@ export function AdminScreenLinks() {
         {
           href: ADMIN_DEFECTS_PATH,
           icon: TagsIcon,
-          title: "Defect codes",
+          title: "Defect Codes",
           description: "One code per defect, and the labels each template maps to it.",
         },
         {
           href: UNMAPPED_LABELS_HREF,
           icon: FlagIcon,
-          title: "Unmapped labels",
+          title: "Unmapped Labels",
           description: "One-off defect labels inspectors added, waiting for a code.",
         },
         {

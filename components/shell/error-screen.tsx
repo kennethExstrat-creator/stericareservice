@@ -11,7 +11,7 @@ import { HOME_PATH } from "@/lib/auth/routes";
 import { StatusScreen } from "./status-screen";
 
 /** The tab title while the error shows (the root layout's "%s · SteriCare QC" template, written out). */
-export const ERROR_SCREEN_TITLE = "This page did not load · SteriCare QC";
+export const ERROR_SCREEN_TITLE = "This Page Did Not Load · SteriCare QC";
 
 type ErrorScreenProps = {
   error: Error & { digest?: string };
@@ -27,7 +27,7 @@ export function ErrorScreen({ error, retry }: ErrorScreenProps) {
     // The message replaces what was on screen, often after a tap or a
     // client-side navigation, and focus would fall to <body> with nothing
     // said. Focus the heading, so VoiceOver reads what happened and Tab goes
-    // on to Try again. A retry that fails brings a new error: said again.
+    // on to Try Again. A retry that fails brings a new error: said again.
     titleRef.current?.focus();
   }, [error]);
 
@@ -39,7 +39,7 @@ export function ErrorScreen({ error, retry }: ErrorScreenProps) {
         icon={TriangleAlertIcon}
         tone="error"
         eyebrow="Error"
-        title="This page did not load"
+        title="This Page Did Not Load"
         titleRef={titleRef}
         description={
           error.digest
@@ -50,10 +50,10 @@ export function ErrorScreen({ error, retry }: ErrorScreenProps) {
           <>
             <Button size="lg" onClick={() => retry()}>
               <RotateCwIcon aria-hidden />
-              Try again
+              Try Again
             </Button>
             <Button asChild size="lg" variant="outline">
-              <Link href={HOME_PATH}>Go to inspections</Link>
+              <Link href={HOME_PATH}>Go to Inspections</Link>
             </Button>
           </>
         }

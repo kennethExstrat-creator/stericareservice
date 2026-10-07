@@ -97,10 +97,10 @@ export function LeaveGuardArea({ children }: { children: ReactNode }) {
         onOpenChange={(open) => {
           if (!open) setLeaving(null);
         }}
-        title="Leave this page?"
+        title="Leave This Page?"
         reasons={leaving?.reasons ?? []}
-        stayLabel="Stay on this page"
-        goLabel="Leave anyway"
+        stayLabel="Stay on This Page"
+        goLabel="Leave Anyway"
         onGo={() => {
           if (leaving) router.push(leaving.to);
           setLeaving(null);

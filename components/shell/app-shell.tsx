@@ -70,7 +70,7 @@ function SkipLink() {
         "focus:shadow-md focus-ring",
       )}
     >
-      Skip to content
+      Skip to Content
     </a>
   );
 }

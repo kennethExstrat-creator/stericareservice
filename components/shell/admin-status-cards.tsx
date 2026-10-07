@@ -48,12 +48,12 @@ export function SupabaseCard({
       icon={DatabaseIcon}
       title="Supabase"
       description="Database, sign-in and photo storage."
-      status={ready ? { status: "pass", label: "Ready" } : { status: "fail", label: "Needs attention" }}
+      status={ready ? { status: "pass", label: "Ready" } : { status: "fail", label: "Needs Attention" }}
     >
       <Rows>
         <Row label="Project" value={env ? <span className="font-mono text-foreground">{hostFrom(env.url)}</span> : "Not set"} />
         <Row
-          label="URL and publishable key"
+          label="URL and Publishable Key"
           value={
             env ? (
               "The app can reach the project."
@@ -67,7 +67,7 @@ export function SupabaseCard({
           pill={env ? <StatusPill size="sm" status="pass" label="Set" /> : <StatusPill size="sm" status="fail" label="Missing" />}
         />
         <Row
-          label="Secret key (server only)"
+          label="Secret Key (Server Only)"
           value={
             secretKeySet ? (
               "Used to invite and deactivate users."
@@ -93,10 +93,10 @@ export function SupabaseCard({
                   .join(" · ")
               : "Could not read the accounts. Check the migrations are applied."
           }
-          pill={accounts ? undefined : <StatusPill size="sm" status="fail" label="Not readable" />}
+          pill={accounts ? undefined : <StatusPill size="sm" status="fail" label="Not Readable" />}
         />
         <Row
-          label="Reference data"
+          label="Reference Data"
           value={
             reference
               ? [
@@ -107,7 +107,7 @@ export function SupabaseCard({
                 ].join(" · ")
               : "Could not read the reference tables. Check the migrations and seed are applied."
           }
-          pill={reference ? undefined : <StatusPill size="sm" status="fail" label="Not readable" />}
+          pill={reference ? undefined : <StatusPill size="sm" status="fail" label="Not Readable" />}
         />
       </Rows>
     </StatusCard>
@@ -131,9 +131,9 @@ export function EmailCard({ env, siteUrl }: { env: SupabasePublicEnv | null; sit
   return (
     <StatusCard
       icon={MailIcon}
-      title="Sign-in emails"
+      title="Sign-In Emails"
       description="Invites and password resets."
-      status={siteUrl ? { status: "info", label: "Check by hand" } : { status: "warn", label: "Needs attention" }}
+      status={siteUrl ? { status: "info", label: "Check by Hand" } : { status: "warn", label: "Needs Attention" }}
     >
       <div className="space-y-3 text-sm text-muted-foreground">
         <p>
@@ -176,14 +176,14 @@ export function EmailCard({ env, siteUrl }: { env: SupabasePublicEnv | null; sit
         {projectRef && (
           <>
             <ExternalLink href={`https://supabase.com/dashboard/project/${projectRef}/auth/templates`}>
-              Open the email templates
+              Open the Email Templates
             </ExternalLink>
             <ExternalLink href={`https://supabase.com/dashboard/project/${projectRef}/auth/url-configuration`}>
-              Open the URL settings
+              Open the URL Settings
             </ExternalLink>
           </>
         )}
-        <ExternalLink href={README_SETUP_URL}>Set-up guide (README)</ExternalLink>
+        <ExternalLink href={README_SETUP_URL}>Set-Up Guide (README)</ExternalLink>
       </div>
     </StatusCard>
   );
@@ -205,7 +205,7 @@ export function AiReviewCard({ status }: { status: AiReviewStatus }) {
   return (
     <StatusCard
       icon={SparklesIcon}
-      title="AI second opinion"
+      title="AI Second Opinion"
       description="Reviews submitted inspections. It suggests; an admin decides."
       status={aiPill(status)}
     >
@@ -235,7 +235,7 @@ export function AiReportCard({ status }: { status: AiReportStatus }) {
   return (
     <StatusCard
       icon={FileTextIcon}
-      title="AI report"
+      title="AI Report"
       description="Turns an approved inspection into the client report."
       status={aiPill(status)}
     >
@@ -243,7 +243,7 @@ export function AiReportCard({ status }: { status: AiReportStatus }) {
         <Row label="Provider" value={REPORT_PROVIDER_LABEL[status.provider]} />
       </Rows>
       <AiNote status={status}>
-        Not connected: &ldquo;Send to AI report&rdquo; offers the JSON download instead. Set{" "}
+        Not connected: &ldquo;Send to AI Report&rdquo; offers the JSON download instead. Set{" "}
         <Variable>AI_REPORT_WEBHOOK_URL</Variable> to connect a report service.
       </AiNote>
     </StatusCard>
@@ -251,9 +251,9 @@ export function AiReportCard({ status }: { status: AiReportStatus }) {
 }
 
 function aiPill(status: AiReviewStatus | AiReportStatus): { status: Status; label: string } {
-  if (status.provider === "misconfigured") return { status: "fail", label: "Configuration error" };
-  if (status.provider === "mock") return { status: "warn", label: "Test data only" };
-  return status.connected ? { status: "pass", label: "Connected" } : { status: "info", label: "Not connected" };
+  if (status.provider === "misconfigured") return { status: "fail", label: "Configuration Error" };
+  if (status.provider === "mock") return { status: "warn", label: "Test Data Only" };
+  return status.connected ? { status: "pass", label: "Connected" } : { status: "info", label: "Not Connected" };
 }
 
 /** What to do next: the problem (it names the variable, never its value), or how to connect. */

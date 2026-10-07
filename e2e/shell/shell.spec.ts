@@ -4,7 +4,7 @@ import { sessionCookies, signIn, TEST_ACCOUNTS } from "../support/session";
 import { createShellFixture, type ShellFixture } from "./fixtures";
 
 /**
- * The app shell, the admin overview, Sign out, the manifest and the 404 and
+ * The app shell, the admin overview, Sign Out, the manifest and the 404 and
  * error screens (BUILD_SPEC 8, 10, 12), at the three sizes in
  * playwright.config.ts. Screenshots go to screenshots/shell/ (git-ignored).
  *
@@ -26,7 +26,7 @@ const SLOW_PAGE = process.env.SHELL_E2E_SLOW_PAGE;
 const ROOT_ERROR_PAGE = process.env.SHELL_E2E_ROOT_ERROR_PAGE;
 
 /** The error screens' tab title (components/shell/error-screen.tsx). */
-const ERROR_TITLE = "This page did not load · SteriCare QC";
+const ERROR_TITLE = "This Page Did Not Load · SteriCare QC";
 
 /** The admin section's pages, in the nav's order (components/shell/nav.ts). */
 const ADMIN_PAGES = ["Overview", "Users", "Manufacturers", "Clients", "Defects", "Templates"];
@@ -34,10 +34,10 @@ const ADMIN_PAGES = ["Overview", "Users", "Manufacturers", "Clients", "Defects",
 /** Photo uploads to Storage (lib/photos/supabase-adapters.ts). */
 const PHOTO_UPLOADS = "**/storage/v1/object/inspection-photos/**";
 
-/** What Sign out says while photos or files wait on this device (components/shell/sign-out-check.ts). */
+/** What Sign Out says while photos or files wait on this device (components/shell/sign-out-check.ts). */
 const UPLOADS_WAITING = "Some photos or files are still only on this device. They will not upload while you are signed out";
 
-/** What Sign out says when its request fails, or has no answer within SIGN_OUT_TIMEOUT_MS (15 s). */
+/** What Sign Out says when its request fails, or has no answer within SIGN_OUT_TIMEOUT_MS (15 s). */
 const SIGN_OUT_FAILED = "You are still signed in";
 const SIGN_OUT_SLOW = "Signing out is taking too long";
 
@@ -236,9 +236,9 @@ test.describe("signed out", () => {
     // /auth/* is open to visitors, so this one is not sent to sign in first.
     const response = await page.goto("/auth/no-such-page");
     expect(response?.status()).toBe(404);
-    await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
-    await expect(page).toHaveTitle("Page not found · SteriCare QC");
-    await expect(page.getByRole("link", { name: "Go to inspections" })).toHaveAttribute("href", "/inspections");
+    await expect(page.getByRole("heading", { name: "Page Not Found" })).toBeVisible();
+    await expect(page).toHaveTitle("Page Not Found · SteriCare QC");
+    await expect(page.getByRole("link", { name: "Go to Inspections" })).toHaveAttribute("href", "/inspections");
     await shot(page, "signed-out-404");
   });
 
@@ -246,12 +246,12 @@ test.describe("signed out", () => {
     test.skip(!ROOT_ERROR_PAGE, "Set SHELL_E2E_ROOT_ERROR_PAGE to a page outside the shell that throws.");
     const response = await page.goto(ROOT_ERROR_PAGE!);
     expect(response?.status()).toBe(500);
-    const heading = page.getByRole("heading", { name: "This page did not load" });
+    const heading = page.getByRole("heading", { name: "This Page Did Not Load" });
     await expect(heading).toBeVisible();
     // Focus on the heading, so VoiceOver reads what happened; the tab says it too.
     await expect(heading).toBeFocused();
     await expect(page).toHaveTitle(ERROR_TITLE);
-    await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Try Again" })).toBeVisible();
     await expect(page.getByText(/^Reference:/)).toBeVisible();
     await expect(page.getByRole("link", { name: "SteriCare home" })).toBeVisible();
     await shot(page, "root-error");
@@ -371,11 +371,11 @@ test.describe("as the admin", () => {
 
   test("the admin overview: what waits, every admin screen, the status, never secrets", async ({ page }) => {
     await page.goto("/admin");
-    await expect(page).toHaveTitle("Admin overview · SteriCare QC");
+    await expect(page).toHaveTitle(/^Admin overview · SteriCare QC$/i);
 
     // What waits for an admin: the submitted inspections, counted, and linked filtered.
     const waiting = page.getByRole("region", { name: "Inspections", exact: true });
-    const awaiting = waiting.getByRole("link", { name: /^Awaiting approval\b/ });
+    const awaiting = waiting.getByRole("link", { name: /^Awaiting Approval\b/ });
     await expect(awaiting).toHaveAttribute("href", "/inspections?status=submitted");
     await expect(awaiting).toContainText(
       /\d+ submitted inspections? to approve or reopen\.|Nothing to approve: no inspection is submitted\./,
@@ -383,13 +383,13 @@ test.describe("as the admin", () => {
     await expect(waiting.getByRole("link", { name: /Every inspection/ })).toHaveAttribute("href", "/inspections");
 
     // Every admin screen, unmapped defect labels beside the codes; nothing announced as coming.
-    const setUp = page.getByRole("region", { name: "Set-up", exact: true });
+    const setUp = page.getByRole("region", { name: /^Set-up$/i });
     const screens: [RegExp, string][] = [
       [/^Users\b.*Invite people/, "/admin/users"],
       [/^Manufacturers\b/, "/admin/manufacturers"],
       [/^Clients\b/, "/admin/clients"],
-      [/^Defect codes\b/, "/admin/defects"],
-      [/^Unmapped labels\b/, "/admin/defects/unmapped"],
+      [/^Defect Codes\b/, "/admin/defects"],
+      [/^Unmapped Labels\b/, "/admin/defects/unmapped"],
       [/^Templates\b/, "/admin/templates"],
     ];
     await expect(setUp.getByRole("link")).toHaveCount(screens.length);
@@ -403,17 +403,17 @@ test.describe("as the admin", () => {
       }
     }
 
-    for (const card of ["Supabase", "Sign-in emails", "AI second opinion", "AI report"]) {
+    for (const card of ["Supabase", "Sign-In Emails", "AI Second Opinion", "AI Report"]) {
       await expect(page.getByRole("heading", { level: 3, name: card })).toBeVisible();
     }
-    await expect(page.getByRole("link", { name: /Set-up guide/ })).toHaveAttribute("target", "_blank");
+    await expect(page.getByRole("link", { name: /Set-Up Guide/ })).toHaveAttribute("target", "_blank");
 
     // The email links start with the Supabase project's Site URL: the card says
     // what it must be (this app's address, as getSiteUrl() reads it) and links
     // to the setting.
     const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL?.trim() || "http://localhost:3000").replace(/\/+$/, "");
     await expect(page.getByText(`${siteUrl}/**`, { exact: true })).toBeVisible();
-    await expect(page.getByRole("link", { name: /Open the URL settings/ })).toHaveAttribute(
+    await expect(page.getByRole("link", { name: /Open the URL Settings/ })).toHaveAttribute(
       "href",
       /^https:\/\/supabase\.com\/dashboard\/project\/[a-z0-9]+\/auth\/url-configuration$/,
     );
@@ -425,7 +425,7 @@ test.describe("as the admin", () => {
     }
     await shot(page, "admin-overview");
 
-    // Awaiting approval opens the list, filtered to what an admin approves or reopens.
+    // Awaiting Approval opens the list, filtered to what an admin approves or reopens.
     await awaiting.click();
     await expect(page).toHaveURL(/\/inspections\?status=submitted$/);
     await expect(page.getByRole("combobox", { name: "Status" })).toHaveText("Submitted");
@@ -436,7 +436,7 @@ test.describe("as the admin", () => {
     const menu = await openUserMenu(page);
     await expect(menu.getByText(TEST_ACCOUNTS.admin)).toBeVisible();
     await expect(menu.getByText("Admin", { exact: true })).toBeVisible();
-    const signOut = menu.getByRole("menuitem", { name: "Sign out" });
+    const signOut = menu.getByRole("menuitem", { name: "Sign Out" });
     await expect(signOut).toBeVisible();
     expect((await signOut.boundingBox())?.height).toBeGreaterThanOrEqual(isDesktop(page) ? 28 : 44);
     await shot(page, "admin-user-menu", false);
@@ -447,7 +447,7 @@ test.describe("as the admin", () => {
   test("the keyboard reaches the content first", async ({ page }) => {
     await page.goto("/admin");
     await page.keyboard.press("Tab");
-    const skip = page.getByRole("link", { name: "Skip to content" });
+    const skip = page.getByRole("link", { name: "Skip to Content" });
     await expect(skip).toBeFocused();
     await expect(skip).toBeVisible();
     await page.keyboard.press("Enter");
@@ -457,23 +457,23 @@ test.describe("as the admin", () => {
   test("an unknown address shows the 404 page", async ({ page }) => {
     const response = await page.goto("/no-such-page");
     expect(response?.status()).toBe(404);
-    await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Page Not Found" })).toBeVisible();
     await shot(page, "admin-404");
-    await page.getByRole("link", { name: "Go to inspections" }).click();
+    await page.getByRole("link", { name: "Go to Inspections" }).click();
     await expect(page).toHaveURL(/\/inspections$/);
     // Rendered in full before the test closes the page, so the server never streams into a closed tab.
     await expect(page.getByRole("heading", { level: 1, name: "Inspections" })).toBeVisible();
     await expect(page.locator('section[aria-label="Inspections"] [role="status"]')).not.toBeEmpty();
   });
 
-  test("Sign out ends the session at once when nothing waits on this device", async ({ page, context, baseURL }) => {
+  test("Sign Out ends the session at once when nothing waits on this device", async ({ page, context, baseURL }) => {
     // A session of its own: signing out revokes it, and the other tests share theirs.
     await context.clearCookies();
     await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
     await page.goto("/admin");
     const errors = watchErrors(page);
     const menu = await openUserMenu(page);
-    await menu.getByRole("menuitem", { name: "Sign out" }).click();
+    await menu.getByRole("menuitem", { name: "Sign Out" }).click();
     // No question first: straight to sign-in.
     await expect(page).toHaveURL(/\/login$/);
     await expect(page.getByRole("alertdialog")).toHaveCount(0);
@@ -484,17 +484,17 @@ test.describe("as the admin", () => {
     await expect(page).toHaveURL(/\/login\?next=%2Fadmin$/);
   });
 
-  test("Sign out that does not reach the server keeps the session and gives the menu back", async ({ page, context }) => {
+  test("Sign Out that does not reach the server keeps the session and gives the menu back", async ({ page, context }) => {
     await page.goto("/admin");
     await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
     const errors = watchErrors(page);
     const release = await holdServerActions(page, "abort");
     const menu = await openUserMenu(page);
-    await menu.getByRole("menuitem", { name: "Sign out", exact: true }).click();
+    await menu.getByRole("menuitem", { name: "Sign Out", exact: true }).click();
 
     await expect(page.getByText(SIGN_OUT_FAILED)).toBeVisible();
     await expect(page.getByText("Signing out did not reach the server.")).toBeVisible();
-    await expect(menu.getByRole("menuitem", { name: "Sign out", exact: true })).toBeVisible();
+    await expect(menu.getByRole("menuitem", { name: "Sign Out", exact: true })).toBeVisible();
     await expect(page).toHaveURL(/\/admin$/);
     expect(await authCookies(context)).not.toEqual([]);
     // The page is the user's again: the menu closes.
@@ -505,23 +505,23 @@ test.describe("as the admin", () => {
     expect(errors()).toEqual([]);
   });
 
-  test("Sign out with no answer gives the page back after its time limit", async ({ page, context }) => {
+  test("Sign Out with no answer gives the page back after its time limit", async ({ page, context }) => {
     await page.goto("/admin");
     await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
     const errors = watchErrors(page);
     const release = await holdServerActions(page, "stall");
     try {
       const menu = await openUserMenu(page);
-      await menu.getByRole("menuitem", { name: "Sign out", exact: true }).click();
+      await menu.getByRole("menuitem", { name: "Sign Out", exact: true }).click();
       // Waiting for the server: the menu says so and stays.
-      await expect(menu.getByRole("menuitem", { name: "Signing out…" })).toBeVisible();
+      await expect(menu.getByRole("menuitem", { name: "Signing Out…" })).toBeVisible();
 
       // 15 s on, the page comes back, without claiming the request failed: it may still go through.
       const slow = page.getByText(SIGN_OUT_SLOW);
       await expect(slow).toBeVisible({ timeout: 25_000 });
       await expect(page.getByText("The server has not answered yet.")).toBeVisible();
       await expect(page.getByText(SIGN_OUT_FAILED)).toHaveCount(0);
-      await expect(menu.getByRole("menuitem", { name: "Sign out", exact: true })).toBeVisible();
+      await expect(menu.getByRole("menuitem", { name: "Sign Out", exact: true })).toBeVisible();
       await shot(page, "admin-sign-out-no-answer", false);
       await page.keyboard.press("Escape");
       await expect(menu).toBeHidden();
@@ -545,17 +545,17 @@ test.describe("as the admin", () => {
   test("an error in a page shows inside the shell", async ({ page }) => {
     test.skip(!ERROR_PAGE, "Set SHELL_E2E_ERROR_PAGE to a page that throws.");
     await page.goto(ERROR_PAGE!);
-    const heading = page.getByRole("heading", { name: "This page did not load" });
+    const heading = page.getByRole("heading", { name: "This Page Did Not Load" });
     await expect(heading).toBeVisible();
     // The message replaces the page: focus goes to its heading, not <body>.
     await expect(heading).toBeFocused();
-    await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Go to inspections" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Try Again" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Go to Inspections" })).toBeVisible();
     await expect(shellBar(page)).toBeVisible();
     await shot(page, "admin-error");
 
     // A retry that fails again says so again.
-    await page.getByRole("button", { name: "Try again" }).click();
+    await page.getByRole("button", { name: "Try Again" }).click();
     await expect(heading).toBeFocused();
 
     // After a client-side navigation (away through the nav, then Back) the tab
@@ -616,7 +616,7 @@ test.describe("as the admin", () => {
       await expect(templates).toHaveAttribute("aria-current", "page");
     });
 
-    test("Sign out asks first while a photo waits on this device", async ({ page, context, baseURL }) => {
+    test("Sign Out asks first while a photo waits on this device", async ({ page, context, baseURL }) => {
       // A session of its own: signing out revokes it, and the other tests share theirs.
       await context.clearCookies();
       await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
@@ -625,17 +625,17 @@ test.describe("as the admin", () => {
       const errors = watchErrors(page);
       const gallery = `/inspections/${fixture.inspectionId}/photos`;
       await page.goto(gallery);
-      await expect(page.getByRole("heading", { level: 1, name: "Photos and files" })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1, name: "Photos and Files" })).toBeVisible();
       await page.locator('input[data-photo-input="library"]').setInputFiles(await drawPhoto(page));
       const badge = page.locator('[data-slot="upload-badge"]');
       await expect(badge).toHaveAttribute("data-count", "1", { timeout: 20_000 });
 
-      const dialog = page.getByRole("alertdialog", { name: "Sign out now?" });
-      const stay = dialog.getByRole("button", { name: "Stay signed in" });
-      await (await openUserMenu(page)).getByRole("menuitem", { name: "Sign out" }).click();
+      const dialog = page.getByRole("alertdialog", { name: "Sign Out Now?" });
+      const stay = dialog.getByRole("button", { name: "Stay Signed In" });
+      await (await openUserMenu(page)).getByRole("menuitem", { name: "Sign Out" }).click();
       await expect(dialog).toBeVisible();
       await expect(dialog).toContainText(UPLOADS_WAITING);
-      await expect(dialog.getByRole("button", { name: "Sign out anyway" })).toBeVisible();
+      await expect(dialog.getByRole("button", { name: "Sign Out Anyway" })).toBeVisible();
       // Staying is the default: it has the focus, and the menu has handed over to the dialog.
       await expect(stay).toBeFocused();
       await expect(page.getByRole("menu")).toHaveCount(0);
@@ -660,21 +660,21 @@ test.describe("as the admin", () => {
       await nav.getByRole("link", { name: isDesktop(page) ? "Overview" : "Admin", exact: true }).click();
       await expect(page).toHaveURL(/\/admin$/);
       await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
-      await (await openUserMenu(page)).getByRole("menuitem", { name: "Sign out" }).click();
+      await (await openUserMenu(page)).getByRole("menuitem", { name: "Sign Out" }).click();
       await expect(dialog).toBeVisible();
       await expect(dialog).toContainText(UPLOADS_WAITING);
 
       // A sign-out that does not reach the server: still signed in, and the dialog keeps both choices.
       const release = await holdServerActions(page, "abort");
-      await dialog.getByRole("button", { name: "Sign out anyway" }).click();
+      await dialog.getByRole("button", { name: "Sign Out Anyway" }).click();
       await expect(page.getByText(SIGN_OUT_FAILED)).toBeVisible();
-      await expect(dialog.getByRole("button", { name: "Sign out anyway" })).toBeEnabled();
+      await expect(dialog.getByRole("button", { name: "Sign Out Anyway" })).toBeEnabled();
       await expect(stay).toBeEnabled();
       expect(await authCookies(context)).not.toEqual([]);
       await release();
 
-      // Sign out anyway: the session ends, and the photo stays on this device for the next sign-in.
-      await dialog.getByRole("button", { name: "Sign out anyway" }).click();
+      // Sign Out Anyway: the session ends, and the photo stays on this device for the next sign-in.
+      await dialog.getByRole("button", { name: "Sign Out Anyway" }).click();
       await expect(page).toHaveURL(/\/login$/);
       expect(await authCookies(context)).toEqual([]);
       expect(errors()).toEqual([]);
@@ -692,11 +692,11 @@ test.describe("as the inspector", () => {
 
   test("/admin is a 404", async ({ page }) => {
     const response = await page.goto("/admin");
-    await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Page Not Found" })).toBeVisible();
     expect(response?.status()).toBe(404);
     // Nothing gives the admin area away: not the tab title, not the HTML.
-    await expect(page).toHaveTitle("Page not found · SteriCare QC");
-    expect(await response?.text()).not.toContain("Admin overview");
+    await expect(page).toHaveTitle("Page Not Found · SteriCare QC");
+    expect(await response?.text()).not.toMatch(/Admin overview/i);
     await expect(page.getByText("Overview")).toHaveCount(0);
     await expect(page.locator('a[href^="/admin"]')).toHaveCount(0);
     await shot(page, "inspector-admin-404");

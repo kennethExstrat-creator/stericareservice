@@ -72,8 +72,8 @@ describe("InspectionShortcuts", () => {
     expect(AWAITING_APPROVAL_HREF).toBe("/inspections?status=submitted");
     expect(parseInspectionSearchParams({ status: "submitted" })).toMatchObject({ status: "submitted", page: 1 });
     expect(links(html)).toEqual([
-      ["/inspections?status=submitted", "Awaiting approval 3 submitted inspections to approve or reopen."],
-      ["/inspections", "All inspections Every inspection, from every inspector, newest first."],
+      ["/inspections?status=submitted", "Awaiting Approval 3 submitted inspections to approve or reopen."],
+      ["/inspections", "All Inspections Every inspection, from every inspector, newest first."],
     ]);
     // The number beside the title is for the eye; the sentence says it.
     expect(html).toMatch(/<span aria-hidden="true" data-slot="quick-link-count"[^>]*>3<\/span>/);
