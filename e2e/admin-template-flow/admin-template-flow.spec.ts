@@ -411,7 +411,8 @@ test("an admin builds a template from a base without code changes, and an inspec
     await expect(length).toHaveAttribute("aria-checked", "true");
     await press(length);
     await expect(length).toHaveAttribute("aria-checked", "false");
-    await expect(details.getByText("Changed", { exact: true })).toHaveCount(2);
+    await expect(details.getByText("Changed", { exact: true })).toHaveCount(1);
+    await expect(details.locator("#label-glove_info-colour")).toHaveValue(WORDS.colourLabel);
     await view(page, "4-module-details");
     await closeDetails(page);
     await expect(moduleRow(page, "visual")).toContainText(WORDS.visualTitle);
@@ -454,6 +455,9 @@ test("an admin builds a template from a base without code changes, and an inspec
     await expect(preview.locator(`[data-preview-custom="${WORDS.customKey}"]`)).toContainText(WORDS.fieldLabel);
     await expectNoPageScroll(page);
     await shot(page, "8-preview");
+    // The visual tables as the screen shows them (a full-page capture misplaces their sticky rows).
+    await preview.locator('[data-preview-module="visual"]').evaluate((card) => card.scrollIntoView({ block: "end" }));
+    await view(page, "8b-preview-visual");
 
     const save = page.getByRole("button", { name: "Save", exact: true });
     await press(save);

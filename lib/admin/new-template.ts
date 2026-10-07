@@ -44,6 +44,11 @@ function codeProblem(code: string): string | null {
   return `Use only capital letters, digits and underscores: remove ${others.join(" ")}.`;
 }
 
+/** A code in use: the form says it before sending, the Server Action when another admin took it meanwhile. */
+export function codeTakenMessage(code: string): string {
+  return `${code} is taken: each template keeps its code from version to version. Choose another code, or make a new version of ${code} on its page.`;
+}
+
 /** One client or manufacturer: its id, or ANY for none. */
 const ScopeRefSchema = z
   .string()

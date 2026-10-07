@@ -35,6 +35,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import {
   ANY,
+  codeTakenMessage,
   defaultSizing,
   NEW_TEMPLATE_IDLE,
   NEW_TEMPLATE_LIMITS,
@@ -144,13 +145,19 @@ function NewTemplateForm({
   const [manufacturerId, setManufacturerId] = useState(ANY);
   const [errors, setErrors] = useState<FieldErrors>({});
 
+  /** The field errors of one attempt, which the effect below moves the focus to. */
+  function settle(result: NewTemplateResult): NewTemplateResult {
+    setErrors(result.status === "error" ? (result.fieldErrors ?? {}) : {});
+    return result;
+  }
+
   const [state, formAction, pending] = useActionState(
     async (previous: NewTemplateResult, formData: FormData): Promise<NewTemplateResult> => {
       // The same rules the server applies, and the codes in use: a form that cannot work never leaves the page.
       const checked = NewTemplateInputSchema.safeParse(readNewTemplateForm(formData));
       const local: FieldErrors = checked.success ? {} : fieldErrors(checked.error);
       if (checked.success && takenCodes.includes(checked.data.code)) {
-        local.code = `${checked.data.code} is taken: each template keeps its code from version to version. Choose another code, or make a new version of ${checked.data.code} on its page.`;
+        local.code = codeTakenMessage(checked.data.code);
       }
       if (Object.keys(local).length > 0) return settle({ status: "error", message: "Check the highlighted fields.", fieldErrors: local });
       onPendingChange(true);
@@ -167,11 +174,6 @@ function NewTemplateForm({
     },
     NEW_TEMPLATE_IDLE,
   );
-
-  function settle(result: NewTemplateResult): NewTemplateResult {
-    setErrors(result.status === "error" ? (result.fieldErrors ?? {}) : {});
-    return result;
-  }
 
   // After a refused attempt: the first field that needs attention, else the message.
   useEffect(() => {

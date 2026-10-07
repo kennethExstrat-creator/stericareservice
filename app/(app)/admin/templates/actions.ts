@@ -6,6 +6,7 @@
 // on the admin's own client, so Row Level Security checks the write too.
 import { redirect, unstable_rethrow } from "next/navigation";
 import {
+  codeTakenMessage,
   NewTemplateInputSchema,
   newTemplateDefinition,
   readNewTemplateForm,
@@ -28,9 +29,7 @@ function refused(message: string, errors?: Partial<Record<NewTemplateField, stri
 }
 
 function codeTaken(code: string): Partial<Record<NewTemplateField, string>> {
-  return {
-    code: `${code} is taken: each template keeps its code from version to version. Choose another code, or make a new version of ${code} on its page.`,
-  };
+  return { code: codeTakenMessage(code) };
 }
 
 /**
