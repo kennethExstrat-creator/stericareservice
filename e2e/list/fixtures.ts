@@ -10,11 +10,12 @@ import { TEST_ACCOUNTS } from "../support/session";
  * (quicker and more varied than creating them through the screens) and
  * deleted afterwards (e2e/README.md): each inspection through
  * deleteTestInspection(), since the service role may not delete an approved
- * one, then the template and the client they point at. They have no Storage
- * files. A run that died half way is cleaned up by the next.
+ * one, then the template and the client they point at. Only the draft made
+ * for Delete (createDraftWithEvidence) has Storage files, removed before its
+ * row. A run that died half way is cleaned up by the next.
  *
- * The template is resolved with the real modules, so a row's link opens a
- * capture screen or a review that renders like any other.
+ * The template is resolved with the real modules, so a row's Continue, Review
+ * or View opens a capture screen or a review that renders like any other.
  *
  * Side effects that cannot be undone through the API, by design: each
  * inspection draws a number from the ref sequence, and each deletion leaves an
@@ -58,6 +59,9 @@ export type ListFixture = {
   ids: Record<FixtureKey, string>;
   clientId: string;
   manufacturers: typeof SEED;
+  /** The fixture template and the inspector, for drafts a test makes of its own. */
+  templateId: string;
+  inspectorId: string;
   cleanup: () => Promise<void>;
 };
 
@@ -77,7 +81,13 @@ async function removeFixtureRows(admin: AdminClient) {
       .select("id")
       .in("template_id", templateIds);
     if (findError) fail("finding fixture inspections", findError);
-    for (const inspection of inspections) await deleteTestInspection(admin, inspection.id);
+    for (const inspection of inspections) {
+      // Only the draft made for Delete has Storage files; remove them first (e2e/README.md).
+      const left = await storedObjects(inspection.id);
+      if (left.photos.length > 0) await admin.storage.from(PHOTO_BUCKET).remove(left.photos);
+      if (left.files.length > 0) await admin.storage.from(FILE_BUCKET).remove(left.files);
+      await deleteTestInspection(admin, inspection.id);
+    }
     const removed = await admin.from("templates").delete().in("id", templateIds);
     if (removed.error) fail("deleting the fixture template", removed.error);
   }
@@ -229,6 +239,144 @@ async function insertFixtureRows(admin: AdminClient): Promise<ListFixture> {
     ids: { A: byKey.A.id, B: byKey.B.id, C: byKey.C.id, D: byKey.D.id },
     clientId: client.id,
     manufacturers: SEED,
+    templateId: template.id,
+    inspectorId,
     cleanup: () => removeFixtureRows(admin),
   };
+}
+
+/* ------------------------------------------------------------------ *
+ * Delete
+ * ------------------------------------------------------------------ */
+
+/** The migration that adds the list's Delete (supabase/migrations). */
+export const DELETE_MIGRATION = "20261007151500_delete_draft_inspection.sql";
+
+/**
+ * Whether the project has delete_draft_inspection(). The secret key may not
+ * call it (it is granted to signed-in users only), so a project that has it
+ * answers "permission denied" and nothing runs; one that does not answers
+ * PGRST202 (no such function).
+ */
+export async function deleteFunctionIsLive(): Promise<boolean> {
+  const admin = createTestAdminClient();
+  const { error } = await admin.rpc("delete_draft_inspection", { inspection_id: "00000000-0000-4000-8000-000000000000" });
+  return error?.code !== "PGRST202";
+}
+
+const PHOTO_BUCKET = "inspection-photos";
+const FILE_BUCKET = "inspection-files";
+
+export type StoredObjects = { photos: string[]; files: string[] };
+
+/** Every object in an inspection's folders, thumbnails included. */
+export async function storedObjects(inspectionId: string): Promise<StoredObjects> {
+  const admin = createTestAdminClient();
+  async function list(bucket: string, folder: string): Promise<string[]> {
+    const { data, error } = await admin.storage.from(bucket).list(folder, { limit: 1000 });
+    if (error) fail(`listing ${bucket}/${folder}`, error);
+    const names: string[] = [];
+    for (const entry of data) {
+      // Folders come back without an id.
+      if (entry.id === null) names.push(...(await list(bucket, `${folder}/${entry.name}`)));
+      else names.push(`${folder}/${entry.name}`);
+    }
+    return names.sort();
+  }
+  return { photos: await list(PHOTO_BUCKET, inspectionId), files: await list(FILE_BUCKET, inspectionId) };
+}
+
+export type DraftWithEvidence = {
+  id: string;
+  refNo: string;
+  /** What is in Storage for it: a photo and its thumbnail, a lab report. */
+  objects: StoredObjects;
+  /** Removes whatever is left of it: Storage objects first, then the inspection. */
+  cleanup: () => Promise<void>;
+};
+
+/**
+ * A draft of the inspector with a photo, its thumbnail and a lab report,
+ * in the rows and in Storage, dated 2 Oct 2026 so it sits between B and A.
+ */
+export async function createDraftWithEvidence(fixture: ListFixture): Promise<DraftWithEvidence> {
+  const admin = createTestAdminClient();
+  const { data: draft, error } = await admin
+    .from("inspections")
+    .insert({
+      template_id: fixture.templateId,
+      inspector_id: fixture.inspectorId,
+      inspection_date: "2026-10-02",
+      client_id: fixture.clientId,
+      manufacturer_id: SEED.hartalega,
+      po_no: "E2E-LIST-PO-DEL",
+      product_name: "Nitrile examination gloves, to delete",
+    })
+    .select("id, ref_no")
+    .single();
+  if (error) fail("creating the draft to delete", error);
+  const id = draft.id;
+
+  async function cleanup() {
+    const left = await storedObjects(id);
+    if (left.photos.length > 0) await admin.storage.from(PHOTO_BUCKET).remove(left.photos);
+    if (left.files.length > 0) await admin.storage.from(FILE_BUCKET).remove(left.files);
+    const { data: still } = await admin.from("inspections").select("id").eq("id", id).maybeSingle();
+    if (still) await deleteTestInspection(admin, id);
+  }
+
+  try {
+    const photo = crypto.randomUUID();
+    const file = crypto.randomUUID();
+    const objects: StoredObjects = {
+      photos: [`${id}/${photo}.jpg`, `${id}/thumbs/${photo}.jpg`],
+      files: [`${id}/${file}.pdf`],
+    };
+    // Bytes enough for Storage, which checks the declared type, not the content.
+    const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+    for (const path of objects.photos) {
+      const uploaded = await admin.storage.from(PHOTO_BUCKET).upload(path, jpeg, { contentType: "image/jpeg" });
+      if (uploaded.error) fail(`uploading ${path}`, uploaded.error);
+    }
+    const pdf = new TextEncoder().encode("%PDF-1.4\n%%EOF\n");
+    const uploaded = await admin.storage.from(FILE_BUCKET).upload(objects.files[0], pdf, { contentType: "application/pdf" });
+    if (uploaded.error) fail(`uploading ${objects.files[0]}`, uploaded.error);
+
+    const photoRow = await admin.from("inspection_photos").insert({
+      id: photo,
+      inspection_id: id,
+      module_key: "glove_info",
+      storage_path: objects.photos[0],
+      thumb_path: objects.photos[1],
+      created_by: fixture.inspectorId,
+    });
+    if (photoRow.error) fail("adding the photo row", photoRow.error);
+    const fileRow = await admin.from("inspection_files").insert({
+      id: file,
+      inspection_id: id,
+      module_key: "glove_info",
+      kind: "lab_report",
+      storage_path: objects.files[0],
+      name: "lab-report.pdf",
+      created_by: fixture.inspectorId,
+    });
+    if (fileRow.error) fail("adding the file row", fileRow.error);
+
+    return { id, refNo: draft.ref_no, objects, cleanup };
+  } catch (error) {
+    await cleanup().catch(() => undefined);
+    throw error;
+  }
+}
+
+/** The record of an inspection's deletion, which outlives it (admins only; read here with the secret key). */
+export async function deletionRecord(inspectionId: string) {
+  const admin = createTestAdminClient();
+  const { data, error } = await admin
+    .from("audit_log")
+    .select("inspection_id, actor_id, changes")
+    .eq("action", "deleted")
+    .eq("changes->>inspection_id", inspectionId);
+  if (error) fail("reading the deletion record", error);
+  return data;
 }
