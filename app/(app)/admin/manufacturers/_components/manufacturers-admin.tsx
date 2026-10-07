@@ -55,7 +55,7 @@ export function ManufacturersAdmin({
         actions={
           <Button ref={addButton} onClick={add}>
             <PlusIcon aria-hidden />
-            Add manufacturer
+            Add Manufacturer
           </Button>
         }
       />
@@ -67,7 +67,7 @@ export function ManufacturersAdmin({
           description="Add the factories you inspect at, so templates and inspections can refer to them."
           action={
             <Button variant="outline" onClick={add}>
-              Add your first manufacturer
+              Add Your First Manufacturer
             </Button>
           }
         />

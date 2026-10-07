@@ -128,7 +128,7 @@ export function ManufacturerPanel({
       busy={pending}
       onClose={onClose}
       returnFocus={returnFocus}
-      title={editing ? "Edit manufacturer" : "Add manufacturer"}
+      title={editing ? "Edit Manufacturer" : "Add Manufacturer"}
       description="Name and address as they should read in report headers."
       footer={
         gone ? (
@@ -142,7 +142,7 @@ export function ManufacturerPanel({
             </Button>
             <Button type="submit" form={formId} disabled={pending}>
               {pending && <Spinner aria-hidden />}
-              {pending ? (editing ? "Saving…" : "Adding…") : editing ? "Save changes" : "Add manufacturer"}
+              {pending ? (editing ? "Saving…" : "Adding…") : editing ? "Save Changes" : "Add Manufacturer"}
             </Button>
           </>
         )

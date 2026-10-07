@@ -107,7 +107,7 @@ export function NoMatches({ query, many, onClear }: { query: string; many: strin
       </EmptyHeader>
       <EmptyContent>
         <Button type="button" variant="outline" onClick={onClear}>
-          Clear search
+          Clear Search
         </Button>
       </EmptyContent>
     </Empty>

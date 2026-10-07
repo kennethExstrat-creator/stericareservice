@@ -79,7 +79,7 @@ describe("/admin/clients", () => {
     const html = await render([polyco, zeta]);
     expect(html).toContain("Polyco Healthline");
     expect(html).toContain(`src="${LOGO_URL.replaceAll("&", "&amp;")}"`);
-    expect(html).toContain("No logo");
+    expect(html).toContain("No Logo");
     expect(html).toContain("1 template");
     expect(html).toContain("2 clients");
   });
@@ -109,6 +109,6 @@ describe("/admin/clients", () => {
   it("invites the first client when there are none", async () => {
     const html = await render([]);
     expect(html).toContain("No clients yet");
-    expect(html).toContain("Add your first client");
+    expect(html).toContain("Add Your First Client");
   });
 });

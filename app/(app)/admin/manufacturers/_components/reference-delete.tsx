@@ -19,7 +19,6 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import {
   IDLE,
-  KINDS,
   deleteBlocker,
   unreachable,
   type ActionResult,
@@ -29,6 +28,9 @@ import {
 import { focusFirst, PanelSection } from "./reference-panel";
 
 type DeleteAction = (previous: ActionResult, formData: FormData) => Promise<ActionResult>;
+
+/** The kind in a heading or on a button, in Title Case: "Delete Manufacturer". lib/admin/reference KINDS words it for sentences. */
+const KIND_TITLE: Readonly<Record<ReferenceKind, string>> = { manufacturer: "Manufacturer", client: "Client" };
 
 type DeleteSectionProps = {
   kind: ReferenceKind;
@@ -51,11 +53,10 @@ export function DeleteSection({ kind, id, name, usage, action, alsoDeletes, onDe
   const reasonId = useId();
   const deleteButton = useRef<HTMLButtonElement>(null);
   const [confirming, setConfirming] = useState(false);
-  const noun = KINDS[kind].one;
   const blocker = deleteBlocker(usage);
 
   return (
-    <PanelSection title={`Delete ${noun}`} titleId={titleId}>
+    <PanelSection title={`Delete ${KIND_TITLE[kind]}`} titleId={titleId}>
       <p id={reasonId} className="flex gap-2 text-sm text-muted-foreground">
         <InfoIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
         <span>{blocker ?? "Not used by any template or inspection, so it can be deleted."}</span>
@@ -70,7 +71,7 @@ export function DeleteSection({ kind, id, name, usage, action, alsoDeletes, onDe
           onClick={() => setConfirming(true)}
         >
           <Trash2Icon aria-hidden />
-          Delete {noun}
+          Delete {KIND_TITLE[kind]}
         </Button>
       </div>
       {confirming && (
@@ -161,7 +162,7 @@ function ConfirmDelete({
             </AlertDialogCancel>
             <Button type="submit" variant="destructive" disabled={pending}>
               {pending && <Spinner aria-hidden />}
-              {pending ? "Deleting…" : `Delete ${KINDS[kind].one}`}
+              {pending ? "Deleting…" : `Delete ${KIND_TITLE[kind]}`}
             </Button>
           </AlertDialogFooter>
         </form>

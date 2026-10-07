@@ -30,7 +30,7 @@ export function ManufacturersTable({
             <TableHead className={cn("hidden xl:table-cell", HEAD)}>Factory</TableHead>
             <TableHead className={HEAD}>Country</TableHead>
             <TableHead className={cn("hidden xl:table-cell", HEAD)}>Address</TableHead>
-            <TableHead className={HEAD}>In use</TableHead>
+            <TableHead className={HEAD}>In Use</TableHead>
             <TableHead className={cn("w-0 pr-4", HEAD)}>
               <span className="sr-only">Actions</span>
             </TableHead>
