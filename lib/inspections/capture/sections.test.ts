@@ -66,6 +66,24 @@ describe("captureSections", () => {
     expect(captureSections(withoutWeight, report, data).map((section) => section.key)).not.toContain("weight");
   });
 
+  it("shows the conclusion's HOLD as on hold, and done, while its module result stays a warning", () => {
+    const filled = filledData();
+    const data = { ...filled, modules: { ...filled.modules, conclusion: { finalResult: "hold", remark: null } } };
+    const { template, report } = evaluateCapture({ template: testTemplate(), overrides: {}, data, meta: TEST_META }, TEST_REGISTRY);
+    const sections = captureSections(template, report, data);
+    // The pill and the chip say On hold, as the review and the final result do.
+    expect(findSection(sections, "conclusion")).toMatchObject({ status: "hold", progress: "done" });
+    expect(progressSteps(sections).at(-1)).toEqual({ key: "conclusion", label: "Conclusion", state: "done", result: "hold" });
+    expect(progressSummary(sections).done).toBe(progressSummary(sectionsFor()).done + 1);
+    // The module records a warning (a module status has no hold): the suggestion and submit read that.
+    expect(report.modules.find((entry) => entry.key === "conclusion")?.result.status).toBe("warn");
+
+    for (const finalResult of ["pass", "fail"] as const) {
+      const decided = sectionsFor({ ...filled, modules: { ...filled.modules, conclusion: { finalResult, remark: null } } });
+      expect(findSection(decided, "conclusion")).toMatchObject({ status: finalResult, progress: "done" });
+    }
+  });
+
   it("shows a custom module as not done until something is entered without errors", () => {
     const blank = sectionsFor(emptyData());
     expect(findSection(blank, "size_checks")).toMatchObject({ status: "not_done", progress: "not_started" });
@@ -110,6 +128,7 @@ describe("navigation helpers", () => {
   it("counts a section done once it has a result, in progress while something is entered", () => {
     expect(progressOf("pass", true)).toBe("done");
     expect(progressOf("info", false)).toBe("done");
+    expect(progressOf("hold", true)).toBe("done");
     expect(progressOf("not_done", true)).toBe("in_progress");
     expect(progressOf("not_done", false)).toBe("not_started");
   });

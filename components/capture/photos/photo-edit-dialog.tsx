@@ -9,8 +9,10 @@
 // every field is controlled, and the form is submitted by hand rather than
 // through its action prop, because React resets a form after each form
 // action and Radix Select and RadioGroup answer that reset by going back to
-// their first value, controlled or not.
-import { Fragment, startTransition, useActionState, useEffect, useId, useRef, useState } from "react";
+// their first value, controlled or not. The caption typed is kept in the tab
+// until it is saved or cancelled (lib/drafts/tab-draft.ts), so a reload loses
+// nothing.
+import { Fragment, startTransition, useActionState, useContext, useEffect, useId, useRef, useState, type RefObject } from "react";
 import { OctagonXIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -39,6 +41,7 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
+import { readTextDraft, useTabDraft, writeTextDraft } from "@/lib/drafts/tab-draft";
 import { IDLE_PHOTO_ACTION, type PhotoActionState } from "@/lib/inspections/photos/messages";
 import { CAPTION_MAX_LENGTH } from "@/lib/inspections/photos/schemas";
 import {
@@ -52,6 +55,7 @@ import {
 } from "@/lib/inspections/photos/view";
 import { parseTarget, type PhotoTarget } from "@/lib/photos/target";
 import { savePhotoEdit } from "./edit-flows";
+import { PhotoUserContext } from "./hooks";
 import type { SlotPhoto } from "./photo-model";
 
 /** Select items cannot have an empty value; this one stands for "none". */
@@ -71,17 +75,49 @@ type PhotoEditDialogProps = {
   onClose: () => void;
 };
 
+/** The caption a user is typing for one photo, which keeps its id from this device's queue to the server. */
+export function captionDraftKey(userId: string, photoId: string): string {
+  return `stericare:photo-draft:caption:${userId}:${photoId}`;
+}
+
+/** The caption as typed, as a draft: none while it reads as the photo's saved caption. */
+export function captionDraft(typed: string, saved: string | null): string | null {
+  return typed === (saved ?? "") ? null : typed;
+}
+
 export function PhotoEditDialog({ inspectionId, photo, options, alt, onClose }: PhotoEditDialogProps) {
   const [pending, setPending] = useState(false);
+  // The caption as typed, kept in the tab for this user and photo: after a
+  // reload it is back when the dialog opens. The user is the one the page
+  // names for its photo queue (PhotoQueueProvider); without one, only the
+  // field keeps the caption.
+  const userId = useContext(PhotoUserContext);
+  const [draft, setDraft, forgetDraft] = useTabDraft(
+    userId === null ? null : captionDraftKey(userId, photo.id),
+    readTextDraft,
+    writeTextDraft,
+  );
+  const captionRef = useRef<HTMLTextAreaElement>(null);
   return (
     <Dialog
       open
       onOpenChange={(open) => {
-        if (!open && !pending) onClose();
+        if (open || pending) return;
+        // Cancelled (Cancel, Escape, a tap outside): the caption typed goes with it.
+        setDraft(null);
+        onClose();
       }}
     >
       <DialogContent
         className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg"
+        // A caption brought back from before a reload: it takes focus, and goes on where it stopped.
+        onOpenAutoFocus={(event) => {
+          const field = captionRef.current;
+          if (draft === null || !field) return;
+          event.preventDefault();
+          field.focus();
+          field.setSelectionRange(field.value.length, field.value.length);
+        }}
         // The slot puts focus back itself: the control that opened this may be gone.
         onCloseAutoFocus={(event) => event.preventDefault()}
         onInteractOutside={(event) => {
@@ -91,7 +127,21 @@ export function PhotoEditDialog({ inspectionId, photo, options, alt, onClose }: 
           if (pending) event.preventDefault();
         }}
       >
-        <EditForm inspectionId={inspectionId} photo={photo} options={options} alt={alt} onDone={onClose} onPendingChange={setPending} />
+        <EditForm
+          inspectionId={inspectionId}
+          photo={photo}
+          options={options}
+          alt={alt}
+          caption={draft ?? photo.caption ?? ""}
+          captionRef={captionRef}
+          onCaptionChange={(typed) => setDraft(captionDraft(typed, photo.caption))}
+          onDone={() => {
+            // Saved: the caption is the photo's now, no longer a draft.
+            forgetDraft();
+            onClose();
+          }}
+          onPendingChange={setPending}
+        />
       </DialogContent>
     </Dialog>
   );
@@ -102,9 +152,19 @@ function EditForm({
   photo,
   options,
   alt,
+  caption,
+  captionRef,
+  onCaptionChange,
   onDone,
   onPendingChange,
-}: Omit<PhotoEditDialogProps, "onClose"> & { onDone: () => void; onPendingChange: (pending: boolean) => void }) {
+}: Omit<PhotoEditDialogProps, "onClose"> & {
+  /** The caption as typed so far, before a reload too. */
+  caption: string;
+  captionRef: RefObject<HTMLTextAreaElement | null>;
+  onCaptionChange: (caption: string) => void;
+  onDone: () => void;
+  onPendingChange: (pending: boolean) => void;
+}) {
   const id = useId();
   const initial = parseTarget(photo.target);
   const start: PhotoTarget = initial.ok ? initial.target : {};
@@ -115,7 +175,6 @@ function EditForm({
   const [box, setBox] = useState(start.box !== undefined ? String(start.box) : "");
   const [level, setLevel] = useState<string>(start.level ?? "");
   const [item, setItem] = useState(start.item ?? "");
-  const [caption, setCaption] = useState(photo.caption ?? "");
   const formRef = useRef<HTMLFormElement>(null);
   /** Where focus was when Save was pressed (Save itself, or a field submitted with Enter). */
   const submittedFrom = useRef<HTMLElement | null>(null);
@@ -394,12 +453,13 @@ function EditForm({
         <Field data-invalid={errors.caption ? true : undefined}>
           <FieldLabel htmlFor={`${id}-caption`}>Caption</FieldLabel>
           <Textarea
+            ref={captionRef}
             id={`${id}-caption`}
             name="caption"
             rows={3}
             maxLength={CAPTION_MAX_LENGTH}
             value={caption}
-            onChange={(event) => setCaption(event.target.value)}
+            onChange={(event) => onCaptionChange(event.target.value)}
             placeholder="What the photo shows, for the report"
             aria-invalid={errors.caption ? true : undefined}
             aria-describedby={errors.caption ? `${id}-caption-error` : `${id}-caption-hint`}
