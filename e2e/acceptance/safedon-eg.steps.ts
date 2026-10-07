@@ -628,7 +628,8 @@ export async function expectReview(page: Page, refNo: string, names: { client: s
   // Conclusion: pass, suggested and final.
   const verdict = page.locator("#result");
   await expect(verdict).toContainText("Suggested by the app");
-  await expect(verdict).toContainText("Pass. Warnings: Sampling Plan.");
+  // Why, under the pill: the reasons only, never the result again.
+  await expect(verdict.locator("[data-slot='suggested-reasons']")).toHaveText("Warnings: Sampling Plan.");
   // Suggested by the app, then the inspector's final result.
   await expect(verdict.locator("[data-slot='status-pill']").nth(0)).toHaveText("Passed");
   await expect(verdict.locator("[data-slot='status-pill']").nth(1)).toHaveText("Passed");

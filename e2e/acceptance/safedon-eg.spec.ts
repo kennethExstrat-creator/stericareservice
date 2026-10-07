@@ -620,8 +620,8 @@ test("submit: suggested Pass, the four warnings go into the report, and the revi
   await press(page.getByRole("button", { name: "Submit", exact: true }));
   const dialog = page.getByRole("alertdialog", { name: `Submit ${refNo} for review?` });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole("definition").first()).toHaveText("Pass");
-  await expect(dialog).toContainText("Pass. Warnings: Sampling Plan.");
+  await expect(dialog.getByRole("definition").first()).toHaveText("Passed");
+  await expect(dialog.locator('[data-slot="suggested-reasons"]')).toHaveText("Warnings: Sampling Plan.");
   await expect(dialog).toContainText(`${EXPECTED.warnings.length} warnings go into the report.`);
   await viewShot(page, "16-submit");
   await press(dialog.getByRole("button", { name: "Submit for review" }));
