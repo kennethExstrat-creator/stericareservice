@@ -10,8 +10,9 @@ import { TEST_ACCOUNTS } from "../support/session";
  * resolved against the real modules, with the modules whose screens use the
  * kit's browser-only parts (measurement grids, one that keeps a paste's
  * overflow, quantity cells, box pickers, Safedon's box switcher, one-off
- * defect rows, the documents and loading tag lines), and one inspection of
- * the test inspector's. Everything is deleted
+ * defect rows, the documents and loading tag lines), a custom grid (number
+ * fields in table cells), and one inspection of the test inspector's.
+ * Everything is deleted
  * in afterAll; a run that died half way is cleaned up by the next.
  *
  * Each run of a project draws one number from the live ref sequence.
@@ -32,6 +33,9 @@ const SEED = {
 /** Safedon's boxes per size here: few enough to step through to the end. */
 export const SAFEDON_BOXES = 3;
 
+/** A custom grid: a row per field, one column per box (plain-forms.tsx draws its numbers as fields in cells). */
+export const CUSTOM_GRID = { key: "box_checks", title: "Box checks", boxes: 3 } as const;
+
 export function kitDefinition(): TemplateDefinition {
   return {
     code: KIT_TEMPLATE_CODE,
@@ -51,6 +55,16 @@ export function kitDefinition(): TemplateDefinition {
       { key: "loading", include: true },
       { key: "conclusion", include: true },
     ],
+    customModules: [
+      {
+        key: CUSTOM_GRID.key,
+        title: CUSTOM_GRID.title,
+        after: "loading",
+        layout: "grid",
+        fields: [{ key: "boxWeight", label: "Box weight", type: "number", unit: "g" }],
+        grid: { columns: { label: "Box", default: CUSTOM_GRID.boxes, addable: false } },
+      },
+    ],
     report: { title: "Kit e2e (temporary)", showClientLogo: false },
   };
 }
@@ -68,6 +82,8 @@ export type KitFixture = {
   setStatus: (status: "submitted") => Promise<void>;
   /** The inspection's saved modules. */
   modules: () => Promise<Record<string, unknown>>;
+  /** The inspection's saved custom modules. */
+  custom: () => Promise<Record<string, unknown>>;
   cleanup: () => Promise<void>;
 };
 
@@ -153,6 +169,12 @@ async function insertFixtureRows(admin: AdminClient): Promise<KitFixture> {
     .single();
   if (inspectionError) fail("creating the fixture inspection", inspectionError);
 
+  const savedData = async () => {
+    const { data, error } = await admin.from("inspections").select("data").eq("id", inspection.id).single();
+    if (error) fail("reading the inspection's data", error);
+    return data.data as { modules?: Record<string, unknown>; custom?: Record<string, unknown> };
+  };
+
   return {
     inspectionId: inspection.id,
     refNo: inspection.ref_no,
@@ -160,11 +182,8 @@ async function insertFixtureRows(admin: AdminClient): Promise<KitFixture> {
       const { error } = await admin.from("inspections").update({ status }).eq("id", inspection.id);
       if (error) fail(`moving the inspection to ${status}`, error);
     },
-    modules: async () => {
-      const { data, error } = await admin.from("inspections").select("data").eq("id", inspection.id).single();
-      if (error) fail("reading the inspection's data", error);
-      return (data.data as { modules?: Record<string, unknown> }).modules ?? {};
-    },
+    modules: async () => (await savedData()).modules ?? {},
+    custom: async () => (await savedData()).custom ?? {},
     cleanup: () => removeFixtureRows(admin),
   };
 }

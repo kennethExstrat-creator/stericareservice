@@ -1,11 +1,12 @@
 import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
 import { signIn, TEST_ACCOUNTS } from "../support/session";
-import { createKitFixture, SAFEDON_BOXES, type KitFixture } from "./fixtures";
+import { createKitFixture, CUSTOM_GRID, SAFEDON_BOXES, type KitFixture } from "./fixtures";
 
 /**
  * The capture kit's browser-only behaviour on real module screens
  * (docs/CAPTURE_KIT.md), at the three sizes in playwright.config.ts: what a
- * paste leaves out, said on screen; the box list reporting its box as it
+ * paste leaves out, said on screen (across a table's foot, never in a
+ * cell); the box list reporting its box as it
  * opens; Safedon's box switcher at its ends; the focus after a one-off row
  * comes off; the tag lines of documents and loading; and a read-only grid
  * refusing pastes and typing while its keys still move. The rules behind
@@ -170,9 +171,13 @@ test("a grid whose module keeps a paste's overflow leaves it to the module: forc
   // Saves wait for the one before them, and the shared Mac and database can be slow: generous, never sleeps.
   await expect.poll(savedReadings, { timeout: 30_000 }).toBe(rows + 2);
 
+  // Cleared on purpose: they were stored, so the grid never lists them as values the paste lost.
   await press(clear);
   await expect(clear).toHaveCount(0);
+  await expect(grid.locator('[data-slot="paste-notice"]')).toHaveCount(0);
   await expect.poll(savedReadings, { timeout: 30_000 }).toBe(rows);
+  await expect(grid.locator('[data-slot="paste-notice"]')).toHaveCount(0);
+  await shot(page, "force-at-break-cleared", grid);
 });
 
 test("a pasted column longer than a table of fields lists what did not fit across the table's foot", async ({
@@ -192,6 +197,47 @@ test("a pasted column longer than a table of fields lists what did not fit acros
   await expect(notice).toHaveAttribute("data-variant", "strip");
   await expect(notice).toContainText("2 pasted values did not fit and were not stored: “400” and “500”.");
   await shot(page, "table-paste-did-not-fit", notice);
+  await press(notice.getByRole("button", { name: "Dismiss" }));
+  await expect(notice).toHaveCount(0);
+  await expect(first).toBeFocused();
+});
+
+test("a pasted row longer than a custom grid lists what did not fit across the table's foot, not in a cell", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  await signInAs(context, baseURL!);
+  const frame = await openModule(page, CUSTOM_GRID.key);
+  const first = frame.getByRole("textbox", { name: "Box weight, Box 1", exact: true });
+  await expect(first).toBeEditable();
+  // The inner locator is looked for inside each cell.
+  const cell = frame.locator("td").filter({ has: page.getByRole("textbox", { name: "Box weight, Box 1", exact: true }) });
+  await expect(cell).toHaveCount(1);
+  const before = (await cell.boundingBox())!;
+  await first.focus();
+  // Three boxes, eight values: five left out.
+  await paste(first, "5.1\n5.2\n5.3\n5.4\n5.5\n5.6\n5.7\n5.8");
+  const notice = frame.locator('[data-slot="enter-group"] > [data-slot="paste-notice"]');
+  await expect(notice).toBeVisible();
+  await expect(notice).toHaveAttribute("data-variant", "strip");
+  await expect(notice).toContainText(
+    "5 pasted values did not fit and were not stored: “5.4”, “5.5”, “5.6”, “5.7” and “5.8”.",
+  );
+  // Nothing under the field in its cell: the box's column and the row keep their size.
+  await expect(frame.locator('td [data-slot="paste-notice"]')).toHaveCount(0);
+  const after = (await cell.boundingBox())!;
+  expect(Math.abs(after.width - before.width)).toBeLessThanOrEqual(1);
+  expect(Math.abs(after.height - before.height)).toBeLessThanOrEqual(1);
+  if (isTouch()) expect((await notice.getByRole("button", { name: "Dismiss" }).boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await shot(page, "custom-grid-paste-did-not-fit", notice);
+
+  // The three that fit are saved.
+  await expect
+    .poll(async () => ((await fixture.custom())[CUSTOM_GRID.key] as { boxWeight?: unknown[] } | undefined)?.boxWeight, {
+      timeout: 15_000,
+    })
+    .toEqual([5.1, 5.2, 5.3]);
   await press(notice.getByRole("button", { name: "Dismiss" }));
   await expect(notice).toHaveCount(0);
   await expect(first).toBeFocused();
