@@ -26,9 +26,10 @@ test.afterAll(async () => {
 });
 
 /** A separate browser for the throwaway account, signed in as it. */
+/** A browser of their own, signed in afresh: each step's sign-in is what it checks (never E2E_SESSION_CACHE's session). */
 async function browserOf(browser: Browser, baseURL: string, email: string, password: string) {
   const context = await browser.newContext({ baseURL });
-  await signIn(context, baseURL, email, password);
+  await signIn(context, baseURL, email, password, { fresh: true });
   return { context, page: await context.newPage() };
 }
 
@@ -100,7 +101,7 @@ test("an admin changes a role, deactivates and reactivates an account", async ({
     });
 
     await test.step("they cannot sign in again", async () => {
-      await expect(sessionCookies(person.email, person.password)).rejects.toThrow(/banned/i);
+      await expect(sessionCookies(person.email, person.password, { fresh: true })).rejects.toThrow(/banned/i);
     });
 
     await test.step("reactivate them", async () => {
