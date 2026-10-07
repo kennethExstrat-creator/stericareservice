@@ -61,6 +61,8 @@ type ModuleBodyProps = {
   readOnly: boolean;
   onChange: (next: unknown) => void;
   onFocusChange: (focus: CaptureFocus) => void;
+  /** Saved values that could not be read were removed: the form replaces their list, its button with it. */
+  onUnreadableRemoved?: () => void;
 };
 
 export function ModuleBody({
@@ -76,6 +78,7 @@ export function ModuleBody({
   readOnly,
   onChange,
   onFocusChange,
+  onUnreadableRemoved,
 }: ModuleBodyProps) {
   const definition = MODULE_REGISTRY[moduleKey];
   const labels = useMemo(() => effectiveLabels(definition, resolved), [definition, resolved]);
@@ -131,6 +134,7 @@ export function ModuleBody({
         focusPath={focusPath}
         readOnly={readOnly}
         onRemove={onChange}
+        onRemoved={onUnreadableRemoved}
       />
     );
   }

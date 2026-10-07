@@ -466,6 +466,17 @@ export function CaptureScreen({
     headingRef.current?.focus({ preventScroll: true });
   }, [overrides]);
 
+  // Saved values that could not be read, removed: the section's form takes
+  // the place of their list, and the button that opened the confirmation
+  // went with it, so the title takes the focus rather than the page. A field
+  // the form focused itself (an issue link it follows) keeps it.
+  const focusTitleAfterRemoval = useCallback(() => {
+    const title = headingRef.current;
+    if (!title || document.getElementById(panelId)?.contains(document.activeElement)) return;
+    if (title.getBoundingClientRect().top < stickyTopOf(rootRef.current)) scrollToTitle(title, rootRef.current);
+    title.focus({ preventScroll: true });
+  }, [panelId]);
+
   // Below 1280 px the open section is the tab bar's panel; from 1280 px a region beside the sidebar.
   const wide = useMediaQuery(WIDE_QUERY);
 
@@ -703,6 +714,7 @@ export function CaptureScreen({
               keptFocus={keptFocus}
               defectUsage={defectUsage}
               onFocusReported={keepSize}
+              onUnreadableRemoved={focusTitleAfterRemoval}
               onModuleChange={(key, value) => writeEntry("modules", key, value)}
               onCustomChange={(key, value) => writeEntry("custom", key, value)}
               onMappedChange={writeMapped}
@@ -790,6 +802,8 @@ type ActiveSectionProps = {
   defectUsage: DefectUsage;
   /** Every focus the section's module or form reports, so its size is kept for the next section. */
   onFocusReported: (focus: CaptureFocus) => void;
+  /** Saved values that could not be read were removed, and the button that did it went with their list. */
+  onUnreadableRemoved: () => void;
   onModuleChange: (key: string, value: unknown) => void;
   onCustomChange: (key: string, value: unknown) => void;
   onMappedChange: (mapsTo: string, value: unknown) => void;
@@ -818,6 +832,7 @@ function ActiveSection({
   keptFocus,
   defectUsage,
   onFocusReported,
+  onUnreadableRemoved,
   onModuleChange,
   onCustomChange,
   onMappedChange,
@@ -942,6 +957,7 @@ function ActiveSection({
           readOnly={readOnly}
           onChange={(next) => onModuleChange(section.key, next)}
           onFocusChange={onFocusChange}
+          onUnreadableRemoved={onUnreadableRemoved}
         />
       )}
     </SectionFrame>

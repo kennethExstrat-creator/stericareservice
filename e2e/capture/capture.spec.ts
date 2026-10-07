@@ -619,14 +619,29 @@ test("saved values a section no longer reads are listed, and removed in one conf
   await expect(remove).toBeVisible();
   await shot(page, "unreadable-values");
 
-  await press(remove);
+  // By keyboard on the desktop, as a keyboard user depends on where the focus lands; a tap on the iPads.
+  const activate = async (button: Locator) => {
+    if (isTouch()) return button.tap();
+    await button.focus();
+    await page.keyboard.press("Enter");
+  };
+  await activate(remove);
   const dialog = page.getByRole("alertdialog", { name: "Remove this value?" });
   await expect(dialog).toBeVisible();
+  // Cancel goes back to the button, as any dialog does.
+  await activate(dialog.getByRole("button", { name: "Cancel" }));
+  await expect(dialog).toBeHidden();
+  await expect(remove).toBeFocused();
+  await activate(remove);
+  await expect(dialog).toBeVisible();
   await viewportShot(page, "unreadable-values-confirm");
-  await press(dialog.getByRole("button", { name: "Remove it" }));
+  await activate(dialog.getByRole("button", { name: "Remove it" }));
 
   await expect(page.getByLabel("Glove colour")).toHaveValue("Sea green");
   await expect(page.getByLabel("Indicative weight (size M)")).toHaveValue("");
+  // The list went, and the button that opened the dialog with it: the section's title takes the focus, not the page.
+  await expect(page.getByRole("heading", { level: 2, name: "Glove Information", exact: true })).toBeFocused();
+  await shot(page, "unreadable-values-removed");
   await expect
     .poll(async () => ((await storedData(fixture.inspectionId)).data as { modules: Record<string, unknown> }).modules.glove_info, {
       timeout: 15_000,

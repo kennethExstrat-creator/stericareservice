@@ -38,13 +38,30 @@ type UnreadableDataProps = {
   readOnly: boolean;
   /** Saves the module's data without the values that cannot be read. */
   onRemove: (next: unknown) => void;
+  /**
+   * Once they are removed and the confirmation has closed: the module's form
+   * takes this list's place, the button that opened the confirmation with it,
+   * so the focus cannot go back there. The screen puts it somewhere instead.
+   */
+  onRemoved?: () => void;
 };
 
-export function UnreadableData({ definition, entry, issues, fallback, focusPath, readOnly, onRemove }: UnreadableDataProps) {
+export function UnreadableData({
+  definition,
+  entry,
+  issues,
+  fallback,
+  focusPath,
+  readOnly,
+  onRemove,
+  onRemoved,
+}: UnreadableDataProps) {
   const root = useRef<HTMLDivElement>(null);
   useIssueFocus(focusPath, { root });
   const readable = useMemo(() => readableData(definition, entry), [definition, entry]);
   const [open, setOpen] = useState(false);
+  // Set by the confirming button: the dialog then closes onto onRemoved, not onto its gone trigger.
+  const removed = useRef(false);
 
   const listed =
     issues.length > 0
@@ -88,14 +105,27 @@ export function UnreadableData({ definition, entry, issues, fallback, focusPath,
               ? "To go on, clear this section and enter it again."
               : "To go on, remove what cannot be read and enter it again. Everything else here is kept."}
           </p>
-          <AlertDialog open={open} onOpenChange={setOpen}>
+          <AlertDialog
+            open={open}
+            onOpenChange={(next) => {
+              if (next) removed.current = false;
+              setOpen(next);
+            }}
+          >
             <AlertDialogTrigger asChild>
               <Button type="button" variant="outline" className="bg-card" data-action="remove-unreadable">
                 <EraserIcon aria-hidden />
                 {readable === null ? "Clear this section" : "Remove the values that cannot be read"}
               </Button>
             </AlertDialogTrigger>
-            <AlertDialogContent>
+            <AlertDialogContent
+              onCloseAutoFocus={(event) => {
+                // Cancel: back to the button, as any dialog does.
+                if (!removed.current || !onRemoved) return;
+                event.preventDefault();
+                onRemoved();
+              }}
+            >
               <AlertDialogHeader>
                 <AlertDialogTitle className="text-lg font-bold">
                   {readable === null ? "Clear this section?" : `Remove ${what}?`}
@@ -110,7 +140,10 @@ export function UnreadableData({ definition, entry, issues, fallback, focusPath,
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   variant="destructive"
-                  onClick={() => onRemove(readable === null ? definition.emptyData() : readable.data)}
+                  onClick={() => {
+                    removed.current = true;
+                    onRemove(readable === null ? definition.emptyData() : readable.data);
+                  }}
                 >
                   {readable === null ? "Clear this section" : count === 1 ? "Remove it" : `Remove ${count} values`}
                 </AlertDialogAction>
