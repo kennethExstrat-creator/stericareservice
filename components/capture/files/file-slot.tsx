@@ -35,10 +35,18 @@ export type FileSlotProps = {
   /** The size or box in focus: reported with each added file (inspection_files has no target). */
   focus?: PhotoFocus | null;
   readOnly?: boolean;
+  /**
+   * False while there is nothing to file a new file under (documents before
+   * a document is chosen): the add controls go, the list keeps its own,
+   * Delete included. Default true.
+   */
+  canAdd?: boolean;
   /** Heading; by default the kind ("Lab reports"). */
   title?: string;
   headingLevel?: 2 | 3;
   onAdded?: (file: AddedFile) => void;
+  /** A file of the list was deleted, or taken off this device before it uploaded: its id. */
+  onRemoved?: (fileId: string) => void;
   className?: string;
 };
 
@@ -54,9 +62,11 @@ export function FileSlot({
   kind = "lab_report",
   focus = null,
   readOnly = false,
+  canAdd: addable = true,
   title,
   headingLevel = 3,
   onAdded,
+  onRemoved,
   className,
 }: FileSlotProps) {
   useStartPhotoQueue();
@@ -68,7 +78,9 @@ export function FileSlot({
     [media.media, queue, inspectionId, moduleKey],
   );
   const access = media.media?.access ?? null;
-  const canAdd = !readOnly && queue.phase !== "unavailable" && media.status !== "not_found" && (access === null || access.canEdit);
+  // Files on this device can change as long as the queue runs; adding also needs something to file them under.
+  const canQueue = !readOnly && queue.phase !== "unavailable" && media.status !== "not_found" && (access === null || access.canEdit);
+  const canAdd = canQueue && addable;
   const canEditUploaded = !readOnly && access?.canEdit === true;
   const preparing = queue.preparingByModule[moduleSlotKey(inspectionId, moduleKey)] ?? NOTHING_PREPARING;
   const Heading = headingLevel === 2 ? "h2" : "h3";
@@ -98,9 +110,10 @@ export function FileSlot({
           inspectionId={inspectionId}
           files={files}
           canEditUploaded={canEditUploaded}
-          canEditQueued={canAdd}
+          canEditQueued={canQueue}
           options={media.media?.options ?? EMPTY_TAG_OPTIONS}
           focusFallback={focusHeading}
+          onRemoved={onRemoved}
         />
       ) : preparing.files === 0 ? (
         <p className="text-sm text-muted-foreground">No {PLURAL[kind].toLowerCase()} yet.</p>

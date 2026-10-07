@@ -252,7 +252,7 @@ export function slotFiles({
         id: item.id,
         queued: false,
         moduleKey: item.moduleKey,
-        kind: null,
+        kind: item.fileKind ?? null,
         name: item.name ?? "Document",
         state: "uploaded",
         progress: 1,
@@ -265,7 +265,7 @@ export function slotFiles({
         id: item.id,
         queued: true,
         moduleKey: item.moduleKey,
-        kind: null,
+        kind: item.fileKind ?? null,
         name: item.name ?? "Document",
         state: queueState(item),
         progress: item.progress,
@@ -274,6 +274,49 @@ export function slotFiles({
       }),
     ),
   ];
+}
+
+/* ------------------------------------------------------------------ *
+ * The inspection's files as modules decide with them
+ * ------------------------------------------------------------------ */
+
+/** A file of the inspection as a module's calc reads it (modules/_framework InspectionFileRef). */
+export interface FileRef {
+  id: string;
+  moduleKey: string | null;
+  kind: InspectionFileKind | null;
+}
+
+/**
+ * The inspection's files for InspectionMeta.files (docs/MODULES.md 10.1):
+ * the uploaded rows, finished uploads whose rows are not read yet, and the
+ * files still queued on this device. Null while either half is unknown (the
+ * rows not loaded, or this device's queue not read yet): "none" is never
+ * told for "not known", or a kept lab report would read as deleted. A queue
+ * that cannot run on this device holds nothing.
+ */
+export function inspectionFileRefs({
+  files,
+  queue,
+  inspectionId,
+}: {
+  /** The uploaded rows; null while they are not loaded. */
+  files: readonly Pick<MediaFile, "id" | "moduleKey" | "kind">[] | null;
+  queue: Pick<PhotoQueueState, "phase" | "queue" | "settled">;
+  inspectionId: string;
+}): FileRef[] | null {
+  if (files === null) return null;
+  const queueKnown = queue.phase === "unavailable" || (queue.phase === "ready" && queue.queue.load === "ready");
+  if (!queueKnown) return null;
+  const refs = new Map<string, FileRef>();
+  for (const file of files) refs.set(file.id, { id: file.id, moduleKey: file.moduleKey, kind: file.kind });
+  const onDevice = [...Object.values(queue.settled), ...queue.queue.items].filter(
+    (item) => item.kind === "file" && item.inspectionId === inspectionId,
+  );
+  for (const item of onDevice) {
+    if (!refs.has(item.id)) refs.set(item.id, { id: item.id, moduleKey: item.moduleKey, kind: item.fileKind ?? null });
+  }
+  return [...refs.values()];
 }
 
 /* ------------------------------------------------------------------ *

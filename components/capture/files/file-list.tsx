@@ -32,6 +32,7 @@ export function FileList({
   options,
   showModule = false,
   focusFallback,
+  onRemoved,
   className,
 }: {
   inspectionId: string;
@@ -43,6 +44,8 @@ export function FileList({
   showModule?: boolean;
   /** Where focus goes when the list is gone after a delete (its last file). */
   focusFallback?: () => void;
+  /** A file was deleted, or taken off this device: its id, for a module that keeps it. */
+  onRemoved?: (fileId: string) => void;
   className?: string;
 }) {
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -116,6 +119,7 @@ export function FileList({
         <FileDeleteDialog
           inspectionId={inspectionId}
           file={deletingFile}
+          onDeleted={onRemoved}
           onClose={() => {
             setDeleting(null);
             // The row (and its button) may be gone: focus the list's first control instead, or the
