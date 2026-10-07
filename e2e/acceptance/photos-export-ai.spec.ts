@@ -20,7 +20,7 @@ import {
   watchConsole,
   WORDS,
   type AcceptanceFixture,
-} from "./support";
+} from "./photos-export-ai.support";
 
 /**
  * BUILD_SPEC 12, final acceptance of three done-whens on one inspection,
