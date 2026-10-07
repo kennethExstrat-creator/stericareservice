@@ -94,28 +94,35 @@ const OFF = ["force_at_break", "dispensing_packing"];
 const INCLUDED = NEW_ORDER.filter((key) => !OFF.includes(key));
 
 /**
- * The capture screen's sections, as the template words them: the base's
- * custom Glove Type after the header, the new custom module after labelling.
+ * The template's sections, as it words them (the seed STD_EG's in Title
+ * Case), as /inspections/new lists them: the base's custom Glove Type after
+ * the header, the new custom module after labelling.
  */
 const SECTIONS = [
   "Manufacturer Information",
   "Glove Type",
   "Glove Information",
   "Order",
-  "Packing configuration",
+  "Packing Configuration",
   "Sampling Plan",
-  "Finished Goods Sampling Information (carton number)",
+  "Finished Goods Sampling Information (Carton Number)",
   "Dimension",
-  "Weight (g) - average of 13 gloves per size",
+  "Weight (g) - Average of 13 Gloves per Size",
   WORDS.visualTitle,
-  "Freedom from Holes by watertight test",
+  "Freedom From Holes by Watertight Test",
   "Packaging Labeling Inspection",
   WORDS.customTitle,
   WORDS.documentsTitle,
   "Conclusion",
 ];
+/**
+ * The capture screen's pages, a tab or a sidebar row each: the sections,
+ * packing configuration on the order's page (lib/inspections/capture/sections.ts
+ * SHOWN_WITH), below the order.
+ */
+const PAGES = SECTIONS.filter((title) => title !== "Packing Configuration");
 /** Headings of the modules switched off: on no screen of the inspection. */
-const SWITCHED_OFF = ["Force At Break in Newton (Refer to attached where applicable)", "Glove Packing Check"];
+const SWITCHED_OFF = ["Force at Break in Newton (Refer to Attached Where Applicable)", "Glove Packing Check"];
 
 test.describe.configure({ mode: "serial" });
 
@@ -412,7 +419,7 @@ test("an admin builds a template from a base without code changes, and an inspec
     await expect(details.getByText("Changed", { exact: true })).toHaveCount(1);
     await expect(details.locator("#label-glove_info-colour")).toHaveValue(WORDS.colourLabel);
     // "Use <base>'s" goes back to what the base sets; a long base code ends in an ellipsis inside the details.
-    const reset = details.getByRole("button", { name: `Use ${fixture.base.code}'s: Glove length`, exact: true });
+    const reset = details.getByRole("button", { name: `Use ${fixture.base.code}'s: Glove Length`, exact: true });
     await reset.scrollIntoViewIfNeeded();
     await view(page, "4-module-details");
     const [resetBox, detailsBox] = [await reset.boundingBox(), await details.boundingBox()];
@@ -571,9 +578,9 @@ test("an admin builds a template from a base without code changes, and an inspec
 
   await test.step("the capture screen shows exactly the modules switched on, in order, in the template's words", async () => {
     await expect(page.getByRole("heading", { level: 2, name: "Manufacturer Information" })).toBeVisible(ACTION);
-    await expect(captureSections(page)).toHaveText(SECTIONS.map((title) => new RegExp(`^${escapeRegExp(title)}`)));
+    await expect(captureSections(page)).toHaveText(PAGES.map((title) => new RegExp(`^${escapeRegExp(title)}`)));
     const nav = isDesktop() ? page.getByRole("navigation", { name: "Sections" }) : page.getByRole("tablist", { name: "Sections" });
-    for (const title of SWITCHED_OFF) await expect(nav).not.toContainText(title);
+    for (const title of SWITCHED_OFF) await expect(nav).not.toContainText(title, { ignoreCase: true });
     // The sidebar's Switched Off group, in any case (CSS sets it in capitals).
     await expect(nav).not.toContainText(/Switched off/i);
     await expectNoPageScroll(page);
@@ -582,10 +589,17 @@ test("an admin builds a template from a base without code changes, and an inspec
     // Glove Information in the client's words, without the field the settings switched off.
     const gloveInfo = await openSection(page, "Glove Information");
     await expect(gloveInfo.getByText(WORDS.colourLabel, { exact: true })).toBeVisible();
-    await expect(gloveInfo.getByText("Glove colour", { exact: true })).toHaveCount(0);
-    await expect(gloveInfo.getByText("Glove length", { exact: true })).toHaveCount(0);
-    await expect(gloveInfo.getByText("Glove surface texture", { exact: true })).toBeVisible();
+    await expect(gloveInfo.getByText(/^Glove Colour$/i)).toHaveCount(0);
+    await expect(gloveInfo.getByText(/^Glove Length$/i)).toHaveCount(0);
+    await expect(gloveInfo.getByText("Glove Surface Texture", { exact: true })).toBeVisible();
     await view(page, "13-capture-glove-information");
+
+    // The order's page holds packing configuration below the order: two frames, each with its title.
+    const order = await openSection(page, "Order");
+    await expect(order).toHaveCount(2);
+    await expect(page.locator('[data-section-key="order_lots"]').getByRole("heading", { level: 2 })).toHaveText("Order");
+    await expect(page.locator('[data-section-key="packing_config"]').getByRole("heading", { level: 2 })).toHaveText("Packing Configuration");
+    await view(page, "13-capture-order");
 
     await openSection(page, WORDS.visualTitle);
     const custom = await openSection(page, WORDS.customTitle);
