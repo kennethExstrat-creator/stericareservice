@@ -4,7 +4,8 @@
 // leads nowhere); a refusal about the role sits at the role, where focus goes.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { focusRole, LeadField, RoleField } from "./role-fields";
+import { radioNames } from "../../_components/radio-card.testing";
+import { focusRole, LeadField, RoleField, ROLES_WITHOUT_TEAMS } from "./role-fields";
 
 const LINA = { id: "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d", name: "Lina Lead", teamSize: 2 };
 const NO_LEADS = "There is no active lead inspector yet. Make someone a lead inspector first.";
@@ -46,6 +47,22 @@ describe("LeadField", () => {
 });
 
 describe("RoleField", () => {
+  it("names each role's radio by the role and describes it, so Chrome does not leave it unnamed", () => {
+    // The invite, change role, change lead and activate dialogs all draw these radios.
+    const html = renderToStaticMarkup(<RoleField id="f" value="inspector" onChange={() => {}} />);
+    expect(radioNames(html)).toEqual([
+      { name: "Inspector", description: "Records inspections and sees their own." },
+      { name: "Lead inspector", description: "Also sees their team's inspections, read-only." },
+      { name: "Admin", description: "Manages users and templates, and approves inspections." },
+    ]);
+    expect(html).toContain('aria-labelledby="f-role-lead-title"');
+
+    const withoutTeams = renderToStaticMarkup(
+      <RoleField id="f" value="inspector" onChange={() => {}} choices={ROLES_WITHOUT_TEAMS} />,
+    );
+    expect(radioNames(withoutTeams).map((radio) => radio.name)).toEqual(["Inspector", "Admin"]);
+  });
+
   it("puts a refusal about the role under the roles, as the group's description", () => {
     const html = renderToStaticMarkup(<RoleField id="f" value="inspector" onChange={() => {}} error={NOBODY} />);
     expect(html).toMatch(/<fieldset[^>]*aria-describedby="f-role-error"/);

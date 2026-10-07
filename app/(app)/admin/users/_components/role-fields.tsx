@@ -7,17 +7,8 @@
 // React's form reset never sends a Radix control back to its first value
 // after a refused change.
 import type { Ref } from "react";
-import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldError,
-  FieldLabel,
-  FieldLegend,
-  FieldSet,
-  FieldTitle,
-} from "@/components/ui/field";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Field, FieldDescription, FieldError, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
+import { RadioGroup } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   ROLE_CHOICE_DESCRIPTION,
@@ -28,6 +19,7 @@ import {
   type RoleChoice,
 } from "@/lib/auth/org";
 import type { LeadOption } from "@/lib/auth/users";
+import { RadioCard } from "../../_components/radio-card";
 
 /** Before migration 20261007170000 there are no lead inspectors to choose. */
 export const ROLES_WITHOUT_TEAMS: readonly RoleChoice[] = ["inspector", "admin"];
@@ -78,15 +70,13 @@ export function RoleField({
         aria-invalid={error ? true : undefined}
       >
         {choices.map((choice) => (
-          <FieldLabel key={choice} htmlFor={`${id}-role-${choice}`}>
-            <Field orientation="horizontal">
-              <RadioGroupItem value={choice} id={`${id}-role-${choice}`} />
-              <FieldContent>
-                <FieldTitle>{ROLE_CHOICE_LABEL[choice]}</FieldTitle>
-                <FieldDescription>{ROLE_CHOICE_DESCRIPTION[choice]}</FieldDescription>
-              </FieldContent>
-            </Field>
-          </FieldLabel>
+          <RadioCard
+            key={choice}
+            id={`${id}-role-${choice}`}
+            value={choice}
+            title={ROLE_CHOICE_LABEL[choice]}
+            description={ROLE_CHOICE_DESCRIPTION[choice]}
+          />
         ))}
       </RadioGroup>
       {error && <FieldError id={`${id}-role-error`}>{error}</FieldError>}

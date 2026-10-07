@@ -2,12 +2,14 @@ import { expect, test } from "@playwright/test";
 import { signIn, TEST_ACCOUNTS } from "../support/session";
 import {
   chooseRowAction,
+  chromeNames,
   createThrowaway,
   deleteAccount,
   deleteAccountsWithEmail,
   profileByEmail,
   profileOf,
   rowFor,
+  roleRadios,
   shot,
   statusOf,
   sweepThrowaways,
@@ -124,11 +126,15 @@ test("the invite dialog explains every problem in place", async ({ page, context
   const dialog = page.getByRole("dialog", { name: "Invite a user" });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole("radio", { name: /^Inspector\b/ })).toBeChecked();
-  if (await teamsReady()) {
+  const teams = await teamsReady();
+  if (teams) {
     // Inspector, Lead inspector or Admin; an inspector's lead is asked for.
     await expect(dialog.getByRole("radio", { name: /^Lead inspector\b/ })).toBeVisible();
     await expect(dialog.getByRole("combobox", { name: "Lead inspector" })).toBeVisible();
   }
+  // Each role named and described as a screen reader hears it, in Chrome's own tree: getByRole above
+  // finds the names even where Chrome has none.
+  expect(await chromeNames(dialog, "radio")).toEqual(roleRadios(teams));
   await shot(page, "invite-dialog");
 
   await test.step("an empty form marks both fields", async () => {

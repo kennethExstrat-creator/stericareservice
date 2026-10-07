@@ -2,11 +2,13 @@ import { expect, test, type Browser } from "@playwright/test";
 import { sessionCookies, signIn, TEST_ACCOUNTS } from "../support/session";
 import {
   chooseRowAction,
+  chromeNames,
   createThrowaway,
   deleteAccount,
   isBanned,
   pickRole,
   profileOf,
+  roleRadios,
   rowFor,
   shot,
   statusOf,
@@ -59,6 +61,8 @@ test("an admin changes a role, deactivates and reactivates an account", async ({
     await test.step("make them an admin", async () => {
       const dialog = await chooseRowAction(page, row, "Change role");
       await expect(dialog).toContainText(`Change ${person.fullName}'s role`);
+      // Named as a screen reader hears them, in Chrome's own tree (getByRole finds names Chrome may not have).
+      expect(await chromeNames(dialog, "radio")).toEqual(roleRadios(await teamsReady()));
       await pickRole(dialog, "Admin");
       await shot(page, "make-admin-confirm");
       await dialog.getByRole("button", { name: "Save role" }).click();

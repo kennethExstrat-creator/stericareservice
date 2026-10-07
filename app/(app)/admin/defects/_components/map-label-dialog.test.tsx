@@ -8,6 +8,7 @@ import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { InspectionLabels, OneOffLabel } from "@/lib/admin/defects";
+import { radioNames } from "../../_components/radio-card.testing";
 
 vi.mock("../actions", () => ({ mapDefectLabel: vi.fn() }));
 vi.mock("@/components/ui/dialog", () => {
@@ -52,17 +53,28 @@ const inspection: InspectionLabels = {
   labels: [label],
 };
 
+function draw(): string {
+  return renderToStaticMarkup(
+    <MapLabelDialog
+      inspection={inspection}
+      label={label}
+      codes={[{ code: "stain", name: "Stain" }]}
+      onClose={() => {}}
+      returnFocus={() => {}}
+    />,
+  );
+}
+
 describe("MapLabelDialog", () => {
+  it("names each Map to radio by its choice and describes it, so Chrome does not leave it unnamed", () => {
+    expect(radioNames(draw())).toEqual([
+      { name: "An existing code", description: "One of the active codes." },
+      { name: "A new code", description: "Add a code for this label first." },
+    ]);
+  });
+
   it("submits by hand, so a refused mapping never resets the mode or the code", () => {
-    const html = renderToStaticMarkup(
-      <MapLabelDialog
-        inspection={inspection}
-        label={label}
-        codes={[{ code: "stain", name: "Stain" }]}
-        onClose={() => {}}
-        returnFocus={() => {}}
-      />,
-    );
+    const html = draw();
     expect(html).toContain("<form");
     expect(html).not.toContain(FUNCTION_ACTION);
     // "Map to" is a radio group, an existing code to start with; the code a select sent with the form.
