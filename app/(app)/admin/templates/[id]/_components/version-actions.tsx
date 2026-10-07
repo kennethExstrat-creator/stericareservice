@@ -32,8 +32,8 @@ export type VersionActionsProps = {
   version: number;
   status: TemplateStatus;
   /**
-   * Which actions to offer (lib/admin/templates versionOffers): Edit draft
-   * for a draft no inspection uses, New version for every other version (a
+   * Which actions to offer (lib/admin/templates versionOffers): Edit Draft
+   * for a draft no inspection uses, New Version for every other version (a
    * draft an inspection uses included), Activate or Retire.
    */
   offers: VersionOffers;
@@ -72,14 +72,14 @@ export function VersionActions(props: VersionActionsProps) {
         <Button asChild variant="outline">
           <Link href={editHref}>
             <PencilLineIcon aria-hidden />
-            Edit draft
+            Edit Draft
           </Link>
         </Button>
       )}
       {offers.newVersion && (
         <Button ref={newVersionRef} variant="outline" onClick={() => setKind("new-version")}>
           <CopyPlusIcon aria-hidden />
-          New version
+          New Version
         </Button>
       )}
       {offers.retire && (
@@ -96,7 +96,7 @@ export function VersionActions(props: VersionActionsProps) {
           onClick={() => setKind("activate")}
         >
           <BadgeCheckIcon aria-hidden />
-          {status === "retired" ? "Activate again" : "Activate"}
+          {status === "retired" ? "Activate Again" : "Activate"}
         </Button>
       )}
 
@@ -130,7 +130,7 @@ function confirmation(kind: Kind, props: VersionActionsProps): Confirmation {
   switch (kind) {
     case "activate":
       return {
-        title: `Activate ${code} version ${version}?`,
+        title: `Activate ${code} Version ${version}?`,
         description: (
           <>
             Inspectors start new {code} inspections from version {version}.{" "}
@@ -147,7 +147,7 @@ function confirmation(kind: Kind, props: VersionActionsProps): Confirmation {
       };
     case "retire":
       return {
-        title: `Retire ${code} version ${version}?`,
+        title: `Retire ${code} Version ${version}?`,
         description: (
           <>
             New inspections can no longer start from it. {using} Until you activate another version, {code} has no
@@ -162,7 +162,7 @@ function confirmation(kind: Kind, props: VersionActionsProps): Confirmation {
       };
     case "new-version":
       return {
-        title: `Make version ${nextVersion} of ${code}?`,
+        title: `Make Version ${nextVersion} of ${code}?`,
         description: (
           <>
             Version {nextVersion} starts as a draft copy of version {version}
@@ -188,7 +188,7 @@ function confirmation(kind: Kind, props: VersionActionsProps): Confirmation {
             )}
           </>
         ),
-        confirm: "Make new version",
+        confirm: "Make New Version",
         pending: "Making…",
         action: createNewVersion,
         fields,

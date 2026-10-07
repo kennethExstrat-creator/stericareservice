@@ -97,7 +97,7 @@ function TemplateGroupCard({ group }: { group: TemplateGroup }) {
             </TableHead>
             <TableHead scope="col" className={cn(HEAD, "xl:w-60")}>
               <span className="xl:hidden">Scope</span>
-              <span className="hidden xl:inline">Product and standard</span>
+              <span className="hidden xl:inline">Product and Standard</span>
             </TableHead>
             <TableHead scope="col" className={cn(HEAD, "hidden xl:table-cell")}>
               Client
@@ -133,7 +133,7 @@ function VersionRow({ version }: { version: TemplateVersionSummary }) {
       <TableHead scope="row" className={cn(CELL, "h-auto font-normal touch:h-auto")}>
         <Link
           href={templatePath(version.id)}
-          aria-label={`${version.code} version ${version.version}`}
+          aria-label={`${version.code} Version ${version.version}`}
           className="inline-flex items-center rounded-sm font-semibold text-brand-600 tabular-nums underline-offset-4 hover:underline focus-ring touch:min-h-11"
         >
           Version {version.version}

@@ -52,7 +52,7 @@ describe("NewTemplateDialog", () => {
   });
 
   it("asks for the base, the code, the name and where it applies, each value sent in a field of its own", () => {
-    for (const label of ["Build on", "Code", "Name", "Product type", "Standard", "Client", "Manufacturer"]) {
+    for (const label of ["Build on", "Code", "Name", "Product Type", "Standard", "Client", "Manufacturer"]) {
       expect(html).toContain(`>${label}</label>`);
     }
     for (const name of ["base", "productType", "standard", "clientId", "manufacturerId"]) {
@@ -61,6 +61,6 @@ describe("NewTemplateDialog", () => {
     // A client and a manufacturer are optional: any, to start with.
     expect(html).toContain('name="clientId" value="any"');
     expect(html).toContain('name="code"');
-    expect(html).toContain("Create and edit");
+    expect(html).toContain("Create and Edit");
   });
 });

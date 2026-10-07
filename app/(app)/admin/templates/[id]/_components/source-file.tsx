@@ -181,7 +181,7 @@ function UploadForm({ templateId, file, coverageConfirmed, bucket, accept, types
       />
       <Button type="button" variant={file ? "outline" : "default"} disabled={pending} onClick={() => inputRef.current?.click()}>
         {pending ? <Spinner aria-hidden /> : <UploadIcon aria-hidden />}
-        {pending ? "Uploading…" : file ? "Replace file" : "Upload source file"}
+        {pending ? "Uploading…" : file ? "Replace File" : "Upload Source File"}
       </Button>
       {file && coverageConfirmed && !pending && (
         <p className="basis-full text-sm text-muted-foreground">

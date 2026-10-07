@@ -63,7 +63,7 @@ export async function generateMetadata({ params }: PageProps<"/admin/templates/[
   await requireAdmin();
   const detail = await loadVersion((await params).id);
   if (!detail) notFound();
-  return { title: `${detail.code} version ${detail.version}` };
+  return { title: `${detail.code} Version ${detail.version}` };
 }
 
 /**
@@ -107,14 +107,14 @@ export default async function TemplateVersionPage({ params }: PageProps<"/admin/
         className="inline-flex w-fit items-center gap-1.5 rounded-md text-sm font-medium text-brand-600 underline-offset-4 hover:underline focus-ring touch:min-h-11 touch:text-base"
       >
         <ArrowLeftIcon aria-hidden className="size-4" />
-        All templates
+        All Templates
       </Link>
 
       <PageHeader
         eyebrow="Template"
         title={
           <>
-            {detail.code} <span className="text-muted-foreground">version {detail.version}</span>
+            {detail.code} <span className="text-muted-foreground">Version {detail.version}</span>
           </>
         }
         description={
@@ -182,7 +182,7 @@ export default async function TemplateVersionPage({ params }: PageProps<"/admin/
           />
           {/* One column beside the details on iPad, so each card keeps its own height. */}
           <div className="flex min-w-0 flex-col gap-6">
-            <Panel title="Source file" description="The original form or report this version was built from (BUILD_SPEC 4.2 rule 10).">
+            <Panel title="Source File" description="The original form or report this version was built from (BUILD_SPEC 4.2 rule 10).">
               <SourceFile
                 templateId={detail.id}
                 file={source ? sourceView(source) : null}
@@ -213,7 +213,7 @@ export default async function TemplateVersionPage({ params }: PageProps<"/admin/
               </p>
             )}
           </Panel>
-          <Panel id="coverage" title="Coverage checklist">
+          <Panel id="coverage" title="Coverage Checklist">
             <CoverageChecklist
               templateId={detail.id}
               seen={detail.updatedAt}
