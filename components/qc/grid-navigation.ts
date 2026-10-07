@@ -119,6 +119,32 @@ export function overflowNotStored(
   });
 }
 
+/**
+ * The last paste's overflow as the grid shows it: the values past its last
+ * row or column, the cell the paste started in (Dismiss goes back there), and
+ * the values nobody stored, judged as the paste lands (null until then).
+ */
+export type PasteOverflow = {
+  readonly cells: readonly OverflowCell[];
+  readonly from: CellPosition;
+  readonly notStored: readonly OverflowCell[] | null;
+};
+
+/**
+ * Judges a paste's overflow once, against the values the module holds as
+ * the paste lands (overflowNotStored). An overflow already judged comes back
+ * as it is: readings the module kept and takes away later (force at break's
+ * Clear) were stored, and never become values the paste lost.
+ */
+export function judgeOverflow(
+  overflow: PasteOverflow,
+  measures: readonly { key: string }[],
+  values: MeasurementValues,
+): PasteOverflow {
+  if (overflow.notStored !== null) return overflow;
+  return { ...overflow, notStored: overflowNotStored(overflow.cells, measures, values) };
+}
+
 /** Values per measure key, one per row; null where nothing is entered. */
 export type MeasurementValues = Readonly<Record<string, readonly (number | null)[]>>;
 

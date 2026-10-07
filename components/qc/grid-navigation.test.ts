@@ -3,6 +3,7 @@ import {
   applyPaste,
   caretOf,
   cellKey,
+  judgeOverflow,
   labelColumnWidth,
   overflowNotStored,
   pasteOverflow,
@@ -144,6 +145,42 @@ describe("pasteOverflow and overflowNotStored", () => {
     const kept = { values: [6.5, 6.6, 6.7, 6.8, 6.9, 7.1, null] };
     // 7.1 is held as reading No. 6; the 9 from a second column and the text were stored nowhere.
     expect(overflowNotStored(pasteOverflow(plan), one, kept).map((cell) => cell.raw)).toEqual(["9", "abc"]);
+  });
+});
+
+describe("judgeOverflow", () => {
+  const one = [{ key: "values" }];
+  const grid = { rows: 5, cols: 1 };
+  const pasted = (text: string) => {
+    const plan = planPaste(text, { row: 0, col: 0 }, grid);
+    if (!plan) throw new Error("expected a multi-value paste");
+    return { cells: pasteOverflow(plan), from: { row: 0, col: 0 }, notStored: null };
+  };
+
+  it("judges a paste against the values the module holds as it lands", () => {
+    const overflow = pasted("6.5\n6.6\n6.7\n6.8\n6.9\n7.4\n7.5\nabc");
+    const judged = judgeOverflow(overflow, one, { values: [6.5, 6.6, 6.7, 6.8, 6.9, 7.4, 7.5] });
+    // Force at break kept 7.4 and 7.5 as readings No. 6 and 7: only the text was stored nowhere.
+    expect(judged.notStored?.map((cell) => cell.raw)).toEqual(["abc"]);
+    expect(judged.cells).toBe(overflow.cells);
+    expect(judged.from).toBe(overflow.from);
+  });
+
+  it("keeps its judgement when the module later takes the kept values away (force at break's Clear)", () => {
+    const judged = judgeOverflow(pasted("6.5\n6.6\n6.7\n6.8\n6.9\n7.4\n7.5"), one, {
+      values: [6.5, 6.6, 6.7, 6.8, 6.9, 7.4, 7.5],
+    });
+    expect(judged.notStored).toEqual([]);
+    // Cleared: the values shrink back to the grid's rows. They were stored, so nothing is listed as lost.
+    const cleared = { values: [6.5, 6.6, 6.7, 6.8, 6.9] };
+    expect(overflowNotStored(judged.cells, one, cleared)).toHaveLength(2);
+    expect(judgeOverflow(judged, one, cleared)).toBe(judged);
+  });
+
+  it("keeps its judgement of values nobody stored, whatever the module holds later", () => {
+    const judged = judgeOverflow(pasted("6.5\n6.6\n6.7\n6.8\n6.9\n7.4"), one, { values: [6.5, 6.6, 6.7, 6.8, 6.9] });
+    expect(judged.notStored?.map((cell) => cell.raw)).toEqual(["7.4"]);
+    expect(judgeOverflow(judged, one, { values: [6.5, 6.6, 6.7, 6.8, 6.9, 7.4] })).toBe(judged);
   });
 });
 

@@ -8,8 +8,9 @@
 // A paste longer than the grid says on screen, under it, which values did not
 // fit and were not stored, unless the module kept them past its last row
 // (`values` holds them there: force at break's readings past the gloves
-// tested, which it reports itself). The keyboard and paste rules are pure
-// functions in grid-navigation.ts.
+// tested, which it reports itself). That is judged once, as the paste lands,
+// so the module clearing them later never lists them as lost. The keyboard
+// and paste rules are pure functions in grid-navigation.ts.
 // While the grid fits its width it leaves sideways moves to the page, so a
 // swipe on it turns SizeTabs' size; a grid that has to scroll sideways keeps them.
 // The footer shows calc's figures when the module passes them (a measure's
@@ -23,8 +24,8 @@ import {
   applyPaste,
   caretOf,
   cellKey,
+  judgeOverflow,
   labelColumnWidth,
-  overflowNotStored,
   pasteOverflow,
   planPaste,
   targetCell,
@@ -33,7 +34,7 @@ import {
   type MeasurementCell,
   type MeasurementChange,
   type MeasurementValues,
-  type OverflowCell,
+  type PasteOverflow,
 } from "./grid-navigation";
 import { issuePathProps, type IssuePath } from "./issue-path";
 import { NumericCell, type InvalidEntry } from "./numeric-cell";
@@ -156,7 +157,7 @@ export function MeasurementGrid({
   const [invalid, setInvalid] = useState<InvalidCells>({});
   const [notice, announce] = useAnnouncement();
   // The last paste's values past the last row or column, and the cell it started in (Dismiss goes back there).
-  const [overflow, setOverflow] = useState<{ cells: readonly OverflowCell[]; from: CellPosition } | null>(null);
+  const [overflow, setOverflow] = useState<PasteOverflow | null>(null);
   const inputs = useRef(new Map<string, HTMLInputElement>());
   const size = { rows, cols: measures.length };
 
@@ -228,12 +229,18 @@ export function MeasurementGrid({
     announce(result.notice);
     // On screen too, until dismissed or the next paste: a paste that fit takes an earlier notice away.
     const cells = pasteOverflow(plan);
-    setOverflow(cells.length > 0 ? { cells, from: { row, col } } : null);
+    setOverflow(cells.length > 0 ? { cells, from: { row, col }, notStored: null } : null);
     return true;
   };
 
-  // Judged against the values the module holds now: what it kept past the last row is its own to report.
-  const notStored = overflow ? overflowNotStored(overflow.cells, measures, values) : [];
+  // Judged once, in the first render after the paste: the module stores the
+  // paste in the same event (onCellsChange through `update`), so `values`
+  // holds by now what it kept past the last row, which is its own to report.
+  // Frozen from then on: taking those away later (force at break's Clear)
+  // never lists them as lost.
+  const judged = overflow && judgeOverflow(overflow, measures, values);
+  if (judged !== overflow) setOverflow(judged);
+  const notStored = judged?.notStored ?? [];
 
   const footers = measures.map((measure): Footer => {
     if (measure.summary) {
@@ -416,12 +423,12 @@ export function MeasurementGrid({
           ))}
         </ul>
       )}
-      {overflow && notStored.length > 0 && (
+      {judged && notStored.length > 0 && (
         <PasteNotice
           variant="strip"
           leftOut={{ pastEnd: notStored.map((cell) => cell.raw), otherColumns: 0 }}
           onDismiss={() => {
-            focusCell(overflow.from);
+            focusCell(judged.from);
             setOverflow(null);
           }}
         />
