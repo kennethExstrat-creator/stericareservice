@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lowerCaseWords, SMALL_WORDS, staysLowerCase } from "./capitalisation";
+import { lowerCaseWords, SMALL_WORDS, staysLowerCase, UNITS } from "./capitalisation";
 import { STATUSES, STATUS_LABEL } from "./status";
 
 describe("lowerCaseWords (docs/DESIGN.md, Capitalisation)", () => {
@@ -59,6 +59,22 @@ describe("lowerCaseWords (docs/DESIGN.md, Capitalisation)", () => {
     expect([...SMALL_WORDS]).toEqual(
       "a an the and but or nor of in on at to by for per via vs as".split(" "),
     );
+  });
+
+  it.each(["Weight (g)", "Weight (g) - Average of 13 Gloves per Size", "Finger Thickness (mm)", "Gloves (pcs)", "Unit: pairs"])(
+    "leaves a unit as it is: %j",
+    (label) => {
+      expect(lowerCaseWords(label)).toEqual([]);
+    },
+  );
+
+  it("takes a word in brackets for a word, not a unit", () => {
+    expect(lowerCaseWords("Qty (cases)")).toEqual(["cases"]);
+    expect(lowerCaseWords("Weight (grams)")).toEqual(["grams"]);
+  });
+
+  it("knows the units of docs/DESIGN.md", () => {
+    expect([...UNITS]).toEqual(["mm", "g", "N", "MPa", "%", "pcs", "pairs"]);
   });
 });
 

@@ -7,9 +7,9 @@
 // or an opening bracket ("Accent: Logo Teal (The Brand, Never a Result)"),
 // and each part of a hyphenated word ("Sign-In Emails"). A small word may
 // still start with a capital in the middle ("Sign In Again": the "In"
-// belongs to the verb), so only the other words are checked there. For
-// labels the app writes itself: units, codes and names keep their own case
-// (px, brand-500, iPad) and are not for this check.
+// belongs to the verb), so only the other words are checked there. Units keep
+// their own case wherever they stand ("Weight (g)", UNITS). Codes and names
+// keep theirs too (px, brand-500, iPad) and are not for this check.
 
 /** The words that stay lower case in the middle of a label: "Inspector in Charge", "Gloves per Case". */
 export const SMALL_WORDS: ReadonlySet<string> = new Set([
@@ -32,6 +32,14 @@ export const SMALL_WORDS: ReadonlySet<string> = new Set([
   "vs",
   "as",
 ]);
+
+/**
+ * The units a label may name, which keep their own case, in brackets or not:
+ * "Weight (g)", "Length (mm)", "Total (pcs)", "Force (N)" (docs/DESIGN.md:
+ * mm, g, N, MPa, %, pcs and pairs, as lib/schemas/common's units and a
+ * template's unit). A word in brackets is no unit: "Qty (Cases)".
+ */
+export const UNITS: ReadonlySet<string> = new Set(["mm", "g", "N", "MPa", "%", "pcs", "pairs"]);
 
 /**
  * True when the word at `index` of a label's `count` words stays lower case:
@@ -57,14 +65,14 @@ const OPENS = /^[(\[{“‘"']/u;
  * is in Title Case. "Product name (optional)" gives ["name", "optional"],
  * "Sign-in emails" gives ["in", "emails"], "Used in" gives ["in"]. Marks such
  * as "+", "−" or "·" count as words for where a word stands ("Tap + and −"
- * ends on "−"), but have no case of their own.
+ * ends on "−"), but have no case of their own; nor have units ("Weight (g)").
  */
 export function lowerCaseWords(label: string): string[] {
   const tokens = label.split(/\s+/).filter(Boolean);
   const first = tokens.findIndex((token) => bare(token) !== "");
   const last = tokens.length - 1;
   return tokens.flatMap((token, index) => {
-    if (bare(token) === "") return [];
+    if (bare(token) === "" || UNITS.has(bare(token))) return [];
     const [head, ...rest] = token.split("-").map(bare);
     const wrong = rest.filter(startsLowerCase);
     const opens = index === first || index === last || OPENS.test(token) || (tokens[index - 1] ?? "").endsWith(":");
