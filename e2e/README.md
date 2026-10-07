@@ -107,6 +107,12 @@ ACCEPTANCE=1 PLAYWRIGHT_BASE_URL=http://localhost:3900 npx playwright test e2e/a
 A test that pins a finding is marked `test.fail()` with what was found. Once the finding is fixed
 the test turns red; take the marker off then.
 
+The UX audit records rather than fails. With `UX_AUDIT_STRICT=1` it also fails on page overflow,
+small touch targets and field text, serious axe violations and console errors (less what the final
+audit judged acceptable, `ACCEPTED` in the spec), on a step that could not run, and on its findings
+UX-01 to UX-14 coming back. A failed test restarts the worker and with it the fixture: add
+`UX_AUDIT_KEEP=1` so the restart reuses the rows, then delete them with `UX_AUDIT_CLEANUP=1`.
+
 An account named in a deletion record can never be deleted, because the audit log is append-only.
 A throwaway account that deletes an inspection therefore stays behind, deactivated: let
 `inspector@test.local` or the secret key delete the rows instead.

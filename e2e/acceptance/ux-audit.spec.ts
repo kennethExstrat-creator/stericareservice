@@ -20,7 +20,9 @@ import { addSession, open, signInOnce } from "./ux/session";
  *
  * It records rather than fails: the run is the evidence for the audit. Set
  * UX_AUDIT_STRICT=1 to fail on page overflow, small touch targets, small
- * field text, serious axe violations and console errors.
+ * field text, serious axe violations and console errors (less what the final
+ * audit judged acceptable, ACCEPTED below), on a step that could not run,
+ * and on the final audit's findings UX-01 to UX-14 coming back.
  *
  *   PLAYWRIGHT_BASE_URL=http://localhost:3900 npx playwright test e2e/acceptance/ux-audit.spec.ts --project=desktop
  *   node e2e/acceptance/ux/report.mts desktop          # what broke a rule, screen by screen
@@ -92,16 +94,88 @@ test.afterAll(async ({}, testInfo) => {
  * Helpers
  * ------------------------------------------------------------------ */
 
+type ScreenRecord = Awaited<ReturnType<Auditor["screen"]>>;
+type AxeNode = ScreenRecord["axe"][number]["nodes"][number];
+
+/** Lower case, one space: names compared as a speech user says them. */
+function spoken(text: string | null): string {
+  return (text ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+/** What the final audit judged acceptable (its verdicts of 7 October 2026), left out of the strict rules. */
+const ACCEPTED = {
+  /**
+   * DESIGN.md (Do/Don't, UX-10): a control's accessible name starts with the
+   * words it shows, so a speech user can say what they see (WCAG 2.5.3). axe's
+   * label-content-name-mismatch also wants the rest of what it shows in the
+   * name: the email under the account menu's name ("Test Admin, account
+   * menu"), a module's key and tags in the template editor ("Visual
+   * Inspection, edit"), a Pending row's status and sizes. UX-10's verdict: a
+   * best-practice cleanup only. A name in other words still fails.
+   */
+  axeNode: (rule: string, node: AxeNode) =>
+    rule === "label-content-name-mismatch" && spoken(node.shows) !== "" && spoken(node.label).startsWith(spoken(node.shows)),
+  /** A stepper's value sits between its 44 px − and + as a keyboard stop; the buttons are the touch targets. */
+  smallTarget: (target: ScreenRecord["layout"]["smallTargets"][number]) =>
+    target.role === "spinbutton" && target.path.includes("[data-slot=stepper]"),
+  /** A screen meant to be missing answers 404, which the browser logs. */
+  console: (record: ScreenRecord, line: string) => record.screen.includes("not-found") && /status of 404/.test(line),
+};
+
+/** The capture screen's own address (not its photos or review). */
+function isCaptureScreen(record: ScreenRecord): boolean {
+  return /^\/inspections\/[0-9a-f-]{36}(\?|$)/.test(record.url);
+}
+
 /** In strict mode the hard rules fail the test; otherwise the records are the result. */
-function checkStrict(record: Awaited<ReturnType<Auditor["screen"]>>) {
+function checkStrict(record: ScreenRecord) {
   if (!STRICT) return;
+  // UX-01: the page never scrolls sideways.
   expect.soft(record.layout.pageOverflowX, `${record.screen}: the page scrolls sideways`).toBeLessThanOrEqual(0);
-  expect.soft(record.layout.smallTargets.filter((target) => !target.inline), `${record.screen}: touch targets under 44 px`).toEqual([]);
-  expect.soft(record.layout.smallFieldText, `${record.screen}: field text under 16 px`).toEqual([]);
+  // UX-07: 44 px hit areas, counting the border.
   expect
-    .soft(record.axe.filter((violation) => violation.impact === "serious" || violation.impact === "critical"), `${record.screen}: axe`)
+    .soft(
+      record.layout.smallTargets.filter((target) => !target.inline && !ACCEPTED.smallTarget(target)),
+      `${record.screen}: touch targets under 44 px`,
+    )
     .toEqual([]);
-  expect.soft(record.console.filter((line) => /^(error|pageerror)/.test(line)), `${record.screen}: console`).toEqual([]);
+  expect.soft(record.layout.smallFieldText, `${record.screen}: field text under 16 px`).toEqual([]);
+  // UX-03 (radios without a name: button-name) and UX-10 (label-content-name-mismatch) among them.
+  const axe = record.axe
+    .filter((violation) => violation.impact === "serious" || violation.impact === "critical")
+    .map((violation) => ({ ...violation, nodes: violation.nodes.filter((node) => !ACCEPTED.axeNode(violation.id, node)) }))
+    .filter((violation) => violation.nodes.length > 0);
+  expect.soft(axe, `${record.screen}: axe`).toEqual([]);
+  // UX-13: no heading level skipped (a best-practice rule axe rates moderate).
+  expect.soft(record.axe.filter((violation) => violation.id === "heading-order"), `${record.screen}: heading levels`).toEqual([]);
+  expect
+    .soft(
+      record.console.filter((line) => /^(error|pageerror)/.test(line) && !ACCEPTED.console(record, line)),
+      `${record.screen}: console`,
+    )
+    .toEqual([]);
+  // UX-02: going back up with Shift+Tab, no control lands under a sticky bar. A focusable panel taller
+  // than half the screen (a tab panel, the list's table) cannot come into view whole: the walk samples
+  // only its top edge, so it is left out.
+  expect
+    .soft(
+      record.focusBack.filter((stop) => stop.obscuredBy && stop.rect.height <= record.layout.viewport.height / 2),
+      `${record.screen}: focus under a sticky bar going back up`,
+    )
+    .toEqual([]);
+  if (isCaptureScreen(record) && !record.touch) {
+    // UX-11: a section title the desktop sidebar cuts short can still be read, in full, on hover.
+    expect
+      .soft(
+        record.layout.clipped.filter((text) => !text.title && /progress-tracker|^li > button/.test(text.path)),
+        `${record.screen}: sidebar titles cut with no way to read them`,
+      )
+      .toEqual([]);
+  }
+  if (record.screen.endsWith("dispensing_safedon")) {
+    // UX-12: the defect labels keep their column however many boxes sit beside them.
+    expect.soft(record.layout.squeezed, `${record.screen}: text squeezed into a narrow column`).toEqual([]);
+  }
 }
 
 async function audit(auditor: Auditor, name: string, options: ScreenOptions = {}) {
@@ -110,7 +184,10 @@ async function audit(auditor: Auditor, name: string, options: ScreenOptions = {}
   return record;
 }
 
-/** Runs a step; a failure is recorded as a note and the walk goes on to the next screen. */
+/**
+ * Runs a step; a failure is recorded as a note and the walk goes on to the
+ * next screen. In strict mode it also fails the test: a screen went unaudited.
+ */
 async function step(auditor: Auditor, name: string, body: () => Promise<void>) {
   try {
     await body();
@@ -118,19 +195,54 @@ async function step(auditor: Auditor, name: string, body: () => Promise<void>) {
     const message = String(error).split("\n").slice(0, 6).join(" ");
     await auditor.screen(`step-failed-${name}`, { axe: false, shot: "viewport", notes: [message] }).catch(() => undefined);
     test.info().annotations.push({ type: "step failed", description: `${name}: ${message}` });
+    if (STRICT) {
+      expect
+        .soft(() => {
+          throw error;
+        }, `step ${name} could not run`)
+        .not.toThrow();
+    }
   }
 }
 
+/** Signed in for each test: one sign-in per account and worker, renewed only when its token runs low (ux/session.ts). */
 function useAccount(email: () => string, password?: () => string) {
-  let cookies: Awaited<ReturnType<typeof signInOnce>> = [];
-  test.beforeAll(async () => {
-    if (CLEANUP_ONLY) return;
-    cookies = await signInOnce(email(), password?.());
-  });
   test.beforeEach(async ({ context, baseURL }) => {
     if (CLEANUP_ONLY) return;
-    await addSession(context, baseURL!, cookies);
+    await addSession(context, baseURL!, await signInOnce(email(), password?.()));
   });
+}
+
+/**
+ * Typed text that a reload must bring back (Kenneth: nothing typed is ever
+ * lost): a tab's draft comes back after hydration, so it gets a moment.
+ */
+async function valueAfterReload(field: Locator, typed: string): Promise<string> {
+  await expect(field).toHaveValue(typed, { timeout: 10_000 }).catch(() => undefined);
+  return (await field.count()) > 0 ? field.inputValue() : "";
+}
+
+/** UX-04 and UX-08 in strict mode: what was typed before the reload is back. */
+function checkKept(kept: string, typed: string, what: string) {
+  if (STRICT) expect.soft(kept, `${what} survives a reload`).toBe(typed);
+}
+
+/** UX-09 in strict mode: Ref, Status and Result lead the list, in view before any sideways scroll. */
+async function checkListColumns(page: Page) {
+  if (!STRICT) return;
+  const columns = await page.evaluate(() => {
+    const box = document.querySelector<HTMLElement>("[data-slot=table-scroller]")?.getBoundingClientRect();
+    return [...document.querySelectorAll("thead th")].slice(0, 3).map((th) => {
+      const rect = th.getBoundingClientRect();
+      return { name: (th.textContent ?? "").trim(), inView: !!box && rect.left >= box.left - 1 && rect.right <= box.right + 1 };
+    });
+  });
+  expect.soft(columns, "the list's first columns").toEqual(["Ref", "Status", "Result"].map((name) => ({ name, inView: true })));
+}
+
+/** UX-05 in strict mode: a read-only capture screen has no Pending list. */
+async function checkNoPending(page: Page) {
+  if (STRICT) await expect.soft(page.locator("[data-action=issues]"), "Pending on a read-only screen").toHaveCount(0);
 }
 
 /** The visible one of a pair (the iPad header's and the desktop sidebar's). */
@@ -307,6 +419,7 @@ test.describe("inspector", () => {
   test("the inspections list: rows, filters, search, sideways scroll, delete", async ({ page }) => {
     const auditor = new Auditor(page, "inspector");
     await open(page, "/inspections");
+    await checkListColumns(page);
     await audit(auditor, "list", { tabs: 40, notes: await listFacts(page) });
 
     await step(auditor, "list-row-without-po", async () => {
@@ -437,16 +550,21 @@ test.describe("inspector", () => {
       await audit(auditor, "new-inspection-picked", { tabs: 40 });
     });
     await step(auditor, "new-inspection-reload", async () => {
-      // Kenneth: nothing typed is ever lost on a reload.
+      // Kenneth: nothing typed is ever lost on a reload. The form keeps its choices and the name in the tab (UX-04).
       const name = "Nitrile gloves typed before a reload (UX audit)";
       await page.locator("input[name=productName]").fill(name);
       await page.reload();
       await page.waitForLoadState("networkidle").catch(() => undefined);
-      const kept = await page.locator("input[name=productName]").inputValue();
+      const kept = await valueAfterReload(page.locator("input[name=productName]"), name);
       await audit(auditor, "new-inspection-after-reload", {
         axe: false,
         notes: [`typed product name after a reload: ${kept === name ? "kept" : `lost (field holds "${kept}")`}`],
       });
+      checkKept(kept, name, "UX-04: the typed product name");
+      if (STRICT) {
+        await expect.soft(page.getByRole("combobox", { name: "Client" }), "UX-04: the client after a reload").toContainText("Polyco");
+        await expect.soft(page.getByRole("combobox", { name: "Manufacturer" }), "UX-04: the manufacturer after a reload").toContainText("Hartalega");
+      }
     });
     await step(auditor, "new-inspection-empty-submit", async () => {
       // The form keeps what was chosen in the tab until Create or Cancel (UX-04): drop the
@@ -606,6 +724,7 @@ test.describe("inspector", () => {
     await open(page, `/inspections/${id}`);
     await captureReady(page);
     await audit(auditor, "capture-submitted-read-only", { tabs: 30, notes: await captureFacts(page) });
+    await checkNoPending(page);
     await openSection(page, "dimensions");
     await audit(auditor, "capture-submitted-read-only-dimensions");
   });
@@ -687,6 +806,7 @@ test.describe("lead inspector", () => {
   test("team list, a team member's review and capture", async ({ page }) => {
     const auditor = new Auditor(page, "lead");
     await open(page, "/inspections");
+    await checkListColumns(page);
     await audit(auditor, "list-team", { tabs: 30, notes: await listFacts(page) });
     const { id } = fixture.inspections.memberSubmitted;
     await open(page, `/inspections/${id}/review`);
@@ -694,6 +814,13 @@ test.describe("lead inspector", () => {
     await open(page, `/inspections/${id}`);
     await captureReady(page);
     await audit(auditor, "capture-team-member-read-only", { tabs: 20, notes: await captureFacts(page) });
+    await checkNoPending(page);
+    if (STRICT) {
+      // UX-06: whose inspection it is, never "an admin can send it back to you".
+      await expect
+        .soft(page.locator('[data-notice="submitted"]'), "UX-06: the lead's notice")
+        .toContainText(`Submitted for review by ${fixture.member.name}: read-only.`);
+    }
     await open(page, `/inspections/${id}/photos`);
     await audit(auditor, "photos-team-member");
   });
@@ -709,6 +836,7 @@ test.describe("admin", () => {
   test("list, overview, new inspection", async ({ page }) => {
     const auditor = new Auditor(page, "admin");
     await open(page, "/inspections");
+    await checkListColumns(page);
     await audit(auditor, "list-all", { tabs: 40, notes: await listFacts(page) });
     await step(auditor, "list-all-scrolled", async () => {
       const scroller = page.locator("[data-slot=table-scroller]").first();
@@ -914,12 +1042,14 @@ test.describe("admin", () => {
       await captureReady(page);
       await press(page, page.getByRole("button", { name: /Switch off/ }).first());
       await expect(page.getByRole("dialog").or(page.getByRole("alertdialog"))).toBeVisible();
-      const kept = await page.getByLabel("Reason").inputValue();
+      const kept = await valueAfterReload(page.getByLabel("Reason"), reason);
       await audit(auditor, "capture-admin-switch-off-after-reload", {
         shot: false,
         axe: false,
         notes: [`typed switch-off reason after a reload: ${kept === reason ? "kept" : `lost (field holds "${kept}")`}`],
       });
+      checkKept(kept, reason, "UX-08: the typed switch-off reason");
+      // Cancelled: nothing is sent, and the kept reason goes.
       await closeOverlay(page);
     });
   });
@@ -949,39 +1079,63 @@ test.describe("admin", () => {
       await page.waitForLoadState("networkidle").catch(() => undefined);
       await press(page, page.getByRole("button", { name: "Reopen" }).first());
       await expect(page.getByRole("alertdialog")).toBeVisible();
-      const kept = await page.getByLabel("What should the inspector change?").inputValue();
+      const kept = await valueAfterReload(page.getByLabel("What should the inspector change?"), reason);
       await audit(auditor, "review-reopen-after-reload", {
         shot: "viewport",
         axe: false,
         notes: [`typed reason after a reload: ${kept === reason ? "kept" : `lost (field holds "${kept}")`}`],
       });
+      checkKept(kept, reason, "UX-08: the typed reason for reopening");
       await closeOverlay(page);
     });
     await step(auditor, "review-ai-opinion", async () => {
-      const request = page.getByRole("button", { name: /Request AI second opinion|Ask again|Request again/ }).first();
+      // "Request a new second opinion" once one exists (a kept set from an earlier run).
+      const request = page.getByRole("button", { name: /^Request (AI|a new) second opinion/ }).first();
       await press(page, request);
-      // The mock answers within seconds; the panel polls.
-      await expect(page.getByText(/finding|Finding/).first()).toBeVisible({ timeout: 90_000 });
+      // The mock answers within seconds; the panel polls until the comparison shows (its description
+      // says "for each finding" from the start, so text alone does not tell the opinion is there).
+      await expect(page.getByTestId("ai-comparison")).toBeVisible({ timeout: 90_000 });
+      await expect(page.locator("[data-sonner-toast]")).toHaveCount(0, { timeout: 15_000 }).catch(() => undefined);
       await page.waitForLoadState("networkidle").catch(() => undefined);
-      await audit(auditor, "review-with-ai-opinion", { tabs: 60, maxParts: 12 });
+      // UX-14: a long evidence value (a quoted warning) reads on a line of its own, left aligned.
+      const values = await page.locator("article[data-finding] dl > div").evaluateAll((rows) =>
+        rows.map((row) => {
+          const value = row.querySelector("dd");
+          return {
+            text: (value?.textContent ?? "").trim(),
+            layout: row.getAttribute("data-layout"),
+            align: value ? getComputedStyle(value).textAlign : "",
+          };
+        }),
+      );
+      const long = values.filter((value) => value.text.length > 24);
+      const apart = long.filter((value) => value.layout === "block" && ["left", "start"].includes(value.align));
+      await audit(auditor, "review-with-ai-opinion", {
+        tabs: 60,
+        maxParts: 12,
+        notes: [`evidence values: ${values.length}; long ones on a line of their own, left aligned: ${apart.length} of ${long.length}`],
+      });
+      if (STRICT) expect.soft(long.filter((value) => !apart.includes(value)), "UX-14: long evidence values").toEqual([]);
     });
     await step(auditor, "review-ai-disagree", async () => {
       const disagree = page.getByRole("button", { name: /^Disagree/ }).or(page.getByRole("radio", { name: /^Disagree/ })).first();
       await press(page, disagree);
       await settle(page);
       await audit(auditor, "review-ai-disagree-note", { maxParts: 12 });
-      // The admin's note, typed, then the page reloaded.
+      // The admin's note, typed, then the page reloaded: the choice and the note come back (UX-08).
       const note = "The sample plan follows the client's own level (UX audit).";
       await page.getByLabel("Why do you disagree?").first().fill(note);
       await page.reload();
       await page.waitForLoadState("networkidle").catch(() => undefined);
       const field = page.getByLabel("Why do you disagree?").first();
-      const kept = (await field.count()) ? await field.inputValue() : "(no note field: the choice is gone too)";
+      const typed = await valueAfterReload(field, note);
+      const kept = (await field.count()) ? typed : "(no note field: the choice is gone too)";
       await audit(auditor, "review-ai-note-after-reload", {
         shot: false,
         axe: false,
         notes: [`typed disagree note after a reload: ${kept === note ? "kept" : `lost (${kept || "empty"})`}`],
       });
+      checkKept(kept, note, "UX-08: the choice to disagree and its note");
     });
     await step(auditor, "review-approved", async () => {
       await open(page, `/inspections/${id}/review`);
@@ -995,6 +1149,7 @@ test.describe("admin", () => {
       await open(page, `/inspections/${id}`);
       await captureReady(page);
       await audit(auditor, "capture-approved-read-only");
+      await checkNoPending(page);
     });
   });
 });
