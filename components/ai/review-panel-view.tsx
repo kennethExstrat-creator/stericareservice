@@ -72,7 +72,7 @@ export function AiReviewPanelView({ model, className }: { model: AiPanelModel; c
               .join(" · ")}
           </FocusTarget>
           {!current.isCurrentVersion && (
-            <Notice tone="warn" title="The inspection has changed since this opinion">
+            <Notice tone="warn" title="The Inspection Has Changed Since This Opinion">
               {current.comparedBy === "content"
                 ? "What it reviewed has changed: the entries, the modules switched off, or the lab reports and certificates."
                 : `It was saved again at ${model.inspection.savedAt} (an edit, a status change or a report link all count).`}
@@ -80,7 +80,7 @@ export function AiReviewPanelView({ model, className }: { model: AiPanelModel; c
             </Notice>
           )}
           {!current.readable && (
-            <Notice tone="warn" title="Some of this opinion could not be read">
+            <Notice tone="warn" title="Some of This Opinion Could Not Be Read">
               Its stored findings or questions no longer match the expected shape.
             </Notice>
           )}
@@ -167,7 +167,7 @@ function AttemptNotice({ attempt, current }: { attempt: ReviewModel; current: Re
       className={cn(NOTICE_BOX, NOTICE_TONE[failed ? "fail" : "warn"])}
       data-testid="ai-review-attempt"
     >
-      <NoticeText tone={failed ? "fail" : "warn"} title={failed ? "The last request failed" : "The last request stopped"}>
+      <NoticeText tone={failed ? "fail" : "warn"} title={failed ? "The Last Request Failed" : "The Last Request Stopped"}>
         {attempt.problem}
         {earlier}
       </NoticeText>

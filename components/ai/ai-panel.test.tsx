@@ -217,7 +217,7 @@ describe("AiReviewPanelView for an admin", () => {
     const content = text(render());
     expect(content).toContain("Request a New Second Opinion");
     expect(content).toContain("Test Data Only");
-    expect(content).toContain("The last request failed The webhook did not answer in time.");
+    expect(content).toContain("The Last Request Failed The webhook did not answer in time.");
     expect(content).toContain("Earlier Second Opinions (2)");
     expect(content).toContain("Stopped without an answer: the server stopped before the reviewer replied.");
     expect(content).toContain("reviewed the version saved 5 Oct 2026, 17:30 (current)");
@@ -354,19 +354,36 @@ describe("AiReviewPanelView states", () => {
 
   it("warns when the inspection was saved after an opinion stored without a fingerprint", () => {
     const content = text(render({ record: { ...record, updatedAt: "2026-10-06T01:45:00.000001+00:00" } }));
-    expect(content).toContain("The inspection has changed since this opinion");
+    expect(content).toContain("The Inspection Has Changed Since This Opinion");
     expect(content).toContain("It was saved again at 6 Oct 2026, 09:45");
   });
 
   it("warns when what the opinion reviewed has changed, and not for a save that changed nothing it reviewed", () => {
     const reviews = [storedReview({ inspectionFingerprint: inspectionFingerprint(record) })];
     const approved = text(render({ reviews, record: { ...record, status: "approved", updatedAt: "2026-10-06T01:45:00.000001+00:00" } }));
-    expect(approved).not.toContain("The inspection has changed since this opinion");
+    expect(approved).not.toContain("The Inspection Has Changed Since This Opinion");
     expect(approved).toContain("(current)");
 
     const edited = text(render({ reviews, record: { ...record, remarks: "Spec sheet received." } }));
-    expect(edited).toContain("The inspection has changed since this opinion");
+    expect(edited).toContain("The Inspection Has Changed Since This Opinion");
     expect(edited).toContain("What it reviewed has changed: the entries, the modules switched off, or the lab reports and certificates.");
     expect(edited).toContain("Request a new second opinion to review the current version.");
+  });
+
+  it("says when the last request stopped, and when some of the opinion could not be read", () => {
+    // Pending for an hour: past the wait for an answer, so it reads as stopped.
+    const stopped = storedReview({
+      id: REVIEW_IDS.stale,
+      status: "pending",
+      summary: null,
+      suggestedResult: null,
+      confidence: null,
+      findings: [],
+      questions: [],
+      createdAt: new Date(NOW - 60 * 60_000).toISOString(),
+    });
+    const content = text(render({ reviews: [stopped, storedReview({ readable: false })] }));
+    expect(content).toContain("The Last Request Stopped Stopped without an answer: the server stopped before the reviewer replied.");
+    expect(content).toContain("Some of This Opinion Could Not Be Read Its stored findings or questions no longer match the expected shape.");
   });
 });

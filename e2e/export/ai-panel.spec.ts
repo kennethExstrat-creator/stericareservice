@@ -426,7 +426,7 @@ test("the AI report hand-off: sends to the report service, or offers the JSON wh
   await openPanel(page);
   await expect(report.getByRole("link", { name: /Open the Report/ })).toBeVisible();
   const byContent = (await storedReviews()).every((review) => typeof review.inspection_fingerprint === "string");
-  const changed = panel(page).getByText("The inspection has changed since this opinion");
+  const changed = panel(page).getByText("The Inspection Has Changed Since This Opinion");
   if (byContent) {
     await expect(changed).toHaveCount(0);
     await expect(panel(page).getByTestId("ai-review-meta")).toContainText("(current)");
