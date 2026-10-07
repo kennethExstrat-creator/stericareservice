@@ -150,16 +150,29 @@ test("an admin requests a second opinion and compares it with the system and the
   await expectNoPageScroll(page);
   await shot(page, "admin-review");
 
-  // Stored as the mock wrote it, for this version of the inspection.
+  // Stored as the mock wrote it, for this version of the inspection: its save, and its
+  // content once the database has the fingerprint column (migration 20261007113245).
   const admin = createTestAdminClient();
-  const { data: reviews } = await admin
-    .from("ai_reviews")
-    .select("status, model, inspection_updated_at")
-    .eq("inspection_id", fixture.inspectionId);
+  const reviews = await storedReviews();
   const { data: inspection } = await admin.from("inspections").select("updated_at").eq("id", fixture.inspectionId).single();
-  expect(reviews).toEqual([{ status: "done", model: "mock", inspection_updated_at: inspection?.updated_at }]);
+  expect(reviews.map(({ status, model, inspection_updated_at }) => ({ status, model, inspection_updated_at }))).toEqual([
+    { status: "done", model: "mock", inspection_updated_at: inspection?.updated_at },
+  ]);
+  const fingerprint = reviews[0].inspection_fingerprint;
+  if (fingerprint !== undefined) expect(fingerprint).toMatch(/^[0-9a-f]{64}$/);
   expect(hydration()).toEqual([]);
 });
+
+/** The fixture's AI reviews, every column: `inspection_fingerprint` is undefined while the database has no such column. */
+async function storedReviews() {
+  const { data, error } = await createTestAdminClient()
+    .from("ai_reviews")
+    .select("*")
+    .eq("inspection_id", fixture.inspectionId)
+    .order("created_at");
+  if (error) throw new Error(`Reading the AI reviews failed: ${error.message}`);
+  return data as (Omit<(typeof data)[number], "inspection_fingerprint"> & { inspection_fingerprint?: string | null })[];
+}
 
 test("the admin records agree, disagree with a note, and fixed", async ({ page, context, baseURL }) => {
   const hydration = watchConsole(page);
@@ -394,8 +407,20 @@ test("the AI report hand-off: sends to the report service, or offers the JSON wh
   const open = report.getByRole("link", { name: /Open the report/ });
   await expect(open).toBeVisible({ timeout: 90_000 });
   await expect(open).toHaveAttribute("href", new RegExp(`mock-ai-report\\?ref=${fixture.refNo}`));
-  // Storing the link saves the inspection again, so the opinion now reads as about an earlier version.
-  await expect(panel(page).getByText("The inspection has changed since this opinion")).toBeVisible();
+
+  // Storing the link saves the inspection again. An opinion keyed to the content it reviewed
+  // (migration 20261007113245) stays current; one keyed to the save alone (a database without
+  // that migration) now reads as about an earlier version.
+  await openPanel(page);
+  await expect(report.getByRole("link", { name: /Open the report/ })).toBeVisible();
+  const byContent = (await storedReviews()).every((review) => typeof review.inspection_fingerprint === "string");
+  const changed = panel(page).getByText("The inspection has changed since this opinion");
+  if (byContent) {
+    await expect(changed).toHaveCount(0);
+    await expect(panel(page).getByTestId("ai-review-meta")).toContainText("(current)");
+  } else {
+    await expect(changed).toBeVisible();
+  }
   await shot(page, "admin-report-sent");
 
   const { data } = await createTestAdminClient().from("inspections").select("report_url").eq("id", fixture.inspectionId).single();

@@ -22,6 +22,7 @@ import {
   reviewHistory,
   storedReview,
 } from "@/lib/inspections/ai/__fixtures__/panel";
+import { inspectionFingerprint } from "@/lib/inspections/ai/fingerprint";
 import { buildAiPanelModel, type PanelModelInput } from "@/lib/inspections/ai/panel-model";
 import { Comparison } from "./comparison";
 import { FindingCard, findingKey } from "./finding";
@@ -279,9 +280,21 @@ describe("AiReviewPanelView states", () => {
     expect(content).not.toMatch(/Request (AI|a new) second opinion/);
   });
 
-  it("warns when the inspection changed after the opinion", () => {
+  it("warns when the inspection was saved after an opinion stored without a fingerprint", () => {
     const content = text(render({ record: { ...record, updatedAt: "2026-10-06T01:45:00.000001+00:00" } }));
     expect(content).toContain("The inspection has changed since this opinion");
     expect(content).toContain("It was saved again at 6 Oct 2026, 09:45");
+  });
+
+  it("warns when what the opinion reviewed has changed, and not for a save that changed nothing it reviewed", () => {
+    const reviews = [storedReview({ inspectionFingerprint: inspectionFingerprint(record) })];
+    const approved = text(render({ reviews, record: { ...record, status: "approved", updatedAt: "2026-10-06T01:45:00.000001+00:00" } }));
+    expect(approved).not.toContain("The inspection has changed since this opinion");
+    expect(approved).toContain("(current)");
+
+    const edited = text(render({ reviews, record: { ...record, remarks: "Spec sheet received." } }));
+    expect(edited).toContain("The inspection has changed since this opinion");
+    expect(edited).toContain("What it reviewed has changed: the entries, the modules switched off, or the lab reports and certificates.");
+    expect(edited).toContain("Request a new second opinion to review the current version.");
   });
 });

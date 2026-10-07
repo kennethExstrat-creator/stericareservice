@@ -66,6 +66,7 @@ export type Database = {
           created_at: string
           findings: NonNullable<Json>
           id: string
+          inspection_fingerprint: string | null
           inspection_id: string
           inspection_updated_at: string
           model: string | null
@@ -82,6 +83,7 @@ export type Database = {
           created_at?: string
           findings?: NonNullable<Json>
           id?: string
+          inspection_fingerprint?: string | null
           inspection_id: string
           inspection_updated_at: string
           model?: string | null
@@ -98,6 +100,7 @@ export type Database = {
           created_at?: string
           findings?: NonNullable<Json>
           id?: string
+          inspection_fingerprint?: string | null
           inspection_id?: string
           inspection_updated_at?: string
           model?: string | null

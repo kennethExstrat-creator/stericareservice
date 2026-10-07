@@ -3,17 +3,24 @@ import { AiFindingSchema, AiQuestionSchema, type AiFinding, type AiQuestion } fr
 import { InspectionResultSchema, type InspectionResult } from "@/lib/schemas/common";
 import type { AiReviewProvider } from "@/lib/ai/types";
 import type { Tables } from "@/lib/supabase/database.types";
+import { FINGERPRINT_PATTERN } from "./fingerprint";
 
 /* ------------------------------------------------------------------ *
  * ai_reviews rows (BUILD_SPEC 9.2): one per request, keyed to the
- * inspection version it reviewed (inspection_updated_at). Pending, then
- * done or failed. Findings and questions are stored as the reviewer
- * returned them (AiReviewSchema); a failed review keeps its reason in
- * `summary`, the only text column the table has for it.
+ * inspection version it reviewed: its content (inspection_fingerprint,
+ * fingerprint.ts) and the save it was read at (inspection_updated_at).
+ * Pending, then done or failed. Findings and questions are stored as the
+ * reviewer returned them (AiReviewSchema); a failed review keeps its
+ * reason in `summary`, the only text column the table has for it.
  * ------------------------------------------------------------------ */
 
-export const AI_REVIEW_COLUMNS =
-  "id, inspection_id, inspection_updated_at, status, model, suggested_result, confidence, summary, findings, questions, created_at, updated_at";
+/**
+ * Every column. `inspection_fingerprint` comes from migration
+ * 20261007113245: until a database has it, rows come without it, a review
+ * reads as keyed to its save only, and naming the column would fail the
+ * read (42703).
+ */
+export const AI_REVIEW_COLUMNS = "*";
 
 export type AiReviewRow = Pick<
   Tables<"ai_reviews">,
@@ -29,12 +36,15 @@ export type AiReviewRow = Pick<
   | "questions"
   | "created_at"
   | "updated_at"
->;
+> &
+  Partial<Pick<Tables<"ai_reviews">, "inspection_fingerprint">>;
 
 export type StoredAiReview = {
   id: string;
   inspectionId: string;
   inspectionUpdatedAt: string;
+  /** The content it reviewed (inspectionFingerprint); null for a review stored without one. */
+  inspectionFingerprint: string | null;
   status: "pending" | "done" | "failed";
   /** Who wrote it: a Claude model id, or "webhook" or "mock" (aiReviewSource). */
   model: string | null;
@@ -69,6 +79,10 @@ export function parseStoredReview(row: AiReviewRow): StoredAiReview {
     id: row.id,
     inspectionId: row.inspection_id,
     inspectionUpdatedAt: row.inspection_updated_at,
+    inspectionFingerprint:
+      typeof row.inspection_fingerprint === "string" && FINGERPRINT_PATTERN.test(row.inspection_fingerprint)
+        ? row.inspection_fingerprint
+        : null,
     status: row.status,
     model: row.model,
     suggestedResult: result.success ? result.data : null,
@@ -106,6 +120,23 @@ const SOURCE_LABEL: Readonly<Record<string, string>> = {
 export function aiReviewSourceLabel(model: string | null): string | null {
   if (!model) return null;
   return SOURCE_LABEL[model] ?? model;
+}
+
+/** The version of an inspection now: its content (inspectionFingerprint) and its last save. */
+export type InspectionVersion = { fingerprint: string; updatedAt: string };
+
+/**
+ * Whether a review is about the inspection as it is now: the same content,
+ * whatever was saved since (an approval, a reopen, a report link); for a
+ * review stored without a fingerprint, the same save.
+ */
+export function isSameVersion(
+  review: Pick<StoredAiReview, "inspectionFingerprint" | "inspectionUpdatedAt">,
+  version: InspectionVersion,
+): boolean {
+  return review.inspectionFingerprint !== null
+    ? review.inspectionFingerprint === version.fingerprint
+    : sameInstant(review.inspectionUpdatedAt, version.updatedAt);
 }
 
 /**

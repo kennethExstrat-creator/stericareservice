@@ -76,7 +76,9 @@ export function AiReviewPanelView({ model, className }: { model: AiPanelModel; c
           </FocusTarget>
           {!current.isCurrentVersion && (
             <Notice tone="warn" title="The inspection has changed since this opinion">
-              It was saved again at {model.inspection.savedAt} (an edit, a status change or a report link all count).
+              {current.comparedBy === "content"
+                ? "What it reviewed has changed: the entries, the modules switched off, or the lab reports and certificates."
+                : `It was saved again at ${model.inspection.savedAt} (an edit, a status change or a report link all count).`}
               {viewer.isAdmin && review.canRequest ? " Request a new second opinion to review the current version." : ""}
             </Notice>
           )}

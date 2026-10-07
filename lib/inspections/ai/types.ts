@@ -76,8 +76,15 @@ export type ReviewModel = {
   requestedAt: string;
   /** When the reviewed version of the inspection was saved. */
   version: string;
-  /** The inspection has not been saved since this version. */
+  /** It reviewed the inspection as it is now (see comparedBy). */
   isCurrentVersion: boolean;
+  /**
+   * How it is compared with the inspection now: by its content (data,
+   * modules switched off, final result and remark, template version and
+   * files), whatever was saved since; or, for a review stored without a
+   * fingerprint, by the save (any save since makes it an earlier version).
+   */
+  comparedBy: "content" | "save";
   suggestedResult: InspectionResult | null;
   /** 0 to 100. */
   confidencePct: number | null;

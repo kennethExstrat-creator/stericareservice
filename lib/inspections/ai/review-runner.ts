@@ -11,18 +11,27 @@ import {
   type ExportViewer,
 } from "@/lib/export";
 import type { InspectionExport } from "@/lib/schemas/export";
-import type { TablesUpdate } from "@/lib/supabase/database.types";
+import type { TablesInsert, TablesUpdate } from "@/lib/supabase/database.types";
 import { createAdminClient, isAdminClientConfigured } from "@/lib/supabase/admin";
 import { asJson, logInspectionEvent } from "./audit";
 import { AI_STATUSES, ALREADY_PENDING, NOT_REVIEWABLE } from "./panel-model";
-import { aiReviewSource, isStale, parseStoredReview, sameInstant, STOPPED_MESSAGE, AI_REVIEW_COLUMNS } from "./stored";
+import { inspectionFingerprint } from "./fingerprint";
+import {
+  aiReviewSource,
+  isSameVersion,
+  isStale,
+  parseStoredReview,
+  STOPPED_MESSAGE,
+  AI_REVIEW_COLUMNS,
+  type InspectionVersion,
+} from "./stored";
 
 /* ------------------------------------------------------------------ *
  * The AI second opinion (BUILD_SPEC 9.2): a pending ai_reviews row for
- * the inspection's current version, then the export goes to the
- * configured reviewer in the background (after()), and the row becomes
- * done, with the review, or failed, with the reason. The AI never
- * changes the inspection: nothing here writes to it.
+ * the inspection's current version (its content, fingerprint.ts), then
+ * the export goes to the configured reviewer in the background (after()),
+ * and the row becomes done, with the review, or failed, with the reason.
+ * The AI never changes the inspection: nothing here writes to it.
  *
  * A Claude review can take minutes (10, or 30 at xhigh and max effort),
  * so the request returns at once and the panel waits for the row. The
@@ -75,6 +84,7 @@ export async function startAiReview(input: StartAiReviewInput): Promise<StartAiR
   const { record } = loaded;
   if (viewer && !canExportInspection(viewer, record)) return { ok: false, reason: "not_found", message: "Inspection not found." };
   if (!AI_STATUSES.includes(record.status)) return { ok: false, reason: "not_reviewable", message: NOT_REVIEWABLE };
+  const version: InspectionVersion = { fingerprint: inspectionFingerprint(record), updatedAt: record.updatedAt };
 
   // One review at a time per version: a second request would be paid for twice.
   // This check answers the usual case; two requests at the same moment both
@@ -90,7 +100,7 @@ export async function startAiReview(input: StartAiReviewInput): Promise<StartAiR
         .eq("id", review.id)
         .eq("status", "pending");
       if (stopped.error) return databaseError("Could not close a review that stopped.", stopped.error);
-    } else if (sameInstant(review.inspectionUpdatedAt, record.updatedAt)) {
+    } else if (isSameVersion(review, version)) {
       return alreadyPending();
     }
   }
@@ -101,18 +111,15 @@ export async function startAiReview(input: StartAiReviewInput): Promise<StartAiR
   if (!built.ok) return { ok: false, reason: "export_failed", message: built.message };
 
   const provider = status.provider === "claude" || status.provider === "webhook" || status.provider === "mock" ? status.provider : null;
-  const inserted = await client
-    .from("ai_reviews")
-    .insert({
-      inspection_id: record.id,
-      inspection_updated_at: record.updatedAt,
-      status: "pending",
-      model: provider ? aiReviewSource(provider, status.model) : null,
-    })
-    .select("id")
-    .single();
+  const inserted = await insertPendingReview(client, {
+    inspection_id: record.id,
+    inspection_updated_at: record.updatedAt,
+    inspection_fingerprint: version.fingerprint,
+    status: "pending",
+    model: provider ? aiReviewSource(provider, status.model) : null,
+  });
   if (inserted.error) {
-    // ai_reviews_one_pending_per_version: another request for this version got in first.
+    // The one-pending-review indexes: another request for this version got in first.
     if (inserted.error.code === UNIQUE_VIOLATION) return alreadyPending();
     return databaseError("Could not save the review request.", inserted.error);
   }
@@ -232,6 +239,22 @@ function backgroundWriter(fallback: ExportClient): ExportClient {
 
 /** Postgres unique_violation. */
 const UNIQUE_VIOLATION = "23505";
+
+/** PostgREST: a column the database does not have (yet). */
+const UNKNOWN_COLUMN = "PGRST204";
+
+/**
+ * Inserts the pending row. A database without migration 20261007113245
+ * has no inspection_fingerprint column: the row then goes in without it,
+ * and the review is keyed to the inspection's save, as before.
+ */
+async function insertPendingReview(client: ExportClient, row: TablesInsert<"ai_reviews">) {
+  const inserted = await client.from("ai_reviews").insert(row).select("id").single();
+  if (inserted.error?.code !== UNKNOWN_COLUMN || row.inspection_fingerprint === undefined) return inserted;
+  const withoutFingerprint = { ...row };
+  delete withoutFingerprint.inspection_fingerprint;
+  return client.from("ai_reviews").insert(withoutFingerprint).select("id").single();
+}
 
 function alreadyPending(): StartAiReviewResult {
   return { ok: false, reason: "pending", message: `${ALREADY_PENDING} It appears here when it is ready.` };

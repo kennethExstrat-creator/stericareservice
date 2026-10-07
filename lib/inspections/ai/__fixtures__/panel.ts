@@ -101,6 +101,8 @@ export function storedReview(overrides: Partial<StoredAiReview> = {}): StoredAiR
     inspectionId: IDS.inspection,
     // The same instant as the inspection's updated_at, spelt the JavaScript way.
     inspectionUpdatedAt: "2026-10-05T09:30:00.654321Z",
+    // Stored without a fingerprint, so compared by save; pass one to compare by content.
+    inspectionFingerprint: null,
     status: "done",
     model: "mock",
     suggestedResult: "fail",
