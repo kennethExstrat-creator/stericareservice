@@ -1,19 +1,22 @@
 "use client";
 
 // The section tabs of the capture screen below 1280 px (BUILD_SPEC 8: on the
-// iPad, modules show as a top tab bar). One tab per included section with
-// its result chip, then the sections an admin switched off for this
-// inspection, marked off. The bar scrolls sideways; the page never does.
-// WAI-ARIA tabs with automatic activation: arrow keys, Home and End move
-// between tabs and open the section.
+// iPad, modules show as a top tab bar). One tab per page
+// (lib/inspections/capture/sections.ts capturePages) with its result chip:
+// a section, or a module with the modules shown on its page (packing
+// configuration on the order's tab), named by the first. Then the sections
+// an admin switched off for this inspection, marked off. The bar scrolls
+// sideways; the page never does. WAI-ARIA tabs with automatic activation:
+// arrow keys, Home and End move between tabs and open the page.
 import { useEffect, useRef, type KeyboardEvent } from "react";
 import { CircleOffIcon } from "lucide-react";
 import { ResultChip } from "@/components/qc";
-import { isIncluded, type CaptureSection } from "@/lib/inspections/capture/sections";
+import { isIncludedPage, pageSectionKeys, type CapturePage } from "@/lib/inspections/capture/sections";
 import { cn } from "@/lib/utils";
 
 type SectionTabsProps = {
-  sections: readonly CaptureSection[];
+  pages: readonly CapturePage[];
+  /** The open page's key. */
   activeKey: string;
   onSelect: (key: string) => void;
   /** The id of the section panel the tabs control. */
@@ -44,10 +47,10 @@ export function nextTabIndex(key: string, index: number, count: number): number 
   }
 }
 
-export function SectionTabs({ sections, activeKey, onSelect, panelId, idPrefix, className }: SectionTabsProps) {
-  const ordered = [...sections.filter(isIncluded), ...sections.filter((section) => !isIncluded(section))];
+export function SectionTabs({ pages, activeKey, onSelect, panelId, idPrefix, className }: SectionTabsProps) {
+  const ordered = [...pages.filter(isIncludedPage), ...pages.filter((page) => !isIncludedPage(page))];
   // A section switched off moves to the end of the bar: its tab must stay in view there too.
-  const order = ordered.map((section) => section.key).join(" ");
+  const order = ordered.map((page) => page.key).join(" ");
   const scroller = useRef<HTMLDivElement>(null);
   const tabs = useRef(new Map<string, HTMLButtonElement>());
 
@@ -73,7 +76,7 @@ export function SectionTabs({ sections, activeKey, onSelect, panelId, idPrefix, 
     if (key !== activeKey) onSelect(key);
   };
 
-  const firstExcluded = ordered.findIndex((section) => !isIncluded(section));
+  const firstExcluded = ordered.findIndex((page) => !isIncludedPage(page));
 
   return (
     <div
@@ -82,26 +85,28 @@ export function SectionTabs({ sections, activeKey, onSelect, panelId, idPrefix, 
       className={cn("relative min-w-0 flex-1 overflow-x-auto [scrollbar-width:none]", className)}
     >
       <div role="tablist" aria-label="Sections" aria-orientation="horizontal" className="flex w-max items-stretch">
-        {ordered.map((section, index) => {
-          const selected = section.key === activeKey;
-          const excluded = !isIncluded(section);
+        {ordered.map((page, index) => {
+          const selected = page.key === activeKey;
+          const excluded = !isIncludedPage(page);
           return (
             <button
-              key={section.key}
+              key={page.key}
               ref={(element) => {
-                if (element) tabs.current.set(section.key, element);
-                else tabs.current.delete(section.key);
+                if (element) tabs.current.set(page.key, element);
+                else tabs.current.delete(page.key);
               }}
               type="button"
               role="tab"
-              id={tabId(idPrefix, section.key)}
+              id={tabId(idPrefix, page.key)}
               aria-selected={selected}
               aria-controls={selected ? panelId : undefined}
               tabIndex={selected ? 0 : -1}
-              data-section={section.key}
+              data-section={page.key}
+              // Every section on the page, so a module's tab is found by its key ([data-sections~=packing_config]).
+              data-sections={pageSectionKeys(page).join(" ")}
               data-active={selected || undefined}
               data-excluded={excluded || undefined}
-              onClick={() => section.key !== activeKey && onSelect(section.key)}
+              onClick={() => page.key !== activeKey && onSelect(page.key)}
               onKeyDown={onKeyDown(index)}
               className={cn(
                 "relative inline-flex h-10 shrink-0 items-center gap-2 border-b-2 px-3 text-sm whitespace-nowrap outline-none transition-colors focus-ring-inset touch:h-11",
@@ -112,9 +117,9 @@ export function SectionTabs({ sections, activeKey, onSelect, panelId, idPrefix, 
               )}
             >
               {excluded && <CircleOffIcon aria-hidden className="size-4 shrink-0 text-slate-500" />}
-              <span className="max-w-56 truncate">{section.title}</span>
-              {isIncluded(section) ? (
-                <ResultChip status={section.status} />
+              <span className="max-w-56 truncate">{page.title}</span>
+              {isIncludedPage(page) ? (
+                <ResultChip status={page.status} />
               ) : (
                 <span className="sr-only">, switched off for this inspection</span>
               )}

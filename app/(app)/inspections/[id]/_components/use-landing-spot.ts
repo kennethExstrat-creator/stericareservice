@@ -7,15 +7,19 @@
 // on a touchscreen the keyboard would come up, and a number field selects
 // its value on focus, so the next key would replace what was just completed.
 //
-// Which field: the one last focused or pressed in the open section, noted at
-// the press (Safari on the iPad does not focus a tapped button), and stored
-// once the section hands a change back (record). The size tabs, the photo
-// slot and links are not fields. After the reload the section's fields are
-// matched by issue path and label (a field's id is not the same from one
-// load to the next). One the module does not show (another size, hand or
-// box) is revealed through the module's own reveal, as an issue link does,
-// without focusing it (revealOnlyPath). The autosave settles the local copy
-// first.
+// Which field: the one last focused or pressed on the open page, noted at
+// the press (Safari on the iPad does not focus a tapped button) with the
+// section whose frame holds it (a page may show two: packing configuration
+// below the order), and stored once the page hands a change back (record).
+// The size tabs, the photo slot and links are not fields. After the reload,
+// once the page's forms have arrived (the order table arriving would push
+// packing down) and, for a while, the photos of a section above the spot's
+// (the order's photos loading would move packing too, in a browser without
+// scroll anchoring), the fields of the spot's section are matched by issue path
+// and label (a field's id is not the same from one load to the next). One
+// the module does not show (another size, hand or box) is revealed through
+// that module's own reveal, as an issue link does, without focusing it
+// (revealOnlyPath). The autosave settles the local copy first.
 //
 // The page never moves under the inspector: a press, key, wheel or touch
 // from the moment this code loads (and, where the browser records it, a
@@ -27,6 +31,7 @@ import { useAnnouncement } from "@/components/qc/use-announcement";
 import type { IssuePath } from "@/lib/validation";
 import {
   isReturnLoad,
+  landsOnPage,
   matchLandingField,
   nthOfSignature,
   parsePathKey,
@@ -54,6 +59,23 @@ const NOT_A_FIELD = '[role="tab"], [role="tablist"], [data-slot="size-tabs-bar"]
 /** Toggles that hold one value together (a Yes / No, a choice of a few): the field is their group. */
 const TOGGLE = '[role="radio"], [aria-pressed]';
 const TOGGLE_GROUP = '[role="radiogroup"], [role="toolbar"], [role="group"]';
+/** A section's frame (SectionFrame's data-section-key): on a page of one section, the panel itself. */
+const SECTION_FRAME = "[data-section-key]";
+/** A form still loading on the page (section-body.tsx BodySkeleton). */
+const FORM_LOADING = '[data-slot="body-skeleton"]';
+/** A section's photos still loading (module-photos.tsx): the line gives way to the photos or to nothing. */
+const PHOTOS_LOADING = '[data-slot="photos-loading"]';
+/**
+ * What is still loading on the open page and moves what is below it once
+ * it arrives: a form, a section's photos. The screen waits for none to be
+ * left before it brings a section below another into view.
+ */
+export const STILL_LOADING = `${FORM_LOADING}, ${PHOTOS_LOADING}`;
+/**
+ * How long a landing below another section waits for that section's photos
+ * (they come over the network) before it lands anyway.
+ */
+const PHOTOS_WAIT_MS = 3_000;
 
 // One landing per document load: a screen opened again inside the app starts at its section's top.
 let loadHandled = false;
@@ -80,8 +102,21 @@ function actedBeforeLoad(): boolean {
   }
 }
 
-function inspectorHasActed(): boolean {
+/** The inspector pressed, typed, scrolled or touched since this code loaded (or, where the browser says so, before). */
+export function inspectorHasActed(): boolean {
   return inspectorActed || actedBeforeLoad();
+}
+
+/**
+ * Whether this load is to land on a field of the page showing these
+ * sections: the document was loaded again in place, nothing has landed yet,
+ * and the spot kept for the user and inspection is on this page. The screen
+ * then leaves the scroll to the landing.
+ */
+export function landingExpected(owner: LandingOwner, sectionKeys: readonly string[]): boolean {
+  if (loadHandled || !isReturnLoad(documentLoad(), window.location.pathname)) return false;
+  const spot = readLandingSpot(sessionStorageOrNull(), owner);
+  return spot !== null && landsOnPage(spot, sectionKeys);
 }
 
 /** A dialog is open (the conflict question, the Pending panel): landing behind it would surprise. */
@@ -93,21 +128,21 @@ export function useLandingSpot({
   inspectionId,
   userId,
   panelId,
-  sectionKey,
+  sectionKeys,
   ready,
   reveal,
 }: {
   inspectionId: string;
   /** The signed-in user: spots are kept per user, like the local copies. */
   userId: string;
-  /** The open section's element (SectionFrame's id). */
+  /** The open page's element: its section's frame, or the PagePanel holding its frames. */
   panelId: string;
-  /** The open section; null when there is none. */
-  sectionKey: string | null;
+  /** The sections on the open page, in screen order; none when there is no page. */
+  sectionKeys: readonly string[];
   /** The autosave has settled the data to show (or does not run here). */
   ready: boolean;
-  /** Has the open section's module show `path` (its size, hand or box) without focusing anything: revealOnlyPath. */
-  reveal: (path: IssuePath) => void;
+  /** Has the section's module show `path` (its size, hand or box) without focusing anything: revealOnlyPath. */
+  reveal: (sectionKey: string, path: IssuePath) => void;
 }): {
   record: () => void;
   /** For a polite live region: "Back where you stopped: <field>". */
@@ -117,15 +152,19 @@ export function useLandingSpot({
   const noted = useRef<{ field: HTMLElement; spot: LandingSpot } | null>(null);
   const lastWritten = useRef<string | null>(null);
   const [announcement, announce] = useAnnouncement();
-  const revealPath = useEffectEvent((path: IssuePath) => reveal(path));
+  const revealPath = useEffectEvent((sectionKey: string, path: IssuePath) => reveal(sectionKey, path));
+  // One string, so the effects below follow the page, not each new array.
+  const pageSections = sectionKeys.join(" ");
 
   useEffect(() => {
-    if (sectionKey === null) return;
+    if (pageSections === "") return;
     const note = (event: Event) => {
       const panel = document.getElementById(panelId);
       const field = panel ? fieldOf(event.target, panel) : null;
-      if (!panel || !field || noted.current?.field === field) return;
-      noted.current = { field, spot: describe(field, panel, sectionKey) };
+      const frame = field && panel ? frameOf(field, panel) : null;
+      const section = frame?.dataset.sectionKey;
+      if (!field || !frame || !section || noted.current?.field === field) return;
+      noted.current = { field, spot: describe(field, frame, section) };
     };
     document.addEventListener("focusin", note, true);
     document.addEventListener("pointerdown", note, true);
@@ -133,9 +172,9 @@ export function useLandingSpot({
       document.removeEventListener("focusin", note, true);
       document.removeEventListener("pointerdown", note, true);
     };
-  }, [panelId, sectionKey]);
+  }, [panelId, pageSections]);
 
-  /** The open section stored a change: its field is where the inspector stopped. */
+  /** The open page stored a change: its field is where the inspector stopped. */
   const record = useCallback(() => {
     const current = noted.current;
     if (!current || !current.field.isConnected) return;
@@ -145,18 +184,19 @@ export function useLandingSpot({
   }, [inspectionId, userId]);
 
   useEffect(() => {
-    if (!ready || loadHandled || sectionKey === null) return;
+    if (!ready || loadHandled || pageSections === "") return;
     const owner: LandingOwner = { userId, inspectionId };
     const spot = isReturnLoad(documentLoad(), window.location.pathname)
       ? readLandingSpot(sessionStorageOrNull(), owner)
       : null;
-    // Opened afresh, the inspector already moving, or stopped in another section and then opened this one.
-    if (!spot || spot.section !== sectionKey || inspectorHasActed()) {
+    // Opened afresh, the inspector already moving, or stopped on another page and then opened this one.
+    if (!spot || !landsOnPage(spot, pageSections.split(" ")) || inspectorHasActed()) {
       loadHandled = true;
       return;
     }
 
     const deadline = performance.now() + LANDING_WAIT_MS;
+    const photosDeadline = performance.now() + PHOTOS_WAIT_MS;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let tried = false;
     let revealed = false;
@@ -172,10 +212,15 @@ export function useLandingSpot({
         return;
       }
       const panel = document.getElementById(panelId);
-      if (panel) {
-        const fields = fieldsIn(panel);
+      // Every form on the page first: one arriving above the field would push it out of view again. So would
+      // the photos of a section above the field's once they have loaded (packing below the order): waited for
+      // a while too, not for ever, as they come over the network.
+      const frame = panel && !panel.querySelector(FORM_LOADING) ? sectionFrame(panel, spot.section) : null;
+      const photosAbove = frame !== null && performance.now() < photosDeadline && loadingAbove(panel!, frame, PHOTOS_LOADING);
+      if (frame && !photosAbove) {
+        const fields = fieldsIn(frame);
         const index = matchLandingField(
-          fields.map((field) => signatureOf(field, panel)),
+          fields.map((field) => signatureOf(field, frame)),
           spot,
         );
         if (index >= 0) {
@@ -186,11 +231,11 @@ export function useLandingSpot({
           announce(name ? `Back where you stopped: ${name}` : "Back where you stopped.");
           return;
         }
-        // Not shown: under another size, hand or box. The module turns to it once, then look again.
+        // Not shown: under another size, hand or box. The section's module turns to it once, then look again.
         const path = revealed ? null : parsePathKey(spot.path);
         if (path) {
           revealed = true;
-          revealPath(path);
+          revealPath(spot.section, path);
         }
       }
       if (performance.now() >= deadline) finish();
@@ -203,7 +248,7 @@ export function useLandingSpot({
       // React's development double run comes before any attempt; a screen gone after one is done with this load.
       if (tried) loadHandled = true;
     };
-  }, [ready, inspectionId, userId, panelId, sectionKey, announce]);
+  }, [ready, inspectionId, userId, panelId, pageSections, announce]);
 
   return { record, announcement };
 }
@@ -212,7 +257,30 @@ export function useLandingSpot({
  * Fields in the DOM
  * ------------------------------------------------------------------ */
 
-/** The field an event in the open section belongs to; null outside fields. */
+/** The frame of the section a field on the page is in; null outside every frame. */
+function frameOf(field: HTMLElement, panel: HTMLElement): HTMLElement | null {
+  const frame = field.closest<HTMLElement>(SECTION_FRAME);
+  return frame && panel.contains(frame) ? frame : null;
+}
+
+/** The frame of a section on the page: the panel itself on a page of one section; the panel when it is not there. */
+function sectionFrame(panel: HTMLElement, section: string): HTMLElement {
+  if (panel.dataset.sectionKey === section) return panel;
+  for (const frame of panel.querySelectorAll<HTMLElement>(SECTION_FRAME)) {
+    if (frame.dataset.sectionKey === section) return frame;
+  }
+  return panel;
+}
+
+/** Something on the page still loading (`selector`) above `frame`, outside it: once it arrives, the frame moves. */
+function loadingAbove(panel: HTMLElement, frame: HTMLElement, selector: string): boolean {
+  for (const element of panel.querySelectorAll(selector)) {
+    if (!frame.contains(element) && element.compareDocumentPosition(frame) & Node.DOCUMENT_POSITION_FOLLOWING) return true;
+  }
+  return false;
+}
+
+/** The field an event on the open page belongs to; null outside fields. */
 function fieldOf(target: EventTarget | null, panel: HTMLElement): HTMLElement | null {
   if (!(target instanceof Element) || !panel.contains(target)) return null;
   const excluded = target.closest(NOT_A_FIELD);
@@ -226,21 +294,22 @@ function fieldOf(target: EventTarget | null, panel: HTMLElement): HTMLElement | 
   return control;
 }
 
-/** The section's fields on screen, in reading order. */
-function fieldsIn(panel: HTMLElement): HTMLElement[] {
+/** The fields on screen in a section's frame, in reading order. */
+function fieldsIn(frame: HTMLElement): HTMLElement[] {
   const fields: HTMLElement[] = [];
-  for (const control of panel.querySelectorAll<HTMLElement>(CONTROL)) {
-    const field = fieldOf(control, panel);
+  for (const control of frame.querySelectorAll<HTMLElement>(CONTROL)) {
+    const field = fieldOf(control, frame);
     if (field && field.getClientRects().length > 0 && !fields.includes(field)) fields.push(field);
   }
   return fields;
 }
 
-function describe(field: HTMLElement, panel: HTMLElement, section: string): LandingSpot {
-  const fields = fieldsIn(panel);
-  const signatures = fields.map((each) => signatureOf(each, panel));
+/** A field as a spot of its section: which of the frame's fields alike it is is counted within that frame. */
+function describe(field: HTMLElement, frame: HTMLElement, section: string): LandingSpot {
+  const fields = fieldsIn(frame);
+  const signatures = fields.map((each) => signatureOf(each, frame));
   const index = fields.indexOf(field);
-  const own = index >= 0 ? signatures[index] : signatureOf(field, panel);
+  const own = index >= 0 ? signatures[index] : signatureOf(field, frame);
   return {
     v: 1,
     section,
@@ -249,10 +318,10 @@ function describe(field: HTMLElement, panel: HTMLElement, section: string): Land
   };
 }
 
-function signatureOf(field: HTMLElement, panel: HTMLElement): FieldSignature {
+function signatureOf(field: HTMLElement, frame: HTMLElement): FieldSignature {
   const marked = field.closest(`[${ISSUE_PATH_ATTRIBUTE}]`);
   return {
-    path: marked && panel.contains(marked) ? marked.getAttribute(ISSUE_PATH_ATTRIBUTE) : null,
+    path: marked && frame.contains(marked) ? marked.getAttribute(ISSUE_PATH_ATTRIBUTE) : null,
     name: accessibleName(field),
   };
 }

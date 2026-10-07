@@ -72,15 +72,17 @@ export function PhotoAddControls({ onFiles, disabled = false, target, compact = 
 
   return (
     <div data-slot="photo-add" data-dragging={dragging || undefined} className={cn("relative", className)} {...dropHandlers}>
-      {/* iPad: the camera and the photo library. */}
+      {/* iPad: the camera and the photo library, read out with where the photos go (a page may show two sections' buttons). */}
       <div className="flex flex-wrap items-center gap-2 fine:hidden">
         <Button type="button" variant="outline" disabled={disabled} onClick={() => camera.current?.click()}>
           <CameraIcon aria-hidden />
           Take Photo
+          {target ? <span className="sr-only"> for {target}</span> : null}
         </Button>
         <Button type="button" variant="outline" disabled={disabled} onClick={() => library.current?.click()}>
           <ImagesIcon aria-hidden />
           Add From Library
+          {target ? <span className="sr-only"> for {target}</span> : null}
         </Button>
       </div>
 

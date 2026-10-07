@@ -24,10 +24,30 @@ export type PhotoSlotProps = {
    * shows the photos only.
    */
   showAddControls?: boolean;
+  /**
+   * False where another slot on the same page shows the notices about the
+   * inspection's photos: those waiting on this device, and the uploaded ones
+   * that could not be loaded (a page of two sections: the first slot does).
+   */
+  showNotices?: boolean;
+  /**
+   * The section's title, read out after "Photos" on a page of two sections,
+   * so the two photo regions have names of their own.
+   */
+  nameContext?: string;
   className?: string;
 };
 
-export function PhotoSlot({ inspectionId, moduleKey, focus, readOnly, showAddControls, className }: PhotoSlotProps) {
+export function PhotoSlot({
+  inspectionId,
+  moduleKey,
+  focus,
+  readOnly,
+  showAddControls,
+  showNotices,
+  nameContext,
+  className,
+}: PhotoSlotProps) {
   return (
     <ModulePhotos
       inspectionId={inspectionId}
@@ -35,6 +55,8 @@ export function PhotoSlot({ inspectionId, moduleKey, focus, readOnly, showAddCon
       focus={focus}
       readOnly={readOnly}
       showAddControls={showAddControls}
+      showNotices={showNotices}
+      nameContext={nameContext}
       variant="capture"
       className={className}
     />

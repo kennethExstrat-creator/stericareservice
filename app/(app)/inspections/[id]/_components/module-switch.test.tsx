@@ -41,4 +41,15 @@ describe("SwitchOffDialog", () => {
       renderToStaticMarkup(<SwitchOffDialog inspectionId={INSPECTION} moduleKey="weight" title="Weight (g)" onChanged={() => {}} />),
     ).toBe(html);
   });
+
+  it("is read out as Switch Off and its section's title on a page of two, the title for screen readers only", () => {
+    const title = "Packing configuration";
+    const html = renderToStaticMarkup(
+      <SwitchOffDialog inspectionId={INSPECTION} moduleKey="packing_config" title={title} nameContext={title} onChanged={() => {}} />,
+    );
+    expect(html).toMatch(/^<button[^>]*data-action="switch-off"[^>]*>.*Switch Off<span class="sr-only"> [^<]+<\/span><\/button>$/);
+    expect(html).toContain(`<span class="sr-only"> ${title}</span>`);
+    // The hidden title is anchored to the button (docs/DESIGN.md, Do / Don't).
+    expect(html).toMatch(/^<button[^>]*class="[^"]*\brelative\b/);
+  });
 });

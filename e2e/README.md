@@ -17,7 +17,9 @@ Specs need the test accounts (`npm run seed:dev-users -- --force`): `inspector@t
 ## WebKit and the real iPad
 
 Chrome and Safari on the iPad run on WebKit, so the reload specs (`e2e/autosave`) also run in the
-`webkit-ipad-portrait` project (Playwright's WebKit, 820 × 1180, touch). Install it once with
+`webkit-ipad-portrait` project (Playwright's WebKit, 820 × 1180, touch); among them, that
+`?module=packing_config` brings packing's title just below the bars and leaves it there, with the
+browser's scroll anchoring turned off, so it holds in a browser without it. Install it once with
 `npx playwright install webkit`. That project matches `e2e/autosave` only, so
 `e2e/capture/final.spec.ts` launches WebKit itself for its photo-tag test (a tap on + in WebKit),
 from the `ipad-portrait` and `ipad-pro-landscape` projects. Playwright cannot drive the iPad's own
@@ -50,6 +52,22 @@ its worker, whose hooks sign in again. For a series of runs, `E2E_SESSION_CACHE=
 each session `sessionCookies()` signs in there and hands it out again, to other workers, projects and
 runs, while its access token has half an hour left; `sign-ins.log` in it lists each real sign-in.
 The files hold live tokens: use a private temporary directory and delete it afterwards.
+
+## Finding a module on the capture screen
+
+A page of the capture screen can show two modules: packing configuration sits below the order, on the
+order's tab (`lib/inspections/capture/sections.ts` `SHOWN_WITH`). Scope by the module's key, never by
+`[data-slot="section-frame"]` alone, which matches both frames there and fails Playwright's strict mode:
+
+- a module's frame: `[data-section-key="packing_config"]` (its title is the frame's `h2`);
+- the tab of the page a module is on: `[role="tab"][data-sections~="packing_config"]`;
+- a number field: `[data-issue-path='["glovesPerCase"]'] input` inside the frame;
+- still loading, and moving what is below once it arrives: a form, `[data-slot="body-skeleton"]`, and a
+  module's photos, `[data-slot="photos-loading"]`. The screen waits for both to go before it brings a
+  module below another into view; wait for them too before measuring where something ends up.
+
+The template's titles and labels are the clients' words and can change wording or case: match them
+with a case-insensitive pattern, or read them from the page or the fixture, rather than typing them out.
 
 ## Screenshots on the iPad projects
 

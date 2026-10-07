@@ -1,13 +1,19 @@
 "use client";
 
-// The capture screen (BUILD_SPEC 8 and 10): an inspection's sections as tabs
-// with progress and a result chip each, the open section's form, the issues
-// panel, autosave and submit.
+// The capture screen (BUILD_SPEC 8 and 10): an inspection's sections in
+// pages, as tabs with progress and a result chip each, the open page's
+// forms, the issues panel, autosave and submit. A page is one section, or a
+// module with the modules shown on its page (lib/inspections/capture
+// sections.ts SHOWN_WITH: packing configuration right below the order, whose
+// total gloves it works out), each in a frame of its own with its own result,
+// comment and photos. Tabs, the sidebar, the progress steps and Previous and
+// Next go by page; ?module=, issue links and the switches name a section,
+// and open its page with that section's title in view.
 //
 // Layout: below 1280 px (the iPad) a section tab bar sticks under the shell's
 // top bar with the save pill, and the form runs full width; from 1280 px a
-// sidebar lists the sections with their progress and results, the save pill,
-// Issues and Submit, and the form sits beside it.
+// sidebar lists the pages with their progress and results, the save pill,
+// Issues and Submit, and the forms sit beside it.
 //
 // Data flow: the page renders the server's copy; autosave settles it against
 // this device's local copy (a newer local copy is restored). Every edit
@@ -16,7 +22,9 @@
 // inspection is evaluated again with the framework (results, live totals,
 // issues), a frame behind typing at most (useDeferredValue). Saves also
 // bring back the inspection's status and module overrides, so a section
-// switched off or a submit made on another device shows here too. What a
+// switched off or a submit made on another device shows here too; the open
+// page keeps the frames it still shows as they are, mid-typing included,
+// when packing configuration leaves or joins it that way (ActivePage). What a
 // number field refuses ("2 42") is kept beside the data, never in it, by
 // section and path, on this device too (use-refused-entries.ts): it comes
 // back with its field after a size or section switch or a reload, and the
@@ -51,13 +59,14 @@ import {
   useCallback,
   useDeferredValue,
   useEffect,
+  useEffectEvent,
   useId,
   useMemo,
   useRef,
   useState,
   type ComponentProps,
   type ReactNode,
-  type RefObject,
+  type Ref,
 } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -85,6 +94,7 @@ import {
   countIssues,
   describePending,
   groupIssues,
+  issueTarget,
   pendingCounts,
   pendingTasks,
   unseenIssues,
@@ -93,12 +103,15 @@ import { canBeSwitchedOff } from "@/lib/inspections/capture/overrides";
 import { refusedTaskIssues } from "@/lib/inspections/capture/refused";
 import type { ReopenNote } from "@/lib/inspections/capture/reopen";
 import {
+  capturePages,
   captureSections,
-  findSection,
+  findPage,
   initialSectionKey,
-  isIncluded,
+  isIncludedPage,
   neighbours,
+  pageSectionKeys,
   progressSteps,
+  type CapturePage,
   type CaptureSection,
 } from "@/lib/inspections/capture/sections";
 import { suggestionReasons } from "@/lib/inspections/capture/suggestion";
@@ -127,12 +140,12 @@ import { leaveAnswer } from "./leave-answer";
 import { SwitchedOffPanel, SwitchOffDialog } from "./module-switch";
 import { SaveIndicator } from "./save-indicator";
 import { CustomBody, ModuleBody, preloadCaptures } from "./section-body";
-import { SectionComment, SectionFrame } from "./section-frame";
+import { PagePanel, SectionComment, SectionFrame } from "./section-frame";
 import { SectionList } from "./section-list";
 import { SectionTabs, tabId } from "./section-tabs";
 import { SubmitControl, type SubmitBlocked, type SubmitPreparation } from "./submit-control";
 import { LEAVE_FLUSH_MS, useCaptureAutosave } from "./use-capture-autosave";
-import { useLandingSpot } from "./use-landing-spot";
+import { inspectorHasActed, landingExpected, STILL_LOADING, useLandingSpot } from "./use-landing-spot";
 import { useNoPullToRefresh } from "./use-no-pull-to-refresh";
 import { useRefusedEntries } from "./use-refused-entries";
 import { useStickyOffsets } from "./use-sticky-offsets";
@@ -184,8 +197,24 @@ export function CaptureScreen({
   const panelId = `${idPrefix}-section`;
   const rootRef = useRef<HTMLDivElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
-  const headingRef = useRef<HTMLHeadingElement>(null);
   useStickyOffsets(rootRef, barRef, panelId);
+
+  // The section titles on screen, by section key: Previous, Next, issue links and the switches focus them.
+  const titles = useRef(new Map<string, HTMLHeadingElement>());
+  const titleRefs = useRef(new Map<string, (title: HTMLHeadingElement | null) => void>());
+  /** One callback ref per section, the same on every render. */
+  const titleRef = useCallback((key: string) => {
+    let ref = titleRefs.current.get(key);
+    if (!ref) {
+      ref = (title) => {
+        if (title) titles.current.set(key, title);
+        else titles.current.delete(key);
+      };
+      titleRefs.current.set(key, ref);
+    }
+    return ref;
+  }, []);
+  const titleFor = useCallback((key: string) => titles.current.get(key) ?? null, []);
 
   /* -------------------------------------------------------------- *
    * Data and autosave
@@ -334,31 +363,33 @@ export function CaptureScreen({
     () => captureSections(evaluation.template, report, deferredData),
     [evaluation.template, report, deferredData],
   );
+  // What a tab, a sidebar row, a progress step and Previous or Next open: a section, or a module with those shown on its page.
+  const pages = useMemo(() => capturePages(sections), [sections]);
 
+  // The section asked for (?module=, an issue link, a switch) or the page chosen: the screen shows the page it is on.
   const [activeKey, setActiveKey] = useState(() => initialSectionKey(sections, initialSection));
-  const active = findSection(sections, activeKey) ?? sections.find(isIncluded) ?? sections[0];
+  const activePage: CapturePage | undefined = findPage(pages, activeKey) ?? pages.find(isIncludedPage) ?? pages[0];
+  const activeSectionKeys = activePage ? pageSectionKeys(activePage) : [];
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
 
   // Reloaded in place (a pull to refresh on the iPad): the last field that
   // stored a value comes back into view (use-landing-spot.ts), its size, hand
-  // or box revealed by the module without focusing anything. A swipe down at
+  // or box revealed by its module without focusing anything. A swipe down at
   // the top is less likely to reload the page in the first place.
   const landing = useLandingSpot({
     inspectionId,
     userId: user.id,
     panelId,
-    sectionKey: active?.key ?? null,
+    sectionKeys: activeSectionKeys,
     ready: autosave.phase !== "starting",
-    reveal: (path) => {
-      if (active) setFocusRequest({ sectionKey: active.key, path: revealOnlyPath(path) });
-    },
+    reveal: (sectionKey, path) => setFocusRequest({ sectionKey, path: revealOnlyPath(path) }),
   });
   useNoPullToRefresh();
 
   // The size a module last reported in focus, in whichever section: the next
   // module opens on it (CaptureProps.focus), so the size chosen in one stays
   // chosen in the next. It never tags a photo: a section's photos take only
-  // what its own module reported (ActiveSection).
+  // what its own module reported (SectionPart).
   const [keptFocus, setKeptFocus] = useState<CaptureFocus>(NO_FOCUS);
   const keepSize = useCallback((focus: CaptureFocus) => {
     const { size } = focus;
@@ -372,7 +403,7 @@ export function CaptureScreen({
   }, []);
 
   /**
-   * Leaves the field being edited in the open section, so a half-typed value
+   * Leaves the field being edited on the open page, so a half-typed value
    * is stored for the section it was typed in before that section goes
    * (number fields commit on blur; a tap on the iPad does not move focus).
    */
@@ -381,9 +412,9 @@ export function CaptureScreen({
     if (field instanceof HTMLElement && document.getElementById(panelId)?.contains(field)) field.blur();
   }, [panelId]);
 
-  // The same for every click outside the open section, before the click does
+  // The same for every click outside the open page, before the click does
   // its work: a link that leaves the screen (the shell's menu too), Submit,
-  // Issues. Inside the section a click is the form's own business, unless it
+  // Issues. Inside the page a click is the forms' own business, unless it
   // follows a link.
   useEffect(() => {
     const onClick = (event: MouseEvent) => {
@@ -427,7 +458,7 @@ export function CaptureScreen({
     [autosave, leaveActiveField, router],
   );
 
-  /** Opens a section; the page scrolls back up to it when its top is out of view. */
+  /** Opens a page by its key; the screen scrolls back up to its first title when that is out of view. */
   const selectSection = useCallback(
     (key: string, { focusHeading = false }: { focusHeading?: boolean } = {}) => {
       leaveActiveField();
@@ -435,13 +466,14 @@ export function CaptureScreen({
       setFocusRequest(null);
       syncUrl(key);
       requestAnimationFrame(() => {
-        const title = headingRef.current;
+        // A page's key is its first section's.
+        const title = titleFor(key);
         if (!title) return;
         if (title.getBoundingClientRect().top < stickyTopOf(rootRef.current)) scrollToTitle(title, rootRef.current);
         if (focusHeading) title.focus({ preventScroll: true });
       });
     },
-    [leaveActiveField, syncUrl],
+    [leaveActiveField, syncUrl, titleFor],
   );
 
   /* -------------------------------------------------------------- *
@@ -510,37 +542,49 @@ export function CaptureScreen({
   const goToIssue = useCallback(
     (issue: ValidationIssue) => {
       const linkedAt = performance.now();
+      const actedSince = () => lastInputAt.current > linkedAt;
       setIssuesOpen(false);
       closeBlocked();
-      const sectionKey = issue.moduleKey;
+      // The section's page opens (the order's, for packing configuration): the URL names the section.
+      const { pageKey, sectionKey, path } = issueTarget(issue, pages);
+      const target = findPage(pages, pageKey);
+      const shared = target !== undefined && pageSectionKeys(target).length > 1;
       setActiveKey(sectionKey);
       syncUrl(sectionKey);
       setFocusRequest(null);
-      // After the panel has closed and the section is on screen.
-      requestAnimationFrame(() => {
-        const title = headingRef.current;
-        if (issue.path.length === 0) {
+      const land = () => {
+        const title = titleFor(sectionKey);
+        if (path.length === 0) {
           if (title) scrollToTitle(title, rootRef.current);
           title?.focus({ preventScroll: true });
           return;
         }
         // A new array for every click (docs/CAPTURE_KIT.md, "Issue links"):
         // useIssueFocus follows each one once, so the same link twice still works.
-        setFocusRequest({ sectionKey, path: [...issue.path] });
+        setFocusRequest({ sectionKey, path: [...path] });
         // Nothing in the section took focus (a form without marks): its title
         // does, unless the inspector has pressed or typed since the link.
         window.setTimeout(() => {
-          if (lastInputAt.current > linkedAt) return;
-          const panel = document.getElementById(panelId);
-          const heading = headingRef.current;
-          if (panel && heading && !panel.contains(document.activeElement)) {
+          if (actedSince()) return;
+          const frame = frameFor(panelId, sectionKey);
+          const heading = titleFor(sectionKey);
+          if (frame && heading && !frame.contains(document.activeElement)) {
             scrollToTitle(heading, rootRef.current);
             heading.focus({ preventScroll: true });
           }
         }, 700);
+      };
+      // After the panel has closed and the page is on screen. On a page of
+      // several sections, once the forms above this one have arrived too
+      // (their code loads on demand) and their photos have loaded: the order
+      // table arriving, or its photos taking the place of "Loading photos…",
+      // would move packing configuration again.
+      requestAnimationFrame(() => {
+        if (shared) whenPageSettled(panelId, land, { acted: actedSince });
+        else land();
       });
     },
-    [closeBlocked, panelId, syncUrl],
+    [closeBlocked, pages, panelId, syncUrl, titleFor],
   );
 
   // Photos and files of this inspection still on this device hold submit up (BUILD_SPEC 8.1); the save pill shows the badge.
@@ -578,30 +622,72 @@ export function CaptureScreen({
    * -------------------------------------------------------------- */
 
   // The button pressed goes with the change (Switch Off with the section's
-  // header controls, Switch Back On with the panel): the title takes focus.
-  const focusTitleFor = useRef<ModuleOverrides | null>(null);
-  const onSwitched = useCallback((next: ModuleOverrides) => {
-    focusTitleFor.current = next;
-    setOverrides(next);
-  }, []);
+  // header controls, Switch Back On with the panel): the switched section's
+  // page opens and its title takes focus. Switched off, packing
+  // configuration has a page of its own; back on, it is below the order
+  // again, its title brought into view once the order table and its photos
+  // have arrived.
+  const focusTitleFor = useRef<{ overrides: ModuleOverrides; sectionKey: string } | null>(null);
+  const onSwitched = useCallback(
+    (next: ModuleOverrides, sectionKey: string) => {
+      focusTitleFor.current = { overrides: next, sectionKey };
+      setActiveKey(sectionKey);
+      syncUrl(sectionKey);
+      setOverrides(next);
+    },
+    [syncUrl],
+  );
   useEffect(() => {
-    if (focusTitleFor.current !== overrides) return;
+    const request = focusTitleFor.current;
+    if (request === null || request.overrides !== overrides) return;
     focusTitleFor.current = null;
-    headingRef.current?.focus({ preventScroll: true });
-  }, [overrides]);
+    const title = titleFor(request.sectionKey);
+    title?.focus({ preventScroll: true });
+    if (!title || !onSharedPage(panelId)) return;
+    const since = performance.now();
+    return whenPageSettled(panelId, () => revealTitle(titleFor(request.sectionKey), rootRef.current), {
+      acted: () => lastInputAt.current > since,
+    });
+  }, [overrides, panelId, titleFor]);
 
   // Saved values that could not be read, removed: the section's form takes
   // the place of their list, and the button that opened the confirmation
   // went with it, so the title takes the focus rather than the page. A field
   // the form focused itself (an issue link it follows) keeps it.
-  const focusTitleAfterRemoval = useCallback(() => {
-    const title = headingRef.current;
-    if (!title || document.getElementById(panelId)?.contains(document.activeElement)) return;
-    if (title.getBoundingClientRect().top < stickyTopOf(rootRef.current)) scrollToTitle(title, rootRef.current);
-    title.focus({ preventScroll: true });
-  }, [panelId]);
+  const focusTitleAfterRemoval = useCallback(
+    (sectionKey: string) => {
+      const title = titleFor(sectionKey);
+      if (!title || frameFor(panelId, sectionKey)?.contains(document.activeElement)) return;
+      if (title.getBoundingClientRect().top < stickyTopOf(rootRef.current)) scrollToTitle(title, rootRef.current);
+      title.focus({ preventScroll: true });
+    },
+    [panelId, titleFor],
+  );
 
-  // Below 1280 px the open section is the tab bar's panel; from 1280 px a region beside the sidebar.
+  // Opened on a section below another on its page (?module=packing_config
+  // from a link, a reload or the address bar): its title comes into view
+  // once the page has settled, as a reload's landing waits for it: saving
+  // has started (the fields turn editable and the photo buttons appear), the
+  // forms above it have arrived and their photos have loaded. Each of those
+  // moves it, and a browser without scroll anchoring would leave it out of
+  // place. Not when a reload is to land on the last field instead
+  // (use-landing-spot.ts), nor once the inspector has moved; a title already
+  // in view, as a reload's restored scroll may leave it, stays where it is.
+  const revealOpenedSection = useEffectEvent(() => {
+    if (!activePage || activeKey === null || activeKey === activePage.key) return;
+    if (inspectorHasActed() || landingExpected({ userId: user.id, inspectionId }, activeSectionKeys)) return;
+    const since = performance.now();
+    return whenPageSettled(panelId, () => revealTitle(titleFor(activeKey), rootRef.current), {
+      acted: () => inspectorHasActed() || lastInputAt.current > since,
+    });
+  });
+  // Once saving has started, or at once where it does not run (read-only).
+  const saving = autosave.phase !== "starting";
+  useEffect(() => {
+    if (saving) return revealOpenedSection();
+  }, [saving]);
+
+  // Below 1280 px the open page is the tab bar's panel; from 1280 px a region (or regions) beside the sidebar.
   const wide = useMediaQuery(WIDE_QUERY);
 
   /* -------------------------------------------------------------- *
@@ -742,17 +828,19 @@ export function CaptureScreen({
   const showPending = access.editable && !lockedElsewhere;
   const issuesButton = (className?: string) =>
     showPending ? <IssuesButton counts={pending} onClick={openIssues} className={className} /> : null;
-  const { previous, next } = active ? neighbours(sections, active.key) : { previous: null, next: null };
-  // The open section's refused entries, for its fields (null where this screen keeps none).
-  const activeKind = active?.kind;
-  const activeSectionKey = active?.key;
-  const activeRefused = useMemo(
-    () =>
-      activeKind === "module" || activeKind === "custom"
-        ? refusedStoreFor(activeKind === "module" ? "modules" : "custom", activeSectionKey ?? "")
-        : null,
-    [activeKind, activeSectionKey, refusedStoreFor],
-  );
+  const { previous, next } = activePage ? neighbours(pages, activePage.key) : { previous: null, next: null };
+  // The refused entries of each section on the open page, for its fields (null where this screen keeps none).
+  const refusedOwners =
+    activePage?.kind === "included" ? activePage.sections.map((section) => `${section.kind}:${section.key}`).join(" ") : "";
+  const refusedStores = useMemo(() => {
+    const stores = new Map<string, RefusedEntryStore | null>();
+    for (const owner of refusedOwners.split(" ").filter(Boolean)) {
+      const colon = owner.indexOf(":");
+      const key = owner.slice(colon + 1);
+      stores.set(key, refusedStoreFor(owner.slice(0, colon) === "module" ? "modules" : "custom", key));
+    }
+    return stores;
+  }, [refusedOwners, refusedStoreFor]);
 
   return (
     <div
@@ -824,11 +912,11 @@ export function CaptureScreen({
             )}
             <ProgressTracker
               className="px-1"
-              steps={progressSteps(sections)}
-              activeKey={active?.key}
+              steps={progressSteps(pages)}
+              activeKey={activePage?.key}
               label="Progress"
             />
-            <SectionList sections={sections} activeKey={active?.key ?? ""} onSelect={(key) => selectSection(key)} />
+            <SectionList pages={pages} activeKey={activePage?.key ?? ""} onSelect={(key) => selectSection(key)} />
             {(showPending || access.editable) && (
               <div className="flex flex-col gap-2 border-t border-border px-1 pt-3">
                 {issuesButton("w-full justify-between")}
@@ -849,8 +937,8 @@ export function CaptureScreen({
             )}
           >
             <SectionTabs
-              sections={sections}
-              activeKey={active?.key ?? ""}
+              pages={pages}
+              activeKey={activePage?.key ?? ""}
               onSelect={(key) => selectSection(key)}
               panelId={panelId}
               idPrefix={idPrefix}
@@ -860,19 +948,19 @@ export function CaptureScreen({
 
           <ProgressTracker
             className="xl:hidden"
-            steps={progressSteps(sections)}
-            activeKey={active?.key}
+            steps={progressSteps(pages)}
+            activeKey={activePage?.key}
             onStepSelect={(key) => selectSection(key)}
             label="Progress"
           />
 
-          {active && (
-            <ActiveSection
-              key={active.key}
-              section={active}
+          {activePage && (
+            <ActivePage
+              key={activePage.key}
+              page={activePage}
               panelId={panelId}
-              headingRef={headingRef}
-              tabLabelledBy={wide ? undefined : tabId(idPrefix, active.key)}
+              titleRef={titleRef}
+              tabLabelledBy={wide ? undefined : tabId(idPrefix, activePage.key)}
               template={template}
               effective={evaluation.template}
               overrides={overrides}
@@ -881,14 +969,14 @@ export function CaptureScreen({
               data={data}
               report={report}
               context={context}
-              focusPath={focusRequest?.sectionKey === active.key ? focusRequest.path : null}
+              focusRequest={focusRequest}
               readOnly={readOnly}
               showRequired={submitTried}
               access={access}
               inspectionId={inspectionId}
               keptFocus={keptFocus}
               defectUsage={defectUsage}
-              refusedEntries={activeRefused}
+              refusedStores={refusedStores}
               onFocusReported={keepSize}
               onUnreadableRemoved={focusTitleAfterRemoval}
               // Each change from the form also marks its field as where the inspector stopped.
@@ -960,15 +1048,11 @@ export function CaptureScreen({
 }
 
 /* ------------------------------------------------------------------ *
- * The open section
+ * The open page
  * ------------------------------------------------------------------ */
 
-type ActiveSectionProps = {
-  section: CaptureSection;
-  panelId: string;
-  headingRef: RefObject<HTMLHeadingElement | null>;
-  /** Below 1280 px: the id of the section's tab, which names the panel (WAI-ARIA tabs). */
-  tabLabelledBy?: string;
+/** What every section on the open page is handed by the screen. */
+type SharedSectionProps = {
   /** As stored, for what may be switched off. */
   template: ResolvedTemplate;
   /** Overrides applied: what capture shows. */
@@ -980,7 +1064,6 @@ type ActiveSectionProps = {
   data: InspectionData;
   report: ReturnType<typeof evaluateCapture>["report"];
   context: ReturnType<typeof evaluateCapture>["context"];
-  focusPath: IssuePath | null;
   readOnly: boolean;
   /** Submit was tried: empty required fields say so. */
   showRequired: boolean;
@@ -989,24 +1072,120 @@ type ActiveSectionProps = {
   /** The size kept from the sections before: the module opens on it (CaptureProps.focus). Never a photo tag. */
   keptFocus: CaptureFocus;
   defectUsage: DefectUsage;
-  /** Where the section's number fields keep what they refused, so it outlives them; null to keep their own. */
-  refusedEntries: RefusedEntryStore | null;
-  /** Every focus the section's module or form reports, so its size is kept for the next section. */
+  /** Every focus a section's module or form reports, so its size is kept for the next section. */
   onFocusReported: (focus: CaptureFocus) => void;
-  /** Saved values that could not be read were removed, and the button that did it went with their list. */
-  onUnreadableRemoved: () => void;
   onModuleChange: (key: string, value: unknown) => void;
   onCustomChange: (key: string, value: unknown) => void;
   onMappedChange: (mapsTo: string, value: unknown) => void;
   onCommentChange: (namespace: DataNamespace, key: string, comment: string) => void;
+};
+
+type ActivePageProps = SharedSectionProps & {
+  page: CapturePage;
+  panelId: string;
+  /** The callback ref of each section's title, by section key: the screen focuses titles. */
+  titleRef: (sectionKey: string) => Ref<HTMLHeadingElement>;
+  /** Below 1280 px: the id of the page's tab, which names the panel (WAI-ARIA tabs). */
+  tabLabelledBy?: string;
+  /** A data path to focus, or only to reveal, in one section of the page: an issue link, a landing. */
+  focusRequest: FocusRequest | null;
+  /** Where each section's number fields keep what they refused, by section key; null to keep their own. */
+  refusedStores: ReadonlyMap<string, RefusedEntryStore | null>;
+  /** Saved values a section could not read were removed, and the button that did it went with their list. */
+  onUnreadableRemoved: (sectionKey: string) => void;
+  /** A section was switched off or back on here. */
+  onOverridesChange: (overrides: ModuleOverrides, sectionKey: string) => void;
+};
+
+/**
+ * The open page: its sections' frames in turn, packing configuration below
+ * the order, in a PagePanel. A page of one section, a switched-off one
+ * included, is that section's frame, the panel itself. The screen keys it by
+ * the page; within it each frame is keyed by its section, and the PagePanel
+ * is the same element for one section or several. So a page that gains or
+ * loses a section while it is open (packing configuration switched on or
+ * off on another device, which the next save brings back) keeps the frames
+ * it still shows: the field being typed in keeps its focus and its
+ * half-typed value, and the form what it holds. A section switched off
+ * where it is open keeps its frame too, as its switched-off panel.
+ */
+function ActivePage({
+  page,
+  panelId,
+  titleRef,
+  tabLabelledBy,
+  focusRequest,
+  refusedStores,
+  onUnreadableRemoved,
+  onOverridesChange,
+  ...shared
+}: ActivePageProps) {
+  const sections: readonly CaptureSection[] = page.kind === "included" ? page.sections : [page.section];
+  const several = sections.length > 1;
+  return (
+    <PagePanel id={panelId} tabLabelledBy={tabLabelledBy} single={!several}>
+      {sections.map((section, index) => (
+        <SectionPart
+          key={section.key}
+          {...shared}
+          section={section}
+          // A page of one section is that section's frame; on a page of several, each frame has an id of its own.
+          frameId={several ? `${panelId}-${section.key}` : panelId}
+          tabLabelledBy={several ? undefined : tabLabelledBy}
+          // On a page of several, each section's comment, photos, Switch Off and its form's own buttons are read out with its title.
+          nameContext={several ? section.title : undefined}
+          // The notices about the inspection's photos are about the whole inspection: once a page.
+          showPhotoNotices={index === 0}
+          headingRef={titleRef(section.key)}
+          focusPath={focusRequest?.sectionKey === section.key ? focusRequest.path : null}
+          refusedEntries={refusedStores.get(section.key) ?? null}
+          onUnreadableRemoved={() => onUnreadableRemoved(section.key)}
+          onOverridesChange={(next) => onOverridesChange(next, section.key)}
+        />
+      ))}
+    </PagePanel>
+  );
+}
+
+type SectionPartProps = SharedSectionProps & {
+  section: CaptureSection;
+  /** The frame's id: the panel's on a page of one section. */
+  frameId: string;
+  /** Below 1280 px, on a page of one section: the id of its tab, which names the frame (WAI-ARIA tabs). */
+  tabLabelledBy?: string;
+  /**
+   * On a page of several sections, this one's title: read out with its
+   * comment, photos and Switch Off, and with Try Again or Clear This Section
+   * where its form is in trouble.
+   */
+  nameContext?: string;
+  /**
+   * The first section on the page shows the notices about the inspection's
+   * photos: those waiting on this device, and the uploaded ones that could
+   * not be loaded.
+   */
+  showPhotoNotices: boolean;
+  headingRef: Ref<HTMLHeadingElement>;
+  focusPath: IssuePath | null;
+  /** Where the section's number fields keep what they refused, so it outlives them; null to keep their own. */
+  refusedEntries: RefusedEntryStore | null;
+  /** Saved values that could not be read were removed, and the button that did it went with their list. */
+  onUnreadableRemoved: () => void;
   onOverridesChange: (overrides: ModuleOverrides) => void;
 };
 
-function ActiveSection({
+/**
+ * One section on the open page: its frame with its result, its form, its
+ * comment and its photos; switched off, its frame with the switched-off
+ * panel.
+ */
+function SectionPart({
   section,
-  panelId,
-  headingRef,
+  frameId,
   tabLabelledBy,
+  nameContext,
+  showPhotoNotices,
+  headingRef,
   template,
   effective,
   overrides,
@@ -1030,12 +1209,13 @@ function ActiveSection({
   onMappedChange,
   onCommentChange,
   onOverridesChange,
-}: ActiveSectionProps) {
+}: SectionPartProps) {
   // What this section's module or form reported in focus, and only that,
   // tags its photos (BUILD_SPEC 8.1). Every section starts with nothing (the
-  // screen keys ActiveSection by it), so the size kept from another section
-  // tags a photo here only once the module here shows it and says so, as
-  // tensile does for the size it opens on.
+  // page keys each SectionPart by its section, the screen keys the page),
+  // so the size kept from another section tags a photo here only once the
+  // module here shows it and says so, as tensile does for the size it opens
+  // on; on the order's page the order's sizes never tag packing's photos.
   const [photoFocus, setPhotoFocus] = useState<CaptureFocus>(NO_FOCUS);
   const onFocusChange = useCallback(
     (focus: CaptureFocus) => {
@@ -1048,7 +1228,8 @@ function ActiveSection({
   if (section.kind === "excluded") {
     return (
       <SectionFrame
-        id={panelId}
+        id={frameId}
+        sectionKey={section.key}
         tabLabelledBy={tabLabelledBy}
         title={section.title}
         headingRef={headingRef}
@@ -1076,6 +1257,7 @@ function ActiveSection({
         value={comment}
         onChange={(text) => onCommentChange(namespace, section.key, text)}
         readOnly={readOnly}
+        context={nameContext}
       />
       {/* Side by side with the comment, its heading and its box take the footer's two rows. */}
       <PhotoSlot
@@ -1083,6 +1265,8 @@ function ActiveSection({
         moduleKey={section.key}
         focus={photoFocus}
         readOnly={readOnly}
+        showNotices={showPhotoNotices}
+        nameContext={nameContext}
         className="xl:row-span-3 xl:grid xl:grid-rows-subgrid"
       />
     </>
@@ -1092,7 +1276,8 @@ function ActiveSection({
     const evaluation = report.custom.find((candidate) => candidate.custom.key === section.key);
     return (
       <SectionFrame
-        id={panelId}
+        id={frameId}
+        sectionKey={section.key}
         tabLabelledBy={tabLabelledBy}
         title={section.title}
         headingRef={headingRef}
@@ -1125,7 +1310,8 @@ function ActiveSection({
     access.canSwitchModules && isModuleKey(section.key) && canBeSwitchedOff(template, overrides, section.key);
   return (
     <SectionFrame
-      id={panelId}
+      id={frameId}
+      sectionKey={section.key}
       tabLabelledBy={tabLabelledBy}
       title={section.title}
       headingRef={headingRef}
@@ -1138,6 +1324,7 @@ function ActiveSection({
             inspectionId={inspectionId}
             moduleKey={section.key}
             title={section.title}
+            nameContext={nameContext}
             onChanged={onOverridesChange}
           />
         ) : undefined
@@ -1160,6 +1347,7 @@ function ActiveSection({
             onChange={(next) => onModuleChange(section.key, next)}
             onFocusChange={onFocusChange}
             onUnreadableRemoved={onUnreadableRemoved}
+            nameContext={nameContext}
           />
         </RefusedEntryStoreContext.Provider>
       )}
@@ -1194,6 +1382,57 @@ function stickyTopOf(root: HTMLElement | null): number {
 function scrollToTitle(title: HTMLElement, root: HTMLElement | null) {
   const top = window.scrollY + title.getBoundingClientRect().top - stickyTopOf(root) - TITLE_GAP_PX;
   window.scrollTo({ top: Math.max(0, top) });
+}
+
+/** A section title brought into view below the sticky bars, unless it is in view already (a reload's restored scroll). */
+function revealTitle(title: HTMLElement | null, root: HTMLElement | null) {
+  if (!title) return;
+  const box = title.getBoundingClientRect();
+  if (box.top < stickyTopOf(root) || box.bottom > window.innerHeight) scrollToTitle(title, root);
+}
+
+/** The open page holds the frames of several sections (PagePanel). */
+function onSharedPage(panelId: string): boolean {
+  return document.getElementById(panelId)?.dataset.slot === "capture-page";
+}
+
+/** A section's frame on the open page: the panel itself on a page of one section; null when it is not on the page. */
+function frameFor(panelId: string, sectionKey: string): HTMLElement | null {
+  const panel = document.getElementById(panelId);
+  if (!panel || panel.dataset.sectionKey === sectionKey) return panel;
+  for (const frame of panel.querySelectorAll<HTMLElement>("[data-section-key]")) {
+    if (frame.dataset.sectionKey === sectionKey) return frame;
+  }
+  return null;
+}
+
+/** How long the forms and photos on a page may take to arrive before a title below them is brought into view anyway. */
+const SETTLE_WAIT_MS = 3_000;
+const SETTLE_CHECK_MS = 50;
+
+/**
+ * Runs `then` once every form on the open page has arrived and every
+ * section's photos have loaded (STILL_LOADING: a module's form loads on
+ * demand, and the order table arriving pushes packing configuration down;
+ * the order's photos taking the place of "Loading photos…" move it too), or
+ * after `limitMs` whatever is still loading. Stands down once `acted` says
+ * the inspector pressed or typed meanwhile. Returns what stops the wait.
+ */
+function whenPageSettled(
+  panelId: string,
+  then: () => void,
+  { acted, limitMs = SETTLE_WAIT_MS }: { acted: () => boolean; limitMs?: number },
+): () => void {
+  const deadline = performance.now() + limitMs;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const check = () => {
+    if (acted()) return;
+    const loading = document.getElementById(panelId)?.querySelector(STILL_LOADING);
+    if (loading && performance.now() < deadline) timer = setTimeout(check, SETTLE_CHECK_MS);
+    else then();
+  };
+  check();
+  return () => clearTimeout(timer);
 }
 
 /**

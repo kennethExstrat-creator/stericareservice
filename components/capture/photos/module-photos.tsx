@@ -45,8 +45,16 @@ export type ModulePhotosProps = {
   /** Section heading in the gallery; "Photos" on the capture screen. */
   title?: string;
   headingLevel?: 2 | 3;
-  /** Notices about photos waiting on this device. The gallery shows them once, at the top. */
+  /**
+   * The notices about the inspection's photos as a whole: those waiting on
+   * this device, and the uploaded ones that could not be loaded (with Try
+   * Again). The gallery shows the first once, at the top (it opens with the
+   * photos loaded); a capture page of two sections shows both in its first
+   * slot.
+   */
   showNotices?: boolean;
+  /** Read out after the heading ("Photos, Order"), where another slot on the page has the same heading. */
+  nameContext?: string;
   /** Under the heading, e.g. the hint for untagged photos. */
   description?: ReactNode;
   className?: string;
@@ -92,6 +100,7 @@ export function ModulePhotos({
   title,
   headingLevel = 3,
   showNotices = true,
+  nameContext,
   description,
   className,
 }: ModulePhotosProps) {
@@ -172,6 +181,7 @@ export function ModulePhotos({
           )}
         >
           {heading}
+          {nameContext && <span className="sr-only">, {nameContext}</span>}
         </Heading>
         <p aria-live="polite" className="text-sm text-muted-foreground tabular-nums">
           {countPhotos(photos.length)}
@@ -188,7 +198,8 @@ export function ModulePhotos({
 
       {showNotices && <UploadNotices inspectionId={inspectionId} />}
 
-      {media.status === "error" && (
+      {/* The inspection's photos, not this module's: once a page, as the notices above. */}
+      {showNotices && media.status === "error" && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-warn-border bg-warn-tint px-3 py-2 text-sm text-warn">
           <CircleAlertIcon aria-hidden className="size-4 shrink-0" />
           <p className="min-w-0 flex-1">
@@ -235,8 +246,10 @@ export function ModulePhotos({
           })}
         </ul>
       ) : media.status === "loading" || media.status === "idle" ? (
-        // Not known yet (idle: the first render, before the browser loads them): never "No photos".
-        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+        // Not known yet (idle: the first render, before the browser loads them): never "No photos". The line
+        // then gives way to the photos or to nothing, moving what is below: the capture screen waits for it
+        // to go before it brings a section below this one into view (capture-screen.tsx, use-landing-spot.ts).
+        <p data-slot="photos-loading" className="flex items-center gap-2 text-sm text-muted-foreground">
           <LoaderCircleIcon aria-hidden className="size-4 animate-spin" />
           Loading photos…
         </p>

@@ -5,10 +5,12 @@
 // screen shows them as tasks ("Pending"), one short row per section
 // (pendingTasks): errors are needed before submit, warnings are the rest to do.
 // Entries a field refused (refused.ts) join their section's row first: the
-// row names the field and links to it.
+// row names the field and links to it. A section here is one module (or
+// custom module), also where a page shows two (sections.ts SHOWN_WITH): each
+// keeps its own row, and its link opens the page it is on.
 import { FRAMEWORK_ISSUE_CODES, type IssuePath, type ValidationIssue } from "@/lib/validation";
 import { REFUSED_ENTRY_CODE, refusedEntriesStatus } from "./refused";
-import type { CaptureSection } from "./sections";
+import { findPage, type CapturePage, type CaptureSection } from "./sections";
 
 export type IssueGroup = {
   /** The section's key: where the links go. */
@@ -329,11 +331,14 @@ function joinWords(words: readonly string[]): string {
   return `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
 }
 
-/** Where an issue's link goes: its section, and the data path to focus there. */
-export type IssueTarget = { sectionKey: string; path: IssuePath };
+/**
+ * Where an issue's link goes: the page its section is on (the order's, for
+ * packing configuration), the section, and the data path to focus there.
+ */
+export type IssueTarget = { pageKey: string; sectionKey: string; path: IssuePath };
 
-export function issueTarget(issue: Pick<ValidationIssue, "moduleKey" | "path">): IssueTarget {
-  return { sectionKey: issue.moduleKey, path: issue.path };
+export function issueTarget(issue: Pick<ValidationIssue, "moduleKey" | "path">, pages: readonly CapturePage[]): IssueTarget {
+  return { pageKey: findPage(pages, issue.moduleKey)?.key ?? issue.moduleKey, sectionKey: issue.moduleKey, path: issue.path };
 }
 
 /** A stable key for a list item: the same issue keeps its key while the list changes around it. */

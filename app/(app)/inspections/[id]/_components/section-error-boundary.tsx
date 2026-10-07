@@ -7,7 +7,8 @@
 // not a bug: a calm notice says the section opens once the connection is
 // back, and it tries again by itself when the browser is online again. A
 // form that crashed says so in red. "Try Again" asks the screen for the form
-// afresh (onRetry: a new download, rendered by a new boundary).
+// afresh (onRetry: a new download, rendered by a new boundary); on a page of
+// two sections it is read out with its section's title.
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { CloudOffIcon, OctagonXIcon, RefreshCwIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,11 @@ type Props = {
   title: string;
   /** Shows the form afresh: a new download of its code, under a new boundary. Without it the boundary renders its children again. */
   onRetry?: () => void;
+  /**
+   * The section's title, read out after Try Again on a page of two sections
+   * ("Try Again, Order"), where the other section's form may not show either.
+   */
+  nameContext?: string;
   children: ReactNode;
 };
 type State = { error: Error | null; online: boolean };
@@ -62,10 +68,12 @@ export class SectionErrorBoundary extends Component<Props, State> {
     const { error, online } = this.state;
     if (!error) return this.props.children;
     const failure = sectionFailure(error, online);
+    const { nameContext } = this.props;
     const tryAgain = (
-      <Button type="button" variant="outline" size="sm" onClick={this.retry}>
+      <Button type="button" variant="outline" size="sm" onClick={this.retry} className="relative">
         <RefreshCwIcon aria-hidden />
         Try Again
+        {nameContext && <span className="sr-only">, {nameContext}</span>}
       </Button>
     );
 

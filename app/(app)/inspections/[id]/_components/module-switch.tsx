@@ -45,8 +45,19 @@ export function switchOffDraftKey(userId: string, inspectionId: string, moduleKe
   return `stericare:capture-draft:switch-off:${userId}:${inspectionId}:${moduleKey}`;
 }
 
-/** "Switch Off" in a section's header, with the reason dialog. */
-export function SwitchOffDialog({ inspectionId, moduleKey, title, onChanged }: SwitchProps) {
+/**
+ * "Switch Off" in a section's header, with the reason dialog. On a page of
+ * two sections the button is read out with its section's title
+ * (`nameContext`: "Switch Off Packing configuration"), so it never shares a
+ * name with another on the page.
+ */
+export function SwitchOffDialog({
+  inspectionId,
+  moduleKey,
+  title,
+  nameContext,
+  onChanged,
+}: SwitchProps & { nameContext?: string }) {
   const [open, setOpen] = useState(false);
   // A fresh form, with no old error, every time it opens.
   const [formKey, setFormKey] = useState(0);
@@ -76,9 +87,10 @@ export function SwitchOffDialog({ inspectionId, moduleKey, title, onChanged }: S
       }}
     >
       <DialogTrigger asChild>
-        <Button type="button" variant="outline" size="sm" data-action="switch-off">
+        <Button type="button" variant="outline" size="sm" data-action="switch-off" className="relative">
           <CircleOffIcon aria-hidden />
           Switch Off
+          {nameContext && <span className="sr-only"> {nameContext}</span>}
         </Button>
       </DialogTrigger>
       <DialogContent

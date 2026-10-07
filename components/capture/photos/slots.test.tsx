@@ -4,8 +4,28 @@
 // with, and nothing to add on a read-only screen.
 import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
-import { EMPTY_TAG_OPTIONS, tagOptionsFromTemplate } from "@/lib/inspections/photos/view";
+import { describe, expect, it, vi } from "vitest";
+
+// The notices about photos waiting on this device have tests of their own
+// (status-ui.test.tsx); on the server they say nothing. Here: which slot shows them.
+vi.mock("./upload-notices", async () => {
+  const { createElement } = await import("react");
+  return { UploadNotices: () => createElement("div", { "data-slot": "upload-notices" }) };
+});
+
+// What the browser made of the inspection's photos, where a test says (on the server they are never loaded).
+const loaded = vi.hoisted(() => ({ media: null as import("./media-store").MediaState | null }));
+vi.mock("./hooks", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./hooks")>();
+  return {
+    ...actual,
+    useInspectionMedia: (inspectionId: string) => {
+      const media = actual.useInspectionMedia(inspectionId);
+      return loaded.media ?? media;
+    },
+  };
+});
+import { EMPTY_TAG_OPTIONS, moduleTitle, tagOptionsFromTemplate } from "@/lib/inspections/photos/view";
 import { FileSlot, useInspectionFiles } from "../files";
 import { useUploadsWaiting } from "./hooks";
 import { nextTagLine, toViewerPhoto } from "./module-photos";
@@ -50,8 +70,9 @@ describe("PhotoSlot", () => {
     // The rear camera for one photo, the library for several.
     expect(html).toMatch(/<input[^>]*type="file"[^>]*accept="image\/\*"[^>]*capture="environment"[^>]*data-photo-input="camera"/);
     expect(html).toMatch(/<input[^>]*type="file"[^>]*accept="image\/\*"[^>]*multiple=""[^>]*data-photo-input="library"/);
-    // The browser loads the photos: until then the slot never says there are none.
-    expect(html).toContain("Loading photos…");
+    // The browser loads the photos: until then the slot never says there are none. The capture screen waits
+    // for that line to go before it brings a section below this one into view (it moves what is below).
+    expect(html).toMatch(/<p data-slot="photos-loading"[^>]*>(?:(?!<\/p>).)*Loading photos…<\/p>/);
     expect(html).not.toContain("No photos");
     expect(unanchoredSrOnly(html)).toEqual([]);
   });
@@ -75,6 +96,52 @@ describe("PhotoSlot", () => {
     const html = render(<PhotoSlot inspectionId={INSPECTION} moduleKey="dimensions" focus={{ size: "S" }} showAddControls={false} />);
     expect(html).not.toMatch(/Take photo/i);
     expect(html).toContain("New photos are tagged Size S.");
+  });
+
+  it("reads the iPad's two buttons out with where the photos go, as the desktop's Choose Photos", () => {
+    const html = render(<PhotoSlot inspectionId={INSPECTION} moduleKey="watertight" focus={focus} />);
+    // No template loaded on the server: the module's title from its key.
+    const target = moduleTitle("watertight", EMPTY_TAG_OPTIONS);
+    for (const button of ["Take Photo", "Add From Library", "Choose Photos"]) {
+      expect(html).toContain(`${button}<span class="sr-only"> for ${target}</span></button>`);
+    }
+    expect(unanchoredSrOnly(html)).toEqual([]);
+  });
+
+  it("shows the notices about photos waiting on this device, unless another slot on the page does", () => {
+    expect(render(<PhotoSlot inspectionId={INSPECTION} moduleKey="order_lots" />)).toContain('data-slot="upload-notices"');
+    expect(render(<PhotoSlot inspectionId={INSPECTION} moduleKey="packing_config" showNotices={false} />)).not.toContain(
+      'data-slot="upload-notices"',
+    );
+  });
+
+  it("says the uploaded photos could not be loaded once a page, with its Try Again, where the notices show", () => {
+    loaded.media = { status: "error", media: null, error: "The photos could not be loaded. Check the connection." };
+    try {
+      const first = render(<PhotoSlot inspectionId={INSPECTION} moduleKey="order_lots" />);
+      expect(first).toContain("Photos already uploaded could not be loaded.");
+      expect(first.match(/>Try Again<\/button>/g)).toHaveLength(1);
+      expect(first).not.toContain("Loading photos…");
+      // The other slot on the page: the same inspection's photos, so neither the notice nor a second Try Again.
+      const second = render(<PhotoSlot inspectionId={INSPECTION} moduleKey="packing_config" showNotices={false} />);
+      expect(second).not.toContain("could not be loaded");
+      expect(second).not.toContain("Try Again");
+      expect(second).not.toContain("Loading photos…");
+    } finally {
+      loaded.media = null;
+    }
+  });
+
+  it("names its photos after its section on a page of two, and Photos alone otherwise", () => {
+    const title = "Packing configuration";
+    const html = render(<PhotoSlot inspectionId={INSPECTION} moduleKey="packing_config" nameContext={title} />);
+    // The region is named by its heading: two regions on one page never share a name.
+    const heading = /<section aria-labelledby="([^"]+)"/.exec(html)?.[1];
+    expect(html).toContain(`id="${heading}"`);
+    expect(html).toMatch(/<h3[^>]*>Photos<span class="sr-only">, [^<]+<\/span><\/h3>/);
+    expect(html).toContain(`<span class="sr-only">, ${title}</span></h3>`);
+    expect(unanchoredSrOnly(html)).toEqual([]);
+    expect(render(<PhotoSlot inspectionId={INSPECTION} moduleKey="order_lots" />)).toMatch(/<h3[^>]*>Photos<\/h3>/);
   });
 });
 

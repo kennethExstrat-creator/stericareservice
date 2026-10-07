@@ -285,6 +285,8 @@ It also overrides the status: nothing saved means not done; per-size results onl
 
 The capture screen wraps your Capture in its section frame (`app/(app)/inspections/[id]/_components/section-frame.tsx`, ModuleCard's look): the title in the template's wording, the result pill and summary, then your body, then a footer with the inspector comment and the photo slot (`components/capture/photos` PhotoSlot: "Take Photo" and "Add From Library" on the iPad, drop or choose on a desktop, the module's photos with their upload state). It is not `ModuleCard`, whose own photo buttons would show the slot twice. The body sits inside `FileSlotProvider` (section 10.1). Capture renders the module body only: no title, comment or photo buttons of its own.
 
+**A page may show more than one module.** Where `SHOWN_WITH` (`lib/inspections/capture/sections.ts`) says so and both modules are included, the screen shows one module's frame right below another's, on the same tab, sidebar row and progress step: `packing_config` below `order_lots`, because the order's Total # gloves comes from the packing (Kenneth, 8 October 2026; the printed report has the packing block under the order table). Each module keeps its own frame (title, result pill, summary, Switch Off, comment, photos) and its own Pending row; the page takes the first module's title and the worst result of the two, and is done once both are. Switched off, the second module has a page of its own again. So your Capture never assumes it is alone on the screen: everything it does stays inside its own root (`useIssueFocus(focusPath, { root })`, an `EnterGroup` of its own, ids from `useId`, never `document.querySelector` for its own parts), and the `focusPath` it gets is always one of its own module's paths. A module shown below another has no sticky size bar of its own (it would stick over the frame above it): check the sticky offsets before adding one to `SHOWN_WITH`.
+
 ```tsx
 "use client";
 import type { CaptureProps } from "@/modules/_framework";
@@ -307,7 +309,7 @@ Then add `loadCapture: () => import("./Capture")` to your definition.
 | `onChange(next)` | Replaces your data with the **whole** new value; the screen writes it into the inspection and autosaves. Never call it yourself: write through the kit's `useDataUpdater(data, onChange)` and build every change from `current`, so a pasted column or two changes in one event all land, and a size taken out of the order keeps its data in case it comes back (rule 4): `update((current) => ({ ...current, sizes: { ...current.sizes, [size]: entry } }))` (docs/CAPTURE_KIT.md). |
 | `onFocusChange(focus)` | Report what is in focus, so a photo taken now is tagged with it (BUILD_SPEC 8.1): `size`, `hand`, `defect` (a defect or check code), `box`, `level` (labelling's `inner` or `carton`) and `item` (an entry of your own list: a document, a loading stage). |
 | `focus` | Optional: what the screen has in focus now, as the last module reported it. Open on its size when it is ordered, so the size chosen in one module stays chosen in the next: `useState(() => initialSize(context, focus))` (documents opens on its `item` the same way). The screen keeps the size when it opens another section (section 10.1), but tags your photos only with what you report: report the size on screen as you mount and whenever it changes, while it is the only size on screen, with `@/modules/_framework/shown-size`. With tabs at every width: `useReportShownSize(sizeOnTabs(context.sizes, size), onFocusChange)`. With `wide="all"` (every size side by side from 1280 px): `useReportShownSize(useSizeShownAlone(context.sizes, size), onFocusChange)` for a per-size function panel, `<ShownSizeReport sizes={context.sizes} onFocusChange={onFocusChange} />` inside a node panel (SizeTabs may keep its tabs there). A table of every size (weight's one value per size) reports a size only when one is ordered. |
-| `focusPath` | A data path to scroll to and focus, from a link in the issue list. |
+| `focusPath` | A data path to scroll to and focus, from a link in the issue list. Only ever your own module's: on a page of two modules, a link to the other goes to its Capture, and yours gets null. |
 | `defectUsage` | Optional: how often each defect code was counted in earlier inspections the user can see (the same client and manufacturer, else any), for "the most-used defects first" (BUILD_SPEC 8). Order your defect rows by it, ties in the template's order, one-off labels last; watertight and visual do. The screen reads it once when it opens, so rows never move while the inspector counts. It orders rows only: never a result. |
 | `readOnly` | Approved, or not the user's to edit. |
 
@@ -436,6 +438,8 @@ const saved = parseModuleData(definition, readModuleEntry(data, "modules", key))
 // evaluation: its report.modules entry, onChange: (next) => writeModuleData(data, "modules", key, next),
 // focus: the size the last module reported (onFocusChange), kept across sections (photo tags
 //   take only what the open module reports itself),
+// focusPath: an issue link's path in this module, null for every other module on its page
+//   (packing_config shows on order_lots's page: section 10),
 // inside FileSlotProvider (section 10.1)
 ```
 
@@ -460,8 +464,8 @@ const saved = parseModuleData(definition, readModuleEntry(data, "modules", key))
 |---|---|---|
 | `header` | no | Always on. Contributes `header`; use its keys (`client`, `manufacturer`, `poNo`, `productName`, `productCode`, `inspectionDate`, `mfgDate`, `expiryDate`) as your data keys. Inspector from `context.inspection`, never typed. Warn if expiry is not after mfg date. Canonical paths for the text fields. |
 | `glove_info` | no | Done: the worked example, its capture body included. |
-| `order_lots` | no | The source of sizes, so not per size itself, and the framework's per-size checks do not cover its data: reject a size entered twice yourself. Contributes `sizes` (sizes with a quantity) and `order`. Totals in `computed`, gloves from `context.packing`. Offer only `context.templateSizes`. |
-| `packing_config` | no | Contributes `packing`. Warn if gloves per case is not inner x per case. Inner unit name from config. |
+| `order_lots` | no | The source of sizes, so not per size itself, and the framework's per-size checks do not cover its data: reject a size entered twice yourself. Contributes `sizes` (sizes with a quantity) and `order`. Totals in `computed`, gloves from `context.packing`. Offer only `context.templateSizes`. On the capture screen `packing_config` shows on its page, right below it (section 10). |
+| `packing_config` | no | Contributes `packing`. Warn if gloves per case is not inner x per case. Inner unit name from config. Shown on the order's page, below the order (`SHOWN_WITH`, section 10), so the order's totals fill in as it is typed; switched off, a page of its own. |
 | `sampling_plan` | yes | Contributes `sampling` (the `SamplingValues` keys) and `aql.inspectionLevel` from config. Warn when below the AQL plan (`lib/aql`, `lotSizeGloves`). |
 | `carton_sampling` | yes | Contributes `cartons`. Rule 6 errors with paths; fail on them. |
 | `dimensions` | yes | n from `context.sampling[size].dimensions` or config; `summarizeColumn` and `checkSpec` in `lib/stats`; median or average from config. Specs as a list of rows, one per size, `{ size, specs: { length: SpecSchema, ... } }` (the dictionary's shape: a record keyed by size would merge two specs into one down an extends chain). |

@@ -13,7 +13,7 @@ vi.mock("../actions", () => ({
 
 import { SITE_NOTES, SIZE_TABLE, TEST_ADMIN_ID } from "@/lib/inspections/capture/__fixtures__/capture";
 import { captureAccess } from "@/lib/inspections/capture/access";
-import type { CaptureSection } from "@/lib/inspections/capture/sections";
+import { capturePages, type CaptureSection } from "@/lib/inspections/capture/sections";
 import type { ValidationIssue } from "@/lib/validation";
 import { TEST_REGISTRY } from "@/modules/_framework/__fixtures__/test-registry";
 import { makeTestContext } from "@/modules/_framework/testing";
@@ -27,7 +27,7 @@ import { formatOverrideTime, SwitchedOffPanel } from "./module-switch";
 import { CustomModuleForm, FallbackModuleForm } from "./plain-forms";
 import { SaveIndicator } from "./save-indicator";
 import { SectionErrorBoundary } from "./section-error-boundary";
-import { SectionFrame } from "./section-frame";
+import { PagePanel, SectionComment, SectionFrame } from "./section-frame";
 import { SectionList } from "./section-list";
 import { SubmitSummary } from "./submit-control";
 import { nextTabIndex, SectionTabs, tabId } from "./section-tabs";
@@ -46,9 +46,31 @@ const SECTIONS: CaptureSection[] = [
   { kind: "module", key: "conclusion", title: "Conclusion", status: "not_done", summary: "", progress: "not_started", stub: false, errors: 1, warnings: 0 },
 ];
 
+/** The packing module's title in the fixtures below. */
+const PACKING_TITLE = "Packing configuration";
+
+/** The order filled in and packing configuration not adding up: one page, the order's, each module with its result. */
+const ORDER_PAGE: CaptureSection[] = [
+  { kind: "module", key: "header", title: "Manufacturer Information", status: "info", summary: "", progress: "done", stub: false, errors: 0, warnings: 0 },
+  { kind: "module", key: "order_lots", title: "Order", status: "info", summary: "", progress: "done", stub: false, errors: 0, warnings: 0 },
+  {
+    kind: "module",
+    key: "packing_config",
+    title: PACKING_TITLE,
+    status: "warn",
+    summary: "",
+    progress: "done",
+    stub: false,
+    shownWith: "order_lots",
+    errors: 0,
+    warnings: 1,
+  },
+  { kind: "module", key: "conclusion", title: "Conclusion", status: "not_done", summary: "", progress: "not_started", stub: false, errors: 1, warnings: 0 },
+];
+
 describe("SectionTabs", () => {
   const html = renderToStaticMarkup(
-    <SectionTabs sections={SECTIONS} activeKey="glove_info" onSelect={noop} panelId="panel" idPrefix="cap" />,
+    <SectionTabs pages={capturePages(SECTIONS)} activeKey="glove_info" onSelect={noop} panelId="panel" idPrefix="cap" />,
   );
 
   it("is a tab list with one tab per section, the open one selected and in the tab order", () => {
@@ -73,6 +95,24 @@ describe("SectionTabs", () => {
     const order = tagsWith(html, 'role="tab"').map((tab) => /data-section="([a-z_]+)"/.exec(tab)?.[1]);
     expect(order).toEqual(["header", "glove_info", "conclusion", "packing_config"]);
     expect(html).toContain(", switched off for this inspection");
+  });
+
+  it("gives the order's page one tab, named by the order, with the worst result of the two and both keys", () => {
+    const order = renderToStaticMarkup(
+      <SectionTabs pages={capturePages(ORDER_PAGE)} activeKey="order_lots" onSelect={noop} panelId="panel" idPrefix="cap" />,
+    );
+    const tabs = tagsWith(order, 'role="tab"');
+    expect(tabs.map((tab) => /data-sections="([a-z_ ]+)"/.exec(tab)?.[1])).toEqual([
+      "header",
+      "order_lots packing_config",
+      "conclusion",
+    ]);
+    const tab = tabs[1];
+    expect(tab).toContain('data-section="order_lots"');
+    expect(tab).toContain('aria-selected="true"');
+    expect(tab).toContain(`id="${tabId("cap", "order_lots")}"`);
+    expect(order).toMatch(/<button[^>]*data-section="order_lots"[^>]*>(?:(?!<\/button>).)*>Order<\/span>(?:(?!<\/button>).)*data-status="warn"/);
+    expect(order).not.toContain(PACKING_TITLE);
   });
 
   it("moves with arrow keys, Home and End, wrapping", () => {
@@ -210,6 +250,25 @@ describe("UnreadableData", () => {
     expect(tagsWith(html, "data-issue-path")[0]).toContain('tabindex="-1"');
     expect(html).toContain("Remove the Values That Cannot Be Read");
     expect(html).toContain("Everything else here is kept.");
+  });
+
+  it("reads its button out with its section's title on a page of two, and with its words alone otherwise", () => {
+    const entry = { value: { indicativeWeight: "2 42", colour: "Blue" }, comment: null, hasData: true };
+    const props = {
+      definition,
+      entry,
+      issues: [issue(tooHeavy.path, tooHeavy.message)],
+      fallback: undefined,
+      focusPath: null,
+      readOnly: false,
+      onRemove: noop,
+    };
+    const named = renderToStaticMarkup(<UnreadableData {...props} nameContext="Glove Information" />);
+    // Anchored, so the hidden title never escapes (docs/DESIGN.md, Do / Don't).
+    expect(named).toMatch(
+      /<button[^>]*class="[^"]*\brelative\b[^"]*"[^>]*>(?:(?!<\/button>).)*Remove the Values That Cannot Be Read<span class="sr-only">, Glove Information<\/span><\/button>/,
+    );
+    expect(renderToStaticMarkup(<UnreadableData {...props} />)).toContain("Remove the Values That Cannot Be Read</button>");
   });
 
   it("shows read-only viewers the list only", () => {
@@ -369,6 +428,16 @@ describe("SectionErrorBoundary (a section's form that did not show)", () => {
     expect(html).not.toContain("developer");
   });
 
+  it("reads Try Again out with its section's title on a page of two, where the other form may not show either", () => {
+    const boundary = new SectionErrorBoundary({ title: "Packing configuration", nameContext: "Packing configuration", children: <p>Form</p> });
+    boundary.state = { error: chunkError, online: false };
+    const html = renderToStaticMarkup(<>{boundary.render()}</>);
+    expect(html).toMatch(
+      /<button[^>]*class="[^"]*\brelative\b[^"]*"[^>]*>(?:(?!<\/button>).)*Try Again<span class="sr-only">, Packing configuration<\/span><\/button>/,
+    );
+    expect(shown(chunkError, false)).toContain("Try Again</button>");
+  });
+
   it("keeps the red alert for a form that crashed", () => {
     const html = shown(new TypeError("Cannot read properties of undefined"), true);
     expect(html).toContain('role="alert"');
@@ -389,7 +458,7 @@ describe("SectionList (the desktop sidebar)", () => {
     { kind: "custom", key: "onsite", title: "Glove Dispensing Inspection: onsite notes", status: "not_done", summary: "", progress: "not_started", custom: { key: "onsite", title: "Glove Dispensing Inspection: onsite notes", after: "dispensing_safedon", layout: "fields", fields: [] }, errors: 0, warnings: 0 },
     { kind: "excluded", key: "labeling", title: "Packaging Labeling Inspection", override: { reason: "Not ordered.", by: TEST_ADMIN_ID, at: "2026-10-06T08:00:00.000Z" } },
   ];
-  const html = renderToStaticMarkup(<SectionList sections={long} activeKey="onsite" onSelect={noop} />);
+  const html = renderToStaticMarkup(<SectionList pages={capturePages(long)} activeKey="onsite" onSelect={noop} />);
 
   it("wraps a long title to two lines instead of cutting it to one, and names it in full on hover", () => {
     const buttons = tagsWith(html, `type="button"`);
@@ -407,6 +476,14 @@ describe("SectionList (the desktop sidebar)", () => {
     }
     expect(html).toMatch(/class="line-clamp-2[^"]*">Glove Dispensing Inspection: onsite notes</);
     expect(html).not.toMatch(/\btruncate\b/);
+  });
+
+  it("lists the order's page once, under the order's title, with the worst result of the two", () => {
+    const order = renderToStaticMarkup(<SectionList pages={capturePages(ORDER_PAGE)} activeKey="order_lots" onSelect={noop} />);
+    const titles = tagsWith(order, `type="button"`).map((button) => /title="([^"]*)"/.exec(button)?.[1]);
+    expect(titles).toEqual(["Manufacturer Information", "Order", "Conclusion"]);
+    expect(order).toMatch(/title="Order"(?:(?!<\/button>).)*data-status="warn"/);
+    expect(order).not.toContain(PACKING_TITLE);
   });
 });
 
@@ -465,6 +542,94 @@ describe("SectionFrame", () => {
     expect(html).toContain("Not Done");
     expect(html).toContain("Missing: Glove colour.");
     expect(html).toContain("<footer");
+  });
+
+  it("carries its section's key, for landing spots and specs, and none when not given", () => {
+    const keyed = renderToStaticMarkup(
+      <SectionFrame id="panel" sectionKey="packing_config" title={PACKING_TITLE}>
+        <p>Body</p>
+      </SectionFrame>,
+    );
+    expect(tagsWith(keyed, 'id="panel"')[0]).toContain('data-section-key="packing_config"');
+    const plain = renderToStaticMarkup(
+      <SectionFrame id="panel" title="Glove Information">
+        <p>Body</p>
+      </SectionFrame>,
+    );
+    expect(plain).not.toContain("data-section-key");
+  });
+});
+
+describe("PagePanel (a page of two sections: packing configuration below the order)", () => {
+  const frames = (
+    <>
+      <SectionFrame id="panel-order_lots" sectionKey="order_lots" title="Order">
+        <p>Order</p>
+      </SectionFrame>
+      <SectionFrame id="panel-packing_config" sectionKey="packing_config" title={PACKING_TITLE}>
+        <p>Packing</p>
+      </SectionFrame>
+    </>
+  );
+
+  it("is the open tab's panel below 1280 px, named by the tab, each frame a region named by its title", () => {
+    const html = renderToStaticMarkup(
+      <PagePanel id="panel" tabLabelledBy={tabId("cap", "order_lots")}>
+        {frames}
+      </PagePanel>,
+    );
+    const panel = tagsWith(html, 'id="panel"')[0];
+    expect(panel).toContain('data-slot="capture-page"');
+    expect(panel).toContain('role="tabpanel"');
+    expect(panel).toContain(`aria-labelledby="${tabId("cap", "order_lots")}"`);
+    const sections = tagsWith(html, 'data-slot="section-frame"');
+    expect(sections.map((frame) => /data-section-key="([a-z_]+)"/.exec(frame)?.[1])).toEqual(["order_lots", "packing_config"]);
+    expect(sections.map((frame) => /aria-labelledby="([^"]+)"/.exec(frame)?.[1])).toEqual([
+      "panel-order_lots-title",
+      "panel-packing_config-title",
+    ]);
+    for (const frame of sections) expect(frame).not.toContain('role="tabpanel"');
+  });
+
+  it("is a plain block from 1280 px, beside the sidebar", () => {
+    const panel = tagsWith(renderToStaticMarkup(<PagePanel id="panel">{frames}</PagePanel>), 'id="panel"')[0];
+    expect(panel).not.toContain("role=");
+    expect(panel).not.toContain("aria-labelledby");
+  });
+
+  it("around one section adds nothing to the page: the frame is the tab's panel", () => {
+    const html = renderToStaticMarkup(
+      <PagePanel id="panel" tabLabelledBy={tabId("cap", "glove_info")} single>
+        <SectionFrame id="panel" sectionKey="glove_info" tabLabelledBy={tabId("cap", "glove_info")} title="Glove Information">
+          <p>Glove</p>
+        </SectionFrame>
+      </PagePanel>,
+    );
+    // Still a div, as with two sections, so a page that gains or loses packing keeps the frame it shows.
+    expect(html).toMatch(/^<div class="contents"><section /);
+    expect(tagsWith(html, 'id="panel"')).toHaveLength(1);
+    const frame = tagsWith(html, 'id="panel"')[0];
+    expect(frame).toMatch(/^<section /);
+    expect(frame).toContain('role="tabpanel"');
+    expect(html).not.toContain("capture-page");
+  });
+});
+
+describe("SectionComment", () => {
+  it("is read out with its section's title on a page of two, so the two comment fields are told apart", () => {
+    const html = renderToStaticMarkup(<SectionComment value={null} onChange={noop} readOnly={false} context={PACKING_TITLE} />);
+    const id = /<textarea[^>]*\bid="([^"]+)"/.exec(html)?.[1];
+    const label = /<label[^>]*>/.exec(html)?.[0];
+    expect(label).toContain(`for="${id}"`);
+    // Anchored, so the hidden title never escapes the footer (docs/DESIGN.md, Do / Don't).
+    expect(label).toMatch(/class="[^"]*\brelative\b/);
+    expect(html).toContain(`Inspector Comment<span class="sr-only">, ${PACKING_TITLE}</span></label>`);
+  });
+
+  it("is Inspector Comment alone on a page of one section", () => {
+    const html = renderToStaticMarkup(<SectionComment value="Checked" onChange={noop} readOnly={false} />);
+    expect(html).toContain(">Inspector Comment</label>");
+    expect(html).not.toContain("sr-only");
   });
 });
 
