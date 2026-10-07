@@ -6,8 +6,8 @@ import { cn } from "@/lib/utils";
 /* ------------------------------------------------------------------ *
  * Keyboard focus across a refresh (docs/DESIGN.md, Focus). A control
  * that is disabled while its action runs, or that goes once it has done
- * its job, drops focus to the top of the page: "Save decision" gives way
- * to the saved decision, "Request AI second opinion" to the notice that
+ * its job, drops focus to the top of the page: "Save Decision" gives way
+ * to the saved decision, "Request AI Second Opinion" to the notice that
  * the opinion is being written, and that notice to the opinion when it
  * lands. Focus moves to what took the control's place, unless the user
  * has already put it somewhere else.

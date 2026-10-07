@@ -36,7 +36,7 @@ describe("buildAuditTrail", () => {
       { kind: "created", title: "Created", actor: "Inspector A", reason: null },
       { kind: "submitted", title: "Submitted", actor: "Inspector A", reason: null },
       { kind: "reopened", title: "Reopened", actor: "Admin A", reason: "Retest size M." },
-      { kind: "resubmitted", title: "Submitted again", actor: "Inspector A", reason: null },
+      { kind: "resubmitted", title: "Submitted Again", actor: "Inspector A", reason: null },
       { kind: "approved", title: "Approved", actor: "Admin A", reason: null },
     ]);
   });
@@ -82,7 +82,7 @@ describe("buildAuditTrail", () => {
   it("keeps a reason that matches no reopen as its own entry", () => {
     nextId = 1;
     const trail = buildAuditTrail([row("review.reopened", { reason: "Retest." }, "2026-10-06T02:00:00Z", ADMIN, adminProfile)], asAdmin);
-    expect(trail).toEqual([expect.objectContaining({ kind: "event", title: "Reason for reopening", reason: "Retest." })]);
+    expect(trail).toEqual([expect.objectContaining({ kind: "event", title: "Reason for Reopening", reason: "Retest." })]);
   });
 
   it("gives each reopen its own reason", () => {
@@ -113,26 +113,29 @@ describe("buildAuditTrail", () => {
       asAdmin,
     );
     expect(trail.map(({ title, detail }) => ({ title, detail }))).toEqual([
-      { title: "Module settings changed for this inspection", detail: "Scale broken." },
-      { title: "AI second opinion requested", detail: null },
-      { title: "Sent to the AI report", detail: "Sent twice." },
-      { title: "AI review failed", detail: null },
+      { title: "Module Settings Changed for This Inspection", detail: "Scale broken." },
+      { title: "AI Second Opinion Requested", detail: null },
+      { title: "Sent to the AI Report", detail: "Sent twice." },
+      { title: "AI Review Failed", detail: null },
     ]);
   });
 
   it("says what changed when a status change is not part of the flow", () => {
     nextId = 1;
     const [entry] = buildAuditTrail([row("status_changed", { from: "approved", to: "nonsense" }, "2026-10-06T01:00:00Z", null)], asAdmin);
-    expect(entry).toMatchObject({ kind: "status", title: "Status changed from approved to unknown" });
+    expect(entry).toMatchObject({ kind: "status", title: "Status Changed From Approved to Unknown" });
   });
 });
 
 describe("humanise", () => {
   it.each([
-    ["ai_review.failed", "AI review failed"],
-    ["module_override", "Module override"],
+    ["ai_review.failed", "AI Review Failed"],
+    ["module_override", "Module Override"],
     ["export", "Export"],
     ["", "Event"],
+    // Title Case: small words stay small after the first word; each part of a hyphenated word is capitalised.
+    ["export.sent_to_the_client", "Export Sent to the Client"],
+    ["for_review.follow-up", "For Review Follow-Up"],
   ])("%s reads as %s", (action, words) => {
     expect(humanise(action)).toBe(words);
   });

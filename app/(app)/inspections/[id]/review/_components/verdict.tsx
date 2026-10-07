@@ -49,7 +49,7 @@ export function Verdict({ inspection, evaluation }: { inspection: ReviewInspecti
   return (
     <ReviewSection id="result" title="Result">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <Card title="Suggested by the app">
+        <Card title="Suggested by the App">
           {suggested ? (
             <>
               <StatusPill status={suggested.result} label={RESULT_LABEL[suggested.result]} className="touch:h-8 touch:text-base" />
@@ -72,11 +72,11 @@ export function Verdict({ inspection, evaluation }: { inspection: ReviewInspecti
           )}
         </Card>
 
-        <Card title="Final result (inspector)">
+        <Card title="Final Result (Inspector)">
           {final ? (
             <StatusPill status={final} variant="solid" label={RESULT_LABEL[final]} className="touch:h-8 touch:text-base" />
           ) : (
-            <StatusPill status="not_done" label="Not chosen yet" className="touch:h-8 touch:text-base" />
+            <StatusPill status="not_done" label="Not Chosen Yet" className="touch:h-8 touch:text-base" />
           )}
           <div>
             <p className="text-sm font-medium text-muted-foreground">Remark</p>
@@ -131,7 +131,7 @@ function Checks({ evaluation }: { evaluation: Extract<ReviewEvaluation, { ok: tr
         {switchedOff > 0 ? `, ${switchedOff} switched off for it` : ""}.
       </p>
       <Button asChild variant="link" className="h-auto justify-start px-0 touch:h-11 touch:px-0">
-        <a href="#modules">See the module results</a>
+        <a href="#modules">See the Module Results</a>
       </Button>
     </>
   );

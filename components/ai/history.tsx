@@ -21,7 +21,7 @@ export function ReviewHistory({
     <details className="group rounded-xl bg-card shadow-sm ring-1 ring-border" data-testid="ai-review-history">
       <summary className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-4 py-3 text-base font-bold text-foreground focus-ring-inset">
         <HistoryIcon aria-hidden className="size-5 text-brand-600" />
-        Earlier second opinions ({reviews.length})
+        Earlier Second Opinions ({reviews.length})
       </summary>
       <ol className="divide-y divide-border border-t border-border">
         {reviews.map((review) => (
@@ -61,7 +61,7 @@ function HistoryEntry({ review, canDecide, viewerId }: { review: ReviewModel; ca
       {review.state === "done" && (
         <details className="group/entry">
           <summary className="inline-flex min-h-8 cursor-pointer items-center rounded-sm text-sm font-semibold text-brand-600 focus-ring touch:min-h-11">
-            Show this opinion
+            Show This Opinion
           </summary>
           <div className="mt-3 space-y-3">
             {review.summary && <p className="text-sm break-words text-foreground">{review.summary}</p>}
@@ -76,7 +76,7 @@ function HistoryEntry({ review, canDecide, viewerId }: { review: ReviewModel; ca
               />
             ))}
             {review.questions.length > 0 && (
-              <ul className="space-y-2" aria-label="Questions for the inspector">
+              <ul className="space-y-2" aria-label="Questions for the Inspector">
                 {review.questions.map((question) => (
                   <QuestionItem key={question.id} question={question} />
                 ))}
@@ -92,12 +92,12 @@ function HistoryEntry({ review, canDecide, viewerId }: { review: ReviewModel; ca
 function StatePill({ review }: { review: ReviewModel }) {
   switch (review.state) {
     case "done":
-      return <ResultPill result={review.suggestedResult} size="sm" emptyLabel="No result" />;
+      return <ResultPill result={review.suggestedResult} size="sm" emptyLabel="No Result" />;
     case "failed":
       return <StatusPill status="fail" size="sm" label="Failed" />;
     case "stopped":
       return <StatusPill status="not_done" size="sm" label="Stopped" />;
     case "pending":
-      return <StatusPill status="info" size="sm" label="Being written" />;
+      return <StatusPill status="info" size="sm" label="Being Written" />;
   }
 }

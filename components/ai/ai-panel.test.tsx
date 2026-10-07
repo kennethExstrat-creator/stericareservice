@@ -96,9 +96,9 @@ describe("AiReviewPanelView for an admin", () => {
   it("puts the system, the inspector and the AI side by side, overall result first", () => {
     const html = render();
     const content = text(html);
-    expect(content).toContain("AI second opinion");
-    for (const column of ["System (computed)", "Inspector", "AI second opinion"]) expect(content).toContain(column);
-    expect(content).toMatch(/Overall result .*Suggested result .*Failed.* Final result .*On hold.*Inspector A/);
+    expect(content).toContain("AI Second Opinion");
+    for (const column of ["System (Computed)", "Inspector", "AI Second Opinion"]) expect(content).toContain(column);
+    expect(content).toMatch(/Overall Result .*Suggested Result .*Failed.* Final Result .*On hold.*Inspector A/);
     expect(content).toContain("Weight below the indicative value; waiting for the spec sheet.");
     expect(content).toContain("Confidence 85%");
     expect(content).toContain("Weighed on the factory scale.");
@@ -121,12 +121,12 @@ describe("AiReviewPanelView for an admin", () => {
   it("says why under the suggested result, and adds no empty line under a clean pass", () => {
     const overallOf = (html: string) => /<section[^>]*data-section="[^"]*-overall"[^>]*>([\s\S]*?)<\/section>/.exec(html)?.[1] ?? "";
     expect(text(overallOf(render()))).toContain(
-      "Suggested result Failed Failed: Finished Goods Sampling Information (carton number). Warnings: Packing configuration, Weight (g).",
+      "Suggested Result Failed Failed: Finished Goods Sampling Information (carton number). Warnings: Packing configuration, Weight (g).",
     );
 
     const suggested = { result: "pass" as const, failed: [], notDone: [], warned: [], summary: "" };
     const overall = overallOf(render({ evaluated: { ...evaluated, report: { ...evaluated.report, suggested } } }));
-    expect(text(overall)).toContain("Suggested result Passed Inspector");
+    expect(text(overall)).toContain("Suggested Result Passed Inspector");
     expect(overall).not.toMatch(/<p[^>]*><\/p>/);
   });
 
@@ -205,39 +205,51 @@ describe("AiReviewPanelView for an admin", () => {
     const content = text(html);
     expect(content).toMatch(/Disagreed Admin B · 6 Oct 2026, 09:20/);
     expect(content).toContain("The indicative weight on the sheet is for size L.");
-    expect(content).toContain("Earlier decisions (1)");
+    expect(content).toContain("Earlier Decisions (1)");
     expect(html).toContain('aria-label="Change your decision on finding F1"');
     // F2 has no decision yet: the three choices and a save button.
     expect(html).toContain('aria-label="Your decision on finding F2"');
-    expect(content).toMatch(/Agree Disagree Fixed Save decision/);
+    expect(content).toMatch(/Agree Disagree Fixed Save Decision/);
     expect(html).toMatch(/name="action" value=""/);
   });
 
   it("offers a new request, keeps the failed attempt visible, and the history per version", () => {
     const content = text(render());
-    expect(content).toContain("Request a new second opinion");
-    expect(content).toContain("Test data only");
-    expect(content).toContain("The last request failed The webhook did not answer in time.");
-    expect(content).toContain("Earlier second opinions (2)");
+    expect(content).toContain("Request a New Second Opinion");
+    expect(content).toContain("Test Data Only");
+    expect(content).toContain("The Last Request Failed The webhook did not answer in time.");
+    expect(content).toContain("Earlier Second Opinions (2)");
     expect(content).toContain("Stopped without an answer: the server stopped before the reviewer replied.");
     expect(content).toContain("reviewed the version saved 5 Oct 2026, 17:30 (current)");
+  });
+
+  it("words its row notes, labels, pills and toggles in Title Case", () => {
+    const content = text(render());
+    expect(content).toContain("Glove Type Custom Section");
+    expect(content).toContain("tensile Not in the Current Version");
+    expect(content).toMatch(/Switched Off for This Inspection .*Switched Off Reason Calipers out for calibration\./);
+    expect(content).toMatch(/Questions? for the Inspector/);
+    // Each question's screen-reader prefix follows the label above it.
+    expect(content).toContain("Question Q1 for the Inspector: Is the spec sheet on its way?");
+    expect(content).toContain("Show This Opinion");
+    expect(content).toContain("Download JSON");
   });
 
   it("offers the JSON download and says the report service is not connected", () => {
     const html = render();
     const content = text(html);
-    expect(content).toContain("AI report");
+    expect(content).toContain("AI Report");
     expect(content).toContain("AI not connected");
     expect(html).toContain(`href="/api/inspections/${IDS.inspection}/export"`);
     expect(html).toMatch(/<a[^>]*download=""[^>]*>|<a[^>]*download[^>]*>/);
-    expect(content).not.toContain("Send to AI report");
+    expect(content).not.toContain("Send to AI Report");
   });
 
   it("sends to the AI report when a report service is connected", () => {
     const content = text(
       render({ aiStatus: { ...MOCK_STATUS, report: { connected: true, provider: "webhook", label: "AI report connected (webhook)" } } }),
     );
-    expect(content).toContain("Send to AI report");
+    expect(content).toContain("Send to AI Report");
     expect(content).not.toContain("AI not connected");
   });
 
@@ -285,9 +297,9 @@ describe("AiReviewPanelView for the inspector", () => {
     const content = text(html);
     expect(content).toContain("Finding F1");
     expect(content).toContain("An admin decides on each finding.");
-    expect(content).not.toContain("Save decision");
-    expect(content).not.toMatch(/Request (AI|a new) second opinion/);
-    expect(content).not.toContain("Send to AI report");
+    expect(content).not.toContain("Save Decision");
+    expect(content).not.toMatch(/Request (AI|a New) Second Opinion/);
+    expect(content).not.toContain("Send to AI Report");
     expect(html).not.toContain("Change your decision");
     expect(html).toContain(`href="/api/inspections/${IDS.inspection}/export"`);
   });
@@ -300,8 +312,8 @@ describe("AiReviewPanelView states", () => {
     expect(content).toContain("To connect it, set ANTHROPIC_API_KEY or AI_REVIEW_WEBHOOK_URL on the server.");
     // Nothing is switched off: the hint does not send the admin looking for AI_REVIEW_PROVIDER.
     expect(content).not.toContain("AI_REVIEW_PROVIDER");
-    expect(content).not.toContain("System (computed)");
-    expect(content).not.toMatch(/Request (AI|a new) second opinion/);
+    expect(content).not.toContain("System (Computed)");
+    expect(content).not.toMatch(/Request (AI|a New) Second Opinion/);
   });
 
   it("says when the second opinion is switched off on purpose, and how to switch it on", () => {
@@ -324,8 +336,8 @@ describe("AiReviewPanelView states", () => {
 
   it("invites the first request", () => {
     const content = text(render({ reviews: [], decisions: [] }));
-    expect(content).toContain("No second opinion yet");
-    expect(content).toContain("Request AI second opinion");
+    expect(content).toContain("No Second Opinion Yet");
+    expect(content).toContain("Request AI Second Opinion");
   });
 
   it("shows a review being written, and no second request for the same version", () => {
@@ -337,26 +349,43 @@ describe("AiReviewPanelView states", () => {
       createdAt: new Date(NOW - 30_000).toISOString(),
     });
     const content = text(render({ reviews: [running], decisions: [] }));
-    expect(content).toContain("Writing the second opinion");
+    expect(content).toContain("Writing the Second Opinion");
     expect(content).toContain("this panel updates by itself");
-    expect(content).not.toMatch(/Request (AI|a new) second opinion/);
+    expect(content).not.toMatch(/Request (AI|a New) Second Opinion/);
   });
 
   it("warns when the inspection was saved after an opinion stored without a fingerprint", () => {
     const content = text(render({ record: { ...record, updatedAt: "2026-10-06T01:45:00.000001+00:00" } }));
-    expect(content).toContain("The inspection has changed since this opinion");
+    expect(content).toContain("The Inspection Has Changed Since This Opinion");
     expect(content).toContain("It was saved again at 6 Oct 2026, 09:45");
   });
 
   it("warns when what the opinion reviewed has changed, and not for a save that changed nothing it reviewed", () => {
     const reviews = [storedReview({ inspectionFingerprint: inspectionFingerprint(record) })];
     const approved = text(render({ reviews, record: { ...record, status: "approved", updatedAt: "2026-10-06T01:45:00.000001+00:00" } }));
-    expect(approved).not.toContain("The inspection has changed since this opinion");
+    expect(approved).not.toContain("The Inspection Has Changed Since This Opinion");
     expect(approved).toContain("(current)");
 
     const edited = text(render({ reviews, record: { ...record, remarks: "Spec sheet received." } }));
-    expect(edited).toContain("The inspection has changed since this opinion");
+    expect(edited).toContain("The Inspection Has Changed Since This Opinion");
     expect(edited).toContain("What it reviewed has changed: the entries, the modules switched off, or the lab reports and certificates.");
     expect(edited).toContain("Request a new second opinion to review the current version.");
+  });
+
+  it("says when the last request stopped, and when some of the opinion could not be read", () => {
+    // Pending for an hour: past the wait for an answer, so it reads as stopped.
+    const stopped = storedReview({
+      id: REVIEW_IDS.stale,
+      status: "pending",
+      summary: null,
+      suggestedResult: null,
+      confidence: null,
+      findings: [],
+      questions: [],
+      createdAt: new Date(NOW - 60 * 60_000).toISOString(),
+    });
+    const content = text(render({ reviews: [stopped, storedReview({ readable: false })] }));
+    expect(content).toContain("The Last Request Stopped Stopped without an answer: the server stopped before the reviewer replied.");
+    expect(content).toContain("Some of This Opinion Could Not Be Read Its stored findings or questions no longer match the expected shape.");
   });
 });

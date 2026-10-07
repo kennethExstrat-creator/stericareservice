@@ -89,7 +89,7 @@ export function DecisionControl({
         {history.length > 0 && (
           <details className="group text-sm">
             <summary className="inline-flex min-h-8 cursor-pointer items-center rounded-sm font-medium text-brand-600 focus-ring touch:min-h-11">
-              Earlier decisions ({history.length})
+              Earlier Decisions ({history.length})
             </summary>
             <ul className="mt-2 space-y-2 border-l-2 border-border pl-3">
               {history.map((earlier, index) => (
@@ -197,7 +197,7 @@ function DecisionForm({
   }, AI_ACTION_IDLE);
 
   // After a refusal, focus goes where the fix is: the note, the choice, or
-  // "Save decision" to try again. Not before: the fields are disabled while
+  // "Save Decision" to try again. Not before: the fields are disabled while
   // the decision is being saved, and a disabled field cannot take focus.
   useEffect(() => {
     if (state.status !== "error") return;
@@ -260,7 +260,7 @@ function DecisionForm({
       {choice && (
         <Field data-invalid={noteError ? true : undefined} className="gap-1.5">
           <FieldLabel htmlFor={`${id}-note`}>
-            {noteRequired ? "Why do you disagree?" : "Note (optional)"}
+            {noteRequired ? "Why Do You Disagree?" : "Note (Optional)"}
           </FieldLabel>
           <Textarea
             ref={noteRef}
@@ -292,7 +292,7 @@ function DecisionForm({
       <div className="flex flex-wrap items-center gap-2">
         <Button ref={saveRef} type="submit" size="sm" disabled={!choice || pending}>
           {pending ? <Spinner aria-hidden /> : <CheckIcon aria-hidden />}
-          {pending ? "Saving" : "Save decision"}
+          {pending ? "Saving" : "Save Decision"}
         </Button>
         {onCancel && (
           <Button

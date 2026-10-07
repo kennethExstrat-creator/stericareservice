@@ -46,7 +46,7 @@ export function statusNotice(
     case "draft":
       return {
         status: "draft",
-        title: "Not submitted yet",
+        title: "Not Submitted Yet",
         body: own
           ? "The results below show what you have saved so far. Submit it from the inspection once it is complete."
           : `${inspector} has not submitted it yet. The results below show what is saved so far.`,
@@ -57,13 +57,13 @@ export function statusNotice(
       return viewer.role === "admin"
         ? {
             status: "submitted",
-            title: "Waiting for your review",
+            title: "Waiting for Your Review",
             body: `${own ? "You" : inspector} submitted it${on(inspection.submittedAt)}. Check the results, then approve it or reopen it for changes.`,
             reason: null,
           }
         : {
             status: "submitted",
-            title: "Waiting for review",
+            title: "Waiting for Review",
             body: own
               ? `You submitted it${on(inspection.submittedAt)}. An admin checks it next. If something must change, ask an admin to reopen it.`
               : `${inspector} submitted it${on(inspection.submittedAt)}. An admin checks it next, and only an admin can reopen it for changes.`,
@@ -77,9 +77,9 @@ export function statusNotice(
         : "It was reopened for changes.";
       return {
         status: "reopened",
-        title: own ? "Reopened: changes needed" : "Reopened for changes",
+        title: own ? "Reopened: Changes Needed" : "Reopened for Changes",
         body: own ? `${who} Make the changes, then submit it again.` : `${who} ${inspector} can change it and submit it again.`,
-        reason: reopen?.reason ? { label: own ? "What to change" : "Reason", text: reopen.reason } : null,
+        reason: reopen?.reason ? { label: own ? "What to Change" : "Reason", text: reopen.reason } : null,
       };
     }
 

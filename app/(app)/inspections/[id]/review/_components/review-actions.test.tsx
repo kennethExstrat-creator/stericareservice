@@ -72,7 +72,7 @@ describe("ApproveDescription", () => {
 
     expect(plain(html)).toBe(
       "An approved inspection is final: nobody can change its results, photos or files afterwards. Only the choice of report photos stays open. " +
-        "Final result Passed Suggested result Failed " +
+        "Final Result Passed Suggested Result Failed " +
         "The final result differs from the suggested result. " +
         "The checks found 2 errors. Reopen it instead if the inspector should fix them first.",
     );
@@ -80,9 +80,15 @@ describe("ApproveDescription", () => {
 
   it("says nothing was checked when the results could not be worked out, instead of reading as clean", () => {
     const text = plain(render({ finalResult: "fail", suggestedResult: null, errors: null }));
-    expect(text).toContain("Suggested result Could not be worked out");
+    expect(text).toContain("Suggested Result Could not be worked out");
     expect(text).toContain("The results could not be worked out, so nothing was checked. Ask a developer before you approve it.");
     expect(text).not.toContain("The checks found");
+  });
+
+  it("says when the inspector has chosen no final result, in the pill's Title Case", () => {
+    const text = plain(render({ finalResult: null, suggestedResult: "pass", errors: 0 }));
+    expect(text).toContain("Final Result Not Chosen Suggested Result Passed");
+    expect(text).toContain("The inspector has not chosen a final result.");
   });
 
   it("lists no cautions when there is nothing to weigh", () => {

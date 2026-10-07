@@ -15,9 +15,9 @@ import { CellLabel, Quiet, ResultPill } from "./pills";
 const COLUMNS = "@4xl/ai:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)] @4xl/ai:gap-6";
 
 export const COLUMN_TITLES = {
-  system: "System (computed)",
+  system: "System (Computed)",
   inspector: "Inspector",
-  ai: "AI second opinion",
+  ai: "AI Second Opinion",
 } as const;
 
 export function Comparison({ model, review }: { model: AiPanelModel; review: ReviewModel }) {
@@ -43,15 +43,15 @@ export function Comparison({ model, review }: { model: AiPanelModel; review: Rev
       </div>
 
       <div className="divide-y divide-border">
-        <Row id={`${review.id}-overall`} title="Overall result" emphasis>
+        <Row id={`${review.id}-overall`} title="Overall Result" emphasis>
           <Cell label={COLUMN_TITLES.system}>
-            <LabelledPill label="Suggested result">
+            <LabelledPill label="Suggested Result">
               <ResultPill result={model.overall.system.result} />
             </LabelledPill>
             {model.overall.system.summary && <p className="text-sm text-foreground">{model.overall.system.summary}</p>}
           </Cell>
           <Cell label={COLUMN_TITLES.inspector}>
-            <LabelledPill label="Final result">
+            <LabelledPill label="Final Result">
               <ResultPill result={model.overall.inspector.finalResult} />
             </LabelledPill>
             <p className="text-sm text-muted-foreground">{model.overall.inspector.name}</p>
@@ -63,7 +63,7 @@ export function Comparison({ model, review }: { model: AiPanelModel; review: Rev
             {model.overall.inspector.comment && <Comment label="Comment">{model.overall.inspector.comment}</Comment>}
           </Cell>
           <Cell label={COLUMN_TITLES.ai}>
-            <LabelledPill label="Suggested result">
+            <LabelledPill label="Suggested Result">
               <ResultPill result={review.suggestedResult} emptyLabel="None" />
               {review.confidencePct !== null && (
                 <span className="text-sm text-muted-foreground tabular-nums">Confidence {review.confidencePct}%</span>
@@ -129,9 +129,9 @@ export function Comparison({ model, review }: { model: AiPanelModel; review: Rev
 
 const KIND_NOTE: Readonly<Record<SectionModel["kind"], string | null>> = {
   module: null,
-  custom: "Custom section",
-  excluded: "Switched off for this inspection",
-  other: "Not in the current version",
+  custom: "Custom Section",
+  excluded: "Switched Off for This Inspection",
+  other: "Not in the Current Version",
 };
 
 function Row({
@@ -198,7 +198,7 @@ function SystemResult({ section }: { section: SectionModel }) {
   if (section.kind === "excluded") {
     return (
       <>
-        <StatusPill status="not_done" size="sm" label="Switched off" />
+        <StatusPill status="not_done" size="sm" label="Switched Off" />
         {system.excludedReason && <Comment label="Reason">{system.excludedReason}</Comment>}
       </>
     );
@@ -277,7 +277,7 @@ function AiFindings({
       {questions.length > 0 && (
         <div className="space-y-1.5">
           <p className="text-xs font-semibold text-muted-foreground">
-            {questions.length === 1 ? "Question for the inspector" : "Questions for the inspector"}
+            {questions.length === 1 ? "Question for the Inspector" : "Questions for the Inspector"}
           </p>
           <ul className="space-y-2">
             {questions.map((question) => (

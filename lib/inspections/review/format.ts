@@ -3,6 +3,7 @@
 // the server only, so every device reads the same and nothing differs
 // between server and browser. Sizes and numbers come from lib/format, as on
 // the capture screen (docs/CAPTURE_KIT.md).
+import { STATUS_LABEL } from "@/lib/design/status";
 import type { InspectionResult } from "@/lib/schemas/common";
 import type { InspectionContext } from "@/modules/_framework";
 
@@ -22,11 +23,15 @@ export function formatDateTime(iso: string): string {
   return Number.isNaN(time) ? iso : DATE_TIME.format(time);
 }
 
-/** The words for an overall result: the app's suggestion or the inspector's final result. */
+/**
+ * The words for an overall result: the app's suggestion or the inspector's
+ * final result. The status pills' own words (lib/design/status.ts), so a
+ * result reads the same here as on every other pill.
+ */
 export const RESULT_LABEL: Readonly<Record<InspectionResult, string>> = {
-  pass: "Passed",
-  fail: "Failed",
-  hold: "On hold",
+  pass: STATUS_LABEL.pass,
+  fail: STATUS_LABEL.fail,
+  hold: STATUS_LABEL.hold,
 };
 
 /** Sizes in the order the template lists them; unknown sizes last, as given. */

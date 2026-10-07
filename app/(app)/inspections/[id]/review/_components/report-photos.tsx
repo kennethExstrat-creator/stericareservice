@@ -22,9 +22,12 @@ function describe(photos: ReviewData["photos"]): string | undefined {
   return `${marked} of ${plural(photos.total, "photo")} marked for the report.`;
 }
 
+/** The link to the gallery, which the empty text names too. */
+const ALL_PHOTOS = "All Photos";
+
 function emptyText(total: number | null, canChoose: boolean): string {
   if (total === 0) return "No photos have been taken for this inspection.";
-  return `None of the photos is marked for the report yet. ${canChoose ? "Choose them in All photos." : "An admin chooses them."}`;
+  return `None of the photos is marked for the report yet. ${canChoose ? `Choose them in ${ALL_PHOTOS}.` : "An admin chooses them."}`;
 }
 
 export function ReportPhotos({
@@ -40,13 +43,13 @@ export function ReportPhotos({
   return (
     <ReviewSection
       id="photos"
-      title="Report photos"
+      title="Report Photos"
       description={describe(photos)}
       actions={
         <Button asChild variant="outline">
           <Link href={photosHref(inspectionId)}>
             <ImagesIcon aria-hidden />
-            All photos{photos.total ? ` (${photos.total})` : ""}
+            {ALL_PHOTOS}{photos.total ? ` (${photos.total})` : ""}
           </Link>
         </Button>
       }

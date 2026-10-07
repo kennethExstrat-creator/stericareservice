@@ -12,7 +12,7 @@ export function SwitchedOffModules({ overrides }: { overrides: readonly ReviewOv
   return (
     <ReviewSection
       id="switched-off"
-      title="Switched off for this inspection"
+      title="Switched Off for This Inspection"
       description="These modules are left out of the results and the export."
     >
       <Panel>

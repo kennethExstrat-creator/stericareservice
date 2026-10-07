@@ -67,7 +67,7 @@ test.describe("reviewing inspections", () => {
 
     await expect(page).toHaveTitle(`Review ${fixture.A.refNo} · SteriCare QC`);
     await expect(page.getByRole("heading", { level: 1, name: fixture.A.refNo })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Waiting for your review" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Waiting for Your Review" })).toBeVisible();
     await expect(page.getByText("Test Inspector submitted it on")).toBeVisible();
 
     const facts = page.locator("[data-slot=inspection-facts]");
@@ -85,7 +85,7 @@ test.describe("reviewing inspections", () => {
     await expect(result.getByText(REMARK_A)).toBeVisible();
 
     // Every included module's computed result, in template order, with its comment.
-    const modules = page.getByRole("region", { name: "Module results" });
+    const modules = page.getByRole("region", { name: "Module Results" });
     const gloveInfo = modules.locator("[data-module=glove_info]");
     await expect(gloveInfo.getByRole("heading", { name: "Glove Information" })).toBeVisible();
     await expect(gloveInfo).toHaveAttribute("data-status", "info");
@@ -100,17 +100,17 @@ test.describe("reviewing inspections", () => {
     await expect(modules.locator("[data-module=conclusion] [data-level=error]")).toHaveCount(1);
 
     // Weight is switched off for this inspection, with the reason.
-    const switchedOff = page.getByRole("region", { name: "Switched off for this inspection" });
+    const switchedOff = page.getByRole("region", { name: "Switched Off for This Inspection" });
     await expect(switchedOff).toContainText(WEIGHT_OFF_REASON);
     await expect(switchedOff).toContainText("Switched off by Test Admin");
     await expect(modules.locator("[data-module=weight]")).toHaveCount(0);
 
     // Report photos through signed links, and the way to all of them.
-    const photos = page.getByRole("region", { name: "Report photos" });
+    const photos = page.getByRole("region", { name: "Report Photos" });
     await expect(photos.getByText("2 of 3 photos marked for the report.")).toBeVisible();
     await expect(photos.locator("li[data-photo]")).toHaveCount(2);
     await expect(photos.getByText(PHOTO_CAPTION)).toBeVisible();
-    await expect(photos.getByRole("link", { name: "All photos (3)" })).toHaveAttribute(
+    await expect(photos.getByRole("link", { name: "All Photos (3)" })).toHaveAttribute(
       "href",
       `/inspections/${fixture.A.id}/photos`,
     );
@@ -122,7 +122,7 @@ test.describe("reviewing inspections", () => {
     // The AI second opinion between the result and the module results, with the AI report's JSON download
     // (what it offers beyond that depends on the server's AI set-up: e2e/export covers it).
     const ai = page.getByTestId("ai-panel");
-    await expect(ai.getByRole("heading", { level: 2, name: "AI second opinion" })).toBeVisible();
+    await expect(ai.getByRole("heading", { level: 2, name: "AI Second Opinion" })).toBeVisible();
     await expect(ai.getByTestId("ai-report").getByRole("link", { name: "Download JSON" })).toHaveAttribute(
       "href",
       `/api/inspections/${fixture.A.id}/export`,
@@ -154,7 +154,7 @@ test.describe("reviewing inspections", () => {
     await expect(dialog.getByText("An approved inspection is final")).toBeVisible();
     await expect(dialog.getByText("The checks found 1 error.", { exact: false })).toBeVisible();
     // Read out as the dialog opens, cautions included, while focus waits on Cancel.
-    await expect(dialog).toHaveAccessibleDescription(/^An approved inspection is final: .*Final result Passed .*The checks found 1 error\./);
+    await expect(dialog).toHaveAccessibleDescription(/^An approved inspection is final: .*Final Result Passed .*The checks found 1 error\./);
     await expect(dialog.getByRole("button", { name: "Cancel" })).toBeFocused();
     await viewShot(page, "admin-approve-dialog");
 
@@ -195,13 +195,13 @@ test.describe("reviewing inspections", () => {
     await expect(page.getByText("An admin approved it on")).toBeVisible();
     await expect(page.getByRole("button", { name: "Approve" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Reopen" })).toHaveCount(0);
-    await expect(page.getByRole("link", { name: "Make changes" })).toHaveCount(0);
-    await expect(page.getByRole("link", { name: "Open inspection" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Make Changes" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Open Inspection" })).toBeVisible();
     await expect(page.getByText(GLOVE_INFO_COMMENT)).toBeVisible();
-    await expect(page.getByRole("region", { name: "Switched off for this inspection" })).toContainText(
+    await expect(page.getByRole("region", { name: "Switched Off for This Inspection" })).toContainText(
       "Switched off by an admin",
     );
-    await expect(page.getByRole("region", { name: "Report photos" }).locator("li[data-photo]")).toHaveCount(2);
+    await expect(page.getByRole("region", { name: "Report Photos" }).locator("li[data-photo]")).toHaveCount(2);
     await expectNoPageScroll(page);
     await shot(page, "inspector-approved");
     expect(hydration()).toEqual([]);
@@ -211,7 +211,7 @@ test.describe("reviewing inspections", () => {
     await as.signIn(context, baseURL!, "inspector");
     await page.goto(reviewPath(fixture.B.id));
 
-    await expect(page.getByRole("heading", { name: "Waiting for review" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Waiting for Review" })).toBeVisible();
     await expect(page.getByText("You submitted it on")).toBeVisible();
     await expect(page.getByRole("button", { name: "Approve" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Reopen" })).toHaveCount(0);
@@ -228,7 +228,7 @@ test.describe("reviewing inspections", () => {
   test("a version the admin has not seen is not approved", async ({ page, context, baseURL }) => {
     await as.signIn(context, baseURL!, "admin");
     await page.goto(reviewPath(fixture.B.id));
-    await expect(page.getByRole("heading", { name: "Waiting for your review" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Waiting for Your Review" })).toBeVisible();
 
     // Someone changes B while this admin looks at the old version.
     await fixture.touchB();
@@ -240,7 +240,7 @@ test.describe("reviewing inspections", () => {
     await expect(dialog).toBeHidden();
     // The page now shows the latest version, still waiting for review.
     await expect(page.getByText("Updated by another admin.")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Waiting for your review" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Waiting for Your Review" })).toBeVisible();
     await viewShot(page, "admin-stale-version");
     const { data: row } = await createTestAdminClient().from("inspections").select("status").eq("id", fixture.B.id).single();
     expect(row?.status).toBe("submitted");
@@ -253,7 +253,7 @@ test.describe("reviewing inspections", () => {
 
     await press(page.getByRole("button", { name: "Reopen" }));
     const dialog = page.getByRole("alertdialog", { name: `Reopen ${fixture.B.refNo}?` });
-    const reason = dialog.getByRole("textbox", { name: "What should the inspector change?" });
+    const reason = dialog.getByRole("textbox", { name: "What Should the Inspector Change?" });
     // Straight to the reason.
     await expect(reason).toBeFocused();
     await expectTouchTarget(reason);
@@ -273,7 +273,7 @@ test.describe("reviewing inspections", () => {
     await press(dialog.getByRole("button", { name: "Reopen" }));
     await expect(page.getByText(`${fixture.B.refNo} is reopened.`)).toBeVisible();
     await expect(dialog).toBeHidden();
-    await expect(page.getByRole("heading", { name: "Reopened for changes" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Reopened for Changes" })).toBeVisible();
     await expect(page.getByText(REOPEN_REASON).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Approve" })).toHaveCount(0);
     const reopened = page.getByRole("region", { name: "History" }).locator("li[data-kind=reopened]");
@@ -296,12 +296,12 @@ test.describe("reviewing inspections", () => {
     await as.signIn(context, baseURL!, "inspector");
     await page.goto(reviewPath(fixture.B.id));
 
-    await expect(page.getByRole("heading", { name: "Reopened: changes needed" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Reopened: Changes Needed" })).toBeVisible();
     await expect(page.getByText("An admin reopened it on")).toBeVisible();
     const status = page.locator("[data-slot=review-status]");
-    await expect(status.getByText("What to change")).toBeVisible();
+    await expect(status.getByText("What to Change")).toBeVisible();
     await expect(status.getByText(REOPEN_REASON)).toBeVisible();
-    const makeChanges = page.getByRole("link", { name: "Make changes" });
+    const makeChanges = page.getByRole("link", { name: "Make Changes" });
     await expect(makeChanges).toHaveAttribute("href", `/inspections/${fixture.B.id}`);
     await expectTouchTarget(makeChanges);
     await expectNoPageScroll(page);
@@ -323,14 +323,14 @@ test.describe("reviewing inspections", () => {
 
     await as.signIn(context, baseURL!, "admin");
     await page.goto(reviewPath(fixture.B.id));
-    await expect(page.getByRole("heading", { name: "Waiting for your review" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Waiting for Your Review" })).toBeVisible();
     await expect(page.getByText("Test Inspector submitted it on")).toBeVisible();
     await expect(page.getByRole("button", { name: "Approve" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Reopen" })).toBeVisible();
     // The history keeps the reopen and its reason, then the new submit.
     const history = page.getByRole("region", { name: "History" });
     await expect(history.locator("li[data-kind=reopened]")).toContainText(REOPEN_REASON);
-    await expect(history.locator("li[data-kind=resubmitted]")).toContainText("Submitted again by Test Inspector");
+    await expect(history.locator("li[data-kind=resubmitted]")).toContainText("Submitted Again by Test Inspector");
     await shot(page, "admin-resubmitted");
   });
 
@@ -339,20 +339,20 @@ test.describe("reviewing inspections", () => {
     await as.signIn(context, baseURL!, "admin");
     await page.goto(reviewPath(fixture.D.id));
 
-    await expect(page.getByRole("heading", { name: "Waiting for your review" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Waiting for Your Review" })).toBeVisible();
     await expect(page.getByText("The template version this inspection uses could not be read").first()).toBeVisible();
 
     // The AI hand-offs need the results: a quiet note in the panel's place, not an error. The checks above say why.
     const ai = page.getByTestId("ai-panel-no-results");
-    await expect(ai.getByRole("heading", { level: 2, name: "AI second opinion" })).toBeVisible();
-    await expect(ai.getByText("Not available", { exact: true })).toBeVisible();
+    await expect(ai.getByRole("heading", { level: 2, name: "AI Second Opinion" })).toBeVisible();
+    await expect(ai.getByText("Not Available", { exact: true })).toBeVisible();
     await expect(page.getByTestId("ai-panel-unavailable")).toHaveCount(0);
 
     await press(page.getByRole("button", { name: "Approve" }));
     const dialog = page.getByRole("alertdialog", { name: `Approve ${fixture.D.refNo}?` });
     await expect(dialog.getByText("The results could not be worked out, so nothing was checked.", { exact: false })).toBeVisible();
     await expect(dialog).toHaveAccessibleDescription(
-      /Suggested result Could not be worked out The results could not be worked out, so nothing was checked\. Ask a developer before you approve it\.$/,
+      /Suggested Result Could not be worked out The results could not be worked out, so nothing was checked\. Ask a developer before you approve it\.$/,
     );
     await viewShot(page, "admin-unreadable-approve-dialog");
 
@@ -368,12 +368,12 @@ test.describe("reviewing inspections", () => {
     await as.signIn(context, baseURL!, "admin");
     await page.goto(reviewPath(fixture.C.id));
 
-    await expect(page.getByRole("heading", { name: "Not submitted yet" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Not Submitted Yet" })).toBeVisible();
     // The final result chosen in the conclusion stands in while the row has none.
     const finalResult = page.getByRole("region", { name: "Result" }).getByText("Failed", { exact: true });
     await expect(finalResult).toBeVisible();
     await expect(page.getByText("The results below show what you have saved so far.")).toBeVisible();
-    await expect(page.getByRole("link", { name: "Continue inspection" })).toHaveAttribute("href", `/inspections/${fixture.C.id}`);
+    await expect(page.getByRole("link", { name: "Continue Inspection" })).toHaveAttribute("href", `/inspections/${fixture.C.id}`);
     await expect(page.getByRole("button", { name: "Approve" })).toHaveCount(0);
     await expect(page.getByText("No photos have been taken for this inspection.")).toBeVisible();
     await shot(page, "admin-draft");
@@ -386,12 +386,12 @@ test.describe("reviewing inspections", () => {
     // case reads the same, and the ref never shows.
     for (const id of [fixture.C.id, randomUUID(), "not-an-id"]) {
       await page.goto(reviewPath(id));
-      await expect(page.getByRole("heading", { level: 1, name: "Inspection not found" })).toBeVisible();
-      await expect(page).toHaveTitle("Inspection not found · SteriCare QC");
+      await expect(page.getByRole("heading", { level: 1, name: "Inspection Not Found" })).toBeVisible();
+      await expect(page).toHaveTitle("Inspection Not Found · SteriCare QC");
       await expect(page.getByText(fixture.C.refNo)).toHaveCount(0);
       expect(await page.content()).not.toContain(fixture.C.refNo);
     }
-    await expect(page.getByRole("link", { name: "Go to inspections" })).toHaveAttribute("href", "/inspections");
+    await expect(page.getByRole("link", { name: "Go to Inspections" })).toHaveAttribute("href", "/inspections");
     await shot(page, "not-found");
   });
 });

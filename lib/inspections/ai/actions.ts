@@ -23,7 +23,7 @@ import type { AiActionState, AiReviewProgress } from "./types";
 
 const InspectionFormSchema = z.object({ inspectionId: z.string() });
 
-/** "Request AI second opinion": stores a pending review of the current version and runs it in the background. */
+/** "Request AI Second Opinion": stores a pending review of the current version and runs it in the background. */
 export async function requestAiSecondOpinion(_previous: AiActionState, formData: FormData): Promise<AiActionState> {
   return guarded("requestAiSecondOpinion", async () => {
     const auth = await authorizeAction("admin");
@@ -64,7 +64,7 @@ export async function recordAiFindingDecision(_previous: AiActionState, formData
   });
 }
 
-/** "Send to AI report": the export goes to the report service; its link is stored on the inspection. */
+/** "Send to AI Report": the export goes to the report service; its link is stored on the inspection. */
 export async function sendToAiReport(_previous: AiActionState, formData: FormData): Promise<AiActionState> {
   return guarded("sendToAiReport", async () => {
     const auth = await authorizeAction("admin");

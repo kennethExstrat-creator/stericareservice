@@ -54,6 +54,12 @@ function row(html: string, id: string): string {
 describe("ModuleResults", () => {
   const html = renderToStaticMarkup(<ModuleResults evaluation={evaluated()} />);
 
+  it("titles the section and its columns in Title Case", () => {
+    const content = text(html);
+    expect(content.startsWith("Module Results ")).toBe(true);
+    expect(content).toContain("Module Result Inspector's Comment");
+  });
+
   it("lists every included module and custom section in the template's order", () => {
     const keys = [...html.matchAll(/<li id="(module|custom)-([a-z_]+)"/g)].map((match) => match[2]);
     expect(keys).toEqual([
@@ -113,7 +119,7 @@ describe("ModuleResults", () => {
 
   it("shows a custom section's values with units", () => {
     const custom = text(row(html, "custom-glove_type"));
-    expect(custom).toContain("Extra fields");
+    expect(custom).toContain("Extra Fields");
     expect(custom).toMatch(/Glove type Powder-free Sterile No Length 240 mm/);
   });
 
@@ -209,8 +215,8 @@ describe("formatCustomValue", () => {
 describe("Verdict", () => {
   it("sets the inspector's final result and remark beside the app's suggestion", () => {
     const html = text(renderToStaticMarkup(<Verdict inspection={reviewInspection()} evaluation={evaluated()} />));
-    expect(html).toContain("Suggested by the app Failed Failed: Finished Goods Sampling Information (carton number), Visual Inspection (AQL). Warnings: Weight (g).");
-    expect(html).toContain("Final result (inspector) Failed Remark Critical defect in size L.");
+    expect(html).toContain("Suggested by the App Failed Failed: Finished Goods Sampling Information (carton number), Visual Inspection (AQL). Warnings: Weight (g).");
+    expect(html).toContain("Final Result (Inspector) Failed Remark Critical defect in size L.");
     expect(html).not.toContain("differs from the suggested result");
     expect(html).toContain("1 error");
     expect(html).toContain("1 warning");
@@ -235,7 +241,7 @@ describe("Verdict", () => {
     };
     const passed = renderToStaticMarkup(<Verdict inspection={reviewInspection({ result: "pass", savedSuggestion: "pass" })} evaluation={clean} />);
     expect(passed).not.toContain('data-slot="suggested-reasons"');
-    expect(text(passed)).toContain("Suggested by the app Passed Final result (inspector) Passed");
+    expect(text(passed)).toContain("Suggested by the App Passed Final Result (Inspector) Passed");
     expect(text(passed)).not.toMatch(/\bPass\b/);
   });
 
@@ -251,7 +257,7 @@ describe("Verdict", () => {
 
   it("says when no final result is chosen yet", () => {
     const html = text(renderToStaticMarkup(<Verdict inspection={reviewInspection({ result: null, remarks: null })} evaluation={evaluated()} />));
-    expect(html).toContain("Not chosen yet");
+    expect(html).toContain("Not Chosen Yet");
     expect(html).toContain("No remark");
   });
 
@@ -266,12 +272,12 @@ describe("StatusNotice", () => {
   it("gives a reopen's reason its own labelled box", () => {
     const html = renderToStaticMarkup(
       <StatusNotice
-        notice={{ status: "reopened", title: "Reopened: changes needed", body: "An admin reopened it.", reason: { label: "What to change", text: "Retest size M." } }}
+        notice={{ status: "reopened", title: "Reopened: Changes Needed", body: "An admin reopened it.", reason: { label: "What to Change", text: "Retest size M." } }}
       />,
     );
     expect(html).toContain('<h2 id="review-status"');
     expect(html).toContain('data-status="reopened"');
-    expect(text(html)).toContain("What to change Retest size M.");
+    expect(text(html)).toContain("What to Change Retest size M.");
   });
 });
 
@@ -286,8 +292,8 @@ describe("InspectionFacts", () => {
       ),
     );
     expect(html).toContain("Manufacturer Manufacturer A · Plant 1");
-    expect(html).toContain("Lot numbers LOT-M-0001, LOT-L-0001");
-    expect(html).toContain("Inspection date 5 Oct 2026");
+    expect(html).toContain("Lot Numbers LOT-M-0001, LOT-L-0001");
+    expect(html).toContain("Inspection Date 5 Oct 2026");
     expect(html).toContain("Approved 6 Oct 2026, 15:00 by an admin");
     expect(html).toContain("Template TEST_EG version 3 Test examination gloves");
   });
@@ -328,6 +334,7 @@ describe("SwitchedOffModules", () => {
       ),
     );
     expect(html).toContain("Weight (g) Reason: Scale broken. Switched off by an admin on 5 Oct 2026, 11:00");
+    expect(html.startsWith("Switched Off for This Inspection These modules are left out")).toBe(true);
   });
 
   it("is left out when nothing is switched off", () => {
@@ -351,15 +358,15 @@ describe("ReportPhotos", () => {
     const html = renderToStaticMarkup(
       <ReportPhotos inspectionId={INSPECTION_ID} photos={{ items: [photo], total: 4, failed: false }} canChoose />,
     );
-    expect(text(html)).toContain("1 of 4 photos marked for the report.");
+    expect(text(html)).toMatch(/^Report Photos 1 of 4 photos marked for the report\./);
     expect(html).toMatch(/<a href="https:\/\/storage.example.com\/full.jpg" target="_blank" rel="noopener noreferrer" aria-label="Open full size, in a new tab: Insect in the cuff/);
     expect(html).toContain('src="https://storage.example.com/thumb.jpg"');
-    expect(html).toMatch(new RegExp(`<a[^>]*href="/inspections/${INSPECTION_ID}/photos"[^>]*>.*All photos \\(4\\)`));
+    expect(html).toMatch(new RegExp(`<a[^>]*href="/inspections/${INSPECTION_ID}/photos"[^>]*>.*All Photos \\(4\\)`));
   });
 
   it.each([
     [0, true, "No photos have been taken for this inspection."],
-    [3, true, "None of the photos is marked for the report yet. Choose them in All photos."],
+    [3, true, "None of the photos is marked for the report yet. Choose them in All Photos."],
     [3, false, "None of the photos is marked for the report yet. An admin chooses them."],
   ])("with %i photos (admin: %s) says %j", (total, canChoose, words) => {
     const html = text(renderToStaticMarkup(<ReportPhotos inspectionId={INSPECTION_ID} photos={{ items: [], total, failed: false }} canChoose={canChoose} />));

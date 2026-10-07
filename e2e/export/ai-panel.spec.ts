@@ -89,13 +89,13 @@ function currentFindings(page: Page) {
 
 async function openPanel(page: Page) {
   await page.goto(panelPath(fixture.inspectionId));
-  await expect(panel(page).getByRole("heading", { level: 2, name: "AI second opinion" })).toBeVisible();
+  await expect(panel(page).getByRole("heading", { level: 2, name: "AI Second Opinion" })).toBeVisible();
 }
 
 async function decide(finding: Locator, choice: "Agree" | "Disagree" | "Fixed", note?: string) {
   await press(finding.getByRole("radio", { name: choice, exact: true }));
   if (note !== undefined) await finding.getByRole("textbox").fill(note);
-  await press(finding.getByRole("button", { name: "Save decision" }));
+  await press(finding.getByRole("button", { name: "Save Decision" }));
 }
 
 test("an admin requests a second opinion and compares it with the system and the inspector", async ({
@@ -108,12 +108,12 @@ test("an admin requests a second opinion and compares it with the system and the
   await openPanel(page);
 
   await expect(panel(page).getByTestId("ai-review-not-connected"), "start the dev server with AI_REVIEW_PROVIDER=mock").toHaveCount(0);
-  await expect(panel(page).getByText("No second opinion yet")).toBeVisible();
-  await expect(panel(page).getByText("Test data only")).toBeVisible();
+  await expect(panel(page).getByText("No Second Opinion Yet")).toBeVisible();
+  await expect(panel(page).getByText("Test Data Only")).toBeVisible();
   await expectNoPageScroll(page);
   await shot(page, "admin-before-review");
 
-  const request = panel(page).getByRole("button", { name: "Request AI second opinion" });
+  const request = panel(page).getByRole("button", { name: "Request AI Second Opinion" });
   await expectTouchTarget(request);
   await press(request);
   // The button gives way to the notice, which takes focus while the opinion is written.
@@ -125,8 +125,8 @@ test("an admin requests a second opinion and compares it with the system and the
   await expect(panel(page).getByTestId("ai-review-meta")).toBeFocused();
 
   const overall = panel(page).locator("section[data-section$='-overall']");
-  await expect(overall).toContainText("Suggested result");
-  await expect(overall).toContainText("Final result");
+  await expect(overall).toContainText("Suggested Result");
+  await expect(overall).toContainText("Final Result");
   await expect(overall).toContainText("On hold");
   // The mock asks about the empty remark.
   await expect(overall).toContainText("What should the client know about this result?");
@@ -199,7 +199,7 @@ test("the admin records agree, disagree with a note, and fixed", async ({ page, 
   await expect(second.getByRole("textbox")).toBeFocused();
   await shot(page, "admin-disagree-needs-note");
   await second.getByRole("textbox").fill(DISAGREE_NOTE);
-  await press(second.getByRole("button", { name: "Save decision" }));
+  await press(second.getByRole("button", { name: "Save Decision" }));
   await expect(decisionOf(second)).toContainText("Disagreed");
   await expect(decisionOf(second)).toContainText(DISAGREE_NOTE);
 
@@ -238,7 +238,7 @@ test("the admin records agree, disagree with a note, and fixed", async ({ page, 
   await press(first.getByRole("button", { name: /Change your decision/ }));
   await decide(first, "Fixed");
   await expect(decisionOf(first)).toContainText("Fixed");
-  await expect(first.getByText("Earlier decisions (1)")).toBeVisible();
+  await expect(first.getByText("Earlier Decisions (1)")).toBeVisible();
   expect(hydration()).toEqual([]);
 });
 
@@ -257,7 +257,7 @@ test("a dropped connection leaves the decision form and its note in place", asyn
 
   await context.setOffline(true);
   try {
-    await press(first.getByRole("button", { name: "Save decision" }));
+    await press(first.getByRole("button", { name: "Save Decision" }));
     await expect(first.getByRole("alert")).toHaveText(UNREACHABLE);
   } finally {
     await context.setOffline(false);
@@ -265,11 +265,11 @@ test("a dropped connection leaves the decision form and its note in place", asyn
   // The error is on the form, not the page: the note is still there, and so is focus.
   await expect(page.getByText("This page did not load")).toHaveCount(0);
   await expect(first.getByRole("textbox")).toHaveValue(OFFLINE_NOTE);
-  await expect(first.getByRole("button", { name: "Save decision" })).toBeFocused();
+  await expect(first.getByRole("button", { name: "Save Decision" })).toBeFocused();
   await shot(page, "admin-decision-offline");
 
   // Back online, the same form saves.
-  await press(first.getByRole("button", { name: "Save decision" }));
+  await press(first.getByRole("button", { name: "Save Decision" }));
   await expect(decisionOf(first)).toContainText(OFFLINE_NOTE);
   await expect(first.getByRole("button", { name: /Change your decision/ })).toBeFocused();
 });
@@ -287,7 +287,7 @@ test("a half-made decision stays with its own opinion when a newer one lands", a
   await press(first.getByRole("button", { name: /Change your decision/ }));
   await press(first.getByRole("radio", { name: "Disagree", exact: true }));
   await first.getByRole("textbox").fill(HALF_NOTE);
-  await press(panel(page).getByRole("button", { name: "Request a new second opinion" }));
+  await press(panel(page).getByRole("button", { name: "Request a New Second Opinion" }));
   await expect(comparison).not.toHaveAttribute("data-review", earlier!, { timeout: 90_000 });
   const newer = await comparison.getAttribute("data-review");
   // A click left focus on the request: it followed the request to the new opinion.
@@ -305,9 +305,9 @@ test("a half-made decision stays with its own opinion when a newer one lands", a
   await expect(comparison).not.toContainText(HALF_NOTE);
   // The half-made decision stays with the earlier opinion, now in the history, for the admin to finish or drop.
   const history = panel(page).getByTestId("ai-review-history");
-  await expect(history).toContainText("Earlier second opinions (1)");
-  await press(history.getByText("Earlier second opinions (1)"));
-  await press(history.getByText("Show this opinion"));
+  await expect(history).toContainText("Earlier Second Opinions (1)");
+  await press(history.getByText("Earlier Second Opinions (1)"));
+  await press(history.getByText("Show This Opinion"));
   const kept = history.locator(`article[data-finding="${findingId}"]`);
   await expect(kept.getByRole("radio", { name: "Disagree", exact: true })).toHaveAttribute("aria-checked", "true");
   await expect(kept.getByRole("textbox")).toHaveValue(HALF_NOTE);
@@ -324,10 +324,10 @@ test("the inspector sees the second opinion read-only", async ({ page, context, 
   await openPanel(page);
   await expect(panel(page).getByText("An admin decides on each finding.")).toBeVisible();
   await expect(currentFindings(page).first()).toBeVisible();
-  await expect(panel(page).getByRole("button", { name: "Save decision" })).toHaveCount(0);
+  await expect(panel(page).getByRole("button", { name: "Save Decision" })).toHaveCount(0);
   await expect(panel(page).getByRole("button", { name: /Change your decision/ })).toHaveCount(0);
-  await expect(panel(page).getByRole("button", { name: /second opinion/ })).toHaveCount(0);
-  await expect(panel(page).getByRole("button", { name: /Send to AI report/ })).toHaveCount(0);
+  await expect(panel(page).getByRole("button", { name: /Second Opinion/ })).toHaveCount(0);
+  await expect(panel(page).getByRole("button", { name: /Send to AI Report/ })).toHaveCount(0);
   // Decisions are for admins only (RLS): the inspector does not see them.
   await expect(panel(page).locator('[data-testid^="decision-"]')).toHaveCount(0);
   await expect(panel(page).getByRole("link", { name: "Download JSON" })).toBeVisible();
@@ -406,7 +406,7 @@ test("the AI report hand-off: sends to the report service, or offers the JSON wh
   await as.signIn(context, baseURL!, "admin");
   await openPanel(page);
   const report = panel(page).getByTestId("ai-report");
-  const send = report.getByRole("button", { name: /Send to AI report/ });
+  const send = report.getByRole("button", { name: /Send to AI Report/ });
 
   if ((await send.count()) === 0) {
     await expect(report).toContainText("AI not connected");
@@ -416,7 +416,7 @@ test("the AI report hand-off: sends to the report service, or offers the JSON wh
   }
   await expectTouchTarget(send);
   await press(send);
-  const open = report.getByRole("link", { name: /Open the report/ });
+  const open = report.getByRole("link", { name: /Open the Report/ });
   await expect(open).toBeVisible({ timeout: 90_000 });
   await expect(open).toHaveAttribute("href", new RegExp(`mock-ai-report\\?ref=${fixture.refNo}`));
 
@@ -424,9 +424,9 @@ test("the AI report hand-off: sends to the report service, or offers the JSON wh
   // (migration 20261007113245) stays current; one keyed to the save alone (a database without
   // that migration) now reads as about an earlier version.
   await openPanel(page);
-  await expect(report.getByRole("link", { name: /Open the report/ })).toBeVisible();
+  await expect(report.getByRole("link", { name: /Open the Report/ })).toBeVisible();
   const byContent = (await storedReviews()).every((review) => typeof review.inspection_fingerprint === "string");
-  const changed = panel(page).getByText("The inspection has changed since this opinion");
+  const changed = panel(page).getByText("The Inspection Has Changed Since This Opinion");
   if (byContent) {
     await expect(changed).toHaveCount(0);
     await expect(panel(page).getByTestId("ai-review-meta")).toContainText("(current)");

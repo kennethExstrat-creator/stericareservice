@@ -12,10 +12,10 @@ import { focusIfLost, moveFocusTo } from "./focus-handoff";
 import { AI_FOCUS } from "./focus-targets";
 import { unreachable } from "./unreachable";
 
-/** "Request AI second opinion" (admins): a pending review of the current version, written in the background. */
+/** "Request AI Second Opinion" (admins): a pending review of the current version, written in the background. */
 export function RequestReviewButton({
   inspectionId,
-  label = "Request AI second opinion",
+  label = "Request AI Second Opinion",
   variant = "default",
   className,
 }: {

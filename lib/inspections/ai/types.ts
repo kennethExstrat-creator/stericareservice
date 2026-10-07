@@ -15,7 +15,7 @@ export type AiActionState =
   | { status: "idle" }
   | { status: "success"; message: string; reportUrl?: string }
   | { status: "error"; message: string; fieldErrors?: Partial<Record<AiActionField, string>> }
-  /** "Send to AI report" with no report service: the JSON download is the way out. */
+  /** "Send to AI Report" with no report service: the JSON download is the way out. */
   | { status: "not_connected"; message: string; downloadHref: string };
 
 export const AI_ACTION_IDLE: AiActionState = { status: "idle" };

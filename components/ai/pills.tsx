@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 export function ResultPill({
   result,
   size = "md",
-  emptyLabel = "Not chosen",
+  emptyLabel = "Not Chosen",
 }: {
   result: InspectionResult | null;
   size?: "sm" | "md";
