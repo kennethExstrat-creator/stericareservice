@@ -7,10 +7,11 @@ import { TEST_ACCOUNTS } from "../support/session";
 
 /**
  * Temporary rows for the capture specs (e2e/README.md): one template,
- * resolved against whichever modules are built at the time, and one
- * inspection of the test inspector's. The template is a draft, so no
- * inspector could start from it; only this inspection uses it. Everything
- * is deleted in afterAll, a run that died half way is cleaned up by the next.
+ * resolved against the real modules, and one inspection of the test
+ * inspector's. The template is a draft, so no inspector could start from
+ * it; only this inspection uses it. Everything is deleted in afterAll, the
+ * photos and files the specs upload first, a run that died half way is
+ * cleaned up by the next.
  *
  * Each run of a project draws one number from the live ref sequence.
  */
@@ -18,6 +19,8 @@ import { TEST_ACCOUNTS } from "../support/session";
 type AdminClient = ReturnType<typeof createTestAdminClient>;
 
 export const FIXTURE_TEMPLATE_CODE = "E2E_CAPTURE";
+
+const BUCKETS = ["inspection-photos", "inspection-files"] as const;
 
 // Reference rows from supabase/seed.sql, which uses fixed ids.
 const SEED = {
@@ -28,7 +31,7 @@ const SEED = {
 /**
  * header, glove_info, the custom "Site notes" (one field mapped to the glove
  * colour), order_lots, the custom grid "Box checks" (a number and a text row),
- * packing_config, weight and conclusion.
+ * packing_config, weight, tensile (a lab report required) and conclusion.
  */
 export function fixtureDefinition(): TemplateDefinition {
   return {
@@ -43,6 +46,7 @@ export function fixtureDefinition(): TemplateDefinition {
       { key: "order_lots", include: true },
       { key: "packing_config", include: true },
       { key: "weight", include: true },
+      { key: "tensile", include: true },
       { key: "conclusion", include: true },
     ],
     customModules: [
@@ -78,11 +82,32 @@ export type CaptureFixture = {
   refNo: string;
   /** Sets the inspection's status through the status flow, as an admin would. */
   setStatus: (status: "submitted" | "reopened" | "approved") => Promise<void>;
+  /** Replaces modules' saved data, as another device's save would (a plain update moves updated_at on). */
+  setModules: (modules: Record<string, unknown>) => Promise<void>;
+  /** Logs an admin's reason for reopening, as the review's reopen does after the status change. */
+  logReopenReason: (reason: string) => Promise<void>;
   cleanup: () => Promise<void>;
 };
 
 function fail(step: string, error: { message: string } | null): never {
   throw new Error(`Capture fixture: ${step} failed: ${error?.message ?? "no data"}`);
+}
+
+/** The inspection's photos and files in Storage, then the inspection (Storage first: e2e/README.md). */
+async function removeInspection(admin: AdminClient, inspectionId: string) {
+  for (const bucket of BUCKETS) {
+    const paths: string[] = [];
+    for (const folder of [inspectionId, `${inspectionId}/thumbs`]) {
+      const { data, error } = await admin.storage.from(bucket).list(folder, { limit: 1000 });
+      if (error) fail(`listing ${bucket}/${folder}`, error);
+      // Folders come back as entries without an id.
+      for (const entry of data) if (entry.id) paths.push(`${folder}/${entry.name}`);
+    }
+    if (paths.length === 0) continue;
+    const { error } = await admin.storage.from(bucket).remove(paths);
+    if (error) fail(`removing ${bucket} objects of ${inspectionId}`, error);
+  }
+  await deleteTestInspection(admin, inspectionId);
 }
 
 /** Deletes every row a previous run may have left behind. */
@@ -93,7 +118,7 @@ async function removeFixtureRows(admin: AdminClient) {
   if (ids.length === 0) return;
   const { data: inspections, error: findError } = await admin.from("inspections").select("id").in("template_id", ids);
   if (findError) fail("finding fixture inspections", findError);
-  for (const inspection of inspections) await deleteTestInspection(admin, inspection.id);
+  for (const inspection of inspections) await removeInspection(admin, inspection.id);
   const removed = await admin.from("templates").delete().in("id", ids);
   if (removed.error) fail("deleting the fixture template", removed.error);
 }
@@ -153,6 +178,22 @@ async function insertFixtureRows(admin: AdminClient): Promise<CaptureFixture> {
     setStatus: async (status) => {
       const { error } = await admin.from("inspections").update({ status }).eq("id", inspection.id);
       if (error) fail(`moving the inspection to ${status}`, error);
+    },
+    setModules: async (modules) => {
+      const { data: row, error } = await admin.from("inspections").select("data").eq("id", inspection.id).single();
+      if (error) fail("reading the inspection's data", error);
+      const stored = row.data as { modules?: Record<string, unknown>; custom?: Record<string, unknown> };
+      const data = { modules: { ...stored.modules, ...modules }, custom: stored.custom ?? {} };
+      const written = await admin.from("inspections").update({ data: data as unknown as NonNullable<Json> }).eq("id", inspection.id);
+      if (written.error) fail("writing the inspection's data", written.error);
+    },
+    logReopenReason: async (reason) => {
+      const { error } = await admin.rpc("log_inspection_event", {
+        inspection_id: inspection.id,
+        action: "review.reopened",
+        changes: { reason },
+      });
+      if (error) fail("logging the reopen reason", error);
     },
     cleanup: () => removeFixtureRows(admin),
   };
