@@ -5,9 +5,10 @@
 // body, inspector comment) with the photo slot in the footer where
 // ModuleCard has its own two photo buttons (components/capture/photos
 // PhotoSlot: the buttons and the section's photos). The body is the
-// module's Capture, a plain form, or a notice. A page of two sections
+// module's Capture, a plain form, or a notice. The open page's frames are in
+// a PagePanel: a frame for each section on a page of two
 // (lib/inspections/capture/sections.ts SHOWN_WITH: packing configuration
-// below the order) holds a frame for each in a PagePanel.
+// below the order).
 import { useId, useState, type ReactNode, type Ref } from "react";
 import { StatusPill } from "@/components/qc";
 import { Label } from "@/components/ui/label";
@@ -102,12 +103,30 @@ export function SectionFrame({
 }
 
 /**
- * The open page when it holds more than one section (packing configuration
- * below the order): below 1280 px the open tab's panel, named by that tab,
- * from 1280 px a plain block, holding a SectionFrame per section, each a
- * region named by its title. A page of one section is that section's frame.
+ * The open page around its frames. Holding more than one section (packing
+ * configuration below the order): below 1280 px the open tab's panel, named
+ * by that tab, from 1280 px a plain block, a SectionFrame per section in
+ * it, each a region named by its title. Holding one (`single`): that
+ * section's frame is the panel, and this wrapper has no id, no role and no
+ * box of its own (display: contents). It is there all the same: a page that
+ * gains or loses its second section (packing configuration switched on or
+ * off on another device) is the same element with the same keyed frames in
+ * it, so React keeps the frame still shown, with the field being typed in
+ * and its half-typed value.
  */
-export function PagePanel({ id, tabLabelledBy, children }: { id: string; tabLabelledBy?: string; children: ReactNode }) {
+export function PagePanel({
+  id,
+  tabLabelledBy,
+  single = false,
+  children,
+}: {
+  id: string;
+  tabLabelledBy?: string;
+  /** One section on the page: its frame takes the id and the tab, and the wrapper adds nothing to the page. */
+  single?: boolean;
+  children: ReactNode;
+}) {
+  if (single) return <div className="contents">{children}</div>;
   return (
     <div
       id={id}

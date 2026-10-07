@@ -1165,6 +1165,63 @@ test("a packing configuration issue in Pending opens the order's page on its fie
   }
 });
 
+test("packing configuration switched off and back on on another device leaves the order's frame as it is, mid-typing", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  test.skip(!isDesktop(), "One size is enough: the page keeps its frames the same way everywhere.");
+  const admin = createTestAdminClient();
+  const { data: account, error: accountError } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("email", TEST_ACCOUNTS.admin)
+    .single();
+  if (accountError) throw new Error(accountError.message);
+  const setOverrides = async (overrides: NonNullable<Json>) => {
+    const { error } = await admin.from("inspections").update({ module_overrides: overrides }).eq("id", fixture.inspectionId);
+    if (error) throw new Error(error.message);
+  };
+  const before = ((await storedData(fixture.inspectionId)).data as { modules: Record<string, unknown> }).modules.order_lots;
+  await signInAs(context, baseURL!, "inspector");
+  await page.goto(`/inspections/${fixture.inspectionId}?module=order_lots`);
+  const order = frameOf(page, "order_lots");
+  const packing = frameOf(page, "packing_config");
+  await expect(packing).toBeVisible();
+  const comment = order.getByRole("textbox", { name: /^Inspector Comment/ });
+  await expect(comment).toBeEditable();
+  // The order's frame as it is now: the very same element stays on the page while packing leaves it and comes back.
+  const shown = await order.elementHandle();
+  const stillShown = () => shown!.evaluate((element) => element.isConnected);
+  try {
+    // An admin switches packing off elsewhere; the save of what the inspector types in the order brings that back.
+    await setOverrides({ packing_config: { reason: "Not ordered (e2e)", by: account.id, at: new Date().toISOString() } });
+    await press(comment);
+    await comment.pressSequentially("Counted");
+    await expect(packing).toHaveCount(0, { timeout: 15_000 });
+    await expect(page.getByRole("navigation", { name: "Sections" })).toContainText("Switched Off");
+    expect(await stillShown(), "the order's frame is the same element").toBe(true);
+    await expect(comment).toBeFocused();
+    await page.keyboard.type(" twice");
+    await expect(comment).toHaveValue("Counted twice");
+
+    // Switched back on elsewhere: packing joins the page again, below the order, whose frame stays as it is.
+    await setOverrides({});
+    await page.keyboard.type(" over");
+    await expect(packing).toBeVisible({ timeout: 15_000 });
+    expect(await stillShown(), "the order's frame is the same element").toBe(true);
+    await expect(comment).toBeFocused();
+    await page.keyboard.type(".");
+    await expect(comment).toHaveValue("Counted twice over.");
+    await expect
+      .poll(async () => (await storedData(fixture.inspectionId)).data, { timeout: 15_000 })
+      .toMatchObject({ modules: { order_lots: { comment: "Counted twice over." } } });
+  } finally {
+    await setOverrides({});
+    await fixture.setModules({ order_lots: before });
+  }
+});
+
 test("an admin switches a section off for this inspection, and back on", async ({ page, context, baseURL }) => {
   await signInAs(context, baseURL!, "admin");
   await page.goto(`/inspections/${fixture.inspectionId}?module=packing_config`);

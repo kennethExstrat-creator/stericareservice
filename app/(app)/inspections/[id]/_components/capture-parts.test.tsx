@@ -567,6 +567,23 @@ describe("PagePanel (a page of two sections: packing configuration below the ord
     expect(panel).not.toContain("role=");
     expect(panel).not.toContain("aria-labelledby");
   });
+
+  it("around one section adds nothing to the page: the frame is the tab's panel", () => {
+    const html = renderToStaticMarkup(
+      <PagePanel id="panel" tabLabelledBy={tabId("cap", "glove_info")} single>
+        <SectionFrame id="panel" sectionKey="glove_info" tabLabelledBy={tabId("cap", "glove_info")} title="Glove Information">
+          <p>Glove</p>
+        </SectionFrame>
+      </PagePanel>,
+    );
+    // Still a div, as with two sections, so a page that gains or loses packing keeps the frame it shows.
+    expect(html).toMatch(/^<div class="contents"><section /);
+    expect(tagsWith(html, 'id="panel"')).toHaveLength(1);
+    const frame = tagsWith(html, 'id="panel"')[0];
+    expect(frame).toMatch(/^<section /);
+    expect(frame).toContain('role="tabpanel"');
+    expect(html).not.toContain("capture-page");
+  });
 });
 
 describe("SectionComment", () => {

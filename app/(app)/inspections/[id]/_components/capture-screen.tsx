@@ -22,7 +22,9 @@
 // inspection is evaluated again with the framework (results, live totals,
 // issues), a frame behind typing at most (useDeferredValue). Saves also
 // bring back the inspection's status and module overrides, so a section
-// switched off or a submit made on another device shows here too. What a
+// switched off or a submit made on another device shows here too; the open
+// page keeps the frames it still shows as they are, mid-typing included,
+// when packing configuration leaves or joins it that way (ActivePage). What a
 // number field refuses ("2 42") is kept beside the data, never in it, by
 // section and path, on this device too (use-refused-entries.ts): it comes
 // back with its field after a size or section switch or a reload, and the
@@ -110,7 +112,7 @@ import {
   pageSectionKeys,
   progressSteps,
   type CapturePage,
-  type IncludedSection,
+  type CaptureSection,
 } from "@/lib/inspections/capture/sections";
 import { suggestionReasons } from "@/lib/inspections/capture/suggestion";
 import type { StartResult } from "@/lib/offline";
@@ -1087,9 +1089,16 @@ type ActivePageProps = SharedSectionProps & {
 };
 
 /**
- * The open page: a switched-off section's panel, one section's frame (the
- * panel itself), or a PagePanel holding each section's frame in turn, packing
- * configuration below the order. The screen keys it by the page.
+ * The open page: its sections' frames in turn, packing configuration below
+ * the order, in a PagePanel. A page of one section, a switched-off one
+ * included, is that section's frame, the panel itself. The screen keys it by
+ * the page; within it each frame is keyed by its section, and the PagePanel
+ * is the same element for one section or several. So a page that gains or
+ * loses a section while it is open (packing configuration switched on or
+ * off on another device, which the next save brings back) keeps the frames
+ * it still shows: the field being typed in keeps its focus and its
+ * half-typed value, and the form what it holds. A section switched off
+ * where it is open keeps its frame too, as its switched-off panel.
  */
 function ActivePage({
   page,
@@ -1102,70 +1111,43 @@ function ActivePage({
   onOverridesChange,
   ...shared
 }: ActivePageProps) {
-  if (page.kind === "excluded") {
-    const { section } = page;
-    const { access, inspectionId, overrideAuthors, userId } = shared;
-    return (
-      <SectionFrame
-        id={panelId}
-        sectionKey={section.key}
-        tabLabelledBy={tabLabelledBy}
-        title={section.title}
-        headingRef={titleRef(section.key)}
-        summary="Switched off for this inspection"
-      >
-        <SwitchedOffPanel
-          inspectionId={inspectionId}
-          moduleKey={section.key}
-          title={section.title}
-          override={section.override}
-          author={section.override.by === userId ? "you" : (overrideAuthors[section.override.by] ?? null)}
-          canSwitch={access.canSwitchModules}
-          onChanged={(next) => onOverridesChange(next, section.key)}
+  const sections: readonly CaptureSection[] = page.kind === "included" ? page.sections : [page.section];
+  const several = sections.length > 1;
+  return (
+    <PagePanel id={panelId} tabLabelledBy={tabLabelledBy} single={!several}>
+      {sections.map((section, index) => (
+        <SectionPart
+          key={section.key}
+          {...shared}
+          section={section}
+          // A page of one section is that section's frame; on a page of several, each frame has an id of its own.
+          frameId={several ? `${panelId}-${section.key}` : panelId}
+          tabLabelledBy={several ? undefined : tabLabelledBy}
+          // On a page of several, each section's comment, photos and Switch Off are read out with its title.
+          nameContext={several ? section.title : undefined}
+          // The notices about the inspection's photos are about the whole inspection: once a page.
+          showPhotoNotices={index === 0}
+          headingRef={titleRef(section.key)}
+          focusPath={focusRequest?.sectionKey === section.key ? focusRequest.path : null}
+          refusedEntries={refusedStores.get(section.key) ?? null}
+          onUnreadableRemoved={() => onUnreadableRemoved(section.key)}
+          onOverridesChange={(next) => onOverridesChange(next, section.key)}
         />
-      </SectionFrame>
-    );
-  }
-
-  const several = page.sections.length > 1;
-  const parts = page.sections.map((section, index) => (
-    <SectionPart
-      key={section.key}
-      {...shared}
-      section={section}
-      // A page of one section is that section's frame; on a page of several, each frame has an id of its own.
-      frameId={several ? `${panelId}-${section.key}` : panelId}
-      tabLabelledBy={several ? undefined : tabLabelledBy}
-      // On a page of several, each section's comment, photos and Switch Off are read out with its title.
-      nameContext={several ? section.title : undefined}
-      // The notices about photos waiting on this device are about the whole inspection: once a page.
-      showUploadNotices={index === 0}
-      headingRef={titleRef(section.key)}
-      focusPath={focusRequest?.sectionKey === section.key ? focusRequest.path : null}
-      refusedEntries={refusedStores.get(section.key) ?? null}
-      onUnreadableRemoved={() => onUnreadableRemoved(section.key)}
-      onOverridesChange={(next) => onOverridesChange(next, section.key)}
-    />
-  ));
-  return several ? (
-    <PagePanel id={panelId} tabLabelledBy={tabLabelledBy}>
-      {parts}
+      ))}
     </PagePanel>
-  ) : (
-    parts[0]
   );
 }
 
 type SectionPartProps = SharedSectionProps & {
-  section: IncludedSection;
+  section: CaptureSection;
   /** The frame's id: the panel's on a page of one section. */
   frameId: string;
   /** Below 1280 px, on a page of one section: the id of its tab, which names the frame (WAI-ARIA tabs). */
   tabLabelledBy?: string;
   /** On a page of several sections, this one's title: read out with its comment, photos and Switch Off. */
   nameContext?: string;
-  /** The first section on the page shows the notices about photos waiting on this device. */
-  showUploadNotices: boolean;
+  /** The first section on the page shows the notices about the inspection's photos waiting on this device. */
+  showPhotoNotices: boolean;
   headingRef: Ref<HTMLHeadingElement>;
   focusPath: IssuePath | null;
   /** Where the section's number fields keep what they refused, so it outlives them; null to keep their own. */
@@ -1175,17 +1157,23 @@ type SectionPartProps = SharedSectionProps & {
   onOverridesChange: (overrides: ModuleOverrides) => void;
 };
 
-/** One section on the open page: its frame with its result, its form, its comment and its photos. */
+/**
+ * One section on the open page: its frame with its result, its form, its
+ * comment and its photos; switched off, its frame with the switched-off
+ * panel.
+ */
 function SectionPart({
   section,
   frameId,
   tabLabelledBy,
   nameContext,
-  showUploadNotices,
+  showPhotoNotices,
   headingRef,
   template,
   effective,
   overrides,
+  overrideAuthors,
+  userId,
   data,
   report,
   context,
@@ -1220,6 +1208,29 @@ function SectionPart({
     [onFocusReported],
   );
 
+  if (section.kind === "excluded") {
+    return (
+      <SectionFrame
+        id={frameId}
+        sectionKey={section.key}
+        tabLabelledBy={tabLabelledBy}
+        title={section.title}
+        headingRef={headingRef}
+        summary="Switched off for this inspection"
+      >
+        <SwitchedOffPanel
+          inspectionId={inspectionId}
+          moduleKey={section.key}
+          title={section.title}
+          override={section.override}
+          author={section.override.by === userId ? "you" : (overrideAuthors[section.override.by] ?? null)}
+          canSwitch={access.canSwitchModules}
+          onChanged={onOverridesChange}
+        />
+      </SectionFrame>
+    );
+  }
+
   const namespace: DataNamespace = section.kind === "module" ? "modules" : "custom";
   const entry = data[namespace][section.key];
   const comment = readModuleEntry(data, namespace, section.key).comment;
@@ -1237,7 +1248,7 @@ function SectionPart({
         moduleKey={section.key}
         focus={photoFocus}
         readOnly={readOnly}
-        showNotices={showUploadNotices}
+        showNotices={showPhotoNotices}
         nameContext={nameContext}
         className="xl:row-span-3 xl:grid xl:grid-rows-subgrid"
       />
