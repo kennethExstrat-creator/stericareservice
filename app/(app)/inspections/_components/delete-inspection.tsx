@@ -17,6 +17,7 @@
 // list is refreshed behind the message, and closing the dialog puts focus on
 // that row's main action, or where the row was.
 import { OctagonXIcon, Trash2Icon } from "lucide-react";
+import { unstable_rethrow } from "next/navigation";
 import { createContext, use, useCallback, useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -32,9 +33,27 @@ import {
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
-import { deleteInspection } from "../actions";
+import { deleteInspection, type DeleteInspectionResult } from "../actions";
 import { landingAfterCancel, landingAfterDelete, type DeletedRow, type FocusLanding } from "./delete-focus";
 import { focusTargetSelector } from "./list-focus-target";
+
+/**
+ * The action never answered: the connection dropped (an iPad on factory
+ * Wi-Fi) or a new deployment replaced it. Said in the dialog, never as an
+ * error page.
+ */
+const UNREACHABLE = "The inspection was not deleted: the server could not be reached. Check the connection, then try again.";
+
+async function askToDelete(inspectionId: string): Promise<DeleteInspectionResult> {
+  try {
+    return await deleteInspection({ inspectionId });
+  } catch (error) {
+    unstable_rethrow(error);
+    // Handled: the dialog says so. A warning, so the dev overlay does not count it as a fault.
+    console.warn("[inspections] Delete got no answer", error);
+    return { status: "error", message: UNREACHABLE };
+  }
+}
 
 /** One row's Delete, as the dialog needs it. */
 export type DeleteRequest = DeletedRow & {
@@ -115,7 +134,7 @@ export function InspectionResults({
     if (!request || pending) return;
     const target = request;
     startTransition(async () => {
-      const result = await deleteInspection({ inspectionId: target.id });
+      const result = await askToDelete(target.id);
       if (result.status === "deleted") {
         deleted.current = { row: target, dialogGone: false };
         setOpen(false);

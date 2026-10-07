@@ -118,7 +118,7 @@ function ResultPill({ result }: { result: InspectionListRow["result"] }) {
 function RowActionsCell({ row, index, next, viewer }: { row: InspectionListRow; index: number; next: InspectionListRow | undefined; viewer: ListViewer }) {
   const { primary, deleteName } = rowActions(row, viewer);
   return (
-    <div className="flex items-center gap-1 touch:gap-2">
+    <div className="flex items-center gap-1.5 touch:gap-2">
       <Button
         asChild
         size="sm"
