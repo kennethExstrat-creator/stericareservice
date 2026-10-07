@@ -347,7 +347,10 @@ function ChoicesForm({ storageKey, initial, role, clients, manufacturers, templa
                 data-invalid={errors.productType ? true : undefined}
                 className="gap-3"
               >
-                <FieldLegend variant="label" className={errors.productType ? "mb-0 text-destructive" : "mb-0"}>
+                {/* A fieldset's legend is no flex item, so the FieldSet's gap never reaches it: its own
+                    mb-3 keeps the 12 px a Field has between label and control, and leading-snug the
+                    FieldLabel's line, so the cards sit as far below it as the pickers below theirs. */}
+                <FieldLegend variant="label" className={errors.productType ? "leading-snug text-destructive" : "leading-snug"}>
                   Product type
                 </FieldLegend>
                 <RadioGroup

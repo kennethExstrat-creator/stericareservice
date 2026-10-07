@@ -80,6 +80,18 @@ describe("/inspections/new", () => {
     expect(html).not.toContain('name="templateId"');
   });
 
+  it("puts the product type cards as far below their legend as the pickers below their labels", async () => {
+    const html = await render();
+    // A fieldset's legend is no flex item: the FieldSet's gap never reaches it, so its own margin is the gap.
+    const legend = /<legend data-slot="field-legend"[^>]*class="([^"]*)"/.exec(html)?.[1].split(" ");
+    expect(legend).toContain("mb-3");
+    expect(legend).not.toContain("mb-0");
+    // The FieldLabel's line height, so the text sits where a label's does.
+    expect(legend).toContain("leading-snug");
+    // Each Field above keeps 12 px (gap-3) between its label and its picker.
+    expect(html).toMatch(/<div role="group" data-slot="field"[^>]*class="[^"]*\bgap-3\b[^"]*"[^>]*><label data-slot="field-label"[^>]*for="[^"]*-client"/);
+  });
+
   it("leaves a draft kept in the tab out of the server's HTML, so hydration starts from the same empty form", async () => {
     const draft = {
       v: 1,
