@@ -165,18 +165,19 @@ describe("TaskItem (the Pending panel)", () => {
   });
 });
 
+// The pill's words are the kit's (components/qc/save-status.tsx), checked here in whatever case the kit writes them.
 describe("SaveIndicator", () => {
   it("shows Saved, Saving and Offline (will sync) through SaveStatus", () => {
     expect(renderToStaticMarkup(<SaveIndicator status="saved" inspectionId="i" />)).toContain("Saved");
     expect(renderToStaticMarkup(<SaveIndicator status="saving" inspectionId="i" />)).toContain("Saving");
-    expect(renderToStaticMarkup(<SaveIndicator status="offline" inspectionId="i" />)).toContain("Offline (will sync)");
+    expect(renderToStaticMarkup(<SaveIndicator status="offline" inspectionId="i" />)).toMatch(/Offline \(will sync\)/i);
   });
 
   it("says Not saved in the kit's own red pill when saving needs the inspector", () => {
     const html = renderToStaticMarkup(<SaveIndicator status="error" inspectionId="i" />);
     expect(html).toContain('role="status"');
     expect(html).toContain('data-state="error"');
-    expect(html).toContain("Not saved");
+    expect(html).toMatch(/Not saved/i);
   });
 
   it("carries the upload badge, unknown rather than 0 until this device's queue is read", () => {

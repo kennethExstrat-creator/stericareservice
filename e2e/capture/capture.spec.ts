@@ -809,7 +809,7 @@ test("tensile counts its lab report once attached and not once it is deleted, an
   await page.goto(`/inspections/${fixture.inspectionId}?module=tensile`);
   const frame = page.locator('[data-slot="section-frame"]');
   await expect(page.getByRole("heading", { level: 2, name: TENSILE })).toBeVisible();
-  await expect(frame.locator('[data-slot="lab-report"]')).toContainText("Not attached");
+  await expect(frame.locator('[data-slot="lab-report"]')).toContainText(/Not attached/i);
   await expect(frame.locator("header")).toContainText("Not done");
 
   // The size chosen here stays chosen in the next module that opens on one (CaptureProps.focus), and tags
@@ -860,7 +860,7 @@ test("tensile counts its lab report once attached and not once it is deleted, an
   const dialog = page.getByRole("alertdialog", { name: /^Delete tensile-lab-report\.pdf/ });
   await press(dialog.getByRole("button", { name: "Delete File" }));
   await expect(slot.locator('[data-slot="file-row"]')).toHaveCount(0, { timeout: 15_000 });
-  await expect(frame.locator('[data-slot="lab-report"]')).toContainText("Not attached");
+  await expect(frame.locator('[data-slot="lab-report"]')).toContainText(/Not attached/i);
   await expect(frame.locator("header")).toContainText("Not done");
   await expect
     .poll(async () => (await storedData(fixture.inspectionId)).data, { timeout: 15_000 })
@@ -1076,10 +1076,11 @@ test("a reopened inspection says who reopened it, when, and what to change", asy
   await page.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
 
   const notice = page.locator('[data-notice="reopened"]');
-  await expect(notice).toContainText("Reopened: changes needed.");
+  // The notice's title and label are the review's words (lib/inspections/review/notice.ts), in whatever case it writes them.
+  await expect(notice).toContainText(/Reopened: changes needed\./i);
   // Reopened here with the secret key: no person did it.
   await expect(notice).toContainText(/The system reopened it on \d{1,2} \w{3} \d{4}, \d{2}:\d{2}\. Make the changes, then submit it again\./);
-  await expect(notice).toContainText("What to change: Size M weights are missing.");
+  await expect(notice).toContainText(/What to change: Size M weights are missing\./i);
   await expect(page.getByLabel("Glove colour")).toBeEditable();
   await shot(page, "reopened");
 });

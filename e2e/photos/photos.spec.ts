@@ -128,7 +128,8 @@ test("the inspector adds photos and a lab report, then retags, captions, views a
     await expect(dimensions.getByRole("heading", { name: TITLES.dimensions })).toBeVisible();
     await expect(dimensions.locator('[data-slot="photo-card"]')).toHaveCount(2);
     await expect(page.locator('[data-slot="upload-badge"]')).toHaveAttribute("data-count", "2");
-    await expect(dimensions.getByText(/Waiting to upload|Uploading/).first()).toBeVisible();
+    // The tile's words (components/qc/photo-tile.tsx), in whatever case the kit writes them.
+    await expect(dimensions.getByText(/Waiting to upload|Uploading/i).first()).toBeVisible();
     await expect(dimensions.getByText("2 photos, 2 not uploaded yet")).toBeVisible();
     await shot(page, "2-waiting");
 
@@ -368,7 +369,8 @@ test("the admin chooses report photos", async ({ page, context, baseURL }) => {
   const include = card.getByRole("switch");
   await expect(include).not.toBeChecked();
   await include.click();
-  await expect(card.getByText("In report", { exact: true })).toBeVisible();
+  // The tile's badge, in the kit's case; never the admin's "Include in Report".
+  await expect(card.getByText(/^In report$/i)).toBeVisible();
   await expect.poll(async () => (await photoRows(fixture.inspectionId)).find((row) => row.id === photo.id)?.include_in_report).toBe(true);
   await shot(page, "10-admin");
 
@@ -395,7 +397,7 @@ test("once submitted, the inspector sees the photos read-only", async ({ page, c
     await setInspectionStatus(fixture.inspectionId, "submitted");
     await held.release();
     await expect(card).toHaveAttribute("data-upload-state", "failed", { timeout: 30_000 });
-    await expect(card.locator('[data-slot="upload-stopped"]')).toHaveText("Upload stopped");
+    await expect(card.locator('[data-slot="upload-stopped"]')).toHaveText(/^Upload stopped$/i);
     await expect(card).toContainText("This inspection can no longer be changed from this account. Ask an admin to reopen it, then try again.");
     await expect(card.getByText("Waiting to upload")).toBeHidden();
     await expect(card).not.toContainText("row-level security");
@@ -412,7 +414,7 @@ test("once submitted, the inspector sees the photos read-only", async ({ page, c
   await expect(page.getByRole("heading", { name: "Add Photos", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^(Edit tags and caption|Delete photo)/ })).toHaveCount(0);
   await expect(page.getByRole("switch")).toHaveCount(0);
-  await expect(group(page, "visual").getByText("In report", { exact: true })).toBeVisible();
+  await expect(group(page, "visual").getByText(/^In report$/i)).toBeVisible();
   const slot = page.locator('[data-slot="file-slot"][data-module="force_at_break"]');
   await expect(slot.locator("input[data-file-input]")).toHaveCount(0);
   await expect(slot.getByRole("button", { name: /^Delete/ })).toHaveCount(0);
