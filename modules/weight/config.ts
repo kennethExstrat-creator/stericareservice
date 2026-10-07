@@ -16,7 +16,7 @@ export const WEIGHT_LABELS = {
   result: "Remark",
   /** Printed for a result with no spec: "A" on SAFEDON_EG. */
   info: "Info",
-  // Captions the dictionary words only for dimensions; the same keys here.
+  // The grid's captions, as dimensions has them; SAFEDON_EG's words are "A" and "Rej.".
   rowNo: "No.",
   specRow: "Spec.",
   pass: "Passed",

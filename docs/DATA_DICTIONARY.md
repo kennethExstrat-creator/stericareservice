@@ -73,7 +73,9 @@ module)` a template's overrides, both keyed as `ModuleConfig.labels` is: data fi
 keys, and class or level wording keyed group first, then field (`groupLabelKey`: `majorTotal`,
 `criticalResult`, `innerResult`), like the captions `majorHeading` and `innerLevel`. All are
 camelCase, so they fit the framework's label keys (letters, digits and `_`) and never meet a
-snake_case defect code. Captions may hold placeholders the app fills in: `{size}`, `{codeLetters}`
+snake_case defect code. The one exception is an option's word, keyed by its select field and the
+option, as the framework's dotted label keys allow: `status.verified`, `status.not_verified`
+(documents). Captions may hold placeholders the app fills in: `{size}`, `{codeLetters}`
 (the code letters of the ordered sizes, as the headings print them), `{aql}` (one decimal: 0.0,
 2.5), `{minLayeringPct}`, `{minDispensingPct}`, `{standardLabel}`.
 
@@ -175,6 +177,10 @@ Report module. Captures: Per size: quantity in cases, lot numbers and packing si
 |---|---|---|---|
 | `fields` | { packingSite: boolean } | `{"packingSite":false}` | Packing site on or off. The size list is the template's `sizes`. |
 
+| Caption key | Label (STD_EG) | Other wording | Meaning |
+|---|---|---|---|
+| `size` | Size |  | Caption of the size column. |
+
 Note: The reports print no heading over the order table: 'Order' is the app's title for it.
 
 ### `packing_config`: Packing configuration
@@ -209,8 +215,10 @@ Report module. Captures: Per size: sampled cases, inner units and gloves; gloves
 | `innerUnitsDispensing` | # inner box for packaging & dispensing inspection | SAFEDON_EG: # inner packs for packaging & dispensing inspection | integer |  | size | entered | 1 | Counts inner units. Printed 'packaing' [sic]. Flows forward as the box rows of dispensing_packing or dispensing_safedon. |
 | `pouches` | Pouches |  | integer |  | size | entered | 1 | Counts pouches. Surgical: sampled pouches (SG onsite). |
 | `pouchesDyeLeak` | # pouches (dye leak test) |  | integer |  | size | entered | 1 | Counts pouches. Surgical: flows forward as dye_leak.pouchesTested. |
+| `inspectionLevel` | Inspection level |  | select |  | inspection | **computed** | 2, 8 | config inspectionLevel, else the client's; none without either. The level the plans are worked out at. Values: S-1, S-2, S-3, S-4, I, II, III. |
+| `lotSizeGloves` | Lot size (gloves) |  | integer | pcs | size | **computed** | 2 | order_lots.lotSizeGloves: qtyCases × packing_config.glovesPerCase. The lot the inspection level's plan is for. |
 | `codeLetter` | Code letter |  | select |  | size | **computed** | 2, 8 | ISO 2859-1 Table 1 from order_lots.lotSizeGloves and config inspectionLevel (lib/aql planFromLotSize); none without a level. Values: A, B, C, D, E, F, G, H, J, K, L, M, N, P, Q, R. |
-| `planSampleSize` | Sample size by plan |  | integer | pcs | size | **computed** | 2, 8 | Table 2-A n for codeLetter. A glovesWatertightVisual below it raises the module warning. |
+| `planSampleSize` | Sample size by plan |  | integer | pcs | size | **computed** | 2, 8 | The largest Table 2-A n for codeLetter among the AQLs the inspection checks on the watertight and visual sample (watertight, and visual's classes switched on), arrows followed; Table 1's n when it checks none. A glovesWatertightVisual below it raises the module warning. |
 | `totals` | Total: |  | count_map |  | inspection | **computed** | 2 | Sum over the ordered sizes of each column on (the onsite forms' Total: row). Map keyed by sampling column. |
 
 | Config key | Type | Default | Meaning |
@@ -222,6 +230,7 @@ Report module. Captures: Per size: sampled cases, inner units and gloves; gloves
 |---|---|---|---|
 | `samplingQuantity` | Sampling Quantity | STD_SG: Sampling Quantity (WTT & Visual) | Caption over the case, inner unit and glove (and pouch) columns. |
 | `orderQty` | Order Qty (case) | STD_SG: Qty (case) | Caption of the column that shows order_lots.qtyCases again. |
+| `gloveSize` | Glove Size |  | Caption of the size column on the capture screen. |
 
 ### `carton_sampling`: Finished Goods Sampling Information (carton number)
 
@@ -289,6 +298,10 @@ Report module. Captures: Per size: the gloves weighed (1 or 13 values) and their
 | Caption key | Label (STD_EG) | Other wording | Meaning |
 |---|---|---|---|
 | `info` | Info | SAFEDON_EG: A | Word printed for a result with no spec. |
+| `rowNo` | No. |  | Caption of the glove row number column (13 gloves weighed one by one). |
+| `specRow` | Spec. |  | Caption of the spec row (config specs, printed as lib/stats formatSpec). |
+| `pass` | Passed | SAFEDON_EG: A | Word for pass in the result row of a size with a spec. |
+| `fail` | Failed | SAFEDON_EG: Rej. | Word for fail in the result row of a size with a spec. |
 
 ### `force_at_break`: Force At Break in Newton (Refer to attached where applicable)
 
@@ -310,6 +323,7 @@ Report module. Captures: Per size, per glove (default 13): force at break (N), i
 
 | Caption key | Label (STD_EG) | Other wording | Meaning |
 |---|---|---|---|
+| `rowNo` | No. |  | Caption of the reading number column. |
 | `specRow` | Spec. |  | Caption of the spec row (≥ specMin N). |
 
 ### `tensile`: Physical Properties average (Refer to attached lab. reports)
@@ -508,7 +522,10 @@ Optional module. Captures: Per size: pouches tested, pouches failed, notes. Resu
 | `pouchesTested` | Pouches tested |  | integer |  | size | entered | 1 | Counts pouches. Prefilled from sampling_plan.pouchesDyeLeak, else config n. |
 | `pouchesFailed` | Pouches failed |  | integer |  | size | entered | 1 | Counts pouches. |
 | `notes` | Notes |  | textarea |  | size | entered |  |  |
+| `pouchesPlanned` | Pouches planned |  | integer |  | size | **computed** | 2 | sampling_plan.pouchesDyeLeak when it plans any, else config n; none when neither does. Counts pouches. |
 | `result` | Passed / Failed |  | select |  | size | **computed** | 2, 5 | pouchesFailed = 0 passes. Values: pass, fail, not_done. |
+| `totalTested` | Total pouches tested |  | integer |  | inspection | **computed** | 2 | Sum of pouchesTested over the ordered sizes that have it; none until one does. Counts pouches. |
+| `totalFailed` | Total pouches failed |  | integer |  | inspection | **computed** | 2 | Sum of pouchesFailed over the ordered sizes that have it; none until one does. Counts pouches. |
 
 | Config key | Type | Default | Meaning |
 |---|---|---|---|
@@ -527,6 +544,9 @@ Optional module. Captures: Checklist of certificates and reports: verified, not 
 | `expiryDate` | Expiry date |  | date |  | item | entered | 3 |  |
 | `file` | File |  | file |  | item | entered |  | inspection_files, kind certificate or lab_report, module documents. |
 | `expired` | Expired |  | yes_no |  | item | **computed** | 2 | expiryDate before header.inspectionDate. |
+| `itemStatus` | Item result |  | select |  | item | **computed** | 2, 5 | not_done without a status; fail when required and not verified; warn when expired; pass when verified; info when not verified or NA and not required. The chip on the item's row. Values: pass, fail, warn, info, not_done. |
+| `counts` | Items per status |  | count_map |  | inspection | **computed** | 2 | Items on the checklist per status. Map keyed by status (verified, not_verified, na, and open for none yet). |
+| `fileState` | File status |  | select |  | item | **computed** | 2 | The file the item keeps against the inspection's files: none kept, attached, or missing (deleted, or still uploading from another device). Attached while the inspection's files are not known. Values: none, attached, missing. |
 
 | Config key | Type | Default | Meaning |
 |---|---|---|---|
@@ -540,6 +560,10 @@ Optional module. Captures: Checklist of certificates and reports: verified, not 
 | `iso13485` | ISO 13485 |  | Item label. |
 | `fdaCe` | FDA / CE certificates |  | Item label. |
 | `declarationOfOrigin` | Declaration of origin |  | Item label. |
+| `required` | Required |  | Badge on an item the template requires. |
+| `status.verified` | Verified |  | Word for the status verified. |
+| `status.not_verified` | Not verified |  | Word for the status not_verified. |
+| `status.na` | NA |  | Word for the status na. |
 
 Note: Not on any current form: the website's QC scope (forms/README.md).
 
@@ -554,10 +578,20 @@ Optional module. Captures: Container no., seal no., cartons loaded against the P
 | `cartonsLoaded` | Cartons loaded |  | integer |  | inspection | entered | 1 | Counts cartons. |
 | `cartonCondition` | Carton condition |  | textarea |  | inspection | entered |  |  |
 | `cartonsOrdered` | Cartons ordered |  | integer |  | inspection | **computed** | 2 | order_lots.totalCartons. Counts cartons. |
+| `cartonsDifference` | Cartons loaded less ordered |  | integer |  | inspection | **computed** | 2 | cartonsLoaded − cartonsOrdered: below 0 is short, above 0 over; none until both are known. Counts cartons. |
 
 | Config key | Type | Default | Meaning |
 |---|---|---|---|
 | `fields` | Record&lt;LoadingField, boolean> | `{"containerNo":true,"sealNo":true,"cartonsLoaded":true,"cartonCondition":true}` | Which fields show (BUILD_SPEC: fields on/off). |
+
+| Caption key | Label (STD_EG) | Other wording | Meaning |
+|---|---|---|---|
+| `loadingStage` | Loading stage |  | Caption of the stage picker that tags loading photos. |
+| `emptyContainer` | Empty container |  | Loading stage, for photo tags. |
+| `halfLoaded` | Half loaded |  | Loading stage, for photo tags. |
+| `fullyLoaded` | Fully loaded |  | Loading stage, for photo tags. |
+| `doorsClosed` | Doors closed |  | Loading stage, for photo tags. |
+| `sealed` | Sealed |  | Loading stage, for photo tags. |
 
 Note: Not on any current form: the website's QC scope. Loading-stage photos are the module's photos; the stages are to confirm.
 
@@ -671,7 +705,7 @@ Differences from `STD_EG`: its seed writes only these config values (`seedConfig
 - `packing_config` wording: `glovesPerInner` "# glove per plastic pack", `innersPerCase` "# packs per case".
 - `sampling_plan` wording: `innerUnits` "Inner pack", `glovesPhysical` "# gloves for Tensile", `innerUnitsDispensing` "# inner packs for packaging & dispensing inspection".
 - `dimensions` wording: `statistic` "Average", `measureResult` "A / Rej.", `pass` "A", `fail` "Rej.".
-- `weight` wording: `result` "A / Rej.", `info` "A".
+- `weight` wording: `result` "A / Rej.", `info` "A", `pass` "A", `fail` "Rej.".
 - `weight` title: "Weight (g)".
 - `watertight` wording: `holes` "Holes", `heading` "Freedom from Holes by watertight test (Sampling code letter {codeLetters}; AQL={aql})".
 - `visual` wording: `heading` "Visual Inspection (Sampling code letter {codeLetters})", `criticalLimit` "Defect Limit".
@@ -885,8 +919,10 @@ Where the sources or BUILD_SPEC leave a choice, the dictionary takes one. Each i
 11. **Decimals** are the reports' printed decimals (length and width 0, thickness 2, force 3, weight
     2, tensile 2, elongation 0). `lib/stats` judges the statistic as shown, so the decimals decide
     borderline results (question 9).
-12. **Product code** stays inside `header.productName`, one cell on every source, entered once
-    (rule 6.2.10). The fixtures extract it separately (question 11).
+12. **Product code** is its own field, `header.productCode`, entered once and reused everywhere
+    (rule 6.2.10): the export, the report header, file names. The product name keeps the code as
+    printed, so the report keeps the source's wording. The STD_EG example printed one code in the
+    report and another in the file name; one field prevents that (question 11).
 13. **Report title** is kept as lines (`report.titleLines`); BUILD_SPEC 4.3's `report.title` is one
     string, so a seed joins them. The running headers of pages 2 to 4 are report layout: BUILD_SPEC
     4.3's report settings hold only the title and the client logo, and the AI report draws them from
@@ -927,8 +963,8 @@ Values that wait on Kenneth. BUILD_SPEC 13 first.
    average length of 239.6 shows as 240 and passes ≥ 240. Confirm, or judge the raw value.
 10. **Safedon gloves per pack.** `dispensing_safedon.glovesPerPack` (125) repeats
     `packing_config.glovesPerInner` (125 per plastic pack). Which one sets the rate if they differ?
-11. **Product code as its own field?** If the code must be searchable or used in file names apart
-    from the product name, add `header.productCode`.
+11. **Product code as its own field.** Settled: `header.productCode` holds it (decision 12), and the
+    product name keeps it as printed.
 12. **Packing site per lot.** One per size row, as printed. If one size has lots from two sites, it
     needs to move to the lot.
 13. **Labelling box numbers.** `labeling.boxNos` is optional; should the boxes be required?
@@ -941,10 +977,11 @@ Values that wait on Kenneth. BUILD_SPEC 13 first.
 17. **Safedon** is called the manufacturer in onsite/SAFEDON_EG.md and the product line in
     reports/SAFEDON_EG.md. The dictionary treats it as the product line.
 18. **AQL per client.** The templates set the AQLs their reports print (watertight 1.5; 0, 2.5 and
-    4.0). The module framework (phase2/framework) ranks a template's AQL above a client's (template,
-    then client, then BUILD_SPEC 7), so a client AQL would never apply to these templates. Should the
-    standard templates leave the AQLs unset so per-client values apply? If so, `watertight.aql` and
-    the class AQLs become nullable, falling back to the context's AQL as the framework suggests.
+    4.0). The module framework ranks a template's AQL above a client's (template, then client, then
+    BUILD_SPEC 7), so a client AQL would never apply to these templates, and the sampling plan's lot
+    check uses the template's too (`AQL_SOURCES`). Should the standard templates leave the AQLs unset
+    so per-client values apply? `watertight.aql` and the major and minor class AQLs already take
+    null, which falls back to the client's AQL, else BUILD_SPEC 7's.
 
 ## Coverage matrix
 

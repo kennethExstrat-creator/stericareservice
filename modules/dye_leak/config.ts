@@ -9,13 +9,17 @@ export const DYE_LEAK_TITLE = "Dye leak test";
 export const DYE_LEAK_FIELDS = ["pouchesTested", "pouchesFailed", "notes"] as const;
 export type DyeLeakField = (typeof DYE_LEAK_FIELDS)[number];
 
-/** The entered fields, the computed result line and the plan shown above the counts. */
-export const DYE_LEAK_LABELS: Readonly<Record<DyeLeakField | "result" | "pouchesPlanned", string>> = {
+/** The entered fields, the computed result line, the plan shown above the counts and the totals. */
+export const DYE_LEAK_LABELS: Readonly<
+  Record<DyeLeakField | "result" | "pouchesPlanned" | "totalTested" | "totalFailed", string>
+> = {
   pouchesTested: "Pouches tested",
   pouchesFailed: "Pouches failed",
   notes: "Notes",
-  result: "Passed / Failed",
   pouchesPlanned: "Pouches planned",
+  result: "Passed / Failed",
+  totalTested: "Total pouches tested",
+  totalFailed: "Total pouches failed",
 };
 
 export const DyeLeakConfigSchema = z.strictObject({

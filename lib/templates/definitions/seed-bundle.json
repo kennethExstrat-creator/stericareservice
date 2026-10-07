@@ -854,6 +854,7 @@
               "labReport": "Lab report",
               "median": "Median",
               "result": "Passed / Failed",
+              "rowNo": "No.",
               "specRow": "Spec."
             },
             "config": {
@@ -1428,7 +1429,9 @@
             "title": "Weight (g)",
             "labels": {
               "result": "A / Rej.",
-              "info": "A"
+              "info": "A",
+              "pass": "A",
+              "fail": "Rej."
             },
             "config": {
               "n": 1,
@@ -2048,6 +2051,7 @@
               "labReport": "Lab report",
               "median": "Median",
               "result": "Passed / Failed",
+              "rowNo": "No.",
               "specRow": "Spec."
             },
             "config": {
@@ -2069,8 +2073,8 @@
               "info": "A",
               "rowNo": "No.",
               "specRow": "Spec.",
-              "pass": "Passed",
-              "fail": "Failed"
+              "pass": "A",
+              "fail": "Rej."
             },
             "config": {
               "n": 1,
@@ -3197,8 +3201,10 @@
               "pouchesTested": "Pouches tested",
               "pouchesFailed": "Pouches failed",
               "notes": "Notes",
+              "pouchesPlanned": "Pouches planned",
               "result": "Passed / Failed",
-              "pouchesPlanned": "Pouches planned"
+              "totalTested": "Total pouches tested",
+              "totalFailed": "Total pouches failed"
             },
             "config": {
               "n": null

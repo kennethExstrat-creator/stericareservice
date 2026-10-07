@@ -40,7 +40,15 @@ export const DocumentStatusSchema = z.enum(DOCUMENT_STATUSES);
 export const DOCUMENT_FIELDS = ["status", "referenceNo", "expiryDate", "file"] as const;
 export type DocumentField = (typeof DOCUMENT_FIELDS)[number];
 
-type DocumentsLabelKey = DocumentField | "expired" | "required" | DocumentItem | `status.${DocumentStatus}`;
+type DocumentsLabelKey =
+  | DocumentField
+  | "expired"
+  | "itemStatus"
+  | "counts"
+  | "fileState"
+  | "required"
+  | DocumentItem
+  | `status.${DocumentStatus}`;
 
 export const DOCUMENTS_LABELS: Readonly<Record<DocumentsLabelKey, string>> = {
   status: "Status",
@@ -48,6 +56,9 @@ export const DOCUMENTS_LABELS: Readonly<Record<DocumentsLabelKey, string>> = {
   expiryDate: "Expiry date",
   file: "File",
   expired: "Expired",
+  itemStatus: "Item result",
+  counts: "Items per status",
+  fileState: "File status",
   required: "Required",
   certificateOfAnalysis: "Certificate of analysis",
   labTestReports: "Lab test reports",

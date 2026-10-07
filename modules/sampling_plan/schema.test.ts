@@ -89,7 +89,7 @@ describe("sampling_plan config", () => {
   it("uses the dictionary's columns, defaults and wording (docs/DATA_DICTIONARY.md)", () => {
     expect(SAMPLING_COLUMNS).toEqual(DICTIONARY_COLUMNS);
     expect(SAMPLING_PLAN_DEFAULT_CONFIG).toEqual(defaultConfig("sampling_plan"));
-    expect(SAMPLING_PLAN_LABELS).toMatchObject(defaultLabels("sampling_plan"));
+    expect({ ...SAMPLING_PLAN_LABELS }).toEqual(defaultLabels("sampling_plan"));
   });
 
   it("shows the examination columns with no inspection level by default", () => {

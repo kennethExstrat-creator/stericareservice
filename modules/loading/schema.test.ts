@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { dataKeys, defaultConfig, defaultLabels, LOADING_FIELDS as DICTIONARY_FIELDS, moduleTitle, TEMPLATES } from "@/lib/coverage";
+import {
+  dataKeys,
+  defaultConfig,
+  defaultLabels,
+  LOADING_FIELDS as DICTIONARY_FIELDS,
+  LOADING_STAGES as DICTIONARY_STAGES,
+  moduleTitle,
+  TEMPLATES,
+} from "@/lib/coverage";
 import { lookupFrom, resolveTemplate } from "@/lib/templates";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import { SAFEDON_EG_EXAMPLE, SAFEDON_EG_EXPECTED } from "@/tests/fixtures/examples";
@@ -87,7 +95,8 @@ describe("loading config", () => {
 describe("loading wording", () => {
   it("defaults to the data dictionary's title and labels, with a caption per loading stage", () => {
     expect(LOADING_TITLE).toBe(moduleTitle("STD_EG", "loading"));
-    expect(LOADING_LABELS).toMatchObject(defaultLabels("loading"));
+    expect({ ...LOADING_LABELS }).toEqual(defaultLabels("loading"));
     for (const stage of LOADING_STAGES) expect(LOADING_LABELS[stage]).toBeTruthy();
+    expect([...LOADING_STAGES]).toEqual([...DICTIONARY_STAGES]);
   });
 });

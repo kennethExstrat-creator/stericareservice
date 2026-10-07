@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ALWAYS_ON_MODULE_KEYS, isModuleKey, MODULE_KEYS, type ModuleKey } from "@/lib/schemas/module-result";
+import { LABEL_KEY_PATTERN } from "@/lib/schemas/template";
 import { formatSpec } from "@/lib/stats/spec";
 import { defaultLabels, DIMENSION_DECIMALS, moduleSpec } from "./fields";
 import { DEFECT_CLASSES, LABELLING_CHECKS, MEASURES } from "./keys";
@@ -19,7 +20,7 @@ import {
 } from "./templates";
 import { SOURCE_IDS, TEMPLATE_CODES, TEMPLATE_PROPERTIES, type TemplateCode } from "./types";
 
-/** phase2/framework, lib/schemas/template.ts: FIELD_KEY_PATTERN (ModuleConfig.labels and Field keys). */
+/** phase2/framework, lib/schemas/template.ts: FIELD_KEY_PATTERN (a custom module's Field keys). */
 const FRAMEWORK_FIELD_KEY = /^[A-Za-z][A-Za-z0-9_]*$/;
 /** phase2/framework, lib/schemas/template.ts: CUSTOM_KEY_PATTERN. */
 const FRAMEWORK_CUSTOM_KEY = /^[a-z][a-z0-9_]*$/;
@@ -510,13 +511,13 @@ describe("sources and seeds", () => {
 
   it("keys every label as the framework's ModuleConfig.labels accepts, and only with keys the module's defaults have", () => {
     for (const key of MODULE_KEYS) {
-      for (const label of Object.keys(defaultLabels(key))) expect(label, key).toMatch(FRAMEWORK_FIELD_KEY);
+      for (const label of Object.keys(defaultLabels(key))) expect(label, key).toMatch(LABEL_KEY_PATTERN);
     }
     for (const code of TEMPLATE_CODES) {
       for (const key of templateModuleKeys(code)) {
         const defaults = Object.keys(defaultLabels(key));
         for (const label of Object.keys(labelOverrides(code, key))) {
-          expect(label, `${code} ${key}`).toMatch(FRAMEWORK_FIELD_KEY);
+          expect(label, `${code} ${key}`).toMatch(LABEL_KEY_PATTERN);
           expect(defaults, `${code} ${key}`).toContain(label);
         }
       }

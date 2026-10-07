@@ -40,6 +40,10 @@ export type GloveInfoField = (typeof GLOVE_INFO_FIELDS)[number];
 export const LOADING_FIELDS = ["containerNo", "sealNo", "cartonsLoaded", "cartonCondition"] as const;
 export type LoadingField = (typeof LOADING_FIELDS)[number];
 
+/** Loading stages where photos are taken, in order (to confirm with Kenneth). */
+export const LOADING_STAGES = ["emptyContainer", "halfLoaded", "fullyLoaded", "doorsClosed", "sealed"] as const;
+export type LoadingStage = (typeof LOADING_STAGES)[number];
+
 /** Visual defect classes, in report order. */
 export const DEFECT_CLASSES = ["critical", "major", "minor"] as const;
 export type DefectClass = (typeof DEFECT_CLASSES)[number];
