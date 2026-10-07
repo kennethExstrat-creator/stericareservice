@@ -1066,6 +1066,10 @@ test("SEC-02: an inspector's own session cannot write invalid data or the comput
     "inspectors save and submit inspections through the app",
   ]);
   expect(direct.data).toBeNull();
+  // Invalid data on its own is refused too, not only together with the computed columns and a submit.
+  const dataOnly = await member.client.from("inspections").update({ data: invalid }).eq("id", i.mBypass.id).select("id");
+  test.info().annotations.push({ type: "evidence", description: `invalid data alone: ${JSON.stringify(dataOnly)}` });
+  expect([dataOnly.error?.code, dataOnly.error?.message], "invalid data alone").toEqual(["42501", "inspectors save and submit inspections through the app"]);
   const after = await service().from("inspections").select(columns).eq("id", i.mBypass.id).single();
   expect(after.data, "the row is as it was").toEqual(before.data);
 
@@ -1088,14 +1092,19 @@ test("SEC-03: an inspector cannot add an admin's or the system's events to the a
     { action: "ai_report.sent", changes: { reportUrl: "https://evil.example/report" } },
     { action: "module_override", changes: { module: "visual", include: false, reason: "Switched off by the admin" } },
   ];
-  const ids: unknown[] = [];
-  for (const event of forged) {
-    const logged = await member.client.rpc("log_inspection_event", { inspection_id: i.mApproved.id, ...event });
-    ids.push(logged.error?.code ?? logged.data);
+  // On the owner's own draft, which they may still change, only the list of an inspector's
+  // events refuses them; on the approved one, that list answers before "can no longer change".
+  const answers: unknown[] = [];
+  for (const target of [i.mDraft, i.mApproved]) {
+    for (const event of forged) {
+      const logged = await member.client.rpc("log_inspection_event", { inspection_id: target.id, ...event });
+      answers.push(logged.error ? [logged.error.code, logged.error.message] : logged.data);
+    }
   }
-  test.info().annotations.push({ type: "evidence", description: `answers for the approved ${i.mApproved.ref}: ${JSON.stringify(ids)}` });
-  expect(ids, "the database refuses each event").toEqual(["42501", "42501", "42501"]);
-  const trail = await service().from("audit_log").select("action").eq("inspection_id", i.mApproved.id);
+  test.info().annotations.push({ type: "evidence", description: `answers for ${i.mDraft.ref} and the approved ${i.mApproved.ref}: ${JSON.stringify(answers)}` });
+  const refused = forged.map((event) => ["42501", `an inspector cannot record ${event.action}`]);
+  expect(answers, "the database refuses each event: not an inspector's to record").toEqual([...refused, ...refused]);
+  const trail = await service().from("audit_log").select("action").in("inspection_id", [i.mDraft.id, i.mApproved.id]);
   expect(trail.error).toBeNull();
   const recorded = trail.data!.map((row) => row.action);
   expect(recorded.filter((action) => forged.some((event) => event.action === action)), "no forged row in the audit log").toEqual([]);
