@@ -2,13 +2,15 @@ import { ResultChip, StatusPill } from "@/components/qc";
 import { AA_TEXT, contrastRatio, formatRatio } from "@/lib/design/contrast";
 import { STATUSES, status as statusTokens, mist, white, type Hex } from "@/lib/design/tokens";
 import { STATUS_LABEL } from "@/lib/design/status";
+import { CONCLUSION_LABELS } from "@/modules/conclusion/config";
 import { DesignSection } from "./design-section";
 
+// The overall result takes these colours in the template's own words (docs/DESIGN.md, Status colours).
 const USE: Record<(typeof STATUSES)[number], string> = {
-  pass: "Module passed; final result Passed",
-  fail: "Module failed; final result Failed",
+  pass: `A module or size passed. Overall result: ${CONCLUSION_LABELS.pass} (the template's word)`,
+  fail: `A module or size failed. Overall result: ${CONCLUSION_LABELS.fail} (the template's word)`,
   warn: "Allowed, but goes into the export (e.g. weight deviation)",
-  hold: "Final result On hold, pending a decision",
+  hold: `Overall result ${CONCLUSION_LABELS.hold} (the template's word), pending a decision`,
   info: "Recorded, nothing to judge (header, glove info)",
   not_done: "Missing data. Never shown as Passed",
 };

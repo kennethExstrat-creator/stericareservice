@@ -65,8 +65,11 @@ function InputGroupAddon({
   )
 }
 
+// SteriCare: 36 px on touch, to sit inside the 44 px field, with a 44 px hit
+// area. The ::after is placed from the padding box, inside the button's 1 px
+// border, so it reaches out 5 px: 34 + 2 × 5.
 const inputGroupButtonVariants = cva(
-  "flex items-center gap-2 text-sm shadow-none touch:relative touch:after:absolute touch:after:-inset-1",
+  "flex items-center gap-2 text-sm shadow-none touch:relative touch:after:absolute touch:after:-inset-[5px]",
   {
     variants: {
       size: {
