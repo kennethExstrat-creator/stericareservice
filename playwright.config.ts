@@ -33,6 +33,8 @@ export default defineConfig({
   projects: [
     { name: "ipad-portrait", use: { ...ipad, viewport: { width: 820, height: 1180 } } },
     { name: "ipad-landscape", use: { ...ipad, viewport: { width: 1180, height: 820 } } },
+    // 12.9 and 13 inch iPads: wider than 1280 px in landscape, still the iPad layout (touch).
+    { name: "ipad-pro-landscape", use: { ...ipad, viewport: { width: 1366, height: 1024 } } },
     { name: "desktop", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } },
   ],
 });

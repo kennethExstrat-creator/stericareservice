@@ -43,8 +43,8 @@ const SIGN_OUT_SLOW = "Signing out is taking too long";
 // Dev servers compile each page on its first visit, and the Mac running these is shared.
 test.describe.configure({ timeout: 90_000 });
 
-/** The desktop layout starts at 1280 px (BUILD_SPEC 8). */
-const isDesktop = (page: Page) => (page.viewportSize()?.width ?? 0) >= 1280;
+/** The desktop layout: 1280 px and wider with a mouse or trackpad; every touch size is the iPad layout (app/globals.css). */
+const isDesktop = (page: Page) => (page.viewportSize()?.width ?? 0) >= 1280 && test.info().project.use.hasTouch !== true;
 
 const isTouch = () => Boolean(test.info().project.use.hasTouch);
 

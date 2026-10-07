@@ -48,9 +48,9 @@ export function LayoutSection() {
       title="Layout rule"
       description={
         <>
-          One responsive layout, no phone layout. Below 1280 px (iPad portrait and landscape) modules are a top tab bar
-          and the grid runs full width. From 1280 px (desktop) modules move to a left sidebar, the grid widens and photos
-          sit alongside. You are looking at the{" "}
+          One responsive layout, no phone layout. On every iPad, whatever its size, and below 1280 px, modules are a top
+          tab bar and the grid runs full width. From 1280 px with a mouse or trackpad (desktop) modules move to a left
+          sidebar, the grid widens and photos sit alongside. You are looking at the{" "}
           <strong className="font-semibold text-foreground">
             <span className="xl:hidden">iPad layout</span>
             <span className="hidden xl:inline">desktop layout</span>

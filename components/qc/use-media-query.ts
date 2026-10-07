@@ -21,7 +21,7 @@ export function useMediaQuery(query: string, serverValue = false): boolean {
   );
 }
 
-/** Tailwind's `xl` breakpoint: the desktop layout. */
-export const WIDE_QUERY = "(min-width: 80rem)";
+/** The `xl` variant (app/globals.css): the desktop layout, 1280 px and wider with a mouse or trackpad. */
+export const WIDE_QUERY = "(min-width: 80rem) and (pointer: fine)";
 /** The `touch:` variant: iPad sizes for targets and text. */
 export const COARSE_QUERY = "(pointer: coarse)";

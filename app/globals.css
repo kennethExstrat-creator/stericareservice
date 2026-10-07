@@ -23,6 +23,15 @@
 @custom-variant touch (@media (pointer: coarse));
 @custom-variant fine (@media (pointer: fine));
 
+/* The desktop layout (sidebars, compact tables) needs a mouse or trackpad as
+   well as 1280 px: a 12.9 or 13 inch iPad is 1366 px wide in landscape, and
+   with touch-sized text and targets the desktop layout squeezed its tables
+   and fields. Every touch screen gets the iPad layout, whatever its width.
+   xl: and max-xl: stay the one desktop switch; WIDE_QUERY in
+   components/qc/use-media-query.ts is the same rule for scripts. */
+@custom-variant xl (@media (width >= 80rem) and (pointer: fine));
+@custom-variant max-xl (@media not all and (width >= 80rem) and (pointer: fine));
+
 /* Static: components and inline styles read these as CSS variables, so they
    must exist even where no utility uses them. */
 @theme static {
@@ -298,6 +307,24 @@
   button:not(:disabled),
   [role="button"]:not(:disabled) {
     cursor: pointer;
+  }
+
+  /* iPad Safari gives date and time fields a minimum width of their own, so
+     three in a row ran into each other and past the card, and it centres
+     their text. There they fill their column and start left like any field.
+     (-webkit-touch-callout exists only in iOS and iPadOS Safari.) */
+  @supports (-webkit-touch-callout: none) {
+    input[type="date"],
+    input[type="month"],
+    input[type="time"],
+    input[type="datetime-local"] {
+      min-width: 0;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    input::-webkit-date-and-time-value {
+      text-align: start;
+    }
   }
 
   /* Rapid taps on steppers and chips must count, not double-tap zoom. */

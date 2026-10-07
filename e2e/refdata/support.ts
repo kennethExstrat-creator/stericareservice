@@ -18,8 +18,8 @@ export function runTag(): string {
   return `${project} ${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
 }
 
-/** The desktop layout starts at 1280 px (BUILD_SPEC 8). */
-export const isDesktop = (page: Page) => (page.viewportSize()?.width ?? 0) >= 1280;
+/** The desktop layout: 1280 px and wider with a mouse or trackpad; every touch size is the iPad layout (app/globals.css). */
+export const isDesktop = (page: Page) => (page.viewportSize()?.width ?? 0) >= 1280 && test.info().project.use.hasTouch !== true;
 
 /** The iPad sizes: touch, so (pointer: coarse) styles apply. */
 export const hasTouch = () => test.info().project.use.hasTouch === true;
