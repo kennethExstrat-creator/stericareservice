@@ -65,14 +65,10 @@ export function UsersScreen({
 
   return (
     <div className="flex flex-col gap-6">
+      {/* No subtitle under the title (Kenneth, 7 October 2026: page headers without subtitles). */}
       <PageHeader
         eyebrow="Admin"
         title="Users"
-        description={
-          teams
-            ? "Invite people, set their roles and lead inspectors, and deactivate accounts that should no longer have access."
-            : "Invite people, set their roles and deactivate accounts that should no longer have access."
-        }
         actions={<InviteUserDialog disabled={!canInvite} teams={teams} leads={leads} />}
       />
 

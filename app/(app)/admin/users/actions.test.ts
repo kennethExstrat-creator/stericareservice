@@ -720,6 +720,16 @@ describe("reactivateUser", () => {
       expect(updates()[0].fields).toEqual({ role: "inspector", is_lead: true, lead_id: null, active: true });
     });
 
+    it("asks nothing when only a sign-in block is lifted from an active inspector from before teams", async () => {
+      rows.get(OTHER)!.active = true;
+      expect(await reactivateUser(IDLE, form({ userId: OTHER }))).toEqual({
+        status: "success",
+        message: "Olga Other is active and can sign in.",
+      });
+      expect(adminClient.auth.admin.updateUserById).toHaveBeenCalledWith(OTHER, { ban_duration: "none" });
+      expect(updates()[0].fields).toEqual({ active: true });
+    });
+
     it("is activated as before on a project without lead inspectors", async () => {
       teams = false;
       expect(await reactivateUser(IDLE, form({ userId: OTHER }))).toEqual({

@@ -382,8 +382,13 @@ export async function reactivateUser(_previous: ActionResult, formData: FormData
     // Settled before the ban is lifted, so a refusal changes nothing.
     let fields: TablesUpdate<"profiles"> = { active: true };
     let placed = "";
+    // Only an account being let in: lifting a sign-in block leaves an active
+    // inspector from before teams as they are (rule 6 binds changes only).
     const inNoTeam =
-      target.teams && roleChoiceOf({ role: current.role, isLead: current.is_lead }) === "inspector" && !current.lead_id;
+      target.teams &&
+      !current.active &&
+      roleChoiceOf({ role: current.role, isLead: current.is_lead }) === "inspector" &&
+      !current.lead_id;
     if (inNoTeam) {
       const choice = role ?? "inspector";
       const placement = await choosePlacement(supabase, choice, leadId ?? null, userId);
