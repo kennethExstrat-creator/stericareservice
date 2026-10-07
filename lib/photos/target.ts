@@ -1,19 +1,30 @@
 import { z } from "zod";
 import { SizeSchema } from "@/lib/schemas/common";
 import { isModuleKey, type ModuleKey } from "@/lib/schemas/module-result";
+import { PACKAGING_LEVELS } from "@/modules/_framework/contract";
 
 /* ------------------------------------------------------------------ *
  * Photo tags (BUILD_SPEC 8.1): the module a photo was taken in, and the
- * size, hand, defect or box in focus. inspection_photos.module_key holds
- * the module; inspection_photos.target holds the rest as one string,
- * "size:M/hand:R/defect:thin_spot/box:253".
+ * size, hand, defect, box, packaging level or list entry in focus.
+ * inspection_photos.module_key holds the module; inspection_photos.target
+ * holds the rest as one string, "size:M/hand:R/defect:thin_spot/box:253".
  * ------------------------------------------------------------------ */
 
-/** In the order the target string lists them. */
-export const TARGET_KEYS = ["size", "hand", "defect", "box"] as const;
+/**
+ * In the order the target string lists them. Level and item came later and
+ * go last, so a photo tagged before them keeps the same target string.
+ */
+export const TARGET_KEYS = ["size", "hand", "defect", "box", "level", "item"] as const;
 export type TargetKey = (typeof TARGET_KEYS)[number];
 
 export const HandSchema = z.enum(["R", "L"]);
+
+/** Labelling's packaging levels: the inner unit (dispenser box, plastic pack) and the carton. */
+export const PackagingLevelSchema = z.enum(PACKAGING_LEVELS);
+
+/** The key of an entry of a module's own list: a document on the checklist, a loading stage. */
+export const ITEM_KEY_PATTERN = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
+export const ItemKeySchema = z.string().regex(ITEM_KEY_PATTERN);
 
 export const PhotoTargetSchema = z.strictObject({
   /** Normalised size, as in order_lots ("M", "7.0"). */
@@ -24,6 +35,10 @@ export const PhotoTargetSchema = z.strictObject({
   defect: z.string().trim().min(1).max(120).optional(),
   /** Carton (box) number, from that size's carton list. */
   box: z.number().int().positive().optional(),
+  /** The packaging level in labelling: the inner unit or the carton. */
+  level: PackagingLevelSchema.optional(),
+  /** An entry of the module's own list by its key: a document (documents), a loading stage (loading). */
+  item: ItemKeySchema.optional(),
 });
 export type PhotoTarget = z.infer<typeof PhotoTargetSchema>;
 
@@ -83,7 +98,7 @@ function isTargetKey(key: string): key is TargetKey {
  * Auto-tagging
  * ------------------------------------------------------------------ */
 
-/** What the capture screen has in focus when a photo is taken. */
+/** What the capture screen has in focus when a photo is taken (the framework's CaptureFocus, nulls allowed). */
 export interface CaptureFocus {
   /** The module (or custom module) on screen. */
   moduleKey: string;
@@ -91,6 +106,8 @@ export interface CaptureFocus {
   hand?: "R" | "L" | null;
   defect?: string | null;
   box?: number | null;
+  level?: "inner" | "carton" | null;
+  item?: string | null;
 }
 
 /**
@@ -113,11 +130,11 @@ export const MODULE_TARGET_KEYS: Readonly<Record<ModuleKey, readonly TargetKey[]
   visual: ["size", "hand", "defect"],
   dispensing_packing: ["size", "box"],
   dispensing_safedon: ["size", "box", "defect"],
-  labeling: ["size", "box", "defect"],
+  labeling: ["size", "box", "defect", "level"],
   conclusion: [],
   dye_leak: ["size"],
-  documents: [],
-  loading: [],
+  documents: ["item"],
+  loading: ["item"],
 };
 
 /** Custom modules can repeat per size (BUILD_SPEC 4.3, grid.repeatPer). */

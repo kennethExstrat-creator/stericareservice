@@ -261,8 +261,9 @@ function SizeTable({
   const fields = ownCustomFields(custom).map(customFormField);
   const bySize = asRecord(record.sizes);
   return (
+    // The cells share the width (each field fills its cell); the frame scrolls only when their minimums do not fit.
     <EnterGroup className="overflow-x-auto rounded-lg border border-border">
-      <table className="w-full min-w-max border-collapse text-sm touch:text-base">
+      <table className="w-full border-collapse text-sm touch:text-base">
         <caption className="sr-only">{custom.title}, one row per size</caption>
         <thead className="bg-slate-50 text-left">
           <tr>
@@ -288,7 +289,7 @@ function SizeTable({
                   {sizeLabel(context, size)}
                 </th>
                 {fields.map((field) => (
-                  <td key={field.key} className="min-w-44 px-3 py-2">
+                  <td key={field.key} className="min-w-36 px-3 py-2">
                     <FieldControl
                       variant="cell"
                       cellLabel={`Size ${sizeLabel(context, size)}, ${field.label}`}
@@ -343,8 +344,9 @@ function Grid({
 
   return (
     <div className="space-y-3">
+      {/* Three boxes fit an iPad in portrait: the cells share the width, and the frame scrolls only past that. */}
       <EnterGroup className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full min-w-max border-collapse text-sm touch:text-base">
+        <table className="w-full border-collapse text-sm touch:text-base">
           <caption className="sr-only">
             {custom.title}
             {size ? `, size ${size}` : ""}
@@ -371,7 +373,7 @@ function Grid({
                 {Array.from({ length: count }, (_, column) => {
                   const path = [...root, field.key, column];
                   return (
-                    <td key={column} className="min-w-36 px-3 py-2">
+                    <td key={column} className="min-w-28 px-3 py-2">
                       <FieldControl
                         variant="cell"
                         cellLabel={`${field.label}, ${columnLabel} ${column + 1}${size ? `, size ${size}` : ""}`}

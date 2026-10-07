@@ -25,16 +25,20 @@ import { IDLE_PHOTO_ACTION, type PhotoActionState } from "@/lib/inspections/phot
 export function FileDeleteDialog({
   inspectionId,
   file,
+  onDeleted,
   onClose,
 }: {
   inspectionId: string;
   file: SlotFile;
+  /** The file is gone from the inspection (or from this device): a module keeping its id drops it. */
+  onDeleted?: (fileId: string) => void;
   onClose: () => void;
 }) {
   const [state, formAction, pending] = useActionState(
     async (previous: PhotoActionState, formData: FormData): Promise<PhotoActionState> => {
       const result = await deleteSlotFile(inspectionId, file, previous, formData);
       if (result.status === "success") {
+        onDeleted?.(file.id);
         toast.success(result.message);
         onClose();
       }

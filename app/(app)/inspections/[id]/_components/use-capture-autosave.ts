@@ -36,6 +36,11 @@ export type CaptureAutosave = {
   phase: AutosavePhase;
   /** Null until the controller exists. */
   snapshot: AutosaveSnapshot<InspectionData> | null;
+  /**
+   * The controller's state now, even within the event that just changed it
+   * (`snapshot` is as of the last render): for a page that is about to go.
+   */
+  getSnapshot: () => AutosaveSnapshot<InspectionData> | null;
   change: (data: InspectionData) => void;
   flush: (options?: { timeoutMs?: number }) => Promise<FlushResult>;
   retryNow: () => void;
@@ -165,6 +170,7 @@ export function useCaptureAutosave({
     [],
   );
   const retryNow = useCallback(() => controller.current?.retryNow(), []);
+  const getSnapshot = useCallback(() => controller.current?.getSnapshot() ?? null, []);
   const resolveConflict = useCallback((keep: "local" | "server") => {
     const own = controller.current;
     if (!own) return null;
@@ -176,5 +182,5 @@ export function useCaptureAutosave({
     }
   }, []);
 
-  return { phase, snapshot, change, flush, retryNow, resolveConflict };
+  return { phase, snapshot, getSnapshot, change, flush, retryNow, resolveConflict };
 }

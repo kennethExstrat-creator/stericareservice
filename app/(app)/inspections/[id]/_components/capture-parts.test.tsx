@@ -20,11 +20,11 @@ import { CaptureHeader } from "./capture-header";
 import { CaptureNotices } from "./capture-notices";
 import { FieldControl } from "./field-control";
 import { formatOverrideTime, SwitchedOffPanel } from "./module-switch";
-import { PhotoSlot } from "./photo-slot";
 import { CustomModuleForm, FallbackModuleForm } from "./plain-forms";
 import { SaveIndicator } from "./save-indicator";
 import { SectionFrame } from "./section-frame";
 import { nextTabIndex, SectionTabs, tabId } from "./section-tabs";
+import { UnreadableData } from "./unreadable-data";
 
 const noop = () => {};
 
@@ -80,17 +80,64 @@ describe("SectionTabs", () => {
 
 describe("SaveIndicator", () => {
   it("shows Saved, Saving and Offline (will sync) through SaveStatus", () => {
-    expect(renderToStaticMarkup(<SaveIndicator status="saved" pendingUploads={null} />)).toContain("Saved");
-    expect(renderToStaticMarkup(<SaveIndicator status="saving" pendingUploads={0} />)).toContain("Saving");
-    expect(renderToStaticMarkup(<SaveIndicator status="offline" pendingUploads={0} />)).toContain("Offline (will sync)");
+    expect(renderToStaticMarkup(<SaveIndicator status="saved" inspectionId="i" />)).toContain("Saved");
+    expect(renderToStaticMarkup(<SaveIndicator status="saving" inspectionId="i" />)).toContain("Saving");
+    expect(renderToStaticMarkup(<SaveIndicator status="offline" inspectionId="i" />)).toContain("Offline (will sync)");
   });
 
-  it("turns red with Not saved when saving needs the inspector, keeping the upload badge", () => {
-    const html = renderToStaticMarkup(<SaveIndicator status="error" pendingUploads={2} />);
+  it("says Not saved in the kit's own red pill when saving needs the inspector", () => {
+    const html = renderToStaticMarkup(<SaveIndicator status="error" inspectionId="i" />);
     expect(html).toContain('role="status"');
     expect(html).toContain('data-state="error"');
     expect(html).toContain("Not saved");
-    expect(html).toContain("photos waiting to upload");
+  });
+
+  it("carries the upload badge, unknown rather than 0 until this device's queue is read", () => {
+    const html = renderToStaticMarkup(<SaveIndicator status="saved" inspectionId="i" />);
+    expect(tagsWith(html, 'data-slot="upload-badge"')[0]).toContain('data-state="checking"');
+    expect(html).toContain("Checking for photos waiting on this device");
+  });
+});
+
+describe("UnreadableData", () => {
+  const definition = TEST_REGISTRY.glove_info;
+  const tooHeavy = { path: ["indicativeWeight"], message: "Glove Information: Indicative weight is not a number." };
+  const issue = (path: (string | number)[], message: string) =>
+    ({ moduleKey: "glove_info", code: "invalid_data", level: "error", path, message }) as const;
+
+  it("lists each value that cannot be read, as the checks word it, where an issue link lands", () => {
+    const html = renderToStaticMarkup(
+      <UnreadableData
+        definition={definition}
+        entry={{ value: { indicativeWeight: "2 42", colour: "Blue" }, comment: null, hasData: true }}
+        issues={[issue(tooHeavy.path, tooHeavy.message)]}
+        fallback={undefined}
+        focusPath={null}
+        readOnly={false}
+        onRemove={noop}
+      />,
+    );
+    expect(html).toContain("A value saved for this section cannot be read.");
+    expect(html).toContain(tooHeavy.message);
+    expect(tagsWith(html, "data-issue-path")[0]).toContain('tabindex="-1"');
+    expect(html).toContain("Remove the values that cannot be read");
+    expect(html).toContain("Everything else here is kept.");
+  });
+
+  it("shows read-only viewers the list only", () => {
+    const html = renderToStaticMarkup(
+      <UnreadableData
+        definition={definition}
+        entry={{ value: { indicativeWeight: "2 42" }, comment: null, hasData: true }}
+        issues={[]}
+        fallback={{ path: ["indicativeWeight"], message: "Invalid input: expected number, received string" }}
+        focusPath={null}
+        readOnly
+        onRemove={noop}
+      />,
+    );
+    expect(html).toContain("indicativeWeight: Invalid input: expected number, received string");
+    expect(html).not.toContain("<button");
   });
 });
 
@@ -111,23 +158,6 @@ describe("CaptureNotices", () => {
 
   it("renders nothing without notices", () => {
     expect(renderToStaticMarkup(<CaptureNotices notices={[]} />)).toBe("");
-  });
-});
-
-describe("PhotoSlot (placeholder)", () => {
-  it("shows both photo buttons, switched off, and says when photos arrive", () => {
-    const html = renderToStaticMarkup(<PhotoSlot inspectionId="i" moduleKey="glove_info" focus={{ size: "M" }} />);
-    expect(html.match(/<button/g)).toHaveLength(2);
-    expect(html.match(/<button[^>]*disabled=""/g)).toHaveLength(2);
-    expect(html).toContain("Take photo");
-    expect(html).toContain("Add from library");
-    expect(html).toContain("Photos arrive in the next build");
-  });
-
-  it("takes the photo build's props: no focus yet, and the screen's read-only state", () => {
-    const html = renderToStaticMarkup(<PhotoSlot inspectionId="i" moduleKey="header" focus={null} readOnly />);
-    expect(html).toContain('data-module="header"');
-    expect(html.match(/<button[^>]*disabled=""/g)).toHaveLength(2);
   });
 });
 

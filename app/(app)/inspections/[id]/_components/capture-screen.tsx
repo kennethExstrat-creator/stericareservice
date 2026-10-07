@@ -18,11 +18,21 @@
 // bring back the inspection's status and module overrides, so a section
 // switched off or a submit made on another device shows here too.
 //
+// Focus (BUILD_SPEC 8.1): what a module reports in focus tags its section's
+// photos, and nothing else does: each section starts untagged. The size in
+// it is also kept for the next section's module to open on, so the size
+// chosen in one module stays chosen in the next without tagging the photos
+// of a section that does not show it.
+//
 // Leaving: number fields keep a half-typed value until they lose focus, and
-// a tap on the iPad does not move focus, so a click anywhere outside the open
-// section (a link, the menu, Submit) first leaves the field. The header's
-// Photos and Review wait for the last save; any other way out sends it as the
-// screen goes (use-capture-autosave.ts).
+// a tap on the iPad does not move focus, so whatever way the screen goes, the
+// field is left first and its value kept: a click outside the open section
+// (a link, the shell's menu, Submit), the browser's Back (the Navigation
+// API's navigate, else popstate), and the page being hidden, reloaded or
+// closed (pagehide, visibilitychange, beforeunload). The header's Photos and
+// Review wait for the last save; any other way out within the app sends it
+// as the screen goes, and the local copy keeps it otherwise
+// (use-capture-autosave.ts).
 import {
   useCallback,
   useDeferredValue,
@@ -39,15 +49,18 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeftIcon, ChevronRightIcon, FileSearchIcon, ImagesIcon, ListChecksIcon, RefreshCwIcon } from "lucide-react";
 import { toast } from "sonner";
-import { ProgressTracker } from "@/components/qc";
-import { useMediaQuery, WIDE_QUERY } from "@/components/qc/use-media-query";
+import { useInspectionFiles } from "@/components/capture/files";
+import { PhotoSlot, photoUploadsSettled, useUploadsWaiting } from "@/components/capture/photos";
+import { ProgressTracker, useMediaQuery, WIDE_QUERY } from "@/components/qc";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { isEditableStatus, type CaptureAccess, type UserRole } from "@/lib/inspections/capture/access";
+import type { DefectUsage } from "@/lib/inspections/capture/defect-usage";
 import { evaluateCapture, type CaptureMeta } from "@/lib/inspections/capture/evaluate";
 import { mappedFieldValues } from "@/lib/inspections/capture/fields";
 import { countIssues, groupIssues, unseenIssues } from "@/lib/inspections/capture/issues";
 import { canBeSwitchedOff } from "@/lib/inspections/capture/overrides";
+import type { ReopenNote } from "@/lib/inspections/capture/reopen";
 import {
   captureSections,
   findSection,
@@ -57,7 +70,6 @@ import {
   progressSteps,
   type CaptureSection,
 } from "@/lib/inspections/capture/sections";
-import { describeWaitingUploads } from "@/lib/inspections/capture/uploads";
 import { BUSY_MESSAGE, type AutosaveError, type StartResult } from "@/lib/offline";
 import { contentHash } from "@/lib/offline/stable-json";
 import { isModuleKey } from "@/lib/schemas/module-result";
@@ -80,7 +92,6 @@ import { CaptureNotices, type CaptureNotice } from "./capture-notices";
 import { ConflictDialog } from "./conflict-dialog";
 import { IssuesSheet } from "./issues-sheet";
 import { SwitchedOffPanel, SwitchOffDialog } from "./module-switch";
-import { PhotoSlot } from "./photo-slot";
 import { SaveIndicator } from "./save-indicator";
 import { CustomBody, ModuleBody } from "./section-body";
 import { SectionComment, SectionFrame } from "./section-frame";
@@ -89,7 +100,6 @@ import { SectionTabs, tabId } from "./section-tabs";
 import { SubmitControl, type SubmitBlocked, type SubmitPreparation } from "./submit-control";
 import { LEAVE_FLUSH_MS, useCaptureAutosave } from "./use-capture-autosave";
 import { useStickyOffsets } from "./use-sticky-offsets";
-import { useWaitingUploads } from "./use-waiting-uploads";
 
 export type CaptureScreenProps = {
   inspectionId: string;
@@ -107,9 +117,17 @@ export type CaptureScreenProps = {
   access: CaptureAccess;
   /** From `?module=`; the first section when it is not one. */
   initialSection: string | null;
+  /** Why an admin reopened it, while it is reopened. */
+  reopenNote?: ReopenNote | null;
+  /** Defects counted in earlier inspections, by code: the defect lists open on the most-used ones. */
+  defectUsage?: DefectUsage;
 };
 
 type FocusRequest = { sectionKey: string; path: IssuePath };
+
+const NO_USAGE: DefectUsage = {};
+/** Nothing in focus: what a section's photo tags, and the kept size, start from. */
+const NO_FOCUS: CaptureFocus = {};
 
 export function CaptureScreen({
   inspectionId,
@@ -123,6 +141,8 @@ export function CaptureScreen({
   user,
   access,
   initialSection,
+  reopenNote = null,
+  defectUsage = NO_USAGE,
 }: CaptureScreenProps) {
   const idPrefix = useId();
   const panelId = `${idPrefix}-section`;
@@ -232,10 +252,13 @@ export function CaptureScreen({
    * Evaluation and sections
    * -------------------------------------------------------------- */
 
+  // The inspection's files, this device's queued ones included: whether a kept lab report is attached (docs/MODULES.md 10.1).
+  const files = useInspectionFiles(inspectionId);
+  const liveMeta = useMemo<CaptureMeta>(() => ({ ...meta, files }), [meta, files]);
   const deferredData = useDeferredValue(data);
   const evaluation = useMemo(
-    () => evaluateCapture({ template, overrides, data: deferredData, meta }),
-    [template, overrides, deferredData, meta],
+    () => evaluateCapture({ template, overrides, data: deferredData, meta: liveMeta }),
+    [template, overrides, deferredData, liveMeta],
   );
   const { report, context } = evaluation;
   const sections = useMemo(
@@ -245,8 +268,17 @@ export function CaptureScreen({
 
   const [activeKey, setActiveKey] = useState(() => initialSectionKey(sections, initialSection));
   const active = findSection(sections, activeKey) ?? sections.find(isIncluded) ?? sections[0];
-  const [photoFocus, setPhotoFocus] = useState<CaptureFocus>({});
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
+
+  // The size a module last reported in focus, in whichever section: the next
+  // module opens on it (CaptureProps.focus), so the size chosen in one stays
+  // chosen in the next. It never tags a photo: a section's photos take only
+  // what its own module reported (ActiveSection).
+  const [keptFocus, setKeptFocus] = useState<CaptureFocus>(NO_FOCUS);
+  const keepSize = useCallback((focus: CaptureFocus) => {
+    const { size } = focus;
+    if (size) setKeptFocus((current) => (current.size === size ? current : { size }));
+  }, []);
 
   const syncUrl = useCallback((key: string) => {
     const params = new URLSearchParams(window.location.search);
@@ -315,7 +347,6 @@ export function CaptureScreen({
     (key: string, { focusHeading = false }: { focusHeading?: boolean } = {}) => {
       leaveActiveField();
       setActiveKey(key);
-      setPhotoFocus({});
       setFocusRequest(null);
       syncUrl(key);
       requestAnimationFrame(() => {
@@ -361,7 +392,6 @@ export function CaptureScreen({
       closeBlocked();
       const sectionKey = issue.moduleKey;
       setActiveKey(sectionKey);
-      setPhotoFocus({});
       syncUrl(sectionKey);
       setFocusRequest(null);
       // After the panel has closed and the section is on screen.
@@ -389,15 +419,14 @@ export function CaptureScreen({
     [closeBlocked, panelId, syncUrl],
   );
 
-  const uploads = useWaitingUploads({ inspectionId, userId: user.id });
+  // Photos and files of this inspection still on this device hold submit up (BUILD_SPEC 8.1); the save pill shows the badge.
+  const uploadsWaiting = useUploadsWaiting(inspectionId);
 
   const prepareSubmit = useCallback(async (): Promise<SubmitPreparation> => {
     try {
-      if (!(await uploads.isEmptyNow())) {
-        return {
-          ok: false,
-          message: `${uploads.count && uploads.count > 0 ? describeWaitingUploads(uploads.count) : "Photos are still uploading"}. Submit once they are done.`,
-        };
+      // Also counts what another tab queued for this inspection.
+      if (!(await photoUploadsSettled(inspectionId))) {
+        return { ok: false, message: "Photos or files of this inspection are still uploading. Submit once they are done." };
       }
     } catch {
       return { ok: false, message: "Could not check this device's photo uploads. Try again." };
@@ -405,7 +434,7 @@ export function CaptureScreen({
     const flushed = await autosave.flush();
     if (!flushed.ok) return { ok: false, message: `Not everything is saved yet. ${flushed.message}` };
     return { ok: true, dataHash: contentHash(dataRef.current) };
-  }, [autosave, uploads]);
+  }, [autosave, inspectionId]);
 
   // After a refused submit, empty required fields say so where they are, too.
   const [submitTried, setSubmitTried] = useState(false);
@@ -437,6 +466,17 @@ export function CaptureScreen({
     headingRef.current?.focus({ preventScroll: true });
   }, [overrides]);
 
+  // Saved values that could not be read, removed: the section's form takes
+  // the place of their list, and the button that opened the confirmation
+  // went with it, so the title takes the focus rather than the page. A field
+  // the form focused itself (an issue link it follows) keeps it.
+  const focusTitleAfterRemoval = useCallback(() => {
+    const title = headingRef.current;
+    if (!title || document.getElementById(panelId)?.contains(document.activeElement)) return;
+    if (title.getBoundingClientRect().top < stickyTopOf(rootRef.current)) scrollToTitle(title, rootRef.current);
+    title.focus({ preventScroll: true });
+  }, [panelId]);
+
   // Below 1280 px the open section is the tab bar's panel; from 1280 px a region beside the sidebar.
   const wide = useMediaQuery(WIDE_QUERY);
 
@@ -451,6 +491,8 @@ export function CaptureScreen({
         role: user.role,
         reviewHref,
         lockedElsewhere,
+        // Only while it is still reopened: submitted again, the note has done its work.
+        reopenNote: serverStatus === "reopened" ? reopenNote : null,
         phase: autosave.phase,
         setAside,
         error: autosave.phase === "running" ? saveError : null,
@@ -465,6 +507,8 @@ export function CaptureScreen({
       reviewHref,
       inspectionId,
       lockedElsewhere,
+      serverStatus,
+      reopenNote,
       autosave.phase,
       autosave.retryNow,
       setAside,
@@ -474,14 +518,54 @@ export function CaptureScreen({
     ],
   );
 
-  // Changes only this page holds (no local copy) would be lost by leaving: the browser asks first.
-  const unsafeToLeave = Boolean(snapshot?.pending && !snapshot.localCopy);
+  /* -------------------------------------------------------------- *
+   * Leaving without a click: Back, reload, closing the tab, sleep
+   * -------------------------------------------------------------- */
+
+  // A value typed and not yet committed is kept however the page goes.
+  // Back: the router replaces the screen inside its own popstate listener,
+  // registered before this one, and a field removed by React commits
+  // nothing (React ignores the blur of a node it is removing). The
+  // Navigation API's navigate event comes before popstate, so the field is
+  // left there, and the unmount's flush sends the value; popstate stays as
+  // the fallback where there is no Navigation API. A hidden page (the iPad
+  // asleep, another app) commits it and saves at once; the local copy keeps
+  // it if the save does not get out. A reload or a closed tab does the same,
+  // and the browser asks first only when nothing on this device would keep
+  // the change. Listeners on window, in the capture phase, run before the
+  // autosave's own.
+  const { flush, getSnapshot } = autosave;
   useEffect(() => {
-    if (!unsafeToLeave) return;
-    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [unsafeToLeave]);
+    const keepAndSave = () => {
+      leaveActiveField();
+      void flush({ timeoutMs: LEAVE_FLUSH_MS });
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") keepAndSave();
+    };
+    const onNavigate = (event: Event) => {
+      if ((event as Event & { navigationType?: string }).navigationType === "traverse") leaveActiveField();
+    };
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      leaveActiveField();
+      const state = getSnapshot();
+      // Changes only this page holds (no local copy) would be lost by leaving.
+      if (state?.pending && !state.localCopy) event.preventDefault();
+    };
+    const navigation = (window as Window & { navigation?: EventTarget }).navigation;
+    navigation?.addEventListener("navigate", onNavigate);
+    window.addEventListener("popstate", leaveActiveField, true);
+    window.addEventListener("pagehide", keepAndSave, true);
+    window.addEventListener("visibilitychange", onVisibility, true);
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      navigation?.removeEventListener("navigate", onNavigate);
+      window.removeEventListener("popstate", leaveActiveField, true);
+      window.removeEventListener("pagehide", keepAndSave, true);
+      window.removeEventListener("visibilitychange", onVisibility, true);
+      window.removeEventListener("beforeunload", onBeforeUnload);
+    };
+  }, [flush, getSnapshot, leaveActiveField]);
 
   /* -------------------------------------------------------------- *
    * Render
@@ -502,6 +586,7 @@ export function CaptureScreen({
         suggested={report.suggested}
         prepare={prepareSubmit}
         onBlocked={onBlocked}
+        uploadsWaiting={uploadsWaiting}
         disabled={readOnly}
         className={className}
       />
@@ -561,7 +646,7 @@ export function CaptureScreen({
           <div className="space-y-4 rounded-xl bg-card p-3 shadow-sm ring-1 ring-border">
             {saveStatus && (
               <div className="px-1">
-                <SaveIndicator status={saveStatus} pendingUploads={uploads.count} />
+                <SaveIndicator status={saveStatus} inspectionId={inspectionId} />
               </div>
             )}
             <ProgressTracker
@@ -595,7 +680,7 @@ export function CaptureScreen({
               panelId={panelId}
               idPrefix={idPrefix}
             />
-            {saveStatus && <SaveIndicator status={saveStatus} pendingUploads={uploads.count} className="shrink-0" />}
+            {saveStatus && <SaveIndicator status={saveStatus} inspectionId={inspectionId} className="shrink-0" />}
           </div>
 
           <ProgressTracker
@@ -626,8 +711,10 @@ export function CaptureScreen({
               showRequired={submitTried}
               access={access}
               inspectionId={inspectionId}
-              photoFocus={photoFocus}
-              onPhotoFocus={setPhotoFocus}
+              keptFocus={keptFocus}
+              defectUsage={defectUsage}
+              onFocusReported={keepSize}
+              onUnreadableRemoved={focusTitleAfterRemoval}
               onModuleChange={(key, value) => writeEntry("modules", key, value)}
               onCustomChange={(key, value) => writeEntry("custom", key, value)}
               onMappedChange={writeMapped}
@@ -710,8 +797,13 @@ type ActiveSectionProps = {
   showRequired: boolean;
   access: CaptureAccess;
   inspectionId: string;
-  photoFocus: CaptureFocus;
-  onPhotoFocus: (focus: CaptureFocus) => void;
+  /** The size kept from the sections before: the module opens on it (CaptureProps.focus). Never a photo tag. */
+  keptFocus: CaptureFocus;
+  defectUsage: DefectUsage;
+  /** Every focus the section's module or form reports, so its size is kept for the next section. */
+  onFocusReported: (focus: CaptureFocus) => void;
+  /** Saved values that could not be read were removed, and the button that did it went with their list. */
+  onUnreadableRemoved: () => void;
   onModuleChange: (key: string, value: unknown) => void;
   onCustomChange: (key: string, value: unknown) => void;
   onMappedChange: (mapsTo: string, value: unknown) => void;
@@ -737,14 +829,30 @@ function ActiveSection({
   showRequired,
   access,
   inspectionId,
-  photoFocus,
-  onPhotoFocus,
+  keptFocus,
+  defectUsage,
+  onFocusReported,
+  onUnreadableRemoved,
   onModuleChange,
   onCustomChange,
   onMappedChange,
   onCommentChange,
   onOverridesChange,
 }: ActiveSectionProps) {
+  // What this section's module or form reported in focus, and only that,
+  // tags its photos (BUILD_SPEC 8.1). Every section starts with nothing (the
+  // screen keys ActiveSection by it), so the size kept from another section
+  // tags a photo here only once the module here shows it and says so, as
+  // tensile does for the size it opens on.
+  const [photoFocus, setPhotoFocus] = useState<CaptureFocus>(NO_FOCUS);
+  const onFocusChange = useCallback(
+    (focus: CaptureFocus) => {
+      setPhotoFocus((current) => (sameFocus(current, focus) ? current : focus));
+      onFocusReported(focus);
+    },
+    [onFocusReported],
+  );
+
   if (section.kind === "excluded") {
     return (
       <SectionFrame
@@ -803,7 +911,7 @@ function ActiveSection({
             showRequired={showRequired}
             onChange={(next) => onCustomChange(section.key, next)}
             onMappedChange={onMappedChange}
-            onFocusChange={onPhotoFocus}
+            onFocusChange={onFocusChange}
           />
         )}
       </SectionFrame>
@@ -837,15 +945,19 @@ function ActiveSection({
     >
       {resolved && (
         <ModuleBody
+          inspectionId={inspectionId}
           moduleKey={section.key}
           resolved={resolved}
           entry={entry}
           evaluation={evaluation}
           context={context}
           focusPath={focusPath}
+          focus={keptFocus}
+          defectUsage={defectUsage}
           readOnly={readOnly}
           onChange={(next) => onModuleChange(section.key, next)}
-          onFocusChange={onPhotoFocus}
+          onFocusChange={onFocusChange}
+          onUnreadableRemoved={onUnreadableRemoved}
         />
       )}
     </SectionFrame>
@@ -855,6 +967,13 @@ function ActiveSection({
 /* ------------------------------------------------------------------ *
  * Pieces
  * ------------------------------------------------------------------ */
+
+/** The same things in focus: a module reporting again what it reported changes nothing on screen. */
+function sameFocus(a: CaptureFocus, b: CaptureFocus): boolean {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)] as (keyof CaptureFocus)[]);
+  for (const key of keys) if (a[key] !== b[key]) return false;
+  return true;
+}
 
 /** Space between the sticky bars and a section title scrolled up to them. */
 const TITLE_GAP_PX = 16;
@@ -947,6 +1066,7 @@ function captureNotices({
   role,
   reviewHref,
   lockedElsewhere,
+  reopenNote,
   phase,
   setAside,
   error,
@@ -960,6 +1080,8 @@ function captureNotices({
   reviewHref: string;
   /** Submitted or approved since this page loaded, as a save found: the review is where it went. */
   lockedElsewhere: boolean;
+  /** Why it was reopened, while it is. */
+  reopenNote: ReopenNote | null;
   phase: ReturnType<typeof useCaptureAutosave>["phase"];
   setAside: boolean;
   error: AutosaveError | null;
@@ -994,6 +1116,23 @@ function captureNotices({
     });
   } else if (access.readOnlyReason === "not_yours") {
     notices.push({ key: "not-yours", tone: "lock", message: "This inspection belongs to another inspector: read-only." });
+  }
+
+  if (reopenNote) {
+    notices.push({
+      key: "reopened",
+      tone: "info",
+      message: (
+        <>
+          <span className="font-semibold">{reopenNote.title}.</span> {reopenNote.body}
+          {reopenNote.reason && (
+            <span className="mt-1 block font-normal whitespace-pre-line text-foreground">
+              <span className="font-semibold">{reopenNote.reason.label}:</span> {reopenNote.reason.text}
+            </span>
+          )}
+        </>
+      ),
+    });
   }
 
   if (phase === "busy") notices.push({ key: "busy", tone: "warn", message: BUSY_MESSAGE, action: reload });

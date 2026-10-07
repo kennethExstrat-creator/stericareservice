@@ -66,6 +66,7 @@ export default function VisualCapture({
   readOnly,
   onChange,
   onFocusChange,
+  defectUsage,
 }: Props) {
   const root = useRef<HTMLDivElement>(null);
   const update = useDataUpdater(data, onChange);
@@ -171,7 +172,7 @@ export default function VisualCapture({
               key={cls}
               cls={cls}
               heading={classes[cls].heading}
-              defects={classes[cls].defects}
+              defects={byUsage(classes[cls].defects, defectUsage)}
               data={data}
               labels={labels}
               context={context}
@@ -188,6 +189,11 @@ export default function VisualCapture({
       </SizeTabs>
     </div>
   );
+}
+
+/** The most-used defects first (BUILD_SPEC 8), ties in the template's order. It orders rows only. */
+function byUsage<T extends { code: string }>(defects: readonly T[], usage: Props["defectUsage"]): T[] {
+  return usage ? [...defects].sort((a, b) => (usage[b.code] ?? 0) - (usage[a.code] ?? 0)) : [...defects];
 }
 
 type SectionProps = Pick<Props, "data" | "labels" | "context" | "evaluation" | "readOnly" | "onFocusChange"> & {

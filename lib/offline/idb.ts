@@ -130,6 +130,9 @@ function transact<T>(
   return new Promise<T>((resolve, reject) => {
     const tx = db.transaction(storeName, mode, mode === "readwrite" ? { durability: "strict" } : undefined);
     const request = operate(tx.objectStore(storeName));
+    // One request per transaction: ask for the commit now rather than when the task ends, so a
+    // write made as the page goes away (a closed tab) reaches the database ahead of the page.
+    if (mode === "readwrite" && typeof tx.commit === "function") tx.commit();
     let result: T;
     request.onsuccess = () => {
       result = request.result;

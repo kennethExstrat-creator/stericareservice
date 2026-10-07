@@ -6,6 +6,7 @@
 //   </PhotoQueueProvider>
 //
 //   const status = usePhotoUploadStatus(id); // submit waits while status.blocking (status.message says why)
+//   const waiting = useUploadsWaiting(id);   // the same reason as text, or null: no re-render for progress
 //   if (await photoUploadsSettled(id)) ...   // the last check on submit, other tabs included
 //   if (!(await photoUploadsSettled())) warn; stopPhotoQueue();   // on sign-out
 //   await refreshInspectionMedia(id);         // after this screen submitted, reopened or approved it
@@ -17,6 +18,7 @@ export { UploadNotices } from "./upload-notices";
 export { PhotoAddControls } from "./photo-add-controls";
 export {
   usePhotoUploadStatus,
+  useUploadsWaiting,
   photoUploadsSettled,
   refreshInspectionMedia,
   stopPhotoQueue,

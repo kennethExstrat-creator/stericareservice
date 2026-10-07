@@ -178,7 +178,7 @@ export const definition = defineModule<GloveInfoData, GloveInfoConfig, GloveInfo
 - **Box numbers (rule 7)** are carton numbers picked from `context.cartons[size]`; store the number, not an index into the list.
 - **Files.** A lab report or certificate is an `inspection_files` row the screen uploads (section 10.1). A module that needs one keeps the row's id in its data with `FileIdCellSchema` (a UUID, null until attached): `force_at_break.labReport`, `tensile.labReport`, `documents.items.<item>.file`. Never a name or a storage path.
 - **Evolving a schema.** Saved inspections are re-read with your current schema. Add fields with defaults; never rename or retype a key without a migration.
-- **Data that no longer fits.** Saved data your schema rejects (saved before a limit existed, such as a lot number over 200 characters) is reported as `invalid_data` errors with their paths, and the module shows not done. The context is built from what can still be read: `salvageData` takes out only the values the schema rejects (a list item becomes null where the list takes null, else it is removed; a field is removed so its default applies; a field the schema cannot do without takes its parent with it), so one bad lot number never takes the ordered sizes away from every per-size module. `readableData(definition, entry)` gives the same for reading: to show what is saved, read-only, or behind one explicit "Remove the values that cannot be read" that saves it once. Never feed it to an editable Capture: its first edit would save it, and the rejected values would be gone without anyone deciding so.
+- **Data that no longer fits.** Saved data your schema rejects (saved before a limit existed, such as a lot number over 200 characters) is reported as `invalid_data` errors with their paths, and the module shows not done. The context is built from what can still be read: `salvageData` takes out only the values the schema rejects (a list item becomes null where the list takes null, else it is removed; a field is removed so its default applies; a field the schema cannot do without takes its parent with it), so one bad lot number never takes the ordered sizes away from every per-size module. `readableData(definition, entry)` gives the same for reading: to show what is saved, read-only, or behind one explicit "Remove the values that cannot be read" that saves it once. Never feed it to an editable Capture: its first edit would save it, and the rejected values would be gone without anyone deciding so. The capture screen shows such a section as the list of rejected values, with that one confirmed action; your Capture opens again once the data parses.
 
 ## 6. Config, title and labels
 
@@ -283,7 +283,7 @@ It also overrides the status: nothing saved means not done; per-size results onl
 
 ## 10. `Capture.tsx`
 
-The capture screen wraps your Capture in `ModuleCard` (title, result pill, inspector comment, the two photo buttons). Capture renders the module body only.
+The capture screen wraps your Capture in its section frame (`app/(app)/inspections/[id]/_components/section-frame.tsx`, ModuleCard's look): the title in the template's wording, the result pill and summary, then your body, then a footer with the inspector comment and the photo slot (`components/capture/photos` PhotoSlot: "Take photo" and "Add from library" on the iPad, drop or choose on a desktop, the module's photos with their upload state). It is not `ModuleCard`, whose own photo buttons would show the slot twice. The body sits inside `FileSlotProvider` (section 10.1). Capture renders the module body only: no title, comment or photo buttons of its own.
 
 ```tsx
 "use client";
@@ -306,8 +306,9 @@ Then add `loadCapture: () => import("./Capture")` to your definition.
 | `evaluation` | The latest `result`, `computed` and `issues` for your module: live totals, accept/reject chips, inline errors. |
 | `onChange(next)` | Replaces your data with the **whole** new value; the screen writes it into the inspection and autosaves. Never call it yourself: write through the kit's `useDataUpdater(data, onChange)` and build every change from `current`, so a pasted column or two changes in one event all land, and a size taken out of the order keeps its data in case it comes back (rule 4): `update((current) => ({ ...current, sizes: { ...current.sizes, [size]: entry } }))` (docs/CAPTURE_KIT.md). |
 | `onFocusChange(focus)` | Report what is in focus, so a photo taken now is tagged with it (BUILD_SPEC 8.1): `size`, `hand`, `defect` (a defect or check code), `box`, `level` (labelling's `inner` or `carton`) and `item` (an entry of your own list: a document, a loading stage). |
-| `focus` | Optional: what the screen has in focus now, as the last module reported it. Open on its size when it is ordered, so the size chosen in one module stays chosen in the next: `useState(() => initialSize(context, focus))` (documents opens on its `item` the same way). The screen keeps the size when it opens another section (section 10.1). |
+| `focus` | Optional: what the screen has in focus now, as the last module reported it. Open on its size when it is ordered, so the size chosen in one module stays chosen in the next: `useState(() => initialSize(context, focus))` (documents opens on its `item` the same way). The screen keeps the size when it opens another section (section 10.1), but tags your photos only with what you report: report the size you open on as you mount (`onFocusChange`, in an effect, as tensile does). |
 | `focusPath` | A data path to scroll to and focus, from a link in the issue list. |
+| `defectUsage` | Optional: how often each defect code was counted in earlier inspections the user can see (the same client and manufacturer, else any), for "the most-used defects first" (BUILD_SPEC 8). Order your defect rows by it, ties in the template's order, one-off labels last; watertight and visual do. The screen reads it once when it opens, so rows never move while the inspector counts. It orders rows only: never a result. |
 | `readOnly` | Approved, or not the user's to edit. |
 
 Follow `docs/DESIGN.md`: counts by tapping (steppers, defect chips), measurements in `NumericCell` / `MeasurementGrid` (Enter goes down, paste fills down), computed values read-only, 44 px touch targets on iPad, one block per ordered size in `context.sizes` order. Check `components/qc` before writing your own control. In tests, `evaluationOf(report, definition)` gives your module's evaluation with your computed type, instead of a cast.
@@ -333,7 +334,7 @@ import { ModuleFileSlot } from "@/modules/_framework/file-slot";
 - **Where files cannot be attached** (no provider: the template editor's preview, a test) the slot says "Attach files on the inspection screen." and the module still shows what it keeps.
 - **Per item**: inspection_files has no item, so a module with several files of its own (documents) renders one slot and files each new file under the entry being worked on, keeping the id in that entry (`documents.items.<item>.file`). Until an entry is chosen it passes `addable={false}`: nothing can be added, and the files listed can still be deleted.
 
-**How the capture screen provides it** (`app/(app)/inspections/[id]`, the integrator): wrap the module bodies in `FileSlotProvider` with a renderer for the photos engineer's `FileSlot` (`components/capture/files`), and pass each Capture the screen's focus:
+**How the capture screen provides it** (`app/(app)/inspections/[id]/_components/section-body.tsx`): the module bodies sit in `FileSlotProvider` with a renderer for `FileSlot` (`components/capture/files`), and each Capture gets the size kept from the sections before as its `focus`:
 
 ```tsx
 import { FileSlot } from "@/components/capture/files";
@@ -348,22 +349,21 @@ import { FileSlotProvider } from "@/modules/_framework/file-slot";
       title={slot.title}
       focus={slot.focus}
       readOnly={slot.readOnly || readOnly}
-      canAdd={slot.addable}                           // FileSlot does not take these two yet: see below
-      onRemoved={slot.onRemoved}
+      canAdd={slot.addable}                           // false hides the add controls only; the list can still delete
       onAdded={slot.onAdded}
+      onRemoved={slot.onRemoved}                      // called when the list deletes a file or takes it off this device
     />
   )}
 >
-  ...<ModuleBody ... focus={photoFocus} />
+  <Capture ... focus={keptFocus} defectUsage={defectUsage} />
 </FileSlotProvider>
 ```
 
 - `FileSlot`'s `onAdded` gives `{ id, name, kind, moduleKey, focus }`, which `slot.onAdded` takes as it is. Do not also render a `FileSlot` of your own for force at break, tensile or documents: the module renders its slot.
-- **FileSlot needs two props first** (`components/capture/files/file-slot.tsx`, the photos engineer): `canAdd` (default true; false hides `FileAddControls` only: `const canAdd = canAddProp && !readOnly && ...`) and `onRemoved(fileId)`, called when its list deletes or unqueues a file. Until they exist, pass `readOnly={slot.readOnly || readOnly || !slot.addable}` and leave both out: documents then cannot delete before a document is chosen.
-- **`meta.files` is required** on every path that evaluates the inspection: the capture screen (uploaded rows plus this device's queued files, as the slot lists them; `null` only while they load, never `[]` for "not loaded"), the submit action, the review and the export (`inspection_files` rows as `{ id, moduleKey, kind }`). Without it a lab report deleted in the slot or the gallery still counts (FileSlot reports no deletes), one added in the gallery counts for nothing, and the capture screen and submit can disagree about tensile. `slot.onRemoved` keeps the module's own data exact once FileSlot reports deletes; it does not replace `meta.files`.
+- **`meta.files` is required** on every path that evaluates the inspection: the capture screen (`useInspectionFiles(id)` from `components/capture/files`: uploaded rows plus this device's queued files; `null` only while they load, never `[]` for "not loaded"), the save, submit and override actions (`loadCaptureInspection(client, id, { files: true })`), the review and the export (`inspection_files` rows as `{ id, moduleKey, kind }`). Without it a lab report deleted in the gallery still counts, one added in the gallery counts for nothing, and the capture screen and submit can disagree about tensile. `slot.onRemoved` keeps the module's own data exact when the slot itself deletes a file; it does not replace `meta.files`.
 - **The server's files lag behind a device's queue.** The module's data, with the new id, autosaves within a second; the upload creates the row when it finishes, which can take minutes on a factory network. Until then the file is missing everywhere but on the device that queued it (another iPad, the review); the warning says it may still be uploading. Submit on that device waits for its queue, so the server holds the file by then.
 - **The gallery** ("Photos and files") renders `FileSlot` for these modules without `onAdded`. With `meta.files` passed, a lab report added there attaches force at break or tensile (`moduleFileState`); a certificate added there shows in the documents slot's list, filed under no document.
-- **Keep the size across sections**: `selectSection` and `goToIssue` reset the focus with `setPhotoFocus({})`, so the next module would always open on its first size. Keep the size instead: `setPhotoFocus((focus) => (focus.size ? { size: focus.size } : {}))`.
+- **The size stays across sections; photo tags do not.** The screen keeps the last size any module reported (`keptFocus`, `{ size }` only) and passes it as `focus`, so the next module that opens on it (`initialSize`) shows the size chosen before, whichever way the section was opened (a tab, Previous or Next, an issue link). A section's photos are tagged only with what its own module reported through `onFocusChange`: the tags start empty in every section, so a kept size never tags the photos of a section that does not show it (a custom section without sizes, a module that opens on its first size). A module that opens on the kept size reports it as it mounts, as tensile and force at break do with an effect; until it reports, its photos carry no size.
 
 ## 11. Testing
 
@@ -434,7 +434,8 @@ const saved = parseModuleData(definition, readModuleEntry(data, "modules", key))
 //   what can still be read read-only: readableData(definition, entry), section 5),
 // title: resolvedModule.title, labels: effectiveLabels(definition, resolvedModule), context,
 // evaluation: its report.modules entry, onChange: (next) => writeModuleData(data, "modules", key, next),
-// focus: the focus the last module reported (onFocusChange), its size kept across sections,
+// focus: the size the last module reported (onFocusChange), kept across sections (photo tags
+//   take only what the open module reports itself),
 // inside FileSlotProvider (section 10.1)
 ```
 

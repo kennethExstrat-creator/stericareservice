@@ -5,7 +5,7 @@ import type { InspectionResult, InspectionStatus } from "@/lib/schemas/common";
 import { ResolvedTemplateSchema, type ModuleOverrides, type ResolvedTemplate } from "@/lib/schemas/template";
 import type { Database } from "@/lib/supabase/database.types";
 import { parseModuleOverrides } from "@/lib/templates";
-import type { InspectionData } from "@/modules/_framework";
+import type { InspectionData, InspectionFileRef } from "@/modules/_framework";
 import { manufacturerLabel, personLabel } from "../format";
 import type { CaptureMeta } from "./evaluate";
 
@@ -52,7 +52,14 @@ export type CaptureInspection = {
   inspectorId: string;
   submittedAt: string | null;
   result: InspectionResult | null;
-  template: { id: string; code: string; version: number; resolved: ResolvedTemplate };
+  template: {
+    id: string;
+    code: string;
+    version: number;
+    resolved: ResolvedTemplate;
+    /** The template asks for the AI second opinion when an inspection is submitted (BUILD_SPEC 9.2). */
+    aiReviewOnSubmit: boolean;
+  };
   /** For the context: ref, date, inspector, client and manufacturer. */
   meta: CaptureMeta;
   /** "Terang Nusa Sdn. Bhd. · TG Factory 40". */
@@ -72,16 +79,43 @@ export function isInspectionId(value: string): boolean {
   return UuidSchema.safeParse(value).success;
 }
 
-export async function loadCaptureInspection(client: Client, id: string): Promise<CaptureLoad> {
+/**
+ * @param options.files also read the inspection's files (inspection_files)
+ * into `meta.files`, for the actions that decide results with them (save,
+ * submit, overrides; docs/MODULES.md 10.1). The screen takes them from the
+ * page's media store instead, with this device's queued files.
+ */
+export async function loadCaptureInspection(
+  client: Client,
+  id: string,
+  options: { files?: boolean } = {},
+): Promise<CaptureLoad> {
   if (!isInspectionId(id)) return { kind: "not_found" };
-  const { data, error } = await client.from("inspections").select(CAPTURE_SELECT).eq("id", id).maybeSingle();
+  const [{ data, error }, files] = await Promise.all([
+    client.from("inspections").select(CAPTURE_SELECT).eq("id", id).maybeSingle(),
+    options.files ? loadFileRefs(client, id) : Promise.resolve(undefined),
+  ]);
   if (error) throw new Error(`Could not load inspection ${id}: ${error.message}`);
   if (!data) return { kind: "not_found" };
-  return toCaptureLoad(data as unknown as CaptureRow);
+  const loaded = toCaptureLoad(data as unknown as CaptureRow);
+  if (loaded.kind !== "found" || files === undefined) return loaded;
+  return { kind: "found", inspection: { ...loaded.inspection, meta: { ...loaded.inspection.meta, files } } };
+}
+
+/** The inspection's files as modules read them: `{ id, moduleKey, kind }` per inspection_files row. */
+export async function loadFileRefs(client: Client, inspectionId: string): Promise<InspectionFileRef[]> {
+  const { data, error } = await client
+    .from("inspection_files")
+    .select("id, module_key, kind")
+    .eq("inspection_id", inspectionId)
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(`Could not load the files of inspection ${inspectionId}: ${error.message}`);
+  return data.map((file) => ({ id: file.id, moduleKey: file.module_key, kind: file.kind }));
 }
 
 export function toCaptureLoad(row: CaptureRow): CaptureLoad {
-  const resolved = ResolvedTemplateSchema.safeParse(row.template?.resolved);
+  // The AI setting is read on its own (reviewOnSubmitOf), so a schema that does not know it yet still reads the rest.
+  const resolved = ResolvedTemplateSchema.safeParse(withoutAiSetting(row.template?.resolved));
   if (!row.template || !resolved.success) {
     const first = resolved.success ? null : resolved.error.issues[0];
     return {
@@ -106,7 +140,13 @@ export function toCaptureLoad(row: CaptureRow): CaptureLoad {
       inspectorId: row.inspector_id,
       submittedAt: row.submitted_at,
       result: row.result,
-      template: { id: row.template.id, code: row.template.code, version: row.template.version, resolved: resolved.data },
+      template: {
+        id: row.template.id,
+        code: row.template.code,
+        version: row.template.version,
+        resolved: resolved.data,
+        aiReviewOnSubmit: reviewOnSubmitOf(row.template.resolved),
+      },
       meta: {
         refNo: row.ref_no,
         inspectionDate: row.inspection_date,
@@ -117,6 +157,24 @@ export function toCaptureLoad(row: CaptureRow): CaptureLoad {
       manufacturerLabel: row.manufacturer ? manufacturerLabel(row.manufacturer) : null,
     },
   };
+}
+
+/**
+ * `templates.resolved.ai.reviewOnSubmit` as stored (BUILD_SPEC 9.2): the
+ * template asks for the AI second opinion on submit. Read from the row
+ * itself, so it holds whichever schema version parsed the rest; off when
+ * the template and its bases leave it out.
+ */
+export function reviewOnSubmitOf(resolved: unknown): boolean {
+  if (!isRecord(resolved) || !isRecord(resolved.ai)) return false;
+  return resolved.ai.reviewOnSubmit === true;
+}
+
+function withoutAiSetting(resolved: unknown): unknown {
+  if (!isRecord(resolved) || !("ai" in resolved)) return resolved;
+  const rest = { ...resolved };
+  delete rest.ai;
+  return rest;
 }
 
 /**

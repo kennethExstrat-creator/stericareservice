@@ -601,9 +601,28 @@ class Autosave<T> implements AutosaveController<T> {
 
   private onHidden(): void {
     if (this.phase !== "running") return;
-    // The page may not come back: the local copy is already written; send what is waiting now.
-    void this.persist();
+    // The page may not come back: write the local copy now, and send what is waiting.
+    this.persistNow();
     if (this.timers.debounce !== null || this.timers.maxWait !== null) this.save();
+  }
+
+  /**
+   * Writes the local copy in this task, for a page that may be going away (a
+   * closed tab): the usual write first reads who wrote the copy last, and a
+   * closing page never gets that answer. Only while the lock spans every tab
+   * (Web Locks), where nobody else can have written it; otherwise the usual
+   * write. Its transaction runs after any earlier write, in order.
+   */
+  private persistNow(): void {
+    const draft = this.draft;
+    if (!draft || !this.writable() || this.release?.exclusive !== true) {
+      void this.persist();
+      return;
+    }
+    writeDraft(this.store, { ...draft, writer: this.writer }).catch((error: unknown) => {
+      this.localError = describeError(error);
+      this.emit();
+    });
   }
 
   /* ---------------------------------------------------------------- *

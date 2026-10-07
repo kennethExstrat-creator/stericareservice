@@ -2,11 +2,15 @@
 
 // The body of the open section. A module renders its own Capture
 // (modules/<key>/Capture.tsx, loaded on demand through the registry) with
-// the props of the contract (docs/MODULES.md 10); a module without one shows
-// a simplified form of its canonical paths, a placeholder module says it is
-// not built yet, and a custom module gets the screen's own form. A module
-// whose settings or saved data cannot be read says so instead of guessing.
-import { lazy, Suspense, useMemo, type LazyExoticComponent, type ReactNode } from "react";
+// the props of the contract (docs/MODULES.md 10), inside the file slot
+// provider that lets force at break, tensile and documents attach their
+// files (10.1); a module without one shows a simplified form of its
+// canonical paths, a placeholder module says it is not built yet, and a
+// custom module gets the screen's own form. A module whose settings cannot
+// be read says so; saved values that no longer read are listed, with one
+// confirmed way to remove them (unreadable-data.tsx).
+import { lazy, Suspense, useCallback, useMemo, type LazyExoticComponent, type ReactNode } from "react";
+import { FileSlot } from "@/components/capture/files";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MODULE_KEYS, type ModuleKey } from "@/lib/schemas/module-result";
 import type { ResolvedModule } from "@/lib/schemas/template";
@@ -22,8 +26,10 @@ import {
   type InspectionContext,
   type ModuleEvaluation,
 } from "@/modules/_framework";
+import { FileSlotProvider, type FileSlotRequest } from "@/modules/_framework/file-slot";
 import { CustomModuleForm, FallbackModuleForm } from "./plain-forms";
 import { SectionErrorBoundary } from "./section-error-boundary";
+import { UnreadableData } from "./unreadable-data";
 
 type LazyCapture = LazyExoticComponent<CaptureComponent>;
 
@@ -40,6 +46,7 @@ const CAPTURES: Partial<Record<ModuleKey, LazyCapture | null>> = Object.fromEntr
 );
 
 type ModuleBodyProps = {
+  inspectionId: string;
   moduleKey: ModuleKey;
   resolved: ResolvedModule;
   /** `data.modules.<key>` as stored, comment included. */
@@ -47,29 +54,57 @@ type ModuleBodyProps = {
   evaluation: ModuleEvaluation | null;
   context: InspectionContext;
   focusPath: IssuePath | null;
+  /** The size kept from the sections before: a per-size Capture opens on it (CaptureProps.focus). */
+  focus: CaptureFocus;
+  /** Defects counted before, by code, for the most-used first (CaptureProps.defectUsage). */
+  defectUsage: Readonly<Record<string, number>>;
   readOnly: boolean;
   onChange: (next: unknown) => void;
   onFocusChange: (focus: CaptureFocus) => void;
+  /** Saved values that could not be read were removed: the form replaces their list, its button with it. */
+  onUnreadableRemoved?: () => void;
 };
 
 export function ModuleBody({
+  inspectionId,
   moduleKey,
   resolved,
   entry,
   evaluation,
   context,
   focusPath,
+  focus,
+  defectUsage,
   readOnly,
   onChange,
   onFocusChange,
+  onUnreadableRemoved,
 }: ModuleBodyProps) {
   const definition = MODULE_REGISTRY[moduleKey];
   const labels = useMemo(() => effectiveLabels(definition, resolved), [definition, resolved]);
   const config = useMemo(() => definition.configSchema.safeParse(resolved.config), [definition, resolved.config]);
+  const moduleEntry = useMemo(
+    () => readModuleEntry({ modules: { [moduleKey]: entry }, custom: {} }, "modules", moduleKey),
+    [entry, moduleKey],
+  );
   // Every saved size, also those no longer ordered: Capture hands them back unchanged (docs/MODULES.md 10).
-  const saved = useMemo(
-    () => parseModuleData(definition, readModuleEntry({ modules: { [moduleKey]: entry }, custom: {} }, "modules", moduleKey)),
-    [definition, entry, moduleKey],
+  const saved = useMemo(() => parseModuleData(definition, moduleEntry), [definition, moduleEntry]);
+  // The screen's upload slot for a module's lab reports and certificates (docs/MODULES.md 10.1).
+  const renderFileSlot = useCallback(
+    (slot: FileSlotRequest) => (
+      <FileSlot
+        inspectionId={inspectionId}
+        moduleKey={slot.moduleKey}
+        kind={slot.kind}
+        title={slot.title}
+        focus={slot.focus}
+        readOnly={slot.readOnly || readOnly}
+        canAdd={slot.addable}
+        onAdded={slot.onAdded}
+        onRemoved={slot.onRemoved}
+      />
+    ),
+    [inspectionId, readOnly],
   );
 
   if (definition.stub) {
@@ -89,13 +124,18 @@ export function ModuleBody({
     );
   }
   if (!saved.success) {
-    const issue = saved.error.issues[0];
+    // Never the Capture on what can be read: its first edit would drop the rest unasked (docs/MODULES.md 5).
     return (
-      <Problem>
-        What is saved for this section cannot be read
-        {issue ? ` (${[...issue.path.map(String), issue.message].join(": ")})` : ""}. It is kept as it is; report this to
-        a developer.
-      </Problem>
+      <UnreadableData
+        definition={definition}
+        entry={moduleEntry}
+        issues={(evaluation?.issues ?? []).filter((issue) => issue.code === "invalid_data")}
+        fallback={saved.error.issues[0]}
+        focusPath={focusPath}
+        readOnly={readOnly}
+        onRemove={onChange}
+        onRemoved={onUnreadableRemoved}
+      />
     );
   }
 
@@ -117,18 +157,22 @@ export function ModuleBody({
   return (
     <SectionErrorBoundary title={resolved.title} onReset={() => (CAPTURES[moduleKey] = lazyCapture(moduleKey))}>
       <Suspense fallback={<BodySkeleton />}>
-        <Capture
-          data={saved.data}
-          config={config.data}
-          title={resolved.title}
-          labels={labels}
-          context={context}
-          evaluation={evaluation}
-          focusPath={focusPath}
-          readOnly={readOnly}
-          onChange={onChange}
-          onFocusChange={onFocusChange}
-        />
+        <FileSlotProvider render={renderFileSlot}>
+          <Capture
+            data={saved.data}
+            config={config.data}
+            title={resolved.title}
+            labels={labels}
+            context={context}
+            evaluation={evaluation}
+            focusPath={focusPath}
+            focus={focus}
+            defectUsage={defectUsage}
+            readOnly={readOnly}
+            onChange={onChange}
+            onFocusChange={onFocusChange}
+          />
+        </FileSlotProvider>
       </Suspense>
     </SectionErrorBoundary>
   );

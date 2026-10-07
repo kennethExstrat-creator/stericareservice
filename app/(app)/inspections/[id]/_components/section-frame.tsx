@@ -3,9 +3,9 @@
 // The frame around one section of the capture screen: ModuleCard's look
 // (docs/DESIGN.md: white card, title in the template's wording, result pill,
 // body, inspector comment) with the photo slot in the footer where
-// ModuleCard has its own two photo buttons, which the photo build replaces
-// (photo-slot.tsx). The body is the module's Capture, a plain form, or a
-// notice.
+// ModuleCard has its own two photo buttons (components/capture/photos
+// PhotoSlot: the buttons and the section's photos). The body is the
+// module's Capture, a plain form, or a notice.
 import { useId, useState, type ReactNode, type Ref } from "react";
 import { StatusPill } from "@/components/qc";
 import { Label } from "@/components/ui/label";
@@ -83,7 +83,8 @@ export function SectionFrame({
       </header>
       <div className="space-y-5 px-5 py-5">{children}</div>
       {footer && (
-        <footer className="grid gap-4 rounded-b-xl border-t border-border bg-slate-50 px-5 py-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+        // The photo slot sizes its tiles to its own width (a container), so it never sits in an auto-sized column.
+        <footer className="grid gap-5 rounded-b-xl border-t border-border bg-slate-50 px-5 py-4 xl:grid-cols-2 xl:items-start xl:gap-6">
           {footer}
         </footer>
       )}

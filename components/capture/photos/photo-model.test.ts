@@ -2,7 +2,15 @@ import { describe, expect, it } from "vitest";
 import type { InspectionMedia } from "@/lib/inspections/photos/queries";
 import { EMPTY_TAG_OPTIONS, type MediaFile, type MediaPhoto } from "@/lib/inspections/photos/view";
 import type { UploadItem } from "@/lib/photos/upload-queue";
-import { describeItems, failureText, retagFailureText, slotFiles, slotPhotos, uploadStatusFor } from "./photo-model";
+import {
+  describeItems,
+  failureText,
+  inspectionFileRefs,
+  retagFailureText,
+  slotFiles,
+  slotPhotos,
+  uploadStatusFor,
+} from "./photo-model";
 import {
   bumpPreparing,
   EMPTY_QUEUE_SNAPSHOT,
@@ -293,6 +301,54 @@ describe("slotFiles", () => {
       moduleKey: "tensile",
     });
     expect(stopped.error).toBe("The file is larger than the 50 MB the server accepts. Remove it, and add a smaller one.");
+  });
+
+  it("names a queued file by its kind", () => {
+    const [waiting] = slotFiles({
+      files: [],
+      queue: state({ items: [queued("f6", { kind: "file", moduleKey: "tensile", fileKind: "lab_report" })] }),
+      inspectionId: INSPECTION,
+      moduleKey: "tensile",
+    });
+    expect(waiting.kind).toBe("lab_report");
+  });
+});
+
+describe("inspectionFileRefs: the files modules decide with", () => {
+  const row = { id: "f1", moduleKey: "tensile", kind: "lab_report" as const };
+
+  it("lists uploaded rows, finished uploads and this device's queued files once each, photos and other inspections left out", () => {
+    const refs = inspectionFileRefs({
+      files: [row],
+      queue: state({
+        items: [
+          queued("f2", { kind: "file", moduleKey: "documents", fileKind: "certificate" }),
+          queued("p1", { moduleKey: "tensile" }),
+          queued("f9", { kind: "file", inspectionId: OTHER_INSPECTION, fileKind: "lab_report" }),
+          // Its row is in already, and the queue still holds it.
+          queued("f1", { kind: "file", moduleKey: "tensile", fileKind: "lab_report" }),
+        ],
+        settled: { f3: queued("f3", { kind: "file", moduleKey: "force_at_break", fileKind: "lab_report" }) },
+      }),
+      inspectionId: INSPECTION,
+    });
+    expect(refs).toEqual([
+      row,
+      { id: "f3", moduleKey: "force_at_break", kind: "lab_report" },
+      { id: "f2", moduleKey: "documents", kind: "certificate" },
+    ]);
+  });
+
+  it("is unknown while the rows are not loaded, or the device's queue is not read yet", () => {
+    expect(inspectionFileRefs({ files: null, queue: state({}), inspectionId: INSPECTION })).toBeNull();
+    expect(inspectionFileRefs({ files: [row], queue: state({ load: "loading" }), inspectionId: INSPECTION })).toBeNull();
+    expect(inspectionFileRefs({ files: [row], queue: { ...INITIAL_QUEUE_STATE }, inspectionId: INSPECTION })).toBeNull();
+  });
+
+  it("knows the queue holds nothing where it cannot run, and an empty list is no files", () => {
+    const unavailable = state({ phase: "unavailable", problem: QUEUE_PROBLEMS.notConfigured, load: "loading" });
+    expect(inspectionFileRefs({ files: [row], queue: unavailable, inspectionId: INSPECTION })).toEqual([row]);
+    expect(inspectionFileRefs({ files: [], queue: state({}), inspectionId: INSPECTION })).toEqual([]);
   });
 });
 

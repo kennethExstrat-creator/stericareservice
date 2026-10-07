@@ -7,10 +7,14 @@ import type { InspectionFileKind } from "@/lib/photos/files";
 import { MODULE_TARGET_KEYS, parseTarget, type PhotoTarget, type TargetKey } from "@/lib/photos/target";
 import type { InspectionStatus } from "@/lib/schemas/common";
 import { isModuleKey } from "@/lib/schemas/module-result";
-import { ResolvedTemplateSchema } from "@/lib/schemas/template";
+import { ResolvedTemplateSchema, type ResolvedModule } from "@/lib/schemas/template";
 import type { Tables } from "@/lib/supabase/database.types";
 import { applyModuleOverrides, parseModuleOverrides } from "@/lib/templates/overrides";
 import { templateSections } from "@/lib/templates/sections";
+// The default wording of the three lists a photo's level or item comes from: config files only, no module code.
+import { DOCUMENT_ITEMS, DOCUMENTS_LABELS } from "@/modules/documents/config";
+import { LABELING_LABELS } from "@/modules/labeling/config";
+import { LOADING_LABELS, LOADING_STAGES } from "@/modules/loading/config";
 
 /* ------------------------------------------------------------------ *
  * Rows
@@ -206,6 +210,12 @@ export interface DefectOption {
   name: string;
 }
 
+/** An entry of a module's own list, or a packaging level: its key and its words. */
+export interface ListChoice {
+  value: string;
+  label: string;
+}
+
 export interface PhotoTagOptions {
   /** Included modules in screen order, then switched-off ones. */
   modules: readonly ModuleOption[];
@@ -214,9 +224,13 @@ export interface PhotoTagOptions {
   defects: readonly DefectOption[];
   /** Defect wording per module from the template's labels: `{ visual: { thin_spot: "Thin spot on glove body" } }`. */
   defectLabels: Readonly<Record<string, Readonly<Record<string, string>>>>;
+  /** The packaging levels a module records, in its wording: `{ labeling: [inner "Dispenser Box", carton "Carton Box"] }`. */
+  levels?: Readonly<Record<string, readonly ListChoice[]>>;
+  /** The entries of a module's own list, in order and in its wording: documents' checklist, loading's stages. */
+  items?: Readonly<Record<string, readonly ListChoice[]>>;
 }
 
-export const EMPTY_TAG_OPTIONS: PhotoTagOptions = { modules: [], sizes: [], defects: [], defectLabels: {} };
+export const EMPTY_TAG_OPTIONS: PhotoTagOptions = { modules: [], sizes: [], defects: [], defectLabels: {}, levels: {}, items: {} };
 
 /** Custom modules repeat per size at most (BUILD_SPEC 4.3, grid.repeatPer). */
 const CUSTOM_TARGET_KEYS: readonly TargetKey[] = ["size"];
@@ -243,6 +257,13 @@ export function tagOptionsFromTemplate(
 
   const modules: ModuleOption[] = [];
   const defectLabels: Record<string, Record<string, string>> = {};
+  const levels: Record<string, ListChoice[]> = {};
+  const items: Record<string, ListChoice[]> = {};
+  const addLists = (entry: ResolvedModule) => {
+    const keys = targetKeysFor(entry.key);
+    if (keys.includes("level")) levels[entry.key] = levelChoices(entry);
+    if (keys.includes("item")) items[entry.key] = itemChoices(entry);
+  };
   for (const section of templateSections(template)) {
     if (section.kind === "module") {
       modules.push({
@@ -253,6 +274,7 @@ export function tagOptionsFromTemplate(
         included: true,
       });
       defectLabels[section.key] = defectWording(section.module.labels, defects);
+      addLists(section.module);
     } else {
       modules.push({ key: section.key, title: section.custom.title, targetKeys: CUSTOM_TARGET_KEYS, handSplit: false, included: true });
     }
@@ -267,8 +289,44 @@ export function tagOptionsFromTemplate(
       included: false,
     });
     defectLabels[entry.key] = defectWording(entry.labels, defects);
+    addLists(entry);
   }
-  return { modules, sizes: template.sizes.map(({ value, label }) => ({ value, label })), defects, defectLabels };
+  return { modules, sizes: template.sizes.map(({ value, label }) => ({ value, label })), defects, defectLabels, levels, items };
+}
+
+/** Labelling's two levels in the template's wording (`innerLevel`, `cartonLevel`), else the module's own. */
+function levelChoices(entry: ResolvedModule): ListChoice[] {
+  return [
+    { value: "inner", label: wordOf(entry.labels.innerLevel) ?? LABELING_LABELS.innerLevel },
+    { value: "carton", label: wordOf(entry.labels.cartonLevel) ?? LABELING_LABELS.cartonLevel },
+  ];
+}
+
+/**
+ * The entries of a module's own list in the template's order and wording:
+ * the documents its checklist includes, or loading's stages. A label is
+ * keyed by the entry's key in both modules.
+ */
+function itemChoices(entry: ResolvedModule): ListChoice[] {
+  const label = (key: string, fallback: string | undefined) => wordOf(entry.labels[key]) ?? fallback ?? humanizeKey(key);
+  if (entry.key === "documents") {
+    // A resolved template holds the whole config; without a list, the module's default checklist.
+    const keys = Array.isArray(entry.config.items)
+      ? (entry.config.items as unknown[]).flatMap((item) => {
+          if (typeof item !== "object" || item === null) return [];
+          const { key, include } = item as { key?: unknown; include?: unknown };
+          return typeof key === "string" && include !== false ? [key] : [];
+        })
+      : [...DOCUMENT_ITEMS];
+    const defaults = DOCUMENTS_LABELS as Readonly<Record<string, string>>;
+    return keys.map((key) => ({ value: key, label: label(key, defaults[key]) }));
+  }
+  if (entry.key === "loading") return LOADING_STAGES.map((stage) => ({ value: stage, label: label(stage, LOADING_LABELS[stage]) }));
+  return [];
+}
+
+function wordOf(label: string | undefined): string | null {
+  return label !== undefined && label.trim() !== "" ? label : null;
 }
 
 /** The template's word for each defect code: its own key, else a dotted key (`minor.bead_defective`). */
@@ -282,9 +340,16 @@ function defectWording(labels: Readonly<Record<string, string>>, defects: readon
   return wording;
 }
 
-/** "dispensing_packing" as "Dispensing packing": the name of a module the template does not know. */
+/**
+ * "dispensing_packing" as "Dispensing packing", "doorsClosed" as "Doors
+ * closed": the name of a module, document or stage the template does not know.
+ */
 export function humanizeKey(key: string): string {
-  const words = key.replace(/[_-]+/g, " ").trim();
+  const words = key
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .trim()
+    .toLowerCase();
   return words ? words[0].toUpperCase() + words.slice(1) : key;
 }
 
@@ -315,6 +380,28 @@ export function defectName(moduleKey: string | null, defect: string, options: Ph
     options.defects.find((entry) => entry.code === defect)?.name ??
     defect
   );
+}
+
+/** The packaging level in the module's wording ("Dispenser Box"), else in plain words. */
+export function levelName(moduleKey: string | null, level: string, options: PhotoTagOptions): string {
+  const found = moduleKey ? options.levels?.[moduleKey]?.find((choice) => choice.value === level) : undefined;
+  return found?.label ?? (level === "inner" ? "Inner unit" : humanizeKey(level));
+}
+
+/**
+ * An entry of the module's own list in the template's wording ("Doors
+ * closed"), else the module's own (a document the checklist no longer
+ * includes), else its key in words.
+ */
+export function itemName(moduleKey: string | null, item: string, options: PhotoTagOptions): string {
+  const found = moduleKey ? options.items?.[moduleKey]?.find((choice) => choice.value === item) : undefined;
+  return found?.label ?? defaultItemLabel(moduleKey, item) ?? humanizeKey(item);
+}
+
+function defaultItemLabel(moduleKey: string | null, item: string): string | undefined {
+  const labels: Readonly<Record<string, string>> | undefined =
+    moduleKey === "documents" ? DOCUMENTS_LABELS : moduleKey === "loading" ? LOADING_LABELS : undefined;
+  return labels && Object.hasOwn(labels, item) ? labels[item] : undefined;
 }
 
 export interface DefectChoice {
@@ -359,13 +446,18 @@ export function defectChoices(moduleKey: string | null, current: string, options
  * Display tags
  * ------------------------------------------------------------------ */
 
-/** The tags a tile shows (components/qc PhotoTags). */
+/**
+ * The tags a tile shows (components/qc PhotoTags). `item` carries the words
+ * for the packaging level and the list entry, which the kit's tag line puts
+ * last: "Labelling · Size M · Lot no. · Box 253 · Carton Box".
+ */
 export interface DisplayTags {
   module: string;
   size?: string;
   hand?: string;
   defect?: string;
   box?: string;
+  item?: string;
 }
 
 /**
@@ -380,6 +472,10 @@ export function displayTags(
 ): DisplayTags {
   const parsed = parseTarget(target);
   const focus: PhotoTarget = parsed.ok ? parsed.target : {};
+  const listed = [
+    focus.level !== undefined ? levelName(moduleKey, focus.level, options) : null,
+    focus.item !== undefined ? itemName(moduleKey, focus.item, options) : null,
+  ].filter((words): words is string => words !== null);
   const tags: DisplayTags = {
     module: moduleTitle(moduleKey, options),
     // The canonical size ("Size M", "Size 7.0"), as on the size tabs.
@@ -387,8 +483,9 @@ export function displayTags(
     hand: focus.hand,
     defect: focus.defect ? defectName(moduleKey, focus.defect, options) : undefined,
     box: focus.box !== undefined ? String(focus.box) : undefined,
+    item: listed.length > 0 ? listed.join(" · ") : undefined,
   };
-  const hasFocus = Boolean(tags.size || tags.hand || tags.defect || tags.box);
+  const hasFocus = Boolean(tags.size || tags.hand || tags.defect || tags.box || tags.item);
   return withModule || !hasFocus ? tags : { ...tags, module: "" };
 }
 
@@ -400,6 +497,8 @@ export function targetForModule(moduleKey: string | null, target: PhotoTarget): 
   if (keys.includes("hand") && target.hand !== undefined) kept.hand = target.hand;
   if (keys.includes("defect") && target.defect !== undefined) kept.defect = target.defect;
   if (keys.includes("box") && target.box !== undefined) kept.box = target.box;
+  if (keys.includes("level") && target.level !== undefined) kept.level = target.level;
+  if (keys.includes("item") && target.item !== undefined) kept.item = target.item;
   return kept;
 }
 

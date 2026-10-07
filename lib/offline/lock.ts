@@ -6,8 +6,12 @@
  * server reached over the LAN) the lock covers this page only.
  * ------------------------------------------------------------------ */
 
-/** Gives the lock up. Calling it again does nothing. */
-export type ReleaseLock = () => void;
+/**
+ * Gives the lock up. Calling it again does nothing. `exclusive`: the lock
+ * spans every tab of this browser (Web Locks), so while it is held nobody
+ * else can write what it guards.
+ */
+export type ReleaseLock = (() => void) & { readonly exclusive?: boolean };
 
 export interface WriterLock {
   /**
@@ -40,7 +44,7 @@ export function webLock(locks: LockRequester, fallback: WriterLock = pageLock())
               return undefined;
             }
             granted = true;
-            resolve(once(release));
+            resolve(Object.assign(once(release), { exclusive: true }));
             return held;
           });
         } catch (error) {

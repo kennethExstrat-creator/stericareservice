@@ -8,6 +8,7 @@ import { UUID_PATTERN } from "@/lib/offline/id";
 import { FILE_BUCKET, PHOTO_BUCKET, type MediaBucket } from "@/lib/photos/paths";
 import type { InspectionStatus } from "@/lib/schemas/common";
 import type { Database } from "@/lib/supabase/database.types";
+import { isNoConnection } from "./messages";
 import {
   FILE_COLUMNS,
   PHOTO_COLUMNS,
@@ -211,6 +212,8 @@ export async function signPaths(
   return { urls, complete };
 }
 
+/** A read that never reached the server is a warning (isNoConnection): the store tries again. */
 function logFailure(what: string, error: { code?: string; message: string }) {
-  console.error(`Inspection photos: loading ${what} failed`, { code: error.code, message: error.message });
+  const log = isNoConnection(error.message) ? console.warn : console.error;
+  log(`Inspection photos: loading ${what} failed`, { code: error.code, message: error.message });
 }

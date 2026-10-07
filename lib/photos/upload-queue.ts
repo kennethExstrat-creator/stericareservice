@@ -167,6 +167,8 @@ export interface UploadItem {
   caption: string | null;
   /** Files: the name shown in lists. */
   name: string | null;
+  /** Files: what the file is (inspection_files.kind); null for photos. */
+  fileKind?: InspectionFileKind | null;
   /** A photo kept as the original because the browser could not convert it. */
   flagged: boolean;
   takenAt: string | null;
@@ -987,6 +989,7 @@ class Queue implements UploadQueue {
       target: item.kind === "photo" ? item.target : null,
       caption: item.kind === "photo" ? item.caption : null,
       name: item.kind === "file" ? item.name : null,
+      fileKind: item.kind === "file" ? item.fileKind : null,
       flagged: item.kind === "photo" && item.flagged,
       takenAt: item.kind === "photo" ? item.takenAt : null,
       state: item.failed ? "failed" : this.current?.id === item.id ? "uploading" : "waiting",

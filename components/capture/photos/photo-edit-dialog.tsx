@@ -1,7 +1,8 @@
 "use client";
 
 // Retag and caption one photo (BUILD_SPEC 8.1): the module it belongs to and
-// the size, hand, defect or box it shows, in the inspection's own wording.
+// the size, hand, defect, box, packaging level or list entry (a document, a
+// loading stage) it shows, in the inspection's own wording.
 // A photo still on this device is retagged in the upload queue (works
 // offline); an uploaded one through the updatePhotoTags action. A refused
 // save (a field error, no connection) keeps everything chosen and typed:
@@ -40,7 +41,15 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE_PHOTO_ACTION, type PhotoActionState } from "@/lib/inspections/photos/messages";
 import { CAPTION_MAX_LENGTH } from "@/lib/inspections/photos/schemas";
-import { defectChoices, moduleOption, moduleTitle, type PhotoTagOptions } from "@/lib/inspections/photos/view";
+import {
+  defectChoices,
+  itemName,
+  levelName,
+  moduleOption,
+  moduleTitle,
+  type ListChoice,
+  type PhotoTagOptions,
+} from "@/lib/inspections/photos/view";
 import { parseTarget, type PhotoTarget } from "@/lib/photos/target";
 import { savePhotoEdit } from "./edit-flows";
 import type { SlotPhoto } from "./photo-model";
@@ -49,6 +58,9 @@ import type { SlotPhoto } from "./photo-model";
 const NONE = "__none__";
 
 const FOCUSABLE = "button, input, textarea, select, [tabindex]:not([tabindex='-1'])";
+
+/** What a module's own list holds, as the field is named. */
+const ITEM_FIELD_LABEL: Readonly<Record<string, string>> = { documents: "Document", loading: "Loading stage" };
 
 type PhotoEditDialogProps = {
   inspectionId: string;
@@ -101,6 +113,8 @@ function EditForm({
   const [hand, setHand] = useState(start.hand ?? "");
   const [defect, setDefect] = useState(start.defect ?? "");
   const [box, setBox] = useState(start.box !== undefined ? String(start.box) : "");
+  const [level, setLevel] = useState<string>(start.level ?? "");
+  const [item, setItem] = useState(start.item ?? "");
   const [caption, setCaption] = useState(photo.caption ?? "");
   const formRef = useRef<HTMLFormElement>(null);
   /** Where focus was when Save was pressed (Save itself, or a field submitted with Enter). */
@@ -149,6 +163,13 @@ function EditForm({
   const sizeItems = [...options.sizes];
   if (size && !sizeItems.some((entry) => entry.value === size)) sizeItems.push({ value: size, label: size });
   const defects = defectChoices(moduleKey, defect, options);
+  const levelItems: readonly ListChoice[] = (moduleKey ? options.levels?.[moduleKey] : undefined) ?? [
+    { value: "inner", label: levelName(moduleKey, "inner", options) },
+    { value: "carton", label: levelName(moduleKey, "carton", options) },
+  ];
+  const listItems: ListChoice[] = [...((moduleKey ? options.items?.[moduleKey] : undefined) ?? [])];
+  // The photo's own entry stays choosable when the list no longer has it.
+  if (item && !listItems.some((entry) => entry.value === item)) listItems.push({ value: item, label: itemName(moduleKey, item, options) });
 
   const described = (field: string, error?: string) => (error ? `${id}-${field}-error` : undefined);
 
@@ -181,6 +202,8 @@ function EditForm({
       {records.has("size") && <input type="hidden" name="size" value={size} />}
       {showHand && <input type="hidden" name="hand" value={hand} />}
       {records.has("defect") && <input type="hidden" name="defect" value={defect} />}
+      {records.has("level") && <input type="hidden" name="level" value={level} />}
+      {records.has("item") && <input type="hidden" name="item" value={item} />}
 
       <FieldGroup className="gap-5">
         <Field data-invalid={errors.moduleKey ? true : undefined}>
@@ -315,6 +338,56 @@ function EditForm({
               aria-describedby={described("box", errors.box)}
             />
             {errors.box && <FieldError id={`${id}-box-error`}>{errors.box}</FieldError>}
+          </Field>
+        )}
+
+        {records.has("level") && (
+          <FieldSet className="gap-3" aria-describedby={described("level", errors.level)}>
+            <FieldLegend variant="label" className="mb-0">
+              Level
+            </FieldLegend>
+            <RadioGroup
+              value={level || NONE}
+              onValueChange={(value) => setLevel(value === NONE ? "" : value)}
+              aria-invalid={errors.level ? true : undefined}
+              className="flex flex-wrap gap-x-6 gap-y-3"
+            >
+              {[{ value: NONE, label: "Not recorded" }, ...levelItems].map((option) => (
+                <Field key={option.value} orientation="horizontal" className="w-auto">
+                  <RadioGroupItem value={option.value} id={`${id}-level-${option.value}`} />
+                  <FieldLabel htmlFor={`${id}-level-${option.value}`} className="font-normal">
+                    {option.label}
+                  </FieldLabel>
+                </Field>
+              ))}
+            </RadioGroup>
+            {errors.level && <FieldError id={`${id}-level-error`}>{errors.level}</FieldError>}
+          </FieldSet>
+        )}
+
+        {records.has("item") && (
+          <Field data-invalid={errors.item ? true : undefined}>
+            <FieldLabel htmlFor={`${id}-item`}>{ITEM_FIELD_LABEL[chosen?.key ?? ""] ?? "Item"}</FieldLabel>
+            <Select value={item || NONE} onValueChange={(value) => setItem(value === NONE ? "" : value)}>
+              <SelectTrigger
+                id={`${id}-item`}
+                className="w-full"
+                aria-invalid={errors.item ? true : undefined}
+                aria-describedby={described("item", errors.item)}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper" className="max-h-72">
+                <SelectItem value={NONE}>Not recorded</SelectItem>
+                {listItems.length > 0 && <SelectSeparator />}
+                {listItems.map((entry) => (
+                  <SelectItem key={entry.value} value={entry.value}>
+                    {entry.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.item && <FieldError id={`${id}-item-error`}>{errors.item}</FieldError>}
           </Field>
         )}
 

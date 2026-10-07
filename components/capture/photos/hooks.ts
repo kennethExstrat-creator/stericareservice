@@ -18,6 +18,10 @@ export interface PhotoFocus {
   readonly hand?: "R" | "L" | null;
   readonly defect?: string | null;
   readonly box?: number | null;
+  /** Labelling's packaging level. */
+  readonly level?: "inner" | "carton" | null;
+  /** An entry of the module's own list: a document, a loading stage. */
+  readonly item?: string | null;
 }
 
 /** The signed-in user, from PhotoQueueProvider. Null: the queue reads it from the session. */
@@ -92,6 +96,28 @@ export function usePhotoUploadStatus(inspectionId: string): PhotoUploadStatus {
   useStartPhotoQueue();
   const state = usePhotoQueue();
   return useMemo(() => uploadStatusFor(state, inspectionId), [state, inspectionId]);
+}
+
+/**
+ * Why submit waits for this device's uploads ("Waiting for 2 photos to
+ * upload."), or null when it does not (BUILD_SPEC 8.1). Text, so a screen
+ * that only needs this re-renders when it changes, never for an upload's
+ * progress.
+ */
+export function useUploadsWaiting(inspectionId: string): string | null {
+  useStartPhotoQueue();
+  const waiting = useCallback(
+    (state: PhotoQueueState) => {
+      const status = uploadStatusFor(state, inspectionId);
+      return status.blocking ? (status.message ?? "Photos are still uploading.") : null;
+    },
+    [inspectionId],
+  );
+  return useSyncExternalStore(
+    photoQueueStore.subscribe,
+    () => waiting(photoQueueStore.getSnapshot()),
+    () => waiting(photoQueueStore.getServerSnapshot()),
+  );
 }
 
 /**

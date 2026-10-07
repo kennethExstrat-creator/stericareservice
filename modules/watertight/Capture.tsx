@@ -68,6 +68,7 @@ export default function WatertightCapture({
   readOnly,
   onChange,
   onFocusChange,
+  defectUsage,
 }: Props) {
   const root = useRef<HTMLDivElement>(null);
   const update = useDataUpdater(data, onChange);
@@ -94,7 +95,7 @@ export default function WatertightCapture({
   const oneOffs = oneOffLabels(data, sizes, split);
   const oneOffByRow = new Map(oneOffs.map((label) => [oneOffRowKey(label), label]));
   const rows: CounterRow[] = [
-    ...locations.map((location) => ({ key: location.code, label: location.label })),
+    ...byUsage(locations, defectUsage).map((location) => ({ key: location.code, label: location.label })),
     // Saved under a code the list lacks: calc counts them, so they show, flagged.
     ...unlistedCodes(data, sizes, split, listed).map((code) => ({ key: code, label: code, unmapped: true })),
     ...oneOffs.map((label) => ({ key: oneOffRowKey(label), label, unmapped: true, removable: true })),
@@ -277,6 +278,11 @@ export default function WatertightCapture({
       </SizeTabs>
     </div>
   );
+}
+
+/** The most-used hole locations first (BUILD_SPEC 8), ties in the template's order. It orders rows only. */
+function byUsage<T extends { code: string }>(locations: readonly T[], usage: Props["defectUsage"]): T[] {
+  return usage ? [...locations].sort((a, b) => (usage[b.code] ?? 0) - (usage[a.code] ?? 0)) : [...locations];
 }
 
 /**

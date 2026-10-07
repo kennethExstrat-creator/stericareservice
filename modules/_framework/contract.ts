@@ -106,6 +106,15 @@ export interface CaptureProps<TData = unknown, TConfig = unknown, TComputed exte
    */
   readonly focus?: CaptureFocus | null;
   /**
+   * How often each defect code was counted in earlier inspections (the same
+   * client and manufacturer, else any the user can see), for "the most-used
+   * defects first" (BUILD_SPEC 8): order defect rows by it, ties in the
+   * template's order. Fixed while the screen is open, so rows never move
+   * while the inspector counts; it never changes a result. Absent where no
+   * usage is known: keep the template's order.
+   */
+  readonly defectUsage?: Readonly<Record<string, number>>;
+  /**
    * Replace the module's data with the whole new value; the screen saves it.
    * Do not call it yourself: write through the kit's `useDataUpdater(data,
    * onChange)` and build each change from its `current` value

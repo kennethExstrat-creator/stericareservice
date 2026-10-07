@@ -31,7 +31,7 @@ Import from `@/lib/offline` and `@/lib/photos`.
 | `uploads` | Upload queue items: metadata only, small enough to load at start |
 | `upload-blobs` | The bytes of queued photos, thumbnails and files (`<id>/object`, `<id>/thumb`), stored as ArrayBuffer and read one item at a time |
 
-Writes resolve when their transaction commits, with strict durability. A connection iPadOS dropped while the page sat in the background is reopened once and the call retried. Records carry a format version (`v: 1`) and are checked with zod when read; a local copy that no longer validates is set aside (`unreadable:...`), never deleted or applied.
+Writes resolve when their transaction commits, with strict durability, and ask for the commit as soon as the write is issued (`IDBTransaction.commit()`), so a write made as a tab closes reaches the database. A connection iPadOS dropped while the page sat in the background is reopened once and the call retried. Records carry a format version (`v: 1`) and are checked with zod when read; a local copy that no longer validates is set aside (`unreadable:...`), never deleted or applied.
 
 Where IndexedDB is missing or refused (some private windows), the same interface runs in memory and `db.persistent` is false. Pass `persistent: db.persistent` to `createAutosave` (the Supabase upload queue reads it itself): `snapshot.localCopy` is then false in both, and the pill shows the storage error instead of "Offline (will sync)" while changes are not on the server, since a reload would lose them.
 
@@ -169,23 +169,27 @@ When the browser cannot convert the file (some HEIC; or a decode or canvas step 
 
 ### Tags and the target string
 
-A photo taken in a module is tagged with that module and the focus relevant to it: `autoTag({ moduleKey, size, hand, defect, box })`.
+A photo taken in a module is tagged with that module and the focus relevant to it: `autoTag({ moduleKey, size, hand, defect, box, level, item })`.
 
 | Module | Recorded focus |
 |---|---|
 | `watertight`, `visual` | size, hand, defect |
-| `dispensing_safedon`, `labeling` | size, box, defect |
+| `labeling` | size, box, defect, level |
+| `dispensing_safedon` | size, box, defect |
 | `dispensing_packing`, `carton_sampling` | size, box |
 | `order_lots`, `sampling_plan`, `dimensions`, `weight`, `force_at_break`, `tensile`, `dye_leak`, custom modules | size |
-| `header`, `glove_info`, `packing_config`, `conclusion`, `documents`, `loading` | none |
+| `documents`, `loading` | item |
+| `header`, `glove_info`, `packing_config`, `conclusion` | none |
 
 `inspection_photos.module_key` holds the module; `inspection_photos.target` holds the rest:
 
 ```
 size:M/hand:R/defect:thin_spot/box:253
+size:M/defect:lot_no/box:253/level:carton
+item:doorsClosed
 ```
 
-Keys always in that order, `key:value` joined by `/`, values percent-encoded (a one-off defect label can hold `/` or `:`). Size is a normalised size, hand `R` or `L`, defect a defect code or an unmapped label, box a positive carton number. An empty target is `null`. `buildTarget` and `parseTarget` round-trip; `parseTarget` reads keys in any order and reports what is wrong.
+Keys always in the order size, hand, defect, box, level, item (level and item came later, so the targets of older photos read the same), `key:value` joined by `/`, values percent-encoded (a one-off defect label can hold `/` or `:`). Size is a normalised size, hand `R` or `L`, defect a defect code or an unmapped label, box a positive carton number, level labelling's `inner` or `carton`, item the key of an entry of the module's own list (a document, a loading stage). An empty target is `null`. `buildTarget` and `parseTarget` round-trip; `parseTarget` reads keys in any order and reports what is wrong. Tiles and the viewer show level and item in the template's words.
 
 ### Files
 
@@ -210,7 +214,7 @@ const id = await queue.enqueuePhoto({ inspectionId, photo, tag: autoTag(focus) }
 - **Retag and remove.** `retag(id, { tag, caption })` changes a queued photo; a retag made while its row is being written is followed by an update. If the server refuses that update for good (the row was deleted, the inspection submitted), the photo still counts as uploaded and the retag is reported in `snapshot.retagFailures` (clear one with `dismissRetagFailure(id)`). `remove(id)` returns true when the item is gone together with any object already uploaded; false when it was not queued, or when its row already exists: the item then leaves the queue, and the caller deletes the row and its objects as for any uploaded photo.
 - **Tabs.** Each item is uploaded under a `navigator.locks` lock, so two tabs never upload the same item at once; the idempotent steps cover browsers without locks. `isEmptyNow()` reads the store, so items another tab queued count too.
 
-`getSnapshot()` returns `{ load, items, pending, failed, online, retryAt, error, retagFailures, localCopy }`. Each item has `id`, `kind`, `inspectionId`, `moduleKey`, `target`, `caption`, `name`, `flagged`, `takenAt`, `state` (`waiting | uploading | failed`), `progress` (0 to 1) and `error`.
+`getSnapshot()` returns `{ load, items, pending, failed, online, retryAt, error, retagFailures, localCopy }`. Each item has `id`, `kind`, `inspectionId`, `moduleKey`, `target`, `caption`, `name`, `fileKind` (a file's `inspection_files.kind`, null for a photo), `flagged`, `takenAt`, `state` (`waiting | uploading | failed`), `progress` (0 to 1) and `error`.
 
 ## What the capture screen wires
 
@@ -219,13 +223,14 @@ const id = await queue.enqueuePhoto({ inspectionId, photo, tag: autoTag(focus) }
    - `restored`: a short notice, "Unsaved changes from this iPad were restored."
    - `conflict`: a dialog with the two choices above. `setAside`: "An older unsaved copy could not be read and was kept aside."
    - `busy`: the data read-only, with `BUSY_MESSAGE` and a Reload button.
-3. **Status pill**: `SaveStatus` (`components/qc/save-status.tsx`) from `useSyncExternalStore(autosave.subscribe, autosave.getSnapshot)`: `saved` Saved (with `lastSavedAt`), `saving` Saving, `offline` Offline (will sync), `error` with `error.message` and an action (Try again: `retryNow()`; Sign in; Resolve). See follow-ups: the component has no error state yet.
-4. **Queue badge**: `pendingUploads={queue.pendingCount(inspectionId)}` on the pill, from `useSyncExternalStore(queue.subscribe, queue.getSnapshot)`; while `snapshot.load` is not `ready`, show it as unknown rather than 0.
-5. **Photo buttons**: `ModuleCard`'s `onFiles(files)`: for each file, `processPhoto` then `queue.enqueuePhoto({ inspectionId, photo, tag: autoTag(focus) })`, where `focus` is the module, size tab, hand and the defect or box selected. Lab report inputs (`force_at_break`, `tensile`, `documents`): `prepareFile` then `queue.enqueueFile`.
+3. **Status pill**: `SaveStatus` (`components/qc/save-status.tsx`) from `useSyncExternalStore(autosave.subscribe, autosave.getSnapshot)`: `saved` Saved (with `lastSavedAt`), `saving` Saving, `offline` Offline (will sync), `error` Not saved; the notice under the header carries `error.message` and an action (Try again: `retryNow()`; Sign in; Reload).
+4. **Queue badge**: `PhotoUploadBadge` (`components/capture/photos`) beside the pill: the count from the page's queue, red when an upload stopped, and unknown rather than 0 while the queue is still reading this device.
+5. **Photo and file slots**: `PhotoSlot` in every section's footer, tagged with `autoTag(focus)` from the module, the size tab, hand and the defect, box, level or item in focus; `FileSlot` for lab reports and certificates through the modules' file slot (docs/MODULES.md 10.1), with `useInspectionFiles(id)` (uploaded and queued files) as the context's `files`. The page wraps the screen in `PhotoQueueProvider` so the queue starts at once, offline too.
 6. **Photo tiles** for queued items: `PhotoTile` with `state` `pending` (or `flagged`), `progress * 100`, and `src` from `URL.createObjectURL(await queue.preview(id))` (revoke it on unmount). Uploaded photos come from `inspection_photos` with signed URLs. Show `snapshot.retagFailures` as a notice ("The new tag of a photo could not be saved") and dismiss it once seen.
-7. **Submit**: keep the button disabled while photos are being processed (before `enqueuePhoto` returns, the queue does not know them) and while `!queue.isEmpty(inspectionId)` ("Waiting for 3 photos to upload"). On submit, check `await queue.isEmptyNow(inspectionId)`, which also counts items queued in another tab, then `await autosave.flush()`; submit only when both say yes.
+7. **Submit**: while photos or files are being prepared or wait in the queue (`usePhotoUploadStatus(id).blocking`), the confirmation says why ("Waiting for 3 photos to upload.") and cannot be given. On submit, check `photoUploadsSettled(id)`, which also counts items queued in another tab, then `await autosave.flush()`; submit only when both say yes. After the redirect to the review, `refreshInspectionMedia(id)` reads the inspection's new rights.
 8. **Sign-out**: warn when `listUnsavedDrafts(db.store("drafts"), userId)` or `listSetAsideDrafts(db.store("drafts"), userId)` is not empty, or `await queue.isEmptyNow()` is false; that work lives only on this device until it syncs.
 9. **Housekeeping**: `pruneSyncedDrafts(db.store("drafts"), Date.now() - 30 days)` now and then (e.g. on the inspections list).
+10. **Leaving**: fields keep a half-typed value until they lose focus, and a tap on the iPad does not move it, so the screen leaves the field first on every way out: a click outside the open section (the shell's links too); Back, through the Navigation API's `navigate` event (`navigationType` `traverse`), which comes before `popstate`: Next.js replaces the screen inside its own `popstate` listener, registered first, and React ignores the blur of a field it is removing (`popstate` stays as the fallback without the Navigation API); `pagehide` and `visibilitychange` to hidden (then `flush()` at once); and `beforeunload`, which asks first only while the change is held in memory alone (`snapshot.pending && !snapshot.localCopy`, read from the controller in the same event). Unmounting flushes for up to `LEAVE_FLUSH_MS`, then stops; what is not on the server by then waits in the local copy. A hidden page writes that copy in the same task (no read of who wrote it last, which a closing tab would never get) while its lock spans every tab (`ReleaseLock.exclusive`, Web Locks), and IndexedDB writes ask for their commit at once.
 
 ## Known limits
 

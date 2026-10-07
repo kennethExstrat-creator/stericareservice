@@ -62,6 +62,15 @@ describe.each<[string, () => WriterLock]>([
 });
 
 describe("webLock", () => {
+  it("says its hold spans every tab; a page lock's does not", async () => {
+    const web = await webLock(navigator.locks).acquire(name(), 0);
+    expect(web?.exclusive).toBe(true);
+    web?.();
+    const page = await pageLock().acquire(name(), 0);
+    expect(page?.exclusive).toBeFalsy();
+    page?.();
+  });
+
   it("falls back to the page lock when the Locks API itself fails", async () => {
     const broken = {
       request: () => Promise.reject(new DOMException("The request is not allowed.", "SecurityError")),
@@ -70,6 +79,8 @@ describe("webLock", () => {
     const key = name();
     const release = await lock.acquire(key, 0);
     expect(release).toBeTypeOf("function");
+    // A page's own lock: another tab could still write.
+    expect(release?.exclusive).toBeFalsy();
     expect(await lock.acquire(key, 0)).toBeNull();
     release?.();
   });
