@@ -88,7 +88,7 @@ export function AiReviewPanelView({ model, className }: { model: AiPanelModel; c
         </div>
       )}
 
-      <ReviewHistory reviews={model.history} canDecide={viewer.isAdmin} />
+      <ReviewHistory reviews={model.history} canDecide={viewer.isAdmin} viewerId={viewer.id} />
 
       <ReportSection model={model} />
     </section>

@@ -7,9 +7,12 @@ import {
   loadInspectionRecord,
   parseInspectionId,
   signObjects,
+  type EvaluatedInspection,
   type ExportClient,
+  type PhotoRecord,
 } from "@/lib/export";
 import { personLabel } from "@/lib/inspections/format";
+import { photoWording, unlabelledDefects } from "@/lib/inspections/review/photos";
 import { PHOTO_BUCKET } from "@/lib/photos/paths";
 import { AiReviewActionKindSchema } from "@/lib/schemas/ai-review";
 import { createClient } from "@/lib/supabase/server";
@@ -94,6 +97,11 @@ export async function loadAiPanel(
   const rows = reviewRows.data as unknown as (AiReviewRow & { decisions?: DecisionRow[] })[];
   const reviews = rows.map(parseStoredReview);
   const decisions = isAdmin ? rows.flatMap((row) => decisionsOf(row.id, row.decisions ?? [])) : [];
+  const cited = citedPhotos(record.photos, reviews);
+  const [photoLinks, defectNames] = await Promise.all([
+    citedPhotoLinks(client, cited),
+    citedDefectNames(client, cited, evaluation.evaluated),
+  ]);
 
   return {
     ok: true,
@@ -102,8 +110,10 @@ export async function loadAiPanel(
       evaluated: evaluation.evaluated,
       reviews,
       decisions,
-      photoLinks: await citedPhotoLinks(client, record.photos, reviews),
+      photoLinks,
+      defectNames,
       aiStatus: getAiStatus(),
+      viewerId: user.id,
       isAdmin,
       now: options.now ?? Date.now(),
     }),
@@ -128,6 +138,36 @@ function decisionsOf(reviewId: string, rows: readonly DecisionRow[]): StoredDeci
   });
 }
 
+/** The inspection's photos the reviews cite as evidence. */
+function citedPhotos(photos: readonly PhotoRecord[], reviews: readonly StoredAiReview[]): PhotoRecord[] {
+  const cited = new Set(reviews.flatMap((review) => review.findings.flatMap((finding) => finding.evidence.photos)));
+  return photos.filter((photo) => cited.has(photo.id));
+}
+
+/**
+ * The master list's names (defect_codes) of the defects the cited photos are
+ * tagged with that their module has no label for: the review's report photos
+ * are named the same way (lib/inspections/review/load.ts). A failed read
+ * only costs the names; such a defect shows as tagged.
+ */
+async function citedDefectNames(
+  client: ExportClient,
+  photos: readonly PhotoRecord[],
+  evaluated: EvaluatedInspection,
+): Promise<Map<string, string>> {
+  const codes = unlabelledDefects(
+    photos.map((photo) => ({ module_key: photo.moduleKey, target: photo.target })),
+    photoWording(evaluated),
+  );
+  if (codes.length === 0) return new Map();
+  const { data, error } = await client.from("defect_codes").select("code, name").in("code", codes);
+  if (error) {
+    console.error("[ai panel] reading the defect names failed", { code: error.code, message: error.message });
+    return new Map();
+  }
+  return new Map((data ?? []).map((defect) => [defect.code, defect.name]));
+}
+
 /**
  * Signed links (an hour) for the photos the reviews cite: the thumbnail to
  * show, the full photo to open. A failure only costs the pictures; the
@@ -135,11 +175,8 @@ function decisionsOf(reviewId: string, rows: readonly DecisionRow[]): StoredDeci
  */
 async function citedPhotoLinks(
   client: ExportClient,
-  photos: readonly { id: string; storagePath: string; thumbPath: string | null; flagged: boolean }[],
-  reviews: readonly StoredAiReview[],
+  wanted: readonly PhotoRecord[],
 ): Promise<{ thumbs: Map<string, string>; full: Map<string, string> }> {
-  const cited = new Set(reviews.flatMap((review) => review.findings.flatMap((finding) => finding.evidence.photos)));
-  const wanted = photos.filter((photo) => cited.has(photo.id));
   const thumbs = new Map<string, string>();
   const full = new Map<string, string>();
   if (wanted.length === 0) return { thumbs, full };

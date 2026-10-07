@@ -1,7 +1,20 @@
 import { describe, expect, it } from "vitest";
+import { tagLine } from "@/components/qc/photo-tags";
+import { stdEgInspectionData, stdEgTemplate } from "@/lib/export/__fixtures__/std-eg";
+import { TEST_REGISTRY } from "@/modules/_framework/__fixtures__/test-registry";
+import { makeTestTemplate } from "@/modules/_framework/testing";
 import { MODULE_REGISTRY } from "@/modules/registry";
-import { evaluated } from "./__fixtures__/review";
-import { describePhoto, sectionWording, UNTAGGED, unlabelledDefects, type PhotoRow } from "./photos";
+import { evaluated, storedInspection } from "./__fixtures__/review";
+import { evaluateStoredInspection } from "./evaluate";
+import {
+  describePhoto,
+  photoTags,
+  photoWording,
+  sectionWording,
+  UNTAGGED,
+  unlabelledDefects,
+  type PhotoRow,
+} from "./photos";
 
 const INSPECTION = "3f0c2a1e-5b6d-4e7f-8a9b-0c1d2e3f4a5b";
 
@@ -70,6 +83,55 @@ describe("describePhoto", () => {
 
   it("ignores a target it cannot read rather than failing the page", () => {
     expect(describePhoto(photo({ target: "garbage" }), wording).tags).toEqual({ module: "Visual Inspection (AQL)" });
+  });
+});
+
+describe("describePhoto: packaging levels and list entries, as the gallery words them", () => {
+  // STD_EG on the real modules: labelling words its levels "Dispenser Box" and "Carton Box".
+  const stdEg = evaluateStoredInspection(
+    storedInspection({ resolved: stdEgTemplate(), data: stdEgInspectionData() }),
+    MODULE_REGISTRY,
+  );
+  const wording = sectionWording(stdEg);
+  const labeling = stdEg.ok ? stdEg.report.modules.find((entry) => entry.key === "labeling")?.title : undefined;
+
+  it("names the carton or the inner unit a labelling photo shows", () => {
+    expect(labeling).toBeTruthy();
+    const carton = describePhoto(photo({ module_key: "labeling", target: "size:M/box:1324/level:carton" }), wording);
+    expect(carton.tags).toEqual({ module: labeling, size: "M", box: "1324", level: "Carton Box" });
+    expect(carton.alt).toBe(`Photo: ${labeling}, Size M, Box 1324, Carton Box`);
+    // The tile's tag line, as the gallery's: level last.
+    expect(tagLine(carton.tags)).toBe(`${labeling} · Size M · Box 1324 · Carton Box`);
+    expect(describePhoto(photo({ module_key: "labeling", target: "size:M/box:686/level:inner" }), wording).tags.level).toBe(
+      "Dispenser Box",
+    );
+  });
+
+  it("names a document or a loading stage by the template's words for it", () => {
+    const withLists = sectionWording(
+      evaluated({ resolved: makeTestTemplate(TEST_REGISTRY, ["documents", "loading", "conclusion"]) }),
+    );
+    expect(describePhoto(photo({ module_key: "documents", target: "item:certificateOfAnalysis" }), withLists)).toMatchObject({
+      tags: { module: "Documents", item: "Certificate of analysis" },
+      alt: "Photo: Documents, Certificate of analysis",
+    });
+    expect(describePhoto(photo({ module_key: "loading", target: "item:doorsClosed" }), withLists).tags).toEqual({
+      module: "Loading",
+      item: "Doors closed",
+    });
+  });
+
+  it("words the same photo the same way for the AI panel", () => {
+    const row = { module_key: "visual", target: "size:M/defect:thin_spot" };
+    // STD_EG's visual words its defects in its config, so the loaders name them from defect_codes.
+    expect(unlabelledDefects([row], wording)).toEqual(["thin_spot"]);
+    const named = new Map([["thin_spot", "Thin spot on glove body"]]);
+    expect(tagLine(photoTags(row, wording, named))).toBe(`${wording.title("visual")} · Size M · Thin spot on glove body`);
+    // Without the results, the module's own name and the codes as tagged.
+    expect(photoTags({ module_key: "labeling", target: "level:carton" }, photoWording(null))).toEqual({
+      module: MODULE_REGISTRY.labeling.title,
+      level: "Carton",
+    });
   });
 });
 

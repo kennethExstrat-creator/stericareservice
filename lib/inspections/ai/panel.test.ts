@@ -9,7 +9,7 @@ vi.mock("@/modules/registry", async () => {
 
 import { makeAiReview } from "@/lib/ai/__fixtures__/ai-review";
 import { createFakeSupabase, type FakeSupabase } from "@/lib/export/__fixtures__/fake-supabase";
-import { IDS, makeInspectionRow, makeObjects, makeTables, PATHS, UPDATED_AT } from "@/lib/export/__fixtures__/inspection";
+import { IDS, makeInspectionRow, makeObjects, makePhotoRows, makeTables, PATHS, UPDATED_AT } from "@/lib/export/__fixtures__/inspection";
 import { createClient } from "@/lib/supabase/server";
 import { loadAiPanel, PANEL_LINK_TTL_SECONDS } from "./panel";
 
@@ -76,7 +76,7 @@ describe("loadAiPanel", () => {
     if (!loaded.ok) throw new Error(loaded.message);
     const { model } = loaded;
 
-    expect(model.viewer.isAdmin).toBe(true);
+    expect(model.viewer).toEqual({ id: IDS.admin, isAdmin: true });
     expect(model.review).toMatchObject({ connected: true, mock: true, canRequest: true });
     expect(model.current).toMatchObject({ id: REVIEW_ID, state: "done", isCurrentVersion: true });
     const [finding] = model.current?.findings ?? [];
@@ -98,6 +98,48 @@ describe("loadAiPanel", () => {
     expect(PANEL_LINK_TTL_SECONDS).toBe(3600);
     // Reading the panel writes nothing.
     expect(db.queries.filter((query) => query.operation !== "select")).toEqual([]);
+  });
+
+  it("names a cited photo's defect from the master list when its module has no word for it, as the review does", async () => {
+    const photos = makePhotoRows().map((row) =>
+      row.id === IDS.photoWeight ? { ...row, module_key: "visual", target: "size:M/defect:hole_cuff" } : row,
+    );
+    const db = fake({
+      tables: {
+        ...makeTables(),
+        ai_reviews: [reviewRow()],
+        inspection_photos: photos,
+        defect_codes: [
+          { code: "hole_cuff", name: "Hole in cuff" },
+          { code: "thin_spot", name: "Thin spot (master list)" },
+        ],
+      },
+    });
+    const loaded = await loadAiPanel(ADMIN, IDS.inspection, { client: db.client, now: NOW });
+    if (!loaded.ok) throw new Error(loaded.message);
+    expect(loaded.model.current?.findings[0].evidence.photos[0].tags).toBe("Visual Inspection · Size M · Hole in cuff");
+    // Only the codes the module does not word are looked up.
+    expect(db.queries.filter((query) => query.table === "defect_codes")).toEqual([
+      { table: "defect_codes", operation: "select", filters: [{ column: "code", op: "in", value: ["hole_cuff"] }] },
+    ]);
+  });
+
+  it("looks nothing up when the module words every cited defect, and only costs the names when the read fails", async () => {
+    const db = fake();
+    await loadAiPanel(ADMIN, IDS.inspection, { client: db.client, now: NOW });
+    expect(db.queries.some((query) => query.table === "defect_codes")).toBe(false);
+
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const photos = makePhotoRows().map((row) =>
+      row.id === IDS.photoWeight ? { ...row, module_key: "visual", target: "size:M/defect:hole_cuff" } : row,
+    );
+    const failing = fake({
+      tables: { ...makeTables(), ai_reviews: [reviewRow()], inspection_photos: photos },
+      failQuery: (query) => (query.table === "defect_codes" ? { message: "boom" } : null),
+    });
+    const loaded = await loadAiPanel(ADMIN, IDS.inspection, { client: failing.client, now: NOW });
+    if (!loaded.ok) throw new Error(loaded.message);
+    expect(loaded.model.current?.findings[0].evidence.photos[0].tags).toBe("Visual Inspection · Size M · hole_cuff");
   });
 
   it("shows the inspector their own inspection's reviews without decisions", async () => {

@@ -41,6 +41,7 @@ beforeAll(async () => {
       decisions: [],
       photoLinks: { thumbs: new Map(), full: new Map() },
       aiStatus: MOCK_STATUS,
+      viewerId: ADMIN_ID,
       isAdmin: true,
       now: NOW,
     }),

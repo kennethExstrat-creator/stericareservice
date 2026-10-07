@@ -22,6 +22,7 @@ export const COLUMN_TITLES = {
 
 export function Comparison({ model, review }: { model: AiPanelModel; review: ReviewModel }) {
   const canDecide = model.viewer.isAdmin;
+  const viewerId = model.viewer.id;
   return (
     <div
       className="overflow-clip rounded-xl bg-card shadow-sm ring-1 ring-border"
@@ -74,6 +75,7 @@ export function Comparison({ model, review }: { model: AiPanelModel; review: Rev
               findings={model.overall.ai.findings}
               questions={model.overall.ai.questions}
               canDecide={canDecide}
+              viewerId={viewerId}
               quietText={null}
             />
           </Cell>
@@ -97,6 +99,7 @@ export function Comparison({ model, review }: { model: AiPanelModel; review: Rev
                 findings={section.ai.findings}
                 questions={section.ai.questions}
                 canDecide={canDecide}
+                viewerId={viewerId}
                 quietText="No findings"
               />
             </Cell>
@@ -249,19 +252,27 @@ function AiFindings({
   findings,
   questions,
   canDecide,
+  viewerId,
   quietText,
 }: {
   reviewId: string;
   findings: FindingModel[];
   questions: QuestionModel[];
   canDecide: boolean;
+  viewerId: string;
   quietText: string | null;
 }) {
   if (findings.length === 0 && questions.length === 0) return quietText ? <Quiet>{quietText}</Quiet> : null;
   return (
     <div className="space-y-3">
       {findings.map((finding) => (
-        <FindingCard key={findingKey(reviewId, finding.id)} finding={finding} reviewId={reviewId} canDecide={canDecide} />
+        <FindingCard
+          key={findingKey(reviewId, finding.id)}
+          finding={finding}
+          reviewId={reviewId}
+          canDecide={canDecide}
+          viewerId={viewerId}
+        />
       ))}
       {questions.length > 0 && (
         <div className="space-y-1.5">

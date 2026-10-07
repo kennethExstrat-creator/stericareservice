@@ -1,7 +1,9 @@
 // One AI finding with the evidence it points to (values, boxes, photos) and,
 // for admins, the decision control. One AI question for the inspector.
 import { CircleHelpIcon, FileImageIcon, ImageOffIcon } from "lucide-react";
+import { evidenceValueLayout } from "@/lib/inspections/ai/format";
 import type { FindingModel, PhotoEvidenceModel, QuestionModel } from "@/lib/inspections/ai/types";
+import { cn } from "@/lib/utils";
 import { DecisionControl } from "./decision-control";
 import { SeverityPill } from "./pills";
 
@@ -18,11 +20,14 @@ export function FindingCard({
   finding,
   reviewId,
   canDecide,
+  viewerId,
 }: {
   finding: FindingModel;
   reviewId: string;
   /** Admins record decisions; inspectors see the finding only. */
   canDecide: boolean;
+  /** The signed-in user, whose half-made decision this tab keeps. */
+  viewerId: string;
 }) {
   const { evidence } = finding;
   const titleId = `finding-${reviewId}-${finding.id}`;
@@ -47,18 +52,31 @@ export function FindingCard({
         <div className="space-y-2">
           <p className="text-xs font-semibold text-muted-foreground">Evidence</p>
           {evidence.values.length > 0 && (
-            // A number sits on its label's line, right aligned; a value too long to
-            // share the line (the reviewer may quote a sentence) wraps below it.
+            // A short value (a number, a status) sits on its label's line, right
+            // aligned; a long one (the reviewer may quote a sentence) gets a line of
+            // its own under the label, left aligned, so it reads as one.
             <dl className="space-y-1 text-sm">
-              {evidence.values.map((value, index) => (
-                <div key={`${value.label}-${index}`} className="flex flex-wrap items-baseline justify-between gap-x-3">
-                  <dt className="min-w-0 break-words text-muted-foreground">{value.label}</dt>
-                  <dd className="ml-auto min-w-0 text-right font-medium break-words text-foreground tabular-nums">
-                    {value.value}
-                    {value.unit ? ` ${value.unit}` : ""}
-                  </dd>
-                </div>
-              ))}
+              {evidence.values.map((value, index) => {
+                const inline = evidenceValueLayout(value.value, value.unit) === "inline";
+                return (
+                  <div
+                    key={`${value.label}-${index}`}
+                    data-layout={inline ? "inline" : "block"}
+                    className={cn("flex flex-wrap items-baseline gap-x-3", inline && "justify-between")}
+                  >
+                    <dt className="min-w-0 break-words text-muted-foreground">{value.label}</dt>
+                    <dd
+                      className={cn(
+                        "min-w-0 font-medium break-words text-foreground",
+                        inline ? "ml-auto text-right tabular-nums" : "basis-full text-left whitespace-pre-line",
+                      )}
+                    >
+                      {value.value}
+                      {value.unit ? ` ${value.unit}` : ""}
+                    </dd>
+                  </div>
+                );
+              })}
             </dl>
           )}
           {evidence.boxes.length > 0 && (
@@ -82,6 +100,7 @@ export function FindingCard({
       {canDecide && (
         <div className="border-t border-border pt-3">
           <DecisionControl
+            viewerId={viewerId}
             reviewId={reviewId}
             findingId={finding.id}
             decision={finding.decision}

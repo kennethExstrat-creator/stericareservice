@@ -7,7 +7,15 @@ import type { ReviewModel } from "@/lib/inspections/ai/types";
 import { FindingCard, findingKey, QuestionItem } from "./finding";
 import { Quiet, ResultPill } from "./pills";
 
-export function ReviewHistory({ reviews, canDecide }: { reviews: ReviewModel[]; canDecide: boolean }) {
+export function ReviewHistory({
+  reviews,
+  canDecide,
+  viewerId,
+}: {
+  reviews: ReviewModel[];
+  canDecide: boolean;
+  viewerId: string;
+}) {
   if (reviews.length === 0) return null;
   return (
     <details className="group rounded-xl bg-card shadow-sm ring-1 ring-border" data-testid="ai-review-history">
@@ -18,7 +26,7 @@ export function ReviewHistory({ reviews, canDecide }: { reviews: ReviewModel[]; 
       <ol className="divide-y divide-border border-t border-border">
         {reviews.map((review) => (
           <li key={review.id} className="px-4 py-3">
-            <HistoryEntry review={review} canDecide={canDecide} />
+            <HistoryEntry review={review} canDecide={canDecide} viewerId={viewerId} />
           </li>
         ))}
       </ol>
@@ -26,7 +34,7 @@ export function ReviewHistory({ reviews, canDecide }: { reviews: ReviewModel[]; 
   );
 }
 
-function HistoryEntry({ review, canDecide }: { review: ReviewModel; canDecide: boolean }) {
+function HistoryEntry({ review, canDecide, viewerId }: { review: ReviewModel; canDecide: boolean; viewerId: string }) {
   const decided = review.findings.filter((finding) => finding.decision !== null).length;
   const facts = [
     `Version saved ${review.version}${review.isCurrentVersion ? " (current)" : ""}`,
@@ -64,6 +72,7 @@ function HistoryEntry({ review, canDecide }: { review: ReviewModel; canDecide: b
                 finding={finding}
                 reviewId={review.id}
                 canDecide={canDecide}
+                viewerId={viewerId}
               />
             ))}
             {review.questions.length > 0 && (

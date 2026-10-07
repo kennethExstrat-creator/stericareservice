@@ -174,6 +174,7 @@ function HeaderActions({ review }: { review: ReviewData }) {
         inspectionId={inspection.id}
         refNo={inspection.refNo}
         version={inspection.version}
+        viewerId={viewer.id}
         finalResult={inspection.result}
         // No suggestion and no error count when the results could not be worked out: the dialog says so.
         {...approvalChecks(evaluation)}

@@ -3,8 +3,6 @@
 // and the browser always render the same string.
 import type { AiReviewActionKind, FindingSeverity } from "@/lib/schemas/ai-review";
 import type { InspectionResult } from "@/lib/schemas/common";
-import { tagLine } from "@/components/qc/photo-tags";
-import { parseTarget } from "@/lib/photos/target";
 import type { Status } from "@/lib/design/status";
 
 export const PANEL_TIME_ZONE = "Asia/Kuala_Lumpur";
@@ -66,16 +64,16 @@ export function confidencePercent(confidence: number | null): number | null {
   return Math.round(Math.min(1, Math.max(0, confidence)) * 100);
 }
 
-/** "Visual Inspection · Size M · thin_spot · Box 253" from a photo's module title and target. */
-export function photoTagLine(moduleTitle: string | null, target: string | null): string | null {
-  const parsed = parseTarget(target);
-  const tags = parsed.ok ? parsed.target : {};
-  const line = tagLine({
-    module: moduleTitle ?? "",
-    size: tags.size,
-    hand: tags.hand,
-    defect: tags.defect,
-    box: tags.box === undefined ? undefined : String(tags.box),
-  });
-  return line.trim() === "" ? null : line;
+/** Longer than this, a value no longer sits beside its label: a quoted sentence. */
+export const INLINE_VALUE_MAX = 24;
+
+/**
+ * How a value of a finding's evidence sits: a short one ("2.9 g", "17.1%",
+ * "not_done") at the end of its label's line, right aligned, as numbers in a
+ * table; a long one (the reviewer may quote a warning) on a line of its own
+ * under the label, left aligned, so it reads as the sentence it is.
+ */
+export function evidenceValueLayout(value: string, unit: string | null): "inline" | "block" {
+  const shown = unit ? `${value} ${unit}` : value;
+  return shown.length > INLINE_VALUE_MAX || /\n/.test(shown) ? "block" : "inline";
 }
