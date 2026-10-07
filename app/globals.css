@@ -317,8 +317,9 @@
   }
 
   /* The editor's bar on one row: its tab list (components/ui/tabs.tsx: 36 px,
-     50 px on touch), 0.5rem of padding above and below, and its 1 px edge; or
-     the measured --editor-bar-height once the editor sets it on <html>. */
+     50 px on touch), 0.5rem of padding above and below, and its 1 px edge; or,
+     once the editor has measured it, its --editor-bar-height on <html>
+     (template-editor.tsx), two rows included. */
   html:has([data-slot="editor-bar"]) {
     --page-editor-bar: var(--editor-bar-height, calc(2.25rem + 1rem + 1px + var(--page-touch-tab-list, 0px)));
     scroll-padding-top: calc(var(--page-shell-bar, 0px) + var(--page-editor-bar) + 1rem);
@@ -327,14 +328,6 @@
       /* 44 px tabs in 3 px of padding: 14 px more than on a fine pointer. */
       --page-touch-tab-list: 0.875rem;
     }
-  }
-
-  /* A bar that wraps to two rows (a narrow window with unsaved changes) is
-     taller than that: what follows it makes up the difference with a scroll
-     margin, from the height the editor measures on its own root. */
-  [data-slot="editor-bar"] ~ *,
-  [data-slot="editor-bar"] ~ * * {
-    scroll-margin-top: max(0px, var(--editor-bar-height, 0px) - var(--page-editor-bar, 0px));
   }
 
   html:has([data-slot="editor-bar"]:focus-within) {
