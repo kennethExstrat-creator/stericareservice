@@ -371,7 +371,7 @@ test.describe("as the admin", () => {
 
   test("the admin overview: what waits, every admin screen, the status, never secrets", async ({ page }) => {
     await page.goto("/admin");
-    await expect(page).toHaveTitle(/^Admin overview · SteriCare QC$/i);
+    await expect(page).toHaveTitle("Admin Overview · SteriCare QC");
 
     // What waits for an admin: the submitted inspections, counted, and linked filtered.
     const waiting = page.getByRole("region", { name: "Inspections", exact: true });
@@ -383,7 +383,7 @@ test.describe("as the admin", () => {
     await expect(waiting.getByRole("link", { name: /Every inspection/ })).toHaveAttribute("href", "/inspections");
 
     // Every admin screen, unmapped defect labels beside the codes; nothing announced as coming.
-    const setUp = page.getByRole("region", { name: /^Set-up$/i });
+    const setUp = page.getByRole("region", { name: "Set-Up", exact: true });
     const screens: [RegExp, string][] = [
       [/^Users\b.*Invite people/, "/admin/users"],
       [/^Manufacturers\b/, "/admin/manufacturers"],
