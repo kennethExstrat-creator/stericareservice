@@ -2,7 +2,7 @@ import { expect, test, type BrowserContext, type Locator, type Page, type Route 
 import type { Json } from "../../lib/supabase/database.types";
 import { drawImage, holdUploads, labReportPdf } from "../photos/support";
 import { createTestAdminClient } from "../support/admin";
-import { signIn, TEST_ACCOUNTS } from "../support/session";
+import { sessionCookies, TEST_ACCOUNTS } from "../support/session";
 import { createCaptureFixture, type CaptureFixture } from "./fixtures";
 
 /**
@@ -135,9 +135,18 @@ async function expectStickyOffsets(page: Page) {
   });
 }
 
+const sessions = new Map<string, { name: string; value: string }[]>();
+
+/** Signs in once per account and project, then reuses the session (the sign-in limit: e2e/README.md). */
 async function signInAs(context: BrowserContext, baseURL: string, account: keyof typeof TEST_ACCOUNTS) {
   await context.clearCookies();
-  await signIn(context, baseURL, TEST_ACCOUNTS[account]);
+  const email = TEST_ACCOUNTS[account];
+  let cookies = sessions.get(email);
+  if (!cookies) {
+    cookies = await sessionCookies(email);
+    sessions.set(email, cookies);
+  }
+  await context.addCookies(cookies.map((cookie) => ({ ...cookie, url: baseURL })));
 }
 
 /** The save pill on screen (the bar below 1280 px, the sidebar from 1280 px). */

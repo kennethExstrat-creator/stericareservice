@@ -123,7 +123,9 @@ export function ProgressTracker({
   return (
     <div data-slot="progress-tracker" className={cn("space-y-2", className)}>
       <div className="flex items-baseline justify-between gap-3 text-sm">
-        <span className="truncate font-medium text-foreground">{active?.label}</span>
+        <span className="truncate font-medium text-foreground" title={active?.label}>
+          {active?.label}
+        </span>
         <span className="shrink-0 text-muted-foreground tabular-nums">
           {done} of {steps.length} done
         </span>
