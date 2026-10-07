@@ -36,11 +36,11 @@ export const DOCUMENT_STATUSES = ["verified", "not_verified", "na"] as const;
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
 export const DocumentStatusSchema = z.enum(DOCUMENT_STATUSES);
 
-/** Per item: what is entered (the file is an inspection_files row, uploaded by the screen). */
-export const DOCUMENT_FIELDS = ["status", "referenceNo", "expiryDate"] as const;
+/** Per item: what is entered; the file as the id of the inspection_files row the screen uploaded. */
+export const DOCUMENT_FIELDS = ["status", "referenceNo", "expiryDate", "file"] as const;
 export type DocumentField = (typeof DOCUMENT_FIELDS)[number];
 
-type DocumentsLabelKey = DocumentField | "file" | "expired" | "required" | DocumentItem | `status.${DocumentStatus}`;
+type DocumentsLabelKey = DocumentField | "expired" | "required" | DocumentItem | `status.${DocumentStatus}`;
 
 export const DOCUMENTS_LABELS: Readonly<Record<DocumentsLabelKey, string>> = {
   status: "Status",

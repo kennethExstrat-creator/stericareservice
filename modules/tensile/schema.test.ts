@@ -130,11 +130,14 @@ describe("tensile config", () => {
     }
   });
 
-  it("becomes JSON Schema with descriptions, for the template editor's form", () => {
-    const schema = z.toJSONSchema(TensileConfigSchema) as { properties: Record<string, { description?: string }> };
+  it("becomes JSON Schema with descriptions and units, for the template editor's form", () => {
+    const schema = z.toJSONSchema(TensileConfigSchema) as {
+      properties: Record<string, { description?: string; unit?: string }>;
+    };
     for (const key of ["tensileMin", "elongationMin", "standardLabel", "decimals"]) {
       expect(schema.properties[key].description, key).toBeTruthy();
     }
+    expect([schema.properties.tensileMin.unit, schema.properties.elongationMin.unit]).toEqual(["MPa", "%"]);
   });
 });
 

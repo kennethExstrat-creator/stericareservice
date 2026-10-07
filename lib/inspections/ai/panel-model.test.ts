@@ -1,0 +1,242 @@
+import { beforeAll, describe, expect, it } from "vitest";
+import type { EvaluatedInspection } from "@/lib/export/evaluate";
+import type { InspectionRecord } from "@/lib/export/record";
+import {
+  decisions,
+  IDS,
+  loadFixture,
+  MOCK_STATUS,
+  NOW,
+  OFF_STATUS,
+  PHOTO_LINKS,
+  REVIEW_IDS,
+  reviewHistory,
+  storedReview,
+  UNKNOWN_PHOTO,
+} from "./__fixtures__/panel";
+import { ALREADY_PENDING, buildAiPanelModel, NOT_REPORTABLE, NOT_REVIEWABLE, type PanelModelInput } from "./panel-model";
+import { STALE_REVIEW_MS, STOPPED_MESSAGE } from "./stored";
+
+let record: InspectionRecord;
+let evaluated: EvaluatedInspection;
+
+beforeAll(async () => {
+  ({ record, evaluated } = await loadFixture());
+});
+
+function model(overrides: Partial<PanelModelInput> = {}) {
+  return buildAiPanelModel({
+    record,
+    evaluated,
+    reviews: reviewHistory(),
+    decisions: decisions(),
+    photoLinks: PHOTO_LINKS,
+    aiStatus: MOCK_STATUS,
+    isAdmin: true,
+    now: NOW,
+    ...overrides,
+  });
+}
+
+describe("buildAiPanelModel: reviews", () => {
+  it("shows the newest finished review, the newer failed attempt above it, and keeps the rest as history", () => {
+    const panel = model();
+    expect(panel.current?.id).toBe(REVIEW_IDS.current);
+    expect(panel.attempt).toMatchObject({ id: REVIEW_IDS.failed, state: "failed", problem: "The webhook did not answer in time." });
+    expect(panel.history.map((review) => [review.id, review.state])).toEqual([
+      [REVIEW_IDS.stale, "stopped"],
+      [REVIEW_IDS.older, "done"],
+    ]);
+    expect(panel.history[0].problem).toBe(STOPPED_MESSAGE);
+    // A stopped review is not waited for.
+    expect(panel.pendingIds).toEqual([]);
+  });
+
+  it("describes the current review: who wrote it, when, about which version, with what confidence", () => {
+    const current = model().current;
+    expect(current).toMatchObject({
+      state: "done",
+      source: "Mock reviewer (test data only)",
+      requestedAt: "6 Oct 2026, 09:00",
+      version: "5 Oct 2026, 17:30",
+      isCurrentVersion: true,
+      suggestedResult: "fail",
+      confidencePct: 85,
+      readable: true,
+    });
+    const older = model().history.find((review) => review.id === REVIEW_IDS.older);
+    expect(older?.isCurrentVersion).toBe(false);
+  });
+
+  it("attaches the latest decision on each finding, and keeps the earlier ones", () => {
+    const f1 = model().current?.findings.find((finding) => finding.id === "F1");
+    expect(f1?.decision).toEqual({
+      action: "disagree",
+      note: "The indicative weight on the sheet is for size L.",
+      actor: "Admin B",
+      at: "6 Oct 2026, 09:20",
+    });
+    expect(f1?.history).toEqual([{ action: "agree", note: null, actor: "Admin A", at: "6 Oct 2026, 09:10" }]);
+    // Decisions belong to their own review.
+    const older = model().history.find((review) => review.id === REVIEW_IDS.older);
+    expect(older?.findings[0].decision?.action).toBe("fixed");
+    expect(model().current?.findings.find((finding) => finding.id === "F2")?.decision).toBeNull();
+  });
+
+  it("points photo evidence at signed thumbnails, and says when a photo is gone or cannot be shown", () => {
+    const photos = model().current?.findings.find((finding) => finding.id === "F1")?.evidence.photos;
+    expect(photos).toEqual([
+      {
+        id: IDS.photoWeight,
+        caption: "Scale reading",
+        tags: "Weight (g) · Size M",
+        thumbUrl: "https://storage.test/thumb-weight.jpg",
+        url: "https://storage.test/weight.jpg",
+        state: "ok",
+      },
+      { id: UNKNOWN_PHOTO, caption: null, tags: null, thumbUrl: null, url: null, state: "missing" },
+      {
+        id: IDS.photoHeic,
+        caption: null,
+        tags: null,
+        thumbUrl: null,
+        url: "https://storage.test/original.heic",
+        state: "flagged",
+      },
+    ]);
+  });
+
+  it("waits for a review still being written and lets no second one start for the same version", () => {
+    const running = storedReview({
+      id: REVIEW_IDS.running,
+      status: "pending",
+      findings: [],
+      questions: [],
+      createdAt: new Date(NOW - 60_000).toISOString(),
+    });
+    const panel = model({ reviews: [running, ...reviewHistory()] });
+    expect(panel.attempt).toMatchObject({ id: REVIEW_IDS.running, state: "pending" });
+    expect(panel.pendingIds).toEqual([REVIEW_IDS.running]);
+    expect(panel.review).toMatchObject({ canRequest: false, blockedReason: ALREADY_PENDING });
+
+    const stale = model({ reviews: [running], now: NOW + STALE_REVIEW_MS });
+    expect(stale.attempt?.state).toBe("stopped");
+    expect(stale.review.canRequest).toBe(true);
+  });
+
+  it("has no current review and no attempt before the first request", () => {
+    const panel = model({ reviews: [], decisions: [] });
+    expect(panel).toMatchObject({ current: null, attempt: null, history: [], pendingIds: [] });
+    expect(panel.overall.ai).toEqual({ findings: [], questions: [] });
+  });
+});
+
+describe("buildAiPanelModel: the three columns", () => {
+  it("puts the overall results side by side: suggested, the inspector's final result and remark, the AI's view", () => {
+    const { overall } = model();
+    expect(overall.system).toEqual({ result: "fail", summary: expect.stringContaining("Fail") });
+    expect(overall.inspector).toEqual({
+      name: "Inspector A",
+      finalResult: "hold",
+      remark: "Weight below the indicative value; waiting for the spec sheet.",
+      comment: null,
+    });
+    expect(overall.ai.findings.map((finding) => finding.id)).toEqual(["F4"]);
+    expect(overall.ai.questions.map((question) => question.id)).toEqual(["Q1", "Q2"]);
+  });
+
+  it("lists the sections with something to compare in template order, the rest as quiet", () => {
+    const panel = model();
+    expect(panel.sections.map((section) => [section.key, section.kind])).toEqual([
+      ["glove_type", "custom"],
+      ["glove_info", "module"],
+      ["packing_config", "module"],
+      ["carton_sampling", "module"],
+      ["dimensions", "excluded"],
+      ["weight", "module"],
+      ["tensile", "other"],
+    ]);
+    expect(panel.quiet).toEqual([
+      { key: "header", title: "Manufacturer Information", status: "info" },
+      { key: "order_lots", title: "Order", status: "info" },
+      { key: "sampling_plan", title: "Sampling Plan", status: "info" },
+      { key: "visual", title: "Visual Inspection", status: "pass" },
+    ]);
+  });
+
+  it("shows each section's computed result, issues, the inspector's comment and the AI's findings and questions", () => {
+    const sections = new Map(model().sections.map((section) => [section.key, section]));
+    expect(sections.get("weight")).toMatchObject({
+      title: "Weight (g)",
+      system: { status: "warn", warnings: expect.arrayContaining([expect.stringContaining("indicative")]) },
+      inspector: { comment: "Weighed on the factory scale." },
+    });
+    expect(sections.get("weight")?.ai.findings.map((finding) => finding.id)).toEqual(["F1"]);
+    expect(sections.get("weight")?.ai.questions.map((question) => question.id)).toEqual(["Q3"]);
+    expect(sections.get("carton_sampling")?.system).toMatchObject({
+      status: "fail",
+      errors: [expect.stringContaining("578")],
+    });
+    expect(sections.get("dimensions")?.system).toMatchObject({
+      status: null,
+      excludedReason: "Calipers out for calibration.",
+    });
+    expect(sections.get("glove_info")?.inspector.comment).toBe("Indicative weight from the glove spec sheet.");
+    expect(sections.get("glove_type")?.ai.findings.map((finding) => finding.id)).toEqual(["F3"]);
+  });
+
+  it("leaves the AI column empty when there is no finished review", () => {
+    const panel = model({ reviews: [] });
+    expect(panel.sections.every((section) => section.ai.findings.length === 0 && section.ai.questions.length === 0)).toBe(true);
+    expect(panel.sections.some((section) => section.kind === "other")).toBe(false);
+  });
+});
+
+describe("buildAiPanelModel: who may do what", () => {
+  it("lets an admin request a second opinion of a submitted inspection when a reviewer is connected", () => {
+    expect(model().review).toMatchObject({ connected: true, canRequest: true, blockedReason: null, mock: true });
+    expect(model({ aiStatus: OFF_STATUS }).review).toMatchObject({
+      connected: false,
+      canRequest: false,
+      label: "AI second opinion not connected",
+    });
+  });
+
+  it("gives inspectors the opinions to read and nothing to do", () => {
+    const panel = model({ isAdmin: false, decisions: [] });
+    expect(panel.viewer.isAdmin).toBe(false);
+    expect(panel.review.canRequest).toBe(false);
+    expect(panel.report.canSend).toBe(false);
+    expect(panel.current?.findings.length).toBeGreaterThan(0);
+  });
+
+  it("keeps drafts out of both hand-offs, and says why", () => {
+    const draft = { ...record, status: "draft" as const };
+    const panel = model({ record: draft, aiStatus: { ...MOCK_STATUS, report: { connected: true, provider: "webhook", label: "AI report connected (webhook)" } } });
+    expect(panel.review).toMatchObject({ canRequest: false, blockedReason: NOT_REVIEWABLE });
+    expect(panel.report).toMatchObject({ connected: true, canSend: false, blockedReason: NOT_REPORTABLE });
+  });
+
+  it("names the variable to fix to admins only", () => {
+    const misconfigured = {
+      ...OFF_STATUS,
+      review: {
+        connected: false,
+        provider: "misconfigured" as const,
+        label: "AI second opinion not connected: configuration error",
+        detail: "AI_REVIEW_PROVIDER is claude but ANTHROPIC_API_KEY is not set.",
+      },
+    };
+    expect(model({ aiStatus: misconfigured }).review.detail).toContain("ANTHROPIC_API_KEY");
+    expect(model({ aiStatus: misconfigured, isAdmin: false }).review.detail).toBeNull();
+  });
+
+  it("links to the export and the report", () => {
+    const panel = model({ record: { ...record, reportUrl: "https://reports.test/INS-2026-0042.pdf" } });
+    expect(panel.inspection).toMatchObject({
+      exportHref: `/api/inspections/${IDS.inspection}/export`,
+      reportUrl: "https://reports.test/INS-2026-0042.pdf",
+      savedAt: "5 Oct 2026, 17:30",
+    });
+  });
+});

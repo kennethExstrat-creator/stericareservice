@@ -22,7 +22,7 @@ describe("documents data", () => {
     const empty = emptyDocuments();
     expect(Object.keys(empty.items)).toEqual([...DOCUMENT_ITEMS]);
     for (const item of DOCUMENT_ITEMS) {
-      expect(empty.items[item]).toEqual({ status: null, referenceNo: null, expiryDate: null });
+      expect(empty.items[item]).toEqual({ status: null, referenceNo: null, expiryDate: null, file: null });
     }
     expect(DocumentsDataSchema.parse({ items: { iso13485: { status: "verified" } } }).items.iso13485).toEqual({
       ...emptyDocumentEntry(),
@@ -30,11 +30,11 @@ describe("documents data", () => {
     });
   });
 
-  it("uses the dictionary's items and entered keys (the file is an inspection_files row)", () => {
+  it("uses the dictionary's items and entered keys (the file as its inspection_files id)", () => {
     expect([...DOCUMENT_ITEMS]).toEqual([...DICTIONARY_ITEMS]);
     expect(Object.keys(DocumentItemsSchema.shape)).toEqual([...DICTIONARY_ITEMS]);
     expect(Object.keys(DocumentEntrySchema.shape)).toEqual([...DOCUMENT_FIELDS]);
-    expect(dataKeys("documents", "entered")).toEqual([...DOCUMENT_FIELDS, "file"]);
+    expect(dataKeys("documents", "entered")).toEqual([...DOCUMENT_FIELDS]);
     expect(dataField("documents", "status")?.options).toEqual([...DOCUMENT_STATUSES]);
   });
 
@@ -65,7 +65,11 @@ describe("documents data", () => {
 
   it("rejects items and fields it does not have, the reserved comment included", () => {
     expect(DocumentsDataSchema.safeParse({ items: { packingList: { status: "verified" } } }).success).toBe(false);
+    // A file is kept by its inspection_files id, never by name.
     expect(DocumentsDataSchema.safeParse({ items: { iso13485: { file: "x.pdf" } } }).success).toBe(false);
+    expect(
+      DocumentsDataSchema.safeParse({ items: { iso13485: { file: "00000000-0000-4000-8000-000000000501" } } }).success,
+    ).toBe(true);
     expect(DocumentsDataSchema.safeParse({ items: {}, comment: "x" }).success).toBe(false);
   });
 });

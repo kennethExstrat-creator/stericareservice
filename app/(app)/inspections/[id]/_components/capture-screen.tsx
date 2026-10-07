@@ -1,0 +1,1055 @@
+"use client";
+
+// The capture screen (BUILD_SPEC 8 and 10): an inspection's sections as tabs
+// with progress and a result chip each, the open section's form, the issues
+// panel, autosave and submit.
+//
+// Layout: below 1280 px (the iPad) a section tab bar sticks under the shell's
+// top bar with the save pill, and the form runs full width; from 1280 px a
+// sidebar lists the sections with their progress and results, the save pill,
+// Issues and Submit, and the form sits beside it.
+//
+// Data flow: the page renders the server's copy; autosave settles it against
+// this device's local copy (a newer local copy is restored). Every edit
+// replaces the module's data in one immutable `InspectionData`, goes to the
+// local copy and the server (use-capture-autosave.ts), and the whole
+// inspection is evaluated again with the framework (results, live totals,
+// issues), a frame behind typing at most (useDeferredValue). Saves also
+// bring back the inspection's status and module overrides, so a section
+// switched off or a submit made on another device shows here too.
+//
+// Leaving: number fields keep a half-typed value until they lose focus, and
+// a tap on the iPad does not move focus, so a click anywhere outside the open
+// section (a link, the menu, Submit) first leaves the field. The header's
+// Photos and Review wait for the last save; any other way out sends it as the
+// screen goes (use-capture-autosave.ts).
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+  type RefObject,
+} from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ChevronLeftIcon, ChevronRightIcon, FileSearchIcon, ImagesIcon, ListChecksIcon, RefreshCwIcon } from "lucide-react";
+import { toast } from "sonner";
+import { ProgressTracker } from "@/components/qc";
+import { useMediaQuery, WIDE_QUERY } from "@/components/qc/use-media-query";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { isEditableStatus, type CaptureAccess, type UserRole } from "@/lib/inspections/capture/access";
+import { evaluateCapture, type CaptureMeta } from "@/lib/inspections/capture/evaluate";
+import { mappedFieldValues } from "@/lib/inspections/capture/fields";
+import { countIssues, groupIssues, unseenIssues } from "@/lib/inspections/capture/issues";
+import { canBeSwitchedOff } from "@/lib/inspections/capture/overrides";
+import {
+  captureSections,
+  findSection,
+  initialSectionKey,
+  isIncluded,
+  neighbours,
+  progressSteps,
+  type CaptureSection,
+} from "@/lib/inspections/capture/sections";
+import { describeWaitingUploads } from "@/lib/inspections/capture/uploads";
+import { BUSY_MESSAGE, type AutosaveError, type StartResult } from "@/lib/offline";
+import { contentHash } from "@/lib/offline/stable-json";
+import { isModuleKey } from "@/lib/schemas/module-result";
+import type { ModuleOverrides, ResolvedTemplate } from "@/lib/schemas/template";
+import type { IssuePath, ValidationIssue } from "@/lib/validation";
+import { cn } from "@/lib/utils";
+import {
+  parseCanonicalPath,
+  readModuleEntry,
+  writeModuleComment,
+  writeModuleData,
+  writePath,
+  type CaptureFocus,
+  type DataNamespace,
+  type InspectionData,
+} from "@/modules/_framework";
+import type { CaptureServerState } from "../actions";
+import { CaptureHeader, type CaptureHeading } from "./capture-header";
+import { CaptureNotices, type CaptureNotice } from "./capture-notices";
+import { ConflictDialog } from "./conflict-dialog";
+import { IssuesSheet } from "./issues-sheet";
+import { SwitchedOffPanel, SwitchOffDialog } from "./module-switch";
+import { PhotoSlot } from "./photo-slot";
+import { SaveIndicator } from "./save-indicator";
+import { CustomBody, ModuleBody } from "./section-body";
+import { SectionComment, SectionFrame } from "./section-frame";
+import { SectionList } from "./section-list";
+import { SectionTabs, tabId } from "./section-tabs";
+import { SubmitControl, type SubmitBlocked, type SubmitPreparation } from "./submit-control";
+import { LEAVE_FLUSH_MS, useCaptureAutosave } from "./use-capture-autosave";
+import { useStickyOffsets } from "./use-sticky-offsets";
+import { useWaitingUploads } from "./use-waiting-uploads";
+
+export type CaptureScreenProps = {
+  inspectionId: string;
+  heading: CaptureHeading;
+  /** The exact template version, as stored in `templates.resolved`. */
+  template: ResolvedTemplate;
+  meta: CaptureMeta;
+  initialData: InspectionData;
+  /** inspections.updated_at as Postgres returned it. */
+  initialUpdatedAt: string;
+  initialOverrides: ModuleOverrides;
+  /** Names of the admins who switched modules off, where this user may read them. */
+  overrideAuthors: Readonly<Record<string, string>>;
+  user: { id: string; role: UserRole };
+  access: CaptureAccess;
+  /** From `?module=`; the first section when it is not one. */
+  initialSection: string | null;
+};
+
+type FocusRequest = { sectionKey: string; path: IssuePath };
+
+export function CaptureScreen({
+  inspectionId,
+  heading,
+  template,
+  meta,
+  initialData,
+  initialUpdatedAt,
+  initialOverrides,
+  overrideAuthors,
+  user,
+  access,
+  initialSection,
+}: CaptureScreenProps) {
+  const idPrefix = useId();
+  const panelId = `${idPrefix}-section`;
+  const rootRef = useRef<HTMLDivElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useStickyOffsets(rootRef, barRef, panelId);
+
+  /* -------------------------------------------------------------- *
+   * Data and autosave
+   * -------------------------------------------------------------- */
+
+  const [overrides, setOverrides] = useState(initialOverrides);
+  const [data, setData] = useState(initialData);
+  const dataRef = useRef(data);
+  const [setAside, setSetAside] = useState(false);
+  // The status as the last save found it: submitted or approved since the page loaded means another device did it.
+  const [serverStatus, setServerStatus] = useState(heading.status);
+  const lockedElsewhere = access.editable && !isEditableStatus(serverStatus);
+
+  /** Overrides the server answered with: a section switched off or on elsewhere leaves or joins capture here. */
+  const followOverrides = useCallback((next: ModuleOverrides) => {
+    setOverrides((current) => (contentHash(current) === contentHash(next) ? current : next));
+  }, []);
+
+  const followServer = useCallback(
+    (state: CaptureServerState) => {
+      setServerStatus(state.status);
+      followOverrides(state.overrides);
+    },
+    [followOverrides],
+  );
+
+  /** Data from the autosave (restored, or the other device's version): shown as it is, not saved again. */
+  const replaceData = useCallback((next: InspectionData) => {
+    dataRef.current = next;
+    setData(next);
+  }, []);
+
+  const onStart = useCallback(
+    (result: StartResult<InspectionData>) => {
+      if (result.kind === "busy") return;
+      if (result.kind === "conflict") {
+        replaceData(result.local.data);
+        return;
+      }
+      if (contentHash(result.data) !== contentHash(dataRef.current)) replaceData(result.data);
+      if (result.kind === "restored") toast.info("Unsaved changes from this device were restored and are being saved.");
+      if (result.kind === "current" && result.setAside) setSetAside(true);
+    },
+    [replaceData],
+  );
+
+  const autosave = useCaptureAutosave({
+    inspectionId,
+    userId: user.id,
+    server: { data: initialData, updatedAt: initialUpdatedAt },
+    enabled: access.editable,
+    onStart,
+    onServerState: followServer,
+  });
+  const snapshot = autosave.snapshot;
+  const conflict = snapshot?.conflict ?? null;
+  const saveError = snapshot?.status === "error" ? snapshot.error : null;
+  const refused = saveError?.reason === "forbidden" || saveError?.reason === "not_found";
+  const readOnly = !access.editable || autosave.phase !== "running" || conflict !== null || refused;
+
+  const commit = useCallback(
+    (next: InspectionData) => {
+      dataRef.current = next;
+      setData(next);
+      autosave.change(next);
+    },
+    [autosave],
+  );
+
+  const writeEntry = useCallback(
+    (namespace: DataNamespace, key: string, next: unknown) => {
+      if (typeof next !== "object" || next === null || Array.isArray(next)) {
+        console.error(`[capture] ${key} handed back data that is not an object; nothing was stored.`, next);
+        return;
+      }
+      commit(writeModuleData(dataRef.current, namespace, key, next as Record<string, unknown>));
+    },
+    [commit],
+  );
+
+  const writeComment = useCallback(
+    (namespace: DataNamespace, key: string, comment: string) => {
+      commit(writeModuleComment(dataRef.current, namespace, key, comment));
+    },
+    [commit],
+  );
+
+  /** A custom field mapped to a module (Field.mapsTo) edits that module's value. */
+  const writeMapped = useCallback(
+    (mapsTo: string, value: unknown) => {
+      const target = parseCanonicalPath(mapsTo);
+      if (!target) return;
+      const current = readModuleEntry(dataRef.current, "modules", target.moduleKey).value;
+      writeEntry("modules", target.moduleKey, writePath(current ?? {}, target.segments, value));
+    },
+    [writeEntry],
+  );
+
+  /* -------------------------------------------------------------- *
+   * Evaluation and sections
+   * -------------------------------------------------------------- */
+
+  const deferredData = useDeferredValue(data);
+  const evaluation = useMemo(
+    () => evaluateCapture({ template, overrides, data: deferredData, meta }),
+    [template, overrides, deferredData, meta],
+  );
+  const { report, context } = evaluation;
+  const sections = useMemo(
+    () => captureSections(evaluation.template, report, deferredData),
+    [evaluation.template, report, deferredData],
+  );
+
+  const [activeKey, setActiveKey] = useState(() => initialSectionKey(sections, initialSection));
+  const active = findSection(sections, activeKey) ?? sections.find(isIncluded) ?? sections[0];
+  const [photoFocus, setPhotoFocus] = useState<CaptureFocus>({});
+  const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
+
+  const syncUrl = useCallback((key: string) => {
+    const params = new URLSearchParams(window.location.search);
+    params.set("module", key);
+    window.history.replaceState(null, "", `?${params.toString()}`);
+  }, []);
+
+  /**
+   * Leaves the field being edited in the open section, so a half-typed value
+   * is stored for the section it was typed in before that section goes
+   * (number fields commit on blur; a tap on the iPad does not move focus).
+   */
+  const leaveActiveField = useCallback(() => {
+    const field = document.activeElement;
+    if (field instanceof HTMLElement && document.getElementById(panelId)?.contains(field)) field.blur();
+  }, [panelId]);
+
+  // The same for every click outside the open section, before the click does
+  // its work: a link that leaves the screen (the shell's menu too), Submit,
+  // Issues. Inside the section a click is the form's own business, unless it
+  // follows a link.
+  useEffect(() => {
+    const onClick = (event: MouseEvent) => {
+      const panel = document.getElementById(panelId);
+      const field = document.activeElement;
+      if (!panel || !(field instanceof HTMLElement) || !panel.contains(field)) return;
+      const target = event.target;
+      const inside = target instanceof Node && panel.contains(target);
+      const followsLink = target instanceof Element && target.closest("a[href]") !== null;
+      if (inside && !followsLink) return;
+      field.blur();
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [panelId]);
+
+  /* Photos and Review in the header: the next page reads the inspection from
+     the server, so the last change is saved first (briefly: LEAVE_FLUSH_MS). */
+  const photosHref = `/inspections/${inspectionId}/photos`;
+  const reviewHref = `/inspections/${inspectionId}/review`;
+  const router = useRouter();
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const [leavingTo, setLeavingTo] = useState<string | null>(null);
+  const leaveTo = useCallback(
+    async (href: string) => {
+      leaveActiveField();
+      setLeavingTo(href);
+      try {
+        await autosave.flush({ timeoutMs: LEAVE_FLUSH_MS });
+      } finally {
+        // Gone meanwhile (another link was followed): stay out of its way.
+        if (mounted.current) router.push(href);
+      }
+    },
+    [autosave, leaveActiveField, router],
+  );
+
+  /** Opens a section; the page scrolls back up to it when its top is out of view. */
+  const selectSection = useCallback(
+    (key: string, { focusHeading = false }: { focusHeading?: boolean } = {}) => {
+      leaveActiveField();
+      setActiveKey(key);
+      setPhotoFocus({});
+      setFocusRequest(null);
+      syncUrl(key);
+      requestAnimationFrame(() => {
+        const title = headingRef.current;
+        if (!title) return;
+        if (title.getBoundingClientRect().top < stickyTopOf(rootRef.current)) scrollToTitle(title, rootRef.current);
+        if (focusHeading) title.focus({ preventScroll: true });
+      });
+    },
+    [leaveActiveField, syncUrl],
+  );
+
+  /* -------------------------------------------------------------- *
+   * Issues and submit
+   * -------------------------------------------------------------- */
+
+  const counts = useMemo(() => countIssues(report.issues), [report.issues]);
+  const groups = useMemo(() => groupIssues(report.issues, sections), [report.issues, sections]);
+  const [issuesOpen, setIssuesOpen] = useState(false);
+  const [blockedMessage, setBlockedMessage] = useState<string | null>(null);
+  // The errors the server found when it refused a submit.
+  const [serverErrors, setServerErrors] = useState<readonly ValidationIssue[] | null>(null);
+  /**
+   * Of those, the ones this screen does not show. The overrides they were
+   * found with are taken over (onBlocked), so they usually appear here at
+   * once; any left over mean the inspection changed in another way.
+   */
+  const unseenErrors = useMemo(() => unseenIssues(serverErrors, report.issues), [serverErrors, report.issues]);
+
+  const closeBlocked = useCallback(() => {
+    setBlockedMessage(null);
+    setServerErrors(null);
+  }, []);
+
+  const openIssues = useCallback(() => {
+    closeBlocked();
+    setIssuesOpen(true);
+  }, [closeBlocked]);
+
+  const goToIssue = useCallback(
+    (issue: ValidationIssue) => {
+      setIssuesOpen(false);
+      closeBlocked();
+      const sectionKey = issue.moduleKey;
+      setActiveKey(sectionKey);
+      setPhotoFocus({});
+      syncUrl(sectionKey);
+      setFocusRequest(null);
+      // After the panel has closed and the section is on screen.
+      requestAnimationFrame(() => {
+        const title = headingRef.current;
+        if (issue.path.length === 0) {
+          if (title) scrollToTitle(title, rootRef.current);
+          title?.focus({ preventScroll: true });
+          return;
+        }
+        // A new array for every click (docs/CAPTURE_KIT.md, "Issue links"):
+        // useIssueFocus follows each one once, so the same link twice still works.
+        setFocusRequest({ sectionKey, path: [...issue.path] });
+        // Nothing in the section took focus (a form without marks): its title does.
+        window.setTimeout(() => {
+          const panel = document.getElementById(panelId);
+          const heading = headingRef.current;
+          if (panel && heading && !panel.contains(document.activeElement)) {
+            scrollToTitle(heading, rootRef.current);
+            heading.focus({ preventScroll: true });
+          }
+        }, 700);
+      });
+    },
+    [closeBlocked, panelId, syncUrl],
+  );
+
+  const uploads = useWaitingUploads({ inspectionId, userId: user.id });
+
+  const prepareSubmit = useCallback(async (): Promise<SubmitPreparation> => {
+    try {
+      if (!(await uploads.isEmptyNow())) {
+        return {
+          ok: false,
+          message: `${uploads.count && uploads.count > 0 ? describeWaitingUploads(uploads.count) : "Photos are still uploading"}. Submit once they are done.`,
+        };
+      }
+    } catch {
+      return { ok: false, message: "Could not check this device's photo uploads. Try again." };
+    }
+    const flushed = await autosave.flush();
+    if (!flushed.ok) return { ok: false, message: `Not everything is saved yet. ${flushed.message}` };
+    return { ok: true, dataHash: contentHash(dataRef.current) };
+  }, [autosave, uploads]);
+
+  // After a refused submit, empty required fields say so where they are, too.
+  const [submitTried, setSubmitTried] = useState(false);
+  const onBlocked = useCallback(
+    ({ message, errors, overrides: found }: SubmitBlocked) => {
+      setSubmitTried(true);
+      setBlockedMessage(message);
+      setServerErrors(errors);
+      if (found) followOverrides(found);
+      setIssuesOpen(true);
+    },
+    [followOverrides],
+  );
+
+  /* -------------------------------------------------------------- *
+   * Switching sections off and on (admins)
+   * -------------------------------------------------------------- */
+
+  // The button pressed goes with the change (Switch off with the section's
+  // header controls, Switch back on with the panel): the title takes focus.
+  const focusTitleFor = useRef<ModuleOverrides | null>(null);
+  const onSwitched = useCallback((next: ModuleOverrides) => {
+    focusTitleFor.current = next;
+    setOverrides(next);
+  }, []);
+  useEffect(() => {
+    if (focusTitleFor.current !== overrides) return;
+    focusTitleFor.current = null;
+    headingRef.current?.focus({ preventScroll: true });
+  }, [overrides]);
+
+  // Below 1280 px the open section is the tab bar's panel; from 1280 px a region beside the sidebar.
+  const wide = useMediaQuery(WIDE_QUERY);
+
+  /* -------------------------------------------------------------- *
+   * Notices
+   * -------------------------------------------------------------- */
+
+  const notices = useMemo(
+    () =>
+      captureNotices({
+        access,
+        role: user.role,
+        reviewHref,
+        lockedElsewhere,
+        phase: autosave.phase,
+        setAside,
+        error: autosave.phase === "running" ? saveError : null,
+        localCopy: snapshot?.localCopy ?? true,
+        pending: snapshot?.pending ?? false,
+        retry: autosave.retryNow,
+        signInHref: `/login?next=${encodeURIComponent(`/inspections/${inspectionId}`)}`,
+      }),
+    [
+      access,
+      user.role,
+      reviewHref,
+      inspectionId,
+      lockedElsewhere,
+      autosave.phase,
+      autosave.retryNow,
+      setAside,
+      saveError,
+      snapshot?.localCopy,
+      snapshot?.pending,
+    ],
+  );
+
+  // Changes only this page holds (no local copy) would be lost by leaving: the browser asks first.
+  const unsafeToLeave = Boolean(snapshot?.pending && !snapshot.localCopy);
+  useEffect(() => {
+    if (!unsafeToLeave) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [unsafeToLeave]);
+
+  /* -------------------------------------------------------------- *
+   * Render
+   * -------------------------------------------------------------- */
+
+  // Another tab is the writer: read-only here on purpose, and the notice says so. No red pill for that.
+  const quietSave = autosave.phase === "busy" || saveError?.reason === "other_tab";
+  const saveStatus = !access.editable || quietSave ? null : (snapshot?.status ?? "saved");
+  // As the last save found it: submitted on another device shows here as submitted.
+  const shownHeading = serverStatus === heading.status ? heading : { ...heading, status: serverStatus };
+  const submitControl = (className?: string) =>
+    access.editable ? (
+      <SubmitControl
+        inspectionId={inspectionId}
+        refNo={heading.refNo}
+        errorCount={counts.errors}
+        warningCount={counts.warnings}
+        suggested={report.suggested}
+        prepare={prepareSubmit}
+        onBlocked={onBlocked}
+        disabled={readOnly}
+        className={className}
+      />
+    ) : null;
+  const issuesButton = (className?: string) => (
+    <IssuesButton errors={counts.errors} warnings={counts.warnings} onClick={openIssues} className={className} />
+  );
+  const { previous, next } = active ? neighbours(sections, active.key) : { previous: null, next: null };
+
+  return (
+    <div
+      ref={rootRef}
+      data-slot="capture-screen"
+      className={cn(
+        "flex flex-col gap-6",
+        // Until use-sticky-offsets measures: the shell's top bar, plus the section tab bar below 1280 px.
+        "[--capture-sticky-bottom:0px] [--capture-sticky-top:0px]",
+        "max-xl:[--capture-sticky-top:calc(var(--shell-top,0px)_+_2.5rem_+_1px)] max-xl:touch:[--capture-sticky-top:calc(var(--shell-top,0px)_+_2.75rem_+_1px)]",
+      )}
+    >
+      <CaptureHeader
+        heading={shownHeading}
+        actions={
+          <>
+            <LeaveLink
+              href={photosHref}
+              icon={<ImagesIcon aria-hidden />}
+              leaving={leavingTo === photosHref}
+              onLeave={leaveTo}
+            >
+              Photos
+            </LeaveLink>
+            {shownHeading.status !== "draft" && (
+              <LeaveLink
+                href={reviewHref}
+                icon={<FileSearchIcon aria-hidden />}
+                leaving={leavingTo === reviewHref}
+                onLeave={leaveTo}
+              >
+                Review
+              </LeaveLink>
+            )}
+            {issuesButton("xl:hidden")}
+            {submitControl("xl:hidden")}
+          </>
+        }
+      />
+
+      <CaptureNotices notices={notices} />
+
+      <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[16rem_minmax(0,1fr)] xl:items-start xl:gap-8">
+        {/* From 1280 px: the sidebar. */}
+        <aside
+          aria-label="Sections and progress"
+          className="hidden xl:sticky xl:top-(--shell-top) xl:flex xl:max-h-dvh xl:flex-col xl:gap-4 xl:self-start xl:overflow-y-auto xl:py-1"
+        >
+          <div className="space-y-4 rounded-xl bg-card p-3 shadow-sm ring-1 ring-border">
+            {saveStatus && (
+              <div className="px-1">
+                <SaveIndicator status={saveStatus} pendingUploads={uploads.count} />
+              </div>
+            )}
+            <ProgressTracker
+              className="px-1"
+              steps={progressSteps(sections)}
+              activeKey={active?.key}
+              label="Progress"
+            />
+            <SectionList sections={sections} activeKey={active?.key ?? ""} onSelect={(key) => selectSection(key)} />
+            <div className="flex flex-col gap-2 border-t border-border px-1 pt-3">
+              {issuesButton("w-full justify-between")}
+              {submitControl("w-full")}
+            </div>
+          </div>
+        </aside>
+
+        <div className="flex min-w-0 flex-col gap-4">
+          {/* Below 1280 px: the sticky section tab bar with the save pill. */}
+          <div
+            ref={barRef}
+            data-slot="capture-bar"
+            className={cn(
+              "sticky top-(--shell-top) z-30 flex items-center gap-3 border-b border-border bg-card xl:hidden",
+              "-mr-[max(1.5rem,env(safe-area-inset-right))] -ml-[max(1.5rem,env(safe-area-inset-left))] pr-[max(1.5rem,env(safe-area-inset-right))] pl-[max(0.75rem,env(safe-area-inset-left))]",
+            )}
+          >
+            <SectionTabs
+              sections={sections}
+              activeKey={active?.key ?? ""}
+              onSelect={(key) => selectSection(key)}
+              panelId={panelId}
+              idPrefix={idPrefix}
+            />
+            {saveStatus && <SaveIndicator status={saveStatus} pendingUploads={uploads.count} className="shrink-0" />}
+          </div>
+
+          <ProgressTracker
+            className="xl:hidden"
+            steps={progressSteps(sections)}
+            activeKey={active?.key}
+            onStepSelect={(key) => selectSection(key)}
+            label="Progress"
+          />
+
+          {active && (
+            <ActiveSection
+              key={active.key}
+              section={active}
+              panelId={panelId}
+              headingRef={headingRef}
+              tabLabelledBy={wide ? undefined : tabId(idPrefix, active.key)}
+              template={template}
+              effective={evaluation.template}
+              overrides={overrides}
+              overrideAuthors={overrideAuthors}
+              userId={user.id}
+              data={data}
+              report={report}
+              context={context}
+              focusPath={focusRequest?.sectionKey === active.key ? focusRequest.path : null}
+              readOnly={readOnly}
+              showRequired={submitTried}
+              access={access}
+              inspectionId={inspectionId}
+              photoFocus={photoFocus}
+              onPhotoFocus={setPhotoFocus}
+              onModuleChange={(key, value) => writeEntry("modules", key, value)}
+              onCustomChange={(key, value) => writeEntry("custom", key, value)}
+              onMappedChange={writeMapped}
+              onCommentChange={writeComment}
+              onOverridesChange={onSwitched}
+            />
+          )}
+
+          {(previous || next) && (
+            <nav aria-label="Previous and next section" className="flex flex-wrap items-center justify-between gap-3">
+              {previous ? (
+                <Button type="button" variant="outline" onClick={() => selectSection(previous.key, { focusHeading: true })}>
+                  <ChevronLeftIcon aria-hidden />
+                  <span className="sr-only">Previous: </span>
+                  <span className="max-w-60 truncate">{previous.title}</span>
+                </Button>
+              ) : (
+                <span />
+              )}
+              {next && (
+                <Button type="button" onClick={() => selectSection(next.key, { focusHeading: true })}>
+                  <span className="sr-only">Next: </span>
+                  <span className="max-w-60 truncate">{next.title}</span>
+                  <ChevronRightIcon aria-hidden />
+                </Button>
+              )}
+            </nav>
+          )}
+        </div>
+      </div>
+
+      <IssuesSheet
+        open={issuesOpen}
+        onOpenChange={(open) => {
+          setIssuesOpen(open);
+          if (!open) closeBlocked();
+        }}
+        groups={groups}
+        counts={counts}
+        blockedMessage={blockedMessage}
+        unseenErrors={unseenErrors}
+        onGo={goToIssue}
+      />
+      <ConflictDialog
+        open={conflict !== null}
+        localChangedAt={conflict?.local.changedAt ?? null}
+        onKeep={(keep) => {
+          const kept = autosave.resolveConflict(keep);
+          if (kept) replaceData(kept);
+        }}
+      />
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * The open section
+ * ------------------------------------------------------------------ */
+
+type ActiveSectionProps = {
+  section: CaptureSection;
+  panelId: string;
+  headingRef: RefObject<HTMLHeadingElement | null>;
+  /** Below 1280 px: the id of the section's tab, which names the panel (WAI-ARIA tabs). */
+  tabLabelledBy?: string;
+  /** As stored, for what may be switched off. */
+  template: ResolvedTemplate;
+  /** Overrides applied: what capture shows. */
+  effective: ResolvedTemplate;
+  overrides: ModuleOverrides;
+  overrideAuthors: Readonly<Record<string, string>>;
+  /** The signed-in user: "Switched off by you". */
+  userId: string;
+  data: InspectionData;
+  report: ReturnType<typeof evaluateCapture>["report"];
+  context: ReturnType<typeof evaluateCapture>["context"];
+  focusPath: IssuePath | null;
+  readOnly: boolean;
+  /** Submit was tried: empty required fields say so. */
+  showRequired: boolean;
+  access: CaptureAccess;
+  inspectionId: string;
+  photoFocus: CaptureFocus;
+  onPhotoFocus: (focus: CaptureFocus) => void;
+  onModuleChange: (key: string, value: unknown) => void;
+  onCustomChange: (key: string, value: unknown) => void;
+  onMappedChange: (mapsTo: string, value: unknown) => void;
+  onCommentChange: (namespace: DataNamespace, key: string, comment: string) => void;
+  onOverridesChange: (overrides: ModuleOverrides) => void;
+};
+
+function ActiveSection({
+  section,
+  panelId,
+  headingRef,
+  tabLabelledBy,
+  template,
+  effective,
+  overrides,
+  overrideAuthors,
+  userId,
+  data,
+  report,
+  context,
+  focusPath,
+  readOnly,
+  showRequired,
+  access,
+  inspectionId,
+  photoFocus,
+  onPhotoFocus,
+  onModuleChange,
+  onCustomChange,
+  onMappedChange,
+  onCommentChange,
+  onOverridesChange,
+}: ActiveSectionProps) {
+  if (section.kind === "excluded") {
+    return (
+      <SectionFrame
+        id={panelId}
+        tabLabelledBy={tabLabelledBy}
+        title={section.title}
+        headingRef={headingRef}
+        summary="Switched off for this inspection"
+      >
+        <SwitchedOffPanel
+          inspectionId={inspectionId}
+          moduleKey={section.key}
+          title={section.title}
+          override={section.override}
+          author={section.override.by === userId ? "you" : (overrideAuthors[section.override.by] ?? null)}
+          canSwitch={access.canSwitchModules}
+          onChanged={onOverridesChange}
+        />
+      </SectionFrame>
+    );
+  }
+
+  const namespace: DataNamespace = section.kind === "module" ? "modules" : "custom";
+  const entry = data[namespace][section.key];
+  const comment = readModuleEntry(data, namespace, section.key).comment;
+  const footer = (
+    <>
+      <SectionComment
+        value={comment}
+        onChange={(text) => onCommentChange(namespace, section.key, text)}
+        readOnly={readOnly}
+      />
+      <PhotoSlot inspectionId={inspectionId} moduleKey={section.key} focus={photoFocus} readOnly={readOnly} />
+    </>
+  );
+
+  if (section.kind === "custom") {
+    const evaluation = report.custom.find((candidate) => candidate.custom.key === section.key);
+    return (
+      <SectionFrame
+        id={panelId}
+        tabLabelledBy={tabLabelledBy}
+        title={section.title}
+        headingRef={headingRef}
+        status={section.status}
+        footer={footer}
+      >
+        {evaluation && (
+          <CustomBody
+            evaluation={evaluation}
+            entry={entry}
+            mappedValues={mappedFieldValues(evaluation.custom, data)}
+            context={context}
+            focusPath={focusPath}
+            readOnly={readOnly}
+            showRequired={showRequired}
+            onChange={(next) => onCustomChange(section.key, next)}
+            onMappedChange={onMappedChange}
+            onFocusChange={onPhotoFocus}
+          />
+        )}
+      </SectionFrame>
+    );
+  }
+
+  const resolved = effective.modules.find((candidate) => candidate.key === section.key);
+  const evaluation = report.modules.find((candidate) => candidate.key === section.key) ?? null;
+  const switchable =
+    access.canSwitchModules && isModuleKey(section.key) && canBeSwitchedOff(template, overrides, section.key);
+  return (
+    <SectionFrame
+      id={panelId}
+      tabLabelledBy={tabLabelledBy}
+      title={section.title}
+      headingRef={headingRef}
+      status={section.status}
+      // A placeholder's summary ("Not built yet") repeats the notice in its body.
+      summary={section.stub ? undefined : section.summary || undefined}
+      actions={
+        switchable ? (
+          <SwitchOffDialog
+            inspectionId={inspectionId}
+            moduleKey={section.key}
+            title={section.title}
+            onChanged={onOverridesChange}
+          />
+        ) : undefined
+      }
+      footer={footer}
+    >
+      {resolved && (
+        <ModuleBody
+          moduleKey={section.key}
+          resolved={resolved}
+          entry={entry}
+          evaluation={evaluation}
+          context={context}
+          focusPath={focusPath}
+          readOnly={readOnly}
+          onChange={(next) => onModuleChange(section.key, next)}
+          onFocusChange={onPhotoFocus}
+        />
+      )}
+    </SectionFrame>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * Pieces
+ * ------------------------------------------------------------------ */
+
+/** Space between the sticky bars and a section title scrolled up to them. */
+const TITLE_GAP_PX = 16;
+
+/** Where the screen's sticky bars end (use-sticky-offsets.ts), in px from the top of the viewport. */
+function stickyTopOf(root: HTMLElement | null): number {
+  return Number.parseFloat(root?.style.getPropertyValue("--capture-sticky-top") ?? "") || 0;
+}
+
+/**
+ * Scrolls the page so a section title sits just below the sticky bars. Not
+ * scrollIntoView: the page's scroll padding also makes room for a module's
+ * own sticky size bar, which is not stuck while its title is in view.
+ */
+function scrollToTitle(title: HTMLElement, root: HTMLElement | null) {
+  const top = window.scrollY + title.getBoundingClientRect().top - stickyTopOf(root) - TITLE_GAP_PX;
+  window.scrollTo({ top: Math.max(0, top) });
+}
+
+/**
+ * A header link that leaves the capture screen once the last change is
+ * saved: Next.js's navigation is held (onNavigate) while `onLeave` saves and
+ * then follows the link. Opening it in a new tab works as any link.
+ */
+function LeaveLink({
+  href,
+  icon,
+  leaving,
+  onLeave,
+  children,
+}: {
+  href: string;
+  icon: ReactNode;
+  /** Saving before leaving for this link. */
+  leaving: boolean;
+  onLeave: (href: string) => void;
+  children: ReactNode;
+}) {
+  const onNavigate: ComponentProps<typeof Link>["onNavigate"] = (event) => {
+    event.preventDefault();
+    onLeave(href);
+  };
+  return (
+    <Button asChild variant="outline">
+      <Link href={href} onNavigate={onNavigate} aria-busy={leaving || undefined}>
+        {leaving ? <Spinner aria-hidden /> : icon}
+        {children}
+      </Link>
+    </Button>
+  );
+}
+
+function IssuesButton({
+  errors,
+  warnings,
+  onClick,
+  className,
+}: {
+  errors: number;
+  warnings: number;
+  onClick: () => void;
+  className?: string;
+}) {
+  return (
+    <Button type="button" variant="outline" onClick={onClick} className={className} data-action="issues" aria-haspopup="dialog">
+      <span className="inline-flex items-center gap-1.5">
+        <ListChecksIcon aria-hidden />
+        Issues
+      </span>
+      <span className="inline-flex items-center gap-1">
+        {errors > 0 && (
+          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-fail-solid px-1.5 text-xs font-bold text-fail-solid-foreground tabular-nums">
+            {errors}
+            <span className="sr-only">{errors === 1 ? " error" : " errors"}</span>
+          </span>
+        )}
+        {warnings > 0 && (
+          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-warn-solid px-1.5 text-xs font-bold text-warn-solid-foreground tabular-nums">
+            {warnings}
+            <span className="sr-only">{warnings === 1 ? " warning" : " warnings"}</span>
+          </span>
+        )}
+      </span>
+    </Button>
+  );
+}
+
+function captureNotices({
+  access,
+  role,
+  reviewHref,
+  lockedElsewhere,
+  phase,
+  setAside,
+  error,
+  localCopy,
+  pending,
+  retry,
+  signInHref,
+}: {
+  access: CaptureAccess;
+  role: UserRole;
+  reviewHref: string;
+  /** Submitted or approved since this page loaded, as a save found: the review is where it went. */
+  lockedElsewhere: boolean;
+  phase: ReturnType<typeof useCaptureAutosave>["phase"];
+  setAside: boolean;
+  error: AutosaveError | null;
+  localCopy: boolean;
+  pending: boolean;
+  retry: () => void;
+  signInHref: string;
+}): CaptureNotice[] {
+  const notices: CaptureNotice[] = [];
+  const reload = (
+    <Button type="button" variant="outline" size="sm" onClick={() => window.location.reload()}>
+      <RefreshCwIcon aria-hidden />
+      Reload
+    </Button>
+  );
+
+  if (access.readOnlyReason === "approved") {
+    notices.push({ key: "approved", tone: "lock", message: "Approved: this inspection is read-only." });
+  } else if (access.readOnlyReason === "submitted") {
+    notices.push({
+      key: "submitted",
+      tone: "lock",
+      message:
+        role === "admin"
+          ? "Submitted for review: read-only here. To change it, reopen it from the review."
+          : "Submitted for review: read-only. An admin can send it back to you for changes.",
+      action: (
+        <Button asChild variant="outline" size="sm">
+          <Link href={reviewHref}>Open the review</Link>
+        </Button>
+      ),
+    });
+  } else if (access.readOnlyReason === "not_yours") {
+    notices.push({ key: "not-yours", tone: "lock", message: "This inspection belongs to another inspector: read-only." });
+  }
+
+  if (phase === "busy") notices.push({ key: "busy", tone: "warn", message: BUSY_MESSAGE, action: reload });
+  if (phase === "failed") {
+    notices.push({
+      key: "failed",
+      tone: "error",
+      message: "Saving could not start on this page. Reload it before entering anything.",
+      action: reload,
+    });
+  }
+  if (setAside) {
+    notices.push({
+      key: "set-aside",
+      tone: "info",
+      message: "An older unsaved copy on this device could not be read and was kept aside.",
+    });
+  }
+
+  if (error && error.reason !== "conflict") {
+    let action: ReactNode;
+    if (error.reason === "unauthorized") {
+      action = (
+        <Button asChild variant="outline" size="sm">
+          <Link href={signInHref}>Sign in again</Link>
+        </Button>
+      );
+    } else if (error.reason === "forbidden" || error.reason === "not_found") {
+      // Refused for good (submitted elsewhere, no longer this user's, gone): trying again cannot help.
+      action = lockedElsewhere ? (
+        <>
+          <Button asChild variant="outline" size="sm">
+            <Link href={reviewHref}>Open the review</Link>
+          </Button>
+          {reload}
+        </>
+      ) : (
+        reload
+      );
+    } else if (error.reason === "other_tab") {
+      action = reload;
+    } else if (error.reason !== "storage") {
+      action = (
+        <Button type="button" variant="outline" size="sm" onClick={retry}>
+          <RefreshCwIcon aria-hidden />
+          Try again
+        </Button>
+      );
+    }
+    notices.push({ key: "save-error", tone: "error", message: `Not saved. ${error.message}`, action });
+  } else if (!localCopy && pending) {
+    notices.push({
+      key: "no-local-copy",
+      tone: "warn",
+      message: "This browser keeps no copy on this device. Keep the page open until it shows Saved.",
+    });
+  }
+  return notices;
+}
