@@ -1,11 +1,12 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { InspectionFileMeta } from "@/lib/export/evaluate";
+import { fileRef } from "@/lib/export/evaluate";
 import { manufacturerLabel, personLabel } from "@/lib/inspections/format";
 import { PHOTO_BUCKET } from "@/lib/photos/paths";
 import type { InspectionResult, InspectionStatus } from "@/lib/schemas/common";
 import type { ModuleKey } from "@/lib/schemas/module-result";
 import type { Database } from "@/lib/supabase/database.types";
+import type { FileKind, InspectionFileRef } from "@/modules/_framework";
 import { actorOf, type Actor, type KnownPeople } from "./actor";
 import { buildAuditTrail, type AuditEntry } from "./audit";
 import { evaluateStoredInspection, inspectorDecision, type ReviewEvaluation } from "./evaluate";
@@ -192,7 +193,7 @@ export async function loadReview(supabase: Client, inspectionId: string, viewer:
 }
 
 type FileRowsResult = {
-  data: { id: string; module_key: string | null; kind: InspectionFileMeta["kind"] }[] | null;
+  data: { id: string; module_key: string | null; kind: FileKind }[] | null;
   error: { code?: string; message: string } | null;
 };
 
@@ -201,12 +202,12 @@ type FileRowsResult = {
  * not knowing them is not the same as having none, so a lab report kept by
  * a module never reads as deleted because of a failed read.
  */
-export function inspectionFiles(rows: FileRowsResult): InspectionFileMeta[] | null {
+export function inspectionFiles(rows: FileRowsResult): InspectionFileRef[] | null {
   if (rows.error || !rows.data) {
     if (rows.error) logFailure("the files", rows.error);
     return null;
   }
-  return rows.data.map((file) => ({ id: file.id, moduleKey: file.module_key, kind: file.kind }));
+  return rows.data.map((file) => fileRef({ id: file.id, moduleKey: file.module_key, kind: file.kind }));
 }
 
 /** Modules switched off for this inspection, with who did it. Only admins can read other people's names. */

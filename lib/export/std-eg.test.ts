@@ -12,11 +12,15 @@ vi.mock("@/modules/_framework", async (importOriginal) => {
 });
 
 import { ExportSchema, type InspectionExport } from "@/lib/schemas/export";
+import { lookupFrom } from "@/lib/templates";
+import { STD_EG_SEED } from "@/lib/templates/definitions";
+import { resolveTemplate } from "@/modules";
 import { buildInspectionContext } from "@/modules/_framework";
 import { createFakeSupabase } from "./__fixtures__/fake-supabase";
 import {
   STD_EG_IDS,
   STD_EG_REF_NO,
+  stdEgInspectionData,
   stdEgObjects,
   stdEgRecord,
   stdEgTables,
@@ -71,6 +75,72 @@ describe("the STD_EG example's export, through the real modules", () => {
     expect(file).toMatchObject({ moduleKey: "force_at_break", kind: "lab_report", url: expect.stringContaining("inspection-files") });
     const signing = fake.signed.find((request) => request.bucket === "inspection-files");
     expect(signing).toMatchObject({ expiresIn: EXPORT_URL_TTL_SECONDS });
+  });
+
+  it("warns when a kept lab report's file was deleted, and exports no link for it", async () => {
+    const record = stdEgRecord({ files: [] });
+    const { doc } = await exportOf(stdEgTables(record), stdEgObjects(record));
+    const forceAtBreak = moduleOf(doc, "force_at_break");
+    // The id stays in the data as the inspector left it; the module reads it against the inspection's files.
+    expect(forceAtBreak.data.labReport).toBe(STD_EG_IDS.fileLabReport);
+    expect(forceAtBreak.computed).toMatchObject({ labReportAttached: false });
+    expect(forceAtBreak.warnings).toContainEqual({
+      code: "lab_report_missing",
+      message: expect.stringContaining("not among this inspection's files"),
+    });
+    expect(doc.files).toEqual([]);
+  });
+
+  it("counts a lab report added in the gallery, which no module keeps by id", async () => {
+    const record = stdEgRecord({ data: { ...stdEgInspectionData({ labReportFileId: null }), custom: {} } });
+    const { doc } = await exportOf(stdEgTables(record), stdEgObjects(record));
+    const forceAtBreak = moduleOf(doc, "force_at_break");
+    expect(forceAtBreak.data.labReport).toBeNull();
+    expect(forceAtBreak.computed).toMatchObject({ labReportAttached: true });
+    expect(forceAtBreak.warnings.map((warning) => warning.code)).not.toContain("lab_report_missing");
+    expect(doc.files).toEqual([expect.objectContaining({ id: STD_EG_IDS.fileLabReport, moduleKey: "force_at_break" })]);
+  });
+
+  it("exports a certificate the documents check keeps per item, so the report can match it by id", async () => {
+    const certificate = "00000000-0000-4000-8000-000000000402";
+    const definition = STD_EG_SEED.definition();
+    const conclusionAt = definition.modules.findIndex((entry) => entry.key === "conclusion");
+    definition.modules.splice(conclusionAt, 0, { key: "documents", include: true });
+    const resolution = resolveTemplate(definition, lookupFrom([]));
+    if (!resolution.ok) throw new Error(JSON.stringify(resolution.problems));
+    const base = stdEgRecord();
+    const data = stdEgInspectionData({ labReportFileId: STD_EG_IDS.fileLabReport });
+    const record = stdEgRecord({
+      template: { ...base.template!, resolved: resolution.template },
+      data: {
+        ...data,
+        modules: {
+          ...data.modules,
+          documents: { items: { certificateOfAnalysis: { status: "verified", referenceNo: "COA-0001", expiryDate: null, file: certificate } } },
+        },
+      },
+      files: [
+        ...base.files,
+        {
+          id: certificate,
+          moduleKey: "documents",
+          kind: "certificate",
+          storagePath: `${STD_EG_IDS.inspection}/${certificate}.pdf`,
+          name: "Certificate of analysis.pdf",
+          createdAt: "2025-04-11T07:40:00.000000+00:00",
+        },
+      ],
+    });
+    const { doc } = await exportOf(stdEgTables(record), stdEgObjects(record));
+    const documents = moduleOf(doc, "documents");
+    const items = documents.data.items as Record<string, { file: string | null }>;
+    expect(items.certificateOfAnalysis.file).toBe(certificate);
+    expect(documents.computed).toMatchObject({ fileState: { certificateOfAnalysis: "attached" } });
+    expect(doc.files.find((file) => file.id === certificate)).toMatchObject({
+      moduleKey: "documents",
+      kind: "certificate",
+      url: expect.stringContaining("inspection-files"),
+    });
   });
 
   it("exports every module's config as the STD_EG version resolves it", async () => {

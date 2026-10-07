@@ -120,6 +120,76 @@ describe("evaluateStoredInspection", () => {
   });
 });
 
+describe("evaluateStoredInspection with the inspection's files (docs/MODULES.md 10.1)", () => {
+  const LAB_REPORT = "00000000-0000-4000-8000-0000000004a1";
+  const GALLERY_REPORT = "00000000-0000-4000-8000-0000000004a2";
+
+  /** Tensile, whose lab report is required, kept by id in its data; the averages pass. */
+  function tensile(labReport: string | null, files?: { id: string; moduleKey: string | null; kind: "lab_report" }[] | null) {
+    const definition = {
+      code: "REVIEW_FILES",
+      name: "Review files test",
+      scope: { productType: "examination", standard: "ASTM_D6319" },
+      unit: "pcs",
+      sizes: [{ value: "M" }],
+      modules: [
+        { key: "header", include: true },
+        { key: "order_lots", include: true },
+        { key: "tensile", include: true },
+        { key: "conclusion", include: true },
+      ],
+    };
+    const resolution = resolveTemplate(definition, lookupFrom([]));
+    if (!resolution.ok) throw new Error(JSON.stringify(resolution.problems));
+    const { report } = ok(
+      evaluateStoredInspection(
+        storedInspection({
+          resolved: resolution.template,
+          data: {
+            modules: {
+              order_lots: { sizes: { M: { qtyCases: 10, lotNumbers: ["LOT-M-0001"], packingSite: null } } },
+              tensile: { sizes: { M: { tensileStrength: 20.5, elongationAtBreak: 560 } }, labReport },
+            },
+            custom: {},
+          },
+          ...(files === undefined ? {} : { files }),
+        }),
+      ),
+    );
+    const entry = report.modules.find((module) => module.key === "tensile");
+    if (!entry) throw new Error("no tensile");
+    return { entry, warnings: report.warnings.filter((issue) => issue.moduleKey === "tensile").map((issue) => issue.code) };
+  }
+
+  it("counts a kept lab report the inspection holds as attached", () => {
+    const { entry, warnings } = tensile(LAB_REPORT, [{ id: LAB_REPORT, moduleKey: "tensile", kind: "lab_report" }]);
+    expect(entry.result.status).toBe("pass");
+    expect(entry.computed).toMatchObject({ labReportAttached: true });
+    expect(warnings).toEqual([]);
+  });
+
+  it("reads a kept lab report whose file was deleted as missing: a warning, and tensile not done", () => {
+    const { entry, warnings } = tensile(LAB_REPORT, []);
+    expect(entry.result.status).toBe("not_done");
+    expect(entry.computed).toMatchObject({ labReportAttached: false });
+    expect(warnings).toContain("lab_report_missing");
+  });
+
+  it("counts a lab report added in the gallery, which keeps no id", () => {
+    const { entry } = tensile(null, [{ id: GALLERY_REPORT, moduleKey: "tensile", kind: "lab_report" }]);
+    expect(entry.result.status).toBe("pass");
+    expect(entry.computed).toMatchObject({ labReportAttached: true });
+  });
+
+  it("takes a kept lab report as attached while the files are not known (a failed read)", () => {
+    for (const files of [null, undefined]) {
+      const { entry, warnings } = tensile(LAB_REPORT, files);
+      expect(entry.result.status).toBe("pass");
+      expect(warnings).toEqual([]);
+    }
+  });
+});
+
 describe("isListedIssue and summariseIssues", () => {
   it("lists every issue but the not-done warning, which the module's own result shows", () => {
     expect(isListedIssue({ code: "module_not_done", level: "warning" })).toBe(false);

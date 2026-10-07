@@ -8,11 +8,12 @@ import {
   InspectionDataSchema,
   type InspectionContext,
   type InspectionData,
+  type InspectionFileRef,
   type InspectionMeta,
   type ModuleRegistry,
 } from "@/modules/_framework";
 import { MODULE_REGISTRY } from "@/modules/registry";
-import type { FileRecord, InspectionRecord } from "./record";
+import type { InspectionRecord } from "./record";
 
 /* ------------------------------------------------------------------ *
  * The inspection run through the module framework, as the capture
@@ -64,25 +65,25 @@ export function evaluateRecord(record: InspectionRecord, registry: ModuleRegistr
   return { ok: true, evaluated: { template, data: data.data, context, report, inspector, client, manufacturer } };
 }
 
-/** An inspection_files row as the context knows it (the framework's InspectionFileRef). */
-export type InspectionFileMeta = { id: string; moduleKey: string | null; kind: FileRecord["kind"] };
-
-/** InspectionMeta with the inspection's files, which the framework reads from phase 3 on. */
-export type InspectionMetaWithFiles = InspectionMeta & { files?: readonly InspectionFileMeta[] | null };
-
 /**
  * What the context knows about the inspection itself, with its lab reports
- * and certificates (`files`, docs/MODULES.md 10.1): with them, a module can
- * tell a file it keeps by id that has since been deleted (missing) from one
- * that is attached. `files` null means not known (a read that failed), which
- * the framework takes as attached; an empty list means the inspection has
- * none. A framework that does not read `files` yet ignores it.
+ * and certificates (`files`, docs/MODULES.md 10.1 and 13): with them a module
+ * tells a file it keeps by id that has since been deleted (missing: a
+ * warning, and tensile not done) from one that is attached, and counts a lab
+ * report added in the gallery, which keeps no id. `files` null means not
+ * known (a read that failed), which the framework takes as attached; an
+ * empty list means the inspection has none.
  */
 export function inspectionMeta(
-  meta: InspectionMeta,
-  files: readonly Pick<FileRecord, "id" | "moduleKey" | "kind">[] | null,
-): InspectionMetaWithFiles {
-  return { ...meta, files: files === null ? null : files.map(({ id, moduleKey, kind }) => ({ id, moduleKey, kind })) };
+  meta: Omit<InspectionMeta, "files">,
+  files: readonly InspectionFileRef[] | null,
+): InspectionMeta {
+  return { ...meta, files: files === null ? null : files.map(fileRef) };
+}
+
+/** An inspection_files row (a FileRecord, say) as the context knows it: id, module and kind only. */
+export function fileRef({ id, moduleKey, kind }: InspectionFileRef): InspectionFileRef {
+  return { id, moduleKey, kind };
 }
 
 /** The inspector by name, else email; the id alone never shows. */

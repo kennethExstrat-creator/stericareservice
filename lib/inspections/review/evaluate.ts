@@ -4,7 +4,7 @@
 // calls the capture screen and the export make (docs/MODULES.md section 13),
 // so the three agree. Pure: the page loads the row, this computes.
 import { inspectorDecision as decide, type InspectorDecision } from "@/lib/export/conclusion";
-import { inspectionMeta, type InspectionFileMeta } from "@/lib/export/evaluate";
+import { inspectionMeta } from "@/lib/export/evaluate";
 import type { EntityRef } from "@/lib/schemas/common";
 import { ResolvedTemplateSchema, type ResolvedTemplate } from "@/lib/schemas/template";
 import { applyModuleOverrides, parseModuleOverrides } from "@/lib/templates";
@@ -14,6 +14,7 @@ import {
   InspectionDataSchema,
   type InspectionContext,
   type InspectionData,
+  type InspectionFileRef,
   type ModuleRegistry,
 } from "@/modules/_framework";
 import { MODULE_REGISTRY } from "@/modules/registry";
@@ -32,11 +33,12 @@ export type StoredInspection = {
   client: EntityRef | null;
   manufacturer: EntityRef | null;
   /**
-   * The inspection's lab reports and certificates (inspection_files), so a
-   * module can tell a file it keeps by id that has since been deleted. Null
-   * when they could not be read; left out, the same.
+   * The inspection's lab reports and certificates (inspection_files rows,
+   * InspectionMeta.files), so a module tells a file it keeps by id that has
+   * since been deleted from one that is attached, as capture and submit do.
+   * Null when they could not be read; left out, the same.
    */
-  files?: readonly InspectionFileMeta[] | null;
+  files?: readonly InspectionFileRef[] | null;
 };
 
 export type ReviewEvaluation =

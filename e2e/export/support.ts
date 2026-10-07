@@ -259,7 +259,7 @@ async function insertFixture(
       suggested_result: "hold",
       result: "hold",
       module_overrides: { [EXCLUDED_MODULE]: { reason: EXCLUDED_REASON, by: adminId, at: new Date().toISOString() } },
-      data: fixtureData(fileId) as unknown as Json,
+      data: fixtureData(fileId) as unknown as NonNullable<Json>,
     })
     .select("id, ref_no")
     .single();
