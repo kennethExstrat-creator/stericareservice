@@ -52,10 +52,13 @@ Results are never colour alone: each has an icon (shape) and words. Pass is gree
 
 Utilities: `text-pass`, `bg-pass-tint`, `border-pass-border`, `bg-pass-solid text-pass-solid-foreground` (and so on; `not-done` in class names). Toasts use the same tokens.
 
+These labels name module and size verdicts. The inspection's overall result, suggested or final, is one set of words wherever it shows (the conclusion, the submit dialog, the review, the export): the template's conclusion labels, PASSED, FAILED and HOLD unless the template words them otherwise (BUILD_SPEC 6.2 rule 11), in the pass, fail and hold colours and icons. Never Pass in one place, Passed in another and PASSED in a third; a summary of the suggestion reads like the conclusion's, "PASSED (warnings: Sampling Plan)".
+
 ## Density (by pointer, not width)
 
 - `touch:` = `(any-pointer: coarse)`: any touchscreen, an iPad also with a keyboard and trackpad attached. `fine:` = no touchscreen (mouse or trackpad only). Layout switches at 1280 px on devices with no touchscreen (`xl`, redefined in app/globals.css): below it, and on every touch screen whatever its width, a top tab bar and full-width grid; from 1280 px without a touchscreen a left sidebar, wider grid, photos alongside. Check 820×1180, 1180×820, 1366×1024 (touch: 12.9 and 13 inch iPads) and 1440×900.
 - iPad: every control at least 44×44 px (buttons, steppers, chips, tabs, menu items, grid rows, the grid's error list; checkbox, radio and switch grow to 24–28 px with a 44 px hit area). Field text 16 px so iOS never zooms on focus (Input and Textarea are 14 px only under `fine:`).
+- A hit area drawn as an invisible `::after` is placed from inside the control's border, so count the border: a 24 px checkbox with a 1 px edge needs `touch:after:-inset-[11px]` (22 + 2 × 11), not `-inset-2.5` (42 px). Checkbox and radio 24 px, switch 48 × 28 px (`-inset-y-[9px]`), a field's button 36 px (`-inset-[5px]`); `components/ui/touch-hit-areas.test.tsx` works each one out.
 - Desktop: compact controls (32–36 px) and 32–36 px table rows.
 - To resize a control, override both: `h-12 touch:h-14`.
 
@@ -71,6 +74,11 @@ Keyboard focus is an opaque 2 px brand-500 outline on `:focus-visible`, never a 
 - `focus-ring-inset`: just inside the edge, where an outer ring would be clipped by a scroller or crowd a neighbour. Fields, grid cells, tabs, stepper buttons, defect chips, list rows, the grid's error list. At least 4:1 on every fill it sits on (brand-100 is the lowest).
 
 An outline, not a box-shadow ring, also survives forced-colours mode. A control that greys out at a limit drops its fill instead of fading, because opacity would fade the ring too. The contrast test fails on any `focus-visible:ring-*` or translucent ring in a component.
+
+Focus is never hidden under a sticky bar (WCAG 2.4.11). The page's scroll padding (`app/globals.css`) makes room for the shell's top bar (below 1280 px and on every touchscreen) and the template editor's tab bar, plus 1rem, so Tab, Shift+Tab and in-page links bring a control into view below the bars with its ring; from 1280 px without a touchscreen the 1rem alone keeps the ring off the window's edge. (1rem, not 0.5rem: WebKit lines a focused text field up by its text, about 12 px inside its edge.) While focus is inside a bar the padding stops above that bar, so the bar's own controls never scroll the page. The capture screen measures its bars and sets the padding itself (`use-sticky-offsets.ts`).
+
+- **Do** add a new bar that sticks over the page to those rules, or set the page's padding while it shows, as capture does. Use scroll padding on the page, not `scroll-margin` on each control: WebKit, which runs Safari and Chrome on the iPad, brings a focused text field into view by the page's padding only.
+- **Don't** give an anchor target a `scroll-mt` that counts the top bar again (`scroll-mt-[calc(var(--shell-top)+1rem)]`): the padding already clears the bar and leaves the 1rem, so such a target needs no margin of its own.
 
 ## Components
 
@@ -103,3 +111,4 @@ An outline, not a box-shadow ring, also survives forced-colours mode. A control 
 - **Do** use `focus-ring` or `focus-ring-inset` for keyboard focus. **Don't** use shadcn's `focus-visible:ring-ring/50` halo, or translucent text such as `text-foreground/60`: both render lighter than the token the test measures.
 - **Do** make a component that holds `sr-only` text `relative`. **Don't** leave that text unanchored: in a horizontally scrolling tab bar or table it escapes the scroller and widens the page at iPad widths.
 - **Do** keep secondary text at slate-600 or darker. **Don't** add a dark mode (the `dark:` variant is inert on purpose).
+- **Do** start a control's accessible name with the words it shows, so a speech user can say what they see (WCAG 2.5.3): `aria-label="Open in template editor: SAFEDON_EG v2"`, or the visible text plus `sr-only` detail and no `aria-label`. **Don't** name it in other words ("Open SAFEDON_EG v2 in the template editor" on a link that reads "Open in template editor").
