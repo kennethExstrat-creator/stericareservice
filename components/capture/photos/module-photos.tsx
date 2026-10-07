@@ -45,7 +45,13 @@ export type ModulePhotosProps = {
   /** Section heading in the gallery; "Photos" on the capture screen. */
   title?: string;
   headingLevel?: 2 | 3;
-  /** Notices about photos waiting on this device. The gallery shows them once, at the top; a capture page of two sections in its first slot. */
+  /**
+   * The notices about the inspection's photos as a whole: those waiting on
+   * this device, and the uploaded ones that could not be loaded (with Try
+   * Again). The gallery shows the first once, at the top (it opens with the
+   * photos loaded); a capture page of two sections shows both in its first
+   * slot.
+   */
   showNotices?: boolean;
   /** Read out after the heading ("Photos, Order"), where another slot on the page has the same heading. */
   nameContext?: string;
@@ -192,7 +198,8 @@ export function ModulePhotos({
 
       {showNotices && <UploadNotices inspectionId={inspectionId} />}
 
-      {media.status === "error" && (
+      {/* The inspection's photos, not this module's: once a page, as the notices above. */}
+      {showNotices && media.status === "error" && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-warn-border bg-warn-tint px-3 py-2 text-sm text-warn">
           <CircleAlertIcon aria-hidden className="size-4 shrink-0" />
           <p className="min-w-0 flex-1">

@@ -12,6 +12,19 @@ vi.mock("./upload-notices", async () => {
   const { createElement } = await import("react");
   return { UploadNotices: () => createElement("div", { "data-slot": "upload-notices" }) };
 });
+
+// What the browser made of the inspection's photos, where a test says (on the server they are never loaded).
+const loaded = vi.hoisted(() => ({ media: null as import("./media-store").MediaState | null }));
+vi.mock("./hooks", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./hooks")>();
+  return {
+    ...actual,
+    useInspectionMedia: (inspectionId: string) => {
+      const media = actual.useInspectionMedia(inspectionId);
+      return loaded.media ?? media;
+    },
+  };
+});
 import { EMPTY_TAG_OPTIONS, moduleTitle, tagOptionsFromTemplate } from "@/lib/inspections/photos/view";
 import { FileSlot, useInspectionFiles } from "../files";
 import { useUploadsWaiting } from "./hooks";
@@ -99,6 +112,23 @@ describe("PhotoSlot", () => {
     expect(render(<PhotoSlot inspectionId={INSPECTION} moduleKey="packing_config" showNotices={false} />)).not.toContain(
       'data-slot="upload-notices"',
     );
+  });
+
+  it("says the uploaded photos could not be loaded once a page, with its Try Again, where the notices show", () => {
+    loaded.media = { status: "error", media: null, error: "The photos could not be loaded. Check the connection." };
+    try {
+      const first = render(<PhotoSlot inspectionId={INSPECTION} moduleKey="order_lots" />);
+      expect(first).toContain("Photos already uploaded could not be loaded.");
+      expect(first.match(/>Try Again<\/button>/g)).toHaveLength(1);
+      expect(first).not.toContain("Loading photos…");
+      // The other slot on the page: the same inspection's photos, so neither the notice nor a second Try Again.
+      const second = render(<PhotoSlot inspectionId={INSPECTION} moduleKey="packing_config" showNotices={false} />);
+      expect(second).not.toContain("could not be loaded");
+      expect(second).not.toContain("Try Again");
+      expect(second).not.toContain("Loading photos…");
+    } finally {
+      loaded.media = null;
+    }
   });
 
   it("names its photos after its section on a page of two, and Photos alone otherwise", () => {

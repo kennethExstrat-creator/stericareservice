@@ -44,6 +44,12 @@ type UnreadableDataProps = {
    * so the focus cannot go back there. The screen puts it somewhere instead.
    */
   onRemoved?: () => void;
+  /**
+   * The section's title, read out after the button's words on a page of two
+   * sections ("Clear This Section, Order"), where the other section may have
+   * values it cannot read too.
+   */
+  nameContext?: string;
 };
 
 export function UnreadableData({
@@ -55,6 +61,7 @@ export function UnreadableData({
   readOnly,
   onRemove,
   onRemoved,
+  nameContext,
 }: UnreadableDataProps) {
   const root = useRef<HTMLDivElement>(null);
   useIssueFocus(focusPath, { root });
@@ -115,9 +122,10 @@ export function UnreadableData({
             }}
           >
             <AlertDialogTrigger asChild>
-              <Button type="button" variant="outline" className="bg-card" data-action="remove-unreadable">
+              <Button type="button" variant="outline" className="relative bg-card" data-action="remove-unreadable">
                 <EraserIcon aria-hidden />
                 {readable === null ? "Clear This Section" : "Remove the Values That Cannot Be Read"}
+                {nameContext && <span className="sr-only">, {nameContext}</span>}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent

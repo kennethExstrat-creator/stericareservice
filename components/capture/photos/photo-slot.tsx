@@ -25,8 +25,9 @@ export type PhotoSlotProps = {
    */
   showAddControls?: boolean;
   /**
-   * False where another slot on the same page shows the notices about photos
-   * waiting on this device (a page of two sections: the first slot does).
+   * False where another slot on the same page shows the notices about the
+   * inspection's photos: those waiting on this device, and the uploaded ones
+   * that could not be loaded (a page of two sections: the first slot does).
    */
   showNotices?: boolean;
   /**

@@ -1123,7 +1123,7 @@ function ActivePage({
           // A page of one section is that section's frame; on a page of several, each frame has an id of its own.
           frameId={several ? `${panelId}-${section.key}` : panelId}
           tabLabelledBy={several ? undefined : tabLabelledBy}
-          // On a page of several, each section's comment, photos and Switch Off are read out with its title.
+          // On a page of several, each section's comment, photos, Switch Off and its form's own buttons are read out with its title.
           nameContext={several ? section.title : undefined}
           // The notices about the inspection's photos are about the whole inspection: once a page.
           showPhotoNotices={index === 0}
@@ -1144,9 +1144,17 @@ type SectionPartProps = SharedSectionProps & {
   frameId: string;
   /** Below 1280 px, on a page of one section: the id of its tab, which names the frame (WAI-ARIA tabs). */
   tabLabelledBy?: string;
-  /** On a page of several sections, this one's title: read out with its comment, photos and Switch Off. */
+  /**
+   * On a page of several sections, this one's title: read out with its
+   * comment, photos and Switch Off, and with Try Again or Clear This Section
+   * where its form is in trouble.
+   */
   nameContext?: string;
-  /** The first section on the page shows the notices about the inspection's photos waiting on this device. */
+  /**
+   * The first section on the page shows the notices about the inspection's
+   * photos: those waiting on this device, and the uploaded ones that could
+   * not be loaded.
+   */
   showPhotoNotices: boolean;
   headingRef: Ref<HTMLHeadingElement>;
   focusPath: IssuePath | null;
@@ -1330,6 +1338,7 @@ function SectionPart({
             onChange={(next) => onModuleChange(section.key, next)}
             onFocusChange={onFocusChange}
             onUnreadableRemoved={onUnreadableRemoved}
+            nameContext={nameContext}
           />
         </RefusedEntryStoreContext.Provider>
       )}

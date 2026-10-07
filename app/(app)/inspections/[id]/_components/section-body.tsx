@@ -100,6 +100,11 @@ type ModuleBodyProps = {
   onFocusChange: (focus: CaptureFocus) => void;
   /** Saved values that could not be read were removed: the form replaces their list, its button with it. */
   onUnreadableRemoved?: () => void;
+  /**
+   * On a page of two sections, this one's title: the buttons of a form that
+   * did not show and of values that cannot be read are read out with it.
+   */
+  nameContext?: string;
 };
 
 export function ModuleBody({
@@ -116,6 +121,7 @@ export function ModuleBody({
   onChange,
   onFocusChange,
   onUnreadableRemoved,
+  nameContext,
 }: ModuleBodyProps) {
   const definition = MODULE_REGISTRY[moduleKey];
   // A form that failed to show is asked for afresh: a new lazy component, under a new boundary.
@@ -178,6 +184,7 @@ export function ModuleBody({
         readOnly={readOnly}
         onRemove={onChange}
         onRemoved={onUnreadableRemoved}
+        nameContext={nameContext}
       />
     );
   }
@@ -198,7 +205,7 @@ export function ModuleBody({
     );
   }
   return (
-    <SectionErrorBoundary key={attempt} title={resolved.title} onRetry={retry}>
+    <SectionErrorBoundary key={attempt} title={resolved.title} onRetry={retry} nameContext={nameContext}>
       <Suspense fallback={<BodySkeleton />}>
         <FileSlotProvider render={renderFileSlot}>
           <Capture

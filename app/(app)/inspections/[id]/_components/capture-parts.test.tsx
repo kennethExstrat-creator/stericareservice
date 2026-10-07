@@ -252,6 +252,25 @@ describe("UnreadableData", () => {
     expect(html).toContain("Everything else here is kept.");
   });
 
+  it("reads its button out with its section's title on a page of two, and with its words alone otherwise", () => {
+    const entry = { value: { indicativeWeight: "2 42", colour: "Blue" }, comment: null, hasData: true };
+    const props = {
+      definition,
+      entry,
+      issues: [issue(tooHeavy.path, tooHeavy.message)],
+      fallback: undefined,
+      focusPath: null,
+      readOnly: false,
+      onRemove: noop,
+    };
+    const named = renderToStaticMarkup(<UnreadableData {...props} nameContext="Glove Information" />);
+    // Anchored, so the hidden title never escapes (docs/DESIGN.md, Do / Don't).
+    expect(named).toMatch(
+      /<button[^>]*class="[^"]*\brelative\b[^"]*"[^>]*>(?:(?!<\/button>).)*Remove the Values That Cannot Be Read<span class="sr-only">, Glove Information<\/span><\/button>/,
+    );
+    expect(renderToStaticMarkup(<UnreadableData {...props} />)).toContain("Remove the Values That Cannot Be Read</button>");
+  });
+
   it("shows read-only viewers the list only", () => {
     const html = renderToStaticMarkup(
       <UnreadableData
@@ -407,6 +426,16 @@ describe("SectionErrorBoundary (a section's form that did not show)", () => {
     expect(html).toContain("The form for Visual Inspection did not load.");
     expect(html).toContain("Reload");
     expect(html).not.toContain("developer");
+  });
+
+  it("reads Try Again out with its section's title on a page of two, where the other form may not show either", () => {
+    const boundary = new SectionErrorBoundary({ title: "Packing configuration", nameContext: "Packing configuration", children: <p>Form</p> });
+    boundary.state = { error: chunkError, online: false };
+    const html = renderToStaticMarkup(<>{boundary.render()}</>);
+    expect(html).toMatch(
+      /<button[^>]*class="[^"]*\brelative\b[^"]*"[^>]*>(?:(?!<\/button>).)*Try Again<span class="sr-only">, Packing configuration<\/span><\/button>/,
+    );
+    expect(shown(chunkError, false)).toContain("Try Again</button>");
   });
 
   it("keeps the red alert for a form that crashed", () => {
