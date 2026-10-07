@@ -91,15 +91,15 @@ function Folded({ until, children }: { until: "lg" | "xl"; children: string }) {
   );
 }
 
-function InspectionDate({ value, className }: { value: string; className?: string }) {
+function InspectionDate({ value }: { value: string }) {
   return (
-    <time dateTime={value} className={cn("block tabular-nums", className)}>
+    <time dateTime={value} className="block tabular-nums">
       {formatInspectionDate(value)}
     </time>
   );
 }
 
-/** Touch: the same height as the workflow badge beside it, 14 px like it. */
+/** On touch as tall as the workflow badge, and 14 px like it: the two read as a pair. */
 function ResultPill({ result }: { result: InspectionListRow["result"] }) {
   // The final result once the inspector sets it; until then Not done, never a pass.
   return (
@@ -115,7 +115,17 @@ function ResultPill({ result }: { result: InspectionListRow["result"] }) {
  * The main action and, where allowed, Delete. The main action keeps one
  * width (as wide as "Continue"), so the Delete buttons line up down the list.
  */
-function RowActionsCell({ row, index, next, viewer }: { row: InspectionListRow; index: number; next: InspectionListRow | undefined; viewer: ListViewer }) {
+function RowActionsCell({
+  row,
+  index,
+  next,
+  viewer,
+}: {
+  row: InspectionListRow;
+  index: number;
+  next: InspectionListRow | undefined;
+  viewer: ListViewer;
+}) {
   const { primary, deleteName } = rowActions(row, viewer);
   return (
     <div className="flex items-center gap-1.5 touch:gap-2">
@@ -132,6 +142,7 @@ function RowActionsCell({ row, index, next, viewer }: { row: InspectionListRow; 
       </Button>
       {deleteName && (
         <DeleteInspectionButton
+          name={deleteName}
           request={{
             id: row.id,
             refNo: row.refNo,

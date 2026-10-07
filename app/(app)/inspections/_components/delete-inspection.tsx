@@ -32,7 +32,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { cn } from "@/lib/utils";
 import { deleteInspection, type DeleteInspectionResult } from "../actions";
 import { landingAfterCancel, landingAfterDelete, type DeletedRow, type FocusLanding } from "./delete-focus";
 import { focusTargetSelector } from "./list-focus-target";
@@ -213,12 +212,11 @@ export function InspectionResults({
 }
 
 /**
- * A row's Delete: a trash button named "Delete INS-2026-0001", 44 px on
- * touch, compact with a mouse. It opens the results' confirmation.
+ * A row's Delete: a trash button named "Delete INS-2026-0001" (row-actions.ts),
+ * 44 px on touch, compact with a mouse. It opens the results' confirmation.
  */
-export function DeleteInspectionButton({ request, className }: { request: DeleteRequest; className?: string }) {
+export function DeleteInspectionButton({ name, request }: { name: string; request: DeleteRequest }) {
   const openDialog = use(OpenDeleteDialog);
-  const name = `Delete ${request.refNo}`;
   return (
     <Button
       type="button"
@@ -228,10 +226,7 @@ export function DeleteInspectionButton({ request, className }: { request: Delete
       title={name}
       data-row-action="delete"
       onClick={(event) => openDialog(request, event.currentTarget)}
-      className={cn(
-        "text-muted-foreground hover:bg-fail-tint hover:text-fail [&_svg:not([class*='size-'])]:size-4.5",
-        className,
-      )}
+      className="text-muted-foreground hover:bg-fail-tint hover:text-fail [&_svg:not([class*='size-'])]:size-4.5"
     >
       <Trash2Icon aria-hidden />
     </Button>
