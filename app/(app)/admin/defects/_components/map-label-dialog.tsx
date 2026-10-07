@@ -14,18 +14,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  FieldLegend,
-  FieldSet,
-  FieldTitle,
-} from "@/components/ui/field";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
+import { RadioGroup } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -55,6 +45,7 @@ import {
   type OneOffLabel,
 } from "@/lib/admin/defects";
 import { submitAction } from "@/lib/admin/submit";
+import { RadioCard } from "../../_components/radio-card";
 import { mapDefectLabel, type MapLabelResult } from "../actions";
 import { TextField } from "./text-field";
 
@@ -237,15 +228,13 @@ export function MapLabelDialog({
                 className="grid gap-3 sm:grid-cols-2"
               >
                 {MODES.map((option) => (
-                  <FieldLabel key={option.value} htmlFor={`${id}-mode-${option.value}`}>
-                    <Field orientation="horizontal">
-                      <RadioGroupItem value={option.value} id={`${id}-mode-${option.value}`} />
-                      <FieldContent>
-                        <FieldTitle>{option.title}</FieldTitle>
-                        <FieldDescription>{option.description}</FieldDescription>
-                      </FieldContent>
-                    </Field>
-                  </FieldLabel>
+                  <RadioCard
+                    key={option.value}
+                    id={`${id}-mode-${option.value}`}
+                    value={option.value}
+                    title={option.title}
+                    description={option.description}
+                  />
                 ))}
               </RadioGroup>
             </FieldSet>
