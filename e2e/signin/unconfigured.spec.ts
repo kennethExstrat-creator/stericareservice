@@ -15,7 +15,7 @@ for (const path of ["/login", "/forgot-password", "/reset-password"]) {
     for (const name of ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "SUPABASE_SECRET_KEY"]) {
       await expect(page.getByText(name, { exact: true })).toBeVisible();
     }
-    await expect(page.getByRole("link", { name: "Open the design reference" })).toHaveAttribute("href", "/design");
+    await expect(page.getByRole("link", { name: "Open the Design Reference" })).toHaveAttribute("href", "/design");
     await expect(page.locator("form")).toHaveCount(0);
     if (path === "/login") await shot(page, testInfo, "login-unconfigured");
   });

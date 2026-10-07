@@ -9,12 +9,12 @@ test.describe("/login", () => {
   test("email and password, a way to reset, no sign-up", async ({ page }, testInfo) => {
     await open(page, "/login");
 
-    await expect(page.getByRole("heading", { level: 1, name: "Sign in" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Sign In" })).toBeVisible();
     await expect(page.getByRole("img", { name: "SteriCare" })).toBeVisible();
     await expect(page.getByLabel("Email")).toHaveAttribute("autocomplete", "username");
     const password = page.getByLabel("Password", { exact: true });
     await expect(password).toHaveAttribute("autocomplete", "current-password");
-    await expect(page.getByRole("link", { name: "Forgot password?" })).toHaveAttribute("href", "/forgot-password");
+    await expect(page.getByRole("link", { name: "Forgot Password?" })).toHaveAttribute("href", "/forgot-password");
     await expect(page.getByText(/sign up|register|create an account/i)).toHaveCount(0);
     await expect(page.getByRole("navigation")).toHaveCount(0);
     await expect(page.getByRole("contentinfo")).toHaveText("SteriCare Sdn. Bhd.");
@@ -39,8 +39,8 @@ test.describe("/login", () => {
     for (const target of [
       page.getByLabel("Email"),
       page.getByLabel("Password", { exact: true }),
-      page.getByRole("link", { name: "Forgot password?" }),
-      page.getByRole("button", { name: "Sign in" }),
+      page.getByRole("link", { name: "Forgot Password?" }),
+      page.getByRole("button", { name: "Sign In" }),
     ]) {
       const box = await target.boundingBox();
       expect(box?.height, await target.evaluate((element) => element.outerHTML.slice(0, 80))).toBeGreaterThanOrEqual(44);
@@ -54,7 +54,7 @@ test.describe("/login", () => {
 
   test("checks the fields before calling Supabase", async ({ page }, testInfo) => {
     await open(page, "/login");
-    await press(page.getByRole("button", { name: "Sign in" }), testInfo);
+    await press(page.getByRole("button", { name: "Sign In" }), testInfo);
 
     const email = page.getByLabel("Email");
     await expect(page.getByText("Enter your email address.")).toBeVisible();
@@ -66,7 +66,7 @@ test.describe("/login", () => {
 
     await email.fill("inspector");
     await page.getByLabel("Password", { exact: true }).fill("anything");
-    await press(page.getByRole("button", { name: "Sign in" }), testInfo);
+    await press(page.getByRole("button", { name: "Sign In" }), testInfo);
     await expect(page.getByText("Enter a valid email address, like name@example.com.")).toBeVisible();
     await expect(email).toHaveValue("inspector");
     await shot(page, testInfo, "login-invalid-email");
@@ -85,13 +85,13 @@ test.describe("/login", () => {
     // An invalid email: the action answers without calling Supabase.
     await page.getByLabel("Email").fill("inspector");
     await page.getByLabel("Password", { exact: true }).fill("anything");
-    await press(page.getByRole("button", { name: "Sign in" }), testInfo);
-    await expect(page.getByRole("button", { name: "Signing in…" })).toBeDisabled();
+    await press(page.getByRole("button", { name: "Sign In" }), testInfo);
+    await expect(page.getByRole("button", { name: "Signing In…" })).toBeDisabled();
     await shot(page, testInfo, "login-pending");
 
     release();
     await expect(page.getByText("Enter a valid email address, like name@example.com.")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Sign in" })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Sign In" })).toBeEnabled();
   });
 
   test("Enter in the email field moves on to the password", async ({ page }) => {
@@ -103,7 +103,7 @@ test.describe("/login", () => {
   });
 
   test("Tab goes from the email straight to the password", async ({ page }) => {
-    // Email, Tab, password, Enter: "Forgot password?" sits in the label row
+    // Email, Tab, password, Enter: "Forgot Password?" sits in the label row
     // but must not take the focus (and the typed password) before the field.
     await open(page, "/login");
     const password = page.getByLabel("Password", { exact: true });
@@ -115,8 +115,8 @@ test.describe("/login", () => {
 
     for (const next of [
       page.getByRole("button", { name: "Show password" }),
-      page.getByRole("link", { name: "Forgot password?" }),
-      page.getByRole("button", { name: "Sign in" }),
+      page.getByRole("link", { name: "Forgot Password?" }),
+      page.getByRole("button", { name: "Sign In" }),
     ]) {
       await page.keyboard.press("Tab");
       await expect(next).toBeFocused();
@@ -141,14 +141,14 @@ test.describe("/login", () => {
     const banner = page.getByText("That link has expired or was already used.");
     await expect(banner).toBeVisible();
     // An empty submit is answered without calling Supabase.
-    await press(page.getByRole("button", { name: "Sign in" }), testInfo);
+    await press(page.getByRole("button", { name: "Sign In" }), testInfo);
     await expect(page.getByText("Enter your email address.")).toBeVisible();
     await expect(banner).toHaveCount(0);
   });
 
   test("unknown ?error= codes show nothing", async ({ page }) => {
     await open(page, "/login?error=Your%20account%20is%20locked.%20Call%20us");
-    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign In" })).toBeVisible();
     await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
     await expect(page.getByText("Call us")).toHaveCount(0);
   });
@@ -163,16 +163,16 @@ test.describe("/login", () => {
 test.describe("/forgot-password", () => {
   test("asks for the email", async ({ page }, testInfo) => {
     await open(page, "/forgot-password");
-    await expect(page.getByRole("heading", { level: 1, name: "Reset your password" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Reset Your Password" })).toBeVisible();
     await expect(page.getByLabel("Email")).toHaveAttribute("autocomplete", "username");
-    await expect(page.getByRole("link", { name: "Back to sign in" })).toHaveAttribute("href", "/login");
+    await expect(page.getByRole("link", { name: "Back to Sign In" })).toHaveAttribute("href", "/login");
     await shot(page, testInfo, "forgot-password");
   });
 
   test("checks the email before calling Supabase", async ({ page }, testInfo) => {
     await open(page, "/forgot-password");
     await page.getByLabel("Email").fill("inspector");
-    await press(page.getByRole("button", { name: "Send reset link" }), testInfo);
+    await press(page.getByRole("button", { name: "Send Reset Link" }), testInfo);
     await expect(page.getByText("Enter a valid email address, like name@example.com.")).toBeVisible();
     await expect(page.getByLabel("Email")).toBeFocused();
     await shot(page, testInfo, "forgot-password-invalid");
@@ -180,9 +180,9 @@ test.describe("/forgot-password", () => {
 
   test("the link from /login gets here", async ({ page }, testInfo) => {
     await open(page, "/login");
-    await press(page.getByRole("link", { name: "Forgot password?" }), testInfo);
+    await press(page.getByRole("link", { name: "Forgot Password?" }), testInfo);
     await expect(page).toHaveURL(/\/forgot-password$/);
-    await press(page.getByRole("link", { name: "Back to sign in" }), testInfo);
+    await press(page.getByRole("link", { name: "Back to Sign In" }), testInfo);
     await expect(page).toHaveURL(/\/login$/);
   });
 });
@@ -192,11 +192,11 @@ test.describe("/reset-password", () => {
     test(`without a session (?flow=${flow}) the link has expired`, async ({ page }, testInfo) => {
       await open(page, `/reset-password?flow=${flow}`);
       await expect(
-        page.getByRole("heading", { level: 1, name: "This link has expired or was already used" }),
+        page.getByRole("heading", { level: 1, name: "This Link Has Expired or Was Already Used" }),
       ).toBeVisible();
-      await expect(page.getByRole("link", { name: "Get a new link" })).toHaveAttribute("href", "/forgot-password");
+      await expect(page.getByRole("link", { name: "Get a New Link" })).toHaveAttribute("href", "/forgot-password");
       await expect(page.locator("form")).toHaveCount(0);
-      await expect(page).toHaveTitle("Link expired · SteriCare QC");
+      await expect(page).toHaveTitle("Link Expired · SteriCare QC");
       if (flow === "recovery") await shot(page, testInfo, "reset-password-expired");
     });
   }
@@ -206,7 +206,7 @@ test.describe("/reset-password", () => {
     await open(page, "/auth/confirm?token_hash=not-a-real-token&type=recovery");
     await expect(page).toHaveURL(/\/login\?error=link_invalid$/);
     await expect(page.getByText("That link has expired or was already used.")).toBeVisible();
-    await press(page.getByRole("link", { name: "Get a new reset link" }), testInfo);
+    await press(page.getByRole("link", { name: "Get a New Reset Link" }), testInfo);
     await expect(page).toHaveURL(/\/forgot-password$/);
   });
 });

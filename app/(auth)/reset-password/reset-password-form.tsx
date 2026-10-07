@@ -51,7 +51,7 @@ export function ResetPasswordForm({ flow, email }: { flow: PasswordFlow; email: 
           key={state.attempt}
           tone="error"
           title={state.message}
-          action={state.expired ? { href: "/forgot-password", label: "Get a new link" } : undefined}
+          action={state.expired ? { href: "/forgot-password", label: "Get a New Link" } : undefined}
         />
       )}
 
@@ -59,7 +59,7 @@ export function ResetPasswordForm({ flow, email }: { flow: PasswordFlow; email: 
       <input type="email" autoComplete="username" value={email} readOnly hidden />
 
       <Field data-invalid={passwordError ? true : undefined}>
-        <FieldLabel htmlFor="reset-password">New password</FieldLabel>
+        <FieldLabel htmlFor="reset-password">New Password</FieldLabel>
         <PasswordInput
           ref={passwordRef}
           id="reset-password"
@@ -79,7 +79,7 @@ export function ResetPasswordForm({ flow, email }: { flow: PasswordFlow; email: 
       </Field>
 
       <Field data-invalid={confirmError ? true : undefined}>
-        <FieldLabel htmlFor="reset-confirm">Confirm new password</FieldLabel>
+        <FieldLabel htmlFor="reset-confirm">Confirm New Password</FieldLabel>
         <PasswordInput
           ref={confirmRef}
           id="reset-confirm"
@@ -95,7 +95,7 @@ export function ResetPasswordForm({ flow, email }: { flow: PasswordFlow; email: 
         </FieldError>
       </Field>
 
-      <SubmitButton pendingLabel="Saving…">{flow === "invite" ? "Set password" : "Save new password"}</SubmitButton>
+      <SubmitButton pendingLabel="Saving…">{flow === "invite" ? "Set Password" : "Save New Password"}</SubmitButton>
     </form>
   );
 }

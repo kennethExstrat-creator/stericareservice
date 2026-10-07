@@ -78,13 +78,22 @@ describe("/login", () => {
     expect(page).not.toMatch(/sign up|create an account|register/i);
   });
 
-  it("puts “Forgot password?” after the password field, so Tab goes from the email to the password", async () => {
+  it("puts “Forgot Password?” after the password field, so Tab goes from the email to the password", async () => {
     const page = await html(LoginPage(query()));
     const order = ['id="login-email"', 'id="login-password"', 'href="/forgot-password"', 'type="submit"'].map((marker) =>
       page.indexOf(marker),
     );
     expect(order.every((index) => index >= 0)).toBe(true);
     expect(order).toEqual([...order].sort((a, b) => a - b));
+  });
+
+  it("writes its labels in Title Case (docs/DESIGN.md, Capitalisation)", async () => {
+    const page = await html(LoginPage(query()));
+    expect(page).toMatch(/<h1[^>]*>Sign In<\/h1>/);
+    expect(page).toMatch(/<label[^>]*for="login-email"[^>]*>Email<\/label>/);
+    expect(page).toMatch(/<label[^>]*for="login-password"[^>]*>Password<\/label>/);
+    expect(page).toMatch(/<a [^>]*href="\/forgot-password"[^>]*>Forgot Password\?<\/a>/);
+    expect(page).toMatch(/<button [^>]*type="submit"[^>]*>Sign In<\/button>/);
   });
 
   it("titles the screen in DESIGN.md's Display style; the other cards keep H1", async () => {
@@ -127,7 +136,7 @@ describe("/forgot-password", () => {
   it("asks for the email and links back to sign in", async () => {
     const page = await html(ForgotPasswordPage());
     expect(page).toContain('name="email"');
-    expect(page).toContain("Send reset link");
+    expect(page).toContain("Send Reset Link");
     expect(page).toContain('href="/login"');
   });
 });
@@ -136,11 +145,11 @@ describe("/reset-password", () => {
   it("needs the session from the email link", async () => {
     mocks.getSession.mockResolvedValue({ status: "signed-out" } satisfies SessionState);
     const page = await html(ResetPasswordPage(query({ flow: "recovery" })));
-    expect(page).toContain("This link has expired or was already used");
+    expect(page).toContain("This Link Has Expired or Was Already Used");
     expect(page).toContain('href="/forgot-password"');
     expect(page).not.toContain("<form");
     expect(mocks.requireUser).not.toHaveBeenCalled();
-    expect(await resetMetadata(query())).toEqual({ title: "Link expired" });
+    expect(await resetMetadata(query())).toEqual({ title: "Link Expired" });
   });
 
   it("sends a deactivated session through requireUser", async () => {
@@ -153,20 +162,20 @@ describe("/reset-password", () => {
 
   it("welcomes an invited user and shows the policy up front", async () => {
     const page = await html(ResetPasswordPage(query({ flow: "invite" })));
-    expect(page).toContain("Set your password");
+    expect(page).toContain("Set Your Password");
     expect(page).toContain("Welcome to SteriCare QC, Nur Aisyah.");
     expect(page).toContain("new.inspector@test.local");
     expect(page).toContain("At least 10 characters");
     expect(page).toContain("Letters and digits");
     expect(page.match(/autocomplete="new-password"/gi)).toHaveLength(2);
-    expect(page).toContain(">Set password<");
-    expect(await resetMetadata(query({ flow: "invite" }))).toEqual({ title: "Set your password" });
+    expect(page).toContain(">Set Password<");
+    expect(await resetMetadata(query({ flow: "invite" }))).toEqual({ title: "Set Your Password" });
   });
 
   it("words a reset as choosing a new password", async () => {
     const page = await html(ResetPasswordPage(query({ flow: "recovery" })));
-    expect(page).toContain("Choose a new password");
-    expect(page).toContain(">Save new password<");
+    expect(page).toContain("Choose a New Password");
+    expect(page).toContain(">Save New Password<");
     expect(page).not.toContain("Welcome");
   });
 
@@ -178,12 +187,12 @@ describe("/reset-password", () => {
   it("sends a password session to the email link instead of showing the form", async () => {
     mocks.getClaims.mockResolvedValue(signedInWith("password"));
     const page = await html(ResetPasswordPage(query({ flow: "recovery" })));
-    expect(page).toContain("Use your email link");
+    expect(page).toContain("Use Your Email Link");
     expect(page).toContain("opened in the last hour");
-    expect(page).toContain(">Sign out<");
+    expect(page).toContain(">Sign Out<");
     expect(page).toContain('href="/inspections"');
     expect(page).not.toContain('name="password"');
-    expect(await resetMetadata(query())).toEqual({ title: "Use your email link" });
+    expect(await resetMetadata(query())).toEqual({ title: "Use Your Email Link" });
   });
 });
 
@@ -191,8 +200,8 @@ describe("the sign-in error boundary", () => {
   it("offers a retry and a code to quote, never the error message", () => {
     const error = Object.assign(new Error("connection refused at 10.0.0.5"), { digest: "4242" });
     const page = renderToStaticMarkup(<AuthError error={error} retry={() => {}} />);
-    expect(page).toContain("Something went wrong");
-    expect(page).toContain(">Try again<");
+    expect(page).toContain("Something Went Wrong");
+    expect(page).toContain(">Try Again<");
     expect(page).toContain("quote code");
     expect(page).toContain("4242");
     expect(page).not.toContain("10.0.0.5");

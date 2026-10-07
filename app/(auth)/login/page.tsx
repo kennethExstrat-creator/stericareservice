@@ -5,7 +5,7 @@ import { AuthHeading } from "../_components/auth-heading";
 import { SetupNotice } from "../_components/setup-notice";
 import { LoginForm } from "./login-form";
 
-export const metadata: Metadata = { title: "Sign in" };
+export const metadata: Metadata = { title: "Sign In" };
 
 /**
  * /login (BUILD_SPEC 3, 10). A guest screen: proxy.ts sends signed-in visitors
@@ -21,7 +21,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
     <div className="space-y-6">
       <AuthHeading
         size="display"
-        title="Sign in"
+        title="Sign In"
       />
       <LoginForm next={Array.isArray(next) ? next[0] : next} notice={loginNotice(error)} />
     </div>

@@ -69,9 +69,9 @@ export function LoginForm({ next, notice }: { next?: string; notice: LoginNotice
 
       <Field data-invalid={passwordError ? true : undefined}>
         {/*
-          "Forgot password?" is drawn in the label row but comes after the field
+          "Forgot Password?" is drawn in the label row but comes after the field
           in the DOM, so Tab goes Email, Password, Show password, Forgot
-          password?, Sign in. Placed before the field, it would take the Tab
+          Password?, Sign In. Placed before the field, it would take the Tab
           from the email: the password typed next would go nowhere, and Enter
           would open the link.
         */}
@@ -95,7 +95,7 @@ export function LoginForm({ next, notice }: { next?: string; notice: LoginNotice
             href="/forgot-password"
             className="col-start-2 row-start-1 rounded-sm text-sm font-medium text-brand-600 underline-offset-4 hover:underline focus-ring touch:-my-3 touch:py-3"
           >
-            Forgot password?
+            Forgot Password?
           </Link>
         </div>
         <FieldError id="login-password-error" role={undefined}>
@@ -103,7 +103,7 @@ export function LoginForm({ next, notice }: { next?: string; notice: LoginNotice
         </FieldError>
       </Field>
 
-      <SubmitButton pendingLabel="Signing in…">Sign in</SubmitButton>
+      <SubmitButton pendingLabel="Signing In…">Sign In</SubmitButton>
     </form>
   );
 }

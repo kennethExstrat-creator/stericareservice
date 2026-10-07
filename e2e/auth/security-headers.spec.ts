@@ -74,7 +74,7 @@ test("another site cannot show the sign-in page in a frame", async ({ page, base
 
     await expect(page.frameLocator("#icon").locator("img")).toBeVisible();
     await expect(page.frameLocator("#app").getByLabel("Email")).toHaveCount(0);
-    await expect(page.frameLocator("#app").getByRole("button", { name: "Sign in" })).toHaveCount(0);
+    await expect(page.frameLocator("#app").getByRole("button", { name: "Sign In" })).toHaveCount(0);
     await shot(page, testInfo, "framed-by-another-site");
   } finally {
     await site.close();

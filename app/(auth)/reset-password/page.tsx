@@ -13,12 +13,12 @@ import { SubmitButton } from "../_components/submit-button";
 import { sessionStartedByRecentLink } from "../link-session";
 import { ResetPasswordForm } from "./reset-password-form";
 
-const TITLES = { invite: "Set your password", recovery: "Choose a new password" } as const;
+const TITLES = { invite: "Set Your Password", recovery: "Choose a New Password" } as const;
 
 export async function generateMetadata({ searchParams }: PageProps<"/reset-password">): Promise<Metadata> {
   const session = await getSession();
-  if (session.status === "signed-out") return { title: "Link expired" };
-  if (session.status === "active" && !(await sessionStartedByRecentLink())) return { title: "Use your email link" };
+  if (session.status === "signed-out") return { title: "Link Expired" };
+  if (session.status === "active" && !(await sessionStartedByRecentLink())) return { title: "Use Your Email Link" };
   return { title: TITLES[passwordFlow((await searchParams).flow)] };
 }
 
@@ -73,12 +73,12 @@ function LinkExpired() {
   return (
     <div className="space-y-6">
       <AuthHeading
-        title="This link has expired or was already used"
+        title="This Link Has Expired or Was Already Used"
         description="Invite and reset links work once and expire after a short time. Get a new link to choose your password."
       />
       <div className="space-y-3">
         <Button asChild size="lg" className="w-full">
-          <Link href="/forgot-password">Get a new link</Link>
+          <Link href="/forgot-password">Get a New Link</Link>
         </Button>
         <BackToSignIn />
       </div>
@@ -91,20 +91,20 @@ function UseEmailLink() {
   return (
     <div className="space-y-6">
       <AuthHeading
-        title="Use your email link"
+        title="Use Your Email Link"
         description="Passwords are set from an invite or reset link opened in the last hour."
       />
       <p className="text-sm text-muted-foreground">
-        To get a new link, sign out, then choose “Forgot password?” on the sign-in screen.
+        To get a new link, sign out, then choose “Forgot Password?” on the sign-in screen.
       </p>
       <div className="space-y-3">
         <form action={signOut}>
-          <SubmitButton pendingLabel="Signing out…">Sign out</SubmitButton>
+          <SubmitButton pendingLabel="Signing Out…">Sign Out</SubmitButton>
         </form>
         <Button asChild variant="link" className="w-full">
           <Link href={HOME_PATH}>
             <ArrowLeftIcon aria-hidden data-icon="inline-start" />
-            Back to inspections
+            Back to Inspections
           </Link>
         </Button>
       </div>

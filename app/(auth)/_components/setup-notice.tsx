@@ -4,8 +4,8 @@ import { AuthHeading } from "./auth-heading";
 
 const VARIABLES = [
   { name: "NEXT_PUBLIC_SUPABASE_URL", note: "Project URL" },
-  { name: "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", note: "Publishable key" },
-  { name: "SUPABASE_SECRET_KEY", note: "Secret key, server only" },
+  { name: "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", note: "Publishable Key" },
+  { name: "SUPABASE_SECRET_KEY", note: "Secret Key, Server Only" },
 ];
 
 /** Shown instead of a form while the app has no Supabase project (a fresh checkout). */
@@ -35,7 +35,7 @@ export function SetupNotice() {
         Step by step: <span className="font-medium text-foreground">README.md</span>, section “Supabase setup”.
       </p>
       <Button asChild variant="outline" size="lg" className="w-full">
-        <Link href="/design">Open the design reference</Link>
+        <Link href="/design">Open the Design Reference</Link>
       </Button>
     </div>
   );
