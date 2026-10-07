@@ -466,7 +466,7 @@ test.describe("as the admin", () => {
     await expect(page.locator('section[aria-label="Inspections"] [role="status"]')).not.toBeEmpty();
   });
 
-  test("Sign Out ends the session at once when nothing waits on this device", async ({ page, context, baseURL }) => {
+  test("Sign out ends the session at once when nothing waits on this device", async ({ page, context, baseURL }) => {
     // A session of its own: signing out revokes it, and the other tests share theirs.
     await context.clearCookies();
     await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
@@ -484,7 +484,7 @@ test.describe("as the admin", () => {
     await expect(page).toHaveURL(/\/login\?next=%2Fadmin$/);
   });
 
-  test("Sign Out that does not reach the server keeps the session and gives the menu back", async ({ page, context }) => {
+  test("Sign out that does not reach the server keeps the session and gives the menu back", async ({ page, context }) => {
     await page.goto("/admin");
     await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
     const errors = watchErrors(page);
@@ -505,7 +505,7 @@ test.describe("as the admin", () => {
     expect(errors()).toEqual([]);
   });
 
-  test("Sign Out with no answer gives the page back after its time limit", async ({ page, context }) => {
+  test("Sign out with no answer gives the page back after its time limit", async ({ page, context }) => {
     await page.goto("/admin");
     await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
     const errors = watchErrors(page);
@@ -616,7 +616,7 @@ test.describe("as the admin", () => {
       await expect(templates).toHaveAttribute("aria-current", "page");
     });
 
-    test("Sign Out asks first while a photo waits on this device", async ({ page, context, baseURL }) => {
+    test("Sign out asks first while a photo waits on this device", async ({ page, context, baseURL }) => {
       // A session of its own: signing out revokes it, and the other tests share theirs.
       await context.clearCookies();
       await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
