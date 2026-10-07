@@ -231,14 +231,25 @@ describe("AiReviewPanelView for the inspector", () => {
 });
 
 describe("AiReviewPanelView states", () => {
-  it("says the second opinion is not connected", () => {
+  it("says the second opinion is not connected, and what to set up", () => {
     const content = text(render({ aiStatus: OFF_STATUS, reviews: [], decisions: [] }));
     expect(content).toContain("AI second opinion not connected");
-    expect(content).toContain("set ANTHROPIC_API_KEY or AI_REVIEW_WEBHOOK_URL");
-    // "off" is also AI_REVIEW_PROVIDER=off, which wins over both.
-    expect(content).toContain("If AI_REVIEW_PROVIDER is set to off, change it to auto.");
+    expect(content).toContain("To connect it, set ANTHROPIC_API_KEY or AI_REVIEW_WEBHOOK_URL on the server.");
+    // Nothing is switched off: the hint does not send the admin looking for AI_REVIEW_PROVIDER.
+    expect(content).not.toContain("AI_REVIEW_PROVIDER");
     expect(content).not.toContain("System (computed)");
     expect(content).not.toMatch(/Request (AI|a new) second opinion/);
+  });
+
+  it("says when the second opinion is switched off on purpose, and how to switch it on", () => {
+    const switchedOff = { ...OFF_STATUS, review: { ...OFF_STATUS.review, switchedOff: true as const } };
+    const content = text(render({ aiStatus: switchedOff, reviews: [], decisions: [] }));
+    expect(content).toContain("AI second opinion not connected");
+    expect(content).toContain("It is switched off on the server: AI_REVIEW_PROVIDER is set to off. To connect it, set it to auto");
+    // Inspectors are told who can change it, not how.
+    const inspector = text(render({ aiStatus: switchedOff, reviews: [], decisions: [], isAdmin: false }));
+    expect(inspector).toContain("An admin can connect it.");
+    expect(inspector).not.toContain("AI_REVIEW_PROVIDER");
   });
 
   it("keeps earlier opinions readable after the reviewer is disconnected", () => {

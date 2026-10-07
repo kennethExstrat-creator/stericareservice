@@ -12,11 +12,16 @@ import {
 } from "./support";
 
 /**
- * The panel with nothing connected (BUILD_SPEC 9.1, 9.2): "AI second opinion
- * not connected", and "AI not connected" with the JSON download. Run against
- * a dev server with AI_REVIEW_PROVIDER=off and no AI_REPORT_WEBHOOK_URL:
+ * The panel on the review screen with nothing connected (BUILD_SPEC 9.1,
+ * 9.2): "AI second opinion not connected", and "AI not connected" with the
+ * JSON download. Run against a dev server with the second opinion switched
+ * off and no report service (an empty variable counts as not set):
  *
- *   E2E_EXPORT_AI=off E2E_AI_PANEL_PATH=... npx playwright test e2e/export/not-connected.spec.ts
+ *   AI_REVIEW_PROVIDER=off AI_REPORT_WEBHOOK_URL= npx next dev -p <port>
+ *   E2E_EXPORT_AI=off PLAYWRIGHT_BASE_URL=http://localhost:<port> npx playwright test e2e/export/not-connected.spec.ts
+ *
+ * The panel is found on /inspections/{id}/review; E2E_AI_PANEL_PATH points
+ * the specs at another page that renders it, e.g. /some-page/{id}.
  */
 
 // A dev server compiles on first use and the database is shared: allow for slow pages.
@@ -45,8 +50,10 @@ test("an admin sees that neither hand-off is connected, and can still download t
   const panel = page.getByTestId("ai-panel");
 
   await expect(panel.getByTestId("ai-review-not-connected")).toContainText("AI second opinion not connected");
-  // Not connected is also AI_REVIEW_PROVIDER=off, which this dev server runs: the hint says how to undo it.
-  await expect(panel.getByTestId("ai-review-not-connected")).toContainText("If AI_REVIEW_PROVIDER is set to off, change it to auto.");
+  // This dev server runs AI_REVIEW_PROVIDER=off: the hint says it is switched off, and how to switch it on.
+  await expect(panel.getByTestId("ai-review-not-connected")).toContainText(
+    "It is switched off on the server: AI_REVIEW_PROVIDER is set to off.",
+  );
   await expect(panel.getByRole("button", { name: /second opinion/ })).toHaveCount(0);
   const report = panel.getByTestId("ai-report");
   await expect(report).toContainText("AI not connected");

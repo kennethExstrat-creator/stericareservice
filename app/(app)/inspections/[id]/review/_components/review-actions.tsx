@@ -3,6 +3,7 @@
 import { useActionState, useId, useRef, useState, type ReactNode, type RefObject } from "react";
 import { CheckIcon, OctagonXIcon, RotateCcwIcon, TriangleAlertIcon } from "lucide-react";
 import { toast } from "sonner";
+import { refreshInspectionMedia } from "@/components/capture/photos";
 import { StatusPill } from "@/components/qc";
 import { SMALL_PILL_TOUCH } from "@/components/qc/status-pill";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -68,14 +69,23 @@ type DialogProps = ReviewActionsProps & {
   returnFocusTo: RefObject<HTMLButtonElement | null>;
 };
 
-/** Toast and close on success or a warning; anything else stays in the dialog. */
-function settle(result: ReviewActionResult, onClose: () => void): ReviewActionResult {
+/**
+ * Toast and close on success or a warning; anything else stays in the
+ * dialog. Either way the inspection's status may have moved on (a warning:
+ * someone else acted first), so photos and files already loaded on this
+ * device (the gallery's store, kept across client-side navigation) are read
+ * again with the user's new rights: an approved inspection's are read-only.
+ */
+export function settle(inspectionId: string, result: ReviewActionResult, onClose: () => void): ReviewActionResult {
   if (result.status === "success") {
     toast.success(result.message);
     onClose();
   } else if (result.status === "warning") {
     toast.warning(result.message, { duration: 12_000 });
     onClose();
+  }
+  if (result.status === "success" || result.status === "warning") {
+    refreshInspectionMedia(inspectionId).catch((error: unknown) => console.error("Inspection review: reading the photos again failed", error));
   }
   return result;
 }
@@ -92,7 +102,7 @@ function ApproveDialog({
 }: DialogProps) {
   const [state, formAction, pending] = useActionState(
     async (previous: ReviewActionResult, formData: FormData) =>
-      settle(await approveInspection(previous, formData).catch(unreachable), onClose),
+      settle(inspectionId, await approveInspection(previous, formData).catch(unreachable), onClose),
     IDLE,
   );
 
@@ -201,7 +211,7 @@ function ReopenDialog({ inspectionId, refNo, onClose, returnFocusTo }: DialogPro
     const fieldError = result.status === "error" ? (result.fieldErrors?.reason ?? null) : null;
     setReasonError(fieldError);
     if (fieldError) reasonRef.current?.focus();
-    return settle(result, onClose);
+    return settle(inspectionId, result, onClose);
   }, IDLE);
 
   const formError = state.status === "error" && !state.fieldErrors ? state.message : null;

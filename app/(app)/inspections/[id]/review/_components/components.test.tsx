@@ -11,7 +11,6 @@ import {
 } from "@/lib/inspections/review/__fixtures__/review";
 import type { AuditEntry } from "@/lib/inspections/review/audit";
 import type { ReviewPhoto } from "@/lib/inspections/review/photos";
-import { AiPanelSlot } from "./ai-panel-slot";
 import { History } from "./history";
 import { InspectionFacts } from "./inspection-facts";
 import { formatCustomValue, ModuleResults } from "./module-results";
@@ -321,13 +320,5 @@ describe("History", () => {
     expect(text(renderToStaticMarkup(<History history={{ entries: [], failed: true }} />))).toContain(
       "The history could not be loaded.",
     );
-  });
-});
-
-describe("AiPanelSlot", () => {
-  it("reads 'AI second opinion not connected' until the real panel takes the slot", () => {
-    const html = renderToStaticMarkup(<AiPanelSlot inspectionId={INSPECTION_ID} />);
-    expect(html).toContain(`data-inspection-id="${INSPECTION_ID}"`);
-    expect(text(html)).toContain("AI second opinion not connected");
   });
 });

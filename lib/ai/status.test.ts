@@ -14,6 +14,17 @@ describe("getAiStatus", () => {
     expect(AI_REPORT_NOT_CONNECTED).toBe("AI not connected");
   });
 
+  it("tells AI_REVIEW_PROVIDER=off apart from nothing set up", () => {
+    expect(getAiStatus({ AI_REVIEW_PROVIDER: "off", ANTHROPIC_API_KEY: API_KEY }).review).toEqual({
+      connected: false,
+      provider: "off",
+      label: "AI second opinion not connected",
+      switchedOff: true,
+    });
+    expect(getAiStatus({ AI_REVIEW_PROVIDER: "auto" }).review).not.toHaveProperty("switchedOff");
+    expect(getAiStatus({ AI_REVIEW_PROVIDER: "" }).review).not.toHaveProperty("switchedOff");
+  });
+
   it("names the Claude model", () => {
     expect(getAiStatus({ ANTHROPIC_API_KEY: API_KEY, AI_REVIEW_MODEL: "claude-opus-5" }).review).toEqual({
       connected: true,

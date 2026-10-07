@@ -1,7 +1,8 @@
-// The AI panel (BUILD_SPEC 9.1 and 9.2). The review screen renders
-// <AiReviewPanel inspectionId={id} /> from its Server Component; the view and
-// its parts are exported for screens that load the model themselves.
-export { AiReviewPanel } from "./ai-review-panel";
+// The AI panel (BUILD_SPEC 9.1 and 9.2). A Server Component renders
+// <AiReviewPanel inspectionId={id} />; the review screen loads the panel
+// beside its own reads and renders <LoadedAiReviewPanel load={...} />. The
+// view and its parts are exported for screens that build the model themselves.
+export { AiReviewPanel, LoadedAiReviewPanel } from "./ai-review-panel";
 export { AiReviewPanelView } from "./review-panel-view";
 export { Comparison, COLUMN_TITLES } from "./comparison";
 export { DecisionControl } from "./decision-control";

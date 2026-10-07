@@ -132,6 +132,8 @@ export type AiPanelModel = {
     canRequest: boolean;
     /** Why an admin cannot request one now, e.g. "Only submitted or approved inspections are reviewed." */
     blockedReason: string | null;
+    /** Not connected because AI_REVIEW_PROVIDER is off on purpose, not because nothing is set up. */
+    switchedOff: boolean;
   };
   report: HandoffModel & { canSend: boolean; blockedReason: string | null };
   /** The newest finished review: the AI column. */

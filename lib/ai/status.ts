@@ -17,6 +17,11 @@ export interface AiReviewStatus {
   label: string;
   /** Why a hand-off is misconfigured, naming the variable to fix. */
   detail?: string;
+  /**
+   * Not connected because AI_REVIEW_PROVIDER is off on purpose, set up or
+   * not; absent when nothing is set up, so the hint can say which to change.
+   */
+  switchedOff?: true;
 }
 
 export interface AiReportStatus {
@@ -50,7 +55,12 @@ function reviewStatus(target: ReviewTarget): AiReviewStatus {
     case "mock":
       return { connected: true, provider: "mock", label: "AI second opinion: mock reviewer (test data only)" };
     case "off":
-      return { connected: false, provider: "off", label: AI_REVIEW_NOT_CONNECTED };
+      return {
+        connected: false,
+        provider: "off",
+        label: AI_REVIEW_NOT_CONNECTED,
+        ...(target.switchedOff ? { switchedOff: true as const } : {}),
+      };
     case "misconfigured":
       return {
         connected: false,

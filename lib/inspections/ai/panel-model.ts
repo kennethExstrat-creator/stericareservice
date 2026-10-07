@@ -114,6 +114,7 @@ export function buildAiPanelModel(input: PanelModelInput): AiPanelModel {
       ...reviewHandoff,
       canRequest: isAdmin && reviewHandoff.connected && reviewable && !runningNow,
       blockedReason: !reviewable ? NOT_REVIEWABLE : runningNow ? ALREADY_PENDING : null,
+      switchedOff: aiStatus.review.switchedOff === true,
     },
     report: {
       ...reportHandoff,

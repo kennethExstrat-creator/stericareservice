@@ -50,6 +50,12 @@ describe("review provider resolution", () => {
     expect(readAiConfig(env).report).toEqual({ provider: "off" });
   });
 
+  it("marks AI_REVIEW_PROVIDER=off as switched off on purpose, whatever else is set", () => {
+    expect(review({ AI_REVIEW_PROVIDER: "off", ANTHROPIC_API_KEY: API_KEY })).toEqual({ provider: "off", switchedOff: true });
+    expect(review({ AI_REVIEW_PROVIDER: "OFF" })).toEqual({ provider: "off", switchedOff: true });
+    expect(review({ AI_REVIEW_PROVIDER: "auto" })).toEqual({ provider: "off" });
+  });
+
   it("reads provider and effort case-insensitively and trims values", () => {
     const target = review({ AI_REVIEW_PROVIDER: " Claude ", ANTHROPIC_API_KEY: ` ${API_KEY} `, AI_REVIEW_EFFORT: "MAX" });
     expect(target).toEqual({
