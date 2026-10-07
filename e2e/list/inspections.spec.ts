@@ -92,6 +92,34 @@ async function expectShownInFull(text: Locator) {
 }
 
 /**
+ * Desktop: rows stay one line, and a name too long for its column is cut
+ * with an ellipsis (the tooltip has it all). These names must not be: each
+ * is checked on its own text, since text cut that way never spills out of
+ * its cell (expectRowsFit cannot see it).
+ */
+async function expectNamesWhole(entries: [row: Locator, name: string][]) {
+  for (const [inRow, name] of entries) await expectShownInFull(inRow.locator(`[title="${name}"]`).filter({ visible: true }));
+}
+
+/**
+ * Desktop: the columns of free text are at least as wide as they were before
+ * the row actions came (on the desktop only the product gives way for them).
+ */
+async function expectColumnsAtLeast(page: Page, widths: Record<string, number>) {
+  for (const [name, least] of Object.entries(widths)) {
+    const box = (await page.getByRole("columnheader", { name, exact: true }).boundingBox())!;
+    expect(box.width, `the ${name} column`).toBeGreaterThanOrEqual(least);
+  }
+}
+
+/** Desktop: every row is one line (36 px), its actions included. */
+async function expectCompactRows(page: Page) {
+  const heights = await page.locator("tbody tr").evaluateAll((rows) => rows.map((tr) => tr.getBoundingClientRect().height));
+  expect(heights.length).toBeGreaterThan(0);
+  expect(Math.max(...heights), "the tallest row").toBeLessThanOrEqual(37);
+}
+
+/**
  * No row overflows or squeezes: no cell's content spills out of it, the
  * table fits its card, and no action's words are cut.
  */
@@ -223,8 +251,11 @@ test.describe("with inspections", () => {
     await expect(row(page, refs.B).getByRole("rowheader").getByRole("link")).toHaveCount(0);
     await expect(row(page, refs.B)).toContainText(FIXTURE_CLIENT_NAME);
     await expect(row(page, refs.B)).toContainText("3 Oct 2026", { useInnerText: true });
-    // Every value shows at every size: without a column of its own it sits under another.
-    await expect(row(page, refs.A)).toContainText("Nitrile examination gloves, blue", { useInnerText: true });
+    // Every value shows on the iPad: without a column of its own it sits under another. On the
+    // desktop below 1536 px the product gives way, so the names keep their room (the inspection shows it).
+    const product = "Nitrile examination gloves, blue";
+    if (isTouch()) await expect(row(page, refs.A)).toContainText(product, { useInnerText: true });
+    else await expect(row(page, refs.A)).not.toContainText(product, { useInnerText: true });
     await expect(row(page, refs.A)).toContainText("Hartalega NGC", { useInnerText: true });
     await expect(row(page, refs.A)).toContainText("E2E-LIST-PO-100", { useInnerText: true });
     await expect(row(page, refs.A)).toContainText("1 Oct 2026", { useInnerText: true });
@@ -240,7 +271,15 @@ test.describe("with inspections", () => {
       await expectShownInFull(row(page, refs.B).locator(`[title="${TERANG_NUSA_LABEL}"]`).filter({ visible: true }));
     } else {
       // Compact rows on the desktop, the 32 px actions included.
-      expect((await row(page, refs.A).boundingBox())!.height).toBeLessThanOrEqual(37);
+      await expectCompactRows(page);
+      // At 1440 px the product gives way, so client, manufacturer and PO are not squeezed for the
+      // actions: client and manufacturer wider than before them (165 px), the PO as wide (128 px).
+      await expectColumnsAtLeast(page, { Client: 165, Manufacturer: 165, PO: 128 });
+      await expectNamesWhole([
+        [row(page, refs.A), FIXTURE_CLIENT_NAME],
+        [row(page, refs.A), "Hartalega NGC"],
+        [row(page, refs.D), "Polyco Healthline"],
+      ]);
     }
     for (const action of [mainAction(page, refs.A, "Continue"), deleteButton(page, refs.A), mainAction(page, refs.D, "View")]) {
       await expectActionSize(action);
@@ -249,7 +288,8 @@ test.describe("with inspections", () => {
     // On the iPad the PO sits under the ref and the result under the status, to make room for the actions.
     await expect(page.getByRole("columnheader", { name: "PO", exact: true })).toBeVisible({ visible: !isTouch() });
     await expect(page.getByRole("columnheader", { name: "Result", exact: true })).toBeVisible({ visible: !isTouch() });
-    await expect(page.getByRole("columnheader", { name: "Product", exact: true })).toBeVisible({ visible: !isTouch() });
+    // The product has a column of its own only on desktops of 1536 px and wider.
+    await expect(page.getByRole("columnheader", { name: "Product", exact: true })).toBeHidden();
     if (isTouch()) await expect(row(page, refs.A)).toContainText("PO E2E-LIST-PO-100", { useInnerText: true });
     // The actions' column is named for screen readers.
     await expect(page.getByRole("columnheader", { name: "Actions", exact: true })).toHaveCount(1);
@@ -278,15 +318,16 @@ test.describe("with inspections", () => {
       // On the iPad the product sits under the manufacturer (or the client, in portrait).
       await expect(row(page, refs.C)).toContainText("Safedon nitrile examination gloves", { useInnerText: true });
     } else {
-      // At 1440 px the Inspector column takes the product's room, so no name is cut to a few letters.
+      // At 1440 px the product gives way, so no name is cut to a few letters: client and manufacturer
+      // are wider than before the actions (122 px each); the PO gives up 16 px for the Inspector column.
       await expect(page.getByRole("columnheader", { name: "Product", exact: true })).toBeHidden();
-      await expect(row(page, refs.D).locator('[title="Polyco Healthline"]').filter({ visible: true })).toHaveCount(1);
-      const cut = await row(page, refs.D)
-        .locator('[title="Polyco Healthline"]')
-        .filter({ visible: true })
-        .evaluate((el) => el.scrollWidth > el.clientWidth);
-      expect(cut, "Polyco Healthline is cut short").toBe(false);
-      expect((await row(page, refs.B).boundingBox())!.height).toBeLessThanOrEqual(37);
+      await expectColumnsAtLeast(page, { Client: 122, Manufacturer: 122, PO: 112 });
+      await expectNamesWhole([
+        [row(page, refs.D), "Polyco Healthline"],
+        [row(page, refs.D), "Hartalega NGC"],
+        [row(page, refs.A), "Test Inspector"],
+      ]);
+      await expectCompactRows(page);
     }
 
     await expectRowsFit(page);

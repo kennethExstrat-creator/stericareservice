@@ -66,18 +66,20 @@ describe("InspectionTable", () => {
     expect(ref).toMatch(folded("lg", "Test Inspector"));
   });
 
-  it("heads each row with its ref as plain bold text, not a link", () => {
+  it("heads each row with its ref as plain bold text on one line, not a link", () => {
     const html = render([ROW]);
-    expect(html).toMatch(/<th[^>]*scope="row"[^>]*><span class="block font-semibold tabular-nums">INS-2026-0001<\/span>/);
+    expect(html).toMatch(
+      /<th[^>]*scope="row"[^>]*><span class="block font-semibold whitespace-nowrap tabular-nums">INS-2026-0001<\/span>/,
+    );
     const [ref] = cells(html);
     expect(ref).not.toContain("<a ");
     expect(html).toContain('<caption class="sr-only">x</caption>');
   });
 
-  it("writes the date the British way, and under the ref in iPad portrait", () => {
+  it("writes the date the British way on one line, and under the ref in iPad portrait", () => {
     const html = render([ROW]);
     const [ref, date] = cells(html);
-    expect(date).toContain('<time dateTime="2026-10-06" class="block tabular-nums">6 Oct 2026</time>');
+    expect(date).toContain('<time dateTime="2026-10-06" class="block whitespace-nowrap tabular-nums">6 Oct 2026</time>');
     expect(date).toMatch(/^<td[^>]*class="[^"]*hidden lg:table-cell/);
     expect(ref).toMatch(/<span class="[^"]*\blg:hidden\b[^"]*"><time dateTime="2026-10-06"[^>]*>6 Oct 2026<\/time><\/span>/);
   });
@@ -89,11 +91,11 @@ describe("InspectionTable", () => {
     expect(client).toMatch(folded("lg", "Nitrile examination gloves"));
   });
 
-  it("folds the product under the manufacturer for iPad landscape, so it shows at every size", () => {
+  it("folds the product under the manufacturer for iPad landscape, so it shows on every iPad", () => {
     const [, , , manufacturer, product] = cells(render([ROW]));
     expect(manufacturer).toMatch(/^<td[^>]*class="[^"]*hidden lg:table-cell/);
     expect(manufacturer).toMatch(folded("xl", "Nitrile examination gloves"));
-    expect(product).toMatch(/^<td[^>]*class="[^"]*hidden xl:table-cell/);
+    expect(product).toMatch(/^<td[^>]*class="[^"]*hidden 2xl:fine:table-cell/);
     expect(product).toContain('title="Nitrile examination gloves">Nitrile examination gloves</span>');
   });
 
@@ -111,17 +113,20 @@ describe("InspectionTable", () => {
     // Columns of their own from 1024 px (lg) or only in the desktop layout (xl): header and cell each.
     const asInspector = render([{ ...ROW, inspector: null }]);
     expect(asInspector.match(/hidden lg:table-cell/g)).toHaveLength(4); // date and manufacturer
-    expect(asInspector.match(/hidden xl:table-cell/g)).toHaveLength(6); // product, PO and result
+    expect(asInspector.match(/hidden xl:table-cell/g)).toHaveLength(4); // PO and result
     const asAdmin = render([ROW], AS_ADMIN);
     expect(asAdmin.match(/hidden xl:table-cell/g)).toHaveLength(6); // PO, result and inspector
   });
 
-  it("gives admins' Inspector column the product's room on desktops narrower than 1536 px", () => {
-    const html = render([ROW], AS_ADMIN);
-    expect(html).toMatch(/<th[^>]*class="[^"]*hidden 2xl:fine:table-cell[^"]*"[^>]*>Product<\/th>/);
-    const [, , , manufacturer] = cells(html);
-    // On the iPad the product still shows, under the manufacturer.
-    expect(manufacturer).toMatch(folded("xl", "Nitrile examination gloves"));
+  it("has the product give way on desktops narrower than 1536 px for every role", () => {
+    for (const viewer of [AS_INSPECTOR, AS_ADMIN]) {
+      const html = render([ROW], viewer);
+      expect(html).toMatch(/<th[^>]*class="[^"]*hidden 2xl:fine:table-cell[^"]*"[^>]*>Product<\/th>/);
+      expect(html.match(/hidden 2xl:fine:table-cell/g)).toHaveLength(2); // the product's header and cell
+      const [, , , manufacturer] = cells(html);
+      // On the iPad the product still shows, under the manufacturer.
+      expect(manufacturer).toMatch(folded("xl", "Nitrile examination gloves"));
+    }
   });
 
   it("wraps long names onto a second line on touch and keeps one line with a tooltip for a mouse", () => {
@@ -141,6 +146,11 @@ describe("InspectionTable", () => {
     expect(html).toMatch(/<table[^>]*class="[^"]*table-fixed/);
     expect(html).toMatch(/<th[^>]*class="[^"]*w-40 fine:w-32[^"]*"[^>]*>Ref<\/th>/);
     expect(html).toMatch(/<th[^>]*class="[^"]*w-46 fine:w-37[^"]*"[^>]*><span class="sr-only">Actions<\/span><\/th>/);
+  });
+
+  it("gives the PO its full width in an inspector's list, and 16 px less in admins', which has the Inspector column", () => {
+    expect(render([ROW])).toMatch(/<th[^>]*class="[^"]*w-36 fine:w-32[^"]*"[^>]*>PO<\/th>/);
+    expect(render([ROW], AS_ADMIN)).toMatch(/<th[^>]*class="[^"]*w-36 fine:w-28[^"]*"[^>]*>PO<\/th>/);
   });
 
   it("shows Not done until the final result is set, never a pass", () => {

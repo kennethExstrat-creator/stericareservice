@@ -28,10 +28,12 @@ export type InspectionColumn = {
    * iPad, and the row actions keep their room.
    *
    * On the desktop rows stay one line, so a value without a column is not
-   * in the list: admins' Inspector column takes the product's room on
-   * desktops narrower than 1536 px (`2xl`), where nine columns and the
-   * actions would cut every name to a few letters. The inspection itself
-   * shows the product.
+   * in the list: the product gives way on desktops narrower than 1536 px
+   * (`2xl`), for everyone. With the actions at the end of the row, a product
+   * column there cut every name to a few letters (inspectors' clients and
+   * manufacturers lost a quarter of their width at 1440 px); without it they
+   * are wider than before the actions, and admins' Inspector column fits.
+   * The inspection itself shows the product.
    */
   from?: "lg" | "xl" | "2xl";
   /** A heading for screen readers only: the buttons below it say what they do. */
@@ -43,7 +45,7 @@ const COLUMNS: readonly InspectionColumn[] = [
   { key: "date", label: "Date", from: "lg" },
   { key: "client", label: "Client" },
   { key: "manufacturer", label: "Manufacturer", from: "lg" },
-  { key: "product", label: "Product", from: "xl" },
+  { key: "product", label: "Product", from: "2xl" },
   { key: "po", label: "PO", from: "xl" },
   { key: "status", label: "Status" },
   { key: "result", label: "Result", from: "xl" },
@@ -57,12 +59,8 @@ const ACTIONS_COLUMN: InspectionColumn = { key: "actions", label: "Actions", srO
 /**
  * The list's columns in order (BUILD_SPEC 10), the row actions last.
  * Inspectors only ever see their own inspections, so only admins get the
- * Inspector column; on narrower desktops it takes the product's room.
+ * Inspector column.
  */
 export function inspectionListColumns(role: UserRole): readonly InspectionColumn[] {
-  if (role !== "admin") return [...COLUMNS, ACTIONS_COLUMN];
-  const columns = COLUMNS.map((column): InspectionColumn =>
-    column.key === "product" ? { ...column, from: "2xl" } : column,
-  );
-  return [...columns, INSPECTOR_COLUMN, ACTIONS_COLUMN];
+  return role === "admin" ? [...COLUMNS, INSPECTOR_COLUMN, ACTIONS_COLUMN] : [...COLUMNS, ACTIONS_COLUMN];
 }

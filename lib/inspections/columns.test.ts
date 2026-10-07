@@ -30,7 +30,7 @@ describe("inspectionListColumns", () => {
       date: "lg",
       client: "always",
       manufacturer: "lg",
-      product: "xl",
+      product: "2xl",
       po: "xl",
       status: "always",
       result: "xl",
@@ -38,8 +38,11 @@ describe("inspectionListColumns", () => {
     });
   });
 
-  it("gives admins' Inspector column the product's room on desktops narrower than 1536 px", () => {
-    const from = Object.fromEntries(inspectionListColumns("admin").map((column) => [column.key, column.from ?? "always"]));
-    expect(from).toMatchObject({ product: "2xl", inspector: "xl", po: "xl", result: "xl", actions: "always" });
+  it("has the product give way on desktops narrower than 1536 px for every role, so the names keep their room", () => {
+    for (const role of ["inspector", "admin"] as const) {
+      const from = Object.fromEntries(inspectionListColumns(role).map((column) => [column.key, column.from ?? "always"]));
+      expect(from).toMatchObject({ product: "2xl", po: "xl", result: "xl", actions: "always" });
+    }
+    expect(inspectionListColumns("admin").find((column) => column.key === "inspector")?.from).toBe("xl");
   });
 });

@@ -11,7 +11,11 @@
 // content of a known size (ref, date, PO, the pills, inspector, actions) get
 // set widths, and client, manufacturer and product share the rest. With a
 // mouse a long name stays on one line with the full text in the tooltip; on
-// touch, where nothing hovers, it wraps onto a second line.
+// touch, where nothing hovers, it wraps onto a second line. On desktops
+// narrower than 1536 px the product gives way (columns.ts), so client and
+// manufacturer are wider than they were before the actions: about 180 px
+// each in an inspector's list at 1440 px, 134 px in admins' (which also has
+// the Inspector column).
 //
 // The ref heads the row as plain text: the row's actions sit in its last
 // column (Kenneth: buttons at the end of each row, not a clickable ref). The
@@ -40,16 +44,27 @@ const VISIBLE_FROM: Record<NonNullable<InspectionColumn["from"]>, string> = {
   "2xl": "hidden 2xl:fine:table-cell",
 };
 
-/** Set widths, larger on touch for the 16 px text, bigger pills and 44 px buttons. */
+/**
+ * Set widths, larger on touch for the 16 px text, bigger pills and 44 px
+ * buttons. With a mouse the ref and the date fit their text with little to
+ * spare, so neither may wrap (see cell()).
+ */
 const WIDTH: Partial<Record<InspectionColumnKey, string>> = {
   ref: "w-40 fine:w-32",
   date: "w-32 fine:w-26",
-  po: "w-36 fine:w-28",
+  po: "w-36 fine:w-32",
   status: "w-36 fine:w-30",
   result: "w-32 fine:w-28",
   inspector: "w-40 fine:w-28",
   actions: "w-46 fine:w-37",
 };
+
+/**
+ * Admins' list has one column more, the Inspector: there the PO gives up
+ * 16 px with a mouse, so client and manufacturer keep room for a name like
+ * "Polyco Healthline" at 1440 px.
+ */
+const WIDTH_WITH_INSPECTOR: Partial<Record<InspectionColumnKey, string>> = { ...WIDTH, po: "w-36 fine:w-28" };
 
 function Missing({ label }: { label: string }) {
   return (
@@ -91,9 +106,10 @@ function Folded({ until, children }: { until: "lg" | "xl"; children: string }) {
   );
 }
 
+/** One line always: a date that wrapped would double the row's height. */
 function InspectionDate({ value }: { value: string }) {
   return (
-    <time dateTime={value} className="block tabular-nums">
+    <time dateTime={value} className="block whitespace-nowrap tabular-nums">
       {formatInspectionDate(value)}
     </time>
   );
@@ -159,9 +175,10 @@ function RowActionsCell({
 function cell(key: InspectionColumnKey, row: InspectionListRow): ReactNode {
   switch (key) {
     case "ref":
+      // One line always: a ref that broke at a hyphen would double the row's height.
       return (
         <>
-          <span className="block font-semibold tabular-nums">{row.refNo}</span>
+          <span className="block font-semibold whitespace-nowrap tabular-nums">{row.refNo}</span>
           {row.po && <Folded until="xl">{`PO ${row.po}`}</Folded>}
           {/* iPad portrait: the date column is hidden. */}
           <span className="mt-0.5 block text-sm text-muted-foreground lg:hidden">
@@ -229,6 +246,7 @@ export function InspectionTable({
   caption: string;
 }) {
   const columns = inspectionListColumns(viewer.role);
+  const width = columns.some((column) => column.key === "inspector") ? WIDTH_WITH_INSPECTOR : WIDTH;
   const visibility = (column: InspectionColumn) => column.from && VISIBLE_FROM[column.from];
 
   return (
@@ -243,7 +261,7 @@ export function InspectionTable({
                 scope="col"
                 className={cn(
                   "h-9 px-3 text-sm font-medium text-muted-foreground first:pl-4 last:pr-4 fine:px-2.5 touch:h-11",
-                  WIDTH[column.key],
+                  width[column.key],
                   visibility(column),
                 )}
               >
