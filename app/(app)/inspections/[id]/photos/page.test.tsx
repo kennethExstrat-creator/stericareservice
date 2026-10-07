@@ -181,8 +181,8 @@ describe("/inspections/[id]/photos", () => {
     // Tags in words, under the module's heading.
     expect(html).toContain("Size M · Thin spot");
     expect(html).toContain("Near the cuff");
-    // The tile's badge, in the kit's case (components/qc/photo-tile.tsx); never the admin's "Include in Report".
-    expect(html).toMatch(/>In report</i);
+    // The tile's badge (components/qc/photo-tile.tsx); never the admin's "Include in Report".
+    expect(html).toContain(">In Report<");
     expect(html).toContain("Edit a photo to tag it with the module it belongs to.");
     // Lab reports: the force at break slot, its file and its own picker.
     expect(html).toContain("Lab Reports and Certificates");

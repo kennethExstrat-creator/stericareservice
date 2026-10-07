@@ -186,16 +186,17 @@ describe("PhotoCard", () => {
     expect(html).not.toContain("[&amp;&gt;div:first-child]");
   });
 
-  it("shows a stopped upload as the tile's stopped state, with what to do, instead of 'Waiting to upload'", () => {
+  it("shows a stopped upload as the tile's stopped state, with what to do, instead of 'Waiting to Upload'", () => {
     const reason = "This inspection can no longer be changed from this account. Ask an admin to reopen it, then try again.";
     const html = card({ queued: true, state: "failed", progress: 0, error: reason, thumbUrl: "blob:local" });
     expect(html).toContain('data-state="failed"');
-    // The tile's own words (components/qc/photo-tile.tsx), in whatever case the kit writes them.
-    expect(html).toMatch(/data-slot="upload-stopped"[^>]*>.*Upload stopped/i);
+    // The tile's own words (components/qc/photo-tile.tsx).
+    expect(html).toMatch(/data-slot="upload-stopped"[^>]*>.*Upload Stopped/);
     expect(html).toContain(reason);
     // Never waiting, never a progress bar: the tile says stopped and nothing else.
     expect(html).not.toMatch(/Waiting to upload/i);
     expect(html).not.toContain('role="progressbar"');
+    expect(html.match(/Upload Stopped/g)).toHaveLength(1);
     expect(html.match(/Upload stopped/gi)).toHaveLength(1);
     expect(html).toContain(">Try Again</button>");
     expect(html).toContain('aria-label="Try Again: Dimensions"');

@@ -59,8 +59,8 @@ describe("PhotoSlot", () => {
   it("says what new photos are tagged with: what the module records of the focus", () => {
     // Watertight records size, hand and defect; the box stays behind.
     const html = render(<PhotoSlot inspectionId={INSPECTION} moduleKey="watertight" focus={focus} />);
-    // The hand in the kit's words (components/qc/photo-tags.ts), in whatever case it writes them.
-    expect(html).toMatch(/New photos are tagged Size M · Right hand · hole_palm\./i);
+    // The hand in the kit's words (components/qc/photo-tags.ts).
+    expect(html).toContain("New photos are tagged Size M · Right Hand · hole_palm.");
     expect(render(<PhotoSlot inspectionId={INSPECTION} moduleKey="header" focus={focus} />)).not.toContain("New photos are tagged");
   });
 
@@ -104,9 +104,9 @@ describe("nextTagLine", () => {
   );
 
   it("names the defect in the module's wording and drops what the module does not record", () => {
-    // The hand in the kit's words, in whatever case it writes them; the defect in the module's.
-    expect(nextTagLine("visual", { size: "M", hand: "L", defect: "thin_spot", box: 4 }, options)).toMatch(
-      /^Size M · Left hand · Thin spot$/i,
+    // The hand in the kit's words; the defect in the module's.
+    expect(nextTagLine("visual", { size: "M", hand: "L", defect: "thin_spot", box: 4 }, options)).toBe(
+      "Size M · Left Hand · Thin spot",
     );
     expect(nextTagLine("labeling", { size: "M", hand: "L", box: 4 }, options)).toBe("Size M · Box 4");
   });
