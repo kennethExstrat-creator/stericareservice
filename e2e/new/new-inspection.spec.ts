@@ -180,15 +180,11 @@ test("the most specific template wins: client and manufacturer, client, manufact
   await expect(chosen.getByRole("listitem").first()).toHaveText("Manufacturer Information");
   await expect(chosen.getByRole("listitem").nth(1)).toHaveText("Glove Type");
 
-  // The client at manufacturer A: the client's template there.
+  // The client at manufacturer A, which has a template for anyone: the client's own comes
+  // first. Its header has no product name, so the form takes none.
   await choose(page, "Manufacturer", fixture.manufacturerA.label);
-  await expectTemplate(page, LEVEL_TEMPLATES.clientManufacturer.code, `For ${fixture.clientName} at ${fixture.manufacturerA.label}`);
-  await expect(page.getByTestId("no-previous")).toBeVisible();
-
-  // The client at manufacturer B, which has no template of the client's: the client's own,
-  // whose header has no product name, so the form takes none.
-  await choose(page, "Manufacturer", fixture.manufacturerB.label);
   await expectTemplate(page, LEVEL_TEMPLATES.client.code, `For ${fixture.clientName}`);
+  await expect(page.getByTestId("no-previous")).toBeVisible();
   const productName = page.getByRole("textbox", { name: /Product name/ });
   await expect(productName).toBeDisabled();
   await expect(productName).toHaveAttribute("placeholder", "None with this template");
@@ -198,7 +194,12 @@ test("the most specific template wins: client and manufacturer, client, manufact
   await expectNoPageScroll(page);
   await shot(page, "level-client");
 
-  // No client at manufacturer A: the manufacturer's template, whatever the client.
+  // The client at manufacturer B: the template for that client there, before the client's own.
+  await choose(page, "Manufacturer", fixture.manufacturerB.label);
+  await expectTemplate(page, LEVEL_TEMPLATES.clientManufacturer.code, `For ${fixture.clientName} at ${fixture.manufacturerB.label}`);
+  await expect(productName).toBeEnabled();
+
+  // No client at manufacturer A: the manufacturer's template; the client's templates need the client.
   await choose(page, "Client", "No client");
   await choose(page, "Manufacturer", fixture.manufacturerA.label);
   await expectTemplate(page, LEVEL_TEMPLATES.manufacturer.code, `For ${fixture.manufacturerA.label}`);
@@ -206,7 +207,8 @@ test("the most specific template wins: client and manufacturer, client, manufact
   await expect(productName).toBeEnabled();
   await shot(page, "level-manufacturer");
 
-  // No client at manufacturer B: only a standard template can apply (once seeded, STD_EG).
+  // No client at manufacturer B, which has only the client's template: only a standard
+  // template can apply (once seeded, STD_EG).
   await choose(page, "Manufacturer", fixture.manufacturerB.label);
   const [standard] = await standardTemplates("examination");
   if (standard) {
@@ -334,7 +336,7 @@ test("the inspector creates an inspection from the manufacturer's template and l
   await signIn(context, baseURL!, TEST_ACCOUNTS.inspector);
   await page.goto("/inspections/new");
   // No client at manufacturer A: the server picks the manufacturer's template again, past the
-  // client's templates there, which do not apply without that client.
+  // client's own, which does not apply without that client.
   await choose(page, "Client", "No client");
   await choose(page, "Manufacturer", fixture.manufacturerA.label);
   await press(page.getByRole("radio", { name: /Examination gloves/ }));

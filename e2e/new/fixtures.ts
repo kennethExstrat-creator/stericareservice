@@ -10,15 +10,23 @@ import { TEST_ACCOUNTS } from "../support/session";
  * the most specific rule (BUILD_SPEC 4.4), and one earlier inspection by the
  * test inspector to start from. Every template is scoped to the fixture's
  * client or to its manufacturer A, so it only ever applies to picks of the
- * fixture's own rows, whatever else is in the shared database; manufacturer
- * B has none, so with no client only a standard template (no client, no
- * manufacturer) can apply there. No standard template is made here: it would
- * apply to anyone's new inspection while it existed.
+ * fixture's own rows, whatever else is in the shared database. Manufacturer
+ * B has only the client's template, so with no client only a standard
+ * template (no client, no manufacturer) can apply there. No standard
+ * template is made here: it would apply to anyone's new inspection while it
+ * existed.
  *
  *   E2E_NEWSEED     the client at Hartalega   client and manufacturer   STD_EG
- *   E2E_NEWSEED_CM  the client at A           client and manufacturer   STD_EG
+ *   E2E_NEWSEED_CM  the client at B           client and manufacturer   STD_EG
  *   E2E_NEWSEED_C   the client, anywhere      client                    STD_EG, no product name in its header
  *   E2E_NEWSEED_M   anyone at A               manufacturer              SAFEDON_EG
+ *
+ * Each pick sets two levels against each other, or shows one alone:
+ *   the client at Hartalega   E2E_NEWSEED over E2E_NEWSEED_C      client and manufacturer before client
+ *   the client at A           E2E_NEWSEED_C over E2E_NEWSEED_M    client before manufacturer
+ *   the client at B           E2E_NEWSEED_CM over E2E_NEWSEED_C   client and manufacturer before client
+ *   no client at A            E2E_NEWSEED_M                       the client's templates need the client
+ *   no client at B            a standard template, or none
  *
  * The templates are seed templates from the seed bundle under other codes,
  * so the page shows real templates: their modules, sizes and titles.
@@ -36,7 +44,7 @@ export const FIXTURE_TEMPLATE_CODE = "E2E_NEWSEED";
 export const FIXTURE_TEMPLATE_NAME = "E2E new inspection template (temporary)";
 /** One template per level below the fixture's own (see above). */
 export const LEVEL_TEMPLATES = {
-  clientManufacturer: { code: "E2E_NEWSEED_CM", name: "E2E new: the client at manufacturer A (temporary)" },
+  clientManufacturer: { code: "E2E_NEWSEED_CM", name: "E2E new: the client at manufacturer B (temporary)" },
   client: { code: "E2E_NEWSEED_C", name: "E2E new: the client anywhere (temporary)" },
   manufacturer: { code: "E2E_NEWSEED_M", name: "E2E new: anyone at manufacturer A (temporary)" },
 } as const;
@@ -78,9 +86,9 @@ export type FixtureManufacturer = { id: string; label: string; address: string |
 export type NewFixture = {
   clientId: string;
   clientName: string;
-  /** Has E2E_NEWSEED_CM (with the client) and E2E_NEWSEED_M (anyone). */
+  /** Has E2E_NEWSEED_M (anyone); with the client, the client's E2E_NEWSEED_C comes first. */
   manufacturerA: FixtureManufacturer;
-  /** Has no template of its own. */
+  /** Has E2E_NEWSEED_CM (with the client) and nothing for anyone else. */
   manufacturerB: FixtureManufacturer;
   /** E2E_NEWSEED's id. */
   templateId: string;
@@ -298,7 +306,7 @@ async function insertFixtureRows(admin: AdminClient): Promise<NewFixture> {
       "STD_EG",
       LEVEL_TEMPLATES.clientManufacturer.code,
       LEVEL_TEMPLATES.clientManufacturer.name,
-      examination("EN455", client.id, manufacturerA.id),
+      examination("EN455", client.id, manufacturerB.id),
     ),
     fixtureTemplate("STD_EG", LEVEL_TEMPLATES.client.code, LEVEL_TEMPLATES.client.name, examination("EN455", client.id), withoutProductName),
     fixtureTemplate(
