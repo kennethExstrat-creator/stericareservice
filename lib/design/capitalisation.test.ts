@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lowerCaseWords, SMALL_WORDS } from "./capitalisation";
+import { lowerCaseWords, SMALL_WORDS, staysLowerCase } from "./capitalisation";
 import { STATUSES, STATUS_LABEL } from "./status";
 
 describe("lowerCaseWords (docs/DESIGN.md, Capitalisation)", () => {
@@ -18,8 +18,18 @@ describe("lowerCaseWords (docs/DESIGN.md, Capitalisation)", () => {
     "Sign In",
     "Back to Sign In",
     "Sign-In Emails",
+    "Set-Up",
     "Secret Key (Server Only)",
     "Forgot Password?",
+    "Leave This Page?",
+    "Used In",
+    "Map To",
+    "Shown As",
+    "Base Moved On",
+    "Accent: Logo Teal (The Brand, Never a Result)",
+    "No: Keeps Its Own Value",
+    "Count (Tap + and −)",
+    "Switching Off…",
   ])("passes %j", (label) => {
     expect(lowerCaseWords(label)).toEqual([]);
   });
@@ -31,19 +41,34 @@ describe("lowerCaseWords (docs/DESIGN.md, Capitalisation)", () => {
     ["Follow-up", ["up"]],
     ["the first word", ["the", "first", "word"]],
     ["Not done", ["done"]],
+    ["Used in", ["in"]],
+    ["Base Moved on", ["on"]],
+    ["Accent: the Brand", ["the"]],
+    ["Logo Teal (the Brand, Never a Result)", ["the"]],
   ])("names the words that break it in %j", (label, words) => {
     expect(lowerCaseWords(label)).toEqual(words);
   });
 
-  it("lets a small word start with a capital, as in a verb's Sign In", () => {
+  it("lets a small word in the middle start with a capital, as in a verb's Sign In; the last word always takes one", () => {
     expect(lowerCaseWords("Stay Signed In")).toEqual([]);
-    expect(lowerCaseWords("Stay Signed in")).toEqual([]);
+    expect(lowerCaseWords("Sign In Again")).toEqual([]);
+    expect(lowerCaseWords("Stay Signed in")).toEqual(["in"]);
   });
 
   it("keeps the rule's eighteen small words", () => {
     expect([...SMALL_WORDS]).toEqual(
       "a an the and but or nor of in on at to by for per via vs as".split(" "),
     );
+  });
+});
+
+describe("staysLowerCase", () => {
+  it("keeps a small word lower case in the middle only", () => {
+    const words = ["Boxes", "per", "Size"];
+    expect(words.map((word, index) => staysLowerCase(word, index, words.length))).toEqual([false, true, false]);
+    expect(staysLowerCase("as", 1, 2)).toBe(false);
+    expect(staysLowerCase("the", 0, 3)).toBe(false);
+    expect(staysLowerCase("Charge", 2, 3)).toBe(false);
   });
 });
 

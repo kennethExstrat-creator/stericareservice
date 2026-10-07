@@ -4,6 +4,7 @@
 // action adds its reason as a separate `review.reopened` event, which is
 // folded into the reopen it belongs to here. Who acted is told as the viewer
 // may know it (./actor.ts).
+import { staysLowerCase } from "@/lib/design/capitalisation";
 import { INSPECTION_STATUS_LABEL } from "@/lib/inspections/format";
 import { InspectionStatusSchema } from "@/lib/schemas/common";
 import { actorOf, type Actor, type KnownPeople } from "./actor";
@@ -119,11 +120,6 @@ function detailOf(changes: unknown): string | null {
   return null;
 }
 
-/** Words a title keeps in lower case, except as its first word. */
-const SMALL_WORDS: ReadonlySet<string> = new Set([
-  "a", "an", "the", "and", "but", "or", "nor", "of", "in", "on", "at", "to", "by", "for", "per", "via", "vs", "as",
-]);
-
 /** `ai_review.failed` as "AI Review Failed": a title, each word capitalised but the small ones. */
 export function humanise(action: string): string {
   const words = action.split(/[._]+/).filter(Boolean);
@@ -131,7 +127,7 @@ export function humanise(action: string): string {
   return words
     .map((word, index) => {
       if (word.toLowerCase() === "ai") return "AI";
-      if (index > 0 && SMALL_WORDS.has(word.toLowerCase())) return word.toLowerCase();
+      if (staysLowerCase(word, index, words.length)) return word.toLowerCase();
       // Each part of a hyphenated word: "Follow-Up".
       return word
         .split("-")
