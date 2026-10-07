@@ -24,6 +24,7 @@ import { ListLink } from "./_components/list-link";
 import { ListPagination } from "./_components/list-pagination";
 import { LoadFailed, NoInspectionsYet, NoMatches, PastTheEnd } from "./_components/list-states";
 import { NewInspectionButton } from "./_components/new-inspection-button";
+import { PruneLocalCopies } from "./_components/prune-local-copies";
 
 export const metadata: Metadata = {
   title: "Inspections",
@@ -127,6 +128,9 @@ export default async function InspectionsPage({ searchParams }: PageProps<"/insp
           ) : null}
         </InspectionResults>
       </ListFocusScope>
+
+      {/* Removes this device's old local copies once per tab (docs/OFFLINE.md). */}
+      <PruneLocalCopies />
     </div>
   );
 }
