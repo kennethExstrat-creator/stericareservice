@@ -49,6 +49,19 @@ export async function createThrowaway(fullName: string, { activate = true }: { a
   return { id, email, password, fullName };
 }
 
+/** Activates or deactivates a throwaway account's profile with the secret key (setup only). */
+export async function setActive(id: string, active: boolean): Promise<void> {
+  const { error } = await createTestAdminClient().from("profiles").update({ active }).eq("id", id);
+  if (error) throw new Error(`Could not set active = ${active} on ${id}: ${error.message}`);
+}
+
+/** The name Supabase Auth keeps (user_metadata), with the rest of the metadata. */
+export async function authMetadataOf(id: string): Promise<Record<string, unknown>> {
+  const { data, error } = await createTestAdminClient().auth.admin.getUserById(id);
+  if (error) throw new Error(`Could not read the auth user ${id}: ${error.message}`);
+  return data.user.user_metadata ?? {};
+}
+
 /** The profile as the database holds it (checks of what an action wrote, never of what a user can see). */
 export async function profileOf(id: string) {
   const { data, error } = await createTestAdminClient()
@@ -170,14 +183,14 @@ export async function teamsReady(): Promise<boolean> {
   throw new Error(`Could not tell whether the project has lead inspectors: ${error.message}`);
 }
 
-/** Picks a role in a role dialog: Inspector, Lead inspector or Admin. */
-export async function pickRole(dialog: Locator, role: "Inspector" | "Lead inspector" | "Admin"): Promise<void> {
+/** Picks a role in a role dialog: Inspector, Lead Inspector or Admin. */
+export async function pickRole(dialog: Locator, role: "Inspector" | "Lead Inspector" | "Admin"): Promise<void> {
   await dialog.getByRole("radio", { name: new RegExp(`^${role}\\b`) }).click();
 }
 
-/** Picks a lead inspector in a dialog's Lead inspector picker. */
+/** Picks a lead inspector in a dialog's Lead Inspector picker. */
 export async function pickLead(page: Page, dialog: Locator, name: string): Promise<void> {
-  await dialog.getByRole("combobox", { name: "Lead inspector" }).click();
+  await dialog.getByRole("combobox", { name: "Lead Inspector" }).click();
   await page.getByRole("option", { name, exact: true }).click();
 }
 
@@ -213,11 +226,11 @@ export async function chromeNames(scope: Locator, role: string): Promise<ChromeN
   }
 }
 
-/** The role radios of the invite, change role and activate dialogs, as Chrome names them. */
+/** The role radios of the Invite, Change Role and Activate dialogs, as Chrome names them. */
 export function roleRadios(teams: boolean): ChromeName[] {
   return [
     { name: "Inspector", description: "Records inspections and sees their own." },
-    ...(teams ? [{ name: "Lead inspector", description: "Also sees their team's inspections, read-only." }] : []),
+    ...(teams ? [{ name: "Lead Inspector", description: "Also sees their team's inspections, read-only." }] : []),
     { name: "Admin", description: "Manages users and templates, and approves inspections." },
   ];
 }

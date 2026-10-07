@@ -48,7 +48,7 @@ describe("roleChoiceOf and the level checks", () => {
 
   it("parses the role field's three values only", () => {
     expect(RoleChoiceSchema.safeParse("lead").success).toBe(true);
-    expect(RoleChoiceSchema.safeParse("owner").error?.issues[0].message).toBe("Choose Inspector, Lead inspector or Admin.");
+    expect(RoleChoiceSchema.safeParse("owner").error?.issues[0].message).toBe("Choose Inspector, Lead Inspector or Admin.");
   });
 });
 
@@ -82,10 +82,10 @@ describe("messages", () => {
 
   it("says who is still in a lead's team and what to do first", () => {
     expect(TEAM_MESSAGES.leadsTeam("Lina Lead", ["Ivan Inspector"])).toBe(
-      "Lina Lead leads 1 inspector: Ivan Inspector. Choose another lead inspector for them first (Change lead inspector, next to their name).",
+      "Lina Lead leads 1 inspector: Ivan Inspector. Choose another lead inspector for them first (Change Lead Inspector, next to their name).",
     );
     expect(TEAM_MESSAGES.leadsTeam("Lina Lead", ["Ivan", "Olga", "Tom"])).toBe(
-      "Lina Lead leads 3 inspectors: Ivan, Olga and Tom. Choose another lead inspector for each of them first (Change lead inspector, next to their name).",
+      "Lina Lead leads 3 inspectors: Ivan, Olga and Tom. Choose another lead inspector for each of them first (Change Lead Inspector, next to their name).",
     );
   });
 

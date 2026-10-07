@@ -1,5 +1,5 @@
 // /admin/users as the admin sees it, from the directory and the ?team= value:
-// the header with Invite user, what needs attention, the Team picker and the
+// the header with Invite User, what needs attention, the Team picker and the
 // list. Rendered on the server; page.tsx checks the admin and loads the data.
 import Link from "next/link";
 import { TriangleAlertIcon, UsersIcon } from "lucide-react";
@@ -140,7 +140,7 @@ export function UsersScreen({
           </EmptyHeader>
           {canInvite && (
             <EmptyContent>
-              <InviteUserDialog label="Invite your first user" teams={teams} leads={leads} />
+              <InviteUserDialog label="Invite Your First User" teams={teams} leads={leads} />
             </EmptyContent>
           )}
         </Empty>
@@ -164,11 +164,11 @@ function NoLeadAlert({ people: missing }: { people: UserListItem[] }) {
       <AlertDescription className="text-warn [&_p:not(:last-child)]:mb-1">
         <p>
           {listed} {one ? "works" : "work"} in no team, so no lead inspector sees {one ? "their" : "those"} inspections.
-          Choose Change lead inspector next to {one ? "their name" : "each name"}.
+          Choose Change Lead Inspector next to {one ? "their name" : "each name"}.
         </p>
         <p>
           <Link href={teamHref(NO_LEAD)} className={ALERT_LINK}>
-            Show {one ? "them" : "only them"}
+            {one ? "Show Them" : "Show Only Them"}
           </Link>
         </p>
       </AlertDescription>

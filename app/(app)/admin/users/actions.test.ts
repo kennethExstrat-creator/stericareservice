@@ -16,6 +16,7 @@ import {
   deactivateUser,
   inviteUser,
   reactivateUser,
+  renameUser,
   sendPasswordLink,
   type ActionResult,
 } from "./actions";
@@ -28,7 +29,7 @@ const LEAD_TWO = "2c3d4e5f-6071-4b8c-9d0e-1f2a3b4c5d6e";
 const MEMBER = "3d4e5f60-7182-4c9d-8e0f-2a3b4c5d6e7f";
 const IDLE: ActionResult = { status: "idle" };
 /** At the role field when no active lead inspector other than the person exists: the lead picker is empty. */
-const NOBODY = "Nobody can lead them yet. Choose Lead inspector or Admin, or make someone a lead inspector first.";
+const NOBODY = "Nobody can lead them yet. Choose Lead Inspector or Admin, or make someone a lead inspector first.";
 
 /* ------------------------------------------------------------------ *
  * A fake Supabase: one profiles table that the admin's client and the
@@ -202,6 +203,7 @@ afterEach(() => {
 describe("every action", () => {
   const calls: Array<[string, () => Promise<ActionResult>]> = [
     ["inviteUser", () => inviteUser(IDLE, inviteForm())],
+    ["renameUser", () => renameUser(IDLE, form({ userId: OTHER, fullName: "Olga Tan" }))],
     ["changeRole", () => changeRole(IDLE, form({ userId: OTHER, role: "admin" }))],
     ["assignLead", () => assignLead(IDLE, form({ userId: OTHER, leadId: LEAD }))],
     ["deactivateUser", () => deactivateUser(IDLE, form({ userId: OTHER }))],
@@ -220,7 +222,7 @@ describe("every action", () => {
   });
 
   it.each(calls.slice(1))("%s refuses a user id that is not a uuid", async (name) => {
-    const action = { changeRole, assignLead, deactivateUser, reactivateUser, sendPasswordLink }[name]!;
+    const action = { renameUser, changeRole, assignLead, deactivateUser, reactivateUser, sendPasswordLink }[name]!;
     const result = await action(IDLE, form({ userId: "1 or 1=1", role: "admin", leadId: LEAD }));
     expect(result).toMatchObject({ status: "error", message: expect.stringContaining("could not be found") });
     expect(createClient).not.toHaveBeenCalled();
@@ -424,6 +426,8 @@ describe("inviteUser", () => {
     const result = await inviteUser(IDLE, inviteForm({ email: "OLGA@test.local" }));
 
     expect(result).toMatchObject({ status: "error", fieldErrors: { email: expect.stringContaining("already has an account") } });
+    // Named as the row menu names it.
+    expect(result).toMatchObject({ message: expect.stringContaining("choose Send Password Link next to their name") });
     expect(adminClient.auth.admin.inviteUserByEmail).not.toHaveBeenCalled();
   });
 
@@ -452,11 +456,160 @@ describe("inviteUser", () => {
       fieldErrors: {
         email: "Enter a valid email address, like name@example.com.",
         fullName: "Enter their full name.",
-        role: "Choose Inspector, Lead inspector or Admin.",
+        role: "Choose Inspector, Lead Inspector or Admin.",
       },
     });
     expect(createClient).not.toHaveBeenCalled();
     expect(createAdminClient).not.toHaveBeenCalled();
+  });
+});
+
+describe("renameUser", () => {
+  const rename = (userId: string, fullName: string) => renameUser(IDLE, form({ userId, fullName }));
+
+  it("renames through the admin's own client, so RLS applies, then the copy Supabase Auth keeps", async () => {
+    const result = await rename(OTHER, "Olga Tan");
+
+    expect(result).toEqual({ status: "success", message: "Olga Other is now Olga Tan." });
+    expect(updates()).toEqual([{ client: "user", fields: { full_name: "Olga Tan" }, eq: [["id", OTHER]] }]);
+    expect(rows.get(OTHER)?.full_name).toBe("Olga Tan");
+    // Only full_name: Auth merges it into the metadata it has.
+    expect(adminClient.auth.admin.updateUserById).toHaveBeenCalledExactlyOnceWith(OTHER, {
+      user_metadata: { full_name: "Olga Tan" },
+    });
+    // The profile first: it is the copy the app reads.
+    const savedAt = userClient.from.mock.invocationCallOrder.at(-1)!;
+    expect(savedAt).toBeLessThan(adminClient.auth.admin.updateUserById.mock.invocationCallOrder[0]);
+    expect(refresh).toHaveBeenCalledOnce();
+  });
+
+  it("saves the name trimmed and on one line", async () => {
+    expect(await rename(OTHER.toUpperCase(), "  Ngan \t Boon\r\n Keat ")).toEqual({
+      status: "success",
+      message: "Olga Other is now Ngan Boon Keat.",
+    });
+    expect(updates()).toEqual([{ client: "user", fields: { full_name: "Ngan Boon Keat" }, eq: [["id", OTHER]] }]);
+  });
+
+  it("renames anyone: the admin themselves, a deactivated account, someone with no name yet", async () => {
+    expect(await rename(SELF, "Ada Admin")).toEqual({ status: "success", message: "Test Admin is now Ada Admin." });
+
+    rows.get(OTHER)!.active = false;
+    expect(await rename(OTHER, "Olga Tan")).toMatchObject({ status: "success" });
+
+    rows.get(MEMBER)!.full_name = null;
+    expect(await rename(MEMBER, "Ivan Tan")).toEqual({ status: "success", message: "ivan@test.local is now Ivan Tan." });
+    expect(updates().map((update) => update.fields)).toEqual([
+      { full_name: "Ada Admin" },
+      { full_name: "Olga Tan" },
+      { full_name: "Ivan Tan" },
+    ]);
+  });
+
+  it("says so when the name stays the same", async () => {
+    expect(await rename(OTHER, " Olga  Other ")).toEqual({ status: "success", message: "Olga Other keeps the same name." });
+  });
+
+  it.each([
+    ["an empty name", "", "Enter their name."],
+    ["spaces only", "   ", "Enter their name."],
+    ["101 characters", "x".repeat(101), "Keep the name to 100 characters or fewer."],
+    ["a hidden control character", "Olga\u0000Tan", "The name holds a hidden control character. Type it again."],
+  ])("refuses %s at the field, before touching Supabase", async (_case, fullName, message) => {
+    expect(await rename(OTHER, fullName)).toEqual({ status: "error", message, fieldErrors: { fullName: message } });
+    expect(createClient).not.toHaveBeenCalled();
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("takes exactly 100 characters", async () => {
+    expect(await rename(OTHER, "x".repeat(100))).toMatchObject({ status: "success" });
+  });
+
+  it("asks for the name when the form has none", async () => {
+    expect(await renameUser(IDLE, form({ userId: OTHER }))).toEqual({
+      status: "error",
+      message: "Enter their name.",
+      fieldErrors: { fullName: "Enter their name." },
+    });
+  });
+
+  it("refuses an admin whose account was deactivated, before reading anything", async () => {
+    vi.mocked(authorizeAction).mockResolvedValue({ ok: false, error: "This account has been deactivated." });
+
+    expect(await rename(OTHER, "Olga Tan")).toEqual({ status: "error", message: "This account has been deactivated." });
+    expect(authorizeAction).toHaveBeenCalledWith("admin");
+    expect(createClient).not.toHaveBeenCalled();
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("says when the user no longer exists, and changes nothing", async () => {
+    expect(await rename(NEW, "Jane Tan")).toEqual({ status: "error", message: MESSAGES.userNotFound });
+    expect(updates()).toEqual([]);
+    expect(adminClient.auth.admin.updateUserById).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  describe("checks that exactly one profile changed", () => {
+    /** The admin's client, with the update (the second query) answered by `answer`. */
+    function updateAnswers(answer: () => { data: unknown; error: unknown }) {
+      const original = userClient.from;
+      let count = 0;
+      userClient.from = vi.fn((table: string) => {
+        count += 1;
+        if (count !== 2) return original(table);
+        const builder: Record<string, unknown> = {};
+        for (const method of ["update", "eq", "select"]) builder[method] = () => builder;
+        builder.then = (resolve: (value: unknown) => unknown) => Promise.resolve(answer()).then(resolve);
+        return builder;
+      }) as never;
+    }
+
+    it("none: the account went (or RLS hid it) since the read", async () => {
+      updateAnswers(() => ({ data: [], error: null }));
+      expect(await rename(OTHER, "Olga Tan")).toEqual({ status: "error", message: MESSAGES.userNotFound });
+      expect(adminClient.auth.admin.updateUserById).not.toHaveBeenCalled();
+      expect(refresh).not.toHaveBeenCalled();
+    });
+
+    it("more than one: never reported as a success", async () => {
+      updateAnswers(() => ({ data: [{ id: OTHER }, { id: MEMBER }], error: null }));
+      expect(await rename(OTHER, "Olga Tan")).toEqual({ status: "error", message: MESSAGES.unexpected });
+      expect(console.error).toHaveBeenCalled();
+      expect(adminClient.auth.admin.updateUserById).not.toHaveBeenCalled();
+    });
+  });
+
+  it("surfaces the database's refusal in plain words, and leaves Auth alone", async () => {
+    failures.update = { code: "42501", message: "permission denied for table profiles" };
+    expect(await rename(OTHER, "Olga Tan")).toEqual({ status: "error", message: MESSAGES.notAllowed });
+    expect(adminClient.auth.admin.updateUserById).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("keeps the new name when Supabase Auth refuses its copy: that is only logged", async () => {
+    adminClient.auth.admin.updateUserById.mockResolvedValue({
+      data: { user: null },
+      error: { status: 500, message: "Database error updating user" },
+    });
+
+    expect(await rename(OTHER, "Olga Tan")).toEqual({ status: "success", message: "Olga Other is now Olga Tan." });
+    expect(rows.get(OTHER)?.full_name).toBe("Olga Tan");
+    expect(console.error).toHaveBeenCalledWith(
+      "[admin/users] name saved; Supabase Auth keeps the old one",
+      undefined,
+      "Database error updating user",
+    );
+  });
+
+  it("renames without the secret key, leaving Auth's copy as it was", async () => {
+    vi.mocked(isAdminClientConfigured).mockReturnValue(false);
+    expect(await rename(OTHER, "Olga Tan")).toMatchObject({ status: "success" });
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("renames on a project without lead inspectors too", async () => {
+    teams = false;
+    expect(await rename(OTHER, "Olga Tan")).toMatchObject({ status: "success" });
   });
 });
 
@@ -517,7 +670,7 @@ describe("changeRole", () => {
       expect(result).toEqual({
         status: "error",
         message:
-          "Lina Lead leads 1 inspector: Ivan Inspector. Choose another lead inspector for them first (Change lead inspector, next to their name).",
+          "Lina Lead leads 1 inspector: Ivan Inspector. Choose another lead inspector for them first (Change Lead Inspector, next to their name).",
       });
     }
     expect(updates()).toEqual([]);
@@ -636,7 +789,7 @@ describe("deactivateUser", () => {
     expect(await deactivateUser(IDLE, form({ userId: LEAD }))).toEqual({
       status: "error",
       message:
-        "Lina Lead leads 1 inspector: Ivan Inspector. Choose another lead inspector for them first (Change lead inspector, next to their name).",
+        "Lina Lead leads 1 inspector: Ivan Inspector. Choose another lead inspector for them first (Change Lead Inspector, next to their name).",
     });
     expect(updates()).toEqual([]);
     expect(adminClient.auth.admin.updateUserById).not.toHaveBeenCalled();

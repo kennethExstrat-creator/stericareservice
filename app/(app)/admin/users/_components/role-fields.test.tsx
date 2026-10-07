@@ -10,7 +10,7 @@ import { focusRole, LeadField, RoleField, ROLES_WITHOUT_TEAMS } from "./role-fie
 const LINA = { id: "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d", name: "Lina Lead", teamSize: 2 };
 const NO_LEADS = "There is no active lead inspector yet. Make someone a lead inspector first.";
 const NO_OTHER = "There is no other active lead inspector. Make someone else a lead inspector first.";
-const NOBODY = "Nobody can lead them yet. Choose Lead inspector or Admin, or make someone a lead inspector first.";
+const NOBODY = "Nobody can lead them yet. Choose Lead Inspector or Admin, or make someone a lead inspector first.";
 
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /** The field's text under the picker or the radios: a description, or an error (role="alert"). */
@@ -23,6 +23,7 @@ function lead(props: Partial<Parameters<typeof LeadField>[0]> = {}): string {
 
 describe("LeadField", () => {
   it("says what a lead inspector sees, and shows a refusal in its place", () => {
+    expect(lead()).toMatch(/<label[^>]*for="f-lead"[^>]*>Lead Inspector<\/label>/);
     expect(hintOf(lead())).toBe("Their lead inspector also sees their inspections, read-only.");
     const refused = lead({ error: "Choose their lead inspector." });
     expect(errorOf(refused)).toBe("Choose their lead inspector.");
@@ -48,11 +49,11 @@ describe("LeadField", () => {
 
 describe("RoleField", () => {
   it("names each role's radio by the role and describes it, so Chrome does not leave it unnamed", () => {
-    // The invite, change role, change lead and activate dialogs all draw these radios.
+    // The Invite, Change Role, Change Lead Inspector and Activate dialogs all draw these radios.
     const html = renderToStaticMarkup(<RoleField id="f" value="inspector" onChange={() => {}} />);
     expect(radioNames(html)).toEqual([
       { name: "Inspector", description: "Records inspections and sees their own." },
-      { name: "Lead inspector", description: "Also sees their team's inspections, read-only." },
+      { name: "Lead Inspector", description: "Also sees their team's inspections, read-only." },
       { name: "Admin", description: "Manages users and templates, and approves inspections." },
     ]);
     expect(html).toContain('aria-labelledby="f-role-lead-title"');

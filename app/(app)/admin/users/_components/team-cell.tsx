@@ -28,7 +28,7 @@ export function NoLeadBadge() {
       )}
     >
       <TriangleAlertIcon aria-hidden className="size-4 fine:size-3.5" />
-      No lead inspector
+      No Lead Inspector
     </span>
   );
 }

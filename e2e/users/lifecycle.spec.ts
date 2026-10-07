@@ -59,13 +59,13 @@ test("an admin changes a role, deactivates and reactivates an account", async ({
     });
 
     await test.step("make them an admin", async () => {
-      const dialog = await chooseRowAction(page, row, "Change role");
-      await expect(dialog).toContainText(`Change ${person.fullName}'s role`);
+      const dialog = await chooseRowAction(page, row, "Change Role");
+      await expect(dialog).toContainText(`Change ${person.fullName}'s Role`);
       // Named as a screen reader hears them, in Chrome's own tree (getByRole finds names Chrome may not have).
       expect(await chromeNames(dialog, "radio")).toEqual(roleRadios(await teamsReady()));
       await pickRole(dialog, "Admin");
       await shot(page, "make-admin-confirm");
-      await dialog.getByRole("button", { name: "Save role" }).click();
+      await dialog.getByRole("button", { name: "Save Role", exact: true }).click();
       await expect(toast(page, `${person.fullName} is now an admin.`)).toBeVisible();
       await expect(dialog).toBeHidden();
       await expect(row).toContainText("Admin");
@@ -126,15 +126,15 @@ test("an admin changes a role, deactivates and reactivates an account", async ({
     });
 
     await test.step("make them an inspector again: the admin page is a 404 once more", async () => {
-      const dialog = await chooseRowAction(page, row, "Change role");
+      const dialog = await chooseRowAction(page, row, "Change Role");
       // An inspector would need a lead inspector's team (e2e/org covers that); a lead inspector needs none.
       const teams = await teamsReady();
-      await pickRole(dialog, teams ? "Lead inspector" : "Inspector");
-      await dialog.getByRole("button", { name: "Save role" }).click();
+      await pickRole(dialog, teams ? "Lead Inspector" : "Inspector");
+      await dialog.getByRole("button", { name: "Save Role", exact: true }).click();
       await expect(
         toast(page, teams ? `${person.fullName} is now a lead inspector.` : `${person.fullName} is now an inspector.`),
       ).toBeVisible();
-      await expect(row).toContainText(teams ? "Lead inspector" : "Inspector");
+      await expect(row).toContainText(teams ? "Lead Inspector" : "Inspector");
 
       const again = await browserOf(browser, baseURL!, person.email, person.password);
       try {

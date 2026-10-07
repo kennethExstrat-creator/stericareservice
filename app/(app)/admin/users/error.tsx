@@ -31,7 +31,7 @@ export default function UsersError({ error, retry }: { error: Error & { digest?:
         <EmptyContent>
           <Button onClick={() => retry()}>
             <RotateCwIcon aria-hidden />
-            Try again
+            Try Again
           </Button>
           {error.digest && <p className="text-sm text-muted-foreground">Reference: {error.digest}</p>}
         </EmptyContent>

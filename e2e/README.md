@@ -11,7 +11,8 @@ npx playwright test e2e/shell --project=desktop
 PLAYWRIGHT_BASE_URL=http://localhost:3202 npx playwright test e2e/shell
 ```
 
-Specs need the test accounts (`npm run seed:dev-users -- --force`).
+Specs need the test accounts (`npm run seed:dev-users -- --force`): `inspector@test.local`,
+`admin@test.local` and the lead inspector `lead@test.local`, whose team the inspector is in.
 
 ## WebKit and the real iPad
 
@@ -60,7 +61,11 @@ than from a full-page image.
 
 ## Rules for the shared database
 
-- Never change, deactivate or delete `inspector@test.local`, `admin@test.local` or real accounts.
+- Never change, rename, deactivate or delete `inspector@test.local`, `admin@test.local`,
+  `lead@test.local` or real accounts. `npm run seed:dev-users -- --force` sets them up:
+  `lead@test.local` (Ngan Boon Keat) is an active lead inspector and `inspector@test.local` works
+  in their team, so do not assume the inspector is in no team, or that the user list holds only
+  these accounts. Specs that rename, re-role or deactivate someone use a throwaway account.
 - Destructive tests use throwaway accounts from `throwawayEmail()` and delete them afterwards.
 - Rows created for a test are deleted in `afterAll`. Teardown order: remove the inspection's
   Storage files, then call `deleteTestInspection()` for each inspection (the service role cannot

@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 // neutral slate. Always icon plus words, never colour alone.
 const ACCOUNT_STATUS: Record<AccountStatus, { label: string; icon: LucideIcon; className: string }> = {
   active: { label: "Active", icon: CircleCheckIcon, className: STATUS_TINT_CLASS.pass },
-  pending: { label: "Pending activation", icon: ClockIcon, className: STATUS_TINT_CLASS.warn },
+  pending: { label: "Pending Activation", icon: ClockIcon, className: STATUS_TINT_CLASS.warn },
   deactivated: { label: "Deactivated", icon: BanIcon, className: STATUS_TINT_CLASS.info },
 };
 
@@ -46,7 +46,7 @@ const ROLE_ICON: Record<RoleChoice, LucideIcon> = {
   admin: ShieldCheckIcon,
 };
 
-/** Inspector, Lead inspector or Admin: an icon and words, admins in brand blue. */
+/** Inspector, Lead Inspector or Admin: an icon and words, admins in brand blue. */
 export function RoleLabel({ role }: { role: RoleChoice }) {
   const Icon = ROLE_ICON[role];
   return (

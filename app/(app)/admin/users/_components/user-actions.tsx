@@ -11,6 +11,7 @@ import {
   TriangleAlertIcon,
   UserCheckIcon,
   UserCogIcon,
+  UserPenIcon,
   UsersRoundIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -58,11 +59,14 @@ import {
 } from "../actions";
 import { teamHref } from "../_lib/team-filter";
 import { cn } from "@/lib/utils";
+import { RenameDialog } from "./rename-dialog";
 import { focusRole, LeadField, RoleField, roleChoicesFor, SCROLLING_DIALOG } from "./role-fields";
 import { unreachable } from "./unreachable";
 import {
   activationNeedsPlacement,
+  DIALOG_TITLE,
   leadChoicesFor,
+  MENU_LABEL,
   menuGroups,
   type MenuAction as Kind,
   type UserActionsTarget,
@@ -70,14 +74,16 @@ import {
 
 type ServerAction = (previous: ActionResult, formData: FormData) => Promise<ActionResult>;
 
-const MENU_ITEM: Record<Kind, { label: string; icon: LucideIcon }> = {
-  "change-role": { label: "Change role", icon: UserCogIcon },
-  "change-lead": { label: "Change lead inspector", icon: UsersRoundIcon },
-  "send-link": { label: "Send password link", icon: KeyRoundIcon },
-  unblock: { label: "Lift sign-in block", icon: LockOpenIcon },
-  deactivate: { label: "Deactivate", icon: BanIcon },
-  reactivate: { label: "Reactivate", icon: UserCheckIcon },
-  activate: { label: "Activate", icon: UserCheckIcon },
+/** Each menu item's icon; its words are MENU_LABEL (user-menu.ts). */
+const MENU_ICON: Record<Kind, LucideIcon> = {
+  "change-name": UserPenIcon,
+  "change-role": UserCogIcon,
+  "change-lead": UsersRoundIcon,
+  "send-link": KeyRoundIcon,
+  unblock: LockOpenIcon,
+  deactivate: BanIcon,
+  reactivate: UserCheckIcon,
+  activate: UserCheckIcon,
 };
 
 type Confirmation = {
@@ -91,36 +97,37 @@ type Confirmation = {
 };
 
 function confirmation(kind: "send-link" | "unblock" | "deactivate" | "reactivate" | "activate", user: UserActionsTarget): Confirmation {
+  const title = DIALOG_TITLE[kind](user.name);
   const target = { userId: user.id };
   const team = user.lead ? ` They are back in ${user.lead.name}'s team.` : "";
   switch (kind) {
     case "send-link":
       return {
-        title: `Send a password link to ${user.name}?`,
+        title,
         description: (
           <>
             We email <span className="font-medium text-foreground">{user.email}</span> a link to choose a new password.
             Use it when an invite was lost or a password forgotten. The link works once.
           </>
         ),
-        confirm: "Send link",
+        confirm: "Send Link",
         pending: "Sending…",
         action: sendPasswordLink,
         fields: target,
       };
     case "unblock":
       return {
-        title: `Let ${user.name} sign in again?`,
+        title,
         description:
           "Their account is active, but Supabase still blocks their sign-in, for example after a deactivation and a reactivation at the same moment. This lifts the block.",
-        confirm: "Lift block",
+        confirm: "Lift Block",
         pending: "Lifting…",
         action: reactivateUser,
         fields: target,
       };
     case "deactivate":
       return {
-        title: `Deactivate ${user.name}?`,
+        title,
         description:
           "They lose access straight away: they are signed out on their next page load and cannot sign in or see any data until an admin reactivates them. Their inspections stay as they are.",
         confirm: "Deactivate",
@@ -131,7 +138,7 @@ function confirmation(kind: "send-link" | "unblock" | "deactivate" | "reactivate
       };
     case "reactivate":
       return {
-        title: `Reactivate ${user.name}?`,
+        title,
         description: `They can sign in again with their current password and pick up where they left off.${team}`,
         confirm: "Reactivate",
         pending: "Reactivating…",
@@ -140,7 +147,7 @@ function confirmation(kind: "send-link" | "unblock" | "deactivate" | "reactivate
       };
     case "activate":
       return {
-        title: `Activate ${user.name}?`,
+        title,
         description: `This account has never been active. Once activated they can sign in with their password, or choose one from a password link.${team}`,
         confirm: "Activate",
         pending: "Activating…",
@@ -199,7 +206,7 @@ export function UserActions({
             <DropdownMenuGroup key={group.join()}>
               {index > 0 && <DropdownMenuSeparator />}
               {group.map((item) => {
-                const { label, icon: Icon } = MENU_ITEM[item];
+                const Icon = MENU_ICON[item];
                 return (
                   <DropdownMenuItem
                     key={item}
@@ -210,7 +217,7 @@ export function UserActions({
                     }}
                   >
                     <Icon aria-hidden />
-                    {label}
+                    {MENU_LABEL[item]}
                   </DropdownMenuItem>
                 );
               })}
@@ -227,13 +234,14 @@ export function UserActions({
         </DropdownMenuContent>
       </DropdownMenu>
 
+      {kind === "change-name" && <RenameDialog key={kind} user={user} onClose={close} returnFocusTo={triggerRef} />}
       {kind === "change-role" && (
         <PlacementDialog
           key={kind}
           user={user}
-          title={`Change ${user.name}'s role`}
+          title={DIALOG_TITLE["change-role"](user.name)}
           description={teams ? currentPlacement(user.role, user.lead?.name ?? null) : "Only admins manage users and approve inspections."}
-          confirm="Save role"
+          confirm="Save Role"
           pending="Saving…"
           action={changeRole}
           choices={roleChoicesFor(teams)}
@@ -248,9 +256,9 @@ export function UserActions({
         <PlacementDialog
           key={kind}
           user={user}
-          title={`Change ${user.name}'s lead inspector`}
+          title={DIALOG_TITLE["change-lead"](user.name)}
           description={user.lead ? `They work in ${user.lead.name}'s team now.` : "They are in no lead inspector's team yet."}
-          confirm="Save lead inspector"
+          confirm="Save Lead Inspector"
           pending="Saving…"
           action={assignLead}
           choices={null}
@@ -265,7 +273,7 @@ export function UserActions({
         <PlacementDialog
           key={kind}
           user={user}
-          title={`${kind === "activate" ? "Activate" : "Reactivate"} ${user.name}?`}
+          title={DIALOG_TITLE[kind](user.name)}
           description="An inspector works in a lead inspector's team. Choose their role, and their lead inspector if they are an inspector."
           confirm={kind === "activate" ? "Activate" : "Reactivate"}
           pending={kind === "activate" ? "Activating…" : "Reactivating…"}
@@ -282,6 +290,7 @@ export function UserActions({
         <LeadsTeamDialog key={kind} user={user} onClose={close} returnFocusTo={triggerRef} />
       )}
       {kind !== null &&
+        kind !== "change-name" &&
         kind !== "change-role" &&
         kind !== "change-lead" &&
         !((kind === "activate" || kind === "reactivate") && activationNeedsPlacement(user, teams)) &&
@@ -398,7 +407,7 @@ function TeamNote({ user }: { user: UserActionsTarget }) {
 }
 
 /**
- * The role and lead of one person: Change role, Change lead inspector, and
+ * The role and lead of one person: Change Role, Change Lead Inspector, and
  * activating an inspector who is in no team. It holds a Radix RadioGroup
  * and Select, so it submits by hand (submitAction): a refused change leaves
  * every choice where the admin put it, next to the reason.
@@ -423,7 +432,7 @@ function PlacementDialog({
   confirm: string;
   pending: string;
   action: ServerAction;
-  /** The roles to choose from, or null to keep their role (Change lead inspector). */
+  /** The roles to choose from, or null to keep their role (Change Lead Inspector). */
   choices: readonly RoleChoice[] | null;
   /** Ask for a lead when the role needs one (teams exist). */
   askLead: boolean;
@@ -556,7 +565,7 @@ function LeadsTeamDialog({
         }}
       >
         <AlertDialogHeader>
-          <AlertDialogTitle>{`${user.name} still leads a team`}</AlertDialogTitle>
+          <AlertDialogTitle>{DIALOG_TITLE["leads-team"](user.name)}</AlertDialogTitle>
           <AlertDialogDescription>{TEAM_MESSAGES.leadsTeam(user.name, user.team)}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -564,7 +573,7 @@ function LeadsTeamDialog({
           <Button asChild>
             <Link href={teamHref(user.id)} onClick={onClose}>
               <UsersRoundIcon aria-hidden />
-              Show their team
+              Show Their Team
             </Link>
           </Button>
         </AlertDialogFooter>

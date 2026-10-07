@@ -98,8 +98,11 @@ deployment. Design rules and tokens: [docs/DESIGN.md](docs/DESIGN.md).
    npm run seed:dev-users -- --force
    ```
 
-   Creates `inspector@test.local` (inspector) and `admin@test.local` (admin) with a known
-   password, printed at the end. Without `--force` it only runs against a local Supabase.
+   Creates `lead@test.local` (lead inspector, Ngan Boon Keat), `inspector@test.local` (inspector,
+   in Ngan Boon Keat's team) and `admin@test.local` (admin) with a known password, printed at the
+   end. Running it again puts the three back as they were (the lead first, then their inspector);
+   anyone else in the lead's team stays there. Without `--force` it only runs against a local
+   Supabase. It needs the lead inspector migration (`20261007170000`) on the project.
 
 7. **Seed templates** (`STD_EG`, `SAFEDON_EG`, `STD_SG` from BUILD_SPEC 11), once step 3 has run
    `supabase/seed.sql`:
@@ -138,12 +141,21 @@ deployment. Design rules and tokens: [docs/DESIGN.md](docs/DESIGN.md).
 Set up on `/admin/users`:
 
 - Invite (or make) the lead inspectors first, then their inspectors: inviting, activating or
-  making someone an inspector asks for their lead inspector. **Change lead inspector** moves an
-  inspector to another team; the **Team** picker and the Lead inspector column show each team.
+  making someone an inspector asks for their lead inspector. **Change Lead Inspector** moves an
+  inspector to another team; the **Team** picker and the Lead Inspector column show each team.
 - A lead inspector who still leads a team cannot be demoted, made an admin or deactivated:
   move their team to another lead first (the screen names who is in it).
-- Accounts from before teams (such as `inspector@test.local`) keep working with no lead; the
-  screen lists them under **No lead inspector** until an admin chooses one.
+- Accounts from before teams keep working with no lead; the screen lists them under
+  **No Lead Inspector** until an admin chooses one.
+- **Change Name**, next to anyone's name (your own included, active or deactivated): the name the
+  app shows for them, 1 to 100 characters on one line, the same rule as the invite's Full Name
+  (`fullNameSchema()` in `lib/auth/users.ts`). Every screen, the export and the AI
+  hand-offs read it from their profile, so it changes everywhere at once, on their past
+  inspections too (the list's Inspector in Charge, the capture header's "Inspected by", the review);
+  only what already left the app keeps the old name (exported files, AI reports and the AI's
+  earlier answers). Supabase Auth's copy (`user_metadata.full_name`,
+  which the Supabase dashboard shows) follows when the server has the secret key. An account
+  waiting for activation is activated first: any change to it would make it look deactivated.
 
 The rules live in `lib/auth/org.ts` and, enforced for every request, in
 `supabase/migrations/20261007170000_lead_inspectors.sql` (details:

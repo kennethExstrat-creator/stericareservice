@@ -13,6 +13,7 @@ import {
   ChangeRoleSchema,
   InviteUserSchema,
   MESSAGES,
+  RenameUserSchema,
   UNBAN,
   UserTargetSchema,
   authConfirmUrl,
@@ -38,7 +39,7 @@ import { createClient } from "@/lib/supabase/server";
  * input with zod and re-reads what it needs. Profile changes go through the
  * admin's own client, so RLS and the profiles guards (which keep one active
  * admin and the lead inspector rules) check them again. Only Auth work
- * (invites, bans, sign-in details) uses the secret key.
+ * (invites, bans, sign-in details, the name Auth keeps) uses the secret key.
  *
  * Lead inspectors (lib/auth/org.ts): an inspector who is not a lead works in
  * an active lead inspector's team, so making someone an inspector, inviting
@@ -85,7 +86,7 @@ function invalid(error: z.ZodError): ActionResult {
 
 function emailTaken(active: boolean): ActionResult {
   const message = active
-    ? "That email already has an account. If they need a new link, choose Send password link next to their name."
+    ? "That email already has an account. If they need a new link, choose Send Password Link next to their name."
     : "That email belongs to an account that is not active. Choose Activate or Reactivate next to their name instead.";
   return fail(message, { email: message });
 }
@@ -240,6 +241,71 @@ export async function inviteUser(_previous: ActionResult, formData: FormData): P
     }
     const team = placement.leadName ? ` They work in ${placement.leadName}'s team.` : "";
     return ok(`Invite sent to ${email}. They choose a password from the link in the email.${team}`);
+  });
+}
+
+/**
+ * Change Name: the name the app shows for someone, anyone's, the admin's own
+ * included, active or not. profiles.full_name is the one copy the app reads
+ * (the lists, the capture header, the review, the export and the AI
+ * hand-offs all join the profile), so the new name shows everywhere at once,
+ * on past inspections too. Saved through the admin's own client: RLS
+ * (profiles_update) lets only an active admin change someone else's
+ * profile, and the profiles guard trims the name again.
+ *
+ * Supabase Auth keeps the name an invite gave in user_metadata.full_name.
+ * The app never reads it after sign-up made the profile, but the Supabase
+ * dashboard lists it, so it follows with the secret key, best effort: the
+ * profile is what counts, and a failure there is only logged.
+ */
+export async function renameUser(_previous: ActionResult, formData: FormData): Promise<ActionResult> {
+  return guarded("renameUser", async () => {
+    const auth = await authorizeAction("admin");
+    if (!auth.ok) return fail(auth.error);
+
+    const parsed = RenameUserSchema.safeParse(formFields(formData, ["userId", "fullName"]));
+    if (!parsed.success) {
+      const fields = firstFieldErrors(parsed.error);
+      // A user id the page never sends: nothing to fix at the field.
+      if (fields.userId) return fail(fields.userId);
+      const message = fields.fullName ?? firstIssue(parsed.error);
+      return fail(message, { fullName: message });
+    }
+    const { userId, fullName } = parsed.data;
+
+    const supabase = await createClient();
+    const { data: current, error: readError } = await supabase
+      .from("profiles")
+      .select("id, email, full_name")
+      .eq("id", userId)
+      .maybeSingle();
+    if (readError) return fail(describeProfileError(readError));
+    if (!current) return fail(MESSAGES.userNotFound);
+    const before = personName(current);
+
+    const { data: renamed, error } = await supabase
+      .from("profiles")
+      .update({ full_name: fullName })
+      .eq("id", userId)
+      .select("id");
+    if (error) return fail(describeProfileError(error));
+    // Exactly their row: none means it went (or RLS hid it) since the read.
+    if (renamed.length !== 1) {
+      if (renamed.length > 1) console.error("[admin/users] a rename changed more than one profile", userId, renamed.length);
+      return fail(renamed.length === 0 ? MESSAGES.userNotFound : MESSAGES.unexpected);
+    }
+    refresh();
+
+    if (isAdminClientConfigured()) {
+      // Merged into the metadata Auth keeps: only full_name changes.
+      const { error: authError } = await createAdminClient().auth.admin.updateUserById(userId, {
+        user_metadata: { full_name: fullName },
+      });
+      if (authError) {
+        console.error("[admin/users] name saved; Supabase Auth keeps the old one", authError.code, authError.message);
+      }
+    }
+    return ok(before === fullName ? `${fullName} keeps the same name.` : `${before} is now ${fullName}.`);
   });
 }
 

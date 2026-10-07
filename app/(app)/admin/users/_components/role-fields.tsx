@@ -1,8 +1,8 @@
 "use client";
 
-// The Role choice (Inspector, Lead inspector, Admin) and the Lead inspector
-// picker, shared by the invite, change role, change lead inspector and
-// activate dialogs. Controlled, with the values sent through hidden inputs:
+// The Role choice (Inspector, Lead Inspector, Admin) and the Lead Inspector
+// picker, shared by the Invite, Change Role, Change Lead Inspector and
+// Activate dialogs. Controlled, with the values sent through hidden inputs:
 // every dialog that holds them submits by hand (lib/admin/submit.ts), so
 // React's form reset never sends a Radix control back to its first value
 // after a refused change.
@@ -114,7 +114,7 @@ export function LeadField({
   const errorText = none ? emptyHint : error;
   return (
     <Field data-invalid={error ? true : undefined}>
-      <FieldLabel htmlFor={`${id}-lead`}>Lead inspector</FieldLabel>
+      <FieldLabel htmlFor={`${id}-lead`}>Lead Inspector</FieldLabel>
       <Select value={value} onValueChange={onChange} disabled={none}>
         <SelectTrigger
           ref={triggerRef}
