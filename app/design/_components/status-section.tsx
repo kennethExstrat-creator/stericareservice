@@ -5,8 +5,9 @@ import { STATUS_LABEL } from "@/lib/design/status";
 import { CONCLUSION_LABELS } from "@/modules/conclusion/config";
 import { DesignSection } from "./design-section";
 
-// Every result pill says STATUS_LABEL's words, the overall result's included; the template's
-// conclusion words only where the inspector picks the conclusion (docs/DESIGN.md, Status colours).
+// Every result pill says STATUS_LABEL's words, the overall result's included (a module's own words
+// for its checks aside); the template's conclusion words only where the inspector picks the
+// conclusion (docs/DESIGN.md, Status colours).
 const USE: Record<(typeof STATUSES)[number], string> = {
   pass: "A module, a size or the overall result (suggested or final) passed",
   fail: "A module, a size or the overall result (suggested or final) failed",
@@ -63,8 +64,9 @@ export function StatusSection() {
         })}
       </ul>
       <p className="max-w-3xl text-sm text-muted-foreground">
-        Every result pill says {STATUS_LABEL.pass}, {STATUS_LABEL.fail} or {STATUS_LABEL.hold}, the inspection&apos;s
-        overall result included, suggested or final: on capture, the review, the inspections list and the AI panel. The
+        Every result pill says {STATUS_LABEL.pass}, {STATUS_LABEL.fail} or {STATUS_LABEL.hold} (a module&apos;s own words
+        for its checks aside, such as Accept and Reject on an AQL table), the inspection&apos;s overall result included,
+        suggested or final: on capture, the review, the inspections list and the AI panel. The
         template&apos;s conclusion words ({CONCLUSION_LABELS.pass}, {CONCLUSION_LABELS.fail} and {CONCLUSION_LABELS.hold}{" "}
         unless the template words them otherwise) appear only where the inspector picks the conclusion, as on the paper
         report: the Conclusion section&apos;s choices and that section&apos;s own text, its summary line and its warning
