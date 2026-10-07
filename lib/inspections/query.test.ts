@@ -52,6 +52,7 @@ const ROW = {
   product_name: "Nitrile examination gloves",
   status: "submitted" as const,
   result: "pass" as const,
+  inspector_id: "7c2d4e1a-0b3f-4a5c-9d8e-1f2a3b4c5d6e",
   client: { name: "Client A" },
   manufacturer: { name: "Manufacturer B", factory_name: "Factory 1" },
   inspector: { full_name: "Test Inspector", email: "inspector@test.local" },
@@ -83,6 +84,8 @@ describe("listInspections", () => {
     expect(INSPECTION_LIST_SELECT).toContain("client:clients(name)");
     expect(INSPECTION_LIST_SELECT).toContain("manufacturer:manufacturers(name, factory_name)");
     expect(INSPECTION_LIST_SELECT).toContain("inspector:profiles!inspections_inspector_id_fkey(full_name, email)");
+    // Whose it is, for every role: the row actions compare it with the signed-in user.
+    expect(INSPECTION_LIST_SELECT).toMatch(/(^|, )inspector_id(,|$)/);
   });
 
   it("never filters by inspector itself: Row Level Security scopes the rows", async () => {
@@ -135,10 +138,16 @@ describe("listInspections", () => {
           po: "PO-0001",
           status: "submitted",
           result: "pass",
+          inspectorId: "7c2d4e1a-0b3f-4a5c-9d8e-1f2a3b4c5d6e",
           inspector: "Test Inspector",
         },
       ],
     });
+  });
+
+  it("keeps whose inspection it is for every role, for the row actions", () => {
+    expect(toListRow(ROW, "inspector").inspectorId).toBe(ROW.inspector_id);
+    expect(toListRow(ROW, "admin").inspectorId).toBe(ROW.inspector_id);
   });
 
   it("names the inspector for admins only", async () => {

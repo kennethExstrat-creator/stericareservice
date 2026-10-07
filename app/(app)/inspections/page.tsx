@@ -14,6 +14,7 @@ import {
   type InspectionListFilters,
 } from "@/lib/inspections/search-params";
 import { createClient } from "@/lib/supabase/server";
+import { InspectionResults } from "./_components/delete-inspection";
 import { InspectionFilters } from "./_components/inspection-filters";
 import { InspectionTable } from "./_components/inspection-table";
 import { ListFocusScope } from "./_components/list-focus";
@@ -31,7 +32,9 @@ export const metadata: Metadata = {
  * The inspections list (BUILD_SPEC 10): inspectors see their own, admins see
  * everyone's with an Inspector column. Row Level Security does the scoping;
  * this page only reads through the signed-in user's client. Filters live in
- * the URL (lib/inspections/search-params.ts), so a view can be shared.
+ * the URL (lib/inspections/search-params.ts), so a view can be shared. Each
+ * row ends with its actions: Continue, Review or View, and Delete on a draft
+ * (./actions.ts, which re-renders this page once the draft is gone).
  */
 export default async function InspectionsPage({ searchParams }: PageProps<"/inspections">) {
   const user = await requireUser();
@@ -88,8 +91,8 @@ export default async function InspectionsPage({ searchParams }: PageProps<"/insp
           <InspectionFilters filters={filters} clients={options.clients} manufacturers={options.manufacturers} />
         )}
 
-        <section
-          aria-label="Inspections"
+        <InspectionResults
+          listKey={list.kind === "rows" ? list.rows.map((row) => `${row.id}:${row.status}`).join(" ") : view}
           className="flex flex-col gap-3 transition-opacity group-has-data-pending/list:opacity-60"
         >
           {/* Always rendered, so screen readers hear each new outcome after a search. */}
@@ -111,13 +114,13 @@ export default async function InspectionsPage({ searchParams }: PageProps<"/insp
               <ListSummary filters={filters} total={list.total} shown={list.rows.length} />
               <InspectionTable
                 rows={list.rows}
-                role={user.role}
+                viewer={{ id: user.id, role: user.role }}
                 caption={isAdmin ? "Inspections by every inspector, newest first" : "Your inspections, newest first"}
               />
               <ListPagination filters={filters} pageCount={pageCount(list.total)} />
             </>
           ) : null}
-        </section>
+        </InspectionResults>
       </ListFocusScope>
     </div>
   );

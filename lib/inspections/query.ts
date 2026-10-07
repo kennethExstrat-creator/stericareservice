@@ -16,12 +16,13 @@ type Client = SupabaseClient<Database>;
 type UserRole = Database["public"]["Enums"]["user_role"];
 
 /**
- * The list's columns plus the client, manufacturer and inspector names. The
+ * The list's columns plus the client, manufacturer and inspector names, and
+ * the inspector's id for the row actions (who may continue or delete). The
  * inspector embed names its foreign key because approved_by also points at
  * profiles.
  */
 export const INSPECTION_LIST_SELECT =
-  "id, ref_no, inspection_date, po_no, product_name, status, result, client:clients(name), manufacturer:manufacturers(name, factory_name), inspector:profiles!inspections_inspector_id_fkey(full_name, email)";
+  "id, ref_no, inspection_date, po_no, product_name, status, result, inspector_id, client:clients(name), manufacturer:manufacturers(name, factory_name), inspector:profiles!inspections_inspector_id_fkey(full_name, email)";
 
 /** PostgREST's answer to a page past the last row. */
 const RANGE_NOT_SATISFIABLE = "PGRST103";
@@ -34,6 +35,7 @@ type ListQueryRow = {
   product_name: string | null;
   status: InspectionStatus;
   result: InspectionResult | null;
+  inspector_id: string;
   client: { name: string } | null;
   manufacturer: { name: string; factory_name: string | null } | null;
   inspector: { full_name: string | null; email: string | null } | null;
@@ -50,6 +52,8 @@ export type InspectionListRow = {
   po: string | null;
   status: InspectionStatus;
   result: InspectionResult | null;
+  /** Whose inspection it is: the row actions compare it with the signed-in user. */
+  inspectorId: string;
   /** Admins only; null for inspectors, who only see their own. */
   inspector: string | null;
 };
@@ -85,6 +89,7 @@ export function toListRow(row: ListQueryRow, role: UserRole): InspectionListRow 
     po: row.po_no,
     status: row.status,
     result: row.result,
+    inspectorId: row.inspector_id,
     inspector: role === "admin" ? personLabel(row.inspector) : null,
   };
 }
