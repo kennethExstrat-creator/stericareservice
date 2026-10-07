@@ -129,7 +129,7 @@ describe("weight capture, one value per size (SAFEDON_EG)", () => {
   it("is one table row per ordered size, no tabs, in Safedon's wording", () => {
     expect(tags(html, 'role="tab"')).toHaveLength(0);
     expect(tags(html, 'data-slot="numeric-cell"')).toHaveLength(4);
-    expect(tags(html, 'aria-label="Weight \\(g\\), size XS"')[0]).toContain('value="2.56"');
+    expect(tags(html, 'aria-label="Weight \\(g\\), Size XS"')[0]).toContain('value="2.56"');
     expect(html).toContain(">A / Rej.<");
     expect(html).toContain(">Spec.<");
     expect(html).toContain(">NA<");
@@ -154,7 +154,7 @@ describe("weight capture, one value per size (SAFEDON_EG)", () => {
     const zero = render("SAFEDON_EG", { sizes: { ...data.sizes, S: { values: [0] } } }, exampleContext(SAFEDON_EG_EXAMPLE));
     // The cell is drawn in fail red and described by calc's message.
     const marked = (size: string) => {
-      const cell = tags(zero, `aria-label="Weight \\(g\\), size ${size}"`)[0];
+      const cell = tags(zero, `aria-label="Weight \\(g\\), Size ${size}"`)[0];
       const classes = /class="([^"]*)"/.exec(cell)?.[1].split(" ") ?? [];
       return classes.includes("ring-fail") && /aria-describedby="[^"]*calc-error"/.test(cell);
     };
