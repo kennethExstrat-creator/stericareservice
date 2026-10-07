@@ -503,3 +503,30 @@ test("the desktop sidebar shows long section titles on two lines, each named in 
     path: `screenshots/capture/final-${project()}-sidebar.png`,
   });
 });
+
+/* ------------------------------------------------------------------ *
+ * Kenneth: the inspector comment box and the photo box line up
+ * ------------------------------------------------------------------ */
+
+test("beside the comment box, the photo box starts and ends with it, and what new photos are tagged with sits under it", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  test.skip(project() !== "desktop", "Side by side only on a desktop: 1280 px and wider, with no touchscreen.");
+  await signInAs(context, baseURL!, INSPECTOR);
+  // A per-size module: the size on screen tags new photos from the start, so the tag line shows.
+  await page.goto(`/inspections/${fixture.inspectionId}?module=dimensions`);
+  const footer = page.locator('section footer:has([data-slot="module-photos"])').first();
+  const tags = footer.locator('[data-slot="next-tags"]');
+  await expect(tags).toHaveText(/^New photos are tagged Size /);
+  await footer.scrollIntoViewIfNeeded();
+  const comment = await footer.getByRole("textbox").first().boundingBox();
+  const photoBox = await footer.locator('[data-slot="photo-add"] > div.border-dashed').boundingBox();
+  const tagLine = await tags.boundingBox();
+  expect(comment && photoBox && tagLine, "all three are on screen").toBeTruthy();
+  expect(Math.abs(comment!.y - photoBox!.y), "the boxes start together").toBeLessThanOrEqual(1);
+  expect(Math.abs(comment!.y + comment!.height - (photoBox!.y + photoBox!.height)), "the boxes end together").toBeLessThanOrEqual(1);
+  expect(tagLine!.y, "the tag line sits under the photo box").toBeGreaterThanOrEqual(photoBox!.y + photoBox!.height);
+  await footer.screenshot({ path: `screenshots/capture/final-${project()}-comment-and-photos.png` });
+});

@@ -84,9 +84,10 @@ export function SectionFrame({
       <div className="space-y-5 px-5 py-5">{children}</div>
       {footer && (
         // The photo slot sizes its tiles to its own width (a container), so it never sits in an auto-sized column.
-        // Side by side, the comment and the photo slot share two rows (subgrid): their headings on one line,
-        // and the comment box and the photo box starting and ending together.
-        <footer className="grid gap-5 rounded-b-xl border-t border-border bg-slate-50 px-5 py-4 xl:grid-cols-2 xl:grid-rows-[auto_1fr] xl:gap-x-6 xl:gap-y-3">
+        // Side by side, the comment and the photo slot share three rows (subgrid): their headings on one
+        // line, the comment box and the photo box starting and ending together, and under the photo box
+        // what new photos are tagged with, so that line never pushes the box down.
+        <footer className="grid gap-5 rounded-b-xl border-t border-border bg-slate-50 px-5 py-4 xl:grid-cols-2 xl:grid-rows-[auto_1fr_auto] xl:gap-x-6 xl:gap-y-3">
           {footer}
         </footer>
       )}
@@ -119,8 +120,9 @@ export function SectionComment({
     if (!blank && (value ?? "") !== text) setText(value ?? "");
   }
   return (
-    // Beside the photo slot (SectionFrame's footer): the heading in its first row, the box filling its second.
-    <div className="grid gap-2 xl:row-span-2 xl:grid-rows-subgrid xl:gap-y-3">
+    // Beside the photo slot (SectionFrame's footer): the heading in its first row, the box filling its
+    // second; the third holds the photo slot's caption only.
+    <div className="grid gap-2 xl:row-span-3 xl:grid-rows-subgrid xl:gap-y-3">
       {/* Styled as the photo slot's heading, so the two read as one row. */}
       <Label htmlFor={id} className="font-display text-base leading-snug font-semibold">
         Inspector comment

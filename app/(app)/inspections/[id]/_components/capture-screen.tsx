@@ -1082,7 +1082,7 @@ function ActiveSection({
         moduleKey={section.key}
         focus={photoFocus}
         readOnly={readOnly}
-        className="xl:row-span-2 xl:grid xl:grid-rows-subgrid"
+        className="xl:row-span-3 xl:grid xl:grid-rows-subgrid"
       />
     </>
   );

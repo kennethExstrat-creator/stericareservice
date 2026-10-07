@@ -160,7 +160,7 @@ export function ModulePhotos({
       data-slot="module-photos"
       data-variant={variant}
       data-module={moduleKey ?? ""}
-      className={cn("@container relative flex min-w-0 flex-col gap-3", className)}
+      className={cn("relative flex min-w-0 flex-col gap-3", className)}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <Heading
@@ -180,8 +180,10 @@ export function ModulePhotos({
       </div>
 
       {/* Everything under the heading in one block: beside the inspector comment (SectionFrame's
-          footer), the heading row and this block are the two rows the comment's label and box share. */}
-      <div className="flex min-w-0 flex-col gap-3">
+          footer), the heading row and this block are the rows the comment's label and box share.
+          The tiles size to this block's width (@container). Not on the section: a size container
+          has layout containment, and the browser then ignores grid-rows-subgrid on it. */}
+      <div className="@container flex min-w-0 flex-col gap-3">
       {description && <div className="-mt-1 text-sm text-muted-foreground">{description}</div>}
 
       {showNotices && <UploadNotices inspectionId={inspectionId} />}
@@ -251,11 +253,6 @@ export function ModulePhotos({
         </p>
       )}
 
-      {canAdd && nextTags && (
-        <p data-slot="next-tags" className="text-sm text-muted-foreground">
-          New photos are tagged {nextTags}.
-        </p>
-      )}
       {showAddControls && canAdd && (
         // Last, so its bottom meets the comment box's; it grows when a long comment makes the row taller.
         <PhotoAddControls
@@ -297,6 +294,14 @@ export function ModulePhotos({
         />
       )}
       </div>
+
+      {/* Under the photos and their add controls, never above them: beside the inspector comment this is
+          the footer's third row, so the photo box starts level with the comment box whatever is in focus. */}
+      {canAdd && nextTags && (
+        <p data-slot="next-tags" className="text-sm text-muted-foreground">
+          New photos are tagged {nextTags}.
+        </p>
+      )}
     </section>
   );
 }
