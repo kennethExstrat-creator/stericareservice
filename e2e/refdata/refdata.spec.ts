@@ -92,7 +92,7 @@ test.describe("manufacturers, as the admin", () => {
     await expect(page.getByRole("row")).toHaveCount(2);
 
     await search(page, "Search manufacturers", "no factory is called this");
-    await expect(page.getByText("No manufacturers match “no factory is called this”")).toBeVisible();
+    await expect(page.getByText("No Manufacturers Match “no factory is called this”")).toBeVisible();
     await shot(page, "manufacturers-no-match");
     await page.getByRole("button", { name: "Clear search" }).first().click();
     await expect(row(page, inUse.name)).toBeVisible();

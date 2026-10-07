@@ -97,7 +97,7 @@ export function JsonView({
           <Alert variant="destructive" className="border-fail-border bg-fail-tint">
             <OctagonXIcon aria-hidden />
             <AlertTitle>
-              {check.problems.length === 1 ? "1 problem in the JSON" : `${check.problems.length} problems in the JSON`}
+              {check.problems.length === 1 ? "1 Problem in the JSON" : `${check.problems.length} Problems in the JSON`}
             </AlertTitle>
             <AlertDescription className="text-fail">
               <ul className="grid gap-1">

@@ -79,7 +79,7 @@ export function UsersScreen({
       {adminApi === "missing-key" && (
         <Alert className="border-warn-border bg-warn-tint text-warn">
           <TriangleAlertIcon aria-hidden />
-          <AlertTitle>Invites are switched off</AlertTitle>
+          <AlertTitle>Invites Are Switched Off</AlertTitle>
           <AlertDescription className="text-warn">
             The server needs SUPABASE_SECRET_KEY to send invites, show who has signed in and stop deactivated users
             signing in. Add it to the environment (.env.local, or the Vercel project settings) and restart the app.
@@ -90,7 +90,7 @@ export function UsersScreen({
       {adminApi === "failed" && (
         <Alert className="border-warn-border bg-warn-tint text-warn">
           <TriangleAlertIcon aria-hidden />
-          <AlertTitle>Sign-in details are unavailable</AlertTitle>
+          <AlertTitle>Sign-In Details Are Unavailable</AlertTitle>
           <AlertDescription className="text-warn">
             Supabase Auth did not answer, so this list cannot show who has signed in or which accounts are waiting for
             activation. Check that SUPABASE_SECRET_KEY is the secret key of this project, then reload.
@@ -100,7 +100,7 @@ export function UsersScreen({
       {!teams && (
         <Alert className="border-warn-border bg-warn-tint text-warn" data-testid="teams-missing">
           <TriangleAlertIcon aria-hidden />
-          <AlertTitle>Lead inspectors are not set up yet</AlertTitle>
+          <AlertTitle>Lead Inspectors Are Not Set Up Yet</AlertTitle>
           <AlertDescription className="text-warn">
             {TEAM_MESSAGES.teamsMissing} Until then this page sets roles only.
           </AlertDescription>
@@ -131,7 +131,7 @@ export function UsersScreen({
             <EmptyMedia variant="icon">
               <UsersIcon aria-hidden />
             </EmptyMedia>
-            <EmptyTitle>Only you so far</EmptyTitle>
+            <EmptyTitle>Only You So Far</EmptyTitle>
             <EmptyDescription>
               {teams
                 ? "Invite your lead inspectors first, then their inspectors. Each one gets an email with a link to choose a password."
@@ -160,7 +160,7 @@ function NoLeadAlert({ people: missing }: { people: UserListItem[] }) {
   return (
     <Alert className="border-warn-border bg-warn-tint text-warn" data-testid="no-lead-alert">
       <TriangleAlertIcon aria-hidden />
-      <AlertTitle>{`${inspectors(missing.length)} ${one ? "has" : "have"} no lead inspector`}</AlertTitle>
+      <AlertTitle>{one ? "1 Inspector Has No Lead Inspector" : `${missing.length} Inspectors Have No Lead Inspector`}</AlertTitle>
       <AlertDescription className="text-warn [&_p:not(:last-child)]:mb-1">
         <p>
           {listed} {one ? "works" : "work"} in no team, so no lead inspector sees {one ? "their" : "those"} inspections.

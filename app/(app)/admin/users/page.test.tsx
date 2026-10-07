@@ -122,14 +122,14 @@ describe("/admin/users", () => {
     expect(getUserDirectory).toHaveBeenCalledWith(ME);
     expect(html).toContain("Olga Other");
     expect(inviteButton(html)).not.toMatch(/disabled=""/);
-    expect(html).not.toContain("Invites are switched off");
-    expect(html).not.toContain("Only you so far");
+    expect(html).not.toMatch(/Invites are switched off/i);
+    expect(html).not.toMatch(/Only you so far/i);
   });
 
   it("switches invites off and says why without the secret key", async () => {
     const html = await render(directory({ adminApi: "missing-key" }));
 
-    expect(html).toContain("Invites are switched off");
+    expect(html).toContain("Invites Are Switched Off");
     expect(html).toContain("SUPABASE_SECRET_KEY");
     expect(inviteButton(html)).toMatch(/disabled=""/);
     // Without sign-in details there is no last sign-in column.
@@ -139,7 +139,7 @@ describe("/admin/users", () => {
   it("explains when Supabase Auth did not answer, and still lists everyone", async () => {
     const html = await render(directory({ adminApi: "failed" }));
 
-    expect(html).toContain("Sign-in details are unavailable");
+    expect(html).toContain("Sign-In Details Are Unavailable");
     expect(html).toContain("Olga Other");
     expect(inviteButton(html)).not.toMatch(/disabled=""/);
   });
@@ -147,14 +147,14 @@ describe("/admin/users", () => {
   it("invites the first user when the admin is alone", async () => {
     const html = await render(directory({ users: [me], leads: [] }));
 
-    expect(html).toContain("Only you so far");
+    expect(html).toContain("Only You So Far");
     expect(html).toContain("Invite Your First User");
   });
 
   it("does not offer the first invite when invites are off", async () => {
     const html = await render(directory({ users: [me], adminApi: "missing-key", leads: [] }));
 
-    expect(html).toContain("Only you so far");
+    expect(html).toContain("Only You So Far");
     expect(html).not.toContain("Invite Your First User");
   });
 });
@@ -176,7 +176,7 @@ describe("/admin/users: lead inspectors and teams", () => {
   it("lists active inspectors in no team as a problem to fix, with a way to see only them", async () => {
     const html = await render(directory({ users: [me, olga, gail] }));
     const alert = html.slice(html.indexOf('data-testid="no-lead-alert"'));
-    expect(alert).toContain("1 inspector has no lead inspector");
+    expect(alert).toContain("1 Inspector Has No Lead Inspector");
     expect(alert).toContain("Gail Grandfathered works in no team, so no lead inspector sees their inspections.");
     // The menu item it names, as the menu says it.
     expect(alert).toContain("Choose Change Lead Inspector next to their name.");
@@ -210,7 +210,7 @@ describe("/admin/users: lead inspectors and teams", () => {
   it("works with roles only, and says what is needed, on a project without lead inspectors", async () => {
     const html = await render(directory({ teams: false, leads: [] }), { team: LEAD });
     expect(html).toContain('data-testid="teams-missing"');
-    expect(html).toContain("Lead inspectors are not set up yet");
+    expect(html).toContain("Lead Inspectors Are Not Set Up Yet");
     expect(html).toContain("20261007170000_lead_inspectors.sql");
     expect(html).not.toContain(">Lead Inspector</th>");
     expect(html).not.toContain(">Team</label>");

@@ -43,7 +43,7 @@ export function UploadNotices({ inspectionId, className }: { inspectionId: strin
   const notices: ReactNode[] = [];
   if (state.phase === "unavailable" && state.problem) {
     notices.push(
-      <Notice key="unavailable" icon={<TriangleAlertIcon aria-hidden />} title="Photos cannot be added on this device">
+      <Notice key="unavailable" icon={<TriangleAlertIcon aria-hidden />} title="Photos Cannot Be Added on This Device">
         {state.problem}
       </Notice>,
     );
@@ -53,7 +53,7 @@ export function UploadNotices({ inspectionId, className }: { inspectionId: strin
       <Notice
         key="signed-out"
         icon={<LogInIcon aria-hidden />}
-        title="Sign in again to upload"
+        title="Sign In Again to Upload"
         action={
           <Button asChild size="sm" variant="outline">
             <Link href={`${LOGIN_PATH}?next=${encodeURIComponent(pathname ?? "/")}`}>Sign In</Link>
@@ -74,7 +74,7 @@ export function UploadNotices({ inspectionId, className }: { inspectionId: strin
   }
   if (items.length > 0 && !state.queue.localCopy) {
     notices.push(
-      <Notice key="memory" icon={<TriangleAlertIcon aria-hidden />} title="Keep this page open">
+      <Notice key="memory" icon={<TriangleAlertIcon aria-hidden />} title="Keep This Page Open">
         This browser could not store the photos on the device, so they upload only while this page stays open. Do not
         reload or close it until the upload has finished.
       </Notice>,
@@ -85,7 +85,7 @@ export function UploadNotices({ inspectionId, className }: { inspectionId: strin
       <Notice
         key={`retag-${failure.id}`}
         icon={<TriangleAlertIcon aria-hidden />}
-        title="A new tag was not saved"
+        title="A New Tag Was Not Saved"
         action={
           <Button size="sm" variant="outline" onClick={() => photoQueueStore.dismissRetagFailure(failure.id)}>
             <XIcon aria-hidden />

@@ -16,7 +16,7 @@ test("without the secret key, invites are off and the page says why", async ({ p
   await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
   await page.goto("/admin/users");
 
-  await expect(page.getByRole("alert").filter({ hasText: "Invites are switched off" })).toContainText(
+  await expect(page.getByRole("alert").filter({ hasText: "Invites Are Switched Off" })).toContainText(
     "SUPABASE_SECRET_KEY",
   );
   await expect(page.getByRole("button", { name: "Invite User", exact: true })).toBeDisabled();

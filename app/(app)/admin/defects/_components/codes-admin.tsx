@@ -73,7 +73,7 @@ export function DefectCodesAdmin({
       {codes.length === 0 ? (
         <EmptyState
           icon={<TagsIcon aria-hidden />}
-          title="No defect codes yet"
+          title="No Defect Codes Yet"
           action={
             <Button variant="outline" onClick={(event) => add(event.currentTarget)}>
               Add Your First Code
@@ -99,7 +99,7 @@ export function DefectCodesAdmin({
               onEdit={(code, opener) => panel.show({ mode: "edit", code }, opener)}
             />
           ) : (
-            <NoMatches query={query} many="codes" onClear={() => setQuery("")} />
+            <NoMatches query={query} many="Codes" onClear={() => setQuery("")} />
           )}
         </>
       )}

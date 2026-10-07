@@ -23,7 +23,7 @@ export default function ClientsError({ error, retry }: { error: Error & { digest
           <EmptyMedia variant="icon" className="bg-warn-tint text-warn">
             <TriangleAlertIcon aria-hidden />
           </EmptyMedia>
-          <EmptyTitle>The clients could not be loaded</EmptyTitle>
+          <EmptyTitle>The Clients Could Not Be Loaded</EmptyTitle>
           <EmptyDescription>
             Check the connection and try again. If it keeps happening, Supabase may be unavailable.
           </EmptyDescription>

@@ -108,7 +108,7 @@ describe("/admin/clients", () => {
 
   it("invites the first client when there are none", async () => {
     const html = await render([]);
-    expect(html).toContain("No clients yet");
+    expect(html).toContain("No Clients Yet");
     expect(html).toContain("Add Your First Client");
   });
 });

@@ -32,7 +32,7 @@ export function LockedNotice({
   return (
     <Alert className="border-hold-border bg-hold-tint text-hold" data-testid="locked">
       <LockIcon aria-hidden />
-      <AlertTitle className="font-semibold">Read only</AlertTitle>
+      <AlertTitle className="font-semibold">Read Only</AlertTitle>
       <AlertDescription className="grid gap-3 text-hold">
         <p>{reason}</p>
         {carry && <p>Your unsaved changes go into the new version.</p>}

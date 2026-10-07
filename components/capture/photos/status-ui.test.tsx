@@ -110,19 +110,19 @@ describe("UploadNotices", () => {
 
   it("says when photos cannot be added on this device at all", () => {
     const html = notices(queueState({ phase: "unavailable", problem: QUEUE_PROBLEMS.failedToStart }));
-    expect(html).toContain("Photos cannot be added on this device");
+    expect(html).toContain("Photos Cannot Be Added on This Device");
     expect(html).toContain(QUEUE_PROBLEMS.failedToStart);
   });
 
   it("says photos wait on the device while offline, and asks to sign in again when the session ended", () => {
     expect(notices(queueState({ items: [item("a"), item("b")], online: false }))).toContain("2 photos wait on this device and upload when the connection is back");
     const signedOut = notices(queueState({ items: [item("a")], error: { reason: "unauthorized", message: "Your session has ended." } }));
-    expect(signedOut).toContain("Sign in again to upload");
+    expect(signedOut).toContain("Sign In Again to Upload");
     expect(signedOut).toContain(`href="/login?next=${encodeURIComponent(`/inspections/${INSPECTION}/photos`)}"`);
   });
 
   it("asks to keep the page open when the browser cannot keep the photos", () => {
-    expect(notices(queueState({ items: [item("a")], localCopy: false }))).toContain("Keep this page open");
+    expect(notices(queueState({ items: [item("a")], localCopy: false }))).toContain("Keep This Page Open");
   });
 
   it("words a refused retag plainly, never with the database's text", () => {
@@ -140,7 +140,7 @@ describe("UploadNotices", () => {
         ],
       }),
     );
-    expect(html).toContain("A new tag was not saved");
+    expect(html).toContain("A New Tag Was Not Saved");
     expect(html).toContain("This inspection can no longer be changed from this account.");
     expect(html).not.toContain("row-level security");
   });

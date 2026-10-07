@@ -57,7 +57,7 @@ export function LabelMapView({ maps, initialQuery }: { maps: TemplateLabelMap[];
     return (
       <EmptyState
         icon={<LayoutTemplateIcon aria-hidden />}
-        title="No templates yet"
+        title="No Templates Yet"
         action={
           <Button asChild variant="outline">
             <Link href={TEMPLATES_PATH}>Go to Templates</Link>
@@ -80,7 +80,7 @@ export function LabelMapView({ maps, initialQuery }: { maps: TemplateLabelMap[];
         count={countText(labelCount(shown), labelCount(maps))}
       />
       {shown.length === 0 ? (
-        <NoMatches query={query} many="labels" onClear={() => setQuery("")} />
+        <NoMatches query={query} many="Labels" onClear={() => setQuery("")} />
       ) : (
         shown.map((map) => <TemplateCard key={map.id} map={map} />)
       )}

@@ -165,7 +165,7 @@ export function ClientPanel({ open, target, item, onClose, onCreated, onDeleted,
             <EmptyMedia variant="icon">
               <SearchXIcon aria-hidden />
             </EmptyMedia>
-            <EmptyTitle>No longer on the list</EmptyTitle>
+            <EmptyTitle>No Longer on the List</EmptyTitle>
             <EmptyDescription>Someone has deleted this client.</EmptyDescription>
           </EmptyHeader>
         </Empty>

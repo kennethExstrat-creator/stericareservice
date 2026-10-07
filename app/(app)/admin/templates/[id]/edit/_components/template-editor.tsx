@@ -499,7 +499,7 @@ export function TemplateEditor({
       {offer && (
         <Alert className="border-info-border bg-info-tint" data-testid="restore-offer">
           <HistoryIcon aria-hidden />
-          <AlertTitle>Unsaved changes from {BACKUP_TIME.format(offer.savedAt)}</AlertTitle>
+          <AlertTitle>Unsaved Changes From {BACKUP_TIME.format(offer.savedAt)}</AlertTitle>
           <AlertDescription className="grid gap-3 text-info">
             <p>
               This draft was left with changes that were not saved, on this device.
@@ -531,7 +531,7 @@ export function TemplateEditor({
 
       {editable && resolveDue && template.resolution !== "ok" && (
         <Alert className="border-warn-border bg-warn-tint" data-testid="resolve-due">
-          <AlertTitle>{template.resolution === "missing" ? "Not resolved yet" : "Resolved by an earlier build"}</AlertTitle>
+          <AlertTitle>{template.resolution === "missing" ? "Not Resolved Yet" : "Resolved by an Earlier Build"}</AlertTitle>
           <AlertDescription className="text-warn">
             {template.resolution === "missing"
               ? "This draft has no stored resolution, so its version page shows no modules and it cannot be activated."
@@ -545,7 +545,7 @@ export function TemplateEditor({
 
       {editable && resolveDue && template.stale.length > 0 && (
         <Alert className="border-info-border bg-info-tint">
-          <AlertTitle>A base template has moved on</AlertTitle>
+          <AlertTitle>A Base Template Has Moved On</AlertTitle>
           <AlertDescription className="text-info">
             {template.stale
               .map((base) =>
@@ -615,7 +615,7 @@ export function TemplateEditor({
         {(saveState.status === "error" || saveState.status === "conflict") && !saving && (
           <Alert variant="destructive" className="border-fail-border bg-fail-tint" data-testid="save-error">
             <OctagonXIcon aria-hidden />
-            <AlertTitle>Not saved</AlertTitle>
+            <AlertTitle>Not Saved</AlertTitle>
             <AlertDescription className="grid gap-1 text-fail">
               <p>{saveState.message}</p>
               {saveState.status === "error" && saveState.problems && (
@@ -645,7 +645,7 @@ export function TemplateEditor({
 
         {!shapeOk && (
           <Alert className="border-warn-border bg-warn-tint">
-            <AlertTitle>The definition does not match the template format</AlertTitle>
+            <AlertTitle>The Definition Does Not Match the Template Format</AlertTitle>
             <AlertDescription className="text-warn">
               The module list cannot show it. Fix it in the JSON tab first.
             </AlertDescription>

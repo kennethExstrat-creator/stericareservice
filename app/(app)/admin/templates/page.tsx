@@ -68,7 +68,7 @@ export default async function TemplatesPage() {
               <TriangleAlertIcon aria-hidden />
             </EmptyMedia>
             <EmptyTitle>
-              <h2 className="text-lg font-bold text-foreground">The templates could not be loaded</h2>
+              <h2 className="text-lg font-bold text-foreground">The Templates Could Not Be Loaded</h2>
             </EmptyTitle>
             <EmptyDescription className="text-base text-muted-foreground fine:text-sm">
               Check the connection and reload the page. If it keeps happening, Supabase may be unavailable.
@@ -82,7 +82,7 @@ export default async function TemplatesPage() {
               <FileStackIcon aria-hidden />
             </EmptyMedia>
             <EmptyTitle>
-              <h2 className="text-lg font-bold text-foreground">No templates yet</h2>
+              <h2 className="text-lg font-bold text-foreground">No Templates Yet</h2>
             </EmptyTitle>
             <EmptyDescription className="text-base text-muted-foreground fine:text-sm">
               Templates appear here by code, with every version. Inspectors can start inspections once a template has

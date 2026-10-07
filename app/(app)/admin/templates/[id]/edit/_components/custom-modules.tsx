@@ -84,7 +84,7 @@ export function CustomModules({
             <EmptyMedia variant="icon">
               <LayersIcon aria-hidden />
             </EmptyMedia>
-            <EmptyTitle>No custom modules</EmptyTitle>
+            <EmptyTitle>No Custom Modules</EmptyTitle>
             <EmptyDescription>Add one when the form has a field no module covers.</EmptyDescription>
           </EmptyHeader>
           {api.editable && (

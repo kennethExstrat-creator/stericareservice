@@ -94,7 +94,7 @@ export function EmptyList({
   );
 }
 
-/** A search that matches nothing. */
+/** A search that matches nothing. `many` names the rows in Title Case: "Clients". */
 export function NoMatches({ query, many, onClear }: { query: string; many: string; onClear: () => void }) {
   return (
     <Empty className="border border-dashed border-border bg-card">
@@ -102,7 +102,7 @@ export function NoMatches({ query, many, onClear }: { query: string; many: strin
         <EmptyMedia variant="icon">
           <SearchXIcon aria-hidden />
         </EmptyMedia>
-        <EmptyTitle>No {many} match “{query.trim()}”</EmptyTitle>
+        <EmptyTitle>No {many} Match “{query.trim()}”</EmptyTitle>
         <EmptyDescription>Check the spelling, or search for part of the name.</EmptyDescription>
       </EmptyHeader>
       <EmptyContent>

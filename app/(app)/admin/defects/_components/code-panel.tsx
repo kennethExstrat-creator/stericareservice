@@ -169,7 +169,7 @@ export function CodePanel({ open, target, item, onClose, onDeleted, returnFocus 
             <EmptyMedia variant="icon">
               <SearchXIcon aria-hidden />
             </EmptyMedia>
-            <EmptyTitle>No longer on the list</EmptyTitle>
+            <EmptyTitle>No Longer on the List</EmptyTitle>
             <EmptyDescription>Someone has deleted this code.</EmptyDescription>
           </EmptyHeader>
         </Empty>

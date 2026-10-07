@@ -42,7 +42,7 @@ export function ClientsAdmin({ clients, initialQuery }: { clients: ClientItem[];
       {clients.length === 0 ? (
         <EmptyList
           icon={<BuildingIcon aria-hidden />}
-          title="No clients yet"
+          title="No Clients Yet"
           description="Add the companies you inspect for, with their logos, so templates and inspections can refer to them."
           action={
             <Button variant="outline" onClick={add}>
@@ -68,7 +68,7 @@ export function ClientsAdmin({ clients, initialQuery }: { clients: ClientItem[];
               onEdit={(id, opener) => panel.show({ mode: "edit", id }, opener)}
             />
           ) : (
-            <NoMatches query={query} many="clients" onClear={() => setQuery("")} />
+            <NoMatches query={query} many="Clients" onClear={() => setQuery("")} />
           )}
         </>
       )}

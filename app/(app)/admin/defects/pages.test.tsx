@@ -214,7 +214,7 @@ describe("/admin/defects", () => {
   it("invites the first code when there is none", async () => {
     vi.mocked(loadDefectsData).mockResolvedValue(data({ codes: [], templates: [], inspections: [] }));
     const html = await render(DefectCodesPage(props()));
-    expect(html).toContain("No defect codes yet");
+    expect(html).toContain("No Defect Codes Yet");
     expect(html).toContain("Add Your First Code");
   });
 });
@@ -243,7 +243,7 @@ describe("/admin/defects/labels", () => {
   it("points to the template editor when there are no templates", async () => {
     vi.mocked(loadDefectsData).mockResolvedValue(data({ templates: [] }));
     const html = await render(LabelMappingPage(props()));
-    expect(html).toContain("No templates yet");
+    expect(html).toContain("No Templates Yet");
     expect(html).toContain('href="/admin/templates"');
   });
 });
@@ -287,6 +287,6 @@ describe("/admin/defects/unmapped", () => {
 
   it("says when nothing waits", async () => {
     vi.mocked(loadDefectsData).mockResolvedValue(data({ inspections: [] }));
-    expect(await render(UnmappedLabelsPage())).toContain("No unmapped labels");
+    expect(await render(UnmappedLabelsPage())).toContain("No Unmapped Labels");
   });
 });

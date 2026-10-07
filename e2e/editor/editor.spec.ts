@@ -187,7 +187,7 @@ test("the admin edits a draft: switches, order, wording, settings, a custom fiel
   // The draft has no stored resolution yet: Save resolves and stores it, changed or not.
   await expect(saveState).toHaveText("Not Resolved Yet");
   await expect(save).toBeEnabled();
-  await expect(page.getByTestId("resolve-due")).toContainText("Not resolved yet");
+  await expect(page.getByTestId("resolve-due")).toContainText("Not Resolved Yet");
   await expectNoPageScroll(page);
   if (isTouch()) {
     // 44 px targets on the iPad: the drag handle and the switch's hit area.
@@ -279,7 +279,7 @@ test("the admin edits a draft: switches, order, wording, settings, a custom fiel
 
   // A custom module with a field of each kind it needs.
   await press(page.getByRole("tab", { name: "Custom Modules" }));
-  await expect(page.getByText("No custom modules")).toBeVisible();
+  await expect(page.getByText("No Custom Modules")).toBeVisible();
   await press(page.getByRole("button", { name: "Add Custom Module" }).first());
   const form = page.getByTestId("custom-module-form");
   await form.locator("#custom-0-title").fill("Glove type");

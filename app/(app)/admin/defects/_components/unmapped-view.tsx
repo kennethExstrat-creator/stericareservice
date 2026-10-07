@@ -58,7 +58,7 @@ export function UnmappedView({ inspections, codes }: { inspections: InspectionLa
 
   if (inspections.length === 0) {
     return (
-      <EmptyState icon={<FlagIcon aria-hidden />} title="No unmapped labels">
+      <EmptyState icon={<FlagIcon aria-hidden />} title="No Unmapped Labels">
         When an inspector adds a defect that is not on the template&rsquo;s list, it is saved under their own words
         and shows here until an admin maps it to a code.
       </EmptyState>

@@ -63,7 +63,7 @@ export function ManufacturersAdmin({
       {manufacturers.length === 0 ? (
         <EmptyList
           icon={<FactoryIcon aria-hidden />}
-          title="No manufacturers yet"
+          title="No Manufacturers Yet"
           description="Add the factories you inspect at, so templates and inspections can refer to them."
           action={
             <Button variant="outline" onClick={add}>
@@ -89,7 +89,7 @@ export function ManufacturersAdmin({
               onEdit={(id, opener) => panel.show({ mode: "edit", id }, opener)}
             />
           ) : (
-            <NoMatches query={query} many="manufacturers" onClear={() => setQuery("")} />
+            <NoMatches query={query} many="Manufacturers" onClear={() => setQuery("")} />
           )}
         </>
       )}

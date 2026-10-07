@@ -23,7 +23,7 @@ export default function ManufacturersError({ error, retry }: { error: Error & { 
           <EmptyMedia variant="icon" className="bg-warn-tint text-warn">
             <TriangleAlertIcon aria-hidden />
           </EmptyMedia>
-          <EmptyTitle>The manufacturers could not be loaded</EmptyTitle>
+          <EmptyTitle>The Manufacturers Could Not Be Loaded</EmptyTitle>
           <EmptyDescription>
             Check the connection and try again. If it keeps happening, Supabase may be unavailable.
           </EmptyDescription>

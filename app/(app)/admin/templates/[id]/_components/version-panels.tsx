@@ -245,7 +245,7 @@ export function Notices({ view }: { view: NoticesView }) {
 
   if (detail.usage > 0) {
     notices.push(
-      <Notice key="frozen" tone="info" icon={LockIcon} title={`Frozen: used by ${usageText(detail.usage)}`}>
+      <Notice key="frozen" tone="info" icon={LockIcon} title={`Frozen: Used by ${detail.usage.toLocaleString("en-GB")} ${detail.usage === 1 ? "Inspection" : "Inspections"}`}>
         Version {detail.version} can no longer change. Every inspection keeps the exact version it started with (BUILD_SPEC
         4.2 rule 8), so the database refuses any edit to a version an inspection uses. To change {detail.code}, make a new
         version.
@@ -254,14 +254,14 @@ export function Notices({ view }: { view: NoticesView }) {
   }
   if (detail.resolution.state === "missing") {
     notices.push(
-      <Notice key="unresolved" tone="warn" title="Not resolved">
+      <Notice key="unresolved" tone="warn" title="Not Resolved">
         This version has not been resolved down its extends chain, so it shows no modules and cannot be activated.{" "}
         {advice.unresolved}
       </Notice>,
     );
   } else if (detail.resolution.state === "invalid") {
     notices.push(
-      <Notice key="invalid" tone="warn" title="Resolved by an earlier build">
+      <Notice key="invalid" tone="warn" title="Resolved by an Earlier Build">
         The stored resolution of this version cannot be read now, so it cannot be activated. {advice.outdated}
         <ul>
           {detail.resolution.issues.map((issue) => (
@@ -273,7 +273,7 @@ export function Notices({ view }: { view: NoticesView }) {
   }
   if (!detail.definition.ok) {
     notices.push(
-      <Notice key="definition" tone="warn" title="The definition has problems">
+      <Notice key="definition" tone="warn" title="The Definition Has Problems">
         The template editor lists them where they are. In short:
         <ul>
           {detail.definition.issues.map((issue) => (
@@ -285,7 +285,7 @@ export function Notices({ view }: { view: NoticesView }) {
   }
   if (problems.length > 0) {
     notices.push(
-      <Notice key="config" tone="fail" title="Settings that no longer fit their modules">
+      <Notice key="config" tone="fail" title="Settings That No Longer Fit Their Modules">
         Inspections would show a settings error in these modules, so this version cannot be activated. {advice.settings}
         <ul>
           {problems.map((problem) => (
@@ -300,12 +300,12 @@ export function Notices({ view }: { view: NoticesView }) {
   for (const base of stale) {
     notices.push(
       base.active === null ? (
-        <Notice key={`stale-${base.code}`} tone="warn" title={`${base.code} has no active version`}>
+        <Notice key={`stale-${base.code}`} tone="warn" title={`${base.code} Has No Active Version`}>
           This version was built on {base.code} version {base.resolvedWith}, which is not active now. It keeps what it took
           from {base.code}. Once {base.code} has an active version, a new version takes in its changes.
         </Notice>
       ) : (
-        <Notice key={`stale-${base.code}`} tone="warn" title={`${base.code} has moved on`}>
+        <Notice key={`stale-${base.code}`} tone="warn" title={`${base.code} Has Moved On`}>
           This version was built on {base.code} version {base.resolvedWith}; {base.code}&rsquo;s active version is now{" "}
           {base.active}. A new version takes in its changes.
         </Notice>
@@ -315,7 +315,7 @@ export function Notices({ view }: { view: NoticesView }) {
   if (ties.length > 0) {
     const names = ties.map((tie) => `${tie.code} version ${tie.version}`).join(", ");
     notices.push(
-      <Notice key="ties" tone="warn" title="Another template has the same scope">
+      <Notice key="ties" tone="warn" title="Another Template Has the Same Scope">
         {names} {ties.length === 1 ? "is" : "are"} active for exactly this product type, client and manufacturer.{" "}
         {detail.status === "active" ? "New inspections" : "Once this version is active, new inspections"} for that scope get
         the template whose code comes first in the alphabet.
@@ -324,7 +324,7 @@ export function Notices({ view }: { view: NoticesView }) {
   }
   if (blockers.length > 0) {
     notices.push(
-      <Notice key="blockers" id={blockersId} tone="info" title="Before this version can be activated">
+      <Notice key="blockers" id={blockersId} tone="info" title="Before This Version Can Be Activated">
         <ul>
           {blockers.map((blocker) => (
             <li key={blocker}>{blocker}</li>

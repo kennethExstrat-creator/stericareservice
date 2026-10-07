@@ -185,7 +185,7 @@ test("a version shows its modules in order, with wording, switches and custom mo
   await expect(page.getByRole("link", { name: "Edit Draft" })).toHaveAttribute("href", `/admin/templates/${root.id}/edit`);
   await expect(page.getByRole("button", { name: "New Version" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Activate" })).toBeDisabled();
-  await expect(page.getByRole("note").filter({ hasText: "Before this version can be activated" })).toContainText(
+  await expect(page.getByRole("note").filter({ hasText: "Before This Version Can Be Activated" })).toContainText(
     "Upload the source form or report first",
   );
   await expect(page.getByRole("button", { name: "Confirm Coverage" })).toBeDisabled();
@@ -216,8 +216,8 @@ test("a template on top of STD_EG checks STD_EG's forms field by field", async (
   await expect(checklist.getByText("Manufacturer Information › PO Number").first()).toBeVisible();
   // It was built on STD_EG version 1: the page compares that with STD_EG's active version in this project.
   const stdEgActive = await activeVersionOf("STD_EG");
-  const notActive = page.getByRole("note").filter({ hasText: "STD_EG has no active version" });
-  const movedOn = page.getByRole("note").filter({ hasText: "STD_EG has moved on" });
+  const notActive = page.getByRole("note").filter({ hasText: "STD_EG Has No Active Version" });
+  const movedOn = page.getByRole("note").filter({ hasText: "STD_EG Has Moved On" });
   if (stdEgActive === null) {
     await expect(notActive).toContainText("built on STD_EG version 1, which is not active now");
   } else if (stdEgActive !== 1) {
@@ -247,12 +247,12 @@ test("a draft that never resolved explains itself and cannot be activated", asyn
   expect(response?.status()).toBe(200);
 
   // By its title: the list of what blocks activation says "has not resolved" too.
-  await expect(page.getByRole("note").filter({ has: page.getByText("Not resolved", { exact: true }) })).toBeVisible();
-  await expect(page.getByRole("note").filter({ hasText: "The definition has problems" })).toBeVisible();
+  await expect(page.getByRole("note").filter({ has: page.getByText("Not Resolved", { exact: true }) })).toBeVisible();
+  await expect(page.getByRole("note").filter({ hasText: "The Definition Has Problems" })).toBeVisible();
   await expect(page.getByText("Nothing to show until this version resolves.")).toBeVisible();
   await expect(page.locator("#coverage")).toContainText("This version has not resolved");
   await expect(page.getByRole("button", { name: "Activate" })).toBeDisabled();
-  await expect(page.getByRole("note").filter({ hasText: "Before this version can be activated" })).toContainText(
+  await expect(page.getByRole("note").filter({ hasText: "Before This Version Can Be Activated" })).toContainText(
     "has not resolved",
   );
   await expectNoPageScroll(page);
@@ -368,7 +368,7 @@ test("a version's life: source file, coverage, frozen by use, activate, retire, 
     // An admin may start an inspection from a draft (lib/templates selectTemplate).
     await insertInspection(root.id);
     await page.reload();
-    await expect(page.getByRole("note").filter({ hasText: "Frozen: used by 1 inspection" })).toContainText(
+    await expect(page.getByRole("note").filter({ hasText: "Frozen: Used by 1 Inspection" })).toContainText(
       `To change ${root.code}, make a new version.`,
     );
     await expect(page.getByRole("link", { name: "Edit Draft" })).toHaveCount(0);
@@ -398,7 +398,7 @@ test("a version's life: source file, coverage, frozen by use, activate, retire, 
 
   await test.step("active and in use, it stays frozen", async () => {
     await page.reload();
-    await expect(page.getByRole("note").filter({ hasText: "Frozen: used by 1 inspection" })).toContainText(
+    await expect(page.getByRole("note").filter({ hasText: "Frozen: Used by 1 Inspection" })).toContainText(
       "the database refuses any edit to a version an inspection uses",
     );
     await expect(page.getByRole("button", { name: /Replace File|Upload Source File/ })).toHaveCount(0);

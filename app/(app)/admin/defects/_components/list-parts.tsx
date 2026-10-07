@@ -50,12 +50,12 @@ export function EmptyState({
   );
 }
 
-/** A search that matches nothing. */
+/** A search that matches nothing. `many` names the rows in Title Case: "Codes". */
 export function NoMatches({ query, many, onClear }: { query: string; many: string; onClear: () => void }) {
   return (
     <EmptyState
       icon={<SearchXIcon aria-hidden />}
-      title={`No ${many} match “${query.trim()}”`}
+      title={`No ${many} Match “${query.trim()}”`}
       action={
         <Button type="button" variant="outline" onClick={onClear}>
           Clear Search
