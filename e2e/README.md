@@ -51,6 +51,19 @@ each session `sessionCookies()` signs in there and hands it out again, to other 
 runs, while its access token has half an hour left; `sign-ins.log` in it lists each real sign-in.
 The files hold live tokens: use a private temporary directory and delete it afterwards.
 
+## Finding a module on the capture screen
+
+A page of the capture screen can show two modules: packing configuration sits below the order, on the
+order's tab (`lib/inspections/capture/sections.ts` `SHOWN_WITH`). Scope by the module's key, never by
+`[data-slot="section-frame"]` alone, which matches both frames there and fails Playwright's strict mode:
+
+- a module's frame: `[data-section-key="packing_config"]` (its title is the frame's `h2`);
+- the tab of the page a module is on: `[role="tab"][data-sections~="packing_config"]`;
+- a number field: `[data-issue-path='["glovesPerCase"]'] input` inside the frame.
+
+The template's titles and labels are the clients' words and can change wording or case: match them
+with a case-insensitive pattern, or read them from the page or the fixture, rather than typing them out.
+
 ## Screenshots on the iPad projects
 
 Playwright's `fullPage: true` capture drops touch emulation while it resizes, so an "iPad"

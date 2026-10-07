@@ -335,7 +335,7 @@ Devices:
 
 - **iPad** (Safari, current iPadOS, portrait and landscape): primary capture device. Touch targets at least 44 px. Works with or without a keyboard.
 - **Desktop** (Chrome, Safari, Edge at 1280 px and wider): review, approval, admin, photo upload, and finishing entry. Keyboard navigation through grids (Tab, Enter, arrow keys).
-- Layout: on iPad, modules show as a top tab bar with the grid full width. On desktop, modules show in a left sidebar with wider grids and photos alongside.
+- Layout: on iPad, modules show as a top tab bar with the grid full width. On desktop, modules show in a left sidebar with wider grids and photos alongside. Packing configuration shows on the order's tab (and sidebar row), right below the order, whose total gloves it works out (Kenneth, 8 October 2026); each keeps its own frame, result, comment and photos.
 - Web app manifest so the app can be added to the iPad home screen and opens full screen.
 - Test every screen at iPad portrait (820 x 1180), iPad landscape (1180 x 820) and desktop (1440 x 900).
 
@@ -397,7 +397,7 @@ An AI reviews each submitted inspection on top of the inspector's results and co
 - `/login`, `/forgot-password`, `/reset-password`
 - `/inspections`: own list (admins see all). Filter by status, client, manufacturer. Search by ref, PO, lot or carton.
 - `/inspections/new`: pick client, manufacturer and product type (template resolves), or start from previous
-- `/inspections/[id]`: capture screen, modules as tabs with progress and a result chip per module
+- `/inspections/[id]`: capture screen, modules as tabs with progress and a result chip per tab; one tab per module, except packing configuration, on the order's tab below the order
 - `/inspections/[id]/review`: module results, inspector comments, photos, AI second opinion panel, approve or reopen
 - `/admin/users`, `/admin/manufacturers`, `/admin/clients` (with logo), `/admin/defects` (codes and label mapping)
 - `/admin/templates`: list and versions. Editor: module list with include switches, drag to reorder, label overrides, a config form per module (generated from its config schema), custom modules, a JSON view for advanced edits, live capture preview, coverage checklist, activate or retire.
