@@ -64,7 +64,13 @@ const NONE = "__none__";
 const FOCUSABLE = "button, input, textarea, select, [tabindex]:not([tabindex='-1'])";
 
 /** What a module's own list holds, as the field is named. */
-const ITEM_FIELD_LABEL: Readonly<Record<string, string>> = { documents: "Document", loading: "Loading stage" };
+const ITEM_FIELD_LABEL: Readonly<Record<string, string>> = { documents: "Document", loading: "Loading Stage" };
+
+/** The choice for a tag the photo does not have: no hand, level or list entry recorded. */
+const NOT_RECORDED = "Not Recorded";
+
+/** After a module switched off for this inspection, in the module list. */
+const SWITCHED_OFF_NOTE = "(Switched Off)";
 
 type PhotoEditDialogProps = {
   inspectionId: string;
@@ -248,7 +254,7 @@ function EditForm({
     >
       <DialogHeader>
         <DialogTitle className="text-lg font-bold">
-          Edit photo<span className="sr-only">: {alt}</span>
+          Edit Photo<span className="sr-only">: {alt}</span>
         </DialogTitle>
         <DialogDescription>
           Tag the photo with what it shows, and add a caption for the report.
@@ -277,12 +283,12 @@ function EditForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent position="popper">
-              <SelectItem value={NONE}>Not tagged</SelectItem>
+              <SelectItem value={NONE}>Not Tagged</SelectItem>
               {moduleItems.length > 0 && <SelectSeparator />}
               {moduleItems.map((entry) => (
                 <SelectItem key={entry.key} value={entry.key}>
                   {entry.title}
-                  {entry.included ? null : " (switched off)"}
+                  {entry.included ? null : ` ${SWITCHED_OFF_NOTE}`}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -303,7 +309,7 @@ function EditForm({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent position="popper">
-                <SelectItem value={NONE}>No size</SelectItem>
+                <SelectItem value={NONE}>No Size</SelectItem>
                 {sizeItems.map((entry) => (
                   <SelectItem key={entry.value} value={entry.value}>
                     {entry.label === entry.value ? entry.value : `${entry.label} (${entry.value})`}
@@ -327,9 +333,9 @@ function EditForm({
               className="flex flex-wrap gap-x-6 gap-y-3"
             >
               {[
-                { value: NONE, label: "Not recorded" },
-                { value: "R", label: "Right hand" },
-                { value: "L", label: "Left hand" },
+                { value: NONE, label: NOT_RECORDED },
+                { value: "R", label: "Right Hand" },
+                { value: "L", label: "Left Hand" },
               ].map((option) => (
                 <Field key={option.value} orientation="horizontal" className="w-auto">
                   <RadioGroupItem value={option.value} id={`${id}-hand-${option.value}`} />
@@ -356,9 +362,9 @@ function EditForm({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent position="popper" className="max-h-72">
-                <SelectItem value={NONE}>No defect</SelectItem>
+                <SelectItem value={NONE}>No Defect</SelectItem>
                 {defects.oneOff && (
-                  <SelectItem value={defects.oneOff.value}>{defects.oneOff.label} (one-off label)</SelectItem>
+                  <SelectItem value={defects.oneOff.value}>{defects.oneOff.label} (One-Off Label)</SelectItem>
                 )}
                 {/* The module's own defects first, in its wording; headings only when there are both lists. */}
                 {defects.groups.map((group) => (
@@ -366,7 +372,7 @@ function EditForm({
                     <SelectSeparator />
                     <SelectGroup>
                       {defects.groups.length > 1 && (
-                        <SelectLabel>{group.key === "module" ? (chosen?.title ?? "This module") : "Other defects"}</SelectLabel>
+                        <SelectLabel>{group.key === "module" ? (chosen?.title ?? "This Module") : "Other Defects"}</SelectLabel>
                       )}
                       {group.items.map((entry) => (
                         <SelectItem key={entry.value} value={entry.value}>
@@ -384,7 +390,7 @@ function EditForm({
 
         {records.has("box") && (
           <Field data-invalid={errors.box ? true : undefined}>
-            <FieldLabel htmlFor={`${id}-box`}>Box (carton number)</FieldLabel>
+            <FieldLabel htmlFor={`${id}-box`}>Box (Carton Number)</FieldLabel>
             <Input
               id={`${id}-box`}
               name="box"
@@ -411,7 +417,7 @@ function EditForm({
               aria-invalid={errors.level ? true : undefined}
               className="flex flex-wrap gap-x-6 gap-y-3"
             >
-              {[{ value: NONE, label: "Not recorded" }, ...levelItems].map((option) => (
+              {[{ value: NONE, label: NOT_RECORDED }, ...levelItems].map((option) => (
                 <Field key={option.value} orientation="horizontal" className="w-auto">
                   <RadioGroupItem value={option.value} id={`${id}-level-${option.value}`} />
                   <FieldLabel htmlFor={`${id}-level-${option.value}`} className="font-normal">
@@ -437,7 +443,7 @@ function EditForm({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent position="popper" className="max-h-72">
-                <SelectItem value={NONE}>Not recorded</SelectItem>
+                <SelectItem value={NONE}>{NOT_RECORDED}</SelectItem>
                 {listItems.length > 0 && <SelectSeparator />}
                 {listItems.map((entry) => (
                   <SelectItem key={entry.value} value={entry.value}>

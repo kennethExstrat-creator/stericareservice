@@ -41,7 +41,7 @@ export function ReportSwitch({ inspectionId, photoId, includeInReport }: { inspe
   const { included, change } = useReportChoice(inspectionId, photoId, includeInReport);
   return (
     <span className="relative inline-flex items-center gap-3 text-sm font-medium text-foreground">
-      <label htmlFor={id}>Include in report</label>
+      <label htmlFor={id}>Include in Report</label>
       <Switch id={id} checked={included} onCheckedChange={change} />
     </span>
   );

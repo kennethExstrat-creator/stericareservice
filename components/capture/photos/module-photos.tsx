@@ -194,7 +194,7 @@ export function ModulePhotos({
           </p>
           <Button type="button" variant="outline" size="sm" onClick={() => void mediaStore(inspectionId).load()}>
             <RotateCwIcon aria-hidden />
-            Try again
+            Try Again
           </Button>
         </div>
       )}

@@ -13,7 +13,7 @@ export const FILE_ACCEPT = "application/pdf,.pdf,image/*";
 
 type FileAddControlsProps = {
   onFiles: (files: File[]) => void;
-  /** "Add lab report". */
+  /** "Add Lab Report". */
   label: string;
   disabled?: boolean;
   className?: string;

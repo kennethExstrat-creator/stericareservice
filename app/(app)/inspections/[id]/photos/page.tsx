@@ -48,12 +48,12 @@ export default async function InspectionPhotosPage({ params }: PageProps<"/inspe
     <div className="flex w-full flex-1 flex-col gap-6">
       <PageHeader
         eyebrow={media.inspection.refNo}
-        title="Photos and files"
+        title="Photos and Files"
         actions={
           <Button asChild variant="outline">
             <Link href={`/inspections/${id}`}>
               <ArrowLeftIcon aria-hidden />
-              Back to inspection
+              Back to Inspection
             </Link>
           </Button>
         }

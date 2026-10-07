@@ -1,7 +1,7 @@
 "use client";
 
 // Lab reports and certificates as rows: name, kind, upload state, and Open
-// (a signed URL in a new tab), Try again or Delete where they apply.
+// (a signed URL in a new tab), Try Again or Delete where they apply.
 import { useRef, useState } from "react";
 import { ExternalLinkIcon, FileTextIcon, RotateCwIcon, Trash2Icon, TriangleAlertIcon } from "lucide-react";
 import type { SlotFile } from "@/components/capture/photos/photo-model";
@@ -11,6 +11,7 @@ import { FILE_KIND_LABEL, moduleTitle, type PhotoTagOptions } from "@/lib/inspec
 import { cn } from "@/lib/utils";
 import { FileDeleteDialog } from "./file-delete-dialog";
 
+/** The file's upload state, in the photo tile's words. */
 function stateText(file: SlotFile): string {
   switch (file.state) {
     case "uploaded":
@@ -18,9 +19,9 @@ function stateText(file: SlotFile): string {
     case "uploading":
       return `Uploading ${Math.round(file.progress * 100)}%`;
     case "failed":
-      return "Upload stopped";
+      return "Upload Stopped";
     case "waiting":
-      return "Waiting to upload";
+      return "Waiting to Upload";
   }
 }
 
@@ -94,7 +95,7 @@ export function FileList({
                 {file.state === "failed" && (
                   <Button type="button" variant="ghost" size="sm" onClick={() => photoQueueStore.retryNow(file.id)}>
                     <RotateCwIcon aria-hidden />
-                    Try again<span className="sr-only">: {file.name}</span>
+                    Try Again<span className="sr-only">: {file.name}</span>
                   </Button>
                 )}
                 {canDelete && (

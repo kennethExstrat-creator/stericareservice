@@ -43,8 +43,9 @@ describe("PhotoSlot", () => {
   it("takes the capture screen's props and offers the two iPad buttons and the desktop drop zone", () => {
     const html = render(<PhotoSlot inspectionId={INSPECTION} moduleKey="watertight" focus={focus} />);
     expect(html).toContain('data-module="watertight"');
-    expect(html).toContain("Take photo");
-    expect(html).toContain("Add from library");
+    expect(html).toContain("Take Photo");
+    expect(html).toContain("Add From Library");
+    expect(html).toContain("Choose Photos");
     expect(html).toContain("Drop photos here, several at once");
     // The rear camera for one photo, the library for several.
     expect(html).toMatch(/<input[^>]*type="file"[^>]*accept="image\/\*"[^>]*capture="environment"[^>]*data-photo-input="camera"/);
@@ -64,14 +65,14 @@ describe("PhotoSlot", () => {
 
   it("adds nothing on a read-only screen", () => {
     const html = render(<PhotoSlot inspectionId={INSPECTION} moduleKey="watertight" focus={focus} readOnly />);
-    expect(html).not.toContain("Take photo");
+    expect(html).not.toMatch(/Take photo/i);
     expect(html).not.toContain("data-photo-input");
     expect(html).not.toContain("New photos are tagged");
   });
 
   it("leaves the buttons to the module card when asked, and still says how photos are tagged", () => {
     const html = render(<PhotoSlot inspectionId={INSPECTION} moduleKey="dimensions" focus={{ size: "S" }} showAddControls={false} />);
-    expect(html).not.toContain("Take photo");
+    expect(html).not.toMatch(/Take photo/i);
     expect(html).toContain("New photos are tagged Size S.");
   });
 });
@@ -128,9 +129,9 @@ describe("FileSlot", () => {
   it("lists the module's lab reports and offers PDFs or images", () => {
     const html = render(<FileSlot inspectionId={INSPECTION} moduleKey="tensile" kind="lab_report" />);
     expect(html).toContain('data-module="tensile"');
-    expect(html).toContain("Lab reports");
+    expect(html).toContain("Lab Reports");
     expect(html).toContain("No lab reports yet.");
-    expect(html).toContain("Add lab report");
+    expect(html).toContain("Add Lab Report");
     expect(html).toMatch(/<input[^>]*type="file"[^>]*accept="application\/pdf,.pdf,image\/\*"[^>]*multiple=""/);
     expect(unanchoredSrOnly(html)).toEqual([]);
   });
@@ -139,8 +140,13 @@ describe("FileSlot", () => {
     const html = render(<FileSlot inspectionId={INSPECTION} moduleKey="documents" kind="certificate" readOnly />);
     expect(html).toContain("Certificates");
     expect(html).toContain("No certificates yet.");
-    expect(html).not.toContain("Add certificate");
+    expect(html).not.toMatch(/Add certificate/i);
     expect(html).not.toContain("data-file-input");
+  });
+
+  it("names its add button in Title Case, whatever the kind", () => {
+    expect(render(<FileSlot inspectionId={INSPECTION} moduleKey="documents" kind="certificate" />)).toContain("Add Certificate");
+    expect(render(<FileSlot inspectionId={INSPECTION} moduleKey="documents" kind="other" />)).toContain("Add Document");
   });
 
   it("hides the add controls only while there is nothing to file a new file under (canAdd)", () => {

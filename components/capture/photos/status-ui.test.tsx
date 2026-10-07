@@ -193,10 +193,11 @@ describe("PhotoCard", () => {
     expect(html).toMatch(/data-slot="upload-stopped"[^>]*>.*Upload stopped/);
     expect(html).toContain(reason);
     // Never waiting, never a progress bar: the tile says stopped and nothing else.
-    expect(html).not.toContain("Waiting to upload");
+    expect(html).not.toMatch(/Waiting to upload/i);
     expect(html).not.toContain('role="progressbar"');
     expect(html.match(/Upload stopped/g)).toHaveLength(1);
-    expect(html).toContain("Try again");
+    expect(html).toContain(">Try Again</button>");
+    expect(html).toContain('aria-label="Try Again: Dimensions"');
     expect(html).toContain("Remove");
   });
 
