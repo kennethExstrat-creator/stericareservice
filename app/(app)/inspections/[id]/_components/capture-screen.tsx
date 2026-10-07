@@ -62,7 +62,14 @@ import { INSPECTIONS_PATH } from "@/lib/inspections/search-params";
 import type { DefectUsage } from "@/lib/inspections/capture/defect-usage";
 import { evaluateCapture, type CaptureMeta } from "@/lib/inspections/capture/evaluate";
 import { mappedFieldValues } from "@/lib/inspections/capture/fields";
-import { countIssues, describePending, groupIssues, unseenIssues } from "@/lib/inspections/capture/issues";
+import {
+  countIssues,
+  describePending,
+  groupIssues,
+  pendingCounts,
+  pendingTasks,
+  unseenIssues,
+} from "@/lib/inspections/capture/issues";
 import { canBeSwitchedOff } from "@/lib/inspections/capture/overrides";
 import type { ReopenNote } from "@/lib/inspections/capture/reopen";
 import {
@@ -388,6 +395,9 @@ export function CaptureScreen({
 
   const counts = useMemo(() => countIssues(report.issues), [report.issues]);
   const groups = useMemo(() => groupIssues(report.issues, sections), [report.issues, sections]);
+  // The Pending panel's rows, one per section, and their counts: the button, the panel and submit count the same.
+  const tasks = useMemo(() => pendingTasks(groups, sections, report.modules), [groups, sections, report.modules]);
+  const pending = useMemo(() => pendingCounts(tasks), [tasks]);
   const [issuesOpen, setIssuesOpen] = useState(false);
   const [blockedMessage, setBlockedMessage] = useState<string | null>(null);
   // The errors the server found when it refused a submit.
@@ -621,7 +631,8 @@ export function CaptureScreen({
       <SubmitControl
         inspectionId={inspectionId}
         refNo={heading.refNo}
-        errorCount={counts.errors}
+        // Sections with something submit needs, as the Pending panel counts them.
+        errorCount={pending.needed}
         warningCount={counts.warnings}
         suggested={report.suggested}
         prepare={prepareSubmit}
@@ -632,7 +643,7 @@ export function CaptureScreen({
       />
     ) : null;
   const issuesButton = (className?: string) => (
-    <IssuesButton errors={counts.errors} warnings={counts.warnings} onClick={openIssues} className={className} />
+    <IssuesButton counts={pending} onClick={openIssues} className={className} />
   );
   const { previous, next } = active ? neighbours(sections, active.key) : { previous: null, next: null };
 
@@ -819,8 +830,8 @@ export function CaptureScreen({
           setIssuesOpen(open);
           if (!open) closeBlocked();
         }}
-        groups={groups}
-        counts={counts}
+        tasks={tasks}
+        counts={pending}
         blockedMessage={blockedMessage}
         unseenErrors={unseenErrors}
         onGo={goToIssue}
@@ -1103,19 +1114,18 @@ function LeaveLink({
 }
 
 function IssuesButton({
-  errors,
-  warnings,
+  counts,
   onClick,
   className,
 }: {
-  errors: number;
-  warnings: number;
+  /** Sections with open items, and those with something submit needs (pendingCounts). */
+  counts: { total: number; needed: number };
   onClick: () => void;
   className?: string;
 }) {
   // Calm on purpose (Kenneth: red and amber counts felt alarming): "Pending" with a blue dot
   // while anything is open; the counts and what blocks submit are read out, and shown in the sheet.
-  const open = errors + warnings;
+  const open = counts.total;
   return (
     <Button type="button" variant="outline" onClick={onClick} className={className} data-action="issues" aria-haspopup="dialog">
       <span className="inline-flex items-center gap-1.5">
@@ -1125,7 +1135,7 @@ function IssuesButton({
       {open > 0 && (
         <>
           <span aria-hidden data-slot="pending-dot" className="size-2.5 shrink-0 rounded-full bg-primary" />
-          <span className="sr-only">{`: ${describePending({ errors, warnings }, ", ")}`}</span>
+          <span className="sr-only">{`: ${describePending(counts, ", ")}`}</span>
         </>
       )}
     </Button>
