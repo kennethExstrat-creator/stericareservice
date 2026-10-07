@@ -131,7 +131,8 @@ async function openUserMenu(page: Page) {
  * pages send): a POST carrying Next.js's next-action header. "abort" fails it
  * as a dropped connection does; "stall" keeps it waiting, as Wi-Fi without
  * internet does. It never reaches the server, so the session stays. The
- * function returned lets go: stalled requests then fail.
+ * function returned lets go: stalled requests fail first, because unrouting
+ * stops the browser holding them, and they would then reach the server.
  */
 async function holdServerActions(page: Page, mode: "abort" | "stall") {
   const stalled: Route[] = [];
@@ -143,8 +144,8 @@ async function holdServerActions(page: Page, mode: "abort" | "stall") {
   };
   await page.route("**/*", handler);
   return async () => {
+    await Promise.all(stalled.map((route) => route.abort("internetdisconnected")));
     await page.unroute("**/*", handler);
-    await Promise.all(stalled.map((route) => route.abort("internetdisconnected").catch(() => undefined)));
   };
 }
 
@@ -500,7 +501,7 @@ test.describe("as the admin", () => {
     await expect(menu).toBeHidden();
     await release();
     // The failed request is reported by the toast, never as an error on the page.
-    expect(errors().filter((error) => !/^Sign out failed/.test(error))).toEqual([]);
+    expect(errors()).toEqual([]);
   });
 
   test("Sign out with no answer gives the page back after its time limit", async ({ page, context }) => {
@@ -534,7 +535,10 @@ test.describe("as the admin", () => {
     } finally {
       await release();
     }
-    expect(errors().filter((error) => !/^Sign out failed/.test(error))).toEqual([]);
+    expect(errors()).toEqual([]);
+    // The request never reached the server: the session still opens the admin pages.
+    await page.goto("/admin");
+    await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
   });
 
   test("an error in a page shows inside the shell", async ({ page }) => {
@@ -672,7 +676,7 @@ test.describe("as the admin", () => {
       await dialog.getByRole("button", { name: "Sign out anyway" }).click();
       await expect(page).toHaveURL(/\/login$/);
       expect(await authCookies(context)).toEqual([]);
-      expect(errors().filter((error) => !/^Sign out failed/.test(error))).toEqual([]);
+      expect(errors()).toEqual([]);
     });
   });
 });

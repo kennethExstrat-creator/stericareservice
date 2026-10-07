@@ -9,7 +9,8 @@
 // The Server Action is called by hand once the check is done. It ends this
 // device's session and redirects to /login, which Next.js follows by itself;
 // the photo queue then stops, so it does not carry over to whoever signs in
-// next.
+// next. A sign-out that goes through after the time limit below does the
+// same, and the page still ends on /login.
 //
 // Signing out is plain state, not a transition. While the action runs, the
 // router's own transition waits for the server, and React would hold a
@@ -36,9 +37,12 @@ import {
 export type SignOutPhase = "idle" | "checking" | "asking";
 
 /**
- * Once signed out, how long Next.js has to show /login (outside the shell)
- * before the page goes there in full. A Back press while the request ran
- * drops the redirect, and the session has ended all the same.
+ * Once signed out, how long Next.js has to reach /login (outside the shell)
+ * before the page goes there in full. Next.js normally gets there by itself:
+ * through the action's redirect or, when a navigation dropped that (Back, or
+ * a link after the time limit gave the page back), through the refresh it
+ * runs after an action that changed cookies, which the proxy sends to sign
+ * in. Left in the shell, the user's next save would fail.
  */
 const LANDING_TIMEOUT_MS = 5_000;
 
@@ -75,14 +79,16 @@ export function useSignOut() {
     if (sending.current) return;
     sending.current = true;
     setSigningOut(true);
-    void sendSignOut(signOut, { onSignedOut: stopUploads }).then((outcome) => {
-      if (outcome === "signed-out") {
-        // On its way to /login: the spinner stays until the page changes.
-        window.setTimeout(() => {
-          if (mounted.current) window.location.assign(LOGIN_PATH);
-        }, LANDING_TIMEOUT_MS);
-        return;
-      }
+    // Whenever the session ends, in time or after the time limit: the uploads stop, and the page gets to /login.
+    const signedOut = () => {
+      stopUploads();
+      window.setTimeout(() => {
+        if (mounted.current) window.location.assign(LOGIN_PATH);
+      }, LANDING_TIMEOUT_MS);
+    };
+    void sendSignOut(signOut, { onSignedOut: signedOut }).then((outcome) => {
+      // On its way to /login: the spinner stays until the page changes.
+      if (outcome === "signed-out") return;
       sending.current = false;
       setSigningOut(false);
       if (outcome === "failed") toast.error(SIGN_OUT_FAILED, { description: SIGN_OUT_FAILED_DETAIL });

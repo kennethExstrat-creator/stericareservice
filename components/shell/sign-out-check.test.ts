@@ -137,7 +137,7 @@ describe("sendSignOut", () => {
   });
 
   it("fails, keeping the session and the uploads, when the request does not reach the server", async () => {
-    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const onSignedOut = vi.fn();
     expect(await sendSignOut(() => Promise.reject(new TypeError("Failed to fetch")), { onSignedOut })).toBe("failed");
     expect(
@@ -149,7 +149,7 @@ describe("sendSignOut", () => {
       ),
     ).toBe("failed");
     expect(onSignedOut).not.toHaveBeenCalled();
-    expect(error).toHaveBeenCalledTimes(2);
+    expect(warn).toHaveBeenCalledTimes(2);
   });
 
   it("gives the page back when the server does not answer in time", async () => {
@@ -169,7 +169,7 @@ describe("sendSignOut", () => {
     late.reject(redirectToLogin());
     await vi.waitFor(() => expect(onSignedOut).toHaveBeenCalledTimes(1));
 
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const failing = pendingCall();
     const notCalled = vi.fn();
     expect(await sendSignOut(failing.action, { timeoutMs: 20, onSignedOut: notCalled })).toBe("no-answer");

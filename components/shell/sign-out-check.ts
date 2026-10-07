@@ -154,7 +154,8 @@ export async function sendSignOut(
       (error: unknown): SignOutOutcome => {
         // The redirect to /login: Next.js has already taken it, nobody else needs it.
         if (isNavigationSignal(error)) return "signed-out";
-        console.error("Sign out failed", error);
+        // Expected on a bad connection, and the user is told: a warning, not an error.
+        console.warn("Sign out failed", error);
         return "failed";
       },
     );
