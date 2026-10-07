@@ -5,10 +5,12 @@
 // module leaves capture, validation and the export; its data stays saved and
 // returns when it is switched back on. Either way the button pressed goes
 // with the change, so the screen moves focus to the section's title
-// (capture-screen.tsx, onSwitched).
-import { useActionState, useId, useRef, useState } from "react";
+// (capture-screen.tsx, onSwitched). The reason typed is kept in the tab until
+// it is sent or cancelled (lib/drafts/tab-draft.ts), so a reload loses nothing.
+import { useActionState, useContext, useEffect, useId, useRef, useState } from "react";
 import { CircleOffIcon, OctagonXIcon, PowerIcon } from "lucide-react";
 import { toast } from "sonner";
+import { PhotoUserContext } from "@/components/capture/photos/hooks";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,6 +25,7 @@ import {
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
+import { readTextDraft, useTabDraft, writeTextDraft } from "@/lib/drafts/tab-draft";
 import { OVERRIDE_REASON_MAX } from "@/lib/inspections/capture/schemas";
 import type { ModuleOverride, ModuleOverrides } from "@/lib/schemas/template";
 import { switchModuleOff, switchModuleOn, type OverrideResult } from "../actions";
@@ -37,14 +40,29 @@ type SwitchProps = {
   onChanged: (overrides: ModuleOverrides) => void;
 };
 
+/** The reason an admin is typing for switching a module off in one inspection. */
+export function switchOffDraftKey(userId: string, inspectionId: string, moduleKey: string): string {
+  return `stericare:capture-draft:switch-off:${userId}:${inspectionId}:${moduleKey}`;
+}
+
 /** "Switch off" in a section's header, with the reason dialog. */
 export function SwitchOffDialog({ inspectionId, moduleKey, title, onChanged }: SwitchProps) {
   const [open, setOpen] = useState(false);
-  // A fresh form, with no old reason or error, every time it opens.
+  // A fresh form, with no old error, every time it opens.
   const [formKey, setFormKey] = useState(0);
   const [pending, setPending] = useState(false);
   // Switched off: the trigger has gone with the section's controls, and focus goes to its title instead.
   const switched = useRef(false);
+  // The reason as typed, kept in the tab for this admin, inspection and
+  // module: after a reload it is back when the dialog opens. The admin is
+  // the user the capture page names for its photo queue
+  // (PhotoQueueProvider); without one, only the field keeps the reason.
+  const userId = useContext(PhotoUserContext);
+  const [reason, setReason, forgetReason] = useTabDraft(
+    userId === null ? null : switchOffDraftKey(userId, inspectionId, moduleKey),
+    readTextDraft,
+    writeTextDraft,
+  );
 
   return (
     <Dialog
@@ -52,6 +70,8 @@ export function SwitchOffDialog({ inspectionId, moduleKey, title, onChanged }: S
       onOpenChange={(next) => {
         if (!next && pending) return;
         if (next) setFormKey((key) => key + 1);
+        // Cancelled (Cancel, Escape, a tap outside): the reason goes with it.
+        else setReason(null);
         setOpen(next);
       }}
     >
@@ -75,9 +95,13 @@ export function SwitchOffDialog({ inspectionId, moduleKey, title, onChanged }: S
           inspectionId={inspectionId}
           moduleKey={moduleKey}
           title={title}
+          reason={reason ?? ""}
+          onReasonChange={(text) => setReason(text === "" ? null : text)}
           onPendingChange={setPending}
           onDone={(overrides) => {
             switched.current = true;
+            // Switched off: the reason is the module's now, no longer a draft.
+            forgetReason();
             onChanged(overrides);
             setOpen(false);
           }}
@@ -91,20 +115,30 @@ function SwitchOffForm({
   inspectionId,
   moduleKey,
   title,
+  reason,
+  onReasonChange,
   onPendingChange,
   onDone,
 }: {
   inspectionId: string;
   moduleKey: string;
   title: string;
+  /** The reason as typed so far, before a reload too. */
+  reason: string;
+  onReasonChange: (reason: string) => void;
   onPendingChange: (pending: boolean) => void;
   onDone: (overrides: ModuleOverrides) => void;
 }) {
   const id = useId();
   const reasonRef = useRef<HTMLTextAreaElement>(null);
-  const [reason, setReason] = useState("");
   // Cleared as soon as the reason is edited again.
   const [reasonError, setReasonError] = useState<string | undefined>(undefined);
+  // The reason takes focus as the dialog opens (autoFocus); one brought back
+  // from before a reload goes on where it stopped, the caret at its end.
+  useEffect(() => {
+    const field = reasonRef.current;
+    field?.setSelectionRange(field.value.length, field.value.length);
+  }, []);
   const [state, formAction, pending] = useActionState(async (previous: OverrideResult, formData: FormData) => {
     onPendingChange(true);
     try {
@@ -142,7 +176,7 @@ function SwitchOffForm({
           name="reason"
           value={reason}
           onChange={(event) => {
-            setReason(event.target.value);
+            onReasonChange(event.target.value);
             setReasonError(undefined);
           }}
           maxLength={OVERRIDE_REASON_MAX}
