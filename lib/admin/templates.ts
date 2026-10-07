@@ -23,6 +23,7 @@ import {
   type SourceTarget,
   type TemplateCode,
 } from "@/lib/coverage";
+import type { BaseOption } from "@/lib/admin/new-template";
 import type { ProductType, Standard } from "@/lib/schemas/common";
 import { ALWAYS_ON_MODULE_KEYS, type ModuleKey } from "@/lib/schemas/module-result";
 import { normaliseSize } from "@/lib/sizes";
@@ -504,6 +505,39 @@ export async function listTemplates(supabase: DatabaseClient): Promise<TemplateL
     return { ok: false };
   }
   return { ok: true, groups: groupTemplates((data as unknown as ListRow[]).map(toVersionSummary)) };
+}
+
+/**
+ * What a new template can build on (BUILD_SPEC 4.5 step 2): the active
+ * version of every template, by code, with the sizes and unit the new one
+ * starts with. A version whose definition does not read is left out.
+ */
+export async function loadBaseOptions(supabase: DatabaseClient): Promise<BaseOption[]> {
+  const { data, error } = await supabase
+    .from("templates")
+    .select("version, definition")
+    .eq("status", "active")
+    .order("code");
+  if (error) {
+    console.error("[admin/templates] could not read the active templates", error.code, error.message);
+    return [];
+  }
+  return data.flatMap((row) => {
+    const parsed = TemplateDefinitionSchema.safeParse(row.definition);
+    if (!parsed.success) return [];
+    const definition = parsed.data;
+    return [
+      {
+        code: definition.code,
+        name: definition.name,
+        version: row.version,
+        productType: definition.scope.productType,
+        standard: definition.scope.standard,
+        sizes: definition.sizes.map((size) => normaliseSize(size.value) ?? size.value).join(", "),
+        unit: definition.unit,
+      },
+    ];
+  });
 }
 
 /* ------------------------------------------------------------------ *

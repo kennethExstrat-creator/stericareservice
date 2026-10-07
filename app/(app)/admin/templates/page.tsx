@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import { FileStackIcon, TriangleAlertIcon } from "lucide-react";
 import { PageHeader } from "@/components/qc";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { listTemplates, type TemplateGroup } from "@/lib/admin/templates";
+import { listTemplates, loadBaseOptions, type TemplateGroup } from "@/lib/admin/templates";
 import { requireAdmin } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
+import { loadScopeOptions } from "./[id]/edit/_lib/load";
+import { NewTemplateDialog } from "./_components/new-template-dialog";
 import { TemplateGroups } from "./_components/template-groups";
 
 /**
@@ -22,7 +24,8 @@ export async function generateMetadata(): Promise<Metadata> {
  * /admin/templates (BUILD_SPEC 4.2 rules 8 to 10, 10): every template by
  * code with its versions, status, scope, base template and how many
  * inspections use each version. A version opens its own page (coverage,
- * source file, activation). Inspectors get a 404 from requireAdmin(); the
+ * source file, activation); New template builds one on an active template
+ * (BUILD_SPEC 4.5 step 2). Inspectors get a 404 from requireAdmin(); the
  * admin layout is not a security boundary, so this page checks for itself.
  *
  * No outer padding or width: the app shell's main area provides both.
@@ -30,7 +33,15 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function TemplatesPage() {
   await requireAdmin();
   const supabase = await createClient();
-  const list = await listTemplates(supabase);
+  const [list, bases, scope] = await Promise.all([
+    listTemplates(supabase),
+    loadBaseOptions(supabase),
+    // Without the clients and manufacturers a new template could not be scoped: no New template then.
+    loadScopeOptions(supabase).catch((error: unknown) => {
+      console.error("[admin/templates] could not read the clients and manufacturers", error);
+      return null;
+    }),
+  ]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -38,6 +49,17 @@ export default async function TemplatesPage() {
         eyebrow="Admin"
         title="Templates"
         description="Each template by code, with its versions. Inspectors start new inspections from a code's active version; an inspection keeps the version it started with."
+        actions={
+          list.ok &&
+          scope && (
+            <NewTemplateDialog
+              bases={bases}
+              clients={scope.clients}
+              manufacturers={scope.manufacturers}
+              takenCodes={list.groups.map((group) => group.code)}
+            />
+          )
+        }
       />
 
       {!list.ok ? (
@@ -65,7 +87,7 @@ export default async function TemplatesPage() {
             </EmptyTitle>
             <EmptyDescription className="text-base text-muted-foreground fine:text-sm">
               Templates appear here by code, with every version. Inspectors can start inspections once a template has
-              an active version.
+              an active version. New template starts one.
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
