@@ -1,5 +1,5 @@
 import { mkdirSync, writeFileSync } from "node:fs";
-import { devices, expect, test, type Browser, type Locator, type Page } from "@playwright/test";
+import { devices, expect, test, type Browser, type Locator, type Page, type Request } from "@playwright/test";
 import { sessionCookies, TEST_ACCOUNTS } from "../support/session";
 import {
   adminClient,
@@ -30,9 +30,9 @@ import {
  * (c) Phase 2: "losing the connection loses nothing": the connection drops
  *     mid-entry, the inspector keeps typing, the pill says offline, and once
  *     it is back the server has every value; a tab closed while offline keeps
- *     them too. (c3) records a finding: a section never opened before the
- *     connection dropped cannot show its form offline. It is marked
- *     test.fail() and turns red once that is fixed: then drop the mark.
+ *     them too, and (c3) a section never opened before the connection dropped
+ *     still shows its form offline (ACC-SGF-1, fixed), and one whose form did
+ *     not arrive opens by itself once the connection is back.
  *
  * The inspector works on the iPad in landscape; the admin on a desktop
  * (1440 x 900) in a second browser context. One sign-in per role per run:
@@ -631,10 +631,11 @@ test("(b1) a module switched off in the template is not in capture or the Pendin
   await expect(page.getByRole("heading", { level: 2 })).toHaveText(fixture.sectionTitles[0]);
   await expect(page.getByText(fixture.titles[TEMPLATE_OFF])).toHaveCount(0);
 
-  // Validation: its saved values (text in a numeric cell, an error were it on) count for nothing.
+  // Validation: its saved values (text in a numeric cell, an error were it on) count for nothing:
+  // the panel, one row per section with something open, has no row for it.
   const sheet = await openPending(page);
   await expect(sheet).not.toContainText("Weight");
-  await expect(sheet.locator('[data-issue="invalid_data"]')).toHaveCount(0);
+  await expect(sheet.locator(`[data-task="${TEMPLATE_OFF}"]`)).toHaveCount(0);
   await expect(sheet.locator("[data-needed]")).toHaveCount(1);
   await expect(sheet.locator("[data-needed]")).toContainText("Conclusion");
   await shot(page, "b1-pending");
@@ -683,8 +684,8 @@ test("(c1) losing the connection mid-entry loses nothing: offline, the inspector
   const fixture = flows!;
   const inspector = (await admin.from("profiles").select("id").eq("email", TEST_ACCOUNTS.inspector).single()).data!.id;
   await useSession(page, baseURL!, inspectorCookies);
-  // The inspector has been through the sections once while the signal was there: a
-  // section opened for the first time offline cannot show its form (c3).
+  // The inspector has been through a few sections while the signal was there (a section
+  // opened for the first time offline shows its form too: c3).
   await page.goto(`/inspections/${fixture.inspectionId}?module=${OVERRIDE_OFF}`);
   await captureReady(page);
   await openSection(page, fixture.sectionTitles[0]);
@@ -787,35 +788,109 @@ test("(c2) a tab closed while offline keeps what was typed: opened again online,
   await expect(savePill(page)).toHaveAttribute("data-state", "saved", { timeout: 30_000 });
 });
 
-test("(c3) a section not opened before the signal dropped still opens offline, and opens by itself once it is back", async ({
+/**
+ * Follows the page's script downloads from before it opens, so `settled` can wait for the
+ * capture screen to download every section's form: it asks for them once it is idle, at the
+ * latest 2 s after it opens (capture-screen.tsx, preloadCaptures). `downloaded` keeps the
+ * address of every script that arrived.
+ */
+function trackScripts(page: Page) {
+  const loading = new Set<Request>();
+  const downloaded = new Set<string>();
+  page.on("request", (request) => {
+    if (request.resourceType() === "script") loading.add(request);
+  });
+  page.on("requestfinished", (request) => {
+    if (loading.delete(request)) downloaded.add(request.url());
+  });
+  page.on("requestfailed", (request) => loading.delete(request));
+  return {
+    downloaded,
+    async settled() {
+      await page.waitForTimeout(2_500);
+      await expect.poll(() => loading.size, { message: "every section's form is downloaded", timeout: 20_000 }).toBe(0);
+    },
+  };
+}
+
+/** Words only the labelling form has (modules/labeling/Capture.tsx): how its script is found. */
+const LABELING_FORM_WORDS = "This template inspects no labelling level.";
+
+/**
+ * The scripts among `urls` whose code has `words`. A production build names its scripts by
+ * hash, not by module as the dev server does (formCode in e2e/capture/final.spec.ts), so a
+ * form's script is found by what it says.
+ */
+async function scriptsWith(page: Page, urls: Iterable<string>, words: string) {
+  const found: string[] = [];
+  for (const url of urls) {
+    const response = await page.request.get(url);
+    if ((await response.text()).includes(words)) found.push(url);
+  }
+  return found;
+}
+
+test("(c3) a section not opened before the signal dropped opens offline, and one whose form did not arrive opens by itself once it is back", async ({
   page,
   context,
   baseURL,
 }) => {
-  // FINDING (major, capture): each module's form is a separate code chunk loaded the first
-  // time its section opens (section-body.tsx, lazy(loadCapture)). Offline, every section not
-  // opened yet shows "The form for ... could not be shown ... report this to a developer"
-  // (ChunkLoadError), and it stays so after the connection returns until Try again is tapped.
-  // Expected to fail until the capture screen loads every section's form up front.
-  test.fail(true, "Offline, a section opened for the first time cannot load its form (ChunkLoadError).");
+  // ACC-SGF-1, fixed: the capture screen downloads every section's form soon after it opens
+  // (capture-screen.tsx, preloadCaptures), so a section opened for the first time offline shows
+  // its form, never "The form for ... could not be shown". A form whose download failed says so
+  // calmly and opens by itself once the connection is back (section-error-boundary.tsx). Try
+  // again, and a download that fails online, are tested in e2e/capture/final.spec.ts.
   const fixture = flows!;
+  const capture = `/inspections/${fixture.inspectionId}?module=glove_info`;
   await useSession(page, baseURL!, inspectorCookies);
-  await page.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
+  const scripts = trackScripts(page);
+
+  // Opened once with every form, to find the labelling form's script in this build.
+  await page.goto(capture);
   await captureReady(page);
+  await scripts.settled();
+  const labelingForm = new Set(
+    (await scriptsWith(page, scripts.downloaded, LABELING_FORM_WORDS)).map((url) => new URL(url).pathname),
+  );
+  expect(labelingForm.size, "the labelling form's script is found").toBeGreaterThan(0);
+  console.log(`[c3] the labelling form's script: ${[...labelingForm].join(", ")}`);
+
+  // Opened again with that download failing like a dropped signal, the preload's too.
+  const refused = (url: URL) => labelingForm.has(url.pathname);
+  await page.route(refused, (route) => route.abort("internetdisconnected"));
+  await page.goto(capture);
+  await captureReady(page);
+  await scripts.settled();
   await context.setOffline(true);
+  const notice = panel(page).locator('[data-slot="section-not-loaded"]');
   try {
-    await openSection(page, "Visual Inspection");
-    const broken = panel(page).getByText(/could not be shown/);
-    await expect(broken.or(panel(page).getByRole("button", { name: /^Use \d+ for every class|^Increase/ }).first())).toBeVisible({
-      timeout: 15_000,
-    });
-    await shot(page, "c3-offline-section");
-    await expect(broken, "the form shows offline").toHaveCount(0);
+    // Neither section has been opened on this page: a counter form, then another.
+    for (const title of [fixture.titles.visual, fixture.titles.watertight]) {
+      await openSection(page, title);
+      await expect(panel(page).getByRole("tab", { name: /^Size M\b/ })).toBeVisible();
+      await expect(panel(page).getByRole("button", { name: /^Increase .+, Size M$/ }).first()).toBeEnabled();
+      await expect(panel(page).getByText("Loading the form…")).toHaveCount(0);
+      await expect(panel(page).getByText(/could not be shown/), `${title} shows its form offline`).toHaveCount(0);
+      if (title === fixture.titles.visual) await shot(page, "c3-offline-section");
+    }
+
+    // The labelling form never arrived: a calm notice, no red.
+    await openSection(page, fixture.titles.labeling);
+    await expect(notice).toHaveAttribute("data-failure", "offline", { timeout: 15_000 });
+    await expect(notice).toContainText("This section opens once the connection is back. Nothing is lost.");
+    await expect(panel(page).locator('[data-slot="section-crashed"]')).toHaveCount(0);
+    await shot(page, "c3-offline-not-arrived");
+    await page.unroute(refused);
   } finally {
     await context.setOffline(false);
   }
-  // Back online, the form comes by itself.
-  await expect(panel(page).getByText(/could not be shown/)).toHaveCount(0, { timeout: 20_000 });
+
+  // Back online, it opens by itself.
+  await expect(notice).toHaveCount(0, { timeout: 30_000 });
+  await expect(panel(page).getByRole("button", { name: /^Record \d+ box(es)? inspected: .+, size M$/ }).first()).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(panel(page).getByText(/could not be shown/)).toHaveCount(0);
 });
 
 test("(c4) Back while offline: the list cannot open without the connection, and nothing typed is lost", async ({
@@ -862,8 +937,9 @@ test("(b2) an admin switches a module off for one inspection with a reason: gone
   await useSession(page, baseURL!, inspectorCookies);
   await page.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
   await captureReady(page);
+  // Its row in the Pending panel (one per section, the title without its closing bracket).
   const before = await openPending(page);
-  await expect(before.getByRole("heading", { level: 3, name: title })).toBeVisible();
+  await expect(before.locator(`[data-task="${OVERRIDE_OFF}"]`)).toContainText(title.replace(/\s*\([^()]*\)$/, ""));
   await closePending(page);
 
   // The admin, on the desktop, switches force at break off with a reason.
@@ -907,6 +983,7 @@ test("(b2) an admin switches a module off for one inspection with a reason: gone
   await expect(progress(page, fixture.sectionTitles.length - 1)).toBeVisible();
   await shot(page, "b2-inspector-switched-off");
   const after = await openPending(page);
+  await expect(after.locator(`[data-task="${OVERRIDE_OFF}"]`)).toHaveCount(0);
   await expect(after).not.toContainText("Force At Break");
   await expect(after).not.toContainText("Weight");
   await closePending(page);

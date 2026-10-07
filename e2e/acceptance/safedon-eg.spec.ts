@@ -597,15 +597,17 @@ test("nothing typed is lost on a reload, and only the sampling warnings are pend
   };
   for (const [key, status] of Object.entries(results)) await expect(sectionTab(page, key), key).toHaveAccessibleName(status);
 
-  // Pending: the four sampling notices, nothing needed before submit.
+  // Pending: one row per section, so the four sampling notices are the Sampling Plan's one row,
+  // its sizes listed; nothing needed before submit. The review and the export keep each notice in full.
   const pending = page.getByRole("button", { name: /^Pending/ });
-  await expect(pending).toHaveAccessibleName(/4 to do$/);
+  await expect(pending).toHaveAccessibleName(/^Pending\s*: 1 to do$/);
   await press(pending);
   const sheet = page.getByRole("dialog", { name: "Pending" });
   await expect(sheet).toBeVisible();
-  await expect(sheet.locator("[data-issue]")).toHaveCount(EXPECTED.warnings.length);
-  await expect(sheet.locator("[data-issue][data-needed]")).toHaveCount(0);
-  for (const warning of EXPECTED.warnings) await expect(sheet).toContainText(warning.message);
+  await expect(sheet.locator("[data-task]")).toHaveCount(1);
+  await expect(sheet.locator("[data-task][data-needed]")).toHaveCount(0);
+  const below = EXPECTED.warnings.map((warning) => warning.size!);
+  await expect(sheet.getByRole("button", { name: `Sampling Plan: Sample below plan: ${below.slice(0, -1).join(", ")} and ${below.at(-1)}.`, exact: true })).toBeVisible();
   await viewShot(page, "15-pending");
   await page.keyboard.press("Escape");
   await expect(sheet).toBeHidden();
