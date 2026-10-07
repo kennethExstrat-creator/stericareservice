@@ -215,7 +215,7 @@ describe("checking the form", () => {
       status: "error",
       message: "Check the highlighted fields.",
       fieldErrors: {
-        clientId: "Choose the client, or No client.",
+        clientId: "Choose the client, or No Client.",
         manufacturerId: "Choose the manufacturer.",
         productType: "Choose the product type.",
       },

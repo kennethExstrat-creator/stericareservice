@@ -96,13 +96,12 @@ async function choose(page: Page, label: string, option: string | RegExp) {
 /**
  * A product type's card, found in its own group and by the start of its name: once the
  * picks are made, Start From Previous lists the earlier inspection, whose product name
- * ("E2E Nitrile examination gloves, blue") holds "examination gloves" too. Case aside, so
- * it still finds the card if the card's words take Title Case.
+ * ("E2E Nitrile examination gloves, blue") holds "examination gloves" too.
  */
 function productTypeCard(page: Page, type: "examination" | "surgical") {
   return page
     .getByRole("group", { name: "Product Type", exact: true })
-    .getByRole("radio", { name: type === "examination" ? /^Examination gloves/i : /^Surgical gloves/i });
+    .getByRole("radio", { name: type === "examination" ? /^Examination Gloves/ : /^Surgical Gloves/ });
 }
 
 /** The picks that make the fixture template apply: its client at Hartalega, examination gloves. */
@@ -220,7 +219,7 @@ test("the most specific template wins: client and manufacturer, client, manufact
   await choose(page, "Manufacturer", fixture.manufacturerB.label);
   const [standard] = await standardTemplates("examination");
   if (standard) {
-    await expectTemplate(page, standard.code, "Standard template for examination gloves");
+    await expectTemplate(page, standard.code, "Standard Template for Examination Gloves");
   } else {
     await expect(page.getByTestId("no-template")).toContainText(NO_TEMPLATE);
   }
@@ -288,10 +287,10 @@ test("once seeded, the seed templates apply as BUILD_SPEC 11 scopes them", async
   // Anyone else: the standard template for the product type.
   await choose(page, "Client", "No Client");
   const [examination] = await standardTemplates("examination");
-  await expectTemplate(page, examination.code, "Standard template for examination gloves");
+  await expectTemplate(page, examination.code, "Standard Template for Examination Gloves");
   await press(productTypeCard(page, "surgical"));
   const [surgical] = await standardTemplates("surgical");
-  await expectTemplate(page, surgical.code, "Standard template for surgical gloves");
+  await expectTemplate(page, surgical.code, "Standard Template for Surgical Gloves");
   await expect(page.getByTestId("chosen-template")).toContainText("(pairs)");
 });
 
@@ -300,7 +299,7 @@ test("Create asks for what is missing, and focuses the first", async ({ page, co
   await page.goto("/inspections/new");
   await press(page.getByRole("button", { name: "Create Inspection" }));
 
-  await expect(page.getByText("Choose the client, or No client.")).toBeVisible();
+  await expect(page.getByText("Choose the client, or No Client.")).toBeVisible();
   await expect(page.getByText("Choose the manufacturer.")).toBeVisible();
   await expect(page.getByText("Choose the product type.")).toBeVisible();
   await expect(page.getByTestId("form-error")).toContainText("Check the highlighted fields.");
@@ -310,7 +309,7 @@ test("Create asks for what is missing, and focuses the first", async ({ page, co
 
   // Choosing clears that field's error.
   await choose(page, "Client", "No Client");
-  await expect(page.getByText("Choose the client, or No client.")).toHaveCount(0);
+  await expect(page.getByText("Choose the client, or No Client.")).toHaveCount(0);
 });
 
 test("a failed Create keeps every choice and says why", async ({ page, context, baseURL }) => {
@@ -447,7 +446,7 @@ test("an admin can choose another template", async ({ page, context, baseURL }) 
   const option = page.getByRole("option", { name: `${FIXTURE_TEMPLATE_CODE} Version 1`, exact: true });
   await expect(option).toBeVisible();
   await press(option);
-  await expect(page.getByTestId("choice-reason")).toHaveText("Chosen by an admin");
+  await expect(page.getByTestId("choice-reason")).toHaveText("Chosen by an Admin");
   // Admins see every inspector's earlier inspections.
   await expect(page.getByRole("radio", { name: new RegExp(PREVIOUS.productName) })).toBeVisible();
   await expectNoPageScroll(page);
@@ -459,6 +458,6 @@ test("an admin can choose another template", async ({ page, context, baseURL }) 
   await expect(page.getByTestId("form-error")).toContainText(UNREACHABLE);
   await expect(page.getByTestId("form-error")).toBeFocused();
   await expect(picker).toHaveText(`${FIXTURE_TEMPLATE_CODE} Version 1`);
-  await expect(page.getByTestId("choice-reason")).toHaveText("Chosen by an admin");
+  await expect(page.getByTestId("choice-reason")).toHaveText("Chosen by an Admin");
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });

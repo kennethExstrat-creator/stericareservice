@@ -176,7 +176,7 @@ test("a reload brings back every choice and the typed name; Cancel drops them", 
   const productName = page.getByRole("textbox", { name: /Product Name/ });
   const productType = page
     .getByRole("group", { name: "Product Type" })
-    .getByRole("radio", { name: order.productType === "examination" ? /^Examination gloves/i : /^Surgical gloves/i });
+    .getByRole("radio", { name: order.productType === "examination" ? /^Examination Gloves/ : /^Surgical Gloves/ });
   const previous = page.getByTestId("previous-picker");
   const startBlank = previous.getByRole("radio", { name: /^Start Blank/ });
   const templatePicker = page.getByRole("combobox", { name: "Use Another Template" });
@@ -204,7 +204,7 @@ test("a reload brings back every choice and the typed name; Cancel drops them", 
   const template = (await option.textContent())!.trim();
   await press(option);
   await expect(templatePicker).toHaveText(template);
-  await expect(reason).toHaveText("Chosen by an admin");
+  await expect(reason).toHaveText("Chosen by an Admin");
   const shownName = await productName.inputValue();
 
   // Kept in the tab under the admin's own key, as it changed.
@@ -226,7 +226,7 @@ test("a reload brings back every choice and the typed name; Cancel drops them", 
   if (order.previousId) await expect(earlier).toBeChecked();
   await expect(productName).toHaveValue(shownName);
   await expect(templatePicker).toHaveText(template);
-  await expect(reason).toHaveText("Chosen by an admin");
+  await expect(reason).toHaveText("Chosen by an Admin");
   // Coming back changed nothing in the draft: no picker reported itself cleared on the way.
   expect((await drafts(page))[key]).toEqual(stored);
   await shot(page, "restored");

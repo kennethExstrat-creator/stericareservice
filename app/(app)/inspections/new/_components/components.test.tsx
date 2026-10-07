@@ -144,7 +144,7 @@ describe("the template panel", () => {
   it("warns when an admin picks a draft: using it freezes it", () => {
     const draft = option("STD_EG", { code: "DRAFT_EG", status: "draft" });
     const html = panel({ role: "admin", templates: [option("STD_EG"), draft], overrideId: draft.id });
-    expect(html).toContain("Chosen by an admin");
+    expect(html).toContain("Chosen by an Admin");
     expect(html).toContain("DRAFT_EG Version 1 · EN 455 · Draft");
     expect(html).toContain("A draft is frozen once an inspection uses it: later edits become a new version.");
   });
@@ -279,7 +279,7 @@ describe("a choice card", () => {
   it("is a labelled radio with a red edge when the group needs a choice", () => {
     const html = renderToStaticMarkup(
       <RadioGroup>
-        <ChoiceCard id="c" value="examination" title="Examination gloves" description="Counted in pieces." invalid />
+        <ChoiceCard id="c" value="examination" title="Examination Gloves" description="Counted in pieces." invalid />
       </RadioGroup>,
     );
     expect(html).toContain('for="c"');

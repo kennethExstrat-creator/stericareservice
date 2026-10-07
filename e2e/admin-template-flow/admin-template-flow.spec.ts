@@ -545,7 +545,7 @@ test("an admin builds a template from a base without code changes, and an inspec
     await page.goto("/inspections/new");
     await choose(page, page, "Client", fixture.clientName);
     await choose(page, page, "Manufacturer", HARTALEGA.label);
-    await press(page.getByRole("radio", { name: /Examination gloves/i }));
+    await press(page.getByRole("radio", { name: /^Examination Gloves/ }));
     // The most specific active template wins (BUILD_SPEC 4.4): the client's at this manufacturer, not the base.
     const chosen = page.getByTestId("chosen-template");
     await expect(chosen).toHaveAttribute("data-code", fixture.newCode);

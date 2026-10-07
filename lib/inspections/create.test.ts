@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { lowerCaseWords } from "@/lib/design/capitalisation";
 import type { ModuleKey } from "@/lib/schemas/module-result";
 import type { ResolvedTemplate } from "@/lib/schemas/template";
 import type { TemplateCandidate } from "@/lib/templates/select";
@@ -98,7 +99,7 @@ describe("the form", () => {
     const parsed = parse({});
     expect(parsed.success).toBe(false);
     expect(fieldErrorsOf(parsed.error!)).toEqual({
-      clientId: "Choose the client, or No client.",
+      clientId: "Choose the client, or No Client.",
       manufacturerId: "Choose the manufacturer.",
       productType: "Choose the product type.",
     });
@@ -193,8 +194,14 @@ describe("choosing the template (BUILD_SPEC 4.4)", () => {
     expect(choiceReason("client_manufacturer", names, "examination")).toBe("For Polyco Healthline at Hartalega NGC");
     expect(choiceReason("client", names, "examination")).toBe("For Polyco Healthline");
     expect(choiceReason("manufacturer", names, "examination")).toBe("For Hartalega NGC");
-    expect(choiceReason("standard", names, "surgical")).toBe("Standard template for surgical gloves");
-    expect(choiceReason("override", names, "examination")).toBe("Chosen by an admin");
+    expect(choiceReason("standard", names, "surgical")).toBe("Standard Template for Surgical Gloves");
+    expect(choiceReason("override", names, "examination")).toBe("Chosen by an Admin");
+    // The chip names a missing name in its own Title Case words.
+    const none = { client: null, manufacturer: null };
+    expect(choiceReason("client_manufacturer", none, "examination")).toBe("For This Client at This Manufacturer");
+    for (const specificity of ["client_manufacturer", "client", "manufacturer", "standard", "override"] as const) {
+      expect(lowerCaseWords(choiceReason(specificity, none, "surgical"))).toEqual([]);
+    }
   });
 });
 

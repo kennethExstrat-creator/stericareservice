@@ -20,9 +20,10 @@ export const NO_CLIENT = "none";
 
 export const PRODUCT_NAME_MAX = 300;
 
+/** The product type cards' titles (Title Case); sentences lower-case them: "No active template for examination gloves". */
 export const PRODUCT_TYPE_LABEL: Readonly<Record<ProductType, string>> = {
-  examination: "Examination gloves",
-  surgical: "Surgical gloves",
+  examination: "Examination Gloves",
+  surgical: "Surgical Gloves",
 };
 
 const optionalId = z
@@ -37,7 +38,7 @@ export const NewInspectionInputSchema = z.object({
     .string()
     .trim()
     .refine((value) => value === NO_CLIENT || z.uuid().safeParse(value).success, {
-      error: "Choose the client, or No client.",
+      error: "Choose the client, or No Client.",
     })
     .transform((value) => (value === NO_CLIENT ? null : value)),
   manufacturerId: z.string().trim().pipe(z.uuid({ error: "Choose the manufacturer." })),
@@ -138,7 +139,10 @@ export function chooseTemplate(
   return { ok: true, template: selection.template, specificity: selection.specificity, ties: selection.ties };
 }
 
-/** Why this template: "For Polyco Healthline at Hartalega NGC", "Standard template for examination gloves". */
+/**
+ * Why this template, the chip under it (Title Case): "For Polyco Healthline at
+ * Hartalega NGC", "Standard Template for Examination Gloves", "Chosen by an Admin".
+ */
 export function choiceReason(
   specificity: Specificity | "override",
   names: { client: string | null; manufacturer: string | null },
@@ -146,15 +150,15 @@ export function choiceReason(
 ): string {
   switch (specificity) {
     case "client_manufacturer":
-      return `For ${names.client ?? "this client"} at ${names.manufacturer ?? "this manufacturer"}`;
+      return `For ${names.client ?? "This Client"} at ${names.manufacturer ?? "This Manufacturer"}`;
     case "client":
-      return `For ${names.client ?? "this client"}`;
+      return `For ${names.client ?? "This Client"}`;
     case "manufacturer":
-      return `For ${names.manufacturer ?? "this manufacturer"}`;
+      return `For ${names.manufacturer ?? "This Manufacturer"}`;
     case "standard":
-      return `Standard template for ${PRODUCT_TYPE_LABEL[productType].toLowerCase()}`;
+      return `Standard Template for ${PRODUCT_TYPE_LABEL[productType]}`;
     case "override":
-      return "Chosen by an admin";
+      return "Chosen by an Admin";
   }
 }
 
