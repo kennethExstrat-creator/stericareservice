@@ -146,11 +146,37 @@ export const statusOf = (row: Locator): Locator => row.locator('[data-slot="acco
 export const toast = (page: Page, text: string | RegExp): Locator =>
   page.locator("[data-sonner-toast]").filter({ hasText: text });
 
-/** Opens a row's menu and picks an item, then returns the confirmation dialog. */
+/**
+ * Opens a row's menu and picks an item, then returns the dialog it opens: a
+ * confirmation (alertdialog), or a form for a role or a lead (dialog).
+ */
 export async function chooseRowAction(page: Page, row: Locator, item: string): Promise<Locator> {
   await row.getByRole("button", { name: /^Actions for / }).click();
   await page.getByRole("menuitem", { name: item, exact: true }).click();
-  const dialog = page.getByRole("alertdialog");
+  const dialog = page.getByRole("alertdialog").or(page.getByRole("dialog"));
   await expect(dialog).toBeVisible();
   return dialog;
+}
+
+/**
+ * True when the project has lead inspectors (migration 20261007170000).
+ * Until it has, the Users screen works with roles only, and the specs check
+ * that instead.
+ */
+export async function teamsReady(): Promise<boolean> {
+  const { error } = await createTestAdminClient().from("profiles").select("is_lead").limit(1);
+  if (!error) return true;
+  if (error.code === "42703") return false;
+  throw new Error(`Could not tell whether the project has lead inspectors: ${error.message}`);
+}
+
+/** Picks a role in a role dialog: Inspector, Lead inspector or Admin. */
+export async function pickRole(dialog: Locator, role: "Inspector" | "Lead inspector" | "Admin"): Promise<void> {
+  await dialog.getByRole("radio", { name: new RegExp(`^${role}\\b`) }).click();
+}
+
+/** Picks a lead inspector in a dialog's Lead inspector picker. */
+export async function pickLead(page: Page, dialog: Locator, name: string): Promise<void> {
+  await dialog.getByRole("combobox", { name: "Lead inspector" }).click();
+  await page.getByRole("option", { name, exact: true }).click();
 }

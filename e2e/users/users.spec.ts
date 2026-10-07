@@ -11,13 +11,17 @@ import {
   shot,
   statusOf,
   sweepThrowaways,
+  pickRole,
+  teamsReady,
   throwawayAddress,
   toast,
 } from "./support";
 
 // /admin/users: who can reach it, the list, the invite dialog and accounts
 // waiting for activation. The lifecycle of one account (role, deactivate,
-// reactivate) is in lifecycle.spec.ts.
+// reactivate) is in lifecycle.spec.ts; lead inspectors and their teams in
+// e2e/org. Every spec here runs on a project with or without lead
+// inspectors (migration 20261007170000): without, the screen sets roles only.
 
 test.afterAll(async () => {
   await sweepThrowaways();
@@ -66,6 +70,14 @@ test("the admin sees everyone, with themselves marked and protected", async ({ p
   for (const header of ["Name", "Role", "Status", "Last signed in"]) {
     await expect(page.getByRole("columnheader", { name: header })).toBeVisible();
   }
+  const teams = await teamsReady();
+  if (teams) {
+    // inspector@test.local is from before teams: listed as a problem until an admin chooses a lead.
+    await expect(page.getByTestId("no-lead-alert")).toBeVisible();
+    await expect(page.getByLabel("Team")).toBeVisible();
+  } else {
+    await expect(page.getByTestId("teams-missing")).toContainText("20261007170000_lead_inspectors.sql");
+  }
   // The date each person was added: its own column from 1024 px, under the name below that.
   if (page.viewportSize()!.width >= 1024) {
     await expect(page.getByRole("columnheader", { name: "Added" })).toBeVisible();
@@ -89,13 +101,13 @@ test("the admin sees everyone, with themselves marked and protected", async ({ p
   await me.getByRole("button", { name: /^Actions for / }).click();
   await expect(page.getByRole("menuitem", { name: "Send password link" })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: "Deactivate" })).toHaveCount(0);
-  await expect(page.getByRole("menuitem", { name: "Make inspector" })).toHaveCount(0);
+  await expect(page.getByRole("menuitem", { name: "Change role" })).toHaveCount(0);
   await shot(page, "admin-own-menu");
   await page.keyboard.press("Escape");
 
   await inspector.getByRole("button", { name: /^Actions for / }).click();
-  for (const item of ["Make admin", "Send password link", "Deactivate"]) {
-    await expect(page.getByRole("menuitem", { name: item })).toBeVisible();
+  for (const item of ["Change role", "Send password link", "Deactivate", ...(teams ? ["Change lead inspector"] : [])]) {
+    await expect(page.getByRole("menuitem", { name: item, exact: true })).toBeVisible();
   }
   await shot(page, "admin-row-menu");
   await page.keyboard.press("Escape");
@@ -108,7 +120,12 @@ test("the invite dialog explains every problem in place", async ({ page, context
   await page.getByRole("button", { name: "Invite user" }).click();
   const dialog = page.getByRole("dialog", { name: "Invite a user" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole("radio", { name: /Inspector/ })).toBeChecked();
+  await expect(dialog.getByRole("radio", { name: /^Inspector\b/ })).toBeChecked();
+  if (await teamsReady()) {
+    // Inspector, Lead inspector or Admin; an inspector's lead is asked for.
+    await expect(dialog.getByRole("radio", { name: /^Lead inspector\b/ })).toBeVisible();
+    await expect(dialog.getByRole("combobox", { name: "Lead inspector" })).toBeVisible();
+  }
   await shot(page, "invite-dialog");
 
   await test.step("an empty form marks both fields", async () => {
@@ -130,13 +147,13 @@ test("the invite dialog explains every problem in place", async ({ page, context
     await dialog.getByLabel("Email").fill(TEST_ACCOUNTS.inspector.toUpperCase());
     await expect(dialog.getByText("Enter their full name.")).toHaveCount(0);
     // React resets a form after its action: the role must not flip back to Inspector when the invite is refused.
-    await dialog.getByRole("radio", { name: /Admin/ }).click();
+    await pickRole(dialog, "Admin");
     await dialog.getByRole("button", { name: "Send invite" }).click();
     await expect(dialog.getByText(/That email already has an account/)).toBeVisible();
     await expect(dialog.getByLabel("Email")).toHaveValue(TEST_ACCOUNTS.inspector.toUpperCase());
     await expect(dialog.getByLabel("Full name")).toHaveValue("Someone Else");
-    await expect(dialog.getByRole("radio", { name: /Admin/ })).toBeChecked();
-    await expect(dialog.getByRole("radio", { name: /Inspector/ })).not.toBeChecked();
+    await expect(dialog.getByRole("radio", { name: /^Admin\b/ })).toBeChecked();
+    await expect(dialog.getByRole("radio", { name: /^Inspector\b/ })).not.toBeChecked();
     await shot(page, "invite-existing");
   });
 
@@ -162,6 +179,8 @@ test("an invite to a new address is sent, or refused with a clear reason", async
     const dialog = page.getByRole("dialog", { name: "Invite a user" });
     await dialog.getByLabel("Full name").fill("E2E Invitee");
     await dialog.getByLabel("Email").fill(email);
+    // An inspector would need a lead inspector first; a lead inspector needs none.
+    if (await teamsReady()) await pickRole(dialog, "Lead inspector");
     await dialog.getByRole("button", { name: "Send invite" }).click();
 
     // Three outcomes, each with a clear message:
@@ -242,10 +261,15 @@ test("a new account starts as pending activation, and Activate lets it in", asyn
     await test.step("Activate lets it in", async () => {
       const dialog = await chooseRowAction(page, row, "Activate");
       await expect(dialog).toContainText(`Activate ${person.fullName}?`);
+      const teams = await teamsReady();
+      // An inspector in no team is asked for a role and a lead first: a lead inspector needs none.
+      if (teams) await pickRole(dialog, "Lead inspector");
       await shot(page, "activate-confirm");
       await dialog.getByRole("button", { name: "Activate" }).click();
 
-      await expect(toast(page, `${person.fullName} is active and can sign in.`)).toBeVisible();
+      await expect(
+        toast(page, `${person.fullName} is active and can sign in.${teams ? " They are a lead inspector." : ""}`),
+      ).toBeVisible();
       await expect(dialog).toBeHidden();
       await expect(statusOf(row)).toHaveText("Active");
       expect(await profileOf(person.id)).toMatchObject({ active: true, role: "inspector" });
