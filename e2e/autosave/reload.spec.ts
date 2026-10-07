@@ -5,9 +5,10 @@ import { createAutosaveFixture, type AutosaveFixture } from "./fixtures";
 /**
  * An accidental reload of the capture screen (a pull to refresh on the
  * iPad) loses nothing completed, reopens the same section and lands on the
- * last field that stored a value: in view and ringed for a moment, not
- * focused (use-landing-spot.ts). The page itself does not pull
- * to refresh while the screen is open (use-no-pull-to-refresh.ts). One
+ * last field that stored a value: in view, ringed for a moment and
+ * announced, not focused (use-landing-spot.ts); a tap or scroll by the
+ * inspector cancels it. While the screen is open the page asks the browser
+ * not to pull to refresh (use-no-pull-to-refresh.ts). One
  * temporary template and inspection per project (fixtures.ts); the tests run
  * in order on it. Every reload here comes straight after the last action,
  * well inside the autosave's 800 ms wait.
@@ -33,6 +34,11 @@ function isTouch() {
   return Boolean(test.info().project.use.hasTouch);
 }
 
+/** WebKit, the engine of Chrome and Safari on the iPad: no Chromium DevTools protocol there. */
+function isWebKit() {
+  return test.info().project.use.browserName === "webkit";
+}
+
 function isDesktop() {
   return test.info().project.name === "desktop";
 }
@@ -55,8 +61,8 @@ async function open(page: Page, baseURL: string | undefined, module: string) {
   await page.context().addCookies(cookies.map((cookie) => ({ ...cookie, url: baseURL! })));
   await page.goto(`/inspections/${fixture.inspectionId}?module=${module}`);
   await expect(page.locator('[data-slot="save-status"]:visible')).toHaveAttribute("data-state", "saved");
-  // The pill is in the server's HTML: an editable field means the page has hydrated and the autosave runs.
-  await expect(page.locator('[data-slot="section-frame"] input:visible').first()).toBeEditable();
+  // The pill is in the server's HTML: an editable field (the section comment at least) means the page has hydrated and the autosave runs.
+  await expect(page.locator('[data-slot="section-frame"] :is(input, textarea):visible').first()).toBeEditable();
 }
 
 async function expectStored(match: Record<string, unknown>) {
@@ -65,13 +71,14 @@ async function expectStored(match: Record<string, unknown>) {
 
 /**
  * The screen landed on `field`: its ring is on (it fades after 2.4 s), it is
- * on screen below the sticky bars and near the middle (unless the page
- * cannot scroll that far), and it is not focused: no keyboard on the iPad,
- * and no selected value for the next key to replace.
+ * on screen below the sticky bars (scrolled to the middle when it was out of
+ * view: `middle`), it is announced by its label, and it is not focused: no
+ * keyboard on the iPad, and no selected value for the next key to replace.
  */
-async function expectLandedOn(page: Page, field: Locator) {
+async function expectLandedOn(page: Page, field: Locator, { middle = false, label }: { middle?: boolean; label?: string } = {}) {
   await expect(field).toHaveAttribute("data-landed", "", { timeout: 15_000 });
   await expect(field).toBeInViewport();
+  if (label) await expect(announcement(page)).toHaveText(`Back where you stopped: ${label}`);
   const where = await field.evaluate((element) => {
     const root = document.querySelector<HTMLElement>('[data-slot="capture-screen"]');
     const box = element.getBoundingClientRect();
@@ -86,12 +93,31 @@ async function expectLandedOn(page: Page, field: Locator) {
     };
   });
   expect(where.top, "the field is under the sticky bars").toBeGreaterThanOrEqual(where.stickyTop - 1);
-  const atLimit = where.scrollY <= 1 || where.scrollY >= where.maxScroll - 1;
-  if (!atLimit) {
-    const middle = (where.stickyTop + where.viewport) / 2;
-    expect(Math.abs(where.centre - middle), "the field is near the middle").toBeLessThan(where.viewport * 0.2);
+  if (middle && where.scrollY < where.maxScroll - 1) {
+    const centre = (where.stickyTop + where.viewport) / 2;
+    expect(Math.abs(where.centre - centre), "the field is near the middle").toBeLessThan(where.viewport * 0.2);
   }
   expect(where.focused, "not focused").toBe(false);
+}
+
+function announcement(page: Page) {
+  return page.locator('[data-slot="landing-announcement"]');
+}
+
+/** Nothing landed: no ring and nothing announced, a moment after the screen could have. */
+async function expectNoLanding(page: Page) {
+  // A landing waits for the form and the local copy, a moment at most: give it that, then none may show.
+  await page.waitForTimeout(1_500);
+  await expect(page.locator("[data-landed]")).toHaveCount(0);
+  await expect(announcement(page)).toHaveText("");
+}
+
+/** The screen's React tree is on the page: from here its code sees every tap and scroll. */
+async function hydrated(page: Page) {
+  await page.waitForFunction(() => {
+    const screen = document.querySelector('[data-slot="capture-screen"]');
+    return screen !== null && Object.keys(screen).some((key) => key.startsWith("__reactFiber"));
+  });
 }
 
 /* ------------------------------------------------------------------ *
@@ -126,7 +152,7 @@ for (const { way, grams, complete } of WAYS) {
     await expect(page.getByRole("heading", { level: 2, name: "Glove Information" })).toBeVisible();
     await expect(page.getByLabel("Glove surface texture")).toHaveValue(`Smooth (${way})`);
     await expect(page.getByLabel("Indicative weight (size M)")).toHaveValue(String(grams));
-    await expectLandedOn(page, page.getByLabel("Indicative weight (size M)"));
+    await expectLandedOn(page, page.getByLabel("Indicative weight (size M)"), { label: "Indicative weight (size M)" });
     if (way === "Tab") await shot(page, "landed-glove-info");
     await expectStored({ modules: { glove_info: { surfaceTexture: `Smooth (${way})`, indicativeWeight: grams } } });
   });
@@ -190,6 +216,104 @@ test("a value of one size lands on that size again", async ({ page, baseURL }) =
   await expectStored({ modules: { tensile: { sizes: { L: { tensileStrength: 15.2 } } } } });
 });
 
+test("a count in box 3 of a one-box-at-a-time module lands on box 3 again", async ({ page, baseURL }) => {
+  await fixture.setModules({ order_lots: { sizes: { S: { qtyCases: 10 } } } });
+  await open(page, baseURL, "dispensing_safedon");
+  const count = page.getByRole("button", { name: "Increase No cuff, column 3", exact: true });
+  // On the iPads one box shows at a time: step to the third. From 1280 px without a touchscreen every box is side by side.
+  if (!isDesktop()) {
+    await press(page.getByRole("button", { name: "Next box" }));
+    await press(page.getByRole("button", { name: "Next box" }));
+  }
+  await press(count);
+  await page.reload();
+
+  // The module turns back to box 3 itself (its reveal, as an issue link would), without focusing it.
+  const again = page.getByRole("button", { name: "Increase No cuff, column 3", exact: true });
+  await expectLandedOn(page, again, { label: "Increase No cuff, column 3" });
+  if (!isDesktop()) await expect(page.locator('[data-slot="section-frame"]')).toContainText(/· 3 \/ \d+/);
+  await shot(page, "landed-safedon-box-3");
+  await expect
+    .poll(async () => {
+      const safedon = (await fixture.stored()).modules?.dispensing_safedon as
+        | { sizes?: Record<string, { boxes?: { counts?: Record<string, number> }[] }> }
+        | undefined;
+      return safedon?.sizes?.S?.boxes?.[2]?.counts?.no_cuff;
+    }, { timeout: 20_000 })
+    .toBe(1);
+});
+
+test("a field out of view after the reload is scrolled to the middle of the screen", async ({ page, baseURL }) => {
+  // A short screen, so the section comment at the bottom of glove information is out of view at the top of the page.
+  await page.setViewportSize({ width: page.viewportSize()!.width, height: 560 });
+  await open(page, baseURL, "glove_info");
+  const comment = page.getByRole("textbox", { name: "Inspector comment" });
+  await comment.fill("Checked at the line");
+  await comment.press("Tab");
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.evaluate(() => {
+    history.scrollRestoration = "manual";
+  });
+  await page.reload();
+  const again = page.getByRole("textbox", { name: "Inspector comment" });
+  await expect(again).toHaveValue("Checked at the line");
+  await expectLandedOn(page, again, { middle: true, label: "Inspector comment" });
+});
+
+test("with reduced motion the ring stays still for its moment instead of fading", async ({ page, baseURL }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await open(page, baseURL, "glove_info");
+  const colour = page.getByLabel("Glove colour");
+  await colour.fill("Navy");
+  await page.reload();
+  const again = page.getByLabel("Glove colour");
+  await expectLandedOn(page, again, { label: "Glove colour" });
+  const frames = await again.evaluate((element) =>
+    element.getAnimations().flatMap((animation) => (animation.effect as KeyframeEffect).getKeyframes().map((frame) => frame.boxShadow)),
+  );
+  expect(frames.length).toBeGreaterThanOrEqual(2);
+  expect(new Set(frames).size, "every frame the same ring").toBe(1);
+  expect(String(frames[0])).not.toContain("transparent");
+});
+
+/* ------------------------------------------------------------------ *
+ * Never under the inspector's finger
+ * ------------------------------------------------------------------ */
+
+for (const act of ["a tap", "a scroll"] as const) {
+  test(`${act} while the page is still starting cancels the landing`, async ({ page, baseURL }) => {
+    test.skip(act === "a scroll" && isWebKit(), "Playwright cannot scroll mobile WebKit by wheel or touch; the tap covers it there.");
+    await open(page, baseURL, "glove_info");
+    const weight = page.getByLabel("Indicative weight (size M)");
+    await weight.fill("3.7");
+    await weight.press("Tab");
+
+    // A second tab holds the inspection's writer lock for 2.5 s once this page lets go of it at the reload:
+    // the reloaded screen is on the page, its saving not started yet (fields read-only), for that long.
+    const holder = await page.context().newPage();
+    await holder.goto("/login");
+    await holder.evaluate((name) => {
+      void navigator.locks.request(name, () => new Promise((resolve) => setTimeout(resolve, 2_500)));
+    }, `stericare-autosave:${fixture.inspectorId}:${fixture.inspectionId}`);
+    await page.reload();
+    await hydrated(page);
+    const again = page.getByLabel("Indicative weight (size M)");
+    expect(await again.isEditable(), "saving has not started yet").toBe(false);
+    if (act === "a tap") {
+      await press(page.getByRole("heading", { level: 1 }));
+    } else {
+      await page.mouse.move(400, 400);
+      await page.mouse.wheel(0, 120);
+    }
+
+    // Saving starts once the other tab lets go; the inspector moved first, so nothing lands.
+    await expect(again).toBeEditable({ timeout: 15_000 });
+    await expect(again).toHaveValue("3.7");
+    await expectNoLanding(page);
+    await holder.close();
+  });
+}
+
 /* ------------------------------------------------------------------ *
  * Only after a reload
  * ------------------------------------------------------------------ */
@@ -214,15 +338,12 @@ test("opened again inside the app, or afresh, the screen starts at its section's
     await expect(page).toHaveURL(/module=glove_info/, { timeout: 2_000 });
   }).toPass({ timeout: 15_000 });
   await expect(page.getByLabel("Indicative weight (size M)")).toHaveValue("3.9");
-  // A landing waits for the form and the local copy, a moment at most: give it that, then none may show.
-  await page.waitForTimeout(1_500);
-  await expect(page.locator("[data-landed]")).toHaveCount(0);
+  await expectNoLanding(page);
 
   // Opened afresh (a link, the address bar): no landing either.
   await page.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
   await expect(page.getByLabel("Indicative weight (size M)")).toHaveValue("3.9");
-  await page.waitForTimeout(1_500);
-  await expect(page.locator("[data-landed]")).toHaveCount(0);
+  await expectNoLanding(page);
   await expect(page.getByLabel("Indicative weight (size M)")).not.toBeFocused();
 });
 
@@ -230,7 +351,7 @@ test("opened again inside the app, or afresh, the screen starts at its section's
  * Pull to refresh
  * ------------------------------------------------------------------ */
 
-test("the page does not pull to refresh while the screen is open, and still scrolls under its sticky bars", async ({
+test("while the screen is open the page asks the browser not to pull to refresh, and still scrolls under its sticky bars", async ({
   page,
   baseURL,
 }) => {
@@ -244,7 +365,7 @@ test("the page does not pull to refresh while the screen is open, and still scro
   await section.evaluate((element) => {
     element.style.paddingBottom = "2000px";
   });
-  if (isTouch()) {
+  if (isTouch() && !isWebKit()) {
     const cdp = await page.context().newCDPSession(page);
     await cdp.send("Input.synthesizeScrollGesture", {
       x: 400,
@@ -253,6 +374,9 @@ test("the page does not pull to refresh while the screen is open, and still scro
       gestureSourceType: "touch",
       speed: 1500,
     });
+  } else if (isWebKit()) {
+    // Mobile WebKit has no wheel in Playwright: the keyboard scrolls the page there.
+    await page.locator("body").press("PageDown");
   } else {
     await page.mouse.move(800, 600);
     await page.mouse.wheel(0, 600);

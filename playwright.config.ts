@@ -36,5 +36,11 @@ export default defineConfig({
     // 12.9 and 13 inch iPads: wider than 1280 px in landscape, still the iPad layout (touch).
     { name: "ipad-pro-landscape", use: { ...ipad, viewport: { width: 1366, height: 1024 } } },
     { name: "desktop", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } },
+    // WebKit, the engine of Chrome and Safari on the iPad, for the reload specs: npx playwright install webkit.
+    {
+      name: "webkit-ipad-portrait",
+      testMatch: /autosave\/.*\.spec\.ts$/,
+      use: { ...devices["iPad Pro 11"], browserName: "webkit", viewport: { width: 820, height: 1180 } },
+    },
   ],
 });
