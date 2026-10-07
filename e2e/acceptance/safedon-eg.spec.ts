@@ -27,6 +27,7 @@ import {
   grouped,
   HEADER,
   MEASURES,
+  named,
   openSection,
   press,
   removeInspection,
@@ -139,24 +140,27 @@ async function expectTouchTarget(locator: Locator) {
   expect(box!.height, `${await locator.getAttribute("aria-label") ?? await locator.textContent()} is 44 px tall`).toBeGreaterThanOrEqual(44);
 }
 
-/** The open section's own header: its title, result pill and the result's summary. */
-function frameHeader(page: Page): Locator {
-  return frame(page).locator(":scope > header");
+/**
+ * A section's own header, by its module key: its title, result pill and the
+ * result's summary (the order's page has two frames: e2e/README.md).
+ */
+function frameHeader(page: Page, key: string): Locator {
+  return frame(page, key).locator(":scope > header");
 }
 
-/** The section's result pill in its frame header ("Passed", "Warning", "Info", "Not Done"). */
-function sectionStatus(page: Page): Locator {
-  return frameHeader(page).locator("[data-slot='status-pill']");
+/** A section's result pill in its frame header ("Passed", "Warning", "Info", "Not Done"). */
+function sectionStatus(page: Page, key: string): Locator {
+  return frameHeader(page, key).locator("[data-slot='status-pill']");
 }
 
-/** A table row by its exact accessible name (the row header and its visible cells). */
+/** A table row by its exact accessible name (the row header and its visible cells), the template's words in any case. */
 function row(scope: Locator, name: string): Locator {
-  return scope.getByRole("row", { name, exact: true });
+  return scope.getByRole("row", { name: named(name) });
 }
 
 /** The measurement grid's footer rows of the size on screen: Average, Spec., A / Rej. */
 function dimensionFooter(page: Page, index: 0 | 1 | 2): Locator {
-  return frame(page).locator('[data-slot="measurement-grid"] tfoot tr').nth(index).locator("td");
+  return frame(page, "dimensions").locator('[data-slot="measurement-grid"] tfoot tr').nth(index).locator("td");
 }
 
 /* ------------------------------------------------------------------ *
@@ -195,7 +199,7 @@ test("the inspector starts it on /inspections/new: the SAFEDON_EG client at the 
   inspectionId = INSPECTION_URL.exec(page.url())![1];
   // Marked at once, so a run that dies from here on is cleaned up by the next.
   await openSection(page, "header");
-  await frame(page).getByRole("textbox", { name: "Inspector Comment" }).fill(MARKER);
+  await frame(page, "header").getByRole("textbox", { name: "Inspector Comment" }).fill(MARKER);
   await saved(page);
   await expectStoredModule(admin, inspectionId, "header", { comment: MARKER });
 
@@ -217,20 +221,22 @@ test("the inspector starts it on /inspections/new: the SAFEDON_EG client at the 
   const submit = await page.getByRole("button", { name: "Submit", exact: true }).boundingBox();
   expect(back!.x).toBeGreaterThan(submit!.x + submit!.width);
   await expect(page.getByRole("tablist", { name: "Sections" })).toBeVisible();
-  await expect(page.getByRole("tablist", { name: "Sections" }).getByRole("tab")).toHaveCount(16);
+  // A tab per page: SAFEDON_EG's 14 modules and 2 custom sections, packing configuration on the order's tab.
+  await expect(page.getByRole("tablist", { name: "Sections" }).getByRole("tab")).toHaveCount(15);
+  await expect(sectionTab(page, "packing_config")).toHaveAttribute("data-section", "order_lots");
 });
 
 test("Manufacturer Information and Glove Information: the inspector is recorded, dates come from pickers", async ({ page, baseURL }) => {
   await openCapture(page, baseURL);
   await enterHeader(page);
-  const section = frame(page);
+  const section = frame(page, "header");
   await expect(section.getByRole("region", { name: "From the inspection" })).toContainText(names.manufacturer);
   await expect(section.getByRole("region", { name: "From the inspection" })).toContainText("Test Inspector");
   await expect(section.getByText("The inspector is recorded automatically.")).toBeVisible();
-  await expect(section.getByRole("combobox", { name: "Manufacturing date: month" })).toHaveText("Feb");
-  await expect(section.getByRole("combobox", { name: "Expiry date: year" })).toHaveText("2030");
+  await expect(section.getByRole("combobox", { name: "Manufacturing Date: month" })).toHaveText("Feb");
+  await expect(section.getByRole("combobox", { name: "Expiry Date: year" })).toHaveText("2030");
   await saved(page);
-  await expect(sectionStatus(page)).toHaveText("Info");
+  await expect(sectionStatus(page, "header")).toHaveText("Info");
   await expectNoPageScroll(page);
   await shot(page, "02-header", { parts: 2 });
 
@@ -244,27 +250,32 @@ test("Manufacturer Information and Glove Information: the inspector is recorded,
 test("Order and Packing: Totals 1,530 cartons, 3,060,000 gloves", async ({ page, baseURL }) => {
   await openCapture(page, baseURL);
   await enterOrder(page);
+  // Below the order, on the same page (its tab is the order's): no tab to change.
   await enterPacking(page);
   await saved(page);
+  await expect(sectionTab(page, "order_lots")).toHaveAttribute("aria-selected", "true");
+  const order = frame(page, "order_lots");
+  const packing = frame(page, "packing_config");
 
-  // Packing: 125 x 16 = 2,000 gloves per case, as printed.
-  await expect(frame(page).getByRole("definition")).toHaveText("2,000");
-  await expect(sectionStatus(page)).toHaveText("Info");
+  // Packing: 125 x 16 = 2,000 gloves per case, as printed; its own result in its own frame.
+  await expect(packing.getByRole("definition")).toHaveText("2,000");
+  await expect(sectionStatus(page, "packing_config")).toHaveText("Info");
 
-  await openSection(page, "order_lots");
-  const order = frame(page);
+  // The order's totals, on the page the gloves per case were typed on.
   await expect(order.getByRole("definition")).toHaveText([grouped(EXPECTED.totals.cartons), grouped(EXPECTED.totals.gloves)]);
-  await expect(frameHeader(page)).toContainText(
-    `Total # carton ${grouped(EXPECTED.totals.cartons)}; Total # gloves ${grouped(EXPECTED.totals.gloves)}.`,
+  await expect(frameHeader(page, "order_lots")).toContainText(
+    `Total # Carton ${grouped(EXPECTED.totals.cartons)}; Total # Gloves ${grouped(EXPECTED.totals.gloves)}.`,
+    { ignoreCase: true },
   );
+  await expect(sectionStatus(page, "order_lots")).toHaveText("Info");
   // The lot of each size in gloves: the sampling notice's lot sizes.
   for (const size of SIZES) {
     await expect(order.getByRole("row", { name: new RegExp(`^${size} `) })).toContainText(grouped(EXPECTED.sampling[size]!.lotGloves));
   }
   // XL was not ordered: nothing in its row, and no module shows it (6.2 rule 4).
-  await expect(order.getByRole("textbox", { name: "Qty (cases), Size XL", exact: true })).toHaveValue("");
+  await expect(order.getByRole("textbox", { name: named("Qty (Cases), Size XL") })).toHaveValue("");
   await expectNoPageScroll(page);
-  await shot(page, "03-order-totals", { parts: 2 });
+  await shot(page, "03-order-totals", { parts: 3 });
   await expectStoredModule(admin, inspectionId!, "order_lots", EXPECTED_DATA.order_lots);
   await expectStoredModule(admin, inspectionId!, "packing_config", EXPECTED_DATA.packing_config);
   expect((await stored(admin, inspectionId!)).lot_numbers).toEqual(["LOT-B01", "LOT-B02", "LOT-B03", "LOT-B04"]);
@@ -277,20 +288,21 @@ test("Sampling Plan: with inspection level I, 80 and 200 gloves are flagged belo
   await openCapture(page, baseURL);
   await enterSampling(page);
   await saved(page);
-  const section = frame(page);
-  await expect(sectionStatus(page)).toHaveText("Warning");
+  const section = frame(page, "sampling_plan");
+  await expect(sectionStatus(page, "sampling_plan")).toHaveText("Warning");
   // Only the sizes ordered have tabs.
   await expect(section.locator('[role="tab"][data-size]')).toHaveCount(SIZES.length);
   for (const size of SIZES) {
     const notice = EXPECTED.sampling[size]!;
     await showSize(page, size);
     const facts = section.locator("dl:visible").first();
-    await expect(facts).toContainText(`Lot size (gloves)${grouped(notice.lotGloves)}`);
-    await expect(facts).toContainText(`Inspection level${notice.level}`);
-    await expect(facts).toContainText(`Code letter${notice.codeLetter}`);
-    await expect(facts).toContainText(`Sample size by plan${notice.required}`);
+    // The template's labels, whatever their case (named).
+    await expect(facts).toContainText(`Lot Size (Gloves)${grouped(notice.lotGloves)}`, { ignoreCase: true });
+    await expect(facts).toContainText(`Inspection Level${notice.level}`, { ignoreCase: true });
+    await expect(facts).toContainText(`Code Letter${notice.codeLetter}`, { ignoreCase: true });
+    await expect(facts).toContainText(`Sample Size by Plan${notice.required}`, { ignoreCase: true });
     const warning = EXPECTED.warnings.find((issue) => issue.size === size)!;
-    await expect(section.getByText(`Size ${size}, # gloves for watertight & Visual: ${warning.message}`)).toBeVisible();
+    await expect(section.getByText(`Size ${size}, # Gloves for Watertight & Visual: ${warning.message}`)).toBeVisible();
     if (size === "XS") await shot(page, "04-sampling-xs", { parts: 2 });
   }
   await expectStoredModule(admin, inspectionId!, "sampling_plan", EXPECTED_DATA.sampling_plan);
@@ -300,8 +312,8 @@ test("Finished goods sampling: every size's carton list is complete, unique and 
   await openCapture(page, baseURL);
   await enterCartons(page);
   await saved(page);
-  const section = frame(page);
-  await expect(sectionStatus(page)).toHaveText("Passed");
+  const section = frame(page, "carton_sampling");
+  await expect(sectionStatus(page, "carton_sampling")).toHaveText("Passed");
   for (const size of SIZES) {
     await showSize(page, size);
     const cases = REPORT.sampling[size]!.cases;
@@ -325,7 +337,7 @@ test("Dimension: the five size S cells typed with a space are refused, and S sta
   expect(await dimensionCell(page, "Length", 1).evaluate((cell) => getComputedStyle(cell).fontSize)).toBe("16px");
   await expectTouchTarget(dimensionCell(page, "Length", 1));
   // Still on size S, where the five cells were typed as the report has them.
-  const section = frame(page);
+  const section = frame(page, "dimensions");
   const refused = EXPECTED.rejectedInputs;
   const measureOf = (measure: string) => MEASURES.find((entry) => entry.key === (measure === "length" ? "length" : `${measure}Thickness`))!;
   for (const input of refused) {
@@ -349,8 +361,8 @@ test("Dimension: the five size S cells typed with a space are refused, and S sta
 
   await enterDimensions(page, ["M", "L"], "typed");
   await saved(page);
-  await expect(sectionStatus(page)).toHaveText("Not Done");
-  await expect(frameHeader(page)).toContainText("Not done for size S.");
+  await expect(sectionStatus(page, "dimensions")).toHaveText("Not Done");
+  await expect(frameHeader(page, "dimensions")).toContainText("Not done for size S.");
   // Text is never stored (6.2 rule 1): the five cells are empty in the data.
   await expect
     .poll(async () => {
@@ -370,8 +382,8 @@ test("Dimension averages: typed again correctly, every size passes at the expect
   await openCapture(page, baseURL);
   await correctTextCells(page);
   await saved(page);
-  const section = frame(page);
-  await expect(sectionStatus(page)).toHaveText("Passed");
+  const section = frame(page, "dimensions");
+  await expect(sectionStatus(page, "dimensions")).toHaveText("Passed");
   for (const size of SIZES) {
     const expected = EXPECTED.dimensions[size]!;
     await showSize(page, size);
@@ -393,13 +405,13 @@ test("Physical properties: tensile and elongation pass at ≥ 14 MPa and ≥ 500
   await openCapture(page, baseURL);
   await enterTensile(page);
   await saved(page);
-  const section = frame(page);
-  await expect(sectionStatus(page)).toHaveText("Passed");
+  const section = frame(page, "tensile");
+  await expect(sectionStatus(page, "tensile")).toHaveText("Passed");
   for (const size of SIZES) {
     const expected = EXPECTED.tensile[size]!;
     await showSize(page, size);
     await expect(section.getByRole("textbox", { name: "Tensile Strength (Average) (MPa)" })).toHaveValue(expected.tensileMPa.toFixed(2));
-    await expect(section.getByRole("textbox", { name: "Elongation at break, average (%)" })).toHaveValue(String(expected.elongationPct));
+    await expect(section.getByRole("textbox", { name: "Elongation at Break, Average (%)" })).toHaveValue(String(expected.elongationPct));
     // Each average with its spec and verdict, the size on screen only.
     const fields = section.locator('[data-slot="number-field"]').filter({ visible: true });
     await expect(fields).toHaveCount(2);
@@ -409,7 +421,7 @@ test("Physical properties: tensile and elongation pass at ≥ 14 MPa and ≥ 500
     await expect(fields.nth(1).locator("[data-slot='status-pill']")).toHaveText("Passed");
     await expect(section.locator(`[role="tab"][data-size="${size}"]`)).toHaveAccessibleName(/Passed/);
   }
-  await expect(frameHeader(page)).toContainText(
+  await expect(frameHeader(page, "tensile")).toContainText(
     SIZES.map((size) => `Size ${size}: ${EXPECTED.tensile[size]!.tensileMPa.toFixed(2)} MPa / ${EXPECTED.tensile[size]!.elongationPct}%`).join("; "),
   );
   await shot(page, "08-tensile", { parts: 2 });
@@ -419,7 +431,7 @@ test("Physical properties: tensile and elongation pass at ≥ 14 MPa and ≥ 500
 
   await enterWeight(page);
   await saved(page);
-  await expect(sectionStatus(page)).toHaveText("Info");
+  await expect(sectionStatus(page, "weight")).toHaveText("Info");
   await expectStoredModule(admin, inspectionId!, "weight", EXPECTED_DATA.weight);
 });
 
@@ -427,26 +439,28 @@ test("Watertight: XS 1 / 80 and L 1 / 80 (glove burst) at 3 / 4, S and M 0 / 200
   await openCapture(page, baseURL);
   await enterWatertight(page);
   await saved(page);
-  const section = frame(page);
-  await expect(sectionStatus(page)).toHaveText("Passed");
-  await expect(section.getByText("Sampling code letter J & L · AQL 1.5")).toBeVisible();
+  const section = frame(page, "watertight");
+  await expect(sectionStatus(page, "watertight")).toHaveText("Passed");
+  await expect(section.getByText("Sampling Code Letter J & L · AQL 1.5")).toBeVisible();
   for (const size of SIZES) {
     const expected = EXPECTED.watertight[size]!;
     await showSize(page, size);
     await expect(row(section, `Defect Limit Accept ${expected.accept} / Reject ${expected.reject}`)).toBeVisible();
-    await expect(row(section, `Total number of defects found ${expected.found}`)).toBeVisible();
-    await expect(row(section, "Freedom from holes (Passed / Failed) Passed")).toBeVisible();
+    await expect(row(section, `Total Number of Defects Found ${expected.found}`)).toBeVisible();
+    await expect(row(section, "Freedom From Holes (Passed / Failed) Passed")).toBeVisible();
     if (size === "XS") {
       await shot(page, "09-watertight-xs", { parts: 2 });
       await expectTouchTarget(section.getByRole("button", { name: "Increase Finger, Size XS", exact: true }));
     }
   }
   // The total the report showed as a date (1 Jan 1980) is a count over the gloves tested.
-  await expect(frameHeader(page)).toContainText(
+  await expect(frameHeader(page, "watertight")).toContainText(
     `Size XS: 1 / ${EXPECTED.watertight.XS!.n} (Finger 1), Defect Limit ${EXPECTED.watertight.XS!.accept} / ${EXPECTED.watertight.XS!.reject}: Passed`,
   );
-  await expect(frameHeader(page)).toContainText(
-    `size L: 1 / ${EXPECTED.watertight.L!.n} (Glove burst 1), Defect Limit ${EXPECTED.watertight.L!.accept} / ${EXPECTED.watertight.L!.reject}: Passed`,
+  // The hole location in the template's wording, whatever its case.
+  await expect(frameHeader(page, "watertight")).toContainText(
+    `size L: 1 / ${EXPECTED.watertight.L!.n} (Glove Burst 1), Defect Limit ${EXPECTED.watertight.L!.accept} / ${EXPECTED.watertight.L!.reject}: Passed`,
+    { ignoreCase: true },
   );
   await expectStoredModule(admin, inspectionId!, "watertight", EXPECTED_DATA.watertight);
 });
@@ -458,10 +472,10 @@ test("Visual: critical 0 at 0 / 1 (labelled critical, not 'Visual Minor'); major
   await openCapture(page, baseURL);
   await enterVisual(page);
   await saved(page);
-  const section = frame(page);
-  await expect(sectionStatus(page)).toHaveText("Passed");
+  const section = frame(page, "visual");
+  await expect(sectionStatus(page, "visual")).toHaveText("Passed");
   const headings = { critical: "Critical Defects (AQL 0.0)", major: "Major Defects (AQL 2.5)", minor: "Minor Defects (AQL 4.0)" };
-  const totals = { critical: 'Total number of "Critical Defects" found', major: 'Total number of "Major Defects" found', minor: 'Total number of "Minor Defects" found' };
+  const totals = { critical: 'Total Number of "Critical Defects" Found', major: 'Total Number of "Major Defects" Found', minor: 'Total Number of "Minor Defects" Found' };
   const results = {
     critical: "Disposition - Visual Critical (Passed / Failed)",
     major: "Disposition - Visual Major (Passed / Failed)",
@@ -472,7 +486,7 @@ test("Visual: critical 0 at 0 / 1 (labelled critical, not 'Visual Minor'); major
     for (const cls of ["critical", "major", "minor"] as const) {
       const expected = EXPECTED.visual[cls][size]!;
       const block = section.getByRole("region", { name: headings[cls] });
-      await expect(block.getByRole("textbox", { name: /^No\. of sample inspected/ })).toHaveValue(String(expected.n));
+      await expect(block.getByRole("textbox", { name: /^No\. of Sample Inspected/i })).toHaveValue(String(expected.n));
       await expect(row(block, `Defect Limit Accept ${expected.accept} / Reject ${expected.reject}`)).toBeVisible();
       await expect(row(block, `${totals[cls]} ${expected.found}`)).toBeVisible();
       await expect(row(block, `${results[cls]} Passed`)).toBeVisible();
@@ -491,9 +505,9 @@ test("Glove dispensing: rates per box from the counts (XS 0.008 and 0.016), tota
   await openCapture(page, baseURL);
   await enterDispensing(page);
   await saved(page);
-  const section = frame(page);
-  await expect(sectionStatus(page)).toHaveText("Passed");
-  await expect(section.getByText("Glove Dispensing Inspection (Sampling code letter C & D)")).toBeVisible();
+  const section = frame(page, "dispensing_safedon");
+  await expect(sectionStatus(page, "dispensing_safedon")).toHaveText("Passed");
+  await expect(section.getByText("Glove Dispensing Inspection (Sampling Code Letter C & D)")).toBeVisible();
   const sizeRate: Record<string, string> = {
     XS: "3 / 625 (0.48%)",
     S: "0 / 1,000 (0%)",
@@ -508,16 +522,16 @@ test("Glove dispensing: rates per box from the counts (XS 0.008 and 0.016), tota
       await press(section.getByRole("button", { name: `Count Column ${index + 1}`, exact: true }));
       await expect(section.getByText(`Box # ${box.box} · ${index + 1} / ${expected.boxes.length}`)).toBeVisible();
       await expect(row(section, `Total ${box.defects}`)).toBeVisible();
-      await expect(row(section, `Defects / gloves per pack ${box.defects}/125`)).toBeVisible();
-      await expect(row(section, `Defect rate ${box.rate.toFixed(3)}`)).toBeVisible();
+      await expect(row(section, `Defects / Gloves per Pack ${box.defects}/125`)).toBeVisible();
+      await expect(row(section, `Defect Rate ${box.rate.toFixed(3)}`)).toBeVisible();
       if (size === "XS" && index === 4) await shot(page, "11-dispensing-xs-box-33", { parts: 3 });
     }
     expect(sizeRate[size]).toContain(`${expected.defects} / ${grouped(expected.gloves)} (${expected.ratePct}%)`);
-    const requirement = section.getByRole("row", { name: /^Defect rate \(%\)/ });
+    const requirement = section.getByRole("row", { name: /^Defect Rate \(%\)/i });
     await expect(requirement).toContainText(sizeRate[size]);
     await expect(requirement).toContainText(`≤ ${expected.maxRatePct}%`);
     await expect(requirement).toContainText("Passed");
-    await expect(requirement).toContainText(`Boxes tested: ${expected.boxes.length} / ${expected.boxes.length}`);
+    await expect(requirement).toContainText(`Boxes Tested: ${expected.boxes.length} / ${expected.boxes.length}`, { ignoreCase: true });
   }
   await expectTouchTarget(section.getByRole("combobox", { name: "Box #, Column 1", exact: true }));
   await expectStoredModule(admin, inspectionId!, "dispensing_safedon", EXPECTED_DATA.dispensing_safedon);
@@ -527,8 +541,8 @@ test("Labelling: 3 inner packs and 1 carton per size, 0 defects at 0 / 1, pass; 
   await openCapture(page, baseURL);
   await enterLabeling(page);
   await saved(page);
-  const section = frame(page);
-  await expect(sectionStatus(page)).toHaveText("Passed");
+  const section = frame(page, "labeling");
+  await expect(sectionStatus(page, "labeling")).toHaveText("Passed");
   for (const size of SIZES) {
     await showSize(page, size);
     for (const [level, result] of [
@@ -537,7 +551,7 @@ test("Labelling: 3 inner packs and 1 carton per size, 0 defects at 0 / 1, pass; 
     ] as const) {
       const block = section.getByRole("region", { name: level });
       await expect(row(block, "Limit : Accept / Reject Acc. = 0 / Rej. = 1")).toBeVisible();
-      await expect(row(block, "Total number of defects found 0")).toBeVisible();
+      await expect(row(block, "Total Number of Defects Found 0")).toBeVisible();
       await expect(row(block, result)).toBeVisible();
     }
   }
@@ -546,11 +560,11 @@ test("Labelling: 3 inner packs and 1 carton per size, 0 defects at 0 / 1, pass; 
 
   await enterConclusion(page);
   await saved(page);
-  const conclusion = frame(page);
-  await expect(conclusion.getByRole("region", { name: "Suggested result" }).locator("[data-slot='status-pill']")).toHaveText("Passed");
-  await expect(conclusion.getByRole("region", { name: "Suggested result" })).toContainText("Warnings: Sampling Plan.");
-  await expect(conclusion.getByRole("textbox", { name: "Inspected by" })).toHaveValue("Test Inspector");
-  await expect(sectionStatus(page)).toHaveText("Passed");
+  const conclusion = frame(page, "conclusion");
+  await expect(conclusion.getByRole("region", { name: "Suggested Result" }).locator("[data-slot='status-pill']")).toHaveText("Passed");
+  await expect(conclusion.getByRole("region", { name: "Suggested Result" })).toContainText("Warnings: Sampling Plan.");
+  await expect(conclusion.getByRole("textbox", { name: "Inspected By" })).toHaveValue("Test Inspector");
+  await expect(sectionStatus(page, "conclusion")).toHaveText("Passed");
   await shot(page, "13-conclusion", { parts: 2 });
   await expectStoredModule(admin, inspectionId!, "conclusion", {
     finalResult: EXPECTED.conclusion.result,
@@ -575,15 +589,15 @@ test("nothing typed is lost on a reload, and only the sampling warnings are pend
   await expect(dimensionCell(page, "Length", 3)).toHaveValue("242");
   await openSection(page, "dispensing_safedon");
   await showSize(page, "XS");
-  await press(frame(page).getByRole("button", { name: "Count Column 5", exact: true }));
-  await expect(frame(page).getByRole("spinbutton", { name: "No cuff, Box 33", exact: true })).toHaveAttribute("aria-valuenow", "2");
+  await press(frame(page, "dispensing_safedon").getByRole("button", { name: "Count Column 5", exact: true }));
+  await expect(frame(page, "dispensing_safedon").getByRole("spinbutton", { name: named("No Cuff, Box 33") })).toHaveAttribute("aria-valuenow", "2");
 
-  // Every section of the report has its result; the two onsite-form extras stay empty.
+  // Every section of the report has its result; the two onsite-form extras stay empty. A tab names
+  // its page's result: packing configuration has no tab of its own (the order's tab holds it).
   const results: Record<string, RegExp> = {
     header: /Info$/,
     glove_info: /Info$/,
     order_lots: /Info$/,
-    packing_config: /Info$/,
     sampling_plan: /Warning$/,
     carton_sampling: /Passed$/,
     dimensions: /Passed$/,
@@ -596,6 +610,9 @@ test("nothing typed is lost on a reload, and only the sampling warnings are pend
     conclusion: /Passed$/,
   };
   for (const [key, status] of Object.entries(results)) await expect(sectionTab(page, key), key).toHaveAccessibleName(status);
+  // Packing configuration's own result: its frame's pill, below the order.
+  await openSection(page, "packing_config");
+  await expect(sectionStatus(page, "packing_config")).toHaveText("Info");
 
   // Pending: one row per section, so the four sampling notices are the Sampling Plan's one row,
   // its sizes listed; nothing needed before submit. The review and the export keep each notice in full.

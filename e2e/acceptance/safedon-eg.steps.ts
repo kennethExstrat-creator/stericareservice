@@ -74,9 +74,14 @@ export async function viewShot(page: Page, name: string): Promise<string> {
   return path;
 }
 
-/** The open section's frame. */
-export function frame(page: Page): Locator {
-  return page.locator('[data-slot="section-frame"]');
+/**
+ * A section's frame by its module key; without one, the open page's frame.
+ * The order's page shows two (packing configuration below the order,
+ * lib/inspections/capture/sections.ts SHOWN_WITH): a frame there is found by
+ * its key (e2e/README.md).
+ */
+export function frame(page: Page, key?: string): Locator {
+  return page.locator(key ? `[data-section-key="${key}"]` : '[data-slot="section-frame"]');
 }
 
 /** The save pill on screen: the section bar's below 1280 px. */
@@ -89,18 +94,32 @@ export function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** Opens a section from the tab bar by its key, and waits for its form. */
-export async function openSection(page: Page, key: string): Promise<void> {
-  const tab = page.getByRole("tablist", { name: "Sections" }).locator(`[role="tab"][data-section="${key}"]`);
-  if ((await tab.getAttribute("aria-selected")) !== "true") await press(tab);
-  await expect(tab).toHaveAttribute("aria-selected", "true");
-  await expect(frame(page).getByText("Loading the form…")).toHaveCount(0);
-  await expect(frame(page).locator("h2")).toBeVisible();
+/**
+ * An accessible name that is exactly `text`, whatever its case: the
+ * template's wording. The seed SAFEDON_EG words its titles and labels in
+ * Title Case (lib/templates/definitions); the live one may still have the
+ * report's case until it is seeded again.
+ */
+export function named(text: string): RegExp {
+  return new RegExp(`^${escapeRegExp(text)}$`, "i");
 }
 
-/** The open section's tab, as the section bar names it: its title and result. */
+/** Opens the page a section is on from the tab bar, by the section's key, and waits for its form. */
+export async function openSection(page: Page, key: string): Promise<void> {
+  const tab = sectionTab(page, key);
+  if ((await tab.getAttribute("aria-selected")) !== "true") await press(tab);
+  await expect(tab).toHaveAttribute("aria-selected", "true");
+  await expect(frame(page, key).getByText("Loading the form…")).toHaveCount(0);
+  await expect(frame(page, key).locator("h2")).toBeVisible();
+}
+
+/**
+ * The tab of the page a section is on, as the section bar names it: the
+ * page's title and result. Packing configuration's is the order's
+ * ([data-sections] lists every section on a page).
+ */
 export function sectionTab(page: Page, key: string): Locator {
-  return page.getByRole("tablist", { name: "Sections" }).locator(`[role="tab"][data-section="${key}"]`);
+  return page.getByRole("tablist", { name: "Sections" }).locator(`[role="tab"][data-sections~="${key}"]`);
 }
 
 /** Turns the open section's size tabs to `size`. */
@@ -304,13 +323,13 @@ async function pick(page: Page, trigger: Locator, option: string): Promise<void>
 /** Manufacturer Information: the PO, the dates; the manufacturer and inspector come from the inspection. */
 export async function enterHeader(page: Page): Promise<void> {
   await openSection(page, "header");
-  const section = frame(page);
+  const section = frame(page, "header");
   await section.getByRole("textbox", { name: "PO Number" }).fill(HEADER.poNo);
-  await expect(section.getByRole("textbox", { name: "Product Name (Brand & code)" })).toHaveValue(HEADER.productName);
-  await section.getByRole("textbox", { name: "Inspection date" }).fill(HEADER.inspectionDate);
+  await expect(section.getByRole("textbox", { name: "Product Name (Brand & Code)" })).toHaveValue(HEADER.productName);
+  await section.getByRole("textbox", { name: "Inspection Date" }).fill(HEADER.inspectionDate);
   for (const [label, iso] of [
-    ["Manufacturing date", HEADER.mfgDate],
-    ["Expiry date", HEADER.expiryDate],
+    ["Manufacturing Date", HEADER.mfgDate],
+    ["Expiry Date", HEADER.expiryDate],
   ] as const) {
     const { month, year } = monthAndYear(iso);
     await pick(page, section.getByRole("combobox", { name: `${label}: month` }), month);
@@ -321,21 +340,21 @@ export async function enterHeader(page: Page): Promise<void> {
 /** Glove Information: three texts and the indicative weight on the keypad. */
 export async function enterGloveInfo(page: Page): Promise<void> {
   await openSection(page, "glove_info");
-  const section = frame(page);
-  await section.getByRole("textbox", { name: "Glove surface texture" }).fill(REPORT.gloveInfo.surfaceTexture);
-  await typeNumber(section.getByRole("textbox", { name: "Indicative weight (size M)" }), REPORT.gloveInfo.indicativeWeightG);
-  await section.getByRole("textbox", { name: "Glove colour" }).fill(REPORT.gloveInfo.colour);
-  await section.getByRole("textbox", { name: "Glove length" }).fill(REPORT.gloveInfo.length);
-  await section.getByRole("textbox", { name: "Glove length" }).press("Tab");
+  const section = frame(page, "glove_info");
+  await section.getByRole("textbox", { name: "Glove Surface Texture" }).fill(REPORT.gloveInfo.surfaceTexture);
+  await typeNumber(section.getByRole("textbox", { name: "Indicative Weight (Size M)" }), REPORT.gloveInfo.indicativeWeightG);
+  await section.getByRole("textbox", { name: "Glove Colour" }).fill(REPORT.gloveInfo.colour);
+  await section.getByRole("textbox", { name: "Glove Length" }).fill(REPORT.gloveInfo.length);
+  await section.getByRole("textbox", { name: "Glove Length" }).press("Tab");
 }
 
 /** Order: per size the quantity, its lot (added as a chip) and the packing site. */
 export async function enterOrder(page: Page): Promise<void> {
   await openSection(page, "order_lots");
-  const section = frame(page);
+  const section = frame(page, "order_lots");
   for (const size of SIZES) {
     const line = REPORT.order.lines[size]!;
-    await typeNumber(section.getByRole("textbox", { name: `Qty (cases), Size ${size}`, exact: true }), line.qtyCases);
+    await typeNumber(section.getByRole("textbox", { name: named(`Qty (Cases), Size ${size}`) }), line.qtyCases);
     for (const lot of line.lots) {
       const add = section.getByRole("textbox", { name: `Lot Number, Size ${size}: add`, exact: true });
       await add.fill(lot);
@@ -348,35 +367,39 @@ export async function enterOrder(page: Page): Promise<void> {
   }
 }
 
-/** Packing configuration: 125 gloves per plastic pack, 16 packs per case, 2,000 per case. */
+/**
+ * Packing configuration, on the order's page below the order (its tab is
+ * the order's): 125 gloves per plastic pack, 16 packs per case, 2,000 per
+ * case.
+ */
 export async function enterPacking(page: Page): Promise<void> {
   await openSection(page, "packing_config");
-  const section = frame(page);
-  await typeNumber(section.getByRole("textbox", { name: "# glove per plastic pack" }), REPORT.packing.glovesPerInner);
-  await typeNumber(section.getByRole("textbox", { name: "# packs per case" }), REPORT.packing.innersPerCase);
-  await typeNumber(section.getByRole("textbox", { name: "# gloves per case" }), REPORT.packing.printedGlovesPerCase);
+  const section = frame(page, "packing_config");
+  await typeNumber(section.getByRole("textbox", { name: "# Glove per Plastic Pack" }), REPORT.packing.glovesPerInner);
+  await typeNumber(section.getByRole("textbox", { name: "# Packs per Case" }), REPORT.packing.innersPerCase);
+  await typeNumber(section.getByRole("textbox", { name: "# Gloves per Case" }), REPORT.packing.printedGlovesPerCase);
 }
 
 /** The Sampling Plan's columns in the template's wording, with the fixture's value for each. */
 const SAMPLING_COLUMNS = [
   ["Case", "cases"],
-  ["Inner pack", "inners"],
+  ["Inner Pack", "inners"],
   ["Gloves", "gloves"],
-  ["# gloves for watertight & Visual", "watertightVisualGloves"],
-  ["# gloves for dimension", "dimensionGloves"],
-  ["# gloves for Tensile", "physicalTestGloves"],
-  ["# inner packs for packaging & dispensing inspection", "dispensingInners"],
+  ["# Gloves for Watertight & Visual", "watertightVisualGloves"],
+  ["# Gloves for Dimension", "dimensionGloves"],
+  ["# Gloves for Tensile", "physicalTestGloves"],
+  ["# Inner Packs for Packaging & Dispensing Inspection", "dispensingInners"],
 ] as const;
 
 /** Sampling Plan: per size tab, the seven counts. */
 export async function enterSampling(page: Page): Promise<void> {
   await openSection(page, "sampling_plan");
-  const section = frame(page);
+  const section = frame(page, "sampling_plan");
   for (const size of SIZES) {
     await showSize(page, size);
     const row = REPORT.sampling[size]!;
     for (const [label, field] of SAMPLING_COLUMNS) {
-      await typeNumber(section.getByRole("textbox", { name: `${label}, Size ${size}`, exact: true }), row[field]);
+      await typeNumber(section.getByRole("textbox", { name: named(`${label}, Size ${size}`) }), row[field]);
     }
   }
 }
@@ -441,7 +464,7 @@ export async function correctTextCells(page: Page): Promise<void> {
 /** Physical properties: the lab report attached, then per size its two averages. */
 export async function enterTensile(page: Page): Promise<void> {
   await openSection(page, "tensile");
-  const section = frame(page);
+  const section = frame(page, "tensile");
   const slot = section.locator('[data-slot="file-slot"][data-module="tensile"]');
   await slot.locator("input[data-file-input]").setInputFiles({
     name: "safedon-tensile-lab-report.pdf",
@@ -454,7 +477,7 @@ export async function enterTensile(page: Page): Promise<void> {
     await showSize(page, size);
     const entry = REPORT.tensile[size]!;
     await typeNumber(section.getByRole("textbox", { name: "Tensile Strength (Average) (MPa)" }), entry.tensileMPa);
-    await typeNumber(section.getByRole("textbox", { name: "Elongation at break, average (%)" }), entry.elongationPct);
+    await typeNumber(section.getByRole("textbox", { name: "Elongation at Break, Average (%)" }), entry.elongationPct);
   }
 }
 
@@ -462,30 +485,30 @@ export async function enterTensile(page: Page): Promise<void> {
 export async function enterWeight(page: Page): Promise<void> {
   await openSection(page, "weight");
   for (const size of SIZES) {
-    await typeNumber(frame(page).getByRole("textbox", { name: `Weight (g), Size ${size}`, exact: true }), REPORT.weight[size]!.values![0]);
+    await typeNumber(frame(page, "weight").getByRole("textbox", { name: `Weight (g), Size ${size}`, exact: true }), REPORT.weight[size]!.values![0]);
   }
 }
 
-/** The watertight hole locations as the template words them. */
+/** The watertight hole locations as the report prints them; the template words them in Title Case (named). */
 const HOLE_LABEL = Object.fromEntries(REPORT.watertight.rows.map((row) => [row.code, row.label]));
 
 /** Watertight: per size the gloves tested from the sampling plan (one tap), then the holes tapped in. */
 export async function enterWatertight(page: Page): Promise<void> {
   await openSection(page, "watertight");
-  const section = frame(page);
+  const section = frame(page, "watertight");
   for (const size of SIZES) {
     await showSize(page, size);
     const entry = REPORT.watertight.perSize[size]!;
     await press(section.getByRole("button", { name: `Use ${entry.tested} for size ${size}`, exact: true }));
     // ", Size XS" is screen-reader text beside the label: Chromium names it with a space before the comma.
-    await expect(section.getByRole("textbox", { name: new RegExp(`^No\\. of sample tested ?, Size ${size}$`) })).toHaveValue(
+    await expect(section.getByRole("textbox", { name: new RegExp(`^No\\. of Sample Tested ?, Size ${size}$`, "i") })).toHaveValue(
       String(entry.tested),
     );
     for (const [code, count] of Object.entries(entry.holes)) {
       for (let tap = 0; tap < (count ?? 0); tap++) {
-        await press(section.getByRole("button", { name: `Increase ${HOLE_LABEL[code]}, Size ${size}`, exact: true }));
+        await press(section.getByRole("button", { name: named(`Increase ${HOLE_LABEL[code]}, Size ${size}`) }));
       }
-      await expect(section.getByRole("spinbutton", { name: `${HOLE_LABEL[code]}, Size ${size}`, exact: true })).toHaveAttribute(
+      await expect(section.getByRole("spinbutton", { name: named(`${HOLE_LABEL[code]}, Size ${size}`) })).toHaveAttribute(
         "aria-valuenow",
         String(count),
       );
@@ -496,7 +519,7 @@ export async function enterWatertight(page: Page): Promise<void> {
 /** Visual: per size the gloves inspected for every class from the sampling plan (one tap); no defects. */
 export async function enterVisual(page: Page): Promise<void> {
   await openSection(page, "visual");
-  const section = frame(page);
+  const section = frame(page, "visual");
   for (const size of SIZES) {
     await showSize(page, size);
     const inspected = REPORT.visual.critical.perSize[size]!.inspected;
@@ -504,7 +527,7 @@ export async function enterVisual(page: Page): Promise<void> {
   }
 }
 
-/** The Safedon dispensing defects as the template words them. */
+/** The Safedon dispensing defects as the report prints them; the template words them in Title Case (named). */
 const SAFEDON_LABEL = Object.fromEntries(REPORT.dispensingSafedon.rows.map((row) => [row.code, row.label]));
 
 /**
@@ -514,7 +537,7 @@ const SAFEDON_LABEL = Object.fromEntries(REPORT.dispensingSafedon.rows.map((row)
  */
 export async function enterDispensing(page: Page): Promise<void> {
   await openSection(page, "dispensing_safedon");
-  const section = frame(page);
+  const section = frame(page, "dispensing_safedon");
   for (const size of SIZES) {
     await showSize(page, size);
     const entry = REPORT.dispensingSafedon.perSize[size]!;
@@ -529,10 +552,10 @@ export async function enterDispensing(page: Page): Promise<void> {
       for (const code of SAFEDON_DEFECTS) {
         const count = entry.counts[code][index];
         for (let tap = 0; tap < count; tap++) {
-          await press(section.getByRole("button", { name: `Increase ${SAFEDON_LABEL[code]}, Box ${boxNo}`, exact: true }));
+          await press(section.getByRole("button", { name: named(`Increase ${SAFEDON_LABEL[code]}, Box ${boxNo}`) }));
         }
         if (count > 0) {
-          await expect(section.getByRole("spinbutton", { name: `${SAFEDON_LABEL[code]}, Box ${boxNo}`, exact: true })).toHaveAttribute(
+          await expect(section.getByRole("spinbutton", { name: named(`${SAFEDON_LABEL[code]}, Box ${boxNo}`) })).toHaveAttribute(
             "aria-valuenow",
             String(count),
           );
@@ -545,7 +568,7 @@ export async function enterDispensing(page: Page): Promise<void> {
 /** Packaging labelling: per size, the planned boxes recorded at both levels (3 inner packs, 1 carton); no defects. */
 export async function enterLabeling(page: Page): Promise<void> {
   await openSection(page, "labeling");
-  const section = frame(page);
+  const section = frame(page, "labeling");
   for (const size of SIZES) {
     await showSize(page, size);
     const inner = REPORT.labeling.inner.perSize[size]!.inspected;
@@ -553,17 +576,17 @@ export async function enterLabeling(page: Page): Promise<void> {
     await press(section.getByRole("button", { name: `Record ${inner} boxes inspected: Inner Boxes/Packs, Size ${size}`, exact: true }));
     await press(section.getByRole("button", { name: `Record ${carton} box inspected: Carton Boxes, Size ${size}`, exact: true }));
     await expect(
-      section.getByRole("spinbutton", { name: `No. of sampled boxes inspected, Inner Boxes/Packs, Size ${size}`, exact: true }),
+      section.getByRole("spinbutton", { name: named(`No. of Sampled Boxes Inspected, Inner Boxes/Packs, Size ${size}`) }),
     ).toHaveAttribute("aria-valuenow", String(inner));
     await expect(
-      section.getByRole("spinbutton", { name: `No. of sampled boxes inspected, Carton Boxes, Size ${size}`, exact: true }),
+      section.getByRole("spinbutton", { name: named(`No. of Sampled Boxes Inspected, Carton Boxes, Size ${size}`) }),
     ).toHaveAttribute("aria-valuenow", String(carton));
   }
 }
 
 /** Draws a signature on the pad, as a finger would. */
 export async function sign(page: Page): Promise<void> {
-  const pad = frame(page).locator('[data-slot="signature-pad"] svg[role="img"]');
+  const pad = frame(page, "conclusion").locator('[data-slot="signature-pad"] svg[role="img"]');
   await pad.scrollIntoViewIfNeeded();
   const box = (await pad.boundingBox())!;
   const at = (x: number, y: number) => ({ x: box.x + box.width * x, y: box.y + box.height * y });
@@ -582,7 +605,7 @@ export async function sign(page: Page): Promise<void> {
 /** Conclusion: PASSED as the report concluded, its date, and the signature. */
 export async function enterConclusion(page: Page): Promise<void> {
   await openSection(page, "conclusion");
-  const section = frame(page);
+  const section = frame(page, "conclusion");
   await press(section.getByRole("radio", { name: "PASSED" }));
   await expect(section.getByRole("radio", { name: "PASSED" })).toBeChecked();
   await section.getByLabel("Date", { exact: true }).fill(REPORT.conclusion.date.iso);
@@ -637,18 +660,20 @@ export async function expectReview(page: Page, refNo: string, names: { client: s
   await expect(verdict).toContainText(`${EXPECTED.warnings.length} warnings`);
   await expect(verdict).toContainText("Every module is done");
 
-  // Totals.
+  // Totals, in the template's wording whatever its case (named).
   await expect(moduleRow(page, "order_lots")).toContainText(
-    `Total # carton ${grouped(EXPECTED.totals.cartons)}; Total # gloves ${grouped(EXPECTED.totals.gloves)}.`,
+    `Total # Carton ${grouped(EXPECTED.totals.cartons)}; Total # Gloves ${grouped(EXPECTED.totals.gloves)}.`,
+    { ignoreCase: true },
   );
   for (const size of SIZES) {
-    // Watertight.
+    // Watertight: the holes by the report's labels, which the template words in Title Case.
     const watertight = EXPECTED.watertight[size]!;
     const holes = Object.entries(watertight.byLocation)
       .map(([code, count]) => ` (${REPORT.watertight.rows.find((entry) => entry.code === code)!.label} ${count})`)
       .join("");
     await expect(sizeLine(page, "watertight", size)).toContainText(
       `${watertight.found} / ${watertight.n}${holes}, Defect Limit ${watertight.accept} / ${watertight.reject}: Passed.`,
+      { ignoreCase: true },
     );
     // Visual: critical, major and minor at their limits.
     const { critical, major, minor } = { critical: EXPECTED.visual.critical[size]!, major: EXPECTED.visual.major[size]!, minor: EXPECTED.visual.minor[size]! };
@@ -698,7 +723,9 @@ export async function expectReview(page: Page, refNo: string, names: { client: s
   for (const key of ["carton_sampling", "dimensions", "tensile", "watertight", "visual", "dispensing_safedon", "labeling", "conclusion"]) {
     await expect(moduleRow(page, key), key).toHaveAttribute("data-status", "pass");
   }
-  await expect(moduleRow(page, "conclusion")).toContainText("Conclusion: PASSED. Suggested result: PASSED (warnings: Sampling Plan).");
+  await expect(moduleRow(page, "conclusion")).toContainText("Conclusion: PASSED. Suggested Result: PASSED (warnings: Sampling Plan).", {
+    ignoreCase: true,
+  });
   // XL was not ordered: no module reports it (6.2 rule 4).
   await expect(page.locator('li[data-module] li[data-size="XL"]')).toHaveCount(0);
 }
