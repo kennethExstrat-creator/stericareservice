@@ -165,7 +165,7 @@ export function QuestionItem({ question }: { question: QuestionModel }) {
     <li className="relative flex gap-2 text-sm">
       <CircleHelpIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-brand-600" />
       <p className="min-w-0 break-words">
-        <span className="sr-only">Question {question.id} for the inspector: </span>
+        <span className="sr-only">Question {question.id} for the Inspector: </span>
         <span className="text-foreground">{question.question}</span>
       </p>
     </li>

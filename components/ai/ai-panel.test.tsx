@@ -229,6 +229,8 @@ describe("AiReviewPanelView for an admin", () => {
     expect(content).toContain("tensile Not in the Current Version");
     expect(content).toMatch(/Switched Off for This Inspection .*Switched Off Reason Calipers out for calibration\./);
     expect(content).toMatch(/Questions? for the Inspector/);
+    // Each question's screen-reader prefix follows the label above it.
+    expect(content).toContain("Question Q1 for the Inspector: Is the spec sheet on its way?");
     expect(content).toContain("Show This Opinion");
     expect(content).toContain("Download JSON");
   });
