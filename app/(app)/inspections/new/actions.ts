@@ -2,6 +2,8 @@
 
 import { redirect, unstable_rethrow } from "next/navigation";
 import { authorizeAction } from "@/lib/auth/session";
+import { evaluateCapture } from "@/lib/inspections/capture/evaluate";
+import { mirroredColumns } from "@/lib/inspections/capture/mirror";
 import {
   chooseTemplate,
   describeCreateError,
@@ -14,6 +16,7 @@ import {
   type NewInspectionField,
   type NewInspectionInput,
 } from "@/lib/inspections/create";
+import { personLabel } from "@/lib/inspections/format";
 import { INSPECTIONS_PATH } from "@/lib/inspections/search-params";
 import { ResolvedTemplateSchema } from "@/lib/schemas/template";
 import type { Json } from "@/lib/supabase/database.types";
@@ -80,9 +83,9 @@ async function create(formData: FormData): Promise<Outcome> {
     .select("id, code, version, status, product_type, standard, client_id, manufacturer_id");
   const [templates, client, manufacturer, previous] = await Promise.all([
     user.role === "admin" ? templateQuery.neq("status", "retired") : templateQuery.eq("status", "active"),
-    input.clientId ? supabase.from("clients").select("id").eq("id", input.clientId).maybeSingle() : null,
+    input.clientId ? supabase.from("clients").select("id, name").eq("id", input.clientId).maybeSingle() : null,
     // The address prefills the header (lib/coverage: header.factoryAddress).
-    supabase.from("manufacturers").select("id, address").eq("id", input.manufacturerId).maybeSingle(),
+    supabase.from("manufacturers").select("id, name, address").eq("id", input.manufacturerId).maybeSingle(),
     input.previousId
       ? supabase
           .from("inspections")
@@ -145,15 +148,32 @@ async function create(formData: FormData): Promise<Outcome> {
     previous: previousData,
   });
 
+  // The columns the list shows and searches (PO, product, lots, date, results) repeat the
+  // data (BUILD_SPEC 6.2 rule 10): written exactly as the capture screen's save writes
+  // them, so they match from the start and the first save changes none of them.
+  const columns = mirroredColumns(
+    evaluateCapture({
+      template: resolved.data,
+      overrides: {},
+      data,
+      meta: {
+        refNo: null,
+        inspectionDate,
+        inspector: { id: user.id, name: personLabel({ full_name: user.fullName, email: user.email }) ?? "Inspector" },
+        client: client?.data ? { id: client.data.id, name: client.data.name } : null,
+        manufacturer: { id: manufacturer.data.id, name: manufacturer.data.name },
+      },
+    }),
+  );
+
   const inserted = await supabase
     .from("inspections")
     .insert({
+      ...columns,
       template_id: choice.template.id,
       client_id: input.clientId,
       manufacturer_id: input.manufacturerId,
-      // The row repeats the header's product name (BUILD_SPEC 6.2 rule 10), copied one included.
-      product_name: headerText(data, "productName") ?? input.productName,
-      inspection_date: inspectionDate,
+      inspection_date: columns.inspection_date ?? inspectionDate,
       data: data as unknown as NonNullable<Json>,
     })
     .select("id")
@@ -171,13 +191,6 @@ async function create(formData: FormData): Promise<Outcome> {
         : null,
   });
   return { status: "created", id: inserted.data.id };
-}
-
-function headerText(data: InspectionData, key: string): string | null {
-  const header = data.modules.header;
-  if (typeof header !== "object" || header === null) return null;
-  const value = (header as Record<string, unknown>)[key];
-  return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
 }
 
 /** What the rule would have picked without the admin's choice, for the record. */

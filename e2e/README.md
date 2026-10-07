@@ -51,3 +51,25 @@ than from a full-page image.
   what a user can see.
 - Supabase's built-in mailer only delivers to project team members and allows a few emails an
   hour: do not loop on invite or reset emails.
+
+## Leftovers from a crashed run
+
+A run that dies before `afterAll` leaves its `E2E_*` templates behind, with their inspections,
+photos, files and Storage objects. Most fixtures remove their own leftovers on the next run;
+for the rest, list them first, then delete:
+
+```bash
+npm run clean:e2e                       # lists; deletes nothing
+npm run clean:e2e -- --apply            # deletes what the listing said
+npm run clean:e2e -- --only E2E_NEWSEED # only codes that start with E2E_NEWSEED
+```
+
+For each template it removes the Storage objects of each inspection (`inspection-photos`,
+`inspection-files`), the inspection through `delete_test_inspection()`, the template's source
+files in `template-sources`, then the template. It leaves alone anything younger than an hour
+(`--min-age <minutes>`: someone's run may be using it), inspections of accounts that are not
+`@test.local` (and their templates), and every other row: clients, manufacturers and throwaway
+accounts are only listed, for deleting by hand. Each deleted inspection leaves an admin-only
+`deleted` audit row, and its ref number is not reused (`docs/DATABASE.md`). On a project others
+are testing against, run `--apply` only when nobody else is running specs, or narrow it with
+`--only`.

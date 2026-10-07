@@ -1,31 +1,62 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Json } from "../../lib/supabase/database.types";
+import type { Database, Json } from "../../lib/supabase/database.types";
 import { createTestAdminClient, deleteTestInspection } from "../support/admin";
 import { TEST_ACCOUNTS } from "../support/session";
 
 /**
- * Temporary rows for the /inspections/new specs (e2e/README.md): a client of
- * their own, an active template E2E_NEW scoped to that client at Hartalega
- * (so it only ever applies to that client, whatever else is in the shared
- * database), and one earlier inspection by the test inspector to start from.
- * Everything is deleted afterwards: inspections through
- * deleteTestInspection(), then the template, then the client. A run that died
- * half way is cleaned up by the next.
+ * Temporary rows for the /inspections/new specs (e2e/README.md): a client
+ * and two manufacturers of their own, one active template for each level of
+ * the most specific rule (BUILD_SPEC 4.4), and one earlier inspection by the
+ * test inspector to start from. Every template is scoped to the fixture's
+ * client or to its manufacturer A, so it only ever applies to picks of the
+ * fixture's own rows, whatever else is in the shared database. Manufacturer
+ * B has only the client's template, so with no client only a standard
+ * template (no client, no manufacturer) can apply there. No standard
+ * template is made here: it would apply to anyone's new inspection while it
+ * existed.
  *
- * The template is STD_EG from the seed bundle under another code, so the page
- * shows a real template: its modules, sizes and titles.
+ *   E2E_NEWSEED     the client at Hartalega   client and manufacturer   STD_EG
+ *   E2E_NEWSEED_CM  the client at B           client and manufacturer   STD_EG
+ *   E2E_NEWSEED_C   the client, anywhere      client                    STD_EG, no product name in its header
+ *   E2E_NEWSEED_M   anyone at A               manufacturer              SAFEDON_EG
+ *
+ * Each pick sets two levels against each other, or shows one alone:
+ *   the client at Hartalega   E2E_NEWSEED over E2E_NEWSEED_C      client and manufacturer before client
+ *   the client at A           E2E_NEWSEED_C over E2E_NEWSEED_M    client before manufacturer
+ *   the client at B           E2E_NEWSEED_CM over E2E_NEWSEED_C   client and manufacturer before client
+ *   no client at A            E2E_NEWSEED_M                       the client's templates need the client
+ *   no client at B            a standard template, or none
+ *
+ * The templates are seed templates from the seed bundle under other codes,
+ * so the page shows real templates: their modules, sizes and titles.
+ * Everything is deleted afterwards: inspections through
+ * deleteTestInspection(), then the templates, the client and the
+ * manufacturers. A run that died half way is cleaned up by the next,
+ * including one of this spec's earlier version, whose templates were E2E_NEW
+ * and whose client had the same name.
  */
 
 type AdminClient = ReturnType<typeof createTestAdminClient>;
 
-export const FIXTURE_TEMPLATE_CODE = "E2E_NEW";
+/** E2E_ and the package that owns the spec (newseed), so the shared database tells whose rows they are. */
+export const FIXTURE_TEMPLATE_CODE = "E2E_NEWSEED";
 export const FIXTURE_TEMPLATE_NAME = "E2E new inspection template (temporary)";
+/** One template per level below the fixture's own (see above). */
+export const LEVEL_TEMPLATES = {
+  clientManufacturer: { code: "E2E_NEWSEED_CM", name: "E2E new: the client at manufacturer B (temporary)" },
+  client: { code: "E2E_NEWSEED_C", name: "E2E new: the client anywhere (temporary)" },
+  manufacturer: { code: "E2E_NEWSEED_M", name: "E2E new: anyone at manufacturer A (temporary)" },
+} as const;
+/** This spec's codes before: their templates may still hold a fixture client the next run deletes. */
+const EARLIER_CODES = ["E2E_NEW", "E2E_NEW_CM", "E2E_NEW_C", "E2E_NEW_M"];
+const FIXTURE_CODES = [FIXTURE_TEMPLATE_CODE, ...Object.values(LEVEL_TEMPLATES).map((entry) => entry.code), ...EARLIER_CODES];
 export const FIXTURE_CLIENT_PREFIX = "E2E new client (temporary)";
+export const FIXTURE_MANUFACTURER_PREFIX = "E2E new manufacturer";
 /** Hartalega NGC, from supabase/seed.sql (fixed id). */
 export const HARTALEGA = { id: "10000000-0000-4000-8000-000000000001", label: "Hartalega NGC" } as const;
-/** Terang Nusa, from supabase/seed.sql: no E2E template applies there. */
-export const TERANG_NUSA = { id: "10000000-0000-4000-8000-000000000002", label: "Terang Nusa Sdn. Bhd. · TG Factory 40" } as const;
+/** Polyco Healthline, from supabase/seed.sql (fixed id): SAFEDON_EG's client once the seeds are live. */
+export const POLYCO = { id: "20000000-0000-4000-8000-000000000001", label: "Polyco Healthline" } as const;
 
 /** What the earlier inspection holds: what start-from-previous must copy, and what it must not. */
 export const PREVIOUS = {
@@ -44,14 +75,25 @@ export const PREVIOUS = {
   gloveInfo: { surfaceTexture: "Finger-textured", indicativeWeight: 3.5, colour: "Blue", length: "240 mm minimum" },
   packing: { glovesPerInner: 100, innersPerCase: 10, glovesPerCase: 1000, packingMode: "10 boxes per carton" },
   /** Never copied. */
+  order: { sizes: { M: { qtyCases: 400, lotNumbers: ["E2E-LOT-M-0001"], packingSite: null } } },
   sampling: { sizes: { M: { cases: 20 } } },
+  cartons: { sizes: { M: { cartonNumbers: [32, 578] } } },
   conclusion: { finalResult: "pass", remark: "E2E remark, never copied" },
 } as const;
+
+export type FixtureManufacturer = { id: string; label: string; address: string | null };
 
 export type NewFixture = {
   clientId: string;
   clientName: string;
+  /** Has E2E_NEWSEED_M (anyone); with the client, the client's E2E_NEWSEED_C comes first. */
+  manufacturerA: FixtureManufacturer;
+  /** Has E2E_NEWSEED_CM (with the client) and nothing for anyone else. */
+  manufacturerB: FixtureManufacturer;
+  /** E2E_NEWSEED's id. */
   templateId: string;
+  /** Every fixture template's id, by code. */
+  templateIds: Record<string, string>;
   previousId: string;
   previousRef: string;
   inspectorId: string;
@@ -65,32 +107,85 @@ function fail(step: string, error: { message: string } | null): never {
   throw new Error(`New inspection fixture: ${step} failed: ${error?.message ?? "no data"}`);
 }
 
-type BundleEntry = { code: string; definition: Record<string, unknown>; resolved: Record<string, unknown> };
+type ResolvedModule = { key: string; include: boolean; title: string; labels: Record<string, string>; config: Record<string, unknown> };
+type Resolved = Record<string, unknown> & { modules: ResolvedModule[] };
+type BundleEntry = { code: string; definition: Record<string, unknown>; resolved: Resolved };
+type Scope = {
+  productType: Database["public"]["Enums"]["product_type"];
+  standard: Database["public"]["Enums"]["standard_code"];
+  clientId?: string;
+  manufacturerId?: string;
+};
 
-/** STD_EG from lib/templates/definitions/seed-bundle.json, renamed and scoped to the fixture's client. */
-function fixtureTemplate(clientId: string) {
-  // Specs run from the project root, as playwright.config.ts does (it reads .env.local from there).
-  const bundle = JSON.parse(
-    readFileSync(join(process.cwd(), "lib/templates/definitions/seed-bundle.json"), "utf8"),
-  ) as { templates: BundleEntry[] };
-  const base = bundle.templates.find((entry) => entry.code === "STD_EG") ?? fail("finding STD_EG in the seed bundle", null);
-  const scope = { productType: "examination", standard: "EN455", clientId, manufacturerId: HARTALEGA.id };
+/** The seed bundle, as scripts/seed-templates.mts reads it (specs run from the project root, as playwright.config.ts). */
+function seedBundle(): BundleEntry[] {
+  return (JSON.parse(readFileSync(join(process.cwd(), "lib/templates/definitions/seed-bundle.json"), "utf8")) as { templates: BundleEntry[] })
+    .templates;
+}
+
+export function seedTemplate(code: "STD_EG" | "SAFEDON_EG" | "STD_SG"): BundleEntry {
+  return seedBundle().find((entry) => entry.code === code) ?? fail(`finding ${code} in the seed bundle`, null);
+}
+
+/** The keys of the modules a seed template switches on, in its order. */
+export function includedModules(code: "STD_EG" | "SAFEDON_EG" | "STD_SG"): string[] {
+  return seedTemplate(code)
+    .resolved.modules.filter((entry) => entry.include)
+    .map((entry) => entry.key);
+}
+
+/**
+ * A seed template's resolution under another code, name and scope, with a
+ * definition that stands on its own (no extends): what the editor would
+ * have saved for it.
+ */
+function fixtureTemplate(
+  from: "STD_EG" | "SAFEDON_EG",
+  code: string,
+  name: string,
+  scope: Scope,
+  change: (resolved: Resolved) => Resolved = (resolved) => resolved,
+) {
+  const base = seedTemplate(from).resolved;
+  const resolved = change({ ...base, code, name, chain: [code], bases: [], scope });
+  const definition = {
+    code,
+    name,
+    scope,
+    unit: resolved.unit,
+    sizes: resolved.sizes,
+    modules: resolved.modules.map(({ key, include, title, labels, config }) => ({ key, include, title, labels, config }) as Record<string, unknown>),
+    ...(Array.isArray(resolved.customModules) && resolved.customModules.length > 0 ? { customModules: resolved.customModules } : {}),
+    ...(resolved.report ? { report: resolved.report } : {}),
+  };
   return {
-    definition: { ...base.definition, code: FIXTURE_TEMPLATE_CODE, name: FIXTURE_TEMPLATE_NAME, scope },
-    resolved: {
-      ...base.resolved,
-      code: FIXTURE_TEMPLATE_CODE,
-      name: FIXTURE_TEMPLATE_NAME,
-      chain: [FIXTURE_TEMPLATE_CODE],
-      bases: [],
-      scope,
-    },
+    code,
+    version: 1,
+    product_type: scope.productType,
+    standard: scope.standard,
+    client_id: scope.clientId ?? null,
+    manufacturer_id: scope.manufacturerId ?? null,
+    status: "active" as const,
+    definition: definition as unknown as NonNullable<Json>,
+    resolved: resolved as unknown as Json,
+  };
+}
+
+/** The header's product name switched off: the form then takes none. */
+function withoutProductName(resolved: Resolved): Resolved {
+  return {
+    ...resolved,
+    modules: resolved.modules.map((entry) =>
+      entry.key === "header"
+        ? { ...entry, config: { ...entry.config, fields: { ...(entry.config.fields as Record<string, boolean>), productName: false } } }
+        : entry,
+    ),
   };
 }
 
 /** Deletes every row a previous run may have left behind. */
 async function removeFixtureRows(admin: AdminClient) {
-  const { data: templates, error } = await admin.from("templates").select("id").eq("code", FIXTURE_TEMPLATE_CODE);
+  const { data: templates, error } = await admin.from("templates").select("id").in("code", FIXTURE_CODES);
   if (error) fail("finding old fixture templates", error);
   const templateIds = templates.map((template) => template.id);
   if (templateIds.length > 0) {
@@ -98,18 +193,22 @@ async function removeFixtureRows(admin: AdminClient) {
     if (findError) fail("finding fixture inspections", findError);
     for (const inspection of inspections) await deleteTestInspection(admin, inspection.id);
     const removed = await admin.from("templates").delete().in("id", templateIds);
-    if (removed.error) fail("deleting the fixture template", removed.error);
+    if (removed.error) fail("deleting the fixture templates", removed.error);
   }
   const clients = await admin.from("clients").delete().like("name", `${FIXTURE_CLIENT_PREFIX}%`);
   if (clients.error) fail("deleting the fixture client", clients.error);
+  const manufacturers = await admin.from("manufacturers").delete().like("name", `${FIXTURE_MANUFACTURER_PREFIX}%`);
+  if (manufacturers.error) fail("deleting the fixture manufacturers", manufacturers.error);
 }
 
-/** Inspections the specs created through the page: deleted with the rest, found by the fixture template. */
+/** Inspections the specs created through the page: deleted with the rest, found by their template. */
 export async function inspectionsOfFixture(templateId: string) {
   const admin = createTestAdminClient();
   const { data, error } = await admin
     .from("inspections")
-    .select("id, ref_no, status, inspector_id, template_id, client_id, manufacturer_id, product_name, inspection_date, data, created_at")
+    .select(
+      "id, ref_no, status, inspector_id, template_id, client_id, manufacturer_id, product_name, po_no, lot_numbers, inspection_date, suggested_result, result, remarks, data, created_at",
+    )
     .eq("template_id", templateId)
     .order("created_at");
   if (error) fail("reading the fixture inspections", error);
@@ -121,6 +220,34 @@ export async function auditOf(inspectionId: string) {
   const { data, error } = await admin.from("audit_log").select("action, changes, actor_id").eq("inspection_id", inspectionId);
   if (error) fail("reading the audit log", error);
   return data;
+}
+
+/**
+ * The active standard templates for a product type (no client, no
+ * manufacturer), in the order the rule takes them: by code, then the
+ * highest version. The first is what a pick with nothing more specific gets.
+ */
+export async function standardTemplates(productType: "examination" | "surgical") {
+  const { data, error } = await createTestAdminClient()
+    .from("templates")
+    .select("code, version")
+    .eq("status", "active")
+    .eq("product_type", productType)
+    .is("client_id", null)
+    .is("manufacturer_id", null);
+  if (error) fail("reading the standard templates", error);
+  return data.sort((a, b) => a.code.localeCompare(b.code) || b.version - a.version);
+}
+
+/** Whether STD_EG, SAFEDON_EG and STD_SG are active (scripts/seed-templates.mts has run). */
+export async function seedTemplatesLive(): Promise<boolean> {
+  const { data, error } = await createTestAdminClient()
+    .from("templates")
+    .select("code")
+    .eq("status", "active")
+    .in("code", ["STD_EG", "SAFEDON_EG", "STD_SG"]);
+  if (error) fail("reading the seed templates", error);
+  return new Set(data.map((row) => row.code)).size === 3;
 }
 
 export async function createNewFixture(): Promise<NewFixture> {
@@ -142,14 +269,11 @@ async function insertFixtureRows(admin: AdminClient): Promise<NewFixture> {
   if (peopleError) fail("finding the test accounts", peopleError);
   const idOf = (email: string) => people.find((person) => person.email === email)?.id ?? fail(`finding ${email}`, null);
 
-  const { data: manufacturer, error: manufacturerError } = await admin
-    .from("manufacturers")
-    .select("address")
-    .eq("id", HARTALEGA.id)
-    .single();
-  if (manufacturerError) fail("reading Hartalega", manufacturerError);
+  const { data: hartalega, error: hartalegaError } = await admin.from("manufacturers").select("address").eq("id", HARTALEGA.id).single();
+  if (hartalegaError) fail("reading Hartalega", hartalegaError);
 
-  const clientName = `${FIXTURE_CLIENT_PREFIX} ${Math.random().toString(36).slice(2, 6)}`;
+  const run = Math.random().toString(36).slice(2, 6);
+  const clientName = `${FIXTURE_CLIENT_PREFIX} ${run}`;
   const { data: client, error: clientError } = await admin
     .from("clients")
     .insert({ name: clientName, notes: "Created and deleted by e2e/new. Safe to delete." })
@@ -157,44 +281,68 @@ async function insertFixtureRows(admin: AdminClient): Promise<NewFixture> {
     .single();
   if (clientError) fail("creating the fixture client", clientError);
 
-  const { definition, resolved } = fixtureTemplate(client.id);
-  const { data: template, error: templateError } = await admin
-    .from("templates")
-    .insert({
-      code: FIXTURE_TEMPLATE_CODE,
-      version: 1,
-      product_type: "examination",
-      standard: "EN455",
-      client_id: client.id,
-      manufacturer_id: HARTALEGA.id,
-      status: "active",
-      definition: definition as Json as NonNullable<Json>,
-      resolved: resolved as Json,
-    })
-    .select("id")
-    .single();
-  if (templateError) fail("creating the fixture template", templateError);
+  const manufacturer = async (letter: "A" | "B", address: string | null): Promise<FixtureManufacturer> => {
+    const label = `${FIXTURE_MANUFACTURER_PREFIX} ${letter} (temporary) ${run}`;
+    const { data, error } = await admin
+      .from("manufacturers")
+      .insert({ name: label, address, notes: "Created and deleted by e2e/new. Safe to delete." })
+      .select("id")
+      .single();
+    if (error) fail(`creating manufacturer ${letter}`, error);
+    return { id: data.id, label, address };
+  };
+  const manufacturerA = await manufacturer("A", `E2E factory address ${run}, temporary`);
+  const manufacturerB = await manufacturer("B", null);
+
+  const examination = (standard: Scope["standard"], clientId?: string, manufacturerId?: string): Scope => ({
+    productType: "examination",
+    standard,
+    ...(clientId ? { clientId } : {}),
+    ...(manufacturerId ? { manufacturerId } : {}),
+  });
+  const rows = [
+    fixtureTemplate("STD_EG", FIXTURE_TEMPLATE_CODE, FIXTURE_TEMPLATE_NAME, examination("EN455", client.id, HARTALEGA.id)),
+    fixtureTemplate(
+      "STD_EG",
+      LEVEL_TEMPLATES.clientManufacturer.code,
+      LEVEL_TEMPLATES.clientManufacturer.name,
+      examination("EN455", client.id, manufacturerB.id),
+    ),
+    fixtureTemplate("STD_EG", LEVEL_TEMPLATES.client.code, LEVEL_TEMPLATES.client.name, examination("EN455", client.id), withoutProductName),
+    fixtureTemplate(
+      "SAFEDON_EG",
+      LEVEL_TEMPLATES.manufacturer.code,
+      LEVEL_TEMPLATES.manufacturer.name,
+      examination("ASTM_D6319", undefined, manufacturerA.id),
+    ),
+  ];
+  const { data: templates, error: templateError } = await admin.from("templates").insert(rows).select("id, code");
+  if (templateError) fail("creating the fixture templates", templateError);
+  const templateIds = Object.fromEntries(templates.map((row) => [row.code, row.id]));
 
   const { data: previous, error: previousError } = await admin
     .from("inspections")
     .insert({
-      template_id: template.id,
+      template_id: templateIds[FIXTURE_TEMPLATE_CODE],
       inspector_id: idOf(TEST_ACCOUNTS.inspector),
       client_id: client.id,
       manufacturer_id: HARTALEGA.id,
       product_name: PREVIOUS.productName,
       po_no: PREVIOUS.header.poNo,
+      lot_numbers: [...PREVIOUS.order.sizes.M.lotNumbers],
       inspection_date: "2026-09-01",
       data: {
         modules: {
           header: PREVIOUS.header,
           glove_info: PREVIOUS.gloveInfo,
+          order_lots: PREVIOUS.order,
           packing_config: PREVIOUS.packing,
           sampling_plan: PREVIOUS.sampling,
+          carton_sampling: PREVIOUS.cartons,
           conclusion: PREVIOUS.conclusion,
         },
         custom: { glove_type: { gloveType: "E2E powder free, never copied" } },
-      },
+      } as unknown as NonNullable<Json>,
     })
     .select("id, ref_no")
     .single();
@@ -205,12 +353,15 @@ async function insertFixtureRows(admin: AdminClient): Promise<NewFixture> {
   return {
     clientId: client.id,
     clientName,
-    templateId: template.id,
+    manufacturerA,
+    manufacturerB,
+    templateId: templateIds[FIXTURE_TEMPLATE_CODE],
+    templateIds,
     previousId: previous.id,
     previousRef: previous.ref_no,
     inspectorId: idOf(TEST_ACCOUNTS.inspector),
     adminId: idOf(TEST_ACCOUNTS.admin),
-    manufacturerAddress: manufacturer.address?.trim() || null,
+    manufacturerAddress: hartalega.address?.trim() || null,
     cleanup: () => removeFixtureRows(admin),
   };
 }

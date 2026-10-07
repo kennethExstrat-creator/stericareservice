@@ -13,8 +13,12 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 
 import { redirect } from "next/navigation";
 import { authorizeAction } from "@/lib/auth/session";
+import { evaluateCapture } from "@/lib/inspections/capture/evaluate";
+import { mirroredColumns } from "@/lib/inspections/capture/mirror";
+import { ResolvedTemplateSchema } from "@/lib/schemas/template";
 import { createClient } from "@/lib/supabase/server";
 import { buildSeedBundle, SEED_TEMPLATES } from "@/lib/templates/definitions";
+import type { InspectionData } from "@/modules/_framework";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import { createInspection, type CreateInspectionState } from "./actions";
 
@@ -115,8 +119,8 @@ function world({ templates, client = true, address = ADDRESS, previous = null, i
         : rows.filter((entry) => entry.status !== "retired");
       return { data: visible, error: null };
     }
-    if (query.table === "clients") return { data: client ? { id: CLIENT } : null, error: null };
-    if (query.table === "manufacturers") return { data: { id: MANUFACTURER, address }, error: null };
+    if (query.table === "clients") return { data: client ? { id: CLIENT, name: "Client A" } : null, error: null };
+    if (query.table === "manufacturers") return { data: { id: MANUFACTURER, name: "Manufacturer A", address }, error: null };
     if (query.table === "inspections" && argOf(query, "insert")) return insert ?? { data: { id: NEW_ID }, error: null };
     if (query.table === "inspections") return { data: previous, error: null };
     return { data: null, error: null };
@@ -243,8 +247,12 @@ describe("the template (BUILD_SPEC 4.4)", () => {
     // The header starts dated today, with the product name and the manufacturer's address.
     expectOnly(data.modules.header, { inspectionDate: "2026-10-06", productName: "Nitrile blue", factoryAddress: ADDRESS });
     expect(data.custom).toEqual({});
+    // Every module's data is that module's own, as its schema reads it.
+    for (const [key, value] of Object.entries(data.modules)) {
+      expect(MODULE_REGISTRY[key as keyof typeof MODULE_REGISTRY].dataSchema.safeParse(value).success, key).toBe(true);
+    }
     const manufacturer = db.queries.find((query) => query.table === "manufacturers");
-    expect(argOf(manufacturer, "select")).toBe("id, address");
+    expect(argOf(manufacturer, "select")).toBe("id, name, address");
     // An inspector reads active templates only.
     expect(db.queries.some((query) => query.table === "templates" && has(query, "eq", "status", "active"))).toBe(true);
     expect(db.rpcs).toEqual([]);
@@ -315,6 +323,63 @@ describe("the template (BUILD_SPEC 4.4)", () => {
       status: "error",
       fieldErrors: { templateId: "STD_SG is for surgical gloves. Choose one for examination gloves." },
     });
+  });
+});
+
+describe("the columns the list shows and searches (BUILD_SPEC 6.2 rule 10)", () => {
+  /** What the capture screen's save would write for this data (lib/inspections/capture/mirror.ts). */
+  function onFirstSave(code: "STD_EG" | "SAFEDON_EG", data: unknown) {
+    const template = ResolvedTemplateSchema.parse(bundle.get(code)!.resolved);
+    return mirroredColumns(
+      evaluateCapture({
+        template,
+        overrides: {},
+        data: data as InspectionData,
+        meta: { refNo: "INS-2026-0001", inspectionDate: "2026-10-06", inspector: null, client: null, manufacturer: null },
+      }),
+    );
+  }
+
+  it("are written as the capture screen's save writes them, so the first save changes none", async () => {
+    await submit(order());
+    const payload = inserted()!;
+    expect(payload).toMatchObject({
+      po_no: null,
+      product_name: "Nitrile blue",
+      lot_numbers: [],
+      inspection_date: "2026-10-06",
+      suggested_result: "hold",
+      result: null,
+      remarks: null,
+    });
+    expect(payload).toMatchObject(onFirstSave("SAFEDON_EG", payload.data));
+  });
+
+  it("never carry an earlier inspection's PO, lots or results", async () => {
+    use(
+      world({
+        previous: {
+          id: PREVIOUS_ID,
+          ref_no: "INS-2026-0007",
+          client_id: null,
+          manufacturer_id: MANUFACTURER,
+          template: { product_type: "examination" },
+          data: {
+            modules: {
+              header: { productName: "Nitrile blue", poNo: "PO-0001" },
+              order_lots: { sizes: { M: { qtyCases: 400, lotNumbers: ["LOT-M-0001"], packingSite: null } } },
+              conclusion: { finalResult: "pass", remark: "All good." },
+            },
+            custom: {},
+          },
+        },
+      }),
+    );
+    await submit(order({ clientId: "none", previousId: PREVIOUS_ID, productName: "" }));
+    const payload = inserted()!;
+    expect(payload).toMatchObject({ template_id: T.STD_EG, product_name: "Nitrile blue", po_no: null, lot_numbers: [] });
+    expect(payload).toMatchObject({ result: null, remarks: null });
+    expect(payload).toMatchObject(onFirstSave("STD_EG", payload.data));
   });
 });
 

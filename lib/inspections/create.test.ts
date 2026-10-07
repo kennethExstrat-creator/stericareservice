@@ -3,24 +3,30 @@ import type { ModuleKey } from "@/lib/schemas/module-result";
 import type { ResolvedTemplate } from "@/lib/schemas/template";
 import type { TemplateCandidate } from "@/lib/templates/select";
 import { buildSeedBundle, SEED_TEMPLATES } from "@/lib/templates/definitions";
+import { parseModuleData, readModuleEntry, type InspectionData } from "@/modules/_framework";
 import { TEST_CLIENT_ID, TEST_MANUFACTURER_ID, TEST_REGISTRY } from "@/modules/_framework/__fixtures__/test-registry";
 import { makeTestTemplate } from "@/modules/_framework/testing";
 import { MODULE_REGISTRY } from "@/modules/registry";
+import { evaluateCapture } from "./capture/evaluate";
+import { mirroredColumns } from "./capture/mirror";
 import {
   choiceReason,
   chooseTemplate,
+  COPIED_MODULE_KEYS,
   copiedFieldsOff,
   copiedInWords,
   copiesOf,
   copyFromPrevious,
   describeCreateError,
   fieldErrorsOf,
+  headerHidesProductName,
   headerPrefill,
   latestPerProduct,
   newInspectionData,
   NewInspectionInputSchema,
   NO_CLIENT,
   plannedCopy,
+  PREVIOUS_COPY,
   previousFor,
   previousMatches,
   productKey,
@@ -402,6 +408,109 @@ describe("start from previous: what is copied", () => {
   });
 });
 
+describe("start from previous with the real modules, for every seed template", () => {
+  /**
+   * An earlier inspection as the real modules save it: the product's facts,
+   * this shipment's own values (PO, dates, order, sampling, cartons,
+   * readings), the result, comments and a custom module.
+   */
+  const earlier: InspectionData = {
+    modules: {
+      header: {
+        factoryAddress: "Factory address A",
+        poNo: "PO-0001 (SO-0001)",
+        productName: "Brand A nitrile, code GN-0001",
+        productCode: "GN-0001",
+        factoryGloveCode: "FGC-01",
+        inspectionDate: "2026-09-01",
+        mfgDate: "2026-08-01",
+        expiryDate: "2029-07-31",
+        comment: "Header checked against the PO.",
+      },
+      glove_info: { surfaceTexture: "Finger-textured", indicativeWeight: 3.5, colour: "Blue", length: "240 mm minimum", comment: "As printed." },
+      order_lots: { sizes: { M: { qtyCases: 400, lotNumbers: ["LOT-M-0001"], packingSite: "Packing site A" } } },
+      packing_config: { glovesPerInner: 100, innersPerCase: 10, glovesPerCase: 1000, packingMode: "10 boxes per carton" },
+      sampling_plan: { sizes: { M: { cases: 2, gloves: 200, glovesWatertightVisual: 200 } } },
+      carton_sampling: { sizes: { M: { cartonNumbers: [32, 578] } } },
+      weight: { sizes: { M: { values: [3.41, 3.62] } } },
+      conclusion: { finalResult: "pass", remark: "All good.", date: "2026-09-02" },
+    },
+    custom: { glove_type: { gloveType: "Powder free" } },
+  };
+  const META = {
+    refNo: "INS-2026-0002",
+    inspectionDate: "2026-10-06",
+    inspector: { id: "00000000-0000-4000-8000-000000000101", name: "Inspector A" },
+    client: null,
+    manufacturer: null,
+  };
+
+  it("starts from an inspection every real module reads", () => {
+    for (const key of Object.keys(earlier.modules) as ModuleKey[]) {
+      expect(parseModuleData(MODULE_REGISTRY[key], readModuleEntry(earlier, "modules", key)).success, key).toBe(true);
+    }
+  });
+
+  for (const code of ["STD_EG", "SAFEDON_EG", "STD_SG"]) {
+    it(`${code}: copies the product's facts the template shows, and every other module starts empty`, () => {
+      const template = seeds.get(code)!;
+      const { data, copied } = newInspectionData({
+        template,
+        registry: MODULE_REGISTRY,
+        inspectionDate: "2026-10-06",
+        productName: null,
+        previous: earlier,
+      });
+      const included = template.modules.filter((entry) => entry.include).map((entry) => entry.key);
+      expect(Object.keys(data.modules)).toEqual(included);
+      expect(copied).toEqual(COPIED_MODULE_KEYS.filter((key) => included.includes(key)));
+
+      for (const key of included) {
+        const definition = MODULE_REGISTRY[key];
+        const value = data.modules[key];
+        // The module's own schema reads it as it is: nothing it does not take.
+        expect(definition.dataSchema.parse(value), key).toEqual(value);
+        if (!(COPIED_MODULE_KEYS as readonly string[]).includes(key)) expect(value, key).toEqual(definition.emptyData());
+      }
+      // Exactly the copied fields the template shows (the header also dated today).
+      for (const key of copied) {
+        const saved = readModuleEntry(earlier, "modules", key).value as Record<string, unknown>;
+        const listed = PREVIOUS_COPY[key];
+        const fields = (listed === "all" ? Object.keys(saved) : listed).filter((field) => templateShowsField(template, key, field));
+        const expected = Object.fromEntries(fields.map((field) => [field, saved[field]]));
+        expectOnly(data.modules[key], key === "header" ? { ...expected, inspectionDate: "2026-10-06" } : expected);
+      }
+
+      // Nothing of the earlier shipment flows forward: no order, sizes, cartons, PO or dates, no result.
+      const evaluation = evaluateCapture({ template, overrides: {}, data, meta: META });
+      expect(evaluation.context.sizes).toEqual([]);
+      expect(evaluation.context.order).toEqual({});
+      expect(evaluation.context.cartons).toEqual({});
+      expect(evaluation.context.header).toMatchObject({ poNo: null, mfgDate: null, expiryDate: null, inspectionDate: "2026-10-06" });
+      expect(evaluation.report.issues.filter((issue) => issue.code === "invalid_data")).toEqual([]);
+      expect(mirroredColumns(evaluation)).toMatchObject({ po_no: null, lot_numbers: [], result: null, remarks: null });
+      const text = JSON.stringify(data);
+      for (const never of [
+        "PO-0001",
+        "2026-09-01",
+        "2026-08-01",
+        "2029-07-31",
+        "2026-09-02",
+        "LOT-M-0001",
+        "Packing site A",
+        "578",
+        "3.62",
+        "All good.",
+        "Powder free",
+        '"comment"',
+      ]) {
+        expect(text, never).not.toContain(never);
+      }
+      expect(data.custom).toEqual({});
+    });
+  }
+});
+
 describe("the new inspection's data", () => {
   it("holds each included module's empty data, in template order, the header dated today", () => {
     const { data, copied } = newInspectionData({
@@ -509,6 +618,36 @@ describe("the new inspection's data", () => {
     }
     // This header has no inspection date or factory address: they are left to the row and the manufacturer.
     expect(data.modules.header).toEqual({ poNo: null, productName: "Nitrile", client: null });
+  });
+});
+
+describe("a template whose header has no product name", () => {
+  const headerFields = (STD_EG.modules.find((entry) => entry.key === "header")!.config as { fields: Record<string, boolean> }).fields;
+  const noName = withConfig(STD_EG, "header", { fields: { ...headerFields, productName: false } });
+
+  it("is known from what the form gets", () => {
+    expect(headerHidesProductName({ fieldsOff: copiedFieldsOff(STD_EG) })).toBe(false);
+    expect(headerHidesProductName({ fieldsOff: copiedFieldsOff(noName) })).toBe(true);
+    expect(headerHidesProductName({ fieldsOff: {} })).toBe(false);
+  });
+
+  it("starts an inspection that records no product name, typed or copied", () => {
+    const previous = { modules: { header: { productName: "Old name", productCode: "GN-1" } }, custom: {} };
+    const { data } = newInspectionData({
+      template: noName,
+      registry: MODULE_REGISTRY,
+      inspectionDate: "2026-10-06",
+      productName: "Typed name",
+      previous,
+    });
+    expectOnly(data.modules.header, { productCode: "GN-1", inspectionDate: "2026-10-06" });
+    const evaluation = evaluateCapture({
+      template: noName,
+      overrides: {},
+      data,
+      meta: { refNo: null, inspectionDate: "2026-10-06", inspector: null, client: null, manufacturer: null },
+    });
+    expect(mirroredColumns(evaluation).product_name).toBeNull();
   });
 });
 
