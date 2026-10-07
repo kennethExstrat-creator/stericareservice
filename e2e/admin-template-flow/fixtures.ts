@@ -29,9 +29,18 @@ const CLIENT_PREFIX = "E2E admin flow client";
 /** A seeded manufacturer (supabase/seed.sql uses fixed ids). */
 export const HARTALEGA = { id: "10000000-0000-4000-8000-000000000001", label: "Hartalega NGC" } as const;
 
-/** This run's code for a project: E2E_ADMIN_1A2B3C_IPAD_PORTRAIT_BASE. */
+/**
+ * This run's code for a project, by the project's initials: E2E_ADMIN_1A2B3C_IP_BASE
+ * for ipad-portrait, _IPL_ for ipad-pro-landscape. A template code takes 40
+ * characters at most, which the project's full name could pass.
+ */
 export function codeFor(project: string, name: string): string {
-  return `${CODE_PREFIX}_${RUN}_${project.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}_${name}`;
+  const initials = project
+    .split(/[^a-z0-9]+/i)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase())
+    .join("");
+  return `${CODE_PREFIX}_${RUN}_${initials}_${name}`;
 }
 
 function fail(step: string, error: { message: string } | null): never {
