@@ -22,7 +22,6 @@ import {
   issuePathProps,
   MeasurementGrid,
   SizeTabs,
-  StatusIcon,
   useDataUpdater,
   useIssueFocus,
   type DataChange,
@@ -86,29 +85,22 @@ export default function Capture({
   });
 
   const reportLabel = labelFor(labels, "labReport");
-  const reportState = labReportState(context, data.labReport);
-  const missing = evaluation?.issues.find((issue) => issue.code === "lab_report_missing");
 
   return (
     // relative: screen-reader text inside never lays out against the page (docs/DESIGN.md).
     <div ref={root} data-slot="force-at-break" className="relative space-y-4">
       <section
         data-slot="lab-report"
-        data-state={reportState}
-        {...issuePathProps(["labReport"])}
         aria-label={reportLabel}
-        className="relative space-y-3"
+        className="relative space-y-3 rounded-lg border border-border bg-card px-3 py-2.5"
       >
-        <AttachmentStatus label={reportLabel} attached={reportState === "attached"} />
-        {missing && (
-          <p
-            {...issueNoticeProps(missing.path)}
-            className="flex items-start gap-1.5 rounded-sm text-sm text-warn outline-none focus-ring touch:text-base"
-          >
-            <StatusIcon status="warn" className="mt-0.5 size-4 shrink-0 touch:mt-1" />
-            <span>{missing.message}</span>
-          </p>
-        )}
+        {/* calc's state of the kept file, and its warning when the file is missing; an issue link lands here. */}
+        <AttachmentStatus
+          label={reportLabel}
+          state={labReportState(context, data.labReport)}
+          warning={evaluation?.issues.find((issue) => issue.code === "lab_report_missing")?.message ?? null}
+          issuePath={["labReport"]}
+        />
         <ModuleFileSlot
           moduleKey="force_at_break"
           kind="lab_report"

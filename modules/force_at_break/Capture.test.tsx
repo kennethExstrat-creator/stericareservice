@@ -128,9 +128,10 @@ describe("force_at_break capture", () => {
     });
     expect(gone).toContain('data-state="missing"');
     expect(gone).toContain("Lab report: the file attached here is not among this inspection&#x27;s files. It may still be uploading from another device; if it was deleted, attach it again.");
-    // The issue link lands on that message, which takes the focus itself.
-    const notice = /<p[^>]*data-issue-path="\[&quot;labReport&quot;\]"[^>]*>/.exec(gone)?.[0];
-    expect(notice).toContain('tabindex="-1"');
+    // The issue link lands on the kit's attachment line, which takes the focus itself.
+    const line = /<div[^>]*data-slot="attachment-status"[^>]*>/.exec(gone)?.[0];
+    expect(line).toContain('tabindex="-1"');
+    expect(line).toContain('data-issue-path="[&quot;labReport&quot;]"');
   });
 
   it("says where the lab report is attached when the screen gives no file slot (preview, review)", () => {

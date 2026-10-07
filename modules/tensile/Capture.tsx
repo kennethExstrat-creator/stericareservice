@@ -15,11 +15,8 @@ import {
   AttachmentStatus,
   EnterGroup,
   findIssue,
-  issueNoticeProps,
-  issuePathProps,
   NumberField,
   SizeTabs,
-  StatusIcon,
   StatusPill,
   useDataUpdater,
   useIssueFocus,
@@ -66,30 +63,23 @@ export default function Capture({
 
   const caption = specCaption(labelFor(labels, "specRow"), config.standardLabel);
   const reportLabel = labelFor(labels, "labReport");
-  const reportState = labReportState(context, data.labReport);
-  const missing = evaluation?.issues.find((issue) => issue.code === "lab_report_missing");
 
   return (
     // relative: screen-reader text inside never lays out against the page (docs/DESIGN.md).
     <div ref={root} data-slot="tensile" className="relative space-y-4">
-      {/* Required: until it is attached the module is not done, and its not-done link lands here. */}
       <section
         data-slot="lab-report"
-        data-state={reportState}
-        {...issuePathProps(["labReport"])}
         aria-label={reportLabel}
-        className="relative space-y-3"
+        className="relative space-y-3 rounded-lg border border-border bg-card px-3 py-2.5"
       >
-        <AttachmentStatus label={reportLabel} attached={reportState === "attached"} required />
-        {missing && (
-          <p
-            {...issueNoticeProps(missing.path)}
-            className="flex items-start gap-1.5 rounded-sm text-sm text-warn outline-none focus-ring touch:text-base"
-          >
-            <StatusIcon status="warn" className="mt-0.5 size-4 shrink-0 touch:mt-1" />
-            <span>{missing.message}</span>
-          </p>
-        )}
+        {/* Required: until it is attached the module is not done, and its not-done link lands on this line. */}
+        <AttachmentStatus
+          label={reportLabel}
+          state={labReportState(context, data.labReport)}
+          required
+          warning={evaluation?.issues.find((issue) => issue.code === "lab_report_missing")?.message ?? null}
+          issuePath={["labReport"]}
+        />
         <ModuleFileSlot
           moduleKey="tensile"
           kind="lab_report"

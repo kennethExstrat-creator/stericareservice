@@ -166,18 +166,24 @@ describe("documents capture: files", () => {
     const gone = render(data, { context: makeTestContext({ ...CONTEXT, files: [] }) });
     expect(gone).toContain('data-file-state="missing"');
     expect(gone).toMatch(/>File<\/span><span[^>]*>Not attached<\/span>/);
+    // calc's warning, in the template's wording, replaces the line's own words.
     expect(gone).toContain("ISO 13485: the file attached here is not among this inspection&#x27;s files. It may still be uploading from another device; if it was deleted, attach it again.");
+    expect(gone).not.toContain("The file attached here is not among");
   });
 
   it("gives the issue link to a missing file something to focus: the file line, which the row's status names", () => {
     const data = emptyDocuments();
     data.items.iso13485 = { ...data.items.iso13485, status: "verified", file: FILE };
     const gone = render(data, { context: makeTestContext({ ...CONTEXT, files: [] }) });
-    const [line] = tagsWith(gone, 'data-slot="document-file"');
+    // The kit's attachment line takes the focus itself (tabIndex -1), with a visible ring.
+    const [line] = tagsWith(gone, 'data-slot="attachment-status"');
+    expect(line).toContain('data-state="missing"');
     expect(line).toContain('tabindex="-1"');
     expect(line).toContain(`data-issue-path="${escapeAttribute(JSON.stringify(["items", "iso13485", "file"]))}"`);
     expect(line).toContain("focus-ring");
-    const id = /\sid="([^"]+)"/.exec(line)?.[1];
+    // The row's status is described by it.
+    const [wrapper] = tagsWith(gone, 'data-file-state="missing"');
+    const id = /\sid="([^"]+)"/.exec(wrapper)?.[1];
     expect(id).toBeDefined();
     expect(tagsWith(gone, `aria-describedby="${id}"`)).toHaveLength(1);
     // Attached: nothing to point at from the status.

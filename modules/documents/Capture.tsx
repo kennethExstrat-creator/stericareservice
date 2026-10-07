@@ -23,9 +23,7 @@ import {
   DateField,
   Figure,
   findIssue,
-  issueNoticeProps,
   issuePathProps,
-  StatusIcon,
   StatusPill,
   useDataUpdater,
   useIssueFocus,
@@ -212,7 +210,6 @@ export function DocumentRow({
       {...issuePathProps(["items", item.key])}
     >
       <div className="flex items-start justify-between gap-3 xl:flex-col xl:justify-start xl:gap-1">
-        {/* As wide as the row allows, so every row's file line has the same width. */}
         <div className="min-w-0 flex-1 space-y-1 xl:w-full xl:flex-none">
           <p id={`${uid}-name`} className="font-semibold text-foreground touch:text-base">
             {name}
@@ -223,20 +220,15 @@ export function DocumentRow({
             </Badge>
           )}
           {fileState !== "none" && (
-            <div data-file-state={fileState} className="space-y-1 pt-1">
-              <AttachmentStatus label={labelFor(labels, "file")} attached={fileState === "attached"} />
-              {fileState === "missing" && (
-                // A message, not a control: an issue link focuses it itself (tabIndex -1).
-                <p
-                  id={fileLineId}
-                  data-slot="document-file"
-                  {...issueNoticeProps(path("file"))}
-                  className="flex items-start gap-1.5 rounded-sm text-sm text-warn outline-none focus-ring touch:text-base"
-                >
-                  <StatusIcon status="warn" className="mt-0.5 size-4 shrink-0 touch:mt-1" />
-                  <span>{fileIssue?.message ?? `${labelFor(labels, "file")} no longer with this inspection.`}</span>
-                </p>
-              )}
+            // The kit's line for the file the row keeps, with calc's warning when it is missing. It
+            // takes an issue link's focus itself, and the row's status is described by it.
+            <div id={fileLineId} data-file-state={fileState} className="pt-1">
+              <AttachmentStatus
+                label={labelFor(labels, "file")}
+                state={fileState}
+                warning={fileIssue?.message ?? null}
+                issuePath={path("file")}
+              />
             </div>
           )}
         </div>

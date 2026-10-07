@@ -115,10 +115,14 @@ describe("labeling capture", () => {
     const html = render(RECORDED);
     expect(html).toContain("Accept 0 / Reject 1");
     expect(html).not.toContain("Ac 0 / Re 1");
-    // A template that words them its own way, per level or for both.
-    const worded = render(RECORDED, { labels: { ...LABELING_LABELS, accept: "Acc. =", "carton.reject": "Rej. =" } });
+    // A template that words them its own way: for both levels, or one level apart, keyed level
+    // first as the dictionary keys level wording (cartonReject), or dotted from the editor.
+    const worded = render(RECORDED, { labels: { ...LABELING_LABELS, accept: "Acc. =", cartonReject: "Rej. =" } });
     expect(worded).toContain("Acc. = 0 / Reject 1");
     expect(worded).toContain("Acc. = 0 / Rej. = 1");
+    const dotted = render(RECORDED, { labels: { ...LABELING_LABELS, "inner.accept": "A =" } });
+    expect(dotted).toContain("A = 0 / Reject 1");
+    expect(dotted).toContain("Accept 0 / Reject 1");
     const results = tagsWith(html, 'data-slot="status-pill"').map((pill) => /data-status="([a-z_]+)"/.exec(pill)?.[1]);
     expect(results).toEqual(["fail", "pass"]);
   });

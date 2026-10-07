@@ -172,9 +172,10 @@ describe("tensile capture", () => {
     const html = render({ context });
     expect(html).toContain('data-state="missing"');
     expect(html).toContain("Lab report: the file attached here is not among this inspection&#x27;s files. It may still be uploading from another device; if it was deleted, attach it again.");
-    // The issue link lands on that message, which takes the focus itself.
-    const notice = /<p[^>]*data-issue-path="\[&quot;labReport&quot;\]"[^>]*>/.exec(html)?.[0];
-    expect(notice).toContain('tabindex="-1"');
+    // The issue link lands on the kit's attachment line, which takes the focus itself.
+    const line = /<div[^>]*data-slot="attachment-status"[^>]*>/.exec(html)?.[0];
+    expect(line).toContain('tabindex="-1"');
+    expect(line).toContain('data-issue-path="[&quot;labReport&quot;]"');
   });
 
   it("shows a lab report added in the gallery as attached, though the module keeps no id", () => {
