@@ -332,8 +332,8 @@ const Section = memo(function Section({
         </colgroup>
         <thead className="sr-only">
           <tr>
-            <th scope="col">On the source</th>
-            <th scope="col">In this version</th>
+            <th scope="col">On the Source</th>
+            <th scope="col">In This Version</th>
             <th scope="col">State</th>
           </tr>
         </thead>
