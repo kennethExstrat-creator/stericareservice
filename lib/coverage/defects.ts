@@ -1,7 +1,7 @@
 // Defect labels per template, in report order, mapped to the canonical codes
 // of supabase/seed.sql (BUILD_SPEC 4.2 rule 4, 11). Severity is the class a
-// template puts a code in: "Defective bead" is major in STD_EG while
-// "Defective beads" is minor, both bead_defective. Also the other coded
+// template puts a code in: "Defective Bead" is major in STD_EG while
+// "Defective Beads" is minor, both bead_defective. Also the other coded
 // lists a template fixes: stickiness codes and labelling checks.
 import type { DefectClass, LabellingCheck, LabellingLevel } from "./keys";
 import type { TemplateCode } from "./types";
@@ -9,9 +9,9 @@ import type { TemplateCode } from "./types";
 export type DefectLabel = {
   /** defect_codes.code */
   readonly code: string;
-  /** The template's label: verbatim, with [sic] typos fixed. */
+  /** The template's label: the report's words, [sic] typos fixed, in Title Case (docs/DESIGN.md). */
   readonly label: string;
-  /** As printed, where it differs from `label` ([sic]). */
+  /** As printed, where its words differ from `label` ([sic]). sources.ts keeps every label as printed. */
   readonly printed?: string;
 };
 
@@ -29,50 +29,50 @@ export function listItems(list: readonly DefectLabel[]): readonly ListItem[] {
 
 const CRITICAL: readonly DefectLabel[] = [
   { code: "embedded_insect", label: "Embedded Insects", printed: "Embeded Insects" },
-  { code: "embedded_metal", label: "Embedded metal debris", printed: "Embeded metal debris" },
+  { code: "embedded_metal", label: "Embedded Metal Debris", printed: "Embeded metal debris" },
 ];
 
 const STD_EG_VISUAL: Readonly<Record<DefectClass, readonly DefectLabel[]>> = {
   critical: CRITICAL,
   major: [
-    { code: "thin_crotch_area", label: "Thin area between fingers (crotch)" },
-    { code: "thin_crotch_ring", label: "Ring-shaped thin area (crotch)" },
-    { code: "thin_body_area", label: "Thin area on glove body" },
-    { code: "thin_spot", label: "Thin spot on glove body" },
-    { code: "dirt_nonremovable", label: "Non-removable dirt" },
-    { code: "stain", label: "Oil stain" },
-    { code: "foreign_matter", label: "Residue material / foreign matter" },
-    { code: "bead_defective", label: "Defective bead" },
+    { code: "thin_crotch_area", label: "Thin Area Between Fingers (Crotch)" },
+    { code: "thin_crotch_ring", label: "Ring-Shaped Thin Area (Crotch)" },
+    { code: "thin_body_area", label: "Thin Area on Glove Body" },
+    { code: "thin_spot", label: "Thin Spot on Glove Body" },
+    { code: "dirt_nonremovable", label: "Non-Removable Dirt" },
+    { code: "stain", label: "Oil Stain" },
+    { code: "foreign_matter", label: "Residue Material / Foreign Matter" },
+    { code: "bead_defective", label: "Defective Bead" },
     { code: "lump_big", label: "Big Lumps (>2mm)" },
   ],
   minor: [
-    { code: "dirt_small", label: "Small dirt / stain" },
-    { code: "sticky_pleats", label: "Sticky pleats (< 5mm)" },
+    { code: "dirt_small", label: "Small Dirt / Stain" },
+    { code: "sticky_pleats", label: "Sticky Pleats (< 5mm)" },
     { code: "lump_small", label: "Lumps (<2mm)" },
-    { code: "bead_poor", label: "Poor beading" },
-    { code: "bead_rolled", label: "Rolled bead" },
-    { code: "bead_defective", label: "Defective beads" },
+    { code: "bead_poor", label: "Poor Beading" },
+    { code: "bead_rolled", label: "Rolled Bead" },
+    { code: "bead_defective", label: "Defective Beads" },
   ],
 };
 
 const SAFEDON_EG_VISUAL: Readonly<Record<DefectClass, readonly DefectLabel[]>> = {
   critical: CRITICAL,
   major: [
-    { code: "thin_crotch_ring", label: "Thin ring between fingers (crotch)" },
-    { code: "thin_crotch_area", label: "Thin area between fingers (crotch)" },
-    { code: "thin_body_area", label: "Thin patch / area (body)", printed: "Thin batch / area (body)" },
-    { code: "thin_spot", label: "Thin spot" },
-    { code: "dirt_nonremovable", label: "Non-removable dirt" },
+    { code: "thin_crotch_ring", label: "Thin Ring Between Fingers (Crotch)" },
+    { code: "thin_crotch_area", label: "Thin Area Between Fingers (Crotch)" },
+    { code: "thin_body_area", label: "Thin Patch / Area (Body)", printed: "Thin batch / area (body)" },
+    { code: "thin_spot", label: "Thin Spot" },
+    { code: "dirt_nonremovable", label: "Non-Removable Dirt" },
     { code: "stain", label: "Stain" },
-    { code: "powder_mark", label: "Powder mark" },
-    { code: "bead_blister", label: "Bead blister" },
+    { code: "powder_mark", label: "Powder Mark" },
+    { code: "bead_blister", label: "Bead Blister" },
   ],
   minor: [
-    { code: "dirt_small", label: "Small dirt / stain" },
-    { code: "sticky_pleats", label: "Sticky pleats (< 5mm)" },
+    { code: "dirt_small", label: "Small Dirt / Stain" },
+    { code: "sticky_pleats", label: "Sticky Pleats (< 5mm)" },
     { code: "lump_small", label: "Lumps (<2mm)" },
-    { code: "bead_thin", label: "Thin bead" },
-    { code: "bead_small_defect", label: "Thin bead / small beading defect" },
+    { code: "bead_thin", label: "Thin Bead" },
+    { code: "bead_small_defect", label: "Thin Bead / Small Beading Defect" },
   ],
 };
 
@@ -94,23 +94,23 @@ export const VISUAL_DEFECTS: Readonly<Record<TemplateCode, Readonly<Record<Defec
 /** "Other :" ends in a colon on both reports: watertight.otherDescription holds the location. */
 export const WATERTIGHT_LOCATIONS: Readonly<Record<TemplateCode, readonly DefectLabel[]>> = {
   STD_EG: [
-    { code: "hole_crotch", label: "Between fingers (crotch)" },
+    { code: "hole_crotch", label: "Between Fingers (Crotch)" },
     { code: "hole_palm", label: "Palm" },
     { code: "hole_finger", label: "Finger" },
     { code: "hole_cuff", label: "Cuff" },
     { code: "hole_other", label: "Other :" },
   ],
   SAFEDON_EG: [
-    { code: "hole_crotch", label: "Between fingers" },
+    { code: "hole_crotch", label: "Between Fingers" },
     { code: "hole_palm", label: "Palm" },
     { code: "hole_cuff", label: "Cuff" },
     { code: "hole_finger", label: "Finger" },
-    { code: "glove_burst", label: "Glove burst" },
+    { code: "glove_burst", label: "Glove Burst" },
     { code: "hole_other", label: "Other :" },
   ],
   // The SG onsite form has 7 blank rows: STD_EG's locations until confirmed.
   STD_SG: [
-    { code: "hole_crotch", label: "Between fingers (crotch)" },
+    { code: "hole_crotch", label: "Between Fingers (Crotch)" },
     { code: "hole_palm", label: "Palm" },
     { code: "hole_finger", label: "Finger" },
     { code: "hole_cuff", label: "Cuff" },
@@ -134,39 +134,39 @@ export type DispensingDefect = DefectLabel & {
 export const SAFEDON_DISPENSING_DEFECTS: readonly DispensingDefect[] = [
   {
     code: "no_cuff",
-    label: "No cuff",
+    label: "No Cuff",
     hint: "Cuff should ideally be at least 2 cm out",
     printedHint: "Cuff should ideallly be at least 2 cm out",
     correctedHint: "Cuff should ideally be at least 2 cm out",
   },
   {
     code: "finger_out",
-    label: "Finger out",
+    label: "Finger Out",
     hint: "Only the cuff, not a finger, should come out first",
     printedHint: "Only cuff but no finger should be out first",
   },
   {
     code: "multiple_out",
-    label: "Multiple gloves out",
+    label: "Multiple Gloves Out",
     hint: "Only one glove should come out at a time",
     printedHint: "Only one glove should be out at one time",
   },
   {
     code: "stuck",
-    label: "Glove stuck",
+    label: "Glove Stuck",
     hint: "Glove could not be dispensed or was very difficult to dispense",
     printedHint: "Glove ould not be dispensed or very difficult to dispense",
     correctedHint: "Glove could not be dispensed or very difficult to dispense",
   },
   {
     code: "sticky",
-    label: "Sticky glove",
+    label: "Sticky Glove",
     hint: "Two or more gloves out at once because they stick together",
     printedHint: "Two or more gloves out at the same time caused by gloves sticking together",
   },
   {
     code: "faulty_cuff",
-    label: "Faulty cuff",
+    label: "Faulty Cuff",
     hint: "Deformed or misshapen cuff causing a dispensing problem",
     printedHint: "Deformed or out of shaped cuff which causes dispensing problem",
   },
@@ -216,30 +216,30 @@ export const LABELLING_CHECK_LISTS: Readonly<
 > = {
   STD_EG: {
     inner: [
-      { code: "lot_no", label: "Wrong / No lot number" },
-      { code: "mfg_date", label: "Wrong / No mfg. date" },
-      { code: "artwork", label: "Wrong artwork print" },
+      { code: "lot_no", label: "Wrong / No Lot Number" },
+      { code: "mfg_date", label: "Wrong / No Mfg. Date" },
+      { code: "artwork", label: "Wrong Artwork Print" },
     ],
     carton: [
-      { code: "lot_no", label: "Wrong / No lot number" },
-      { code: "mfg_date", label: "Wrong / No mfg. date" },
-      { code: "artwork", label: "Wrong artwork print" },
-      { code: "carton_no", label: "No carton number printed" },
+      { code: "lot_no", label: "Wrong / No Lot Number" },
+      { code: "mfg_date", label: "Wrong / No Mfg. Date" },
+      { code: "artwork", label: "Wrong Artwork Print" },
+      { code: "carton_no", label: "No Carton Number Printed" },
     ],
   },
   SAFEDON_EG: {
     inner: [
-      { code: "lot_no", label: "Wrong / No lot number" },
-      { code: "mfg_date", label: "Wrong / No mfg. date" },
-      { code: "expiry_date", label: "Wrong / No expiry date" },
-      { code: "artwork", label: "Wrong artwork print" },
+      { code: "lot_no", label: "Wrong / No Lot Number" },
+      { code: "mfg_date", label: "Wrong / No Mfg. Date" },
+      { code: "expiry_date", label: "Wrong / No Expiry Date" },
+      { code: "artwork", label: "Wrong Artwork Print" },
     ],
     carton: [
-      { code: "lot_no", label: "Wrong / No lot number" },
-      { code: "mfg_date", label: "Wrong / No mfg. date" },
-      { code: "expiry_date", label: "Wrong / No expiry date" },
-      { code: "artwork", label: "Wrong artwork print" },
-      { code: "carton_no", label: "No carton number" },
+      { code: "lot_no", label: "Wrong / No Lot Number" },
+      { code: "mfg_date", label: "Wrong / No Mfg. Date" },
+      { code: "expiry_date", label: "Wrong / No Expiry Date" },
+      { code: "artwork", label: "Wrong Artwork Print" },
+      { code: "carton_no", label: "No Carton Number" },
     ],
   },
 };

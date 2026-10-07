@@ -68,7 +68,7 @@ describe("visual config", () => {
     expect(config.classes.minor).toMatchObject({ include: true, aql: null });
     expect(config.classes.critical.defects.map((defect) => defect.code)).toEqual(["embedded_insect", "embedded_metal"]);
     expect(config.classes.major.defects).toHaveLength(9);
-    expect(config.classes.minor.defects).toContainEqual({ code: "bead_defective", label: "Defective beads" });
+    expect(config.classes.minor.defects).toContainEqual({ code: "bead_defective", label: "Defective Beads" });
   });
 
   it.each(TEMPLATE_CODES)("accepts the %s template's values (lib/coverage)", (code) => {

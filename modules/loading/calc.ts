@@ -108,7 +108,7 @@ function shortOrOver(difference: number): string {
   return difference < 0 ? `${count(-difference)} short` : `${count(difference)} over`;
 }
 
-/** "Container no. CSQU3054383; Seal no. SL-0001; Cartons loaded 2,900 of 2,900." */
+/** "Container No. CSQU3054383; Seal No. SL-0001; Cartons Loaded 2,900 of 2,900." */
 function summarise(
   data: LoadingData,
   config: LoadingConfig,

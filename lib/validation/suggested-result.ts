@@ -32,7 +32,7 @@ export type SuggestedResult = {
   warned: ModuleKey[];
   /**
    * The reasons on one line, the sections by their titles, e.g. "Failed:
-   * Freedom from Holes by watertight test. Warnings: Weight (g)."; empty for
+   * Freedom From Holes by Watertight Test. Warnings: Weight (g)."; empty for
    * a clean pass. Never the overall result itself: show it beside them.
    */
   summary: string;

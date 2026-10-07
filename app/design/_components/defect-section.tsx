@@ -5,21 +5,21 @@ import { DefectChipGroup, StatusPill, type DefectChipItem } from "@/components/q
 import { DesignSection, Specimen } from "./design-section";
 
 const MAJOR: DefectChipItem[] = [
-  { key: "thin_spot", label: "Thin spot on glove body", count: 2 },
-  { key: "stain", label: "Oil stain", count: 1 },
-  { key: "thin_crotch_area", label: "Thin area between fingers (crotch)", count: 0 },
-  { key: "thin_crotch_ring", label: "Ring-shaped thin area (crotch)", count: 0 },
-  { key: "thin_body_area", label: "Thin area on glove body", count: 0 },
-  { key: "dirt_nonremovable", label: "Non-removable dirt", count: 0 },
-  { key: "foreign_matter", label: "Residue material / foreign matter", count: 0 },
-  { key: "bead_defective", label: "Defective bead", count: 0 },
+  { key: "thin_spot", label: "Thin Spot on Glove Body", count: 2 },
+  { key: "stain", label: "Oil Stain", count: 1 },
+  { key: "thin_crotch_area", label: "Thin Area Between Fingers (Crotch)", count: 0 },
+  { key: "thin_crotch_ring", label: "Ring-Shaped Thin Area (Crotch)", count: 0 },
+  { key: "thin_body_area", label: "Thin Area on Glove Body", count: 0 },
+  { key: "dirt_nonremovable", label: "Non-Removable Dirt", count: 0 },
+  { key: "foreign_matter", label: "Residue Material / Foreign Matter", count: 0 },
+  { key: "bead_defective", label: "Defective Bead", count: 0 },
   { key: "lump_big", label: "Big Lumps (>2mm)", count: 0 },
   { key: "custom-torn-cuff", label: "Torn cuff edge", count: 1, unmapped: true },
 ];
 
 const CRITICAL: DefectChipItem[] = [
-  { key: "embedded_insect", label: "Embedded insects", count: 0 },
-  { key: "embedded_metal", label: "Embedded metal debris", count: 0 },
+  { key: "embedded_insect", label: "Embedded Insects", count: 0 },
+  { key: "embedded_metal", label: "Embedded Metal Debris", count: 0 },
 ];
 
 function useCounts(initial: DefectChipItem[]) {

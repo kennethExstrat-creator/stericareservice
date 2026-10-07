@@ -134,7 +134,7 @@ describe("conclusion", () => {
       // The inspector decides: the result is the final result, with a warning for the reviewer.
       expect(output.result).toEqual({
         status: "pass",
-        summary: "Conclusion: PASSED. Suggested result: FAILED (failed: Carton sampling).",
+        summary: "Conclusion: PASSED. Suggested Result: FAILED (failed: Carton sampling).",
       });
       expect(output.issues).toEqual([
         {
@@ -155,7 +155,7 @@ describe("conclusion", () => {
       expect(output.computed.warned).toEqual(["weight"]);
       expect(output.result).toEqual({
         status: expected.result,
-        summary: "Conclusion: PASSED. Suggested result: PASSED (warnings: Weight).",
+        summary: "Conclusion: PASSED. Suggested Result: PASSED (warnings: Weight).",
       });
       expect(output.issues).toEqual([]);
     });
@@ -170,7 +170,7 @@ describe("conclusion", () => {
       expect(output.computed).toEqual({ suggestedResult: expected.result, failed: [], notDone: [], warned: ["sampling_plan"] });
       expect(output.result).toEqual({
         status: expected.result,
-        summary: "Conclusion: PASSED. Suggested result: PASSED (warnings: Sampling plan).",
+        summary: "Conclusion: PASSED. Suggested Result: PASSED (warnings: Sampling plan).",
       });
       expect(output.issues).toEqual([]);
     });
@@ -180,21 +180,21 @@ describe("conclusion", () => {
     it("is not done with nothing chosen, showing the suggestion", () => {
       expect(calcConclusion(input({})).result).toEqual({
         status: "not_done",
-        summary: "Missing: Conclusion, Date. Suggested result: PASSED.",
+        summary: "Missing: Conclusion, Date. Suggested Result: PASSED.",
       });
     });
 
     it("is not done without a date, which the screen fills in when the result is chosen", () => {
       expect(calcConclusion(input({ finalResult: "pass" })).result).toEqual({
         status: "not_done",
-        summary: "Missing: Date. Suggested result: PASSED.",
+        summary: "Missing: Date. Suggested Result: PASSED.",
       });
     });
 
     it("does not need the signature yet (BUILD_SPEC 13), but says it is missing", () => {
       expect(calcConclusion(input({ ...FILLED, signature: null })).result).toEqual({
         status: "pass",
-        summary: "Conclusion: PASSED. Suggested result: PASSED. Not signed.",
+        summary: "Conclusion: PASSED. Suggested Result: PASSED. Not signed.",
       });
     });
   });
@@ -233,7 +233,7 @@ describe("conclusion", () => {
       expect(suggestionOf({ header: "info", glove_info: "info" }).suggestedResult).toBe("hold");
       expect(suggestionOf({}).suggestedResult).toBe("hold");
       expect(calcConclusion(input({}, { moduleResults: {} })).result.summary).toBe(
-        "Missing: Conclusion, Date. Suggested result: HOLD (no module has a result yet).",
+        "Missing: Conclusion, Date. Suggested Result: HOLD (no module has a result yet).",
       );
     });
 
@@ -249,7 +249,7 @@ describe("conclusion", () => {
     it("names modules by their titles in the template's wording (6.2 rule 11)", () => {
       const context = makeTestContext({
         modules: [
-          { key: "carton_sampling", title: "Finished Goods Sampling Information (carton number)" },
+          { key: "carton_sampling", title: "Finished Goods Sampling Information (Carton Number)" },
           { key: "dispensing_packing", title: "Glove Packing Check" },
           { key: "conclusion", title: "Conclusion" },
         ],
@@ -258,17 +258,17 @@ describe("conclusion", () => {
         input({}, { context, moduleResults: results({ carton_sampling: "fail", dispensing_packing: "warn" }) }),
       );
       expect(output.result.summary).toBe(
-        "Missing: Conclusion, Date. Suggested result: FAILED (failed: Finished Goods Sampling Information (carton number)).",
+        "Missing: Conclusion, Date. Suggested Result: FAILED (failed: Finished Goods Sampling Information (Carton Number)).",
       );
       const warned = calcConclusion(input({ ...FILLED, finalResult: "fail" }, { context, moduleResults: results({ dispensing_packing: "warn" }) }));
-      expect(warned.result.summary).toBe("Conclusion: FAILED. Suggested result: PASSED (warnings: Glove Packing Check).");
+      expect(warned.result.summary).toBe("Conclusion: FAILED. Suggested Result: PASSED (warnings: Glove Packing Check).");
     });
 
     it("names a module the context does not list by its key in words", () => {
       expect(moduleName("carton_sampling")).toBe("Carton sampling");
       expect(moduleName("force_at_break")).toBe("Force at break");
       expect(calcConclusion(input({}, { moduleResults: results({ visual: "fail" }) })).result.summary).toBe(
-        "Missing: Conclusion, Date. Suggested result: FAILED (failed: Visual).",
+        "Missing: Conclusion, Date. Suggested Result: FAILED (failed: Visual).",
       );
     });
   });
@@ -316,7 +316,7 @@ describe("conclusion", () => {
   it("speaks the template's words for the results and fields (6.2 rule 11)", () => {
     const labels = { ...CONCLUSION_LABELS, finalResult: "Final result", pass: "ACCEPTED", fail: "REJECTED", date: "Report date" };
     expect(calcConclusion(input({ finalResult: "pass" }, { labels })).result.summary).toBe(
-      "Missing: Report date. Suggested result: ACCEPTED.",
+      "Missing: Report date. Suggested Result: ACCEPTED.",
     );
     const output = calcConclusion(input({ ...FILLED, remark: "x" }, { labels, moduleResults: results({ visual: "fail" }) }));
     expect(output.issues[0].message).toBe("Final result ACCEPTED differs from the suggestion, REJECTED (failed: Visual).");
@@ -338,7 +338,7 @@ describe("conclusion", () => {
       expect(evaluation.modules.map((entry) => entry.key)).toEqual(["labeling", "conclusion"]);
       const conclusion = conclusionOfEvaluation(evaluation);
       expect(conclusion.computed).toMatchObject({ suggestedResult: evaluation.suggested.result });
-      expect(conclusion.result).toEqual({ status: "pass", summary: "Conclusion: PASSED. Suggested result: PASSED." });
+      expect(conclusion.result).toEqual({ status: "pass", summary: "Conclusion: PASSED. Suggested Result: PASSED." });
       expect(evaluation.issues).toEqual([]);
     });
 
@@ -356,7 +356,7 @@ describe("conclusion", () => {
       // No order_lots in this template: size M as the other engine tests order it.
       const evaluation = evaluateInspection({ template: titled, data, context: { ...built, sizes: ["M"] } }, MODULE_REGISTRY);
       expect(conclusionOfEvaluation(evaluation).result.summary).toBe(
-        "Missing: Conclusion, Date. Suggested result: FAILED (failed: Packaging Labeling Inspection (client wording)).",
+        "Missing: Conclusion, Date. Suggested Result: FAILED (failed: Packaging Labeling Inspection (client wording)).",
       );
     });
 
@@ -367,7 +367,7 @@ describe("conclusion", () => {
           moduleKey: "conclusion",
           level: "error",
           code: "module_not_done",
-          message: "Conclusion must be complete before submit: Missing: Conclusion, Date. Suggested result: PASSED.",
+          message: "Conclusion must be complete before submit: Missing: Conclusion, Date. Suggested Result: PASSED.",
           path: ["finalResult"],
         },
       ]);

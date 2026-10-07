@@ -192,7 +192,7 @@ export const PREVIOUS_COPY_SUMMARY = {
   titles: {
     header: "Manufacturer Information",
     glove_info: "Glove Information",
-    packing_config: "Packing configuration",
+    packing_config: "Packing Configuration",
   } satisfies Record<CopiedModuleKey, string>,
   /** The header's copied fields, in words. */
   headerFields: {

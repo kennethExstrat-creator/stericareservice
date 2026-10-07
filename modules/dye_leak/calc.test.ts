@@ -40,7 +40,7 @@ function input(
   return {
     data: { sizes: Object.fromEntries(Object.entries(sizes).map(([key, values]) => [key, size(values)])) },
     config,
-    title: "Dye leak test",
+    title: "Dye Leak Test",
     labels,
     context,
     results: {},
@@ -65,11 +65,11 @@ describe("dye_leak", () => {
     expect(calcDyeLeak(input(ALL_PASS))).toEqual({
       result: {
         status: "pass",
-        summary: "Pouches failed: 0 of 39.",
+        summary: "Pouches Failed: 0 of 39.",
         perSize: {
-          "6.5": { status: "pass", summary: "Pouches failed: 0 of 13." },
-          "7.0": { status: "pass", summary: "Pouches failed: 0 of 13." },
-          "7.5": { status: "pass", summary: "Pouches failed: 0 of 13." },
+          "6.5": { status: "pass", summary: "Pouches Failed: 0 of 13." },
+          "7.0": { status: "pass", summary: "Pouches Failed: 0 of 13." },
+          "7.5": { status: "pass", summary: "Pouches Failed: 0 of 13." },
         },
       },
       computed: {
@@ -97,8 +97,8 @@ describe("dye_leak", () => {
       input({ ...ALL_PASS, "7.0": { pouchesTested: 13, pouchesFailed: 1, notes: "Dye channel at the seal corner." } }),
     );
     expect(output.result.status).toBe("fail");
-    expect(output.result.summary).toBe("Pouches failed: 1 of 13 in size 7.0.");
-    expect(output.result.perSize?.["7.0"]).toEqual({ status: "fail", summary: "Pouches failed: 1 of 13." });
+    expect(output.result.summary).toBe("Pouches Failed: 1 of 13 in size 7.0.");
+    expect(output.result.perSize?.["7.0"]).toEqual({ status: "fail", summary: "Pouches Failed: 1 of 13." });
     expect(output.result.perSize?.["6.5"]?.status).toBe("pass");
     expect(output.computed.result).toEqual({ "6.5": "pass", "7.0": "fail", "7.5": "pass" });
     expect(output.computed.totalFailed).toBe(1);
@@ -107,17 +107,17 @@ describe("dye_leak", () => {
 
   it("fails on a recorded leak even before the pouches tested are entered", () => {
     const output = calcDyeLeak(input({ ...ALL_PASS, "7.5": { pouchesFailed: 2 } }));
-    expect(output.result.perSize?.["7.5"]).toEqual({ status: "fail", summary: "Pouches failed: 2." });
-    expect(output.result.summary).toBe("Pouches failed: 2 in size 7.5.");
+    expect(output.result.perSize?.["7.5"]).toEqual({ status: "fail", summary: "Pouches Failed: 2." });
+    expect(output.result.summary).toBe("Pouches Failed: 2 in size 7.5.");
   });
 
   it("is not done until both counts are entered, never passed (6.2 rule 5)", () => {
     const output = calcDyeLeak(input({ "6.5": { pouchesTested: 13 }, "7.0": { pouchesFailed: 0 } }));
     expect(output.result.status).toBe("not_done");
     expect(output.result.perSize).toEqual({
-      "6.5": { status: "not_done", summary: "Missing: Pouches failed." },
-      "7.0": { status: "not_done", summary: "Missing: Pouches tested." },
-      "7.5": { status: "not_done", summary: "Missing: Pouches tested, Pouches failed." },
+      "6.5": { status: "not_done", summary: "Missing: Pouches Failed." },
+      "7.0": { status: "not_done", summary: "Missing: Pouches Tested." },
+      "7.5": { status: "not_done", summary: "Missing: Pouches Tested, Pouches Failed." },
     });
     expect(output.result.summary).toBe("Not done for size 6.5, 7.0, 7.5.");
     expect(calcDyeLeak(input({})).result.status).toBe("not_done");
@@ -125,17 +125,17 @@ describe("dye_leak", () => {
 
   it("is not done while a size has nothing tested", () => {
     const output = calcDyeLeak(input({ ...ALL_PASS, "6.5": { pouchesTested: 0, pouchesFailed: 0 } }));
-    expect(output.result.perSize?.["6.5"]).toEqual({ status: "not_done", summary: "Pouches tested: 0, nothing tested yet." });
-    expect(output.result.summary).toBe("Pouches failed: 0 of 26. Not done for size 6.5.");
+    expect(output.result.perSize?.["6.5"]).toEqual({ status: "not_done", summary: "Pouches Tested: 0, nothing tested yet." });
+    expect(output.result.summary).toBe("Pouches Failed: 0 of 26. Not done for size 6.5.");
     expect(calcDyeLeak(input({ "6.5": { pouchesTested: 0 } })).result.perSize?.["6.5"]?.summary).toBe(
-      "Pouches tested: 0, nothing tested yet.",
+      "Pouches Tested: 0, nothing tested yet.",
     );
   });
 
   it("names a fail and the sizes still open together", () => {
     const output = calcDyeLeak(input({ "6.5": { pouchesTested: 13, pouchesFailed: 3 }, "7.0": { pouchesTested: 13 } }));
     expect(output.result.status).toBe("fail");
-    expect(output.result.summary).toBe("Pouches failed: 3 of 13 in size 6.5. Not done for size 7.0, 7.5.");
+    expect(output.result.summary).toBe("Pouches Failed: 3 of 13 in size 6.5. Not done for size 7.0, 7.5.");
   });
 
   it("plans the pouches from the sampling plan, else from config n (BUILD_SPEC 8)", () => {
@@ -158,15 +158,15 @@ describe("dye_leak", () => {
   it("warns when fewer pouches were tested than planned, with a link to the count", () => {
     const output = calcDyeLeak(input({ ...ALL_PASS, "7.0": { pouchesTested: 8, pouchesFailed: 0 } }));
     expect(output.result.status).toBe("warn");
-    expect(output.result.perSize?.["7.0"]).toEqual({ status: "warn", summary: "Pouches failed: 0 of 8; 13 planned." });
-    expect(output.result.summary).toBe("Pouches failed: 0 of 34. Fewer pouches tested than planned for size 7.0.");
+    expect(output.result.perSize?.["7.0"]).toEqual({ status: "warn", summary: "Pouches Failed: 0 of 8; 13 planned." });
+    expect(output.result.summary).toBe("Pouches Failed: 0 of 34. Fewer pouches tested than planned for size 7.0.");
     // The leak verdict itself is a pass: the warning is about the sample.
     expect(output.computed.result["7.0"]).toBe("pass");
     expect(output.issues).toEqual([
       {
         level: "warning",
         code: "dye_leak_below_plan",
-        message: "Size 7.0: Pouches tested 8, below the 13 planned.",
+        message: "Size 7.0: Pouches Tested 8, below the 13 planned.",
         size: "7.0",
         path: ["sizes", "7.0", "pouchesTested"],
       },
@@ -187,7 +187,7 @@ describe("dye_leak", () => {
     expect(output.issues).toContainEqual({
       level: "error",
       code: "dye_leak_failed_above_tested",
-      message: "Size 7.5: Pouches failed (3) is more than Pouches tested (2).",
+      message: "Size 7.5: Pouches Failed (3) is more than Pouches Tested (2).",
       size: "7.5",
       path: ["sizes", "7.5", "pouchesFailed"],
     });
@@ -241,7 +241,7 @@ describe("dye_leak", () => {
     const evaluation = evaluateInspection({ template, data, context }, MODULE_REGISTRY);
     const dyeLeak = evaluation.modules.find((entry) => entry.key === "dye_leak");
     expect(dyeLeak).toMatchObject({
-      result: { status: "pass", summary: "Pouches failed: 0 of 13.", perSize: { M: { status: "pass" } } },
+      result: { status: "pass", summary: "Pouches Failed: 0 of 13.", perSize: { M: { status: "pass" } } },
       comment: "Dye: methylene blue.",
       issues: [expect.objectContaining({ code: "size_not_ordered", size: "XL", path: ["sizes", "XL"] })],
     });

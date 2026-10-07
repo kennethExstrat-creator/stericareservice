@@ -23,7 +23,7 @@ import { INNER_UNIT_NAMES, PACKING_COUNTS, type PackingConfigConfig, type Packin
 import type { PackingConfigData } from "./schema";
 
 export type PackingConfigComputed = {
-  /** "Gloves per case (inner × per case)": gloves per inner unit x inner units per case. Null until both are entered. */
+  /** "Gloves per Case (Inner × per Case)": gloves per inner unit x inner units per case. Null until both are entered. */
   glovesPerCaseCheck: number | null;
   /** What one inner unit is ("plastic pack"), from the template: the export carries no config. */
   innerUnit: string;
@@ -101,13 +101,13 @@ function glovesPerCaseCheck(counts: Counts): number | null {
     : counts.glovesPerInner * counts.innersPerCase;
 }
 
-/** "# gloves per case 2,500 is not # glove per inner box × # inners per case: 200 × 10 = 2,000." */
+/** "# Gloves per Case 2,500 is not # Glove per Inner Box × # Inners per Case: 200 × 10 = 2,000." */
 function mismatchMessage({ perInner, perCase, total }: Case, labels: Labels): string {
   const product = `${labelFor(labels, "glovesPerInner")} × ${labelFor(labels, "innersPerCase")}`;
   return `${labelFor(labels, "glovesPerCase")} ${formatCount(total)} is not ${product}: ${formatCount(perInner)} × ${formatCount(perCase)} = ${formatCount(perInner * perCase)}.`;
 }
 
-/** "# gloves per case 2,000 = # glove per inner box 200 × # inners per case 10." */
+/** "# Gloves per Case 2,000 = # Glove per Inner Box 200 × # Inners per Case 10." */
 function summarise({ perInner, perCase, total }: Case, labels: Labels): string {
   return `${labelFor(labels, "glovesPerCase")} ${formatCount(total)} = ${labelFor(labels, "glovesPerInner")} ${formatCount(perInner)} × ${labelFor(labels, "innersPerCase")} ${formatCount(perCase)}.`;
 }

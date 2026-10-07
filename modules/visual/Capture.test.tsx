@@ -100,18 +100,18 @@ describe("visual capture", () => {
       "pass",
       "pass",
     ]);
-    expect(html).toContain('aria-label="Increase Thin spot on glove body, Size M"');
+    expect(html).toContain('aria-label="Increase Thin Spot on Glove Body, Size M"');
     expect(html).toContain('aria-valuenow="5"');
-    expect(html).toContain("Total number of &quot;Major Defects&quot; found");
+    expect(html).toContain("Total Number of &quot;Major Defects&quot; Found");
     expect(html).toContain("Disposition - Visual Critical (Passed / Failed)");
     expect(html).toContain("Defect Limit : Accept / Reject");
-    expect(html).toContain("Sampling code letter N");
+    expect(html).toContain("Sampling Code Letter N");
   });
 
-  it("words one code apart per class: Defective bead (major), Defective beads (minor)", () => {
+  it("words one code apart per class: Defective Bead (major), Defective Beads (minor)", () => {
     const html = stdEg();
-    expect(html).toContain('aria-label="Increase Defective bead, Size M"');
-    expect(html).toContain('aria-label="Increase Defective beads, Size M"');
+    expect(html).toContain('aria-label="Increase Defective Bead, Size M"');
+    expect(html).toContain('aria-label="Increase Defective Beads, Size M"');
   });
 
   it("leaves out a class the template switches off", () => {
@@ -185,7 +185,7 @@ describe("visual capture", () => {
     const blocks = Array.from(html.matchAll(/<div id="[^"]*-calc-warning"[^>]*text-warn[^>]*>[\s\S]*?<\/div>/g), (match) => match[0]);
     expect(blocks).toHaveLength(1);
     expect(blocks[0]).toContain(
-      "<span>Size M, Minor Defects: No. of sample inspected is 315, but the sampling plan has 500 gloves for watertight and visual.</span>",
+      "<span>Size M, Minor Defects: No. of Sample Inspected is 315, but the sampling plan has 500 gloves for watertight and visual.</span>",
     );
   });
 
@@ -203,7 +203,7 @@ describe("visual capture", () => {
     expect(tagsWith(html, 'data-slot="size-tabs"')[0]).toContain("data-side-by-side");
     // One element in the flex Label, so ", Size M" follows the text with no gap when it shows.
     expect(html).toMatch(
-      /<label[^>]*><span>No\. of sample inspected<span class="sr-only">, Major Defects<\/span><span class="sr-only xl:not-sr-only">, Size M<\/span><\/span><\/label>/,
+      /<label[^>]*><span>No\. of Sample Inspected<span class="sr-only">, Major Defects<\/span><span class="sr-only xl:not-sr-only">, Size M<\/span><\/span><\/label>/,
     );
   });
 
@@ -224,7 +224,7 @@ describe("visual capture", () => {
       config: { ...VISUAL_DEFAULT_CONFIG, handSplit: true },
     });
     expect(tagsWith(html, 'role="radio"')).toHaveLength(3);
-    expect(html).toContain('aria-label="Increase Thin spot on glove body, Size 7.0, Left Hand"');
+    expect(html).toContain('aria-label="Increase Thin Spot on Glove Body, Size 7.0, Left Hand"');
     expect(totals(html)).toEqual([0, 2, 0]);
   });
 
@@ -235,7 +235,7 @@ describe("visual capture", () => {
     });
     expect(tagsWith(html, 'data-unmapped="true"')).toHaveLength(1);
     expect(totals(html)).toEqual([0, 0, 1]);
-    expect(html.match(/Defect not in the list/g)).toHaveLength(3);
+    expect(html.match(/Defect Not in the List/g)).toHaveLength(3);
     // One added by mistake, counting nothing, can be taken off.
     expect(html).not.toContain("Remove Faint print");
     const mistake = render({
@@ -248,7 +248,7 @@ describe("visual capture", () => {
   it("is read-only for an approved inspection", () => {
     const html = render({ sizes: { M: inspectedAll(500) }, context: M_500(), readOnly: true });
     expect(html).not.toContain('role="spinbutton"');
-    expect(html).not.toContain("Defect not in the list");
+    expect(html).not.toContain("Defect Not in the List");
     expect(html).not.toContain("for Every Class");
   });
 

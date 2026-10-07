@@ -47,7 +47,7 @@ describe("glove_info", () => {
     const labels = { ...GLOVE_INFO_LABELS, colour: "Colour of glove" };
     expect(calcGloveInfo({ ...input({ ...FILLED, colour: " ", length: null }), labels }).result).toEqual({
       status: "not_done",
-      summary: "Missing: Colour of glove, Glove length.",
+      summary: "Missing: Colour of glove, Glove Length.",
     });
     expect(calcGloveInfo(input({})).result.status).toBe("not_done");
   });
@@ -73,7 +73,7 @@ describe("glove_info", () => {
       {
         level: "error",
         code: "indicative_weight_not_positive",
-        message: "Indicative weight (size M): must be more than 0 g.",
+        message: "Indicative Weight (Size M): must be more than 0 g.",
         path: ["indicativeWeight"],
       },
     ]);

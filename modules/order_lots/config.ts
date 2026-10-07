@@ -9,12 +9,12 @@ export const ORDER_LOTS_TITLE = "Order";
 export const ORDER_LOTS_LABELS = {
   /** Caption of the size column. */
   size: "Size",
-  qtyCases: "Qty (cases)",
+  qtyCases: "Qty (Cases)",
   lotNumbers: "Lot Number",
   packingSite: "Packing Site",
-  lotSizeGloves: "Lot size (gloves)",
-  totalCartons: "Total # carton",
-  totalGloves: "Total # gloves",
+  lotSizeGloves: "Lot Size (Gloves)",
+  totalCartons: "Total # Carton",
+  totalGloves: "Total # Gloves",
 } as const satisfies Readonly<Record<string, string>>;
 
 export const OrderLotsConfigSchema = z.strictObject({

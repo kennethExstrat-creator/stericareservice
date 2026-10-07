@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dataField, dataKeys } from "@/lib/coverage";
+import { dataField, dataKeys, sameWording } from "@/lib/coverage";
 import { roundTo } from "@/lib/stats";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import { evaluateInspection, type CalcInput, type InspectionContext } from "@/modules/_framework";
@@ -141,7 +141,10 @@ describe("dispensing_safedon", () => {
     it("prints the heading with the code letters of the boxes tested: C & D, as the report does", () => {
       expect(ORDERED.map((size) => output.computed.sizes[size].codeLetter)).toEqual(["C", "D", "D", "C"]);
       expect(output.computed.codeLetters).toEqual(["C", "D"]);
-      expect(safedonHeading(DISPENSING_SAFEDON_LABELS, output.computed.codeLetters)).toBe(EXAMPLE.printedTitle);
+      // The report's heading, its words in Title Case (docs/DESIGN.md).
+      const heading = safedonHeading(DISPENSING_SAFEDON_LABELS, output.computed.codeLetters);
+      expect(heading).toBe("Glove Dispensing Inspection (Sampling Code Letter C & D)");
+      expect(sameWording(EXAMPLE.printedTitle, heading)).toBe(true);
     });
   });
 

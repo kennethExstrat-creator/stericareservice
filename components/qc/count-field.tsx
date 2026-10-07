@@ -15,9 +15,9 @@ import { StatusIcon } from "./status-icon";
 import { Stepper } from "./stepper";
 
 type CountFieldProps = {
-  /** In the template's wording, e.g. "Pouches failed". */
+  /** In the template's wording, e.g. "Pouches Failed". */
   label: string;
-  /** Accessible name of the stepper and its buttons, e.g. "Pouches failed, Size 7.0". Defaults to the label. */
+  /** Accessible name of the stepper and its buttons, e.g. "Pouches Failed, Size 7.0". Defaults to the label. */
   name?: string;
   value: number | null;
   onValueChange: (value: number | null) => void;

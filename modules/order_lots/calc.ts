@@ -28,9 +28,9 @@ import type { OrderLine, OrderLotsData } from "./schema";
 export type OrderLotsComputed = {
   /** Per ordered size: cases x gloves per case, the lot size the AQL plan starts from. Null until the packing is known. */
   lotSizeGloves: Record<string, number | null>;
-  /** "Total # carton": the ordered cases added up. Null while no size is ordered. */
+  /** "Total # Carton": the ordered cases added up. Null while no size is ordered. */
   totalCartons: number | null;
-  /** "Total # gloves": total cartons x gloves per case. Null until both are known. */
+  /** "Total # Gloves": total cartons x gloves per case. Null until both are known. */
   totalGloves: number | null;
 };
 
@@ -249,7 +249,7 @@ function rowResult(row: OrderedRow, config: OrderLotsConfig, labels: Labels): Pe
   return { status: "info", summary: sentence(parts.join("; ")) };
 }
 
-/** "Sizes XS, S, M, L. Total # carton 1,530; Total # gloves 3,060,000." */
+/** "Sizes XS, S, M, L. Total # Carton 1,530; Total # Gloves 3,060,000." */
 function summarise(
   ordered: readonly OrderedRow[],
   totals: { cartons: number; gloves: number | null },

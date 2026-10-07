@@ -365,7 +365,7 @@ function photoEvidence(id: string, input: PanelModelInput, wording: SectionWordi
   // A blank tag is no tag (as in the export).
   const moduleKey = blankToNull(photo.moduleKey)?.trim() ?? null;
   const target = blankToNull(photo.target);
-  // "Visual Inspection · Size M · Thin spot on glove body"; nothing for a photo tagged with nothing.
+  // "Visual Inspection · Size M · Thin Spot on Glove Body"; nothing for a photo tagged with nothing.
   const tags =
     moduleKey === null && target === null ? null : tagLine(photoTags({ module_key: moduleKey, target }, wording, input.defectNames));
   return {

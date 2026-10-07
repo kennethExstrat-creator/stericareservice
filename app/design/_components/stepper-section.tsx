@@ -5,7 +5,7 @@ import { StatusPill, Stepper } from "@/components/qc";
 import { DesignSection, Specimen } from "./design-section";
 
 const LOCATIONS = [
-  { key: "crotch", label: "Between fingers (crotch)" },
+  { key: "crotch", label: "Between Fingers (Crotch)" },
   { key: "palm", label: "Palm" },
   { key: "finger", label: "Finger" },
   { key: "cuff", label: "Cuff" },
@@ -29,7 +29,7 @@ export function StepperSection() {
       <Specimen
         label={
           <span className="flex flex-wrap items-center justify-between gap-3">
-            <span>Freedom from Holes by watertight test · Size M · n {SAMPLE}, Accept {ACCEPT} / Reject {ACCEPT + 1}</span>
+            <span>Freedom From Holes by Watertight Test · Size M · n {SAMPLE}, Accept {ACCEPT} / Reject {ACCEPT + 1}</span>
             <StatusPill status={total <= ACCEPT ? "pass" : "fail"} label={total <= ACCEPT ? "Accept" : "Reject"} />
           </span>
         }
@@ -52,7 +52,7 @@ export function StepperSection() {
           </li>
         </ul>
         <p className="mt-4 text-sm text-foreground">
-          Total number of defects found: <span className="font-semibold tabular-nums">{total}</span>
+          Total Number of Defects Found: <span className="font-semibold tabular-nums">{total}</span>
           <span className="text-muted-foreground"> / {SAMPLE}</span>
         </p>
       </Specimen>

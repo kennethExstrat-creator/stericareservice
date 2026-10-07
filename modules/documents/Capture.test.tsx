@@ -133,7 +133,7 @@ describe("documents capture: files", () => {
     const changes: DocumentsData[] = [];
     const data = emptyDocuments();
     const html = render(data, { slots, changes, focus: { item: "labTestReports" } });
-    expect(html).toContain("New photos are tagged “Lab test reports”, and new files are filed under it.");
+    expect(html).toContain("New photos are tagged “Lab Test Reports”, and new files are filed under it.");
     expect(slots[0]).toMatchObject({ kind: "lab_report", focus: { item: "labTestReports" }, readOnly: false, addable: true });
     slots[0].onAdded({ id: FILE, name: "Lab test report.pdf", kind: "lab_report" });
     expect(changes).toEqual([{ ...data, items: { ...data.items, labTestReports: { ...data.items.labTestReports, file: FILE } } }]);
@@ -232,10 +232,10 @@ describe("documents capture", () => {
   it("lists the template's items in its order, and only those", () => {
     const html = render(emptyDocuments(), { config: REQUIRED_ISO });
     const iso = html.indexOf("ISO 13485");
-    const coa = html.indexOf("Certificate of analysis");
+    const coa = html.indexOf("Certificate of Analysis");
     expect(iso).toBeGreaterThan(-1);
     expect(coa).toBeGreaterThan(iso);
-    expect(html).not.toContain("Sterilisation certificate and records");
+    expect(html).not.toContain("Sterilisation Certificate and Records");
     expect(html.match(/Required/g)).toHaveLength(1);
   });
 
@@ -243,7 +243,7 @@ describe("documents capture", () => {
     const labels = { ...DOCUMENTS_LABELS, "status.verified": "OK", "status.na": "N/A", iso13485: "Quality certificate" };
     const html = render(withIso({ status: "verified" }), { labels, config: REQUIRED_ISO });
     expect(html).toContain("Quality certificate");
-    for (const word of ["OK", "Not verified", "N/A"]) expect(html).toContain(`>${word}</button>`);
+    for (const word of ["OK", "Not Verified", "N/A"]) expect(html).toContain(`>${word}</button>`);
     const pressed = Array.from(html.matchAll(/<button[^>]*data-state="on"[^>]*>([^<]*)<\/button>/g), (match) => match[1]);
     expect(pressed).toEqual(["OK"]);
   });
@@ -254,7 +254,7 @@ describe("documents capture", () => {
     // The kit's DateField: four-digit years only, calc's warning in amber, the field described by it.
     expect(html).toMatch(/<input[^>]*type="date"[^>]*max="9999-12-31"/);
     expect(html).toMatch(/<input[^>]*type="date"[^>]*aria-describedby="[^"]*-calc-warning"/);
-    expect(html).toContain("ISO 13485: Expiry date 2025-01-31 is before the inspection date 2025-04-11.");
+    expect(html).toContain("ISO 13485: Expiry Date 2025-01-31 is before the inspection date 2025-04-11.");
     expect(html).toContain('data-issue-path="[&quot;items&quot;,&quot;iso13485&quot;,&quot;expiryDate&quot;]"');
   });
 
@@ -265,18 +265,18 @@ describe("documents capture", () => {
       (match) => [match[1], match[2]],
     );
     expect(pills).toEqual([
-      ["fail", "Not verified"],
+      ["fail", "Not Verified"],
       ["not_done", "Not Done"],
     ]);
   });
 
   it("colours a selected status with calc's result for the item: red only where the item fails", () => {
-    // Not verified: red on the required item, neutral (info) on the optional one, as their chips.
+    // Not Verified: red on the required item, neutral (info) on the optional one, as their chips.
     const data = withIso({ status: "not_verified" });
     data.items.certificateOfAnalysis = { ...data.items.certificateOfAnalysis, status: "not_verified" };
     expect(selected(render(data, { config: REQUIRED_ISO }))).toEqual([
-      ["Not verified", "fail"],
-      ["Not verified", "info"],
+      ["Not Verified", "fail"],
+      ["Not Verified", "info"],
     ]);
     expect(selected(render(withIso({ status: "na" }), { config: REQUIRED_ISO }))).toEqual([["NA", "fail"]]);
     expect(selected(render(withIso({ status: "verified" })))).toEqual([["Verified", "pass"]]);
@@ -285,7 +285,7 @@ describe("documents capture", () => {
     // NA was just tapped; calc still says verified: no verdict colour until calc catches up.
     const lagging = render(withIso({ status: "na" }), { config: REQUIRED_ISO, evaluated: withIso({ status: "verified" }) });
     expect(selected(lagging)).toEqual([["NA", null]]);
-    expect(selected(render(withIso({ status: "not_verified" }), { broken: true }))).toEqual([["Not verified", null]]);
+    expect(selected(render(withIso({ status: "not_verified" }), { broken: true }))).toEqual([["Not Verified", null]]);
   });
 
   it("draws a row the same whether or not it is in focus, so a tap never moves the rows below it", () => {
@@ -313,7 +313,7 @@ describe("documents capture", () => {
     const chosen = render(withIso({ status: "verified" }), { slots: [], focus: { item: "iso13485" } });
     expect(chosen.match(/are tagged/g)).toHaveLength(1);
     expect(chosen).toMatch(/<\/ul><\/div><div[^>]*><p data-slot="document-tags"[^>]*>New photos are tagged “ISO 13485/);
-    expect(documentTagLine("Lab test reports")).toBe("New photos are tagged “Lab test reports”, and new files are filed under it.");
+    expect(documentTagLine("Lab Test Reports")).toBe("New photos are tagged “Lab Test Reports”, and new files are filed under it.");
     expect(documentTagLine(null)).toBe(
       "Choose a document above first: its photos are then tagged with it, and its file filed under it.",
     );

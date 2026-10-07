@@ -108,7 +108,7 @@ describe("canonical keys", () => {
     }
     expect(groupLabelKey("total", "major")).toBe("majorTotal");
     expect(defaultLabels("visual")).toMatchObject({
-      majorTotal: 'Total number of "Major Defects" found',
+      majorTotal: 'Total Number of "Major Defects" Found',
       criticalResult: "Disposition - Visual Critical (Passed / Failed)",
       minorCounts: "Minor Defects",
     });
@@ -272,7 +272,7 @@ describe("labels", () => {
   });
 
   it("resolves titles, field labels and captions per template", () => {
-    expect(moduleTitle("STD_EG", "watertight")).toBe("Freedom from Holes by watertight test");
+    expect(moduleTitle("STD_EG", "watertight")).toBe("Freedom From Holes by Watertight Test");
     expect(moduleTitle("STD_SG", "watertight")).toBe("Watertight Inspection");
     expect(fieldLabel("SAFEDON_EG", "header", "poNo")).toBe("PO Number");
     expect(fieldLabel("STD_EG", "header", "poNo")).toBe("PO / SO Number");

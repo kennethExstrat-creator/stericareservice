@@ -151,7 +151,7 @@ function dateIssues(rows: HeaderRows, config: HeaderConfig, labels: Labels): Cal
   return issues;
 }
 
-/** "PO-0001 (SO-0001): Brand A PC-A01 Blue Nitrile; Manufacturer A; Inspection date 11 Apr 2025." */
+/** "PO-0001 (SO-0001): Brand A PC-A01 Blue Nitrile; Manufacturer A; Inspection Date 11 Apr 2025." */
 function summarise(rows: HeaderRows, config: HeaderConfig, labels: Labels): string {
   const shown = (field: HeaderField) => (config.fields[field] ? rows[field] : null);
   const product = shown("productName")?.replace(/\s+/g, " ") ?? null;

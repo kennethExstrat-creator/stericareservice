@@ -92,7 +92,7 @@ const buttons = (html: string) =>
 describe("conclusion capture", () => {
   it("shows the suggested result as every result pill says it, with the modules behind it", () => {
     const html = render({}, { defects: 1 });
-    expect(html).toContain("Suggested result");
+    expect(html).toContain("Suggested Result");
     expect(tagsWith(html, 'data-slot="status-pill"')[0]).toContain('data-status="fail"');
     expect(pillLabels(html)).toEqual(["Failed"]);
     expect(html).toContain("Failed: Labeling.");
@@ -158,14 +158,14 @@ describe("conclusion capture", () => {
   it("shows who inspected, from the inspection, and the date from the picker", () => {
     const html = render({ finalResult: "pass", date: "2025-04-12", remark: "Released." });
     expect(html).toMatch(/<input[^>]*readonly=""[^>]*value="Inspector A"/i);
-    expect(html).toContain("Inspected by");
+    expect(html).toContain("Inspected By");
     expect(html).toMatch(/<input[^>]*type="date"[^>]*value="2025-04-12"/);
     expect(html).toContain("Released.</textarea>");
     const nobody = makeTestContext({ sizes: ["M"], inspection: { ...makeTestContext().inspection, inspector: null } });
     expect(render({}, { context: nobody })).toMatch(/<input[^>]*readonly=""[^>]*value="Not recorded"/i);
   });
 
-  it("A. SAFEDON_EG: Inspected by beside the signature is the inspection's inspector; result and date as printed", () => {
+  it("A. SAFEDON_EG: Inspected By beside the signature is the inspection's inspector; result and date as printed", () => {
     const { conclusion } = SAFEDON_EG_EXAMPLE;
     const inspectedBy = conclusion.inspectedBy!;
     const context = makeTestContext({

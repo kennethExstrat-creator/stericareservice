@@ -68,7 +68,7 @@ describe("loading", () => {
 
   it("is a record once every field is filled in and the cartons match the order", () => {
     expect(calcLoading(input(FILLED))).toEqual({
-      result: { status: "info", summary: "Container no. CSQU 305438 3; Seal no. SL-0001; Cartons loaded 2,900 of 2,900." },
+      result: { status: "info", summary: "Container No. CSQU 305438 3; Seal No. SL-0001; Cartons Loaded 2,900 of 2,900." },
       computed: { cartonsOrdered: 2900, cartonsDifference: 0 },
       issues: [],
     });
@@ -78,14 +78,14 @@ describe("loading", () => {
     const output = calcLoading(input({ ...FILLED, cartonsLoaded: 1500 }, { context: SAFEDON_EG_ORDER }));
     expect(output.result).toEqual({
       status: "warn",
-      summary: "Container no. CSQU 305438 3; Seal no. SL-0001; Cartons loaded 1,500 of 1,530 (30 short).",
+      summary: "Container No. CSQU 305438 3; Seal No. SL-0001; Cartons Loaded 1,500 of 1,530 (30 short).",
     });
     expect(output.computed).toEqual({ cartonsOrdered: 1530, cartonsDifference: -30 });
     expect(output.issues).toEqual([
       {
         level: "warning",
         code: "loading_quantity_mismatch",
-        message: "Cartons loaded (1,500) does not match Cartons ordered (1,530): 30 short.",
+        message: "Cartons Loaded (1,500) does not match Cartons Ordered (1,530): 30 short.",
         path: ["cartonsLoaded"],
       },
     ]);
@@ -94,14 +94,14 @@ describe("loading", () => {
   it("warns when more cartons were loaded than ordered", () => {
     const output = calcLoading(input({ ...FILLED, cartonsLoaded: 2950 }));
     expect(output.result.status).toBe("warn");
-    expect(output.issues[0]?.message).toBe("Cartons loaded (2,950) does not match Cartons ordered (2,900): 50 over.");
+    expect(output.issues[0]?.message).toBe("Cartons Loaded (2,950) does not match Cartons Ordered (2,900): 50 over.");
     expect(output.computed.cartonsDifference).toBe(50);
   });
 
   it("is not done while a field the template shows is empty (6.2 rule 5)", () => {
     expect(calcLoading(input({ ...FILLED, sealNo: " ", cartonCondition: null })).result).toEqual({
       status: "not_done",
-      summary: "Missing: Seal no., Carton condition.",
+      summary: "Missing: Seal No., Carton Condition.",
     });
     expect(calcLoading(input({})).result.status).toBe("not_done");
   });
@@ -116,7 +116,7 @@ describe("loading", () => {
     const output = calcLoading(input(FILLED, { context: makeTestContext() }));
     expect(output.result).toEqual({
       status: "not_done",
-      summary: "Cartons ordered: not known until the order quantities are entered.",
+      summary: "Cartons Ordered: not known until the order quantities are entered.",
     });
     expect(output.computed).toEqual({ cartonsOrdered: null, cartonsDifference: null });
     expect(output.issues).toEqual([]);
@@ -126,14 +126,14 @@ describe("loading", () => {
     const noCount = withFields({ cartonsLoaded: false });
     const output = calcLoading(input({ ...FILLED, cartonsLoaded: 12 }, { config: noCount, context: makeTestContext() }));
     expect(output).toEqual({
-      result: { status: "info", summary: "Container no. CSQU 305438 3; Seal no. SL-0001." },
+      result: { status: "info", summary: "Container No. CSQU 305438 3; Seal No. SL-0001." },
       computed: { cartonsOrdered: null, cartonsDifference: null },
       issues: [],
     });
     const conditionOnly = withFields({ containerNo: false, sealNo: false, cartonsLoaded: false });
     expect(calcLoading(input({ cartonCondition: "Dry." }, { config: conditionOnly })).result).toEqual({
       status: "info",
-      summary: "Carton condition recorded.",
+      summary: "Carton Condition recorded.",
     });
     const none = withFields({ containerNo: false, sealNo: false, cartonsLoaded: false, cartonCondition: false });
     expect(calcLoading(input({}, { config: none })).result).toEqual({ status: "info", summary: "No fields are switched on." });
@@ -143,13 +143,13 @@ describe("loading", () => {
     const output = calcLoading(input({ ...FILLED, containerNo: "CSQU 305438 4" }));
     expect(output.result).toEqual({
       status: "warn",
-      summary: "Container no. CSQU 305438 4 (check the number); Seal no. SL-0001; Cartons loaded 2,900 of 2,900.",
+      summary: "Container No. CSQU 305438 4 (check the number); Seal No. SL-0001; Cartons Loaded 2,900 of 2,900.",
     });
     expect(output.issues).toEqual([
       {
         level: "warning",
         code: "container_no_check_digit",
-        message: "Container no. CSQU 305438 4: the ISO 6346 check digit should be 3. Check the number on the container.",
+        message: "Container No. CSQU 305438 4: the ISO 6346 check digit should be 3. Check the number on the container.",
         path: ["containerNo"],
       },
     ]);

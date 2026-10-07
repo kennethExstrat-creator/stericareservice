@@ -27,7 +27,7 @@ const ROWS: Row[] = [
   {
     name: "H3 · Module Card",
     spec: "Red Hat Display 700 · 18/28",
-    sample: <p className="font-display text-lg font-bold text-foreground">Freedom from Holes by watertight test</p>,
+    sample: <p className="font-display text-lg font-bold text-foreground">Freedom From Holes by Watertight Test</p>,
   },
   {
     name: "H4 · Group",
@@ -51,7 +51,7 @@ const ROWS: Row[] = [
   {
     name: "Label",
     spec: "Outfit 500 · 14/20",
-    sample: <p className="text-sm font-medium text-foreground"># glove per inner box</p>,
+    sample: <p className="text-sm font-medium text-foreground"># Glove per Inner Box</p>,
   },
   {
     name: "Eyebrow",

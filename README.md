@@ -151,7 +151,7 @@ Set up on `/admin/users`:
   app shows for them, 1 to 100 characters on one line, the same rule as the invite's Full Name
   (`fullNameSchema()` in `lib/auth/users.ts`). Every screen, the export and the AI
   hand-offs read it from their profile, so it changes everywhere at once, on their past
-  inspections too (the list's Inspector in Charge, the capture header's "Inspected by", the review);
+  inspections too (the list's Inspector in Charge, the capture header's "Inspected By", the review);
   only what already left the app keeps the old name (exported files, AI reports and the AI's
   earlier answers). Supabase Auth's copy (`user_metadata.full_name`,
   which the Supabase dashboard shows) follows when the server has the secret key. An account

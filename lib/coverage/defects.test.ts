@@ -60,64 +60,65 @@ describe("visual defect lists", () => {
     }
   });
 
-  it("keeps the report order and wording of STD_EG", () => {
+  // The report's words in Title Case (Kenneth, 8 October 2026); sources.ts keeps them as printed.
+  it("keeps the report order and words of STD_EG", () => {
     const labels = (cls: (typeof DEFECT_CLASSES)[number]) => VISUAL_DEFECTS.STD_EG[cls].map((defect) => defect.label);
-    expect(labels("critical")).toEqual(["Embedded Insects", "Embedded metal debris"]);
+    expect(labels("critical")).toEqual(["Embedded Insects", "Embedded Metal Debris"]);
     expect(labels("major")).toEqual([
-      "Thin area between fingers (crotch)",
-      "Ring-shaped thin area (crotch)",
-      "Thin area on glove body",
-      "Thin spot on glove body",
-      "Non-removable dirt",
-      "Oil stain",
-      "Residue material / foreign matter",
-      "Defective bead",
+      "Thin Area Between Fingers (Crotch)",
+      "Ring-Shaped Thin Area (Crotch)",
+      "Thin Area on Glove Body",
+      "Thin Spot on Glove Body",
+      "Non-Removable Dirt",
+      "Oil Stain",
+      "Residue Material / Foreign Matter",
+      "Defective Bead",
       "Big Lumps (>2mm)",
     ]);
     expect(labels("minor")).toEqual([
-      "Small dirt / stain",
-      "Sticky pleats (< 5mm)",
+      "Small Dirt / Stain",
+      "Sticky Pleats (< 5mm)",
       "Lumps (<2mm)",
-      "Poor beading",
-      "Rolled bead",
-      "Defective beads",
+      "Poor Beading",
+      "Rolled Bead",
+      "Defective Beads",
     ]);
   });
 
-  it("keeps the report order and wording of SAFEDON_EG", () => {
+  it("keeps the report order and words of SAFEDON_EG", () => {
     const labels = (cls: (typeof DEFECT_CLASSES)[number]) => VISUAL_DEFECTS.SAFEDON_EG[cls].map((defect) => defect.label);
-    expect(labels("critical")).toEqual(["Embedded Insects", "Embedded metal debris"]);
+    expect(labels("critical")).toEqual(["Embedded Insects", "Embedded Metal Debris"]);
     expect(labels("major")).toEqual([
-      "Thin ring between fingers (crotch)",
-      "Thin area between fingers (crotch)",
-      "Thin patch / area (body)",
-      "Thin spot",
-      "Non-removable dirt",
+      "Thin Ring Between Fingers (Crotch)",
+      "Thin Area Between Fingers (Crotch)",
+      "Thin Patch / Area (Body)",
+      "Thin Spot",
+      "Non-Removable Dirt",
       "Stain",
-      "Powder mark",
-      "Bead blister",
+      "Powder Mark",
+      "Bead Blister",
     ]);
     expect(labels("minor")).toEqual([
-      "Small dirt / stain",
-      "Sticky pleats (< 5mm)",
+      "Small Dirt / Stain",
+      "Sticky Pleats (< 5mm)",
       "Lumps (<2mm)",
-      "Thin bead",
-      "Thin bead / small beading defect",
+      "Thin Bead",
+      "Thin Bead / Small Beading Defect",
     ]);
   });
 
-  it("sets severity per template: one code, major as 'Defective bead', minor as 'Defective beads' (rule 4.2.4)", () => {
+  it("sets severity per template: one code, major as 'Defective Bead', minor as 'Defective Beads' (rule 4.2.4)", () => {
     const find = (cls: (typeof DEFECT_CLASSES)[number]) =>
       VISUAL_DEFECTS.STD_EG[cls].find((defect) => defect.code === "bead_defective");
-    expect(find("major")?.label).toBe("Defective bead");
-    expect(find("minor")?.label).toBe("Defective beads");
+    expect(find("major")?.label).toBe("Defective Bead");
+    expect(find("minor")?.label).toBe("Defective Beads");
     expect(find("critical")).toBeUndefined();
   });
 
-  it("counts 'Oil stain' and 'Stain' together under one code", () => {
+  it("counts 'Oil Stain' and 'Stain' together under one code", () => {
     const stain = (template: "STD_EG" | "SAFEDON_EG") =>
       VISUAL_DEFECTS[template].major.find((defect) => defect.code === "stain")?.label;
-    expect(stain("STD_EG")).toBe("Oil stain");
+    expect(stain("STD_EG")).toBe("Oil Stain");
     expect(stain("SAFEDON_EG")).toBe("Stain");
   });
 });
@@ -134,8 +135,8 @@ describe("[sic] corrections", () => {
     expect(new Set(printed.map((defect) => `${defect.printed} -> ${defect.label}`))).toEqual(
       new Set([
         "Embeded Insects -> Embedded Insects",
-        "Embeded metal debris -> Embedded metal debris",
-        "Thin batch / area (body) -> Thin patch / area (body)",
+        "Embeded metal debris -> Embedded Metal Debris",
+        "Thin batch / area (body) -> Thin Patch / Area (Body)",
       ]),
     );
   });
@@ -178,12 +179,12 @@ describe("watertight locations", () => {
 describe("Safedon dispensing defects", () => {
   it("lists the six defects of the onsite sheet with the app's definitions (onsite/SAFEDON_EG.md)", () => {
     expect(SAFEDON_DISPENSING_DEFECTS.map(({ code, label, hint }) => [code, label, hint])).toEqual([
-      ["no_cuff", "No cuff", "Cuff should ideally be at least 2 cm out"],
-      ["finger_out", "Finger out", "Only the cuff, not a finger, should come out first"],
-      ["multiple_out", "Multiple gloves out", "Only one glove should come out at a time"],
-      ["stuck", "Glove stuck", "Glove could not be dispensed or was very difficult to dispense"],
-      ["sticky", "Sticky glove", "Two or more gloves out at once because they stick together"],
-      ["faulty_cuff", "Faulty cuff", "Deformed or misshapen cuff causing a dispensing problem"],
+      ["no_cuff", "No Cuff", "Cuff should ideally be at least 2 cm out"],
+      ["finger_out", "Finger Out", "Only the cuff, not a finger, should come out first"],
+      ["multiple_out", "Multiple Gloves Out", "Only one glove should come out at a time"],
+      ["stuck", "Glove Stuck", "Glove could not be dispensed or was very difficult to dispense"],
+      ["sticky", "Sticky Glove", "Two or more gloves out at once because they stick together"],
+      ["faulty_cuff", "Faulty Cuff", "Deformed or misshapen cuff causing a dispensing problem"],
     ]);
   });
 

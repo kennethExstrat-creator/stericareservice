@@ -43,7 +43,7 @@ const PHOTOS: DemoPhoto[] = [
     id: "uploaded",
     src: "/design/photo-defect.svg",
     alt: "Thin spot on the glove body",
-    tags: { module: "Visual", size: "M", defect: "Thin spot on glove body", box: "253" },
+    tags: { module: "Visual", size: "M", defect: "Thin Spot on Glove Body", box: "253" },
     caption: "Thin spot near the palm, second glove from box 253",
     state: "uploaded",
     includeInReport: true,

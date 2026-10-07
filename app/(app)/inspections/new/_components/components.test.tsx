@@ -225,7 +225,7 @@ describe("start from previous", () => {
     expect(html).toContain("Copied From INS-2026-0007");
     expect(html).toContain("Manufacturer Information: factory address, product name, product code and factory glove code");
     expect(html).toContain("Glove Information: every field");
-    expect(html).toContain("Packing configuration: every field");
+    expect(html).toContain("Packing Configuration: every field");
     expect(html).toContain("Never copied: PO number, dates, lots, sampling, test results, comments and photos.");
     expect(html).toContain("Same template as last time (STD_EG version 1): its specs and AQL carry over.");
   });
@@ -245,7 +245,7 @@ describe("start from previous", () => {
     expect(html).toContain("Copied From INS-2026-0009");
     expect(html).toContain("Manufacturer Information: product name<");
     expect(html).not.toContain("Glove Information");
-    expect(html).not.toContain("Packing configuration");
+    expect(html).not.toContain("Packing Configuration");
   });
 
   it("says when an earlier inspection has nothing to copy", () => {

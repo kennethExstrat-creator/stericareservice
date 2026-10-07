@@ -74,7 +74,7 @@ describe("header capture", () => {
   it("labels every row in the template's wording (6.2 rule 11)", () => {
     const html = render({ labels: { ...HEADER_LABELS, ...labelOverrides("SAFEDON_EG", "header") } });
     expect(html).toContain(">PO Number<");
-    expect(html).toContain(">Product Name (Brand &amp; code)<");
+    expect(html).toContain(">Product Name (Brand &amp; Code)<");
     expect(html).not.toContain("PO / SO Number");
   });
 
@@ -126,16 +126,16 @@ describe("header capture", () => {
       context: baseContext({ template: TEMPLATE, meta: headerMeta(SAFEDON_EG_EXAMPLE.header) }),
     });
     expect(tagsWith(html, 'type="date"')).toHaveLength(1);
-    expect(html).toContain('aria-label="Manufacturing date: month"');
-    expect(html).toContain('aria-label="Manufacturing date: year"');
-    expect(html).toContain('aria-label="Expiry date: month"');
+    expect(html).toContain('aria-label="Manufacturing Date: month"');
+    expect(html).toContain('aria-label="Manufacturing Date: year"');
+    expect(html).toContain('aria-label="Expiry Date: month"');
     expect(html).toContain("<legend");
   });
 
   it("shows the expiry warning under its date and marks each field for issue links", () => {
     const html = render({ data: { ...headerData(STD_EG_EXAMPLE.header), expiryDate: "2025-03-01" } });
     // The dates in the words the app shows them in elsewhere; the fields keep ISO.
-    expect(html).toContain("Expiry date 1 Mar 2025 is not after Manufacturing date 1 Apr 2025.");
+    expect(html).toContain("Expiry Date 1 Mar 2025 is not after Manufacturing Date 1 Apr 2025.");
     expect(html).toContain('data-issue-path="[&quot;expiryDate&quot;]"');
     expect(html).toContain('data-issue-path="[&quot;poNo&quot;]"');
   });
@@ -159,7 +159,7 @@ describe("header capture", () => {
     expect(tagsWith(html, ' disabled=""')).toEqual([]);
     const dates = ["Feb 2025", "Jan 2030"].map((text) => tagsOf(html, "input").find((input) => input.includes(`value="${text}"`)));
     for (const input of dates) expect(input).toContain('readOnly=""');
-    expect(html).toContain(">Manufacturing date</label>");
-    expect(html).toContain(">Expiry date</label>");
+    expect(html).toContain(">Manufacturing Date</label>");
+    expect(html).toContain(">Expiry Date</label>");
   });
 });

@@ -147,7 +147,7 @@ describe("visual", () => {
           M: {
             status: "pass",
             summary:
-              "Critical Defects 0 / 500, Defect Limit 0 / 1: Passed; Major Defects 8 / 500 (Thin area between fingers (crotch) 2, Thin area on glove body 1, Thin spot on glove body 5), Defect Limit 21 / 22: Passed; Minor Defects 0 / 500, Defect Limit 21 / 22: Passed.",
+              "Critical Defects 0 / 500, Defect Limit 0 / 1: Passed; Major Defects 8 / 500 (Thin Area Between Fingers (Crotch) 2, Thin Area on Glove Body 1, Thin Spot on Glove Body 5), Defect Limit 21 / 22: Passed; Minor Defects 0 / 500, Defect Limit 21 / 22: Passed.",
           },
         },
       });
@@ -159,7 +159,7 @@ describe("visual", () => {
       expect(STD_EG_EXAMPLE.visual.printedTitle).toContain("K, L & M");
       const output = calcVisual(fromExample(STD_EG_EXAMPLE));
       expect([output.computed.sizes.M.major?.accept, output.computed.sizes.M.major?.reject]).toEqual([21, 22]);
-      expect(output.computed.heading).toBe("Visual Inspection (Single Sampling code letter N)");
+      expect(output.computed.heading).toBe("Visual Inspection (Single Sampling Code Letter N)");
       expect(output.computed.classes.minor.heading).toBe("Minor Defects (AQL 4.0)");
       expect(output.computed.classes.critical.heading).toBe("Critical Defects (AQL 0.0)");
     });
@@ -171,7 +171,7 @@ describe("visual", () => {
       }
       expect(Object.values(output.result.perSize ?? {}).map((entry) => entry.status)).toEqual(["pass", "pass", "pass", "pass"]);
       expect(output.result.status).toBe("pass");
-      expect(output.computed.heading).toBe("Visual Inspection (Sampling code letter J & L)");
+      expect(output.computed.heading).toBe("Visual Inspection (Sampling Code Letter J & L)");
       expect(output.issues).toEqual([]);
     });
 
@@ -185,7 +185,7 @@ describe("visual", () => {
 
     it("A. reads SAFEDON_EG's wording for its own defects", () => {
       const output = calcVisual(fromExample(SAFEDON_EG_EXAMPLE));
-      expect(output.computed.classes.major.defects).toContainEqual({ code: "thin_body_area", label: "Thin patch / area (body)" });
+      expect(output.computed.classes.major.defects).toContainEqual({ code: "thin_body_area", label: "Thin Patch / Area (Body)" });
       expect(output.computed.classes.major.defects.map((defect) => defect.code)).toContain("powder_mark");
     });
   });
@@ -203,7 +203,7 @@ describe("visual", () => {
       expect(early.result.perSize?.M).toEqual({
         status: "fail",
         summary:
-          "Critical Defects 1 found (Embedded metal debris 1): Failed (any critical defect fails); Major Defects: No. of sample inspected missing (sampling plan: 500); Minor Defects: No. of sample inspected missing (sampling plan: 500).",
+          "Critical Defects 1 found (Embedded Metal Debris 1): Failed (any critical defect fails); Major Defects: No. of Sample Inspected missing (sampling plan: 500); Minor Defects: No. of Sample Inspected missing (sampling plan: 500).",
       });
     });
 
@@ -247,7 +247,7 @@ describe("visual", () => {
       expect(output.result.perSize?.S?.status).toBe("not_done");
       expect(output.result.perSize?.M?.status).toBe("pass");
       expect(output.result.summary).toBe(
-        "Size S: not done, No. of sample inspected missing (sampling plan: 200); size M: Critical Defects 0 / 500, Major Defects 0 / 500, Minor Defects 0 / 500: Passed.",
+        "Size S: not done, No. of Sample Inspected missing (sampling plan: 200); size M: Critical Defects 0 / 500, Major Defects 0 / 500, Minor Defects 0 / 500: Passed.",
       );
     });
 
@@ -331,7 +331,7 @@ describe("visual", () => {
           level: "warning",
           code: "inspected_not_planned",
           message:
-            "Size M, Minor Defects: No. of sample inspected is 315, but the sampling plan has 500 gloves for watertight and visual.",
+            "Size M, Minor Defects: No. of Sample Inspected is 315, but the sampling plan has 500 gloves for watertight and visual.",
           path: ["sizes", "M", "minor", "inspected"],
         }),
       ]);
@@ -345,18 +345,18 @@ describe("visual", () => {
         input({ M: inspectedAll(500, { major: { bead_defective: 1 }, minor: { bead_defective: 3 } }) }),
       );
       expect([output.computed.sizes.M.major?.total, output.computed.sizes.M.minor?.total]).toEqual([1, 3]);
-      expect(output.result.perSize?.M?.summary).toContain("Major Defects 1 / 500 (Defective bead 1)");
-      expect(output.result.perSize?.M?.summary).toContain("Minor Defects 3 / 500 (Defective beads 3)");
+      expect(output.result.perSize?.M?.summary).toContain("Major Defects 1 / 500 (Defective Bead 1)");
+      expect(output.result.perSize?.M?.summary).toContain("Minor Defects 3 / 500 (Defective Beads 3)");
     });
 
     it("lets a template reword a defect for one class or everywhere without rewriting the list", () => {
-      const bead = { code: "bead_defective", label: "Defective bead" };
+      const bead = { code: "bead_defective", label: "Defective Bead" };
       expect(defectLabel({ "minor.bead_defective": "Bead defect" }, "minor", bead)).toBe("Bead defect");
-      expect(defectLabel({ "minor.bead_defective": "Bead defect" }, "major", bead)).toBe("Defective bead");
+      expect(defectLabel({ "minor.bead_defective": "Bead defect" }, "major", bead)).toBe("Defective Bead");
       expect(defectLabel({ bead_defective: "Bead flaw" }, "major", bead)).toBe("Bead flaw");
-      expect(defectLabel({ "major.bead_defective": " " }, "major", bead)).toBe("Defective bead");
-      expect(defectLabel({}, "major", bead)).toBe("Defective bead");
-      expect(classLabel({ ...VISUAL_LABELS, majorCounts: "Major defect" }, "major")).toBe("Major defect");
+      expect(defectLabel({ "major.bead_defective": " " }, "major", bead)).toBe("Defective Bead");
+      expect(defectLabel({}, "major", bead)).toBe("Defective Bead");
+      expect(classLabel({ ...VISUAL_LABELS, majorCounts: "Major Defect" }, "major")).toBe("Major Defect");
     });
 
     it("counts a one-off defect and flags it for an admin; one at 0 counts nothing", () => {
@@ -514,7 +514,7 @@ describe("visual", () => {
 
     it("STD_SG words its classes as the SG form does and splits hands", () => {
       const resolved = visualOf("STD_SG");
-      expect(resolved.labels).toMatchObject({ majorCounts: "Major defect", majorTotal: "Total Major", heading: "Visual Inspection" });
+      expect(resolved.labels).toMatchObject({ majorCounts: "Major Defect", majorTotal: "Total Major", heading: "Visual Inspection" });
       expect(resolved.config.handSplit).toBe(true);
     });
   });

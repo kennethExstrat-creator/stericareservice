@@ -67,12 +67,12 @@ describe("order_lots", () => {
     }
     expect(output.result).toEqual({
       status: "info",
-      summary: "Sizes XS, S, M, L. Total # carton 1,530; Total # gloves 3,060,000.",
+      summary: "Sizes XS, S, M, L. Total # Carton 1,530; Total # Gloves 3,060,000.",
       perSize: {
-        XS: { status: "info", summary: "Qty (cases) 60; Lot Number LOT-B01; Packing Site Packer C." },
-        S: { status: "info", summary: "Qty (cases) 850; Lot Number LOT-B02; Packing Site Manufacturer B." },
-        M: { status: "info", summary: "Qty (cases) 560; Lot Number LOT-B03; Packing Site Manufacturer B." },
-        L: { status: "info", summary: "Qty (cases) 60; Lot Number LOT-B04; Packing Site Packer C." },
+        XS: { status: "info", summary: "Qty (Cases) 60; Lot Number LOT-B01; Packing Site Packer C." },
+        S: { status: "info", summary: "Qty (Cases) 850; Lot Number LOT-B02; Packing Site Manufacturer B." },
+        M: { status: "info", summary: "Qty (Cases) 560; Lot Number LOT-B03; Packing Site Manufacturer B." },
+        L: { status: "info", summary: "Qty (Cases) 60; Lot Number LOT-B04; Packing Site Packer C." },
       },
     });
     expect(output.issues).toEqual([]);
@@ -87,7 +87,7 @@ describe("order_lots", () => {
     });
     expect(output.result).toMatchObject({
       status: "info",
-      summary: "Size M. Total # carton 2,900; Total # gloves 5,800,000.",
+      summary: "Size M. Total # Carton 2,900; Total # Gloves 5,800,000.",
     });
     expect(Object.keys(output.result.perSize ?? {})).toEqual(["M"]);
   });
@@ -106,14 +106,14 @@ describe("order_lots", () => {
     expect(output.computed).toEqual({ lotSizeGloves: { M: null }, totalCartons: 2900, totalGloves: null });
     expect(output.result).toMatchObject({
       status: "info",
-      summary: "Size M. Total # carton 2,900; Total # gloves: waiting for the gloves per case.",
+      summary: "Size M. Total # Carton 2,900; Total # Gloves: waiting for the gloves per case.",
     });
   });
 
   it("is not done until a size is ordered (6.2 rule 5)", () => {
     for (const data of [lines({}), lines({ M: { qtyCases: 0 } }), lines({ M: {} })]) {
       expect(calcOrderLots(input(data))).toEqual({
-        result: { status: "not_done", summary: "No size ordered yet: enter the Qty (cases) of each size in the order." },
+        result: { status: "not_done", summary: "No size ordered yet: enter the Qty (Cases) of each size in the order." },
         computed: { lotSizeGloves: {}, totalCartons: null, totalGloves: null },
         issues: [],
       });
@@ -134,7 +134,7 @@ describe("order_lots", () => {
     const site = calcOrderLots(
       input(lines({ M: { qtyCases: 560, lotNumbers: ["LOT-B03"], packingSite: "Packer C Sdn. Bhd." } }), { config: WITH_SITE }),
     );
-    expect(site.result.perSize?.M?.summary).toBe("Qty (cases) 560; Lot Number LOT-B03; Packing Site Packer C Sdn. Bhd.");
+    expect(site.result.perSize?.M?.summary).toBe("Qty (Cases) 560; Lot Number LOT-B03; Packing Site Packer C Sdn. Bhd.");
   });
 
   it("asks for the packing site only where the template shows it (SAFEDON_EG)", () => {
@@ -151,20 +151,20 @@ describe("order_lots", () => {
   });
 
   it("is not done for a line with lot numbers but no quantity: a size meant to be ordered", () => {
-    const labels = { ...ORDER_LOTS_LABELS, qtyCases: "Qty (case)" };
+    const labels = { ...ORDER_LOTS_LABELS, qtyCases: "Qty (Case)" };
     const data = lines({ S: { qtyCases: 0, lotNumbers: ["LOT-B02"] }, M: { qtyCases: 2900, lotNumbers: ["LOT-A01"] } });
     const output = calcOrderLots(input(data, { labels }));
-    expect(output.result).toMatchObject({ status: "not_done", summary: "Missing: Qty (case) for size S." });
+    expect(output.result).toMatchObject({ status: "not_done", summary: "Missing: Qty (Case) for size S." });
     expect(output.computed.totalCartons).toBe(2900);
     expect(calcOrderLots(input(lines({ S: { lotNumbers: ["LOT-B02"] } }))).result.summary).toBe(
-      "Missing: Qty (cases) for size S.",
+      "Missing: Qty (Cases) for size S.",
     );
   });
 
   it("names sizes as the template labels them", () => {
     const context = { templateSizes: [{ value: "M", label: "Medium" }] };
     const output = calcOrderLots(input(orderData(STD_EG_EXAMPLE.order), { context }));
-    expect(output.result.summary).toBe("Size Medium. Total # carton 2,900; Total # gloves 5,800,000.");
+    expect(output.result.summary).toBe("Size Medium. Total # Carton 2,900; Total # Gloves 5,800,000.");
   });
 
   it("orders only the sizes with a quantity, for every other module (6.2 rule 4)", () => {

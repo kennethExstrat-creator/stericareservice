@@ -116,7 +116,7 @@ export function plannedBoxes(context: InspectionContext, config: DispensingSafed
   return config.boxesPerSize.bySize?.[size] ?? config.boxesPerSize.default;
 }
 
-/** The report heading with its code letters: "Glove Dispensing Inspection (Sampling code letter C & D)". */
+/** The report heading with its code letters: "Glove Dispensing Inspection (Sampling Code Letter C & D)". */
 export function safedonHeading(labels: Labels, codeLetters: readonly string[]): string {
   return fillPlaceholders(labelFor(labels, "heading"), {
     codeLetters: codeLetters.length > 0 ? joinWithAmpersand(codeLetters) : "—",

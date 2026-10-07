@@ -29,7 +29,7 @@ describe("moduleSummary on the example reports", () => {
       labeling: "No defects in size M.",
       weight: stdEg.module("weight").result.summary,
       visual: stdEg.module("visual").result.summary,
-      order_lots: "Size M. Total # carton 2,900; Total # gloves 5,800,000.",
+      order_lots: "Size M. Total # Carton 2,900; Total # Gloves 5,800,000.",
     });
   });
 

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { isModuleKey, MODULE_KEYS } from "@/lib/schemas/module-result";
 import { SAFEDON_DISPENSING_DEFECTS, VISUAL_DEFECTS } from "./defects";
-import { captionLabel, dataField, fieldLabel, moduleSpec } from "./fields";
+import { captionLabel, dataField, moduleSpec } from "./fields";
 import { DEFECT_CLASSES, LABELLING_CHECKS, LABELLING_LEVELS } from "./keys";
 import { slug, SOURCE_DOCUMENTS, SOURCE_FIELDS, sourceFields } from "./sources";
-import { fieldShown, moduleConfig, templateModuleKeys, templateOfSource, TEMPLATES } from "./templates";
+import { fieldShown, templateModuleKeys, templateOfSource, TEMPLATES } from "./templates";
 import {
   isConfigTarget,
   isCustomTarget,
@@ -20,63 +20,11 @@ import {
   type SourceTarget,
   type TemplateCode,
 } from "./types";
+import { sameWording, targetLabel } from "./wording";
 
 /* ------------------------------------------------------------------ *
  * Helpers
  * ------------------------------------------------------------------ */
-
-const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-/** `{name}` in a template label matches whatever the source printed there. */
-function matchesLabel(printed: string, label: string): boolean {
-  if (!/\{\w+\}/.test(label)) return printed === label;
-  const pattern = label.split(/\{\w+\}/).map(escapeRegExp).join(".+?");
-  return new RegExp(`^${pattern}$`).test(printed);
-}
-
-/** The label a list entry (defect, location, check) has in the template's config. */
-function listItemLabel(template: TemplateCode, target: SourceTarget): string | undefined {
-  if (!isFieldTarget(target) || target.key === undefined) return undefined;
-  const { module, group, key } = target;
-  if (module === "watertight") return moduleConfig(template, "watertight")?.locations.find((item) => item.code === key)?.label;
-  if (module === "visual" && group) {
-    const classes = moduleConfig(template, "visual")?.classes;
-    return classes?.[group as (typeof DEFECT_CLASSES)[number]]?.defects.find((item) => item.code === key)?.label;
-  }
-  if (module === "labeling" && group) {
-    const levels = moduleConfig(template, "labeling")?.levels;
-    return levels?.[group as (typeof LABELLING_LEVELS)[number]]?.checks.find((item) => item.code === key)?.label;
-  }
-  if (module === "dispensing_safedon") {
-    return moduleConfig(template, "dispensing_safedon")?.defects.find((item) => item.code === key)?.label;
-  }
-  return undefined;
-}
-
-/** What the template shows for a target, or undefined when the target has no single label. */
-function templateLabelOf(template: TemplateCode, target: SourceTarget): string | undefined {
-  if (isFieldTarget(target)) {
-    return target.key === undefined
-      ? fieldLabel(template, target.module, target.field, target.group)
-      : listItemLabel(template, target);
-  }
-  if (isLabelTarget(target)) return captionLabel(template, target.module, target.label);
-  if (isConfigTarget(target) && target.key !== undefined) {
-    if (target.module === "dispensing_packing" && target.config === "stickinessCodes") {
-      const code = moduleConfig(template, "dispensing_packing")?.stickinessCodes.find((item) => item.code === target.key);
-      return code && `${code.code} = ${code.label} (${code.pass ? "Passed" : "Failed"})`;
-    }
-    if (target.module === "dispensing_safedon" && target.config === "defects") {
-      const defect = SAFEDON_DISPENSING_DEFECTS.find((item) => item.code === target.key);
-      return defect && (defect.correctedHint ?? defect.printedHint);
-    }
-  }
-  if (isCustomTarget(target)) {
-    const customModule = TEMPLATES[template].customModules.find((item) => item.key === target.custom);
-    return customModule?.fields.find((field) => field.key === target.field)?.label;
-  }
-  return undefined;
-}
 
 /** Sources whose wording is the template's: the reports for their templates, the SG form for STD_SG. */
 const WORDING_SOURCES: Partial<Record<SourceId, TemplateCode>> = {
@@ -174,19 +122,19 @@ describe("every source field has a target (rule 4.2.2: nothing lost)", () => {
           }
           if (target.key !== undefined) {
             expect(spec?.type, name).toBe("count_map");
-            expect(listItemLabel(template, target), name).toBeDefined();
+            expect(targetLabel(template, target), name).toBeDefined();
           }
         } else if (isConfigTarget(target)) {
           expect(moduleSpec(target.module).config.map((config) => config.key), name).toContain(target.config);
           if (target.key !== undefined && target.config === "classes") expect(DEFECT_CLASSES, name).toContain(target.key);
           if (target.key !== undefined && target.config === "levels") expect(LABELLING_LEVELS, name).toContain(target.key);
           if (target.key !== undefined && ["stickinessCodes", "defects"].includes(target.config)) {
-            expect(templateLabelOf(template, target), name).toBeDefined();
+            expect(targetLabel(template, target), name).toBeDefined();
           }
         } else if (isLabelTarget(target)) {
           expect(captionLabel(template, target.module, target.label), name).toBeDefined();
         } else if (isCustomTarget(target)) {
-          expect(templateLabelOf(template, target), name).toBeDefined();
+          expect(targetLabel(template, target), name).toBeDefined();
         } else if (isTemplateTarget(target)) {
           expect(TEMPLATE_PROPERTIES, name).toContain(target.template);
         } else {
@@ -292,7 +240,7 @@ describe("[sic] corrections", () => {
         (item) => item.code === target.key,
       );
       expect(defect?.printed, where(field)).toBe(field.label);
-      expect(defect?.label, where(field)).toBe(field.corrected);
+      expect(sameWording(field.corrected ?? field.label, defect?.label ?? ""), `${where(field)}: ${defect?.label}`).toBe(true);
     }
   });
 });
@@ -302,12 +250,14 @@ describe("their wording, our keys (rule 4.2.3)", () => {
     (field) => WORDING_SOURCES[field.source] && field.templateLabel !== false && LABELLED_INPUTS.has(field.input),
   );
 
+  // Kenneth, 8 October 2026: the template shows the form's words in Title Case (docs/DESIGN.md),
+  // so the label is the printed one, [sic] fixed, with only its words' first letters recased.
   it("shows each printed label, [sic] fixed, as the template's label of the field it maps to", () => {
     let compared = 0;
     for (const field of checked) {
       const template = WORDING_SOURCES[field.source] as TemplateCode;
       const [target] = field.targets;
-      const expected = templateLabelOf(template, target);
+      const expected = targetLabel(template, target);
       if (expected === undefined) {
         // Only values with no single label of their own: a config value as a whole, the size list,
         // the title block, a legend the AI report draws.
@@ -315,7 +265,7 @@ describe("their wording, our keys (rule 4.2.3)", () => {
         continue;
       }
       compared += 1;
-      expect(matchesLabel(field.corrected ?? field.label, expected), `${where(field)}: template shows "${expected}"`).toBe(true);
+      expect(sameWording(field.corrected ?? field.label, expected), `${where(field)}: template shows "${expected}"`).toBe(true);
     }
     expect(compared).toBeGreaterThan(230);
   });

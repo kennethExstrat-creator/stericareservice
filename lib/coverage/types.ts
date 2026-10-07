@@ -72,7 +72,7 @@ export type GroupLabel = { readonly label: string; readonly labels?: LabelOverri
 export type DataFieldSpec = {
   /** Canonical key, camelCase, unique within the module (rule 4.2.3). */
   readonly key: string;
-  /** Default label: STD_EG's wording with [sic] typos fixed; the source's wording where STD_EG lacks the field. */
+  /** Default label: STD_EG's wording with [sic] typos fixed, in Title Case; the source's wording where STD_EG lacks the field. */
   readonly label: string;
   readonly labels?: LabelOverrides;
   /** Labels that differ per class or level (visual, labeling), keyed by group. */
@@ -205,7 +205,7 @@ export type SourceField = {
   readonly section: string;
   /** Verbatim, original spelling included. `<...>` marks a value printed in the label. */
   readonly label: string;
-  /** The app's wording where the source has a typo ([sic]). */
+  /** The source's words with its typo fixed ([sic]); the app writes them in Title Case (wording.ts). */
   readonly corrected?: string;
   readonly input: SourceInput;
   /** Where the field goes. Never empty: nothing is dropped (rule 4.2.2). */

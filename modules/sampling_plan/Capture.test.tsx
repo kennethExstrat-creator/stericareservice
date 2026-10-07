@@ -67,24 +67,30 @@ describe("sampling_plan Capture", () => {
   });
 
   it("reads every label from the template's wording and never offers it for editing (6.2 rule 11)", () => {
-    const labels = { ...SAMPLING_PLAN_LABELS, innerUnits: "Inner pack", glovesPhysical: "# gloves for Tensile" };
+    // SAFEDON_EG's words for its inner unit, the plastic pack, wherever STD_EG says Inner Box.
+    const labels = {
+      ...SAMPLING_PLAN_LABELS,
+      innerUnits: "Inner Pack",
+      glovesPhysical: "# Gloves for Tensile",
+      innerUnitsDispensing: "# Inner Packs for Packaging & Dispensing Inspection",
+    };
     const html = render(props(SAFEDON_EG_EXAMPLE, LEVEL_I, labels));
-    expect(html).toContain("# gloves for Tensile");
-    expect(html).toContain('aria-label="Inner pack, Size XS"');
-    expect(html).not.toContain("# gloves for FAB");
+    expect(html).toContain("# Gloves for Tensile");
+    expect(html).toContain('aria-label="Inner Pack, Size XS"');
+    expect(html).not.toContain("# Gloves for FAB");
     expect(html).not.toContain("Inner Box");
     expect(html).toContain("Sampling Quantity");
   });
 
   it("shows the order, the lot in gloves and the level's plan beside the counts, computed not typed (6.2 rule 2)", () => {
     const html = render(props(SAFEDON_EG_EXAMPLE));
-    for (const text of ["Order Qty (case)", "Lot size (gloves)", "Inspection level", "Code letter", "Sample size by plan"]) {
+    for (const text of ["Order Qty (Case)", "Lot Size (Gloves)", "Inspection Level", "Code Letter", "Sample Size by Plan"]) {
       expect(html).toContain(text);
     }
     for (const value of ["120,000", "1,700,000", "1,120,000", "200", "500"]) expect(html).toContain(value);
     // No level: no plan to show.
     const plain = render(props(SAFEDON_EG_EXAMPLE, SAMPLING_PLAN_DEFAULT_CONFIG));
-    expect(plain).not.toContain("Sample size by plan");
+    expect(plain).not.toContain("Sample Size by Plan");
   });
 
   it("puts the below-plan warning under the cell it concerns, and links issues to the cells (BUILD_SPEC 6.1, 6.2)", () => {
@@ -151,7 +157,7 @@ describe("sampling_plan Capture", () => {
     const html = render(props(STD_EG_EXAMPLE, config, labels));
     const group = html.indexOf("Sampling Quantity (WTT &amp; Visual)");
     expect(group).toBeGreaterThan(-1);
-    const order = ["Case", "Inner Box", "Pouches", "# gloves", "# gloves for dimension"];
+    const order = ["Case", "Inner Box", "Pouches", "# gloves", "# Gloves for Dimension"];
     const positions = order.map((name) => html.indexOf(`aria-label="${name}, Size M"`));
     expect(positions.every((position) => position > group)).toBe(true);
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);

@@ -173,7 +173,7 @@ export function invalidDataIssues(
  * "lotNumbers", 1]` with order_lots' labels is "size M, Lot Number no. 2".
  * A key is named by its label when there is one; the last key, and a list's
  * own key, are named even without one. A hand under a size (`R` or `L`,
- * hand-split modules) is named too: "size M, right hand, Pin hole".
+ * hand-split modules) is named too: "size M, right hand, Pin Hole".
  */
 export function describeDataPath(path: IssuePath, labels: Readonly<Record<string, string>> = {}): string {
   const parts: string[] = [];

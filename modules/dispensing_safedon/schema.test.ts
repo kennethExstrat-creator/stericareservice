@@ -8,6 +8,7 @@ import {
   moduleConfig,
   moduleTitle,
   SAFEDON_DISPENSING_DEFECTS,
+  sameWording,
   seedConfig,
   TEMPLATE_CODES,
   TEMPLATES,
@@ -111,10 +112,12 @@ describe("dispensing_safedon config", () => {
     expect(DISPENSING_SAFEDON_DEFAULT_CONFIG.defects.map((defect) => defect.hint)).toEqual(
       SAFEDON_DISPENSING_DEFECTS.map((defect) => defect.hint),
     );
-    // The printed rows, in the template's order and labels.
-    expect(DISPENSING_SAFEDON_DEFAULT_CONFIG.defects.map(({ code, label }) => ({ code, label }))).toEqual(
-      SAFEDON_EG_EXAMPLE.dispensingSafedon.rows.map(({ code, label }) => ({ code, label })),
-    );
+    // The printed rows, in the template's order, their words in Title Case (docs/DESIGN.md).
+    const rows = SAFEDON_EG_EXAMPLE.dispensingSafedon.rows;
+    expect(DISPENSING_SAFEDON_DEFAULT_CONFIG.defects.map(({ code }) => code)).toEqual(rows.map(({ code }) => code));
+    for (const [index, { code, label }] of DISPENSING_SAFEDON_DEFAULT_CONFIG.defects.entries()) {
+      expect(sameWording(rows[index].label, label), `${code}: ${label}`).toBe(true);
+    }
   });
 
   it("accepts every seed template's values (lib/coverage/templates.ts), merged as lib/templates merges them", () => {

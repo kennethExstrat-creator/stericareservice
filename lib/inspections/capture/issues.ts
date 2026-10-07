@@ -60,7 +60,7 @@ export function countIssues(issues: readonly Pick<ValidationIssue, "level">[]): 
  */
 export type PendingTask = {
   key: string;
-  /** The section's title, without a trailing note in brackets ("(Refer to attached lab. reports)"). */
+  /** The section's title, without a trailing note in brackets ("(Refer to Attached Lab. Reports)"). */
   title: string;
   /** False when the section is not on screen (switched off or unknown): the row has no link. */
   linkable: boolean;
@@ -123,7 +123,7 @@ export function isRefusedEntry(issue: Pick<ValidationIssue, "code">): boolean {
   return issue.code === REFUSED_ENTRY_CODE;
 }
 
-/** "Physical Properties average (Refer to attached lab. reports)" as "Physical Properties average"; a title that is only brackets stays. */
+/** "Physical Properties Average (Refer to Attached Lab. Reports)" as "Physical Properties Average"; a title that is only brackets stays. */
 export function shortTitle(title: string): string {
   const match = /^(.{8,}?)\s*\([^()]*\)$/.exec(title.trim());
   return match ? match[1] : title.trim();
@@ -264,11 +264,17 @@ function notDoneStatus(issue: ValidationIssue, { notStarted, sizesNotDone }: Tas
   return { status: "Not done yet", sizes: [] };
 }
 
-/** One or two short field names as the task ("Glove colour and glove length"); null when that would be long. */
+/**
+ * One or two short field names as the task ("Glove Colour and Glove Length",
+ * "Final result and date"); null when that would be long. A pair reads in one
+ * style: when either label is in Title Case, both are quoted as shown
+ * ("Product Name and Date", docs/DESIGN.md), else the second starts lower case.
+ */
 function fieldsStatus(fields: readonly string[]): string | null {
   if (fields.length === 1 && fields[0].length <= 30) return fields[0];
   if (fields.length === 2) {
-    const both = `${fields[0]} and ${lowerFirst(fields[1])}`;
+    const asShown = fields.some(inTitleCase);
+    const both = `${fields[0]} and ${asShown ? fields[1] : lowerFirst(fields[1])}`;
     if (both.length <= 32) return both;
   }
   return fields.length > 2 ? `${fields.length} fields to fill` : null;
@@ -314,7 +320,15 @@ function splitList(list: string): string[] {
   return parts.filter((part) => part !== "");
 }
 
-/** "Date" as "date"; "PO / SO Number" stays (an acronym). */
+/**
+ * A label whose later words start with a capital: Title Case ("Product Name",
+ * "Glove Length", "PO / SO Number"). A one-word label ("Date") reads either way.
+ */
+function inTitleCase(label: string): boolean {
+  return /\s\p{Lu}/u.test(label);
+}
+
+/** "Date" as "date", "Glove length" as "glove length"; an acronym stays ("AQL level"). */
 function lowerFirst(text: string): string {
   return /^[A-Z][a-z]/.test(text) ? `${text.charAt(0).toLowerCase()}${text.slice(1)}` : text;
 }

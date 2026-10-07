@@ -73,7 +73,7 @@ export function moduleFileState(
 /**
  * The warning for a missing file (`HeldFileState`), with what to do: the
  * caller's files can lag behind another device's upload queue, so the file
- * may still be on its way. `name` is what it is attached for ("Lab report",
+ * may still be on its way. `name` is what it is attached for ("Lab Report",
  * a document), `file` the word for the file.
  */
 export function missingFileMessage(name: string, file = "file"): string {

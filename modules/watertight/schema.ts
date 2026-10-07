@@ -36,7 +36,7 @@ export const WatertightHandSchema = z.strictObject({
 export type WatertightHand = z.infer<typeof WatertightHandSchema>;
 
 export const WatertightSizeSchema = WatertightHandSchema.extend({
-  /** No. of sample tested: n for the AQL plan. Offered from the sampling plan, confirmed by the inspector. */
+  /** No. of Sample Tested: n for the AQL plan. Offered from the sampling plan, confirmed by the inspector. */
   tested: CountCellSchema,
   /** Right and left hands, with handSplit on: the holes go here instead of on the size. */
   R: WatertightHandSchema.optional(),

@@ -138,7 +138,7 @@ Every module can be included or excluded per template. `header` and `conclusion`
 
 1. **Report first.** Modules and their defaults follow `docs/forms/reports/`. Onsite forms and new needs come in as config or optional modules.
 2. **Nothing lost.** Every field on a source form exists in its template, as a module field or in a custom module. Nothing is dropped or merged on entry.
-3. **Their wording, our keys.** Labels can be overridden per template so the screen reads like the client's or manufacturer's form. Data is stored under canonical keys.
+3. **Their wording, our keys.** Labels can be overridden per template so the screen reads like the client's or manufacturer's form. Data is stored under canonical keys. Kenneth, 8 October 2026: the app and the report write labels in Title Case (docs/DESIGN.md); the forms' wording stays in the coverage matrix.
 4. **Defects map to canonical codes; severity belongs to the template.** Each label maps to a code in `defect_codes`, so "Stain" at one client and "Oil stain" at another count together. The same defect can be major in one template and minor in another (the STD_EG report lists "Defective bead" as major and "Defective beads" as minor). Unmapped labels are allowed and flagged for an admin.
 5. **Canonical units and sizes.** mm, g, N, MPa and %. Sizes are normalised (`7` becomes `7.0`).
 6. **One rule book.** AQL, totals, statistics, validations (section 6.2) and module results are computed the same way in every template.
@@ -171,7 +171,7 @@ type TemplateDefinition = {
 type ModuleConfig = {
   key: ModuleKey;                     // section 6
   include: boolean;
-  title?: string;                     // heading in the source's wording
+  title?: string;                     // heading in the source's words, in Title Case
   labels?: Record<string, string>;    // field label overrides
   config?: unknown;                   // validated by that module's ConfigSchema
 };
@@ -371,14 +371,14 @@ Speed:
 - `GET /api/inspections/[id]/export` returns one JSON document validated by `ExportSchema`:
   - `schemaVersion`, `refNo`, `status`, timestamps, inspector
   - `template`: code, version, standard, client, manufacturer, report title, client logo URL, source file
-  - `modules`: for each included module in template order: title and labels as on the source form, data, computed values, result, warnings, inspector comment
+  - `modules`: for each included module in template order: title and labels in the template's wording (the source form's words in Title Case), data, computed values, result, warnings, inspector comment
   - `excludedModules`: modules switched off for this inspection, with reason
   - `custom`: every custom module with its labels and values
   - `photos` and `files`: signed URLs (24 h) with module, target, caption and the "include in report" flag
   - `conclusion`: suggested result, final result, remark
 - Owner or admin only.
 - Admin button "Send to AI Report" on submitted or approved inspections: a server action POSTs the export to `AI_REPORT_WEBHOOK_URL` and stores the returned URL in `report_url`. If the variable is not set, show "AI Not Connected" and offer a JSON download.
-- The target layout for the AI report is the 4-page preshipment report in `docs/examples/`. This app does not render reports.
+- The target layout for the AI report is the 4-page preshipment report in `docs/examples/`, its labels in the template's wording as the export carries them (Title Case, rule 4.2.3). This app does not render reports.
 
 ### 9.2 AI second opinion (build the slot now, the AI later)
 
@@ -407,7 +407,7 @@ An AI reviews each submitted inspection on top of the inspector's results and co
 
 ## 11. Seed data
 
-Build every seed template field for field from `docs/forms/reports/` first, then `docs/forms/onsite/`: every label verbatim (fix only the `[sic]` typos), every column, the same row counts as defaults.
+Build every seed template field for field from `docs/forms/reports/` first, then `docs/forms/onsite/`: every label in the form's words (fix only the `[sic]` typos), written in Title Case (rule 4.2.3; the coverage matrix keeps them verbatim), every column, the same row counts as defaults.
 
 - **Manufacturers:** Hartalega NGC; Terang Nusa Sdn. Bhd. (TG Factory 40). Addresses from the example reports.
 - **Clients:** the client of `SAFEDON_EG` (the report carries the Polyco Healthline logo; confirm in section 13).

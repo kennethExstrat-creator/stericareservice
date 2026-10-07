@@ -61,7 +61,7 @@ describe("SchemaForm", () => {
       },
     );
     expect(html.match(/role="switch"/g)).toHaveLength(4);
-    expect(html).toMatch(/for="form-fields-colour"[^>]*>Glove colour</);
+    expect(html).toMatch(/for="form-fields-colour"[^>]*>Glove Colour</);
     expect(tagWithId(html, "form-fields-colour")).toContain('aria-checked="false"');
     // A size from the template, picked from a list.
     expect(html).toContain('id="form-indicativeWeightSize"');

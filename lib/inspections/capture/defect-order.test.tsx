@@ -47,11 +47,11 @@ const rowLabels = (html: string) =>
 
 describe("most-used defects first", () => {
   it("orders watertight's hole locations by usage, ties in the template's order", () => {
-    const locations = ["Between fingers (crotch)", "Palm", "Finger", "Cuff", "Other :"];
+    const locations = ["Between Fingers (Crotch)", "Palm", "Finger", "Cuff", "Other :"];
     const only = (labels: string[]) => labels.filter((label) => locations.includes(label));
     expect(only(rowLabels(render("watertight", WatertightCapture as CaptureComponent)))).toEqual(locations);
     const used = rowLabels(render("watertight", WatertightCapture as CaptureComponent, { hole_cuff: 7, hole_finger: 2, hole_other: 1 }));
-    expect(only(used)).toEqual(["Cuff", "Finger", "Other :", "Between fingers (crotch)", "Palm"]);
+    expect(only(used)).toEqual(["Cuff", "Finger", "Other :", "Between Fingers (Crotch)", "Palm"]);
   });
 
   it("orders visual's defects by usage within each class", () => {

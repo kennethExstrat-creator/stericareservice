@@ -160,7 +160,7 @@ describe("documents wording", () => {
   it("defaults to the data dictionary's title and labels, with words for each status", () => {
     expect(DOCUMENTS_TITLE).toBe(moduleTitle("STD_EG", "documents"));
     expect({ ...DOCUMENTS_LABELS }).toEqual(defaultLabels("documents"));
-    expect(DOCUMENT_STATUSES.map((status) => DOCUMENTS_LABELS[`status.${status}`])).toEqual(["Verified", "Not verified", "NA"]);
+    expect(DOCUMENT_STATUSES.map((status) => DOCUMENTS_LABELS[`status.${status}`])).toEqual(["Verified", "Not Verified", "NA"]);
     expect(DOCUMENTS_LABELS.required).toBe("Required");
   });
 });

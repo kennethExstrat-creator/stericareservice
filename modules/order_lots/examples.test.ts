@@ -80,7 +80,7 @@ describe("the template's own wording and settings", () => {
     expect(evaluated("header").computed).toMatchObject({ mfgDate: "2025-02", expiryDate: "2030-01", client: "Client A" });
     expect(evaluated("packing_config").computed).toEqual({ glovesPerCaseCheck: 2000, innerUnit: "plastic pack" });
     expect(evaluated("order_lots").result.perSize?.XS?.summary).toBe(
-      "Qty (cases) 60; Lot Number LOT-B01; Packing Site Packer C.",
+      "Qty (Cases) 60; Lot Number LOT-B01; Packing Site Packer C.",
     );
   });
 

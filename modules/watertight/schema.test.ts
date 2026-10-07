@@ -63,7 +63,7 @@ describe("watertight config", () => {
     expect(WatertightConfigSchema.parse(WATERTIGHT_DEFAULT_CONFIG)).toEqual({
       aql: null,
       locations: [
-        { code: "hole_crotch", label: "Between fingers (crotch)" },
+        { code: "hole_crotch", label: "Between Fingers (Crotch)" },
         { code: "hole_palm", label: "Palm" },
         { code: "hole_finger", label: "Finger" },
         { code: "hole_cuff", label: "Cuff" },

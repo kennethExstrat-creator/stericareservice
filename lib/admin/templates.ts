@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import {
+  appWording,
   defaultLabels,
   DEFECT_CLASSES,
   groupLabelKey,
@@ -1048,7 +1049,7 @@ export type CoverageRow = {
   id: string;
   /** As printed on the source. */
   label: string;
-  /** The app's wording where the source has a typo. */
+  /** The app's wording where the source has a typo: the fix in Title Case, as the seed template shows it. */
   corrected: string | null;
   input: string;
   targets: CoverageTarget[];
@@ -1306,7 +1307,8 @@ function coverageRow(field: SourceField, template: ResolvedTemplate, inventory: 
   return {
     id: field.id,
     label: field.label,
-    corrected: field.corrected ?? null,
+    // What the seed template shows in its place: the fix in Title Case (docs/DESIGN.md), or the hint it shows instead.
+    corrected: field.corrected === undefined ? null : (appWording(field) ?? field.corrected),
     input: INPUT_LABEL[field.input],
     targets,
     covered: targets.every((target) => target.covered),

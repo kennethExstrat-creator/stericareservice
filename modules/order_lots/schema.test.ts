@@ -82,6 +82,6 @@ describe("order_lots wording", () => {
   it("defaults to STD_EG's wording, the size column's caption included", () => {
     expect(ORDER_LOTS_TITLE).toBe(moduleTitle("STD_EG", "order_lots"));
     expect({ ...ORDER_LOTS_LABELS }).toEqual(defaultLabels("order_lots"));
-    expect(labelOverrides("STD_SG", "order_lots")).toEqual({ qtyCases: "Qty (case)" });
+    expect(labelOverrides("STD_SG", "order_lots")).toEqual({ qtyCases: "Qty (Case)" });
   });
 });

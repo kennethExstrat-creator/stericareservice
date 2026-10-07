@@ -5,23 +5,23 @@ import { z } from "zod";
 import { AqlSchema } from "@/lib/aql";
 import { DefectCodeSchema } from "./schema";
 
-export const WATERTIGHT_TITLE = "Freedom from Holes by watertight test";
+export const WATERTIGHT_TITLE = "Freedom From Holes by Watertight Test";
 
 /**
  * Data field keys and captions. `{codeLetters}` and `{aql}` in the heading are
  * filled in by calc (computed.heading).
  */
 export const WATERTIGHT_LABELS = {
-  tested: "No. of sample tested",
-  holes: "Pin hole",
-  otherDescription: "Other : description",
-  unmapped: "Defect not in the list",
-  codeLetter: "Sampling code letter",
+  tested: "No. of Sample Tested",
+  holes: "Pin Hole",
+  otherDescription: "Other : Description",
+  unmapped: "Defect Not in the List",
+  codeLetter: "Sampling Code Letter",
   accept: "Accept",
   reject: "Reject",
-  totalDefects: "Total number of defects found",
-  result: "Freedom from holes (Passed / Failed)",
-  heading: "Freedom from Holes by watertight test (Single sampling code letter {codeLetters}, AQL {aql})",
+  totalDefects: "Total Number of Defects Found",
+  result: "Freedom From Holes (Passed / Failed)",
+  heading: "Freedom From Holes by Watertight Test (Single Sampling Code Letter {codeLetters}, AQL {aql})",
   defectLimit: "Defect Limit",
 } as const satisfies Readonly<Record<string, string>>;
 
@@ -58,7 +58,7 @@ export type WatertightConfig = z.infer<typeof WatertightConfigSchema>;
 export const WATERTIGHT_DEFAULT_CONFIG: WatertightConfig = {
   aql: null,
   locations: [
-    { code: "hole_crotch", label: "Between fingers (crotch)" },
+    { code: "hole_crotch", label: "Between Fingers (Crotch)" },
     { code: "hole_palm", label: "Palm" },
     { code: "hole_finger", label: "Finger" },
     { code: "hole_cuff", label: "Cuff" },

@@ -132,7 +132,7 @@ describe("dispensing_packing", () => {
       const output = calcDispensingPacking(input(stdEgData(), stdEgContext()));
       expect(output.computed.codeLetters).toEqual(["E"]);
       expect(packingHeading(DISPENSING_PACKING_LABELS, DISPENSING_PACKING_DEFAULT_CONFIG, output.computed.codeLetters)).toBe(
-        "Glove Packing Check (Sampling code letter E) : min. 70% layering & 80% dispensing",
+        "Glove Packing Check (Sampling Code Letter E) : Min. 70% Layering & 80% Dispensing",
       );
     });
 

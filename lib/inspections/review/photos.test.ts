@@ -112,12 +112,12 @@ describe("describePhoto: packaging levels and list entries, as the gallery words
       evaluated({ resolved: makeTestTemplate(TEST_REGISTRY, ["documents", "loading", "conclusion"]) }),
     );
     expect(describePhoto(photo({ module_key: "documents", target: "item:certificateOfAnalysis" }), withLists)).toMatchObject({
-      tags: { module: "Documents", item: "Certificate of analysis" },
-      alt: "Photo: Documents, Certificate of analysis",
+      tags: { module: "Documents", item: "Certificate of Analysis" },
+      alt: "Photo: Documents, Certificate of Analysis",
     });
     expect(describePhoto(photo({ module_key: "loading", target: "item:doorsClosed" }), withLists).tags).toEqual({
       module: "Loading",
-      item: "Doors closed",
+      item: "Doors Closed",
     });
   });
 

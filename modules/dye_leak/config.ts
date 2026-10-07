@@ -3,7 +3,7 @@
 // config (BUILD_SPEC 6.1: n per size).
 import { z } from "zod";
 
-export const DYE_LEAK_TITLE = "Dye leak test";
+export const DYE_LEAK_TITLE = "Dye Leak Test";
 
 /** What the inspector enters per size, in screen order. */
 export const DYE_LEAK_FIELDS = ["pouchesTested", "pouchesFailed", "notes"] as const;
@@ -13,13 +13,13 @@ export type DyeLeakField = (typeof DYE_LEAK_FIELDS)[number];
 export const DYE_LEAK_LABELS: Readonly<
   Record<DyeLeakField | "result" | "pouchesPlanned" | "totalTested" | "totalFailed", string>
 > = {
-  pouchesTested: "Pouches tested",
-  pouchesFailed: "Pouches failed",
+  pouchesTested: "Pouches Tested",
+  pouchesFailed: "Pouches Failed",
   notes: "Notes",
-  pouchesPlanned: "Pouches planned",
+  pouchesPlanned: "Pouches Planned",
   result: "Passed / Failed",
-  totalTested: "Total pouches tested",
-  totalFailed: "Total pouches failed",
+  totalTested: "Total Pouches Tested",
+  totalFailed: "Total Pouches Failed",
 };
 
 export const DyeLeakConfigSchema = z.strictObject({
@@ -29,7 +29,7 @@ export const DyeLeakConfigSchema = z.strictObject({
     .positive()
     .nullable()
     .describe(
-      "Pouches to test per size when the sampling plan gives none. Empty: the sampling plan's '# pouches (dye leak test)' for each size.",
+      "Pouches to test per size when the sampling plan gives none. Empty: the sampling plan's '# Pouches (Dye Leak Test)' for each size.",
     ),
 });
 export type DyeLeakConfig = z.infer<typeof DyeLeakConfigSchema>;

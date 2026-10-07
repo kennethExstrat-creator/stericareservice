@@ -127,7 +127,7 @@ function evaluateSize(size: string, entry: DyeLeakSize, planned: number | null, 
 }
 
 /**
- * "Pouches failed: 2 of 13 in size 7.0. Not done for size 8.5." Failures
+ * "Pouches Failed: 2 of 13 in size 7.0. Not done for size 8.5." Failures
  * first, else the total of the sizes that passed; then what is open.
  */
 function summarise(
