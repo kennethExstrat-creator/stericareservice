@@ -117,6 +117,17 @@ describe("ModuleResults", () => {
     expect(custom).toMatch(/Glove type Powder-free Sterile No Length 240 mm/);
   });
 
+  it("leaves clearing the top bar to the page's scroll padding: no scroll margin of its own", () => {
+    // app/globals.css keeps the bar and 1rem above a section or row a link scrolls to; a
+    // margin on top of that would leave the bar's height again.
+    const section = /<section id="modules"[^>]*>/.exec(html)?.[0] ?? "";
+    const visual = /<li id="module-visual"[^>]*>/.exec(html)?.[0] ?? "";
+    expect(section).toContain('aria-labelledby="modules-heading"');
+    expect(visual).toContain("grid");
+    for (const tag of [section, visual]) expect(tag).not.toContain("scroll-mt");
+    expect(html).not.toContain("--shell-top");
+  });
+
   it("explains instead of listing when the results cannot be worked out", () => {
     const broken = renderToStaticMarkup(<ModuleResults evaluation={evaluated({ resolved: null })} />);
     expect(text(broken)).toContain("could not be read, so its results cannot be worked out");

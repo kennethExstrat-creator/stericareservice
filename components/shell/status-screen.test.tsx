@@ -59,6 +59,14 @@ describe("ErrorScreen", () => {
     // Focus moves here on mount (e2e/shell checks it), so VoiceOver says what happened.
     expect(headingTag(html)).toContain('tabindex="-1"');
   });
+
+  it("lets the page's scroll padding clear the top bar above its heading, with 0.5rem more", () => {
+    // app/globals.css keeps the bar and 1rem; a margin of the bar's height again would double it.
+    const html = renderToStaticMarkup(<ErrorScreen error={new Error("boom")} retry={retry} />);
+    const classes = (/class="([^"]*)"/.exec(headingTag(html))?.[1] ?? "").split(" ");
+    expect(classes.filter((name) => name.startsWith("scroll-mt"))).toEqual(["scroll-mt-2"]);
+    expect(headingTag(html)).not.toContain("--shell-top");
+  });
 });
 
 describe("GlobalError", () => {

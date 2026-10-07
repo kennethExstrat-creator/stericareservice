@@ -108,7 +108,7 @@ function Row({
   comment: string | null;
 }) {
   return (
-    <li id={id} {...dataAttributes} className={cn("grid scroll-mt-[calc(var(--shell-top)+1rem)] gap-x-6 gap-y-3 px-5 py-4", COLUMNS)}>
+    <li id={id} {...dataAttributes} className={cn("grid gap-x-6 gap-y-3 px-5 py-4", COLUMNS)}>
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 lg:flex-col lg:items-start lg:justify-start">
         <h3 className="text-base leading-snug font-bold text-balance text-foreground">{heading}</h3>
         {badge}

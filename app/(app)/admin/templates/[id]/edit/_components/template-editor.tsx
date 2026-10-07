@@ -366,16 +366,26 @@ export function TemplateEditor({
     backupStore.dismiss();
   };
 
-  // Sticky things below the bar (the details panel, capture size bars) need its height.
+  // Sticky things below the bar (the details panel, capture size bars) need its height, and so
+  // does the page's scroll padding (app/globals.css), so focus clears the bar on two rows too
+  // (WebKit goes by the padding alone): set on the editor's root and, while it is open, on <html>.
   useLayoutEffect(() => {
     const bar = barRef.current;
     const root = rootRef.current;
     if (!bar || !root) return;
-    const set = () => root.style.setProperty("--editor-bar-height", `${bar.offsetHeight}px`);
+    const page = document.documentElement;
+    const set = () => {
+      const height = `${bar.offsetHeight}px`;
+      root.style.setProperty("--editor-bar-height", height);
+      page.style.setProperty("--editor-bar-height", height);
+    };
     set();
     const observer = new ResizeObserver(set);
     observer.observe(bar);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      page.style.removeProperty("--editor-bar-height");
+    };
   }, []);
 
   const order = shapeOk ? moduleOrder(draft, context) : [];
