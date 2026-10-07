@@ -1,7 +1,10 @@
+import { evaluateCapture } from "../../lib/inspections/capture/evaluate";
+import { capturePages, captureSections } from "../../lib/inspections/capture/sections";
 import { TemplateDefinitionSchema, type TemplateDefinition } from "../../lib/schemas/template";
 import type { Json } from "../../lib/supabase/database.types";
 import { lookupFrom, templateRowFields } from "../../lib/templates";
 import { resolveTemplate } from "../../modules";
+import type { InspectionData } from "../../modules/_framework";
 import { createTestAdminClient, deleteTestInspection } from "../support/admin";
 import { TEST_ACCOUNTS } from "../support/session";
 
@@ -135,8 +138,13 @@ export type FlowsFixture = {
   refNo: string;
   /** The template as resolved: titles of the modules, in screen order. */
   titles: Record<string, string>;
-  /** The sections capture lists: included modules and custom modules, in screen order. */
-  sectionTitles: string[];
+  /**
+   * The pages capture lists, in screen order, by title: a tab, a sidebar row
+   * and a progress step each. Included modules and custom modules, packing
+   * configuration on the order's page (lib/inspections/capture/sections.ts
+   * capturePages).
+   */
+  pageTitles: string[];
 };
 
 /**
@@ -182,6 +190,14 @@ export async function createFlowsFixture(admin: AdminClient): Promise<FlowsFixtu
   if (templateError) fail("creating the template", templateError);
 
   const inspector = await testInspectorId(admin);
+  const data = {
+    modules: {
+      order_lots: { sizes: { M: { qtyCases: 20, lotNumbers: ["LOT-E2E-M"] } } },
+      sampling_plan: { sizes: { M: { glovesPhysical: 13 } } },
+      [TEMPLATE_OFF]: STALE_WEIGHT,
+    },
+    custom: {},
+  } as unknown as InspectionData;
   const { data: inspection, error: inspectionError } = await admin
     .from("inspections")
     .insert({
@@ -189,28 +205,22 @@ export async function createFlowsFixture(admin: AdminClient): Promise<FlowsFixtu
       inspector_id: inspector,
       client_id: SEED.polyco,
       manufacturer_id: SEED.hartalega,
-      data: {
-        modules: {
-          order_lots: { sizes: { M: { qtyCases: 20, lotNumbers: ["LOT-E2E-M"] } } },
-          sampling_plan: { sizes: { M: { glovesPhysical: 13 } } },
-          [TEMPLATE_OFF]: STALE_WEIGHT,
-        },
-        custom: {},
-      } as unknown as NonNullable<Json>,
+      data: data as unknown as NonNullable<Json>,
     })
     .select("id, ref_no")
     .single();
   if (inspectionError) fail("creating the inspection", inspectionError);
 
   const titles = Object.fromEntries(resolved.modules.map((entry) => [entry.key, entry.title]));
-  const sectionTitles: string[] = [];
-  for (const entry of resolved.modules) {
-    if (entry.include) sectionTitles.push(entry.title);
-    for (const custom of resolved.customModules.filter((candidate) => candidate.after === entry.key)) {
-      sectionTitles.push(custom.title);
-    }
-  }
-  return { templateId: template.id, inspectionId: inspection.id, refNo: inspection.ref_no, titles, sectionTitles };
+  // The pages as the capture screen lists them, with no module switched off for the inspection.
+  const evaluation = evaluateCapture({
+    template: resolved,
+    overrides: {},
+    data,
+    meta: { refNo: inspection.ref_no, inspectionDate: null, inspector: null, client: null, manufacturer: null },
+  });
+  const pageTitles = capturePages(captureSections(evaluation.template, evaluation.report, data)).map((page) => page.title);
+  return { templateId: template.id, inspectionId: inspection.id, refNo: inspection.ref_no, titles, pageTitles };
 }
 
 /** Today in Malaysia (the inspection date's time zone), as a date input takes it. */
