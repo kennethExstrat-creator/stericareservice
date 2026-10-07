@@ -840,9 +840,9 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await sectionReady(page, SECTION.cartons);
     const second = page.getByRole("textbox", { name: `M (Carton #), row ${FIX_CARTON.cell.row} column ${FIX_CARTON.cell.column}`, exact: true });
     await check(second, "the link lands on the second 525").toBeFocused();
-    // An issue link checks 700 ms on that its section has the focus, and gives it to the section
-    // title if not (capture-screen.tsx, goToIssue). At the spec's speed that check would land
-    // while the box list opened below is open, and close it: an inspector reads the cell first.
+    // Waits out a known app weakness: goToIssue's 700 ms fallback (capture-screen.tsx) takes focus
+    // from a popover opened within 0.7 s of an issue link and closes it. Without this wait it
+    // closed the box list of Correction 2 (another section by then), and the pick from it timed out.
     await page.waitForTimeout(1_000);
     await check(second, "the cell keeps the focus").toBeFocused();
   });
