@@ -127,6 +127,29 @@ deployment. Design rules and tokens: [docs/DESIGN.md](docs/DESIGN.md).
 
 8. **Types.** After changing the schema: `npm run db:types` (needs `supabase link`).
 
+## Roles and teams
+
+| Role | Can |
+|---|---|
+| Inspector | Records inspections and sees their own. Works in a lead inspector's team. |
+| Lead inspector | An inspector who also sees every inspection of their team, in every status, read-only: the list, the review, the photos and files, the history. They cannot edit, submit, approve, reopen or delete their team's inspections. Their own inspections work like any inspector's. |
+| Admin | Everything (BUILD_SPEC 3): users and their teams, templates and reference data, every inspection, approve and reopen, the AI hand-offs. Admins are in no team. |
+
+Set up on `/admin/users`:
+
+- Invite (or make) the lead inspectors first, then their inspectors: inviting, activating or
+  making someone an inspector asks for their lead inspector. **Change lead inspector** moves an
+  inspector to another team; the **Team** picker and the Lead inspector column show each team.
+- A lead inspector who still leads a team cannot be demoted, made an admin or deactivated:
+  move their team to another lead first (the screen names who is in it).
+- Accounts from before teams (such as `inspector@test.local`) keep working with no lead; the
+  screen lists them under **No lead inspector** until an admin chooses one.
+
+The rules live in `lib/auth/org.ts` and, enforced for every request, in
+`supabase/migrations/20261007170000_lead_inspectors.sql` (details:
+[docs/DATABASE.md](docs/DATABASE.md#lead-inspectors-and-teams)). Until a project has run that
+migration, the Users screen works with roles only and says what is needed.
+
 ## AI models
 
 Optional. With nothing set, the app shows "AI not connected" and offers the JSON export.
@@ -162,7 +185,8 @@ Contract, guardrails, costs and data handling: [docs/AI.md](docs/AI.md).
 
 - `npm run check` runs everything. No network, Docker or real keys needed.
 - **RLS tests** run the real migrations on [PGlite](https://pglite.dev) (Postgres in WASM)
-  behind a small Supabase shim, so the inspector and admin policies are tested on every run.
+  behind a small Supabase shim, so the inspector, lead inspector and admin policies and the
+  team rules are tested on every run.
   With Docker you can also use a local stack (`npx supabase start`); see docs/DATABASE.md.
 - Screens are checked at 820 × 1180, 1180 × 820 and 1440 × 900.
 
@@ -183,7 +207,7 @@ From BUILD_SPEC section 12, once Supabase is connected:
 app/                 routes (App Router): (auth) sign-in screens, (app) signed-in app, design/
 components/ui/       shadcn/ui components, themed by app/globals.css tokens
 components/qc/       capture UI primitives (status pills, steppers, grids, photo tiles)
-lib/auth/            session guard (data access layer), route policy, sign-out
+lib/auth/            session guard (data access layer), route policy, sign-out, lead inspector rules
 lib/supabase/        Supabase clients and generated database types
 lib/ai/, lib/schemas/  AI hand-offs and the zod payload schemas
 supabase/            migrations, seed data, email templates, CLI config
@@ -196,7 +220,7 @@ docs/                build spec, design, database and AI docs, reference forms
 ## Security notes
 
 - The secret key is only read in `lib/supabase/admin.ts`, which is `server-only`.
-- Row Level Security enforces roles and deactivation in the database; every page, Server Action
+- Row Level Security enforces roles, teams and deactivation in the database; every page, Server Action
   and Route Handler also checks the session through `lib/auth/session.ts`. `proxy.ts` only
   refreshes the session and redirects.
 - Deactivating a user blocks their data access immediately (RLS) and bans their auth account so

@@ -22,6 +22,7 @@ Supabase Postgres 17 with Auth, Storage and row level security (BUILD_SPEC 3, 4.
 | `20261006000700_review_fixes.sql` | Fixes from the review: the insert guard draws `ref_no`; an inspection's id never changes and a deleted inspection's id is never reused; `delete_test_inspection()` for end-to-end teardown. It also restates, unchanged, the rules that went into 100 to 500 after the first push (strict storage object names, read-only evidence of approved inspections, the service role's limits) |
 | `20261006175715_ai_reviews_one_pending_per_version.sql` | One pending AI second opinion per inspection version at a time: closes pending duplicates from before it (keeping the oldest), then the partial unique index `ai_reviews_one_pending_per_version` on `(inspection_id, inspection_updated_at)` where `status = 'pending'`. Two requests at the same moment both pass the app's own check; the database refuses the second row (23505), which `startAiReview` (`lib/inspections/ai/review-runner.ts`) answers as "A second opinion of this version is being written." Done and failed reviews are not limited. Applied live on 7 October 2026 |
 | `20261007113245_ai_reviews_inspection_fingerprint.sql` | AI reviews keyed to the inspection's content (see `ai_reviews` below): the column `ai_reviews.inspection_fingerprint` (lowercase hex SHA-256, locked once stored), `ai_reviews_one_pending_per_content` on `(inspection_id, inspection_fingerprint)` for pending rows with a fingerprint, and `ai_reviews_one_pending_per_version` narrowed to pending rows without one. Idempotent. Until a project has run it, the app stores reviews without the column and compares them by save |
+| `20261007170000_lead_inspectors.sql` | Lead inspectors and their teams (see [Lead inspectors and teams](#lead-inspectors-and-teams)): `profiles.is_lead` and `profiles.lead_id`, the check constraints and the `org_guard` trigger for the team rules, `profiles_guard()` restated with the lead rules, the helpers `is_lead()`, `my_team()`, `leads()`, `leads_inspection()` and `leads_ai_review()`, `my_profile_status()` with `is_lead` and `lead_id` (dropped and created again: its result changes), and read-only SELECT policies for leads on their team's inspections, photos, files, AI reviews and decisions, audit rows, Storage objects and profiles. Idempotent. Not yet applied to the live project: until it is, the Users screen works with roles only and says so |
 
 Applied migrations never change: `supabase db push` skips every migration a project has already run, so a change to the schema goes in a new file. Every statement in 700 is idempotent, and 700 gives the same schema whichever text of 100 to 500 a project ran. It re-adds three check constraints (signature paths, audit rows without an inspection, the `ref_no` format), so it stops, changing nothing, if an existing row breaks one of them.
 
@@ -31,7 +32,7 @@ Every table has `created_at` and `updated_at`. One trigger, `set_updated_at()`, 
 
 | Table | Notes |
 |---|---|
-| `profiles` | One per auth user (`id` = `auth.users.id`), created by a trigger as an inactive inspector (see [New accounts](#new-accounts)). **Addition to BUILD_SPEC 5: `email`**, copied from `auth.users` and kept in sync by trigger, so admin lists need no Auth API call. `full_name` comes from the invite metadata; empty names are stored as null. `signature_path` must be inside the user's own folder (`<user_id>/...`). |
+| `profiles` | One per auth user (`id` = `auth.users.id`), created by a trigger as an inactive inspector (see [New accounts](#new-accounts)). **Addition to BUILD_SPEC 5: `email`**, copied from `auth.users` and kept in sync by trigger, so admin lists need no Auth API call. `full_name` comes from the invite metadata; empty names are stored as null. `signature_path` must be inside the user's own folder (`<user_id>/...`). **Additions for lead inspectors: `is_lead`** (a lead inspector, `false` by default) **and `lead_id`** (the lead inspector who manages this inspector, null by default; restricted on delete), see [Lead inspectors and teams](#lead-inspectors-and-teams). |
 | `manufacturers` | One row per factory: unique on name plus factory name, ignoring case. |
 | `clients` | Unique name, ignoring case. `logo_path` points into `client-logos`. |
 | `defect_codes` | Canonical codes (`^[a-z][a-z0-9_]*$`). A code never changes once created (templates and inspection data refer to it by value); deactivate instead. Severity lives in the template. |
@@ -49,29 +50,52 @@ On delete: `profiles` follow their auth user (cascade). Everything that points a
 
 All policies are for the `authenticated` role, and every one requires an active profile. `anon` has no privileges on any table or function.
 
-| | Inspector | Admin |
-|---|---|---|
-| Own profile | Read; change `full_name` and `signature_path` | Read all; change anyone's `role`, `active`, `full_name` |
-| Manufacturers, clients, defect codes, templates | Read | Read and write |
-| Inspections | Read own. Create own, as a draft, from an active template. Edit own while `draft` or `reopened`; submit | Read, create and edit all; approve, reopen, switch modules off, set `report_url`, delete (not approved ones) |
-| Photos and files | Read those of own inspections; add, change, remove while the inspection is editable | Read all. On any inspection that is not approved: add, change, remove, and choose report photos (`include_in_report`). On an approved one: only `include_in_report` |
-| AI reviews | Read those of own inspections | Read and write |
-| AI review actions | Nothing | Read and write, in their own name |
-| Audit log | Read rows of own inspections | Read all |
-| `log_inspection_event()` | On own inspections | On any inspection |
+| | Inspector | Lead inspector | Admin |
+|---|---|---|---|
+| Profiles | Read own; change `full_name` and `signature_path` | As an inspector, and read their team's profiles | Read all; change anyone's `role`, `active`, `is_lead`, `lead_id`, `full_name` |
+| Manufacturers, clients, defect codes, templates | Read | Read | Read and write |
+| Inspections | Read own. Create own, as a draft, from an active template. Edit own while `draft` or `reopened`; submit | As an inspector for their own; read their team's, every status, and change none of them | Read, create and edit all; approve, reopen, switch modules off, set `report_url`, delete (not approved ones) |
+| Photos and files | Read those of own inspections; add, change, remove while the inspection is editable | As an inspector for their own; read their team's | Read all. On any inspection that is not approved: add, change, remove, and choose report photos (`include_in_report`). On an approved one: only `include_in_report` |
+| AI reviews | Read those of own inspections | Read those of own and their team's inspections | Read and write |
+| AI review actions | Nothing | Read those on their team's inspections | Read and write, in their own name |
+| Audit log | Read rows of own inspections | Read rows of own and their team's inspections | Read all |
+| `log_inspection_event()` | On own inspections | On own inspections (not their team's) | On any inspection |
 
-Inactive users (`profiles.active = false`: new accounts nobody has activated yet, and deactivated users), admins included, read and write nothing. `my_profile_status()` is their only window: it returns their `active` flag and `role` so the app can explain the block.
+A lead inspector is an inspector (`role = 'inspector'`) with `is_lead`; their team is everyone whose `lead_id` is theirs now. Inactive users (`profiles.active = false`: new accounts nobody has activated yet, and deactivated users), admins and leads included, read and write nothing. `my_profile_status()` is their only window: it returns their `active` flag, `role`, `is_lead` and `lead_id` so the app can explain the block.
 
 Rules RLS cannot express are enforced by triggers, for every role:
 
 - Nobody changes `profiles.id`, `inspections.id`, `ref_no`, `inspector_id` or `template_id` (an inspection keeps its template version), a photo's or file's inspection or uploader, or an audit row.
 - The photos and files of an approved inspection are read-only, except `include_in_report`.
 - The id of a deleted inspection is never used again (`23505`): Storage may still hold files in its folders, and the storage policies trust the folder id.
-- `profiles.email` only changes through Supabase Auth; the sync trigger copies it. Only admins change `role` and `active`; only the user changes their signature.
+- `profiles.email` only changes through Supabase Auth; the sync trigger copies it. Only admins change `role`, `active`, `is_lead` and `lead_id`; only the user changes their signature.
 - The last active admin cannot be demoted, deactivated or deleted, whoever asks (the SQL editor included).
+- The team rules in [Lead inspectors and teams](#lead-inspectors-and-teams).
 - `submitted_at`, `approved_by` and `approved_at` are set by the database, never by callers.
 - Only admins set `report_url`, switch modules off (`module_overrides`, BUILD_SPEC 4.4) or pick report photos.
 - Once an inspection uses a template version, its `code`, `version`, `extends_code`, scope (`product_type`, `standard`, `client_id`, `manufacturer_id`), `definition` and `resolved` are frozen. Its status can still change, except back to `draft`. Edits go into a new version. Inspectors can only start from an `active` template, so they cannot freeze an admin's draft.
+
+### Lead inspectors and teams
+
+Kenneth, 7 October 2026: an inspector is either an inspector or a lead inspector; every inspector is managed by a lead inspector, who sees all of their team's inspections, ongoing or done. Migration `20261007170000` keeps the two roles (`inspector`, `admin`) and adds `profiles.is_lead` and `profiles.lead_id`. The app's half of the rules, in plain words, is `lib/auth/org.ts`; change both together.
+
+| Rule | Where | Who it binds |
+|---|---|---|
+| 1. Admins are neither lead inspectors nor in a team | check `profiles_admin_outside_teams`, trigger `org_guard` | Everyone |
+| 2. A lead inspector has no lead of their own | check `profiles_lead_has_no_lead`, trigger `org_guard` | Everyone |
+| 3. Nobody is their own lead | check `profiles_lead_not_self`, trigger `org_guard` | Everyone |
+| 4. A `lead_id` names an active lead inspector, from the moment it is set | trigger `org_guard` | Everyone |
+| 5. Someone who leads a team stays an active lead inspector: demoting them, making them an admin or deactivating them is refused while anyone (active or not) has their `lead_id`; deleting them is refused by the foreign key | trigger `org_guard`, foreign key (restrict) | Everyone |
+| 6. An active inspector who is not a lead has a lead: checked whenever an admin changes someone's role, level, lead or activation | trigger `guard` (`profiles_guard()`) | Signed-in users |
+| 7. Only admins change `is_lead` and `lead_id` | trigger `guard` | Signed-in users |
+
+All are `23514` (rule 7: `42501`), with these messages, which the Users screen turns into plain words (`describeProfileError()` in `lib/auth/users.ts`): `nobody is their own lead inspector`, `an admin is not a lead inspector and is in no team`, `a lead inspector has no lead inspector of their own`, `the lead inspector must be an active lead inspector`, `this lead inspector still leads N inspector(s): assign them to another lead inspector first`, `an active inspector needs a lead inspector`.
+
+- **Existing rows stay as they are.** The triggers look at a row only when who leads whom changes (`role`, `active`, `is_lead` or `lead_id`), so an inspector from before teams (such as `inspector@test.local`) still signs in, renames themselves and signs, and an admin can still deactivate them. The Users screen lists every active inspector in no team as "No lead inspector" until an admin chooses one.
+- **Rule 6 binds signed-in admins only**, like the other admin-only rules: the service role and the database owner may leave an inspector without a lead for now (the e2e helpers that activate throwaway inspectors, `seed:dev-users`, repairs). Rules 1 to 5 bind every role, like the last-admin rule.
+- **Concurrency.** Setting a `lead_id` locks the lead's row (`for share`) until the end of the transaction, and rule 5 runs once the lead's own row is locked: a demotion waits for an assignment in flight and then counts the new member; an assignment that comes second sees the demotion and refuses. PGlite has one connection, so this is not exercised by the tests.
+- **Visibility.** `my_team()` returns the ids of the inspectors the caller leads now (empty unless they are an active lead inspector); the read policies `*_select_team` use it: `inspections_select_team`, `inspection_photos_select_team`, `inspection_files_select_team`, `ai_reviews_select_team`, `ai_review_actions_select_team`, `audit_log_select_team` (deletion records stay admin-only), `profiles_select_team`, and `inspection_media_select_team` on `storage.objects` (signed URLs for photos and lab reports work for leads). They are SELECT policies beside the existing ones, so admins and inspectors keep exactly what they had and a lead gets no insert, update or delete on their team's rows; `log_inspection_event()` still asks `can_read_inspection()` (owner or admin). A team member moved to another lead leaves the old lead's view at once; a deactivated team member's inspections stay visible to their lead; a deactivated lead sees nothing.
+- **Helpers** (security definer, `search_path` pinned, callable by signed-in users because the policies call them): `is_lead()`, `my_team()`, `leads(inspector)`, `leads_inspection(inspection_id)`, `leads_ai_review(ai_review_id)`. They only answer about the caller's own team.
 
 ### New accounts
 
@@ -122,8 +146,8 @@ All buckets are private. Show files through signed URLs. Paths below are object 
 
 | Bucket | Object names | Limit | Types | Read | Write |
 |---|---|---|---|---|---|
-| `inspection-photos` | `<inspection_id>/<uuid>.jpg`, thumbnails `<inspection_id>/thumbs/<uuid>.jpg` | 25 MiB | JPEG, PNG, WebP, HEIC, HEIF | Whoever can read the inspection | Admins; the owner while draft or reopened |
-| `inspection-files` | `<inspection_id>/<uuid>.<ext>` | 50 MiB | PDF and the image types above | Whoever can read the inspection | Admins; the owner while draft or reopened |
+| `inspection-photos` | `<inspection_id>/<uuid>.jpg`, thumbnails `<inspection_id>/thumbs/<uuid>.jpg` | 25 MiB | JPEG, PNG, WebP, HEIC, HEIF | Whoever can read the inspection (the owner, their lead inspector, admins) | Admins; the owner while draft or reopened |
+| `inspection-files` | `<inspection_id>/<uuid>.<ext>` | 50 MiB | PDF and the image types above | Whoever can read the inspection (the owner, their lead inspector, admins) | Admins; the owner while draft or reopened |
 | `signatures` | `<user_id>/<file>` | 1 MiB | PNG, JPEG, WebP | The user; admins | The user only |
 | `client-logos` | Free, e.g. `<client_id>.png` | 2 MiB | PNG, JPEG, WebP (no SVG: it can carry script) | Active users | Admins |
 | `template-sources` | Free, e.g. `<code>/v<version>/<file>` | 50 MiB | PDF, Excel, Word, JPEG, PNG, WebP, HEIC, HEIF | Active users | Admins |
@@ -198,7 +222,9 @@ What the shim cannot prove:
 
 - Errors: `42501` means not allowed (RLS or a guard; PostgREST answers 403), `23514` means a rule or an invalid status change, `23505` a duplicate (or the id of a deleted inspection), `23503` or `23001` a row still in use.
 - Insert inspections without `ref_no`, `status`, `inspector_id` or the automatic timestamps. Change status with a plain update (`{ status: "submitted" }`); the database checks the transition, sets the timestamps and writes the audit row.
-- `my_profile_status()` returns an array; call it with `.maybeSingle()`. A new account that has not been activated answers `active: false`, exactly like a deactivated one.
+- `my_profile_status()` returns an array; call it with `.maybeSingle()`. A new account that has not been activated answers `active: false`, exactly like a deactivated one. It also answers `is_lead` and `lead_id`; on a project without migration `20261007170000` those are missing, and `lib/auth/session.ts` reads that as not a lead.
+- Lead inspectors: put someone in a team with `{ lead_id }`, make them a lead with `{ is_lead: true, lead_id: null }`, an admin with `{ role: 'admin', is_lead: false, lead_id: null }` (`placementFor()` in `lib/auth/org.ts`), in one update. Move a lead's team before demoting or deactivating them. To delete throwaway accounts, delete (or move) the team members before their lead.
+- Screens that show other people's inspections (admins all, a lead their team's) can name the inspector through the `inspector:profiles!inspections_inspector_id_fkey(...)` embed: a lead reads their team's profiles. `seesTeamInspections(user)` in `lib/auth/org.ts` says when to show the column.
 - The invite action calls `auth.admin.inviteUserByEmail()`, then sets `active = true` on the new profile with the secret key.
 - Name objects `<id>/<uuid>.<ext>` (thumbnails `<id>/thumbs/<uuid>.jpg`) with a lowercase uuid, as `crypto.randomUUID()` returns; other names are denied.
 - Deleting an inspection deletes its photo and file rows but not the objects in Storage: remove those through the Storage API first. Leftovers stay out of every user's reach, because the id is never reused.
@@ -206,4 +232,4 @@ What the shim cannot prove:
 - Deactivate users rather than delete them. Deleting an auth user who appears in any record (an inspection, a photo or file, an approval, an audit row, an AI decision, a template's coverage check) fails by design.
 - To activate a new template version, retire the active one first: one active version per code.
 - Inspectors cannot write `ai_reviews`. A review triggered by an inspector's submit is stored by server code with the service role.
-- The Supabase Security Advisor lists the public security definer helpers (`is_admin()` and the others) as callable by signed-in users. That is intended: the policies call them, and they only reveal the caller's own rights.
+- The Supabase Security Advisor lists the public security definer helpers (`is_admin()`, `is_lead()`, `my_team()` and the others) as callable by signed-in users. That is intended: the policies call them, and they only reveal the caller's own rights and team.
