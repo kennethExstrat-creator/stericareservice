@@ -14,7 +14,7 @@ import { unreachable } from "./unreachable";
  * The AI report hand-off (BUILD_SPEC 9.1): "Send to AI Report" for admins
  * when a report service is connected, the link to the finished report once
  * there is one, and the export as a JSON download, which is the way out when
- * no report service is connected ("AI not connected").
+ * no report service is connected ("AI Not Connected").
  */
 export function ReportControl({
   inspectionId,

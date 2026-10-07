@@ -23,7 +23,7 @@ export type AttachmentState = "none" | "attached" | "missing";
 type AttachmentStatusProps = {
   /** The file in the template's wording, e.g. "Lab report". */
   label: string;
-  /** Until it is attached the section is not done: says so beside a Not done pill. */
+  /** Until it is attached the section is not done: says so beside a Not Done pill. */
   required?: boolean;
   /** The attached file's name, when the screen knows it. */
   fileName?: string | null;

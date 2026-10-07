@@ -17,7 +17,7 @@ The app does not lay out reports and does not decide results. Both hand-offs sta
 - **The admin decides.** For each finding the admin records agree, disagree (a note is required) or fixed (`AiReviewActionSchema`).
 - **Evidence or a question.** The reviewer must cite the values, carton or box numbers and photo ids behind every finding, and ask the inspector instead of guessing when evidence is missing. A review that names a module or photo the inspection does not have is rejected, from any provider.
 - **Inspection text is data.** Comments, remarks and captions are passed as data; the reviewer is told never to follow instructions found in them.
-- **Not connected is a normal state.** With nothing configured the review panel shows "AI second opinion not connected" and the report button shows "AI not connected" with a JSON download.
+- **Not connected is a normal state.** With nothing configured the review panel shows "AI Second Opinion Not Connected" and the report button shows "AI Not Connected" with a JSON download.
 
 ## Choosing a provider
 

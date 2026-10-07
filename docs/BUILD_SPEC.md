@@ -287,7 +287,7 @@ Learned from checking the two example reports (`docs/examples/expected-results.m
 2. Totals, averages, medians, rates, code letters and accept/reject limits are always computed, never typed.
 3. Counts can never turn into dates. Dates use date pickers.
 4. Sizes not in `order_lots` do not appear in any module.
-5. A module with missing data shows "Not done", never "Passed".
+5. A module with missing data shows "Not Done", never "Passed".
 6. Carton numbers are unique per size, between 1 and the order quantity, and their count equals the sampled cases.
 7. Box numbers in `dispensing_packing`, `dispensing_safedon` and `labeling` are picked from that size's carton list.
 8. The sample size sets the code letter and limits (section 7). A plan that does not match the sample size cannot be saved.
@@ -346,14 +346,14 @@ Speed:
 - Size tabs (swipe on iPad, arrow keys on desktop). Sticky size and hand headers.
 - Numbers flow forward: sampling sets n in later modules; the carton list feeds box pickers.
 - Live totals and green/red accept chips update as you tap.
-- Autosave on every change (debounced about 800 ms) to Supabase, with a local IndexedDB copy. Status pill: Saved, Saving, or Offline (will sync). A dropped signal never loses data.
-- "Start from previous": prefill header, glove info, packing, specs and AQL from the last inspection for the same client, manufacturer and product.
+- Autosave on every change (debounced about 800 ms) to Supabase, with a local IndexedDB copy. Status pill: Saved, Saving, or Offline (Will Sync). A dropped signal never loses data.
+- "Start From Previous": prefill header, glove info, packing, specs and AQL from the last inspection for the same client, manufacturer and product.
 - Defect picker shows the most-used defects first. An inspector can add a one-off defect label; it is saved unmapped and flagged for an admin.
 - Progress tracker across modules.
 
 ### 8.1 Photos and files
 
-- **iPad:** two buttons on every module. "Take photo" opens the rear camera (`<input type="file" accept="image/*" capture="environment">`). "Add from library" picks several photos at once (`accept="image/*" multiple`).
+- **iPad:** two buttons on every module. "Take Photo" opens the rear camera (`<input type="file" accept="image/*" capture="environment">`). "Add From Library" picks several photos at once (`accept="image/*" multiple`).
 - **Desktop:** drag and drop or file picker, several files at once.
 - **Auto-tagged:** a photo taken inside a module is tagged with that module and, where relevant, the size, hand, defect or box in focus. Inspector can retag and add a caption.
 - **Processing in the browser:** convert to JPEG, resize to 2048 px on the long edge, quality about 0.8, keep capture time, strip GPS. If the browser cannot decode a file (for example some HEIC), upload the original and flag it.
@@ -377,7 +377,7 @@ Speed:
   - `photos` and `files`: signed URLs (24 h) with module, target, caption and the "include in report" flag
   - `conclusion`: suggested result, final result, remark
 - Owner or admin only.
-- Admin button "Send to AI report" on submitted or approved inspections: a server action POSTs the export to `AI_REPORT_WEBHOOK_URL` and stores the returned URL in `report_url`. If the variable is not set, show "AI not connected" and offer a JSON download.
+- Admin button "Send to AI Report" on submitted or approved inspections: a server action POSTs the export to `AI_REPORT_WEBHOOK_URL` and stores the returned URL in `report_url`. If the variable is not set, show "AI Not Connected" and offer a JSON download.
 - The target layout for the AI report is the 4-page preshipment report in `docs/examples/`. This app does not render reports.
 
 ### 9.2 AI second opinion (build the slot now, the AI later)
@@ -388,7 +388,7 @@ An AI reviews each submitted inspection on top of the inspector's results and co
 - **Output** (validated by `AiReviewSchema`): suggested result (pass, fail, hold), confidence, summary, findings (each with module, size, severity, message and the evidence it points to: values, boxes, photos) and questions for the inspector.
 - **Never automatic.** The AI never changes a result. The review screen shows three columns: the system's computed results, the inspector's result and comments, and the AI's opinion. The admin records agree, disagree (with a note) or fixed for each finding.
 - **Trigger:** on submit (template setting) or by an admin button. A server action POSTs the export to `AI_REVIEW_WEBHOOK_URL` and stores the response in `ai_reviews`. A new review is kept for each version of the inspection.
-- **Build now:** tables, schema, webhook call, the review panel and a mock webhook for tests. With no URL set, the panel shows "AI second opinion not connected".
+- **Build now:** tables, schema, webhook call, the review panel and a mock webhook for tests. With no URL set, the panel shows "AI Second Opinion Not Connected".
 
 ---
 

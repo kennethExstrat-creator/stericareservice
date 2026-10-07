@@ -1,7 +1,7 @@
 // Module results (BUILD_SPEC 4.2 rule 7) and the two framework rules that
 // shape them for every module, whatever its calc returns:
 //   6.2.4 sizes not in order_lots appear in no result;
-//   6.2.5 a module with missing data is "Not done", never "Passed".
+//   6.2.5 a module with missing data is "Not Done", never "Passed".
 import type { ModuleResult, ModuleStatus, PerSizeResult } from "@/lib/schemas/module-result";
 import { normaliseSize } from "@/lib/sizes";
 

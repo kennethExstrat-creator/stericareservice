@@ -1,5 +1,5 @@
 // Compact result for module tabs: a filled disc with a glyph whose shape
-// carries the meaning, plus a screen-reader label. Not done stays an empty
+// carries the meaning, plus a screen-reader label. Not Done stays an empty
 // dashed ring, so an unfinished module never looks like a result. The disc is
 // positioned so its sr-only label stays inside it: in a horizontally scrolling
 // tab bar an unanchored label would widen the whole page.

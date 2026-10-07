@@ -13,7 +13,7 @@ export type ColumnSummary = {
   complete: boolean;
   /**
    * Pass or fail only once the column is complete (BUILD_SPEC 6.2 rule 5:
-   * missing data is "Not done", never "Passed"); "na" without a spec.
+   * missing data is "Not Done", never "Passed"); "na" without a spec.
    */
   outcome: ColumnOutcome;
 };

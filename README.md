@@ -135,7 +135,7 @@ deployment. Design rules and tokens: [docs/DESIGN.md](docs/DESIGN.md).
 | Role | Can |
 |---|---|
 | Inspector | Records inspections and sees their own. Works in a lead inspector's team. |
-| Lead inspector | An inspector who also sees every inspection of their team, in every status, read-only: the list, the review, the photos and files, the history. They cannot edit, submit, approve, reopen or delete their team's inspections. Their own inspections work like any inspector's. |
+| Lead Inspector | An inspector who also sees every inspection of their team, in every status, read-only: the list, the review, the photos and files, the history. They cannot edit, submit, approve, reopen or delete their team's inspections. Their own inspections work like any inspector's. |
 | Admin | Everything (BUILD_SPEC 3): users and their teams, templates and reference data, every inspection, approve and reopen, the AI hand-offs. Admins are in no team. |
 
 Set up on `/admin/users`:
@@ -164,7 +164,7 @@ migration, the Users screen works with roles only and says what is needed.
 
 ## AI models
 
-Optional. With nothing set, the app shows "AI not connected" and offers the JSON export.
+Optional. With nothing set, the app shows "AI Not Connected" and offers the JSON export.
 
 | Variable | Purpose |
 |---|---|
