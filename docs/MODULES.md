@@ -306,7 +306,7 @@ Then add `loadCapture: () => import("./Capture")` to your definition.
 | `evaluation` | The latest `result`, `computed` and `issues` for your module: live totals, accept/reject chips, inline errors. |
 | `onChange(next)` | Replaces your data with the **whole** new value; the screen writes it into the inspection and autosaves. Never call it yourself: write through the kit's `useDataUpdater(data, onChange)` and build every change from `current`, so a pasted column or two changes in one event all land, and a size taken out of the order keeps its data in case it comes back (rule 4): `update((current) => ({ ...current, sizes: { ...current.sizes, [size]: entry } }))` (docs/CAPTURE_KIT.md). |
 | `onFocusChange(focus)` | Report what is in focus, so a photo taken now is tagged with it (BUILD_SPEC 8.1): `size`, `hand`, `defect` (a defect or check code), `box`, `level` (labelling's `inner` or `carton`) and `item` (an entry of your own list: a document, a loading stage). |
-| `focus` | Optional: what the screen has in focus now, as the last module reported it. Open on its size when it is ordered, so the size chosen in one module stays chosen in the next: `useState(() => initialSize(context, focus))` (documents opens on its `item` the same way). The screen keeps the size when it opens another section (section 10.1). |
+| `focus` | Optional: what the screen has in focus now, as the last module reported it. Open on its size when it is ordered, so the size chosen in one module stays chosen in the next: `useState(() => initialSize(context, focus))` (documents opens on its `item` the same way). The screen keeps the size when it opens another section (section 10.1), but tags your photos only with what you report: report the size you open on as you mount (`onFocusChange`, in an effect, as tensile does). |
 | `focusPath` | A data path to scroll to and focus, from a link in the issue list. |
 | `defectUsage` | Optional: how often each defect code was counted in earlier inspections the user can see (the same client and manufacturer, else any), for "the most-used defects first" (BUILD_SPEC 8). Order your defect rows by it, ties in the template's order, one-off labels last; watertight and visual do. The screen reads it once when it opens, so rows never move while the inspector counts. It orders rows only: never a result. |
 | `readOnly` | Approved, or not the user's to edit. |
@@ -334,7 +334,7 @@ import { ModuleFileSlot } from "@/modules/_framework/file-slot";
 - **Where files cannot be attached** (no provider: the template editor's preview, a test) the slot says "Attach files on the inspection screen." and the module still shows what it keeps.
 - **Per item**: inspection_files has no item, so a module with several files of its own (documents) renders one slot and files each new file under the entry being worked on, keeping the id in that entry (`documents.items.<item>.file`). Until an entry is chosen it passes `addable={false}`: nothing can be added, and the files listed can still be deleted.
 
-**How the capture screen provides it** (`app/(app)/inspections/[id]/_components/section-body.tsx`): the module bodies sit in `FileSlotProvider` with a renderer for `FileSlot` (`components/capture/files`), and each Capture gets the screen's focus:
+**How the capture screen provides it** (`app/(app)/inspections/[id]/_components/section-body.tsx`): the module bodies sit in `FileSlotProvider` with a renderer for `FileSlot` (`components/capture/files`), and each Capture gets the size kept from the sections before as its `focus`:
 
 ```tsx
 import { FileSlot } from "@/components/capture/files";
@@ -355,7 +355,7 @@ import { FileSlotProvider } from "@/modules/_framework/file-slot";
     />
   )}
 >
-  <Capture ... focus={photoFocus} defectUsage={defectUsage} />
+  <Capture ... focus={keptFocus} defectUsage={defectUsage} />
 </FileSlotProvider>
 ```
 
@@ -363,7 +363,7 @@ import { FileSlotProvider } from "@/modules/_framework/file-slot";
 - **`meta.files` is required** on every path that evaluates the inspection: the capture screen (`useInspectionFiles(id)` from `components/capture/files`: uploaded rows plus this device's queued files; `null` only while they load, never `[]` for "not loaded"), the save, submit and override actions (`loadCaptureInspection(client, id, { files: true })`), the review and the export (`inspection_files` rows as `{ id, moduleKey, kind }`). Without it a lab report deleted in the gallery still counts, one added in the gallery counts for nothing, and the capture screen and submit can disagree about tensile. `slot.onRemoved` keeps the module's own data exact when the slot itself deletes a file; it does not replace `meta.files`.
 - **The server's files lag behind a device's queue.** The module's data, with the new id, autosaves within a second; the upload creates the row when it finishes, which can take minutes on a factory network. Until then the file is missing everywhere but on the device that queued it (another iPad, the review); the warning says it may still be uploading. Submit on that device waits for its queue, so the server holds the file by then.
 - **The gallery** ("Photos and files") renders `FileSlot` for these modules without `onAdded`. With `meta.files` passed, a lab report added there attaches force at break or tensile (`moduleFileState`); a certificate added there shows in the documents slot's list, filed under no document.
-- **The size stays across sections**: opening another section (a tab, Previous or Next, an issue link) keeps the size in focus and drops the rest, `setPhotoFocus((focus) => (focus.size ? { size: focus.size } : {}))`, so the next module opens on that size while a box or defect picked here never tags a photo there.
+- **The size stays across sections; photo tags do not.** The screen keeps the last size any module reported (`keptFocus`, `{ size }` only) and passes it as `focus`, so the next module that opens on it (`initialSize`) shows the size chosen before, whichever way the section was opened (a tab, Previous or Next, an issue link). A section's photos are tagged only with what its own module reported through `onFocusChange`: the tags start empty in every section, so a kept size never tags the photos of a section that does not show it (a custom section without sizes, a module that opens on its first size). A module that opens on the kept size reports it as it mounts, as tensile and force at break do with an effect; until it reports, its photos carry no size.
 
 ## 11. Testing
 
@@ -433,7 +433,8 @@ const saved = parseModuleData(definition, readModuleEntry(data, "modules", key))
 //   what can still be read read-only: readableData(definition, entry), section 5),
 // title: resolvedModule.title, labels: effectiveLabels(definition, resolvedModule), context,
 // evaluation: its report.modules entry, onChange: (next) => writeModuleData(data, "modules", key, next),
-// focus: the focus the last module reported (onFocusChange), its size kept across sections,
+// focus: the size the last module reported (onFocusChange), kept across sections (photo tags
+//   take only what the open module reports itself),
 // inside FileSlotProvider (section 10.1)
 ```
 

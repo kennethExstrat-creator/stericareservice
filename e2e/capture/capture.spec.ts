@@ -159,6 +159,36 @@ async function openSection(page: Page, title: string) {
   await expect(page.getByRole("heading", { level: 2, name: title, exact: true })).toBeVisible();
 }
 
+/** Waits for the open section's form: a module's code loads the first time its section opens. */
+async function formLoaded(page: Page) {
+  await expect(page.locator('[data-slot="section-frame"]').getByText("Loading the form…")).toHaveCount(0);
+}
+
+/** The size the open section's size tabs show; null without tabs, or with every size side by side. */
+async function shownSize(page: Page): Promise<string | null> {
+  await formLoaded(page);
+  const tab = page.locator('[data-slot="section-frame"] [role="tab"][data-size][aria-selected="true"]:visible');
+  return (await tab.count()) === 0 ? null : tab.first().getAttribute("data-size");
+}
+
+/**
+ * New photos in the open section are tagged with a size only when it is the
+ * size the section shows (BUILD_SPEC 8.1): never with one kept from another
+ * section, which only decides the size a module opens on.
+ */
+async function expectNextPhotoSize(page: Page, shown: string | null) {
+  const frame = page.locator('[data-slot="section-frame"]');
+  await formLoaded(page);
+  // The tag line renders with the add controls, once the screen can be changed.
+  await expect(frame.locator('[data-slot="photo-add"]')).toBeVisible();
+  const line = frame.locator('[data-slot="next-tags"]');
+  const text = (await line.count()) === 0 ? "" : await line.innerText();
+  const sizes = Array.from(text.matchAll(/\bSize (\w+)/g), (match) => match[1]);
+  expect(sizes, `"${text}" with ${shown === null ? "no size" : `size ${shown}`} on screen`).toEqual(
+    shown !== null && sizes.length > 0 ? [shown] : [],
+  );
+}
+
 async function storedData(inspectionId: string) {
   const admin = createTestAdminClient();
   const { data, error } = await admin.from("inspections").select("data, status, module_overrides").eq("id", inspectionId).single();
@@ -622,14 +652,28 @@ test("tensile counts its lab report once attached and not once it is deleted, an
   await expect(frame.locator('[data-slot="lab-report"]')).toContainText("Not attached");
   await expect(frame.locator("header")).toContainText("Not done");
 
-  if (!isDesktop()) {
-    // The size chosen here stays chosen in the next module that opens on one (CaptureProps.focus).
+  // The size chosen here stays chosen in the next module that opens on one (CaptureProps.focus), and tags
+  // another section's photos only where that section shows it (BUILD_SPEC 8.1).
+  if (isDesktop()) {
+    // Every size side by side: a value of size L in focus.
+    await frame.locator('input[id$="-L-tensileStrength"]').focus();
+  } else {
     await press(page.getByRole("tab", { name: /^Size L\b/ }));
-    await expect(page.locator('[data-slot="next-tags"]').filter({ hasText: "Size L" })).toBeVisible();
-    await openSection(page, "Glove Information");
-    await openSection(page, TENSILE);
-    await expect(page.getByRole("tab", { name: /^Size L\b/ })).toHaveAttribute("aria-selected", "true");
   }
+  const taggedL = page.locator('[data-slot="next-tags"]').filter({ hasText: "Size L" });
+  await expect(taggedL).toBeVisible();
+  await openSection(page, WEIGHT);
+  await expectNextPhotoSize(page, await shownSize(page));
+  await shot(page, "weight-after-tensile-l");
+  // A custom section with no sizes at all.
+  await openSection(page, "Site notes");
+  await expectNextPhotoSize(page, null);
+  await shot(page, "site-notes-after-tensile-l");
+  await openSection(page, "Glove Information");
+  await openSection(page, TENSILE);
+  if (!isDesktop()) await expect(page.getByRole("tab", { name: /^Size L\b/ })).toHaveAttribute("aria-selected", "true");
+  // Back on size L, which tensile shows and reports: its photos are tagged with it again.
+  await expect(taggedL).toBeVisible();
 
   const slot = frame.locator('[data-slot="file-slot"][data-module="tensile"]');
   await slot.locator("input[data-file-input]").setInputFiles({

@@ -54,7 +54,7 @@ type ModuleBodyProps = {
   evaluation: ModuleEvaluation | null;
   context: InspectionContext;
   focusPath: IssuePath | null;
-  /** What the screen has in focus: a per-size Capture opens on its size (CaptureProps.focus). */
+  /** The size kept from the sections before: a per-size Capture opens on it (CaptureProps.focus). */
   focus: CaptureFocus;
   /** Defects counted before, by code, for the most-used first (CaptureProps.defectUsage). */
   defectUsage: Readonly<Record<string, number>>;

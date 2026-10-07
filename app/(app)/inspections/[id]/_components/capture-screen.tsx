@@ -18,6 +18,12 @@
 // bring back the inspection's status and module overrides, so a section
 // switched off or a submit made on another device shows here too.
 //
+// Focus (BUILD_SPEC 8.1): what a module reports in focus tags its section's
+// photos, and nothing else does: each section starts untagged. The size in
+// it is also kept for the next section's module to open on, so the size
+// chosen in one module stays chosen in the next without tagging the photos
+// of a section that does not show it.
+//
 // Leaving: number fields keep a half-typed value until they lose focus, and
 // a tap on the iPad does not move focus, so whatever way the screen goes, the
 // field is left first and its value kept: a click outside the open section
@@ -120,6 +126,8 @@ export type CaptureScreenProps = {
 type FocusRequest = { sectionKey: string; path: IssuePath };
 
 const NO_USAGE: DefectUsage = {};
+/** Nothing in focus: what a section's photo tags, and the kept size, start from. */
+const NO_FOCUS: CaptureFocus = {};
 
 export function CaptureScreen({
   inspectionId,
@@ -260,8 +268,17 @@ export function CaptureScreen({
 
   const [activeKey, setActiveKey] = useState(() => initialSectionKey(sections, initialSection));
   const active = findSection(sections, activeKey) ?? sections.find(isIncluded) ?? sections[0];
-  const [photoFocus, setPhotoFocus] = useState<CaptureFocus>({});
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
+
+  // The size a module last reported in focus, in whichever section: the next
+  // module opens on it (CaptureProps.focus), so the size chosen in one stays
+  // chosen in the next. It never tags a photo: a section's photos take only
+  // what its own module reported (ActiveSection).
+  const [keptFocus, setKeptFocus] = useState<CaptureFocus>(NO_FOCUS);
+  const keepSize = useCallback((focus: CaptureFocus) => {
+    const { size } = focus;
+    if (size) setKeptFocus((current) => (current.size === size ? current : { size }));
+  }, []);
 
   const syncUrl = useCallback((key: string) => {
     const params = new URLSearchParams(window.location.search);
@@ -330,7 +347,6 @@ export function CaptureScreen({
     (key: string, { focusHeading = false }: { focusHeading?: boolean } = {}) => {
       leaveActiveField();
       setActiveKey(key);
-      setPhotoFocus(keepSize);
       setFocusRequest(null);
       syncUrl(key);
       requestAnimationFrame(() => {
@@ -376,7 +392,6 @@ export function CaptureScreen({
       closeBlocked();
       const sectionKey = issue.moduleKey;
       setActiveKey(sectionKey);
-      setPhotoFocus(keepSize);
       syncUrl(sectionKey);
       setFocusRequest(null);
       // After the panel has closed and the section is on screen.
@@ -685,9 +700,9 @@ export function CaptureScreen({
               showRequired={submitTried}
               access={access}
               inspectionId={inspectionId}
-              photoFocus={photoFocus}
+              keptFocus={keptFocus}
               defectUsage={defectUsage}
-              onPhotoFocus={setPhotoFocus}
+              onFocusReported={keepSize}
               onModuleChange={(key, value) => writeEntry("modules", key, value)}
               onCustomChange={(key, value) => writeEntry("custom", key, value)}
               onMappedChange={writeMapped}
@@ -770,10 +785,11 @@ type ActiveSectionProps = {
   showRequired: boolean;
   access: CaptureAccess;
   inspectionId: string;
-  /** What the last module reported in focus: photo tags, and the size the next module opens on. */
-  photoFocus: CaptureFocus;
+  /** The size kept from the sections before: the module opens on it (CaptureProps.focus). Never a photo tag. */
+  keptFocus: CaptureFocus;
   defectUsage: DefectUsage;
-  onPhotoFocus: (focus: CaptureFocus) => void;
+  /** Every focus the section's module or form reports, so its size is kept for the next section. */
+  onFocusReported: (focus: CaptureFocus) => void;
   onModuleChange: (key: string, value: unknown) => void;
   onCustomChange: (key: string, value: unknown) => void;
   onMappedChange: (mapsTo: string, value: unknown) => void;
@@ -799,15 +815,29 @@ function ActiveSection({
   showRequired,
   access,
   inspectionId,
-  photoFocus,
+  keptFocus,
   defectUsage,
-  onPhotoFocus,
+  onFocusReported,
   onModuleChange,
   onCustomChange,
   onMappedChange,
   onCommentChange,
   onOverridesChange,
 }: ActiveSectionProps) {
+  // What this section's module or form reported in focus, and only that,
+  // tags its photos (BUILD_SPEC 8.1). Every section starts with nothing (the
+  // screen keys ActiveSection by it), so the size kept from another section
+  // tags a photo here only once the module here shows it and says so, as
+  // tensile does for the size it opens on.
+  const [photoFocus, setPhotoFocus] = useState<CaptureFocus>(NO_FOCUS);
+  const onFocusChange = useCallback(
+    (focus: CaptureFocus) => {
+      setPhotoFocus((current) => (sameFocus(current, focus) ? current : focus));
+      onFocusReported(focus);
+    },
+    [onFocusReported],
+  );
+
   if (section.kind === "excluded") {
     return (
       <SectionFrame
@@ -866,7 +896,7 @@ function ActiveSection({
             showRequired={showRequired}
             onChange={(next) => onCustomChange(section.key, next)}
             onMappedChange={onMappedChange}
-            onFocusChange={onPhotoFocus}
+            onFocusChange={onFocusChange}
           />
         )}
       </SectionFrame>
@@ -907,11 +937,11 @@ function ActiveSection({
           evaluation={evaluation}
           context={context}
           focusPath={focusPath}
-          focus={photoFocus}
+          focus={keptFocus}
           defectUsage={defectUsage}
           readOnly={readOnly}
           onChange={(next) => onModuleChange(section.key, next)}
-          onFocusChange={onPhotoFocus}
+          onFocusChange={onFocusChange}
         />
       )}
     </SectionFrame>
@@ -922,13 +952,11 @@ function ActiveSection({
  * Pieces
  * ------------------------------------------------------------------ */
 
-/**
- * What another section starts from: the size in focus and nothing else, so
- * the size chosen in one module stays chosen in the next (CaptureProps.focus)
- * while a box or defect picked here never tags a photo there.
- */
-function keepSize(focus: CaptureFocus): CaptureFocus {
-  return focus.size ? { size: focus.size } : {};
+/** The same things in focus: a module reporting again what it reported changes nothing on screen. */
+function sameFocus(a: CaptureFocus, b: CaptureFocus): boolean {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)] as (keyof CaptureFocus)[]);
+  for (const key of keys) if (a[key] !== b[key]) return false;
+  return true;
 }
 
 /** Space between the sticky bars and a section title scrolled up to them. */
