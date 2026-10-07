@@ -21,11 +21,12 @@
 // Leaving: number fields keep a half-typed value until they lose focus, and
 // a tap on the iPad does not move focus, so whatever way the screen goes, the
 // field is left first and its value kept: a click outside the open section
-// (a link, the shell's menu, Submit), the browser's Back (popstate), and the
-// page being hidden, reloaded or closed (pagehide, visibilitychange,
-// beforeunload). The header's Photos and Review wait for the last save; any
-// other way out within the app sends it as the screen goes, and the local
-// copy keeps it otherwise (use-capture-autosave.ts).
+// (a link, the shell's menu, Submit), the browser's Back (the Navigation
+// API's navigate, else popstate), and the page being hidden, reloaded or
+// closed (pagehide, visibilitychange, beforeunload). The header's Photos and
+// Review wait for the last save; any other way out within the app sends it
+// as the screen goes, and the local copy keeps it otherwise
+// (use-capture-autosave.ts).
 import {
   useCallback,
   useDeferredValue,
@@ -43,7 +44,7 @@ import { useRouter } from "next/navigation";
 import { ChevronLeftIcon, ChevronRightIcon, FileSearchIcon, ImagesIcon, ListChecksIcon, RefreshCwIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useInspectionFiles } from "@/components/capture/files";
-import { PhotoSlot, photoUploadsSettled, usePhotoUploadStatus } from "@/components/capture/photos";
+import { PhotoSlot, photoUploadsSettled, useUploadsWaiting } from "@/components/capture/photos";
 import { ProgressTracker, useMediaQuery, WIDE_QUERY } from "@/components/qc";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -403,9 +404,8 @@ export function CaptureScreen({
     [closeBlocked, panelId, syncUrl],
   );
 
-  // Photos and files of this inspection still on this device (BUILD_SPEC 8.1): the badge, and what holds submit up.
-  const uploadStatus = usePhotoUploadStatus(inspectionId);
-  const uploadsWaiting = uploadStatus.blocking ? (uploadStatus.message ?? "Photos are still uploading.") : null;
+  // Photos and files of this inspection still on this device hold submit up (BUILD_SPEC 8.1); the save pill shows the badge.
+  const uploadsWaiting = useUploadsWaiting(inspectionId);
 
   const prepareSubmit = useCallback(async (): Promise<SubmitPreparation> => {
     try {

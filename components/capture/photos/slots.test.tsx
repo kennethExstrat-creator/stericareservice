@@ -6,7 +6,8 @@ import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { EMPTY_TAG_OPTIONS, tagOptionsFromTemplate } from "@/lib/inspections/photos/view";
-import { FileSlot } from "../files";
+import { FileSlot, useInspectionFiles } from "../files";
+import { useUploadsWaiting } from "./hooks";
 import { nextTagLine, toViewerPhoto } from "./module-photos";
 import type { SlotPhoto } from "./photo-model";
 import { PhotoSlot } from "./photo-slot";
@@ -117,6 +118,10 @@ describe("nextTagLine", () => {
   it("leaves out a focus value that is not valid rather than failing", () => {
     expect(nextTagLine("labeling", { size: "M", box: 0 }, options)).toBe("Size M");
   });
+
+  it("says labelling's packaging level in the module's words", () => {
+    expect(nextTagLine("labeling", { size: "M", box: 4, level: "carton" }, options)).toBe("Size M · Box 4 · Carton Box");
+  });
 });
 
 describe("FileSlot", () => {
@@ -136,6 +141,26 @@ describe("FileSlot", () => {
     expect(html).toContain("No certificates yet.");
     expect(html).not.toContain("Add certificate");
     expect(html).not.toContain("data-file-input");
+  });
+
+  it("hides the add controls only while there is nothing to file a new file under (canAdd)", () => {
+    const html = render(<FileSlot inspectionId={INSPECTION} moduleKey="documents" kind="certificate" canAdd={false} />);
+    expect(html).toContain("Certificates");
+    expect(html).not.toContain("data-file-input");
+  });
+});
+
+describe("what the capture screen reads from the queue and the media", () => {
+  function Probe({ id }: { id: string }) {
+    const files = useInspectionFiles(id);
+    const waiting = useUploadsWaiting(id);
+    return <p data-files={JSON.stringify(files)} data-waiting={waiting ?? "none"} />;
+  }
+
+  it("knows no files and waits on the queue until the browser has read both", () => {
+    const html = render(<Probe id={INSPECTION} />);
+    expect(html).toContain('data-files="null"');
+    expect(html).toContain('data-waiting="Checking for photos waiting on this device."');
   });
 });
 
