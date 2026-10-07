@@ -181,6 +181,18 @@ describe("loadInspectionMedia", () => {
     expect(result.media.problems).toEqual([MEDIA_MESSAGES.accessFailed]);
   });
 
+  it("logs a request that never reached the server as a warning, any other failure as an error", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    rpcs.can_edit_inspection = { data: null, error: { message: "TypeError: Failed to fetch" } };
+    await loadInspectionMedia(fakeClient(), INSPECTION);
+    expect(warn).toHaveBeenCalledWith("Inspection photos: loading access failed", expect.anything());
+    expect(console.error).not.toHaveBeenCalled();
+
+    rpcs.can_edit_inspection = { data: null, error: { code: "42501", message: "permission denied" } };
+    await loadInspectionMedia(fakeClient(), INSPECTION);
+    expect(console.error).toHaveBeenCalledWith("Inspection photos: loading access failed", expect.anything());
+  });
+
   it("still shows the photos when the files or the signing fail", async () => {
     tables.inspection_files = { data: null, error: { message: "timeout" } };
     signing.mockResolvedValueOnce({ data: null, error: { message: "Storage unavailable" } });

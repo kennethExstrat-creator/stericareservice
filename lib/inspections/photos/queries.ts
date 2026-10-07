@@ -211,6 +211,10 @@ export async function signPaths(
   return { urls, complete };
 }
 
+/** A request that never reached the server: no connection, or a page going away mid-request. The store tries again. */
+const NO_CONNECTION = /Failed to fetch|NetworkError|Load failed|network connection was lost/i;
+
 function logFailure(what: string, error: { code?: string; message: string }) {
-  console.error(`Inspection photos: loading ${what} failed`, { code: error.code, message: error.message });
+  const log = NO_CONNECTION.test(error.message) ? console.warn : console.error;
+  log(`Inspection photos: loading ${what} failed`, { code: error.code, message: error.message });
 }
