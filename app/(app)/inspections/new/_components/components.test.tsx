@@ -128,6 +128,17 @@ describe("the template panel", () => {
     expect(inspector).not.toContain("Also applies just as closely");
   });
 
+  it("puts the admin's picker as far below its label as every other field's, the hint as far below it", () => {
+    const html = panel({ role: "admin", templates: [option("STD_EG")] });
+    // A Field, as Client, Manufacturer and Product Name are: 12 px (gap-3) between its parts, not 6.
+    const field = /<div role="group" data-slot="field"[^>]*class="([^"]*)"[^>]*><label data-slot="field-label"[^>]*for="t-template"/.exec(
+      html,
+    )?.[1].split(" ");
+    expect(field).toContain("gap-3");
+    expect(field).not.toContain("gap-1.5");
+    expect(field).toContain("border-t");
+  });
+
   it("warns when an admin picks a draft: using it freezes it", () => {
     const draft = option("STD_EG", { code: "DRAFT_EG", status: "draft" });
     const html = panel({ role: "admin", templates: [option("STD_EG"), draft], overrideId: draft.id });

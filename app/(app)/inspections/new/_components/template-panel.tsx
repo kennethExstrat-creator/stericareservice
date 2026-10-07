@@ -5,7 +5,7 @@
 // choose another template that is not retired. The Server Action decides
 // again from the database; this is what the inspector sees before creating.
 import { CheckIcon, CircleDashedIcon, LayoutTemplateIcon, TriangleAlertIcon } from "lucide-react";
-import { FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
+import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { choiceReason, PRODUCT_TYPE_LABEL, type TemplateChoice } from "@/lib/inspections/create";
 import type { ProductType } from "@/lib/schemas/common";
@@ -195,7 +195,8 @@ function OverridePicker({
   const forType = overrides.filter((template) => template.productType === productType);
   const automatic = choice?.ok && choice.specificity !== "override" ? choice.template : null;
   return (
-    <div className="flex flex-col gap-1.5 border-t border-border pt-4">
+    // A Field like every other on the form: 12 px between the label, the picker and the hint.
+    <Field data-invalid={overrideError ? true : undefined} className="border-t border-border pt-4">
       <FieldLabel htmlFor={`${id}-template`}>Use Another Template</FieldLabel>
       <Select
         value={overrideId || AUTOMATIC}
@@ -232,6 +233,6 @@ function OverridePicker({
           recorded.
         </FieldDescription>
       )}
-    </div>
+    </Field>
   );
 }
