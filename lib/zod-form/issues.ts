@@ -100,8 +100,12 @@ export function friendlyMessage(issue: RawIssue): string | undefined {
   }
 }
 
-/** lib/stats' advice for a number split by a space; the group is the number it names, if any (240 for "2 40"). */
-const SPACE_ADVICE = /^One number per cell: remove the space(?: \(“.*” → (.+)\))?\.$/;
+/**
+ * lib/stats' advice for a number split by a space; the group is the number it
+ * names, if any (240 for "2 40"). The quote may hold a line break ("2\n40" in
+ * the JSON), which lib/stats takes for a space and `.` would not match.
+ */
+const SPACE_ADVICE = /^One number per cell: remove the space(?: \(“[^”]*” → (.+)\))?\.$/;
 
 /**
  * Text where a number belongs: "2 40" typed into a number field, or a number
