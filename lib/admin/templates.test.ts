@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { moduleSpec, seedModuleConfigs, sourceFields, TEMPLATES, type TemplateCode } from "@/lib/coverage";
+import { lowerCaseWords } from "@/lib/design/capitalisation";
 import type { JsonValue } from "@/lib/schemas/common";
 import { MODULE_KEYS, type ModuleKey } from "@/lib/schemas/module-result";
 import type { ResolvedTemplate, TemplateDefinition } from "@/lib/schemas/template";
@@ -845,6 +846,31 @@ describe("coverage checklist", () => {
     // A typo on the source keeps its printed label; the app's wording sits beside it.
     const glove = rows(checklist).find((row) => row.label === "Factrory glove code")!;
     expect(glove.corrected).toBe("Factory glove code");
+  });
+
+  it("names the places it points to as the template editor does, in Title Case (docs/DESIGN.md, Capitalisation)", () => {
+    const template = stdEg();
+    const checklist = coverageChecklist(template);
+    const targets = rows(checklist).flatMap((row) => row.targets);
+    const titleOf = (key: ModuleKey) => template.modules.find((entry) => entry.key === key)!.title;
+    const has = (place: string | null, text: string | RegExp) =>
+      targets.some((target) => target.place === place && (typeof text === "string" ? target.text === text : text.test(target.text)));
+    // A setting by the steps to it in the editor: the module, Settings, then the setting as its form names it.
+    expect(has(titleOf("weight"), "Settings › Gloves Weighed")).toBe(true);
+    expect(has(titleOf("force_at_break"), "Settings › Gloves Tested")).toBe(true);
+    expect(has(titleOf("visual"), "Settings › Classes › Major")).toBe(true);
+    expect(has(titleOf("dimensions"), "Settings › Specs")).toBe(true);
+    // A custom module, the report's own layout and a section's heading.
+    const [glove] = template.customModules;
+    expect(targets.some((target) => target.place === `Custom Module ${glove.title}`)).toBe(true);
+    expect(has("Report Layout", /./)).toBe(true);
+    expect(has(null, /^Section Title “.+”$/)).toBe(true);
+    expect(targets.some((target) => target.place?.endsWith(" settings"))).toBe(false);
+    // What the source shows in each cell, as a short name.
+    const inputs = new Set(rows(checklist).map((row) => row.input));
+    expect(inputs).toContain("Worked Out");
+    expect(inputs).toContain("Printed Value");
+    for (const input of inputs) expect(lowerCaseWords(input), input).toEqual([]);
   });
 
   it("falls back to a field's own wording where a level has none of its own", () => {

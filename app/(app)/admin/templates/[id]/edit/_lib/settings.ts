@@ -2,6 +2,7 @@
 // config form per module, generated from its config schema"). The settings
 // form and the problem list both read from here, so a setting has one name
 // wherever the editor shows it.
+import { SETTING_NAMES } from "@/lib/admin/setting-names";
 import { CanonicalSizeSchema } from "@/lib/sizes";
 import type { ModuleKey } from "@/lib/schemas/module-result";
 import { describeSchema, type FormMarker, type FormNode, type FormPath, type KeyOption, type NamingHooks } from "@/lib/zod-form";
@@ -36,18 +37,6 @@ export function configNodeOf(definition: AnyModuleDefinition): FormNode {
 }
 
 /**
- * Settings whose key says nothing on its own ("n") and whose schema gives no
- * title. A title the module gives the setting (`.meta({ title })`) wins:
- * the form reads the title first.
- */
-export const SETTING_NAMES: Readonly<Partial<Record<ModuleKey, Readonly<Record<string, string>>>>> = {
-  weight: { n: "Gloves Weighed" },
-  force_at_break: { n: "Gloves Tested" },
-  labeling: { n: "Boxes to Inspect" },
-  dye_leak: { n: "Pouches to Test" },
-};
-
-/**
  * Units of spec values: the shared spec schema (SpecSchema) cannot carry one,
  * so the editor gives each module's its canonical unit (BUILD_SPEC 4.2 rule
  * 5): a dimension's minimum, maximum, nominal and tolerance in mm, a weight's
@@ -64,8 +53,9 @@ export function specUnit(key: ModuleKey, path: FormPath, node: FormNode): string
 }
 
 /**
- * How the editor names a module's settings: the schema's title, else the
- * names above, else the module's own words for the key (a field switched on,
+ * How the editor names a module's settings: the schema's title, else
+ * SETTING_NAMES (lib/admin/setting-names.ts, which the coverage checklist
+ * shares), else the module's own words for the key (a field switched on,
  * a measure's decimals), else the key in words. Not the module's words for a
  * choice or a text: dimensions labels its statistic row "Median", which is no
  * name for the median-or-average select.

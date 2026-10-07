@@ -24,9 +24,11 @@ import {
   type TemplateCode,
 } from "@/lib/coverage";
 import type { BaseOption } from "@/lib/admin/new-template";
-import type { ProductType, Standard } from "@/lib/schemas/common";
+import { SETTING_NAMES } from "@/lib/admin/setting-names";
+import type { FieldType, ProductType, Standard } from "@/lib/schemas/common";
 import { ALWAYS_ON_MODULE_KEYS, type ModuleKey } from "@/lib/schemas/module-result";
 import { normaliseSize } from "@/lib/sizes";
+import { humanize } from "@/lib/zod-form";
 import {
   ResolvedTemplateSchema,
   TemplateDefinitionSchema,
@@ -98,7 +100,7 @@ export const STANDARD_LABEL: Readonly<Record<Standard, string>> = {
   ASTM_D6319: "ASTM D6319",
   ASTM_D3578: "ASTM D3578",
   ASTM_D3577: "ASTM D3577",
-  custom: "Custom standard",
+  custom: "Custom Standard",
 };
 
 export const UNIT_LABEL = { pcs: "Pieces", pairs: "Pairs" } as const;
@@ -872,7 +874,7 @@ export type ModuleView = {
 export type CustomFieldView = {
   key: string;
   label: string;
-  type: string;
+  type: FieldType;
   unit: string | null;
   required: boolean;
   options: string[];
@@ -1093,15 +1095,15 @@ const INPUT_LABEL: Readonly<Record<SourceInput, string>> = {
   select: "Choice",
   size: "Size",
   signature: "Signature",
-  blank: "Blank space",
-  handwritten_rows: "Handwritten rows",
-  computed: "Worked out",
-  fixed: "Printed value",
+  blank: "Blank Space",
+  handwritten_rows: "Handwritten Rows",
+  computed: "Worked Out",
+  fixed: "Printed Value",
   heading: "Heading",
   label: "Caption",
-  repeat: "Repeated value",
+  repeat: "Repeated Value",
   image: "Image",
-  page: "Page layout",
+  page: "Page Layout",
 };
 
 function isTemplateCode(code: string): code is TemplateCode {
@@ -1196,13 +1198,13 @@ function evaluateTarget(target: SourceTarget, template: ResolvedTemplate, invent
   if (isCustomTarget(target)) {
     const custom = template.customModules.find((entry) => entry.key === target.custom);
     if (!custom) {
-      return missing(`Custom module ${target.custom}`, target.field, `This version has no custom module ${target.custom}.`);
+      return missing(`Custom Module ${target.custom}`, target.field, `This version has no custom module ${target.custom}.`);
     }
     const field = custom.fields.find((entry) => entry.key === target.field);
-    const place = `Custom module ${custom.title}`;
+    const place = `Custom Module ${custom.title}`;
     return field ? covered(place, field.label) : missing(place, target.field, `${custom.title} has no field ${target.field}.`);
   }
-  if (!("module" in target)) return covered("Report layout", target.layout);
+  if (!("module" in target)) return covered("Report Layout", target.layout);
 
   const entry = template.modules.find((candidate) => candidate.key === target.module);
   const title = entry?.title ?? moduleSpec(target.module).title;
@@ -1215,21 +1217,25 @@ function evaluateTarget(target: SourceTarget, template: ResolvedTemplate, invent
   if (isLabelTarget(target)) {
     const [place, text] =
       target.label === "title"
-        ? [null, `Section title “${title}”`]
+        ? [null, `Section Title “${title}”`]
         : [title, `Caption “${wordingOf(entry, target.module, target.label)}”`];
     return absent ? missing(place, text, absent) : covered(place, text);
   }
   if (isConfigTarget(target)) {
     const value = entry?.config[target.config];
-    const place = `${title} settings`;
-    const text = `${settingWords(target.config)}${target.key ? ` › ${target.key}` : ""}`;
-    if (absent) return missing(place, text, absent);
+    // The steps the editor's problem list names (edit/_lib/names.ts): the
+    // module, "Settings", then the setting and its entry as the settings form
+    // names them: "Weight (g) › Settings › Gloves Weighed", "Visual
+    // Inspection › Settings › Classes › Major", "… › Defects › Faulty Cuff".
+    const setting = SETTING_NAMES[target.module]?.[target.config] ?? humanize(target.config);
+    const text = ["Settings", setting, ...(target.key ? [humanize(target.key)] : [])].join(" › ");
+    if (absent) return missing(title, text, absent);
     if (target.key && Array.isArray(value) && !listHas(value, target.key)) {
-      return missing(place, text, `${target.key} is not in ${title}'s ${settingWords(target.config)}.`);
+      return missing(title, text, `${target.key} is not in ${title}'s ${settingWords(target.config)}.`);
     }
     const item = target.key && isRecord(value) ? value[target.key] : undefined;
-    if (isRecord(item) && item.include === false) return missing(place, text, `${target.key} is switched off in ${title}.`);
-    return covered(place, text);
+    if (isRecord(item) && item.include === false) return missing(title, text, `${target.key} is switched off in ${title}.`);
+    return covered(title, text);
   }
   if (isFieldTarget(target)) {
     const keys = target.group ? [groupLabelKey(target.field, target.group), target.field] : [target.field];
