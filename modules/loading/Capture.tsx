@@ -3,9 +3,10 @@
 // Loading capture (BUILD_SPEC 6.1 loading): the fields the template switches
 // on, with the cartons loaded next to the order's total cartons, which flow
 // forward from order_lots and are never typed (6.2 rule 2). The loading
-// stage picked here is reported as the focus for photo tags (BUILD_SPEC 8.1);
-// lib/photos cannot tag by stage yet, so the screen promises no tag. Every
-// change goes through useDataUpdater, built from the latest data (edit.ts).
+// stage picked here is reported as the focus (CaptureFocus.item), so the
+// photos taken at each stage are tagged with it (BUILD_SPEC 8.1), and the
+// picker says so. Every change goes through useDataUpdater, built from the
+// latest data (edit.ts).
 import { useId, useLayoutEffect, useRef, useState, type ComponentProps } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -23,23 +24,11 @@ import {
   useIssueFocus,
 } from "@/components/qc";
 import { formatCount } from "@/lib/format";
-import { labelFor, type CaptureFocus, type CaptureProps } from "@/modules/_framework";
+import { labelFor, type CaptureProps, type Labels } from "@/modules/_framework";
 import { cartonsOrdered, type LoadingComputed } from "./calc";
 import { LOADING_STAGES, type LoadingConfig, type LoadingStage } from "./config";
 import { withLoadingValues } from "./edit";
 import type { LoadingData } from "./schema";
-
-/**
- * The focus for photo tags. CaptureFocus has no slot yet for an entry of a
- * module's own list, so `item` rides along until the framework and
- * lib/photos take it (handed over as a follow-up); autoTag drops it today.
- */
-type ItemFocus = CaptureFocus & { readonly item: string };
-
-function stageFocus(stage: LoadingStage): CaptureFocus {
-  const focus: ItemFocus = { item: stage };
-  return focus;
-}
 
 const isStage = (value: string): value is LoadingStage => (LOADING_STAGES as readonly string[]).includes(value);
 
@@ -48,6 +37,17 @@ const textOrNull = (value: string) => (value === "" ? null : value);
 
 /** calc's checks here are warnings (amber); an error stays red. */
 const issueTone = (issue: { readonly level: string }) => (issue.level === "error" ? "text-fail" : "text-warn");
+
+/**
+ * The stage picker's tag line (BUILD_SPEC 8.1): which stage the photos taken
+ * now are tagged with, in the template's words, or what to do first.
+ * Exported for its test.
+ */
+export function stageTagLine(stage: LoadingStage | null, labels: Labels): string {
+  return stage
+    ? `Photos taken now are tagged “${labelFor(labels, stage)}”.`
+    : "Pick the stage before taking its photos, so each photo is tagged with it.";
+}
 
 export default function Capture({
   data,
@@ -75,8 +75,8 @@ export default function Capture({
   const pickStage = (value: string) => {
     const next = isStage(value) ? value : null;
     setStage(next);
-    // A stage picked again is let go: the focus no longer names it.
-    onFocusChange?.(next ? stageFocus(next) : {});
+    // A stage picked again is let go: photos taken now are no longer tagged with it.
+    onFocusChange?.(next ? { item: next } : {});
   };
 
   return (
@@ -177,7 +177,7 @@ export default function Capture({
 
       {/* Photos cannot be added to a read-only inspection, so there is no stage to pick. */}
       {!readOnly && (
-        <ModuleSection title={labelFor(labels, "loadingStage")}>
+        <ModuleSection title={labelFor(labels, "loadingStage")} description={stageTagLine(stage, labels)}>
           <ToggleGroup
             type="single"
             variant="outline"

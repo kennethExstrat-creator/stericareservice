@@ -7,7 +7,7 @@ import type { CaptureProps, InspectionContext, ModuleEvaluation } from "@/module
 import { makeTestContext } from "@/modules/_framework/testing";
 import { STD_EG_EXAMPLE, STD_EG_EXPECTED } from "@/tests/fixtures/examples";
 import { calcLoading, type LoadingComputed } from "./calc";
-import Capture from "./Capture";
+import Capture, { stageTagLine } from "./Capture";
 import { LOADING_DEFAULT_CONFIG, LOADING_LABELS, LOADING_STAGES, LOADING_TITLE, type LoadingConfig } from "./config";
 import { emptyLoading, type LoadingData } from "./schema";
 
@@ -89,12 +89,19 @@ describe("loading capture", () => {
     expect(html).not.toContain("All 2,900 loaded");
   });
 
-  it("offers the loading stages, and promises no photo tag: lib/photos cannot tag by stage yet", () => {
+  it("offers the loading stages, and says the photos taken at a stage are tagged with it", () => {
     const html = render({});
     const stages = Array.from(html.matchAll(/data-slot="toggle-group-item"[^>]*>([^<]*)<\/button>/g), (match) => match[1]);
     expect(stages).toEqual(LOADING_STAGES.map((stage) => LOADING_LABELS[stage]));
     expect(html).toContain(LOADING_LABELS.loadingStage);
-    expect(html).not.toMatch(/tagged/i);
+    // No stage picked yet: what to do first.
+    expect(html).toContain("Pick the stage before taking its photos, so each photo is tagged with it.");
+  });
+
+  it("words the stage in a photo's tag line as the template does", () => {
+    const labels = { ...LOADING_LABELS, doorsClosed: "Doors shut" };
+    expect(stageTagLine("doorsClosed", labels)).toBe("Photos taken now are tagged “Doors shut”.");
+    expect(stageTagLine(null, labels)).toBe("Pick the stage before taking its photos, so each photo is tagged with it.");
   });
 
   it("shows the container number as stored, in capitals", () => {
