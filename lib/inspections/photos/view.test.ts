@@ -363,7 +363,7 @@ describe("displayTags", () => {
     expect(displayTags("documents", "item:declarationOfOrigin", options).item).toBe("Declaration of origin");
     expect(itemName("documents", "fdaCe", options)).toBe("FDA / CE certificates");
     expect(itemName("documents", "millCertificate", options)).toBe("Mill certificate");
-    expect(levelName("dimensions", "inner", options)).toBe("Inner unit");
+    expect(levelName("dimensions", "inner", options)).toBe("Inner Unit");
     expect(levelName("labeling", "carton", EMPTY_TAG_OPTIONS)).toBe("Carton");
   });
 

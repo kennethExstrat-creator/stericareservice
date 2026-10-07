@@ -353,7 +353,7 @@ export function humanizeKey(key: string): string {
   return words ? words[0].toUpperCase() + words.slice(1) : key;
 }
 
-export const UNTAGGED_TITLE = "Not tagged";
+export const UNTAGGED_TITLE = "Not Tagged";
 
 export function moduleTitle(moduleKey: string | null, options: PhotoTagOptions): string {
   if (moduleKey === null) return UNTAGGED_TITLE;
@@ -385,7 +385,7 @@ export function defectName(moduleKey: string | null, defect: string, options: Ph
 /** The packaging level in the module's wording ("Dispenser Box"), else in plain words. */
 export function levelName(moduleKey: string | null, level: string, options: PhotoTagOptions): string {
   const found = moduleKey ? options.levels?.[moduleKey]?.find((choice) => choice.value === level) : undefined;
-  return found?.label ?? (level === "inner" ? "Inner unit" : humanizeKey(level));
+  return found?.label ?? (level === "inner" ? "Inner Unit" : humanizeKey(level));
 }
 
 /**
@@ -549,7 +549,7 @@ export function groupByModule<T extends { moduleKey: string | null }>(
  * ------------------------------------------------------------------ */
 
 export const FILE_KIND_LABEL: Readonly<Record<InspectionFileKind, string>> = {
-  lab_report: "Lab report",
+  lab_report: "Lab Report",
   certificate: "Certificate",
   other: "Document",
 };
