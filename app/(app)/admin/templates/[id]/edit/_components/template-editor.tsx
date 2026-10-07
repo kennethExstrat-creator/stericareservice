@@ -13,7 +13,15 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowLeftIcon, HistoryIcon, LoaderCircleIcon, OctagonXIcon, SaveIcon, Undo2Icon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  ClipboardCheckIcon,
+  HistoryIcon,
+  LoaderCircleIcon,
+  OctagonXIcon,
+  SaveIcon,
+  Undo2Icon,
+} from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, useMediaQuery } from "@/components/qc";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -438,13 +446,22 @@ export function TemplateEditor({
         title={typeof draft.name === "string" && draft.name.trim() !== "" ? draft.name : template.code}
         description={<p data-testid="template-meta">{meta.join(" · ")}</p>}
         actions={
-          // With unsaved changes, the editor asks before it follows (see the link guard above).
-          <Button asChild variant="outline">
-            <Link href={TEMPLATES_PATH}>
-              <ArrowLeftIcon aria-hidden />
-              All templates
-            </Link>
-          </Button>
+          // With unsaved changes, the editor asks before it follows either link (see the link guard above).
+          <>
+            <Button asChild variant="outline">
+              <Link href={TEMPLATES_PATH}>
+                <ArrowLeftIcon aria-hidden />
+                All templates
+              </Link>
+            </Button>
+            {/* BUILD_SPEC 4.5 step 4: the source file, the coverage checklist and activation are on the version's page. */}
+            <Button asChild variant="outline">
+              <Link href={`${TEMPLATES_PATH}/${template.id}`} data-testid="version-page-link">
+                <ClipboardCheckIcon aria-hidden />
+                Checklist and activation
+              </Link>
+            </Button>
+          </>
         }
       />
       <AlertDialog
