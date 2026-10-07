@@ -21,7 +21,7 @@ describe("inspectionListColumns", () => {
     ]);
   });
 
-  it("adds the Inspector in charge column for admins and lead inspectors only, just before the actions", () => {
+  it("adds the Inspector in Charge column for admins and lead inspectors only, just before the actions", () => {
     const admin = inspectionListColumns(ADMIN);
     expect(admin.at(-2)).toEqual({ key: "inspector", label: INSPECTOR_IN_CHARGE });
     expect(inspectionListColumns(LEAD)).toEqual(admin);

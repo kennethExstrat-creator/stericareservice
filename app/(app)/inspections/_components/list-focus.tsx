@@ -1,7 +1,7 @@
 "use client";
 
 // Keeps keyboard focus in the list when the control that had it goes away.
-// Clear filters, Go to the list, Try again and a page link that turns into a
+// Clear Filters, Go to the List, Try Again and a page link that turns into a
 // switched-off button all leave the page once the new list renders; without
 // this, focus falls back to <body> and a keyboard or screen-reader user starts
 // again at the top of the page.

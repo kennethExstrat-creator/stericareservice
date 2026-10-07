@@ -65,9 +65,9 @@ const WHO_SEES_WHAT: Readonly<Record<InspectionScope, string>> = {
 /** Nobody has inspections to show this user yet. Says who sees what. */
 export function NoInspectionsYet({ scope }: { scope: InspectionScope }) {
   return (
-    <ListState icon={ClipboardListIcon} title="No inspections yet" state="empty">
+    <ListState icon={ClipboardListIcon} title="No Inspections Yet" state="empty">
       <p>{WHO_SEES_WHAT[scope]}</p>
-      <p className="mt-2">Start one with New inspection.</p>
+      <p className="mt-2">Start one with New Inspection.</p>
     </ListState>
   );
 }
@@ -77,7 +77,7 @@ function ClearFiltersButton() {
   return (
     <Button asChild variant="outline">
       <ListLink href={INSPECTIONS_PATH} focusAfter="search">
-        Clear filters
+        Clear Filters
       </ListLink>
     </Button>
   );
@@ -103,7 +103,7 @@ export function NoMatches({
 }) {
   const asked = describeFilters(filters, names);
   return (
-    <ListState icon={SearchXIcon} title="No inspections match" state="no-matches" action={<ClearFiltersButton />}>
+    <ListState icon={SearchXIcon} title="No Inspections Match" state="no-matches" action={<ClearFiltersButton />}>
       <p>Nothing matches {asked.join(", ")}.</p>
       {filters.q && <p className="mt-2">Search matches part of a ref or PO number, or a whole lot or carton number.</p>}
     </ListState>
@@ -123,12 +123,12 @@ export function PastTheEnd({
   return (
     <ListState
       icon={ListEndIcon}
-      title={`There is no page ${filters.page}`}
+      title={`There Is No Page ${filters.page}`}
       state="past-the-end"
       action={
         <Button asChild variant="outline">
           <ListLink href={buildInspectionsHref({ ...filters, page: pageCount })}>
-            {pageCount === 1 ? "Go to the list" : `Go to page ${pageCount}`}
+            {pageCount === 1 ? "Go to the List" : `Go to Page ${pageCount}`}
           </ListLink>
         </Button>
       }
@@ -147,11 +147,11 @@ export function LoadFailed({ retryHref }: { retryHref: string }) {
     <ListState
       icon={TriangleAlertIcon}
       tone="fail"
-      title="The inspections could not be loaded"
+      title="The Inspections Could Not Be Loaded"
       state="error"
       action={
         <Button asChild variant="outline">
-          <ListLink href={retryHref}>Try again</ListLink>
+          <ListLink href={retryHref}>Try Again</ListLink>
         </Button>
       }
     >

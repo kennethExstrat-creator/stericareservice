@@ -1,4 +1,4 @@
-// "New inspection" above the list: a link to /inspections/new, where the
+// "New Inspection" above the list: a link to /inspections/new, where the
 // client, manufacturer and product type pick the template (BUILD_SPEC 10).
 // A pill button that is 44 px tall with 16 px text on touch.
 import Link from "next/link";
@@ -13,7 +13,7 @@ export function NewInspectionButton() {
     <Button asChild>
       <Link href={NEW_INSPECTION_PATH}>
         <PlusIcon aria-hidden />
-        New inspection
+        New Inspection
       </Link>
     </Button>
   );

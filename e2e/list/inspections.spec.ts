@@ -46,7 +46,7 @@ async function signInAs(context: BrowserContext, baseURL: string, account: Accou
 }
 
 /** The empty list's pointer to the button above it. */
-const START_HINT = "Start one with New inspection.";
+const START_HINT = "Start one with New Inspection.";
 /** Opening the capture screen or a review: a dev server compiles it on first use, which can take longer than 5 s. */
 const OPENS = { timeout: 30_000 };
 /** B's seeded manufacturer, with the factory that tells the company's plants apart. */
@@ -241,10 +241,10 @@ test.describe("before there are any inspections", () => {
     await page.goto("/inspections");
 
     await expect(page.getByRole("heading", { level: 1, name: "Inspections" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "No inspections yet" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "No Inspections Yet" })).toBeVisible();
     await expect(page.getByText("You see only your own; admins see everyone's.")).toBeVisible();
     await expect(page.getByText(START_HINT)).toBeVisible();
-    await expect(page.getByRole("link", { name: "New inspection" })).toHaveAttribute("href", "/inspections/new");
+    await expect(page.getByRole("link", { name: "New Inspection" })).toHaveAttribute("href", "/inspections/new");
     // Nothing to search yet, so no filter bar.
     await expect(page.getByRole("search")).toHaveCount(0);
     await expectNoPageScroll(page);
@@ -257,9 +257,9 @@ test.describe("before there are any inspections", () => {
     await signInAs(context, baseURL!, "admin");
     await page.goto("/inspections");
 
-    await expect(page.getByRole("heading", { name: "No inspections yet" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "No Inspections Yet" })).toBeVisible();
     await expect(page.getByText("Inspectors see only their own.")).toBeVisible();
-    await expect(page.getByText("All inspectors")).toBeVisible();
+    await expect(page.getByText("All Inspectors")).toBeVisible();
     await shot(page, "admin-empty");
   });
 });
@@ -290,9 +290,9 @@ test.describe("with inspections", () => {
     await expect(row(page, refs.D)).toBeVisible();
     await expect(row(page, refs.E)).toBeVisible();
     await expect(row(page, refs.C)).toHaveCount(0);
-    await expect(page.getByRole("columnheader", { name: "Inspector in charge", exact: true, includeHidden: true })).toHaveCount(0);
+    await expect(page.getByRole("columnheader", { name: "Inspector in Charge", exact: true, includeHidden: true })).toHaveCount(0);
     await expect(row(page, refs.A)).not.toContainText("Test Inspector");
-    await expect(page.getByText("Your inspections", { exact: true })).toBeVisible();
+    await expect(page.getByText("Your Inspections", { exact: true })).toBeVisible();
 
     // Newest inspection date first: B (3 Oct), A (1 Oct), D (30 Sep), E (29 Sep).
     const order = await page.locator("tbody tr[data-ref]").evaluateAll((rows) => rows.map((r) => r.getAttribute("data-ref")));
@@ -328,7 +328,7 @@ test.describe("with inspections", () => {
       // 44 px rows and controls, 16 px field text.
       expect((await row(page, refs.A).boundingBox())!.height).toBeGreaterThanOrEqual(44);
       expect((await page.getByRole("combobox", { name: "Status" }).boundingBox())!.height).toBeGreaterThanOrEqual(44);
-      expect((await page.getByRole("link", { name: "New inspection" }).boundingBox())!.height).toBeGreaterThanOrEqual(44);
+      expect((await page.getByRole("link", { name: "New Inspection" }).boundingBox())!.height).toBeGreaterThanOrEqual(44);
       const fontSize = await page.getByRole("searchbox", { name: "Search" }).evaluate((input) => getComputedStyle(input).fontSize);
       expect(fontSize).toBe("16px");
     }
@@ -368,7 +368,7 @@ test.describe("with inspections", () => {
 
     for (const ref of [refs.A, refs.B, refs.C, refs.D, refs.E]) await expect(row(page, ref)).toBeVisible();
     // A column of its own at every size, just before the actions.
-    await expect(page.getByRole("columnheader", { name: "Inspector in charge", exact: true })).toHaveCount(1);
+    await expect(page.getByRole("columnheader", { name: "Inspector in Charge", exact: true })).toHaveCount(1);
     expect((await page.locator("thead th").allTextContents()).map((text) => text.trim())).toEqual([
       "Ref",
       "Status",
@@ -378,14 +378,14 @@ test.describe("with inspections", () => {
       "Manufacturer",
       "Product",
       "PO",
-      "Inspector in charge",
+      "Inspector in Charge",
       "Actions",
     ]);
     await expect(row(page, refs.A)).toContainText("Test Inspector", { useInnerText: true });
     await expect(row(page, refs.C)).toContainText("Test Admin", { useInnerText: true });
     await expect(row(page, refs.C).getByText("Reopened")).toBeVisible();
     await expect(row(page, refs.C).getByText("On hold", { exact: true }).filter({ visible: true })).toBeVisible();
-    await expect(page.getByText("All inspectors")).toBeVisible();
+    await expect(page.getByText("All Inspectors")).toBeVisible();
     await expect(row(page, refs.C)).toContainText("Safedon nitrile examination gloves", { useInnerText: true });
     await expectNamesWhole([
       [row(page, refs.D), "Polyco Healthline"],
@@ -512,7 +512,7 @@ test.describe("with inspections", () => {
     await press(page.getByRole("combobox", { name: "Client" }));
     await press(page.getByRole("option", { name: FIXTURE_CLIENT_NAME }));
     await expect(page).toHaveURL(new RegExp(`status=reopened&client=${fixture.clientId}$`));
-    await expect(page.getByRole("heading", { name: "No inspections match" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "No Inspections Match" })).toBeVisible();
     await expect(page.getByText(`status Reopened, client ${FIXTURE_CLIENT_NAME}`)).toBeVisible();
     await expect(page.locator('section[aria-label="Inspections"] [role="status"]')).toHaveText("No inspections match.");
 
@@ -525,7 +525,7 @@ test.describe("with inspections", () => {
     await expect(page.getByRole("combobox", { name: "Manufacturer" })).toHaveText(/Terang Nusa/);
     await shot(page, "admin-filtered");
 
-    await press(page.getByRole("link", { name: "Clear filters" }));
+    await press(page.getByRole("link", { name: "Clear Filters" }));
     await expect(page).toHaveURL(/\/inspections$/);
     for (const ref of [refs.A, refs.B, refs.C]) await expect(row(page, ref)).toBeVisible();
   });
@@ -565,11 +565,11 @@ test.describe("with inspections", () => {
 
     // Part of a lot number is not a match: lots are matched whole.
     await page.goto("/inspections?q=E2E-LOT-A");
-    await expect(page.getByRole("heading", { name: "No inspections match" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "No Inspections Match" })).toBeVisible();
     await expect(page.getByText("Search matches part of a ref or PO number, or a whole lot or carton number.")).toBeVisible();
     await shot(page, "no-matches");
 
-    await press(page.getByRole("link", { name: "Clear filters" }));
+    await press(page.getByRole("link", { name: "Clear Filters" }));
     await expect(page).toHaveURL(/\/inspections$/);
     await expect(search).toHaveValue("");
     await expect(row(page, refs.A)).toBeVisible();
@@ -650,7 +650,7 @@ test.describe("with inspections", () => {
       'E2E-LOT-C3","x',
     ]) {
       await page.goto(`/inspections?${new URLSearchParams({ q: text })}`);
-      await expect(page.getByRole("heading", { name: "No inspections match" }), `search ${text}`).toBeVisible();
+      await expect(page.getByRole("heading", { name: "No Inspections Match" }), `search ${text}`).toBeVisible();
       await expect(page.locator('[data-list-state="error"]')).toHaveCount(0);
     }
   });
@@ -683,17 +683,17 @@ test.describe("with inspections", () => {
     await expect(row(page, refs.B)).toBeVisible();
     await expect(search).toBeFocused();
 
-    // Clear filters, above the table and in "No inspections match": ready for the next search.
+    // Clear Filters, above the table and in "No Inspections Match": ready for the next search.
     for (const filtered of ["/inspections?status=submitted", "/inspections?q=NOPE-XYZ"]) {
       await page.goto(filtered);
-      await page.getByRole("link", { name: "Clear filters" }).press("Enter");
+      await page.getByRole("link", { name: "Clear Filters" }).press("Enter");
       await expect(page).toHaveURL(/\/inspections$/);
       await expect(search, filtered).toBeFocused();
     }
 
     // Past the end: the link goes, focus lands on the count above the table.
     await page.goto("/inspections?page=999");
-    await page.getByRole("link", { name: /^Go to (the list|page \d+)$/ }).press("Enter");
+    await page.getByRole("link", { name: /^Go to (the List|Page \d+)$/ }).press("Enter");
     await expect(page).toHaveURL(/\/inspections(\?page=\d+)?$/);
     const count = page.locator('section[aria-label="Inspections"] [data-list-focus="results"]');
     await expect(count).toBeFocused();
@@ -701,13 +701,13 @@ test.describe("with inspections", () => {
     expect(hydration()).toEqual([]);
   });
 
-  test("Clear filters also clears a search that was typed but never run", async ({ page, context, baseURL }) => {
+  test("Clear Filters also clears a search that was typed but never run", async ({ page, context, baseURL }) => {
     await signInAs(context, baseURL!, "admin");
     await page.goto("/inspections?status=submitted");
     const search = page.getByRole("searchbox", { name: "Search" });
 
     await search.fill("ABC");
-    await press(page.getByRole("link", { name: "Clear filters" }));
+    await press(page.getByRole("link", { name: "Clear Filters" }));
     await expect(page).toHaveURL(/\/inspections$/);
     await expect(row(page, fixture.refs.A)).toBeVisible();
     // The box shows what the list applies: nothing.
@@ -718,10 +718,10 @@ test.describe("with inspections", () => {
   test("a link to a page past the end says so", async ({ page, context, baseURL }) => {
     await signInAs(context, baseURL!, "inspector");
     await page.goto("/inspections?page=9");
-    await expect(page.getByRole("heading", { name: "There is no page 9" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "There Is No Page 9" })).toBeVisible();
     await shot(page, "past-the-end");
 
-    await press(page.getByRole("link", { name: "Go to the list" }));
+    await press(page.getByRole("link", { name: "Go to the List" }));
     await expect(page).toHaveURL(/\/inspections$/);
     await expect(row(page, fixture.refs.A)).toBeVisible();
   });
@@ -733,21 +733,21 @@ test.describe("with inspections", () => {
     );
     await expect(row(page, fixture.refs.A)).toBeVisible();
     await expect(row(page, fixture.refs.B)).toBeVisible();
-    await expect(page.getByRole("combobox", { name: "Status" })).toHaveText("All statuses");
-    await expect(page.getByRole("combobox", { name: "Manufacturer" })).toHaveText("All manufacturers");
-    await expect(page.getByRole("link", { name: "Clear filters" })).toHaveCount(0);
+    await expect(page.getByRole("combobox", { name: "Status" })).toHaveText("All Statuses");
+    await expect(page.getByRole("combobox", { name: "Manufacturer" })).toHaveText("All Manufacturers");
+    await expect(page.getByRole("link", { name: "Clear Filters" })).toHaveCount(0);
   });
 
-  test("New inspection opens the new inspection screen", async ({ page, context, baseURL }) => {
+  test("New Inspection opens the new inspection screen", async ({ page, context, baseURL }) => {
     await signInAs(context, baseURL!, "inspector");
     await page.goto("/inspections");
-    const link = page.getByRole("link", { name: "New inspection" });
+    const link = page.getByRole("link", { name: "New Inspection" });
 
     await expect(link).toHaveAttribute("href", "/inspections/new");
     await expect(link).not.toHaveAttribute("aria-disabled");
     await press(link);
     await expect(page).toHaveURL(/\/inspections\/new$/);
-    await expect(page.getByRole("heading", { level: 1, name: "New inspection" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "New Inspection" })).toBeVisible();
     await expect(page.getByRole("tooltip")).toHaveCount(0);
   });
 
@@ -860,7 +860,7 @@ test.describe("with inspections", () => {
     await expect(dialog).toContainText(`${FIXTURE_CLIENT_NAME} · 1 Oct 2026`);
     await expect(dialog).toContainText("The draft is deleted with all its photos and files. This cannot be undone.");
     const cancel = dialog.getByRole("button", { name: "Cancel" });
-    const confirm = dialog.getByRole("button", { name: "Delete inspection" });
+    const confirm = dialog.getByRole("button", { name: "Delete Inspection" });
     // The safe choice has focus first.
     await expect(cancel).toBeFocused();
     for (const button of [cancel, confirm]) {
@@ -931,12 +931,12 @@ test.describe("with inspections", () => {
       const dialog = page.getByRole("alertdialog");
       if (isTouch()) {
         await deleteButton(page, draft.refNo).tap();
-        await dialog.getByRole("button", { name: "Delete inspection" }).tap();
+        await dialog.getByRole("button", { name: "Delete Inspection" }).tap();
       } else {
         await deleteButton(page, draft.refNo).focus();
         await page.keyboard.press("Enter");
         await page.keyboard.press("Tab");
-        await expect(dialog.getByRole("button", { name: "Delete inspection" })).toBeFocused();
+        await expect(dialog.getByRole("button", { name: "Delete Inspection" })).toBeFocused();
         await page.keyboard.press("Enter");
       }
 
