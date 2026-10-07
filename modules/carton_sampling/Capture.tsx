@@ -24,7 +24,7 @@ import {
 } from "@/components/qc";
 import { formatCount, formatSize } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { labelFor, samplingFor, type CaptureProps, type ValidationIssue } from "@/modules/_framework";
+import { initialSize, labelFor, samplingFor, type CaptureProps, type ValidationIssue } from "@/modules/_framework";
 import { gridCell, type CartonSamplingComputed } from "./calc";
 import { GRID_COLUMNS, REPORT_GRID_CELLS, type CartonSamplingConfig } from "./config";
 import { MAX_CARTONS_PER_SIZE, withCartonNumber, type CartonSamplingData } from "./schema";
@@ -39,11 +39,13 @@ export default function Capture({
   evaluation,
   focusPath,
   readOnly,
+  focus,
   onChange,
   onFocusChange,
 }: CaptureProps<CartonSamplingData, CartonSamplingConfig, CartonSamplingComputed>) {
   const root = useRef<HTMLDivElement>(null);
-  const [active, setActive] = useState(context.sizes[0] ?? "");
+  // Opens on the size chosen in the last module (CaptureProps.focus).
+  const [active, setActive] = useState(() => initialSize(context, focus));
   const [rejected, setRejected] = useState<Readonly<Record<string, RejectedEntry>>>({});
   // Every write starts from the latest data, so a pasted run of numbers keeps every value (docs/CAPTURE_KIT.md).
   const update = useDataUpdater(data, onChange);

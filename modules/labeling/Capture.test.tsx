@@ -111,9 +111,14 @@ describe("labeling capture", () => {
     expect(html).not.toContain("Dispenser Box");
   });
 
-  it("shows the live total and the Accept 0 / Reject 1 decision from calc", () => {
+  it("shows the live total and the Accept 0 / Reject 1 decision from calc, in the template's words", () => {
     const html = render(RECORDED);
-    expect(html).toContain("Ac 0 / Re 1");
+    expect(html).toContain("Accept 0 / Reject 1");
+    expect(html).not.toContain("Ac 0 / Re 1");
+    // A template that words them its own way, per level or for both.
+    const worded = render(RECORDED, { labels: { ...LABELING_LABELS, accept: "Acc. =", "carton.reject": "Rej. =" } });
+    expect(worded).toContain("Acc. = 0 / Reject 1");
+    expect(worded).toContain("Acc. = 0 / Rej. = 1");
     const results = tagsWith(html, 'data-slot="status-pill"').map((pill) => /data-status="([a-z_]+)"/.exec(pill)?.[1]);
     expect(results).toEqual(["fail", "pass"]);
   });
@@ -132,7 +137,7 @@ describe("labeling capture", () => {
         onChange={noop}
       />,
     );
-    expect(html).not.toContain("Ac 0 / Re 1");
+    expect(html).not.toContain("Accept 0 / Reject 1");
     const results = tagsWith(html, 'data-slot="status-pill"').map((pill) => /data-status="([a-z_]+)"/.exec(pill)?.[1]);
     expect(results).toEqual(["not_done", "not_done"]);
   });

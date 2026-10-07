@@ -247,6 +247,9 @@ function LevelPanel({
         labels={{
           rowHeader: labelFor(labels, "defects"),
           limits: labelFor(labels, "defectLimit"),
+          // The limit row in the template's words: "Accept 0 / Reject 1".
+          limitAccept: labelFor(labels, level, "accept"),
+          limitReject: labelFor(labels, level, "reject"),
           total: labelFor(labels, "total"),
           result: levelFieldLabel(labels, level, "result"),
           // The words the disposition row prints: Passed / Failed.

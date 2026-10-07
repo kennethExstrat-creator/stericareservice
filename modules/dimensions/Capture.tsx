@@ -25,7 +25,7 @@ import {
 } from "@/components/qc";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { labelFor, sizeLabel, type CaptureProps, type Labels, type ValidationIssue } from "@/modules/_framework";
+import { initialSize, labelFor, sizeLabel, type CaptureProps, type Labels, type ValidationIssue } from "@/modules/_framework";
 import { rowsFor, specFor, type DimensionsComputed } from "./calc";
 import {
   cellPath,
@@ -42,11 +42,12 @@ import type { DimensionsData } from "./schema";
 type Props = CaptureProps<DimensionsData, DimensionsConfig, DimensionsComputed>;
 
 export default function Capture(props: Props) {
-  const { data, context, evaluation, focusPath, onChange, onFocusChange } = props;
+  const { data, context, evaluation, focusPath, focus, onChange, onFocusChange } = props;
   const update = useDataUpdater(data, onChange);
   const root = useRef<HTMLDivElement>(null);
-  // SizeTabs shows the first ordered size while this is not one (6.2 rule 4) and says so through show.
-  const [size, setSize] = useState(context.sizes[0] ?? "");
+  // Opens on the size chosen in the last module (CaptureProps.focus). SizeTabs shows the first
+  // ordered size while this is not one (6.2 rule 4) and says so through show.
+  const [size, setSize] = useState(() => initialSize(context, focus));
 
   const show = (next: string) => {
     setSize(next);

@@ -159,9 +159,13 @@ describe("documents capture: files", () => {
     const data = emptyDocuments();
     data.items.iso13485 = { ...data.items.iso13485, status: "verified", file: FILE };
     expect(render(data)).toContain('data-file-state="attached"');
-    expect(render(data)).toContain("File attached");
+    // The kit's attachment line: the file in the template's wording, and Attached.
+    const [line] = tagsWith(render(data), 'data-slot="attachment-status"');
+    expect(line).toContain('data-attached="true"');
+    expect(render(data)).toMatch(/>File<\/span><span[^>]*>Attached<\/span>/);
     const gone = render(data, { context: makeTestContext({ ...CONTEXT, files: [] }) });
     expect(gone).toContain('data-file-state="missing"');
+    expect(gone).toMatch(/>File<\/span><span[^>]*>Not attached<\/span>/);
     expect(gone).toContain("ISO 13485: the file attached here is not among this inspection&#x27;s files. It may still be uploading from another device; if it was deleted, attach it again.");
   });
 
@@ -238,6 +242,9 @@ describe("documents capture", () => {
   it("takes the expiry date from a date picker and shows calc's warning beside it", () => {
     const html = render(withIso({ status: "verified", expiryDate: "2025-01-31" }));
     expect(html).toMatch(/<input[^>]*type="date"[^>]*value="2025-01-31"/);
+    // The kit's DateField: four-digit years only, calc's warning in amber, the field described by it.
+    expect(html).toMatch(/<input[^>]*type="date"[^>]*max="9999-12-31"/);
+    expect(html).toMatch(/<input[^>]*type="date"[^>]*aria-describedby="[^"]*-calc-warning"/);
     expect(html).toContain("ISO 13485: Expiry date 2025-01-31 is before the inspection date 2025-04-11.");
     expect(html).toContain('data-issue-path="[&quot;items&quot;,&quot;iso13485&quot;,&quot;expiryDate&quot;]"');
   });

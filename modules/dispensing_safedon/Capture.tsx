@@ -26,7 +26,7 @@ import {
 } from "@/components/qc";
 import { Button } from "@/components/ui/button";
 import { formatRatio, formatRatioDecimal, formatSize } from "@/lib/format";
-import { cartonsFor, labelFor, type CaptureProps } from "@/modules/_framework";
+import { cartonsFor, initialSize, labelFor, type CaptureProps } from "@/modules/_framework";
 import type { DispensingSafedonComputed, DispensingSafedonConfig, DispensingSafedonData } from ".";
 import { plannedBoxes, safedonHeading } from "./calc";
 import { MAX_BOXES_PER_SIZE } from "./config";
@@ -45,13 +45,14 @@ export default function Capture({
   evaluation,
   focusPath,
   readOnly,
+  focus,
   onChange,
   onFocusChange,
 }: Props) {
   const root = useRef<HTMLDivElement>(null);
   const update = useDataUpdater(data, onChange);
-  // SizeTabs corrects this to the first ordered size once sizes are ordered.
-  const [size, setSize] = useState(context.sizes[0] ?? "");
+  // Opens on the size chosen in the last module; SizeTabs corrects a size that is not (or no longer) ordered.
+  const [size, setSize] = useState(() => initialSize(context, focus));
   // The box column being counted, per size (the one shown on iPad).
   const [active, setActive] = useState<Record<string, number>>({});
   // Columns asked for with "Add box", per size, beyond the plan.
