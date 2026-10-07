@@ -22,6 +22,8 @@ const ipad = {
  */
 export default defineConfig({
   testDir: "e2e",
+  // The final acceptance specs run only on request, against a production build (e2e/README.md).
+  testIgnore: process.env.ACCEPTANCE === "1" ? [] : ["**/acceptance/**"],
   outputDir: "test-results",
   fullyParallel: false,
   workers: 1,

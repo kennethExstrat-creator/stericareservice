@@ -66,6 +66,35 @@ than from a full-page image.
 - Supabase's built-in mailer only delivers to project team members and allows a few emails an
   hour: do not loop on invite or reset emails.
 
+## Final acceptance (`e2e/acceptance`)
+
+The specs from the final pass enter the example reports through the real screens and probe access,
+data and design. They are skipped unless `ACCEPTANCE=1` is set, and they run against a production
+build (`npm run build && npx next start -p 3900`, with `AI_REVIEW_PROVIDER=mock ENABLE_MOCK_AI=true`
+for the AI steps). They write to the live project: every run draws inspection numbers and leaves
+deletion records, so run them before a release, not routinely.
+
+```bash
+ACCEPTANCE=1 PLAYWRIGHT_BASE_URL=http://localhost:3900 npx playwright test e2e/acceptance/std-eg.spec.ts --project=ipad-pro-landscape
+```
+
+| Spec | Project | What it checks |
+| --- | --- | --- |
+| `std-eg.spec.ts` | `ipad-pro-landscape` | The STD_EG example report, entered on the capture screen, gives the expected results |
+| `safedon-eg.spec.ts` | `ipad-portrait` | The same for SAFEDON_EG (Polyco Healthline) |
+| `sg-and-flows.spec.ts` | `ipad-landscape` (or `ACCEPTANCE_PROJECT`) | STD_SG hands and dye leak, switched-off modules, losing the connection |
+| `photos-export-ai.spec.ts` | `ipad-portrait`, `ipad-pro-landscape` | Photos and their tags, the export, the AI second opinion |
+| `security.spec.ts` | `desktop` | Who can read and write what, through the screens, the API and Storage |
+| `data-integrity.spec.ts` | `desktop` | Status changes, the audit log, frozen templates, two devices on one draft |
+| `ux-audit.spec.ts` | any (`UX_AUDIT_WEBKIT=1` for WebKit) | Layout, touch targets, contrast, names and keyboard on every screen |
+
+A test that pins a finding is marked `test.fail()` with what was found. Once the finding is fixed
+the test turns red; take the marker off then.
+
+An account named in a deletion record can never be deleted, because the audit log is append-only.
+A throwaway account that deletes an inspection therefore stays behind, deactivated: let
+`inspector@test.local` or the secret key delete the rows instead.
+
 ## Leftovers from a crashed run
 
 A run that dies before `afterAll` leaves its `E2E_*` templates behind, with their inspections,
