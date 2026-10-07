@@ -93,11 +93,23 @@ async function choose(page: Page, label: string, option: string | RegExp) {
   await expect(page.getByRole("combobox", { name: label })).toHaveText(option);
 }
 
+/**
+ * A product type's card, found in its own group and by the start of its name: once the
+ * picks are made, Start From Previous lists the earlier inspection, whose product name
+ * ("E2E Nitrile examination gloves, blue") holds "examination gloves" too. Case aside, so
+ * it still finds the card if the card's words take Title Case.
+ */
+function productTypeCard(page: Page, type: "examination" | "surgical") {
+  return page
+    .getByRole("group", { name: "Product Type", exact: true })
+    .getByRole("radio", { name: type === "examination" ? /^Examination gloves/i : /^Surgical gloves/i });
+}
+
 /** The picks that make the fixture template apply: its client at Hartalega, examination gloves. */
 async function pickFixtureOrder(page: Page) {
   await choose(page, "Client", fixture.clientName);
   await choose(page, "Manufacturer", HARTALEGA.label);
-  await press(page.getByRole("radio", { name: /Examination gloves/i }));
+  await press(productTypeCard(page, "examination"));
 }
 
 function templatePanel(page: Page) {
@@ -269,7 +281,7 @@ test("once seeded, the seed templates apply as BUILD_SPEC 11 scopes them", async
   // Polyco Healthline at a manufacturer with no template: its own, SAFEDON_EG.
   await choose(page, "Client", POLYCO.label);
   await choose(page, "Manufacturer", fixture.manufacturerB.label);
-  await press(page.getByRole("radio", { name: /Examination gloves/i }));
+  await press(productTypeCard(page, "examination"));
   await expectTemplate(page, "SAFEDON_EG", `For ${POLYCO.label}`);
   await shot(page, "seeded");
 
@@ -277,7 +289,7 @@ test("once seeded, the seed templates apply as BUILD_SPEC 11 scopes them", async
   await choose(page, "Client", "No Client");
   const [examination] = await standardTemplates("examination");
   await expectTemplate(page, examination.code, "Standard template for examination gloves");
-  await press(page.getByRole("radio", { name: /Surgical gloves/i }));
+  await press(productTypeCard(page, "surgical"));
   const [surgical] = await standardTemplates("surgical");
   await expectTemplate(page, surgical.code, "Standard template for surgical gloves");
   await expect(page.getByTestId("chosen-template")).toContainText("(pairs)");
@@ -317,7 +329,7 @@ test("a failed Create keeps every choice and says why", async ({ page, context, 
   // Nothing was reset: the next try needs no new choices.
   await expect(page.getByRole("combobox", { name: "Client" })).toHaveText(fixture.clientName);
   await expect(page.getByRole("combobox", { name: "Manufacturer" })).toHaveText(HARTALEGA.label);
-  await expect(page.getByRole("radio", { name: /Examination gloves/i })).toBeChecked();
+  await expect(productTypeCard(page, "examination")).toBeChecked();
   await expect(page.getByRole("radio", { name: new RegExp(PREVIOUS.productName) })).toBeChecked();
   await expect(page.getByRole("textbox", { name: /Product Name/ })).toHaveValue(PREVIOUS.productName);
   await expect(page.getByTestId("chosen-template")).toHaveAttribute("data-code", FIXTURE_TEMPLATE_CODE);
@@ -335,7 +347,7 @@ test("the inspector creates an inspection from the manufacturer's template and l
   // client's own, which does not apply without that client.
   await choose(page, "Client", "No Client");
   await choose(page, "Manufacturer", fixture.manufacturerA.label);
-  await press(page.getByRole("radio", { name: /Examination gloves/i }));
+  await press(productTypeCard(page, "examination"));
   await page.getByRole("textbox", { name: /Product Name/ }).fill("E2E blank start");
   await expectTemplate(page, LEVEL_TEMPLATES.manufacturer.code, `For ${fixture.manufacturerA.label}`);
   await press(page.getByRole("button", { name: "Create Inspection" }));
