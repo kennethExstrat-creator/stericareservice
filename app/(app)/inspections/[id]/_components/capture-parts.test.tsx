@@ -39,15 +39,15 @@ const noop = () => {};
 const tagsWith = (html: string, attribute: string): string[] =>
   Array.from(html.matchAll(new RegExp(`<[^>]*${attribute}[^>]*>`, "g")), (match) => match[0]);
 
+/** The packing module's title in the fixtures below. */
+const PACKING_TITLE = "Packing Configuration";
+
 const SECTIONS: CaptureSection[] = [
   { kind: "module", key: "header", title: "Manufacturer Information", status: "info", summary: "", progress: "done", stub: false, errors: 0, warnings: 0 },
   { kind: "module", key: "glove_info", title: "Glove Information", status: "not_done", summary: "", progress: "in_progress", stub: false, errors: 0, warnings: 1 },
-  { kind: "excluded", key: "packing_config", title: "Packing configuration", override: { reason: "Not ordered.", by: TEST_ADMIN_ID, at: "2026-10-06T08:00:00.000Z" } },
+  { kind: "excluded", key: "packing_config", title: PACKING_TITLE, override: { reason: "Not ordered.", by: TEST_ADMIN_ID, at: "2026-10-06T08:00:00.000Z" } },
   { kind: "module", key: "conclusion", title: "Conclusion", status: "not_done", summary: "", progress: "not_started", stub: false, errors: 1, warnings: 0 },
 ];
-
-/** The packing module's title in the fixtures below. */
-const PACKING_TITLE = "Packing Configuration";
 
 /** The order filled in and packing configuration not adding up: one page, the order's, each module with its result. */
 const ORDER_PAGE: CaptureSection[] = [
@@ -188,7 +188,7 @@ describe("TaskItem (the Pending panel)", () => {
       <TaskItem
         task={{
           key: "packing_config",
-          title: "Packing configuration",
+          title: PACKING_TITLE,
           linkable: false,
           needed: true,
           status: "Not done yet",
@@ -200,8 +200,8 @@ describe("TaskItem (the Pending panel)", () => {
       />,
     );
     expect(html).toMatch(/^<div role="group"/);
-    expect(text(html)).toBe("Packing configuration (Switched Off)Not done yet");
-    expect(html).toContain('aria-label="Packing configuration (Switched Off): Not done yet. Needed before you submit."');
+    expect(text(html)).toBe(`${PACKING_TITLE} (Switched Off)Not done yet`);
+    expect(html).toContain(`aria-label="${PACKING_TITLE} (Switched Off): Not done yet. Needed before you submit."`);
   });
 });
 
@@ -875,14 +875,14 @@ describe("SwitchedOffPanel", () => {
       <SwitchedOffPanel
         inspectionId="i"
         moduleKey="packing_config"
-        title="Packing configuration"
+        title={PACKING_TITLE}
         override={override}
         author="Admin A"
         canSwitch
         onChanged={noop}
       />,
     );
-    expect(html).toContain("Packing configuration is switched off for this inspection.");
+    expect(html).toContain(`${PACKING_TITLE} is switched off for this inspection.`);
     expect(html).toContain("Not in this order.");
     expect(html).toContain("Switched off by Admin A on 6 Oct 2026, 16:00.");
     expect(html).toContain("Switch Back On");
@@ -893,7 +893,7 @@ describe("SwitchedOffPanel", () => {
       <SwitchedOffPanel
         inspectionId="i"
         moduleKey="packing_config"
-        title="Packing configuration"
+        title={PACKING_TITLE}
         override={override}
         author={null}
         canSwitch={false}

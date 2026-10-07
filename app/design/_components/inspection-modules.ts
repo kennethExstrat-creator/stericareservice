@@ -1,12 +1,12 @@
-// The STD_EG module list (BUILD_SPEC 11) with sample progress, shared by the
-// progress and layout demos.
+// STD_EG's capture pages (BUILD_SPEC 8 and 11) with sample progress, shared by
+// the progress and layout demos. Packing configuration is on the Order page,
+// which takes the worse of the two results: here packing's warning.
 import type { ProgressStep } from "@/components/qc";
 
 export const MODULE_STEPS: ProgressStep[] = [
   { key: "header", label: "Manufacturer Information", state: "done", result: "info" },
   { key: "glove_info", label: "Glove Information", state: "done", result: "info" },
-  { key: "order_lots", label: "Order", state: "done", result: "info" },
-  { key: "packing_config", label: "Packing Configuration", state: "done", result: "warn" },
+  { key: "order_lots", label: "Order", state: "done", result: "warn" },
   { key: "sampling_plan", label: "Sampling Plan", state: "done", result: "pass" },
   { key: "carton_sampling", label: "Carton Numbers", state: "done", result: "pass" },
   { key: "dimensions", label: "Dimension", state: "in_progress", result: "not_done" },

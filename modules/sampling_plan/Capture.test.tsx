@@ -153,11 +153,11 @@ describe("sampling_plan Capture", () => {
         pouchesDyeLeak: true,
       },
     };
-    const labels = { ...SAMPLING_PLAN_LABELS, samplingQuantity: "Sampling Quantity (WTT & Visual)", glovesWatertightVisual: "# gloves" };
+    const labels = { ...SAMPLING_PLAN_LABELS, samplingQuantity: "Sampling Quantity (WTT & Visual)", glovesWatertightVisual: "# Gloves" };
     const html = render(props(STD_EG_EXAMPLE, config, labels));
     const group = html.indexOf("Sampling Quantity (WTT &amp; Visual)");
     expect(group).toBeGreaterThan(-1);
-    const order = ["Case", "Inner Box", "Pouches", "# gloves", "# Gloves for Dimension"];
+    const order = ["Case", "Inner Box", "Pouches", "# Gloves", "# Gloves for Dimension"];
     const positions = order.map((name) => html.indexOf(`aria-label="${name}, Size M"`));
     expect(positions.every((position) => position > group)).toBe(true);
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);

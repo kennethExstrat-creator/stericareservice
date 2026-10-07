@@ -3,7 +3,7 @@
 // Lands the inspector where they stopped after the page loads again in place
 // (landing-spot.ts): the last field that stored a value is brought into view
 // (scrolled to the middle unless it is already in view), ringed for a moment
-// and announced ("Back where you stopped: Glove colour"). It is not focused:
+// and announced ("Back where you stopped: Glove Colour"). It is not focused:
 // on a touchscreen the keyboard would come up, and a number field selects
 // its value on focus, so the next key would replace what was just completed.
 //

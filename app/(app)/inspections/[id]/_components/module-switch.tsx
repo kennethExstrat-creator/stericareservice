@@ -48,7 +48,7 @@ export function switchOffDraftKey(userId: string, inspectionId: string, moduleKe
 /**
  * "Switch Off" in a section's header, with the reason dialog. On a page of
  * two sections the button is read out with its section's title
- * (`nameContext`: "Switch Off Packing configuration"), so it never shares a
+ * (`nameContext`: "Switch Off Packing Configuration"), so it never shares a
  * name with another on the page.
  */
 export function SwitchOffDialog({
