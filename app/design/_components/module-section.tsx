@@ -29,7 +29,7 @@ export function ModuleSection() {
       source="ui.tsx.txt (Card, without the hover lift)"
     >
       <ModuleCard
-        title="Packing configuration"
+        title="Packing Configuration"
         description="Gloves per inner box, inner boxes per case and gloves per case, as printed on the carton."
         status={status}
         comment={comment}
@@ -59,15 +59,15 @@ export function ModuleSection() {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor={`${id}-per-inner`}># glove per inner box</Label>
+            <Label htmlFor={`${id}-per-inner`}># Glove per Inner Box</Label>
             <NumericCell id={`${id}-per-inner`} value={perInner} onValueChange={setPerInner} min={1} />
           </div>
           <div className="space-y-2">
-            <Label htmlFor={`${id}-inners`}># inners per case</Label>
+            <Label htmlFor={`${id}-inners`}># Inners per Case</Label>
             <NumericCell id={`${id}-inners`} value={innersPerCase} onValueChange={setInnersPerCase} min={1} />
           </div>
           <div className="space-y-2">
-            <Label htmlFor={`${id}-per-case`}># gloves per case</Label>
+            <Label htmlFor={`${id}-per-case`}># Gloves per Case</Label>
             <NumericCell id={`${id}-per-case`} value={perCase} onValueChange={setPerCase} min={1} />
           </div>
         </div>

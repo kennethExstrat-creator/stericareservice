@@ -35,12 +35,12 @@ export function InputSection() {
       <Specimen>
         <div className="grid gap-x-6 gap-y-5 md:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor={`${id}-product`}>Product Name (Brand, code &amp; description)</Label>
+            <Label htmlFor={`${id}-product`}>Product Name (Brand, Code &amp; Description)</Label>
             <Input id={`${id}-product`} defaultValue="Example nitrile examination glove" />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor={`${id}-weight`}>Indicative weight (size M)</Label>
+            <Label htmlFor={`${id}-weight`}>Indicative Weight (Size M)</Label>
             <NumericCell id={`${id}-weight`} value={weight} onValueChange={setWeight} unit="g" min={0} />
           </div>
 
@@ -61,7 +61,7 @@ export function InputSection() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor={`${id}-date`}>Inspection date</Label>
+            <Label htmlFor={`${id}-date`}>Inspection Date</Label>
             <Input id={`${id}-date`} type="date" defaultValue="2026-10-06" />
           </div>
 
@@ -79,7 +79,7 @@ export function InputSection() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor={`${id}-case`}># gloves per case · Computed</Label>
+            <Label htmlFor={`${id}-case`}># Gloves per Case · Computed</Label>
             <Input id={`${id}-case`} readOnly value="1,000" aria-describedby={`${id}-case-hint`} />
             <p id={`${id}-case-hint`} className="text-sm text-muted-foreground">
               100 per inner box × 10 inner boxes
