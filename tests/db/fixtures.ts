@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Database, Tables, TablesInsert } from "@/lib/supabase/database.types";
-import { asOwner, asService, asUser, createAuthUser, type Db, type Tx } from "./harness";
+import { asOwner, asService, asUser, column, createAuthUser, type Db, type Tx } from "./harness";
 
 export type TableName = keyof Database["public"]["Tables"];
 
@@ -128,12 +128,67 @@ export async function createTemplate(
 
 export type InspectionRow = Tables<"inspections">;
 
-/** Inserts an inspection as the given user, the way the app does. */
+/**
+ * The columns that repeat the data for lists and search, as the app computes
+ * them (lib/inspections/capture/mirror.ts) and hands them to
+ * create_inspection(), save_inspection() and submit_inspection().
+ */
+export type MirroredColumns = Partial<
+  Pick<
+    InspectionRow,
+    "po_no" | "product_name" | "lot_numbers" | "inspection_date" | "remarks" | "result" | "suggested_result"
+  >
+>;
+
+export const EMPTY_DATA = { modules: {}, custom: {} };
+
+/** One inspection as the database owner reads it, or undefined. */
+export async function readInspection(db: Db, inspectionId: string): Promise<InspectionRow | undefined> {
+  const result = await asOwner(db, (tx) =>
+    tx.query<InspectionRow>("select * from public.inspections where id = $1", [inspectionId]),
+  );
+  return result.rows[0];
+}
+
+async function currentVersion(db: Db, inspectionId: string): Promise<string | null> {
+  return (await readInspection(db, inspectionId))?.updated_at ?? null;
+}
+
+/**
+ * Starts an inspection the way the app does (migration 20261007190000): the
+ * createInspection Server Action calls public.create_inspection() with the
+ * secret key, for the signed-in user, who becomes its inspector.
+ */
 export async function createInspection(
+  db: Db,
+  actorId: string,
+  templateId: string,
+  values: MirroredColumns & { client_id?: string | null; manufacturer_id?: string | null; data?: unknown } = {},
+): Promise<InspectionRow> {
+  const { client_id = null, manufacturer_id = null, data = EMPTY_DATA, ...columns } = values;
+  const created = await asService(db, (tx) =>
+    column<string>(
+      tx,
+      `select public.create_inspection(
+         actor_id => $1, template_id => $2, manufacturer_id => $3, client_id => $4,
+         data => $5, mirrored_columns => $6)`,
+      [actorId, templateId, manufacturer_id, client_id, JSON.stringify(data), JSON.stringify(columns)],
+    ),
+  );
+  const row = await readInspection(db, created[0]);
+  if (!row) throw new Error("create_inspection() answered an id that does not exist");
+  return row;
+}
+
+/**
+ * Inserts an inspection directly with the user's own session: what an admin
+ * may do through the Data API, and what an inspector no longer may.
+ */
+export async function insertInspection(
   db: Db,
   userId: string,
   templateId: string,
-  values: { po_no?: string; lot_numbers?: string[]; inspector_id?: string } = {},
+  values: { inspector_id?: string; po_no?: string; lot_numbers?: string[] } = {},
 ): Promise<InspectionRow> {
   const result = await asUser(db, userId, (tx) =>
     tx.query<InspectionRow>(
@@ -146,13 +201,73 @@ export async function createInspection(
   return result.rows[0];
 }
 
-/** Moves an inspection through the status flow as the given user. */
+/**
+ * The capture screen's autosave (saveCaptureData): public.save_inspection()
+ * with the secret key, for `actorId`. Saves at the inspection's current
+ * version unless given another; keeps its data unless given new data.
+ * Answers the new updated_at, or null when nothing was written.
+ */
+export async function saveInspection(
+  db: Db,
+  actorId: string,
+  inspectionId: string,
+  values: { data?: unknown; columns?: MirroredColumns; baseUpdatedAt?: string | null } = {},
+): Promise<string | null> {
+  const stored = await readInspection(db, inspectionId);
+  const base = values.baseUpdatedAt === undefined ? (stored?.updated_at ?? null) : values.baseUpdatedAt;
+  const data = values.data ?? stored?.data ?? EMPTY_DATA;
+  const saved = await asService(db, (tx) =>
+    column<string | null>(
+      tx,
+      `select public.save_inspection(
+         inspection_id => $1, actor_id => $2, base_updated_at => $3, data => $4, mirrored_columns => $5)`,
+      [inspectionId, actorId, base, JSON.stringify(data), JSON.stringify(values.columns ?? {})],
+    ),
+  );
+  return saved[0];
+}
+
+/**
+ * Submits the way the app does (submitInspection): public.submit_inspection()
+ * with the secret key, for `actorId`, at the inspection's current version
+ * unless given another. Answers the new updated_at, or null when nothing was
+ * written.
+ */
+export async function submitInspection(
+  db: Db,
+  actorId: string,
+  inspectionId: string,
+  values: { columns?: MirroredColumns; baseUpdatedAt?: string | null } = {},
+): Promise<string | null> {
+  const base = values.baseUpdatedAt === undefined ? await currentVersion(db, inspectionId) : values.baseUpdatedAt;
+  const submitted = await asService(db, (tx) =>
+    column<string | null>(
+      tx,
+      `select public.submit_inspection(
+         inspection_id => $1, actor_id => $2, base_updated_at => $3, mirrored_columns => $4)`,
+      [inspectionId, actorId, base, JSON.stringify(values.columns ?? {})],
+    ),
+  );
+  return submitted[0];
+}
+
+/**
+ * Moves an inspection through the status flow the way the app does: a
+ * submit through submit_inspection() for the user, an approval or a reopen
+ * with the user's own session (admins). Fails when nothing changed.
+ */
 export async function setStatus(
   db: Db,
   userId: string,
   inspectionId: string,
   status: InspectionRow["status"],
 ): Promise<InspectionRow> {
+  if (status === "submitted") {
+    if ((await submitInspection(db, userId, inspectionId)) === null) {
+      throw new Error("submit_inspection() wrote nothing");
+    }
+    return (await readInspection(db, inspectionId))!;
+  }
   const result = await asUser(db, userId, (tx) =>
     tx.query<InspectionRow>(
       "update public.inspections set status = $2 where id = $1 returning *",

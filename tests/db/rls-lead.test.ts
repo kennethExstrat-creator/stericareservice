@@ -8,6 +8,8 @@ import {
   createLead,
   createPeople,
   createTemplate,
+  readInspection,
+  saveInspection,
   setStatus,
   TABLES,
   visibleRows,
@@ -164,6 +166,18 @@ describe("RLS: lead inspector", { timeout: 30_000 }, () => {
     expect(helpers.rows[0]).toEqual({ is_lead: false, team: [] });
   });
 
+  it("saves and submits nothing of their team's through the app either", async () => {
+    // The app acts for the lead: the functions find a draft that is not theirs.
+    expect(await saveInspection(db, lead, draft.id, { columns: { po_no: "x" } })).toBeNull();
+    const submit = await pgError(
+      asService(db, (tx) =>
+        tx.query("select public.submit_inspection($1, $2, $3)", [draft.id, lead, draft.updated_at]),
+      ),
+    );
+    expect(submit).toMatchObject({ code: "42501", message: "only the inspector or an admin can submit" });
+    expect(await readInspection(db, draft.id)).toMatchObject({ status: "draft", po_no: "PO-DRAFT" });
+  });
+
   it("changes nothing on a team inspection, its photos, files, reviews or history", async () => {
     const affected = await asUser(db, lead, async (tx) => [
       (await tx.query("update public.inspections set po_no = 'x' where id = $1", [draft.id])).affectedRows,
@@ -235,10 +249,13 @@ describe("RLS: lead inspector", { timeout: 30_000 }, () => {
   });
 
   it("works on their own inspections like any inspector", async () => {
-    const edited = await asUser(db, lead, (tx) =>
-      tx.query("update public.inspections set po_no = 'PO-LEAD-2' where id = $1", [own.id]),
+    // Through the app, like any inspector (migration 20261007190000); never directly.
+    const direct = await pgError(
+      asUser(db, lead, (tx) => tx.query("update public.inspections set po_no = 'PO-LEAD-2' where id = $1", [own.id])),
     );
-    expect(edited.affectedRows).toBe(1);
+    expect(direct.code).toBe("42501");
+    expect(await saveInspection(db, lead, own.id, { columns: { po_no: "PO-LEAD-2" } })).not.toBeNull();
+    expect((await readInspection(db, own.id))?.po_no).toBe("PO-LEAD-2");
     const photo = await asUser(db, lead, (tx) =>
       tx.query("insert into storage.objects (bucket_id, name, owner_id) values ('inspection-photos', $1, auth.uid()::text)", [
         `${own.id}/${randomUUID()}.jpg`,

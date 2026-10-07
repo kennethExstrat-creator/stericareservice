@@ -185,14 +185,15 @@ describe("storage policies", { timeout: 30_000 }, () => {
         });
       }
 
-      // Nor can an existing inspection take the id over: an id never changes.
+      // Nor can an existing inspection take the id over: an id never changes,
+      // for an admin either. (Its inspector changes nothing directly at all.)
       const mine = await createInspection(db, people.otherInspector, templateId);
-      const renamed = await pgError(
-        asUser(db, people.otherInspector, (tx) =>
-          tx.query("update public.inspections set id = $2 where id = $1", [mine.id, gone.id]),
-        ),
-      );
-      expect(renamed).toMatchObject({ code: "42501", message: "inspections.id cannot change" });
+      const rename = (userId: string) =>
+        pgError(
+          asUser(db, userId, (tx) => tx.query("update public.inspections set id = $2 where id = $1", [mine.id, gone.id])),
+        );
+      expect(await rename(people.admin)).toMatchObject({ code: "42501", message: "inspections.id cannot change" });
+      expect((await rename(people.otherInspector)).code).toBe("42501");
 
       for (const userId of [people.inspector, people.otherInspector, people.admin]) {
         const seen = await asUser(db, userId, (tx) =>
