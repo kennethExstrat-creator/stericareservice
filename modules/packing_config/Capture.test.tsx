@@ -72,22 +72,22 @@ describe("packing_config capture", () => {
 
   it("takes the three counts on the numeric keypad in the template's wording (6.2 rule 11)", () => {
     const html = render({ data: packingData(SAFEDON_EG_EXAMPLE.packing), labels: SAFEDON_LABELS });
-    expect(html).toContain("># glove per plastic pack<");
-    expect(html).toContain("># packs per case<");
+    expect(html).toContain("># Glove per Plastic Pack<");
+    expect(html).toContain("># Packs per Case<");
     const inputs = tagsWith(html, 'inputMode="decimal"');
     expect(inputs.map((input) => /value="([^"]*)"/.exec(input)?.[1])).toEqual(["125", "16", "2000"]);
   });
 
   it("shows the computed check read-only (6.2 rule 2)", () => {
     const html = render();
-    expect(html).toContain(">Gloves per case (inner × per case)<");
+    expect(html).toContain(">Gloves per Case (Inner × per Case)<");
     expect(html).toContain("2,000");
     expect(tagsOf(html, "input")).toHaveLength(3);
   });
 
   it("warns on the gloves per case when it does not match the computed check", () => {
     const html = render({ data: { ...packingData(STD_EG_EXAMPLE.packing), glovesPerCase: 2500 } });
-    const message = "# gloves per case 2,500 is not # glove per inner box × # inners per case: 200 × 10 = 2,000.";
+    const message = "# Gloves per Case 2,500 is not # Glove per Inner Box × # Inners per Case: 200 × 10 = 2,000.";
     expect(html.split(message)).toHaveLength(2);
     // NumberField's amber warning, which describes the field it points at.
     const warning = /<div id="([^"]+-calc-warning)"[^>]*text-warn[^>]*>[\s\S]*?<\/div>/.exec(html);

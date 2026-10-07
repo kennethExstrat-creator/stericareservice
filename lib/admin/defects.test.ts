@@ -255,8 +255,8 @@ describe("templateLabels", () => {
     expect(visual[0]).toEqual({ section: "visual", defectClass: "critical", code: "embedded_insect", label: "Embedded Insects" });
     // One code, two severities in one template (BUILD_SPEC 4.2 rule 4).
     expect(visual.filter((label) => label.code === "bead_defective")).toEqual([
-      { section: "visual", defectClass: "major", code: "bead_defective", label: "Defective bead" },
-      { section: "visual", defectClass: "minor", code: "bead_defective", label: "Defective beads" },
+      { section: "visual", defectClass: "major", code: "bead_defective", label: "Defective Bead" },
+      { section: "visual", defectClass: "minor", code: "bead_defective", label: "Defective Beads" },
     ]);
     expect(labels.classAql).toEqual({ critical: 0, major: 2.5, minor: 4 });
     expect(labels.classesOff).toEqual([]);
@@ -270,11 +270,11 @@ describe("templateLabels", () => {
       ),
     );
     expect(labels.labels.filter((label) => label.section === "watertight").map((label) => label.label)).toEqual([
-      "Between fingers",
+      "Between Fingers",
       "Palm",
       "Cuff",
       "Finger",
-      "Glove burst",
+      "Glove Burst",
       "Other :",
     ]);
     expect(labels.labels.find((label) => label.code === "stain")?.label).toBe("Stain");
@@ -425,7 +425,7 @@ describe("template versions", () => {
     const rows = map.sections.flatMap((section) => section.rows);
     expect(rows.find((row) => row.code === "not_a_code")).toMatchObject({ state: "unknown", codeName: null });
     expect(rows.find((row) => row.code === "lump_big")).toMatchObject({ state: "inactive", codeName: "lump big" });
-    expect(rows.find((row) => row.code === "stain")).toMatchObject({ state: "ok", label: "Oil stain" });
+    expect(rows.find((row) => row.code === "stain")).toMatchObject({ state: "ok", label: "Oil Stain" });
     expect(map.attention).toBe(2);
   });
 
@@ -444,10 +444,10 @@ describe("template versions", () => {
     expect(labelCount(filterLabelMaps(maps, ""))).toBe(total);
 
     const stain = filterLabelMaps(maps, "stain");
-    // "Oil stain", "Small dirt / stain" in STD_EG; "Stain", "Small dirt / stain" in SAFEDON_EG.
+    // "Oil Stain", "Small Dirt / Stain" in STD_EG; "Stain", "Small Dirt / Stain" in SAFEDON_EG.
     expect(stain.map((map) => [map.code, map.sections.flatMap((section) => section.rows.map((row) => row.label))])).toEqual([
-      ["SAFEDON_EG", ["Stain", "Small dirt / stain"]],
-      ["STD_EG", ["Oil stain", "Small dirt / stain"]],
+      ["SAFEDON_EG", ["Stain", "Small Dirt / Stain"]],
+      ["STD_EG", ["Oil Stain", "Small Dirt / Stain"]],
     ]);
     expect(labelCount(filterLabelMaps(maps, "safedon stain"))).toBe(2);
     expect(filterLabelMaps(maps, "glove_burst").map((map) => map.code)).toEqual(["SAFEDON_EG"]);

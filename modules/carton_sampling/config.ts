@@ -3,7 +3,7 @@
 // config none); the rules of 6.2 rule 6 are the same in every template.
 import { z } from "zod";
 
-export const CARTON_SAMPLING_TITLE = "Finished Goods Sampling Information (carton number)";
+export const CARTON_SAMPLING_TITLE = "Finished Goods Sampling Information (Carton Number)";
 
 export const CARTON_SAMPLING_LABELS = {
   cartonNumbers: "(Carton #)",

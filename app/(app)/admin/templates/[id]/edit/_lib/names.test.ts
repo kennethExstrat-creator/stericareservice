@@ -39,8 +39,8 @@ describe("placeLabels", () => {
     const { context } = scopeOf(draft);
     const broken = setConfig(draft, context, "weight", { n: 0, warnThresholdPct: -1 });
     expect(named(broken)).toEqual([
-      "Weight (g) - average of 13 gloves per size › Settings › Gloves Weighed",
-      "Weight (g) - average of 13 gloves per size › Settings › Warn Threshold %",
+      "Weight (g) - Average of 13 Gloves per Size › Settings › Gloves Weighed",
+      "Weight (g) - Average of 13 Gloves per Size › Settings › Warn Threshold %",
     ]);
   });
 
@@ -147,7 +147,7 @@ describe("serverProblem", () => {
       const found = serverProblem(draft, problem, draft.code);
       return [placeLabels(found.place, scope).join(" › "), found.message];
     };
-    const weight = "Weight (g) - average of 13 gloves per size › Settings › Gloves Weighed";
+    const weight = "Weight (g) - Average of 13 Gloves per Size › Settings › Gloves Weighed";
     // A definition that did not parse: TemplateDefinitionSchema's path, modules by position.
     const at = draft.modules.findIndex((entry) => entry.key === "weight");
     expect(where({ template: "", path: ["modules", at, "config", "n"], message: "Must be 1 or more." })).toEqual([

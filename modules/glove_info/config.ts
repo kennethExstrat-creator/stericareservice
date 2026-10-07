@@ -9,10 +9,10 @@ export const GLOVE_INFO_FIELDS = ["surfaceTexture", "indicativeWeight", "colour"
 export type GloveInfoField = (typeof GLOVE_INFO_FIELDS)[number];
 
 export const GLOVE_INFO_LABELS: Readonly<Record<GloveInfoField, string>> = {
-  surfaceTexture: "Glove surface texture",
-  indicativeWeight: "Indicative weight (size M)",
-  colour: "Glove colour",
-  length: "Glove length",
+  surfaceTexture: "Glove Surface Texture",
+  indicativeWeight: "Indicative Weight (Size M)",
+  colour: "Glove Colour",
+  length: "Glove Length",
 };
 
 export const GloveInfoConfigSchema = z.strictObject({

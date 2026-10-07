@@ -94,7 +94,7 @@ describe("dispensing_packing capture", () => {
     for (const heading of ["Item", "Box #", "Layering %", "Dispensing %", "Stickiness **", "Others:"]) {
       expect(html).toContain(`>${heading}</th>`);
     }
-    expect(html).toContain("Glove Packing Check (Sampling code letter E) : min. 70% layering &amp; 80% dispensing");
+    expect(html).toContain("Glove Packing Check (Sampling Code Letter E) : Min. 70% Layering &amp; 80% Dispensing");
   });
 
   it("keeps the column headings stuck below the size bar while the rows scroll", () => {
@@ -168,7 +168,7 @@ describe("dispensing_packing capture", () => {
 
   it("titles the stickiness legend one level under the section's heading, as the photos are", () => {
     const html = render();
-    expect(html).toMatch(/<h3[^>]*>Glove stickiness Code<\/h3>/);
+    expect(html).toMatch(/<h3[^>]*>Glove Stickiness Code<\/h3>/);
     expect(html).not.toContain("<h4");
   });
 
@@ -176,7 +176,7 @@ describe("dispensing_packing capture", () => {
     const html = render();
     expect(count(html, '<option value="B1">B1</option>')).toBe(13);
     expect(html).toContain("A mix of non sticky to light stickiness at the bead");
-    expect(html).toContain("Glove stickiness Code");
+    expect(html).toContain("Glove Stickiness Code");
     // The legend's pills at the kit's touch size, 16 px on iPad.
     const legend = /<dl[\s\S]*?<\/dl>/.exec(html)?.[0] ?? "";
     const pills = legend.match(/<span[^>]*data-slot="status-pill"[^>]*>/g) ?? [];
@@ -218,7 +218,7 @@ describe("dispensing_packing capture", () => {
   it("still renders, everything Not Done, when the engine could not compute the module", () => {
     const html = render({ broken: true });
     expect(count(html, 'data-outcome="not_done"')).toBe(3);
-    expect(html).toContain("Sampling code letter —");
+    expect(html).toContain("Sampling Code Letter —");
   });
 
   it("is read-only when the inspection is not the user's to edit", () => {

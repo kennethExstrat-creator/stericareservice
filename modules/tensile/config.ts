@@ -3,7 +3,7 @@
 // and standard label; plus the decimals the report prints).
 import { z } from "zod";
 
-export const TENSILE_TITLE = "Physical Properties average (Refer to attached lab. reports)";
+export const TENSILE_TITLE = "Physical Properties Average (Refer to Attached Lab. Reports)";
 
 /** The two averages, in the order the report prints them. */
 export const TENSILE_MEASURES = ["tensileStrength", "elongationAtBreak"] as const;
@@ -20,8 +20,8 @@ export type TensileLabelKey = (typeof TENSILE_LABEL_KEYS)[number];
 
 export const TENSILE_LABELS: Readonly<Record<TensileLabelKey, string>> = {
   tensileStrength: "Tensile Strength (Average) (MPa)",
-  elongationAtBreak: "Elongation at break, average (%)",
-  labReport: "Lab report",
+  elongationAtBreak: "Elongation at Break, Average (%)",
+  labReport: "Lab Report",
   tensileResult: "Passed / Failed",
   elongationResult: "Passed / Failed",
   specRow: "Spec. ({standardLabel})",

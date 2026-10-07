@@ -216,12 +216,12 @@ describe("tag options from the template", () => {
     ]);
     expect(options.items?.documents).toEqual([
       { value: "iso13485", label: "ISO 13485 certificate" },
-      { value: "certificateOfAnalysis", label: "Certificate of analysis" },
+      { value: "certificateOfAnalysis", label: "Certificate of Analysis" },
     ]);
     expect(options.items?.loading?.map((choice) => choice.label)).toEqual([
-      "Empty container",
-      "Half loaded",
-      "Fully loaded",
+      "Empty Container",
+      "Half Loaded",
+      "Fully Loaded",
       "Doors shut",
       "Sealed",
     ]);
@@ -362,8 +362,8 @@ describe("displayTags", () => {
       item: "Doors shut",
     });
     // A document the checklist leaves out, in the module's own words; an unknown one by its key in words, in Title Case.
-    expect(displayTags("documents", "item:declarationOfOrigin", options).item).toBe("Declaration of origin");
-    expect(itemName("documents", "fdaCe", options)).toBe("FDA / CE certificates");
+    expect(displayTags("documents", "item:declarationOfOrigin", options).item).toBe("Declaration of Origin");
+    expect(itemName("documents", "fdaCe", options)).toBe("FDA / CE Certificates");
     expect(itemName("documents", "millCertificate", options)).toBe("Mill Certificate");
     expect(levelName("dimensions", "inner", options)).toBe("Inner Unit");
     expect(levelName("labeling", "carton", EMPTY_TAG_OPTIONS)).toBe("Carton");

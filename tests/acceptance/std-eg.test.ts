@@ -108,7 +108,7 @@ describe("STD_EG example as a whole inspection (expected results B)", () => {
     }
     expect(computedAt(watertight, "aql")).toBe(1.5);
     // The heading names the sample's code letter, not the report's "K, L & M".
-    expect(computedAt(watertight, "heading")).toBe("Freedom from Holes by watertight test (Single sampling code letter N, AQL 1.5)");
+    expect(computedAt(watertight, "heading")).toBe("Freedom From Holes by Watertight Test (Single Sampling Code Letter N, AQL 1.5)");
   });
 
   it.each(CLASSES)("Visual %s M: the limits of code N at the class's AQL (minor follows the arrow up to M)", (cls) => {
@@ -135,7 +135,7 @@ describe("STD_EG example as a whole inspection (expected results B)", () => {
     const visual = corrected.module("visual");
     expect(visual.result.perSize?.M?.status).toBe("pass");
     expect(labelFor(visual.labels, "criticalResult")).toBe("Disposition - Visual Critical (Passed / Failed)");
-    expect(computedAt(visual, "heading")).toBe("Visual Inspection (Single Sampling code letter N)");
+    expect(computedAt(visual, "heading")).toBe("Visual Inspection (Single Sampling Code Letter N)");
   });
 
   it("Dimension medians M: 245, 95, 0.09, 0.05, 0.04; length and width pass, thickness has no spec (NA)", () => {

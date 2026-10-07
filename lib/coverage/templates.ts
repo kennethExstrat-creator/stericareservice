@@ -317,7 +317,7 @@ const GLOVE_TYPE: CustomModuleSpec = {
  */
 const SAFEDON_DISPENSING_NOTES: CustomModuleSpec = {
   key: "safedon_dispensing_notes",
-  title: "Glove Dispensing Inspection: onsite notes",
+  title: "Glove Dispensing Inspection: Onsite Notes",
   after: "dispensing_safedon",
   layout: "table",
   fields: [

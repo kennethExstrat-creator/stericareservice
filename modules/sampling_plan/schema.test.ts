@@ -121,7 +121,7 @@ describe("sampling_plan config", () => {
         expect(Object.keys(SAMPLING_PLAN_LABELS), `${code} ${key}`).toContain(key);
       }
     }
-    expect(labelOverrides("SAFEDON_EG", "sampling_plan")).toMatchObject({ glovesPhysical: "# gloves for Tensile" });
+    expect(labelOverrides("SAFEDON_EG", "sampling_plan")).toMatchObject({ glovesPhysical: "# Gloves for Tensile" });
   });
 
   it.each(TEMPLATE_CODES)("lets %s resolve against the app's modules", (code) => {

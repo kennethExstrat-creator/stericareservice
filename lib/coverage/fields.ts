@@ -100,8 +100,8 @@ const header = defineModule({
     },
     {
       key: "productName",
-      label: "Product Name (Brand, code & description)",
-      labels: { SAFEDON_EG: "Product Name (Brand & code)", STD_SG: "Product Name" },
+      label: "Product Name (Brand, Code & Description)",
+      labels: { SAFEDON_EG: "Product Name (Brand & Code)", STD_SG: "Product Name" },
       type: "textarea",
       per: [],
       entry: "entered",
@@ -112,7 +112,7 @@ const header = defineModule({
     },
     {
       key: "productCode",
-      label: "Product code",
+      label: "Product Code",
       type: "text",
       per: [],
       entry: "entered",
@@ -133,7 +133,7 @@ const header = defineModule({
     },
     {
       key: "factoryGloveCode",
-      label: "Factory glove code",
+      label: "Factory Glove Code",
       type: "text",
       per: [],
       entry: "entered",
@@ -141,7 +141,7 @@ const header = defineModule({
     },
     {
       key: "inspectionDate",
-      label: "Inspection date",
+      label: "Inspection Date",
       labels: { STD_SG: "Date" },
       type: "date",
       per: [],
@@ -152,7 +152,7 @@ const header = defineModule({
     },
     {
       key: "mfgDate",
-      label: "Manufacturing date",
+      label: "Manufacturing Date",
       labels: { STD_SG: "Mfg Date" },
       type: "date",
       per: [],
@@ -163,7 +163,7 @@ const header = defineModule({
     },
     {
       key: "expiryDate",
-      label: "Expiry date",
+      label: "Expiry Date",
       labels: { STD_SG: "Exp Date" },
       type: "date",
       per: [],
@@ -173,7 +173,7 @@ const header = defineModule({
     },
     {
       key: "inspector",
-      label: "Inspected by",
+      label: "Inspected By",
       type: "reference",
       per: [],
       entry: "system",
@@ -214,22 +214,22 @@ const gloveInfo = defineModule({
   result: "info.",
   rules: [1, 9],
   data: [
-    { key: "surfaceTexture", label: "Glove surface texture", type: "text", per: [], entry: "entered" },
+    { key: "surfaceTexture", label: "Glove Surface Texture", type: "text", per: [], entry: "entered" },
     {
       key: "indicativeWeight",
-      label: "Indicative weight (size M)",
+      label: "Indicative Weight (Size M)",
       type: "decimal",
       unit: "g",
       per: [],
       entry: "entered",
       rules: [1, 9],
       notes:
-        "Weight of one glove of the size in config indicativeWeightSize ('(size M)' in the label). The weight module compares that size's average with it (rule 9).",
+        "Weight of one glove of the size in config indicativeWeightSize ('(Size M)' in the label). The weight module compares that size's average with it (rule 9).",
     },
-    { key: "colour", label: "Glove colour", type: "text", per: [], entry: "entered" },
+    { key: "colour", label: "Glove Colour", type: "text", per: [], entry: "entered" },
     {
       key: "length",
-      label: "Glove length",
+      label: "Glove Length",
       type: "text",
       per: [],
       entry: "entered",
@@ -265,15 +265,15 @@ const orderLots = defineModule({
   data: [
     {
       key: "qtyCases",
-      label: "Qty (cases)",
-      labels: { STD_SG: "Qty (case)" },
+      label: "Qty (Cases)",
+      labels: { STD_SG: "Qty (Case)" },
       type: "integer",
       countOf: "cases",
       per: ["size"],
       entry: "entered",
       rules: [1, 4],
       notes:
-        "A size with a quantity is ordered: only ordered sizes appear in any module (rule 4). The sampling plan's 'Order Qty (case)' column shows this value again.",
+        "A size with a quantity is ordered: only ordered sizes appear in any module (rule 4). The sampling plan's 'Order Qty (Case)' column shows this value again.",
     },
     {
       key: "lotNumbers",
@@ -294,7 +294,7 @@ const orderLots = defineModule({
     },
     {
       key: "lotSizeGloves",
-      label: "Lot size (gloves)",
+      label: "Lot Size (Gloves)",
       type: "integer",
       unit: "pcs",
       per: ["size"],
@@ -304,7 +304,7 @@ const orderLots = defineModule({
     },
     {
       key: "totalCartons",
-      label: "Total # carton",
+      label: "Total # Carton",
       type: "integer",
       countOf: "cases",
       per: [],
@@ -314,7 +314,7 @@ const orderLots = defineModule({
     },
     {
       key: "totalGloves",
-      label: "Total # gloves",
+      label: "Total # Gloves",
       type: "integer",
       unit: "pcs",
       per: [],
@@ -339,7 +339,7 @@ const packingConfig = defineModule({
   key: "packing_config",
   kind: "report",
   alwaysOn: false,
-  title: "Packing configuration",
+  title: "Packing Configuration",
   titles: { STD_SG: "Packing Mode" },
   captures: "Gloves per inner unit, inner units per case, gloves per case; the inner unit's name; the onsite packing mode text.",
   result: "warn when glovesPerCase is not glovesPerInner × innersPerCase; info otherwise.",
@@ -347,9 +347,9 @@ const packingConfig = defineModule({
   data: [
     {
       key: "glovesPerInner",
-      label: "# glove per inner box",
+      label: "# Glove per Inner Box",
       // STD_SG's inner unit is the pouch (BUILD_SPEC 11); the SG form has no packing counts to word it.
-      labels: { SAFEDON_EG: "# glove per plastic pack", STD_SG: "# gloves per pouch" },
+      labels: { SAFEDON_EG: "# Glove per Plastic Pack", STD_SG: "# Gloves per Pouch" },
       type: "integer",
       unit: "pcs",
       per: [],
@@ -358,8 +358,8 @@ const packingConfig = defineModule({
     },
     {
       key: "innersPerCase",
-      label: "# inners per case",
-      labels: { SAFEDON_EG: "# packs per case", STD_SG: "# pouches per case" },
+      label: "# Inners per Case",
+      labels: { SAFEDON_EG: "# Packs per Case", STD_SG: "# Pouches per Case" },
       type: "integer",
       countOf: "inner units",
       per: [],
@@ -368,7 +368,7 @@ const packingConfig = defineModule({
     },
     {
       key: "glovesPerCase",
-      label: "# gloves per case",
+      label: "# Gloves per Case",
       type: "integer",
       unit: "pcs",
       per: [],
@@ -387,7 +387,7 @@ const packingConfig = defineModule({
     },
     {
       key: "glovesPerCaseCheck",
-      label: "Gloves per case (inner × per case)",
+      label: "Gloves per Case (Inner × per Case)",
       type: "integer",
       unit: "pcs",
       per: [],
@@ -436,7 +436,7 @@ const samplingPlan = defineModule({
     {
       key: "innerUnits",
       label: "Inner Box",
-      labels: { SAFEDON_EG: "Inner pack" },
+      labels: { SAFEDON_EG: "Inner Pack" },
       type: "integer",
       countOf: "inner units",
       per: ["size"],
@@ -446,8 +446,8 @@ const samplingPlan = defineModule({
     { key: "gloves", label: "Gloves", type: "integer", unit: "pcs", per: ["size"], entry: "entered", rules: [1] },
     {
       key: "glovesWatertightVisual",
-      label: "# gloves for watertight & Visual",
-      labels: { STD_SG: "# gloves" },
+      label: "# Gloves for Watertight & Visual",
+      labels: { STD_SG: "# Gloves" },
       type: "integer",
       unit: "pcs",
       per: ["size"],
@@ -457,8 +457,8 @@ const samplingPlan = defineModule({
     },
     {
       key: "glovesDimensions",
-      label: "# gloves for dimension",
-      labels: { STD_SG: "# Gloves dimension" },
+      label: "# Gloves for Dimension",
+      labels: { STD_SG: "# Gloves Dimension" },
       type: "integer",
       unit: "pcs",
       per: ["size"],
@@ -468,8 +468,8 @@ const samplingPlan = defineModule({
     },
     {
       key: "glovesPhysical",
-      label: "# gloves for FAB",
-      labels: { SAFEDON_EG: "# gloves for Tensile", STD_SG: "# Gloves (FAB)" },
+      label: "# Gloves for FAB",
+      labels: { SAFEDON_EG: "# Gloves for Tensile", STD_SG: "# Gloves (FAB)" },
       type: "integer",
       unit: "pcs",
       per: ["size"],
@@ -479,8 +479,8 @@ const samplingPlan = defineModule({
     },
     {
       key: "innerUnitsDispensing",
-      label: "# inner box for packaging & dispensing inspection",
-      labels: { SAFEDON_EG: "# inner packs for packaging & dispensing inspection" },
+      label: "# Inner Box for Packaging & Dispensing Inspection",
+      labels: { SAFEDON_EG: "# Inner Packs for Packaging & Dispensing Inspection" },
       type: "integer",
       countOf: "inner units",
       per: ["size"],
@@ -500,7 +500,7 @@ const samplingPlan = defineModule({
     },
     {
       key: "pouchesDyeLeak",
-      label: "# pouches (dye leak test)",
+      label: "# Pouches (Dye Leak Test)",
       type: "integer",
       countOf: "pouches",
       per: ["size"],
@@ -510,7 +510,7 @@ const samplingPlan = defineModule({
     },
     {
       key: "inspectionLevel",
-      label: "Inspection level",
+      label: "Inspection Level",
       type: "select",
       options: INSPECTION_LEVELS,
       per: [],
@@ -520,7 +520,7 @@ const samplingPlan = defineModule({
     },
     {
       key: "lotSizeGloves",
-      label: "Lot size (gloves)",
+      label: "Lot Size (Gloves)",
       type: "integer",
       unit: "pcs",
       per: ["size"],
@@ -530,7 +530,7 @@ const samplingPlan = defineModule({
     },
     {
       key: "codeLetter",
-      label: "Code letter",
+      label: "Code Letter",
       type: "select",
       options: CODE_LETTERS,
       per: ["size"],
@@ -541,7 +541,7 @@ const samplingPlan = defineModule({
     },
     {
       key: "planSampleSize",
-      label: "Sample size by plan",
+      label: "Sample Size by Plan",
       type: "integer",
       unit: "pcs",
       per: ["size"],
@@ -585,8 +585,8 @@ const samplingPlan = defineModule({
     },
     {
       key: "orderQty",
-      label: "Order Qty (case)",
-      labels: { STD_SG: "Qty (case)" },
+      label: "Order Qty (Case)",
+      labels: { STD_SG: "Qty (Case)" },
       meaning: "Caption of the column that shows order_lots.qtyCases again.",
     },
     { key: "gloveSize", label: "Glove Size", meaning: "Caption of the size column on the capture screen." },
@@ -597,7 +597,7 @@ const cartonSampling = defineModule({
   key: "carton_sampling",
   kind: "report",
   alwaysOn: false,
-  title: "Finished Goods Sampling Information (carton number)",
+  title: "Finished Goods Sampling Information (Carton Number)",
   captures: "Per size: the sampled carton numbers.",
   result: "fail on a validation error (rule 6); pass when every ordered size has its full, valid list; not_done before.",
   rules: [1, 2, 4, 6],
@@ -739,7 +739,7 @@ const weight = defineModule({
   key: "weight",
   kind: "report",
   alwaysOn: false,
-  title: "Weight (g) - average of 13 gloves per size",
+  title: "Weight (g) - Average of 13 Gloves per Size",
   titles: { SAFEDON_EG: "Weight (g)" },
   captures: "Per size: the gloves weighed (1 or 13 values) and their average, compared with the indicative weight.",
   result:
@@ -769,7 +769,7 @@ const weight = defineModule({
     },
     {
       key: "deviationPct",
-      label: "Deviation from indicative weight",
+      label: "Deviation From Indicative Weight",
       type: "decimal",
       unit: "%",
       per: ["size"],
@@ -831,14 +831,14 @@ const forceAtBreak = defineModule({
   key: "force_at_break",
   kind: "report",
   alwaysOn: false,
-  title: "Force At Break in Newton (Refer to attached where applicable)",
+  title: "Force at Break in Newton (Refer to Attached Where Applicable)",
   captures: "Per size, per glove (default 13): force at break (N), its median, and the lab report file.",
   result: "Per size: the median against config specMin. not_done until n readings are entered.",
   rules: [1, 2, 4, 5],
   data: [
     {
       key: "values",
-      label: "Force at break (N)",
+      label: "Force at Break (N)",
       type: "decimal_list",
       unit: "N",
       per: ["size"],
@@ -848,7 +848,7 @@ const forceAtBreak = defineModule({
     },
     {
       key: "labReport",
-      label: "Lab report",
+      label: "Lab Report",
       type: "file",
       per: [],
       entry: "entered",
@@ -897,7 +897,7 @@ const tensile = defineModule({
   key: "tensile",
   kind: "report",
   alwaysOn: false,
-  title: "Physical Properties average (Refer to attached lab. reports)",
+  title: "Physical Properties Average (Refer to Attached Lab. Reports)",
   captures: "Per size: tensile strength average (MPa) and elongation at break average (%) from the lab report; the lab report file.",
   result: "Per size: both averages against their minimums; fail if either fails. not_done until both values and the lab report are in.",
   rules: [1, 2, 4, 5],
@@ -915,7 +915,7 @@ const tensile = defineModule({
     },
     {
       key: "elongationAtBreak",
-      label: "Elongation at break, average (%)",
+      label: "Elongation at Break, Average (%)",
       type: "decimal",
       unit: "%",
       per: ["size"],
@@ -925,7 +925,7 @@ const tensile = defineModule({
     },
     {
       key: "labReport",
-      label: "Lab report",
+      label: "Lab Report",
       type: "file",
       per: [],
       entry: "entered",
@@ -975,7 +975,7 @@ const watertight = defineModule({
   key: "watertight",
   kind: "report",
   alwaysOn: false,
-  title: "Freedom from Holes by watertight test",
+  title: "Freedom From Holes by Watertight Test",
   titles: { STD_SG: "Watertight Inspection" },
   captures: "Per size (R and L when handSplit): gloves tested and holes by location.",
   result: "Per size: accept or reject from the AQL engine on the total (both hands). not_done until tested is entered.",
@@ -983,7 +983,7 @@ const watertight = defineModule({
   data: [
     {
       key: "tested",
-      label: "No. of sample tested",
+      label: "No. of Sample Tested",
       type: "integer",
       unit: "pcs",
       per: ["size"],
@@ -993,7 +993,7 @@ const watertight = defineModule({
     },
     {
       key: "holes",
-      label: "Pin hole",
+      label: "Pin Hole",
       labels: { SAFEDON_EG: "Holes", STD_SG: "Defect" },
       type: "count_map",
       keyedBy: "hole location: a defect code from config locations",
@@ -1003,7 +1003,7 @@ const watertight = defineModule({
     },
     {
       key: "otherDescription",
-      label: "Other : description",
+      label: "Other : Description",
       type: "text",
       per: ["size", "hand"],
       entry: "entered",
@@ -1011,7 +1011,7 @@ const watertight = defineModule({
     },
     {
       key: "unmapped",
-      label: "Defect not in the list",
+      label: "Defect Not in the List",
       type: "label_counts",
       per: ["size", "hand"],
       entry: "entered",
@@ -1020,7 +1020,7 @@ const watertight = defineModule({
     },
     {
       key: "codeLetter",
-      label: "Sampling code letter",
+      label: "Sampling Code Letter",
       type: "select",
       options: CODE_LETTERS,
       per: ["size"],
@@ -1049,7 +1049,7 @@ const watertight = defineModule({
     },
     {
       key: "totalDefects",
-      label: "Total number of defects found",
+      label: "Total Number of Defects Found",
       labels: { STD_SG: "Total WTT" },
       type: "integer",
       per: ["size"],
@@ -1059,7 +1059,7 @@ const watertight = defineModule({
     },
     {
       key: "result",
-      label: "Freedom from holes (Passed / Failed)",
+      label: "Freedom From Holes (Passed / Failed)",
       type: "select",
       options: RESULT,
       per: ["size"],
@@ -1088,9 +1088,9 @@ const watertight = defineModule({
   labels: [
     {
       key: "heading",
-      label: "Freedom from Holes by watertight test (Single sampling code letter {codeLetters}, AQL {aql})",
+      label: "Freedom From Holes by Watertight Test (Single Sampling Code Letter {codeLetters}, AQL {aql})",
       labels: {
-        SAFEDON_EG: "Freedom from Holes by watertight test (Sampling code letter {codeLetters}; AQL={aql})",
+        SAFEDON_EG: "Freedom From Holes by Watertight Test (Sampling Code Letter {codeLetters}; AQL={aql})",
         STD_SG: "Watertight Inspection",
       },
       meaning: "Full heading as printed: the code letters of the ordered sizes and the AQL are filled in.",
@@ -1112,7 +1112,7 @@ const visual = defineModule({
   data: [
     {
       key: "inspected",
-      label: "No. of sample inspected",
+      label: "No. of Sample Inspected",
       type: "integer",
       unit: "pcs",
       per: ["size", "class"],
@@ -1125,8 +1125,8 @@ const visual = defineModule({
       label: "Defects",
       groupLabels: {
         critical: { label: "Critical Defects" },
-        major: { label: "Major Defects", labels: { STD_SG: "Major defect" } },
-        minor: { label: "Minor Defects", labels: { STD_SG: "Minor defect" } },
+        major: { label: "Major Defects", labels: { STD_SG: "Major Defect" } },
+        minor: { label: "Minor Defects", labels: { STD_SG: "Minor Defect" } },
       },
       type: "count_map",
       keyedBy: "defect code from config classes[class].defects",
@@ -1136,7 +1136,7 @@ const visual = defineModule({
     },
     {
       key: "unmapped",
-      label: "Defect not in the list",
+      label: "Defect Not in the List",
       type: "label_counts",
       per: ["size", "hand", "class"],
       entry: "entered",
@@ -1145,7 +1145,7 @@ const visual = defineModule({
     },
     {
       key: "codeLetter",
-      label: "Sampling code letter",
+      label: "Sampling Code Letter",
       type: "select",
       options: CODE_LETTERS,
       per: ["size", "class"],
@@ -1177,11 +1177,11 @@ const visual = defineModule({
     },
     {
       key: "total",
-      label: "Total number of defects found",
+      label: "Total Number of Defects Found",
       groupLabels: {
-        critical: { label: 'Total number of "Critical Defects" found' },
-        major: { label: 'Total number of "Major Defects" found', labels: { STD_SG: "Total Major" } },
-        minor: { label: 'Total number of "Minor Defects" found', labels: { STD_SG: "Total Minor" } },
+        critical: { label: 'Total Number of "Critical Defects" Found' },
+        major: { label: 'Total Number of "Major Defects" Found', labels: { STD_SG: "Total Major" } },
+        minor: { label: 'Total Number of "Minor Defects" Found', labels: { STD_SG: "Total Minor" } },
       },
       type: "integer",
       per: ["size", "class"],
@@ -1228,9 +1228,9 @@ const visual = defineModule({
   labels: [
     {
       key: "heading",
-      label: "Visual Inspection (Single Sampling code letter {codeLetters})",
+      label: "Visual Inspection (Single Sampling Code Letter {codeLetters})",
       labels: {
-        SAFEDON_EG: "Visual Inspection (Sampling code letter {codeLetters})",
+        SAFEDON_EG: "Visual Inspection (Sampling Code Letter {codeLetters})",
         STD_SG: "Visual Inspection",
       },
       meaning: "Full heading as printed, with the code letters of the ordered sizes.",
@@ -1239,13 +1239,13 @@ const visual = defineModule({
     {
       key: "majorHeading",
       label: "Major Defects (AQL {aql})",
-      labels: { STD_SG: "Major defect" },
+      labels: { STD_SG: "Major Defect" },
       meaning: "Heading of the major class.",
     },
     {
       key: "minorHeading",
       label: "Minor Defects (AQL {aql})",
-      labels: { STD_SG: "Minor defect" },
+      labels: { STD_SG: "Minor Defect" },
       meaning: "Heading of the minor class.",
     },
     {
@@ -1313,7 +1313,7 @@ const dispensingPacking = defineModule({
     },
     {
       key: "codeLetter",
-      label: "Sampling code letter",
+      label: "Sampling Code Letter",
       type: "select",
       options: CODE_LETTERS,
       per: ["size"],
@@ -1402,11 +1402,11 @@ const dispensingPacking = defineModule({
     {
       key: "heading",
       label:
-        "Glove Packing Check (Sampling code letter {codeLetters}) : min. {minLayeringPct}% layering & {minDispensingPct}% dispensing",
+        "Glove Packing Check (Sampling Code Letter {codeLetters}) : Min. {minLayeringPct}% Layering & {minDispensingPct}% Dispensing",
       meaning: "Full heading as printed: code letters of the box counts and the two minimums.",
     },
     { key: "itemColumn", label: "Item", meaning: "Caption of the box row number column." },
-    { key: "stickinessLegend", label: "**Glove stickiness Code", meaning: "Caption of the stickiness code legend." },
+    { key: "stickinessLegend", label: "**Glove Stickiness Code", meaning: "Caption of the stickiness code legend." },
   ],
 });
 
@@ -1440,7 +1440,7 @@ const dispensingSafedon = defineModule({
     },
     {
       key: "codeLetter",
-      label: "Sampling code letter",
+      label: "Sampling Code Letter",
       type: "select",
       options: CODE_LETTERS,
       per: ["size"],
@@ -1450,7 +1450,7 @@ const dispensingSafedon = defineModule({
     },
     {
       key: "boxDefects",
-      label: "Defects / gloves per pack",
+      label: "Defects / Gloves per Pack",
       type: "integer",
       per: ["size", "box"],
       entry: "computed",
@@ -1459,7 +1459,7 @@ const dispensingSafedon = defineModule({
     },
     {
       key: "boxRatePct",
-      label: "Defect rate",
+      label: "Defect Rate",
       type: "decimal",
       unit: "%",
       per: ["size", "box"],
@@ -1470,7 +1470,7 @@ const dispensingSafedon = defineModule({
     },
     {
       key: "boxesTested",
-      label: "Boxes tested",
+      label: "Boxes Tested",
       type: "integer",
       countOf: "boxes",
       per: ["size"],
@@ -1480,7 +1480,7 @@ const dispensingSafedon = defineModule({
     },
     {
       key: "boxesFailed",
-      label: "Boxes failed",
+      label: "Boxes Failed",
       type: "integer",
       countOf: "boxes",
       per: ["size"],
@@ -1499,7 +1499,7 @@ const dispensingSafedon = defineModule({
     },
     {
       key: "glovesInspected",
-      label: "Gloves inspected",
+      label: "Gloves Inspected",
       type: "integer",
       unit: "pcs",
       per: ["size"],
@@ -1509,7 +1509,7 @@ const dispensingSafedon = defineModule({
     },
     {
       key: "ratePct",
-      label: "Defect rate (%)",
+      label: "Defect Rate (%)",
       type: "decimal",
       unit: "%",
       per: ["size"],
@@ -1553,7 +1553,7 @@ const dispensingSafedon = defineModule({
   labels: [
     {
       key: "heading",
-      label: "Glove Dispensing Inspection (Sampling code letter {codeLetters})",
+      label: "Glove Dispensing Inspection (Sampling Code Letter {codeLetters})",
       meaning: "Full heading as printed on the report, with the code letters of the box counts.",
     },
     { key: "totalGroup", label: "Total", meaning: "Caption over the three computed total lines." },
@@ -1573,7 +1573,7 @@ const labeling = defineModule({
   data: [
     {
       key: "inspected",
-      label: "No. of sampled boxes inspected",
+      label: "No. of Sampled Boxes Inspected",
       type: "integer",
       countOf: "boxes",
       per: ["size", "level"],
@@ -1628,7 +1628,7 @@ const labeling = defineModule({
     },
     {
       key: "total",
-      label: "Total number of defects found",
+      label: "Total Number of Defects Found",
       type: "integer",
       per: ["size", "level"],
       entry: "computed",
@@ -1685,7 +1685,7 @@ const conclusion = defineModule({
   data: [
     {
       key: "suggestedResult",
-      label: "Suggested result",
+      label: "Suggested Result",
       type: "select",
       options: ["pass", "fail", "hold"],
       per: [],
@@ -1707,7 +1707,7 @@ const conclusion = defineModule({
     { key: "remark", label: "Remark", type: "textarea", per: [], entry: "entered", column: "inspections.remarks" },
     {
       key: "inspector",
-      label: "Inspected by",
+      label: "Inspected By",
       type: "reference",
       per: [],
       entry: "system",
@@ -1750,14 +1750,14 @@ const dyeLeak = defineModule({
   key: "dye_leak",
   kind: "optional",
   alwaysOn: false,
-  title: "Dye leak test",
+  title: "Dye Leak Test",
   captures: "Per size: pouches tested, pouches failed, notes.",
   result: "Per size: any failed pouch fails. not_done until pouchesTested is entered.",
   rules: [1, 2, 4, 5],
   data: [
     {
       key: "pouchesTested",
-      label: "Pouches tested",
+      label: "Pouches Tested",
       type: "integer",
       countOf: "pouches",
       per: ["size"],
@@ -1767,7 +1767,7 @@ const dyeLeak = defineModule({
     },
     {
       key: "pouchesFailed",
-      label: "Pouches failed",
+      label: "Pouches Failed",
       type: "integer",
       countOf: "pouches",
       per: ["size"],
@@ -1777,7 +1777,7 @@ const dyeLeak = defineModule({
     { key: "notes", label: "Notes", type: "textarea", per: ["size"], entry: "entered" },
     {
       key: "pouchesPlanned",
-      label: "Pouches planned",
+      label: "Pouches Planned",
       type: "integer",
       countOf: "pouches",
       per: ["size"],
@@ -1797,7 +1797,7 @@ const dyeLeak = defineModule({
     },
     {
       key: "totalTested",
-      label: "Total pouches tested",
+      label: "Total Pouches Tested",
       type: "integer",
       countOf: "pouches",
       per: [],
@@ -1807,7 +1807,7 @@ const dyeLeak = defineModule({
     },
     {
       key: "totalFailed",
-      label: "Total pouches failed",
+      label: "Total Pouches Failed",
       type: "integer",
       countOf: "pouches",
       per: [],
@@ -1845,8 +1845,8 @@ const documents = defineModule({
       per: ["item"],
       entry: "entered",
     },
-    { key: "referenceNo", label: "Reference no.", type: "text", per: ["item"], entry: "entered" },
-    { key: "expiryDate", label: "Expiry date", type: "date", per: ["item"], entry: "entered", rules: [3] },
+    { key: "referenceNo", label: "Reference No.", type: "text", per: ["item"], entry: "entered" },
+    { key: "expiryDate", label: "Expiry Date", type: "date", per: ["item"], entry: "entered", rules: [3] },
     {
       key: "file",
       label: "File",
@@ -1866,7 +1866,7 @@ const documents = defineModule({
     },
     {
       key: "itemStatus",
-      label: "Item result",
+      label: "Item Result",
       type: "select",
       options: ["pass", "fail", "warn", "info", "not_done"],
       per: ["item"],
@@ -1877,7 +1877,7 @@ const documents = defineModule({
     },
     {
       key: "counts",
-      label: "Items per status",
+      label: "Items per Status",
       type: "count_map",
       keyedBy: "status (verified, not_verified, na, and open for none yet)",
       per: [],
@@ -1887,7 +1887,7 @@ const documents = defineModule({
     },
     {
       key: "fileState",
-      label: "File status",
+      label: "File Status",
       type: "select",
       options: ["none", "attached", "missing"],
       per: ["item"],
@@ -1906,15 +1906,15 @@ const documents = defineModule({
     },
   ],
   labels: [
-    { key: "certificateOfAnalysis", label: "Certificate of analysis", meaning: "Item label." },
-    { key: "labTestReports", label: "Lab test reports", meaning: "Item label." },
-    { key: "sterilisation", label: "Sterilisation certificate and records", meaning: "Item label." },
+    { key: "certificateOfAnalysis", label: "Certificate of Analysis", meaning: "Item label." },
+    { key: "labTestReports", label: "Lab Test Reports", meaning: "Item label." },
+    { key: "sterilisation", label: "Sterilisation Certificate and Records", meaning: "Item label." },
     { key: "iso13485", label: "ISO 13485", meaning: "Item label." },
-    { key: "fdaCe", label: "FDA / CE certificates", meaning: "Item label." },
-    { key: "declarationOfOrigin", label: "Declaration of origin", meaning: "Item label." },
+    { key: "fdaCe", label: "FDA / CE Certificates", meaning: "Item label." },
+    { key: "declarationOfOrigin", label: "Declaration of Origin", meaning: "Item label." },
     { key: "required", label: "Required", meaning: "Badge on an item the template requires." },
     { key: "status.verified", label: "Verified", meaning: "Word for the status verified." },
-    { key: "status.not_verified", label: "Not verified", meaning: "Word for the status not_verified." },
+    { key: "status.not_verified", label: "Not Verified", meaning: "Word for the status not_verified." },
     { key: "status.na", label: "NA", meaning: "Word for the status na." },
   ],
   notes: ["Not on any current form: the website's QC scope (forms/README.md)."],
@@ -1929,21 +1929,21 @@ const loading = defineModule({
   result: "warn when cartonsLoaded is not cartonsOrdered; info otherwise.",
   rules: [1, 2],
   data: [
-    { key: "containerNo", label: "Container no.", type: "text", per: [], entry: "entered" },
-    { key: "sealNo", label: "Seal no.", type: "text", per: [], entry: "entered" },
+    { key: "containerNo", label: "Container No.", type: "text", per: [], entry: "entered" },
+    { key: "sealNo", label: "Seal No.", type: "text", per: [], entry: "entered" },
     {
       key: "cartonsLoaded",
-      label: "Cartons loaded",
+      label: "Cartons Loaded",
       type: "integer",
       countOf: "cartons",
       per: [],
       entry: "entered",
       rules: [1],
     },
-    { key: "cartonCondition", label: "Carton condition", type: "textarea", per: [], entry: "entered" },
+    { key: "cartonCondition", label: "Carton Condition", type: "textarea", per: [], entry: "entered" },
     {
       key: "cartonsOrdered",
-      label: "Cartons ordered",
+      label: "Cartons Ordered",
       type: "integer",
       countOf: "cartons",
       per: [],
@@ -1953,7 +1953,7 @@ const loading = defineModule({
     },
     {
       key: "cartonsDifference",
-      label: "Cartons loaded less ordered",
+      label: "Cartons Loaded Less Ordered",
       type: "integer",
       countOf: "cartons",
       per: [],
@@ -1971,11 +1971,11 @@ const loading = defineModule({
     },
   ],
   labels: [
-    { key: "loadingStage", label: "Loading stage", meaning: "Caption of the stage picker that tags loading photos." },
-    { key: "emptyContainer", label: "Empty container", meaning: "Loading stage, for photo tags." },
-    { key: "halfLoaded", label: "Half loaded", meaning: "Loading stage, for photo tags." },
-    { key: "fullyLoaded", label: "Fully loaded", meaning: "Loading stage, for photo tags." },
-    { key: "doorsClosed", label: "Doors closed", meaning: "Loading stage, for photo tags." },
+    { key: "loadingStage", label: "Loading Stage", meaning: "Caption of the stage picker that tags loading photos." },
+    { key: "emptyContainer", label: "Empty Container", meaning: "Loading stage, for photo tags." },
+    { key: "halfLoaded", label: "Half Loaded", meaning: "Loading stage, for photo tags." },
+    { key: "fullyLoaded", label: "Fully Loaded", meaning: "Loading stage, for photo tags." },
+    { key: "doorsClosed", label: "Doors Closed", meaning: "Loading stage, for photo tags." },
     { key: "sealed", label: "Sealed", meaning: "Loading stage, for photo tags." },
   ],
   notes: [

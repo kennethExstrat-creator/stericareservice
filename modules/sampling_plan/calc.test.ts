@@ -89,8 +89,8 @@ describe("sampling_plan", () => {
     expect(calcSamplingPlan(input({ M: ROW_M }))).toEqual({
       result: {
         status: "info",
-        summary: "Size M: Case: 50; # gloves for watertight & Visual: 500.",
-        perSize: { M: { status: "info", summary: "Case: 50; # gloves for watertight & Visual: 500." } },
+        summary: "Size M: Case: 50; # Gloves for Watertight & Visual: 500.",
+        perSize: { M: { status: "info", summary: "Case: 50; # Gloves for Watertight & Visual: 500." } },
       },
       computed: {
         inspectionLevel: null,
@@ -119,15 +119,15 @@ describe("sampling_plan", () => {
   });
 
   it("is not done while a shown column is empty, naming it in the template's wording (6.2 rule 5)", () => {
-    const labels = { ...SAMPLING_PLAN_LABELS, innerUnits: "Inner pack", glovesPhysical: "# gloves for Tensile" };
+    const labels = { ...SAMPLING_PLAN_LABELS, innerUnits: "Inner Pack", glovesPhysical: "# Gloves for Tensile" };
     const output = calcSamplingPlan({ ...input({ M: { ...ROW_M, innerUnits: null, glovesPhysical: null } }), labels });
     expect(output.result).toMatchObject({
       status: "not_done",
-      perSize: { M: { status: "not_done", summary: "Missing: Inner pack, # gloves for Tensile." } },
+      perSize: { M: { status: "not_done", summary: "Missing: Inner Pack, # Gloves for Tensile." } },
     });
     expect(output.issues).toEqual([]);
     expect(calcSamplingPlan(input({ M: { cases: 50 } })).result.perSize?.M.summary).toBe(
-      "Missing: Inner Box, Gloves, # gloves for watertight & Visual, # gloves for dimension, # gloves for FAB, # inner box for packaging & dispensing inspection.",
+      "Missing: Inner Box, Gloves, # Gloves for Watertight & Visual, # Gloves for Dimension, # Gloves for FAB, # Inner Box for Packaging & Dispensing Inspection.",
     );
   });
 
@@ -168,7 +168,7 @@ describe("sampling_plan", () => {
     const row = { ...ROW_M, gloves: null, innerUnitsDispensing: null };
     expect(calcSamplingPlan(input({ M: row }, surgical)).result.perSize?.M).toEqual({
       status: "not_done",
-      summary: "Missing: Pouches, # pouches (dye leak test).",
+      summary: "Missing: Pouches, # Pouches (Dye Leak Test).",
     });
     const done = calcSamplingPlan(input({ M: { ...row, pouches: 25, pouchesDyeLeak: 13 } }, surgical));
     expect(done.result.status).toBe("info");
@@ -197,9 +197,9 @@ describe("sampling_plan", () => {
     const output = calcSamplingPlan(input({ M: ROW_M }, LEVEL_I));
     expect(output.result).toEqual({
       status: "info",
-      summary: "Size M: Case: 50; # gloves for watertight & Visual: 500; inspection level I needs 500 (code N).",
+      summary: "Size M: Case: 50; # Gloves for Watertight & Visual: 500; inspection level I needs 500 (code N).",
       perSize: {
-        M: { status: "info", summary: "Case: 50; # gloves for watertight & Visual: 500; inspection level I needs 500 (code N)." },
+        M: { status: "info", summary: "Case: 50; # Gloves for Watertight & Visual: 500; inspection level I needs 500 (code N)." },
       },
     });
     expect(output.computed.sizes.M).toEqual({
@@ -225,7 +225,7 @@ describe("sampling_plan", () => {
         level: "warning",
         code: "sample_below_plan",
         message:
-          "Size M, # gloves for watertight & Visual: 315 gloves sampled; inspection level I needs 500 (lot 5,800,000 gloves, code N).",
+          "Size M, # Gloves for Watertight & Visual: 315 gloves sampled; inspection level I needs 500 (lot 5,800,000 gloves, code N).",
         size: "M",
         path: ["sizes", "M", "glovesWatertightVisual"],
       },
@@ -249,7 +249,7 @@ describe("sampling_plan", () => {
       belowPlan: true,
     });
     expect(output.issues.map((issue) => issue.message)).toEqual([
-      "Size M, # gloves for watertight & Visual: 8 gloves sampled; inspection level I at AQL 4.0 needs 13 (lot 100 gloves, code E).",
+      "Size M, # Gloves for Watertight & Visual: 8 gloves sampled; inspection level I at AQL 4.0 needs 13 (lot 100 gloves, code E).",
     ]);
     // A client's AQLs: watertight 1.0 on lot 1,000 at level I needs H (n 50) where Table 1 gives G (n 32).
     expect(lotPlan(1_000, "I", { ...context.aql, watertight: 1.0 })).toMatchObject({ codeLetter: "G", usedLetter: "H", n: 50 });
@@ -288,7 +288,7 @@ describe("sampling_plan", () => {
       belowPlan: true,
     });
     expect(output.issues.map((issue) => issue.message)).toEqual([
-      "Size M, # gloves for watertight & Visual: 5 gloves sampled; inspection level III at AQL 0.65 needs all 8 (lot 8 gloves, code F).",
+      "Size M, # Gloves for Watertight & Visual: 5 gloves sampled; inspection level III at AQL 0.65 needs all 8 (lot 8 gloves, code F).",
     ]);
     const whole = calcSamplingPlan(
       input({ M: { ...ROW_M, cases: 1, glovesWatertightVisual: 8 } }, { ...LEVEL_I, inspectionLevel: "III" }, context),
@@ -306,7 +306,7 @@ describe("sampling_plan", () => {
         level: "warning",
         code: "nonstandard_sample",
         message:
-          "Size M, # gloves for watertight & Visual: 100 is not a standard sample size, so it is read as code letter J (n 80), the largest standard sample size below it.",
+          "Size M, # Gloves for Watertight & Visual: 100 is not a standard sample size, so it is read as code letter J (n 80), the largest standard sample size below it.",
         size: "M",
         path: ["sizes", "M", "glovesWatertightVisual"],
       },
@@ -321,7 +321,7 @@ describe("sampling_plan", () => {
     const zero = calcSamplingPlan(input({ M: { ...ROW_M, cases: 0, glovesWatertightVisual: 1 } }, LEVEL_I));
     expect(zero.result.perSize?.M).toEqual({
       status: "not_done",
-      summary: "Case is 0; # gloves for watertight & Visual 1 is below 2.",
+      summary: "Case is 0; # Gloves for Watertight & Visual 1 is below 2.",
     });
     expect(zero.issues).toEqual([
       {
@@ -334,7 +334,7 @@ describe("sampling_plan", () => {
       {
         level: "error",
         code: "invalid_sample_size",
-        message: "Size M, # gloves for watertight & Visual: 1 glove sampled; an ISO 2859-1 sample has at least 2.",
+        message: "Size M, # Gloves for Watertight & Visual: 1 glove sampled; an ISO 2859-1 sample has at least 2.",
         size: "M",
         path: ["sizes", "M", "glovesWatertightVisual"],
       },
@@ -479,9 +479,9 @@ describe("sampling_plan with the example reports (docs/examples/expected-results
     const expected = STD_EG_EXPECTED.sampling.M!;
     expect(evaluation.result).toEqual({
       status: "info",
-      summary: "Size M: Case: 50; # gloves for watertight & Visual: 500; inspection level I needs 500 (code N).",
+      summary: "Size M: Case: 50; # Gloves for Watertight & Visual: 500; inspection level I needs 500 (code N).",
       perSize: {
-        M: { status: "info", summary: "Case: 50; # gloves for watertight & Visual: 500; inspection level I needs 500 (code N)." },
+        M: { status: "info", summary: "Case: 50; # Gloves for Watertight & Visual: 500; inspection level I needs 500 (code N)." },
       },
     });
     expect(evaluation.computed.sizes).toEqual({
@@ -560,7 +560,7 @@ describe("sampling_plan against the AQLs the template's watertight and visual ap
     config: { ...VISUAL_DEFAULT_CONFIG, classes: { ...VISUAL_DEFAULT_CONFIG.classes, minor: { ...VISUAL_DEFAULT_CONFIG.classes.minor, ...minor } } },
   });
   const AQL_0065 =
-    "Size M, # gloves for watertight & Visual: 500 gloves sampled; inspection level I at AQL 0.065 needs 800 (lot 5,800,000 gloves, code P).";
+    "Size M, # Gloves for Watertight & Visual: 500 gloves sampled; inspection level I at AQL 0.065 needs 800 (lot 5,800,000 gloves, code P).";
 
   it("flags the larger sample a template watertight AQL's arrow down asks for", () => {
     // AQL 0.065 at code N points down to P (n 800); the 500 sampled are enough for STD_EG's 1.5.

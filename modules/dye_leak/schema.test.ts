@@ -100,7 +100,7 @@ describe("dye_leak config", () => {
     const dyeLeakOf = (resolution: ReturnType<typeof resolve>) =>
       resolution.ok ? resolution.template.modules.find((entry) => entry.key === "dye_leak") : undefined;
 
-    expect(dyeLeakOf(resolve(base))).toMatchObject({ include: true, title: "Dye leak test", config: { n: null } });
+    expect(dyeLeakOf(resolve(base))).toMatchObject({ include: true, title: "Dye Leak Test", config: { n: null } });
     expect(dyeLeakOf(resolve(child(13)))?.config).toEqual({ n: 13 });
     const refused = resolve(child(0));
     expect(refused.ok).toBe(false);

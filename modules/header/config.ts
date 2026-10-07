@@ -27,14 +27,14 @@ export const HEADER_LABELS: Readonly<Record<HeaderField, string>> = {
   manufacturer: "Manufacturer / Supplier",
   factoryAddress: "Supplier Factory Address / Location",
   poNo: "PO / SO Number",
-  productName: "Product Name (Brand, code & description)",
-  productCode: "Product code",
+  productName: "Product Name (Brand, Code & Description)",
+  productCode: "Product Code",
   client: "Client Name",
-  factoryGloveCode: "Factory glove code",
-  inspectionDate: "Inspection date",
-  mfgDate: "Manufacturing date",
-  expiryDate: "Expiry date",
-  inspector: "Inspected by",
+  factoryGloveCode: "Factory Glove Code",
+  inspectionDate: "Inspection Date",
+  mfgDate: "Manufacturing Date",
+  expiryDate: "Expiry Date",
+  inspector: "Inspected By",
 };
 
 export const MFG_EXPIRY_PRECISIONS = ["day", "month"] as const;

@@ -67,7 +67,7 @@ describe("glove_info capture", () => {
   it("asks for the four values in the reports' order and wording, the weight in g on the decimal keypad", () => {
     const html = render();
     const labels = Array.from(html.matchAll(/<label[^>]*>([^<]*)</g), (match) => match[1]);
-    expect(labels).toEqual(["Glove surface texture", "Indicative weight (size M)", "Glove colour", "Glove length"]);
+    expect(labels).toEqual(["Glove Surface Texture", "Indicative Weight (Size M)", "Glove Colour", "Glove Length"]);
     expect(html).toContain('value="Finger-textured"');
     expect(html).toContain('value="Purple blue"');
     expect(html).toContain('value="240 mm minimum"');
@@ -82,7 +82,7 @@ describe("glove_info capture", () => {
     const html = render({ labels, config });
     expect(html).toContain(">Colour</label>");
     expect(html).toContain("Indicative weight (size L)");
-    expect(html).not.toContain("Glove length");
+    expect(html).not.toContain("Glove Length");
     // The seed templates word it as the dictionary does.
     expect(moduleConfig("STD_EG", "glove_info")?.fields).toEqual(GLOVE_INFO_DEFAULT_CONFIG.fields);
     expect(labelOverrides("SAFEDON_EG", "glove_info")).toEqual({});
@@ -95,7 +95,7 @@ describe("glove_info capture", () => {
 
   it("shows calc's error under the weight, in red", () => {
     const html = render({ data: { ...EXAMPLE, indicativeWeight: -1 } });
-    expect(html).toContain("Indicative weight (size M): must be more than 0 g.");
+    expect(html).toContain("Indicative Weight (Size M): must be more than 0 g.");
     // The module's not-done warning speaks of the whole module: never under a field.
     expect(render({ data: emptyGloveInfo() })).not.toContain("is not done");
   });

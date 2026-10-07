@@ -139,7 +139,7 @@ describe("header wording", () => {
     }
     expect(labelOverrides("SAFEDON_EG", "header")).toEqual({
       poNo: "PO Number",
-      productName: "Product Name (Brand & code)",
+      productName: "Product Name (Brand & Code)",
     });
   });
 });

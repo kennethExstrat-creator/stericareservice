@@ -19,7 +19,7 @@ export const DISPENSING_PACKING_LABELS: Readonly<Record<string, string>> = {
   dispensingPct: "Dispensing %",
   stickiness: "Stickiness **",
   note: "Others:",
-  codeLetter: "Sampling code letter",
+  codeLetter: "Sampling Code Letter",
   layeringAverage: "Average",
   dispensingAverage: "Average",
   stickinessSummary: "Average",
@@ -27,9 +27,9 @@ export const DISPENSING_PACKING_LABELS: Readonly<Record<string, string>> = {
   dispensingResult: "Passed / Failed",
   stickinessResult: "Passed / Failed",
   heading:
-    "Glove Packing Check (Sampling code letter {codeLetters}) : min. {minLayeringPct}% layering & {minDispensingPct}% dispensing",
+    "Glove Packing Check (Sampling Code Letter {codeLetters}) : Min. {minLayeringPct}% Layering & {minDispensingPct}% Dispensing",
   itemColumn: "Item",
-  stickinessLegend: "**Glove stickiness Code",
+  stickinessLegend: "**Glove Stickiness Code",
 };
 
 /** More box rows than this per size is a typing slip, not a plan. */

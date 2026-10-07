@@ -3,6 +3,7 @@
 // controls are tested in components/qc; the calculations in calc.test.ts.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { sameWording } from "@/lib/coverage";
 import type { InspectionContext, ModuleEvaluation } from "@/modules/_framework";
 import { makeSampling, makeTestContext } from "@/modules/_framework/testing";
 import { cartonList, SAFEDON_DEFECTS, SAFEDON_EG_EXAMPLE } from "@/tests/fixtures/examples";
@@ -101,7 +102,10 @@ describe("dispensing_safedon capture", () => {
     expect(count(html, 'role="tab"')).toBe(4);
     for (const size of ORDERED) expect(html).toContain(`data-size="${size}"`);
     expect(html).not.toContain('data-size="XL"');
-    expect(html).toContain(EXAMPLE.printedTitle.replace("&", "&amp;"));
+    // The report's heading in Title Case (docs/DESIGN.md): its words, its code letters.
+    const heading = "Glove Dispensing Inspection (Sampling Code Letter C & D)";
+    expect(sameWording(EXAMPLE.printedTitle, heading)).toBe(true);
+    expect(html).toContain(heading.replace("&", "&amp;"));
   });
 
   it("has a box picker per planned column, holding the box numbers picked from the carton list", () => {
@@ -177,7 +181,7 @@ describe("dispensing_safedon capture", () => {
       expect(html).toContain(defect.label);
       expect(html).toContain(defect.hint);
     }
-    expect(html).toContain('aria-label="Increase No cuff, Box 33"');
+    expect(html).toContain('aria-label="Increase No Cuff, Box 33"');
     expect(html).toContain(
       'data-issue-path="[&quot;sizes&quot;,&quot;XS&quot;,&quot;boxes&quot;,4,&quot;counts&quot;,&quot;no_cuff&quot;]"',
     );
@@ -191,7 +195,7 @@ describe("dispensing_safedon capture", () => {
     expect(html).toContain("3 / 625 (0.48%)");
     expect(html).toContain("≤ 5%");
     expect(html).toContain('data-outcome="pass"');
-    for (const label of ["Defects / gloves per pack", "Defect rate", "Specification / Requirement", "Conclusion"]) {
+    for (const label of ["Defects / Gloves per Pack", "Defect Rate", "Specification / Requirement", "Conclusion"]) {
       expect(html).toContain(label);
     }
   });
@@ -201,7 +205,7 @@ describe("dispensing_safedon capture", () => {
     const partial = render({ data: { sizes: { ...data.sizes, XS: { boxes: data.sizes.XS.boxes.slice(0, 3) } } } });
     expect(partial).toContain('data-outcome="not_done"');
     expect(partial).toContain("3 of 5 boxes tested.");
-    expect(partial).toContain("Boxes tested: 3 / 5");
+    expect(partial).toContain("Boxes Tested: 3 / 5");
   });
 
   it("uses the template's wording and its defect list", () => {
@@ -214,13 +218,13 @@ describe("dispensing_safedon capture", () => {
     expect(html).toContain("Dispensing defects");
     expect(html).toContain('aria-label="Pack No., Column 1"');
     expect(html).toContain("Stuck in the pack");
-    expect(html).not.toContain("No cuff");
+    expect(html).not.toContain("No Cuff");
   });
 
   it("still renders, Not Done, when the engine could not compute the module", () => {
     const html = render({ broken: true });
     expect(html).toContain('data-outcome="not_done"');
-    expect(html).toContain("Sampling code letter —");
+    expect(html).toContain("Sampling Code Letter —");
     expect(html).toContain("1/125");
   });
 

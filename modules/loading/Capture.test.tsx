@@ -62,7 +62,7 @@ describe("loading capture", () => {
   it("shows every field in the template's wording, with the order's cartons computed", () => {
     const labels = { ...LOADING_LABELS, sealNo: "Bolt seal", cartonsOrdered: "PO cartons" };
     const html = render({}, { labels });
-    for (const label of ["Container no.", "Bolt seal", "Cartons loaded", "Carton condition"]) expect(html).toContain(label);
+    for (const label of ["Container No.", "Bolt seal", "Cartons Loaded", "Carton Condition"]) expect(html).toContain(label);
     expect(STD_EG_EXPECTED.totals.cartons).toBe(2900);
     expect(html).toMatch(/PO cartons:<span[^>]*>2,900<\/span>/);
     expect(html).toContain("All 2,900 Loaded");
@@ -71,20 +71,20 @@ describe("loading capture", () => {
   it("hides the fields the template switches off", () => {
     const config = { fields: { ...LOADING_DEFAULT_CONFIG.fields, sealNo: false, cartonCondition: false } };
     const html = render({}, { config });
-    expect(html).not.toContain("Seal no.");
-    expect(html).not.toContain("Carton condition");
-    expect(html).toContain("Container no.");
+    expect(html).not.toContain("Seal No.");
+    expect(html).not.toContain("Carton Condition");
+    expect(html).toContain("Container No.");
   });
 
   it("shows calc's warnings beside the container number and the cartons, as their fields' descriptions", () => {
     const html = render({ containerNo: "CSQU3054384", cartonsLoaded: 2850 });
     expect(html).toMatch(
-      /<input[^>]*aria-describedby="[^"]+-container-issue"[^>]*>.*?<p id="[^"]+-container-issue" class="[^"]*text-warn[^"]*">Container no\. CSQU3054384: the ISO 6346 check digit should be 3\./,
+      /<input[^>]*aria-describedby="[^"]+-container-issue"[^>]*>.*?<p id="[^"]+-container-issue" class="[^"]*text-warn[^"]*">Container No\. CSQU3054384: the ISO 6346 check digit should be 3\./,
     );
     // NumberField's warning, which describes the field with the count, in amber.
     expect(html).toMatch(/<input[^>]*aria-describedby="[^"]+-hint [^"]+-calc-warning"/);
     expect(html).toMatch(
-      /<div id="[^"]+-calc-warning"[^>]*text-warn[^>]*>.*?<span>Cartons loaded \(2,850\) does not match Cartons ordered \(2,900\): 50 short\.<\/span>/,
+      /<div id="[^"]+-calc-warning"[^>]*text-warn[^>]*>.*?<span>Cartons Loaded \(2,850\) does not match Cartons Ordered \(2,900\): 50 short\.<\/span>/,
     );
     expect(html).not.toContain("All 2,900 Loaded");
   });

@@ -116,7 +116,7 @@ describe("watertight", () => {
       const output = calcWatertight(fromExample(STD_EG_EXAMPLE));
       expect(STD_EG_EXAMPLE.watertight.printedTitle).toContain("k, L & M");
       expect(output.computed.heading).toBe(
-        "Freedom from Holes by watertight test (Single sampling code letter N, AQL 1.5)",
+        "Freedom From Holes by Watertight Test (Single Sampling Code Letter N, AQL 1.5)",
       );
       expect(printed).toEqual({ accept: 10, reject: 11 });
       expect([output.computed.sizes.M.accept, output.computed.sizes.M.reject]).toEqual([14, 15]);
@@ -142,9 +142,9 @@ describe("watertight", () => {
       expect(output.computed.aql).toBe(SAFEDON_EG_EXPECTED.watertight.XS?.aql);
       expect(output.computed.codeLetters).toBe("J & L");
       expect(output.computed.heading).toBe(
-        "Freedom from Holes by watertight test (Sampling code letter J & L; AQL=1.5)",
+        "Freedom From Holes by Watertight Test (Sampling Code Letter J & L; AQL=1.5)",
       );
-      expect(output.result.perSize?.L?.summary).toBe("1 / 80 (Glove burst 1), Defect Limit 3 / 4: Passed.");
+      expect(output.result.perSize?.L?.summary).toBe("1 / 80 (Glove Burst 1), Defect Limit 3 / 4: Passed.");
       expect(output.issues).toEqual([]);
     });
 
@@ -164,8 +164,8 @@ describe("watertight", () => {
       const output = calcWatertight(input({ M: { holes: { hole_finger: 1 } } }));
       expect(output.result).toEqual({
         status: "not_done",
-        summary: "Size M: not done, No. of sample tested missing (sampling plan: 500).",
-        perSize: { M: { status: "not_done", summary: "Missing: No. of sample tested (sampling plan: 500)." } },
+        summary: "Size M: not done, No. of Sample Tested missing (sampling plan: 500).",
+        perSize: { M: { status: "not_done", summary: "Missing: No. of Sample Tested (sampling plan: 500)." } },
       });
       expect(output.computed.sizes.M).toMatchObject({ tested: null, planned: 500, totalDefects: 1, result: "not_done" });
       expect(output.issues).toEqual([]);
@@ -178,7 +178,7 @@ describe("watertight", () => {
       });
       const output = calcWatertight(input({ M: { tested: 500 } }, { context }));
       expect(output.result.perSize).toEqual({
-        S: { status: "not_done", summary: "Missing: No. of sample tested (sampling plan: 200)." },
+        S: { status: "not_done", summary: "Missing: No. of Sample Tested (sampling plan: 200)." },
         M: { status: "pass", summary: "0 / 500, Defect Limit 14 / 15: Passed." },
       });
       expect(output.result.status).toBe("not_done");
@@ -240,7 +240,7 @@ describe("watertight", () => {
 
     it("refuses a sample of fewer than 2 gloves with an error linked to the field", () => {
       const output = calcWatertight(input({ M: { tested: 1 } }));
-      expect(output.result.perSize?.M).toEqual({ status: "not_done", summary: "No. of sample tested must be at least 2." });
+      expect(output.result.perSize?.M).toEqual({ status: "not_done", summary: "No. of Sample Tested must be at least 2." });
       expect(output.issues).toEqual([
         expect.objectContaining({ level: "error", code: "tested_too_small", size: "M", path: ["sizes", "M", "tested"] }),
       ]);
@@ -253,7 +253,7 @@ describe("watertight", () => {
         {
           level: "warning",
           code: "tested_not_planned",
-          message: "Size M: No. of sample tested is 315, but the sampling plan has 500 gloves for watertight and visual.",
+          message: "Size M: No. of Sample Tested is 315, but the sampling plan has 500 gloves for watertight and visual.",
           size: "M",
           path: ["sizes", "M", "tested"],
         },
@@ -516,9 +516,9 @@ describe("watertight", () => {
       expect(resolved.labels).toEqual({ ...defaultLabels("watertight"), ...labelOverrides(code, "watertight") });
     });
 
-    it("SAFEDON_EG words the holes 'Holes' and adds Glove burst; STD_SG splits hands", () => {
+    it("SAFEDON_EG words the holes 'Holes' and adds Glove Burst; STD_SG splits hands", () => {
       expect(watertightOf("SAFEDON_EG").labels.holes).toBe("Holes");
-      expect(watertightOf("SAFEDON_EG").config.locations).toContainEqual({ code: "glove_burst", label: "Glove burst" });
+      expect(watertightOf("SAFEDON_EG").config.locations).toContainEqual({ code: "glove_burst", label: "Glove Burst" });
       expect(watertightOf("STD_SG").config.handSplit).toBe(true);
     });
   });

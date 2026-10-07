@@ -3,14 +3,14 @@
 // minimum, standard label; plus the decimals the report prints).
 import { z } from "zod";
 
-export const FORCE_AT_BREAK_TITLE = "Force At Break in Newton (Refer to attached where applicable)";
+export const FORCE_AT_BREAK_TITLE = "Force at Break in Newton (Refer to Attached Where Applicable)";
 
 export const FORCE_AT_BREAK_LABEL_KEYS = ["values", "labReport", "median", "result", "rowNo", "specRow"] as const;
 export type ForceAtBreakLabelKey = (typeof FORCE_AT_BREAK_LABEL_KEYS)[number];
 
 export const FORCE_AT_BREAK_LABELS: Readonly<Record<ForceAtBreakLabelKey, string>> = {
-  values: "Force at break (N)",
-  labReport: "Lab report",
+  values: "Force at Break (N)",
+  labReport: "Lab Report",
   median: "Median",
   result: "Passed / Failed",
   /** The reading number column. */

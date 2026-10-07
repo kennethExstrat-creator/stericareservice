@@ -183,7 +183,7 @@ describe("SAFEDON_EG extends STD_EG", () => {
     expect(byKey.get("header")).toEqual({
       key: "header",
       include: true,
-      labels: { poNo: "PO Number", productName: "Product Name (Brand & code)" },
+      labels: { poNo: "PO Number", productName: "Product Name (Brand & Code)" },
       config: { fields: { client: false, factoryGloveCode: false }, mfgExpiryPrecision: "month" },
     });
     expect(byKey.get("weight")?.title).toBe("Weight (g)");

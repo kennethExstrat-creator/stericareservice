@@ -238,7 +238,7 @@ describe("validateInspection with the app's modules", () => {
       level: "error",
       moduleKey: "watertight",
       code: "invalid_data",
-      message: "Freedom from Holes by watertight test: size 7.0, right hand, Pin hole, hole_finger is not a number.",
+      message: "Freedom From Holes by Watertight Test: size 7.0, right hand, Pin Hole, hole_finger is not a number.",
       path: ["sizes", "7.0", "R", "holes", "hole_finger"],
     });
   });

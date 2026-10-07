@@ -94,32 +94,32 @@ describe("dye_leak capture", () => {
     );
     const html = render({ sizes }, { context });
     expect(tagsWith(html, 'role="tab"').map((tab) => /data-size="([^"]+)"/.exec(tab)?.[1])).toEqual(["M"]);
-    expect(html.match(/Pouches failed: 0 of 13\./g)).toHaveLength(1);
+    expect(html.match(/Pouches Failed: 0 of 13\./g)).toHaveLength(1);
     expect(html).not.toMatch(/aria-label="[^"]*Size (XS|S|L|XL)"/);
   });
 
   it("offers the plan and a one-tap clean result before anything is entered, never a 0", () => {
     const html = render({ sizes: {} });
-    expect(html).toMatch(/Pouches planned:<span data-slot="figure"[^>]*>13<\/span>/);
+    expect(html).toMatch(/Pouches Planned:<span data-slot="figure"[^>]*>13<\/span>/);
     // The totals are dashes ("No value") until a count is entered.
-    for (const label of ["Pouches tested", "Pouches failed"]) {
+    for (const label of ["Pouches Tested", "Pouches Failed"]) {
       expect(html).toMatch(new RegExp(`${label}</dt><dd[^>]*><span data-slot="figure" data-empty=""`));
     }
     expect(html).toContain("13 as Planned");
     expect(html).toContain("No Leaks");
     expect(html).not.toContain('role="spinbutton"');
     // Named with the count and the size, since every size's buttons may be on screen at once.
-    expect(html).toContain('aria-label="13 as Planned, Pouches tested, Size 6.5"');
-    expect(html).toContain('aria-label="No Leaks, Pouches failed, Size 7.0"');
+    expect(html).toContain('aria-label="13 as Planned, Pouches Tested, Size 6.5"');
+    expect(html).toContain('aria-label="No Leaks, Pouches Failed, Size 7.0"');
   });
 
   it("counts entered values with steppers named by size, and lists the totals", () => {
     const html = render({ sizes: { "6.5": { pouchesTested: 13, pouchesFailed: 1, notes: "Channel at the seal." } } });
-    expect(html).toContain('aria-label="Pouches failed, Size 6.5"');
+    expect(html).toContain('aria-label="Pouches Failed, Size 6.5"');
     expect(html).toContain('aria-valuenow="1"');
     expect(html).toContain("Channel at the seal.");
-    expect(html).toContain("Pouches failed: 1 of 13.");
-    expect(html).toMatch(/Pouches tested<\/dt><dd[^>]*><span[^>]*>13<\/span>/);
+    expect(html).toContain("Pouches Failed: 1 of 13.");
+    expect(html).toMatch(/Pouches Tested<\/dt><dd[^>]*><span[^>]*>13<\/span>/);
   });
 
   it("speaks the template's wording", () => {
@@ -128,15 +128,15 @@ describe("dye_leak capture", () => {
     expect(html).toContain("Pouches dyed");
     expect(html).toContain("Leaking pouches");
     expect(html).toContain("Remarks");
-    expect(html).not.toContain("Pouches tested");
+    expect(html).not.toContain("Pouches Tested");
     const planned = render({ sizes: {} }, { labels: { ...DYE_LEAK_LABELS, pouchesPlanned: "Pouches to dye" } });
     expect(planned).toContain("Pouches to dye:");
-    expect(planned).not.toContain("Pouches planned");
+    expect(planned).not.toContain("Pouches Planned");
   });
 
   it("shows the plan from the sampling plan, else config n, else none", () => {
     const planned = (html: string) =>
-      Array.from(html.matchAll(/Pouches planned:<span data-slot="figure"([^>]*)>(.*?)<\/span>/g), (match) =>
+      Array.from(html.matchAll(/Pouches Planned:<span data-slot="figure"([^>]*)>(.*?)<\/span>/g), (match) =>
         match[1].includes("data-empty") ? null : match[2],
       );
     // The sampling plan's 13 wins where it is set.
@@ -150,13 +150,13 @@ describe("dye_leak capture", () => {
 
   it("shows an error from calc under the count it points at", () => {
     const html = render({ sizes: { "6.5": { pouchesTested: 2, pouchesFailed: 3, notes: null } } });
-    expect(html).toContain("Size 6.5: Pouches failed (3) is more than Pouches tested (2).");
+    expect(html).toContain("Size 6.5: Pouches Failed (3) is more than Pouches Tested (2).");
     expect(html).toContain('data-issue-path="[&quot;sizes&quot;,&quot;6.5&quot;,&quot;pouchesFailed&quot;]"');
   });
 
   it("still renders, with the plan from the context, when calc could not run", () => {
     const html = render({ sizes: {} }, { broken: true });
-    expect(html).toMatch(/Pouches planned:<span data-slot="figure"[^>]*>13<\/span>/);
+    expect(html).toMatch(/Pouches Planned:<span data-slot="figure"[^>]*>13<\/span>/);
     expect(html).toContain("No value");
   });
 
@@ -166,7 +166,7 @@ describe("dye_leak capture", () => {
     expect(html).not.toContain("as Planned");
     expect(html).not.toContain("Clear Pouches");
     expect(html).not.toContain('role="spinbutton"');
-    expect(html).toMatch(/Pouches failed<\/span><span data-slot="figure"[^>]*>0<\/span>/);
+    expect(html).toMatch(/Pouches Failed<\/span><span data-slot="figure"[^>]*>0<\/span>/);
     // Size 7.0 has nothing entered: a dash read as "No value", never a 0.
     expect(html).toContain("No value");
     const textareas = Array.from(html.matchAll(/<textarea[^>]*>/g), (match) => match[0]);

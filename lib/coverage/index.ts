@@ -26,3 +26,4 @@ export * from "./defects";
 export * from "./merge";
 export * from "./templates";
 export { SOURCE_DOCUMENTS, SOURCE_FIELDS, sourceFields, type SourceDocument } from "./sources";
+export { appWording, sameWording, targetLabel } from "./wording";

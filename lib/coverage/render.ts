@@ -24,6 +24,7 @@ import {
   type SourceTarget,
   type TemplateCode,
 } from "./types";
+import { appWording } from "./wording";
 
 /* ------------------------------------------------------------------ *
  * Markdown helpers
@@ -463,7 +464,7 @@ function renderCoverage(): string {
         fields.map((field) => [
           cell(field.section),
           cell(field.label),
-          cell(field.corrected),
+          cell(appWording(field)),
           field.input,
           field.targets.map(describeTarget).join("<br>"),
           cell(field.notes),

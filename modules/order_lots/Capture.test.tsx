@@ -69,8 +69,8 @@ describe("order_lots capture", () => {
   });
 
   it("heads the columns in the template's wording (6.2 rule 11)", () => {
-    const html = render(STD_EG_EXAMPLE, { labels: { ...ORDER_LOTS_LABELS, qtyCases: "Qty (case)" } });
-    expect(html).toContain(">Qty (case)</th>");
+    const html = render(STD_EG_EXAMPLE, { labels: { ...ORDER_LOTS_LABELS, qtyCases: "Qty (Case)" } });
+    expect(html).toContain(">Qty (Case)</th>");
     expect(html).toContain(">Lot Number</th>");
     expect(html).not.toContain(">Packing Site</th>");
     expect(render(SAFEDON_EG_EXAMPLE)).toContain(">Packing Site</th>");
@@ -81,7 +81,7 @@ describe("order_lots capture", () => {
     const cells = tagsWith(html, 'data-enter-group="qty"');
     expect(cells).toHaveLength(5);
     for (const cell of cells) expect(cell).toContain('inputMode="decimal"');
-    expect(html).toContain('aria-label="Qty (cases), Size M"');
+    expect(html).toContain('aria-label="Qty (Cases), Size M"');
     expect(cells.find((cell) => cell.includes("Size M"))).toContain('value="2900"');
   });
 
@@ -129,8 +129,8 @@ describe("order_lots capture", () => {
     expect(html).toContain("1,530");
     expect(html).toContain("3,060,000");
     expect(html).toContain("1,700,000");
-    expect(html).toContain(">Total # carton<");
-    expect(html).toContain(">Total # gloves<");
+    expect(html).toContain(">Total # Carton<");
+    expect(html).toContain(">Total # Gloves<");
     expect(tagsOf(html, "input").some((input) => input.includes("1,530") || input.includes("1530"))).toBe(false);
   });
 

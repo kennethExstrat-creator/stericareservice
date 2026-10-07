@@ -83,15 +83,15 @@ describe("labeling capture", () => {
     const html = render({ sizes: {} });
     expect(html).toContain('aria-label="Record 3 boxes inspected: Dispenser Box, Size M"');
     expect(html).toContain('aria-label="Record 1 box inspected: Carton Box, Size M"');
-    expect(html).not.toContain('aria-label="No. of sampled boxes inspected');
+    expect(html).not.toContain('aria-label="No. of Sampled Boxes Inspected');
     // The defect counters are there from the start: a defect can be tapped before the count.
-    expect(html).toContain('aria-label="Wrong / No lot number, Dispenser Box, Size M"');
+    expect(html).toContain('aria-label="Wrong / No Lot Number, Dispenser Box, Size M"');
   });
 
   it("counts the boxes inspected on a stepper once recorded", () => {
     const html = render(RECORDED);
     expect(html).not.toContain("Record 3");
-    expect(html).toMatch(/role="spinbutton"[^>]*aria-label="No. of sampled boxes inspected, Dispenser Box, Size M"[^>]*aria-valuenow="3"/);
+    expect(html).toMatch(/role="spinbutton"[^>]*aria-label="No. of Sampled Boxes Inspected, Dispenser Box, Size M"[^>]*aria-valuenow="3"/);
   });
 
   it("speaks the template's words: levels, checks, captions and the disposition line", () => {
@@ -99,12 +99,12 @@ describe("labeling capture", () => {
     for (const text of [
       "Inner Boxes/Packs",
       "Carton Boxes",
-      "Wrong / No expiry date",
-      "No carton number",
+      "Wrong / No Expiry Date",
+      "No Carton Number",
       "Limit : Accept / Reject",
       "Disposition - Inner Box (Passed / Failed)",
       "Disposition - Carton Box (Passed / Failed)",
-      "Total number of defects found",
+      "Total Number of Defects Found",
     ]) {
       expect(html).toContain(text);
     }

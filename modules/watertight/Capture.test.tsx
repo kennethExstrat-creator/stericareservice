@@ -98,7 +98,7 @@ describe("watertight capture", () => {
   it("counts by location in the template's order and wording, with calc's limits, totals and chips", () => {
     const html = safedon();
     expect(html).toContain(">Holes<");
-    for (const label of ["Between fingers", "Palm", "Cuff", "Finger", "Glove burst", "Other :"]) {
+    for (const label of ["Between Fingers", "Palm", "Cuff", "Finger", "Glove Burst", "Other :"]) {
       expect(html).toContain(`aria-label="Increase ${label}, Size XS"`);
     }
     // The limit row in the template's words (labels accept, reject), not the kit's Ac / Re.
@@ -107,9 +107,9 @@ describe("watertight capture", () => {
     expect(html).not.toContain("Ac 3 / Re 4");
     expect(totals(html)).toEqual([1, 0, 0, 1]);
     expect(tagsWith(html, 'data-slot="status-pill"').every((pill) => pill.includes('data-status="pass"'))).toBe(true);
-    expect(html).toContain("Sampling code letter J &amp; L · AQL 1.5");
-    expect(html).toContain("Total number of defects found");
-    expect(html).toContain("Freedom from holes (Passed / Failed)");
+    expect(html).toContain("Sampling Code Letter J &amp; L · AQL 1.5");
+    expect(html).toContain("Total Number of Defects Found");
+    expect(html).toContain("Freedom From Holes (Passed / Failed)");
   });
 
   it("offers the sampling plan's n until the gloves tested are entered", () => {
@@ -143,7 +143,7 @@ describe("watertight capture", () => {
     expect(tagsWith(html, 'data-slot="size-tabs"')[0]).toContain("data-side-by-side");
     // One element in the flex Label, so ", Size M" follows the text with no gap when it shows.
     expect(html).toMatch(
-      /<label[^>]*><span>No\. of sample tested<span class="sr-only xl:not-sr-only">, Size M<\/span><\/span><\/label>/,
+      /<label[^>]*><span>No\. of Sample Tested<span class="sr-only xl:not-sr-only">, Size M<\/span><\/span><\/label>/,
     );
   });
 
@@ -154,12 +154,12 @@ describe("watertight capture", () => {
     expect(warnings(short)).toMatch(/<span>Size M: A sample of 50 is too small for AQL 0\.65/);
     const unplanned = render({ sizes: { M: { tested: 315 } }, context: M_500() });
     expect(warnings(unplanned)).toContain(
-      "<span>Size M: No. of sample tested is 315, but the sampling plan has 500 gloves for watertight and visual.</span>",
+      "<span>Size M: No. of Sample Tested is 315, but the sampling plan has 500 gloves for watertight and visual.</span>",
     );
     // The field is described by them.
     expect(unplanned).toMatch(/<input[^>]*aria-describedby="[^"]*-calc-warning"/);
     const tooFew = render({ sizes: { M: { tested: 1 } }, context: M_500() });
-    expect(tooFew).toMatch(/class="text-sm text-fail[^"]*">Size M: No\. of sample tested must be at least 2 for an AQL plan\.</);
+    expect(tooFew).toMatch(/class="text-sm text-fail[^"]*">Size M: No\. of Sample Tested must be at least 2 for an AQL plan\.</);
   });
 
   it("splits each size into right and left hands with a hand toggle (surgical templates)", () => {
@@ -182,7 +182,7 @@ describe("watertight capture", () => {
     const html = render({ sizes: { M: { tested: 500, unmapped: [{ label: "Near the thumb", count: 2 }] } }, context: M_500() });
     expect(tagsWith(html, 'data-unmapped="true"')).toHaveLength(1);
     expect(html).toContain("Near the thumb<span class=\"sr-only\"> (unmapped label)</span>");
-    expect(html).toContain("Defect not in the list");
+    expect(html).toContain("Defect Not in the List");
     expect(totals(html)).toEqual([2]);
     // With holes counted it cannot be taken off; one added by mistake can, unless read-only.
     expect(html).not.toContain("Remove Near the thumb");
@@ -193,11 +193,11 @@ describe("watertight capture", () => {
 
   it("asks where the holes under 'Other :' were, showing calc's note", () => {
     const html = render({ sizes: { M: { tested: 500, holes: { hole_other: 1 } } }, context: M_500() });
-    expect(html).toContain("Other : description");
+    expect(html).toContain("Other : Description");
     // The size it is for, in the label: Title Case, as the app's labels are.
     expect(html).toContain(">(Size M)</span>");
     expect(html).toContain("Size M: 1 hole under &quot;Other :&quot; without saying where.");
-    expect(render({ sizes: { M: { tested: 500 } }, context: M_500() })).not.toContain("Other : description");
+    expect(render({ sizes: { M: { tested: 500 } }, context: M_500() })).not.toContain("Other : Description");
   });
 
   it("names the hand too where the template splits hands, as the hand toggle names it", () => {
@@ -218,7 +218,7 @@ describe("watertight capture", () => {
   it("is read-only for an approved inspection: numbers, no steppers or buttons to change them", () => {
     const html = render({ sizes: { M: { tested: 500, holes: { hole_finger: 1, hole_other: 1 } } }, context: M_500(), readOnly: true });
     expect(html).not.toContain('role="spinbutton"');
-    expect(html).not.toContain("Defect not in the list");
+    expect(html).not.toContain("Defect Not in the List");
     expect(html).not.toContain("Use 500");
     const inputs = html.match(/<input[^>]*>/g) ?? [];
     expect(inputs.length).toBeGreaterThan(0);

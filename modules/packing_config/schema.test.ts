@@ -103,8 +103,8 @@ describe("packing_config wording", () => {
     expect(PACKING_CONFIG_TITLE).toBe(moduleTitle("STD_EG", "packing_config"));
     expect({ ...PACKING_CONFIG_LABELS }).toEqual(defaultLabels("packing_config"));
     expect(labelOverrides("SAFEDON_EG", "packing_config")).toEqual({
-      glovesPerInner: "# glove per plastic pack",
-      innersPerCase: "# packs per case",
+      glovesPerInner: "# Glove per Plastic Pack",
+      innersPerCase: "# Packs per Case",
     });
   });
 });

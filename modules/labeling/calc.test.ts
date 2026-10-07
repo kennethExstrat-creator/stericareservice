@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { labelOverrides, moduleConfig } from "@/lib/coverage";
+import { labelOverrides, moduleConfig, sameWording } from "@/lib/coverage";
 import { STATUS_LABEL } from "@/lib/design/status";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import { evaluateInspection, type CalcInput, type InspectionContext } from "@/modules/_framework";
@@ -107,13 +107,17 @@ describe("labeling", () => {
       expect(output.issues).toEqual([]);
     });
 
-    it("prints the reports' check rows from each template's config, expiry date on SAFEDON_EG only", () => {
-      const rows = (config: LabelingConfig, level: "inner" | "carton") =>
-        config.levels[level].checks.map((check) => ({ code: check.code, label: checkLabel({}, level, check) }));
-      expect(rows(LABELING_DEFAULT_CONFIG, "inner")).toEqual(STD_EG_EXAMPLE.labeling.inner.rows);
-      expect(rows(LABELING_DEFAULT_CONFIG, "carton")).toEqual(STD_EG_EXAMPLE.labeling.carton.rows);
-      expect(rows(SAFEDON_CONFIG, "inner")).toEqual(SAFEDON_EG_EXAMPLE.labeling.inner.rows);
-      expect(rows(SAFEDON_CONFIG, "carton")).toEqual(SAFEDON_EG_EXAMPLE.labeling.carton.rows);
+    it("prints the reports' check rows from each template's config, in Title Case, expiry date on SAFEDON_EG only", () => {
+      const printsRows = (config: LabelingConfig, level: "inner" | "carton", printed: readonly { code: string; label: string }[]) => {
+        const rows = config.levels[level].checks.map((check) => ({ code: check.code, label: checkLabel({}, level, check) }));
+        expect(rows.map((row) => row.code)).toEqual(printed.map((row) => row.code));
+        // The report's words, their first letters in capitals (docs/DESIGN.md).
+        rows.forEach((row, index) => expect(sameWording(printed[index].label, row.label), row.label).toBe(true));
+      };
+      printsRows(LABELING_DEFAULT_CONFIG, "inner", STD_EG_EXAMPLE.labeling.inner.rows);
+      printsRows(LABELING_DEFAULT_CONFIG, "carton", STD_EG_EXAMPLE.labeling.carton.rows);
+      printsRows(SAFEDON_CONFIG, "inner", SAFEDON_EG_EXAMPLE.labeling.inner.rows);
+      printsRows(SAFEDON_CONFIG, "carton", SAFEDON_EG_EXAMPLE.labeling.carton.rows);
     });
 
     it("computes what both reports print per level and size: heading, limit, total and disposition", () => {
@@ -224,7 +228,7 @@ describe("labeling", () => {
       const output = calcLabeling(input(sizeM({ carton: level({ inspected: 1, defects: { carton_no: 1 } }) })));
       expect(output.result).toEqual({
         status: "fail",
-        summary: "Failed: size M Carton Box 1 defect (No carton number printed 1).",
+        summary: "Failed: size M Carton Box 1 defect (No Carton Number Printed 1).",
         perSize: { M: { status: "fail", summary: "Dispenser Box: 0 defects in 3; Carton Box: 1 defect in 1." } },
       });
       expect(output.computed.sizes.M.carton).toEqual({ accept: 0, reject: 1, total: 1, result: "fail" });
@@ -236,7 +240,7 @@ describe("labeling", () => {
       const output = calcLabeling(input(sizeM({ inner: level({ inspected: 3, defects }) })));
       expect(output.computed.sizes.M.inner.total).toBe(4);
       expect(output.result.summary).toBe(
-        "Failed: size M Dispenser Box 4 defects (Wrong / No lot number 1, Wrong / No mfg. date 2, Wrong artwork print 1).",
+        "Failed: size M Dispenser Box 4 defects (Wrong / No Lot Number 1, Wrong / No Mfg. Date 2, Wrong Artwork Print 1).",
       );
     });
 
@@ -283,7 +287,7 @@ describe("labeling", () => {
       );
       expect(output.result.status).toBe("fail");
       expect(output.result.summary).toBe(
-        "Failed: size M Dispenser Box 1 defect (Wrong artwork print 1). Not recorded: size S (Dispenser Box, Carton Box).",
+        "Failed: size M Dispenser Box 1 defect (Wrong Artwork Print 1). Not recorded: size S (Dispenser Box, Carton Box).",
       );
     });
 
@@ -294,7 +298,7 @@ describe("labeling", () => {
       expect(levelTotal(LABELING_DEFAULT_CONFIG.levels.inner, data.sizes.M.inner)).toBe(0);
       // SAFEDON_EG checks it at both levels.
       const safedon = calcLabeling(input(data, { config: SAFEDON_CONFIG, labels: SAFEDON_LABELS }));
-      expect(safedon.result.summary).toBe("Failed: size M Inner Boxes/Packs 2 defects (Wrong / No expiry date 2).");
+      expect(safedon.result.summary).toBe("Failed: size M Inner Boxes/Packs 2 defects (Wrong / No Expiry Date 2).");
     });
   });
 
@@ -427,7 +431,7 @@ describe("labeling", () => {
       {
         level: "warning",
         code: "defects_exceed_inspected",
-        message: "Carton Box, size M: 2 × Wrong / No lot number found in 1 box inspected.",
+        message: "Carton Box, size M: 2 × Wrong / No Lot Number found in 1 box inspected.",
         size: "M",
         path: ["sizes", "M", "carton", "defects", "lot_no"],
       },
@@ -454,12 +458,12 @@ describe("labeling", () => {
 
     it("lets a template reword a check by its code, per level or for both", () => {
       const check = LABELING_DEFAULT_CONFIG.levels.carton.checks[0];
-      expect(checkLabel({}, "carton", check)).toBe("Wrong / No lot number");
+      expect(checkLabel({}, "carton", check)).toBe("Wrong / No Lot Number");
       expect(checkLabel({ lot_no: "Lot no. wrong" }, "carton", check)).toBe("Lot no. wrong");
       expect(checkLabel({ lot_no: "Lot no. wrong", "carton.lot_no": "Carton lot no. wrong" }, "carton", check)).toBe(
         "Carton lot no. wrong",
       );
-      expect(checkLabel({ "carton.lot_no": " " }, "carton", check)).toBe("Wrong / No lot number");
+      expect(checkLabel({ "carton.lot_no": " " }, "carton", check)).toBe("Wrong / No Lot Number");
     });
 
     it("words each level's disposition line its own way, else as the field", () => {
@@ -492,7 +496,7 @@ describe("labeling", () => {
     expect(labeling).toMatchObject({
       title: "Packaging Labeling Inspection",
       comment: "Expiry date smudged on one carton.",
-      result: { status: "fail", summary: "Failed: size M Carton Boxes 1 defect (Wrong / No expiry date 1)." },
+      result: { status: "fail", summary: "Failed: size M Carton Boxes 1 defect (Wrong / No Expiry Date 1)." },
       computed: { sizes: { M: { carton: { accept: 0, reject: 1, total: 1, result: "fail" } } } },
     });
     expect(labeling.issues).toEqual([

@@ -84,7 +84,7 @@ describe("weight capture, 13 gloves per size (STD_EG)", () => {
 
   it("shows the deviation from the indicative weight as a warning", () => {
     const note = html.slice(html.indexOf('data-slot="weight-deviation"'));
-    expect(note).toContain("Deviation from indicative weight, Size M");
+    expect(note).toContain("Deviation From Indicative Weight, Size M");
     expect(note).toContain("-17.1");
     expect(note).toContain("Indicative 3.5 g, Threshold 10%");
     expect(tags(note, 'data-slot="status-pill"')[0]).toContain('data-status="warn"');

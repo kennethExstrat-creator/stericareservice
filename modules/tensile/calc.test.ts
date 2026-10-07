@@ -100,7 +100,7 @@ describe("tensile", () => {
         {
           level: "warning",
           code: "lab_report_missing",
-          message: "Lab report: the file attached here is not among this inspection's files. It may still be uploading from another device; if it was deleted, attach it again.",
+          message: "Lab Report: the file attached here is not among this inspection's files. It may still be uploading from another device; if it was deleted, attach it again.",
           path: ["labReport"],
         },
       ]);
@@ -125,7 +125,7 @@ describe("tensile", () => {
     it("is not done until the lab report is attached: it is required (BUILD_SPEC 6.1)", () => {
       const output = calcTensile(input(exampleSizes, { at: exampleContext, labReport: null }));
       expect(output.result.status).toBe("not_done");
-      expect(output.result.summary).toMatch(/≥ 14\.00 MPa \/ ≥ 500%\. Lab report not attached\.$/);
+      expect(output.result.summary).toMatch(/≥ 14\.00 MPa \/ ≥ 500%\. Lab Report not attached\.$/);
       // The averages themselves still pass.
       for (const size of ordered) expect(output.result.perSize?.[size]?.status).toBe("pass");
       expect(output.computed.labReportAttached).toBe(false);
@@ -183,7 +183,7 @@ describe("tensile", () => {
     const output = calcTensile(input({ S: { tensileStrength: 12.5, elongationAtBreak: 547 } }, { labReport: null }));
     expect(output.result.status).toBe("fail");
     expect(output.result.summary).toBe(
-      "Size S: 12.50 MPa (below 14.00 MPa) / 547%. Spec. (ASTM D6319) ≥ 14.00 MPa / ≥ 500%. Lab report not attached.",
+      "Size S: 12.50 MPa (below 14.00 MPa) / 547%. Spec. (ASTM D6319) ≥ 14.00 MPa / ≥ 500%. Lab Report not attached.",
     );
   });
 
@@ -217,7 +217,7 @@ describe("tensile", () => {
   it("names only what is missing when nothing is judged yet", () => {
     expect(calcTensile(input({}, { at: context(["M"]), labReport: null })).result).toEqual({
       status: "not_done",
-      summary: "Size M: not entered. Lab report not attached.",
+      summary: "Size M: not entered. Lab Report not attached.",
       perSize: { M: { status: "not_done", summary: "not entered" } },
     });
   });
@@ -235,7 +235,7 @@ describe("tensile", () => {
       {
         level: "error",
         code: "elongation_not_positive",
-        message: "Size M: Elongation at break, average (%) must be more than 0, not -5.",
+        message: "Size M: Elongation at Break, Average (%) must be more than 0, not -5.",
         size: "M",
         path: ["sizes", "M", "elongationAtBreak"],
       },
@@ -305,7 +305,7 @@ describe("tensile", () => {
           expect.objectContaining({
             level: "warning",
             code: "module_not_done",
-            message: `${TENSILE_TITLE} is not done: Size M: 34.18 MPa / 536%. Spec. (ASTM D6319) ≥ 14.00 MPa / ≥ 500%. Lab report not attached.`,
+            message: `${TENSILE_TITLE} is not done: Size M: 34.18 MPa / 536%. Spec. (ASTM D6319) ≥ 14.00 MPa / ≥ 500%. Lab Report not attached.`,
             path: ["labReport"],
           }),
         ],

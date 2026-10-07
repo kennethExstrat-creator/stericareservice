@@ -19,17 +19,17 @@ export type LoadingStage = (typeof LOADING_STAGES)[number];
 export const LOADING_LABELS: Readonly<
   Record<LoadingField | LoadingStage | "cartonsOrdered" | "cartonsDifference" | "loadingStage", string>
 > = {
-  containerNo: "Container no.",
-  sealNo: "Seal no.",
-  cartonsLoaded: "Cartons loaded",
-  cartonCondition: "Carton condition",
-  cartonsOrdered: "Cartons ordered",
-  cartonsDifference: "Cartons loaded less ordered",
-  loadingStage: "Loading stage",
-  emptyContainer: "Empty container",
-  halfLoaded: "Half loaded",
-  fullyLoaded: "Fully loaded",
-  doorsClosed: "Doors closed",
+  containerNo: "Container No.",
+  sealNo: "Seal No.",
+  cartonsLoaded: "Cartons Loaded",
+  cartonCondition: "Carton Condition",
+  cartonsOrdered: "Cartons Ordered",
+  cartonsDifference: "Cartons Loaded Less Ordered",
+  loadingStage: "Loading Stage",
+  emptyContainer: "Empty Container",
+  halfLoaded: "Half Loaded",
+  fullyLoaded: "Fully Loaded",
+  doorsClosed: "Doors Closed",
   sealed: "Sealed",
 };
 

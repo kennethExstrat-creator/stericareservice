@@ -6,12 +6,12 @@ import { z } from "zod";
 import { CanonicalSizeSchema } from "@/lib/sizes";
 import { SpecSchema } from "@/modules/_framework";
 
-export const WEIGHT_TITLE = "Weight (g) - average of 13 gloves per size";
+export const WEIGHT_TITLE = "Weight (g) - Average of 13 Gloves per Size";
 
 export const WEIGHT_LABELS = {
   values: "Weight (g)",
   average: "Average",
-  deviationPct: "Deviation from indicative weight",
+  deviationPct: "Deviation From Indicative Weight",
   /** The result row: "A / Rej." on SAFEDON_EG. */
   result: "Remark",
   /** Printed for a result with no spec: "A" on SAFEDON_EG. */

@@ -126,14 +126,14 @@ Report module, always on. Captures: Manufacturer and factory address, PO, produc
 | `manufacturer` | Manufacturer / Supplier | STD_SG: Manufacturer Name | reference |  | inspection | entered |  | Column `inspections.manufacturer_id`. Picked on /inspections/new, where it resolves the template (BUILD_SPEC 4.4). Shown as the manufacturer's name with the factory name in brackets, as the reports print it (manufacturers.name, factory_name). |
 | `factoryAddress` | Supplier Factory Address / Location |  | textarea |  | inspection | entered |  | Prefilled from manufacturers.address of the picked manufacturer. |
 | `poNo` | PO / SO Number | SAFEDON_EG: PO Number<br>STD_SG: Purchase/Sales Order No. | text |  | inspection | entered | 10 | Column `inspections.po_no`. One text value as printed: the PO with the SO or the client's own reference in brackets. Entered once, reused everywhere (rule 10). |
-| `productName` | Product Name (Brand, code & description) | SAFEDON_EG: Product Name (Brand & code)<br>STD_SG: Product Name | textarea |  | inspection | entered | 10 | Column `inspections.product_name`. Brand, product code and description in one value, as printed (up to two lines), so the report keeps the source's wording. |
-| `productCode` | Product code |  | text |  | inspection | entered | 10 | The product code on its own, entered once and reused everywhere: export, report header, file names (rule 10). The STD_EG example printed HN91 in the report but GN91 in the file name; one field prevents that. Feeds HeaderValues.productCode in the inspection context. |
+| `productName` | Product Name (Brand, Code & Description) | SAFEDON_EG: Product Name (Brand & Code)<br>STD_SG: Product Name | textarea |  | inspection | entered | 10 | Column `inspections.product_name`. Brand, product code and description in one value, as printed (up to two lines), so the report keeps the source's wording. |
+| `productCode` | Product Code |  | text |  | inspection | entered | 10 | The product code on its own, entered once and reused everywhere: export, report header, file names (rule 10). The STD_EG example printed HN91 in the report but GN91 in the file name; one field prevents that. Feeds HeaderValues.productCode in the inspection context. |
 | `client` | Client Name |  | reference |  | inspection | entered | 10 | Column `inspections.client_id`. Picked on /inspections/new; may be empty. SAFEDON_EG prints the client as the report logo (clients.logo_path) instead of a row. |
-| `factoryGloveCode` | Factory glove code |  | text |  | inspection | entered |  | Printed 'Factrory glove code' [sic]. |
-| `inspectionDate` | Inspection date | STD_SG: Date | date |  | inspection | entered | 3 | Prefilled from today in Malaysia (the column default). Column `inspections.inspection_date`. |
-| `mfgDate` | Manufacturing date | STD_SG: Mfg Date | date |  | inspection | entered | 3 | The onsite forms have one 'Mfg / Exp Date' box; the app splits it into mfgDate and expiryDate. Precision: config mfgExpiryPrecision. |
-| `expiryDate` | Expiry date | STD_SG: Exp Date | date |  | inspection | entered | 3 | The module warns when it is not after mfgDate. |
-| `inspector` | Inspected by |  | reference |  | inspection | system | 11 | Column `inspections.inspector_id`. The logged-in inspector, always recorded (rule 11). config fields.inspector only shows or hides the row: the STD_EG report prints none, the onsite forms and the SAFEDON_EG report do. |
+| `factoryGloveCode` | Factory Glove Code |  | text |  | inspection | entered |  | Printed 'Factrory glove code' [sic]. |
+| `inspectionDate` | Inspection Date | STD_SG: Date | date |  | inspection | entered | 3 | Prefilled from today in Malaysia (the column default). Column `inspections.inspection_date`. |
+| `mfgDate` | Manufacturing Date | STD_SG: Mfg Date | date |  | inspection | entered | 3 | The onsite forms have one 'Mfg / Exp Date' box; the app splits it into mfgDate and expiryDate. Precision: config mfgExpiryPrecision. |
+| `expiryDate` | Expiry Date | STD_SG: Exp Date | date |  | inspection | entered | 3 | The module warns when it is not after mfgDate. |
+| `inspector` | Inspected By |  | reference |  | inspection | system | 11 | Column `inspections.inspector_id`. The logged-in inspector, always recorded (rule 11). config fields.inspector only shows or hides the row: the STD_EG report prints none, the onsite forms and the SAFEDON_EG report do. |
 
 | Config key | Type | Default | Meaning |
 |---|---|---|---|
@@ -150,10 +150,10 @@ Report module. Captures: Surface texture, indicative weight (size M, g), colour 
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `surfaceTexture` | Glove surface texture |  | text |  | inspection | entered |  |  |
-| `indicativeWeight` | Indicative weight (size M) |  | decimal | g | inspection | entered | 1, 9 | Weight of one glove of the size in config indicativeWeightSize ('(size M)' in the label). The weight module compares that size's average with it (rule 9). |
-| `colour` | Glove colour |  | text |  | inspection | entered |  |  |
-| `length` | Glove length |  | text |  | inspection | entered |  | Free text as printed (a minimum length in mm). The measured length and its spec are in dimensions. |
+| `surfaceTexture` | Glove Surface Texture |  | text |  | inspection | entered |  |  |
+| `indicativeWeight` | Indicative Weight (Size M) |  | decimal | g | inspection | entered | 1, 9 | Weight of one glove of the size in config indicativeWeightSize ('(Size M)' in the label). The weight module compares that size's average with it (rule 9). |
+| `colour` | Glove Colour |  | text |  | inspection | entered |  |  |
+| `length` | Glove Length |  | text |  | inspection | entered |  | Free text as printed (a minimum length in mm). The measured length and its spec are in dimensions. |
 
 | Config key | Type | Default | Meaning |
 |---|---|---|---|
@@ -166,12 +166,12 @@ Report module. Captures: Per size: quantity in cases, lot numbers and packing si
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `qtyCases` | Qty (cases) | STD_SG: Qty (case) | integer |  | size | entered | 1, 4 | Counts cases. A size with a quantity is ordered: only ordered sizes appear in any module (rule 4). The sampling plan's 'Order Qty (case)' column shows this value again. |
+| `qtyCases` | Qty (Cases) | STD_SG: Qty (Case) | integer |  | size | entered | 1, 4 | Counts cases. A size with a quantity is ordered: only ordered sizes appear in any module (rule 4). The sampling plan's 'Order Qty (Case)' column shows this value again. |
 | `lotNumbers` | Lot Number |  | text_list |  | size | entered |  | Column `inspections.lot_numbers (copy, for search)`. One or more lots per size. The onsite forms have one box for all lots of the order. |
 | `packingSite` | Packing Site |  | text |  | size | entered |  | One per size row, as printed (SAFEDON_EG). config fields.packingSite switches it on. |
-| `lotSizeGloves` | Lot size (gloves) |  | integer | pcs | size | **computed** | 2 | qtyCases × packing_config.glovesPerCase. The lot size the AQL plan starts from (BUILD_SPEC 7). |
-| `totalCartons` | Total # carton |  | integer |  | inspection | **computed** | 2 | Sum of qtyCases. Counts cases. |
-| `totalGloves` | Total # gloves |  | integer | pcs | inspection | **computed** | 2 | totalCartons × packing_config.glovesPerCase. |
+| `lotSizeGloves` | Lot Size (Gloves) |  | integer | pcs | size | **computed** | 2 | qtyCases × packing_config.glovesPerCase. The lot size the AQL plan starts from (BUILD_SPEC 7). |
+| `totalCartons` | Total # Carton |  | integer |  | inspection | **computed** | 2 | Sum of qtyCases. Counts cases. |
+| `totalGloves` | Total # Gloves |  | integer | pcs | inspection | **computed** | 2 | totalCartons × packing_config.glovesPerCase. |
 
 | Config key | Type | Default | Meaning |
 |---|---|---|---|
@@ -183,17 +183,17 @@ Report module. Captures: Per size: quantity in cases, lot numbers and packing si
 
 Note: The reports print no heading over the order table: 'Order' is the app's title for it.
 
-### `packing_config`: Packing configuration
+### `packing_config`: Packing Configuration
 
 Report module. Captures: Gloves per inner unit, inner units per case, gloves per case; the inner unit's name; the onsite packing mode text. Result: warn when glovesPerCase is not glovesPerInner × innersPerCase; info otherwise. Rules (6.2): 1, 2. Title in other templates: STD_SG: Packing Mode.
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `glovesPerInner` | # glove per inner box | SAFEDON_EG: # glove per plastic pack<br>STD_SG: # gloves per pouch | integer | pcs | inspection | entered | 1 |  |
-| `innersPerCase` | # inners per case | SAFEDON_EG: # packs per case<br>STD_SG: # pouches per case | integer |  | inspection | entered | 1 | Counts inner units. |
-| `glovesPerCase` | # gloves per case |  | integer | pcs | inspection | entered | 1 | Entered as printed, then checked against glovesPerCaseCheck (BUILD_SPEC 6.1). |
+| `glovesPerInner` | # Glove per Inner Box | SAFEDON_EG: # Glove per Plastic Pack<br>STD_SG: # Gloves per Pouch | integer | pcs | inspection | entered | 1 |  |
+| `innersPerCase` | # Inners per Case | SAFEDON_EG: # Packs per Case<br>STD_SG: # Pouches per Case | integer |  | inspection | entered | 1 | Counts inner units. |
+| `glovesPerCase` | # Gloves per Case |  | integer | pcs | inspection | entered | 1 | Entered as printed, then checked against glovesPerCaseCheck (BUILD_SPEC 6.1). |
 | `packingMode` | Packing Mode |  | text |  | inspection | entered |  | **Beyond BUILD_SPEC 6.1:** All three onsite forms have a 'Packing Mode' text box (forms/README.md: packing mode text). Free text as written on site. config fields.packingMode switches it on. |
-| `glovesPerCaseCheck` | Gloves per case (inner × per case) |  | integer | pcs | inspection | **computed** | 2 | glovesPerInner × innersPerCase. |
+| `glovesPerCaseCheck` | Gloves per Case (Inner × per Case) |  | integer | pcs | inspection | **computed** | 2 | glovesPerInner × innersPerCase. |
 
 | Config key | Type | Default | Meaning |
 |---|---|---|---|
@@ -207,18 +207,18 @@ Report module. Captures: Per size: sampled cases, inner units and gloves; gloves
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
 | `cases` | Case |  | integer |  | size | entered | 1, 6 | Counts cases. carton_sampling must list exactly this many carton numbers (rule 6). |
-| `innerUnits` | Inner Box | SAFEDON_EG: Inner pack | integer |  | size | entered | 1 | Counts inner units. |
+| `innerUnits` | Inner Box | SAFEDON_EG: Inner Pack | integer |  | size | entered | 1 | Counts inner units. |
 | `gloves` | Gloves |  | integer | pcs | size | entered | 1 |  |
-| `glovesWatertightVisual` | # gloves for watertight & Visual | STD_SG: # gloves | integer | pcs | size | entered | 1, 8 | Flows forward as n in watertight and visual (BUILD_SPEC 8). SG prints it under 'Sampling Quantity (WTT & Visual)'. |
-| `glovesDimensions` | # gloves for dimension | STD_SG: # Gloves dimension | integer | pcs | size | entered | 1 | Flows forward as the dimension rows. |
-| `glovesPhysical` | # gloves for FAB | SAFEDON_EG: # gloves for Tensile<br>STD_SG: # Gloves (FAB) | integer | pcs | size | entered | 1 | Gloves for the physical test: force at break (EN 455) or tensile (ASTM D6319). |
-| `innerUnitsDispensing` | # inner box for packaging & dispensing inspection | SAFEDON_EG: # inner packs for packaging & dispensing inspection | integer |  | size | entered | 1 | Counts inner units. Printed 'packaing' [sic]. Flows forward as the box rows of dispensing_packing or dispensing_safedon. |
+| `glovesWatertightVisual` | # Gloves for Watertight & Visual | STD_SG: # Gloves | integer | pcs | size | entered | 1, 8 | Flows forward as n in watertight and visual (BUILD_SPEC 8). SG prints it under 'Sampling Quantity (WTT & Visual)'. |
+| `glovesDimensions` | # Gloves for Dimension | STD_SG: # Gloves Dimension | integer | pcs | size | entered | 1 | Flows forward as the dimension rows. |
+| `glovesPhysical` | # Gloves for FAB | SAFEDON_EG: # Gloves for Tensile<br>STD_SG: # Gloves (FAB) | integer | pcs | size | entered | 1 | Gloves for the physical test: force at break (EN 455) or tensile (ASTM D6319). |
+| `innerUnitsDispensing` | # Inner Box for Packaging & Dispensing Inspection | SAFEDON_EG: # Inner Packs for Packaging & Dispensing Inspection | integer |  | size | entered | 1 | Counts inner units. Printed 'packaing' [sic]. Flows forward as the box rows of dispensing_packing or dispensing_safedon. |
 | `pouches` | Pouches |  | integer |  | size | entered | 1 | Counts pouches. Surgical: sampled pouches (SG onsite). |
-| `pouchesDyeLeak` | # pouches (dye leak test) |  | integer |  | size | entered | 1 | Counts pouches. Surgical: flows forward as dye_leak.pouchesTested. |
-| `inspectionLevel` | Inspection level |  | select |  | inspection | **computed** | 2, 8 | config inspectionLevel, else the client's; none without either. The level the plans are worked out at. Values: S-1, S-2, S-3, S-4, I, II, III. |
-| `lotSizeGloves` | Lot size (gloves) |  | integer | pcs | size | **computed** | 2 | order_lots.lotSizeGloves: qtyCases × packing_config.glovesPerCase. The lot the inspection level's plan is for. |
-| `codeLetter` | Code letter |  | select |  | size | **computed** | 2, 8 | ISO 2859-1 Table 1 from order_lots.lotSizeGloves and config inspectionLevel (lib/aql planFromLotSize); none without a level. Values: A, B, C, D, E, F, G, H, J, K, L, M, N, P, Q, R. |
-| `planSampleSize` | Sample size by plan |  | integer | pcs | size | **computed** | 2, 8 | The largest Table 2-A n for codeLetter among the AQLs the inspection checks on the watertight and visual sample (watertight, and visual's classes switched on), arrows followed; Table 1's n when it checks none. A glovesWatertightVisual below it raises the module warning. |
+| `pouchesDyeLeak` | # Pouches (Dye Leak Test) |  | integer |  | size | entered | 1 | Counts pouches. Surgical: flows forward as dye_leak.pouchesTested. |
+| `inspectionLevel` | Inspection Level |  | select |  | inspection | **computed** | 2, 8 | config inspectionLevel, else the client's; none without either. The level the plans are worked out at. Values: S-1, S-2, S-3, S-4, I, II, III. |
+| `lotSizeGloves` | Lot Size (Gloves) |  | integer | pcs | size | **computed** | 2 | order_lots.lotSizeGloves: qtyCases × packing_config.glovesPerCase. The lot the inspection level's plan is for. |
+| `codeLetter` | Code Letter |  | select |  | size | **computed** | 2, 8 | ISO 2859-1 Table 1 from order_lots.lotSizeGloves and config inspectionLevel (lib/aql planFromLotSize); none without a level. Values: A, B, C, D, E, F, G, H, J, K, L, M, N, P, Q, R. |
+| `planSampleSize` | Sample Size by Plan |  | integer | pcs | size | **computed** | 2, 8 | The largest Table 2-A n for codeLetter among the AQLs the inspection checks on the watertight and visual sample (watertight, and visual's classes switched on), arrows followed; Table 1's n when it checks none. A glovesWatertightVisual below it raises the module warning. |
 | `totals` | Total: |  | count_map |  | inspection | **computed** | 2 | Sum over the ordered sizes of each column on (the onsite forms' Total: row). Map keyed by sampling column. |
 
 | Config key | Type | Default | Meaning |
@@ -229,10 +229,10 @@ Report module. Captures: Per size: sampled cases, inner units and gloves; gloves
 | Caption key | Label (STD_EG) | Other wording | Meaning |
 |---|---|---|---|
 | `samplingQuantity` | Sampling Quantity | STD_SG: Sampling Quantity (WTT & Visual) | Caption over the case, inner unit and glove (and pouch) columns. |
-| `orderQty` | Order Qty (case) | STD_SG: Qty (case) | Caption of the column that shows order_lots.qtyCases again. |
+| `orderQty` | Order Qty (Case) | STD_SG: Qty (Case) | Caption of the column that shows order_lots.qtyCases again. |
 | `gloveSize` | Glove Size |  | Caption of the size column on the capture screen. |
 
-### `carton_sampling`: Finished Goods Sampling Information (carton number)
+### `carton_sampling`: Finished Goods Sampling Information (Carton Number)
 
 Report module. Captures: Per size: the sampled carton numbers. Result: fail on a validation error (rule 6); pass when every ordered size has its full, valid list; not_done before. Rules (6.2): 1, 2, 4, 6.
 
@@ -277,7 +277,7 @@ Report module. Captures: Per size, per glove (default 13): the measures on, from
 | `pass` | Passed | SAFEDON_EG: A | Word for pass in the result row. |
 | `fail` | Failed | SAFEDON_EG: Rej. | Word for fail in the result row. |
 
-### `weight`: Weight (g) - average of 13 gloves per size
+### `weight`: Weight (g) - Average of 13 Gloves per Size
 
 Report module. Captures: Per size: the gloves weighed (1 or 13 values) and their average, compared with the indicative weight. Result: Per size: pass or fail against a spec when one is set; warn when the size of the indicative weight deviates by more than the threshold; info otherwise. not_done until n values are entered. Rules (6.2): 1, 2, 4, 5, 9. Title in other templates: SAFEDON_EG: Weight (g).
 
@@ -285,7 +285,7 @@ Report module. Captures: Per size: the gloves weighed (1 or 13 values) and their
 |---|---|---|---|---|---|---|---|---|
 | `values` | Weight (g) |  | decimal_list | g | size | entered | 1 | config n values per size: 13 gloves weighed one by one (STD_EG) or one value per size (SAFEDON_EG, printed as a merged column of the dimension table). |
 | `average` | Average |  | decimal | g | size | **computed** | 2 | Mean of values (the value itself when n is 1), shown at config decimals. |
-| `deviationPct` | Deviation from indicative weight |  | decimal | % | size | **computed** | 2, 9 | (average − glove_info.indicativeWeight) / glove_info.indicativeWeight × 100, for the size in glove_info config indicativeWeightSize only. |
+| `deviationPct` | Deviation From Indicative Weight |  | decimal | % | size | **computed** | 2, 9 | (average − glove_info.indicativeWeight) / glove_info.indicativeWeight × 100, for the size in glove_info config indicativeWeightSize only. |
 | `result` | Remark | SAFEDON_EG: A / Rej. | select |  | size | **computed** | 2, 5, 9 | Against the size's row of config specs when there is one; warn when \|deviationPct\| > config warnThresholdPct; info otherwise. Values: pass, fail, warn, info, not_done. |
 
 | Config key | Type | Default | Meaning |
@@ -303,14 +303,14 @@ Report module. Captures: Per size: the gloves weighed (1 or 13 values) and their
 | `pass` | Passed | SAFEDON_EG: A | Word for pass in the result row of a size with a spec. |
 | `fail` | Failed | SAFEDON_EG: Rej. | Word for fail in the result row of a size with a spec. |
 
-### `force_at_break`: Force At Break in Newton (Refer to attached where applicable)
+### `force_at_break`: Force at Break in Newton (Refer to Attached Where Applicable)
 
 Report module. Captures: Per size, per glove (default 13): force at break (N), its median, and the lab report file. Result: Per size: the median against config specMin. not_done until n readings are entered. Rules (6.2): 1, 2, 4, 5.
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `values` | Force at break (N) |  | decimal_list | N | size | entered | 1 | config n readings per size, from the lab report. The report prints only their median. |
-| `labReport` | Lab report |  | file |  | inspection | entered |  | 'Refer to attached where applicable': inspection_files, kind lab_report, module force_at_break. Tag a size when the lab issues one report per size. |
+| `values` | Force at Break (N) |  | decimal_list | N | size | entered | 1 | config n readings per size, from the lab report. The report prints only their median. |
+| `labReport` | Lab Report |  | file |  | inspection | entered |  | 'Refer to attached where applicable': inspection_files, kind lab_report, module force_at_break. Tag a size when the lab issues one report per size. |
 | `median` | Median |  | decimal | N | size | **computed** | 2 | Median of values, shown at config decimals. |
 | `result` | Passed / Failed |  | select |  | size | **computed** | 2, 5 | median ≥ config specMin. Values: pass, fail, not_done. |
 
@@ -326,15 +326,15 @@ Report module. Captures: Per size, per glove (default 13): force at break (N), i
 | `rowNo` | No. |  | Caption of the reading number column. |
 | `specRow` | Spec. |  | Caption of the spec row (≥ specMin N). |
 
-### `tensile`: Physical Properties average (Refer to attached lab. reports)
+### `tensile`: Physical Properties Average (Refer to Attached Lab. Reports)
 
 Report module. Captures: Per size: tensile strength average (MPa) and elongation at break average (%) from the lab report; the lab report file. Result: Per size: both averages against their minimums; fail if either fails. not_done until both values and the lab report are in. Rules (6.2): 1, 2, 4, 5.
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
 | `tensileStrength` | Tensile Strength (Average) (MPa) |  | decimal | MPa | size | entered | 1 | The lab report's average, typed as printed: the app holds no individual readings (BUILD_SPEC 6.1), so this is a typed average, not one the app computes. |
-| `elongationAtBreak` | Elongation at break, average (%) |  | decimal | % | size | entered | 1 | The lab report's average, typed as printed. |
-| `labReport` | Lab report |  | file |  | inspection | entered |  | Required (BUILD_SPEC 6.1): inspection_files, kind lab_report, module tensile. |
+| `elongationAtBreak` | Elongation at Break, Average (%) |  | decimal | % | size | entered | 1 | The lab report's average, typed as printed. |
+| `labReport` | Lab Report |  | file |  | inspection | entered |  | Required (BUILD_SPEC 6.1): inspection_files, kind lab_report, module tensile. |
 | `tensileResult` | Passed / Failed |  | select |  | size | **computed** | 2, 5 | tensileStrength ≥ config tensileMin. Values: pass, fail, not_done. |
 | `elongationResult` | Passed / Failed |  | select |  | size | **computed** | 2, 5 | elongationAtBreak ≥ config elongationMin. Values: pass, fail, not_done. |
 
@@ -349,21 +349,21 @@ Report module. Captures: Per size: tensile strength average (MPa) and elongation
 |---|---|---|---|
 | `specRow` | Spec. ({standardLabel}) |  | Caption of each spec row. |
 
-### `watertight`: Freedom from Holes by watertight test
+### `watertight`: Freedom From Holes by Watertight Test
 
 Report module. Captures: Per size (R and L when handSplit): gloves tested and holes by location. Result: Per size: accept or reject from the AQL engine on the total (both hands). not_done until tested is entered. Rules (6.2): 1, 2, 4, 5, 8. Title in other templates: STD_SG: Watertight Inspection.
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `tested` | No. of sample tested |  | integer | pcs | size | entered | 1, 8 | Prefilled from sampling_plan.glovesWatertightVisual. |
-| `holes` | Pin hole | SAFEDON_EG: Holes<br>STD_SG: Defect | count_map |  | size › hand | entered | 1 | Map keyed by hole location: a defect code from config locations. |
-| `otherDescription` | Other : description |  | text |  | size › hand | entered |  | **Beyond BUILD_SPEC 6.1:** The 'Other :' row of both reports ends in a colon for the location; this holds it. |
-| `unmapped` | Defect not in the list |  | label_counts |  | size › hand | entered |  | One-off labels (the onsite forms' handwritten rows) with their counts, saved unmapped and flagged for an admin (BUILD_SPEC 4.2 rule 4, 8). They count towards the total. |
-| `codeLetter` | Sampling code letter |  | select |  | size | **computed** | 2, 8 | lib/aql planFromSampleSize(tested, config aql): the plan's codeLetter, from n (a non-standard n uses the standard n below it, with a warning). Its usedLetter, n and arrow go into computed with it. Values: A, B, C, D, E, F, G, H, J, K, L, M, N, P, Q, R. |
+| `tested` | No. of Sample Tested |  | integer | pcs | size | entered | 1, 8 | Prefilled from sampling_plan.glovesWatertightVisual. |
+| `holes` | Pin Hole | SAFEDON_EG: Holes<br>STD_SG: Defect | count_map |  | size › hand | entered | 1 | Map keyed by hole location: a defect code from config locations. |
+| `otherDescription` | Other : Description |  | text |  | size › hand | entered |  | **Beyond BUILD_SPEC 6.1:** The 'Other :' row of both reports ends in a colon for the location; this holds it. |
+| `unmapped` | Defect Not in the List |  | label_counts |  | size › hand | entered |  | One-off labels (the onsite forms' handwritten rows) with their counts, saved unmapped and flagged for an admin (BUILD_SPEC 4.2 rule 4, 8). They count towards the total. |
+| `codeLetter` | Sampling Code Letter |  | select |  | size | **computed** | 2, 8 | lib/aql planFromSampleSize(tested, config aql): the plan's codeLetter, from n (a non-standard n uses the standard n below it, with a warning). Its usedLetter, n and arrow go into computed with it. Values: A, B, C, D, E, F, G, H, J, K, L, M, N, P, Q, R. |
 | `accept` | Accept |  | integer |  | size | **computed** | 2, 8 | The plan's ac: Table 2-A for config aql at the usedLetter (arrows followed). |
 | `reject` | Reject |  | integer |  | size | **computed** | 2, 8 | The plan's re (ac + 1). |
-| `totalDefects` | Total number of defects found | STD_SG: Total WTT | integer |  | size | **computed** | 2 | Sum of holes and unmapped counts, both hands. Printed as &lt;total>/&lt;tested>. |
-| `result` | Freedom from holes (Passed / Failed) |  | select |  | size | **computed** | 2, 5 | totalDefects ≤ accept passes; ≥ reject fails. Values: pass, fail, not_done. |
+| `totalDefects` | Total Number of Defects Found | STD_SG: Total WTT | integer |  | size | **computed** | 2 | Sum of holes and unmapped counts, both hands. Printed as &lt;total>/&lt;tested>. |
+| `result` | Freedom From Holes (Passed / Failed) |  | select |  | size | **computed** | 2, 5 | totalDefects ≤ accept passes; ≥ reject fails. Values: pass, fail, not_done. |
 
 | Config key | Type | Default | Meaning |
 |---|---|---|---|
@@ -373,7 +373,7 @@ Report module. Captures: Per size (R and L when handSplit): gloves tested and ho
 
 | Caption key | Label (STD_EG) | Other wording | Meaning |
 |---|---|---|---|
-| `heading` | Freedom from Holes by watertight test (Single sampling code letter {codeLetters}, AQL {aql}) | SAFEDON_EG: Freedom from Holes by watertight test (Sampling code letter {codeLetters}; AQL={aql})<br>STD_SG: Watertight Inspection | Full heading as printed: the code letters of the ordered sizes and the AQL are filled in. |
+| `heading` | Freedom From Holes by Watertight Test (Single Sampling Code Letter {codeLetters}, AQL {aql}) | SAFEDON_EG: Freedom From Holes by Watertight Test (Sampling Code Letter {codeLetters}; AQL={aql})<br>STD_SG: Watertight Inspection | Full heading as printed: the code letters of the ordered sizes and the AQL are filled in. |
 | `defectLimit` | Defect Limit |  | Caption of the Accept / Reject row. |
 
 ### `visual`: Visual Inspection
@@ -382,13 +382,13 @@ Report module. Captures: Per size (R and L when handSplit), per class: gloves in
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `inspected` | No. of sample inspected |  | integer | pcs | size › class | entered | 1, 8 | Prefilled from sampling_plan.glovesWatertightVisual. |
-| `counts` | Defects | critical: Critical Defects<br>major: Major Defects (STD_SG: Major defect)<br>minor: Minor Defects (STD_SG: Minor defect) | count_map |  | size › hand › class | entered | 1 | Map keyed by defect code from config classes[class].defects. |
-| `unmapped` | Defect not in the list |  | label_counts |  | size › hand › class | entered |  | One-off labels (the onsite forms' handwritten rows) with their counts, saved unmapped and flagged for an admin. They count towards the class total. |
-| `codeLetter` | Sampling code letter |  | select |  | size › class | **computed** | 2, 8 | lib/aql planFromSampleSize(inspected, class AQL): codeLetter from n; an arrow moves the class's plan to its usedLetter (expected-results B: minor at N uses M), kept in computed with it. Values: A, B, C, D, E, F, G, H, J, K, L, M, N, P, Q, R. |
+| `inspected` | No. of Sample Inspected |  | integer | pcs | size › class | entered | 1, 8 | Prefilled from sampling_plan.glovesWatertightVisual. |
+| `counts` | Defects | critical: Critical Defects<br>major: Major Defects (STD_SG: Major Defect)<br>minor: Minor Defects (STD_SG: Minor Defect) | count_map |  | size › hand › class | entered | 1 | Map keyed by defect code from config classes[class].defects. |
+| `unmapped` | Defect Not in the List |  | label_counts |  | size › hand › class | entered |  | One-off labels (the onsite forms' handwritten rows) with their counts, saved unmapped and flagged for an admin. They count towards the class total. |
+| `codeLetter` | Sampling Code Letter |  | select |  | size › class | **computed** | 2, 8 | lib/aql planFromSampleSize(inspected, class AQL): codeLetter from n; an arrow moves the class's plan to its usedLetter (expected-results B: minor at N uses M), kept in computed with it. Values: A, B, C, D, E, F, G, H, J, K, L, M, N, P, Q, R. |
 | `accept` | Accept | critical: Acc. = (SAFEDON_EG: Accept) | integer |  | size › class | **computed** | 2, 8 | The class plan's ac at its usedLetter; always 0 for critical (AQL 0). |
 | `reject` | Reject | critical: Rej. = (SAFEDON_EG: Reject) | integer |  | size › class | **computed** | 2, 8 | The class plan's re (ac + 1); always 1 for critical. |
-| `total` | Total number of defects found | critical: Total number of "Critical Defects" found<br>major: Total number of "Major Defects" found (STD_SG: Total Major)<br>minor: Total number of "Minor Defects" found (STD_SG: Total Minor) | integer |  | size › class | **computed** | 2 | Sum of counts and unmapped counts of the class, both hands. Printed as &lt;total>/&lt;inspected>. |
+| `total` | Total Number of Defects Found | critical: Total Number of "Critical Defects" Found<br>major: Total Number of "Major Defects" Found (STD_SG: Total Major)<br>minor: Total Number of "Minor Defects" Found (STD_SG: Total Minor) | integer |  | size › class | **computed** | 2 | Sum of counts and unmapped counts of the class, both hands. Printed as &lt;total>/&lt;inspected>. |
 | `result` | Disposition (Passed / Failed) | critical: Disposition - Visual Critical (Passed / Failed)<br>major: Disposition - Visual Major (Passed / Failed)<br>minor: Disposition - Visual Minor (Passed / Failed) | select |  | size › class | **computed** | 2, 5 | total ≤ accept passes; ≥ reject fails. Both reports print the critical line as 'Visual Minor' [sic]. Values: pass, fail, not_done. |
 
 | Config key | Type | Default | Meaning |
@@ -398,10 +398,10 @@ Report module. Captures: Per size (R and L when handSplit), per class: gloves in
 
 | Caption key | Label (STD_EG) | Other wording | Meaning |
 |---|---|---|---|
-| `heading` | Visual Inspection (Single Sampling code letter {codeLetters}) | SAFEDON_EG: Visual Inspection (Sampling code letter {codeLetters})<br>STD_SG: Visual Inspection | Full heading as printed, with the code letters of the ordered sizes. |
+| `heading` | Visual Inspection (Single Sampling Code Letter {codeLetters}) | SAFEDON_EG: Visual Inspection (Sampling Code Letter {codeLetters})<br>STD_SG: Visual Inspection | Full heading as printed, with the code letters of the ordered sizes. |
 | `criticalHeading` | Critical Defects (AQL {aql}) |  | Heading of the critical class (AQL printed 0.0). |
-| `majorHeading` | Major Defects (AQL {aql}) | STD_SG: Major defect | Heading of the major class. |
-| `minorHeading` | Minor Defects (AQL {aql}) | STD_SG: Minor defect | Heading of the minor class. |
+| `majorHeading` | Major Defects (AQL {aql}) | STD_SG: Major Defect | Heading of the major class. |
+| `minorHeading` | Minor Defects (AQL {aql}) | STD_SG: Minor Defect | Heading of the minor class. |
 | `criticalLimit` | Defect Limit : Accept / Reject | SAFEDON_EG: Defect Limit | Caption of the critical class's limit row (STD_EG prints Acc. = 0 / Rej. = 1). |
 | `defectLimit` | Defect Limit |  | Caption of the major and minor limit rows. |
 
@@ -416,7 +416,7 @@ Report module. Captures: Per size, per box (picked from the carton list): layeri
 | `dispensingPct` | Dispensing % |  | decimal | % | size › box | entered | 1 |  |
 | `stickiness` | Stickiness \*\* |  | select |  | size › box | entered |  | One of config stickinessCodes. |
 | `note` | Others: |  | text |  | size › box | entered |  | **Beyond BUILD_SPEC 6.1:** The EG onsite form's 'Others:' column, one note per box. |
-| `codeLetter` | Sampling code letter |  | select |  | size | **computed** | 2 | From the number of boxes tested (BUILD_SPEC 7), for the heading. Values: A, B, C, D, E, F, G, H, J, K, L, M, N, P, Q, R. |
+| `codeLetter` | Sampling Code Letter |  | select |  | size | **computed** | 2 | From the number of boxes tested (BUILD_SPEC 7), for the heading. Values: A, B, C, D, E, F, G, H, J, K, L, M, N, P, Q, R. |
 | `layeringAverage` | Average |  | decimal | % | size | **computed** | 2 | Mean of layeringPct. |
 | `dispensingAverage` | Average |  | decimal | % | size | **computed** | 2 | Mean of dispensingPct. |
 | `stickinessSummary` | Average |  | select |  | size | **computed** | 2 | The worst code entered: the latest in config stickinessCodes order. The report prints a code in the Average row. |
@@ -433,9 +433,9 @@ Report module. Captures: Per size, per box (picked from the carton list): layeri
 
 | Caption key | Label (STD_EG) | Other wording | Meaning |
 |---|---|---|---|
-| `heading` | Glove Packing Check (Sampling code letter {codeLetters}) : min. {minLayeringPct}% layering & {minDispensingPct}% dispensing |  | Full heading as printed: code letters of the box counts and the two minimums. |
+| `heading` | Glove Packing Check (Sampling Code Letter {codeLetters}) : Min. {minLayeringPct}% Layering & {minDispensingPct}% Dispensing |  | Full heading as printed: code letters of the box counts and the two minimums. |
 | `itemColumn` | Item |  | Caption of the box row number column. |
-| `stickinessLegend` | \*\*Glove stickiness Code |  | Caption of the stickiness code legend. |
+| `stickinessLegend` | \*\*Glove Stickiness Code |  | Caption of the stickiness code legend. |
 
 ### `dispensing_safedon`: Glove Dispensing Inspection
 
@@ -445,14 +445,14 @@ Report module. Captures: Per size, per box (picked from the carton list): counts
 |---|---|---|---|---|---|---|---|---|
 | `boxNo` | Box # |  | integer |  | size › box | entered | 7 | Picked from carton_sampling.cartonNumbers of the size (rule 7). The report's box numbers are page 1 carton numbers. |
 | `counts` | Safedon Packing Defects |  | count_map |  | size › box | entered | 1 | Map keyed by defect code from config defects. |
-| `codeLetter` | Sampling code letter |  | select |  | size | **computed** | 2 | From the number of boxes tested (BUILD_SPEC 7), for the heading. Values: A, B, C, D, E, F, G, H, J, K, L, M, N, P, Q, R. |
-| `boxDefects` | Defects / gloves per pack |  | integer |  | size › box | **computed** | 2 | Sum of the box's counts. Printed as &lt;defects>/&lt;glovesPerPack> (Total, line 1). |
-| `boxRatePct` | Defect rate |  | decimal | % | size › box | **computed** | 2 | boxDefects / config glovesPerPack × 100 (Total, line 2: the report prints it as a percentage with one decimal, e.g. 0.8%). |
-| `boxesTested` | Boxes tested |  | integer |  | size | **computed** | 2 | Boxes with a box number (onsite/SAFEDON_EG.md, mapping to the core). Counts boxes. |
-| `boxesFailed` | Boxes failed |  | integer |  | size | **computed** | 2 | Boxes with any count above zero. Counts boxes. |
+| `codeLetter` | Sampling Code Letter |  | select |  | size | **computed** | 2 | From the number of boxes tested (BUILD_SPEC 7), for the heading. Values: A, B, C, D, E, F, G, H, J, K, L, M, N, P, Q, R. |
+| `boxDefects` | Defects / Gloves per Pack |  | integer |  | size › box | **computed** | 2 | Sum of the box's counts. Printed as &lt;defects>/&lt;glovesPerPack> (Total, line 1). |
+| `boxRatePct` | Defect Rate |  | decimal | % | size › box | **computed** | 2 | boxDefects / config glovesPerPack × 100 (Total, line 2: the report prints it as a percentage with one decimal, e.g. 0.8%). |
+| `boxesTested` | Boxes Tested |  | integer |  | size | **computed** | 2 | Boxes with a box number (onsite/SAFEDON_EG.md, mapping to the core). Counts boxes. |
+| `boxesFailed` | Boxes Failed |  | integer |  | size | **computed** | 2 | Boxes with any count above zero. Counts boxes. |
 | `totalDefects` | Total |  | integer |  | size | **computed** | 2 | Sum of the size's box counts (Total, line 3: &lt;defects> / &lt;gloves> (&lt;rate> %)). |
-| `glovesInspected` | Gloves inspected |  | integer | pcs | size | **computed** | 2 | boxesTested × config glovesPerPack. |
-| `ratePct` | Defect rate (%) |  | decimal | % | size | **computed** | 2 | totalDefects / glovesInspected × 100. |
+| `glovesInspected` | Gloves Inspected |  | integer | pcs | size | **computed** | 2 | boxesTested × config glovesPerPack. |
+| `ratePct` | Defect Rate (%) |  | decimal | % | size | **computed** | 2 | totalDefects / glovesInspected × 100. |
 | `result` | Conclusion |  | select |  | size | **computed** | 2, 5 | ratePct ≤ config maxRatePct. Values: pass, fail, not_done. |
 
 | Config key | Type | Default | Meaning |
@@ -464,7 +464,7 @@ Report module. Captures: Per size, per box (picked from the carton list): counts
 
 | Caption key | Label (STD_EG) | Other wording | Meaning |
 |---|---|---|---|
-| `heading` | Glove Dispensing Inspection (Sampling code letter {codeLetters}) |  | Full heading as printed on the report, with the code letters of the box counts. |
+| `heading` | Glove Dispensing Inspection (Sampling Code Letter {codeLetters}) |  | Full heading as printed on the report, with the code letters of the box counts. |
 | `totalGroup` | Total |  | Caption over the three computed total lines. |
 | `specRow` | Specification / Requirement |  | Caption of the row that prints ≤ maxRatePct %. |
 
@@ -474,12 +474,12 @@ Report module. Captures: Per size, per level (inner unit, carton): boxes inspect
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `inspected` | No. of sampled boxes inspected |  | integer |  | size › level | entered | 1 | Counts boxes. Prefilled from config levels[level].n. |
+| `inspected` | No. of Sampled Boxes Inspected |  | integer |  | size › level | entered | 1 | Counts boxes. Prefilled from config levels[level].n. |
 | `boxNos` | Box # |  | integer_list |  | size › level | entered | 7 | **Beyond BUILD_SPEC 6.1:** Rule 6.2.7 picks labelling boxes from the size's carton list; the reports print only how many were inspected. |
 | `defects` | Defects |  | count_map |  | size › level | entered | 1 | Map keyed by labelling check code from config levels[level].checks. |
 | `accept` | Accept | inner: Accept (SAFEDON_EG: Acc. =)<br>carton: Accept (SAFEDON_EG: Acc. =) | integer |  | size › level | **computed** | 2 | Always 0 (BUILD_SPEC 7: labelling is Accept 0 / Reject 1). |
 | `reject` | Reject | inner: Reject (SAFEDON_EG: Rej. =)<br>carton: Reject (SAFEDON_EG: Rej. =) | integer |  | size › level | **computed** | 2 | Always 1. |
-| `total` | Total number of defects found |  | integer |  | size › level | **computed** | 2 | Sum of defects. |
+| `total` | Total Number of Defects Found |  | integer |  | size › level | **computed** | 2 | Sum of defects. |
 | `result` | Disposition (Passed / Failed) | inner: Disposition - Inner Box (Passed / Failed)<br>carton: Disposition - Carton Box (Passed / Failed) | select |  | size › level | **computed** | 2, 5 | total ≥ 1 fails. STD_EG prints the carton line as 'Inner Box' [sic]. Values: pass, fail, not_done. |
 
 | Config key | Type | Default | Meaning |
@@ -498,10 +498,10 @@ Report module, always on. Captures: Suggested result, final result, remark, insp
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `suggestedResult` | Suggested result |  | select |  | inspection | **computed** | 2 | From the included modules' results (BUILD_SPEC 6.1). Not on the reports. Values: pass, fail, hold. Column `inspections.suggested_result`. |
+| `suggestedResult` | Suggested Result |  | select |  | inspection | **computed** | 2 | From the included modules' results (BUILD_SPEC 6.1). Not on the reports. Values: pass, fail, hold. Column `inspections.suggested_result`. |
 | `finalResult` | Conclusion |  | select |  | inspection | entered |  | Values: pass, fail, hold. Column `inspections.result`. The reports print PASSED or FAILED; the app adds hold. |
 | `remark` | Remark |  | textarea |  | inspection | entered |  | Column `inspections.remarks`. |
-| `inspector` | Inspected by |  | reference |  | inspection | system | 11 | Column `inspections.inspector_id`. The same person as header.inspector, shown beside the signature (SAFEDON_EG prints it here). |
+| `inspector` | Inspected By |  | reference |  | inspection | system | 11 | Column `inspections.inspector_id`. The same person as header.inspector, shown beside the signature (SAFEDON_EG prints it here). |
 | `date` | Date |  | date |  | inspection | entered | 3 | Prefilled from today, when the conclusion is signed. The report date: BUILD_SPEC 6.1 lists it under header, both reports print it once, here. |
 | `signature` | Signature |  | signature |  | inspection | entered |  | Drawn on the iPad (BUILD_SPEC 6.1; bucket signatures). BUILD_SPEC 13 asks whether clients accept it. |
 
@@ -513,19 +513,19 @@ No config.
 | `fail` | FAILED |  | Word printed for a fail. |
 | `hold` | HOLD |  | Word for hold (not on the reports). |
 
-### `dye_leak`: Dye leak test
+### `dye_leak`: Dye Leak Test
 
 Optional module. Captures: Per size: pouches tested, pouches failed, notes. Result: Per size: any failed pouch fails. not_done until pouchesTested is entered. Rules (6.2): 1, 2, 4, 5.
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `pouchesTested` | Pouches tested |  | integer |  | size | entered | 1 | Counts pouches. Prefilled from sampling_plan.pouchesDyeLeak, else config n. |
-| `pouchesFailed` | Pouches failed |  | integer |  | size | entered | 1 | Counts pouches. |
+| `pouchesTested` | Pouches Tested |  | integer |  | size | entered | 1 | Counts pouches. Prefilled from sampling_plan.pouchesDyeLeak, else config n. |
+| `pouchesFailed` | Pouches Failed |  | integer |  | size | entered | 1 | Counts pouches. |
 | `notes` | Notes |  | textarea |  | size | entered |  |  |
-| `pouchesPlanned` | Pouches planned |  | integer |  | size | **computed** | 2 | sampling_plan.pouchesDyeLeak when it plans any, else config n; none when neither does. Counts pouches. |
+| `pouchesPlanned` | Pouches Planned |  | integer |  | size | **computed** | 2 | sampling_plan.pouchesDyeLeak when it plans any, else config n; none when neither does. Counts pouches. |
 | `result` | Passed / Failed |  | select |  | size | **computed** | 2, 5 | pouchesFailed = 0 passes. Values: pass, fail, not_done. |
-| `totalTested` | Total pouches tested |  | integer |  | inspection | **computed** | 2 | Sum of pouchesTested over the ordered sizes that have it; none until one does. Counts pouches. |
-| `totalFailed` | Total pouches failed |  | integer |  | inspection | **computed** | 2 | Sum of pouchesFailed over the ordered sizes that have it; none until one does. Counts pouches. |
+| `totalTested` | Total Pouches Tested |  | integer |  | inspection | **computed** | 2 | Sum of pouchesTested over the ordered sizes that have it; none until one does. Counts pouches. |
+| `totalFailed` | Total Pouches Failed |  | integer |  | inspection | **computed** | 2 | Sum of pouchesFailed over the ordered sizes that have it; none until one does. Counts pouches. |
 
 | Config key | Type | Default | Meaning |
 |---|---|---|---|
@@ -540,13 +540,13 @@ Optional module. Captures: Checklist of certificates and reports: verified, not 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
 | `status` | Status |  | select |  | item | entered |  | Values: verified, not_verified, na. |
-| `referenceNo` | Reference no. |  | text |  | item | entered |  |  |
-| `expiryDate` | Expiry date |  | date |  | item | entered | 3 |  |
+| `referenceNo` | Reference No. |  | text |  | item | entered |  |  |
+| `expiryDate` | Expiry Date |  | date |  | item | entered | 3 |  |
 | `file` | File |  | file |  | item | entered |  | inspection_files, kind certificate or lab_report, module documents. |
 | `expired` | Expired |  | yes_no |  | item | **computed** | 2 | expiryDate before header.inspectionDate. |
-| `itemStatus` | Item result |  | select |  | item | **computed** | 2, 5 | not_done without a status; fail when required and not verified; warn when expired; pass when verified; info when not verified or NA and not required. The chip on the item's row. Values: pass, fail, warn, info, not_done. |
-| `counts` | Items per status |  | count_map |  | inspection | **computed** | 2 | Items on the checklist per status. Map keyed by status (verified, not_verified, na, and open for none yet). |
-| `fileState` | File status |  | select |  | item | **computed** | 2 | The file the item keeps against the inspection's files: none kept, attached, or missing (deleted, or still uploading from another device). Attached while the inspection's files are not known. Values: none, attached, missing. |
+| `itemStatus` | Item Result |  | select |  | item | **computed** | 2, 5 | not_done without a status; fail when required and not verified; warn when expired; pass when verified; info when not verified or NA and not required. The chip on the item's row. Values: pass, fail, warn, info, not_done. |
+| `counts` | Items per Status |  | count_map |  | inspection | **computed** | 2 | Items on the checklist per status. Map keyed by status (verified, not_verified, na, and open for none yet). |
+| `fileState` | File Status |  | select |  | item | **computed** | 2 | The file the item keeps against the inspection's files: none kept, attached, or missing (deleted, or still uploading from another device). Attached while the inspection's files are not known. Values: none, attached, missing. |
 
 | Config key | Type | Default | Meaning |
 |---|---|---|---|
@@ -554,15 +554,15 @@ Optional module. Captures: Checklist of certificates and reports: verified, not 
 
 | Caption key | Label (STD_EG) | Other wording | Meaning |
 |---|---|---|---|
-| `certificateOfAnalysis` | Certificate of analysis |  | Item label. |
-| `labTestReports` | Lab test reports |  | Item label. |
-| `sterilisation` | Sterilisation certificate and records |  | Item label. |
+| `certificateOfAnalysis` | Certificate of Analysis |  | Item label. |
+| `labTestReports` | Lab Test Reports |  | Item label. |
+| `sterilisation` | Sterilisation Certificate and Records |  | Item label. |
 | `iso13485` | ISO 13485 |  | Item label. |
-| `fdaCe` | FDA / CE certificates |  | Item label. |
-| `declarationOfOrigin` | Declaration of origin |  | Item label. |
+| `fdaCe` | FDA / CE Certificates |  | Item label. |
+| `declarationOfOrigin` | Declaration of Origin |  | Item label. |
 | `required` | Required |  | Badge on an item the template requires. |
 | `status.verified` | Verified |  | Word for the status verified. |
-| `status.not_verified` | Not verified |  | Word for the status not_verified. |
+| `status.not_verified` | Not Verified |  | Word for the status not_verified. |
 | `status.na` | NA |  | Word for the status na. |
 
 Note: Not on any current form: the website's QC scope (forms/README.md).
@@ -573,12 +573,12 @@ Optional module. Captures: Container no., seal no., cartons loaded against the P
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `containerNo` | Container no. |  | text |  | inspection | entered |  |  |
-| `sealNo` | Seal no. |  | text |  | inspection | entered |  |  |
-| `cartonsLoaded` | Cartons loaded |  | integer |  | inspection | entered | 1 | Counts cartons. |
-| `cartonCondition` | Carton condition |  | textarea |  | inspection | entered |  |  |
-| `cartonsOrdered` | Cartons ordered |  | integer |  | inspection | **computed** | 2 | order_lots.totalCartons. Counts cartons. |
-| `cartonsDifference` | Cartons loaded less ordered |  | integer |  | inspection | **computed** | 2 | cartonsLoaded − cartonsOrdered: below 0 is short, above 0 over; none until both are known. Counts cartons. |
+| `containerNo` | Container No. |  | text |  | inspection | entered |  |  |
+| `sealNo` | Seal No. |  | text |  | inspection | entered |  |  |
+| `cartonsLoaded` | Cartons Loaded |  | integer |  | inspection | entered | 1 | Counts cartons. |
+| `cartonCondition` | Carton Condition |  | textarea |  | inspection | entered |  |  |
+| `cartonsOrdered` | Cartons Ordered |  | integer |  | inspection | **computed** | 2 | order_lots.totalCartons. Counts cartons. |
+| `cartonsDifference` | Cartons Loaded Less Ordered |  | integer |  | inspection | **computed** | 2 | cartonsLoaded − cartonsOrdered: below 0 is short, above 0 over; none until both are known. Counts cartons. |
 
 | Config key | Type | Default | Meaning |
 |---|---|---|---|
@@ -586,11 +586,11 @@ Optional module. Captures: Container no., seal no., cartons loaded against the P
 
 | Caption key | Label (STD_EG) | Other wording | Meaning |
 |---|---|---|---|
-| `loadingStage` | Loading stage |  | Caption of the stage picker that tags loading photos. |
-| `emptyContainer` | Empty container |  | Loading stage, for photo tags. |
-| `halfLoaded` | Half loaded |  | Loading stage, for photo tags. |
-| `fullyLoaded` | Fully loaded |  | Loading stage, for photo tags. |
-| `doorsClosed` | Doors closed |  | Loading stage, for photo tags. |
+| `loadingStage` | Loading Stage |  | Caption of the stage picker that tags loading photos. |
+| `emptyContainer` | Empty Container |  | Loading stage, for photo tags. |
+| `halfLoaded` | Half Loaded |  | Loading stage, for photo tags. |
+| `fullyLoaded` | Fully Loaded |  | Loading stage, for photo tags. |
+| `doorsClosed` | Doors Closed |  | Loading stage, for photo tags. |
 | `sealed` | Sealed |  | Loading stage, for photo tags. |
 
 Note: Not on any current form: the website's QC scope. Loading-stage photos are the module's photos; the stages are to confirm.
@@ -618,13 +618,13 @@ Note: Not on any current form: the website's QC scope. Loading-stage photos are 
 | 1 | `header` | Manufacturer Information | fields off: none; mfg / expiry dates: day |
 | 2 | `glove_info` | Glove Information | fields off: none; indicative weight for size M |
 | 3 | `order_lots` | Order | packing site off |
-| 4 | `packing_config` | Packing configuration | inner unit inner_box; packing mode text on |
+| 4 | `packing_config` | Packing Configuration | inner unit inner_box; packing mode text on |
 | 5 | `sampling_plan` | Sampling Plan | columns off: pouches, pouchesDyeLeak; inspection level I |
-| 6 | `carton_sampling` | Finished Goods Sampling Information (carton number) | none |
+| 6 | `carton_sampling` | Finished Goods Sampling Information (Carton Number) | none |
 | 7 | `dimensions` | Dimension | median of 13 gloves; measures length, width, fingerThickness, palmThickness, cuffThickness; decimals length 0, width 0, fingerThickness 2, palmThickness 2, cuffThickness 2; specs for XS, S, M, L, XL, below |
-| 8 | `force_at_break` | Force At Break in Newton (Refer to attached where applicable) | 13 readings per size; median ≥ 6 N; 3 decimals; standard label none |
-| 9 | `weight` | Weight (g) - average of 13 gloves per size | 13 values per size; spec none (info); warn beyond 10%; 2 decimals |
-| 10 | `watertight` | Freedom from Holes by watertight test | AQL 1.5; hand split off; locations: Between fingers (crotch) (hole_crotch), Palm (hole_palm), Finger (hole_finger), Cuff (hole_cuff), Other : (hole_other) |
+| 8 | `force_at_break` | Force at Break in Newton (Refer to Attached Where Applicable) | 13 readings per size; median ≥ 6 N; 3 decimals; standard label none |
+| 9 | `weight` | Weight (g) - Average of 13 Gloves per Size | 13 values per size; spec none (info); warn beyond 10%; 2 decimals |
+| 10 | `watertight` | Freedom From Holes by Watertight Test | AQL 1.5; hand split off; locations: Between Fingers (Crotch) (hole_crotch), Palm (hole_palm), Finger (hole_finger), Cuff (hole_cuff), Other : (hole_other) |
 | 11 | `visual` | Visual Inspection | hand split off; critical AQL 0.0, 2 defects; major AQL 2.5, 9 defects; minor AQL 4.0, 6 defects |
 | 12 | `dispensing_packing` | Glove Packing Check | layering ≥ 70%, dispensing ≥ 80%; 13 boxes per size (XL 5); stickiness A pass, B pass, B1 pass, C pass, D fail |
 | 13 | `labeling` | Packaging Labeling Inspection | inner: 3 boxes, checks lot_no, mfg_date, artwork; carton: 1 box, checks lot_no, mfg_date, artwork, carton_no |
@@ -660,20 +660,20 @@ To confirm:
 | Unit, sizes | pcs; XS, S, M, L, XL |
 | Report title | Preshipment Inspection / Safedon Nitrile PF Exam Gloves |
 | Client logo | yes |
-| Custom modules | `glove_type` "Glove Type" (fields) after `header`: `gloveType` "Glove Type"; `safedon_dispensing_notes` "Glove Dispensing Inspection: onsite notes" (table) after `dispensing_safedon`: `specRequirement` "Specification / Requirement", `conclusion` "Conclusion" |
+| Custom modules | `glove_type` "Glove Type" (fields) after `header`: `gloveType` "Glove Type"; `safedon_dispensing_notes` "Glove Dispensing Inspection: Onsite Notes" (table) after `dispensing_safedon`: `specRequirement` "Specification / Requirement", `conclusion` "Conclusion" |
 
 | # | Module | Title | Config |
 |---|---|---|---|
 | 1 | `header` | Manufacturer Information | fields off: client, factoryGloveCode; mfg / expiry dates: month |
 | 2 | `glove_info` | Glove Information | fields off: none; indicative weight for size M |
 | 3 | `order_lots` | Order | packing site on |
-| 4 | `packing_config` | Packing configuration | inner unit plastic_pack; packing mode text on |
+| 4 | `packing_config` | Packing Configuration | inner unit plastic_pack; packing mode text on |
 | 5 | `sampling_plan` | Sampling Plan | columns off: pouches, pouchesDyeLeak; inspection level I |
-| 6 | `carton_sampling` | Finished Goods Sampling Information (carton number) | none |
+| 6 | `carton_sampling` | Finished Goods Sampling Information (Carton Number) | none |
 | 7 | `dimensions` | Dimension | average of 13 gloves; measures length, width, fingerThickness, palmThickness; decimals length 0, width 0, fingerThickness 2, palmThickness 2; specs for XS, S, M, L, below |
-| 8 | `tensile` | Physical Properties average (Refer to attached lab. reports) | tensile ≥ 14 MPa; elongation ≥ 500%; Spec. (ASTM D6319); decimals 2 and 0 |
+| 8 | `tensile` | Physical Properties Average (Refer to Attached Lab. Reports) | tensile ≥ 14 MPa; elongation ≥ 500%; Spec. (ASTM D6319); decimals 2 and 0 |
 | 9 | `weight` | Weight (g) | 1 value per size; spec per size, below; warn beyond 10%; 2 decimals |
-| 10 | `watertight` | Freedom from Holes by watertight test | AQL 1.5; hand split off; locations: Between fingers (hole_crotch), Palm (hole_palm), Cuff (hole_cuff), Finger (hole_finger), Glove burst (glove_burst), Other : (hole_other) |
+| 10 | `watertight` | Freedom From Holes by Watertight Test | AQL 1.5; hand split off; locations: Between Fingers (hole_crotch), Palm (hole_palm), Cuff (hole_cuff), Finger (hole_finger), Glove Burst (glove_burst), Other : (hole_other) |
 | 11 | `visual` | Visual Inspection | hand split off; critical AQL 0.0, 2 defects; major AQL 2.5, 8 defects; minor AQL 4.0, 5 defects |
 | 12 | `dispensing_safedon` | Glove Dispensing Inspection | rate ≤ 5% per size; 125 gloves per pack; 13 boxes per size; defects no_cuff, finger_out, multiple_out, stuck, sticky, faulty_cuff |
 | 13 | `labeling` | Packaging Labeling Inspection | inner: 3 boxes, checks lot_no, mfg_date, expiry_date, artwork; carton: 1 box, checks lot_no, mfg_date, expiry_date, artwork, carton_no |
@@ -701,14 +701,14 @@ Differences from `STD_EG`: its seed writes only these config values (`seedConfig
 - `watertight` config: `locations`.
 - `visual` config: `classes.major.defects`, `classes.minor.defects`.
 - `labeling` config: `levels.inner.checks`, `levels.carton.checks`.
-- `header` wording: `poNo` "PO Number", `productName` "Product Name (Brand & code)".
-- `packing_config` wording: `glovesPerInner` "# glove per plastic pack", `innersPerCase` "# packs per case".
-- `sampling_plan` wording: `innerUnits` "Inner pack", `glovesPhysical` "# gloves for Tensile", `innerUnitsDispensing` "# inner packs for packaging & dispensing inspection".
+- `header` wording: `poNo` "PO Number", `productName` "Product Name (Brand & Code)".
+- `packing_config` wording: `glovesPerInner` "# Glove per Plastic Pack", `innersPerCase` "# Packs per Case".
+- `sampling_plan` wording: `innerUnits` "Inner Pack", `glovesPhysical` "# Gloves for Tensile", `innerUnitsDispensing` "# Inner Packs for Packaging & Dispensing Inspection".
 - `dimensions` wording: `statistic` "Average", `measureResult` "A / Rej.", `pass` "A", `fail` "Rej.".
 - `weight` wording: `result` "A / Rej.", `info` "A", `pass` "A", `fail` "Rej.".
 - `weight` title: "Weight (g)".
-- `watertight` wording: `holes` "Holes", `heading` "Freedom from Holes by watertight test (Sampling code letter {codeLetters}; AQL={aql})".
-- `visual` wording: `criticalAccept` "Accept", `criticalReject` "Reject", `heading` "Visual Inspection (Sampling code letter {codeLetters})", `criticalLimit` "Defect Limit".
+- `watertight` wording: `holes` "Holes", `heading` "Freedom From Holes by Watertight Test (Sampling Code Letter {codeLetters}; AQL={aql})".
+- `visual` wording: `criticalAccept` "Accept", `criticalReject` "Reject", `heading` "Visual Inspection (Sampling Code Letter {codeLetters})", `criticalLimit` "Defect Limit".
 - `labeling` wording: `innerAccept` "Acc. =", `cartonAccept` "Acc. =", `innerReject` "Rej. =", `cartonReject` "Rej. =", `innerLevel` "Inner Boxes/Packs", `cartonLevel` "Carton Boxes", `defectLimit` "Limit : Accept / Reject".
 
 To confirm:
@@ -739,20 +739,20 @@ To confirm:
 | 2 | `order_lots` | PO Info | packing site off |
 | 3 | `packing_config` | Packing Mode | inner unit pouch; packing mode text on |
 | 4 | `sampling_plan` | Sampling Plan | columns off: gloves, innerUnitsDispensing; inspection level none (to confirm) |
-| 5 | `watertight` | Watertight Inspection | AQL 1.5; hand split on; locations: Between fingers (crotch) (hole_crotch), Palm (hole_palm), Finger (hole_finger), Cuff (hole_cuff), Other : (hole_other) |
+| 5 | `watertight` | Watertight Inspection | AQL 1.5; hand split on; locations: Between Fingers (Crotch) (hole_crotch), Palm (hole_palm), Finger (hole_finger), Cuff (hole_cuff), Other : (hole_other) |
 | 6 | `visual` | Visual Inspection | hand split on; critical AQL 0.0, 2 defects; major AQL 2.5, 9 defects; minor AQL 4.0, 6 defects |
 | 7 | `dimensions` | Dimension | median of 13 gloves; measures length, width, fingerThickness, palmThickness, cuffThickness; decimals length 0, width 0, fingerThickness 2, palmThickness 2, cuffThickness 2; specs none |
-| 8 | `dye_leak` | Dye leak test | pouches per size: from the sampling plan |
+| 8 | `dye_leak` | Dye Leak Test | pouches per size: from the sampling plan |
 | 9 | `conclusion` | Conclusion | none |
 
 Wording that differs from the defaults:
 
 - `header`: `manufacturer` "Manufacturer Name", `poNo` "Purchase/Sales Order No.", `productName` "Product Name", `inspectionDate` "Date", `mfgDate` "Mfg Date", `expiryDate` "Exp Date"
-- `order_lots`: `qtyCases` "Qty (case)"
-- `packing_config`: `glovesPerInner` "# gloves per pouch", `innersPerCase` "# pouches per case"
-- `sampling_plan`: `glovesWatertightVisual` "# gloves", `glovesDimensions` "# Gloves dimension", `glovesPhysical` "# Gloves (FAB)", `samplingQuantity` "Sampling Quantity (WTT & Visual)", `orderQty` "Qty (case)"
+- `order_lots`: `qtyCases` "Qty (Case)"
+- `packing_config`: `glovesPerInner` "# Gloves per Pouch", `innersPerCase` "# Pouches per Case"
+- `sampling_plan`: `glovesWatertightVisual` "# Gloves", `glovesDimensions` "# Gloves Dimension", `glovesPhysical` "# Gloves (FAB)", `samplingQuantity` "Sampling Quantity (WTT & Visual)", `orderQty` "Qty (Case)"
 - `watertight`: `holes` "Defect", `totalDefects` "Total WTT", `heading` "Watertight Inspection"
-- `visual`: `majorCounts` "Major defect", `minorCounts` "Minor defect", `majorTotal` "Total Major", `minorTotal` "Total Minor", `heading` "Visual Inspection", `majorHeading` "Major defect", `minorHeading` "Minor defect"
+- `visual`: `majorCounts` "Major Defect", `minorCounts` "Minor Defect", `majorTotal` "Total Major", `minorTotal` "Total Minor", `heading` "Visual Inspection", `majorHeading` "Major Defect", `minorHeading` "Minor Defect"
 
 To confirm:
 
@@ -784,42 +784,42 @@ To confirm:
 | Class | Label | Code | Printed |
 |---|---|---|---|
 | critical | Embedded Insects | `embedded_insect` | Embeded Insects |
-| critical | Embedded metal debris | `embedded_metal` | Embeded metal debris |
-| major | Thin area between fingers (crotch) | `thin_crotch_area` |  |
-| major | Ring-shaped thin area (crotch) | `thin_crotch_ring` |  |
-| major | Thin area on glove body | `thin_body_area` |  |
-| major | Thin spot on glove body | `thin_spot` |  |
-| major | Non-removable dirt | `dirt_nonremovable` |  |
-| major | Oil stain | `stain` |  |
-| major | Residue material / foreign matter | `foreign_matter` |  |
-| major | Defective bead | `bead_defective` |  |
+| critical | Embedded Metal Debris | `embedded_metal` | Embeded metal debris |
+| major | Thin Area Between Fingers (Crotch) | `thin_crotch_area` |  |
+| major | Ring-Shaped Thin Area (Crotch) | `thin_crotch_ring` |  |
+| major | Thin Area on Glove Body | `thin_body_area` |  |
+| major | Thin Spot on Glove Body | `thin_spot` |  |
+| major | Non-Removable Dirt | `dirt_nonremovable` |  |
+| major | Oil Stain | `stain` |  |
+| major | Residue Material / Foreign Matter | `foreign_matter` |  |
+| major | Defective Bead | `bead_defective` |  |
 | major | Big Lumps (>2mm) | `lump_big` |  |
-| minor | Small dirt / stain | `dirt_small` |  |
-| minor | Sticky pleats (&lt; 5mm) | `sticky_pleats` |  |
+| minor | Small Dirt / Stain | `dirt_small` |  |
+| minor | Sticky Pleats (&lt; 5mm) | `sticky_pleats` |  |
 | minor | Lumps (&lt;2mm) | `lump_small` |  |
-| minor | Poor beading | `bead_poor` |  |
-| minor | Rolled bead | `bead_rolled` |  |
-| minor | Defective beads | `bead_defective` |  |
+| minor | Poor Beading | `bead_poor` |  |
+| minor | Rolled Bead | `bead_rolled` |  |
+| minor | Defective Beads | `bead_defective` |  |
 
 `SAFEDON_EG` visual defects, in report order:
 
 | Class | Label | Code | Printed |
 |---|---|---|---|
 | critical | Embedded Insects | `embedded_insect` | Embeded Insects |
-| critical | Embedded metal debris | `embedded_metal` | Embeded metal debris |
-| major | Thin ring between fingers (crotch) | `thin_crotch_ring` |  |
-| major | Thin area between fingers (crotch) | `thin_crotch_area` |  |
-| major | Thin patch / area (body) | `thin_body_area` | Thin batch / area (body) |
-| major | Thin spot | `thin_spot` |  |
-| major | Non-removable dirt | `dirt_nonremovable` |  |
+| critical | Embedded Metal Debris | `embedded_metal` | Embeded metal debris |
+| major | Thin Ring Between Fingers (Crotch) | `thin_crotch_ring` |  |
+| major | Thin Area Between Fingers (Crotch) | `thin_crotch_area` |  |
+| major | Thin Patch / Area (Body) | `thin_body_area` | Thin batch / area (body) |
+| major | Thin Spot | `thin_spot` |  |
+| major | Non-Removable Dirt | `dirt_nonremovable` |  |
 | major | Stain | `stain` |  |
-| major | Powder mark | `powder_mark` |  |
-| major | Bead blister | `bead_blister` |  |
-| minor | Small dirt / stain | `dirt_small` |  |
-| minor | Sticky pleats (&lt; 5mm) | `sticky_pleats` |  |
+| major | Powder Mark | `powder_mark` |  |
+| major | Bead Blister | `bead_blister` |  |
+| minor | Small Dirt / Stain | `dirt_small` |  |
+| minor | Sticky Pleats (&lt; 5mm) | `sticky_pleats` |  |
 | minor | Lumps (&lt;2mm) | `lump_small` |  |
-| minor | Thin bead | `bead_thin` |  |
-| minor | Thin bead / small beading defect | `bead_small_defect` |  |
+| minor | Thin Bead | `bead_thin` |  |
+| minor | Thin Bead / Small Beading Defect | `bead_small_defect` |  |
 
 `STD_SG` uses STD_EG's lists until confirmed: the SG form has blank rows.
 
@@ -828,44 +828,44 @@ Severity per template, by code (a code in two classes of one template is a delib
 | Code | STD_EG | SAFEDON_EG |
 |---|---|---|
 | `embedded_insect` | critical: Embedded Insects | critical: Embedded Insects |
-| `embedded_metal` | critical: Embedded metal debris | critical: Embedded metal debris |
-| `thin_crotch_area` | major: Thin area between fingers (crotch) | major: Thin area between fingers (crotch) |
-| `thin_crotch_ring` | major: Ring-shaped thin area (crotch) | major: Thin ring between fingers (crotch) |
-| `thin_body_area` | major: Thin area on glove body | major: Thin patch / area (body) |
-| `thin_spot` | major: Thin spot on glove body | major: Thin spot |
-| `dirt_nonremovable` | major: Non-removable dirt | major: Non-removable dirt |
-| `stain` | major: Oil stain | major: Stain |
-| `foreign_matter` | major: Residue material / foreign matter |  |
-| `bead_defective` | major: Defective bead<br>minor: Defective beads |  |
+| `embedded_metal` | critical: Embedded Metal Debris | critical: Embedded Metal Debris |
+| `thin_crotch_area` | major: Thin Area Between Fingers (Crotch) | major: Thin Area Between Fingers (Crotch) |
+| `thin_crotch_ring` | major: Ring-Shaped Thin Area (Crotch) | major: Thin Ring Between Fingers (Crotch) |
+| `thin_body_area` | major: Thin Area on Glove Body | major: Thin Patch / Area (Body) |
+| `thin_spot` | major: Thin Spot on Glove Body | major: Thin Spot |
+| `dirt_nonremovable` | major: Non-Removable Dirt | major: Non-Removable Dirt |
+| `stain` | major: Oil Stain | major: Stain |
+| `foreign_matter` | major: Residue Material / Foreign Matter |  |
+| `bead_defective` | major: Defective Bead<br>minor: Defective Beads |  |
 | `lump_big` | major: Big Lumps (>2mm) |  |
-| `dirt_small` | minor: Small dirt / stain | minor: Small dirt / stain |
-| `sticky_pleats` | minor: Sticky pleats (&lt; 5mm) | minor: Sticky pleats (&lt; 5mm) |
+| `dirt_small` | minor: Small Dirt / Stain | minor: Small Dirt / Stain |
+| `sticky_pleats` | minor: Sticky Pleats (&lt; 5mm) | minor: Sticky Pleats (&lt; 5mm) |
 | `lump_small` | minor: Lumps (&lt;2mm) | minor: Lumps (&lt;2mm) |
-| `bead_poor` | minor: Poor beading |  |
-| `bead_rolled` | minor: Rolled bead |  |
-| `powder_mark` |  | major: Powder mark |
-| `bead_blister` |  | major: Bead blister |
-| `bead_thin` |  | minor: Thin bead |
-| `bead_small_defect` |  | minor: Thin bead / small beading defect |
+| `bead_poor` | minor: Poor Beading |  |
+| `bead_rolled` | minor: Rolled Bead |  |
+| `powder_mark` |  | major: Powder Mark |
+| `bead_blister` |  | major: Bead Blister |
+| `bead_thin` |  | minor: Thin Bead |
+| `bead_small_defect` |  | minor: Thin Bead / Small Beading Defect |
 
 Watertight hole locations, in report order:
 
 | Template | Locations (code) |
 |---|---|
-| `STD_EG` | Between fingers (crotch) (`hole_crotch`), Palm (`hole_palm`), Finger (`hole_finger`), Cuff (`hole_cuff`), Other : (`hole_other`) |
-| `SAFEDON_EG` | Between fingers (`hole_crotch`), Palm (`hole_palm`), Cuff (`hole_cuff`), Finger (`hole_finger`), Glove burst (`glove_burst`), Other : (`hole_other`) |
-| `STD_SG` | Between fingers (crotch) (`hole_crotch`), Palm (`hole_palm`), Finger (`hole_finger`), Cuff (`hole_cuff`), Other : (`hole_other`) |
+| `STD_EG` | Between Fingers (Crotch) (`hole_crotch`), Palm (`hole_palm`), Finger (`hole_finger`), Cuff (`hole_cuff`), Other : (`hole_other`) |
+| `SAFEDON_EG` | Between Fingers (`hole_crotch`), Palm (`hole_palm`), Cuff (`hole_cuff`), Finger (`hole_finger`), Glove Burst (`glove_burst`), Other : (`hole_other`) |
+| `STD_SG` | Between Fingers (Crotch) (`hole_crotch`), Palm (`hole_palm`), Finger (`hole_finger`), Cuff (`hole_cuff`), Other : (`hole_other`) |
 
 Safedon dispensing defects (SAFEDON_EG report page 3, Safedon onsite sheet):
 
 | Code | Label | Hint shown in the app | Printed definition |
 |---|---|---|---|
-| `no_cuff` | No cuff | Cuff should ideally be at least 2 cm out | Cuff should ideallly be at least 2 cm out |
-| `finger_out` | Finger out | Only the cuff, not a finger, should come out first | Only cuff but no finger should be out first |
-| `multiple_out` | Multiple gloves out | Only one glove should come out at a time | Only one glove should be out at one time |
-| `stuck` | Glove stuck | Glove could not be dispensed or was very difficult to dispense | Glove ould not be dispensed or very difficult to dispense |
-| `sticky` | Sticky glove | Two or more gloves out at once because they stick together | Two or more gloves out at the same time caused by gloves sticking together |
-| `faulty_cuff` | Faulty cuff | Deformed or misshapen cuff causing a dispensing problem | Deformed or out of shaped cuff which causes dispensing problem |
+| `no_cuff` | No Cuff | Cuff should ideally be at least 2 cm out | Cuff should ideallly be at least 2 cm out |
+| `finger_out` | Finger Out | Only the cuff, not a finger, should come out first | Only cuff but no finger should be out first |
+| `multiple_out` | Multiple Gloves Out | Only one glove should come out at a time | Only one glove should be out at one time |
+| `stuck` | Glove Stuck | Glove could not be dispensed or was very difficult to dispense | Glove ould not be dispensed or very difficult to dispense |
+| `sticky` | Sticky Glove | Two or more gloves out at once because they stick together | Two or more gloves out at the same time caused by gloves sticking together |
+| `faulty_cuff` | Faulty Cuff | Deformed or misshapen cuff causing a dispensing problem | Deformed or out of shaped cuff which causes dispensing problem |
 
 Stickiness codes (STD_EG report page 4):
 
@@ -1003,152 +1003,152 @@ module field; `template` a template property; `layout` is drawn by the AI report
 | All pages | Pre-shipment Inspection : &lt;PO> &lt;product> |  | page | layout: Running header of pages 2 to 4, 'Pre-shipment Inspection : &lt;PO> &lt;product>': the AI report draws it from header.poNo and header.productName. | BUILD_SPEC 4.3's report settings hold the title and the client logo only. |
 | Page 1 > Title | Preshipment Inspection |  | heading | template `report.titleLines` |  |
 | Page 1 > Title | Nitrile Disposable Examination Gloves |  | heading | template `report.titleLines` |  |
-| Page 1 > Manufacturer Information | Manufacturer Information |  | heading | title `header` |  |
-| Page 1 > Manufacturer Information | Manufacturer / Supplier |  | text | `header.manufacturer` | Printed as the manufacturer's name with the factory name in brackets. |
-| Page 1 > Manufacturer Information | Supplier Factory Address / Location |  | text | `header.factoryAddress` |  |
-| Page 1 > Manufacturer Information | PO / SO Number |  | text | `header.poNo` | The PO with the SO number in brackets: one value. |
-| Page 1 > Manufacturer Information | Product Name (Brand, code & description) |  | text | `header.productName` |  |
-| Page 1 > Manufacturer Information | Client Name |  | text | `header.client` |  |
-| Page 1 > Manufacturer Information | Inspection date |  | date | `header.inspectionDate` |  |
-| Page 1 > Manufacturer Information | Manufacturing date |  | date | `header.mfgDate` |  |
-| Page 1 > Manufacturer Information | Expiry date |  | date | `header.expiryDate` |  |
-| Page 1 > Manufacturer Information | Factrory glove code | Factory glove code | text | `header.factoryGloveCode` | No 'Inspected by' row on this report; the app records the inspector anyway, and STD_EG shows the row because the EG onsite form prints it (header.inspector). |
-| Page 1 > Glove Information | Glove Information |  | heading | title `glove_info` |  |
-| Page 1 > Glove Information | Glove surface texture |  | text | `glove_info.surfaceTexture` |  |
-| Page 1 > Glove Information | Indicative weight (size M) |  | number | `glove_info.indicativeWeight`<br>config `glove_info.indicativeWeightSize` | Grams. |
-| Page 1 > Glove Information | Glove colour |  | text | `glove_info.colour` |  |
-| Page 1 > Glove Information | Glove length |  | text | `glove_info.length` | Text, e.g. a minimum in mm. |
+| Page 1 > Manufacturer Information | Manufacturer Information | Manufacturer Information | heading | title `header` |  |
+| Page 1 > Manufacturer Information | Manufacturer / Supplier | Manufacturer / Supplier | text | `header.manufacturer` | Printed as the manufacturer's name with the factory name in brackets. |
+| Page 1 > Manufacturer Information | Supplier Factory Address / Location | Supplier Factory Address / Location | text | `header.factoryAddress` |  |
+| Page 1 > Manufacturer Information | PO / SO Number | PO / SO Number | text | `header.poNo` | The PO with the SO number in brackets: one value. |
+| Page 1 > Manufacturer Information | Product Name (Brand, code & description) | Product Name (Brand, Code & Description) | text | `header.productName` |  |
+| Page 1 > Manufacturer Information | Client Name | Client Name | text | `header.client` |  |
+| Page 1 > Manufacturer Information | Inspection date | Inspection Date | date | `header.inspectionDate` |  |
+| Page 1 > Manufacturer Information | Manufacturing date | Manufacturing Date | date | `header.mfgDate` |  |
+| Page 1 > Manufacturer Information | Expiry date | Expiry Date | date | `header.expiryDate` |  |
+| Page 1 > Manufacturer Information | Factrory glove code | Factory Glove Code | text | `header.factoryGloveCode` | No 'Inspected by' row on this report; the app records the inspector anyway, and STD_EG shows the row because the EG onsite form prints it (header.inspector). |
+| Page 1 > Glove Information | Glove Information | Glove Information | heading | title `glove_info` |  |
+| Page 1 > Glove Information | Glove surface texture | Glove Surface Texture | text | `glove_info.surfaceTexture` |  |
+| Page 1 > Glove Information | Indicative weight (size M) | Indicative Weight (Size M) | number | `glove_info.indicativeWeight`<br>config `glove_info.indicativeWeightSize` | Grams. |
+| Page 1 > Glove Information | Glove colour | Glove Colour | text | `glove_info.colour` |  |
+| Page 1 > Glove Information | Glove length | Glove Length | text | `glove_info.length` | Text, e.g. a minimum in mm. |
 | Page 1 > Order table | Size |  | size | template `sizes` | Rows XS, S, M, L, XL. |
-| Page 1 > Order table | Qty (cases) |  | number | `order_lots.qtyCases` |  |
-| Page 1 > Order table | Lot Number |  | text | `order_lots.lotNumbers` |  |
-| Page 1 > Order table | Total # carton |  | computed | `order_lots.totalCartons` |  |
-| Page 1 > Order table | Total # gloves |  | computed | `order_lots.totalGloves` |  |
-| Page 1 > Packing configuration | Packing configuration |  | label | title `packing_config` |  |
-| Page 1 > Packing configuration | # glove per inner box |  | number | `packing_config.glovesPerInner`<br>config `packing_config.innerUnit` | Names the inner unit: inner box. |
-| Page 1 > Packing configuration | # inners per case |  | number | `packing_config.innersPerCase` |  |
-| Page 1 > Packing configuration | # gloves per case |  | number | `packing_config.glovesPerCase` |  |
-| Page 1 > Sampling Plan | Sampling Plan |  | heading | title `sampling_plan` |  |
+| Page 1 > Order table | Qty (cases) | Qty (Cases) | number | `order_lots.qtyCases` |  |
+| Page 1 > Order table | Lot Number | Lot Number | text | `order_lots.lotNumbers` |  |
+| Page 1 > Order table | Total # carton | Total # Carton | computed | `order_lots.totalCartons` |  |
+| Page 1 > Order table | Total # gloves | Total # Gloves | computed | `order_lots.totalGloves` |  |
+| Page 1 > Packing configuration | Packing configuration | Packing Configuration | label | title `packing_config` |  |
+| Page 1 > Packing configuration | # glove per inner box | # Glove per Inner Box | number | `packing_config.glovesPerInner`<br>config `packing_config.innerUnit` | Names the inner unit: inner box. |
+| Page 1 > Packing configuration | # inners per case | # Inners per Case | number | `packing_config.innersPerCase` |  |
+| Page 1 > Packing configuration | # gloves per case | # Gloves per Case | number | `packing_config.glovesPerCase` |  |
+| Page 1 > Sampling Plan | Sampling Plan | Sampling Plan | heading | title `sampling_plan` |  |
 | Page 1 > Sampling Plan | Glove Size |  | size | template `sizes` |  |
-| Page 1 > Sampling Plan | Order Qty (case) |  | repeat | caption `sampling_plan.orderQty`<br>`order_lots.qtyCases` | The order quantity again: entered once, in the order table. |
-| Page 1 > Sampling Plan | Sampling Quantity |  | label | caption `sampling_plan.samplingQuantity` |  |
-| Page 1 > Sampling Plan | Case |  | number | `sampling_plan.cases` |  |
-| Page 1 > Sampling Plan | Inner Box |  | number | `sampling_plan.innerUnits` |  |
-| Page 1 > Sampling Plan | Gloves |  | number | `sampling_plan.gloves` |  |
-| Page 1 > Sampling Plan | # gloves for watertight & Visual |  | number | `sampling_plan.glovesWatertightVisual` |  |
-| Page 1 > Sampling Plan | # gloves for dimension |  | number | `sampling_plan.glovesDimensions` |  |
-| Page 1 > Sampling Plan | # gloves for FAB |  | number | `sampling_plan.glovesPhysical` |  |
-| Page 1 > Sampling Plan | # inner box for packaing & dispensing inspection | # inner box for packaging & dispensing inspection | number | `sampling_plan.innerUnitsDispensing` |  |
-| Page 1 > Finished Goods Sampling Information (carton number) | Finished Goods Sampling Information (carton number) |  | heading | title `carton_sampling` |  |
-| Page 1 > Finished Goods Sampling Information (carton number) | (Carton #) |  | number | `carton_sampling.cartonNumbers`<br>caption `carton_sampling.sizeCaption` | One grid per size, XS to XL: 10 columns × 5 rows, up to 50 carton numbers. Printed after the size ('M (Carton #)'; 'XS (carton #)' in lower case). |
-| Page 1 > Finished Goods Sampling Information (carton number) | Sampling Quantity |  | number | `carton_sampling.samplingQuantity` | The app counts the carton numbers; the count must equal the sampled cases (rule 6). |
-| Page 2 > Dimension - Size &lt;size> | Dimension - Size &lt;size> |  | heading | caption `dimensions.sizeHeading`<br>title `dimensions` | One table per size, XS to XL. |
-| Page 2 > Dimension - Size &lt;size> | No. |  | fixed | caption `dimensions.rowNo`<br>config `dimensions.rows` | Rows 1 to 13. |
-| Page 2 > Dimension - Size &lt;size> | Length |  | number | `dimensions.length` |  |
-| Page 2 > Dimension - Size &lt;size> | Width |  | number | `dimensions.width` |  |
-| Page 2 > Dimension - Size &lt;size> | Finger Thickness |  | number | `dimensions.fingerThickness` |  |
-| Page 2 > Dimension - Size &lt;size> | Palm Thickness |  | number | `dimensions.palmThickness` |  |
-| Page 2 > Dimension - Size &lt;size> | Cuff Thickness |  | number | `dimensions.cuffThickness` |  |
-| Page 2 > Dimension - Size &lt;size> | Median |  | computed | `dimensions.statistic`<br>config `dimensions.statistic`<br>config `dimensions.decimals` |  |
-| Page 2 > Dimension - Size &lt;size> | Spec. |  | fixed | caption `dimensions.specRow`<br>config `dimensions.specs` | Length ≥ 240; Width XS ≤ 80, S 80 ± 10, M 95 ± 10, L 110 ± 10, XL ≥ 110; thickness NA. |
-| Page 2 > Dimension - Size &lt;size> | P/F \* |  | computed | `dimensions.measureResult`<br>caption `dimensions.pass`<br>caption `dimensions.fail` |  |
+| Page 1 > Sampling Plan | Order Qty (case) | Order Qty (Case) | repeat | caption `sampling_plan.orderQty`<br>`order_lots.qtyCases` | The order quantity again: entered once, in the order table. |
+| Page 1 > Sampling Plan | Sampling Quantity | Sampling Quantity | label | caption `sampling_plan.samplingQuantity` |  |
+| Page 1 > Sampling Plan | Case | Case | number | `sampling_plan.cases` |  |
+| Page 1 > Sampling Plan | Inner Box | Inner Box | number | `sampling_plan.innerUnits` |  |
+| Page 1 > Sampling Plan | Gloves | Gloves | number | `sampling_plan.gloves` |  |
+| Page 1 > Sampling Plan | # gloves for watertight & Visual | # Gloves for Watertight & Visual | number | `sampling_plan.glovesWatertightVisual` |  |
+| Page 1 > Sampling Plan | # gloves for dimension | # Gloves for Dimension | number | `sampling_plan.glovesDimensions` |  |
+| Page 1 > Sampling Plan | # gloves for FAB | # Gloves for FAB | number | `sampling_plan.glovesPhysical` |  |
+| Page 1 > Sampling Plan | # inner box for packaing & dispensing inspection | # Inner Box for Packaging & Dispensing Inspection | number | `sampling_plan.innerUnitsDispensing` |  |
+| Page 1 > Finished Goods Sampling Information (carton number) | Finished Goods Sampling Information (carton number) | Finished Goods Sampling Information (Carton Number) | heading | title `carton_sampling` |  |
+| Page 1 > Finished Goods Sampling Information (carton number) | (Carton #) | (Carton #) | number | `carton_sampling.cartonNumbers`<br>caption `carton_sampling.sizeCaption` | One grid per size, XS to XL: 10 columns × 5 rows, up to 50 carton numbers. Printed after the size ('M (Carton #)'; 'XS (carton #)' in lower case). |
+| Page 1 > Finished Goods Sampling Information (carton number) | Sampling Quantity | Sampling Quantity | number | `carton_sampling.samplingQuantity` | The app counts the carton numbers; the count must equal the sampled cases (rule 6). |
+| Page 2 > Dimension - Size &lt;size> | Dimension - Size &lt;size> | Dimension - Size {size} | heading | caption `dimensions.sizeHeading`<br>title `dimensions` | One table per size, XS to XL. |
+| Page 2 > Dimension - Size &lt;size> | No. | No. | fixed | caption `dimensions.rowNo`<br>config `dimensions.rows` | Rows 1 to 13. |
+| Page 2 > Dimension - Size &lt;size> | Length | Length | number | `dimensions.length` |  |
+| Page 2 > Dimension - Size &lt;size> | Width | Width | number | `dimensions.width` |  |
+| Page 2 > Dimension - Size &lt;size> | Finger Thickness | Finger Thickness | number | `dimensions.fingerThickness` |  |
+| Page 2 > Dimension - Size &lt;size> | Palm Thickness | Palm Thickness | number | `dimensions.palmThickness` |  |
+| Page 2 > Dimension - Size &lt;size> | Cuff Thickness | Cuff Thickness | number | `dimensions.cuffThickness` |  |
+| Page 2 > Dimension - Size &lt;size> | Median | Median | computed | `dimensions.statistic`<br>config `dimensions.statistic`<br>config `dimensions.decimals` |  |
+| Page 2 > Dimension - Size &lt;size> | Spec. | Spec. | fixed | caption `dimensions.specRow`<br>config `dimensions.specs` | Length ≥ 240; Width XS ≤ 80, S 80 ± 10, M 95 ± 10, L 110 ± 10, XL ≥ 110; thickness NA. |
+| Page 2 > Dimension - Size &lt;size> | P/F \* | P/F \* | computed | `dimensions.measureResult`<br>caption `dimensions.pass`<br>caption `dimensions.fail` |  |
 | Page 2 > Dimension - Size &lt;size> | \* P = Passed F = Failed |  | fixed | layout: Legend of the P/F row: the app shows result words and chips. |  |
-| Page 2 > Force At Break in Newton | Force At Break in Newton (Refer to attached where applicable) |  | heading | title `force_at_break`<br>`force_at_break.labReport` | 'Refer to attached': the lab report, uploaded as a file. |
+| Page 2 > Force At Break in Newton | Force At Break in Newton (Refer to attached where applicable) | Force at Break in Newton (Refer to Attached Where Applicable) | heading | title `force_at_break`<br>`force_at_break.labReport` | 'Refer to attached': the lab report, uploaded as a file. |
 | Page 2 > Force At Break in Newton | Size |  | size | template `sizes` |  |
-| Page 2 > Force At Break in Newton | Median |  | computed | `force_at_break.median`<br>`force_at_break.values`<br>config `force_at_break.n` | Only the median is printed; the app keeps the n readings and computes it (rule 2). |
-| Page 2 > Force At Break in Newton | Spec. |  | fixed | caption `force_at_break.specRow`<br>config `force_at_break.specMin` | ≥ 6 N (left blank for XS). |
-| Page 2 > Force At Break in Newton | Passed / Failed |  | computed | `force_at_break.result` |  |
-| Page 2 > Weight (g) - average of 13 gloves per size | Weight (g) - average of 13 gloves per size |  | heading | title `weight`<br>config `weight.n` |  |
+| Page 2 > Force At Break in Newton | Median | Median | computed | `force_at_break.median`<br>`force_at_break.values`<br>config `force_at_break.n` | Only the median is printed; the app keeps the n readings and computes it (rule 2). |
+| Page 2 > Force At Break in Newton | Spec. | Spec. | fixed | caption `force_at_break.specRow`<br>config `force_at_break.specMin` | ≥ 6 N (left blank for XS). |
+| Page 2 > Force At Break in Newton | Passed / Failed | Passed / Failed | computed | `force_at_break.result` |  |
+| Page 2 > Weight (g) - average of 13 gloves per size | Weight (g) - average of 13 gloves per size | Weight (g) - Average of 13 Gloves per Size | heading | title `weight`<br>config `weight.n` |  |
 | Page 2 > Weight (g) - average of 13 gloves per size | Size |  | size | template `sizes` |  |
-| Page 2 > Weight (g) - average of 13 gloves per size | Average |  | computed | `weight.average`<br>`weight.values`<br>config `weight.decimals` | The 13 weighings are not printed; the app keeps them and computes the average. |
-| Page 2 > Weight (g) - average of 13 gloves per size | Remark |  | computed | `weight.result`<br>caption `weight.info`<br>config `weight.specs` | Printed 'Info': no weight spec. |
-| Page 3 > Freedom from Holes by watertight test | Freedom from Holes by watertight test (Single sampling code letter k, L & M, AQL 1.5) |  | heading | caption `watertight.heading`<br>title `watertight`<br>`watertight.codeLetter`<br>config `watertight.aql` | The code letters (printed 'k, L & M') follow from the samples: computed (rule 2). |
+| Page 2 > Weight (g) - average of 13 gloves per size | Average | Average | computed | `weight.average`<br>`weight.values`<br>config `weight.decimals` | The 13 weighings are not printed; the app keeps them and computes the average. |
+| Page 2 > Weight (g) - average of 13 gloves per size | Remark | Remark | computed | `weight.result`<br>caption `weight.info`<br>config `weight.specs` | Printed 'Info': no weight spec. |
+| Page 3 > Freedom from Holes by watertight test | Freedom from Holes by watertight test (Single sampling code letter k, L & M, AQL 1.5) | Freedom From Holes by Watertight Test (Single Sampling Code Letter {codeLetters}, AQL {aql}) | heading | caption `watertight.heading`<br>title `watertight`<br>`watertight.codeLetter`<br>config `watertight.aql` | The code letters (printed 'k, L & M') follow from the samples: computed (rule 2). |
 | Page 3 > Freedom from Holes by watertight test | Glove Size |  | size | template `sizes` |  |
-| Page 3 > Freedom from Holes by watertight test | No. of sample tested |  | number | `watertight.tested` |  |
-| Page 3 > Freedom from Holes by watertight test | Defect Limit |  | computed | caption `watertight.defectLimit`<br>`watertight.accept`<br>`watertight.reject` | Accept / Reject per size, from the AQL engine. |
-| Page 3 > Freedom from Holes by watertight test | Pin hole |  | label | `watertight.holes`<br>config `watertight.locations` |  |
-| Page 3 > Freedom from Holes by watertight test | Between fingers (crotch) |  | number | `watertight.holes[hole_crotch]` |  |
-| Page 3 > Freedom from Holes by watertight test | Palm |  | number | `watertight.holes[hole_palm]` |  |
-| Page 3 > Freedom from Holes by watertight test | Finger |  | number | `watertight.holes[hole_finger]` |  |
-| Page 3 > Freedom from Holes by watertight test | Cuff |  | number | `watertight.holes[hole_cuff]` |  |
-| Page 3 > Freedom from Holes by watertight test | Other : |  | number | `watertight.holes[hole_other]`<br>`watertight.otherDescription` | The colon takes the location: watertight.otherDescription. |
-| Page 3 > Freedom from Holes by watertight test | Total number of defects found |  | computed | `watertight.totalDefects` | Printed as &lt;defects>/&lt;tested>. |
-| Page 3 > Freedom from Holes by watertight test | Freedom from holes (Passed / Failed) |  | computed | `watertight.result` |  |
-| Page 3 > Visual Inspection | Visual Inspection (Single Sampling code letter K, L & M) |  | heading | caption `visual.heading`<br>title `visual`<br>`visual.codeLetter` |  |
-| Page 3 > Visual Inspection > Critical Defects (AQL 0.0) | Critical Defects (AQL 0.0) |  | heading | caption `visual.criticalHeading`<br>config `visual.classes[critical]` |  |
+| Page 3 > Freedom from Holes by watertight test | No. of sample tested | No. of Sample Tested | number | `watertight.tested` |  |
+| Page 3 > Freedom from Holes by watertight test | Defect Limit | Defect Limit | computed | caption `watertight.defectLimit`<br>`watertight.accept`<br>`watertight.reject` | Accept / Reject per size, from the AQL engine. |
+| Page 3 > Freedom from Holes by watertight test | Pin hole | Pin Hole | label | `watertight.holes`<br>config `watertight.locations` |  |
+| Page 3 > Freedom from Holes by watertight test | Between fingers (crotch) | Between Fingers (Crotch) | number | `watertight.holes[hole_crotch]` |  |
+| Page 3 > Freedom from Holes by watertight test | Palm | Palm | number | `watertight.holes[hole_palm]` |  |
+| Page 3 > Freedom from Holes by watertight test | Finger | Finger | number | `watertight.holes[hole_finger]` |  |
+| Page 3 > Freedom from Holes by watertight test | Cuff | Cuff | number | `watertight.holes[hole_cuff]` |  |
+| Page 3 > Freedom from Holes by watertight test | Other : | Other : | number | `watertight.holes[hole_other]`<br>`watertight.otherDescription` | The colon takes the location: watertight.otherDescription. |
+| Page 3 > Freedom from Holes by watertight test | Total number of defects found | Total Number of Defects Found | computed | `watertight.totalDefects` | Printed as &lt;defects>/&lt;tested>. |
+| Page 3 > Freedom from Holes by watertight test | Freedom from holes (Passed / Failed) | Freedom From Holes (Passed / Failed) | computed | `watertight.result` |  |
+| Page 3 > Visual Inspection | Visual Inspection (Single Sampling code letter K, L & M) | Visual Inspection (Single Sampling Code Letter {codeLetters}) | heading | caption `visual.heading`<br>title `visual`<br>`visual.codeLetter` |  |
+| Page 3 > Visual Inspection > Critical Defects (AQL 0.0) | Critical Defects (AQL 0.0) | Critical Defects (AQL {aql}) | heading | caption `visual.criticalHeading`<br>config `visual.classes[critical]` |  |
 | Page 3 > Visual Inspection > Critical Defects (AQL 0.0) | Glove Size |  | size | template `sizes` |  |
-| Page 3 > Visual Inspection > Critical Defects (AQL 0.0) | No. of sample inspected |  | number | `visual.inspected[critical]` |  |
-| Page 3 > Visual Inspection > Critical Defects (AQL 0.0) | Defect Limit : Accept / Reject |  | computed | caption `visual.criticalLimit`<br>`visual.accept[critical]`<br>`visual.reject[critical]` | Printed Acc. = 0 / Rej. = 1: AQL 0 is always Accept 0 / Reject 1. |
-| Page 3 > Visual Inspection > Critical Defects (AQL 0.0) | Critical Defects |  | label | `visual.counts[critical]` |  |
+| Page 3 > Visual Inspection > Critical Defects (AQL 0.0) | No. of sample inspected | No. of Sample Inspected | number | `visual.inspected[critical]` |  |
+| Page 3 > Visual Inspection > Critical Defects (AQL 0.0) | Defect Limit : Accept / Reject | Defect Limit : Accept / Reject | computed | caption `visual.criticalLimit`<br>`visual.accept[critical]`<br>`visual.reject[critical]` | Printed Acc. = 0 / Rej. = 1: AQL 0 is always Accept 0 / Reject 1. |
+| Page 3 > Visual Inspection > Critical Defects (AQL 0.0) | Critical Defects | Critical Defects | label | `visual.counts[critical]` |  |
 | Page 3 > Visual Inspection > Critical Defects (AQL 0.0) | Embeded Insects | Embedded Insects | number | `visual.counts[critical][embedded_insect]` |  |
-| Page 3 > Visual Inspection > Critical Defects (AQL 0.0) | Embeded metal debris | Embedded metal debris | number | `visual.counts[critical][embedded_metal]` |  |
-| Page 3 > Visual Inspection > Critical Defects (AQL 0.0) | Total number of "Critical Defects" found |  | computed | `visual.total[critical]` |  |
+| Page 3 > Visual Inspection > Critical Defects (AQL 0.0) | Embeded metal debris | Embedded Metal Debris | number | `visual.counts[critical][embedded_metal]` |  |
+| Page 3 > Visual Inspection > Critical Defects (AQL 0.0) | Total number of "Critical Defects" found | Total Number of "Critical Defects" Found | computed | `visual.total[critical]` |  |
 | Page 3 > Visual Inspection > Critical Defects (AQL 0.0) | Disposition - Visual Minor (Passed / Failed) | Disposition - Visual Critical (Passed / Failed) | computed | `visual.result[critical]` | Mislabelled on the report: the app labels the critical line Critical. |
-| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | Major Defects (AQL 2.5) |  | heading | caption `visual.majorHeading`<br>config `visual.classes[major]` |  |
+| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | Major Defects (AQL 2.5) | Major Defects (AQL {aql}) | heading | caption `visual.majorHeading`<br>config `visual.classes[major]` |  |
 | Page 3 > Visual Inspection > Major Defects (AQL 2.5) | Glove Size |  | size | template `sizes` |  |
-| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | No. of sample inspected |  | number | `visual.inspected[major]` |  |
-| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | Defect Limit |  | computed | caption `visual.defectLimit`<br>`visual.accept[major]`<br>`visual.reject[major]` |  |
-| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | Major Defects |  | label | `visual.counts[major]` |  |
-| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | Thin area between fingers (crotch) |  | number | `visual.counts[major][thin_crotch_area]` |  |
-| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | Ring-shaped thin area (crotch) |  | number | `visual.counts[major][thin_crotch_ring]` |  |
-| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | Thin area on glove body |  | number | `visual.counts[major][thin_body_area]` |  |
-| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | Thin spot on glove body |  | number | `visual.counts[major][thin_spot]` |  |
-| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | Non-removable dirt |  | number | `visual.counts[major][dirt_nonremovable]` |  |
-| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | Oil stain |  | number | `visual.counts[major][stain]` |  |
-| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | Residue material / foreign matter |  | number | `visual.counts[major][foreign_matter]` |  |
-| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | Defective bead |  | number | `visual.counts[major][bead_defective]` | Major here; 'Defective beads' is minor: same code, severity per class. |
-| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | Big Lumps (>2mm) |  | number | `visual.counts[major][lump_big]` |  |
-| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | Total number of "Major Defects" found |  | computed | `visual.total[major]` |  |
-| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | Disposition - Visual Major (Passed / Failed) |  | computed | `visual.result[major]` |  |
-| Page 3 > Visual Inspection > Minor Defects (AQL 4.0) | Minor Defects (AQL 4.0) |  | heading | caption `visual.minorHeading`<br>config `visual.classes[minor]` |  |
+| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | No. of sample inspected | No. of Sample Inspected | number | `visual.inspected[major]` |  |
+| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | Defect Limit | Defect Limit | computed | caption `visual.defectLimit`<br>`visual.accept[major]`<br>`visual.reject[major]` |  |
+| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | Major Defects | Major Defects | label | `visual.counts[major]` |  |
+| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | Thin area between fingers (crotch) | Thin Area Between Fingers (Crotch) | number | `visual.counts[major][thin_crotch_area]` |  |
+| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | Ring-shaped thin area (crotch) | Ring-Shaped Thin Area (Crotch) | number | `visual.counts[major][thin_crotch_ring]` |  |
+| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | Thin area on glove body | Thin Area on Glove Body | number | `visual.counts[major][thin_body_area]` |  |
+| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | Thin spot on glove body | Thin Spot on Glove Body | number | `visual.counts[major][thin_spot]` |  |
+| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | Non-removable dirt | Non-Removable Dirt | number | `visual.counts[major][dirt_nonremovable]` |  |
+| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | Oil stain | Oil Stain | number | `visual.counts[major][stain]` |  |
+| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | Residue material / foreign matter | Residue Material / Foreign Matter | number | `visual.counts[major][foreign_matter]` |  |
+| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | Defective bead | Defective Bead | number | `visual.counts[major][bead_defective]` | Major here; 'Defective beads' is minor: same code, severity per class. |
+| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | Big Lumps (>2mm) | Big Lumps (>2mm) | number | `visual.counts[major][lump_big]` |  |
+| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | Total number of "Major Defects" found | Total Number of "Major Defects" Found | computed | `visual.total[major]` |  |
+| Page 3 > Visual Inspection > Major Defects (AQL 2.5) | Disposition - Visual Major (Passed / Failed) | Disposition - Visual Major (Passed / Failed) | computed | `visual.result[major]` |  |
+| Page 3 > Visual Inspection > Minor Defects (AQL 4.0) | Minor Defects (AQL 4.0) | Minor Defects (AQL {aql}) | heading | caption `visual.minorHeading`<br>config `visual.classes[minor]` |  |
 | Page 3 > Visual Inspection > Minor Defects (AQL 4.0) | Glove Size |  | size | template `sizes` |  |
-| Page 3 > Visual Inspection > Minor Defects (AQL 4.0) | No. of sample inspected |  | number | `visual.inspected[minor]` |  |
-| Page 3 > Visual Inspection > Minor Defects (AQL 4.0) | Defect Limit |  | computed | caption `visual.defectLimit`<br>`visual.accept[minor]`<br>`visual.reject[minor]` |  |
-| Page 3 > Visual Inspection > Minor Defects (AQL 4.0) | Minor Defects |  | label | `visual.counts[minor]` |  |
-| Page 3 > Visual Inspection > Minor Defects (AQL 4.0) | Small dirt / stain |  | number | `visual.counts[minor][dirt_small]` |  |
-| Page 3 > Visual Inspection > Minor Defects (AQL 4.0) | Sticky pleats (&lt; 5mm) |  | number | `visual.counts[minor][sticky_pleats]` |  |
-| Page 3 > Visual Inspection > Minor Defects (AQL 4.0) | Lumps (&lt;2mm) |  | number | `visual.counts[minor][lump_small]` |  |
-| Page 3 > Visual Inspection > Minor Defects (AQL 4.0) | Poor beading |  | number | `visual.counts[minor][bead_poor]` |  |
-| Page 3 > Visual Inspection > Minor Defects (AQL 4.0) | Rolled bead |  | number | `visual.counts[minor][bead_rolled]` |  |
-| Page 3 > Visual Inspection > Minor Defects (AQL 4.0) | Defective beads |  | number | `visual.counts[minor][bead_defective]` | Minor here; 'Defective bead' is major: same code, severity per class. |
-| Page 3 > Visual Inspection > Minor Defects (AQL 4.0) | Total number of "Minor Defects" found |  | computed | `visual.total[minor]` |  |
-| Page 3 > Visual Inspection > Minor Defects (AQL 4.0) | Disposition - Visual Minor (Passed / Failed) |  | computed | `visual.result[minor]` |  |
-| Page 4 > Glove Packing Check | Glove Packing Check (Sampling code letter D & E) : min. 70% layering & 80% dispensing |  | heading | caption `dispensing_packing.heading`<br>title `dispensing_packing`<br>`dispensing_packing.codeLetter`<br>config `dispensing_packing.minLayeringPct`<br>config `dispensing_packing.minDispensingPct` |  |
+| Page 3 > Visual Inspection > Minor Defects (AQL 4.0) | No. of sample inspected | No. of Sample Inspected | number | `visual.inspected[minor]` |  |
+| Page 3 > Visual Inspection > Minor Defects (AQL 4.0) | Defect Limit | Defect Limit | computed | caption `visual.defectLimit`<br>`visual.accept[minor]`<br>`visual.reject[minor]` |  |
+| Page 3 > Visual Inspection > Minor Defects (AQL 4.0) | Minor Defects | Minor Defects | label | `visual.counts[minor]` |  |
+| Page 3 > Visual Inspection > Minor Defects (AQL 4.0) | Small dirt / stain | Small Dirt / Stain | number | `visual.counts[minor][dirt_small]` |  |
+| Page 3 > Visual Inspection > Minor Defects (AQL 4.0) | Sticky pleats (&lt; 5mm) | Sticky Pleats (&lt; 5mm) | number | `visual.counts[minor][sticky_pleats]` |  |
+| Page 3 > Visual Inspection > Minor Defects (AQL 4.0) | Lumps (&lt;2mm) | Lumps (&lt;2mm) | number | `visual.counts[minor][lump_small]` |  |
+| Page 3 > Visual Inspection > Minor Defects (AQL 4.0) | Poor beading | Poor Beading | number | `visual.counts[minor][bead_poor]` |  |
+| Page 3 > Visual Inspection > Minor Defects (AQL 4.0) | Rolled bead | Rolled Bead | number | `visual.counts[minor][bead_rolled]` |  |
+| Page 3 > Visual Inspection > Minor Defects (AQL 4.0) | Defective beads | Defective Beads | number | `visual.counts[minor][bead_defective]` | Minor here; 'Defective bead' is major: same code, severity per class. |
+| Page 3 > Visual Inspection > Minor Defects (AQL 4.0) | Total number of "Minor Defects" found | Total Number of "Minor Defects" Found | computed | `visual.total[minor]` |  |
+| Page 3 > Visual Inspection > Minor Defects (AQL 4.0) | Disposition - Visual Minor (Passed / Failed) | Disposition - Visual Minor (Passed / Failed) | computed | `visual.result[minor]` |  |
+| Page 4 > Glove Packing Check | Glove Packing Check (Sampling code letter D & E) : min. 70% layering & 80% dispensing | Glove Packing Check (Sampling Code Letter {codeLetters}) : Min. {minLayeringPct}% Layering & {minDispensingPct}% Dispensing | heading | caption `dispensing_packing.heading`<br>title `dispensing_packing`<br>`dispensing_packing.codeLetter`<br>config `dispensing_packing.minLayeringPct`<br>config `dispensing_packing.minDispensingPct` |  |
 | Page 4 > Glove Packing Check | &lt;size> |  | size | template `sizes` | One block per size, headed by the size. |
-| Page 4 > Glove Packing Check | Item |  | fixed | caption `dispensing_packing.itemColumn`<br>config `dispensing_packing.boxesPerSize` | Rows 1 to 13 (1 to 5 in the XL block). |
-| Page 4 > Glove Packing Check | Box # |  | number | `dispensing_packing.boxNo` | Carton numbers (rule 7). |
-| Page 4 > Glove Packing Check | Layering % |  | number | `dispensing_packing.layeringPct` |  |
-| Page 4 > Glove Packing Check | Dispensing % |  | number | `dispensing_packing.dispensingPct` |  |
-| Page 4 > Glove Packing Check | Stickiness \*\* |  | select | `dispensing_packing.stickiness` |  |
-| Page 4 > Glove Packing Check | Average |  | computed | `dispensing_packing.layeringAverage`<br>`dispensing_packing.dispensingAverage`<br>`dispensing_packing.stickinessSummary` | One per column; the stickiness column prints a code. |
-| Page 4 > Glove Packing Check | Passed / Failed |  | computed | `dispensing_packing.layeringResult`<br>`dispensing_packing.dispensingResult`<br>`dispensing_packing.stickinessResult` | One per column. |
-| Page 4 > Glove Packing Check | \*\*Glove stickiness Code |  | label | caption `dispensing_packing.stickinessLegend`<br>config `dispensing_packing.stickinessCodes` |  |
-| Page 4 > Glove Packing Check | A = Non sticky (Passed) |  | fixed | config `dispensing_packing.stickinessCodes[A]` |  |
-| Page 4 > Glove Packing Check | B = A mix of non sticky to lightly sticky (Passed) |  | fixed | config `dispensing_packing.stickinessCodes[B]` |  |
+| Page 4 > Glove Packing Check | Item | Item | fixed | caption `dispensing_packing.itemColumn`<br>config `dispensing_packing.boxesPerSize` | Rows 1 to 13 (1 to 5 in the XL block). |
+| Page 4 > Glove Packing Check | Box # | Box # | number | `dispensing_packing.boxNo` | Carton numbers (rule 7). |
+| Page 4 > Glove Packing Check | Layering % | Layering % | number | `dispensing_packing.layeringPct` |  |
+| Page 4 > Glove Packing Check | Dispensing % | Dispensing % | number | `dispensing_packing.dispensingPct` |  |
+| Page 4 > Glove Packing Check | Stickiness \*\* | Stickiness \*\* | select | `dispensing_packing.stickiness` |  |
+| Page 4 > Glove Packing Check | Average | Average | computed | `dispensing_packing.layeringAverage`<br>`dispensing_packing.dispensingAverage`<br>`dispensing_packing.stickinessSummary` | One per column; the stickiness column prints a code. |
+| Page 4 > Glove Packing Check | Passed / Failed | Passed / Failed | computed | `dispensing_packing.layeringResult`<br>`dispensing_packing.dispensingResult`<br>`dispensing_packing.stickinessResult` | One per column. |
+| Page 4 > Glove Packing Check | \*\*Glove stickiness Code | \*\*Glove Stickiness Code | label | caption `dispensing_packing.stickinessLegend`<br>config `dispensing_packing.stickinessCodes` |  |
+| Page 4 > Glove Packing Check | A = Non sticky (Passed) | A = Non sticky (Passed) | fixed | config `dispensing_packing.stickinessCodes[A]` |  |
+| Page 4 > Glove Packing Check | B = A mix of non sticky to lightly sticky (Passed) | B = A mix of non sticky to lightly sticky (Passed) | fixed | config `dispensing_packing.stickinessCodes[B]` |  |
 | Page 4 > Glove Packing Check | B1 = A mix of non sticky to light sickiness at the bead (Passed) | B1 = A mix of non sticky to light stickiness at the bead (Passed) | fixed | config `dispensing_packing.stickinessCodes[B1]` |  |
-| Page 4 > Glove Packing Check | C = Lightly sticky but dispensable (Passed) |  | fixed | config `dispensing_packing.stickinessCodes[C]` |  |
-| Page 4 > Glove Packing Check | D = Too sticky & affect dispensing (Failed) |  | fixed | config `dispensing_packing.stickinessCodes[D]` |  |
-| Page 4 > Packaging Labeling Inspection | Packaging Labeling Inspection |  | heading | title `labeling` |  |
-| Page 4 > Packaging Labeling Inspection > Dispenser Box | Dispenser Box |  | heading | caption `labeling.innerLevel`<br>config `labeling.levels[inner]` |  |
-| Page 4 > Packaging Labeling Inspection > Dispenser Box | No. of sampled boxes inspected |  | number | `labeling.inspected[inner]`<br>config `labeling.levels[inner]` | 3 per size. |
-| Page 4 > Packaging Labeling Inspection > Dispenser Box | Defect Limit |  | computed | caption `labeling.defectLimit`<br>`labeling.accept[inner]`<br>`labeling.reject[inner]` | Accept 0 / Reject 1. |
-| Page 4 > Packaging Labeling Inspection > Dispenser Box | Wrong / No lot number |  | number | `labeling.defects[inner][lot_no]` |  |
-| Page 4 > Packaging Labeling Inspection > Dispenser Box | Wrong / No mfg. date |  | number | `labeling.defects[inner][mfg_date]` |  |
-| Page 4 > Packaging Labeling Inspection > Dispenser Box | Wrong artwork print |  | number | `labeling.defects[inner][artwork]` |  |
-| Page 4 > Packaging Labeling Inspection > Dispenser Box | Total number of defects found |  | computed | `labeling.total[inner]` |  |
-| Page 4 > Packaging Labeling Inspection > Dispenser Box | Disposition - Inner Box (Passed / Failed) |  | computed | `labeling.result[inner]` |  |
-| Page 4 > Packaging Labeling Inspection > Carton Box | Carton Box |  | heading | caption `labeling.cartonLevel`<br>config `labeling.levels[carton]` |  |
-| Page 4 > Packaging Labeling Inspection > Carton Box | No. of sampled boxes inspected |  | number | `labeling.inspected[carton]`<br>config `labeling.levels[carton]` | 1 per size. |
-| Page 4 > Packaging Labeling Inspection > Carton Box | Defect Limit |  | computed | caption `labeling.defectLimit`<br>`labeling.accept[carton]`<br>`labeling.reject[carton]` | Accept 0 / Reject 1. |
-| Page 4 > Packaging Labeling Inspection > Carton Box | Wrong / No lot number |  | number | `labeling.defects[carton][lot_no]` |  |
-| Page 4 > Packaging Labeling Inspection > Carton Box | Wrong / No mfg. date |  | number | `labeling.defects[carton][mfg_date]` |  |
-| Page 4 > Packaging Labeling Inspection > Carton Box | Wrong artwork print |  | number | `labeling.defects[carton][artwork]` |  |
-| Page 4 > Packaging Labeling Inspection > Carton Box | No carton number printed |  | number | `labeling.defects[carton][carton_no]` |  |
-| Page 4 > Packaging Labeling Inspection > Carton Box | Total number of defects found |  | computed | `labeling.total[carton]` |  |
+| Page 4 > Glove Packing Check | C = Lightly sticky but dispensable (Passed) | C = Lightly sticky but dispensable (Passed) | fixed | config `dispensing_packing.stickinessCodes[C]` |  |
+| Page 4 > Glove Packing Check | D = Too sticky & affect dispensing (Failed) | D = Too sticky & affect dispensing (Failed) | fixed | config `dispensing_packing.stickinessCodes[D]` |  |
+| Page 4 > Packaging Labeling Inspection | Packaging Labeling Inspection | Packaging Labeling Inspection | heading | title `labeling` |  |
+| Page 4 > Packaging Labeling Inspection > Dispenser Box | Dispenser Box | Dispenser Box | heading | caption `labeling.innerLevel`<br>config `labeling.levels[inner]` |  |
+| Page 4 > Packaging Labeling Inspection > Dispenser Box | No. of sampled boxes inspected | No. of Sampled Boxes Inspected | number | `labeling.inspected[inner]`<br>config `labeling.levels[inner]` | 3 per size. |
+| Page 4 > Packaging Labeling Inspection > Dispenser Box | Defect Limit | Defect Limit | computed | caption `labeling.defectLimit`<br>`labeling.accept[inner]`<br>`labeling.reject[inner]` | Accept 0 / Reject 1. |
+| Page 4 > Packaging Labeling Inspection > Dispenser Box | Wrong / No lot number | Wrong / No Lot Number | number | `labeling.defects[inner][lot_no]` |  |
+| Page 4 > Packaging Labeling Inspection > Dispenser Box | Wrong / No mfg. date | Wrong / No Mfg. Date | number | `labeling.defects[inner][mfg_date]` |  |
+| Page 4 > Packaging Labeling Inspection > Dispenser Box | Wrong artwork print | Wrong Artwork Print | number | `labeling.defects[inner][artwork]` |  |
+| Page 4 > Packaging Labeling Inspection > Dispenser Box | Total number of defects found | Total Number of Defects Found | computed | `labeling.total[inner]` |  |
+| Page 4 > Packaging Labeling Inspection > Dispenser Box | Disposition - Inner Box (Passed / Failed) | Disposition - Inner Box (Passed / Failed) | computed | `labeling.result[inner]` |  |
+| Page 4 > Packaging Labeling Inspection > Carton Box | Carton Box | Carton Box | heading | caption `labeling.cartonLevel`<br>config `labeling.levels[carton]` |  |
+| Page 4 > Packaging Labeling Inspection > Carton Box | No. of sampled boxes inspected | No. of Sampled Boxes Inspected | number | `labeling.inspected[carton]`<br>config `labeling.levels[carton]` | 1 per size. |
+| Page 4 > Packaging Labeling Inspection > Carton Box | Defect Limit | Defect Limit | computed | caption `labeling.defectLimit`<br>`labeling.accept[carton]`<br>`labeling.reject[carton]` | Accept 0 / Reject 1. |
+| Page 4 > Packaging Labeling Inspection > Carton Box | Wrong / No lot number | Wrong / No Lot Number | number | `labeling.defects[carton][lot_no]` |  |
+| Page 4 > Packaging Labeling Inspection > Carton Box | Wrong / No mfg. date | Wrong / No Mfg. Date | number | `labeling.defects[carton][mfg_date]` |  |
+| Page 4 > Packaging Labeling Inspection > Carton Box | Wrong artwork print | Wrong Artwork Print | number | `labeling.defects[carton][artwork]` |  |
+| Page 4 > Packaging Labeling Inspection > Carton Box | No carton number printed | No Carton Number Printed | number | `labeling.defects[carton][carton_no]` |  |
+| Page 4 > Packaging Labeling Inspection > Carton Box | Total number of defects found | Total Number of Defects Found | computed | `labeling.total[carton]` |  |
 | Page 4 > Packaging Labeling Inspection > Carton Box | Disposition - Inner Box (Passed / Failed) | Disposition - Carton Box (Passed / Failed) | computed | `labeling.result[carton]` | Mislabelled on the report: the carton line reads Inner Box. |
-| Page 4 > Conclusion | Conclusion |  | select | `conclusion.finalResult`<br>caption `conclusion.pass`<br>caption `conclusion.fail` | PASSED / FAILED. |
-| Page 4 > Conclusion | (signature) |  | signature | `conclusion.signature` | Signature image beside the conclusion, no label. |
-| Page 4 > Conclusion | Date |  | date | `conclusion.date` | The report date. |
-| Page 4 > Conclusion | Remark |  | text | `conclusion.remark` |  |
+| Page 4 > Conclusion | Conclusion | Conclusion | select | `conclusion.finalResult`<br>caption `conclusion.pass`<br>caption `conclusion.fail` | PASSED / FAILED. |
+| Page 4 > Conclusion | (signature) | Signature | signature | `conclusion.signature` | Signature image beside the conclusion, no label. |
+| Page 4 > Conclusion | Date | Date | date | `conclusion.date` | The report date. |
+| Page 4 > Conclusion | Remark | Remark | text | `conclusion.remark` |  |
 
 #### `reports/SAFEDON_EG.md`: 158 fields
 
@@ -1159,312 +1159,312 @@ module field; `template` a template property; `layout` is drawn by the AI report
 | Page 1 > Title | Preshipment Inspection |  | heading | template `report.titleLines` |  |
 | Page 1 > Title | Safedon Nitrile PF Exam Gloves |  | heading | template `report.titleLines` |  |
 | Page 1 > Title | (client logo) |  | image | template `report.showClientLogo` | Top left: the logo (clients.logo_path) of the inspection's client, in place of a Client Name row. The client is picked on /inspections/new and kept in inspections.client_id; the header's Client Name row is off. |
-| Page 1 > Manufacturer Information | Manufacturer Information |  | heading | title `header` |  |
-| Page 1 > Manufacturer Information | Manufacturer / Supplier |  | text | `header.manufacturer` |  |
-| Page 1 > Manufacturer Information | Supplier Factory Address / Location |  | text | `header.factoryAddress` |  |
-| Page 1 > Manufacturer Information | PO Number |  | text | `header.poNo` | The PO with the client's reference in brackets: one value. |
-| Page 1 > Manufacturer Information | Product Name (Brand & code) |  | text | `header.productName` |  |
-| Page 1 > Manufacturer Information | Inspection date |  | date | `header.inspectionDate` |  |
-| Page 1 > Manufacturer Information | Manufacturing date |  | date | `header.mfgDate`<br>config `header.mfgExpiryPrecision` | Printed as month and year. |
-| Page 1 > Manufacturer Information | Expiry date |  | date | `header.expiryDate`<br>config `header.mfgExpiryPrecision` | Printed as month and year. |
-| Page 1 > Manufacturer Information | Inspected by |  | text | `header.inspector` | The app records the logged-in inspector (rule 11). |
-| Page 1 > Glove Information | Glove Information |  | heading | title `glove_info` |  |
-| Page 1 > Glove Information | Glove surface texture |  | text | `glove_info.surfaceTexture` |  |
-| Page 1 > Glove Information | Indicative weight (size M) |  | number | `glove_info.indicativeWeight`<br>config `glove_info.indicativeWeightSize` | Grams. |
-| Page 1 > Glove Information | Glove colour |  | text | `glove_info.colour` |  |
-| Page 1 > Glove Information | Glove length |  | text | `glove_info.length` |  |
+| Page 1 > Manufacturer Information | Manufacturer Information | Manufacturer Information | heading | title `header` |  |
+| Page 1 > Manufacturer Information | Manufacturer / Supplier | Manufacturer / Supplier | text | `header.manufacturer` |  |
+| Page 1 > Manufacturer Information | Supplier Factory Address / Location | Supplier Factory Address / Location | text | `header.factoryAddress` |  |
+| Page 1 > Manufacturer Information | PO Number | PO Number | text | `header.poNo` | The PO with the client's reference in brackets: one value. |
+| Page 1 > Manufacturer Information | Product Name (Brand & code) | Product Name (Brand & Code) | text | `header.productName` |  |
+| Page 1 > Manufacturer Information | Inspection date | Inspection Date | date | `header.inspectionDate` |  |
+| Page 1 > Manufacturer Information | Manufacturing date | Manufacturing Date | date | `header.mfgDate`<br>config `header.mfgExpiryPrecision` | Printed as month and year. |
+| Page 1 > Manufacturer Information | Expiry date | Expiry Date | date | `header.expiryDate`<br>config `header.mfgExpiryPrecision` | Printed as month and year. |
+| Page 1 > Manufacturer Information | Inspected by | Inspected By | text | `header.inspector` | The app records the logged-in inspector (rule 11). |
+| Page 1 > Glove Information | Glove Information | Glove Information | heading | title `glove_info` |  |
+| Page 1 > Glove Information | Glove surface texture | Glove Surface Texture | text | `glove_info.surfaceTexture` |  |
+| Page 1 > Glove Information | Indicative weight (size M) | Indicative Weight (Size M) | number | `glove_info.indicativeWeight`<br>config `glove_info.indicativeWeightSize` | Grams. |
+| Page 1 > Glove Information | Glove colour | Glove Colour | text | `glove_info.colour` |  |
+| Page 1 > Glove Information | Glove length | Glove Length | text | `glove_info.length` |  |
 | Page 1 > Order table | Size |  | size | template `sizes` | Rows XS, S, M, L, XL. |
-| Page 1 > Order table | Qty (cases) |  | number | `order_lots.qtyCases` |  |
-| Page 1 > Order table | Lot Number |  | text | `order_lots.lotNumbers` |  |
-| Page 1 > Order table | Packing Site |  | text | `order_lots.packingSite`<br>config `order_lots.fields` | The site that packed the size's lot. |
-| Page 1 > Order table | Total # carton |  | computed | `order_lots.totalCartons` |  |
-| Page 1 > Order table | Total # gloves |  | computed | `order_lots.totalGloves` |  |
-| Page 1 > Packing configuration | Packing configuration |  | label | title `packing_config` |  |
-| Page 1 > Packing configuration | # glove per plastic pack |  | number | `packing_config.glovesPerInner`<br>config `packing_config.innerUnit` | Names the inner unit: plastic pack. |
-| Page 1 > Packing configuration | # packs per case |  | number | `packing_config.innersPerCase` |  |
-| Page 1 > Packing configuration | # gloves per case |  | number | `packing_config.glovesPerCase` |  |
-| Page 1 > Sampling Plan | Sampling Plan |  | heading | title `sampling_plan` |  |
+| Page 1 > Order table | Qty (cases) | Qty (Cases) | number | `order_lots.qtyCases` |  |
+| Page 1 > Order table | Lot Number | Lot Number | text | `order_lots.lotNumbers` |  |
+| Page 1 > Order table | Packing Site | Packing Site | text | `order_lots.packingSite`<br>config `order_lots.fields` | The site that packed the size's lot. |
+| Page 1 > Order table | Total # carton | Total # Carton | computed | `order_lots.totalCartons` |  |
+| Page 1 > Order table | Total # gloves | Total # Gloves | computed | `order_lots.totalGloves` |  |
+| Page 1 > Packing configuration | Packing configuration | Packing Configuration | label | title `packing_config` |  |
+| Page 1 > Packing configuration | # glove per plastic pack | # Glove per Plastic Pack | number | `packing_config.glovesPerInner`<br>config `packing_config.innerUnit` | Names the inner unit: plastic pack. |
+| Page 1 > Packing configuration | # packs per case | # Packs per Case | number | `packing_config.innersPerCase` |  |
+| Page 1 > Packing configuration | # gloves per case | # Gloves per Case | number | `packing_config.glovesPerCase` |  |
+| Page 1 > Sampling Plan | Sampling Plan | Sampling Plan | heading | title `sampling_plan` |  |
 | Page 1 > Sampling Plan | Glove Size |  | size | template `sizes` |  |
-| Page 1 > Sampling Plan | Order Qty (case) |  | repeat | caption `sampling_plan.orderQty`<br>`order_lots.qtyCases` | The order quantity again: entered once, in the order table. |
-| Page 1 > Sampling Plan | Sampling Quantity |  | label | caption `sampling_plan.samplingQuantity` |  |
-| Page 1 > Sampling Plan | Case |  | number | `sampling_plan.cases` |  |
-| Page 1 > Sampling Plan | Inner pack |  | number | `sampling_plan.innerUnits` |  |
-| Page 1 > Sampling Plan | Gloves |  | number | `sampling_plan.gloves` |  |
-| Page 1 > Sampling Plan | # gloves for watertight & Visual |  | number | `sampling_plan.glovesWatertightVisual` |  |
-| Page 1 > Sampling Plan | # gloves for dimension |  | number | `sampling_plan.glovesDimensions` |  |
-| Page 1 > Sampling Plan | # gloves for Tensile |  | number | `sampling_plan.glovesPhysical` |  |
-| Page 1 > Sampling Plan | # inner packs for packaing & dispensing inspection | # inner packs for packaging & dispensing inspection | number | `sampling_plan.innerUnitsDispensing` |  |
-| Page 1 > Finished Goods Sampling Information (carton number) | Finished Goods Sampling Information (carton number) |  | heading | title `carton_sampling` |  |
-| Page 1 > Finished Goods Sampling Information (carton number) | (Carton #) |  | number | `carton_sampling.cartonNumbers`<br>caption `carton_sampling.sizeCaption` | Same grid as STD_EG: 10 columns × 5 rows per size. |
-| Page 1 > Finished Goods Sampling Information (carton number) | Sampling Quantity |  | number | `carton_sampling.samplingQuantity` | The app counts the carton numbers (rule 6). |
-| Page 2 > Dimension - Size &lt;size> | Dimension - Size &lt;size> |  | heading | caption `dimensions.sizeHeading`<br>title `dimensions` | One table per ordered size. |
-| Page 2 > Dimension - Size &lt;size> | No. |  | fixed | caption `dimensions.rowNo`<br>config `dimensions.rows` | Rows 1 to 13. |
-| Page 2 > Dimension - Size &lt;size> | Length |  | number | `dimensions.length` |  |
-| Page 2 > Dimension - Size &lt;size> | Width |  | number | `dimensions.width` |  |
-| Page 2 > Dimension - Size &lt;size> | Finger Thickness |  | number | `dimensions.fingerThickness` |  |
-| Page 2 > Dimension - Size &lt;size> | Palm Thickness |  | number | `dimensions.palmThickness` |  |
-| Page 2 > Dimension - Size &lt;size> | Weight (g) |  | number | `weight.values`<br>config `weight.n`<br>title `weight` | One value per size in a merged cell (weight, n = 1), printed as a column of the dimension table. |
-| Page 2 > Dimension - Size &lt;size> | Average |  | computed | `dimensions.statistic`<br>config `dimensions.statistic`<br>config `dimensions.decimals` |  |
-| Page 2 > Dimension - Size &lt;size> | Spec. |  | fixed | caption `dimensions.specRow`<br>config `dimensions.specs`<br>config `weight.specs` | Length ≥ 230; Width XS 76 ± 4, S 86 ± 4, M 98 ± 4, L 107 ± 4; Finger 0.18 ± 0.04; Palm 0.14 ± 0.04; Weight NA. |
-| Page 2 > Dimension - Size &lt;size> | A / Rej. |  | computed | `dimensions.measureResult`<br>`weight.result`<br>caption `dimensions.pass`<br>caption `dimensions.fail` | A = accepted. The weight column prints A against its NA spec. |
-| Page 2 > Physical Properties | Physical Properties average (Refer to attached lab. reports) |  | heading | title `tensile`<br>`tensile.labReport` | 'Refer to attached lab. reports': uploaded as files. |
+| Page 1 > Sampling Plan | Order Qty (case) | Order Qty (Case) | repeat | caption `sampling_plan.orderQty`<br>`order_lots.qtyCases` | The order quantity again: entered once, in the order table. |
+| Page 1 > Sampling Plan | Sampling Quantity | Sampling Quantity | label | caption `sampling_plan.samplingQuantity` |  |
+| Page 1 > Sampling Plan | Case | Case | number | `sampling_plan.cases` |  |
+| Page 1 > Sampling Plan | Inner pack | Inner Pack | number | `sampling_plan.innerUnits` |  |
+| Page 1 > Sampling Plan | Gloves | Gloves | number | `sampling_plan.gloves` |  |
+| Page 1 > Sampling Plan | # gloves for watertight & Visual | # Gloves for Watertight & Visual | number | `sampling_plan.glovesWatertightVisual` |  |
+| Page 1 > Sampling Plan | # gloves for dimension | # Gloves for Dimension | number | `sampling_plan.glovesDimensions` |  |
+| Page 1 > Sampling Plan | # gloves for Tensile | # Gloves for Tensile | number | `sampling_plan.glovesPhysical` |  |
+| Page 1 > Sampling Plan | # inner packs for packaing & dispensing inspection | # Inner Packs for Packaging & Dispensing Inspection | number | `sampling_plan.innerUnitsDispensing` |  |
+| Page 1 > Finished Goods Sampling Information (carton number) | Finished Goods Sampling Information (carton number) | Finished Goods Sampling Information (Carton Number) | heading | title `carton_sampling` |  |
+| Page 1 > Finished Goods Sampling Information (carton number) | (Carton #) | (Carton #) | number | `carton_sampling.cartonNumbers`<br>caption `carton_sampling.sizeCaption` | Same grid as STD_EG: 10 columns × 5 rows per size. |
+| Page 1 > Finished Goods Sampling Information (carton number) | Sampling Quantity | Sampling Quantity | number | `carton_sampling.samplingQuantity` | The app counts the carton numbers (rule 6). |
+| Page 2 > Dimension - Size &lt;size> | Dimension - Size &lt;size> | Dimension - Size {size} | heading | caption `dimensions.sizeHeading`<br>title `dimensions` | One table per ordered size. |
+| Page 2 > Dimension - Size &lt;size> | No. | No. | fixed | caption `dimensions.rowNo`<br>config `dimensions.rows` | Rows 1 to 13. |
+| Page 2 > Dimension - Size &lt;size> | Length | Length | number | `dimensions.length` |  |
+| Page 2 > Dimension - Size &lt;size> | Width | Width | number | `dimensions.width` |  |
+| Page 2 > Dimension - Size &lt;size> | Finger Thickness | Finger Thickness | number | `dimensions.fingerThickness` |  |
+| Page 2 > Dimension - Size &lt;size> | Palm Thickness | Palm Thickness | number | `dimensions.palmThickness` |  |
+| Page 2 > Dimension - Size &lt;size> | Weight (g) | Weight (g) | number | `weight.values`<br>config `weight.n`<br>title `weight` | One value per size in a merged cell (weight, n = 1), printed as a column of the dimension table. |
+| Page 2 > Dimension - Size &lt;size> | Average | Average | computed | `dimensions.statistic`<br>config `dimensions.statistic`<br>config `dimensions.decimals` |  |
+| Page 2 > Dimension - Size &lt;size> | Spec. | Spec. | fixed | caption `dimensions.specRow`<br>config `dimensions.specs`<br>config `weight.specs` | Length ≥ 230; Width XS 76 ± 4, S 86 ± 4, M 98 ± 4, L 107 ± 4; Finger 0.18 ± 0.04; Palm 0.14 ± 0.04; Weight NA. |
+| Page 2 > Dimension - Size &lt;size> | A / Rej. | A / Rej. | computed | `dimensions.measureResult`<br>`weight.result`<br>caption `dimensions.pass`<br>caption `dimensions.fail` | A = accepted. The weight column prints A against its NA spec. |
+| Page 2 > Physical Properties | Physical Properties average (Refer to attached lab. reports) | Physical Properties Average (Refer to Attached Lab. Reports) | heading | title `tensile`<br>`tensile.labReport` | 'Refer to attached lab. reports': uploaded as files. |
 | Page 2 > Physical Properties > Tensile Strength | Size |  | size | template `sizes` |  |
-| Page 2 > Physical Properties > Tensile Strength | Tensile Strength (Average) (MPa) |  | number | `tensile.tensileStrength` |  |
-| Page 2 > Physical Properties > Tensile Strength | Spec. (ASTM D6319) |  | fixed | caption `tensile.specRow`<br>config `tensile.tensileMin`<br>config `tensile.standardLabel` | ≥ 14.00 MPa. |
-| Page 2 > Physical Properties > Tensile Strength | Passed / Failed |  | computed | `tensile.tensileResult` |  |
+| Page 2 > Physical Properties > Tensile Strength | Tensile Strength (Average) (MPa) | Tensile Strength (Average) (MPa) | number | `tensile.tensileStrength` |  |
+| Page 2 > Physical Properties > Tensile Strength | Spec. (ASTM D6319) | Spec. ({standardLabel}) | fixed | caption `tensile.specRow`<br>config `tensile.tensileMin`<br>config `tensile.standardLabel` | ≥ 14.00 MPa. |
+| Page 2 > Physical Properties > Tensile Strength | Passed / Failed | Passed / Failed | computed | `tensile.tensileResult` |  |
 | Page 2 > Physical Properties > Elongation at break | Size |  | size | template `sizes` |  |
-| Page 2 > Physical Properties > Elongation at break | Elongation at break, average (%) |  | number | `tensile.elongationAtBreak` |  |
-| Page 2 > Physical Properties > Elongation at break | Spec. (ASTM D6319) |  | fixed | caption `tensile.specRow`<br>config `tensile.elongationMin`<br>config `tensile.decimals` | ≥ 500%. |
-| Page 2 > Physical Properties > Elongation at break | Passed / Failed |  | computed | `tensile.elongationResult` |  |
-| Page 3 > Glove Dispensing Inspection | Glove Dispensing Inspection (Sampling code letter C & D) |  | heading | caption `dispensing_safedon.heading`<br>title `dispensing_safedon`<br>`dispensing_safedon.codeLetter` |  |
+| Page 2 > Physical Properties > Elongation at break | Elongation at break, average (%) | Elongation at Break, Average (%) | number | `tensile.elongationAtBreak` |  |
+| Page 2 > Physical Properties > Elongation at break | Spec. (ASTM D6319) | Spec. ({standardLabel}) | fixed | caption `tensile.specRow`<br>config `tensile.elongationMin`<br>config `tensile.decimals` | ≥ 500%. |
+| Page 2 > Physical Properties > Elongation at break | Passed / Failed | Passed / Failed | computed | `tensile.elongationResult` |  |
+| Page 3 > Glove Dispensing Inspection | Glove Dispensing Inspection (Sampling code letter C & D) | Glove Dispensing Inspection (Sampling Code Letter {codeLetters}) | heading | caption `dispensing_safedon.heading`<br>title `dispensing_safedon`<br>`dispensing_safedon.codeLetter` |  |
 | Page 3 > Glove Dispensing Inspection | Size |  | size | template `sizes` | Two sizes share a block row, the 13 box columns split between them; the app shows one block per size. |
-| Page 3 > Glove Dispensing Inspection | Box # |  | number | `dispensing_safedon.boxNo`<br>config `dispensing_safedon.boxesPerSize` | Carton numbers from page 1 (rule 7). |
-| Page 3 > Glove Dispensing Inspection | Safedon Packing Defects |  | label | `dispensing_safedon.counts`<br>config `dispensing_safedon.defects` |  |
-| Page 3 > Glove Dispensing Inspection | No cuff |  | number | `dispensing_safedon.counts[no_cuff]` | A count per box. |
+| Page 3 > Glove Dispensing Inspection | Box # | Box # | number | `dispensing_safedon.boxNo`<br>config `dispensing_safedon.boxesPerSize` | Carton numbers from page 1 (rule 7). |
+| Page 3 > Glove Dispensing Inspection | Safedon Packing Defects | Safedon Packing Defects | label | `dispensing_safedon.counts`<br>config `dispensing_safedon.defects` |  |
+| Page 3 > Glove Dispensing Inspection | No cuff | No Cuff | number | `dispensing_safedon.counts[no_cuff]` | A count per box. |
 | Page 3 > Glove Dispensing Inspection | Cuff should ideallly be at least 2 cm out | Cuff should ideally be at least 2 cm out | fixed | config `dispensing_safedon.defects[no_cuff]` | Definition of 'No cuff', printed beside the row; the app shows its own wording as the hint. |
-| Page 3 > Glove Dispensing Inspection | Finger out |  | number | `dispensing_safedon.counts[finger_out]` | A count per box. |
-| Page 3 > Glove Dispensing Inspection | Only cuff but no finger should be out first |  | fixed | config `dispensing_safedon.defects[finger_out]` | Definition of 'Finger out', printed beside the row; the app shows its own wording as the hint. |
-| Page 3 > Glove Dispensing Inspection | Multiple gloves out |  | number | `dispensing_safedon.counts[multiple_out]` | A count per box. |
-| Page 3 > Glove Dispensing Inspection | Only one glove should be out at one time |  | fixed | config `dispensing_safedon.defects[multiple_out]` | Definition of 'Multiple gloves out', printed beside the row; the app shows its own wording as the hint. |
-| Page 3 > Glove Dispensing Inspection | Glove stuck |  | number | `dispensing_safedon.counts[stuck]` | A count per box. |
-| Page 3 > Glove Dispensing Inspection | Glove ould not be dispensed or very difficult to dispense | Glove could not be dispensed or very difficult to dispense | fixed | config `dispensing_safedon.defects[stuck]` | Definition of 'Glove stuck', printed beside the row; the app shows its own wording as the hint. |
-| Page 3 > Glove Dispensing Inspection | Sticky glove |  | number | `dispensing_safedon.counts[sticky]` | A count per box. |
-| Page 3 > Glove Dispensing Inspection | Two or more gloves out at the same time caused by gloves sticking together |  | fixed | config `dispensing_safedon.defects[sticky]` | Definition of 'Sticky glove', printed beside the row; the app shows its own wording as the hint. |
-| Page 3 > Glove Dispensing Inspection | Faulty cuff |  | number | `dispensing_safedon.counts[faulty_cuff]` | A count per box. |
-| Page 3 > Glove Dispensing Inspection | Deformed or out of shaped cuff which causes dispensing problem |  | fixed | config `dispensing_safedon.defects[faulty_cuff]` | Definition of 'Faulty cuff', printed beside the row; the app shows its own wording as the hint. |
-| Page 3 > Glove Dispensing Inspection | Total |  | computed | caption `dispensing_safedon.totalGroup`<br>`dispensing_safedon.boxDefects`<br>`dispensing_safedon.boxRatePct`<br>`dispensing_safedon.totalDefects`<br>`dispensing_safedon.glovesInspected`<br>`dispensing_safedon.ratePct`<br>config `dispensing_safedon.glovesPerPack` | Three lines: per box &lt;defects>/&lt;gloves per pack>; per box the rate as a percentage with one decimal (e.g. 0.8%); per size &lt;defects> / &lt;gloves> (&lt;rate> %). |
-| Page 3 > Glove Dispensing Inspection | Specification / Requirement |  | fixed | caption `dispensing_safedon.specRow`<br>config `dispensing_safedon.maxRatePct` | ≤ 5% per size. |
-| Page 3 > Glove Dispensing Inspection | Conclusion |  | computed | `dispensing_safedon.result` | Passed / Failed per size. |
-| Page 4 > Freedom from Holes by watertight test | Freedom from Holes by watertight test (Sampling code letter J & L; AQL=1.5) |  | heading | caption `watertight.heading`<br>title `watertight`<br>`watertight.codeLetter`<br>config `watertight.aql` |  |
+| Page 3 > Glove Dispensing Inspection | Finger out | Finger Out | number | `dispensing_safedon.counts[finger_out]` | A count per box. |
+| Page 3 > Glove Dispensing Inspection | Only cuff but no finger should be out first | Only the cuff, not a finger, should come out first | fixed | config `dispensing_safedon.defects[finger_out]` | Definition of 'Finger out', printed beside the row; the app shows its own wording as the hint. |
+| Page 3 > Glove Dispensing Inspection | Multiple gloves out | Multiple Gloves Out | number | `dispensing_safedon.counts[multiple_out]` | A count per box. |
+| Page 3 > Glove Dispensing Inspection | Only one glove should be out at one time | Only one glove should come out at a time | fixed | config `dispensing_safedon.defects[multiple_out]` | Definition of 'Multiple gloves out', printed beside the row; the app shows its own wording as the hint. |
+| Page 3 > Glove Dispensing Inspection | Glove stuck | Glove Stuck | number | `dispensing_safedon.counts[stuck]` | A count per box. |
+| Page 3 > Glove Dispensing Inspection | Glove ould not be dispensed or very difficult to dispense | Glove could not be dispensed or was very difficult to dispense | fixed | config `dispensing_safedon.defects[stuck]` | Definition of 'Glove stuck', printed beside the row; the app shows its own wording as the hint. |
+| Page 3 > Glove Dispensing Inspection | Sticky glove | Sticky Glove | number | `dispensing_safedon.counts[sticky]` | A count per box. |
+| Page 3 > Glove Dispensing Inspection | Two or more gloves out at the same time caused by gloves sticking together | Two or more gloves out at once because they stick together | fixed | config `dispensing_safedon.defects[sticky]` | Definition of 'Sticky glove', printed beside the row; the app shows its own wording as the hint. |
+| Page 3 > Glove Dispensing Inspection | Faulty cuff | Faulty Cuff | number | `dispensing_safedon.counts[faulty_cuff]` | A count per box. |
+| Page 3 > Glove Dispensing Inspection | Deformed or out of shaped cuff which causes dispensing problem | Deformed or misshapen cuff causing a dispensing problem | fixed | config `dispensing_safedon.defects[faulty_cuff]` | Definition of 'Faulty cuff', printed beside the row; the app shows its own wording as the hint. |
+| Page 3 > Glove Dispensing Inspection | Total | Total | computed | caption `dispensing_safedon.totalGroup`<br>`dispensing_safedon.boxDefects`<br>`dispensing_safedon.boxRatePct`<br>`dispensing_safedon.totalDefects`<br>`dispensing_safedon.glovesInspected`<br>`dispensing_safedon.ratePct`<br>config `dispensing_safedon.glovesPerPack` | Three lines: per box &lt;defects>/&lt;gloves per pack>; per box the rate as a percentage with one decimal (e.g. 0.8%); per size &lt;defects> / &lt;gloves> (&lt;rate> %). |
+| Page 3 > Glove Dispensing Inspection | Specification / Requirement | Specification / Requirement | fixed | caption `dispensing_safedon.specRow`<br>config `dispensing_safedon.maxRatePct` | ≤ 5% per size. |
+| Page 3 > Glove Dispensing Inspection | Conclusion | Conclusion | computed | `dispensing_safedon.result` | Passed / Failed per size. |
+| Page 4 > Freedom from Holes by watertight test | Freedom from Holes by watertight test (Sampling code letter J & L; AQL=1.5) | Freedom From Holes by Watertight Test (Sampling Code Letter {codeLetters}; AQL={aql}) | heading | caption `watertight.heading`<br>title `watertight`<br>`watertight.codeLetter`<br>config `watertight.aql` |  |
 | Page 4 > Freedom from Holes by watertight test | Glove Size |  | size | template `sizes` |  |
-| Page 4 > Freedom from Holes by watertight test | No. of sample tested |  | number | `watertight.tested` |  |
-| Page 4 > Freedom from Holes by watertight test | Defect Limit |  | computed | caption `watertight.defectLimit`<br>`watertight.accept`<br>`watertight.reject` | Accept / Reject per size. |
-| Page 4 > Freedom from Holes by watertight test | Holes |  | label | `watertight.holes`<br>config `watertight.locations` |  |
-| Page 4 > Freedom from Holes by watertight test | Between fingers |  | number | `watertight.holes[hole_crotch]` |  |
-| Page 4 > Freedom from Holes by watertight test | Palm |  | number | `watertight.holes[hole_palm]` |  |
-| Page 4 > Freedom from Holes by watertight test | Cuff |  | number | `watertight.holes[hole_cuff]` |  |
-| Page 4 > Freedom from Holes by watertight test | Finger |  | number | `watertight.holes[hole_finger]` |  |
-| Page 4 > Freedom from Holes by watertight test | Glove burst |  | number | `watertight.holes[glove_burst]` |  |
-| Page 4 > Freedom from Holes by watertight test | Other : |  | number | `watertight.holes[hole_other]`<br>`watertight.otherDescription` | The colon takes the location: watertight.otherDescription. |
-| Page 4 > Freedom from Holes by watertight test | Total number of defects found |  | computed | `watertight.totalDefects` | Printed as &lt;defects> / &lt;tested>. |
-| Page 4 > Freedom from Holes by watertight test | Freedom from holes (Passed / Failed) |  | computed | `watertight.result` |  |
-| Page 4 > Visual Inspection | Visual Inspection (Sampling code letter J & L) |  | heading | caption `visual.heading`<br>title `visual`<br>`visual.codeLetter` |  |
-| Page 4 > Visual Inspection > Critical Defects (AQL 0.0) | Critical Defects (AQL 0.0) |  | heading | caption `visual.criticalHeading`<br>config `visual.classes[critical]` |  |
+| Page 4 > Freedom from Holes by watertight test | No. of sample tested | No. of Sample Tested | number | `watertight.tested` |  |
+| Page 4 > Freedom from Holes by watertight test | Defect Limit | Defect Limit | computed | caption `watertight.defectLimit`<br>`watertight.accept`<br>`watertight.reject` | Accept / Reject per size. |
+| Page 4 > Freedom from Holes by watertight test | Holes | Holes | label | `watertight.holes`<br>config `watertight.locations` |  |
+| Page 4 > Freedom from Holes by watertight test | Between fingers | Between Fingers | number | `watertight.holes[hole_crotch]` |  |
+| Page 4 > Freedom from Holes by watertight test | Palm | Palm | number | `watertight.holes[hole_palm]` |  |
+| Page 4 > Freedom from Holes by watertight test | Cuff | Cuff | number | `watertight.holes[hole_cuff]` |  |
+| Page 4 > Freedom from Holes by watertight test | Finger | Finger | number | `watertight.holes[hole_finger]` |  |
+| Page 4 > Freedom from Holes by watertight test | Glove burst | Glove Burst | number | `watertight.holes[glove_burst]` |  |
+| Page 4 > Freedom from Holes by watertight test | Other : | Other : | number | `watertight.holes[hole_other]`<br>`watertight.otherDescription` | The colon takes the location: watertight.otherDescription. |
+| Page 4 > Freedom from Holes by watertight test | Total number of defects found | Total Number of Defects Found | computed | `watertight.totalDefects` | Printed as &lt;defects> / &lt;tested>. |
+| Page 4 > Freedom from Holes by watertight test | Freedom from holes (Passed / Failed) | Freedom From Holes (Passed / Failed) | computed | `watertight.result` |  |
+| Page 4 > Visual Inspection | Visual Inspection (Sampling code letter J & L) | Visual Inspection (Sampling Code Letter {codeLetters}) | heading | caption `visual.heading`<br>title `visual`<br>`visual.codeLetter` |  |
+| Page 4 > Visual Inspection > Critical Defects (AQL 0.0) | Critical Defects (AQL 0.0) | Critical Defects (AQL {aql}) | heading | caption `visual.criticalHeading`<br>config `visual.classes[critical]` |  |
 | Page 4 > Visual Inspection > Critical Defects (AQL 0.0) | Glove Size |  | size | template `sizes` |  |
-| Page 4 > Visual Inspection > Critical Defects (AQL 0.0) | No. of sample inspected |  | number | `visual.inspected[critical]` |  |
-| Page 4 > Visual Inspection > Critical Defects (AQL 0.0) | Defect Limit |  | computed | caption `visual.criticalLimit`<br>`visual.accept[critical]`<br>`visual.reject[critical]` | Accept 0 / Reject 1. |
-| Page 4 > Visual Inspection > Critical Defects (AQL 0.0) | Critical Defects |  | label | `visual.counts[critical]` |  |
+| Page 4 > Visual Inspection > Critical Defects (AQL 0.0) | No. of sample inspected | No. of Sample Inspected | number | `visual.inspected[critical]` |  |
+| Page 4 > Visual Inspection > Critical Defects (AQL 0.0) | Defect Limit | Defect Limit | computed | caption `visual.criticalLimit`<br>`visual.accept[critical]`<br>`visual.reject[critical]` | Accept 0 / Reject 1. |
+| Page 4 > Visual Inspection > Critical Defects (AQL 0.0) | Critical Defects | Critical Defects | label | `visual.counts[critical]` |  |
 | Page 4 > Visual Inspection > Critical Defects (AQL 0.0) | Embeded Insects | Embedded Insects | number | `visual.counts[critical][embedded_insect]` |  |
-| Page 4 > Visual Inspection > Critical Defects (AQL 0.0) | Embeded metal debris | Embedded metal debris | number | `visual.counts[critical][embedded_metal]` |  |
-| Page 4 > Visual Inspection > Critical Defects (AQL 0.0) | Total number of "Critical Defects" found |  | computed | `visual.total[critical]` |  |
+| Page 4 > Visual Inspection > Critical Defects (AQL 0.0) | Embeded metal debris | Embedded Metal Debris | number | `visual.counts[critical][embedded_metal]` |  |
+| Page 4 > Visual Inspection > Critical Defects (AQL 0.0) | Total number of "Critical Defects" found | Total Number of "Critical Defects" Found | computed | `visual.total[critical]` |  |
 | Page 4 > Visual Inspection > Critical Defects (AQL 0.0) | Disposition - Visual Minor (Passed / Failed) | Disposition - Visual Critical (Passed / Failed) | computed | `visual.result[critical]` | Mislabelled on the report: the app labels the critical line Critical. |
-| Page 4 > Visual Inspection > Major Defects (AQL 2.5) | Major Defects (AQL 2.5) |  | heading | caption `visual.majorHeading`<br>config `visual.classes[major]` |  |
+| Page 4 > Visual Inspection > Major Defects (AQL 2.5) | Major Defects (AQL 2.5) | Major Defects (AQL {aql}) | heading | caption `visual.majorHeading`<br>config `visual.classes[major]` |  |
 | Page 4 > Visual Inspection > Major Defects (AQL 2.5) | Glove Size |  | size | template `sizes` |  |
-| Page 4 > Visual Inspection > Major Defects (AQL 2.5) | No. of sample inspected |  | number | `visual.inspected[major]` |  |
-| Page 4 > Visual Inspection > Major Defects (AQL 2.5) | Defect Limit |  | computed | caption `visual.defectLimit`<br>`visual.accept[major]`<br>`visual.reject[major]` |  |
-| Page 4 > Visual Inspection > Major Defects (AQL 2.5) | Major Defects |  | label | `visual.counts[major]` |  |
-| Page 4 > Visual Inspection > Major Defects (AQL 2.5) | Thin ring between fingers (crotch) |  | number | `visual.counts[major][thin_crotch_ring]` |  |
-| Page 4 > Visual Inspection > Major Defects (AQL 2.5) | Thin area between fingers (crotch) |  | number | `visual.counts[major][thin_crotch_area]` |  |
-| Page 4 > Visual Inspection > Major Defects (AQL 2.5) | Thin batch / area (body) | Thin patch / area (body) | number | `visual.counts[major][thin_body_area]` |  |
-| Page 4 > Visual Inspection > Major Defects (AQL 2.5) | Thin spot |  | number | `visual.counts[major][thin_spot]` |  |
-| Page 4 > Visual Inspection > Major Defects (AQL 2.5) | Non-removable dirt |  | number | `visual.counts[major][dirt_nonremovable]` |  |
-| Page 4 > Visual Inspection > Major Defects (AQL 2.5) | Stain |  | number | `visual.counts[major][stain]` |  |
-| Page 4 > Visual Inspection > Major Defects (AQL 2.5) | Powder mark |  | number | `visual.counts[major][powder_mark]` |  |
-| Page 4 > Visual Inspection > Major Defects (AQL 2.5) | Bead blister |  | number | `visual.counts[major][bead_blister]` |  |
-| Page 4 > Visual Inspection > Major Defects (AQL 2.5) | Total number of "Major Defects" found |  | computed | `visual.total[major]` |  |
-| Page 4 > Visual Inspection > Major Defects (AQL 2.5) | Disposition - Visual Major (Passed / Failed) |  | computed | `visual.result[major]` |  |
-| Page 4 > Visual Inspection > Minor Defects (AQL 4.0) | Minor Defects (AQL 4.0) |  | heading | caption `visual.minorHeading`<br>config `visual.classes[minor]` |  |
+| Page 4 > Visual Inspection > Major Defects (AQL 2.5) | No. of sample inspected | No. of Sample Inspected | number | `visual.inspected[major]` |  |
+| Page 4 > Visual Inspection > Major Defects (AQL 2.5) | Defect Limit | Defect Limit | computed | caption `visual.defectLimit`<br>`visual.accept[major]`<br>`visual.reject[major]` |  |
+| Page 4 > Visual Inspection > Major Defects (AQL 2.5) | Major Defects | Major Defects | label | `visual.counts[major]` |  |
+| Page 4 > Visual Inspection > Major Defects (AQL 2.5) | Thin ring between fingers (crotch) | Thin Ring Between Fingers (Crotch) | number | `visual.counts[major][thin_crotch_ring]` |  |
+| Page 4 > Visual Inspection > Major Defects (AQL 2.5) | Thin area between fingers (crotch) | Thin Area Between Fingers (Crotch) | number | `visual.counts[major][thin_crotch_area]` |  |
+| Page 4 > Visual Inspection > Major Defects (AQL 2.5) | Thin batch / area (body) | Thin Patch / Area (Body) | number | `visual.counts[major][thin_body_area]` |  |
+| Page 4 > Visual Inspection > Major Defects (AQL 2.5) | Thin spot | Thin Spot | number | `visual.counts[major][thin_spot]` |  |
+| Page 4 > Visual Inspection > Major Defects (AQL 2.5) | Non-removable dirt | Non-Removable Dirt | number | `visual.counts[major][dirt_nonremovable]` |  |
+| Page 4 > Visual Inspection > Major Defects (AQL 2.5) | Stain | Stain | number | `visual.counts[major][stain]` |  |
+| Page 4 > Visual Inspection > Major Defects (AQL 2.5) | Powder mark | Powder Mark | number | `visual.counts[major][powder_mark]` |  |
+| Page 4 > Visual Inspection > Major Defects (AQL 2.5) | Bead blister | Bead Blister | number | `visual.counts[major][bead_blister]` |  |
+| Page 4 > Visual Inspection > Major Defects (AQL 2.5) | Total number of "Major Defects" found | Total Number of "Major Defects" Found | computed | `visual.total[major]` |  |
+| Page 4 > Visual Inspection > Major Defects (AQL 2.5) | Disposition - Visual Major (Passed / Failed) | Disposition - Visual Major (Passed / Failed) | computed | `visual.result[major]` |  |
+| Page 4 > Visual Inspection > Minor Defects (AQL 4.0) | Minor Defects (AQL 4.0) | Minor Defects (AQL {aql}) | heading | caption `visual.minorHeading`<br>config `visual.classes[minor]` |  |
 | Page 4 > Visual Inspection > Minor Defects (AQL 4.0) | Glove Size |  | size | template `sizes` |  |
-| Page 4 > Visual Inspection > Minor Defects (AQL 4.0) | No. of sample inspected |  | number | `visual.inspected[minor]` |  |
-| Page 4 > Visual Inspection > Minor Defects (AQL 4.0) | Defect Limit |  | computed | caption `visual.defectLimit`<br>`visual.accept[minor]`<br>`visual.reject[minor]` |  |
-| Page 4 > Visual Inspection > Minor Defects (AQL 4.0) | Minor Defects |  | label | `visual.counts[minor]` |  |
-| Page 4 > Visual Inspection > Minor Defects (AQL 4.0) | Small dirt / stain |  | number | `visual.counts[minor][dirt_small]` |  |
-| Page 4 > Visual Inspection > Minor Defects (AQL 4.0) | Sticky pleats (&lt; 5mm) |  | number | `visual.counts[minor][sticky_pleats]` |  |
-| Page 4 > Visual Inspection > Minor Defects (AQL 4.0) | Lumps (&lt;2mm) |  | number | `visual.counts[minor][lump_small]` |  |
-| Page 4 > Visual Inspection > Minor Defects (AQL 4.0) | Thin bead |  | number | `visual.counts[minor][bead_thin]` |  |
-| Page 4 > Visual Inspection > Minor Defects (AQL 4.0) | Thin bead / small beading defect |  | number | `visual.counts[minor][bead_small_defect]` |  |
-| Page 4 > Visual Inspection > Minor Defects (AQL 4.0) | Total number of "Minor Defects" found |  | computed | `visual.total[minor]` |  |
-| Page 4 > Visual Inspection > Minor Defects (AQL 4.0) | Disposition - Visual Minor (Passed / Failed) |  | computed | `visual.result[minor]` |  |
-| Page 4 > Packaging Labeling Inspection | Packaging Labeling Inspection |  | heading | title `labeling` |  |
-| Page 4 > Packaging Labeling Inspection > Inner Boxes/Packs | Inner Boxes/Packs |  | heading | caption `labeling.innerLevel`<br>config `labeling.levels[inner]` |  |
+| Page 4 > Visual Inspection > Minor Defects (AQL 4.0) | No. of sample inspected | No. of Sample Inspected | number | `visual.inspected[minor]` |  |
+| Page 4 > Visual Inspection > Minor Defects (AQL 4.0) | Defect Limit | Defect Limit | computed | caption `visual.defectLimit`<br>`visual.accept[minor]`<br>`visual.reject[minor]` |  |
+| Page 4 > Visual Inspection > Minor Defects (AQL 4.0) | Minor Defects | Minor Defects | label | `visual.counts[minor]` |  |
+| Page 4 > Visual Inspection > Minor Defects (AQL 4.0) | Small dirt / stain | Small Dirt / Stain | number | `visual.counts[minor][dirt_small]` |  |
+| Page 4 > Visual Inspection > Minor Defects (AQL 4.0) | Sticky pleats (&lt; 5mm) | Sticky Pleats (&lt; 5mm) | number | `visual.counts[minor][sticky_pleats]` |  |
+| Page 4 > Visual Inspection > Minor Defects (AQL 4.0) | Lumps (&lt;2mm) | Lumps (&lt;2mm) | number | `visual.counts[minor][lump_small]` |  |
+| Page 4 > Visual Inspection > Minor Defects (AQL 4.0) | Thin bead | Thin Bead | number | `visual.counts[minor][bead_thin]` |  |
+| Page 4 > Visual Inspection > Minor Defects (AQL 4.0) | Thin bead / small beading defect | Thin Bead / Small Beading Defect | number | `visual.counts[minor][bead_small_defect]` |  |
+| Page 4 > Visual Inspection > Minor Defects (AQL 4.0) | Total number of "Minor Defects" found | Total Number of "Minor Defects" Found | computed | `visual.total[minor]` |  |
+| Page 4 > Visual Inspection > Minor Defects (AQL 4.0) | Disposition - Visual Minor (Passed / Failed) | Disposition - Visual Minor (Passed / Failed) | computed | `visual.result[minor]` |  |
+| Page 4 > Packaging Labeling Inspection | Packaging Labeling Inspection | Packaging Labeling Inspection | heading | title `labeling` |  |
+| Page 4 > Packaging Labeling Inspection > Inner Boxes/Packs | Inner Boxes/Packs | Inner Boxes/Packs | heading | caption `labeling.innerLevel`<br>config `labeling.levels[inner]` |  |
 | Page 4 > Packaging Labeling Inspection > Inner Boxes/Packs | Glove Size |  | size | template `sizes` |  |
-| Page 4 > Packaging Labeling Inspection > Inner Boxes/Packs | No. of sampled boxes inspected |  | number | `labeling.inspected[inner]`<br>config `labeling.levels[inner]` | 3 per size. |
-| Page 4 > Packaging Labeling Inspection > Inner Boxes/Packs | Limit : Accept / Reject |  | computed | caption `labeling.defectLimit`<br>`labeling.accept[inner]`<br>`labeling.reject[inner]` | Acc. = 0 / Rej. = 1. |
-| Page 4 > Packaging Labeling Inspection > Inner Boxes/Packs | Wrong / No lot number |  | number | `labeling.defects[inner][lot_no]` |  |
-| Page 4 > Packaging Labeling Inspection > Inner Boxes/Packs | Wrong / No mfg. date |  | number | `labeling.defects[inner][mfg_date]` |  |
-| Page 4 > Packaging Labeling Inspection > Inner Boxes/Packs | Wrong / No expiry date |  | number | `labeling.defects[inner][expiry_date]` |  |
-| Page 4 > Packaging Labeling Inspection > Inner Boxes/Packs | Wrong artwork print |  | number | `labeling.defects[inner][artwork]` |  |
-| Page 4 > Packaging Labeling Inspection > Inner Boxes/Packs | Total number of defects found |  | computed | `labeling.total[inner]` |  |
-| Page 4 > Packaging Labeling Inspection > Inner Boxes/Packs | Disposition - Inner Box (Passed / Failed) |  | computed | `labeling.result[inner]` |  |
-| Page 4 > Packaging Labeling Inspection > Carton Boxes | Carton Boxes |  | heading | caption `labeling.cartonLevel`<br>config `labeling.levels[carton]` |  |
+| Page 4 > Packaging Labeling Inspection > Inner Boxes/Packs | No. of sampled boxes inspected | No. of Sampled Boxes Inspected | number | `labeling.inspected[inner]`<br>config `labeling.levels[inner]` | 3 per size. |
+| Page 4 > Packaging Labeling Inspection > Inner Boxes/Packs | Limit : Accept / Reject | Limit : Accept / Reject | computed | caption `labeling.defectLimit`<br>`labeling.accept[inner]`<br>`labeling.reject[inner]` | Acc. = 0 / Rej. = 1. |
+| Page 4 > Packaging Labeling Inspection > Inner Boxes/Packs | Wrong / No lot number | Wrong / No Lot Number | number | `labeling.defects[inner][lot_no]` |  |
+| Page 4 > Packaging Labeling Inspection > Inner Boxes/Packs | Wrong / No mfg. date | Wrong / No Mfg. Date | number | `labeling.defects[inner][mfg_date]` |  |
+| Page 4 > Packaging Labeling Inspection > Inner Boxes/Packs | Wrong / No expiry date | Wrong / No Expiry Date | number | `labeling.defects[inner][expiry_date]` |  |
+| Page 4 > Packaging Labeling Inspection > Inner Boxes/Packs | Wrong artwork print | Wrong Artwork Print | number | `labeling.defects[inner][artwork]` |  |
+| Page 4 > Packaging Labeling Inspection > Inner Boxes/Packs | Total number of defects found | Total Number of Defects Found | computed | `labeling.total[inner]` |  |
+| Page 4 > Packaging Labeling Inspection > Inner Boxes/Packs | Disposition - Inner Box (Passed / Failed) | Disposition - Inner Box (Passed / Failed) | computed | `labeling.result[inner]` |  |
+| Page 4 > Packaging Labeling Inspection > Carton Boxes | Carton Boxes | Carton Boxes | heading | caption `labeling.cartonLevel`<br>config `labeling.levels[carton]` |  |
 | Page 4 > Packaging Labeling Inspection > Carton Boxes | Glove Size |  | size | template `sizes` |  |
-| Page 4 > Packaging Labeling Inspection > Carton Boxes | No. of sampled boxes inspected |  | number | `labeling.inspected[carton]`<br>config `labeling.levels[carton]` | 1 per size. |
-| Page 4 > Packaging Labeling Inspection > Carton Boxes | Limit : Accept / Reject |  | computed | caption `labeling.defectLimit`<br>`labeling.accept[carton]`<br>`labeling.reject[carton]` | Acc. = 0 / Rej. = 1. |
-| Page 4 > Packaging Labeling Inspection > Carton Boxes | Wrong / No lot number |  | number | `labeling.defects[carton][lot_no]` |  |
-| Page 4 > Packaging Labeling Inspection > Carton Boxes | Wrong / No mfg. date |  | number | `labeling.defects[carton][mfg_date]` |  |
-| Page 4 > Packaging Labeling Inspection > Carton Boxes | Wrong / No expiry date |  | number | `labeling.defects[carton][expiry_date]` |  |
-| Page 4 > Packaging Labeling Inspection > Carton Boxes | Wrong artwork print |  | number | `labeling.defects[carton][artwork]` |  |
-| Page 4 > Packaging Labeling Inspection > Carton Boxes | No carton number |  | number | `labeling.defects[carton][carton_no]` |  |
-| Page 4 > Packaging Labeling Inspection > Carton Boxes | Total number of defects found |  | computed | `labeling.total[carton]` |  |
-| Page 4 > Packaging Labeling Inspection > Carton Boxes | Disposition - Carton Box (Passed / Failed) |  | computed | `labeling.result[carton]` |  |
-| Page 4 > Conclusion | Conclusion |  | select | `conclusion.finalResult`<br>caption `conclusion.pass`<br>caption `conclusion.fail` | PASSED / FAILED. |
-| Page 4 > Conclusion | Inspected by |  | text | `conclusion.inspector` | The logged-in inspector. |
-| Page 4 > Conclusion | Date |  | date | `conclusion.date` | The report date. |
-| Page 4 > Conclusion | (signature) |  | signature | `conclusion.signature` | Signature image beside the conclusion, no label. |
-| Page 4 > Conclusion | Remark |  | text | `conclusion.remark` |  |
+| Page 4 > Packaging Labeling Inspection > Carton Boxes | No. of sampled boxes inspected | No. of Sampled Boxes Inspected | number | `labeling.inspected[carton]`<br>config `labeling.levels[carton]` | 1 per size. |
+| Page 4 > Packaging Labeling Inspection > Carton Boxes | Limit : Accept / Reject | Limit : Accept / Reject | computed | caption `labeling.defectLimit`<br>`labeling.accept[carton]`<br>`labeling.reject[carton]` | Acc. = 0 / Rej. = 1. |
+| Page 4 > Packaging Labeling Inspection > Carton Boxes | Wrong / No lot number | Wrong / No Lot Number | number | `labeling.defects[carton][lot_no]` |  |
+| Page 4 > Packaging Labeling Inspection > Carton Boxes | Wrong / No mfg. date | Wrong / No Mfg. Date | number | `labeling.defects[carton][mfg_date]` |  |
+| Page 4 > Packaging Labeling Inspection > Carton Boxes | Wrong / No expiry date | Wrong / No Expiry Date | number | `labeling.defects[carton][expiry_date]` |  |
+| Page 4 > Packaging Labeling Inspection > Carton Boxes | Wrong artwork print | Wrong Artwork Print | number | `labeling.defects[carton][artwork]` |  |
+| Page 4 > Packaging Labeling Inspection > Carton Boxes | No carton number | No Carton Number | number | `labeling.defects[carton][carton_no]` |  |
+| Page 4 > Packaging Labeling Inspection > Carton Boxes | Total number of defects found | Total Number of Defects Found | computed | `labeling.total[carton]` |  |
+| Page 4 > Packaging Labeling Inspection > Carton Boxes | Disposition - Carton Box (Passed / Failed) | Disposition - Carton Box (Passed / Failed) | computed | `labeling.result[carton]` |  |
+| Page 4 > Conclusion | Conclusion | Conclusion | select | `conclusion.finalResult`<br>caption `conclusion.pass`<br>caption `conclusion.fail` | PASSED / FAILED. |
+| Page 4 > Conclusion | Inspected by | Inspected By | text | `conclusion.inspector` | The logged-in inspector. |
+| Page 4 > Conclusion | Date | Date | date | `conclusion.date` | The report date. |
+| Page 4 > Conclusion | (signature) | Signature | signature | `conclusion.signature` | Signature image beside the conclusion, no label. |
+| Page 4 > Conclusion | Remark | Remark | text | `conclusion.remark` |  |
 
 #### `onsite/EG.md`: 43 fields
 
 | Section | Label (verbatim) | App wording | Input | Maps to | Notes |
 |---|---|---|---|---|---|
-| 1. Purchase Order / Shipment Information | Purchase Order / Shipment Information |  | heading | title `header` |  |
-| 1. Purchase Order / Shipment Information | Manufacturer Name |  | text | `header.manufacturer` |  |
-| 1. Purchase Order / Shipment Information | Purchase/Sales Order No. |  | text | `header.poNo` |  |
-| 1. Purchase Order / Shipment Information | Product Name |  | text | `header.productName` |  |
-| 1. Purchase Order / Shipment Information | Lot Number |  | text | `order_lots.lotNumbers` | Double-height box for several lots, not split by size; the app records the lots per size. |
-| 1. Purchase Order / Shipment Information | Mfg / Exp Date |  | text | `header.mfgDate`<br>`header.expiryDate` | One box for both dates; the app splits it into two date pickers (rule 3). |
-| 1. Purchase Order / Shipment Information | Glove Type |  | text | custom `glove_type.gloveType` | No module holds it (BUILD_SPEC 6.1): custom module glove_type. |
-| 1. Purchase Order / Shipment Information | Packing Mode |  | text | `packing_config.packingMode`<br>config `packing_config.fields` |  |
-| 2. Inspected by | Inspected by |  | heading | `header.inspector` |  |
-| 2. Inspected by | Name |  | text | `header.inspector` | The logged-in inspector, recorded by the app. |
-| 2. Inspected by | Date |  | date | `header.inspectionDate` | The inspection date. |
-| 2. Inspected by | (unlabelled tall box) |  | blank | `conclusion.signature`<br>`conclusion.remark` | Likely signature or remarks: the app takes both in the conclusion. |
-| 3. PO Info / Sampling Plan | PO Info |  | label | title `order_lots` |  |
+| 1. Purchase Order / Shipment Information | Purchase Order / Shipment Information | Manufacturer Information | heading | title `header` |  |
+| 1. Purchase Order / Shipment Information | Manufacturer Name | Manufacturer / Supplier | text | `header.manufacturer` |  |
+| 1. Purchase Order / Shipment Information | Purchase/Sales Order No. | PO / SO Number | text | `header.poNo` |  |
+| 1. Purchase Order / Shipment Information | Product Name | Product Name (Brand, Code & Description) | text | `header.productName` |  |
+| 1. Purchase Order / Shipment Information | Lot Number | Lot Number | text | `order_lots.lotNumbers` | Double-height box for several lots, not split by size; the app records the lots per size. |
+| 1. Purchase Order / Shipment Information | Mfg / Exp Date | Manufacturing Date; Expiry Date | text | `header.mfgDate`<br>`header.expiryDate` | One box for both dates; the app splits it into two date pickers (rule 3). |
+| 1. Purchase Order / Shipment Information | Glove Type | Glove Type | text | custom `glove_type.gloveType` | No module holds it (BUILD_SPEC 6.1): custom module glove_type. |
+| 1. Purchase Order / Shipment Information | Packing Mode | Packing Mode | text | `packing_config.packingMode`<br>config `packing_config.fields` |  |
+| 2. Inspected by | Inspected by | Inspected By | heading | `header.inspector` |  |
+| 2. Inspected by | Name | Inspected By | text | `header.inspector` | The logged-in inspector, recorded by the app. |
+| 2. Inspected by | Date | Inspection Date | date | `header.inspectionDate` | The inspection date. |
+| 2. Inspected by | (unlabelled tall box) | Signature | blank | `conclusion.signature`<br>`conclusion.remark` | Likely signature or remarks: the app takes both in the conclusion. |
+| 3. PO Info / Sampling Plan | PO Info | Order | label | title `order_lots` |  |
 | 3. PO Info / Sampling Plan | Glove Size |  | size | template `sizes` | 5 blank size rows. |
-| 3. PO Info / Sampling Plan | Qty (case) |  | number | `order_lots.qtyCases` |  |
-| 3. PO Info / Sampling Plan | Sampling Plan |  | heading | title `sampling_plan` |  |
-| 3. PO Info / Sampling Plan | Sampling Quantity |  | label | caption `sampling_plan.samplingQuantity` |  |
-| 3. PO Info / Sampling Plan | Case |  | number | `sampling_plan.cases` |  |
-| 3. PO Info / Sampling Plan | Inner |  | number | `sampling_plan.innerUnits` |  |
-| 3. PO Info / Sampling Plan | Gloves |  | number | `sampling_plan.gloves` |  |
-| 3. PO Info / Sampling Plan | # Gloves for WTT & Visual |  | number | `sampling_plan.glovesWatertightVisual` |  |
-| 3. PO Info / Sampling Plan | # Gloves dimension |  | number | `sampling_plan.glovesDimensions` |  |
-| 3. PO Info / Sampling Plan | # Gloves for FAB |  | number | `sampling_plan.glovesPhysical` |  |
-| 3. PO Info / Sampling Plan | # inner for dispensing test |  | number | `sampling_plan.innerUnitsDispensing` |  |
-| 3. PO Info / Sampling Plan | Total: |  | computed | `sampling_plan.totals`<br>`order_lots.totalCartons` | Sums every column except Glove Size. |
-| 4. Watertight Inspection | Watertight Inspection |  | heading | title `watertight` |  |
+| 3. PO Info / Sampling Plan | Qty (case) | Qty (Cases) | number | `order_lots.qtyCases` |  |
+| 3. PO Info / Sampling Plan | Sampling Plan | Sampling Plan | heading | title `sampling_plan` |  |
+| 3. PO Info / Sampling Plan | Sampling Quantity | Sampling Quantity | label | caption `sampling_plan.samplingQuantity` |  |
+| 3. PO Info / Sampling Plan | Case | Case | number | `sampling_plan.cases` |  |
+| 3. PO Info / Sampling Plan | Inner | Inner Box | number | `sampling_plan.innerUnits` |  |
+| 3. PO Info / Sampling Plan | Gloves | Gloves | number | `sampling_plan.gloves` |  |
+| 3. PO Info / Sampling Plan | # Gloves for WTT & Visual | # Gloves for Watertight & Visual | number | `sampling_plan.glovesWatertightVisual` |  |
+| 3. PO Info / Sampling Plan | # Gloves dimension | # Gloves for Dimension | number | `sampling_plan.glovesDimensions` |  |
+| 3. PO Info / Sampling Plan | # Gloves for FAB | # Gloves for FAB | number | `sampling_plan.glovesPhysical` |  |
+| 3. PO Info / Sampling Plan | # inner for dispensing test | # Inner Box for Packaging & Dispensing Inspection | number | `sampling_plan.innerUnitsDispensing` |  |
+| 3. PO Info / Sampling Plan | Total: | Total: | computed | `sampling_plan.totals`<br>`order_lots.totalCartons` | Sums every column except Glove Size. |
+| 4. Watertight Inspection | Watertight Inspection | Freedom From Holes by Watertight Test | heading | title `watertight` |  |
 | 4. Watertight Inspection | Size |  | size | template `sizes` | 5 size columns, no R/L split. |
-| 4. Watertight Inspection | Defect |  | handwritten_rows | `watertight.holes`<br>`watertight.unmapped` | 6 blank rows: a handwritten defect name and a count per size. Names in the template's location list count there; others are saved unmapped for an admin. |
-| 4. Watertight Inspection | Total: |  | computed | `watertight.totalDefects` | One total per size. |
-| 5. Visual Inspection | Visual Inspection |  | heading | title `visual` |  |
+| 4. Watertight Inspection | Defect | Pin Hole | handwritten_rows | `watertight.holes`<br>`watertight.unmapped` | 6 blank rows: a handwritten defect name and a count per size. Names in the template's location list count there; others are saved unmapped for an admin. |
+| 4. Watertight Inspection | Total: | Total Number of Defects Found | computed | `watertight.totalDefects` | One total per size. |
+| 5. Visual Inspection | Visual Inspection | Visual Inspection | heading | title `visual` |  |
 | 5. Visual Inspection | Size |  | size | template `sizes` | One shared row of 5 sizes. |
-| 5. Visual Inspection | Major defect |  | handwritten_rows | `visual.counts[major]`<br>`visual.unmapped[major]` | 7 blank rows: defect name and a count per size. |
-| 5. Visual Inspection | Total Major |  | computed | `visual.total[major]` |  |
-| 5. Visual Inspection | Minor defect |  | handwritten_rows | `visual.counts[minor]`<br>`visual.unmapped[minor]` | 5 blank rows: defect name and a count per size. |
-| 5. Visual Inspection | Total Minor |  | computed | `visual.total[minor]` |  |
-| 6. Dispensing Result | Dispensing Result |  | heading | title `dispensing_packing` |  |
+| 5. Visual Inspection | Major defect | Major Defects | handwritten_rows | `visual.counts[major]`<br>`visual.unmapped[major]` | 7 blank rows: defect name and a count per size. |
+| 5. Visual Inspection | Total Major | Total Number of "Major Defects" Found | computed | `visual.total[major]` |  |
+| 5. Visual Inspection | Minor defect | Minor Defects | handwritten_rows | `visual.counts[minor]`<br>`visual.unmapped[minor]` | 5 blank rows: defect name and a count per size. |
+| 5. Visual Inspection | Total Minor | Total Number of "Minor Defects" Found | computed | `visual.total[minor]` |  |
+| 6. Dispensing Result | Dispensing Result | Glove Packing Check | heading | title `dispensing_packing` |  |
 | 6. Dispensing Result | Size |  | size | template `sizes` | A size per row; the app shows one block per size. |
-| 6. Dispensing Result | No. |  | computed | caption `dispensing_packing.itemColumn`<br>config `dispensing_packing.boxesPerSize` | Running row number, automatic. 51 blank rows, one per box tested. |
-| 6. Dispensing Result | Box Number |  | text | `dispensing_packing.boxNo` | Picked from the carton list (rule 7). |
-| 6. Dispensing Result | Layering (%) |  | number | `dispensing_packing.layeringPct` |  |
-| 6. Dispensing Result | Dispensing (%) |  | number | `dispensing_packing.dispensingPct` |  |
-| 6. Dispensing Result | Stickiness |  | text | `dispensing_packing.stickiness`<br>config `dispensing_packing.stickinessCodes` | onsite/EG.md suggests none / slight / severe plus a note; the report's codes A, B, B1, C, D apply (report first, rule 4.2.1). |
-| 6. Dispensing Result | Others: |  | text | `dispensing_packing.note` |  |
+| 6. Dispensing Result | No. | Item | computed | caption `dispensing_packing.itemColumn`<br>config `dispensing_packing.boxesPerSize` | Running row number, automatic. 51 blank rows, one per box tested. |
+| 6. Dispensing Result | Box Number | Box # | text | `dispensing_packing.boxNo` | Picked from the carton list (rule 7). |
+| 6. Dispensing Result | Layering (%) | Layering % | number | `dispensing_packing.layeringPct` |  |
+| 6. Dispensing Result | Dispensing (%) | Dispensing % | number | `dispensing_packing.dispensingPct` |  |
+| 6. Dispensing Result | Stickiness | Stickiness \*\* | text | `dispensing_packing.stickiness`<br>config `dispensing_packing.stickinessCodes` | onsite/EG.md suggests none / slight / severe plus a note; the report's codes A, B, B1, C, D apply (report first, rule 4.2.1). |
+| 6. Dispensing Result | Others: | Others: | text | `dispensing_packing.note` |  |
 
 #### `onsite/SG.md`: 42 fields
 
 | Section | Label (verbatim) | App wording | Input | Maps to | Notes |
 |---|---|---|---|---|---|
-| 1. Purchase Order / Shipment Information | Purchase Order / Shipment Information |  | heading | title `header` |  |
-| 1. Purchase Order / Shipment Information | Manufacturer Name |  | text | `header.manufacturer` |  |
-| 1. Purchase Order / Shipment Information | Purchase/Sales Order No. |  | text | `header.poNo` |  |
-| 1. Purchase Order / Shipment Information | Product Name |  | text | `header.productName` |  |
-| 1. Purchase Order / Shipment Information | Lot Number |  | text | `order_lots.lotNumbers` | Double-height box for several lots, not split by size; the app records the lots per size. |
-| 1. Purchase Order / Shipment Information | Mfg / Exp Date |  | text | `header.mfgDate`<br>`header.expiryDate` | One box for both dates; the app splits it into two date pickers (rule 3). |
-| 1. Purchase Order / Shipment Information | Glove Type |  | text | custom `glove_type.gloveType` | No module holds it (BUILD_SPEC 6.1): custom module glove_type. |
-| 1. Purchase Order / Shipment Information | Packing Mode |  | text | `packing_config.packingMode`<br>config `packing_config.fields` |  |
-| 2. Inspected by | Inspected by |  | heading | `header.inspector` |  |
-| 2. Inspected by | Name |  | text | `header.inspector` | The logged-in inspector, recorded by the app. |
-| 2. Inspected by | Date |  | date | `header.inspectionDate` | The inspection date. |
-| 2. Inspected by | (unlabelled tall box) |  | blank | `conclusion.signature`<br>`conclusion.remark` | Likely signature or remarks: the app takes both in the conclusion. |
-| 3. PO Info / Sampling Plan | PO Info |  | label | title `order_lots` |  |
+| 1. Purchase Order / Shipment Information | Purchase Order / Shipment Information | Purchase Order / Shipment Information | heading | title `header` |  |
+| 1. Purchase Order / Shipment Information | Manufacturer Name | Manufacturer Name | text | `header.manufacturer` |  |
+| 1. Purchase Order / Shipment Information | Purchase/Sales Order No. | Purchase/Sales Order No. | text | `header.poNo` |  |
+| 1. Purchase Order / Shipment Information | Product Name | Product Name | text | `header.productName` |  |
+| 1. Purchase Order / Shipment Information | Lot Number | Lot Number | text | `order_lots.lotNumbers` | Double-height box for several lots, not split by size; the app records the lots per size. |
+| 1. Purchase Order / Shipment Information | Mfg / Exp Date | Mfg Date; Exp Date | text | `header.mfgDate`<br>`header.expiryDate` | One box for both dates; the app splits it into two date pickers (rule 3). |
+| 1. Purchase Order / Shipment Information | Glove Type | Glove Type | text | custom `glove_type.gloveType` | No module holds it (BUILD_SPEC 6.1): custom module glove_type. |
+| 1. Purchase Order / Shipment Information | Packing Mode | Packing Mode | text | `packing_config.packingMode`<br>config `packing_config.fields` |  |
+| 2. Inspected by | Inspected by | Inspected By | heading | `header.inspector` |  |
+| 2. Inspected by | Name | Inspected By | text | `header.inspector` | The logged-in inspector, recorded by the app. |
+| 2. Inspected by | Date | Date | date | `header.inspectionDate` | The inspection date. |
+| 2. Inspected by | (unlabelled tall box) | Signature | blank | `conclusion.signature`<br>`conclusion.remark` | Likely signature or remarks: the app takes both in the conclusion. |
+| 3. PO Info / Sampling Plan | PO Info | PO Info | label | title `order_lots` |  |
 | 3. PO Info / Sampling Plan | Glove Size |  | size | template `sizes` | 8 blank size rows. |
-| 3. PO Info / Sampling Plan | Qty (case) |  | number | `order_lots.qtyCases` |  |
-| 3. PO Info / Sampling Plan | Sampling Plan |  | heading | title `sampling_plan` |  |
-| 3. PO Info / Sampling Plan | Sampling Quantity (WTT & Visual) |  | label | caption `sampling_plan.samplingQuantity` | Unlike EG, the watertight and visual sample is inside Sampling Quantity. |
-| 3. PO Info / Sampling Plan | Case |  | number | `sampling_plan.cases` |  |
-| 3. PO Info / Sampling Plan | Inner Box |  | number | `sampling_plan.innerUnits` |  |
-| 3. PO Info / Sampling Plan | Pouches |  | number | `sampling_plan.pouches` |  |
-| 3. PO Info / Sampling Plan | # gloves |  | number | `sampling_plan.glovesWatertightVisual` | The watertight and visual sample; STD_SG has no separate Gloves column. |
-| 3. PO Info / Sampling Plan | # Gloves dimension |  | number | `sampling_plan.glovesDimensions` |  |
-| 3. PO Info / Sampling Plan | # Gloves (FAB) |  | number | `sampling_plan.glovesPhysical` | Planned only: no FAB results on the form, and BUILD_SPEC 11 has no force_at_break in STD_SG. |
-| 3. PO Info / Sampling Plan | # pouches (dye leak test) |  | number | `sampling_plan.pouchesDyeLeak` | Planned only on the form; results go to dye_leak. |
-| 3. PO Info / Sampling Plan | Total: |  | computed | `sampling_plan.totals`<br>`order_lots.totalCartons` | Sums every column except Glove Size. |
-| 4. Watertight Inspection | Watertight Inspection |  | heading | title `watertight` |  |
+| 3. PO Info / Sampling Plan | Qty (case) | Qty (Case) | number | `order_lots.qtyCases` |  |
+| 3. PO Info / Sampling Plan | Sampling Plan | Sampling Plan | heading | title `sampling_plan` |  |
+| 3. PO Info / Sampling Plan | Sampling Quantity (WTT & Visual) | Sampling Quantity (WTT & Visual) | label | caption `sampling_plan.samplingQuantity` | Unlike EG, the watertight and visual sample is inside Sampling Quantity. |
+| 3. PO Info / Sampling Plan | Case | Case | number | `sampling_plan.cases` |  |
+| 3. PO Info / Sampling Plan | Inner Box | Inner Box | number | `sampling_plan.innerUnits` |  |
+| 3. PO Info / Sampling Plan | Pouches | Pouches | number | `sampling_plan.pouches` |  |
+| 3. PO Info / Sampling Plan | # gloves | # Gloves | number | `sampling_plan.glovesWatertightVisual` | The watertight and visual sample; STD_SG has no separate Gloves column. |
+| 3. PO Info / Sampling Plan | # Gloves dimension | # Gloves Dimension | number | `sampling_plan.glovesDimensions` |  |
+| 3. PO Info / Sampling Plan | # Gloves (FAB) | # Gloves (FAB) | number | `sampling_plan.glovesPhysical` | Planned only: no FAB results on the form, and BUILD_SPEC 11 has no force_at_break in STD_SG. |
+| 3. PO Info / Sampling Plan | # pouches (dye leak test) | # Pouches (Dye Leak Test) | number | `sampling_plan.pouchesDyeLeak` | Planned only on the form; results go to dye_leak. |
+| 3. PO Info / Sampling Plan | Total: | Total: | computed | `sampling_plan.totals`<br>`order_lots.totalCartons` | Sums every column except Glove Size. |
+| 4. Watertight Inspection | Watertight Inspection | Watertight Inspection | heading | title `watertight` |  |
 | 4. Watertight Inspection | Size |  | size | template `sizes` | 8 size columns. |
 | 4. Watertight Inspection | R |  | label | config `watertight.handSplit` | Each size column splits into R and L. |
 | 4. Watertight Inspection | L |  | label | config `watertight.handSplit` |  |
-| 4. Watertight Inspection | Defect |  | handwritten_rows | `watertight.holes`<br>`watertight.unmapped` | 7 blank rows: a handwritten defect name and a count per size per hand. |
-| 4. Watertight Inspection | Total WTT |  | computed | `watertight.totalDefects` | One total per size, spanning R and L. |
-| 5. Visual Inspection | Visual Inspection |  | heading | title `visual` |  |
+| 4. Watertight Inspection | Defect | Defect | handwritten_rows | `watertight.holes`<br>`watertight.unmapped` | 7 blank rows: a handwritten defect name and a count per size per hand. |
+| 4. Watertight Inspection | Total WTT | Total WTT | computed | `watertight.totalDefects` | One total per size, spanning R and L. |
+| 5. Visual Inspection | Visual Inspection | Visual Inspection | heading | title `visual` |  |
 | 5. Visual Inspection > Major defect | Size |  | size | template `sizes` | 8 sizes, each split R / L. |
 | 5. Visual Inspection > Major defect | R |  | label | config `visual.handSplit` | Each size column splits into R and L. |
 | 5. Visual Inspection > Major defect | L |  | label | config `visual.handSplit` |  |
-| 5. Visual Inspection > Major defect | Major defect |  | handwritten_rows | `visual.counts[major]`<br>`visual.unmapped[major]`<br>caption `visual.majorHeading` | 7 blank rows: defect name and a count per size per hand. |
-| 5. Visual Inspection > Major defect | Total Major |  | computed | `visual.total[major]` | One total per size, spanning R and L. |
+| 5. Visual Inspection > Major defect | Major defect | Major Defect | handwritten_rows | `visual.counts[major]`<br>`visual.unmapped[major]`<br>caption `visual.majorHeading` | 7 blank rows: defect name and a count per size per hand. |
+| 5. Visual Inspection > Major defect | Total Major | Total Major | computed | `visual.total[major]` | One total per size, spanning R and L. |
 | 5. Visual Inspection > Minor defect | Size |  | size | template `sizes` | 8 sizes, each split R / L. |
 | 5. Visual Inspection > Minor defect | R |  | label | config `visual.handSplit` | Each size column splits into R and L. |
 | 5. Visual Inspection > Minor defect | L |  | label | config `visual.handSplit` |  |
-| 5. Visual Inspection > Minor defect | Minor defect |  | handwritten_rows | `visual.counts[minor]`<br>`visual.unmapped[minor]`<br>caption `visual.minorHeading` | 6 blank rows: defect name and a count per size per hand. |
-| 5. Visual Inspection > Minor defect | Total Minor |  | computed | `visual.total[minor]` | One total per size, spanning R and L. |
+| 5. Visual Inspection > Minor defect | Minor defect | Minor Defect | handwritten_rows | `visual.counts[minor]`<br>`visual.unmapped[minor]`<br>caption `visual.minorHeading` | 6 blank rows: defect name and a count per size per hand. |
+| 5. Visual Inspection > Minor defect | Total Minor | Total Minor | computed | `visual.total[minor]` | One total per size, spanning R and L. |
 
 #### `onsite/SAFEDON_EG.md`: 54 fields
 
 | Section | Label (verbatim) | App wording | Input | Maps to | Notes |
 |---|---|---|---|---|---|
-| 1. Purchase Order / Shipment Information | Purchase Order / Shipment Information (Safedon) |  | heading | title `header` |  |
-| 1. Purchase Order / Shipment Information | Manufacturer Name |  | text | `header.manufacturer` |  |
-| 1. Purchase Order / Shipment Information | Purchase/Sales Order No. |  | text | `header.poNo` |  |
-| 1. Purchase Order / Shipment Information | Product Name |  | text | `header.productName` |  |
-| 1. Purchase Order / Shipment Information | Lot Number |  | text | `order_lots.lotNumbers` | Double-height box for several lots, not split by size; the app records the lots per size. |
-| 1. Purchase Order / Shipment Information | Mfg / Exp Date |  | text | `header.mfgDate`<br>`header.expiryDate` | One box for both dates; the app splits it into two date pickers (rule 3). |
-| 1. Purchase Order / Shipment Information | Glove Type |  | text | custom `glove_type.gloveType` | No module holds it (BUILD_SPEC 6.1): custom module glove_type. |
-| 1. Purchase Order / Shipment Information | Packing Mode |  | text | `packing_config.packingMode`<br>config `packing_config.fields` |  |
-| 2. Inspected by | Inspected by |  | heading | `header.inspector` |  |
-| 2. Inspected by | Name |  | text | `header.inspector` | The logged-in inspector, recorded by the app. |
-| 2. Inspected by | Date |  | date | `header.inspectionDate` | The inspection date. |
-| 2. Inspected by | (unlabelled tall box) |  | blank | `conclusion.signature`<br>`conclusion.remark` | Likely signature or remarks: the app takes both in the conclusion. |
-| 3. PO Info / Sampling Plan | PO Info |  | label | title `order_lots` |  |
+| 1. Purchase Order / Shipment Information | Purchase Order / Shipment Information (Safedon) | Manufacturer Information | heading | title `header` |  |
+| 1. Purchase Order / Shipment Information | Manufacturer Name | Manufacturer / Supplier | text | `header.manufacturer` |  |
+| 1. Purchase Order / Shipment Information | Purchase/Sales Order No. | PO Number | text | `header.poNo` |  |
+| 1. Purchase Order / Shipment Information | Product Name | Product Name (Brand & Code) | text | `header.productName` |  |
+| 1. Purchase Order / Shipment Information | Lot Number | Lot Number | text | `order_lots.lotNumbers` | Double-height box for several lots, not split by size; the app records the lots per size. |
+| 1. Purchase Order / Shipment Information | Mfg / Exp Date | Manufacturing Date; Expiry Date | text | `header.mfgDate`<br>`header.expiryDate` | One box for both dates; the app splits it into two date pickers (rule 3). |
+| 1. Purchase Order / Shipment Information | Glove Type | Glove Type | text | custom `glove_type.gloveType` | No module holds it (BUILD_SPEC 6.1): custom module glove_type. |
+| 1. Purchase Order / Shipment Information | Packing Mode | Packing Mode | text | `packing_config.packingMode`<br>config `packing_config.fields` |  |
+| 2. Inspected by | Inspected by | Inspected By | heading | `header.inspector` |  |
+| 2. Inspected by | Name | Inspected By | text | `header.inspector` | The logged-in inspector, recorded by the app. |
+| 2. Inspected by | Date | Inspection Date | date | `header.inspectionDate` | The inspection date. |
+| 2. Inspected by | (unlabelled tall box) | Signature | blank | `conclusion.signature`<br>`conclusion.remark` | Likely signature or remarks: the app takes both in the conclusion. |
+| 3. PO Info / Sampling Plan | PO Info | Order | label | title `order_lots` |  |
 | 3. PO Info / Sampling Plan | Glove Size |  | size | template `sizes` | 5 blank size rows. |
-| 3. PO Info / Sampling Plan | Qty (case) |  | number | `order_lots.qtyCases` |  |
-| 3. PO Info / Sampling Plan | Sampling Plan |  | heading | title `sampling_plan` |  |
-| 3. PO Info / Sampling Plan | Sampling Quantity |  | label | caption `sampling_plan.samplingQuantity` |  |
-| 3. PO Info / Sampling Plan | Case |  | number | `sampling_plan.cases` |  |
-| 3. PO Info / Sampling Plan | Inner |  | number | `sampling_plan.innerUnits` |  |
-| 3. PO Info / Sampling Plan | Gloves |  | number | `sampling_plan.gloves` |  |
-| 3. PO Info / Sampling Plan | # Gloves for WTT & Visual |  | number | `sampling_plan.glovesWatertightVisual` |  |
-| 3. PO Info / Sampling Plan | # Gloves dimension |  | number | `sampling_plan.glovesDimensions` |  |
-| 3. PO Info / Sampling Plan | # Gloves for FAB |  | number | `sampling_plan.glovesPhysical` |  |
-| 3. PO Info / Sampling Plan | # inner for dispensing test |  | number | `sampling_plan.innerUnitsDispensing` |  |
-| 3. PO Info / Sampling Plan | Total: |  | computed | `sampling_plan.totals`<br>`order_lots.totalCartons` | Sums every column except Glove Size. |
-| 4. Watertight Inspection | Watertight Inspection |  | heading | title `watertight` |  |
+| 3. PO Info / Sampling Plan | Qty (case) | Qty (Cases) | number | `order_lots.qtyCases` |  |
+| 3. PO Info / Sampling Plan | Sampling Plan | Sampling Plan | heading | title `sampling_plan` |  |
+| 3. PO Info / Sampling Plan | Sampling Quantity | Sampling Quantity | label | caption `sampling_plan.samplingQuantity` |  |
+| 3. PO Info / Sampling Plan | Case | Case | number | `sampling_plan.cases` |  |
+| 3. PO Info / Sampling Plan | Inner | Inner Pack | number | `sampling_plan.innerUnits` |  |
+| 3. PO Info / Sampling Plan | Gloves | Gloves | number | `sampling_plan.gloves` |  |
+| 3. PO Info / Sampling Plan | # Gloves for WTT & Visual | # Gloves for Watertight & Visual | number | `sampling_plan.glovesWatertightVisual` |  |
+| 3. PO Info / Sampling Plan | # Gloves dimension | # Gloves for Dimension | number | `sampling_plan.glovesDimensions` |  |
+| 3. PO Info / Sampling Plan | # Gloves for FAB | # Gloves for Tensile | number | `sampling_plan.glovesPhysical` |  |
+| 3. PO Info / Sampling Plan | # inner for dispensing test | # Inner Packs for Packaging & Dispensing Inspection | number | `sampling_plan.innerUnitsDispensing` |  |
+| 3. PO Info / Sampling Plan | Total: | Total: | computed | `sampling_plan.totals`<br>`order_lots.totalCartons` | Sums every column except Glove Size. |
+| 4. Watertight Inspection | Watertight Inspection | Freedom From Holes by Watertight Test | heading | title `watertight` |  |
 | 4. Watertight Inspection | Size |  | size | template `sizes` | 5 size columns, no R/L split. |
-| 4. Watertight Inspection | Defect |  | handwritten_rows | `watertight.holes`<br>`watertight.unmapped` | 6 blank rows: a handwritten defect name and a count per size. Names in the template's location list count there; others are saved unmapped for an admin. |
-| 4. Watertight Inspection | Total: |  | computed | `watertight.totalDefects` | One total per size. |
-| 5. Visual Inspection | Visual Inspection |  | heading | title `visual` |  |
+| 4. Watertight Inspection | Defect | Holes | handwritten_rows | `watertight.holes`<br>`watertight.unmapped` | 6 blank rows: a handwritten defect name and a count per size. Names in the template's location list count there; others are saved unmapped for an admin. |
+| 4. Watertight Inspection | Total: | Total Number of Defects Found | computed | `watertight.totalDefects` | One total per size. |
+| 5. Visual Inspection | Visual Inspection | Visual Inspection | heading | title `visual` |  |
 | 5. Visual Inspection | Size |  | size | template `sizes` | One shared row of 5 sizes. |
-| 5. Visual Inspection | Major defect |  | handwritten_rows | `visual.counts[major]`<br>`visual.unmapped[major]` | 7 blank rows: defect name and a count per size. |
-| 5. Visual Inspection | Total Major |  | computed | `visual.total[major]` |  |
-| 5. Visual Inspection | Minor defect |  | handwritten_rows | `visual.counts[minor]`<br>`visual.unmapped[minor]` | 5 blank rows: defect name and a count per size. |
-| 5. Visual Inspection | Total Minor |  | computed | `visual.total[minor]` |  |
-| 6. Glove Dispensing Inspection | Glove Dispensing Inspection |  | heading | title `dispensing_safedon` |  |
+| 5. Visual Inspection | Major defect | Major Defects | handwritten_rows | `visual.counts[major]`<br>`visual.unmapped[major]` | 7 blank rows: defect name and a count per size. |
+| 5. Visual Inspection | Total Major | Total Number of "Major Defects" Found | computed | `visual.total[major]` |  |
+| 5. Visual Inspection | Minor defect | Minor Defects | handwritten_rows | `visual.counts[minor]`<br>`visual.unmapped[minor]` | 5 blank rows: defect name and a count per size. |
+| 5. Visual Inspection | Total Minor | Total Number of "Minor Defects" Found | computed | `visual.total[minor]` |  |
+| 6. Glove Dispensing Inspection | Glove Dispensing Inspection | Glove Dispensing Inspection | heading | title `dispensing_safedon` |  |
 | 6. Glove Dispensing Inspection | Size |  | text | template `sizes` | One per block; 3 identical blocks on the page. |
-| 6. Glove Dispensing Inspection | Box # |  | number | `dispensing_safedon.boxNo`<br>config `dispensing_safedon.boxesPerSize` | 13 box columns, the box number written at the top of each; the app allows more. |
-| 6. Glove Dispensing Inspection | Safedon Packing Defects |  | label | `dispensing_safedon.counts`<br>config `dispensing_safedon.defects` |  |
-| 6. Glove Dispensing Inspection | No cuff |  | number | `dispensing_safedon.counts[no_cuff]` | A count per box. |
+| 6. Glove Dispensing Inspection | Box # | Box # | number | `dispensing_safedon.boxNo`<br>config `dispensing_safedon.boxesPerSize` | 13 box columns, the box number written at the top of each; the app allows more. |
+| 6. Glove Dispensing Inspection | Safedon Packing Defects | Safedon Packing Defects | label | `dispensing_safedon.counts`<br>config `dispensing_safedon.defects` |  |
+| 6. Glove Dispensing Inspection | No cuff | No Cuff | number | `dispensing_safedon.counts[no_cuff]` | A count per box. |
 | 6. Glove Dispensing Inspection | Cuff should ideallly be at least 2 cm out | Cuff should ideally be at least 2 cm out | fixed | config `dispensing_safedon.defects[no_cuff]` | Definition of 'No cuff', printed beside the row; the app shows its own wording as the hint. |
-| 6. Glove Dispensing Inspection | Finger out |  | number | `dispensing_safedon.counts[finger_out]` | A count per box. |
-| 6. Glove Dispensing Inspection | Only cuff but no finger should be out first |  | fixed | config `dispensing_safedon.defects[finger_out]` | Definition of 'Finger out', printed beside the row; the app shows its own wording as the hint. |
-| 6. Glove Dispensing Inspection | Multiple gloves out |  | number | `dispensing_safedon.counts[multiple_out]` | A count per box. |
-| 6. Glove Dispensing Inspection | Only one glove should be out at one time |  | fixed | config `dispensing_safedon.defects[multiple_out]` | Definition of 'Multiple gloves out', printed beside the row; the app shows its own wording as the hint. |
-| 6. Glove Dispensing Inspection | Glove stuck |  | number | `dispensing_safedon.counts[stuck]` | A count per box. |
-| 6. Glove Dispensing Inspection | Glove ould not be dispensed or very difficult to dispense | Glove could not be dispensed or very difficult to dispense | fixed | config `dispensing_safedon.defects[stuck]` | Definition of 'Glove stuck', printed beside the row; the app shows its own wording as the hint. |
-| 6. Glove Dispensing Inspection | Sticky glove |  | number | `dispensing_safedon.counts[sticky]` | A count per box. |
-| 6. Glove Dispensing Inspection | Two or more gloves out at the same time caused by gloves sticking together |  | fixed | config `dispensing_safedon.defects[sticky]` | Definition of 'Sticky glove', printed beside the row; the app shows its own wording as the hint. |
-| 6. Glove Dispensing Inspection | Faulty cuff |  | number | `dispensing_safedon.counts[faulty_cuff]` | A count per box. |
-| 6. Glove Dispensing Inspection | Deformed or out of shaped cuff which causes dispensing problem |  | fixed | config `dispensing_safedon.defects[faulty_cuff]` | Definition of 'Faulty cuff', printed beside the row; the app shows its own wording as the hint. |
-| 6. Glove Dispensing Inspection | Total |  | computed | caption `dispensing_safedon.totalGroup`<br>`dispensing_safedon.boxDefects`<br>`dispensing_safedon.boxRatePct`<br>`dispensing_safedon.totalDefects`<br>`dispensing_safedon.glovesInspected`<br>`dispensing_safedon.ratePct` | Three unlabelled lines: two rows of 13 per-box cells, then one full-width cell. All computed. |
-| 6. Glove Dispensing Inspection | Specification / Requirement |  | text | custom `safedon_dispensing_notes.specRequirement`<br>caption `dispensing_safedon.specRow`<br>config `dispensing_safedon.maxRatePct` | Free text per block, kept as written in the custom module safedon_dispensing_notes and exported (onsite/SAFEDON_EG.md). The app judges the rate against the template's maxRatePct, which the report prints here (≤ 5%). |
-| 6. Glove Dispensing Inspection | Conclusion |  | text | custom `safedon_dispensing_notes.conclusion`<br>`dispensing_safedon.result` | Free text per block, kept as written in the custom module safedon_dispensing_notes and exported (onsite/SAFEDON_EG.md). The report prints the computed Passed / Failed here (rule 6.2.2). |
+| 6. Glove Dispensing Inspection | Finger out | Finger Out | number | `dispensing_safedon.counts[finger_out]` | A count per box. |
+| 6. Glove Dispensing Inspection | Only cuff but no finger should be out first | Only the cuff, not a finger, should come out first | fixed | config `dispensing_safedon.defects[finger_out]` | Definition of 'Finger out', printed beside the row; the app shows its own wording as the hint. |
+| 6. Glove Dispensing Inspection | Multiple gloves out | Multiple Gloves Out | number | `dispensing_safedon.counts[multiple_out]` | A count per box. |
+| 6. Glove Dispensing Inspection | Only one glove should be out at one time | Only one glove should come out at a time | fixed | config `dispensing_safedon.defects[multiple_out]` | Definition of 'Multiple gloves out', printed beside the row; the app shows its own wording as the hint. |
+| 6. Glove Dispensing Inspection | Glove stuck | Glove Stuck | number | `dispensing_safedon.counts[stuck]` | A count per box. |
+| 6. Glove Dispensing Inspection | Glove ould not be dispensed or very difficult to dispense | Glove could not be dispensed or was very difficult to dispense | fixed | config `dispensing_safedon.defects[stuck]` | Definition of 'Glove stuck', printed beside the row; the app shows its own wording as the hint. |
+| 6. Glove Dispensing Inspection | Sticky glove | Sticky Glove | number | `dispensing_safedon.counts[sticky]` | A count per box. |
+| 6. Glove Dispensing Inspection | Two or more gloves out at the same time caused by gloves sticking together | Two or more gloves out at once because they stick together | fixed | config `dispensing_safedon.defects[sticky]` | Definition of 'Sticky glove', printed beside the row; the app shows its own wording as the hint. |
+| 6. Glove Dispensing Inspection | Faulty cuff | Faulty Cuff | number | `dispensing_safedon.counts[faulty_cuff]` | A count per box. |
+| 6. Glove Dispensing Inspection | Deformed or out of shaped cuff which causes dispensing problem | Deformed or misshapen cuff causing a dispensing problem | fixed | config `dispensing_safedon.defects[faulty_cuff]` | Definition of 'Faulty cuff', printed beside the row; the app shows its own wording as the hint. |
+| 6. Glove Dispensing Inspection | Total | Total | computed | caption `dispensing_safedon.totalGroup`<br>`dispensing_safedon.boxDefects`<br>`dispensing_safedon.boxRatePct`<br>`dispensing_safedon.totalDefects`<br>`dispensing_safedon.glovesInspected`<br>`dispensing_safedon.ratePct` | Three unlabelled lines: two rows of 13 per-box cells, then one full-width cell. All computed. |
+| 6. Glove Dispensing Inspection | Specification / Requirement | Specification / Requirement | text | custom `safedon_dispensing_notes.specRequirement`<br>caption `dispensing_safedon.specRow`<br>config `dispensing_safedon.maxRatePct` | Free text per block, kept as written in the custom module safedon_dispensing_notes and exported (onsite/SAFEDON_EG.md). The app judges the rate against the template's maxRatePct, which the report prints here (≤ 5%). |
+| 6. Glove Dispensing Inspection | Conclusion | Conclusion | text | custom `safedon_dispensing_notes.conclusion`<br>`dispensing_safedon.result` | Free text per block, kept as written in the custom module safedon_dispensing_notes and exported (onsite/SAFEDON_EG.md). The report prints the computed Passed / Failed here (rule 6.2.2). |
 
 <!-- /generated:coverage -->

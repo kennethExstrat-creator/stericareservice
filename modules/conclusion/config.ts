@@ -10,10 +10,10 @@ export const CONCLUSION_TITLE = "Conclusion";
  * FAILED; the app adds HOLD.
  */
 export const CONCLUSION_LABELS = {
-  suggestedResult: "Suggested result",
+  suggestedResult: "Suggested Result",
   finalResult: "Conclusion",
   remark: "Remark",
-  inspector: "Inspected by",
+  inspector: "Inspected By",
   date: "Date",
   signature: "Signature",
   pass: "PASSED",

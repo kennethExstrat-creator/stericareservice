@@ -92,7 +92,7 @@ describe("force_at_break capture", () => {
     expect(html).toContain(`<caption class="sr-only">${FORCE_AT_BREAK_TITLE}, size M</caption>`);
     const cells = tags(html, 'data-slot="numeric-cell"');
     expect(cells).toHaveLength(13);
-    expect(cells[0]).toContain('aria-label="Force at break (N), No. 1"');
+    expect(cells[0]).toContain('aria-label="Force at Break (N), No. 1"');
     expect(cells[0]).toContain('inputMode="decimal"');
     expect(cells[0]).toContain('value="6.470"');
     for (const label of ["Median", "Spec.", "Passed / Failed"]) expect(html).toContain(`>${label}</th>`);
@@ -118,7 +118,7 @@ describe("force_at_break capture", () => {
   });
 
   it("says whether the lab report is attached", () => {
-    expect(render()).toMatch(/>Lab report<\/span><span class="text-muted-foreground">Not Attached</);
+    expect(render()).toMatch(/>Lab Report<\/span><span class="text-muted-foreground">Not Attached</);
     const attached = render({ data: { sizes: { M: { values: READINGS } }, labReport: LAB_REPORT_ID } });
     expect(attached).toContain('data-attached="true"');
     expect(attached).toContain(">Attached</span>");
@@ -127,7 +127,7 @@ describe("force_at_break capture", () => {
       context: makeTestContext({ ...CONTEXT, files: [] }),
     });
     expect(gone).toContain('data-state="missing"');
-    expect(gone).toContain("Lab report: the file attached here is not among this inspection&#x27;s files. It may still be uploading from another device; if it was deleted, attach it again.");
+    expect(gone).toContain("Lab Report: the file attached here is not among this inspection&#x27;s files. It may still be uploading from another device; if it was deleted, attach it again.");
     // The issue link lands on the kit's attachment line, which takes the focus itself.
     const line = /<div[^>]*data-slot="attachment-status"[^>]*>/.exec(gone)?.[0];
     expect(line).toContain('tabindex="-1"');

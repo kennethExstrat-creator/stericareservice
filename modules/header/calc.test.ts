@@ -65,7 +65,7 @@ describe("header", () => {
     expect(calcHeader(input(STD_EG_DATA))).toEqual({
       result: {
         status: "info",
-        summary: "PO-0001 (SO-0001): Brand A PC-A01 Blue Nitrile; Manufacturer A (Factory A1); Inspection date 11 Apr 2025.",
+        summary: "PO-0001 (SO-0001): Brand A PC-A01 Blue Nitrile; Manufacturer A (Factory A1); Inspection Date 11 Apr 2025.",
       },
       computed: {
         manufacturer: "Manufacturer A (Factory A1)",
@@ -83,7 +83,7 @@ describe("header", () => {
     const output = calcHeader(input(SAFEDON_DATA, { config: SAFEDON_CONFIG, labels: SAFEDON_LABELS, meta: SAFEDON_META }));
     expect(output.result.status).toBe("info");
     // The day in the words the list and the review show it in ("19 Feb 2025"), never ISO; the computed values keep ISO.
-    expect(output.result.summary).toMatch(/; Inspection date 19 Feb 2025\.$/);
+    expect(output.result.summary).toMatch(/; Inspection Date 19 Feb 2025\.$/);
     expect(output.result.summary).not.toContain("2025-02-19");
     expect(output.issues).toEqual([]);
     expect(output.computed).toEqual({
@@ -100,11 +100,11 @@ describe("header", () => {
     const output = calcHeader(
       input({ ...SAFEDON_DATA, poNo: "  ", expiryDate: null }, { config: SAFEDON_CONFIG, labels: SAFEDON_LABELS, meta: SAFEDON_META }),
     );
-    expect(output.result).toEqual({ status: "not_done", summary: "Missing: PO Number, Expiry date." });
+    expect(output.result).toEqual({ status: "not_done", summary: "Missing: PO Number, Expiry Date." });
     expect(calcHeader(input({})).result).toEqual({
       status: "not_done",
       summary:
-        "Missing: Supplier Factory Address / Location, PO / SO Number, Product Name (Brand, code & description), Manufacturing date, Expiry date.",
+        "Missing: Supplier Factory Address / Location, PO / SO Number, Product Name (Brand, Code & Description), Manufacturing Date, Expiry Date.",
     });
   });
 
@@ -120,7 +120,7 @@ describe("header", () => {
     const noManufacturer = calcHeader(input(STD_EG_DATA, { meta: { ...STD_EG_META, manufacturer: null } }));
     expect(noManufacturer.result).toEqual({ status: "not_done", summary: "Missing: Manufacturer / Supplier." });
     const noInspector = calcHeader(input(STD_EG_DATA, { meta: { ...STD_EG_META, inspector: null } }));
-    expect(noInspector.result).toEqual({ status: "not_done", summary: "Missing: Inspected by." });
+    expect(noInspector.result).toEqual({ status: "not_done", summary: "Missing: Inspected By." });
     expect(noInspector.computed.inspector).toBeNull();
     // With its row off the inspector is still recorded; the framework reports one that is missing.
     const rowOff = calcHeader(input(STD_EG_DATA, { config: withFields({ inspector: false }) }));
@@ -134,7 +134,7 @@ describe("header", () => {
     const own = calcHeader(input({ ...STD_EG_DATA, inspectionDate: "2025-04-12" }));
     expect(own.computed.inspectionDate).toBe("2025-04-12");
     const neither = calcHeader(input({ ...STD_EG_DATA, inspectionDate: null }, { meta: { ...STD_EG_META, inspectionDate: null } }));
-    expect(neither.result).toEqual({ status: "not_done", summary: "Missing: Inspection date." });
+    expect(neither.result).toEqual({ status: "not_done", summary: "Missing: Inspection Date." });
   });
 
   it("warns when the expiry date is not after the manufacturing date, with a link to it (BUILD_SPEC 6.1)", () => {
@@ -143,7 +143,7 @@ describe("header", () => {
       ["2024-04-01", "1 Apr 2024"],
     ]) {
       const output = calcHeader(input({ ...STD_EG_DATA, expiryDate }));
-      const message = `Expiry date ${words} is not after Manufacturing date 1 Apr 2025.`;
+      const message = `Expiry Date ${words} is not after Manufacturing Date 1 Apr 2025.`;
       expect(output.result).toEqual({ status: "warn", summary: message });
       expect(output.issues).toEqual([{ level: "warning", code: "expiry_not_after_mfg", message, path: ["expiryDate"] }]);
     }
@@ -160,7 +160,7 @@ describe("header", () => {
       {
         level: "warning",
         code: "expiry_not_after_mfg",
-        message: "Expiry date Jan 2025 is not after Manufacturing date Jan 2025.",
+        message: "Expiry Date Jan 2025 is not after Manufacturing Date Jan 2025.",
         path: ["expiryDate"],
       },
     ]);
@@ -175,7 +175,7 @@ describe("header", () => {
       {
         level: "warning",
         code: "mfg_after_inspection",
-        message: "Manufacturing date 1 Apr 2026 is after Inspection date 11 Apr 2025.",
+        message: "Manufacturing Date 1 Apr 2026 is after Inspection Date 11 Apr 2025.",
         path: ["mfgDate"],
       },
     ]);
@@ -183,7 +183,7 @@ describe("header", () => {
     const options = { config: SAFEDON_CONFIG, labels: SAFEDON_LABELS, meta: SAFEDON_META };
     expect(calcHeader(input(SAFEDON_DATA, options)).issues).toEqual([]);
     expect(calcHeader(input({ ...SAFEDON_DATA, mfgDate: "2025-03-01" }, options)).issues).toEqual([
-      expect.objectContaining({ message: "Manufacturing date Mar 2025 is after Inspection date 19 Feb 2025." }),
+      expect.objectContaining({ message: "Manufacturing Date Mar 2025 is after Inspection Date 19 Feb 2025." }),
     ]);
   });
 

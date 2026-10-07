@@ -784,7 +784,7 @@ describe("sectionViews", () => {
       { key: "poNo", label: "PO Number", changed: true },
       { key: "productName", label: "Product", changed: true },
     ]);
-    expect(header.fieldsOff).toEqual(["Client Name", "Factory glove code"]);
+    expect(header.fieldsOff).toEqual(["Client Name", "Factory Glove Code"]);
 
     const glove = view("glove_info");
     expect(glove).toMatchObject({ include: false, alwaysOn: false, notBuilt: true });
@@ -893,7 +893,7 @@ describe("coverage checklist", () => {
 
   it("finds a header field, a defect class, a labelling level, a listed defect and a location switched off", () => {
     const cases: [ModuleKey, (config: Record<string, JsonValue>) => void, RegExp][] = [
-      ["header", (config) => ((config.fields as Record<string, boolean>).factoryGloveCode = false), /Factory glove code is switched off/],
+      ["header", (config) => ((config.fields as Record<string, boolean>).factoryGloveCode = false), /Factory Glove Code is switched off/],
       [
         "visual",
         (config) => ((config.classes as Record<string, Record<string, JsonValue>>).minor.include = false),

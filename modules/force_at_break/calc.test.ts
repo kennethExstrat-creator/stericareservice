@@ -194,7 +194,7 @@ describe("force_at_break", () => {
       {
         level: "error",
         code: "force_reading_not_positive",
-        message: "Size M, glove 4: Force at break (N) must be more than 0, not 0.",
+        message: "Size M, glove 4: Force at Break (N) must be more than 0, not 0.",
         size: "M",
         path: ["sizes", "M", "values", 3],
       },
@@ -301,7 +301,7 @@ describe("force_at_break", () => {
       {
         level: "warning",
         code: "lab_report_missing",
-        message: "Lab report: the file attached here is not among this inspection's files. It may still be uploading from another device; if it was deleted, attach it again.",
+        message: "Lab Report: the file attached here is not among this inspection's files. It may still be uploading from another device; if it was deleted, attach it again.",
         path: ["labReport"],
       },
     ]);

@@ -102,7 +102,7 @@ describe("tensile capture", () => {
     expect(fields[0]).toContain('value="34.18"');
     expect(fields[1]).toContain('value="536"');
     expect(html).toContain(">Tensile Strength (Average) (MPa)</label>");
-    expect(html).toContain(">Elongation at break, average (%)</label>");
+    expect(html).toContain(">Elongation at Break, Average (%)</label>");
     expect(html).toContain(">Spec. (ASTM D6319) ≥ 14.00 MPa</span>");
     expect(html).toContain(">Spec. (ASTM D6319) ≥ 500%</span>");
   });
@@ -122,7 +122,7 @@ describe("tensile capture", () => {
 
   it("says the lab report is required until it is attached", () => {
     const html = render({ data: { ...EXAMPLE, labReport: null } });
-    expect(html).toContain(">Lab report</span>");
+    expect(html).toContain(">Lab Report</span>");
     expect(html).toContain("Not Attached");
     expect(html).toContain("Required before this section is done.");
     const attached = render();
@@ -171,7 +171,7 @@ describe("tensile capture", () => {
     const context = makeTestContext({ ...CONTEXT, files: [] });
     const html = render({ context });
     expect(html).toContain('data-state="missing"');
-    expect(html).toContain("Lab report: the file attached here is not among this inspection&#x27;s files. It may still be uploading from another device; if it was deleted, attach it again.");
+    expect(html).toContain("Lab Report: the file attached here is not among this inspection&#x27;s files. It may still be uploading from another device; if it was deleted, attach it again.");
     // The issue link lands on the kit's attachment line, which takes the focus itself.
     const line = /<div[^>]*data-slot="attachment-status"[^>]*>/.exec(html)?.[0];
     expect(line).toContain('tabindex="-1"');

@@ -104,14 +104,14 @@ describe("documents", () => {
     const mixed = documents({ ...allVerified(), sterilisation: { status: "na" }, declarationOfOrigin: { status: "not_verified" } });
     expect(calcDocuments(input(mixed, { config: REQUIRE_ISO_AND_FDA })).result).toEqual({
       status: "pass",
-      summary: "4 Verified, 1 Not verified, 1 NA.",
+      summary: "4 Verified, 1 Not Verified, 1 NA.",
     });
   });
 
   it("has no verdict when nothing on the checklist is verified: a pass would stand on nothing", () => {
     const every = (status: DocumentEntry["status"]) =>
       documents(Object.fromEntries(DOCUMENT_ITEMS.map((key) => [key, { status }])));
-    expect(calcDocuments(input(every("not_verified"))).result).toEqual({ status: "info", summary: "6 Not verified." });
+    expect(calcDocuments(input(every("not_verified"))).result).toEqual({ status: "info", summary: "6 Not Verified." });
     expect(calcDocuments(input(every("na"))).result).toEqual({ status: "info", summary: "6 NA." });
     const mixed = documents({
       certificateOfAnalysis: { status: "na" },
@@ -122,7 +122,7 @@ describe("documents", () => {
       declarationOfOrigin: { status: "not_verified" },
     });
     const output = calcDocuments(input(mixed));
-    expect(output.result).toEqual({ status: "info", summary: "3 Not verified, 3 NA." });
+    expect(output.result).toEqual({ status: "info", summary: "3 Not Verified, 3 NA." });
     expect(Object.values(output.computed.itemStatus)).toEqual(Array(6).fill("info"));
     // One verified item is enough for a pass.
     const one = withItemValues(every("na"), "fdaCe", { status: "verified" });
@@ -138,7 +138,7 @@ describe("documents", () => {
     const na = documents({ ...allVerified(), iso13485: { status: "na" }, fdaCe: { status: "not_verified" } });
     expect(calcDocuments(input(na, { config: REQUIRE_ISO_AND_FDA })).result).toEqual({
       status: "fail",
-      summary: "Required, not verified: ISO 13485, FDA / CE certificates.",
+      summary: "Required, not verified: ISO 13485, FDA / CE Certificates.",
     });
   });
 
@@ -147,7 +147,7 @@ describe("documents", () => {
     expect(output.result).toEqual({
       status: "not_done",
       summary:
-        "Missing: Certificate of analysis, Lab test reports, Sterilisation certificate and records, FDA / CE certificates, Declaration of origin.",
+        "Missing: Certificate of Analysis, Lab Test Reports, Sterilisation Certificate and Records, FDA / CE Certificates, Declaration of Origin.",
     });
     expect(output.computed.counts).toEqual({ verified: 1, not_verified: 0, na: 0, open: 5 });
     expect(calcDocuments(input(emptyDocuments())).result.status).toBe("not_done");
@@ -177,7 +177,7 @@ describe("documents", () => {
   it("fails before it is complete when a required item is already unverified", () => {
     const output = calcDocuments(input(documents({ iso13485: { status: "not_verified" } }), { config: REQUIRE_ISO_AND_FDA }));
     expect(output.result.status).toBe("fail");
-    expect(output.result.summary).toMatch(/^Required, not verified: ISO 13485\. Missing: Certificate of analysis, /);
+    expect(output.result.summary).toMatch(/^Required, not verified: ISO 13485\. Missing: Certificate of Analysis, /);
   });
 
   it("warns when an expiry date is before the inspection date, with a link to the date", () => {
@@ -194,7 +194,7 @@ describe("documents", () => {
       {
         level: "warning",
         code: "document_expired",
-        message: `ISO 13485: Expiry date ${expiredDay} is before the inspection date ${STD_EG_INSPECTED}.`,
+        message: `ISO 13485: Expiry Date ${expiredDay} is before the inspection date ${STD_EG_INSPECTED}.`,
         path: ["items", "iso13485", "expiryDate"],
       },
     ]);
@@ -230,7 +230,7 @@ describe("documents", () => {
     const output = calcDocuments(input(data, { config: REQUIRE_ISO_AND_FDA }));
     expect(output.result).toEqual({
       status: "fail",
-      summary: "Required, not verified: ISO 13485. Expired: FDA / CE certificates (2020-06-30).",
+      summary: "Required, not verified: ISO 13485. Expired: FDA / CE Certificates (2020-06-30).",
     });
     expect(output.issues.map((issue) => issue.code)).toEqual(["document_expired"]);
   });
@@ -243,7 +243,7 @@ describe("documents", () => {
     ]);
     const data = documents({ iso13485: { status: "verified" }, sterilisation: { status: "not_verified" } });
     const output = calcDocuments(input(data, { config }));
-    expect(output.result).toEqual({ status: "not_done", summary: "Missing: Certificate of analysis." });
+    expect(output.result).toEqual({ status: "not_done", summary: "Missing: Certificate of Analysis." });
     expect(Object.keys(output.computed.expired)).toEqual(["iso13485", "certificateOfAnalysis"]);
     expect(output.computed.itemStatus).toEqual({ iso13485: "pass", certificateOfAnalysis: "not_done" });
     const done = documents({ iso13485: { status: "verified" }, certificateOfAnalysis: { status: "na" } });

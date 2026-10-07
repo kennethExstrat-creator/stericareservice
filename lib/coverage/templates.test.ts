@@ -179,10 +179,10 @@ describe("what the reports fix", () => {
   it("words the packing counts by each template's inner unit, as the export names it", () => {
     // What is typed per inner unit is what the export and the AI report say it is per (config.innerUnit).
     const named: Readonly<Record<string, RegExp>> = {
-      inner_box: /\binners?\b/,
-      plastic_pack: /\bpacks?\b/,
-      dispenser_box: /\bdispenser/,
-      pouch: /\bpouch(es)?\b/,
+      inner_box: /\binners?\b/i,
+      plastic_pack: /\bpacks?\b/i,
+      dispenser_box: /\bdispenser/i,
+      pouch: /\bpouch(es)?\b/i,
     };
     for (const template of TEMPLATE_CODES) {
       const unit = moduleConfig(template, "packing_config")?.innerUnit;
@@ -191,11 +191,11 @@ describe("what the reports fix", () => {
         expect(fieldLabel(template, "packing_config", key), `${template} ${key}`).toMatch(named[unit]);
       }
     }
-    expect(fieldLabel("STD_SG", "packing_config", "glovesPerInner")).toBe("# gloves per pouch");
-    expect(fieldLabel("STD_SG", "packing_config", "innersPerCase")).toBe("# pouches per case");
+    expect(fieldLabel("STD_SG", "packing_config", "glovesPerInner")).toBe("# Gloves per Pouch");
+    expect(fieldLabel("STD_SG", "packing_config", "innersPerCase")).toBe("# Pouches per Case");
     expect(labelOverrides("STD_SG", "packing_config")).toMatchObject({
-      glovesPerInner: "# gloves per pouch",
-      innersPerCase: "# pouches per case",
+      glovesPerInner: "# Gloves per Pouch",
+      innersPerCase: "# Pouches per Case",
     });
   });
 
@@ -337,28 +337,28 @@ describe("what the reports fix", () => {
       }
     }
     expect(checks("STD_EG", "inner")).toEqual([
-      "lot_no: Wrong / No lot number",
-      "mfg_date: Wrong / No mfg. date",
-      "artwork: Wrong artwork print",
+      "lot_no: Wrong / No Lot Number",
+      "mfg_date: Wrong / No Mfg. Date",
+      "artwork: Wrong Artwork Print",
     ]);
     expect(checks("STD_EG", "carton")).toEqual([
-      "lot_no: Wrong / No lot number",
-      "mfg_date: Wrong / No mfg. date",
-      "artwork: Wrong artwork print",
-      "carton_no: No carton number printed",
+      "lot_no: Wrong / No Lot Number",
+      "mfg_date: Wrong / No Mfg. Date",
+      "artwork: Wrong Artwork Print",
+      "carton_no: No Carton Number Printed",
     ]);
     expect(checks("SAFEDON_EG", "inner")).toEqual([
-      "lot_no: Wrong / No lot number",
-      "mfg_date: Wrong / No mfg. date",
-      "expiry_date: Wrong / No expiry date",
-      "artwork: Wrong artwork print",
+      "lot_no: Wrong / No Lot Number",
+      "mfg_date: Wrong / No Mfg. Date",
+      "expiry_date: Wrong / No Expiry Date",
+      "artwork: Wrong Artwork Print",
     ]);
     expect(checks("SAFEDON_EG", "carton")).toEqual([
-      "lot_no: Wrong / No lot number",
-      "mfg_date: Wrong / No mfg. date",
-      "expiry_date: Wrong / No expiry date",
-      "artwork: Wrong artwork print",
-      "carton_no: No carton number",
+      "lot_no: Wrong / No Lot Number",
+      "mfg_date: Wrong / No Mfg. Date",
+      "expiry_date: Wrong / No Expiry Date",
+      "artwork: Wrong Artwork Print",
+      "carton_no: No Carton Number",
     ]);
   });
 
@@ -523,7 +523,7 @@ describe("sources and seeds", () => {
   });
 
   it("overrides SAFEDON_EG's wording where its report differs", () => {
-    expect(labelOverrides("SAFEDON_EG", "header")).toEqual({ poNo: "PO Number", productName: "Product Name (Brand & code)" });
+    expect(labelOverrides("SAFEDON_EG", "header")).toEqual({ poNo: "PO Number", productName: "Product Name (Brand & Code)" });
     expect(labelOverrides("SAFEDON_EG", "labeling")).toEqual({
       innerLevel: "Inner Boxes/Packs",
       cartonLevel: "Carton Boxes",
@@ -535,7 +535,7 @@ describe("sources and seeds", () => {
     });
     // The critical limit row: STD_EG prints Acc. = 0 / Rej. = 1 (the default), SAFEDON_EG Accept 0 / Reject 1.
     expect(labelOverrides("SAFEDON_EG", "visual")).toMatchObject({ criticalAccept: "Accept", criticalReject: "Reject" });
-    expect(labelOverrides("STD_SG", "visual")).toMatchObject({ majorCounts: "Major defect", minorTotal: "Total Minor" });
+    expect(labelOverrides("STD_SG", "visual")).toMatchObject({ majorCounts: "Major Defect", minorTotal: "Total Minor" });
   });
 
   it("keys every label as the framework's ModuleConfig.labels accepts, and only with keys the module's defaults have", () => {
@@ -559,7 +559,7 @@ describe("sources and seeds", () => {
       key: "header",
       include: true,
       title: "Manufacturer Information",
-      labels: { poNo: "PO Number", productName: "Product Name (Brand & code)" },
+      labels: { poNo: "PO Number", productName: "Product Name (Brand & Code)" },
       config: { fields: { client: false, factoryGloveCode: false }, mfgExpiryPrecision: "month" },
     });
     expect(seed.find((module) => module.key === "glove_info")?.config).toEqual({});

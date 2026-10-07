@@ -25,7 +25,7 @@ export const MAX_PLANNED_BOXES = 50;
  * `innerAccept` to `cartonReject`) and captions.
  */
 export const LABELING_LABELS = {
-  inspected: "No. of sampled boxes inspected",
+  inspected: "No. of Sampled Boxes Inspected",
   boxNos: "Box #",
   defects: "Defects",
   accept: "Accept",
@@ -35,7 +35,7 @@ export const LABELING_LABELS = {
   reject: "Reject",
   innerReject: "Reject",
   cartonReject: "Reject",
-  total: "Total number of defects found",
+  total: "Total Number of Defects Found",
   result: "Disposition (Passed / Failed)",
   // STD_EG prints the carton line as "Inner Box" [sic]; fixed here.
   innerResult: "Disposition - Inner Box (Passed / Failed)",
@@ -47,7 +47,7 @@ export const LABELING_LABELS = {
 
 const CheckSchema = z.strictObject({
   code: LabelingCheckSchema.describe("Check code: lot_no, mfg_date, expiry_date, artwork or carton_no."),
-  label: z.string().trim().min(1).max(200).describe("The check in the template's wording, e.g. Wrong / No lot number."),
+  label: z.string().trim().min(1).max(200).describe("The check in the template's wording, e.g. Wrong / No Lot Number."),
 });
 export type LabelingCheckItem = z.infer<typeof CheckSchema>;
 
@@ -93,19 +93,19 @@ export const LABELING_DEFAULT_CONFIG: LabelingConfig = {
       include: true,
       n: 3,
       checks: [
-        check("lot_no", "Wrong / No lot number"),
-        check("mfg_date", "Wrong / No mfg. date"),
-        check("artwork", "Wrong artwork print"),
+        check("lot_no", "Wrong / No Lot Number"),
+        check("mfg_date", "Wrong / No Mfg. Date"),
+        check("artwork", "Wrong Artwork Print"),
       ],
     },
     carton: {
       include: true,
       n: 1,
       checks: [
-        check("lot_no", "Wrong / No lot number"),
-        check("mfg_date", "Wrong / No mfg. date"),
-        check("artwork", "Wrong artwork print"),
-        check("carton_no", "No carton number printed"),
+        check("lot_no", "Wrong / No Lot Number"),
+        check("mfg_date", "Wrong / No Mfg. Date"),
+        check("artwork", "Wrong Artwork Print"),
+        check("carton_no", "No Carton Number Printed"),
       ],
     },
   },

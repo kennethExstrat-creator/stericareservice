@@ -75,9 +75,9 @@ describe("conclusion config", () => {
 });
 
 describe("conclusion labels", () => {
-  it("are the dictionary's wording, Inspected by included (SAFEDON_EG prints it beside the signature)", () => {
+  it("are the dictionary's wording, Inspected By included (SAFEDON_EG prints it beside the signature)", () => {
     expect(CONCLUSION_LABELS).toEqual(defaultLabels("conclusion"));
-    expect(CONCLUSION_LABELS.inspector).toBe("Inspected by");
+    expect(CONCLUSION_LABELS.inspector).toBe("Inspected By");
   });
 
   it("need no override in any seed template", () => {
