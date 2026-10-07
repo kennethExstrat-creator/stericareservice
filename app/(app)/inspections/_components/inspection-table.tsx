@@ -1,21 +1,19 @@
-// The list itself. Compact 36 px rows with a mouse, 44 px rows and 16 px text
-// on touch (docs/DESIGN.md). Columns come from lib/inspections/columns.ts:
-// every column side by side only in the desktop layout. In the iPad layout
-// (every touch screen) values without a column of their own fold under
-// another one: the PO under the ref, the inspector's name (admins only)
-// under the date, the product under the manufacturer and the result under
-// the status; in portrait also the date and the inspector's name under the
-// ref, and the manufacturer and product under the client.
+// The list itself: one line per inspection (Kenneth: one neat row each, and
+// scroll sideways for more columns). Compact 36 px rows with a mouse, 44 px
+// rows and 16 px text on touch (docs/DESIGN.md). Every column from
+// lib/inspections/columns.ts shows at every size, each value in its own
+// column and on one line. When the row is wider than the card, the card
+// scrolls sideways (table-scroller.tsx) with the Ref pinned on the left and
+// the row's actions pinned on the right; an edge shadow shows on a pinned
+// column while some of the table is hidden behind it.
 //
-// The table never scrolls sideways: its layout is fixed, the columns with
-// content of a known size (ref, date, PO, the pills, inspector, actions) get
-// set widths, and client, manufacturer and product share the rest. With a
-// mouse a long name stays on one line with the full text in the tooltip; on
-// touch, where nothing hovers, it wraps onto a second line. On desktops
-// narrower than 1536 px the product gives way (columns.ts), so client and
-// manufacturer are wider than they were before the actions: about 180 px
-// each in an inspector's list at 1440 px, 134 px in admins' (which also has
-// the Inspector column).
+// Columns of known content (ref, date, the pills, the actions) take their
+// content's width and no more; client, manufacturer, product, PO and
+// inspector share whatever room is left on a wide screen. A name longer
+// than 24rem (rare) is cut with an ellipsis, the full text in its tooltip.
+//
+// The pinned cells use separate borders (border-separate): with collapsed
+// borders a sticky cell's border stays behind while it moves.
 //
 // The ref heads the row as plain text: the row's actions sit in its last
 // column (Kenneth: buttons at the end of each row, not a clickable ref). The
@@ -27,8 +25,8 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { StatusPill } from "@/components/qc";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { inspectionListColumns, type InspectionColumn, type InspectionColumnKey } from "@/lib/inspections/columns";
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { inspectionListColumns, type InspectionColumnKey } from "@/lib/inspections/columns";
 import { formatInspectionDate } from "@/lib/inspections/format";
 import type { InspectionListRow } from "@/lib/inspections/query";
 import { cn } from "@/lib/utils";
@@ -36,35 +34,21 @@ import { DeleteInspectionButton } from "./delete-inspection";
 import { InspectionStatusBadge } from "./inspection-status-badge";
 import { PendingMarker } from "./list-link";
 import { rowActions, type ListViewer } from "./row-actions";
+import { TableScroller } from "./table-scroller";
 
-const VISIBLE_FROM: Record<NonNullable<InspectionColumn["from"]>, string> = {
-  lg: "hidden lg:table-cell",
-  xl: "hidden xl:table-cell",
-  // Wide desktops only: a mouse or trackpad as well, like xl.
-  "2xl": "hidden 2xl:fine:table-cell",
-};
+/** Columns that take their content's width: the rest share the room left over. */
+const SNUG: ReadonlySet<InspectionColumnKey> = new Set(["ref", "date", "status", "result", "actions"]);
 
 /**
- * Set widths, larger on touch for the 16 px text, bigger pills and 44 px
- * buttons. With a mouse the ref and the date fit their text with little to
- * spare, so neither may wrap (see cell()).
+ * The pinned columns: opaque, above the cells scrolling under them, with an
+ * edge shadow while some of the table is hidden behind them. Hovered rows
+ * use the same opaque grey (slate-50 is muted at 50% on white).
  */
-const WIDTH: Partial<Record<InspectionColumnKey, string>> = {
-  ref: "w-40 fine:w-32",
-  date: "w-32 fine:w-26",
-  po: "w-36 fine:w-32",
-  status: "w-36 fine:w-30",
-  result: "w-32 fine:w-28",
-  inspector: "w-40 fine:w-28",
-  actions: "w-46 fine:w-37",
-};
-
-/**
- * Admins' list has one column more, the Inspector: there the PO gives up
- * 16 px with a mouse, so client and manufacturer keep room for a name like
- * "Polyco Healthline" at 1440 px.
- */
-const WIDTH_WITH_INSPECTOR: Partial<Record<InspectionColumnKey, string>> = { ...WIDTH, po: "w-36 fine:w-28" };
+const PINNED_LEFT =
+  "sticky left-0 z-10 group-data-scrolled/scroller:shadow-[6px_0_6px_-6px_rgb(15_23_42/0.18)]";
+const PINNED_RIGHT =
+  "sticky right-0 z-10 group-data-more/scroller:shadow-[-6px_0_6px_-6px_rgb(15_23_42/0.18)]";
+const PINNED_BODY = "bg-card group-hover/row:bg-slate-50";
 
 function Missing({ label }: { label: string }) {
   return (
@@ -77,39 +61,19 @@ function Missing({ label }: { label: string }) {
   );
 }
 
-/**
- * One line and a tooltip with a mouse; up to two lines on touch. Never on an
- * element that a breakpoint hides: `touch:line-clamp-2` sets `display` and
- * would show it again.
- */
-const LONG_TEXT = "block truncate touch:line-clamp-2 touch:whitespace-normal touch:break-words";
-
+/** One line; past 24rem cut with an ellipsis, the full text in the tooltip. */
 function Text({ value, missing }: { value: string | null; missing: string }) {
   if (!value) return <Missing label={missing} />;
   return (
-    <span className={LONG_TEXT} title={value}>
+    <span className="block max-w-96 truncate" title={value}>
       {value}
     </span>
   );
 }
 
-const FOLDED_UNTIL = { lg: "lg:hidden", xl: "xl:hidden" } as const;
-
-/** A second line, on screens where the value has no column of its own. */
-function Folded({ until, children }: { until: "lg" | "xl"; children: string }) {
-  return (
-    <span className={cn("mt-0.5 block text-sm text-muted-foreground", FOLDED_UNTIL[until])}>
-      <span className={LONG_TEXT} title={children}>
-        {children}
-      </span>
-    </span>
-  );
-}
-
-/** One line always: a date that wrapped would double the row's height. */
 function InspectionDate({ value }: { value: string }) {
   return (
-    <time dateTime={value} className="block whitespace-nowrap tabular-nums">
+    <time dateTime={value} className="tabular-nums">
       {formatInspectionDate(value)}
     </time>
   );
@@ -175,57 +139,19 @@ function RowActionsCell({
 function cell(key: InspectionColumnKey, row: InspectionListRow): ReactNode {
   switch (key) {
     case "ref":
-      // One line always: a ref that broke at a hyphen would double the row's height.
-      return (
-        <>
-          <span className="block font-semibold whitespace-nowrap tabular-nums">{row.refNo}</span>
-          {row.po && <Folded until="xl">{`PO ${row.po}`}</Folded>}
-          {/* iPad portrait: the date column is hidden. */}
-          <span className="mt-0.5 block text-sm text-muted-foreground lg:hidden">
-            <InspectionDate value={row.inspectionDate} />
-          </span>
-          {row.inspector && <Folded until="lg">{row.inspector}</Folded>}
-        </>
-      );
+      return <span className="font-semibold tabular-nums">{row.refNo}</span>;
     case "date":
-      return (
-        <>
-          <InspectionDate value={row.inspectionDate} />
-          {row.inspector && <Folded until="xl">{row.inspector}</Folded>}
-        </>
-      );
+      return <InspectionDate value={row.inspectionDate} />;
     case "client":
-      // iPad portrait: the manufacturer and product columns are hidden.
-      return (
-        <>
-          <Text value={row.client} missing="No client yet" />
-          {row.manufacturer && <Folded until="lg">{row.manufacturer}</Folded>}
-          {row.product && <Folded until="lg">{row.product}</Folded>}
-        </>
-      );
+      return <Text value={row.client} missing="No client yet" />;
     case "manufacturer":
-      // iPad landscape: the product column is hidden.
-      return (
-        <>
-          <Text value={row.manufacturer} missing="No manufacturer yet" />
-          {row.product && <Folded until="xl">{row.product}</Folded>}
-        </>
-      );
+      return <Text value={row.manufacturer} missing="No manufacturer yet" />;
     case "product":
       return <Text value={row.product} missing="No product yet" />;
     case "po":
       return <Text value={row.po} missing="No PO yet" />;
     case "status":
-      // iPad: the result column is hidden, so the result sits under the status.
-      return (
-        <span className="flex flex-col items-start gap-1">
-          <InspectionStatusBadge status={row.status} />
-          <span className="relative block xl:hidden">
-            <span className="sr-only">Result: </span>
-            <ResultPill result={row.result} />
-          </span>
-        </span>
-      );
+      return <InspectionStatusBadge status={row.status} />;
     case "result":
       return <ResultPill result={row.result} />;
     case "inspector":
@@ -246,23 +172,27 @@ export function InspectionTable({
   caption: string;
 }) {
   const columns = inspectionListColumns(viewer.role);
-  const width = columns.some((column) => column.key === "inspector") ? WIDTH_WITH_INSPECTOR : WIDTH;
-  const visibility = (column: InspectionColumn) => column.from && VISIBLE_FROM[column.from];
+  const pad = "px-3 first:pl-4 last:pr-4 fine:px-2.5";
 
   return (
-    <div className="overflow-hidden rounded-xl bg-card shadow-sm ring-1 ring-border">
-      <Table className="table-fixed text-sm touch:text-base">
+    <TableScroller label={caption}>
+      <table
+        data-slot="table"
+        className="w-max min-w-full border-separate border-spacing-0 text-sm whitespace-nowrap touch:text-base"
+      >
         <caption className="sr-only">{caption}</caption>
-        <TableHeader className="bg-slate-50">
+        <TableHeader className="bg-slate-50 [&_tr]:border-b-0">
           <TableRow className="hover:bg-transparent">
             {columns.map((column) => (
               <TableHead
                 key={column.key}
                 scope="col"
                 className={cn(
-                  "h-9 px-3 text-sm font-medium text-muted-foreground first:pl-4 last:pr-4 fine:px-2.5 touch:h-11",
-                  width[column.key],
-                  visibility(column),
+                  "h-9 border-b border-border text-sm font-medium text-muted-foreground touch:h-11",
+                  pad,
+                  SNUG.has(column.key) && "w-px",
+                  column.key === "ref" && cn(PINNED_LEFT, "bg-slate-50"),
+                  column.key === "actions" && cn(PINNED_RIGHT, "bg-slate-50"),
                 )}
               >
                 {column.srOnlyLabel ? <span className="sr-only">{column.label}</span> : column.label}
@@ -272,23 +202,29 @@ export function InspectionTable({
         </TableHeader>
         <TableBody>
           {rows.map((row, index) => (
-            <TableRow key={row.id} data-id={row.id} data-ref={row.refNo}>
+            <TableRow
+              key={row.id}
+              data-id={row.id}
+              data-ref={row.refNo}
+              className="group/row border-b-0 hover:bg-slate-50 [&:last-child>*]:border-b-0"
+            >
               {columns.map((column) => {
-                const className = cn(
-                  "px-3 py-1.5 align-middle first:pl-4 last:pr-4 fine:px-2.5 touch:py-2.5",
-                  visibility(column),
-                );
+                const className = cn("border-b border-border py-1.5 align-middle touch:py-2.5", pad);
                 switch (column.key) {
                   case "ref":
                     return (
-                      <TableHead key={column.key} scope="row" className={cn(className, "h-auto font-normal touch:h-auto")}>
+                      <TableHead
+                        key={column.key}
+                        scope="row"
+                        className={cn(className, "h-auto font-normal touch:h-auto", PINNED_LEFT, PINNED_BODY)}
+                      >
                         {cell(column.key, row)}
                       </TableHead>
                     );
                   case "actions":
                     // With a mouse the 32 px buttons keep the row at 36 px.
                     return (
-                      <TableCell key={column.key} className={cn(className, "fine:py-0.5")}>
+                      <TableCell key={column.key} className={cn(className, "fine:py-0.5", PINNED_RIGHT, PINNED_BODY)}>
                         <RowActionsCell row={row} index={index} next={rows[index + 1]} viewer={viewer} />
                       </TableCell>
                     );
@@ -303,7 +239,7 @@ export function InspectionTable({
             </TableRow>
           ))}
         </TableBody>
-      </Table>
-    </div>
+      </table>
+    </TableScroller>
   );
 }
