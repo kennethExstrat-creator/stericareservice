@@ -142,6 +142,27 @@ describe("TaskItem (the Pending panel)", () => {
       expect(html).not.toMatch(/lucide-(triangle-alert|circle-x)/);
     }
   });
+
+  it("notes a section switched off in Title Case after its title, read out the same, and links nowhere", () => {
+    const html = renderToStaticMarkup(
+      <TaskItem
+        task={{
+          key: "packing_config",
+          title: "Packing configuration",
+          linkable: false,
+          needed: true,
+          status: "Not done yet",
+          sizes: [],
+          more: 0,
+          first: { ...issue, level: "error", moduleKey: "packing_config" },
+        }}
+        onGo={noop}
+      />,
+    );
+    expect(html).toMatch(/^<div role="group"/);
+    expect(text(html)).toBe("Packing configuration (Switched Off)Not done yet");
+    expect(html).toContain('aria-label="Packing configuration (Switched Off): Not done yet. Needed before you submit."');
+  });
 });
 
 describe("SaveIndicator", () => {
@@ -186,7 +207,7 @@ describe("UnreadableData", () => {
     expect(html).toContain("A value saved for this section cannot be read.");
     expect(html).toContain(tooHeavy.message);
     expect(tagsWith(html, "data-issue-path")[0]).toContain('tabindex="-1"');
-    expect(html).toContain("Remove the values that cannot be read");
+    expect(html).toContain("Remove the Values That Cannot Be Read");
     expect(html).toContain("Everything else here is kept.");
   });
 
@@ -212,14 +233,14 @@ describe("CaptureNotices", () => {
     const html = renderToStaticMarkup(
       <CaptureNotices
         notices={[
-          { key: "submitted", tone: "lock", message: "Submitted for review: read-only.", action: <a href="/review">Open the review</a> },
+          { key: "submitted", tone: "lock", message: "Submitted for review: read-only.", action: <a href="/review">Open the Review</a> },
           { key: "save-error", tone: "error", message: "Not saved. The server refused the data." },
         ]}
       />,
     );
     expect(tagsWith(html, 'data-notice="submitted"')[0]).toContain('role="status"');
     expect(tagsWith(html, 'data-notice="save-error"')[0]).toContain('role="alert"');
-    expect(html).toContain("Open the review");
+    expect(html).toContain("Open the Review");
   });
 
   it("renders nothing without notices", () => {
@@ -258,7 +279,7 @@ describe("captureNotices (who reads a read-only inspection)", () => {
     const lead = notice("submitted", "inspector", LEAD);
     expect(lead).toMatchObject({ key: "submitted", message: "Submitted for review by Ivan Inspector: read-only." });
     expect(String(lead.message)).not.toContain("back to you");
-    expect(renderToStaticMarkup(<>{lead.action}</>)).toContain("Open the review");
+    expect(renderToStaticMarkup(<>{lead.action}</>)).toContain("Open the Review");
     expect(submittedMessage({ role: "inspector", own: false, inspectorName: " " })).toBe(
       "Submitted for review by another inspector: read-only.",
     );
@@ -281,7 +302,7 @@ describe("SubmitSummary (the submit confirmation)", () => {
 
   it("names the result in DESIGN.md's words, with nothing repeating it for a clean pass", () => {
     const html = renderToStaticMarkup(<SubmitSummary suggested={{ result: "pass", reasons: [] }} warningCount={0} />);
-    expect(text(html)).toBe("Suggested result Passed");
+    expect(text(html)).toBe("Suggested Result Passed");
     expect(html).not.toContain('data-slot="suggested-reasons"');
     expect(html).not.toMatch(/>Pass\.?</);
   });
@@ -294,13 +315,13 @@ describe("SubmitSummary (the submit confirmation)", () => {
       />,
     );
     expect(text(html)).toBe(
-      "Suggested result Passed Why Warnings: Weight (g) - average of 13 gloves per size. Warnings 1 warning goes into the report.",
+      "Suggested Result Passed Why Warnings: Weight (g) - average of 13 gloves per size. Warnings 1 warning goes into the report.",
     );
     expect(text(renderToStaticMarkup(<SubmitSummary suggested={{ result: "hold", reasons: ["Not done: Visual Inspection."] }} warningCount={0} />))).toBe(
-      "Suggested result On hold Why Not done: Visual Inspection.",
+      "Suggested Result On hold Why Not done: Visual Inspection.",
     );
     expect(text(renderToStaticMarkup(<SubmitSummary suggested={{ result: "fail", reasons: [] }} warningCount={0} />))).toBe(
-      "Suggested result Failed",
+      "Suggested Result Failed",
     );
   });
 });
@@ -333,13 +354,13 @@ describe("SectionErrorBoundary (a section's form that did not show)", () => {
     expect(html).toContain('data-failure="offline"');
     expect(html).toContain("This section opens once the connection is back.");
     expect(html).toContain("Nothing is lost.");
-    expect(html).toContain("Try again");
+    expect(html).toContain("Try Again");
     expect(html).not.toMatch(/\b(text|bg|border)-fail/);
     expect(html).not.toContain("developer");
     expect(html).not.toContain("Reload");
   });
 
-  it("offers Try again and Reload for a download that failed online", () => {
+  it("offers Try Again and Reload for a download that failed online", () => {
     const html = shown(chunkError, true);
     expect(html).toContain('data-failure="not_loaded"');
     expect(html).toContain("The form for Visual Inspection did not load.");
@@ -521,7 +542,10 @@ describe("FieldControl", () => {
     const id = /id="([^"]+)"/.exec(input)?.[1];
     expect(html).toContain(`for="${id}"`);
     expect(input).toContain("readOnly");
-    expect(html).toContain("(required)");
+    // The template's label as written, the app's note in Title Case.
+    expect(html).toContain("Glove colour<span");
+    expect(html).toContain("(Required)");
+    expect(html).not.toContain("(required)");
     expect(html).toContain("Glove colour is required.");
     expect(input).toContain('aria-invalid="true"');
   });
@@ -597,6 +621,48 @@ describe("plain forms", () => {
     expect(html).toContain('aria-label="Size M, Requirement"');
   });
 
+  it("says required in Title Case in a table's column heading, and adds a grid column in the template's word", () => {
+    const table = renderToStaticMarkup(
+      <CustomModuleForm
+        custom={SIZE_TABLE}
+        value={{}}
+        mappedValues={{}}
+        context={makeTestContext({ sizes: ["M"] })}
+        issues={[]}
+        focusPath={null}
+        readOnly={false}
+        onChange={noop}
+        onMappedChange={noop}
+        onFocusChange={noop}
+      />,
+    );
+    expect(table).toMatch(/<th scope="col"[^>]*>Requirement<span[^>]*> \(Required\)<\/span><\/th>/);
+
+    const grid = renderToStaticMarkup(
+      <CustomModuleForm
+        custom={{
+          key: "box_checks",
+          title: "Box checks",
+          after: "weight",
+          layout: "grid",
+          fields: [{ key: "boxWeight", label: "Box weight", type: "number", unit: "g" }],
+          grid: { columns: { label: "Box", default: 2, addable: true } },
+        }}
+        value={{}}
+        mappedValues={{}}
+        context={makeTestContext()}
+        issues={[]}
+        focusPath={null}
+        readOnly={false}
+        onChange={noop}
+        onMappedChange={noop}
+        onFocusChange={noop}
+      />,
+    );
+    expect(grid).toContain(">Box 1</th>");
+    expect(grid).toMatch(/<\/svg>Add Box<\/button>/);
+  });
+
   it("asks for the order first when no size is ordered", () => {
     const html = renderToStaticMarkup(
       <CustomModuleForm
@@ -653,7 +719,7 @@ describe("SwitchedOffPanel", () => {
     expect(html).toContain("Packing configuration is switched off for this inspection.");
     expect(html).toContain("Not in this order.");
     expect(html).toContain("Switched off by Admin A on 6 Oct 2026, 16:00.");
-    expect(html).toContain("Switch back on");
+    expect(html).toContain("Switch Back On");
   });
 
   it("names no one when the inspector may not read the admin's name, and offers no switch", () => {
@@ -669,7 +735,7 @@ describe("SwitchedOffPanel", () => {
       />,
     );
     expect(html).toContain("Switched off by an admin");
-    expect(html).not.toContain("Switch back on");
+    expect(html).not.toMatch(/switch back on/i);
   });
 
   it("formats the time in Malaysia, whatever the device", () => {

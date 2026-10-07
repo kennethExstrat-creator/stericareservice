@@ -7,7 +7,7 @@
 // worded by pendingTasks (lib/inspections/capture/issues.ts); the review and
 // the export keep every message in full. Calm on purpose: an empty checklist
 // circle, never red or amber. Sections with something submit needs (errors)
-// come first under a brand-blue "Needed to submit" tag, with a brand circle;
+// come first under a brand-blue "Needed to Submit" tag, with a brand circle;
 // the rest follow in capture order. Each row is a link: it opens its section
 // at its first open item. When submit is blocked the panel opens itself and
 // says so; what the server found that this screen does not show (the
@@ -42,6 +42,9 @@ type IssuesSheetProps = {
 /** Size chips shown on a row; more read as "+2". */
 const MAX_CHIPS = 5;
 
+/** After the title of a section that is switched off: "Weight (g) (Switched Off)". */
+const SWITCHED_OFF_NOTE = "(Switched Off)";
+
 export function IssuesSheet({
   open,
   onOpenChange,
@@ -71,7 +74,7 @@ export function IssuesSheet({
         }}
       >
         <SheetHeader className="border-b border-border px-5 pt-5 pb-4">
-          <SheetTitle className="text-lg font-bold">{blockedMessage ? "Before you submit" : "Pending"}</SheetTitle>
+          <SheetTitle className="text-lg font-bold">{blockedMessage ? "Before You Submit" : "Pending"}</SheetTitle>
           <SheetDescription data-slot="pending-summary">{describePending(counts)}</SheetDescription>
           {blockedMessage && (
             <p
@@ -120,7 +123,7 @@ export function IssuesSheet({
                 <section aria-labelledby="issues-needed" data-slot="needed-tasks" className="space-y-1.5">
                   <h3 id="issues-needed" className="px-2">
                     <span className="inline-flex items-center rounded-full bg-secondary px-2.5 py-0.5 text-xs font-semibold text-secondary-foreground touch:text-sm">
-                      Needed to submit
+                      Needed to Submit
                     </span>
                   </h3>
                   <TaskList tasks={needed} onGo={go} />
@@ -135,7 +138,7 @@ export function IssuesSheet({
                 >
                   {needed.length > 0 && (
                     <h3 id="issues-rest" className="px-2 text-sm font-medium text-muted-foreground">
-                      Still to do
+                      Still to Do
                     </h3>
                   )}
                   <TaskList tasks={rest} onGo={go} />
@@ -179,7 +182,7 @@ export function TaskItem({ task, onGo }: { task: PendingTask; onGo: () => void }
       <span aria-hidden className="min-w-0 flex-1">
         <span className="block font-medium text-foreground">
           {task.title}
-          {!task.linkable && <span className="font-normal text-muted-foreground"> (switched off)</span>}
+          {!task.linkable && <span className="font-normal text-muted-foreground">{` ${SWITCHED_OFF_NOTE}`}</span>}
         </span>
         <span
           data-slot="task-status"
@@ -213,7 +216,7 @@ export function TaskItem({ task, onGo }: { task: PendingTask; onGo: () => void }
         role="group"
         data-task={task.key}
         data-needed={task.needed || undefined}
-        aria-label={taskName({ ...task, title: `${task.title} (switched off)` })}
+        aria-label={taskName({ ...task, title: `${task.title} ${SWITCHED_OFF_NOTE}` })}
         className={className}
       >
         {content}

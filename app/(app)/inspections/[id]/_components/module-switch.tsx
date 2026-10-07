@@ -45,7 +45,7 @@ export function switchOffDraftKey(userId: string, inspectionId: string, moduleKe
   return `stericare:capture-draft:switch-off:${userId}:${inspectionId}:${moduleKey}`;
 }
 
-/** "Switch off" in a section's header, with the reason dialog. */
+/** "Switch Off" in a section's header, with the reason dialog. */
 export function SwitchOffDialog({ inspectionId, moduleKey, title, onChanged }: SwitchProps) {
   const [open, setOpen] = useState(false);
   // A fresh form, with no old error, every time it opens.
@@ -78,7 +78,7 @@ export function SwitchOffDialog({ inspectionId, moduleKey, title, onChanged }: S
       <DialogTrigger asChild>
         <Button type="button" variant="outline" size="sm" data-action="switch-off">
           <CircleOffIcon aria-hidden />
-          Switch off
+          Switch Off
         </Button>
       </DialogTrigger>
       <DialogContent
@@ -160,7 +160,7 @@ function SwitchOffForm({
   return (
     <form action={formAction} noValidate className="grid gap-6">
       <DialogHeader>
-        <DialogTitle className="text-lg font-bold">Switch off {title}?</DialogTitle>
+        <DialogTitle className="text-lg font-bold">Switch Off {title}?</DialogTitle>
         <DialogDescription>
           For this inspection only. It leaves capture, the checks and the report, which lists it with your reason.
           What is entered stays saved and returns if you switch it back on.
@@ -206,7 +206,7 @@ function SwitchOffForm({
         </DialogClose>
         <Button type="submit" disabled={pending}>
           {pending && <Spinner aria-hidden />}
-          {pending ? "Switching off…" : "Switch off"}
+          {pending ? "Switching Off…" : "Switch Off"}
         </Button>
       </DialogFooter>
     </form>
@@ -228,7 +228,7 @@ export function formatOverrideTime(at: string): string {
   return Number.isNaN(time) ? at : WHEN.format(time);
 }
 
-/** The body of a section that is switched off: why, who, when; for admins, "Switch back on". */
+/** The body of a section that is switched off: why, who, when; for admins, "Switch Back On". */
 export function SwitchedOffPanel({
   inspectionId,
   moduleKey,
@@ -272,7 +272,7 @@ export function SwitchedOffPanel({
           <input type="hidden" name="moduleKey" value={moduleKey} />
           <Button type="submit" disabled={pending} data-action="switch-on">
             {pending ? <Spinner aria-hidden /> : <PowerIcon aria-hidden />}
-            {pending ? "Switching on…" : "Switch back on"}
+            {pending ? "Switching On…" : "Switch Back On"}
           </Button>
           {state.status === "error" && (
             <p role="alert" className="text-sm font-medium text-fail">

@@ -274,7 +274,7 @@ function SizeTable({
               <th key={field.key} scope="col" className="px-3 py-2 font-semibold text-foreground">
                 {field.label}
                 {field.unit && field.type !== "number" ? ` (${field.unit})` : ""}
-                {field.required && <span className="font-normal text-muted-foreground"> (required)</span>}
+                {field.required && <span className="font-normal text-muted-foreground"> (Required)</span>}
               </th>
             ))}
           </tr>
@@ -402,7 +402,8 @@ function Grid({
           onClick={() => update((current) => withGridColumn(custom, current))}
         >
           <PlusIcon aria-hidden />
-          Add {columnLabel.toLowerCase()}
+          {/* The column's name as the template words it ("Box"), or the app's own "Column". */}
+          Add {columnLabel}
         </Button>
       )}
     </div>

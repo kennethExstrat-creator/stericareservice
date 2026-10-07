@@ -14,7 +14,7 @@
 // screen downloads every section's form soon after it opens
 // (preloadCaptures), so a section opened later without a connection still
 // shows its form. One that did not arrive is asked for again once the
-// connection is back, by the section itself or its "Try again": a new
+// connection is back, by the section itself or its "Try Again": a new
 // download, rendered by a new boundary (a failed lazy component stays
 // failed, and the boundary's own children would still hold it).
 import { lazy, Suspense, useCallback, useMemo, useState, type LazyExoticComponent, type ReactNode } from "react";
@@ -68,7 +68,7 @@ function lazyCapture(key: ModuleKey): LazyCapture | null {
 
 /* One lazy component per module, made once for the page, so switching back
    and forth never downloads a form's code again. One whose download failed
-   stays failed: "Try again" makes it afresh (ModuleBody's retry). */
+   stays failed: "Try Again" makes it afresh (ModuleBody's retry). */
 const CAPTURES: Partial<Record<ModuleKey, LazyCapture | null>> = Object.fromEntries(
   MODULE_KEYS.map((key) => [key, lazyCapture(key)]),
 );
@@ -153,7 +153,7 @@ export function ModuleBody({
   if (definition.stub) {
     return (
       <Notice>
-        This section arrives in a later build. Nothing can be entered here yet; the checks show it as Not done.
+        This section arrives in a later build. Nothing can be entered here yet; the checks show it as Not Done.
       </Notice>
     );
   }
@@ -247,7 +247,7 @@ export function CustomBody({
   readOnly: boolean;
   /**
    * "X is required" under an empty field only once submit was tried: until
-   * then the label says "(required)" and the issues panel lists it.
+   * then the label says "(Required)" and the issues panel lists it.
    */
   showRequired: boolean;
   onChange: (next: Record<string, unknown>) => void;

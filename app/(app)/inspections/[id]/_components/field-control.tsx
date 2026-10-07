@@ -271,13 +271,13 @@ export function FieldControl({
   );
 }
 
-/** "Container seal intact (required)", "Length (mm)". */
+/** "Container seal intact (Required)", "Length (mm)": the template's label as written, the app's note in Title Case. */
 function LabelText({ label, unit, required }: { label: string; unit?: string; required?: boolean }) {
   return (
     <>
       {label}
       {unit ? ` (${unit})` : ""}
-      {required && <span className="font-normal text-muted-foreground"> (required)</span>}
+      {required && <span className="font-normal text-muted-foreground"> (Required)</span>}
     </>
   );
 }

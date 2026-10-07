@@ -29,7 +29,7 @@ type SectionFrameProps = {
   statusLabel?: string;
   /** One line under the title, e.g. the result's summary. */
   summary?: ReactNode;
-  /** Header controls, e.g. "Switch off" for admins. */
+  /** Header controls, e.g. "Switch Off" for admins. */
   actions?: ReactNode;
   /** The title takes focus when a section opens from Previous or Next. */
   headingRef?: Ref<HTMLHeadingElement>;
@@ -123,7 +123,7 @@ export function SectionComment({
     <div className="grid gap-2 xl:row-span-2 xl:grid-rows-subgrid xl:gap-y-3">
       {/* Styled as the photo slot's heading, so the two read as one row. */}
       <Label htmlFor={id} className="font-display text-base leading-snug font-semibold">
-        Inspector comment
+        Inspector Comment
       </Label>
       <Textarea
         id={id}
