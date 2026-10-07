@@ -39,18 +39,28 @@ export function roleChoicesFor(teams: boolean): readonly RoleChoice[] {
 /** Dialogs that hold the role choice scroll inside the viewport: an iPad in landscape, or with its keyboard up, is short. */
 export const SCROLLING_DIALOG = "max-h-[calc(100dvh-2rem)] overflow-y-auto";
 
+/** Moves focus to the chosen role, for a refusal the admin answers there (RoleField's groupRef). */
+export function focusRole(group: HTMLElement | null): void {
+  const radio =
+    group?.querySelector<HTMLElement>('[role="radio"][aria-checked="true"]') ?? group?.querySelector<HTMLElement>('[role="radio"]');
+  radio?.focus();
+}
+
 export function RoleField({
   id,
   value,
   onChange,
   choices = ROLE_CHOICES,
   error,
+  groupRef,
 }: {
   id: string;
   value: RoleChoice;
   onChange: (choice: RoleChoice) => void;
   choices?: readonly RoleChoice[];
   error?: string;
+  /** The radio group, for focusRole(). */
+  groupRef?: Ref<HTMLDivElement>;
 }) {
   return (
     <FieldSet className="gap-3" aria-describedby={error ? `${id}-role-error` : undefined}>
@@ -58,6 +68,7 @@ export function RoleField({
         Role
       </FieldLegend>
       <RadioGroup
+        ref={groupRef}
         value={value}
         onValueChange={(next) => {
           const parsed = RoleChoiceSchema.safeParse(next);
@@ -91,6 +102,7 @@ export function LeadField({
   leads,
   error,
   hint = "Their lead inspector also sees their inspections, read-only.",
+  emptyHint = TEAM_MESSAGES.noLeads,
   triggerRef,
 }: {
   id: string;
@@ -101,10 +113,15 @@ export function LeadField({
   leads: readonly LeadOption[];
   error?: string;
   hint?: string;
+  /** What to do when there is nobody to choose (leadChoicesFor() in user-menu.ts). */
+  emptyHint?: string;
   triggerRef?: Ref<HTMLButtonElement>;
 }) {
   const none = leads.length === 0;
   const describedBy = `${id}-lead-${error ? "error" : "hint"}`;
+  // With nobody to choose, the way out stays in view: a refusal only marks it,
+  // since "Choose their lead inspector" under an empty picker leads nowhere.
+  const errorText = none ? emptyHint : error;
   return (
     <Field data-invalid={error ? true : undefined}>
       <FieldLabel htmlFor={`${id}-lead`}>Lead inspector</FieldLabel>
@@ -127,9 +144,9 @@ export function LeadField({
         </SelectContent>
       </Select>
       {error ? (
-        <FieldError id={describedBy}>{error}</FieldError>
+        <FieldError id={describedBy}>{errorText}</FieldError>
       ) : (
-        <FieldDescription id={describedBy}>{none ? TEAM_MESSAGES.noLeads : hint}</FieldDescription>
+        <FieldDescription id={describedBy}>{none ? emptyHint : hint}</FieldDescription>
       )}
       <input type="hidden" name="leadId" value={value} />
     </Field>

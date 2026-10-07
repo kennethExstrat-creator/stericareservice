@@ -1,5 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { checkLead, isMissingTeamColumn, loadTeam, personName, readPerson, teamOf, teamsReady } from "./team";
+import {
+  anotherLeadExists,
+  checkLead,
+  isMissingTeamColumn,
+  loadTeam,
+  personName,
+  readPerson,
+  teamOf,
+  teamsReady,
+} from "./team";
 
 const LEAD = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const MEMBER = "5f6e7d8c-9b0a-4c1d-8e2f-3a4b5c6d7e8f";
@@ -111,6 +120,36 @@ describe("checkLead", () => {
   it("refuses someone who cannot be found", async () => {
     const { client } = fakeClient(() => ({ data: null, error: null }));
     expect(await checkLead(client, LEAD, MEMBER)).toMatchObject({ ok: false, message: expect.stringContaining("could not be found") });
+  });
+});
+
+describe("anotherLeadExists", () => {
+  it("looks for active lead inspectors, two at most", async () => {
+    const { client, queries } = fakeClient(() => ({ data: [{ id: LEAD }], error: null }));
+    expect(await anotherLeadExists(client, MEMBER)).toEqual({ exists: true, error: null });
+    expect(queries[0].calls).toEqual([
+      ["select", ["id"]],
+      ["eq", ["role", "inspector"]],
+      ["eq", ["is_lead", true]],
+      ["eq", ["active", true]],
+      ["limit", [2]],
+    ]);
+  });
+
+  it("finds nobody when there is no lead inspector, or only the person themselves", async () => {
+    expect(await anotherLeadExists(fakeClient(() => ({ data: [], error: null })).client, null)).toEqual({ exists: false, error: null });
+    const onlyThem = fakeClient(() => ({ data: [{ id: LEAD }], error: null })).client;
+    expect(await anotherLeadExists(onlyThem, LEAD)).toEqual({ exists: false, error: null });
+    const another = fakeClient(() => ({ data: [{ id: LEAD }, { id: MEMBER }], error: null })).client;
+    expect(await anotherLeadExists(another, LEAD)).toEqual({ exists: true, error: null });
+  });
+
+  it("passes a failed read on", async () => {
+    const failure = { code: "57014", message: "statement timeout" };
+    expect(await anotherLeadExists(fakeClient(() => ({ data: null, error: failure })).client, null)).toEqual({
+      exists: false,
+      error: failure,
+    });
   });
 });
 

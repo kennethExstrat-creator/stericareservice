@@ -1,5 +1,5 @@
-import type { RoleChoice } from "@/lib/auth/org";
-import type { AccountStatus } from "@/lib/auth/users";
+import { TEAM_MESSAGES, type RoleChoice } from "@/lib/auth/org";
+import type { AccountStatus, LeadOption } from "@/lib/auth/users";
 
 /** What a row's menu needs to know about a person. */
 export type UserActionsTarget = {
@@ -48,6 +48,20 @@ export function menuGroups(user: UserActionsTarget, { teams = true }: { teams?: 
     case "deactivated":
       return [["reactivate", "change-role", ...team]];
   }
+}
+
+/**
+ * The lead inspectors who may lead this person (nobody leads themselves),
+ * and what the picker says when there is nobody: for the only active lead
+ * inspector, that there is no other one rather than none at all.
+ */
+export function leadChoicesFor(
+  userId: string,
+  leads: readonly LeadOption[],
+): { choices: LeadOption[]; emptyHint: string } {
+  const choices = leads.filter((lead) => lead.id !== userId);
+  const onlyThem = choices.length === 0 && leads.length > 0;
+  return { choices, emptyHint: onlyThem ? TEAM_MESSAGES.noOtherLead : TEAM_MESSAGES.noLeads };
 }
 
 /**

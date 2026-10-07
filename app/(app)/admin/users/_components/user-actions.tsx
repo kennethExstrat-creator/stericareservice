@@ -58,9 +58,15 @@ import {
 } from "../actions";
 import { teamHref } from "../_lib/team-filter";
 import { cn } from "@/lib/utils";
-import { LeadField, RoleField, roleChoicesFor, SCROLLING_DIALOG } from "./role-fields";
+import { focusRole, LeadField, RoleField, roleChoicesFor, SCROLLING_DIALOG } from "./role-fields";
 import { unreachable } from "./unreachable";
-import { activationNeedsPlacement, menuGroups, type MenuAction as Kind, type UserActionsTarget } from "./user-menu";
+import {
+  activationNeedsPlacement,
+  leadChoicesFor,
+  menuGroups,
+  type MenuAction as Kind,
+  type UserActionsTarget,
+} from "./user-menu";
 
 type ServerAction = (previous: ActionResult, formData: FormData) => Promise<ActionResult>;
 
@@ -165,8 +171,8 @@ export function UserActions({
   if (groups.length === 0) return null;
 
   const close = () => setKind(null);
-  // Nobody leads themselves.
-  const leadChoices = leads.filter((lead) => lead.id !== user.id);
+  // Nobody leads themselves; the only lead inspector is told there is no other one.
+  const { choices: leadChoices, emptyHint } = leadChoicesFor(user.id, leads);
 
   return (
     <>
@@ -233,6 +239,7 @@ export function UserActions({
           choices={roleChoicesFor(teams)}
           askLead={teams}
           leads={leadChoices}
+          emptyHint={emptyHint}
           onClose={close}
           returnFocusTo={triggerRef}
         />
@@ -249,6 +256,7 @@ export function UserActions({
           choices={null}
           askLead
           leads={leadChoices}
+          emptyHint={emptyHint}
           onClose={close}
           returnFocusTo={triggerRef}
         />
@@ -265,6 +273,7 @@ export function UserActions({
           choices={roleChoicesFor(teams)}
           askLead
           leads={leadChoices}
+          emptyHint={emptyHint}
           onClose={close}
           returnFocusTo={triggerRef}
         />
@@ -404,6 +413,7 @@ function PlacementDialog({
   choices,
   askLead,
   leads,
+  emptyHint,
   onClose,
   returnFocusTo,
 }: {
@@ -418,6 +428,8 @@ function PlacementDialog({
   /** Ask for a lead when the role needs one (teams exist). */
   askLead: boolean;
   leads: readonly LeadOption[];
+  /** What the lead picker says when there is nobody to choose. */
+  emptyHint: string;
   onClose: () => void;
   returnFocusTo: RefObject<HTMLButtonElement | null>;
 }) {
@@ -425,13 +437,16 @@ function PlacementDialog({
   const [role, setRole] = useState<RoleChoice>(choices && !choices.includes(user.role) ? choices[0] : user.role);
   const [leadId, setLeadId] = useState(user.lead && leads.some((lead) => lead.id === user.lead?.id) ? user.lead.id : "");
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<UserField, string>>>({});
+  const roleRef = useRef<HTMLDivElement>(null);
   const leadRef = useRef<HTMLButtonElement>(null);
 
   const [state, formAction, pending] = useActionState(async (previous: ActionResult, formData: FormData) => {
     const result = await action(previous, formData).catch(unreachable);
     const errors = result.status === "error" ? (result.fieldErrors ?? {}) : {};
     setFieldErrors(errors);
-    if (errors.leadId) leadRef.current?.focus();
+    // To the first field marked. With nobody to lead them the action marks the role, not the empty, disabled picker.
+    if (errors.role) focusRole(roleRef.current);
+    else if (errors.leadId) leadRef.current?.focus();
     announce(result, onClose);
     return result;
   }, IDLE);
@@ -475,6 +490,7 @@ function PlacementDialog({
               value={role}
               choices={choices}
               error={fieldErrors.role}
+              groupRef={roleRef}
               onChange={(next) => {
                 setRole(next);
                 if (fieldErrors.role) setFieldErrors((errors) => ({ ...errors, role: undefined }));
@@ -487,6 +503,7 @@ function PlacementDialog({
               value={leadId}
               leads={leads}
               error={fieldErrors.leadId}
+              emptyHint={emptyHint}
               triggerRef={leadRef}
               onChange={(next) => {
                 setLeadId(next);

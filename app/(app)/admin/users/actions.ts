@@ -5,7 +5,7 @@ import { unstable_rethrow } from "next/navigation";
 import type { z } from "zod";
 import { needsLead, placementFor, roleChoiceOf, TEAM_MESSAGES, type Placement, type RoleChoice } from "@/lib/auth/org";
 import { authorizeAction } from "@/lib/auth/session";
-import { checkLead, personName, readPerson, teamOf, teamsReady } from "@/lib/auth/team";
+import { anotherLeadExists, checkLead, personName, readPerson, teamOf, teamsReady } from "@/lib/auth/team";
 import {
   ActivateSchema,
   AssignLeadSchema,
@@ -98,6 +98,19 @@ type PlacementCheck =
   | { ok: false; result: ActionResult };
 
 /**
+ * An inspector without a lead chosen: ask for one at the lead field, or, when
+ * nobody can lead them (no active lead inspector, or only the person
+ * themselves), say so at the role field, where the admin can choose
+ * otherwise. The lead picker is empty then, so asking it would lead nowhere.
+ */
+async function askForLead(supabase: Client, userId: string | null): Promise<ActionResult> {
+  const leads = await anotherLeadExists(supabase, userId);
+  if (leads.error) console.error("[admin/users] the lead inspectors could not be counted", leads.error);
+  else if (!leads.exists) return fail(TEAM_MESSAGES.nobodyToLead, { role: TEAM_MESSAGES.nobodyToLead });
+  return fail(TEAM_MESSAGES.chooseLead, { leadId: TEAM_MESSAGES.chooseLead });
+}
+
+/**
  * The role an admin chose, checked against the team rules before anything
  * changes: an inspector needs an active lead inspector who is someone else.
  * Without the lead inspector columns (a project that has not run migration
@@ -118,7 +131,7 @@ async function choosePlacement(
     return { ok: true, fields: { role: choice === "admin" ? "admin" : "inspector" }, leadName: null };
   }
   if (!needsLead(choice)) return { ok: true, fields: placementFor(choice, null), leadName: null };
-  if (!leadId) return { ok: false, result: fail(TEAM_MESSAGES.chooseLead, { leadId: TEAM_MESSAGES.chooseLead }) };
+  if (!leadId) return { ok: false, result: await askForLead(supabase, userId) };
 
   const lead = await checkLead(supabase, leadId, userId);
   if (!lead.ok) {

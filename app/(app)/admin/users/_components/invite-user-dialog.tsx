@@ -23,7 +23,7 @@ import { needsLead, type RoleChoice } from "@/lib/auth/org";
 import type { LeadOption, UserField } from "@/lib/auth/users";
 import { inviteUser, type ActionResult } from "../actions";
 import { cn } from "@/lib/utils";
-import { LeadField, RoleField, roleChoicesFor, SCROLLING_DIALOG } from "./role-fields";
+import { focusRole, LeadField, RoleField, roleChoicesFor, SCROLLING_DIALOG } from "./role-fields";
 import { unreachable } from "./unreachable";
 
 type FieldErrors = Partial<Record<UserField, string>>;
@@ -101,6 +101,7 @@ function InviteForm({
   const id = useId();
   const nameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
+  const roleRef = useRef<HTMLDivElement>(null);
   const leadRef = useRef<HTMLButtonElement>(null);
   // Controlled, and submitted by hand (submitAction): React resets a form after its action, and the role's
   // RadioGroup and the lead's Select would go back to their first values on that reset, so a failed invite
@@ -117,8 +118,11 @@ function InviteForm({
       const result = await inviteUser(previous, formData).catch(unreachable);
       const errors = result.status === "error" ? (result.fieldErrors ?? {}) : {};
       setFieldErrors(errors);
+      // To the first field marked, in the form's order. With nobody to lead
+      // them the action marks the role, not the empty, disabled picker.
       if (errors.fullName) nameRef.current?.focus();
       else if (errors.email) emailRef.current?.focus();
+      else if (errors.role) focusRole(roleRef.current);
       else if (errors.leadId) leadRef.current?.focus();
 
       if (result.status === "success") {
@@ -193,6 +197,7 @@ function InviteForm({
           value={role}
           choices={roleChoicesFor(teams)}
           error={fieldErrors.role}
+          groupRef={roleRef}
           onChange={(next) => {
             setRole(next);
             if (fieldErrors.role) setFieldErrors((errors) => ({ ...errors, role: undefined }));

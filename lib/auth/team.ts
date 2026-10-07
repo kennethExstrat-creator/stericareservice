@@ -108,6 +108,27 @@ export async function checkLead(supabase: Client, leadId: string, forUserId: str
 }
 
 /**
+ * Whether anyone other than `exceptId` could lead a team now: an active lead
+ * inspector. Asked when an inspector's lead was not chosen, to tell "choose
+ * one" from "there is nobody to choose". Two rows are enough: one of them is
+ * someone else unless the only lead is `exceptId` themselves.
+ */
+export async function anotherLeadExists(
+  supabase: Client,
+  exceptId: string | null,
+): Promise<{ exists: boolean; error: ErrorLike | null }> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("role", "inspector")
+    .eq("is_lead", true)
+    .eq("active", true)
+    .limit(2);
+  if (error) return { exists: false, error };
+  return { exists: (data ?? []).some((row) => row.id !== exceptId), error: null };
+}
+
+/**
  * For the screens of a lead inspector: the people in their team, by name,
  * active or not. Empty for everyone else (admins read the Users screen).
  */

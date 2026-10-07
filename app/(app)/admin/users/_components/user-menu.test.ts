@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activationNeedsPlacement, menuGroups, type UserActionsTarget } from "./user-menu";
+import { activationNeedsPlacement, leadChoicesFor, menuGroups, type UserActionsTarget } from "./user-menu";
 
 const LEAD = { id: "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d", name: "Lina Lead" };
 
@@ -58,5 +58,29 @@ describe("activationNeedsPlacement", () => {
     expect(activationNeedsPlacement(person({ role: "lead", lead: null }), true)).toBe(false);
     expect(activationNeedsPlacement(person({ role: "admin", lead: null }), true)).toBe(false);
     expect(activationNeedsPlacement(person({ lead: null }), false)).toBe(false);
+  });
+});
+
+describe("leadChoicesFor", () => {
+  const LEO = { id: "2c3d4e5f-6071-4b8c-9d0e-1f2a3b4c5d6e", name: "Leo Lead", teamSize: 0 };
+  const LINA = { ...LEAD, teamSize: 2 };
+
+  it("offers every active lead inspector but the person themselves", () => {
+    expect(leadChoicesFor(person().id, [LINA, LEO])).toEqual({
+      choices: [LINA, LEO],
+      emptyHint: "There is no active lead inspector yet. Make someone a lead inspector first.",
+    });
+    expect(leadChoicesFor(LINA.id, [LINA, LEO]).choices).toEqual([LEO]);
+  });
+
+  it("tells the only lead inspector there is no other one, rather than none at all", () => {
+    expect(leadChoicesFor(LINA.id, [LINA])).toEqual({
+      choices: [],
+      emptyHint: "There is no other active lead inspector. Make someone else a lead inspector first.",
+    });
+    expect(leadChoicesFor(person().id, [])).toEqual({
+      choices: [],
+      emptyHint: "There is no active lead inspector yet. Make someone a lead inspector first.",
+    });
   });
 });

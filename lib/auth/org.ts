@@ -126,7 +126,12 @@ function inspectors(count: number): string {
 
 export const TEAM_MESSAGES = {
   chooseLead: "Choose their lead inspector.",
+  /** The lead picker with nobody in it. */
   noLeads: "There is no active lead inspector yet. Make someone a lead inspector first.",
+  /** The lead picker for the only active lead inspector, who cannot lead themselves. */
+  noOtherLead: "There is no other active lead inspector. Make someone else a lead inspector first.",
+  /** An inspector needs a lead and nobody can lead them: said at the Role field, where the admin can choose otherwise. */
+  nobodyToLead: "Nobody can lead them yet. Choose Lead inspector or Admin, or make someone a lead inspector first.",
   ownLead: "Nobody can be their own lead inspector. Choose someone else.",
   /** Only inspectors who are not leads work in a team. */
   inNoTeam: (name: string, choice: RoleChoice) =>

@@ -27,6 +27,8 @@ const LEAD = "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d";
 const LEAD_TWO = "2c3d4e5f-6071-4b8c-9d0e-1f2a3b4c5d6e";
 const MEMBER = "3d4e5f60-7182-4c9d-8e0f-2a3b4c5d6e7f";
 const IDLE: ActionResult = { status: "idle" };
+/** At the role field when no active lead inspector other than the person exists: the lead picker is empty. */
+const NOBODY = "Nobody can lead them yet. Choose Lead inspector or Admin, or make someone a lead inspector first.";
 
 /* ------------------------------------------------------------------ *
  * A fake Supabase: one profiles table that the admin's client and the
@@ -69,8 +71,8 @@ let rows: Map<string, Row>;
 let queries: Query[];
 /** False: a project that has not run migration 20261007170000. */
 let teams: boolean;
-/** Makes the next matching operation fail. */
-let failures: { update?: Failure; read?: Failure };
+/** Makes the matching operations fail: updates, reads, or only the count of lead inspectors. */
+let failures: { update?: Failure; read?: Failure; leads?: Failure };
 
 const MISSING_READ = { code: "42703", message: "column profiles.is_lead does not exist" };
 const MISSING_WRITE = { code: "PGRST204", message: "Could not find the 'is_lead' column of 'profiles' in the schema cache" };
@@ -109,6 +111,7 @@ function fakeClient(kind: "user" | "admin") {
         return { data: single ? (data[0] ?? null) : data, error: null };
       }
       if (failures.read) return { data: null, error: failures.read };
+      if (failures.leads && eqs().some(([column]) => column === "is_lead")) return { data: null, error: failures.leads };
       const limit = arg("limit")?.[0] as number | undefined;
       const data = found.slice(0, limit ?? found.length).map((target) => project(target, columns));
       return { data: single ? (data[0] ?? null) : data, error: null };
@@ -275,6 +278,27 @@ describe("inviteUser", () => {
       message: "Choose their lead inspector.",
       fieldErrors: { leadId: "Choose their lead inspector." },
     });
+    expect(adminClient.auth.admin.inviteUserByEmail).not.toHaveBeenCalled();
+  });
+
+  it("says at the role field when nobody can lead an inspector yet, before any email", async () => {
+    // A deactivated lead inspector leads nobody.
+    rows.get(LEAD)!.active = false;
+    rows.get(LEAD_TWO)!.is_lead = false;
+    const result = await inviteUser(IDLE, inviteForm({ role: "inspector" }));
+
+    expect(result).toEqual({ status: "error", message: NOBODY, fieldErrors: { role: NOBODY } });
+    expect(adminClient.auth.admin.inviteUserByEmail).not.toHaveBeenCalled();
+  });
+
+  it("asks for the lead at the field when the lead inspectors cannot be counted", async () => {
+    failures.leads = { code: "57014", message: "statement timeout" };
+    expect(await inviteUser(IDLE, inviteForm({ role: "inspector" }))).toEqual({
+      status: "error",
+      message: "Choose their lead inspector.",
+      fieldErrors: { leadId: "Choose their lead inspector." },
+    });
+    expect(console.error).toHaveBeenCalled();
     expect(adminClient.auth.admin.inviteUserByEmail).not.toHaveBeenCalled();
   });
 
@@ -473,6 +497,16 @@ describe("changeRole", () => {
       status: "error",
       message,
       fieldErrors: { leadId: message },
+    });
+    expect(updates()).toEqual([]);
+  });
+
+  it("says at the role field when nobody else can lead the only lead inspector", async () => {
+    rows.get(LEAD_TWO)!.is_lead = false;
+    expect(await changeRole(IDLE, form({ userId: LEAD, role: "inspector" }))).toEqual({
+      status: "error",
+      message: NOBODY,
+      fieldErrors: { role: NOBODY },
     });
     expect(updates()).toEqual([]);
   });
@@ -700,6 +734,18 @@ describe("reactivateUser", () => {
         status: "error",
         message: "Choose their lead inspector.",
         fieldErrors: { leadId: "Choose their lead inspector." },
+      });
+      expect(adminClient.auth.admin.updateUserById).not.toHaveBeenCalled();
+      expect(updates()).toEqual([]);
+    });
+
+    it("says at the role field when nobody can lead them, and lifts no sign-in block", async () => {
+      rows.get(LEAD)!.is_lead = false;
+      rows.get(LEAD_TWO)!.is_lead = false;
+      expect(await reactivateUser(IDLE, form({ userId: OTHER, role: "inspector" }))).toEqual({
+        status: "error",
+        message: NOBODY,
+        fieldErrors: { role: NOBODY },
       });
       expect(adminClient.auth.admin.updateUserById).not.toHaveBeenCalled();
       expect(updates()).toEqual([]);
