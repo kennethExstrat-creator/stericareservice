@@ -287,7 +287,7 @@ test("the admin edits a draft: switches, order, wording, settings, a custom fiel
   await form.locator("#custom-0-fields-0-label").fill("Glove type");
   await form.locator("#custom-0-fields-0-key").fill("gloveType");
   await press(form.locator("#custom-0-fields-0-type"));
-  await press(page.getByRole("option", { name: "Choice from a List" }));
+  await press(page.getByRole("option", { name: "Choice From a List" }));
   await expect(page.getByTestId("problems")).toContainText("A select field needs at least one option.");
   await form.locator("#custom-0-fields-0-options").fill("Nitrile\nLatex");
   await press(form.getByRole("button", { name: "Add Field" }));

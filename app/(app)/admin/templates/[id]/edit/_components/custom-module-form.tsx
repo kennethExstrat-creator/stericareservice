@@ -30,7 +30,7 @@ export const FIELD_TYPE_LABEL: Readonly<Record<FieldType, string>> = {
   number: "Number",
   text: "Text",
   textarea: "Long Text",
-  select: "Choice from a List",
+  select: "Choice From a List",
   yes_no: "Yes / No",
   date: "Date",
   photo: "Photo",
@@ -401,7 +401,7 @@ function FieldEditor({
             <OptionSelect
               id={idOf("mapsTo")}
               value={field.mapsTo ?? null}
-              options={withCurrentPath([{ value: null, label: "No: keeps its own value" }, ...mapOptions], field.mapsTo)}
+              options={withCurrentPath([{ value: null, label: "No: Keeps Its Own Value" }, ...mapOptions], field.mapsTo)}
               readOnly={readOnly}
               invalid={messagesAt(at("mapsTo")).length > 0}
               describedBy={describedBy(idOf("mapsTo"), messagesAt(at("mapsTo")), true)}

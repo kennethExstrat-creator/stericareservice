@@ -33,7 +33,7 @@ import { problemsOfCustom } from "../_lib/problems";
 import { CustomModuleForm, FIELD_TYPE_LABEL } from "./custom-module-form";
 import type { EditorApi } from "./editor-api";
 
-const LAYOUT_LABEL = { fields: "Fields", table: "Table per size", grid: "Grid" } as const;
+const LAYOUT_LABEL = { fields: "Fields", table: "Table per Size", grid: "Grid" } as const;
 
 export function CustomModules({
   api,
@@ -124,7 +124,7 @@ export function CustomModules({
                   {view.overrides && <p className="text-sm text-muted-foreground">Replaces the one from {base}.</p>}
                   {problems.length > 0 && !expanded && (
                     <p className="text-sm text-destructive">
-                      {problems.length === 1 ? "1 problem to fix" : `${problems.length} problems to fix`}
+                      {problems.length === 1 ? "1 Problem to Fix" : `${problems.length} Problems to Fix`}
                     </p>
                   )}
                 </div>
