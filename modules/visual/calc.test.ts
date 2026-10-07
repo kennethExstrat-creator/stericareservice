@@ -10,7 +10,14 @@ import {
 } from "@/lib/coverage";
 import { lookupFrom, resolveTemplate } from "@/lib/templates";
 import { MODULE_REGISTRY } from "@/modules/registry";
-import { evaluateInspection, stubModule, type CalcInput, type InspectionContext, type ModuleRegistry } from "@/modules/_framework";
+import {
+  buildInspectionContext,
+  evaluateInspection,
+  stubModule,
+  type CalcInput,
+  type InspectionContext,
+  type ModuleRegistry,
+} from "@/modules/_framework";
 import { checkModuleContract, makeSampling, makeTestContext, makeTestTemplate } from "@/modules/_framework/testing";
 import {
   SAFEDON_EG_EXAMPLE,
@@ -21,10 +28,10 @@ import {
   type ExpectedVisual,
   type VisualClass,
 } from "@/tests/fixtures/examples";
-import { calcVisual, classLabel, defectLabel } from "./calc";
+import { calcVisual, classLabel, contributeVisual, defectLabel } from "./calc";
 import { VISUAL_DEFAULT_CONFIG, VISUAL_LABELS, VISUAL_TITLE, VisualConfigSchema, type VisualConfig } from "./config";
 import { definition } from "./index";
-import { DEFECT_CLASSES, VisualDataSchema, type VisualData } from "./schema";
+import { DEFECT_CLASSES, emptyVisual, VisualDataSchema, type VisualData } from "./schema";
 
 type Input = CalcInput<VisualData, VisualConfig>;
 
@@ -292,6 +299,28 @@ describe("visual", () => {
       const output = calcVisual(input({ M: inspectedAll(500) }, { context: { ...base, aql: { ...base.aql, minor: 3 } } }));
       expect(output.computed.sizes.M.minor?.result).toBe("not_done");
       expect(codesOf(output.issues)).toEqual(["aql_invalid"]);
+    });
+
+    it("gives the classes' AQLs to the context, for the sampling plan's lot check (AQL_SOURCES)", () => {
+      const contribute = (config: VisualConfig) => contributeVisual({ data: emptyVisual(), config });
+      // Critical is always 0; major and minor only when the template sets them, else the client's or BUILD_SPEC 7's stay.
+      expect(contribute(VISUAL_DEFAULT_CONFIG)).toEqual({ aql: { critical: 0 } });
+      expect(contribute(withClass("major", { aql: 1.5 }))).toEqual({ aql: { critical: 0, major: 1.5 } });
+      // A class switched off is not run: no plan needs its AQL.
+      expect(contribute(withClass("minor", { include: false, aql: 6.5 }))).toEqual({ aql: { critical: 0, minor: null } });
+      expect(definition.contribute).toBe(contributeVisual);
+
+      const template = makeTestTemplate(MODULE_REGISTRY, ["order_lots", { key: "visual", config: withClass("minor", { include: false }) }]);
+      const context = buildInspectionContext(
+        { template, data: { modules: {}, custom: {} }, aqlDefaults: { critical: 0.065, major: 1.5, minor: 6.5 } },
+        MODULE_REGISTRY,
+      );
+      expect(context.aql).toMatchObject({ watertight: null, critical: 0, major: 1.5, minor: null });
+      expect(context.contributionErrors).toEqual([]);
+      // The class switched off still has a heading, with the default AQL.
+      const output = calcVisual(input({ M: inspectedAll(500) }, { config: withClass("minor", { include: false }), context: { ...M_500(), aql: context.aql } }));
+      expect(output.computed.classes.minor).toMatchObject({ include: false, aql: 4, heading: "Minor Defects (AQL 4.0)" });
+      expect(output.computed.sizes.M.minor).toBeNull();
     });
 
     it("refuses fewer than 2 gloves inspected and warns when the gloves inspected differ from the sampling plan", () => {

@@ -18,6 +18,7 @@ import {
 } from "@/lib/aql";
 import type { PerSizeResult } from "@/lib/schemas";
 import {
+  AQL_CHECKS,
   EMPTY_SAMPLING,
   errorIssue,
   labelFor,
@@ -122,13 +123,19 @@ export function samplingValues(row: SamplingSize, config: SamplingPlanConfig): S
 
 /**
  * The plan of the inspection level for a lot: Table 1, then Table 2-A for
- * each AQL checked on the watertight and visual sample (watertight,
- * critical, major, minor). The largest n wins: critical (AQL 0) gives Table
- * 1's n, and an AQL whose arrow points down can ask for more (docs/AQL.md).
+ * each AQL checked on the watertight and visual sample: watertight, critical,
+ * major and minor, the checks the inspection runs (a check switched off is
+ * null in the context). The largest n wins: critical (AQL 0) gives Table 1's
+ * n, and an AQL whose arrow points down can ask for more (docs/AQL.md). With
+ * no check run on the sample, Table 1's n is the plan, as AQL 0 gives it.
  */
 export function lotPlan(lotSize: number, level: InspectionLevel, aql: AqlSettings): LotSizePlan | null {
+  const run = AQL_CHECKS.flatMap((check) => {
+    const value = aql[check];
+    return value === null ? [] : [value];
+  });
   let largest: LotSizePlan | null = null;
-  for (const value of [aql.watertight, aql.critical, aql.major, aql.minor]) {
+  for (const value of run.length === 0 ? [0] : run) {
     const parsed = AqlSchema.safeParse(value);
     if (!parsed.success) continue;
     const plan = planFromLotSize({ lotSize, level, aql: parsed.data });

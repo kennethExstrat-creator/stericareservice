@@ -21,6 +21,7 @@ export { defineModule, stubModule, NOT_BUILT_SUMMARY, type ModuleSpec, type Stub
 export { SpecSchema } from "./config-schemas";
 export { labelFor, effectiveLabels, type Labels } from "./labels";
 export {
+  AQL_CHECKS,
   AQL_DEFAULTS,
   AQL_SOURCES,
   CONTEXT_SOURCES,
@@ -40,6 +41,8 @@ export {
   moduleTitle,
   inspectionRowValues,
   readableData,
+  type AqlCheck,
+  type AqlDefaults,
   type AqlSettings,
   type BuildContextInput,
   type ContextContribution,

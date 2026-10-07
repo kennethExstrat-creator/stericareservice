@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { moduleConfig } from "@/lib/coverage";
-import { buildInspectionContext, evaluateInspection, type CalcInput, type InspectionContext } from "@/modules/_framework";
+import {
+  buildInspectionContext,
+  evaluateInspection,
+  type AqlDefaults,
+  type CalcInput,
+  type InspectionContext,
+} from "@/modules/_framework";
 import { checkModuleContract, makeTestContext, makeTestTemplate, TEST_INSPECTOR } from "@/modules/_framework/testing";
+import { VISUAL_DEFAULT_CONFIG } from "@/modules/visual/config";
+import { WATERTIGHT_DEFAULT_CONFIG } from "@/modules/watertight/config";
 import {
   SAFEDON_EG_EXAMPLE,
   SAFEDON_EG_EXPECTED,
@@ -247,6 +255,18 @@ describe("sampling_plan", () => {
     expect(lotPlan(1_000, "I", { ...context.aql, watertight: 1.0 })).toMatchObject({ codeLetter: "G", usedLetter: "H", n: 50 });
     // An AQL Table 2-A does not have is left out; none left means no plan.
     expect(lotPlan(1_000, "I", { ...context.aql, watertight: 3, critical: 3, major: 3, minor: 3 })).toBeNull();
+  });
+
+  it("asks only for the AQLs of the checks the inspection runs; with none, Table 1's n", () => {
+    const aql = makeTestContext().aql;
+    // Lot 100 at level I: minor's 4.0 points down to E (n 13); without the minor class, D (n 8) is enough.
+    expect(lotPlan(100, "I", { ...aql, minor: null })).toMatchObject({ codeLetter: "D", usedLetter: "D", n: 8 });
+    // Only major's 2.5 run: its arrow up to C (n 5).
+    expect(lotPlan(100, "I", { ...aql, watertight: null, critical: null, minor: null })).toMatchObject({ usedLetter: "C", n: 5 });
+    // No check on the sample: the inspection level's Table 1 plan, as AQL 0 gives it.
+    const none = { ...aql, watertight: null, critical: null, major: null, minor: null };
+    expect(lotPlan(100, "I", none)).toMatchObject({ codeLetter: "D", usedLetter: "D", n: 8, aql: 0 });
+    expect(lotPlan(5_800_000, "I", none)).toMatchObject({ codeLetter: "N", n: 500 });
   });
 
   it("asks for every glove when the plan's n is not smaller than the lot", () => {
@@ -511,5 +531,69 @@ describe("sampling_plan with the example reports (docs/examples/expected-results
     expect(evaluation.issues.map(({ code, level, path }) => ({ code, level, path }))).toEqual([
       { code: "invalid_data", level: "error", path: ["sizes", "M", "cases"] },
     ]);
+  });
+});
+
+describe("sampling_plan against the AQLs the template's watertight and visual apply (AQL_SOURCES)", () => {
+  type Entry = Parameters<typeof makeTestTemplate>[1][number];
+
+  /** STD_EG size M (5,800,000 gloves, 500 sampled) at level I, with the real watertight and visual configured as given. */
+  function lotCheck(entries: readonly Entry[], aqlDefaults: Partial<AqlDefaults> = {}) {
+    const template = makeTestTemplate(ENGINE_REGISTRY, [
+      "order_lots",
+      "packing_config",
+      { key: "sampling_plan", config: templateConfig("STD_EG") },
+      ...entries,
+    ]);
+    const data = exampleData(STD_EG_EXAMPLE);
+    const context = buildInspectionContext({ template, data, meta: { inspector: TEST_INSPECTOR }, aqlDefaults }, ENGINE_REGISTRY);
+    const found = evaluateInspection({ template, data, context }, ENGINE_REGISTRY).modules.find(
+      (entry) => entry.key === "sampling_plan",
+    );
+    if (!found) throw new Error("sampling_plan was not evaluated");
+    return { context, computed: found.computed as SamplingPlanComputed, messages: found.issues.map((issue) => issue.message) };
+  }
+
+  const watertight = (aql: number | null): Entry => ({ key: "watertight", config: { ...WATERTIGHT_DEFAULT_CONFIG, aql } });
+  const visual = (minor: { include: boolean; aql: number | null }): Entry => ({
+    key: "visual",
+    config: { ...VISUAL_DEFAULT_CONFIG, classes: { ...VISUAL_DEFAULT_CONFIG.classes, minor: { ...VISUAL_DEFAULT_CONFIG.classes.minor, ...minor } } },
+  });
+  const AQL_0065 =
+    "Size M, # gloves for watertight & Visual: 500 gloves sampled; inspection level I at AQL 0.065 needs 800 (lot 5,800,000 gloves, code P).";
+
+  it("flags the larger sample a template watertight AQL's arrow down asks for", () => {
+    // AQL 0.065 at code N points down to P (n 800); the 500 sampled are enough for STD_EG's 1.5.
+    const strict = lotCheck([watertight(0.065), visual({ include: true, aql: null })]);
+    expect(strict.context.aql.watertight).toBe(0.065);
+    expect(strict.computed.sizes.M).toMatchObject({ codeLetter: "N", planSampleSize: 800, planCodeLetter: "P", belowPlan: true });
+    expect(strict.messages).toEqual([AQL_0065]);
+
+    const plain = lotCheck([watertight(1.5), visual({ include: true, aql: null })]);
+    expect(plain.computed.sizes.M).toMatchObject({ planSampleSize: 500, planCodeLetter: "N", belowPlan: false });
+    expect(plain.messages).toEqual([]);
+  });
+
+  it("asks nothing for a visual class the template switches off", () => {
+    const on = lotCheck([watertight(1.5), visual({ include: true, aql: 0.065 })]);
+    expect(on.messages).toEqual([AQL_0065]);
+    const off = lotCheck([watertight(1.5), visual({ include: false, aql: 0.065 })]);
+    expect(off.context.aql.minor).toBeNull();
+    expect(off.computed.sizes.M).toMatchObject({ planSampleSize: 500, belowPlan: false });
+    expect(off.messages).toEqual([]);
+  });
+
+  it("asks nothing for watertight when the inspection does not run it, not even the client's AQL", () => {
+    const client = { watertight: 0.065 };
+    expect(lotCheck([watertight(null), visual({ include: true, aql: null })], client).messages).toEqual([AQL_0065]);
+    const switchedOff: Entry = {
+      key: "watertight",
+      config: { ...WATERTIGHT_DEFAULT_CONFIG, aql: null },
+      include: false,
+      override: { reason: "Tested at the lab", by: "00000000-0000-4000-8000-000000000102", at: "2026-10-07T08:00:00.000Z" },
+    };
+    const off = lotCheck([switchedOff, visual({ include: true, aql: null })], client);
+    expect(off.context.aql.watertight).toBeNull();
+    expect(off.messages).toEqual([]);
   });
 });

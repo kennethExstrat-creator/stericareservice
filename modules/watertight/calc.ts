@@ -3,10 +3,13 @@
 // computed here (6.2 rule 2); the size is accepted at Ac or fewer holes,
 // rejected at Re or more, and not done until the gloves tested are entered or
 // while the sample is too small for the AQL (6.2 rule 5). With handSplit the
-// holes of both hands count against one limit per size.
+// holes of both hands count against one limit per size. The template's AQL
+// goes into the context (AQL_SOURCES), so the sampling plan checks the sample
+// against the AQL this module applies.
 import { AqlSchema, CODE_LETTERS, decide, formatAql, planFromSampleSize, type Aql, type CodeLetter } from "@/lib/aql";
 import type { PerSizeResult } from "@/lib/schemas";
 import {
+  AQL_DEFAULTS,
   errorIssue,
   HAND_LABEL,
   HANDS,
@@ -20,6 +23,8 @@ import {
   type CalcInput,
   type CalcIssue,
   type CalcOutput,
+  type ContextContribution,
+  type ContributeInput,
   type Hand,
   type InspectionContext,
   type IssuePath,
@@ -347,7 +352,16 @@ function hasHoles(record: WatertightHand): boolean {
 
 /** The AQL used: the template's, else the client's (context), else BUILD_SPEC 7's (context default). */
 export function effectiveAql(config: Pick<WatertightConfig, "aql">, context: Pick<InspectionContext, "aql">): number {
-  return config.aql ?? context.aql.watertight;
+  return config.aql ?? context.aql.watertight ?? AQL_DEFAULTS.watertight;
+}
+
+/**
+ * The template's AQL, when it sets one, for every reader of `context.aql`:
+ * the sampling plan's lot check above all (AQL_SOURCES). Without one the
+ * client's AQL, else BUILD_SPEC 7's, stays, which is what calc applies too.
+ */
+export function contributeWatertight({ config }: ContributeInput<WatertightData, WatertightConfig>): ContextContribution {
+  return config.aql === null ? {} : { aql: { watertight: config.aql } };
 }
 
 /**

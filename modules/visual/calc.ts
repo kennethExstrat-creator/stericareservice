@@ -5,10 +5,13 @@
 // defect fails (AQL 0: Accept 0 / Reject 1), even before the gloves inspected
 // are entered. A class is not done until its gloves inspected are entered, or
 // while the sample is too small for its AQL (6.2 rule 5). A size takes its
-// worst class. With handSplit the defects of both hands count together.
+// worst class. With handSplit the defects of both hands count together. The
+// classes' AQLs go into the context (AQL_SOURCES), so the sampling plan checks
+// the sample against the AQLs this module applies, and none of a class off.
 import { AqlSchema, CODE_LETTERS, decide, formatAql, planFromSampleSize, type Aql, type CodeLetter } from "@/lib/aql";
 import type { ModuleStatus, PerSizeResult } from "@/lib/schemas";
 import {
+  AQL_DEFAULTS,
   errorIssue,
   HAND_LABEL,
   HANDS,
@@ -19,9 +22,12 @@ import {
   sizeLabel,
   warningIssue,
   worstStatus,
+  type AqlSettings,
   type CalcInput,
   type CalcIssue,
   type CalcOutput,
+  type ContextContribution,
+  type ContributeInput,
   type Hand,
   type InspectionContext,
   type IssuePath,
@@ -453,7 +459,8 @@ export function effectiveClasses(
 ): VisualComputed["classes"] {
   const info = (cls: DefectClass): VisualClassInfo => {
     const setting = config.classes[cls];
-    const aql = cls === "critical" ? 0 : (setting.aql ?? context.aql[cls]);
+    // A class switched off has no AQL in the context (null): its heading still shows the default's.
+    const aql = cls === "critical" ? 0 : (setting.aql ?? context.aql[cls] ?? AQL_DEFAULTS[cls]);
     return {
       include: setting.include,
       aql,
@@ -462,6 +469,24 @@ export function effectiveClasses(
     };
   };
   return { critical: info("critical"), major: info("major"), minor: info("minor") };
+}
+
+/**
+ * The AQLs this module applies, for every reader of `context.aql`: the
+ * sampling plan's lot check above all (AQL_SOURCES). Critical is always 0
+ * (BUILD_SPEC 7); major and minor are the template's, and without one the
+ * client's AQL, else BUILD_SPEC 7's, stays, which calc applies too. A class
+ * switched off is not run: null, so no plan needs its AQL.
+ */
+export function contributeVisual({ config }: ContributeInput<VisualData, VisualConfig>): ContextContribution {
+  const aql: Partial<AqlSettings> = {};
+  for (const cls of DEFECT_CLASSES) {
+    const setting = config.classes[cls];
+    if (!setting.include) aql[cls] = null;
+    else if (cls === "critical") aql.critical = 0;
+    else if (setting.aql !== null) aql[cls] = setting.aql;
+  }
+  return { aql };
 }
 
 /** The class's name in the template's wording: "Major Defects". */
