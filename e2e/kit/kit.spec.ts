@@ -141,6 +141,45 @@ test("a pasted column longer than the grid lists, under it, the values that did 
   expect(hydration()).toEqual([]);
 });
 
+test("a grid whose module keeps a paste's overflow leaves it to the module: force at break lists the readings past its gloves", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  await signInAs(context, baseURL!);
+  const frame = await openModule(page, "force_at_break");
+  await showSizeM(frame);
+  const grid = frame.locator('[data-slot="measurement-grid"]:visible').first();
+  const first = grid.getByRole("textbox", { name: "Force at break (N), No. 1", exact: true });
+  await expect(first).toBeEditable();
+  const rows = await grid.getByRole("textbox", { name: /^Force at break \(N\), No\. \d+$/ }).count();
+  const readings = Array.from({ length: rows + 2 }, (_, index) => (6.1 + index / 10).toFixed(1));
+  await first.focus();
+  await paste(first, readings.join("\n"));
+
+  // Kept past the gloves tested, and said so by the module, with a way to clear them: the grid lists nothing.
+  const clear = frame.getByRole("button", { name: "Clear the 2 extra readings" });
+  await expect(clear).toBeVisible();
+  await expect(frame.locator('[data-slot="size-notice"]').first()).toBeVisible();
+  await expect(grid.locator('[data-slot="paste-notice"]')).toHaveCount(0);
+  await shot(page, "force-at-break-kept", clear);
+  await expect
+    .poll(async () => {
+      const force = (await fixture.modules()).force_at_break as { sizes?: Record<string, { values?: number[] }> };
+      return force?.sizes?.M?.values?.length ?? 0;
+    }, { timeout: 15_000 })
+    .toBe(rows + 2);
+
+  await press(clear);
+  await expect(clear).toHaveCount(0);
+  await expect
+    .poll(async () => {
+      const force = (await fixture.modules()).force_at_break as { sizes?: Record<string, { values?: number[] }> };
+      return force?.sizes?.M?.values?.length ?? 0;
+    }, { timeout: 15_000 })
+    .toBe(rows);
+});
+
 test("a pasted column longer than a table of fields lists what did not fit across the table's foot", async ({
   page,
   context,

@@ -61,9 +61,9 @@ const PHOTOS: DemoPhoto[] = [
   {
     id: "stopped",
     src: "/design/photo-carton.svg",
-    alt: "Carton 118, upload stopped",
-    tags: { module: "Labelling", size: "M", box: "118", level: "Carton Box" },
-    caption: "The server refused it: the card under the tile says what to do",
+    alt: "Carton 253 label, upload stopped",
+    tags: { module: "Labelling", size: "M", box: "253", level: "Carton Box" },
+    caption: "Refused by the server: the photo card says why and what to do",
     state: "failed",
     includeInReport: false,
     selected: false,

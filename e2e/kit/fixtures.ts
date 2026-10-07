@@ -8,9 +8,10 @@ import { TEST_ACCOUNTS } from "../support/session";
 /**
  * Temporary rows for the kit specs (e2e/README.md): one draft template,
  * resolved against the real modules, with the modules whose screens use the
- * kit's browser-only parts (a measurement grid, quantity cells, box pickers,
- * Safedon's box switcher, one-off defect rows, the documents and loading tag
- * lines), and one inspection of the test inspector's. Everything is deleted
+ * kit's browser-only parts (measurement grids, one that keeps a paste's
+ * overflow, quantity cells, box pickers, Safedon's box switcher, one-off
+ * defect rows, the documents and loading tag lines), and one inspection of
+ * the test inspector's. Everything is deleted
  * in afterAll; a run that died half way is cleaned up by the next.
  *
  * Each run of a project draws one number from the live ref sequence.
@@ -42,6 +43,7 @@ export function kitDefinition(): TemplateDefinition {
       { key: "header", include: true },
       { key: "order_lots", include: true },
       { key: "dimensions", include: true },
+      { key: "force_at_break", include: true },
       { key: "visual", include: true },
       { key: "dispensing_safedon", include: true, config: { boxesPerSize: { default: SAFEDON_BOXES } } },
       { key: "labeling", include: true },
