@@ -17,41 +17,27 @@ export type InspectionColumnKey =
 export type InspectionColumn = {
   key: InspectionColumnKey;
   label: string;
-  /**
-   * The narrowest layout with the column of its own. The columns fit side
-   * by side only in the desktop layout (`xl`: 1280 px and a mouse or
-   * trackpad). In the iPad layout (every touch screen, and narrower windows)
-   * the PO shows under the ref, the product under the manufacturer, the
-   * result under the status and the inspector's name under the date. Below
-   * `lg` (iPad portrait) the date and the inspector's name join the ref too,
-   * and the manufacturer and product the client. So every value shows on the
-   * iPad, and the row actions keep their room.
-   *
-   * On the desktop rows stay one line, so a value without a column is not
-   * in the list: the product gives way on desktops narrower than 1536 px
-   * (`2xl`), for everyone. With the actions at the end of the row, a product
-   * column there cut every name to a few letters (inspectors' clients and
-   * manufacturers lost a quarter of their width at 1440 px); without it they
-   * are wider than before the actions, and admins' Inspector column fits.
-   * The inspection itself shows the product.
-   */
-  from?: "lg" | "xl" | "2xl";
   /** A heading for screen readers only: the buttons below it say what they do. */
   srOnlyLabel?: boolean;
 };
 
+/**
+ * Every column shows at every size, one line per row: when they do not fit,
+ * the list scrolls sideways with the ref and the actions pinned
+ * (inspection-table.tsx).
+ */
 const COLUMNS: readonly InspectionColumn[] = [
   { key: "ref", label: "Ref" },
-  { key: "date", label: "Date", from: "lg" },
+  { key: "date", label: "Date" },
   { key: "client", label: "Client" },
-  { key: "manufacturer", label: "Manufacturer", from: "lg" },
-  { key: "product", label: "Product", from: "2xl" },
-  { key: "po", label: "PO", from: "xl" },
+  { key: "manufacturer", label: "Manufacturer" },
+  { key: "product", label: "Product" },
+  { key: "po", label: "PO" },
   { key: "status", label: "Status" },
-  { key: "result", label: "Result", from: "xl" },
+  { key: "result", label: "Result" },
 ];
 
-const INSPECTOR_COLUMN: InspectionColumn = { key: "inspector", label: "Inspector", from: "xl" };
+const INSPECTOR_COLUMN: InspectionColumn = { key: "inspector", label: "Inspector" };
 
 /** Continue, Review or View, and Delete where it is allowed: always the last column. */
 const ACTIONS_COLUMN: InspectionColumn = { key: "actions", label: "Actions", srOnlyLabel: true };
