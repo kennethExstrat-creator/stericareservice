@@ -4,7 +4,7 @@ Supabase Postgres 17 with Auth, Storage and row level security (BUILD_SPEC 3, 4.
 
 | Path | What |
 |---|---|
-| `supabase/migrations/` | The schema, in seven migrations applied in filename order |
+| `supabase/migrations/` | The schema, in migrations applied in filename order |
 | `supabase/seed.sql` | Reference data: manufacturers, the SAFEDON_EG client, defect codes. No users, safe to rerun |
 | `lib/supabase/database.types.ts` | Generated types (`Database`, `Tables<>`, `TablesInsert<>`, `TablesUpdate<>`, `Enums<>`, `Constants`) |
 | `tests/db/` | RLS and rule tests that run the migrations in PGlite, no Docker needed |
@@ -20,6 +20,8 @@ Supabase Postgres 17 with Auth, Storage and row level security (BUILD_SPEC 3, 4.
 | `20261006000500_storage.sql` | The five private buckets and their policies |
 | `20261006000600_new_accounts_inactive.sql` | New accounts start inactive: `handle_new_auth_user()` inserts `active = false`, the column default is `false`, and inspector profiles that existed before become inactive |
 | `20261006000700_review_fixes.sql` | Fixes from the review: the insert guard draws `ref_no`; an inspection's id never changes and a deleted inspection's id is never reused; `delete_test_inspection()` for end-to-end teardown. It also restates, unchanged, the rules that went into 100 to 500 after the first push (strict storage object names, read-only evidence of approved inspections, the service role's limits) |
+| `20261006175715_ai_reviews_one_pending_per_version.sql` | One pending AI second opinion per inspection version at a time: closes pending duplicates from before it (keeping the oldest), then the partial unique index `ai_reviews_one_pending_per_version` on `(inspection_id, inspection_updated_at)` where `status = 'pending'`. Two requests at the same moment both pass the app's own check; the database refuses the second row (23505), which `startAiReview` (`lib/inspections/ai/review-runner.ts`) answers as "A second opinion of this version is being written." Done and failed reviews are not limited. Applied live on 7 October 2026 |
+| `20261007113245_ai_reviews_inspection_fingerprint.sql` | AI reviews keyed to the inspection's content (see `ai_reviews` below): the column `ai_reviews.inspection_fingerprint` (lowercase hex SHA-256, locked once stored), `ai_reviews_one_pending_per_content` on `(inspection_id, inspection_fingerprint)` for pending rows with a fingerprint, and `ai_reviews_one_pending_per_version` narrowed to pending rows without one. Idempotent. Until a project has run it, the app stores reviews without the column and compares them by save |
 
 Applied migrations never change: `supabase db push` skips every migration a project has already run, so a change to the schema goes in a new file. Every statement in 700 is idempotent, and 700 gives the same schema whichever text of 100 to 500 a project ran. It re-adds three check constraints (signature paths, audit rows without an inspection, the `ref_no` format), so it stops, changing nothing, if an existing row breaks one of them.
 
@@ -37,7 +39,7 @@ Every table has `created_at` and `updated_at`. One trigger, `set_updated_at()`, 
 | `inspections` | `ref_no` (assigned on insert, see [Reference numbers](#reference-numbers)), `inspector_id` (defaults to the caller), `status` (`draft`), `data` (`{"modules": {}, "custom": {}}`), `module_overrides` (`{}`, keyed by module: `{ reason, by, at }`), `lot_numbers` (`{}`) and `inspection_date` (today in Malaysia) all have defaults. `report_url` must be `http(s)://`. The `id` never changes, and the id of a deleted inspection is never used again. |
 | `inspection_photos` | `storage_path` and `thumb_path` are object names in `inspection-photos`, and must sit in the inspection's folder. `created_by` is always the uploader. |
 | `inspection_files` | Lab reports and certificates in `inspection-files`, same folder rule. |
-| `ai_reviews` | One per reviewed version of an inspection (`inspection_updated_at`). `confidence` is 0 to 1. `findings` and `questions` are JSON arrays. |
+| `ai_reviews` | One per request for a second opinion, keyed to the version of the inspection it reviewed: its content (`inspection_fingerprint`, a SHA-256 of the data, module overrides, result, remarks, template version and files, from `inspectionFingerprint()` in `lib/inspections/ai/fingerprint.ts`; null for reviews stored before migration `20261007113245`) and the save it was read at (`inspection_updated_at`). Approving, reopening or storing the report link saves the inspection but leaves its content, so the review stays current; a review without a fingerprint compares by save. `inspection_id`, `inspection_updated_at` and `inspection_fingerprint` never change. At most one `pending` review per inspection and version: `ai_reviews_one_pending_per_content`, and `ai_reviews_one_pending_per_version` for rows without a fingerprint. `confidence` is 0 to 1. `findings` and `questions` are JSON arrays. |
 | `ai_review_actions` | An admin's `agree`, `disagree` (a note is required) or `fixed` on one finding, always in their own name. |
 | `audit_log` | Append-only. Written by triggers and `log_inspection_event()`; signed-in users cannot insert directly, the service role can only read and add rows, and no role can change a row. |
 
