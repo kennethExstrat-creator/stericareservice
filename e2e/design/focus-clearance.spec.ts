@@ -221,8 +221,8 @@ test("New inspection: Shift+Tab brings each field out from under the top bar", a
   // (the 16 px alone on the desktop, which has no top bar).
   expect(await scrollPaddingTop(page)).toBe(desktop ? ROOM_PX : 65 + ROOM_PX);
 
-  await page.getByRole("button", { name: "Create inspection" }).focus();
-  const walked = await walkBack(page, "main", 14, /Product name/, "new-inspection-shift-tab");
+  await page.getByRole("button", { name: "Create Inspection" }).focus();
+  const walked = await walkBack(page, "main", 14, /Product name/i, "new-inspection-shift-tab");
   // Up through the product type to the manufacturer and client pickers.
   expect(walked.map((step) => step.name).join(" | ")).toMatch(/radio ".*\| combobox "Manufacturer" \| combobox "Client"$/);
 

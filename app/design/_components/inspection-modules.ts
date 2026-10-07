@@ -8,7 +8,7 @@ export const MODULE_STEPS: ProgressStep[] = [
   { key: "order_lots", label: "Order", state: "done", result: "info" },
   { key: "packing_config", label: "Packing configuration", state: "done", result: "warn" },
   { key: "sampling_plan", label: "Sampling Plan", state: "done", result: "pass" },
-  { key: "carton_sampling", label: "Carton numbers", state: "done", result: "pass" },
+  { key: "carton_sampling", label: "Carton Numbers", state: "done", result: "pass" },
   { key: "dimensions", label: "Dimension", state: "in_progress", result: "not_done" },
   { key: "force_at_break", label: "Force At Break", state: "not_started", result: "not_done" },
   { key: "weight", label: "Weight (g)", state: "not_started", result: "not_done" },

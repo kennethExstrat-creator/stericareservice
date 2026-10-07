@@ -40,8 +40,8 @@ function Swatch({ name, hex }: { name: string; hex: Hex }) {
           <span className="font-mono text-muted-foreground">{hex}</span>
         </div>
         <dl className="space-y-0.5">
-          <RatioLine label="White text" ratio={whiteOn} />
-          <RatioLine label="On white" ratio={contrastRatio(hex, white)} />
+          <RatioLine label="White Text" ratio={whiteOn} />
+          <RatioLine label="On White" ratio={contrastRatio(hex, white)} />
         </dl>
       </div>
     </li>
@@ -81,17 +81,16 @@ export function ColourSection() {
   return (
     <DesignSection
       id="colours"
-      title="Colour tokens"
       description="Brand, accent and mist are copied exactly from the website. Ratios are measured from lib/design/tokens.ts; a test fails if the CSS drifts from it."
       source="globals.css (website); slate is Tailwind 4's"
     >
-      <Specimen label="Brand: logo blue (600 is the exact logo blue)">
+      <Specimen label="Brand: Logo Blue (600 Is the Exact Logo Blue)">
         <ScaleRow scale={brand} />
       </Specimen>
-      <Specimen label="Accent: logo teal (the brand, never a result)">
+      <Specimen label="Accent: Logo Teal (The Brand, Never a Result)">
         <ScaleRow scale={accent} />
       </Specimen>
-      <Specimen label="Grounds and neutrals">
+      <Specimen label="Grounds and Neutrals">
         <ul className={GRID}>
           <Swatch name="mist" hex={mist} />
           <Swatch name="white" hex={white} />
@@ -106,7 +105,7 @@ export function ColourSection() {
       </Specimen>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <Specimen label="shadcn/ui variables">
+        <Specimen label="shadcn/ui Variables">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -137,7 +136,7 @@ export function ColourSection() {
             </table>
           </div>
         </Specimen>
-        <Specimen label="The accent naming clash">
+        <Specimen label="The Accent Naming Clash">
           <div className="space-y-4 text-sm text-muted-foreground">
             <p>
               shadcn calls its hover surface <span className="font-mono text-foreground">accent</span>; the website
@@ -162,7 +161,7 @@ export function ColourSection() {
         </Specimen>
       </div>
 
-      <Specimen label="Signature gradient: logo blue to logo teal (brand-500 to accent-600)">
+      <Specimen label="Signature Gradient: Logo Blue to Logo Teal (brand-500 to accent-600)">
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
           <div className="h-12 rounded-lg bg-gradient-brand" />
           <p className="text-sm text-muted-foreground md:max-w-xs">

@@ -7,13 +7,12 @@ export function HeaderSection() {
   return (
     <DesignSection
       id="header"
-      title="Page header"
       description="The website's eyebrow with its gradient dash, a Red Hat Display title and the page's actions. The gradient may accent a word of a large title; nowhere smaller."
       source="ui.tsx.txt (Eyebrow, SectionHeading)"
     >
       <Specimen>
         <PageHeader
-          eyebrow="Preshipment inspection"
+          eyebrow="Preshipment Inspection"
           title={
             <>
               INS-2026-0001 <span className="text-gradient-brand">Nitrile EG</span>

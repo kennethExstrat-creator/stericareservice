@@ -33,7 +33,6 @@ export function StatusSection() {
   return (
     <DesignSection
       id="status"
-      title="Status colours"
       description="Results are told apart by icon and words as well as colour. Pass is green, never the brand teal. Every status text holds 4.5:1 on its tint, on white and on mist; the ratios below are measured."
       source="app-specific (BUILD_SPEC 2.1)"
     >
@@ -51,9 +50,9 @@ export function StatusSection() {
                 <span className="font-semibold text-foreground">{STATUS_LABEL[key]}.</span> {USE[key]}
               </p>
               <dl className="space-y-1 text-sm">
-                <Ratio label="Text on tint" fg={tokens.text} bg={tokens.tint} />
-                <Ratio label="Text on white" fg={tokens.text} bg={white} />
-                <Ratio label="Text on mist" fg={tokens.text} bg={mist} />
+                <Ratio label="Text on Tint" fg={tokens.text} bg={tokens.tint} />
+                <Ratio label="Text on White" fg={tokens.text} bg={white} />
+                <Ratio label="Text on Mist" fg={tokens.text} bg={mist} />
                 <Ratio label="Solid" fg={tokens.solidForeground} bg={tokens.solid} />
               </dl>
               <p className="font-mono text-xs text-muted-foreground">

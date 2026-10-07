@@ -33,7 +33,7 @@ const PHOTOS: DemoPhoto[] = [
     id: "queued",
     src: "/design/photo-carton.svg",
     alt: "Carton 253",
-    tags: { module: "Carton sampling", size: "M", box: "253" },
+    tags: { module: "Carton Sampling", size: "M", box: "253" },
     state: "pending",
     progress: 0,
     includeInReport: false,
@@ -88,7 +88,6 @@ export function PhotoSection() {
   return (
     <DesignSection
       id="photos"
-      title="Photo tiles"
       description="Every state a photo goes through: waiting and uploading (with progress), uploaded, flagged when the browser could not convert the file, and stopped when the upload needs the inspector. Tags come from where the photo was taken. The image stays 4:3 whatever the photo's shape. Admins see the report switch; galleries add selection."
       source="app-specific (BUILD_SPEC 8.1)"
     >

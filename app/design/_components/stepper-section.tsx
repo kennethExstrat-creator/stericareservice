@@ -23,7 +23,6 @@ export function StepperSection() {
   return (
     <DesignSection
       id="steppers"
-      title="Steppers"
       description="Counts are tapped, never typed. Hold a button to repeat; arrow keys work on desktop. The minus is greyed at zero but stays focusable. The total and the accept chip update as you tap."
       source="app-specific (BUILD_SPEC 8)"
     >
@@ -48,7 +47,7 @@ export function StepperSection() {
             </li>
           ))}
           <li className="flex items-center justify-between gap-4 border-b border-border pb-3">
-            <span className="text-sm text-muted-foreground">Disabled (approved inspection)</span>
+            <span className="text-sm text-muted-foreground">Disabled (Approved Inspection)</span>
             <Stepper label="Holes, disabled example" value={2} disabled onValueChange={() => {}} />
           </li>
         </ul>

@@ -46,7 +46,6 @@ export function DefectSection() {
   return (
     <DesignSection
       id="defects"
-      title="Defect chips"
       description="Tap a chip to add one, use its minus to remove one. Most-used defects come first. A one-off label is allowed: it is saved unmapped (dashed amber edge, flag) for an admin to map to a defect code."
       source="app-specific (BUILD_SPEC 4.2 rule 4, 8)"
     >

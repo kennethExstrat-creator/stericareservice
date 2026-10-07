@@ -25,7 +25,6 @@ export function ModuleSection() {
   return (
     <DesignSection
       id="module"
-      title="Module card"
       description="Every module is a card: the title in the template's wording, its live result, the capture form, an inspector comment and the two photo buttons. Change a number below and the result follows."
       source="ui.tsx.txt (Card, without the hover lift)"
     >
@@ -45,7 +44,7 @@ export function ModuleSection() {
       >
         <div className="grid gap-x-6 gap-y-5 md:grid-cols-2 xl:grid-cols-4">
           <div className="space-y-2">
-            <Label htmlFor={`${id}-unit`}>Inner unit</Label>
+            <Label htmlFor={`${id}-unit`}>Inner Unit</Label>
             <Select defaultValue="Inner box">
               <SelectTrigger id={`${id}-unit`} className="w-full">
                 <SelectValue />
@@ -75,7 +74,7 @@ export function ModuleSection() {
 
         <div className="grid gap-x-6 gap-y-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="space-y-2">
-            <Label htmlFor={`${id}-expected`}>Inner × per case · computed</Label>
+            <Label htmlFor={`${id}-expected`}>Inner × per Case · Computed</Label>
             <Input id={`${id}-expected`} readOnly value={expected?.toLocaleString("en-GB") ?? ""} className="text-right tabular-nums" />
           </div>
           {mismatch && (

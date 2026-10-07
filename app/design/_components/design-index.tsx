@@ -42,7 +42,7 @@ export function DesignIndex({ variant, className }: { variant: "bar" | "sidebar"
       )}
     >
       {variant === "sidebar" && (
-        <p className="px-3 pb-3 text-xs font-bold tracking-[0.2em] text-brand-600 uppercase">On this page</p>
+        <p className="px-3 pb-3 text-xs font-bold tracking-[0.2em] text-brand-600 uppercase">On This Page</p>
       )}
       <ul
         className={cn(

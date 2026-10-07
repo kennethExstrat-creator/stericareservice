@@ -18,7 +18,6 @@ export function ButtonSection() {
   return (
     <DesignSection
       id="buttons"
-      title="Buttons"
       description="Pills, as on the website, but solid: the primary button is brand-500 with white text (4.7:1) and darkens on hover. No sliding gradient, no lift, no scale. On iPad every size grows to at least 44 px."
       source="ui.tsx.txt (ButtonLink shape); fill is app-specific"
     >
@@ -27,22 +26,22 @@ export function ButtonSection() {
           <div className="flex flex-wrap items-center gap-3">
             <Button>
               <SendIcon aria-hidden />
-              Submit inspection
+              Submit Inspection
             </Button>
-            <Button variant="outline">Save draft</Button>
-            <Button variant="secondary">Start from previous</Button>
+            <Button variant="outline">Save Draft</Button>
+            <Button variant="secondary">Start From Previous</Button>
             <Button variant="ghost">Cancel</Button>
             <Button variant="destructive">
               <Trash2Icon aria-hidden />
-              Delete photo
+              Delete Photo
             </Button>
-            <Button variant="link">View export</Button>
+            <Button variant="link">View Export</Button>
           </div>
         </Specimen>
 
-        <Specimen label="Sizes (desktop; all are 44 px or more on iPad)">
+        <Specimen label="Sizes (Desktop; All Are 44 px or More on iPad)">
           <div className="flex flex-wrap items-center gap-3">
-            <Button size="xs">Extra small</Button>
+            <Button size="xs">Extra Small</Button>
             <Button size="sm">Small</Button>
             <Button>Default</Button>
             <Button size="lg">Large</Button>
@@ -66,7 +65,7 @@ export function ButtonSection() {
             </Button>
             <Button onClick={save} disabled={saving} aria-busy={saving}>
               {saving && <Spinner aria-hidden />}
-              {saving ? "Saving…" : "Save (try me)"}
+              {saving ? "Saving…" : "Save (Try Me)"}
             </Button>
             {/* Shows the keyboard focus ring (focus-ring) without needing a keyboard. */}
             <Button tabIndex={-1} className="outline-solid outline-2 outline-offset-2 outline-ring">
@@ -75,7 +74,7 @@ export function ButtonSection() {
           </div>
         </Specimen>
 
-        <Specimen label="Toasts (status colours)">
+        <Specimen label="Toasts (Status Colours)">
           <div className="flex flex-wrap items-center gap-3">
             <Button variant="outline" onClick={() => toast.success("Inspection submitted")}>
               Success
