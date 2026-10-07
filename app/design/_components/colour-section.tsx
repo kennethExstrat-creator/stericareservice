@@ -87,7 +87,7 @@ export function ColourSection() {
       <Specimen label="Brand: Logo Blue (600 Is the Exact Logo Blue)">
         <ScaleRow scale={brand} />
       </Specimen>
-      <Specimen label="Accent: Logo Teal (The Brand, Never a Result)">
+      <Specimen label="Accent: Logo Teal (the Brand, Never a Result)">
         <ScaleRow scale={accent} />
       </Specimen>
       <Specimen label="Grounds and Neutrals">

@@ -113,7 +113,7 @@ Kenneth's rule (8 October 2026): labels start every word with a capital letter. 
 - button and link texts that name an action: "Start From Previous", "Submit for Review", "Go to Inspections";
 - status pills, badges and chips: Passed, Failed, Warning, On Hold, Info, Not Done.
 
-Every word starts with a capital letter, except these small words when they are not the first word: a, an, the, and, but, or, nor, of, in, on, at, to, by, for, per, via, vs, as. So "Product Type", "Date of Inspection", "Gloves per Case", "Inspector in Charge", "Not Done", "On Hold". Each part of a hyphenated word starts with a capital: "Follow-Up", "Sign-In Emails". A small word that belongs to its verb keeps its capital ("Sign In", "Stay Signed In", but "Back to Sign In"), and the first word after a colon or an opening bracket counts as a first word ("Accent: Logo Teal (The Brand, Never a Result)"). Eyebrows and the sidebar's section headings are set in capitals by CSS; their text is still written in Title Case, which is what a screen reader reads.
+Every word starts with a capital letter, except these small words when they are not the first word: a, an, the, and, but, or, nor, of, in, on, at, to, by, for, per, via, vs, as. So "Product Type", "Date of Inspection", "Gloves per Case", "Inspector in Charge", "Not Done", "On Hold". Each part of a hyphenated word starts with a capital: "Follow-Up", "Sign-In Emails". A small word that belongs to its verb keeps its capital ("Sign In", "Stay Signed In", but "Back to Sign In"). Eyebrows and the sidebar's section headings are set in capitals by CSS; their text is still written in Title Case, which is what a screen reader reads.
 
 **Stays as written:**
 
