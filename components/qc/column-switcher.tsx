@@ -9,6 +9,7 @@
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { switcherIndex, switcherStep } from "./selection";
 
 type ColumnSwitcherProps = {
   /** How many columns there are. Nothing shows for one or none. */
@@ -40,9 +41,9 @@ export function ColumnSwitcher({
   className,
 }: ColumnSwitcherProps) {
   if (count <= 1) return null;
-  const at = Math.min(Math.max(index, 0), count - 1);
-  const first = at === 0;
-  const last = at === count - 1;
+  const at = switcherIndex(index, count);
+  const previous = switcherStep(at, count, -1);
+  const next = switcherStep(at, count, 1);
   return (
     <div data-slot="column-switcher" className={cn("relative flex items-center gap-1", !alwaysShown && "xl:hidden", className)}>
       <Button
@@ -50,9 +51,9 @@ export function ColumnSwitcher({
         variant="outline"
         size="icon-sm"
         aria-label={previousLabel}
-        aria-disabled={first || undefined}
+        aria-disabled={previous === null || undefined}
         className={AT_END}
-        onClick={() => !first && onIndexChange(at - 1)}
+        onClick={() => previous !== null && onIndexChange(previous)}
       >
         <ChevronLeftIcon aria-hidden />
       </Button>
@@ -64,9 +65,9 @@ export function ColumnSwitcher({
         variant="outline"
         size="icon-sm"
         aria-label={nextLabel}
-        aria-disabled={last || undefined}
+        aria-disabled={next === null || undefined}
         className={AT_END}
-        onClick={() => !last && onIndexChange(at + 1)}
+        onClick={() => next !== null && onIndexChange(next)}
       >
         <ChevronRightIcon aria-hidden />
       </Button>

@@ -17,7 +17,7 @@ import { useContext, useEffect, useId, useRef, useState, type FormEvent, type Re
 import { FlagIcon, PlusIcon, XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { STATUS_LABEL, type Status } from "@/lib/design/status";
-import { formatCount, formatLimits, type AcceptanceLimits } from "@/lib/format";
+import { formatCount, formatLimitParts, formatLimits, type AcceptanceLimits } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -26,6 +26,7 @@ import {
   counterAnnouncement,
   counterTableWidth,
   countOf,
+  removalFocus,
   type CounterCell,
   type CounterHand,
   type CountReader,
@@ -257,17 +258,27 @@ export function CounterTable({
 
   // A row comes off only while it counts nothing anywhere, so no tapped count is lost with it.
   const addRowButton = useRef<HTMLButtonElement | null>(null);
+  const table = useRef<HTMLTableElement | null>(null);
+  const body = useRef<HTMLTableSectionElement | null>(null);
   const canRemove = (row: CounterRow) =>
     row.removable === true &&
     onRemoveRow !== undefined &&
     !readOnly &&
     columns.every((column) => columnTotal([row], column.key, hands, getCount) === 0);
-  const remove = (row: CounterRow) => {
+  const remove = (row: CounterRow, index: number) => {
     onRemoveRow?.(row.key);
     setTouched(null);
     setRemoved(row.label);
-    // Its button goes with it: keep the focus in the table's own controls.
-    addRowButton.current?.focus();
+    // Its button goes with it: move the focus now, while the row is still there.
+    const target = removalFocus(index, rows.length, addRowButton.current !== null);
+    const next =
+      target.to === "opener"
+        ? addRowButton.current
+        : target.to === "row"
+          ? firstShownCount(body.current?.rows[target.index])
+          : null;
+    if (next) next.focus();
+    else focusTable(table.current);
   };
 
   return (
@@ -281,7 +292,10 @@ export function CounterTable({
           following ? "overflow-clip" : active !== undefined ? "overflow-clip xl:overflow-x-auto" : "overflow-x-auto",
         )}
       >
-        <table className="border-separate border-spacing-0 text-sm touch:text-base">
+        <table
+          ref={table}
+          className="border-separate border-spacing-0 text-sm outline-none focus-ring-inset touch:text-base"
+        >
           <caption className="sr-only">{caption}</caption>
           <thead
             className={cn(
@@ -350,19 +364,36 @@ export function CounterTable({
                   <th scope="row" className={cn(INFO, LABEL_COLUMN, "z-[2]")}>
                     {text.limits}
                   </th>
-                  {columns.map((column) => (
-                    // Long wording ("Accept 10 / Reject 11") wraps, balanced, so the column keeps its width.
-                    <td key={column.key} colSpan={span} className={cn(INFO, "border-l text-balance", hidden(column))}>
-                      {formatLimits(column.limits, { accept: text.limitAccept, reject: text.limitReject, empty: "—" })}
-                    </td>
-                  ))}
+                  {columns.map((column) => {
+                    const words = { accept: text.limitAccept, reject: text.limitReject };
+                    const parts = formatLimitParts(column.limits, words);
+                    return (
+                      <td key={column.key} colSpan={span} className={cn(INFO, "border-l", hidden(column))}>
+                        {parts ? (
+                          // Read in one piece; shown in two halves, so long wording wraps after
+                          // the slash ("Accept 10 /" over "Reject 11") and the column keeps its width.
+                          <>
+                            <span className="sr-only">{formatLimits(column.limits, words)}</span>
+                            <span aria-hidden className="whitespace-nowrap">
+                              {parts[0]}
+                            </span>{" "}
+                            <span aria-hidden className="whitespace-nowrap">
+                              {parts[1]}
+                            </span>
+                          </>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    );
+                  })}
                 </tr>
               )}
             </tbody>
           )}
 
-          <tbody>
-            {rows.map((row) => (
+          <tbody ref={body}>
+            {rows.map((row, rowIndex) => (
               <tr key={row.key} className="group/row">
                 <th
                   scope="row"
@@ -391,7 +422,7 @@ export function CounterTable({
                         size="icon-xs"
                         aria-label={`Remove ${row.label}`}
                         className="-my-0.5 ml-auto text-muted-foreground"
-                        onClick={() => remove(row)}
+                        onClick={() => remove(row, rowIndex)}
                       >
                         <XIcon aria-hidden className="size-4 touch:size-5" />
                       </Button>
@@ -489,6 +520,24 @@ export function CounterTable({
       </p>
     </div>
   );
+}
+
+/**
+ * Focuses the table itself, named by its caption, for a removed row that
+ * leaves nothing else to take the focus. Its tabindex lasts until the focus
+ * leaves: one kept on the table would let every tap inside it take the focus.
+ */
+function focusTable(table: HTMLTableElement | null) {
+  if (!table) return;
+  table.tabIndex = -1;
+  table.addEventListener("blur", () => table.removeAttribute("tabindex"), { once: true });
+  table.focus();
+}
+
+/** The first count on screen in a table row: hidden columns' steppers cannot take the focus. */
+function firstShownCount(row: HTMLTableRowElement | undefined): HTMLElement | null {
+  const counts = row ? Array.from(row.querySelectorAll<HTMLElement>('[role="spinbutton"]')) : [];
+  return counts.find((count) => count.getClientRects().length > 0) ?? null;
 }
 
 /** "Other defect": a button that opens a one-line form for a one-off label. */

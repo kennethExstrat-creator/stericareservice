@@ -23,9 +23,22 @@ const WORDS = {
 } as const;
 
 export function formatLimits(limits: AcceptanceLimits | null | undefined, format: LimitsFormat = {}): string {
-  const { style = "short", empty = "" } = format;
-  if (!limits) return empty;
+  const parts = formatLimitParts(limits, format);
+  return parts ? parts.join(" ") : (format.empty ?? "");
+}
+
+/**
+ * formatLimits' line in two halves, the slash with the first: "Accept 10 /"
+ * and "Reject 11". A cell too narrow for the line breaks between them, never
+ * before the slash. null without limits.
+ */
+export function formatLimitParts(
+  limits: AcceptanceLimits | null | undefined,
+  format: Omit<LimitsFormat, "empty"> = {},
+): readonly [string, string] | null {
+  if (!limits) return null;
+  const { style = "short" } = format;
   const accept = format.accept?.trim() || WORDS[style].accept;
   const reject = format.reject?.trim() || WORDS[style].reject;
-  return `${accept} ${limits.ac} / ${reject} ${limits.re}`;
+  return [`${accept} ${limits.ac} /`, `${reject} ${limits.re}`];
 }

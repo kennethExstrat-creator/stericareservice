@@ -11,7 +11,7 @@ export {
 } from "./number";
 export { formatSpec, hasLimit, type SpecFormat } from "./spec";
 export { ratio, ratePercent, formatRatio, formatRatioDecimal, formatRate } from "./rate";
-export { formatLimits, type AcceptanceLimits, type LimitsFormat } from "./limits";
+export { formatLimits, formatLimitParts, type AcceptanceLimits, type LimitsFormat } from "./limits";
 export {
   formatSize,
   formatSizeList,

@@ -71,6 +71,26 @@ export function counterAnnouncement({
   return `${count}. ${column}: total ${total}${verdict ? `, ${verdict}` : ""}.`;
 }
 
+/** Where the focus goes when a row's remove button goes with its row. */
+export type RemovalFocus =
+  | { readonly to: "opener" }
+  | { readonly to: "row"; readonly index: number }
+  | { readonly to: "table" };
+
+/**
+ * Where removing row `index` of `rowCount` (counted before the removal)
+ * leaves the focus: "Other defect" while its opener is on screen; else (its
+ * form is open, or the table offers none) the row that takes the removed
+ * one's place, or the one before it for the last row; else the table itself.
+ * Never the page, where a keyboard or switch user would lose their place.
+ */
+export function removalFocus(index: number, rowCount: number, hasOpener: boolean): RemovalFocus {
+  if (hasOpener) return { to: "opener" };
+  if (index + 1 < rowCount) return { to: "row", index: index + 1 };
+  if (index > 0) return { to: "row", index: index - 1 };
+  return { to: "table" };
+}
+
 /**
  * CounterTable's widths in CSS px, as its classes set them: the label column
  * (w-64) and each value column (w-32, touch:w-40), plus the frame's borders.
