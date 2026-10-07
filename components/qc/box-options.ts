@@ -2,6 +2,16 @@
 // numbers to offer, which are already picked elsewhere, and which one Enter
 // picks.
 
+/**
+ * What a request to open or close the box list does. Read-only, nothing: the
+ * box shows as text. Opening also reports the box in focus for photo tags,
+ * because Safari never focuses a tapped button, so on iPad the opening is
+ * the only focus there is to report.
+ */
+export function boxListChange(next: boolean, readOnly: boolean): { open: boolean; reportFocus: boolean } | null {
+  return readOnly ? null : { open: next, reportFocus: next };
+}
+
 /** The size's carton numbers to offer: unique whole numbers from 1, ascending, filtered by the digits typed. */
 export function boxOptions(cartons: readonly number[], query = ""): number[] {
   const digits = query.replace(/\D/g, "");

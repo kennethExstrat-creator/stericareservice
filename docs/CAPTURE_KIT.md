@@ -16,9 +16,9 @@ Nothing breaks: every change adds to the kit, and what was there still works. To
 8. **One-off rows can come off**: mark them `removable` and pass `onRemoveRow`; the remove button shows while the row counts nothing.
 9. **Per-size blocks beside a CounterTable** (the gloves tested above the table) use `SizeBlock` and `SideBySideText` (or `useSizeTabsLayout()`), not classes against SizeTabs' `data-side-by-side` attribute.
 
-New in the kit: `CountField` (a tapped count that can be not entered yet), `DateField`, `AttachmentStatus` (a lab report or certificate), `ColumnSwitcher` (Previous and Next for one column at a time), `CounterColumn.heading`, `SaveStatus` state `error` ("Not saved"), `PhotoTags.item`, and from `@/components/qc` also `createDataUpdater` and `batchDataChanges` (tests of a module's writes) and `useMediaQuery` with `WIDE_QUERY` and `COARSE_QUERY`. In `lib/format`: `fillCaption`, `formatCodeLetters` and `plainLabel`.
+New in the kit: `CountField` (a tapped count that can be not entered yet), `DateField`, `AttachmentStatus` (a lab report or certificate: calc's `state` for the kept file, attached, none or missing, with calc's `warning`), `ColumnSwitcher` (Previous and Next for one column at a time), `CounterColumn.heading`, `SaveStatus` state `error` ("Not saved"), `PhotoTags.item`, and from `@/components/qc` also `createDataUpdater` and `batchDataChanges` (tests of a module's writes) and `useMediaQuery` with `WIDE_QUERY` and `COARSE_QUERY`. In `lib/format`: `fillCaption`, `formatCodeLetters`, `plainLabel` and `formatLimitParts`.
 
-Without code changes you also get: a grid label column as wide as its longest caption, so "Passed / Failed" stays on one line; small pills, grid footers and legends at 16 px on touch; BoxPicker reporting focus when its list opens (Safari never focuses a tapped button, so iPad photo tags missed the box); issue links preferring a notice to a container marked with the same path; long limit wording that wraps instead of widening its column; `formatRate` with thousands separators ("11 / 1,000 (1.1%)", as the expected results write it).
+Without code changes you also get: a grid label column as wide as its longest caption, so "Passed / Failed" stays on one line; small pills, grid footers, legends and SaveStatus at 16 px on touch; BoxPicker reporting focus when its list opens (Safari never focuses a tapped button, so iPad photo tags missed the box); issue links preferring a notice to a container marked with the same path; long limit wording that wraps after the slash ("Accept 10 /" over "Reject 11") instead of widening its column; `formatRate` with thousands separators ("11 / 1,000 (1.1%)", as the expected results write it).
 
 ## Changed on 6 October 2026 (review fixes)
 
@@ -72,7 +72,7 @@ function setBox(current: DispensingData, size: string, index: number, patch: Par
 | A date (6.2 rule 3) | `DateField` | `<Input type="date">` with your own label and messages |
 | A box or carton number (dispensing, labelling) | `BoxPicker` | a number field (6.2 rule 7) |
 | A computed value against its spec, with the verdict | `RequirementList`; `SpecValue` inline; `Figure` for a bare number | hand-built text |
-| Whether a lab report or certificate is attached | `AttachmentStatus` | your own copy per module |
+| Whether a lab report or certificate is attached | `AttachmentStatus` with calc's state, beside the screen's file slot | your own copy per module |
 | A part of the module body (a defect class, a level) | `ModuleSection` | your own heading and spacing |
 | Entries rejected in your own table of fields | `EntryProblems` | a custom error list |
 | A link from the issue list to the field | `useIssueFocus` with `issuePathProps` / `issuePath` / `cellIssuePath`; `issueNoticeProps` on a message | scrolling by hand |
@@ -91,7 +91,7 @@ function setBox(current: DispensingData, size: string, index: number, patch: Par
 - **Read-only:** pass `readOnly` through. Steppers become numbers, pickers and fields become text. A MeasurementGrid's readings stay readonly inputs on grey: Tab, the arrows and issue links still reach them, and typing and pastes are refused quietly. Size tabs and the hand toggle still work: they only change the view. Never wrap kit controls in a disabled fieldset: disabled controls leave the Tab order and refuse an issue link's focus.
 - **No sideways scrolling inside a size panel on iPad.** A horizontal scroll container takes the swipe that turns the size, even when its content fits. Make per-size content fit 820 px. MeasurementGrid leaves sideways moves to the swipe while it fits its width; one that must scroll sideways keeps them, and the swipe then works outside it. A CounterTable with box columns (not following SizeTabs) scrolls sideways when the boxes do not fit: about three fit an iPad in portrait.
 - **The capture screen sets** `--capture-sticky-top` (height of its own sticky bars, so the size bar sticks under them), `--capture-sticky-bottom` (anything stuck at the bottom), and a matching `scroll-padding-top` so a field reached with Enter or Tab never hides under a bar. SizeTabs sets `--size-tabs-bar` (its bar's height) for headers that stick below it.
-- **Density:** 44 px targets and 16 px text on iPad come from the `touch:` variant inside each component, StatusPill's two sizes included (a small pill is compact only with a mouse). Small print (a row's hint, a unit, "9 of 13") is 14 px on iPad. Do not shrink them to fit a row.
+- **Density:** 44 px targets and 16 px text on iPad come from the `touch:` variant inside each component, StatusPill's two sizes and SaveStatus included (a small pill is compact only with a mouse). Small print (a row's hint, a unit, "9 of 13") is 14 px on iPad. Do not shrink them to fit a row.
 
 ## Counts per size, with an optional hand split (watertight)
 
@@ -163,8 +163,8 @@ const columns: CounterColumn[] = context.sizes.map((s) => ({
 
 - `getCount` reads `data` (what is on screen); only writes go through `update`.
 - Totals count every hand recorded, whichever is on screen. Columns can be boxes too (Safedon): `{ key: "253", label: "Box 253", name: "box 253" }`, with `summaryRows` for "1/125" and 0.008 (`formatRatio`, `formatRatioDecimal`). A column's `heading` (a BoxPicker, say) replaces its label in the heading cell; `label` and `name` still name it. Where the table shows one box at a time below 1280 px, put a `ColumnSwitcher` beside it: Previous and Next with "Box 253 · 2 / 5", hidden where every column sits side by side.
-- A one-off label is added unmapped (`unmapped: true`): the row shows a flag for the admin. Mark it `removable` too, with `onRemoveRow`: while it counts nothing in any column and hand, a remove button takes it off (one added by mistake), the table says so and keeps the focus on its "Other defect" button. Take it off only where it counts nothing, so no tapped count is lost.
-- The limit row reads the template's words, `limitAccept` and `limitReject`, and wraps between them when they do not fit the column. A class worded apart (STD_EG prints the critical limit "Acc. = 0 / Rej. = 1") reads them per class: `labelFor(labels, cls, "accept")`.
+- A one-off label is added unmapped (`unmapped: true`): the row shows a flag for the admin. Mark it `removable` too, with `onRemoveRow`: while it counts nothing in any column and hand, a remove button takes it off (one added by mistake), the table says so and keeps the focus on its "Other defect" button; while that button's form is open, or where the table offers none, on the first count of the row taking the removed one's place. Take it off only where it counts nothing, so no tapped count is lost.
+- The limit row reads the template's words, `limitAccept` and `limitReject`. Where they do not fit the column it wraps after the slash, "Accept 10 /" over "Reject 11" (`formatLimitParts`), never before it; screen readers read the line in one piece. A class worded apart (STD_EG prints the critical limit "Acc. = 0 / Rej. = 1") reads them per class: `labelFor(labels, cls, "accept")`.
 
 ## One table per defect class (visual)
 
@@ -282,7 +282,7 @@ One `CounterTable` per class, each in a `ModuleSection` titled with the class ("
 - A value is judged at the precision it is shown (`decimals`), as MeasurementGrid does: 13.996 at two decimals is 14.00 and meets ≥ 14.00. Missing is Not done, never Passed; a spec of NA shows no verdict.
 - A date is a `DateField` (6.2 rule 3): the browser's own picker, four-digit years, `"YYYY-MM-DD"` or null, with `error`, `warning` and `issuePath` as NumberField has; other attributes (`onKeyDown`, `enterKeyHint`) pass to the input.
 - A tapped count that may be not entered yet is a `CountField`: one button sets the start (`startLabel` "13 as planned", or `onStart` for an edit of your own such as "No leaks"), then a Stepper and a clear button back to not entered, so not entered never reads as 0 (6.2 rule 5).
-- A lab report or certificate shows as `AttachmentStatus`: attached (by name when the screen knows it), or not; a `required` one that is missing reads Not done and says why.
+- A lab report or certificate shows as `AttachmentStatus` with calc's state for the file the module keeps, `state={heldFileState(context, data.labReport)}`: attached (by name when the screen knows it), not attached, or missing (kept, but no longer with the inspection: never Attached). Pass calc's message about it as `warning` (amber); a missing file without one still says so. A `required` file not attached reads Not done and says why. The line has no frame: it sits in the module's section beside the screen's file slot (`ModuleFileSlot`), which attaches the file. With no control of its own, it takes an issue link's focus itself.
 
 ## Issue links (`focusPath`)
 
@@ -302,7 +302,7 @@ return <div ref={root}>...</div>;
 
 Mark the control that holds each value with the path an issue would carry: `issuePath` on `BoxPicker`, `NumberField`, `DateField`, `CountField`, `ModuleSection`, `AttachmentStatus` and `RequirementList` items, `cellIssuePath` on `CounterTable` and `MeasurementGrid`, or `{...issuePathProps(path)}` on anything else. The hook switches size or hand first, then scrolls to the closest marked element (the exact path, else its nearest parent) and focuses it: a control itself, a container's first control.
 
-A message with no control of its own (readings past the plan, a deviation from the indicative weight, a sampling plan too large) is marked with `{...issueNoticeProps(path)}` and given a visible focus style (`outline-none focus-ring`): it takes the focus itself (tabIndex -1, out of the Tab order), so a screen reader reads it and Tab goes on to its button. Where a notice and a container (the size's panel) carry the same path, the link lands on the notice.
+A message with no control of its own (readings past the plan, a deviation from the indicative weight, a sampling plan too large) is marked with `{...issueNoticeProps(path)}` and given a visible focus style (`outline-none focus-ring`); `AttachmentStatus` does this itself: it takes the focus itself (tabIndex -1, out of the Tab order), so a screen reader reads it and Tab goes on to its button. Where a notice and a container (the size's panel) carry the same path, the link lands on the notice.
 
 It runs once for each new `focusPath` array, so pass the prop straight through. The capture screen sets a new array for every click on an issue (`setFocusPath([...issue.path])`) and keeps it in state: a second click on the same issue then works, and a re-render does nothing.
 
@@ -319,7 +319,7 @@ Report what is in focus whenever it changes: the size from `SizeTabs`, the hand 
 | `formatCount`, `formatPercent`, `toPercent` | `5,800,000`, `88%` (value already in percent), 0.0048 to 0.48 |
 | `formatRate(defects, inspected, { grouping })` | `3 / 625 (0.48%)`, `11 / 1,000 (1.1%)` (counts grouped as every count the app prints; `grouping: false` gives the report's `11 / 1000`) |
 | `formatRatio(1, 125)`, `formatRatioDecimal(1, 125)`, `ratio` | `1/125`, `0.008` (per box) |
-| `formatLimits({ ac, re }, { style, accept, reject })` | `Ac 3 / Re 4`; with the template's words `Accept 3 / Reject 4`, `Acc. = 0 / Rej. = 1` (blank words fall back to the style's) |
+| `formatLimits({ ac, re }, { style, accept, reject })`, `formatLimitParts` | `Ac 3 / Re 4`; with the template's words `Accept 3 / Reject 4`, `Acc. = 0 / Rej. = 1` (blank words fall back to the style's); the parts are the halves a narrow cell wraps between, `Accept 3 /` and `Reject 4` |
 | `formatSize(size, { sizes, prefix })`, `formatSizeList`, `formatHand`, `formatSizeHand` | `M`, `Medium`, `Size 7.0`, `Size M, right hand` |
 | `fillCaption(caption, values)`, `formatCodeLetters(letters, { empty })`, `plainLabel(label)` | `{codeLetters}` filled in; `J & L`, `C, D & E`; `Layering %` as `Layering` |
 
@@ -333,7 +333,7 @@ Show computed numbers with `Figure` (tabular figures, unit in secondary text, a 
 |---|---|---|---|
 | `SizeTabs` | Arrow keys, Home, End (automatic activation, wraps) | Swipe the panel left or right (64 px, mostly horizontal; never from the field being edited) | A half-typed value is stored for its own size before the panel changes |
 | `HandToggle` | Arrow keys (radio group) | Tap | `handsOf(view)` gives the hands to show |
-| `CounterTable` | Stepper keys: arrows, Page, Home, End | Tap and hold to repeat; a finger that slides away (a swipe) counts nothing | Live total and chip; each tap is spoken with the new total and the chip's verdict; sticky header and totals |
+| `CounterTable` | Stepper keys: arrows, Page, Home, End | Tap and hold to repeat; a finger that slides away (a swipe) counts nothing | Live total and chip; each tap is spoken with the new total and the chip's verdict; sticky header and totals; taking a one-off row off keeps the focus in the table |
 | `BoxPicker` | Type digits, arrows, Enter, Escape | Tap a box; keyboard stays down | List capped to the space on screen; opening it reports focus |
 | `NumberField` | Enter, Shift+Enter, Escape restores | Decimal keypad | Paste a column to fill down the group, as one change |
 | `MeasurementGrid` | Enter down the column, then the next; arrows; Escape restores | Decimal keypad; swipe turns the size while the grid fits | Paste a column or block from the focused cell, as one `onCellsChange`; read-only keeps the keys and refuses edits |

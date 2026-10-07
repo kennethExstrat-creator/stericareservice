@@ -23,6 +23,7 @@ import {
   commitChange,
   entryKeyAction,
   entryText,
+  pasteAction,
   rejectionMessage,
   showsEntryError,
   type InvalidEntry,
@@ -147,13 +148,12 @@ export function NumericCell({
   };
 
   const handlePaste = (event: ClipboardEvent<HTMLInputElement>) => {
-    // Nothing to paste into, and nothing to say about it.
-    if (readOnly) {
+    const action = pasteAction(readOnly === true, onPasteText !== undefined);
+    if (action === "refuse") {
       event.preventDefault();
       return;
     }
-    if (!onPasteText) return;
-    if (onPasteText(event.clipboardData.getData("text"))) {
+    if (action === "spread" && onPasteText?.(event.clipboardData.getData("text"))) {
       event.preventDefault();
       updateDraft(null);
     }

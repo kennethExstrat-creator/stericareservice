@@ -289,10 +289,14 @@ describe("CounterTable", () => {
     expect(html).toContain(">Accept<");
   });
 
-  it("lets long limit wording wrap, so the column keeps its width", () => {
-    const cell = tagsWith(render({ labels: { limitAccept: "Accept", limitReject: "Reject" } }), "text-balance")[0];
-    expect(cell).toBeDefined();
-    expect(cell).not.toContain("whitespace-nowrap");
+  it("wraps long limit wording after the slash, never before it, and reads it in one piece", () => {
+    const html = render({ labels: { limitAccept: "Accept", limitReject: "Reject" } });
+    // Two halves that each stay on one line, so the column keeps its width and no line starts with "/".
+    expect(html).toContain(
+      '<span class="sr-only">Accept 7 / Reject 8</span><span aria-hidden="true" class="whitespace-nowrap">Accept 7 /</span> <span aria-hidden="true" class="whitespace-nowrap">Reject 8</span>',
+    );
+    expect(tagsWith(html, 'aria-hidden="true" class="whitespace-nowrap"')).toHaveLength(4);
+    expect(html).not.toContain("text-balance");
   });
 
   it("lets calc's status win over the live decision", () => {
@@ -664,25 +668,64 @@ describe("NumberField", () => {
 });
 
 describe("AttachmentStatus", () => {
-  it("says whether the file is attached, by name where the screen knows it", () => {
-    const html = renderToStaticMarkup(<AttachmentStatus label="Lab report" attached fileName="lab-0001.pdf" issuePath={["labReport"]} />);
-    expect(html).toContain('data-attached="true"');
+  const MISSING = "Lab report: the file attached here is no longer with this inspection. Attach it again.";
+
+  it("says the file is attached, by name where the screen knows it, and takes an issue link's focus", () => {
+    const html = renderToStaticMarkup(
+      <AttachmentStatus label="Lab report" state="attached" fileName="lab-0001.pdf" issuePath={["labReport"]} />,
+    );
+    const line = tagsWith(html, 'data-slot="attachment-status"')[0];
+    expect(line).toContain('data-state="attached"');
+    expect(line).toContain('data-attached="true"');
+    expect(line).toContain('data-issue-path="[&quot;labReport&quot;]"');
+    // No control of its own: the line is the notice an issue link lands on.
+    expect(line).toContain('tabindex="-1"');
+    expect(line).toContain("focus-ring");
     expect(html).toContain(">lab-0001.pdf<");
-    expect(html).toContain('data-issue-path="[&quot;labReport&quot;]"');
-    expect(renderToStaticMarkup(<AttachmentStatus label="Lab report" attached />)).toContain(">Attached<");
+    expect(renderToStaticMarkup(<AttachmentStatus label="Lab report" state="attached" />)).toContain(">Attached<");
   });
 
-  it("reads Not done for a required file that is missing, and says why", () => {
-    const html = renderToStaticMarkup(<AttachmentStatus label="Lab report" attached={false} required />);
+  it("reads Not done for a required file that is not attached, and says why", () => {
+    const html = renderToStaticMarkup(<AttachmentStatus label="Lab report" state="none" required />);
     expect(tagsWith(html, 'data-slot="status-pill"')[0]).toContain('data-status="not_done"');
     expect(html).toContain(">Not attached<");
     expect(html).toContain("Required before this section is done.");
   });
 
-  it("is a plain line for an optional file that is missing", () => {
-    const html = renderToStaticMarkup(<AttachmentStatus label="Lab report" attached={false} />);
+  it("is a plain line for an optional file that is not attached", () => {
+    const html = renderToStaticMarkup(<AttachmentStatus label="Lab report" state="none" />);
     expect(html).not.toContain('data-slot="status-pill"');
     expect(html).toContain(">Not attached<");
+    expect(html).not.toContain("text-warn");
+  });
+
+  it("never reads Attached for a kept file the inspection no longer holds: calc's warning in amber", () => {
+    const html = renderToStaticMarkup(<AttachmentStatus label="Lab report" state="missing" warning={MISSING} />);
+    const line = tagsWith(html, 'data-slot="attachment-status"')[0];
+    expect(line).toContain('data-state="missing"');
+    expect(line).not.toContain("data-attached");
+    expect(html).not.toContain(">Attached<");
+    expect(html).toContain(">Not attached<");
+    expect(html).toContain("lucide-file-x");
+    expect(tagsWith(html, "text-warn")).toHaveLength(1);
+    expect(html).toContain(MISSING);
+    // Before calc's message arrives, the line still says what happened.
+    expect(renderToStaticMarkup(<AttachmentStatus label="Lab report" state="missing" />)).toContain(
+      "no longer with this inspection",
+    );
+    // A required one is Not done, and the warning says why in place of the requirement.
+    const required = renderToStaticMarkup(<AttachmentStatus label="Lab report" state="missing" required warning={MISSING} />);
+    expect(tagsWith(required, 'data-slot="status-pill"')[0]).toContain('data-status="not_done"');
+    expect(required).toContain(MISSING);
+    expect(required).not.toContain("Required before this section is done.");
+  });
+
+  it("still takes the yes-or-no `attached` of its first version", () => {
+    const attached = renderToStaticMarkup(<AttachmentStatus label="Lab report" attached />);
+    expect(tagsWith(attached, 'data-slot="attachment-status"')[0]).toContain('data-state="attached"');
+    const none = renderToStaticMarkup(<AttachmentStatus label="Lab report" attached={false} required />);
+    expect(tagsWith(none, 'data-slot="attachment-status"')[0]).toContain('data-state="none"');
+    expect(none).toContain("Required before this section is done.");
   });
 });
 
