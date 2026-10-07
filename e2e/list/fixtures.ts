@@ -50,10 +50,15 @@ const SEED = {
 /** A PO with every character PostgREST's filter syntax treats specially. */
 export const HOSTILE_PO = "E2E-PO-2,(rev.1)*%";
 
-export type FixtureKey = "A" | "B" | "C" | "D";
+/** E's lot as an iPad keyboard saves it: only the first letter in capitals (printed E2E-LOT-E5 style). */
+export const MIXED_CASE_LOT = "Lt-E2E-E5";
+/** E's sampled cartons (size M), a blank cell between them as the grid saves it. */
+export const E_CARTONS = [97531, 97532] as const;
+
+export type FixtureKey = "A" | "B" | "C" | "D" | "E";
 
 export type ListFixture = {
-  /** Ref numbers by key: A, B and D belong to the inspector, C to the admin. */
+  /** Ref numbers by key: A, B, D and E belong to the inspector, C to the admin. */
   refs: Record<FixtureKey, string>;
   /** Inspection ids by key, for the pages a row opens. */
   ids: Record<FixtureKey, string>;
@@ -111,11 +116,14 @@ export async function countVisibleInspections(account: "inspector" | "admin"): P
 }
 
 /**
- * Four inspections across both test accounts, one in each status:
+ * Five inspections across both test accounts, one in each status, and a
+ * draft just started:
  *   A  inspector  draft      1 Oct   fixture client  Hartalega    no result
  *   B  inspector  submitted  3 Oct   fixture client  Terang Nusa  passed     HOSTILE_PO
  *   C  admin      reopened   2 Oct   Polyco          Terang Nusa  on hold
  *   D  inspector  approved   30 Sep  Polyco          Hartalega    failed
+ *   E  inspector  draft      29 Sep  no client, manufacturer, product or PO yet;
+ *                                    lot MIXED_CASE_LOT, cartons E_CARTONS
  */
 export async function createListFixture(): Promise<ListFixture> {
   const admin = createTestAdminClient();
@@ -209,20 +217,40 @@ async function insertFixtureRows(admin: AdminClient): Promise<ListFixture> {
         result: "fail",
       },
     },
+    {
+      // Nothing chosen or typed in the header yet: the row shows dashes, and
+      // says "No PO yet" and so on to screen readers only.
+      key: "E",
+      row: {
+        inspector_id: inspectorId,
+        inspection_date: "2026-09-29",
+        lot_numbers: [MIXED_CASE_LOT],
+        data: {
+          modules: { carton_sampling: { sizes: { M: { cartonNumbers: [E_CARTONS[0], null, E_CARTONS[1]] } } } },
+          custom: {},
+        },
+      },
+    },
   ];
 
   // Every inspection starts as a draft; the status flow moves B, C and D on.
+  // A field a row leaves out takes the column's default (an empty data for
+  // A to D), not null.
   const { data: inserted, error: insertError } = await admin
     .from("inspections")
-    .insert(specs.map(({ row }) => ({ ...row, template_id: template.id })))
+    .insert(
+      specs.map(({ row }) => ({ ...row, template_id: template.id })),
+      { defaultToNull: false },
+    )
     .select("id, ref_no, po_no");
   if (insertError) fail("creating the fixture inspections", insertError);
 
+  // Each has its own PO; E is the one without.
   const insertedAs = (key: FixtureKey) => {
-    const po = specs.find((spec) => spec.key === key)?.row.po_no;
+    const po = specs.find((spec) => spec.key === key)?.row.po_no ?? null;
     return inserted.find((inspection) => inspection.po_no === po) ?? fail(`finding inspection ${key}`, null);
   };
-  const byKey = { A: insertedAs("A"), B: insertedAs("B"), C: insertedAs("C"), D: insertedAs("D") };
+  const byKey = { A: insertedAs("A"), B: insertedAs("B"), C: insertedAs("C"), D: insertedAs("D"), E: insertedAs("E") };
 
   const submitted = await admin
     .from("inspections")
@@ -235,14 +263,34 @@ async function insertFixtureRows(admin: AdminClient): Promise<ListFixture> {
   if (approved.error) fail("approving D", approved.error);
 
   return {
-    refs: { A: byKey.A.ref_no, B: byKey.B.ref_no, C: byKey.C.ref_no, D: byKey.D.ref_no },
-    ids: { A: byKey.A.id, B: byKey.B.id, C: byKey.C.id, D: byKey.D.id },
+    refs: { A: byKey.A.ref_no, B: byKey.B.ref_no, C: byKey.C.ref_no, D: byKey.D.ref_no, E: byKey.E.ref_no },
+    ids: { A: byKey.A.id, B: byKey.B.id, C: byKey.C.id, D: byKey.D.id, E: byKey.E.id },
     clientId: client.id,
     manufacturers: SEED,
     templateId: template.id,
     inspectorId,
     cleanup: () => removeFixtureRows(admin),
   };
+}
+
+/* ------------------------------------------------------------------ *
+ * Search by carton number, and by lot in any case
+ * ------------------------------------------------------------------ */
+
+/** The migration that adds the search columns (SEARCH_COLUMNS_MIGRATION in lib/inspections/query.ts). */
+export const SEARCH_MIGRATION = "20261007191137_inspection_search_columns.sql";
+
+/**
+ * Whether the project has the search columns carton_numbers and
+ * lot_numbers_upper. Until it does, asking for them answers 42703 (no such
+ * column), and the list searches refs, POs and lots as typed or in capitals.
+ */
+export async function searchColumnsAreLive(): Promise<boolean> {
+  const admin = createTestAdminClient();
+  const { error } = await admin.from("inspections").select("id, carton_numbers, lot_numbers_upper").limit(0);
+  if (error?.code === "42703") return false;
+  if (error) fail("asking for the search columns", error);
+  return true;
 }
 
 /* ------------------------------------------------------------------ *
