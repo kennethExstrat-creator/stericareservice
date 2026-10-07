@@ -63,7 +63,7 @@ async function findOrder(): Promise<{ adminId: string; order: Order }> {
     admin.from("manufacturers").select("id, name, factory_name").order("name"),
     admin
       .from("inspections")
-      .select("id, client_id, manufacturer_id, product_name, template:templates(code, product_type)")
+      .select("id, client_id, manufacturer_id, product_name, status, template:templates(code, product_type)")
       .not("manufacturer_id", "is", null)
       .order("inspection_date", { ascending: false })
       .order("created_at", { ascending: false })
@@ -77,7 +77,7 @@ async function findOrder(): Promise<{ adminId: string; order: Order }> {
     entry.factory_name?.trim() ? `${entry.name} · ${entry.factory_name.trim()}` : entry.name;
   const stableClients = clients.data!.filter((client) => !temporary(client.name));
   const stableManufacturers = manufacturers.data!.filter((manufacturer) => !temporary(manufacturer.name));
-  const candidates: { order: Order; named: boolean }[] = [];
+  const candidates: { order: Order; named: boolean; kept: boolean }[] = [];
   const seen = new Set<string>();
   for (const row of inspections.data!) {
     if (!row.template) continue;
@@ -91,9 +91,15 @@ async function findOrder(): Promise<{ adminId: string; order: Order }> {
     candidates.push({
       order: { client, manufacturer: label(manufacturer), productType: row.template.product_type, previousId: row.id },
       named: Boolean(row.product_name?.trim()),
+      // Only drafts can be deleted: a submitted or approved one cannot vanish while the test runs.
+      kept: row.status !== "draft",
     });
   }
-  const chosen = candidates.find((candidate) => candidate.named) ?? candidates[0];
+  const chosen =
+    candidates.find((candidate) => candidate.named && candidate.kept) ??
+    candidates.find((candidate) => candidate.kept) ??
+    candidates.find((candidate) => candidate.named) ??
+    candidates[0];
   if (chosen) return { adminId: profile.data!.id, order: chosen.order };
   const [manufacturer] = stableManufacturers;
   if (!manufacturer) throw new Error("No manufacturers yet: the form cannot be filled in.");

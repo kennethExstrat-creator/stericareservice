@@ -467,9 +467,9 @@ test.describe("as the admin", () => {
   });
 
   test("Sign out ends the session at once when nothing waits on this device", async ({ page, context, baseURL }) => {
-    // A session of its own: signing out revokes it, and the other tests share theirs.
+    // A session of its own: signing out revokes it, and the other tests share theirs (E2E_SESSION_CACHE too).
     await context.clearCookies();
-    await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
+    await signIn(context, baseURL!, TEST_ACCOUNTS.admin, undefined, { fresh: true });
     await page.goto("/admin");
     const errors = watchErrors(page);
     const menu = await openUserMenu(page);
@@ -617,9 +617,9 @@ test.describe("as the admin", () => {
     });
 
     test("Sign out asks first while a photo waits on this device", async ({ page, context, baseURL }) => {
-      // A session of its own: signing out revokes it, and the other tests share theirs.
+      // A session of its own: signing out revokes it, and the other tests share theirs (E2E_SESSION_CACHE too).
       await context.clearCookies();
-      await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
+      await signIn(context, baseURL!, TEST_ACCOUNTS.admin, undefined, { fresh: true });
       // Uploads fail as on a dropped connection, so the photo stays on this device.
       await page.route(PHOTO_UPLOADS, (route) => route.abort("internetdisconnected"));
       const errors = watchErrors(page);

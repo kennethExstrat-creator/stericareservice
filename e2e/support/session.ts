@@ -77,6 +77,13 @@ function keepSession(email: string, password: string, cookies: SessionCookie[]):
   if (!SESSION_CACHE) return;
   mkdirSync(SESSION_CACHE, { recursive: true, mode: 0o700 });
   writeFileSync(cacheFile(email, password), JSON.stringify(cookies), { mode: 0o600 });
+  logSignIn(email);
+}
+
+/** Every real sign-in, cached or not, goes into sign-ins.log while the cache is on. */
+function logSignIn(email: string): void {
+  if (!SESSION_CACHE) return;
+  mkdirSync(SESSION_CACHE, { recursive: true, mode: 0o700 });
   appendFileSync(join(SESSION_CACHE, "sign-ins.log"), `${new Date().toISOString()} ${email}\n`, { mode: 0o600 });
 }
 
@@ -84,8 +91,12 @@ function keepSession(email: string, password: string, cookies: SessionCookie[]):
  * Signs in through @supabase/ssr itself, so the cookies are named, chunked and
  * encoded exactly as the app's server client expects.
  */
-export async function sessionCookies(email: string, password: string = TEST_PASSWORD): Promise<SessionCookie[]> {
-  const cached = cachedSession(email, password);
+export async function sessionCookies(
+  email: string,
+  password: string = TEST_PASSWORD,
+  { fresh = false }: { fresh?: boolean } = {},
+): Promise<SessionCookie[]> {
+  const cached = fresh ? null : cachedSession(email, password);
   if (cached) return cached;
 
   const { url, key } = supabaseEnv();
@@ -106,12 +117,23 @@ export async function sessionCookies(email: string, password: string = TEST_PASS
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw new Error(`Sign-in failed for ${email}: ${error.message}`);
   const cookies = [...jar].map(([name, value]) => ({ name, value }));
-  keepSession(email, password, cookies);
+  if (fresh) logSignIn(email);
+  else keepSession(email, password, cookies);
   return cookies;
 }
 
-/** Puts a signed-in session for `email` into the browser context. */
-export async function signIn(context: BrowserContext, baseURL: string, email: string, password?: string) {
-  const cookies = await sessionCookies(email, password);
+/**
+ * Puts a signed-in session for `email` into the browser context. `fresh`: a
+ * session of its own, never taken from or kept in the cache, for a test that
+ * signs it out (signing out revokes the session for everyone holding it).
+ */
+export async function signIn(
+  context: BrowserContext,
+  baseURL: string,
+  email: string,
+  password?: string,
+  { fresh = false }: { fresh?: boolean } = {},
+) {
+  const cookies = await sessionCookies(email, password, { fresh });
   await context.addCookies(cookies.map((cookie) => ({ ...cookie, url: baseURL })));
 }
