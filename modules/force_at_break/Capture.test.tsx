@@ -265,4 +265,21 @@ describe("force_at_break capture", () => {
     expect(unanchoredSrOnly(render())).toEqual([]);
     expect(unanchoredSrOnly(render({ readOnly: true }))).toEqual([]);
   });
+
+  it("puts the notes beside the readings only where the module itself is wide enough, never by the screen's width alone", () => {
+    const data = { sizes: { M: { values: [...READINGS, 6.1, 6.3] } }, labReport: null };
+    const html = render({ data });
+    // The capture screen's section list takes a share of a desktop screen: at 1280 px the module
+    // is about 616 px wide, so the panel asks the module (@container), not the viewport.
+    const [root] = tags(html, 'data-slot="force-at-break"');
+    expect(root).toMatch(/class="@container /);
+    const [panel] = tags(html, "data-panel-size");
+    const classes = /class="([^"]*)"/.exec(panel)?.[1].split(" ") ?? [];
+    expect(classes).toContain("xl:@min-[44rem]:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]");
+    expect(classes.filter((name) => /^(lg|xl|2xl):grid-cols-/.test(name))).toEqual([]);
+    // From 1280 px one column of readings stays near its glove numbers, as weight's grid does.
+    expect(tags(html, 'data-slot="measurement-grid"')[0]).toContain("xl:max-w-md xl:[&amp;_table]:min-w-0");
+    // The button that clears readings wraps rather than runs out of a narrow column.
+    expect(html).toMatch(/<button[^>]*whitespace-normal[^>]*>Clear the 2 extra readings<\/button>/);
+  });
 });

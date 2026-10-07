@@ -104,19 +104,24 @@ export default function Capture({
   const filing = active !== null && items.some((item) => item.key === active) ? active : null;
 
   return (
-    <div ref={root} className="space-y-4">
-      <div className="overflow-clip rounded-lg border border-border bg-card xl:grid xl:grid-cols-[minmax(12rem,1fr)_auto_minmax(9rem,12rem)_10.5rem] xl:gap-x-4">
-        {/* From 1280 px each item is one row: the columns get headings (each control has its own name). */}
+    // @container: the checklist lays out by the module's own width, not the screen's.
+    <div ref={root} className="@container space-y-4">
+      {/* From 1280 px, in a module at least 48rem wide (@3xl), each item is one row of four
+          columns, about 47rem with the default wording: the capture screen's section list
+          leaves narrower modules (at 1280 and 1366 px) the stacked rows the iPad has. A
+          template's longer status words scroll the table rather than hide a column. */}
+      <div className="overflow-clip rounded-lg border border-border bg-card xl:@3xl:grid xl:@3xl:grid-cols-[minmax(11rem,1fr)_auto_minmax(9rem,12rem)_10.5rem] xl:@3xl:gap-x-3 xl:@3xl:overflow-x-auto">
+        {/* One row per item: the columns get headings (each control has its own name). */}
         <div
           aria-hidden
-          className="hidden border-b border-border px-4 py-2 text-sm font-medium text-muted-foreground xl:col-span-full xl:grid xl:grid-cols-subgrid"
+          className="hidden border-b border-border px-4 py-2 text-sm font-medium text-muted-foreground xl:@3xl:col-span-full xl:@3xl:grid xl:@3xl:grid-cols-subgrid"
         >
           <span>{title}</span>
           <span>{labelFor(labels, "status")}</span>
           <span>{labelFor(labels, "referenceNo")}</span>
           <span>{labelFor(labels, "expiryDate")}</span>
         </div>
-        <ul className="divide-y divide-border xl:col-span-full xl:grid xl:grid-cols-subgrid">
+        <ul className="divide-y divide-border xl:@3xl:col-span-full xl:@3xl:grid xl:@3xl:grid-cols-subgrid">
           {items.map((item) => (
             <DocumentRow
               key={item.key}
@@ -204,13 +209,13 @@ export function DocumentRow({
   return (
     <li
       data-active={active || undefined}
-      className="space-y-3 px-4 py-3 data-active:bg-accent xl:col-span-full xl:grid xl:grid-cols-subgrid xl:items-start xl:gap-y-2 xl:space-y-0 xl:py-2.5"
+      className="space-y-3 px-4 py-3 data-active:bg-accent xl:@3xl:col-span-full xl:@3xl:grid xl:@3xl:grid-cols-subgrid xl:@3xl:items-start xl:@3xl:gap-y-2 xl:@3xl:space-y-0 xl:@3xl:py-2.5"
       onFocus={onFocusItem}
       onPointerDown={onFocusItem}
       {...issuePathProps(["items", item.key])}
     >
-      <div className="flex items-start justify-between gap-3 xl:flex-col xl:justify-start xl:gap-1">
-        <div className="min-w-0 flex-1 space-y-1 xl:w-full xl:flex-none">
+      <div className="flex items-start justify-between gap-3 xl:@3xl:flex-col xl:@3xl:justify-start xl:@3xl:gap-1">
+        <div className="min-w-0 flex-1 space-y-1 xl:@3xl:w-full xl:@3xl:flex-none">
           <p id={`${uid}-name`} className="font-semibold text-foreground touch:text-base">
             {name}
           </p>
@@ -236,7 +241,7 @@ export function DocumentRow({
       </div>
 
       <div className="space-y-1.5" {...issuePathProps(path("status"))}>
-        <span id={`${uid}-status`} className="text-sm font-medium touch:text-base xl:sr-only">
+        <span id={`${uid}-status`} className="text-sm font-medium touch:text-base xl:@3xl:sr-only">
           {labelFor(labels, "status")}
         </span>
         {readOnly ? (
@@ -255,14 +260,14 @@ export function DocumentRow({
             }}
             aria-labelledby={`${uid}-name ${uid}-status`}
             aria-describedby={fileState === "missing" ? fileLineId : undefined}
-            className="w-full flex-wrap xl:w-auto xl:flex-nowrap"
+            className="w-full flex-wrap xl:@3xl:w-auto xl:@3xl:flex-nowrap"
           >
             {DOCUMENT_STATUSES.map((value) => (
               <ToggleGroupItem
                 key={value}
                 value={value}
                 className={cn(
-                  "flex-1 rounded-full px-3 data-[state=on]:font-semibold touch:text-base xl:flex-none",
+                  "flex-1 rounded-full px-3 data-[state=on]:font-semibold touch:text-base xl:@3xl:flex-none",
                   value === entry.status && tone,
                 )}
               >
@@ -273,10 +278,10 @@ export function DocumentRow({
         )}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:contents">
+      <div className="grid gap-3 sm:grid-cols-2 xl:@3xl:contents">
         <div className="space-y-1.5" {...issuePathProps(path("referenceNo"))}>
           {/* leading-snug, as DateField's label beside it, so the two fields line up. */}
-          <Label htmlFor={`${uid}-reference`} className="leading-snug touch:text-base xl:sr-only">
+          <Label htmlFor={`${uid}-reference`} className="leading-snug touch:text-base xl:@3xl:sr-only">
             {labelFor(labels, "referenceNo")}
           </Label>
           <Input
@@ -293,9 +298,9 @@ export function DocumentRow({
         </div>
         <DateField
           id={`${uid}-expiry`}
-          // The column's heading names it from 1280 px; the label stays for screen readers.
-          label={<span className="xl:sr-only">{labelFor(labels, "expiryDate")}</span>}
-          className="xl:[&>label]:mb-0"
+          // The column's heading names it in the one-row layout; the label stays for screen readers.
+          label={<span className="xl:@3xl:sr-only">{labelFor(labels, "expiryDate")}</span>}
+          className="xl:@3xl:[&>label]:mb-0"
           aria-label={`${labelFor(labels, "expiryDate")}, ${name}`}
           value={entry.expiryDate}
           onValueChange={(expiryDate) => onUpdate({ expiryDate })}

@@ -50,6 +50,11 @@ type Props = CaptureProps<ForceAtBreakData, ForceAtBreakConfig, ForceAtBreakComp
 /** The grid's one measure: the readings. */
 const READINGS = "values";
 
+// MeasurementGrid's table is at least 36rem wide, room for five measures. From 1280 px the
+// one column of readings stays close to its glove numbers instead, as weight's grid does,
+// and leaves the notes room beside it.
+const DESKTOP_ONE_COLUMN_GRID = "xl:max-w-md xl:[&_table]:min-w-0";
+
 export default function Capture({
   data,
   config,
@@ -88,7 +93,8 @@ export default function Capture({
 
   return (
     // relative: screen-reader text inside never lays out against the page (docs/DESIGN.md).
-    <div ref={root} data-slot="force-at-break" className="relative space-y-4">
+    // @container: the size panel lays out by the module's own width (SizePanel).
+    <div ref={root} data-slot="force-at-break" className="@container relative space-y-4">
       <section
         data-slot="lab-report"
         aria-label={reportLabel}
@@ -205,7 +211,10 @@ function SizePanel({ size, data, config, title, labels, context, evaluation, rea
     <div
       data-panel-size={size}
       {...issuePathProps(["sizes", size])}
-      className="grid gap-3 xl:grid-cols-[minmax(36rem,42rem)_minmax(0,1fr)] xl:items-start xl:gap-6"
+      // From 1280 px the notes sit beside the readings, but only where the module itself is
+      // wide enough for both (the capture screen's section list takes its share of the
+      // screen): 44rem leaves them at least 14.5rem. Narrower, they go under the readings.
+      className="grid gap-3 xl:@min-[44rem]:grid-cols-[minmax(0,28rem)_minmax(0,1fr)] xl:@min-[44rem]:items-start xl:@min-[44rem]:gap-6"
     >
       <div
         className="min-w-0"
@@ -252,9 +261,10 @@ function SizePanel({ size, data, config, title, labels, context, evaluation, rea
           }}
           cellIssuePath={({ row }) => ["sizes", size, READINGS, row]}
           readOnly={readOnly}
+          className={DESKTOP_ONE_COLUMN_GRID}
         />
       </div>
-      <div className="space-y-3 text-sm text-muted-foreground touch:text-base">
+      <div className="min-w-0 space-y-3 text-sm text-muted-foreground touch:text-base">
         <p>{glovesNote(n, plannedReadings(context, size) !== null)}</p>
         {notices}
       </div>
@@ -315,7 +325,14 @@ function ReadingNotices({
             {beyond.map(({ index, value }) => `No. ${index + 1}: ${formatNumber(value, { unit: "N" })}`).join(", ")}
           </p>
           {!readOnly && (
-            <Button type="button" variant="outline" size="sm" onClick={onClear} className="touch:text-base">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onClear}
+              // Wraps rather than runs out of a narrow column ("Clear the 587 extra readings").
+              className="h-auto min-h-8 max-w-full py-1.5 whitespace-normal touch:h-auto touch:min-h-11 touch:text-base"
+            >
               {beyond.length === 1 ? "Clear the extra reading" : `Clear the ${beyond.length} extra readings`}
             </Button>
           )}

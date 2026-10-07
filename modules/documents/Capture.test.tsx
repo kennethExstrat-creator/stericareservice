@@ -354,4 +354,17 @@ describe("documents capture", () => {
     const config = { items: DOCUMENTS_DEFAULT_CONFIG.items.map((item) => ({ ...item, include: false })) };
     expect(render(emptyDocuments(), { config })).toContain("No documents are switched on for this template.");
   });
+
+  it("makes each item one row only where the module itself is wide enough, never by the screen's width alone", () => {
+    const html = render(emptyDocuments());
+    // The capture screen's section list leaves the module about 616 px at 1280 px and 702 px at
+    // 1366 px, too narrow for the four columns (about 47rem): those keep the stacked rows.
+    expect(html).toMatch(/^<div class="@container /);
+    const classes = Array.from(html.matchAll(/class="([^"]*)"/g), (match) => match[1].split(" ")).flat();
+    const desktop = classes.filter((name) => name.startsWith("xl:"));
+    expect(desktop.length).toBeGreaterThan(10);
+    expect(desktop.filter((name) => !name.startsWith("xl:@3xl:"))).toEqual([]);
+    // A template's longer status words scroll the table rather than hide the expiry date.
+    expect(classes).toContain("xl:@3xl:overflow-x-auto");
+  });
 });
