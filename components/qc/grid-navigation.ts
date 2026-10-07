@@ -1,5 +1,5 @@
 // Keyboard and paste rules for MeasurementGrid, kept pure so they can be tested.
-import { commitEntry, type EntryLimits, type InvalidEntry } from "./numeric-entry";
+import { commitEntry, readEntry, type EntryLimits, type InvalidEntry } from "./numeric-entry";
 
 export type CellPosition = { row: number; col: number };
 export type GridSize = { rows: number; cols: number };
@@ -52,7 +52,15 @@ export function targetCell(
 }
 
 export type PastedCell = CellPosition & { raw: string };
-export type PastePlan = { cells: PastedCell[]; skipped: number };
+export type PastePlan = {
+  cells: PastedCell[];
+  skipped: number;
+  /**
+   * The values past the last row or column, where they would have gone, in
+   * reading order (`skipped` of them): what the grid lists as not stored.
+   */
+  overflow: PastedCell[];
+};
 
 /**
  * Lays pasted text out from the focused cell: one value per line fills down,
@@ -65,16 +73,76 @@ export function planPaste(text: string, from: CellPosition, { rows, cols }: Grid
   if (table.length === 1 && table[0].length === 1) return null;
 
   const cells: PastedCell[] = [];
-  let skipped = 0;
+  const overflow: PastedCell[] = [];
   table.forEach((values, r) => {
     values.forEach((raw, c) => {
       const row = from.row + r;
       const col = from.col + c;
-      if (row < rows && col < cols) cells.push({ row, col, raw: raw.trim() });
-      else skipped += 1;
+      (row < rows && col < cols ? cells : overflow).push({ row, col, raw: raw.trim() });
     });
   });
-  return { cells, skipped };
+  return { cells, skipped: overflow.length, overflow };
+}
+
+/** A pasted value past the grid's last row or column, with the number it reads as (null for text or a blank). */
+export type OverflowCell = PastedCell & { value: number | null };
+
+/**
+ * The values a paste could not place, as the grid lists them: blanks are
+ * not data, and each keeps the number it reads as, so the grid can tell the
+ * ones a module kept past its last row (force at break keeps readings past
+ * the gloves tested, and says so) from the ones nobody stored.
+ */
+export function pasteOverflow(plan: Pick<PastePlan, "overflow">): OverflowCell[] {
+  return plan.overflow
+    .filter((cell) => cell.raw !== "")
+    .map((cell) => {
+      const read = readEntry(cell.raw);
+      return { ...cell, value: read.ok ? read.value : null };
+    });
+}
+
+/**
+ * Of a paste's overflow, the values nobody stored: those the module does not
+ * hold where they would have gone (its values past the last row, which the
+ * grid does not show). A value it holds there was kept, and the module says so.
+ */
+export function overflowNotStored(
+  overflow: readonly OverflowCell[],
+  measures: readonly { key: string }[],
+  values: MeasurementValues,
+): OverflowCell[] {
+  return overflow.filter((cell) => {
+    const measure = measures[cell.col];
+    const held = measure ? (values[measure.key]?.[cell.row] ?? null) : null;
+    return cell.value === null || held !== cell.value;
+  });
+}
+
+/**
+ * The last paste's overflow as the grid shows it: the values past its last
+ * row or column, the cell the paste started in (Dismiss goes back there), and
+ * the values nobody stored, judged as the paste lands (null until then).
+ */
+export type PasteOverflow = {
+  readonly cells: readonly OverflowCell[];
+  readonly from: CellPosition;
+  readonly notStored: readonly OverflowCell[] | null;
+};
+
+/**
+ * Judges a paste's overflow once, against the values the module holds as
+ * the paste lands (overflowNotStored). An overflow already judged comes back
+ * as it is: readings the module kept and takes away later (force at break's
+ * Clear) were stored, and never become values the paste lost.
+ */
+export function judgeOverflow(
+  overflow: PasteOverflow,
+  measures: readonly { key: string }[],
+  values: MeasurementValues,
+): PasteOverflow {
+  if (overflow.notStored !== null) return overflow;
+  return { ...overflow, notStored: overflowNotStored(overflow.cells, measures, values) };
 }
 
 /** Values per measure key, one per row; null where nothing is entered. */

@@ -3,7 +3,10 @@ import {
   applyPaste,
   caretOf,
   cellKey,
+  judgeOverflow,
   labelColumnWidth,
+  overflowNotStored,
+  pasteOverflow,
   planPaste,
   targetCell,
   type PastePlan,
@@ -77,6 +80,7 @@ describe("planPaste", () => {
         { row: 6, col: 1, raw: "242" },
       ],
       skipped: 0,
+      overflow: [],
     });
   });
 
@@ -85,10 +89,16 @@ describe("planPaste", () => {
     expect(plan?.cells.map((cell) => cell.raw)).toEqual(["243", "", "2 42"]);
   });
 
-  it("counts values that fall off the grid", () => {
+  it("counts values that fall off the grid, and keeps where each would have gone", () => {
     const plan = planPaste("1\n2\n3", { row: 11, col: 0 }, size);
     expect(plan?.cells).toHaveLength(2);
     expect(plan?.skipped).toBe(1);
+    expect(plan?.overflow).toEqual([{ row: 13, col: 0, raw: "3" }]);
+    // A block's columns past the last measure fall off too.
+    expect(planPaste("243\t95\t7", { row: 0, col: 4 }, size)?.overflow).toEqual([
+      { row: 0, col: 5, raw: "95" },
+      { row: 0, col: 6, raw: "7" },
+    ]);
   });
 
   it("fills a tab-separated block across columns", () => {
@@ -100,6 +110,77 @@ describe("planPaste", () => {
       { row: 1, col: 4, raw: "96" },
     ]);
     expect(plan?.skipped).toBe(0);
+  });
+});
+
+describe("pasteOverflow and overflowNotStored", () => {
+  const one = [{ key: "values" }];
+  const grid = { rows: 5, cols: 1 };
+
+  it("lists what fell off the grid with the number each reads as, blanks left out", () => {
+    const plan = planPaste("6.5\n6.6\n6.7\n6.8\n6.9\n7.1\n\nabc\n7.3", { row: 0, col: 0 }, grid);
+    if (!plan) throw new Error("expected a multi-value paste");
+    expect(pasteOverflow(plan)).toEqual([
+      { row: 5, col: 0, raw: "7.1", value: 7.1 },
+      { row: 7, col: 0, raw: "abc", value: null },
+      { row: 8, col: 0, raw: "7.3", value: 7.3 },
+    ]);
+  });
+
+  it("says nobody stored them while the module holds nothing past the last row (dimensions, weight)", () => {
+    const plan = planPaste("6.5\n6.6\n6.7\n6.8\n6.9\n7.1\n7.2", { row: 0, col: 0 }, grid);
+    if (!plan) throw new Error("expected a multi-value paste");
+    const overflow = pasteOverflow(plan);
+    expect(overflowNotStored(overflow, one, { values: [6.5, 6.6, 6.7, 6.8, 6.9] }).map((cell) => cell.raw)).toEqual([
+      "7.1",
+      "7.2",
+    ]);
+    // Readings saved past the plan before (a plan that shrank) are not this paste's values.
+    expect(overflowNotStored(overflow, one, { values: [6.5, 6.6, 6.7, 6.8, 6.9, 240, 241] })).toHaveLength(2);
+  });
+
+  it("leaves to the module the values it kept past its last row (force at break), and lists the rest", () => {
+    const plan = planPaste("6.5\n6.6\n6.7\n6.8\n6.9\n7.1\t9\nabc", { row: 0, col: 0 }, grid);
+    if (!plan) throw new Error("expected a multi-value paste");
+    const kept = { values: [6.5, 6.6, 6.7, 6.8, 6.9, 7.1, null] };
+    // 7.1 is held as reading No. 6; the 9 from a second column and the text were stored nowhere.
+    expect(overflowNotStored(pasteOverflow(plan), one, kept).map((cell) => cell.raw)).toEqual(["9", "abc"]);
+  });
+});
+
+describe("judgeOverflow", () => {
+  const one = [{ key: "values" }];
+  const grid = { rows: 5, cols: 1 };
+  const pasted = (text: string) => {
+    const plan = planPaste(text, { row: 0, col: 0 }, grid);
+    if (!plan) throw new Error("expected a multi-value paste");
+    return { cells: pasteOverflow(plan), from: { row: 0, col: 0 }, notStored: null };
+  };
+
+  it("judges a paste against the values the module holds as it lands", () => {
+    const overflow = pasted("6.5\n6.6\n6.7\n6.8\n6.9\n7.4\n7.5\nabc");
+    const judged = judgeOverflow(overflow, one, { values: [6.5, 6.6, 6.7, 6.8, 6.9, 7.4, 7.5] });
+    // Force at break kept 7.4 and 7.5 as readings No. 6 and 7: only the text was stored nowhere.
+    expect(judged.notStored?.map((cell) => cell.raw)).toEqual(["abc"]);
+    expect(judged.cells).toBe(overflow.cells);
+    expect(judged.from).toBe(overflow.from);
+  });
+
+  it("keeps its judgement when the module later takes the kept values away (force at break's Clear)", () => {
+    const judged = judgeOverflow(pasted("6.5\n6.6\n6.7\n6.8\n6.9\n7.4\n7.5"), one, {
+      values: [6.5, 6.6, 6.7, 6.8, 6.9, 7.4, 7.5],
+    });
+    expect(judged.notStored).toEqual([]);
+    // Cleared: the values shrink back to the grid's rows. They were stored, so nothing is listed as lost.
+    const cleared = { values: [6.5, 6.6, 6.7, 6.8, 6.9] };
+    expect(overflowNotStored(judged.cells, one, cleared)).toHaveLength(2);
+    expect(judgeOverflow(judged, one, cleared)).toBe(judged);
+  });
+
+  it("keeps its judgement of values nobody stored, whatever the module holds later", () => {
+    const judged = judgeOverflow(pasted("6.5\n6.6\n6.7\n6.8\n6.9\n7.4"), one, { values: [6.5, 6.6, 6.7, 6.8, 6.9] });
+    expect(judged.notStored?.map((cell) => cell.raw)).toEqual(["7.4"]);
+    expect(judgeOverflow(judged, one, { values: [6.5, 6.6, 6.7, 6.8, 6.9, 7.4] })).toBe(judged);
   });
 });
 

@@ -1,11 +1,11 @@
 "use client";
 
-// Previous and Next for a CounterTable that shows one column at a time below
-// 1280 px (its activeColumn), such as Safedon's boxes on an iPad: "Box 253 ·
-// 2 / 5" between the two buttons, said again when it changes. From 1280 px,
-// where every column shows side by side, it hides. At either end its button
-// stays focusable (aria-disabled) and greys out, so keyboard focus is never
-// dropped.
+// Previous and Next for a CounterTable that shows one column at a time on the
+// iPad layout (its activeColumn), such as Safedon's boxes on an iPad: "Box
+// 253 · 2 / 5" between the two buttons, said again when it changes. On the
+// desktop layout (`xl`: 1280 px and wider with a mouse or trackpad), where
+// every column shows side by side, it hides. At either end its button stays
+// focusable (aria-disabled) and greys out, so keyboard focus is never dropped.
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,7 @@ type ColumnSwitcherProps = {
   /** The buttons' accessible names. */
   previousLabel?: string;
   nextLabel?: string;
-  /** Keep it from 1280 px too, for a table that shows one column at every width. */
+  /** Keep it on the desktop layout too, for a table that shows one column at every width. */
   alwaysShown?: boolean;
   className?: string;
 };

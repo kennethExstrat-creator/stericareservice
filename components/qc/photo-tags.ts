@@ -1,5 +1,5 @@
 // Auto tags on a photo (BUILD_SPEC 8.1): the module it was taken in and the
-// size, hand, defect, box or item in focus at the time.
+// size, hand, defect, box, packaging level or item in focus at the time.
 
 export type PhotoTags = {
   module: string;
@@ -8,15 +8,21 @@ export type PhotoTags = {
   hand?: string;
   defect?: string;
   box?: string;
+  /** The packaging level in labelling, as it should read: the inner unit ("Dispenser Box") or the carton ("Carton Box"). */
+  level?: string;
   /** An entry of the module's own list, e.g. a document or a loading stage, as it should read. */
   item?: string;
 };
 
 const HAND: Readonly<Record<string, string>> = { R: "Right hand", L: "Left hand" };
 
-/** "Dimensions · Size M · Box 253", "Loading · Doors closed", for tiles and captions. */
-export function tagLine({ module, size, hand, defect, box, item }: PhotoTags): string {
-  return [module, size && `Size ${size}`, hand && (HAND[hand] ?? hand), defect, box && `Box ${box}`, item]
+/**
+ * "Dimensions · Size M · Box 253", "Labelling · Size M · Lot no. · Box 253 ·
+ * Carton Box", "Loading · Doors closed", for tiles and captions. The level and
+ * the item come last, as the capture screen's tag line has them.
+ */
+export function tagLine({ module, size, hand, defect, box, level, item }: PhotoTags): string {
+  return [module, size && `Size ${size}`, hand && (HAND[hand] ?? hand), defect, box && `Box ${box}`, level, item]
     .filter(Boolean)
     .join(" · ");
 }

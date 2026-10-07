@@ -84,6 +84,70 @@ export function fillRun<F>(
 
 const plural = (count: number) => `${count} ${count === 1 ? "value" : "values"}`;
 
+/**
+ * What a paste left out, for the notice on screen: the values past the last
+ * field or cell of the run (or the grid), and how many values came from
+ * other spreadsheet columns where the run takes its first column only.
+ */
+export type PasteLeftOut = {
+  /** As pasted, in reading order. Blank values are not data and are not listed. */
+  readonly pastEnd: readonly string[];
+  readonly otherColumns: number;
+};
+
+const isBlank = (value: string) => value.trim() === "";
+
+/**
+ * The planned values that fall past the last of `fieldCount` fields when the
+ * paste starts at field `start` (fillRun's `skipped`), blanks dropped.
+ */
+export function valuesPastEnd(planned: readonly string[], fieldCount: number, start: number): string[] {
+  const past = start < 0 ? planned : planned.slice(Math.max(0, fieldCount - start));
+  return past.filter((value) => !isBlank(value));
+}
+
+/** Whether anything was left out: only then is there a notice. */
+export function leftOutAnything({ pastEnd, otherColumns }: PasteLeftOut): boolean {
+  return pastEnd.length > 0 || otherColumns > 0;
+}
+
+/** How long a value may run in the notice before it is cut ("99999999999999999…"). */
+const VALUE_CHARACTERS = 18;
+
+const quoted = (value: string) => {
+  const text = value.trim();
+  return `“${text.length > VALUE_CHARACTERS ? `${text.slice(0, VALUE_CHARACTERS - 1)}…` : text}”`;
+};
+
+/** “6.1”, “6.1” and “6.3”, or the first `shown` then "and 3 more". */
+export function listValues(values: readonly string[], shown = 6): string {
+  const words = values.map(quoted);
+  if (words.length <= 1) return words[0] ?? "";
+  if (words.length <= shown) return `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`;
+  return `${words.slice(0, shown).join(", ")} and ${words.length - shown} more`;
+}
+
+/**
+ * The notice's sentences, in plain words, with the values that were not
+ * stored, so the inspector can place them by hand. The live region keeps its
+ * short form (pasteNotice).
+ */
+export function leftOutMessages({ pastEnd, otherColumns }: PasteLeftOut): string[] {
+  const messages: string[] = [];
+  if (pastEnd.length > 0) {
+    const one = pastEnd.length === 1;
+    messages.push(
+      `${pastEnd.length} pasted ${one ? "value" : "values"} did not fit and ${one ? "was" : "were"} not stored: ${listValues(pastEnd)}.`,
+    );
+  }
+  if (otherColumns > 0) {
+    messages.push(
+      `Only the first column is used here: ${plural(otherColumns)} from other columns ${otherColumns === 1 ? "was" : "were"} not stored.`,
+    );
+  }
+  return messages;
+}
+
 /** What a paste did, for the field's live region. */
 export function pasteNotice({ filled, rejected, skipped, leftOut }: PasteResult & { leftOut: number }): string {
   return [

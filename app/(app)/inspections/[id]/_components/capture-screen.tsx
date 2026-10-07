@@ -30,8 +30,10 @@
 // (a link, the shell's menu, Submit), the browser's Back (the Navigation
 // API's navigate, else popstate), and the page being hidden, reloaded or
 // closed (pagehide, visibilitychange, beforeunload). The header's Photos and
-// Review wait for the last save; any other way out within the app sends it
-// as the screen goes, and the local copy keeps it otherwise
+// Review wait for the last save, and so do the shell's links and Sign out,
+// through the shell's leave guard, which asks the inspector first when the
+// change would be lost (leave-answer.ts); any other way out within the app
+// sends it as the screen goes, and the local copy keeps it otherwise
 // (use-capture-autosave.ts).
 import {
   useCallback,
@@ -52,6 +54,7 @@ import { toast } from "sonner";
 import { useInspectionFiles } from "@/components/capture/files";
 import { PhotoSlot, photoUploadsSettled, useUploadsWaiting } from "@/components/capture/photos";
 import { ProgressTracker, useMediaQuery, WIDE_QUERY } from "@/components/qc";
+import { useLeaveGuard } from "@/components/shell/use-leave-guard";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { isEditableStatus, type CaptureAccess, type UserRole } from "@/lib/inspections/capture/access";
@@ -92,6 +95,7 @@ import { CaptureHeader, type CaptureHeading } from "./capture-header";
 import { CaptureNotices, type CaptureNotice } from "./capture-notices";
 import { ConflictDialog } from "./conflict-dialog";
 import { IssuesSheet } from "./issues-sheet";
+import { leaveAnswer } from "./leave-answer";
 import { SwitchedOffPanel, SwitchOffDialog } from "./module-switch";
 import { SaveIndicator } from "./save-indicator";
 import { CustomBody, ModuleBody } from "./section-body";
@@ -567,6 +571,23 @@ export function CaptureScreen({
       window.removeEventListener("beforeunload", onBeforeUnload);
     };
   }, [flush, getSnapshot, leaveActiveField]);
+
+  // The shell's links and Sign out ask the screen first (components/shell
+  // leave-guard.ts), so they wait for the last save as Photos and Review do:
+  // the field being typed is left (the shell has usually left it already),
+  // the change sent, for LEAVE_FLUSH_MS at most, inside the shell's 3 s, and
+  // the shell asks the inspector only when the change would be lost
+  // (leave-answer.ts). Registered while the inspection can be changed here.
+  const refNo = heading.refNo;
+  useLeaveGuard(
+    access.editable
+      ? async (reason) => {
+          leaveActiveField();
+          await flush({ timeoutMs: LEAVE_FLUSH_MS });
+          return leaveAnswer(getSnapshot(), reason, refNo);
+        }
+      : null,
+  );
 
   /* -------------------------------------------------------------- *
    * Render

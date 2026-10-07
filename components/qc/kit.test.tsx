@@ -13,6 +13,7 @@ import type { CounterCell } from "./counter-model";
 import { Figure } from "./figure";
 import { HandToggle } from "./hand-toggle";
 import { ModuleSection } from "./module-section";
+import { PasteNotice } from "./paste-notice";
 import { EnterGroup, EntryProblems, labelText, NumberField, PercentField } from "./number-field";
 import { RequirementList, SpecValue } from "./requirement-list";
 import { SideBySideText, SizeBlock } from "./size-block";
@@ -789,6 +790,44 @@ describe("EntryProblems", () => {
 
   it("renders nothing without problems", () => {
     expect(renderToStaticMarkup(<EntryProblems problems={[]} />)).toBe("");
+  });
+});
+
+describe("PasteNotice", () => {
+  it("says on screen, in amber, which pasted values were not stored, with Dismiss described by it", () => {
+    const html = renderToStaticMarkup(<PasteNotice leftOut={{ pastEnd: ["7.1", "7.2"], otherColumns: 0 }} onDismiss={noop} />);
+    expect(html).toMatch(/data-slot="paste-notice" data-variant="box" class="[^"]*bg-warn-tint[^"]*text-warn/);
+    expect(html).toContain("2 pasted values did not fit and were not stored: “7.1” and “7.2”.");
+    expect(html).toContain("lucide-triangle-alert");
+    const messages = /<div id="([^"]+)"[^>]*><p>2 pasted values/.exec(html)?.[1];
+    expect(messages).toBeTruthy();
+    expect(html).toMatch(new RegExp(`<button[^>]*aria-describedby="${messages}"[^>]*>Dismiss</button>`));
+    // Not a live region: the field's or grid's own live region has said it already.
+    expect(html).not.toContain("aria-live");
+  });
+
+  it("runs across the foot of a frame as a strip, 16 px on touch", () => {
+    const html = renderToStaticMarkup(
+      <PasteNotice variant="strip" leftOut={{ pastEnd: [], otherColumns: 2 }} onDismiss={noop} />,
+    );
+    const classes = /data-variant="strip" class="([^"]*)"/.exec(html)?.[1].split(" ") ?? [];
+    expect(classes).toEqual(expect.arrayContaining(["col-span-full", "border-t", "border-warn-border", "touch:text-base"]));
+    expect(classes).not.toContain("rounded-lg");
+    expect(html).toContain("Only the first column is used here: 2 values from other columns were not stored.");
+  });
+
+  it("renders nothing when nothing was left out", () => {
+    expect(renderToStaticMarkup(<PasteNotice leftOut={{ pastEnd: [], otherColumns: 0 }} onDismiss={noop} />)).toBe("");
+  });
+
+  it("is not there before a paste: an EnterGroup and its fields show none", () => {
+    const html = renderToStaticMarkup(
+      <EnterGroup>
+        <NumberField label="Qty, size M" variant="cell" value={null} onValueChange={noop} />
+        <NumberField label="Qty, size L" value={12} onValueChange={noop} />
+      </EnterGroup>,
+    );
+    expect(html).not.toContain("paste-notice");
   });
 });
 

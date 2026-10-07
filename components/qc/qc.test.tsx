@@ -183,6 +183,15 @@ describe("tagLine", () => {
   it("ends with an entry of the module's own list, such as a loading stage", () => {
     expect(tagLine({ module: "Loading", item: "Doors closed" })).toBe("Loading · Doors closed");
   });
+
+  it("names labelling's packaging level after the box, in the template's words", () => {
+    expect(tagLine({ module: "Labelling", size: "M", defect: "Wrong / No lot number", box: "253", level: "Carton Box" })).toBe(
+      "Labelling · Size M · Wrong / No lot number · Box 253 · Carton Box",
+    );
+    expect(tagLine({ module: "Labelling", size: "S", level: "Inner Boxes/Packs" })).toBe("Labelling · Size S · Inner Boxes/Packs");
+    // Level then item, the order the capture screen's tag line has them.
+    expect(tagLine({ module: "", level: "Dispenser Box", item: "Lot no." })).toBe("Dispenser Box · Lot no.");
+  });
 });
 
 describe("Stepper", () => {
@@ -435,6 +444,23 @@ describe("PhotoTile", () => {
     const html = renderToStaticMarkup(<PhotoTile alt="IMG_0042.HEIC" tags={tags} state="flagged" />);
     expect(html).toContain("Needs conversion");
     expect(html).toContain("No preview");
+  });
+
+  it("says a stopped upload stopped, in fail red, with no progress bar", () => {
+    const html = renderToStaticMarkup(<PhotoTile src="blob:local" alt="Glove" tags={tags} state="failed" progress={40} />);
+    expect(html).toContain('data-state="failed"');
+    expect(html).toMatch(/data-slot="upload-stopped" class="[^"]*border-fail-border bg-fail-tint text-fail/);
+    expect(html).toContain("Upload stopped");
+    expect(html).toContain("lucide-cloud-alert");
+    expect(html).not.toContain('role="progressbar"');
+    expect(html).not.toContain("Uploading");
+  });
+
+  it("keeps the image box 4:3 whatever the photo's shape", () => {
+    const html = renderToStaticMarkup(<PhotoTile src="/portrait.jpg" alt="Glove" tags={tags} state="uploaded" />);
+    // overflow-hidden gives the box a zero minimum in the tile's flex column: a tall photo cannot stretch it.
+    expect(html).toMatch(/data-slot="photo-image" class="[^"]*aspect-\[4\/3\] shrink-0 overflow-hidden/);
+    expect(html).toContain('class="size-full object-cover"');
   });
 
   it("only shows admin and selection controls when handlers are given", () => {

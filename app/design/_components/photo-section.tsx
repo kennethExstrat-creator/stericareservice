@@ -59,6 +59,16 @@ const PHOTOS: DemoPhoto[] = [
     selected: false,
   },
   {
+    id: "stopped",
+    src: "/design/photo-carton.svg",
+    alt: "Carton 253 label, upload stopped",
+    tags: { module: "Labelling", size: "M", box: "253", level: "Carton Box" },
+    caption: "Refused by the server: the photo card says why and what to do",
+    state: "failed",
+    includeInReport: false,
+    selected: false,
+  },
+  {
     id: "selected",
     src: "/design/photo-label.svg",
     alt: "Dispenser box side panel",
@@ -79,10 +89,10 @@ export function PhotoSection() {
     <DesignSection
       id="photos"
       title="Photo tiles"
-      description="Every state a photo goes through: waiting and uploading (with progress), uploaded, and flagged when the browser could not convert the file. Tags come from where the photo was taken. Admins see the report switch; galleries add selection."
+      description="Every state a photo goes through: waiting and uploading (with progress), uploaded, flagged when the browser could not convert the file, and stopped when the upload needs the inspector. Tags come from where the photo was taken. The image stays 4:3 whatever the photo's shape. Admins see the report switch; galleries add selection."
       source="app-specific (BUILD_SPEC 8.1)"
     >
-      <ul className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 2xl:grid-cols-5">
+      <ul className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 2xl:grid-cols-6">
         {photos.map((photo) => (
           <li key={photo.id} className="flex">
             <PhotoTile

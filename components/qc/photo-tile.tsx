@@ -1,14 +1,21 @@
 // A photo in a module or the gallery: thumbnail, auto tags, caption and its
-// upload state (waiting or uploading with progress, uploaded, or flagged when
-// the file needs conversion). Admin and selection controls appear only when
-// their handlers are given.
-import { CheckIcon, CloudUploadIcon, FileWarningIcon } from "lucide-react";
+// upload state (waiting or uploading with progress, uploaded, flagged when
+// the file needs conversion, or stopped when the upload needs the inspector).
+// The image keeps its 4:3 box whatever the photo's shape: a portrait
+// thumbnail never stretches the tile or its grid row. Admin and selection
+// controls appear only when their handlers are given.
+import { CheckIcon, CloudAlertIcon, CloudUploadIcon, FileWarningIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { tagLine, type PhotoTags } from "./photo-tags";
 
-export type PhotoState = "pending" | "uploaded" | "flagged";
+/**
+ * pending: waiting or uploading (with `progress`). failed: the upload stopped
+ * on something the inspector must act on (say what beside the tile); no
+ * progress bar, so it never reads as still on its way.
+ */
+export type PhotoState = "pending" | "uploaded" | "flagged" | "failed";
 
 type PhotoTileProps = {
   /** Thumbnail URL (signed or blob). Absent when the browser could not decode the file. */
@@ -37,11 +44,14 @@ const STATE_BADGE = {
   pending: { Icon: CloudUploadIcon, className: "border-brand-200 bg-brand-50 text-brand-700" },
   uploaded: { Icon: CheckIcon, className: "border-border bg-card text-muted-foreground" },
   flagged: { Icon: FileWarningIcon, className: "border-warn-border bg-warn-tint text-warn" },
+  // As SaveStatus says Not saved: the icon of a cloud that needs attention, in fail red.
+  failed: { Icon: CloudAlertIcon, className: "border-fail-border bg-fail-tint text-fail" },
 } as const;
 
 function stateText(state: PhotoState, progress: number): string {
   if (state === "flagged") return "Needs conversion";
   if (state === "uploaded") return "Uploaded";
+  if (state === "failed") return "Upload stopped";
   return progress > 0 ? `Uploading ${Math.round(progress)}%` : "Waiting to upload";
 }
 
@@ -73,7 +83,9 @@ export function PhotoTile({
         className,
       )}
     >
-      <div className="relative aspect-[4/3] bg-slate-100">
+      {/* overflow-hidden also gives the box a zero minimum height in the tile's flex column:
+          without it a portrait thumbnail's own height stretches the box past 4:3. */}
+      <div data-slot="photo-image" className="relative aspect-[4/3] shrink-0 overflow-hidden bg-slate-100">
         {src ? (
           // Thumbnails are signed or blob URLs, already resized at capture,
           // so there is nothing for next/image to optimise.
@@ -107,7 +119,11 @@ export function PhotoTile({
           </span>
         )}
 
-        <span className={cn(BADGE, badge.className, "absolute top-2 right-2")}>
+        <span
+          // A stopped upload's badge is the one tests and screens look for by name.
+          data-slot={state === "failed" ? "upload-stopped" : "photo-state"}
+          className={cn(BADGE, badge.className, "absolute top-2 right-2")}
+        >
           <badge.Icon aria-hidden />
           {stateText(state, clamped)}
         </span>

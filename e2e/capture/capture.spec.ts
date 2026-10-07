@@ -1,4 +1,4 @@
-import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
+import { expect, test, type BrowserContext, type Locator, type Page, type Route } from "@playwright/test";
 import type { Json } from "../../lib/supabase/database.types";
 import { drawImage, holdUploads, labReportPdf } from "../photos/support";
 import { createTestAdminClient } from "../support/admin";
@@ -255,12 +255,37 @@ test("typing into glove information saves, and the value is there after a reload
   await page.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
   await expect(page.getByRole("heading", { level: 2, name: "Glove Information" })).toBeVisible();
 
-  const colour = page.getByLabel("Glove colour");
-  await expect(colour).toBeEditable();
-  await colour.fill("Blue");
+  // glove_info's own capture body (modules/glove_info/Capture.tsx), not the screen's simplified form:
+  // the four fields in the order both reports print them, the weight in grams on the decimal keypad.
+  const body = page.locator('[data-slot="glove-info"]');
+  await expect(body).toBeVisible();
+  await expect(page.getByText("A simplified form")).toHaveCount(0);
+  await expect(body.locator("label")).toHaveText([
+    "Glove surface texture",
+    "Indicative weight (size M)",
+    "Glove colour",
+    "Glove length",
+  ]);
+  const texture = page.getByLabel("Glove surface texture");
   const weight = page.getByLabel("Indicative weight (size M)");
+  await expect(weight).toHaveAttribute("inputmode", "decimal");
+  await expect(body.getByText("g", { exact: true })).toBeVisible();
+  if (isTouch()) expect((await weight.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+
+  // Enter walks the four fields as one run, and a weight must be more than 0 g (BUILD_SPEC 6.2 rule 1).
+  await expect(texture).toBeEditable();
+  await texture.press("Enter");
+  await expect(weight).toBeFocused();
+  await weight.fill("0");
+  await weight.press("Enter");
+  await expect(page.getByLabel("Glove colour")).toBeFocused();
+  await expect(body.locator("p", { hasText: "Must be more than 0." })).toBeVisible();
+
+  const colour = page.getByLabel("Glove colour");
+  await colour.fill("Blue");
   await weight.fill("3.5");
   await weight.press("Tab");
+  await expect(body.locator("p", { hasText: "Must be more than 0." })).toHaveCount(0);
 
   await expect
     .poll(async () => (await storedData(fixture.inspectionId)).data, { timeout: 15_000 })
@@ -434,6 +459,120 @@ test("a number still being typed reaches the server when a shell link is tapped"
   await page.evaluate(() => document.querySelector<HTMLAnchorElement>('nav[aria-label="Main"] a[href="/inspections"]')?.click());
   await expect(page).toHaveURL(/\/inspections$/);
   await expectStoredWeight(4.6);
+});
+
+/* ------------------------------------------------------------------ *
+ * The shell's links and Sign out ask the screen first (the shell's leave
+ * guard): they wait for the last save, and ask the inspector only when the
+ * change would be lost.
+ * ------------------------------------------------------------------ */
+
+/**
+ * Holds the screen's saves (its Server Actions, POSTs with a Next-Action
+ * header) until released: the connection is up, the server never answers.
+ */
+async function holdSaves(page: Page): Promise<{ release: () => Promise<void> }> {
+  const held: Route[] = [];
+  let holding = true;
+  const handler = async (route: Route) => {
+    const request = route.request();
+    if (holding && request.method() === "POST" && request.headers()["next-action"]) {
+      held.push(route);
+      return;
+    }
+    await route.continue().catch(() => undefined);
+  };
+  await page.route("**/*", handler);
+  return {
+    release: async () => {
+      holding = false;
+      for (const route of held.splice(0)) await route.continue().catch(() => undefined);
+      await page.unroute("**/*", handler);
+    },
+  };
+}
+
+/** The shell's own link to the inspections list, in the top bar (iPad) or the sidebar (desktop). */
+function shellInspectionsLink(page: Page) {
+  return page.locator('nav[aria-label="Main"] a[href="/inspections"]:visible');
+}
+
+test("a shell link asks before leaving a change this browser keeps no copy of; Stay keeps it until it is saved", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  // A browser that keeps nothing on the device (IndexedDB refused): only this page holds what is not saved yet.
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "indexedDB", { configurable: true, get: () => undefined });
+  });
+  await signInAs(context, baseURL!, "inspector");
+  await page.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
+  await expect(savePill(page)).toHaveAttribute("data-state", "saved");
+  const saves = await holdSaves(page);
+  try {
+    await typeWeight(page, "4.9");
+    const link = shellInspectionsLink(page);
+    await press(link);
+
+    // The shell left the field, the screen tried to send it, and nothing on the device keeps it: it asks.
+    const dialog = page.getByRole("alertdialog", { name: "Leave this page?" });
+    await expect(dialog).toBeVisible({ timeout: 15_000 });
+    await expect(dialog).toContainText(
+      `Your last changes to ${fixture.refNo} are not saved yet, and this browser keeps no copy of them, so they would be lost.`,
+    );
+    await viewportShot(page, "leave-asks");
+    await press(dialog.getByRole("button", { name: "Stay on this page" }));
+    await expect(dialog).toBeHidden();
+    await expect(link).toBeFocused();
+    await expect(page).toHaveURL(/module=glove_info/);
+    await expect(page.getByLabel("Indicative weight (size M)")).toHaveValue("4.9");
+  } finally {
+    await saves.release();
+  }
+
+  // The connection answers: the change is saved, and the same link now goes at once.
+  await expectStoredWeight(4.9);
+  await expect(savePill(page)).toHaveAttribute("data-state", "saved", { timeout: 15_000 });
+  await press(shellInspectionsLink(page));
+  await expect(page).toHaveURL(/\/inspections$/);
+  await expect(page.getByRole("alertdialog", { name: "Leave this page?" })).toHaveCount(0);
+});
+
+test("Sign out asks while the last change is only on this device, and Stay signed in keeps it", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  await signInAs(context, baseURL!, "inspector");
+  await page.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
+  const colour = page.getByLabel("Glove colour");
+  await expect(colour).toBeEditable();
+  await expect(savePill(page)).toHaveAttribute("data-state", "saved");
+  const saves = await holdSaves(page);
+  try {
+    await colour.fill("Amber");
+    await press(page.getByRole("button", { name: /account menu/ }));
+    await press(page.getByRole("menuitem", { name: "Sign out" }));
+
+    // This device keeps a copy, but it cannot send it while the inspector is signed out: Sign out asks.
+    const dialog = page.getByRole("alertdialog", { name: "Sign out now?" });
+    await expect(dialog).toBeVisible({ timeout: 15_000 });
+    await expect(dialog).toContainText(
+      `Your last changes to ${fixture.refNo} are still only on this device. They are not saved while you are signed out: they are saved when you next sign in here and open the inspection.`,
+    );
+    await viewportShot(page, "sign-out-asks");
+    await press(dialog.getByRole("button", { name: "Stay signed in" }));
+    await expect(dialog).toBeHidden();
+    await expect(page).toHaveURL(/module=glove_info/);
+    await expect(colour).toHaveValue("Amber");
+  } finally {
+    await saves.release();
+  }
+  await expect
+    .poll(async () => (await storedData(fixture.inspectionId)).data, { timeout: 15_000 })
+    .toMatchObject({ modules: { glove_info: { colour: "Amber" } } });
+  await expect(savePill(page)).toHaveAttribute("data-state", "saved", { timeout: 15_000 });
 });
 
 test("a number still being typed is saved at once when the page is hidden (the iPad goes to sleep)", async ({

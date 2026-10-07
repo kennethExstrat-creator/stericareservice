@@ -8,7 +8,7 @@ import type { CaptureFocus, CaptureProps, InspectionContext, ModuleEvaluation } 
 import { FileSlotProvider, type FileSlotRequest } from "@/modules/_framework/file-slot";
 import { makeTestContext } from "@/modules/_framework/testing";
 import { calcDocuments, type DocumentsComputed } from "./calc";
-import Capture, { DocumentRow } from "./Capture";
+import Capture, { DocumentRow, documentTagLine } from "./Capture";
 import { DOCUMENTS_DEFAULT_CONFIG, DOCUMENTS_LABELS, DOCUMENTS_TITLE, type DocumentsConfig } from "./config";
 import { emptyDocuments, type DocumentsData } from "./schema";
 
@@ -101,14 +101,17 @@ describe("documents capture: files", () => {
   it("says where files are attached when the screen gives no file slot (preview, review)", () => {
     const html = render(emptyDocuments());
     expect(html).toContain("Attach files on the inspection screen.");
-    expect(html).not.toContain("Tap a document above");
+    // Nor a tag line: photos are added on the inspection screen too.
+    expect(html).not.toContain('data-slot="document-tags"');
   });
 
   it("offers the screen's file slot, adding only once a document is chosen, deleting always", () => {
     const slots: FileSlotRequest[] = [];
     const html = render(emptyDocuments(), { slots });
     expect(html).toContain('<span data-test="screen-slot"></span>');
-    expect(html).toContain("Tap a document above to attach its file.");
+    expect(html).toContain(
+      "Choose a document above first: its photos are then tagged with it, and its file filed under it.",
+    );
     // Nothing chosen yet: nothing to file a new file under, but the files listed can still be deleted.
     expect(slots).toEqual([
       expect.objectContaining({
@@ -130,7 +133,7 @@ describe("documents capture: files", () => {
     const changes: DocumentsData[] = [];
     const data = emptyDocuments();
     const html = render(data, { slots, changes, focus: { item: "labTestReports" } });
-    expect(html).toContain("New files are filed under Lab test reports.");
+    expect(html).toContain("New photos are tagged “Lab test reports”, and new files are filed under it.");
     expect(slots[0]).toMatchObject({ kind: "lab_report", focus: { item: "labTestReports" }, readOnly: false, addable: true });
     slots[0].onAdded({ id: FILE, name: "Lab test report.pdf", kind: "lab_report" });
     expect(changes).toEqual([{ ...data, items: { ...data.items, labTestReports: { ...data.items.labTestReports, file: FILE } } }]);
@@ -305,9 +308,15 @@ describe("documents capture", () => {
     expect(row(true).replace(' data-active="true"', "")).toBe(row(false));
   });
 
-  it("promises no photo or file tag: lib/photos cannot tag by item yet", () => {
-    const html = render(withIso({ status: "verified" }));
-    expect(html).not.toMatch(/tagged/i);
+  it("says once, under the list, which document new photos and files go under", () => {
+    // Inside no row: the line never moves a row while it is pressed.
+    const chosen = render(withIso({ status: "verified" }), { slots: [], focus: { item: "iso13485" } });
+    expect(chosen.match(/are tagged/g)).toHaveLength(1);
+    expect(chosen).toMatch(/<\/ul><\/div><div[^>]*><p data-slot="document-tags"[^>]*>New photos are tagged “ISO 13485/);
+    expect(documentTagLine("Lab test reports")).toBe("New photos are tagged “Lab test reports”, and new files are filed under it.");
+    expect(documentTagLine(null)).toBe(
+      "Choose a document above first: its photos are then tagged with it, and its file filed under it.",
+    );
   });
 
   it("shows calc's result for each item, in the template's words, and its own word while calc catches up", () => {
