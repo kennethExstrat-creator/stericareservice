@@ -17,7 +17,9 @@ Specs need the test accounts (`npm run seed:dev-users -- --force`): `inspector@t
 ## WebKit and the real iPad
 
 Chrome and Safari on the iPad run on WebKit, so the reload specs (`e2e/autosave`) also run in the
-`webkit-ipad-portrait` project (Playwright's WebKit, 820 × 1180, touch). Install it once with
+`webkit-ipad-portrait` project (Playwright's WebKit, 820 × 1180, touch); among them, that
+`?module=packing_config` brings packing's title just below the bars and leaves it there, with the
+browser's scroll anchoring turned off, so it holds in a browser without it. Install it once with
 `npx playwright install webkit`. That project matches `e2e/autosave` only, so
 `e2e/capture/final.spec.ts` launches WebKit itself for its photo-tag test (a tap on + in WebKit),
 from the `ipad-portrait` and `ipad-pro-landscape` projects. Playwright cannot drive the iPad's own
@@ -59,7 +61,10 @@ order's tab (`lib/inspections/capture/sections.ts` `SHOWN_WITH`). Scope by the m
 
 - a module's frame: `[data-section-key="packing_config"]` (its title is the frame's `h2`);
 - the tab of the page a module is on: `[role="tab"][data-sections~="packing_config"]`;
-- a number field: `[data-issue-path='["glovesPerCase"]'] input` inside the frame.
+- a number field: `[data-issue-path='["glovesPerCase"]'] input` inside the frame;
+- still loading, and moving what is below once it arrives: a form, `[data-slot="body-skeleton"]`, and a
+  module's photos, `[data-slot="photos-loading"]`. The screen waits for both to go before it brings a
+  module below another into view; wait for them too before measuring where something ends up.
 
 The template's titles and labels are the clients' words and can change wording or case: match them
 with a case-insensitive pattern, or read them from the page or the fixture, rather than typing them out.
