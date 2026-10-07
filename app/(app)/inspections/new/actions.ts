@@ -18,6 +18,7 @@ import {
 } from "@/lib/inspections/create";
 import { personLabel } from "@/lib/inspections/format";
 import { INSPECTIONS_PATH } from "@/lib/inspections/search-params";
+import { createInspectionRow, serverWriter } from "@/lib/inspections/writes";
 import { ResolvedTemplateSchema } from "@/lib/schemas/template";
 import type { Json } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
@@ -29,10 +30,14 @@ import { InspectionDataSchema, type InspectionData } from "@/modules/_framework/
  * Starts an inspection (BUILD_SPEC 4.4, 8 and 10). A Server Action is a public
  * endpoint: it checks the caller, validates the form with zod and decides the
  * template again from the database; the form's own choice is only a preview.
- * Everything is read and written through the caller's client, so Row Level
- * Security and the database guards check it once more: an inspector creates
- * their own draft from an active template; an admin may choose any template
- * that is not retired. On success it goes straight to the capture screen.
+ * Everything is read through the caller's client, so Row Level Security
+ * decides what they may start from. The draft is then written with the
+ * secret key, for the caller, through public.create_inspection()
+ * (lib/inspections/writes.ts): the database refuses an inspector's own insert,
+ * since only this action chooses the template and fills in the data, and
+ * checks the caller again: an inspector starts their own draft from an
+ * active template; an admin may choose any template that is not retired. On
+ * success it goes straight to the capture screen.
  */
 
 export type CreateInspectionState =
@@ -166,31 +171,26 @@ async function create(formData: FormData): Promise<Outcome> {
     }),
   );
 
-  const inserted = await supabase
-    .from("inspections")
-    .insert({
-      ...columns,
-      template_id: choice.template.id,
-      client_id: input.clientId,
-      manufacturer_id: input.manufacturerId,
-      inspection_date: columns.inspection_date ?? inspectionDate,
-      data: data as unknown as NonNullable<Json>,
-    })
-    .select("id")
-    .single();
-  if (inserted.error) {
+  const inserted = await createInspectionRow(supabase, serverWriter(user.id), {
+    templateId: choice.template.id,
+    clientId: input.clientId ?? null,
+    manufacturerId: input.manufacturerId,
+    data: data as unknown as NonNullable<Json>,
+    columns: { ...columns, inspection_date: columns.inspection_date ?? inspectionDate },
+  });
+  if ("error" in inserted) {
     console.error("[inspections/new] insert refused", inserted.error.code, inserted.error.message);
     return fail(describeCreateError(inserted.error));
   }
 
-  await recordHowItStarted(supabase, inserted.data.id, {
+  await recordHowItStarted(supabase, inserted.id, {
     previous: previous?.data ? { id: previous.data.id, refNo: previous.data.ref_no, copied } : null,
     override:
       choice.specificity === "override"
         ? { chosen: choice.template, automatic: automaticChoice(candidates, input, user.role) }
         : null,
   });
-  return { status: "created", id: inserted.data.id };
+  return { status: "created", id: inserted.id };
 }
 
 /** What the rule would have picked without the admin's choice, for the record. */

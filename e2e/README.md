@@ -59,6 +59,13 @@ than from a full-page image.
   inspectors only), then delete templates and throwaway accounts.
 - Inspection inserts never send `id` or `ref_no`: the database draws the ref number. Every
   insert uses a number from the live sequence, so keep e2e runs few.
+- A throwaway account that deletes an inspection itself (the list's Delete,
+  `delete_draft_inspection()`) is named as the actor of the deletion record, which nothing removes:
+  that account can then only be deactivated, not deleted. Let `inspector@test.local` make those
+  deletions.
+- An inspector's session cannot insert or update an inspection (`docs/DATABASE.md`, "Inspectors
+  write through the app"): set up rows with `createTestAdminClient()`, and drive saves and submits
+  through the app.
 - New accounts start inactive: activate a throwaway account with the admin client
   (`update profiles set active = true`) before it signs in.
 - `createTestAdminClient()` bypasses RLS, so use it for setup and teardown only, never to assert

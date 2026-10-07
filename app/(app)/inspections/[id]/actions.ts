@@ -22,6 +22,7 @@ import {
   SwitchOffInputSchema,
   SwitchOnInputSchema,
 } from "@/lib/inspections/capture/schemas";
+import { serverWriter, submitInspectionRow } from "@/lib/inspections/writes";
 import { FAILURE_MESSAGES, saveInspectionData, type SaveOutcome } from "@/lib/offline";
 import { contentHash } from "@/lib/offline/stable-json";
 import type { InspectionStatus } from "@/lib/schemas/common";
@@ -35,10 +36,13 @@ import type { InspectionData } from "@/modules/_framework";
  * Server Actions of the capture screen (BUILD_SPEC 8 and 10). They are public
  * HTTP endpoints: each one checks the session first (authorizeAction),
  * validates its input with zod and re-reads the inspection with the user's
- * own client, so Row Level Security and the database guards check every
- * write again. Status changes and module overrides are plain updates that
- * the inspections guard checks (the status flow, admins only for overrides)
- * and audits.
+ * own client, so Row Level Security decides what the user may see. A save
+ * and a submit are then written with the secret key, for the user, through
+ * public.save_inspection() and submit_inspection() (lib/inspections/writes.ts):
+ * the database refuses an inspector's own writes, since only these actions
+ * check the data, and checks the user again. Module overrides are plain
+ * updates with the admin's own client, which the inspections guard checks
+ * (admins only) and audits.
  *
  * Saving from two devices: every save is a compare-and-set on
  * inspections.updated_at (docs/OFFLINE.md, "The transport"). A save names
@@ -115,7 +119,10 @@ export async function saveCaptureData(input: unknown): Promise<CaptureSaveOutcom
       data: request.data,
       meta: row.meta,
     });
-    const outcome = await saveInspectionData(supabase, request, { columns: () => mirroredColumns(evaluation) });
+    const outcome = await saveInspectionData(supabase, request, {
+      columns: () => mirroredColumns(evaluation),
+      writer: serverWriter(auth.user.id),
+    });
     // Written on the version just read: its status and overrides are the row's. A missed
     // compare-and-set answers a later read, which they may not match: none then.
     return outcome.ok ? { ...outcome, state: stateOf(row) } : outcome;
@@ -144,8 +151,9 @@ export type SubmitResult =
  * Moves a draft or reopened inspection to submitted, then opens its review.
  * The screen has saved everything and checked the upload queue first; here
  * the saved data must be exactly what the inspector validated (`dataHash`)
- * and must have no errors (BUILD_SPEC 6.2). The database checks the
- * transition, stamps submitted_at and writes the audit row.
+ * and must have no errors (BUILD_SPEC 6.2). The database checks the user
+ * and the transition, stamps submitted_at and writes the audit row in the
+ * user's name.
  */
 export async function submitInspection(input: unknown): Promise<SubmitResult> {
   let reviewPath: string;
@@ -200,18 +208,17 @@ export async function submitInspection(input: unknown): Promise<SubmitResult> {
         };
       }
 
-      const { data: submitted, error } = await supabase
-        .from("inspections")
-        .update({ ...mirroredColumns(evaluation), status: "submitted" })
-        .eq("id", row.id)
+      const written = await submitInspectionRow(supabase, serverWriter(auth.user.id), {
+        inspectionId: row.id,
         // Unchanged since it was validated above.
-        .eq("updated_at", row.updatedAt)
-        .select("id");
-      if (error) {
-        console.error("[capture] submit refused", error.code, error.message);
-        return { status: "error", message: submitErrorMessage(error.code) };
+        baseUpdatedAt: row.updatedAt,
+        columns: mirroredColumns(evaluation),
+      });
+      if ("error" in written) {
+        console.error("[capture] submit refused", written.error.code, written.error.message);
+        return { status: "error", message: submitErrorMessage(written.error.code) };
       }
-      if (!submitted || submitted.length === 0) {
+      if (!written.submitted) {
         return {
           status: "error",
           message: "This inspection changed while it was being submitted. Reload the page, then submit again.",

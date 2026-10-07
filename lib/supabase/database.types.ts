@@ -627,6 +627,17 @@ export type Database = {
     Functions: {
       can_edit_inspection: { Args: { inspection_id: string }; Returns: boolean }
       can_read_inspection: { Args: { inspection_id: string }; Returns: boolean }
+      create_inspection: {
+        Args: {
+          actor_id: string
+          client_id?: string
+          data?: Json
+          manufacturer_id: string
+          mirrored_columns?: Json
+          template_id: string
+        }
+        Returns: string
+      }
       delete_draft_inspection: {
         Args: { inspection_id: string }
         Returns: Json
@@ -659,8 +670,27 @@ export type Database = {
         }[]
       }
       my_team: { Args: Record<PropertyKey, never>; Returns: string[] }
+      save_inspection: {
+        Args: {
+          actor_id: string
+          base_updated_at: string
+          data: Json
+          inspection_id: string
+          mirrored_columns?: Json
+        }
+        Returns: string
+      }
       storage_folder_uuid: { Args: { object_name: string }; Returns: string }
       storage_inspection_id: { Args: { object_name: string }; Returns: string }
+      submit_inspection: {
+        Args: {
+          actor_id: string
+          base_updated_at: string
+          inspection_id: string
+          mirrored_columns?: Json
+        }
+        Returns: string
+      }
     }
     Enums: {
       ai_review_action: "agree" | "disagree" | "fixed"

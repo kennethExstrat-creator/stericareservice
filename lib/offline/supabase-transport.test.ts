@@ -127,6 +127,78 @@ describe("saveInspectionData", () => {
     });
   });
 
+  describe("with the secret-key writer (migration 20261007190000)", () => {
+    /** A secret-key client whose rpc() records its call and answers from a script. */
+    function fakeAdmin(answer: Answer) {
+      const calls: unknown[][] = [];
+      const admin = {
+        rpc(name: string, args: unknown) {
+          const call = [name, args];
+          calls.push(call);
+          const builder = {
+            abortSignal: (signal: AbortSignal) => {
+              call.push(signal instanceof AbortSignal ? "signal" : signal);
+              return builder;
+            },
+            then: (resolve: (value: Answer) => unknown, reject: (reason: unknown) => unknown) =>
+              Promise.resolve(answer).then(resolve, reject),
+          };
+          return builder;
+        },
+      };
+      return { admin: admin as unknown as SupabaseClient<Database>, calls };
+    }
+
+    it("saves through save_inspection() for the user, with the mirrored columns, and answers the new version", async () => {
+      const { admin, calls } = fakeAdmin({ data: V2, error: null, status: 200 });
+      const { client, chains } = fakeClient();
+      const signal = new AbortController().signal;
+      const outcome = await saveInspectionData(
+        client,
+        { inspectionId: ID, data, baseUpdatedAt: V1, signal },
+        { columns: () => ({ po_no: "PO-0001" }), writer: { admin, actorId: "user-1" } },
+      );
+      expect(outcome).toEqual({ ok: true, updatedAt: V2 });
+      expect(calls).toEqual([
+        [
+          "save_inspection",
+          { inspection_id: ID, actor_id: "user-1", base_updated_at: V1, data, mirrored_columns: { po_no: "PO-0001" } },
+          "signal",
+        ],
+      ]);
+      // The user's own session wrote nothing.
+      expect(chains).toEqual([]);
+    });
+
+    it("tells why nothing was written with the user's own session, never the secret key", async () => {
+      const server = { modules: { weight: { values: [9.9] } }, custom: {} };
+      const { admin } = fakeAdmin({ data: null, error: null, status: 200 });
+      const { client, chains } = fakeClient({ data: { data: server, updated_at: V2, status: "draft" }, error: null, status: 200 });
+      expect(
+        await saveInspectionData(client, { inspectionId: ID, data, baseUpdatedAt: V1 }, { writer: { admin, actorId: "user-1" } }),
+      ).toEqual({ ok: false, reason: "conflict", server: { data: server, updatedAt: V2 } });
+      expect(chains).toEqual([["from inspections", 'select "data, updated_at, status"', `eq "id" "${ID}"`, "maybeSingle"]]);
+    });
+
+    it("reports what the function refused", async () => {
+      const { admin } = fakeAdmin({ data: null, error: { code: "42501", message: "the account is not active" }, status: 403 });
+      const { client } = fakeClient();
+      expect(
+        await saveInspectionData(client, { inspectionId: ID, data, baseUpdatedAt: V1 }, { writer: { admin, actorId: "user-1" } }),
+      ).toEqual({ ok: false, reason: "forbidden", message: "the account is not active" });
+    });
+
+    it("updates with the user's session on a project that has not run the migration", async () => {
+      const missing = { code: "PGRST202", message: "Could not find the function public.save_inspection" };
+      const { admin } = fakeAdmin({ data: null, error: missing, status: 404 });
+      const { client, chains } = fakeClient({ data: { updated_at: V2 }, error: null, status: 200 });
+      expect(
+        await saveInspectionData(client, { inspectionId: ID, data, baseUpdatedAt: V1 }, { writer: { admin, actorId: "user-1" } }),
+      ).toEqual({ ok: true, updatedAt: V2 });
+      expect(chains[0].slice(0, 2)).toEqual(["from inspections", `update ${JSON.stringify({ data })}`]);
+    });
+  });
+
   it("serves as the autosave transport", async () => {
     const { client } = fakeClient({ data: { updated_at: V2 }, error: null, status: 200 });
     const transport = supabaseAutosaveTransport(client);

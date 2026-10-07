@@ -10,12 +10,15 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/lib/auth/session", () => ({ authorizeAction: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
+// Without the key (the default here) the user's own client inserts.
+vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn(), isAdminClientConfigured: vi.fn() }));
 
 import { redirect } from "next/navigation";
 import { authorizeAction } from "@/lib/auth/session";
 import { evaluateCapture } from "@/lib/inspections/capture/evaluate";
 import { mirroredColumns } from "@/lib/inspections/capture/mirror";
 import { ResolvedTemplateSchema } from "@/lib/schemas/template";
+import { createAdminClient, isAdminClientConfigured } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { buildSeedBundle, SEED_TEMPLATES } from "@/lib/templates/definitions";
 import type { InspectionData } from "@/modules/_framework";
@@ -224,6 +227,48 @@ describe("checking the form", () => {
     use(world({ client: false }));
     expect(await submit(order())).toMatchObject({ status: "error", fieldErrors: { clientId: "That client is no longer in the list." } });
     expect(inserted()).toBeUndefined();
+  });
+});
+
+describe("writing the draft (migration 20261007190000)", () => {
+  it("starts it through create_inspection() with the secret key, for the signed-in user, when the server has the key", async () => {
+    const calls: Array<[string, Record<string, unknown>]> = [];
+    const admin = {
+      rpc: vi.fn((name: string, args: Record<string, unknown>) => {
+        calls.push([name, args]);
+        return Promise.resolve({ data: NEW_ID, error: null });
+      }),
+    };
+    vi.mocked(isAdminClientConfigured).mockReturnValue(true);
+    vi.mocked(createAdminClient).mockReturnValue(admin as never);
+
+    expect(await submit(order())).toEqual({ redirectedTo: `/inspections/${NEW_ID}` });
+    expect(inserted()).toBeUndefined();
+    expect(calls).toHaveLength(1);
+    const [name, args] = calls[0];
+    expect(name).toBe("create_inspection");
+    expect(args).toMatchObject({
+      actor_id: INSPECTOR,
+      template_id: T.SAFEDON_EG,
+      client_id: CLIENT,
+      manufacturer_id: MANUFACTURER,
+      mirrored_columns: { product_name: "Nitrile blue", inspection_date: "2026-10-06" },
+    });
+    for (const key of ["id", "ref_no", "status", "inspector_id"]) expect(args).not.toHaveProperty(key);
+    expect(Object.keys((args.data as { modules: object }).modules).length).toBeGreaterThan(0);
+  });
+
+  it("answers what the database refused, in plain words", async () => {
+    vi.mocked(isAdminClientConfigured).mockReturnValue(true);
+    vi.mocked(createAdminClient).mockReturnValue({
+      rpc: vi.fn(() =>
+        Promise.resolve({ data: null, error: { code: "23514", message: "inspections start from an active template" } }),
+      ),
+    } as never);
+    expect(await submit(order())).toEqual({
+      status: "error",
+      message: "That template is no longer active. Reload the page to see the current one.",
+    });
   });
 });
 

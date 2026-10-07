@@ -8,7 +8,7 @@ Client-side persistence for capture on the iPad (BUILD_SPEC 8, "Speed", and 8.1)
 | `lib/offline/drafts.ts` | The local copy record, the reload rule (`reconcile`) and the set-aside copies |
 | `lib/offline/lock.ts` | The lock that makes one tab at a time the writer of an inspection's local copy |
 | `lib/offline/protocol.ts` | The transport interface and its zod wire schemas |
-| `lib/offline/supabase-transport.ts` | The compare-and-set save on `inspections`, for a Server Action or the browser client |
+| `lib/offline/supabase-transport.ts` | The compare-and-set save on `inspections`, for a Server Action (with the secret key, through `save_inspection()`) or an admin's browser client |
 | `lib/offline/kv.ts`, `idb.ts`, `db.ts` | A typed key-value wrapper over raw IndexedDB, its in-memory twin, and the app's database (`stericare-offline`) |
 | `lib/offline/connectivity.ts` | Online/offline and page-hidden signals |
 | `lib/photos/process.ts`, `browser-codec.ts` | Photo processing; the DOM part is `browser-codec.ts` only |
@@ -97,9 +97,9 @@ The rule: write `data` only while the row's `updated_at` still equals `baseUpdat
 
 **Use a draft schema here, never the submit schema.** An inspection in progress is incomplete, and BUILD_SPEC 6.2 errors block submit, not saving. The schema given to `saveRequestSchema` and as `dataSchema` checks shape and types only (a number is a number, a size is a size), with every module and value optional. With the strict submit schema every in-progress save would be refused as `invalid` (which is not retried) and every restored local copy would be set aside.
 
-`saveInspectionData(client, request, { columns })` implements the rule on `public.inspections`. Two ways to use it:
+`saveInspectionData(client, request, { columns, writer })` implements the rule on `public.inspections`. Two ways to use it:
 
-- **Server Action (recommended)**: validates the data before it reaches the database.
+- **Server Action (the app's way)**: validates the data before it reaches the database, then writes with the secret key through `public.save_inspection()` for the signed-in user (`writer`). The database refuses an inspector's own update (migration `20261007190000`, docs/DATABASE.md "Inspectors write through the app"), so this is the only way an inspector's data is saved. `client` is the user's own session: when nothing was written it reads the row with it, so the answer (`conflict`, `forbidden`, `not_found`) tells the user only what they may see.
 
   ```ts
   "use server";
@@ -108,14 +108,19 @@ The rule: write `data` only while the row's `updated_at` still equals `baseUpdat
     if (!auth.ok) return { ok: false, reason: "unauthorized", message: auth.error } as const;
     const request = saveRequestSchema(InspectionDraftSchema).safeParse(input);
     if (!request.success) return { ok: false, reason: "invalid", message: summarizeIssues(request.error) } as const;
-    return saveInspectionData(await createClient(), request.data, { columns: mirroredColumns });
+    return saveInspectionData(await createClient(), request.data, {
+      columns: mirroredColumns,
+      writer: serverWriter(auth.user.id), // lib/inspections/writes.ts; null without the secret key
+    });
   }
   // client: const transport = { save: ({ signal, ...request }) => saveInspection(request) };
   ```
 
-- **Browser client**: `supabaseAutosaveTransport(createClient())`. RLS and the database guards still apply, but the data is not checked on the way in.
+  Without a writer (a server without `SUPABASE_SECRET_KEY`), or on a project that has not run the migration (PostgREST answers `PGRST202`), it updates with `client`: an admin's session may, an inspector's is refused.
 
-`columns` writes columns that mirror the data for lists and search (`po_no`, `product_name`, `lot_numbers`, `inspection_date`, `client_id`, `manufacturer_id`, `remarks`, `result`, `suggested_result`) in the same update. Status changes never go through autosave (AGENTS.md: server actions check the transition).
+- **Browser client**: `supabaseAutosaveTransport(createClient())`, for an admin's session only; the data is not checked on the way in.
+
+`columns` writes columns that mirror the data for lists and search (`po_no`, `product_name`, `lot_numbers`, `inspection_date`, `remarks`, `result`, `suggested_result`) in the same write; `save_inspection()` refuses any other column (`22023`). The client and manufacturer are chosen when the inspection is created and never change. Status changes never go through autosave (AGENTS.md: server actions check the transition).
 
 A lost session reads as `unauthorized` (sign in again), not `forbidden`: without a session supabase-js sends the publishable key, PostgREST runs the request as anon and answers 401.
 

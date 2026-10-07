@@ -4,34 +4,45 @@ import { FAILURE_MESSAGES, postgrestFailure } from "./failures";
 import type { AutosaveTransport, SaveOutcome, SaveRequest } from "./protocol";
 
 /* ------------------------------------------------------------------ *
- * The compare-and-set save on public.inspections. Works with the server
- * client inside a Server Action (after the action has checked the session
- * and validated the data) or with the browser client; RLS and the
- * database guards apply either way (docs/OFFLINE.md, "The transport").
+ * The compare-and-set save on public.inspections (docs/OFFLINE.md, "The
+ * transport"). Inside a Server Action, after the action has checked the
+ * session and validated the data, it writes with the secret key through
+ * public.save_inspection() for the signed-in user (`writer`): the database
+ * refuses an inspector's own update (migration 20261007190000). Without a
+ * writer it updates with `client`, which only an admin's session may do
+ * (and anyone's, on a project that has not run that migration).
  * ------------------------------------------------------------------ */
 
-/** Columns that mirror parts of the data for lists and search. Status, template and audit columns are not among them. */
+/**
+ * Columns that mirror parts of the data for lists and search: the ones
+ * public.save_inspection() and submit_inspection() accept. The client, the
+ * manufacturer, the status, the template and the audit columns are not
+ * among them.
+ */
 export type MirroredColumns = Pick<
   TablesUpdate<"inspections">,
-  | "po_no"
-  | "product_name"
-  | "lot_numbers"
-  | "inspection_date"
-  | "client_id"
-  | "manufacturer_id"
-  | "remarks"
-  | "result"
-  | "suggested_result"
+  "po_no" | "product_name" | "lot_numbers" | "inspection_date" | "remarks" | "result" | "suggested_result"
 >;
 
 export interface SaveInspectionOptions<T> {
   /** Computes the mirrored columns written together with the data. */
   columns?: (data: T) => MirroredColumns;
+  /**
+   * Writes through public.save_inspection() with this secret-key client,
+   * for the user `actorId`. `client` still reads the row when nothing was
+   * written, so the user is told only what their own session may see. On a
+   * project that has not run the migration (PGRST202) the save falls back
+   * to an update with `client`.
+   */
+  writer?: { admin: SupabaseClient<Database>; actorId: string } | null;
 }
 
 const EDITABLE: ReadonlySet<string> = new Set(["draft", "reopened"]);
 
 type SaveInput<T> = Omit<SaveRequest<T>, "signal"> & { signal?: AbortSignal };
+
+/** What the write answered: the new version, or none when nothing was written. */
+type Written = { error: { code?: string; message: string } | null; status: number; updatedAt: string | null };
 
 /**
  * Writes `data` only while updated_at still equals baseUpdatedAt. When no
@@ -43,15 +54,33 @@ export async function saveInspectionData<T>(
   { inspectionId, data, baseUpdatedAt, signal }: SaveInput<T>,
   options: SaveInspectionOptions<T> = {},
 ): Promise<SaveOutcome<T>> {
-  const update = client
-    .from("inspections")
-    .update({ ...options.columns?.(data), data: data as NonNullable<Json> })
-    .eq("id", inspectionId)
-    .eq("updated_at", baseUpdatedAt)
-    .select("updated_at");
-  const written = await (signal ? update.abortSignal(signal) : update).maybeSingle();
+  const columns = options.columns?.(data);
+  let written: Written | null = null;
+  if (options.writer) {
+    const call = options.writer.admin.rpc("save_inspection", {
+      inspection_id: inspectionId,
+      actor_id: options.writer.actorId,
+      base_updated_at: baseUpdatedAt,
+      data: data as NonNullable<Json>,
+      mirrored_columns: (columns ?? {}) as Json,
+    });
+    const saved = await (signal ? call.abortSignal(signal) : call);
+    if (saved.error?.code !== "PGRST202") {
+      written = { error: saved.error, status: saved.status, updatedAt: saved.data ?? null };
+    }
+  }
+  if (!written) {
+    const update = client
+      .from("inspections")
+      .update({ ...columns, data: data as NonNullable<Json> })
+      .eq("id", inspectionId)
+      .eq("updated_at", baseUpdatedAt)
+      .select("updated_at");
+    const updated = await (signal ? update.abortSignal(signal) : update).maybeSingle();
+    written = { error: updated.error, status: updated.status, updatedAt: updated.data?.updated_at ?? null };
+  }
   if (written.error) return { ok: false, ...postgrestFailure(written.error, written.status) };
-  if (written.data) return { ok: true, updatedAt: written.data.updated_at };
+  if (written.updatedAt) return { ok: true, updatedAt: written.updatedAt };
 
   const read = client.from("inspections").select("data, updated_at, status").eq("id", inspectionId);
   const current = await (signal ? read.abortSignal(signal) : read).maybeSingle();
@@ -67,7 +96,11 @@ export async function saveInspectionData<T>(
   return { ok: false, reason: "conflict", server: { data: current.data.data as T, updatedAt: current.data.updated_at } };
 }
 
-/** The transport for the browser client. A Server Action calls saveInspectionData itself. */
+/**
+ * The transport for the browser client: an admin's session only, since the
+ * database refuses an inspector's own update. A Server Action calls
+ * saveInspectionData itself, with the secret-key writer.
+ */
 export function supabaseAutosaveTransport<T>(
   client: SupabaseClient<Database>,
   options: SaveInspectionOptions<T> = {},

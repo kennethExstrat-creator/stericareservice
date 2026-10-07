@@ -8,6 +8,8 @@ vi.mock("@/modules/registry", async () => {
 });
 vi.mock("@/lib/auth/session", () => ({ authorizeAction: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
+// Without the key (the default here) the user's own client writes; withSecretKey() switches it on.
+vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn(), isAdminClientConfigured: vi.fn() }));
 vi.mock("@/lib/inspections/ai", () => ({ scheduleAiReviewOnSubmit: vi.fn() }));
 vi.mock("next/navigation", () => ({
   redirect: vi.fn((path: string) => {
@@ -23,6 +25,7 @@ import { authorizeAction } from "@/lib/auth/session";
 import { scheduleAiReviewOnSubmit } from "@/lib/inspections/ai";
 import { contentHash } from "@/lib/offline/stable-json";
 import type { ResolvedTemplate } from "@/lib/schemas/template";
+import { createAdminClient, isAdminClientConfigured } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { TEST_REGISTRY } from "@/modules/_framework/__fixtures__/test-registry";
 import { makeTestTemplate } from "@/modules/_framework/testing";
@@ -144,6 +147,14 @@ function useClient(respond: Responder, rpc?: (name: string, args: unknown) => Re
   vi.mocked(createClient).mockResolvedValue(client.client as never);
 }
 
+/** A server with the secret key: its client answers the write functions with `rpc`. */
+function withSecretKey(rpc: (name: string, args: unknown) => Result) {
+  const admin = fakeClient(() => ({ data: null, error: null }), rpc);
+  vi.mocked(isAdminClientConfigured).mockReturnValue(true);
+  vi.mocked(createAdminClient).mockReturnValue(admin.client as never);
+  return admin;
+}
+
 function signedInAs(role: "inspector" | "admin", id = role === "admin" ? ADMIN : INSPECTOR) {
   vi.mocked(authorizeAction).mockResolvedValue({
     ok: true,
@@ -251,6 +262,30 @@ describe("saveCaptureData", () => {
     expect(updatePayload(update)).not.toHaveProperty("client_id");
   });
 
+  it("writes through save_inspection() with the secret key, for the signed-in user, when the server has the key", async () => {
+    useClient(() => ({ data: row(), error: null }));
+    const admin = withSecretKey(() => ({ data: NEXT_VERSION, error: null }));
+    await expect(saveCaptureData(request())).resolves.toEqual({
+      ok: true,
+      updatedAt: NEXT_VERSION,
+      state: { status: "draft", overrides: {} },
+    });
+    expect(admin.rpcCalls).toEqual([
+      [
+        "save_inspection",
+        {
+          inspection_id: INSPECTION,
+          actor_id: INSPECTOR,
+          base_updated_at: VERSION,
+          data: COMPLETE,
+          mirrored_columns: expect.objectContaining({ po_no: "PO-0001", result: "pass", suggested_result: "hold" }),
+        },
+      ],
+    ]);
+    // The inspector's own session only read.
+    expect(client.queries.filter(isUpdate)).toHaveLength(0);
+  });
+
   it("reads the inspection's files with it, so the mirrored results count them as the screen does", async () => {
     useClient((query) =>
       isUpdate(query) ? { data: { updated_at: NEXT_VERSION }, error: null } : { data: row(), error: null },
@@ -318,6 +353,38 @@ describe("saveCaptureData", () => {
 
 describe("submitInspection", () => {
   const submit = (data: InspectionData = COMPLETE) => submitInspection({ inspectionId: INSPECTION, dataHash: contentHash(data) });
+
+  it("submits through submit_inspection() with the secret key, for the signed-in user, when the server has the key", async () => {
+    useClient(() => ({ data: row({ data: COMPLETE }), error: null }));
+    const admin = withSecretKey(() => ({ data: NEXT_VERSION, error: null }));
+    await expect(submit()).rejects.toThrow(`REDIRECT /inspections/${INSPECTION}/review`);
+    expect(admin.rpcCalls).toEqual([
+      [
+        "submit_inspection",
+        {
+          inspection_id: INSPECTION,
+          actor_id: INSPECTOR,
+          base_updated_at: VERSION,
+          mirrored_columns: expect.objectContaining({ po_no: "PO-0001", result: "pass" }),
+        },
+      ],
+    ]);
+    expect(client.queries.filter(isUpdate)).toHaveLength(0);
+  });
+
+  it("says the inspection changed when submit_inspection() wrote nothing, and what the database refused", async () => {
+    useClient(() => ({ data: row({ data: COMPLETE }), error: null }));
+    withSecretKey(() => ({ data: null, error: null }));
+    await expect(submit()).resolves.toEqual({
+      status: "error",
+      message: "This inspection changed while it was being submitted. Reload the page, then submit again.",
+    });
+    withSecretKey(() => ({ data: null, error: { code: "23514", message: "status cannot change from approved to submitted" } }));
+    await expect(submit()).resolves.toEqual({
+      status: "error",
+      message: "This inspection cannot be submitted from its current status. Reload the page.",
+    });
+  });
 
   it("submits saved data without errors and opens the review", async () => {
     useClient((query) =>
