@@ -60,7 +60,7 @@ const galleryPath = () => `/inspections/${fixture.inspectionId}/photos`;
 const isDesktop = () => test.info().project.name === "desktop";
 
 function addCard(page: Page) {
-  return page.locator("section").filter({ has: page.getByRole("heading", { name: "Add photos", exact: true }) });
+  return page.locator("section").filter({ has: page.getByRole("heading", { name: "Add Photos", exact: true }) });
 }
 
 function group(page: Page, key: string) {
@@ -92,19 +92,19 @@ test("the inspector adds photos and a lab report, then retags, captions, views a
   await page.goto(galleryPath());
 
   await test.step("an empty gallery offers to add photos", async () => {
-    await expect(page.getByRole("heading", { level: 1, name: "Photos and files" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Photos and Files" })).toBeVisible();
     await expect(page.getByText(fixture.refNo, { exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "No photos yet" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Lab reports and certificates" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "No Photos Yet", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Lab Reports and Certificates" })).toBeVisible();
     await expect(page).toHaveTitle(`Photos · ${fixture.refNo} · SteriCare QC`);
     if (isTouch()) {
       // The iPad's two buttons (BUILD_SPEC 8.1), as 44 px targets.
-      await expect(addCard(page).getByRole("button", { name: "Take photo" })).toBeVisible();
-      await expectTouchTarget(addCard(page).getByRole("button", { name: "Add from library" }));
-      await expect(addCard(page).getByRole("button", { name: /^Choose photos/ })).toBeHidden();
+      await expect(addCard(page).getByRole("button", { name: "Take Photo" })).toBeVisible();
+      await expectTouchTarget(addCard(page).getByRole("button", { name: "Add From Library" }));
+      await expect(addCard(page).getByRole("button", { name: /^Choose Photos/ })).toBeHidden();
     } else {
       await expect(addCard(page).getByText(/Drop photos here, several at once/)).toBeVisible();
-      await expect(addCard(page).getByRole("button", { name: "Take photo" })).toBeHidden();
+      await expect(addCard(page).getByRole("button", { name: "Take Photo" })).toBeHidden();
     }
     await expect(addCard(page).locator('input[data-photo-input="camera"]')).toHaveAttribute("capture", "environment");
     await expect(addCard(page).locator('input[data-photo-input="library"]')).toHaveAttribute("multiple", "");
@@ -128,7 +128,8 @@ test("the inspector adds photos and a lab report, then retags, captions, views a
     await expect(dimensions.getByRole("heading", { name: TITLES.dimensions })).toBeVisible();
     await expect(dimensions.locator('[data-slot="photo-card"]')).toHaveCount(2);
     await expect(page.locator('[data-slot="upload-badge"]')).toHaveAttribute("data-count", "2");
-    await expect(dimensions.getByText(/Waiting to upload|Uploading/).first()).toBeVisible();
+    // The tile's words (components/qc/photo-tile.tsx), in whatever case the kit writes them.
+    await expect(dimensions.getByText(/Waiting to upload|Uploading/i).first()).toBeVisible();
     await expect(dimensions.getByText("2 photos, 2 not uploaded yet")).toBeVisible();
     await shot(page, "2-waiting");
 
@@ -202,13 +203,13 @@ test("the inspector adds photos and a lab report, then retags, captions, views a
     await expectTouchTarget(card.getByRole("button", { name: /^Edit tags and caption/ }));
     await expectTouchTarget(card.getByRole("button", { name: /^Delete photo/ }));
     await press(card.getByRole("button", { name: /^Edit tags and caption/ }));
-    const dialog = page.getByRole("dialog", { name: /^Edit photo/ });
+    const dialog = page.getByRole("dialog", { name: /^Edit Photo/ });
     await expect(dialog).toBeVisible();
 
     // A refused save keeps what was typed, and focus goes to the field to fix.
     await chooseOption(page, dialog.getByRole("combobox", { name: "Module" }), TITLES.dispensing_packing);
     const caption = dialog.getByRole("textbox", { name: "Caption" });
-    const box = dialog.getByRole("textbox", { name: "Box (carton number)" });
+    const box = dialog.getByRole("textbox", { name: "Box (Carton Number)" });
     await caption.fill("Typed caption that must survive");
     await box.fill("abc");
     await press(dialog.getByRole("button", { name: "Save" }));
@@ -246,8 +247,8 @@ test("the inspector adds photos and a lab report, then retags, captions, views a
     expect(full.width).toBe(2048);
     await viewportShot(page, "5-viewer");
     if (isTouch()) {
-      await expectTouchTarget(viewer.getByRole("button", { name: "Next photo" }));
-      await press(viewer.getByRole("button", { name: "Next photo" }));
+      await expectTouchTarget(viewer.getByRole("button", { name: "Next Photo", exact: true }));
+      await press(viewer.getByRole("button", { name: "Next Photo", exact: true }));
     } else {
       await page.keyboard.press("ArrowRight");
     }
@@ -265,9 +266,9 @@ test("the inspector adds photos and a lab report, then retags, captions, views a
     const card = dimensions.locator(`[data-photo-id="${smallId}"]`);
     await press(card.getByRole("button", { name: /^Delete photo/ }));
     const confirm = page.getByRole("alertdialog");
-    await expect(confirm).toContainText("Delete this photo?");
+    await expect(confirm).toContainText("Delete This Photo?");
     await viewportShot(page, "6-delete-dialog");
-    await press(confirm.getByRole("button", { name: "Delete photo" }));
+    await press(confirm.getByRole("button", { name: "Delete Photo" }));
     await expect(confirm).toBeHidden();
     await expect(page.locator(`[data-photo-id="${smallId}"]`)).toHaveCount(0);
     await expect(dimensions).toHaveCount(0);
@@ -305,7 +306,7 @@ test("offline, photos wait on the device and upload when the connection is back"
   test.skip(!isDesktop(), "Once is enough: the queue is the same on every device.");
   await signIn(context, baseURL!, TEST_ACCOUNTS.inspector);
   await page.goto(galleryPath());
-  await expect(page.getByRole("heading", { level: 1, name: "Photos and files" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Photos and Files" })).toBeVisible();
   await chooseOption(page, addCard(page).getByRole("combobox", { name: "Module" }), TITLES.watertight);
 
   await context.setOffline(true);
@@ -343,7 +344,7 @@ test("offline, photos wait on the device and upload when the connection is back"
 
   await test.step("a caption saved while the connection drops is kept for the next try", async () => {
     await card.getByRole("button", { name: /^Edit tags and caption/ }).click();
-    const dialog = page.getByRole("dialog", { name: /^Edit photo/ });
+    const dialog = page.getByRole("dialog", { name: /^Edit Photo/ });
     const caption = dialog.getByRole("textbox", { name: "Caption" });
     await caption.fill("Pinhole at the fingertip, typed offline");
     await context.setOffline(true);
@@ -368,14 +369,15 @@ test("the admin chooses report photos", async ({ page, context, baseURL }) => {
   const include = card.getByRole("switch");
   await expect(include).not.toBeChecked();
   await include.click();
-  await expect(card.getByText("In report", { exact: true })).toBeVisible();
+  // The tile's badge, in the kit's case; never the admin's "Include in Report".
+  await expect(card.getByText(/^In report$/i)).toBeVisible();
   await expect.poll(async () => (await photoRows(fixture.inspectionId)).find((row) => row.id === photo.id)?.include_in_report).toBe(true);
   await shot(page, "10-admin");
 
   // The viewer carries the same switch, for choosing while looking.
   await card.getByRole("button", { name: /^Open photo/ }).click();
   const viewer = page.locator('[data-slot="photo-viewer"]');
-  await expect(viewer.getByRole("switch", { name: "Include in report" })).toBeChecked();
+  await expect(viewer.getByRole("switch", { name: "Include in Report" })).toBeChecked();
   await viewportShot(page, "11-admin-viewer");
   await page.keyboard.press("Escape");
 });
@@ -395,24 +397,24 @@ test("once submitted, the inspector sees the photos read-only", async ({ page, c
     await setInspectionStatus(fixture.inspectionId, "submitted");
     await held.release();
     await expect(card).toHaveAttribute("data-upload-state", "failed", { timeout: 30_000 });
-    await expect(card.locator('[data-slot="upload-stopped"]')).toHaveText("Upload stopped");
+    await expect(card.locator('[data-slot="upload-stopped"]')).toHaveText(/^Upload stopped$/i);
     await expect(card).toContainText("This inspection can no longer be changed from this account. Ask an admin to reopen it, then try again.");
     await expect(card.getByText("Waiting to upload")).toBeHidden();
     await expect(card).not.toContainText("row-level security");
     await expect(page.locator('[data-slot="upload-badge"]')).toHaveAttribute("data-state", "failed");
     await shot(page, "12-upload-stopped");
     await card.getByRole("button", { name: /^Remove photo/ }).click();
-    await page.getByRole("alertdialog").getByRole("button", { name: "Remove photo" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Remove Photo" }).click();
     await expect(card).toHaveCount(0);
     await expect(page.locator('[data-slot="upload-badge"]')).toHaveCount(0);
   });
 
   await page.reload();
   await expect(page.getByText(/This inspection has been submitted/)).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Add photos", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Add Photos", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^(Edit tags and caption|Delete photo)/ })).toHaveCount(0);
   await expect(page.getByRole("switch")).toHaveCount(0);
-  await expect(group(page, "visual").getByText("In report", { exact: true })).toBeVisible();
+  await expect(group(page, "visual").getByText(/^In report$/i)).toBeVisible();
   const slot = page.locator('[data-slot="file-slot"][data-module="force_at_break"]');
   await expect(slot.locator("input[data-file-input]")).toHaveCount(0);
   await expect(slot.getByRole("button", { name: /^Delete/ })).toHaveCount(0);

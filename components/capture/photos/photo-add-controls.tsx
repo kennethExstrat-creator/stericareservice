@@ -1,7 +1,7 @@
 "use client";
 
 // How photos get in (BUILD_SPEC 8.1). On the iPad (coarse pointer): "Take
-// photo" opens the rear camera, "Add from library" picks several at once.
+// Photo" opens the rear camera, "Add From Library" picks several at once.
 // On a desktop (fine pointer): drop several files, or choose them. Either
 // way the files go straight to onFiles; processing and uploading are not
 // this component's job, and nothing here waits for them.
@@ -76,11 +76,11 @@ export function PhotoAddControls({ onFiles, disabled = false, target, compact = 
       <div className="flex flex-wrap items-center gap-2 fine:hidden">
         <Button type="button" variant="outline" disabled={disabled} onClick={() => camera.current?.click()}>
           <CameraIcon aria-hidden />
-          Take photo
+          Take Photo
         </Button>
         <Button type="button" variant="outline" disabled={disabled} onClick={() => library.current?.click()}>
           <ImagesIcon aria-hidden />
-          Add from library
+          Add From Library
         </Button>
       </div>
 
@@ -106,7 +106,7 @@ export function PhotoAddControls({ onFiles, disabled = false, target, compact = 
           )}
         </p>
         <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => library.current?.click()}>
-          Choose photos
+          Choose Photos
           {target ? <span className="sr-only"> for {target}</span> : null}
         </Button>
       </div>

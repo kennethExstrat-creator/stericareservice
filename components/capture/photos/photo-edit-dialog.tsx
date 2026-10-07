@@ -54,6 +54,8 @@ import {
   type PhotoTagOptions,
 } from "@/lib/inspections/photos/view";
 import { parseTarget, type PhotoTarget } from "@/lib/photos/target";
+// The loading module's own caption for its stage picker: its config only, no module code.
+import { LOADING_LABELS } from "@/modules/loading/config";
 import { savePhotoEdit } from "./edit-flows";
 import { PhotoUserContext } from "./hooks";
 import type { SlotPhoto } from "./photo-model";
@@ -63,8 +65,19 @@ const NONE = "__none__";
 
 const FOCUSABLE = "button, input, textarea, select, [tabindex]:not([tabindex='-1'])";
 
-/** What a module's own list holds, as the field is named. */
-const ITEM_FIELD_LABEL: Readonly<Record<string, string>> = { documents: "Document", loading: "Loading stage" };
+/**
+ * What a module's own list holds, as the field is named: loading's stage
+ * picker by the module's own caption, word for word as lib/coverage lists it
+ * (the tag options do not carry a template's rewording of it); a documents
+ * checklist entry in the app's word.
+ */
+const ITEM_FIELD_LABEL: Readonly<Record<string, string>> = { documents: "Document", loading: LOADING_LABELS.loadingStage };
+
+/** The choice for a tag the photo does not have: no hand, level or list entry recorded. */
+const NOT_RECORDED = "Not Recorded";
+
+/** After a module switched off for this inspection, in the module list. */
+const SWITCHED_OFF_NOTE = "(Switched Off)";
 
 type PhotoEditDialogProps = {
   inspectionId: string;
@@ -248,7 +261,7 @@ function EditForm({
     >
       <DialogHeader>
         <DialogTitle className="text-lg font-bold">
-          Edit photo<span className="sr-only">: {alt}</span>
+          Edit Photo<span className="sr-only">: {alt}</span>
         </DialogTitle>
         <DialogDescription>
           Tag the photo with what it shows, and add a caption for the report.
@@ -277,12 +290,12 @@ function EditForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent position="popper">
-              <SelectItem value={NONE}>Not tagged</SelectItem>
+              <SelectItem value={NONE}>Not Tagged</SelectItem>
               {moduleItems.length > 0 && <SelectSeparator />}
               {moduleItems.map((entry) => (
                 <SelectItem key={entry.key} value={entry.key}>
                   {entry.title}
-                  {entry.included ? null : " (switched off)"}
+                  {entry.included ? null : ` ${SWITCHED_OFF_NOTE}`}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -303,7 +316,7 @@ function EditForm({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent position="popper">
-                <SelectItem value={NONE}>No size</SelectItem>
+                <SelectItem value={NONE}>No Size</SelectItem>
                 {sizeItems.map((entry) => (
                   <SelectItem key={entry.value} value={entry.value}>
                     {entry.label === entry.value ? entry.value : `${entry.label} (${entry.value})`}
@@ -317,7 +330,9 @@ function EditForm({
 
         {showHand && (
           <FieldSet className="gap-3" aria-describedby={described("hand", errors.hand)}>
-            <FieldLegend variant="label" className="mb-0">
+            {/* A fieldset's legend is no flex item, so the FieldSet's gap never reaches it: its own mb-3
+                keeps the 12 px a Field has between label and control, and leading-snug the FieldLabel's line. */}
+            <FieldLegend variant="label" className="leading-snug">
               Hand
             </FieldLegend>
             <RadioGroup
@@ -327,9 +342,9 @@ function EditForm({
               className="flex flex-wrap gap-x-6 gap-y-3"
             >
               {[
-                { value: NONE, label: "Not recorded" },
-                { value: "R", label: "Right hand" },
-                { value: "L", label: "Left hand" },
+                { value: NONE, label: NOT_RECORDED },
+                { value: "R", label: "Right Hand" },
+                { value: "L", label: "Left Hand" },
               ].map((option) => (
                 <Field key={option.value} orientation="horizontal" className="w-auto">
                   <RadioGroupItem value={option.value} id={`${id}-hand-${option.value}`} />
@@ -356,9 +371,9 @@ function EditForm({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent position="popper" className="max-h-72">
-                <SelectItem value={NONE}>No defect</SelectItem>
+                <SelectItem value={NONE}>No Defect</SelectItem>
                 {defects.oneOff && (
-                  <SelectItem value={defects.oneOff.value}>{defects.oneOff.label} (one-off label)</SelectItem>
+                  <SelectItem value={defects.oneOff.value}>{defects.oneOff.label} (One-Off Label)</SelectItem>
                 )}
                 {/* The module's own defects first, in its wording; headings only when there are both lists. */}
                 {defects.groups.map((group) => (
@@ -366,7 +381,7 @@ function EditForm({
                     <SelectSeparator />
                     <SelectGroup>
                       {defects.groups.length > 1 && (
-                        <SelectLabel>{group.key === "module" ? (chosen?.title ?? "This module") : "Other defects"}</SelectLabel>
+                        <SelectLabel>{group.key === "module" ? (chosen?.title ?? "This Module") : "Other Defects"}</SelectLabel>
                       )}
                       {group.items.map((entry) => (
                         <SelectItem key={entry.value} value={entry.value}>
@@ -384,7 +399,7 @@ function EditForm({
 
         {records.has("box") && (
           <Field data-invalid={errors.box ? true : undefined}>
-            <FieldLabel htmlFor={`${id}-box`}>Box (carton number)</FieldLabel>
+            <FieldLabel htmlFor={`${id}-box`}>Box (Carton Number)</FieldLabel>
             <Input
               id={`${id}-box`}
               name="box"
@@ -402,7 +417,8 @@ function EditForm({
 
         {records.has("level") && (
           <FieldSet className="gap-3" aria-describedby={described("level", errors.level)}>
-            <FieldLegend variant="label" className="mb-0">
+            {/* As Hand's: the legend's own margin, not the FieldSet's gap, keeps it off the choices. */}
+            <FieldLegend variant="label" className="leading-snug">
               Level
             </FieldLegend>
             <RadioGroup
@@ -411,7 +427,7 @@ function EditForm({
               aria-invalid={errors.level ? true : undefined}
               className="flex flex-wrap gap-x-6 gap-y-3"
             >
-              {[{ value: NONE, label: "Not recorded" }, ...levelItems].map((option) => (
+              {[{ value: NONE, label: NOT_RECORDED }, ...levelItems].map((option) => (
                 <Field key={option.value} orientation="horizontal" className="w-auto">
                   <RadioGroupItem value={option.value} id={`${id}-level-${option.value}`} />
                   <FieldLabel htmlFor={`${id}-level-${option.value}`} className="font-normal">
@@ -437,7 +453,7 @@ function EditForm({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent position="popper" className="max-h-72">
-                <SelectItem value={NONE}>Not recorded</SelectItem>
+                <SelectItem value={NONE}>{NOT_RECORDED}</SelectItem>
                 {listItems.length > 0 && <SelectSeparator />}
                 {listItems.map((entry) => (
                   <SelectItem key={entry.value} value={entry.value}>

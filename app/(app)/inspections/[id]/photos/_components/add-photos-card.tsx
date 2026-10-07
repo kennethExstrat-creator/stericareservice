@@ -1,6 +1,6 @@
 "use client";
 
-// "Add photos" in the gallery: choose the module the photos belong to (or
+// "Add Photos" in the gallery: choose the module the photos belong to (or
 // leave them untagged, to tag one by one later), then take, pick or drop
 // them. They join the upload queue like photos taken on the capture screen.
 import { useId, useState } from "react";
@@ -32,7 +32,7 @@ export function AddPhotosCard({
     <section aria-labelledby={`${id}-heading`} className={cn("flex flex-col gap-4", className)}>
       <div className="space-y-1">
         <h2 id={`${id}-heading`} className="text-lg leading-snug font-bold text-foreground">
-          Add photos
+          Add Photos
         </h2>
         <p className="text-sm text-muted-foreground">
           They upload in the background: keep working while they go up.
@@ -48,7 +48,7 @@ export function AddPhotosCard({
               <SelectValue />
             </SelectTrigger>
             <SelectContent position="popper">
-              <SelectItem value={UNTAGGED}>Not tagged (tag them later)</SelectItem>
+              <SelectItem value={UNTAGGED}>Not Tagged (Tag Them Later)</SelectItem>
               {modules.length > 0 && <SelectSeparator />}
               {modules.map((entry) => (
                 <SelectItem key={entry.key} value={entry.key}>

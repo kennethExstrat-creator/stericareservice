@@ -6,7 +6,7 @@
 // form. A form whose code did not arrive (no connection, load-failure.ts) is
 // not a bug: a calm notice says the section opens once the connection is
 // back, and it tries again by itself when the browser is online again. A
-// form that crashed says so in red. "Try again" asks the screen for the form
+// form that crashed says so in red. "Try Again" asks the screen for the form
 // afresh (onRetry: a new download, rendered by a new boundary).
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { CloudOffIcon, OctagonXIcon, RefreshCwIcon } from "lucide-react";
@@ -65,7 +65,7 @@ export class SectionErrorBoundary extends Component<Props, State> {
     const tryAgain = (
       <Button type="button" variant="outline" size="sm" onClick={this.retry}>
         <RefreshCwIcon aria-hidden />
-        Try again
+        Try Again
       </Button>
     );
 

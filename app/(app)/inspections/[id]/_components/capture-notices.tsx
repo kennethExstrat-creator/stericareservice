@@ -115,7 +115,7 @@ export function captureNotices({
       message: submittedMessage({ role, own: access.own, inspectorName }),
       action: (
         <Button asChild variant="outline" size="sm">
-          <Link href={reviewHref}>Open the review</Link>
+          <Link href={reviewHref}>Open the Review</Link>
         </Button>
       ),
     });
@@ -162,7 +162,7 @@ export function captureNotices({
     if (error.reason === "unauthorized") {
       action = (
         <Button asChild variant="outline" size="sm">
-          <Link href={signInHref}>Sign in again</Link>
+          <Link href={signInHref}>Sign In Again</Link>
         </Button>
       );
     } else if (error.reason === "forbidden" || error.reason === "not_found") {
@@ -170,7 +170,7 @@ export function captureNotices({
       action = lockedElsewhere ? (
         <>
           <Button asChild variant="outline" size="sm">
-            <Link href={reviewHref}>Open the review</Link>
+            <Link href={reviewHref}>Open the Review</Link>
           </Button>
           {reload}
         </>
@@ -183,7 +183,7 @@ export function captureNotices({
       action = (
         <Button type="button" variant="outline" size="sm" onClick={retry}>
           <RefreshCwIcon aria-hidden />
-          Try again
+          Try Again
         </Button>
       );
     }

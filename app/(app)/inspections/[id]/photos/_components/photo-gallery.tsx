@@ -1,6 +1,6 @@
 "use client";
 
-// The gallery's body: notices, "Add photos", a section per module that has
+// The gallery's body: notices, "Add Photos", a section per module that has
 // photos (template order, untagged last), and the lab reports and
 // certificates. One viewer spans every section, so the arrow keys walk
 // through all the inspection's photos.
@@ -111,7 +111,7 @@ export function PhotoGallery({ inspectionId }: { inspectionId: string }) {
                 {access.canEdit ? <CameraIcon aria-hidden /> : <ImagesIcon aria-hidden />}
               </EmptyMedia>
               <EmptyTitle>
-                <h2 className="text-lg font-bold text-foreground">No photos yet</h2>
+                <h2 className="text-lg font-bold text-foreground">No Photos Yet</h2>
               </EmptyTitle>
               <EmptyDescription className="text-base text-muted-foreground fine:text-sm">
                 Photos taken in a module on the capture screen show here, grouped by module.
@@ -147,7 +147,7 @@ export function PhotoGallery({ inspectionId }: { inspectionId: string }) {
             <div className="flex flex-col gap-6">
               <div className="space-y-1">
                 <h2 id="files-heading" className="text-lg leading-snug font-bold text-foreground">
-                  Lab reports and certificates
+                  Lab Reports and Certificates
                 </h2>
                 <p className="text-sm text-muted-foreground">PDFs and images, kept as the lab issued them.</p>
               </div>
@@ -164,7 +164,7 @@ export function PhotoGallery({ inspectionId }: { inspectionId: string }) {
               {otherFiles.length > 0 && (
                 <div className="flex flex-col gap-3">
                   <h3 className="text-base leading-snug font-semibold text-foreground">
-                    {fileModules.length > 0 ? "Other files" : "Files"}
+                    {fileModules.length > 0 ? "Other Files" : "Files"}
                   </h3>
                   <FileList
                     inspectionId={inspectionId}

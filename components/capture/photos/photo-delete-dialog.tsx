@@ -59,7 +59,7 @@ export function PhotoDeleteDialog({ inspectionId, photo, alt, onClose }: PhotoDe
         <form action={formAction} className="grid gap-6">
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {photo.queued ? "Remove this photo?" : "Delete this photo?"}
+              {photo.queued ? "Remove This Photo?" : "Delete This Photo?"}
               <span className="sr-only"> {alt}</span>
             </AlertDialogTitle>
             <AlertDialogDescription>
@@ -85,7 +85,7 @@ export function PhotoDeleteDialog({ inspectionId, photo, alt, onClose }: PhotoDe
             </AlertDialogCancel>
             <Button type="submit" variant="destructive" disabled={pending}>
               {pending && <Spinner aria-hidden />}
-              {pending ? (photo.queued ? "Removing…" : "Deleting…") : photo.queued ? "Remove photo" : "Delete photo"}
+              {pending ? (photo.queued ? "Removing…" : "Deleting…") : photo.queued ? "Remove Photo" : "Delete Photo"}
             </Button>
           </AlertDialogFooter>
         </form>

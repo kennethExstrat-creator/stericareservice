@@ -34,7 +34,7 @@ describe("SwitchOffDialog", () => {
         <SwitchOffDialog inspectionId={INSPECTION} moduleKey="weight" title="Weight (g)" onChanged={() => {}} />
       </PhotoUserContext.Provider>,
     );
-    expect(html).toMatch(/^<button[^>]*data-action="switch-off"[^>]*>.*Switch off<\/button>$/);
+    expect(html).toMatch(/^<button[^>]*data-action="switch-off"[^>]*>.*Switch Off<\/button>$/);
     expect(html).not.toContain("Not in this order.");
     // Without a known user (no photo queue around it) it renders the same.
     expect(

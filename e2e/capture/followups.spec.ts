@@ -327,7 +327,7 @@ test("an admin's reason for switching a module off survives a reload, and goes o
   await page.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
   await formReady(page);
   const switchOff = page.locator('[data-action="switch-off"]');
-  const dialog = page.getByRole("dialog", { name: "Switch off Glove Information?" });
+  const dialog = page.getByRole("dialog", { name: "Switch Off Glove Information?" });
   const reason = dialog.getByRole("textbox", { name: "Reason" });
 
   await press(switchOff);
@@ -353,12 +353,12 @@ test("an admin's reason for switching a module off survives a reload, and goes o
 
   // Sent, it is the module's reason, no longer a draft; switched back on, the dialog starts empty.
   await reason.fill(SENT_REASON);
-  await press(dialog.getByRole("button", { name: "Switch off", exact: true }));
+  await press(dialog.getByRole("button", { name: "Switch Off", exact: true }));
   await expect(dialog).toBeHidden();
   await expect(page.getByText("Glove Information is switched off for this inspection.").first()).toBeVisible();
   await expect(page.getByText(SENT_REASON)).toBeVisible();
   expect(await captureDrafts(page)).toEqual([]);
-  await press(page.getByRole("button", { name: "Switch back on" }));
+  await press(page.getByRole("button", { name: "Switch Back On" }));
   await press(switchOff);
   await expect(reason).toHaveValue("");
   await press(dialog.getByRole("button", { name: "Cancel" }));
@@ -374,7 +374,7 @@ test("a photo's caption survives a reload, and goes once cancelled or saved", as
   const edit = page
     .locator(`[data-slot="photo-card"][data-photo-id="${fixture.photoId}"]`)
     .getByRole("button", { name: /^Edit tags and caption:/ });
-  const dialog = page.getByRole("dialog", { name: /^Edit photo/ });
+  const dialog = page.getByRole("dialog", { name: /^Edit Photo/ });
   const caption = dialog.getByRole("textbox", { name: "Caption" });
 
   await press(edit);

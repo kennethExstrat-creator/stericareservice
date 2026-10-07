@@ -577,8 +577,8 @@ export function CaptureScreen({
    * Switching sections off and on (admins)
    * -------------------------------------------------------------- */
 
-  // The button pressed goes with the change (Switch off with the section's
-  // header controls, Switch back on with the panel): the title takes focus.
+  // The button pressed goes with the change (Switch Off with the section's
+  // header controls, Switch Back On with the panel): the title takes focus.
   const focusTitleFor = useRef<ModuleOverrides | null>(null);
   const onSwitched = useCallback((next: ModuleOverrides) => {
     focusTitleFor.current = next;
@@ -798,7 +798,8 @@ export function CaptureScreen({
               // In the iPad's row of actions under the title, at the far right as on desktop.
               className="ml-auto xl:ml-0"
             >
-              Back<span className="sr-only"> to inspections</span>
+              {/* Read out as the status screen's own link words it: "Back to Inspections". */}
+              Back<span className="sr-only"> to Inspections</span>
             </LeaveLink>
           </>
         }

@@ -2,7 +2,7 @@
 
 // One photo in a slot or the gallery: the kit's PhotoTile (thumbnail, tags,
 // caption, upload state, the admin's report switch) with the actions that
-// apply to it underneath: Edit and Delete, or Try again when its upload
+// apply to it underneath: Edit and Delete, or Try Again when its upload
 // stopped on a failure that needs the inspector. A stopped upload is the
 // tile's own failed state ("Upload stopped", no progress bar); the card adds
 // what to do about it.
@@ -89,9 +89,9 @@ export function PhotoCard({
       {showActions && (
         <div className="flex flex-wrap items-center gap-1 border-t border-border px-1.5 py-1.5">
           {failed && (
-            <Button type="button" variant="ghost" size="sm" onClick={onRetry} aria-label={`Try again: ${alt}`}>
+            <Button type="button" variant="ghost" size="sm" onClick={onRetry} aria-label={`Try Again: ${alt}`}>
               <RotateCwIcon aria-hidden />
-              Try again
+              Try Again
             </Button>
           )}
           {canEdit && (

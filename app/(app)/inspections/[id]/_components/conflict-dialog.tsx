@@ -35,7 +35,7 @@ export function ConflictDialog({
           <AlertDialogMedia className="bg-warn-tint text-warn">
             <MonitorSmartphoneIcon aria-hidden />
           </AlertDialogMedia>
-          <AlertDialogTitle className="text-lg font-bold">This inspection was changed on another device</AlertDialogTitle>
+          <AlertDialogTitle className="text-lg font-bold">This Inspection Was Changed on Another Device</AlertDialogTitle>
           <AlertDialogDescription>
             This device has changes that were not saved
             {localChangedAt !== null ? ` (last change ${WHEN.format(localChangedAt)})` : ""}, and someone saved
@@ -44,10 +44,10 @@ export function ConflictDialog({
         </AlertDialogHeader>
         <AlertDialogFooter className="sm:flex-col sm:items-stretch">
           <Button type="button" onClick={() => onKeep("local")} data-action="keep-local">
-            Keep the changes on this device
+            Keep the Changes on This Device
           </Button>
           <Button type="button" variant="outline" onClick={() => onKeep("server")} data-action="keep-server">
-            Use the version from the other device
+            Use the Version From the Other Device
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>

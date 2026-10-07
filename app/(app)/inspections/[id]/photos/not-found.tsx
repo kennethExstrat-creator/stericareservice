@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { NotFoundScreen } from "@/components/shell/status-screen";
 
 export const metadata: Metadata = {
-  title: "Page not found",
+  title: "Page Not Found",
 };
 
 /**

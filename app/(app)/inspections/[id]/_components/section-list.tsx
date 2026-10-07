@@ -31,7 +31,7 @@ export function SectionList({ sections, activeKey, onSelect, className }: Sectio
       {excluded.length > 0 && (
         <div className="space-y-1.5">
           <h2 className="px-3.5 text-xs font-bold tracking-[0.12em] text-muted-foreground uppercase">
-            Switched off
+            Switched Off
           </h2>
           <ul className="space-y-0.5">
             {excluded.map((section) => {

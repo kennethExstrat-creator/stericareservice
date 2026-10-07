@@ -10,7 +10,7 @@ import { useInspectionMedia, usePhotoQueue, useStartPhotoQueue, type PhotoFocus 
 import { slotFiles } from "@/components/capture/photos/photo-model";
 import { moduleSlotKey, NOTHING_PREPARING } from "@/components/capture/photos/queue-state";
 import { photoQueueStore } from "@/components/capture/photos/queue-store";
-import { EMPTY_TAG_OPTIONS, FILE_KIND_LABEL, countFiles } from "@/lib/inspections/photos/view";
+import { EMPTY_TAG_OPTIONS, countFiles } from "@/lib/inspections/photos/view";
 import type { InspectionFileKind } from "@/lib/photos/files";
 import { cn } from "@/lib/utils";
 import { FileAddControls } from "./file-add-controls";
@@ -41,7 +41,7 @@ export type FileSlotProps = {
    * Delete included. Default true.
    */
   canAdd?: boolean;
-  /** Heading; by default the kind ("Lab reports"). */
+  /** Heading; by default the kind ("Lab Reports"). */
   title?: string;
   headingLevel?: 2 | 3;
   onAdded?: (file: AddedFile) => void;
@@ -50,10 +50,18 @@ export type FileSlotProps = {
   className?: string;
 };
 
+/** The slot's heading by kind, also the empty state's words ("No lab reports yet."). */
 const PLURAL: Readonly<Record<InspectionFileKind, string>> = {
-  lab_report: "Lab reports",
+  lab_report: "Lab Reports",
   certificate: "Certificates",
   other: "Documents",
+};
+
+/** The add button by kind. */
+const ADD_LABEL: Readonly<Record<InspectionFileKind, string>> = {
+  lab_report: "Add Lab Report",
+  certificate: "Add Certificate",
+  other: "Add Document",
 };
 
 export function FileSlot({
@@ -84,7 +92,7 @@ export function FileSlot({
   const canEditUploaded = !readOnly && access?.canEdit === true;
   const preparing = queue.preparingByModule[moduleSlotKey(inspectionId, moduleKey)] ?? NOTHING_PREPARING;
   const Heading = headingLevel === 2 ? "h2" : "h3";
-  const label = `Add ${FILE_KIND_LABEL[kind].toLowerCase()}`;
+  const label = ADD_LABEL[kind];
   const heading = useRef<HTMLHeadingElement>(null);
   const focusHeading = useCallback(() => heading.current?.focus(), []);
 

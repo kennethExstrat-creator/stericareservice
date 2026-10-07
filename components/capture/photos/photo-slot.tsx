@@ -2,8 +2,8 @@
 
 // The photo slot of one module on the capture screen (BUILD_SPEC 8.1): the
 // module's photos, uploaded or still on this device, and the controls that
-// add more. On the iPad "Take photo" opens the rear camera and "Add from
-// library" picks several; on a desktop several files are dropped or chosen.
+// add more. On the iPad "Take Photo" opens the rear camera and "Add From
+// Library" picks several; on a desktop several files are dropped or chosen.
 // New photos are tagged with the module and with whatever size, hand,
 // defect or box is in focus when they are added, processed in the browser
 // and uploaded in the background: the inspector never waits.
@@ -19,7 +19,7 @@ export type PhotoSlotProps = {
   /** The capture screen's read-only state: approved, or not the user's to edit. */
   readOnly?: boolean;
   /**
-   * False when the module card's own "Take photo" and "Add from library"
+   * False when the module card's own "Take Photo" and "Add From Library"
    * buttons add the photos (wire them with useAddPhotos); the slot then
    * shows the photos only.
    */

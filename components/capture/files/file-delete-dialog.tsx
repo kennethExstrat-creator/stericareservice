@@ -87,7 +87,7 @@ export function FileDeleteDialog({
             </AlertDialogCancel>
             <Button type="submit" variant="destructive" disabled={pending}>
               {pending && <Spinner aria-hidden />}
-              {pending ? (file.queued ? "Removing…" : "Deleting…") : file.queued ? "Remove file" : "Delete file"}
+              {pending ? (file.queued ? "Removing…" : "Deleting…") : file.queued ? "Remove File" : "Delete File"}
             </Button>
           </AlertDialogFooter>
         </form>

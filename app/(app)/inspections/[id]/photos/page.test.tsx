@@ -157,7 +157,7 @@ describe("/inspections/[id]/photos", () => {
     await expect(render({ kind: "not_found" })).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
   });
 
-  it("hands a failed load to the error screen, which offers Try again", async () => {
+  it("hands a failed load to the error screen, which offers to try again", async () => {
     await expect(render({ kind: "error", message: "The photos could not be loaded." })).rejects.toThrow(
       "The photos could not be loaded.",
     );
@@ -165,27 +165,30 @@ describe("/inspections/[id]/photos", () => {
 
   it("shows the owner every photo by module in template order, untagged last, with the add controls", async () => {
     const html = await render({ kind: "ok", media: media() });
-    expect(html).toContain("Photos and files");
+    expect(html).toContain("Photos and Files");
+    expect(html).toContain("Back to Inspection");
+    expect(html).toContain("Add Photos");
     expect(html).toContain("INS-2026-0042");
     expect(html).toContain(`href="/inspections/${INSPECTION}"`);
     expect([...html.matchAll(/data-group="([^"]+)"/g)].map(([, key]) => key)).toEqual(["dimensions", "visual", "untagged"]);
     expect(html).toContain("3 photos in 2 modules · 1 file");
     // The iPad's two buttons and the desktop's drop zone; the camera input opens the rear camera.
-    expect(html).toContain("Take photo");
-    expect(html).toContain("Add from library");
+    expect(html).toContain("Take Photo");
+    expect(html).toContain("Add From Library");
     expect(html).toContain("Drop photos here, several at once");
     expect(html).toMatch(/<input[^>]*type="file"[^>]*accept="image\/\*"[^>]*capture="environment"/);
     expect(html).toMatch(/<input[^>]*type="file"[^>]*accept="image\/\*"[^>]*multiple=""/);
     // Tags in words, under the module's heading.
     expect(html).toContain("Size M · Thin spot");
     expect(html).toContain("Near the cuff");
-    expect(html).toContain("In report");
+    // The tile's badge, in the kit's case (components/qc/photo-tile.tsx); never the admin's "Include in Report".
+    expect(html).toMatch(/>In report</i);
     expect(html).toContain("Edit a photo to tag it with the module it belongs to.");
     // Lab reports: the force at break slot, its file and its own picker.
-    expect(html).toContain("Lab reports and certificates");
+    expect(html).toContain("Lab Reports and Certificates");
     expect(html).toContain("Force at break.pdf");
     expect(html).toContain('accept="application/pdf,.pdf,image/*"');
-    expect(html).toContain("Add lab report");
+    expect(html).toContain("Add Lab Report");
     expect(unanchoredSrOnly(html)).toEqual([]);
   });
 
@@ -202,11 +205,11 @@ describe("/inspections/[id]/photos", () => {
       media: media({ inspection: { ...media().inspection, status: "submitted" }, access: { canEdit: false, isAdmin: false } }),
     });
     expect(html).toContain("This inspection has been submitted, so its photos and files can no longer change.");
-    expect(html).not.toContain("Add photos");
-    expect(html).not.toContain("Take photo");
-    expect(html).not.toContain("Edit tags and caption");
-    expect(html).not.toContain("Delete photo");
-    expect(html).not.toContain("Add lab report");
+    expect(html).not.toMatch(/Add photos/i);
+    expect(html).not.toMatch(/Take photo/i);
+    expect(html).not.toMatch(/Edit tags and caption/i);
+    expect(html).not.toMatch(/Delete photo/i);
+    expect(html).not.toMatch(/Add lab report/i);
     expect(html).toContain("Open<span");
   });
 
@@ -217,8 +220,8 @@ describe("/inspections/[id]/photos", () => {
     });
     expect(html).toContain("You can still choose which photos go into the report.");
     expect(html.match(/role="switch"/g)).toHaveLength(3);
-    expect(html).not.toContain("Edit tags and caption");
-    expect(html).not.toContain("Take photo");
+    expect(html).not.toMatch(/Edit tags and caption/i);
+    expect(html).not.toMatch(/Take photo/i);
   });
 
   it("says what could not be loaded, and invites the first photo", async () => {
@@ -227,7 +230,7 @@ describe("/inspections/[id]/photos", () => {
       media: media({ photos: [], files: [], problems: ["Some photos could not be shown. Reload the page to try again."] }),
     });
     expect(html).toContain("Some photos could not be shown.");
-    expect(html).toContain("No photos yet");
+    expect(html).toContain(">No Photos Yet</h2>");
     expect(html).toContain("No lab reports yet.");
   });
 });

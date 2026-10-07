@@ -56,7 +56,7 @@ export function UploadNotices({ inspectionId, className }: { inspectionId: strin
         title="Sign in again to upload"
         action={
           <Button asChild size="sm" variant="outline">
-            <Link href={`${LOGIN_PATH}?next=${encodeURIComponent(pathname ?? "/")}`}>Sign in</Link>
+            <Link href={`${LOGIN_PATH}?next=${encodeURIComponent(pathname ?? "/")}`}>Sign In</Link>
           </Button>
         }
       >

@@ -331,7 +331,7 @@ export interface PhotoUploadStatus {
   /** Queued and not uploaded yet, failed ones included. */
   photos: number;
   files: number;
-  /** Stopped on a failure that needs the inspector: Try again or Remove. */
+  /** Stopped on a failure that needs the inspector: Try Again or Remove. */
   failed: number;
   /** Everything not uploaded yet: the badge. */
   pending: number;

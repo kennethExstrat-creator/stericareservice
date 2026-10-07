@@ -139,7 +139,7 @@ export function SubmitControl({
         <AlertDialogContent>
           <form action={formAction} className="grid gap-6">
             <AlertDialogHeader>
-              <AlertDialogTitle className="text-lg font-bold">Submit {refNo} for review?</AlertDialogTitle>
+              <AlertDialogTitle className="text-lg font-bold">Submit {refNo} for Review?</AlertDialogTitle>
               <AlertDialogDescription>
                 Once it is submitted it can no longer be changed here. An admin reviews it and can send it back.
               </AlertDialogDescription>
@@ -169,7 +169,7 @@ export function SubmitControl({
                 className={cn(pending && "cursor-progress")}
               >
                 {pending ? <Spinner aria-hidden /> : <SendIcon aria-hidden />}
-                {pending ? "Submitting…" : "Submit for review"}
+                {pending ? "Submitting…" : "Submit for Review"}
               </Button>
             </AlertDialogFooter>
           </form>
@@ -195,7 +195,7 @@ export function SubmitSummary({
   return (
     <dl className="grid gap-3 text-sm touch:text-base">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <dt className="text-muted-foreground">Suggested result</dt>
+        <dt className="text-muted-foreground">Suggested Result</dt>
         <dd>
           <StatusPill status={suggested.result} />
         </dd>

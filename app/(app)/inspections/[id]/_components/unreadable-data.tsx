@@ -69,7 +69,9 @@ export function UnreadableData({
       : [{ key: "first", path: null, message: describeFallback(fallback) }];
   // As many as the list shows: one value the schema rejects may take its parent with it, but it is one problem.
   const count = readable === null ? null : listed.length;
-  const what = count === null ? "everything saved for this section" : count === 1 ? "this value" : `these ${count} values`;
+  // The confirmation's title and its button, in Title Case: nothing can be read, or some values cannot.
+  const confirmTitle = count === null ? "Clear This Section?" : count === 1 ? "Remove This Value?" : `Remove These ${count} Values?`;
+  const confirmLabel = count === null ? "Clear This Section" : count === 1 ? "Remove It" : `Remove ${count} Values`;
 
   return (
     <div
@@ -115,7 +117,7 @@ export function UnreadableData({
             <AlertDialogTrigger asChild>
               <Button type="button" variant="outline" className="bg-card" data-action="remove-unreadable">
                 <EraserIcon aria-hidden />
-                {readable === null ? "Clear this section" : "Remove the values that cannot be read"}
+                {readable === null ? "Clear This Section" : "Remove the Values That Cannot Be Read"}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent
@@ -127,9 +129,7 @@ export function UnreadableData({
               }}
             >
               <AlertDialogHeader>
-                <AlertDialogTitle className="text-lg font-bold">
-                  {readable === null ? "Clear this section?" : `Remove ${what}?`}
-                </AlertDialogTitle>
+                <AlertDialogTitle className="text-lg font-bold">{confirmTitle}</AlertDialogTitle>
                 <AlertDialogDescription>
                   {readable === null
                     ? "Everything saved for this section is removed, as none of it can be read. The inspector comment stays. You then enter the section again."
@@ -145,7 +145,7 @@ export function UnreadableData({
                     onRemove(readable === null ? definition.emptyData() : readable.data);
                   }}
                 >
-                  {readable === null ? "Clear this section" : count === 1 ? "Remove it" : `Remove ${count} values`}
+                  {confirmLabel}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

@@ -66,11 +66,11 @@ export default async function CapturePage({ params, searchParams }: PageProps<"/
         icon={FileWarningIcon}
         tone="error"
         eyebrow={loaded.refNo}
-        title="This inspection cannot be opened"
+        title="This Inspection Cannot Be Opened"
         description="Its template could not be read by this version of the app. Nothing has been changed. Ask an admin to check the template."
         actions={
           <Button asChild size="lg">
-            <Link href={HOME_PATH}>Back to inspections</Link>
+            <Link href={HOME_PATH}>Back to Inspections</Link>
           </Button>
         }
       />
