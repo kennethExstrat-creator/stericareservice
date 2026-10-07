@@ -13,10 +13,24 @@
 // form after every action, and the pickers (Radix Select and RadioGroup) go
 // back to empty on a reset, so a failed attempt would lose the choices and
 // the message saying why.
+//
+// Every change is kept in the tab as it happens (../_lib/draft.ts), so a
+// reload or a tab the iPad dropped brings the choices and the typed name
+// back. Create and Cancel remove them.
 import { ClipboardListIcon, OctagonXIcon, PlusIcon } from "lucide-react";
 import Link from "next/link";
-import { unstable_rethrow } from "next/navigation";
-import { startTransition, useActionState, useEffect, useId, useRef, useState, type FormEvent } from "react";
+import {
+  startTransition,
+  useActionState,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type FormEvent,
+  type MouseEvent,
+} from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
@@ -40,6 +54,18 @@ import {
 import { INSPECTIONS_PATH } from "@/lib/inspections/search-params";
 import { ProductTypeSchema, type ProductType } from "@/lib/schemas/common";
 import { createInspection, type CreateInspectionState } from "../actions";
+import {
+  draftKey,
+  foundDraftStore,
+  NO_CHOICES,
+  readDraft,
+  removeDraft,
+  restoreChoices,
+  rethrowNavigation,
+  tabStorage,
+  writeDraft,
+  type NewInspectionChoices,
+} from "../_lib/draft";
 import { templateLabel } from "../_lib/text";
 import type { Option, PreviousProduct, TemplateOption } from "../_lib/types";
 import { ChoiceCard } from "./choice-card";
@@ -82,7 +108,12 @@ function focusTargetId(id: string, field: NewInspectionField): string {
   }
 }
 
+/** The server and hydration see no draft, so the form renders as the server sent it. */
+const NO_DRAFT = () => null;
+
 type NewInspectionFormProps = {
+  /** The signed-in user: the draft kept in the tab is theirs alone. */
+  userId: string;
   role: "inspector" | "admin";
   clients: readonly Option[];
   manufacturers: readonly Option[];
@@ -90,17 +121,45 @@ type NewInspectionFormProps = {
   previous: readonly PreviousProduct[];
 };
 
-export function NewInspectionForm({ role, clients, manufacturers, templates, previous }: NewInspectionFormProps) {
+/**
+ * The form, starting from the user's draft kept in the tab, as far as the page
+ * still offers its choices. A draft found after hydration starts the form
+ * again from it (the key), so the pickers mount with the choices rather than
+ * change to them: a Radix Select whose value changes before its options are
+ * in place reports itself cleared.
+ */
+export function NewInspectionForm({ userId, ...offered }: NewInspectionFormProps) {
+  const storageKey = draftKey(userId);
+  const draftStore = useMemo(() => foundDraftStore(() => readDraft(tabStorage(), storageKey)), [storageKey]);
+  const found = useSyncExternalStore(draftStore.subscribe, draftStore.get, NO_DRAFT);
+  return (
+    <ChoicesForm
+      key={`${storageKey}:${found ? "draft" : "new"}`}
+      {...offered}
+      storageKey={storageKey}
+      initial={found ? restoreChoices(found, offered) : NO_CHOICES}
+    />
+  );
+}
+
+type ChoicesFormProps = Omit<NewInspectionFormProps, "userId"> & {
+  /** Where the tab keeps the draft. */
+  storageKey: string;
+  /** The choices the form opens with. */
+  initial: NewInspectionChoices;
+};
+
+function ChoicesForm({ storageKey, initial, role, clients, manufacturers, templates, previous }: ChoicesFormProps) {
   const id = useId();
-  const [clientId, setClientId] = useState("");
-  const [manufacturerId, setManufacturerId] = useState("");
-  const [productType, setProductType] = useState<ProductType | null>(null);
+  const [choices, setChoices] = useState(initial);
+  /** The choices as last changed, ahead of the next render: two changes in one go both count. */
+  const latest = useRef(initial);
+  const { clientId, manufacturerId, productType, templateId } = choices;
   /** The product name as the user typed it. */
-  const [typedName, setTypedName] = useState("");
+  const typedName = choices.productName;
+  const previousId = choices.previous;
   /** The earlier inspection whose product name fills the field, until the user edits it. */
-  const [nameFrom, setNameFrom] = useState<string | null>(null);
-  const [previousId, setPreviousId] = useState("");
-  const [templateId, setTemplateId] = useState("");
+  const nameFrom = choices.nameFromPrevious ? choices.previous : null;
   const [errors, setErrors] = useState<FieldErrors>({});
   const [message, setMessage] = useState<string | null>(null);
   const alertRef = useRef<HTMLDivElement>(null);
@@ -147,8 +206,8 @@ export function NewInspectionForm({ role, clients, manufacturers, templates, pre
       try {
         return settle(await createInspection(current, formData));
       } catch (error) {
-        // The Server Action redirects to the new inspection by throwing: let Next.js have it.
-        unstable_rethrow(error);
+        // A redirect is the inspection created: the draft goes, and Next.js follows it.
+        rethrowNavigation(error, tabStorage(), storageKey);
         console.error(error);
         return settle({ status: "error", message: UNREACHABLE });
       }
@@ -171,10 +230,24 @@ export function NewInspectionForm({ role, clients, manufacturers, templates, pre
     (control ?? alertRef.current)?.focus();
   }, [state, id]);
 
+  /** A change of choice or name, kept in the tab as it happens. */
+  function update(change: Partial<NewInspectionChoices>) {
+    const next = { ...latest.current, ...change };
+    latest.current = next;
+    setChoices(next);
+    writeDraft(tabStorage(), storageKey, next);
+  }
+
   /** A change clears that field's error and the message about the last attempt. */
   function changed(field: NewInspectionField) {
     setMessage(null);
     if (errors[field]) setErrors((current) => ({ ...current, [field]: undefined }));
+  }
+
+  /** Cancel drops the draft; a click that opens the list in another tab keeps it. */
+  function cancel(event: MouseEvent<HTMLAnchorElement>) {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    removeDraft(tabStorage(), storageKey);
   }
 
   const names = {
@@ -200,7 +273,7 @@ export function NewInspectionForm({ role, clients, manufacturers, templates, pre
                   <Select
                     value={clientId}
                     onValueChange={(value) => {
-                      setClientId(value);
+                      update({ clientId: value });
                       changed("clientId");
                     }}
                   >
@@ -234,7 +307,7 @@ export function NewInspectionForm({ role, clients, manufacturers, templates, pre
                   <Select
                     value={manufacturerId}
                     onValueChange={(value) => {
-                      setManufacturerId(value);
+                      update({ manufacturerId: value });
                       changed("manufacturerId");
                     }}
                     disabled={manufacturers.length === 0}
@@ -282,7 +355,7 @@ export function NewInspectionForm({ role, clients, manufacturers, templates, pre
                   onValueChange={(value) => {
                     const parsed = ProductTypeSchema.safeParse(value);
                     if (!parsed.success) return;
-                    setProductType(parsed.data);
+                    update({ productType: parsed.data });
                     changed("productType");
                   }}
                   aria-invalid={errors.productType ? true : undefined}
@@ -316,8 +389,7 @@ export function NewInspectionForm({ role, clients, manufacturers, templates, pre
                   placeholder={nameOff ? NO_PRODUCT_NAME : undefined}
                   className={nameOff ? "disabled:bg-muted disabled:opacity-100 disabled:shadow-none" : undefined}
                   onChange={(event) => {
-                    setTypedName(event.target.value);
-                    setNameFrom(null);
+                    update({ productName: event.target.value, nameFromPrevious: false });
                     changed("productName");
                   }}
                   maxLength={PRODUCT_NAME_MAX}
@@ -346,9 +418,8 @@ export function NewInspectionForm({ role, clients, manufacturers, templates, pre
               value={fromPrevious?.inspectionId ?? START_BLANK}
               onValueChange={(value) => {
                 const product = products.find((entry) => entry.inspectionId === value) ?? null;
-                setPreviousId(product?.inspectionId ?? "");
                 // A named product fills in its name; Start blank or an unnamed one gives back what was typed.
-                setNameFrom(product?.productName ? product.inspectionId : null);
+                update({ previous: product?.inspectionId ?? "", nameFromPrevious: Boolean(product?.productName) });
                 changed("previousId");
               }}
               template={chosen}
@@ -372,7 +443,7 @@ export function NewInspectionForm({ role, clients, manufacturers, templates, pre
               overrides={templates}
               overrideId={overrideId}
               onOverrideChange={(value) => {
-                setTemplateId(value);
+                update({ templateId: value });
                 changed("templateId");
               }}
               overrideError={errors.templateId}
@@ -388,7 +459,9 @@ export function NewInspectionForm({ role, clients, manufacturers, templates, pre
 
             <div className="flex flex-wrap items-center justify-end gap-3">
               <Button asChild variant="outline">
-                <Link href={INSPECTIONS_PATH}>Cancel</Link>
+                <Link href={INSPECTIONS_PATH} onClick={cancel}>
+                  Cancel
+                </Link>
               </Button>
               <Button type="submit" className="min-w-44">
                 {pending ? <Spinner aria-hidden /> : <PlusIcon aria-hidden />}

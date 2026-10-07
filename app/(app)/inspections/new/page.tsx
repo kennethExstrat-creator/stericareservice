@@ -32,6 +32,7 @@ export default async function NewInspectionPage() {
       />
       {options ? (
         <NewInspectionForm
+          userId={user.id}
           role={user.role}
           clients={options.clients}
           manufacturers={options.manufacturers}
