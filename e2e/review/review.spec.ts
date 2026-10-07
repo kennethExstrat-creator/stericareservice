@@ -309,16 +309,22 @@ test.describe("reviewing inspections", () => {
   });
 
   test("once the inspector submits it again, it waits for review again", async ({ page, context, baseURL }) => {
-    // What the capture screen's submit does: a plain status update in the
-    // inspector's own session, checked by row level security and the guard.
-    const inspector = await as.client("inspector");
-    const { data: resubmitted, error } = await inspector
-      .from("inspections")
-      .update({ status: "submitted" })
-      .eq("id", fixture.B.id)
-      .select("status")
-      .single();
+    // What the capture screen's submit does since inspectors write through the
+    // app's functions (migration 20261007190000; an inspector's own session may
+    // not update inspections directly): submit_inspection with the secret key,
+    // for the inspector, which checks them again and names them in the history.
+    const admin = createTestAdminClient();
+    const { data: current, error: readError } = await admin.from("inspections").select("updated_at").eq("id", fixture.B.id).single();
+    expect(readError).toBeNull();
+    const { data: submittedAt, error } = await admin.rpc("submit_inspection", {
+      inspection_id: fixture.B.id,
+      actor_id: fixture.inspectorId,
+      base_updated_at: current!.updated_at,
+      mirrored_columns: {},
+    });
     expect(error).toBeNull();
+    expect(submittedAt).not.toBeNull();
+    const { data: resubmitted } = await admin.from("inspections").select("status").eq("id", fixture.B.id).single();
     expect(resubmitted?.status).toBe("submitted");
 
     await as.signIn(context, baseURL!, "admin");

@@ -105,7 +105,8 @@ test("a labelling photo of the carton says so on the report photos", async ({ pa
   const [cartonPhoto] = fixture.extraPhotoIds;
   const tile = page.getByRole("region", { name: "Report Photos" }).locator(`li[data-photo="${cartonPhoto}"]`);
   await expect(tile).toContainText("Size M · Box 1324 · Carton Box");
-  await expect(tile.getByRole("link")).toHaveAttribute("aria-label", /Size M, Box 1324, Carton Box$/);
+  // Named by what it shows, then where it opens.
+  await expect(tile.getByRole("link")).toHaveAttribute("aria-label", /Size M · Box 1324 · Carton Box \(opens full size in a new tab\)$/);
   await tile.scrollIntoViewIfNeeded();
   await viewShot(page, "wording-report-photos");
 });
