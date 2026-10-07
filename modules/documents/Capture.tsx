@@ -212,7 +212,8 @@ export function DocumentRow({
       {...issuePathProps(["items", item.key])}
     >
       <div className="flex items-start justify-between gap-3 xl:flex-col xl:justify-start xl:gap-1">
-        <div className="min-w-0 space-y-1">
+        {/* As wide as the row allows, so every row's file line has the same width. */}
+        <div className="min-w-0 flex-1 space-y-1 xl:w-full xl:flex-none">
           <p id={`${uid}-name`} className="font-semibold text-foreground touch:text-base">
             {name}
           </p>
@@ -282,7 +283,8 @@ export function DocumentRow({
 
       <div className="grid gap-3 sm:grid-cols-2 xl:contents">
         <div className="space-y-1.5" {...issuePathProps(path("referenceNo"))}>
-          <Label htmlFor={`${uid}-reference`} className="touch:text-base xl:sr-only">
+          {/* leading-snug, as DateField's label beside it, so the two fields line up. */}
+          <Label htmlFor={`${uid}-reference`} className="leading-snug touch:text-base xl:sr-only">
             {labelFor(labels, "referenceNo")}
           </Label>
           <Input

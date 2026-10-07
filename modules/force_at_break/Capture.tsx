@@ -97,7 +97,7 @@ export default function Capture({
         data-state={reportState}
         {...issuePathProps(["labReport"])}
         aria-label={reportLabel}
-        className="relative space-y-2"
+        className="relative space-y-3"
       >
         <AttachmentStatus label={reportLabel} attached={reportState === "attached"} />
         {missing && (
