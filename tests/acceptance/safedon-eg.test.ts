@@ -223,6 +223,8 @@ describe("SAFEDON_EG example as a whole inspection (expected results A)", () => 
   it("Sampling notice at inspection level I: XS and L need 200, S and M need 500; 80 and 200 are flagged as below plan", () => {
     const sampling = evaluated.module("sampling_plan");
     expect(computedAt(sampling, "inspectionLevel")).toBe("I");
+    // The lot check uses the AQLs the template's watertight and visual apply (AQL_SOURCES).
+    expect(evaluated.context.aql).toEqual({ watertight: 1.5, critical: 0, major: 2.5, minor: 4, inspectionLevel: "I" });
     for (const [size, expected] of Object.entries(EXPECTED.sampling)) {
       expect(computedAt(sampling, "sizes", size), size).toMatchObject({
         lotSizeGloves: expected.lotGloves,

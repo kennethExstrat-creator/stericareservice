@@ -257,6 +257,8 @@ describe("STD_EG example as a whole inspection (expected results B)", () => {
       });
     }
     expect(computedAt(sampling, "inspectionLevel")).toBe("I");
+    // The lot check uses the AQLs the template's watertight and visual apply (AQL_SOURCES).
+    expect(original.context.aql).toEqual({ watertight: 1.5, critical: 0, major: 2.5, minor: 4, inspectionLevel: "I" });
     expect(sampling.result.status).toBe("info");
     expect(original.report.issues.filter((issue) => issue.moduleKey === "sampling_plan")).toEqual([]);
   });

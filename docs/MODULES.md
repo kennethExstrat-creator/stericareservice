@@ -368,6 +368,7 @@ import { FileSlotProvider } from "@/modules/_framework/file-slot";
 ## 11. Testing
 
 - Vitest, files next to the code: `schema.test.ts`, `calc.test.ts`. Every rule in your brief has a test; every result in `docs/examples/expected-results.md` that your module produces has a test with placeholder identifiers.
+- `tests/acceptance/` runs both example reports through every module as whole inspections, on the seed templates as seeded (`seed-bundle.json`), and checks every row of the expected results (BUILD_SPEC 12, Phase 2). A change to a module's result, computed values or issues shows there too.
 - `expect(checkModuleContract(definition)).toEqual([])`: defaults parse, empty data parses and is not done, the config becomes JSON Schema, canonical paths exist, contributions stay in your parts. Calc runs on empty data with size M ordered, except that a source module's own parts come from its contribution on that empty data, as in the engine (an `order_lots` with nothing entered orders no size). `modules/registry.test.ts` runs it on every module too.
 - `makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ watertightVisual: 500 }) }, cartons: { M: [32, 578] } })` builds a context for calc tests (`@/modules/_framework/testing`).
 - Through the engine, with the real registry (a test may import it):
