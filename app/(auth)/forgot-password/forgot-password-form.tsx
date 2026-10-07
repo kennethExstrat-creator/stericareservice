@@ -53,7 +53,6 @@ export function ForgotPasswordForm() {
       <AuthHeading
         titleId={TITLE_ID}
         title="Reset your password"
-        description="Enter the email you sign in with. We will send you a link to choose a new password."
       />
       <form action={formAction} noValidate className="space-y-5">
         {state.message && <AuthNotice key={state.attempt} tone="error" title={state.message} />}

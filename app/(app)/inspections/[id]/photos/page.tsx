@@ -49,7 +49,6 @@ export default async function InspectionPhotosPage({ params }: PageProps<"/inspe
       <PageHeader
         eyebrow={media.inspection.refNo}
         title="Photos and files"
-        description="Every photo of this inspection by module, with its lab reports and certificates."
         actions={
           <Button asChild variant="outline">
             <Link href={`/inspections/${id}`}>

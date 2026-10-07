@@ -52,7 +52,6 @@ export function ManufacturersAdmin({
       <PageHeader
         eyebrow="Admin"
         title="Manufacturers"
-        description="The factories you inspect at. Templates and inspections pick from this list."
         actions={
           <Button ref={addButton} onClick={add}>
             <PlusIcon aria-hidden />

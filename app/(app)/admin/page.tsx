@@ -53,7 +53,6 @@ export default async function AdminOverviewPage() {
       <PageHeader
         eyebrow="Admin"
         title="Overview"
-        description="What is waiting for you, every admin screen and the set-up checks. Only admins see this page."
       />
 
       <Section id="inspections-waiting" title="Inspections">

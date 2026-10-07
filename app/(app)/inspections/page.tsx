@@ -75,11 +75,6 @@ export default async function InspectionsPage({ searchParams }: PageProps<"/insp
       <PageHeader
         eyebrow={isAdmin ? "All inspectors" : "Your inspections"}
         title="Inspections"
-        description={
-          isAdmin
-            ? "Every inspection, newest first. Search by ref, PO or lot number."
-            : "Your inspections, newest first. Search by ref, PO or lot number."
-        }
         actions={<NewInspectionButton />}
       />
 

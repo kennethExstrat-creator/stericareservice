@@ -22,7 +22,6 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
       <AuthHeading
         size="display"
         title="Sign in"
-        description="Accounts are created by your SteriCare administrator."
       />
       <LoginForm next={Array.isArray(next) ? next[0] : next} notice={loginNotice(error)} />
     </div>
