@@ -41,6 +41,7 @@ import {
   viewShot,
   type AdminClient,
 } from "./safedon-eg.steps";
+import { expectNoPageScroll } from "../support/layout";
 
 /**
  * Acceptance (BUILD_SPEC 12, Phase 2 done-when): the SAFEDON_EG example
@@ -129,11 +130,6 @@ async function openCapture(page: Page, baseURL: string | undefined) {
   await expect(savePill(page)).toHaveAttribute("data-state", "saved");
   // The pill is in the server's HTML: an editable field means the page has hydrated and the autosave runs.
   await expect(frame(page).locator("input:visible, textarea:visible").first()).toBeEditable();
-}
-
-async function expectNoPageScroll(page: Page) {
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-  expect(overflow, "the page scrolls sideways").toBeLessThanOrEqual(0);
 }
 
 /** 44 px touch targets on the iPad (docs/DESIGN.md). */

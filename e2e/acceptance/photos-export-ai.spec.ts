@@ -207,9 +207,14 @@ async function photosInOrder(inspectionId: string) {
   );
 }
 
+/** As e2e/support/layout.ts, but soft, so one run lists every page that widens. */
 async function expectNoPageScroll(page: Page): Promise<void> {
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-  expect.soft(overflow, `${page.url()} scrolls sideways`).toBeLessThanOrEqual(0);
+  const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth,
+  }));
+  const viewport = page.viewportSize()?.width ?? clientWidth;
+  expect.soft(scrollWidth, `${page.url()} scrolls sideways`).toBeLessThanOrEqual(Math.min(clientWidth, viewport));
 }
 
 test("photos from four modules on the iPad, the export and the AI second opinion on the desktop", async ({

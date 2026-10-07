@@ -15,6 +15,7 @@ import {
   standardTemplates,
   type NewFixture,
 } from "./fixtures";
+import { expectNoPageScroll } from "../support/layout";
 
 /**
  * /inspections/new (BUILD_SPEC 4.4, 8 and 10) against the live project, at
@@ -84,11 +85,6 @@ function watchConsole(page: Page) {
   });
   page.on("pageerror", (error) => errors.push(error.message));
   return () => errors.filter((text) => /hydrat|did not match|server rendered/i.test(text));
-}
-
-async function expectNoPageScroll(page: Page) {
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-  expect(overflow, "the page scrolls sideways").toBeLessThanOrEqual(0);
 }
 
 async function choose(page: Page, label: string, option: string | RegExp) {
