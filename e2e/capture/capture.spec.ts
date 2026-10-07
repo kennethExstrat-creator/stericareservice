@@ -325,6 +325,8 @@ test("a number typed just before Photos is saved, though the tap leaves the focu
   await expect
     .poll(async () => (await storedData(fixture.inspectionId)).data, { timeout: 15_000 })
     .toMatchObject({ modules: { glove_info: { indicativeWeight: 4.2 } } });
+  // The gallery has arrived: the test does not close the page in the middle of its stream.
+  await expect(page.getByRole("heading", { level: 1, name: "Photos and files" })).toBeVisible();
 });
 
 test("a change made just before leaving the screen reaches the server", async ({ page, context, baseURL }) => {
@@ -619,11 +621,11 @@ test("tensile counts its lab report once attached and not once it is deleted, an
 
   if (!isDesktop()) {
     // The size chosen here stays chosen in the next module that opens on one (CaptureProps.focus).
-    await press(page.getByRole("tab", { name: /^L\b/ }));
+    await press(page.getByRole("tab", { name: /^Size L\b/ }));
     await expect(page.locator('[data-slot="next-tags"]').filter({ hasText: "Size L" })).toBeVisible();
     await openSection(page, "Glove Information");
     await openSection(page, TENSILE);
-    await expect(page.getByRole("tab", { name: /^L\b/ })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("tab", { name: /^Size L\b/ })).toHaveAttribute("aria-selected", "true");
   }
 
   const slot = frame.locator('[data-slot="file-slot"][data-module="tensile"]');
