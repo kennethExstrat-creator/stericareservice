@@ -84,63 +84,53 @@ async function expectNoPageScroll(page: Page) {
   expect(overflow, "the page scrolls sideways").toBeLessThanOrEqual(0);
 }
 
-/** On touch nothing hovers, so a long name must show in full (up to two lines), not cut off. */
+/** A name shown in full on its one line: not cut with an ellipsis. */
 async function expectShownInFull(text: Locator) {
   await expect(text).toHaveCount(1);
-  const cut = await text.evaluate((el) => el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1);
+  const cut = await text.evaluate((el) => el.scrollWidth > el.clientWidth + 1);
   expect(cut, `${await text.textContent()} is cut off`).toBe(false);
 }
 
-/**
- * Desktop: rows stay one line, and a name too long for its column is cut
- * with an ellipsis (the tooltip has it all). These names must not be: each
- * is checked on its own text, since text cut that way never spills out of
- * its cell (expectRowsFit cannot see it).
- */
+/** These names show whole on their one line (24rem fits them all). */
 async function expectNamesWhole(entries: [row: Locator, name: string][]) {
-  for (const [inRow, name] of entries) await expectShownInFull(inRow.locator(`[title="${name}"]`).filter({ visible: true }));
+  for (const [inRow, name] of entries) await expectShownInFull(inRow.locator(`[title="${name}"]`));
 }
 
 /**
- * Desktop: the columns of free text are at least as wide as they were before
- * the row actions came (on the desktop only the product gives way for them).
+ * One line per row (Kenneth: one neat row each): every row as tall as the
+ * line and its buttons, 36 px with a mouse and 65 px on touch (the 44 px
+ * buttons and their padding), so a wrapped value (a second 24 px line)
+ * would show; and no cell's text runs onto a second line.
  */
-async function expectColumnsAtLeast(page: Page, widths: Record<string, number>) {
-  for (const [name, least] of Object.entries(widths)) {
-    const box = (await page.getByRole("columnheader", { name, exact: true }).boundingBox())!;
-    expect(box.width, `the ${name} column`).toBeGreaterThanOrEqual(least);
-  }
-}
-
-/** Desktop: every row is one line (36 px), its actions included. */
-async function expectCompactRows(page: Page) {
+async function expectOneLineRows(page: Page) {
   const heights = await page.locator("tbody tr").evaluateAll((rows) => rows.map((tr) => tr.getBoundingClientRect().height));
   expect(heights.length).toBeGreaterThan(0);
-  expect(Math.max(...heights), "the tallest row").toBeLessThanOrEqual(37);
-}
-
-/**
- * No row overflows or squeezes: no cell's content spills out of it, the
- * table fits its card, and no action's words are cut.
- */
-async function expectRowsFit(page: Page) {
-  const spilling = await page.locator("tbody tr").evaluateAll((rows) =>
+  expect(Math.max(...heights), "the tallest row").toBeLessThanOrEqual(isTouch() ? 65 : 37);
+  const wrapped = await page.locator("tbody tr").evaluateAll((rows) =>
     rows.flatMap((tr) =>
       [...tr.children].flatMap((cell) => {
-        const el = cell as HTMLElement;
-        if (getComputedStyle(el).display === "none") return [];
-        const over = el.scrollWidth - el.clientWidth;
-        return over > 1 ? [`${(tr as HTMLElement).dataset.ref} "${el.textContent?.slice(0, 24)}" by ${over}px`] : [];
+        const lineHeight = Number.parseFloat(getComputedStyle(cell).lineHeight);
+        const text = [...cell.querySelectorAll("span, time")].filter((el) => !el.closest(".sr-only") && el.children.length === 0);
+        return text.some((el) => el.getBoundingClientRect().height > lineHeight * 1.5)
+          ? [`${(tr as HTMLElement).dataset.ref} "${cell.textContent?.slice(0, 24)}"`]
+          : [];
       }),
     ),
   );
-  expect(spilling, "cells whose content spills out").toEqual([]);
-  const table = await page.locator("table").evaluate((el) => el.scrollWidth - (el.parentElement?.clientWidth ?? 0));
-  expect(table, "the table is wider than its card").toBeLessThanOrEqual(0);
+  expect(wrapped, "cells whose text wraps").toEqual([]);
+}
+
+/**
+ * The table scrolls inside its card, never the page, and no action's words
+ * are cut. Returns the card's sideways overflow in px (0 when it all fits).
+ */
+async function expectScrollsInItsCard(page: Page): Promise<number> {
+  await expectNoPageScroll(page);
   const cut = await page
     .locator("[data-row-action]")
     .evaluateAll((els) => els.filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => el.getAttribute("aria-label")));
   expect(cut, "actions whose words are cut").toEqual([]);
+  return page.locator('[data-slot="table-scroller"]').evaluate((el) => el.scrollWidth - el.clientWidth);
 }
 
 /** A row's main action (Continue, Review or View), by its name. */
@@ -251,11 +241,8 @@ test.describe("with inspections", () => {
     await expect(row(page, refs.B).getByRole("rowheader").getByRole("link")).toHaveCount(0);
     await expect(row(page, refs.B)).toContainText(FIXTURE_CLIENT_NAME);
     await expect(row(page, refs.B)).toContainText("3 Oct 2026", { useInnerText: true });
-    // Every value shows on the iPad: without a column of its own it sits under another. On the
-    // desktop below 1536 px the product gives way, so the names keep their room (the inspection shows it).
-    const product = "Nitrile examination gloves, blue";
-    if (isTouch()) await expect(row(page, refs.A)).toContainText(product, { useInnerText: true });
-    else await expect(row(page, refs.A)).not.toContainText(product, { useInnerText: true });
+    // Every value in its own column at every size (the list scrolls sideways for them).
+    await expect(row(page, refs.A)).toContainText("Nitrile examination gloves, blue", { useInnerText: true });
     await expect(row(page, refs.A)).toContainText("Hartalega NGC", { useInnerText: true });
     await expect(row(page, refs.A)).toContainText("E2E-LIST-PO-100", { useInnerText: true });
     await expect(row(page, refs.A)).toContainText("1 Oct 2026", { useInnerText: true });
@@ -267,35 +254,26 @@ test.describe("with inspections", () => {
       expect((await page.getByRole("link", { name: "New inspection" }).boundingBox())!.height).toBeGreaterThanOrEqual(44);
       const fontSize = await page.getByRole("searchbox", { name: "Search" }).evaluate((input) => getComputedStyle(input).fontSize);
       expect(fontSize).toBe("16px");
-      // No tooltips on touch: a long manufacturer wraps rather than losing its factory.
-      await expectShownInFull(row(page, refs.B).locator(`[title="${TERANG_NUSA_LABEL}"]`).filter({ visible: true }));
-    } else {
-      // Compact rows on the desktop, the 32 px actions included.
-      await expectCompactRows(page);
-      // At 1440 px the product gives way, so client, manufacturer and PO are not squeezed for the
-      // actions: client and manufacturer wider than before them (165 px), the PO as wide (128 px).
-      await expectColumnsAtLeast(page, { Client: 165, Manufacturer: 165, PO: 128 });
-      await expectNamesWhole([
-        [row(page, refs.A), FIXTURE_CLIENT_NAME],
-        [row(page, refs.A), "Hartalega NGC"],
-        [row(page, refs.D), "Polyco Healthline"],
-      ]);
     }
+    // Names show whole on one line, a long manufacturer with its factory included, at every size.
+    await expectNamesWhole([
+      [row(page, refs.A), FIXTURE_CLIENT_NAME],
+      [row(page, refs.A), "Hartalega NGC"],
+      [row(page, refs.D), "Polyco Healthline"],
+      [row(page, refs.B), TERANG_NUSA_LABEL],
+    ]);
+    await expectOneLineRows(page);
     for (const action of [mainAction(page, refs.A, "Continue"), deleteButton(page, refs.A), mainAction(page, refs.D, "View")]) {
       await expectActionSize(action);
     }
 
-    // On the iPad the PO sits under the ref and the result under the status, to make room for the actions.
-    await expect(page.getByRole("columnheader", { name: "PO", exact: true })).toBeVisible({ visible: !isTouch() });
-    await expect(page.getByRole("columnheader", { name: "Result", exact: true })).toBeVisible({ visible: !isTouch() });
-    // The product has a column of its own only on desktops of 1536 px and wider.
-    await expect(page.getByRole("columnheader", { name: "Product", exact: true })).toBeHidden();
-    if (isTouch()) await expect(row(page, refs.A)).toContainText("PO E2E-LIST-PO-100", { useInnerText: true });
-    // The actions' column is named for screen readers.
-    await expect(page.getByRole("columnheader", { name: "Actions", exact: true })).toHaveCount(1);
+    // Every column at every size, the PO, product and result included; the actions' column is named for screen readers.
+    for (const name of ["Ref", "Date", "Client", "Manufacturer", "Product", "PO", "Status", "Result", "Actions"]) {
+      await expect(page.getByRole("columnheader", { name, exact: true }), name).toHaveCount(1);
+    }
+    await expect(row(page, refs.A)).not.toContainText("PO E2E-LIST-PO-100", { useInnerText: true });
 
-    await expectRowsFit(page);
-    await expectNoPageScroll(page);
+    await expectScrollsInItsCard(page);
     await shot(page, "inspector-list");
     expect(hydration()).toEqual([]);
   });
@@ -307,33 +285,105 @@ test.describe("with inspections", () => {
     const { refs } = fixture;
 
     for (const ref of [refs.A, refs.B, refs.C, refs.D]) await expect(row(page, ref)).toBeVisible();
-    // Its own column on the desktop; on the iPad the name sits under the date (in portrait, the ref).
-    await expect(page.getByRole("columnheader", { name: "Inspector", exact: true })).toBeVisible({ visible: !isTouch() });
+    // A column of its own at every size.
+    await expect(page.getByRole("columnheader", { name: "Inspector", exact: true })).toHaveCount(1);
     await expect(row(page, refs.A)).toContainText("Test Inspector", { useInnerText: true });
     await expect(row(page, refs.C)).toContainText("Test Admin", { useInnerText: true });
     await expect(row(page, refs.C).getByText("Reopened")).toBeVisible();
     await expect(row(page, refs.C).getByText("On hold", { exact: true }).filter({ visible: true })).toBeVisible();
     await expect(page.getByText("All inspectors")).toBeVisible();
-    if (isTouch()) {
-      // On the iPad the product sits under the manufacturer (or the client, in portrait).
-      await expect(row(page, refs.C)).toContainText("Safedon nitrile examination gloves", { useInnerText: true });
-    } else {
-      // At 1440 px the product gives way, so no name is cut to a few letters: client and manufacturer
-      // are wider than before the actions (122 px each); the PO gives up 16 px for the Inspector column.
-      await expect(page.getByRole("columnheader", { name: "Product", exact: true })).toBeHidden();
-      await expectColumnsAtLeast(page, { Client: 122, Manufacturer: 122, PO: 112 });
-      await expectNamesWhole([
-        [row(page, refs.D), "Polyco Healthline"],
-        [row(page, refs.D), "Hartalega NGC"],
-        [row(page, refs.A), "Test Inspector"],
-      ]);
-      await expectCompactRows(page);
-    }
-
-    await expectRowsFit(page);
-    await expectNoPageScroll(page);
+    await expect(row(page, refs.C)).toContainText("Safedon nitrile examination gloves", { useInnerText: true });
+    await expectNamesWhole([
+      [row(page, refs.D), "Polyco Healthline"],
+      [row(page, refs.D), "Hartalega NGC"],
+      [row(page, refs.A), "Test Inspector"],
+      [row(page, refs.C), "Safedon nitrile examination gloves"],
+    ]);
+    await expectOneLineRows(page);
+    await expectScrollsInItsCard(page);
     await shot(page, "admin-list");
     expect(hydration()).toEqual([]);
+  });
+
+  test("the list scrolls sideways in its card, by touch, wheel or keys, with the ref and the actions pinned", async ({
+    page,
+    context,
+    baseURL,
+  }) => {
+    await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
+    await page.goto("/inspections");
+    const { refs } = fixture;
+    await expect(row(page, refs.A)).toBeVisible();
+    const scroller = page.locator('[data-slot="table-scroller"]');
+    const hidden = await expectScrollsInItsCard(page);
+    // Admins' ten columns are wider than every screen here, the 1440 px desktop with its sidebar included.
+    expect(hidden, "the table is wider than its card").toBeGreaterThan(0);
+
+    /** Where the pinned cells and a column that scrolls sit, against the card's edges. */
+    const positions = () =>
+      page.evaluate((ref) => {
+        const card = document.querySelector('[data-slot="table-scroller"]')!.getBoundingClientRect();
+        const tr = document.querySelector(`tr[data-ref="${ref}"]`)!;
+        const left = tr.querySelector("th")!.getBoundingClientRect();
+        const right = tr.lastElementChild!.getBoundingClientRect();
+        const client = tr.children[2].getBoundingClientRect();
+        return {
+          refAtLeft: Math.abs(left.left - card.left) <= 2,
+          actionsAtRight: Math.abs(right.right - card.right) <= 2,
+          clientLeft: client.left - card.left,
+        };
+      }, refs.A);
+    const start = await positions();
+    expect(start).toMatchObject({ refAtLeft: true, actionsAtRight: true });
+    await expect(scroller).toHaveAttribute("data-more", "true");
+    await expect(scroller).not.toHaveAttribute("data-scrolled");
+    await shot(page, "list-scroll-start");
+
+    // Touch on the iPads (a sideways swipe on the table), the wheel with a mouse.
+    const box = (await scroller.boundingBox())!;
+    if (isTouch()) {
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send("Input.synthesizeScrollGesture", {
+        x: Math.round(box.x + box.width / 2),
+        y: Math.round(box.y + Math.min(box.height / 2, 120)),
+        xDistance: -400,
+        gestureSourceType: "touch",
+        speed: 1500,
+      });
+    } else {
+      await page.mouse.move(box.x + box.width / 2, box.y + Math.min(box.height / 2, 120));
+      await page.mouse.wheel(400, 0);
+    }
+    await expect.poll(() => scroller.evaluate((el) => el.scrollLeft)).toBeGreaterThan(100);
+    // Still on the list: a sideways swipe never turns into the browser's Back.
+    await expect(page).toHaveURL(/\/inspections$/);
+    const scrolled = await positions();
+    expect(scrolled).toMatchObject({ refAtLeft: true, actionsAtRight: true });
+    expect(scrolled.clientLeft, "the client column moved under the pinned ref").toBeLessThan(start.clientLeft - 50);
+    await expect(scroller).toHaveAttribute("data-scrolled", "true");
+    await shot(page, "list-scrolled");
+
+    // The keyboard: the card takes the focus (tabindex 0), then the arrow keys scroll it both ways.
+    await scroller.evaluate((el) => (el as HTMLElement).focus());
+    await expect(scroller).toBeFocused();
+    // Each press scrolls a little, smoothly: press until the edge is reached.
+    const at = () => scroller.evaluate((el) => el.scrollLeft);
+    const left = () => scroller.evaluate((el) => el.scrollWidth - el.clientWidth - el.scrollLeft);
+    await expect(async () => {
+      await page.keyboard.press("ArrowLeft");
+      expect(await at()).toBe(0);
+    }).toPass({ timeout: 20_000, intervals: [50] });
+    await expect(scroller).not.toHaveAttribute("data-scrolled");
+    await page.keyboard.press("ArrowRight");
+    await expect.poll(at).toBeGreaterThan(0);
+    await expect(async () => {
+      await page.keyboard.press("ArrowRight");
+      expect(await left()).toBeLessThanOrEqual(1);
+    }).toPass({ timeout: 20_000, intervals: [50] });
+    await expect(scroller).not.toHaveAttribute("data-more");
+    expect(await positions()).toMatchObject({ refAtLeft: true, actionsAtRight: true });
+    // The pinned actions still work after scrolling: Continue on A.
+    await expect(mainAction(page, refs.A, "Continue")).toBeInViewport();
   });
 
   test("status, client and manufacturer filters narrow the list and live in the URL", async ({
