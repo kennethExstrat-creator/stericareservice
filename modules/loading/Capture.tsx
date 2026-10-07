@@ -134,16 +134,15 @@ export default function Capture({
                 integer
                 min={0}
                 issuePath={["cartonsLoaded"]}
-                // The hint describes the field, so the mismatch warning is read out with it.
                 hint={
-                  <>
-                    <span className="inline-flex flex-wrap gap-x-1.5">
-                      {labelFor(labels, "cartonsOrdered")}:
-                      <Figure value={ordered} grouping className="font-semibold text-foreground" />
-                    </span>
-                    {quantityIssue && <span className={cn("block", issueTone(quantityIssue))}>{quantityIssue.message}</span>}
-                  </>
+                  <span className="inline-flex flex-wrap gap-x-1.5">
+                    {labelFor(labels, "cartonsOrdered")}:
+                    <Figure value={ordered} grouping className="font-semibold text-foreground" />
+                  </span>
                 }
+                // Both describe the field, so the mismatch is read out with the count.
+                error={quantityIssue?.level === "error" ? quantityIssue.message : null}
+                warning={quantityIssue && quantityIssue.level !== "error" ? quantityIssue.message : null}
                 readOnly={readOnly}
               />
               {!readOnly && data.cartonsLoaded === null && ordered !== null && (

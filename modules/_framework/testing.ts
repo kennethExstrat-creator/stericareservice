@@ -29,8 +29,10 @@ const EXAMINATION_SIZES = ["XS", "S", "M", "L", "XL"];
 
 /**
  * A context for calc tests: an examination template with sizes XS to XL,
- * nothing ordered, an inspector recorded and the BUILD_SPEC 7 AQL defaults.
- * Override what the test needs; per-size parts should use ordered sizes.
+ * nothing ordered, an inspector recorded, the BUILD_SPEC 7 AQL defaults, no
+ * other modules listed and the inspection's files not known (kept file ids
+ * count as attached). Override what the test needs; per-size parts should
+ * use ordered sizes.
  */
 export function makeTestContext(overrides: Partial<InspectionContext> = {}): InspectionContext {
   return {
@@ -54,6 +56,8 @@ export function makeTestContext(overrides: Partial<InspectionContext> = {}): Ins
     cartons: {},
     indicativeWeight: null,
     aql: { ...AQL_DEFAULTS },
+    modules: [],
+    files: null,
     contributionErrors: [],
     ...overrides,
   };

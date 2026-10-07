@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { TEST_ADMIN_ID, TEST_REGISTRY, registryWith } from "./__fixtures__/test-registry";
 import {
   AQL_DEFAULTS,
   buildInspectionContext,
   cartonsFor,
+  includedModules,
+  initialSize,
   inspectionRowValues,
   lotSizeGloves,
+  moduleTitle,
   samplingFor,
   sizeLabel,
   type InspectionMeta,
@@ -110,7 +114,51 @@ describe("buildInspectionContext: numbers flow forward", () => {
 
   it("does not depend on the template's module order", () => {
     const reversed = makeTestTemplate(TEST_REGISTRY, [...ALL].reverse());
-    expect(build(exampleData(), reversed)).toEqual(build());
+    const { modules: reversedModules, ...fromReversed } = build(exampleData(), reversed);
+    const { modules, ...context } = build();
+    expect(fromReversed).toEqual(context);
+    // Only the list of modules follows the template's order, as the screen shows them.
+    expect(reversedModules?.map((entry) => entry.key)).toEqual(reversed.modules.map((entry) => entry.key));
+    expect(modules?.map((entry) => entry.key)).toEqual(["header", ...ALL, "conclusion"]);
+  });
+
+  it("lists the included modules with their titles in the template's wording", () => {
+    const template = makeTestTemplate(TEST_REGISTRY, [
+      { key: "order_lots", title: "Order quantity" },
+      { key: "weight", include: false },
+      "carton_sampling",
+    ]);
+    const context = build(exampleData(), template);
+    expect(includedModules(context)).toEqual([
+      { key: "header", title: "Manufacturer Information" },
+      { key: "order_lots", title: "Order quantity" },
+      { key: "carton_sampling", title: "Finished Goods Sampling Information (carton number)" },
+      { key: "conclusion", title: "Conclusion" },
+    ]);
+    expect(moduleTitle(context, "order_lots")).toBe("Order quantity");
+    // Not included: its key in words, never a blank.
+    expect(moduleTitle(context, "weight")).toBe("Weight");
+    expect(moduleTitle(context, "dispensing_packing")).toBe("Dispensing packing");
+    // A context built before the list existed has none.
+    expect(includedModules({})).toEqual([]);
+  });
+
+  it("carries the inspection's files when the caller knows them, else null", () => {
+    expect(build().files).toBeNull();
+    const files = [{ id: "00000000-0000-4000-8000-000000000f01", moduleKey: "tensile", kind: "lab_report" as const }];
+    const template = makeTestTemplate(TEST_REGISTRY, [...ALL]);
+    const context = buildInspectionContext({ template, data: exampleData(), meta: { ...META, files } }, TEST_REGISTRY);
+    expect(context.files).toEqual(files);
+    expect(context.files).not.toBe(files);
+  });
+
+  it("opens a per-size Capture on the size in focus when it is ordered", () => {
+    const context = { sizes: ["S", "M"] };
+    expect(initialSize(context, { size: "M" })).toBe("M");
+    expect(initialSize(context, { size: "XL" })).toBe("S");
+    expect(initialSize(context, null)).toBe("S");
+    expect(initialSize(context)).toBe("S");
+    expect(initialSize({ sizes: [] }, { size: "M" })).toBe("");
   });
 
   it("leaves a part empty when its module is switched off, unfilled or unreadable", () => {
@@ -175,6 +223,49 @@ describe("buildInspectionContext: numbers flow forward", () => {
     expect(context.contributionErrors).toEqual([
       { moduleKey: "glove_info", message: 'glove_info contributed "cartons", which only carton_sampling may provide.' },
     ]);
+  });
+
+  it("takes what the template's config gives before anything is saved (the inspection level)", () => {
+    const template = makeTestTemplate(TEST_REGISTRY, [
+      ...ALL.filter((key) => key !== "sampling_plan"),
+      { key: "sampling_plan", config: { inspectionLevel: "I" } },
+    ]);
+    const saved = exampleData();
+    const modules = Object.fromEntries(
+      Object.entries(saved.modules).filter(([key]) => key !== "sampling_plan" && key !== "packing_config"),
+    );
+    const context = buildInspectionContext({ template, data: { ...saved, modules }, meta: META }, TEST_REGISTRY);
+    expect(context.aql.inspectionLevel).toBe("I");
+    expect(context.sampling).toEqual({});
+    expect(context.packing).toEqual({ innerUnit: "inner box", glovesPerInner: null, innersPerCase: null, glovesPerCase: null });
+    expect(context.contributionErrors).toEqual([]);
+  });
+
+  it("takes each AQL setting from the check that applies it, over the client's and the defaults", () => {
+    const watertight = defineModule({
+      ...stubModule({ key: "watertight", title: "Freedom from Holes by watertight test", perSize: true }),
+      configSchema: z.strictObject({ aql: z.number().nullable() }),
+      defaultConfig: { aql: null },
+      contribute: ({ config }) => ({ aql: { watertight: config.aql ?? undefined, major: 1.0 } }),
+    });
+    const registry = registryWith({ watertight });
+    const template = makeTestTemplate(registry, [...ALL, { key: "watertight", config: { aql: 0.65 } }]);
+    const context = buildInspectionContext(
+      { template, data: exampleData(), meta: META, aqlDefaults: { watertight: 1.0, major: 1.5 } },
+      registry,
+    );
+    // The template's 0.65 wins over the client's 1.0; major is visual's to set, so the client's 1.5 stays.
+    expect(context.aql).toEqual({ ...AQL_DEFAULTS, watertight: 0.65, major: 1.5 });
+    expect(context.contributionErrors).toEqual([
+      { moduleKey: "watertight", message: 'watertight contributed "aql.major", which only visual may provide.' },
+    ]);
+    // Without a template value the client's stays.
+    const plain = makeTestTemplate(registry, [...ALL, "watertight"]);
+    const client = buildInspectionContext(
+      { template: plain, data: exampleData(), meta: META, aqlDefaults: { watertight: 1.0 } },
+      registry,
+    );
+    expect(client.aql.watertight).toBe(1.0);
   });
 
   it("records a contribution that throws and builds the rest of the context", () => {

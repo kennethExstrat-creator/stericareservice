@@ -84,11 +84,35 @@ describe("weight capture, 13 gloves per size (STD_EG)", () => {
     expect(tags(note, 'data-slot="status-pill"')[0]).toContain('data-status="warn"');
   });
 
-  it("stops every edit when read-only", () => {
-    const fieldset = (readOnly: boolean) =>
-      /<fieldset[^>]*>/.exec(render("STD_EG", data, exampleContext(STD_EG_EXAMPLE), { readOnly }))?.[0];
-    expect(fieldset(true)).toMatch(/ disabled=""/);
-    expect(fieldset(false)).not.toMatch(/ disabled=""/);
+  it("keeps the weights focusable but unchangeable when read-only", () => {
+    const readOnly = render("STD_EG", data, exampleContext(STD_EG_EXAMPLE), { readOnly: true });
+    const cells = tags(readOnly, 'data-slot="numeric-cell"');
+    expect(cells).toHaveLength(13);
+    for (const cell of cells) {
+      expect(cell).toContain('readOnly=""');
+      expect(cell).not.toMatch(/\sdisabled=""/);
+    }
+    expect(readOnly).not.toContain("<fieldset");
+    expect(tags(html, 'data-slot="numeric-cell"').some((cell) => cell.includes("readOnly"))).toBe(false);
+  });
+
+  it("marks each weight with the path calc's issues point at", () => {
+    const path = JSON.stringify(["sizes", "M", "values", 12]).replaceAll('"', "&quot;");
+    expect(tags(html, 'aria-label="Weight \\(g\\), No. 13"')[0]).toContain(`data-issue-path="${path}"`);
+  });
+
+  it("shows calc's average in the footer and judges only the spec there", () => {
+    const footer = /<tfoot[\s\S]*<\/tfoot>/.exec(html)?.[0] ?? "";
+    expect(footer).toContain(">2.90<");
+    // STD_EG sets no weight spec: NA, never the size's warning.
+    expect(footer).toContain(">NA<");
+    expect(footer).not.toContain('data-status="warn"');
+  });
+
+  it("lets the deviation warning's issue link land on its note", () => {
+    const note = tags(html, 'data-slot="weight-deviation"')[0];
+    expect(note).toContain('tabindex="-1"');
+    expect(note).toContain(`data-issue-path="${JSON.stringify(["sizes", "M", "values"]).replaceAll('"', "&quot;")}"`);
   });
 });
 

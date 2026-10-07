@@ -1,7 +1,7 @@
 // What a numeric cell does with its text (BUILD_SPEC 6.2 rule 1), kept pure so
 // the numbers-only rule is tested without a browser. NumericCell is the only
 // caller; MeasurementGrid applies the same rule to pasted values.
-import { formatReading, readDecimal, type Limits } from "@/lib/stats";
+import { formatDecimal, formatReading, readDecimal, type Limits, type ParseDecimalResult } from "@/lib/stats";
 
 /** What was typed that is not a usable number, and why. */
 export type InvalidEntry = { raw: string; error: string };
@@ -10,13 +10,30 @@ export type InvalidEntry = { raw: string; error: string };
 export type CommittedEntry = { value: number | null; invalid: InvalidEntry | null };
 
 /**
+ * The range a cell accepts. With `minExclusive` the minimum itself is
+ * refused: a force or a length must be more than 0, so 0 never gets in.
+ */
+export type EntryLimits = Limits & { minExclusive?: boolean };
+
+/** lib/stats' readDecimal, plus the exclusive minimum. */
+export function readEntry(raw: string, { minExclusive = false, ...limits }: EntryLimits = {}): ParseDecimalResult {
+  if (!minExclusive || limits.min === undefined) return readDecimal(raw, limits);
+  const { min, ...rest } = limits;
+  const parsed = readDecimal(raw, rest);
+  if (parsed.ok && parsed.value !== null && parsed.value <= min) {
+    return { ok: false, error: `Must be more than ${formatDecimal(min)}.` };
+  }
+  return parsed;
+}
+
+/**
  * Leaving a cell (blur, Enter, arrows) commits its text. A number, or blank,
  * is stored. Anything else, such as "2 42", stores nothing: the value becomes
  * null, so a stale reading never feeds a statistic, and the text comes back
  * exactly as typed with the reason. Text is never stored.
  */
-export function commitEntry(raw: string, limits: Limits = {}): CommittedEntry {
-  const result = readDecimal(raw, limits);
+export function commitEntry(raw: string, limits: EntryLimits = {}): CommittedEntry {
+  const result = readEntry(raw, limits);
   return result.ok ? { value: result.value, invalid: null } : { value: null, invalid: { raw, error: result.error } };
 }
 
@@ -29,7 +46,7 @@ export type EntryChange = { value?: number | null; invalid?: InvalidEntry | null
  * clears an earlier rejection. Committing what is already held changes
  * nothing, so no save is triggered by merely leaving a cell.
  */
-export function commitChange(raw: string, held: CommittedEntry, limits: Limits = {}): EntryChange {
+export function commitChange(raw: string, held: CommittedEntry, limits: EntryLimits = {}): EntryChange {
   const next = commitEntry(raw, limits);
   const change: EntryChange = {};
   if (next.value !== held.value) change.value = next.value;
@@ -67,8 +84,8 @@ export function entryText(
  * progress becomes a valid number (reward early), and comes back if it stops
  * being one.
  */
-export function showsEntryError(invalid: InvalidEntry | null, draft: string | null, limits: Limits = {}): boolean {
-  return invalid !== null && (draft === null || !readDecimal(draft, limits).ok);
+export function showsEntryError(invalid: InvalidEntry | null, draft: string | null, limits: EntryLimits = {}): boolean {
+  return invalid !== null && (draft === null || !readEntry(draft, limits).ok);
 }
 
 /**

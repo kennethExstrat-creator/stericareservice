@@ -114,11 +114,42 @@ describe("dimensions capture", () => {
     expect(render("STD_EG", stdEg, planned, { readOnly: true })).not.toContain(action);
   });
 
-  it("stops every edit when read-only", () => {
-    const fieldset = (readOnly: boolean) =>
-      /<fieldset[^>]*>/.exec(render("STD_EG", stdEg, exampleContext(STD_EG_EXAMPLE), { readOnly }))?.[0];
-    expect(fieldset(true)).toMatch(/ disabled=""/);
-    expect(fieldset(false)).not.toMatch(/ disabled=""/);
+  it("keeps the readings focusable but unchangeable when read-only", () => {
+    const html = render("STD_EG", stdEg, exampleContext(STD_EG_EXAMPLE), { readOnly: true });
+    const cells = tags(html, 'data-slot="numeric-cell"');
+    expect(cells).toHaveLength(13 * 5);
+    for (const cell of cells) {
+      expect(cell).toContain('readOnly=""');
+      expect(cell).not.toMatch(/\sdisabled=""/);
+    }
+    expect(html).not.toContain("<fieldset");
+    const editable = tags(render("STD_EG", stdEg, exampleContext(STD_EG_EXAMPLE)), 'data-slot="numeric-cell"');
+    expect(editable.some((cell) => cell.includes("readOnly"))).toBe(false);
+  });
+
+  it("marks each cell with the path calc's issues point at, so an issue link reaches it", () => {
+    const html = render("STD_EG", stdEg, exampleContext(STD_EG_EXAMPLE));
+    const path = (row: number, measure: string) =>
+      `data-issue-path="${JSON.stringify(["sizes", "M", "gloves", row, measure]).replaceAll('"', "&quot;")}"`;
+    expect(tags(html, 'aria-label="Width, No. 4"')[0]).toContain(path(3, "width"));
+    expect(tags(html, 'aria-label="Cuff Thickness, No. 13"')[0]).toContain(path(12, "cuffThickness"));
+  });
+
+  it("shows calc's statistic and verdict in the footer, in the template's words", () => {
+    const html = render("SAFEDON_EG", dimensionsData(SAFEDON_EG_EXAMPLE.dimensions), exampleContext(SAFEDON_EG_EXAMPLE));
+    const footer = /<tfoot[\s\S]*?<\/tfoot>/.exec(html)?.[0] ?? "";
+    // SAFEDON_EG words a pass "A" (A / Rej.), never "Passed".
+    expect(footer).toMatch(/data-status="pass"[^>]*><svg[\s\S]*?<\/svg><span>A<\/span>/);
+    expect(footer).not.toContain(">Passed<");
+  });
+
+  it("lets an issue link land on the warning about readings past the plan", () => {
+    const planned = makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ dimensions: 10 }) } });
+    const notice = tags(render("STD_EG", stdEg, planned), 'tabindex="-1"');
+    expect(notice).toHaveLength(1);
+    expect(notice[0]).toContain(
+      `data-issue-path="${JSON.stringify(["sizes", "M", "gloves", 10]).replaceAll('"', "&quot;")}"`,
+    );
   });
 
   it("says that no size is ordered yet", () => {

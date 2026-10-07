@@ -101,8 +101,10 @@ describe("watertight capture", () => {
     for (const label of ["Between fingers", "Palm", "Cuff", "Finger", "Glove burst", "Other :"]) {
       expect(html).toContain(`aria-label="Increase ${label}, Size XS"`);
     }
-    expect(html).toContain("Ac 3 / Re 4");
-    expect(html).toContain("Ac 7 / Re 8");
+    // The limit row in the template's words (labels accept, reject), not the kit's Ac / Re.
+    expect(html).toContain("Accept 3 / Reject 4");
+    expect(html).toContain("Accept 7 / Reject 8");
+    expect(html).not.toContain("Ac 3 / Re 4");
     expect(totals(html)).toEqual([1, 0, 0, 1]);
     expect(tagsWith(html, 'data-slot="status-pill"').every((pill) => pill.includes('data-status="pass"'))).toBe(true);
     expect(html).toContain("Sampling code letter J &amp; L · AQL 1.5");
@@ -135,23 +137,27 @@ describe("watertight capture", () => {
     const fields = tagsWith(html, "data-issue-path=\"\\[&quot;sizes&quot;,&quot;[SM]&quot;\\]\"");
     expect(fields).toHaveLength(2);
     expect(fields[0]).not.toContain("hidden");
-    // From 1280 px SizeTabs marks itself data-side-by-side while the table fits; it keeps its tabs otherwise.
-    expect(fields[1]).toContain("hidden xl:in-data-[side-by-side]:block");
+    // SizeBlock: from 1280 px every size shows while SizeTabs puts them side by side (the table fits).
+    expect(fields[1]).toContain("max-xl:hidden");
+    expect(fields[1]).toContain('data-slot="size-block"');
     expect(tagsWith(html, 'data-slot="size-tabs"')[0]).toContain("data-side-by-side");
     // One element in the flex Label, so ", size M" follows the text with no gap when it shows.
     expect(html).toMatch(
-      /<label[^>]*><span>No\. of sample tested<span class="sr-only xl:in-data-\[side-by-side\]:not-sr-only">, size M<\/span><\/span><\/label>/,
+      /<label[^>]*><span>No\. of sample tested<span class="sr-only xl:not-sr-only">, size M<\/span><\/span><\/label>/,
     );
   });
 
   it("says under the gloves tested what calc found: errors in red, warnings in amber", () => {
     const context = makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ watertightVisual: 50 }) } });
     const short = render({ sizes: { M: { tested: 50 } }, context, config: { ...WATERTIGHT_DEFAULT_CONFIG, aql: 0.65 } });
-    expect(short).toMatch(/<span class="block text-warn">Size M: A sample of 50 is too small for AQL 0\.65/);
+    const warnings = (html: string) => /<div id="[^"]*-calc-warning"[^>]*text-warn[^>]*>[\s\S]*?<\/div>/.exec(html)?.[0] ?? "";
+    expect(warnings(short)).toMatch(/<span>Size M: A sample of 50 is too small for AQL 0\.65/);
     const unplanned = render({ sizes: { M: { tested: 315 } }, context: M_500() });
-    expect(unplanned).toContain(
-      '<span class="block text-warn">Size M: No. of sample tested is 315, but the sampling plan has 500 gloves for watertight and visual.</span>',
+    expect(warnings(unplanned)).toContain(
+      "<span>Size M: No. of sample tested is 315, but the sampling plan has 500 gloves for watertight and visual.</span>",
     );
+    // The field is described by them.
+    expect(unplanned).toMatch(/<input[^>]*aria-describedby="[^"]*-calc-warning"/);
     const tooFew = render({ sizes: { M: { tested: 1 } }, context: M_500() });
     expect(tooFew).toMatch(/class="text-sm text-fail[^"]*">Size M: No\. of sample tested must be at least 2 for an AQL plan\.</);
   });
@@ -178,6 +184,11 @@ describe("watertight capture", () => {
     expect(html).toContain("Near the thumb<span class=\"sr-only\"> (unmapped label)</span>");
     expect(html).toContain("Defect not in the list");
     expect(totals(html)).toEqual([2]);
+    // With holes counted it cannot be taken off; one added by mistake can, unless read-only.
+    expect(html).not.toContain("Remove Near the thumb");
+    const mistake = { sizes: { M: { tested: 500, unmapped: [{ label: "Near the thumb", count: 0 }] } }, context: M_500() };
+    expect(render(mistake)).toContain('aria-label="Remove Near the thumb"');
+    expect(render({ ...mistake, readOnly: true })).not.toContain("Remove Near the thumb");
   });
 
   it("asks where the holes under 'Other :' were, showing calc's note", () => {

@@ -19,6 +19,8 @@ import {
   issuePathKey,
   issuePathProps,
   NumberField,
+  SideBySideText,
+  SizeBlock,
   SizeTabs,
   useDataUpdater,
   useIssueFocus,
@@ -33,7 +35,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { STATUS_LABEL } from "@/lib/design/status";
 import { formatSize, formatSizeHand } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import { HANDS, labelFor, samplingFor, type CaptureProps, type Hand } from "@/modules/_framework";
 import type { WatertightComputed, WatertightConfig, WatertightData } from ".";
 import { aqlCaption, effectiveAql, effectiveLocations } from "./calc";
@@ -45,6 +46,7 @@ import {
   oneOffRowKey,
   readHoles,
   readOneOff,
+  removeOneOff,
   setHoles,
   setOneOff,
   setOtherDescription,
@@ -54,16 +56,6 @@ import {
 } from "./edit";
 
 type Props = CaptureProps<WatertightData, WatertightConfig, WatertightComputed>;
-
-/**
- * A size's own block beside the table: shown for the size on the tab, and for
- * every size from 1280 px only while SizeTabs shows the sizes side by side
- * (it marks itself data-side-by-side, and keeps its tabs where the table
- * does not fit, such as a hand split over many sizes), as the table does.
- */
-const OTHER_SIZE = "hidden xl:in-data-[side-by-side]:block";
-/** The size in a label: read out always, shown where the sizes sit side by side. */
-const SIZE_IN_LABEL = "sr-only xl:in-data-[side-by-side]:not-sr-only";
 
 export default function WatertightCapture({
   data,
@@ -105,7 +97,7 @@ export default function WatertightCapture({
     ...locations.map((location) => ({ key: location.code, label: location.label })),
     // Saved under a code the list lacks: calc counts them, so they show, flagged.
     ...unlistedCodes(data, sizes, split, listed).map((code) => ({ key: code, label: code, unmapped: true })),
-    ...oneOffs.map((label) => ({ key: oneOffRowKey(label), label, unmapped: true })),
+    ...oneOffs.map((label) => ({ key: oneOffRowKey(label), label, unmapped: true, removable: true })),
   ];
 
   const computed = evaluation?.computed.sizes;
@@ -151,6 +143,10 @@ export default function WatertightCapture({
     const cell: HoleCell = split ? { size, hand: shownHands[0] } : { size };
     // Unchanged (the label is already a row) is no change at all.
     update((current) => addOneOff(current, cell, label, locations, sizes, split));
+  };
+  const removeRow = (key: string) => {
+    const label = oneOffByRow.get(key);
+    if (label !== undefined) update((current) => removeOneOff(current, label, sizes, split));
   };
   /** calc's messages about the value at `path`: errors show in red under the field, warnings in amber. */
   const messagesAt = (path: IssuePath, level: "error" | "warning") => {
@@ -200,7 +196,7 @@ export default function WatertightCapture({
                 planned={samplingFor(context, entry).watertightVisual}
                 error={messagesAt(["sizes", entry, "tested"], "error")[0] ?? null}
                 warnings={messagesAt(["sizes", entry, "tested"], "warning")}
-                onTab={entry === size}
+                size={entry}
                 readOnly={readOnly}
                 onTestedChange={(tested) => update((current) => setTested(current, entry, tested))}
                 onUsePlanned={(planned) => update((current) => fillTested(current, entry, planned))}
@@ -226,6 +222,8 @@ export default function WatertightCapture({
               rowHeader: labelFor(labels, "holes"),
               inspected: labelFor(labels, "tested"),
               limits: labelFor(labels, "defectLimit"),
+              limitAccept: labelFor(labels, "accept"),
+              limitReject: labelFor(labels, "reject"),
               total: labelFor(labels, "totalDefects"),
               result: labelFor(labels, "result"),
               accept: STATUS_LABEL.pass,
@@ -236,6 +234,7 @@ export default function WatertightCapture({
             showResult
             onAddRow={readOnly ? undefined : addRow}
             addRowLabel={labelFor(labels, "unmapped")}
+            onRemoveRow={readOnly ? undefined : removeRow}
             onCellFocus={(cell) =>
               onFocusChange?.({
                 size: cell.column,
@@ -264,7 +263,7 @@ export default function WatertightCapture({
                     path={path}
                     value={text}
                     note={findIssue(evaluation?.issues, path)?.message ?? null}
-                    onTab={entry === size}
+                    size={entry}
                     readOnly={readOnly}
                     onValueChange={(next) => update((current) => setOtherDescription(current, cell, next))}
                     onFocus={() =>
@@ -293,7 +292,7 @@ function TestedField({
   planned,
   error,
   warnings,
-  onTab,
+  size,
   readOnly,
   onTestedChange,
   onUsePlanned,
@@ -307,21 +306,21 @@ function TestedField({
   error: string | null;
   /** E.g. a sample too small for the AQL: why the size stays not done. */
   warnings: readonly string[];
-  /** The size on the tab; the others show only where the sizes sit side by side. */
-  onTab: boolean;
+  /** Shown for the size on the tabs; every size's only where the sizes sit side by side. */
+  size: string;
   readOnly: boolean;
   onTestedChange: (tested: number | null) => void;
   onUsePlanned: (planned: number) => void;
   onFocus: () => void;
 }) {
   return (
-    <div className={cn("relative min-w-0 space-y-2", !onTab && OTHER_SIZE)} {...issuePathProps(path)}>
+    <SizeBlock size={size} className="relative min-w-0 space-y-2" {...issuePathProps(path)}>
       <NumberField
         label={
           // One element: the Label is a flex row, and ", size XS" must follow the text without a gap.
           <span>
             {label}
-            <span className={SIZE_IN_LABEL}>, size {sizeName}</span>
+            <SideBySideText>, size {sizeName}</SideBySideText>
           </span>
         }
         value={tested}
@@ -329,7 +328,7 @@ function TestedField({
         integer
         min={2}
         error={error}
-        hint={warnings.length > 0 ? <WarningNotes messages={warnings} /> : undefined}
+        warning={warnings}
         issuePath={[...path, "tested"]}
         readOnly={readOnly}
         onFocus={onFocus}
@@ -351,17 +350,8 @@ function TestedField({
           )}
         </div>
       )}
-    </div>
+    </SizeBlock>
   );
-}
-
-/** calc's warnings about a field, in amber: NumberField's hint, so they describe the field. */
-function WarningNotes({ messages }: { messages: readonly string[] }) {
-  return messages.map((message) => (
-    <span key={message} className="block text-warn">
-      {message}
-    </span>
-  ));
 }
 
 /** Where the holes counted under "Other :" were, for one size (and hand). */
@@ -371,7 +361,7 @@ function OtherField({
   path,
   value,
   note,
-  onTab,
+  size,
   readOnly,
   onValueChange,
   onFocus,
@@ -381,15 +371,15 @@ function OtherField({
   path: IssuePath;
   value: string;
   note: string | null;
-  /** The size on the tab; the others show only where the sizes sit side by side. */
-  onTab: boolean;
+  /** Shown for the size on the tabs; every size's only where the sizes sit side by side. */
+  size: string;
   readOnly: boolean;
   onValueChange: (value: string) => void;
   onFocus: () => void;
 }) {
   const id = useId();
   return (
-    <div className={cn("relative max-w-xl space-y-1.5", !onTab && OTHER_SIZE)} {...issuePathProps(path)}>
+    <SizeBlock size={size} className="relative max-w-xl space-y-1.5" {...issuePathProps(path)}>
       <Label htmlFor={id} className="leading-snug touch:text-base">
         {label} <span className="font-normal text-muted-foreground">({where})</span>
       </Label>
@@ -407,6 +397,6 @@ function OtherField({
           {note}
         </p>
       )}
-    </div>
+    </SizeBlock>
   );
 }

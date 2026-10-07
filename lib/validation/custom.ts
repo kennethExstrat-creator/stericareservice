@@ -15,6 +15,7 @@ import { CountCellSchema, DateCellSchema, DecimalCellSchema, isBlank, TextCellSc
 import { errorIssue, warningIssue, type CalcIssue, type IssuePath } from "./issues";
 import {
   FRAMEWORK_ISSUE_CODES as CODES,
+  describeDataPath,
   invalidDataIssues,
   restrictToOrderedSizes,
   sizeDuplicateIssues,
@@ -91,7 +92,13 @@ export type CustomEvaluation = {
 
 export function evaluateCustomValues({ custom, value, sizes, readMapped }: CustomEvaluationInput): CustomEvaluation {
   const parsed = customValuesSchema(custom).safeParse(value ?? {});
-  if (!parsed.success) return { values: {}, issues: invalidDataIssues(custom.title, parsed.error) };
+  if (!parsed.success) {
+    const labels = Object.fromEntries(custom.fields.map((field) => [field.key, field.label]));
+    return {
+      values: {},
+      issues: invalidDataIssues(custom.title, parsed.error, [], { describe: (path) => describeDataPath(path, labels) }),
+    };
+  }
 
   const perSize = custom.layout === "table" || (custom.layout === "grid" && custom.grid?.repeatPer === "size");
   if (!perSize) {

@@ -4,7 +4,8 @@
 // the field, rows that keep their size when focus moves, and read-only.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { CaptureProps, ModuleEvaluation } from "@/modules/_framework";
+import type { CaptureFocus, CaptureProps, InspectionContext, ModuleEvaluation } from "@/modules/_framework";
+import { FileSlotProvider, type FileSlotRequest } from "@/modules/_framework/file-slot";
 import { makeTestContext } from "@/modules/_framework/testing";
 import { calcDocuments, type DocumentsComputed } from "./calc";
 import Capture, { DocumentRow } from "./Capture";
@@ -23,6 +24,10 @@ function render(
     config = DOCUMENTS_DEFAULT_CONFIG,
     broken = false,
     evaluated = data,
+    context = CONTEXT,
+    slots,
+    changes,
+    focus,
   }: {
     readOnly?: boolean;
     labels?: Record<string, string>;
@@ -30,6 +35,12 @@ function render(
     broken?: boolean;
     /** The data calc last saw, when it lags behind the data on screen. */
     evaluated?: DocumentsData;
+    context?: InspectionContext;
+    /** Renders inside a screen's file slot, collecting its requests. */
+    slots?: FileSlotRequest[];
+    /** Collects every onChange. */
+    changes?: DocumentsData[];
+    focus?: CaptureFocus;
   } = {},
 ): string {
   const output = calcDocuments({
@@ -37,7 +48,7 @@ function render(
     config,
     title: DOCUMENTS_TITLE,
     labels,
-    context: CONTEXT,
+    context,
     results: {},
     hasData: true,
   });
@@ -60,14 +71,115 @@ function render(
     config,
     title: DOCUMENTS_TITLE,
     labels,
-    context: CONTEXT,
+    context,
     evaluation,
     focusPath: null,
     readOnly,
-    onChange: noop,
+    focus,
+    onChange: changes ? (next) => changes.push(next) : noop,
   };
-  return renderToStaticMarkup(<Capture {...props} />);
+  if (!slots) return renderToStaticMarkup(<Capture {...props} />);
+  return renderToStaticMarkup(
+    <FileSlotProvider
+      render={(request) => {
+        slots.push(request);
+        return <span data-test="screen-slot" />;
+      }}
+    >
+      <Capture {...props} />
+    </FileSlotProvider>,
+  );
 }
+
+const FILE = "00000000-0000-4000-8000-000000000501";
+
+const tagsWith = (html: string, attribute: string): string[] =>
+  Array.from(html.matchAll(new RegExp(`<[^>]*${attribute}[^>]*>`, "g")), (match) => match[0]);
+const escapeAttribute = (value: string) => value.replaceAll('"', "&quot;");
+
+describe("documents capture: files", () => {
+  it("says where files are attached when the screen gives no file slot (preview, review)", () => {
+    const html = render(emptyDocuments());
+    expect(html).toContain("Attach files on the inspection screen.");
+    expect(html).not.toContain("Tap a document above");
+  });
+
+  it("offers the screen's file slot, adding only once a document is chosen, deleting always", () => {
+    const slots: FileSlotRequest[] = [];
+    const html = render(emptyDocuments(), { slots });
+    expect(html).toContain('<span data-test="screen-slot"></span>');
+    expect(html).toContain("Tap a document above to attach its file.");
+    // Nothing chosen yet: nothing to file a new file under, but the files listed can still be deleted.
+    expect(slots).toEqual([
+      expect.objectContaining({
+        moduleKey: "documents",
+        kind: "certificate",
+        title: DOCUMENTS_TITLE,
+        focus: null,
+        readOnly: false,
+        addable: false,
+      }),
+    ]);
+    const approved: FileSlotRequest[] = [];
+    render(emptyDocuments(), { slots: approved, readOnly: true });
+    expect(approved[0]).toMatchObject({ readOnly: true, addable: false });
+  });
+
+  it("files a new file under the document in focus, for that document's kind", () => {
+    const slots: FileSlotRequest[] = [];
+    const changes: DocumentsData[] = [];
+    const data = emptyDocuments();
+    const html = render(data, { slots, changes, focus: { item: "labTestReports" } });
+    expect(html).toContain("New files are filed under Lab test reports.");
+    expect(slots[0]).toMatchObject({ kind: "lab_report", focus: { item: "labTestReports" }, readOnly: false, addable: true });
+    slots[0].onAdded({ id: FILE, name: "Lab test report.pdf", kind: "lab_report" });
+    expect(changes).toEqual([{ ...data, items: { ...data.items, labTestReports: { ...data.items.labTestReports, file: FILE } } }]);
+  });
+
+  it("opens on no document when the one in focus is not on the checklist", () => {
+    const slots: FileSlotRequest[] = [];
+    const changes: DocumentsData[] = [];
+    render(emptyDocuments(), { slots, changes, focus: { item: "sterilisation" }, config: REQUIRED_ISO });
+    expect(slots[0]).toMatchObject({ focus: null, addable: false });
+    slots[0].onAdded({ id: FILE, name: "Certificate.pdf", kind: "certificate" });
+    expect(changes).toEqual([]);
+  });
+
+  it("lets go of a deleted file wherever an item kept it", () => {
+    const data = emptyDocuments();
+    data.items.iso13485 = { ...data.items.iso13485, status: "verified", file: FILE };
+    const slots: FileSlotRequest[] = [];
+    const changes: DocumentsData[] = [];
+    render(data, { slots, changes });
+    slots[0].onRemoved(FILE);
+    expect(changes.at(-1)?.items.iso13485).toEqual({ ...data.items.iso13485, file: null });
+  });
+
+  it("says on the row that its file is attached, or missing", () => {
+    const data = emptyDocuments();
+    data.items.iso13485 = { ...data.items.iso13485, status: "verified", file: FILE };
+    expect(render(data)).toContain('data-file-state="attached"');
+    expect(render(data)).toContain("File attached");
+    const gone = render(data, { context: makeTestContext({ ...CONTEXT, files: [] }) });
+    expect(gone).toContain('data-file-state="missing"');
+    expect(gone).toContain("ISO 13485: the file attached here is not among this inspection&#x27;s files. It may still be uploading from another device; if it was deleted, attach it again.");
+  });
+
+  it("gives the issue link to a missing file something to focus: the file line, which the row's status names", () => {
+    const data = emptyDocuments();
+    data.items.iso13485 = { ...data.items.iso13485, status: "verified", file: FILE };
+    const gone = render(data, { context: makeTestContext({ ...CONTEXT, files: [] }) });
+    const [line] = tagsWith(gone, 'data-slot="document-file"');
+    expect(line).toContain('tabindex="-1"');
+    expect(line).toContain(`data-issue-path="${escapeAttribute(JSON.stringify(["items", "iso13485", "file"]))}"`);
+    expect(line).toContain("focus-ring");
+    const id = /\sid="([^"]+)"/.exec(line)?.[1];
+    expect(id).toBeDefined();
+    expect(tagsWith(gone, `aria-describedby="${id}"`)).toHaveLength(1);
+    // Attached: nothing to point at from the status.
+    expect(render(data)).not.toContain("aria-describedby");
+  });
+});
 
 /** Each pressed status button's words and the status colour it wears (null: none). */
 function selected(html: string): [string, string | null][] {
@@ -165,7 +277,7 @@ describe("documents capture", () => {
       renderToStaticMarkup(
         <DocumentRow
           item={{ key: "iso13485", include: true, required: true }}
-          entry={{ status: "verified", referenceNo: "CERT-0001", expiryDate: "2025-01-31" }}
+          entry={{ status: "verified", referenceNo: "CERT-0001", expiryDate: "2025-01-31", file: null }}
           status="warn"
           expired
           labels={DOCUMENTS_LABELS}

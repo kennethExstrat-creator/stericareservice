@@ -30,11 +30,16 @@ export const TENSILE_LABELS: Readonly<Record<TensileLabelKey, string>> = {
 const DecimalsSchema = z.number().int().min(0).max(6);
 
 export const TensileConfigSchema = z.strictObject({
-  tensileMin: z.number().positive().describe("Minimum tensile strength (average) in MPa, every size (ASTM D6319: 14)."),
+  tensileMin: z
+    .number()
+    .positive()
+    .describe("Minimum tensile strength (average) in MPa, every size (ASTM D6319: 14).")
+    .meta({ unit: "MPa" }),
   elongationMin: z
     .number()
     .positive()
-    .describe("Minimum elongation at break (average) in %, every size (ASTM D6319: 500)."),
+    .describe("Minimum elongation at break (average) in %, every size (ASTM D6319: 500).")
+    .meta({ unit: "%" }),
   standardLabel: z
     .string()
     .max(80)
