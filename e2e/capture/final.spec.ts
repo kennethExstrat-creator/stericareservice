@@ -303,9 +303,16 @@ test("a form that could not download says so calmly, and opens once the connecti
   const safedonCode = formCode("dispensing_safedon");
   await page.route(watertightCode, (route) => route.abort("internetdisconnected"));
   await page.route(safedonCode, (route) => route.abort("internetdisconnected"));
+  // The dev server downloads each form's code when its section opens (the case on :3000). A production
+  // build sends every form's code with the page, so there is no later download to fail.
+  let perModuleCode = false;
+  page.on("request", (request) => {
+    if (/\/_next\/static\/chunks\/modules_/.test(new URL(request.url()).pathname)) perModuleCode = true;
+  });
   await page.goto(`/inspections/${fixture.inspectionId}?module=header`);
   await formReady(page);
   await page.waitForLoadState("networkidle");
+  test.skip(!perModuleCode, "A production build: every form's code comes with the page, so none can fail to download later.");
 
   // Offline: the calm notice, no red, no developer. Back online, the section asks again by itself.
   await context.setOffline(true);
@@ -520,6 +527,8 @@ test("beside the comment box, the photo box starts and ends with it, and what ne
   const footer = page.locator('section footer:has([data-slot="module-photos"])').first();
   const tags = footer.locator('[data-slot="next-tags"]');
   await expect(tags).toHaveText(/^New photos are tagged Size /);
+  // Measured once the photos have loaded: until then "Loading photos…" sits above the photo box and moves it down.
+  await expect(footer.locator('[data-slot="photos-loading"]')).toHaveCount(0);
   await footer.scrollIntoViewIfNeeded();
   const comment = await footer.getByRole("textbox").first().boundingBox();
   const photoBox = await footer.locator('[data-slot="photo-add"] > div.border-dashed').boundingBox();
