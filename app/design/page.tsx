@@ -45,8 +45,8 @@ export default async function DesignPage() {
           <span aria-hidden className="hidden h-6 w-px bg-border sm:block" />
           <p className="text-sm font-semibold text-foreground">Design Sign-Off</p>
           <p className="ml-auto text-sm text-muted-foreground">
-            <span className="hidden touch:inline">Touch density: 44 px targets, 16 px fields</span>
-            <span className="hidden fine:inline">Compact density (fine pointer)</span>
+            <span className="hidden touch:inline">Touch Density: 44 px Targets, 16 px Fields</span>
+            <span className="hidden fine:inline">Compact Density (Fine Pointer)</span>
           </p>
         </div>
       </header>

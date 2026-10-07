@@ -48,7 +48,7 @@ export function StepperSection() {
           ))}
           <li className="flex items-center justify-between gap-4 border-b border-border pb-3">
             <span className="text-sm text-muted-foreground">Disabled (Approved Inspection)</span>
-            <Stepper label="Holes, disabled example" value={2} disabled onValueChange={() => {}} />
+            <Stepper label="Holes, Disabled (Approved Inspection)" value={2} disabled onValueChange={() => {}} />
           </li>
         </ul>
         <p className="mt-4 text-sm text-foreground">
