@@ -383,14 +383,14 @@ test("signed out: sign in, forgot password, link expired", async ({ page }) => {
   await audit(auditor, "login", { tabs: 12 });
 
   // Empty submit: the form's own errors.
-  await press(page, page.getByRole("button", { name: "Sign in" }));
+  await press(page, page.getByRole("button", { name: "Sign In" }));
   await settle(page);
   await audit(auditor, "login-empty-submit");
 
   // A wrong password: one sign-in attempt against Supabase.
   await page.getByLabel("Email").fill(TEST_ACCOUNTS.inspector);
   await page.getByLabel("Password", { exact: true }).fill("not-the-password-1");
-  await press(page, page.getByRole("button", { name: "Sign in" }));
+  await press(page, page.getByRole("button", { name: "Sign In" }));
   await expect(page.getByText(/incorrect/i)).toBeVisible({ timeout: 15_000 });
   await settle(page);
   await audit(auditor, "login-wrong-password");
@@ -405,7 +405,7 @@ test("signed out: sign in, forgot password, link expired", async ({ page }) => {
   await audit(auditor, "forgot-password", { tabs: 8 });
   // An address that is not one: refused before any email is sent.
   await page.getByLabel("Email").fill("not an email");
-  await press(page, page.getByRole("button", { name: "Send reset link" }));
+  await press(page, page.getByRole("button", { name: "Send Reset Link" }));
   await settle(page);
   await audit(auditor, "forgot-password-invalid");
 
@@ -786,9 +786,9 @@ test("newcomer: password screens from an email link, the empty list", async ({ p
   await audit(auditor, "reset-password-recovery", { tabs: 10 });
 
   await step(auditor, "reset-password-mismatch", async () => {
-    await page.getByLabel("New password", { exact: true }).fill("Fresh-gloves-2027");
-    await page.getByLabel("Confirm new password", { exact: true }).fill("Fresh-gloves-2028");
-    await press(page, page.getByRole("button", { name: "Save new password" }));
+    await page.getByLabel("New Password", { exact: true }).fill("Fresh-gloves-2027");
+    await page.getByLabel("Confirm New Password", { exact: true }).fill("Fresh-gloves-2028");
+    await press(page, page.getByRole("button", { name: "Save New Password" }));
     await settle(page);
     await audit(auditor, "reset-password-mismatch");
   });

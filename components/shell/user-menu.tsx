@@ -6,7 +6,7 @@
 //
 // Sign out checks first (use-sign-out.ts): photos or files still waiting on
 // this device, or a page's unsaved work, and the user is asked in a dialog
-// (Stay signed in / Sign out anyway). With nothing waiting it signs out at
+// (Stay Signed In / Sign Out Anyway). With nothing waiting it signs out at
 // once. The menu stays open while it checks and signs out, so the pending
 // state shows. Both steps have a time limit: the check at most 20 s, the
 // request 15 s. The redirect to /login closes everything; a sign-out that
@@ -124,7 +124,7 @@ export function UserMenu({ user, variant }: UserMenuProps) {
             }}
           >
             {signOut.busy ? <Spinner aria-hidden="true" /> : <LogOutIcon aria-hidden />}
-            {signOut.busy ? "Signing out…" : "Sign out"}
+            {signOut.busy ? "Signing Out…" : "Sign Out"}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -134,11 +134,11 @@ export function UserMenu({ user, variant }: UserMenuProps) {
         onOpenChange={(next) => {
           if (!next) signOut.stay();
         }}
-        title="Sign out now?"
+        title="Sign Out Now?"
         reasons={signOut.reasons}
-        stayLabel="Stay signed in"
-        goLabel="Sign out anyway"
-        goingLabel="Signing out…"
+        stayLabel="Stay Signed In"
+        goLabel="Sign Out Anyway"
+        goingLabel="Signing Out…"
         going={signOut.signingOut}
         onGo={signOut.confirm}
         returnFocus={() => trigger.current}

@@ -31,7 +31,7 @@ export function ForgotPasswordForm() {
     return (
       <div className="space-y-6">
         {/* Focus lands on the title; the description makes a screen reader read the confirmation too. */}
-        <AuthHeading titleId={TITLE_ID} title="Check your email" describedBy={SENT_ID} />
+        <AuthHeading titleId={TITLE_ID} title="Check Your Email" describedBy={SENT_ID} />
         <AuthNotice
           id={SENT_ID}
           tone="info"
@@ -52,7 +52,7 @@ export function ForgotPasswordForm() {
     <div className="space-y-6">
       <AuthHeading
         titleId={TITLE_ID}
-        title="Reset your password"
+        title="Reset Your Password"
       />
       <form action={formAction} noValidate className="space-y-5">
         {state.message && <AuthNotice key={state.attempt} tone="error" title={state.message} />}
@@ -79,7 +79,7 @@ export function ForgotPasswordForm() {
             {emailError}
           </FieldError>
         </Field>
-        <SubmitButton pendingLabel="Sending…">Send reset link</SubmitButton>
+        <SubmitButton pendingLabel="Sending…">Send Reset Link</SubmitButton>
       </form>
       <BackToSignIn />
     </div>

@@ -34,8 +34,8 @@ async function openEmailLink(page: Page, type: "recovery" | "invite", tokenHash:
 
 function fields(page: Page) {
   return {
-    password: page.getByLabel("New password", { exact: true }),
-    confirm: page.getByLabel("Confirm new password", { exact: true }),
+    password: page.getByLabel("New Password", { exact: true }),
+    confirm: page.getByLabel("Confirm New Password", { exact: true }),
     rules: page.locator("#reset-password-policy li"),
   };
 }
@@ -50,9 +50,9 @@ test("a reset link: rules up front, checked on the server, then saved", async ({
   await openEmailLink(page, "recovery", await recoveryLink(email));
 
   await expect(page).toHaveURL(/\/reset-password\?flow=recovery$/);
-  await expect(page.getByRole("heading", { level: 1, name: "Choose a new password" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Choose a New Password" })).toBeVisible();
   await expect(page.getByRole("main")).toContainText(email);
-  await expect(page).toHaveTitle("Choose a new password · SteriCare QC");
+  await expect(page).toHaveTitle("Choose a New Password · SteriCare QC");
   const { password, confirm, rules } = fields(page);
   await expect(password).toHaveAttribute("autocomplete", "new-password");
   await expect(confirm).toHaveAttribute("autocomplete", "new-password");
@@ -77,7 +77,7 @@ test("a reset link: rules up front, checked on the server, then saved", async ({
 
   // The server holds the same line: a mismatch, then a password without digits.
   await confirm.fill(`${newPassword}x`);
-  await submit(page, testInfo, "Save new password");
+  await submit(page, testInfo, "Save New Password");
   await expect(page.getByText("The passwords do not match.")).toBeVisible();
   await expect(confirm).toHaveAttribute("aria-invalid", "true");
   await expect(password).toHaveValue("");
@@ -90,12 +90,12 @@ test("a reset link: rules up front, checked on the server, then saved", async ({
 
   await password.fill("abcdefghijk");
   await confirm.fill("abcdefghijk");
-  await submit(page, testInfo, "Save new password");
+  await submit(page, testInfo, "Save New Password");
   await expect(page.getByText("Use both letters and digits.")).toBeVisible();
 
   await password.fill(newPassword);
   await confirm.fill(newPassword);
-  await submit(page, testInfo, "Save new password");
+  await submit(page, testInfo, "Save New Password");
   await expect(page).toHaveURL(/\/inspections$/);
 
   if (testInfo.project.name === "desktop") {
@@ -113,16 +113,16 @@ test("an invite link: welcome, then set a password", async ({ page, accounts }, 
   await openEmailLink(page, "invite", tokenHash);
 
   await expect(page).toHaveURL(/\/reset-password\?flow=invite$/);
-  await expect(page.getByRole("heading", { level: 1, name: "Set your password" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Set Your Password" })).toBeVisible();
   await expect(page.getByRole("main")).toContainText("Welcome to SteriCare QC, E2E Invitee.");
   await expect(page.getByRole("main")).toContainText(email);
-  await expect(page).toHaveTitle("Set your password · SteriCare QC");
+  await expect(page).toHaveTitle("Set Your Password · SteriCare QC");
   await shot(page, testInfo, "reset-password-invite");
 
   const { password, confirm } = fields(page);
   await password.fill("Invited-2026-gloves");
   await confirm.fill("Invited-2026-gloves");
-  await submit(page, testInfo, "Set password");
+  await submit(page, testInfo, "Set Password");
   await expect(page).toHaveURL(/\/inspections$/);
 });
 
@@ -133,17 +133,17 @@ test("a password sign-in is sent to the email link instead", async ({ page, cont
   await signIn(context, baseURL!, TEST_ACCOUNTS.inspector, undefined, { fresh: true });
   await open(page, "/reset-password?flow=recovery");
 
-  await expect(page.getByRole("heading", { level: 1, name: "Use your email link" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Use Your Email Link" })).toBeVisible();
   await expect(page.getByRole("main")).toContainText(
     "Passwords are set from an invite or reset link opened in the last hour.",
   );
-  await expect(page.getByLabel("New password", { exact: true })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "Back to inspections" })).toHaveAttribute("href", "/inspections");
-  await expect(page).toHaveTitle("Use your email link · SteriCare QC");
+  await expect(page.getByLabel("New Password", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Back to Inspections" })).toHaveAttribute("href", "/inspections");
+  await expect(page).toHaveTitle("Use Your Email Link · SteriCare QC");
   await shot(page, testInfo, "reset-password-signed-in");
 
-  // The way to a new link: sign out (this device only), then "Forgot password?".
-  await press(page.getByRole("button", { name: "Sign out" }), testInfo);
+  // The way to a new link: sign out (this device only), then "Forgot Password?".
+  await press(page.getByRole("button", { name: "Sign Out" }), testInfo);
   await expect(page).toHaveURL(/\/login$/);
   const cookies = await context.cookies();
   expect(cookies.filter((cookie) => /^sb-.+-auth-token/.test(cookie.name))).toHaveLength(0);

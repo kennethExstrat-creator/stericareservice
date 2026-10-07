@@ -227,7 +227,7 @@ test("an inspector and a lead inspector get a 404 on every admin page; an admin 
 async function expectNotFound(baseURL: string, path: string, session: Session, hidden: { ref: string; po?: string }) {
   const answer = await probe(baseURL, path, { session });
   expect.soft([200, 404], `${session.email} ${path}: status`).toContain(answer.status);
-  expect.soft(answer.body, `${session.email} ${path}: the not-found screen`).toContain("Page not found");
+  expect.soft(answer.body, `${session.email} ${path}: the not-found screen`).toContain("Page Not Found");
   expect.soft(answer.body, `${session.email} ${path}: hides the ref`).not.toContain(hidden.ref);
   if (hidden.po) expect.soft(answer.body, `${session.email} ${path}: hides the PO`).not.toContain(hidden.po);
   test.info().annotations.push({ type: "not-found status", description: `${path} as ${session.email}: HTTP ${answer.status}` });

@@ -45,7 +45,6 @@ export function LayoutSection() {
   return (
     <DesignSection
       id="layout"
-      title="Layout rule"
       description={
         <>
           One responsive layout, no phone layout. On every iPad, whatever its size or what is plugged in, and below 1280 px, modules are a top

@@ -22,7 +22,7 @@ import { StepperSection } from "./_components/stepper-section";
 import { TypeSection } from "./_components/type-section";
 
 export const metadata: Metadata = {
-  title: "Design sign-off",
+  title: "Design Sign-Off",
 };
 
 export default async function DesignPage() {
@@ -43,7 +43,7 @@ export default async function DesignPage() {
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3 md:px-6">
           <Logo variant="horizontal" loading="eager" />
           <span aria-hidden className="hidden h-6 w-px bg-border sm:block" />
-          <p className="text-sm font-semibold text-foreground">Design sign-off</p>
+          <p className="text-sm font-semibold text-foreground">Design Sign-Off</p>
           <p className="ml-auto text-sm text-muted-foreground">
             <span className="hidden touch:inline">Touch density: 44 px targets, 16 px fields</span>
             <span className="hidden fine:inline">Compact density (fine pointer)</span>
@@ -61,7 +61,7 @@ export default async function DesignPage() {
         <main className="mx-auto w-full max-w-6xl space-y-16 px-4 py-8 md:px-6 md:py-10 xl:px-10">
           <PageHeader
             eyebrow="SteriCare QC · Phase 1"
-            title="Design sign-off"
+            title="Design Sign-Off"
             description="The light SteriCare theme for the inspection app, built from the website's tokens. Check it at iPad portrait (820 px), iPad landscape (1180 px) and desktop (1440 px). Everything below is the real component, wired to sample data."
           />
           <LogoSection />

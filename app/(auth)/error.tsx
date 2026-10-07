@@ -18,7 +18,7 @@ export default function AuthError({ error, retry }: { error: Error & { digest?: 
   return (
     <div className="space-y-6">
       <AuthHeading
-        title="Something went wrong"
+        title="Something Went Wrong"
         description={
           <>
             We could not load this screen. Try again in a minute; if it keeps happening, tell your SteriCare
@@ -35,7 +35,7 @@ export default function AuthError({ error, retry }: { error: Error & { digest?: 
       />
       <div className="space-y-3">
         <Button size="lg" className="w-full" onClick={() => retry()}>
-          Try again
+          Try Again
         </Button>
         <BackToSignIn />
       </div>

@@ -319,7 +319,7 @@ describe("SubmitSummary (the submit confirmation)", () => {
       "Suggested Result Passed Why Warnings: Weight (g) - average of 13 gloves per size. Warnings 1 warning goes into the report.",
     );
     expect(text(renderToStaticMarkup(<SubmitSummary suggested={{ result: "hold", reasons: ["Not done: Visual Inspection."] }} warningCount={0} />))).toBe(
-      "Suggested Result On hold Why Not done: Visual Inspection.",
+      "Suggested Result On Hold Why Not done: Visual Inspection.",
     );
     expect(text(renderToStaticMarkup(<SubmitSummary suggested={{ result: "fail", reasons: [] }} warningCount={0} />))).toBe(
       "Suggested Result Failed",
@@ -462,7 +462,7 @@ describe("SectionFrame", () => {
     expect(html).toMatch(/<h2 id="panel-title" tabindex="-1"[^>]*>Glove Information<\/h2>/);
     // Focused by Previous, Next and issue links: an opaque ring for keyboard users, never a halo.
     expect(tagsWith(html, 'id="panel-title"')[0]).toContain("focus-ring");
-    expect(html).toContain("Not done");
+    expect(html).toContain("Not Done");
     expect(html).toContain("Missing: Glove colour.");
     expect(html).toContain("<footer");
   });

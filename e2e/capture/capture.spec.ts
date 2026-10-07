@@ -809,8 +809,8 @@ test("tensile counts its lab report once attached and not once it is deleted, an
   await page.goto(`/inspections/${fixture.inspectionId}?module=tensile`);
   const frame = page.locator('[data-slot="section-frame"]');
   await expect(page.getByRole("heading", { level: 2, name: TENSILE })).toBeVisible();
-  await expect(frame.locator('[data-slot="lab-report"]')).toContainText(/Not attached/i);
-  await expect(frame.locator("header")).toContainText("Not done");
+  await expect(frame.locator('[data-slot="lab-report"]')).toContainText("Not Attached");
+  await expect(frame.locator("header")).toContainText("Not Done");
 
   // The size chosen here stays chosen in the next module that opens on one (CaptureProps.focus), and tags
   // another section's photos only where that section shows it (BUILD_SPEC 8.1).
@@ -860,8 +860,8 @@ test("tensile counts its lab report once attached and not once it is deleted, an
   const dialog = page.getByRole("alertdialog", { name: /^Delete tensile-lab-report\.pdf/ });
   await press(dialog.getByRole("button", { name: "Delete File" }));
   await expect(slot.locator('[data-slot="file-row"]')).toHaveCount(0, { timeout: 15_000 });
-  await expect(frame.locator('[data-slot="lab-report"]')).toContainText(/Not attached/i);
-  await expect(frame.locator("header")).toContainText("Not done");
+  await expect(frame.locator('[data-slot="lab-report"]')).toContainText("Not Attached");
+  await expect(frame.locator("header")).toContainText("Not Done");
   await expect
     .poll(async () => (await storedData(fixture.inspectionId)).data, { timeout: 15_000 })
     .toMatchObject({ modules: { tensile: { labReport: null } } });

@@ -119,10 +119,10 @@ describe("InspectionTable", () => {
     for (const pinned of [cells(html)[0], cells(html).at(-1)!]) expect(pinned).toMatch(/\bbg-card\b/);
   });
 
-  it("shows Not done until the final result is set, never a pass", () => {
+  it("shows Not Done until the final result is set, never a pass", () => {
     const html = render([{ ...ROW, status: "draft", result: null }]);
     expect(html).toContain('data-status="not_done"');
-    expect(html).toContain("Not done");
+    expect(html).toContain("Not Done");
     expect(html).not.toContain('data-status="pass"');
   });
 

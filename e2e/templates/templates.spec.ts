@@ -265,9 +265,9 @@ test("a draft that never resolved explains itself and cannot be activated", asyn
   for (const path of ["/admin/templates/not-an-id", "/admin/templates/00000000-0000-4000-8000-00000000dead"]) {
     const response = await page.goto(path);
     expect([200, 404], path).toContain(response?.status());
-    await expect(page.getByRole("heading", { name: "Page not found", level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Page Not Found", level: 1 })).toBeVisible();
     await expect(page.locator('meta[name="robots"][content*="noindex"]').first()).toBeAttached();
-    await expect(page).toHaveTitle(/Page not found/);
+    await expect(page).toHaveTitle(/Page Not Found/);
   }
   expect(hydration()).toEqual([]);
 });

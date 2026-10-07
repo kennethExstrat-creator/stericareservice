@@ -59,7 +59,7 @@ export const MESSAGES = {
 
   linkExpired: "This link has expired or was already used.",
   linkSessionRequired:
-    "Passwords are set from an invite or reset link opened in the last hour. Sign out, then choose “Forgot password?”.",
+    "Passwords are set from an invite or reset link opened in the last hour. Sign out, then choose “Forgot Password?”.",
   samePassword: "That is your current password. Choose a new one.",
   pwnedPassword: "This password has appeared in a data breach. Choose a different one.",
   weakPassword: "Choose a stronger password: make it longer and mix letters, digits and symbols.",
@@ -187,7 +187,7 @@ export const LOGIN_NOTICES = {
     title: "That link has expired or was already used.",
     description:
       "Links work once and expire after a short time. Ask for a new one, or ask your administrator to resend your invite.",
-    action: { href: "/forgot-password", label: "Get a new reset link" },
+    action: { href: "/forgot-password", label: "Get a New Reset Link" },
   },
   session_expired: {
     tone: "info",

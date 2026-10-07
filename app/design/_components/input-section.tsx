@@ -29,7 +29,6 @@ export function InputSection() {
   return (
     <DesignSection
       id="inputs"
-      title="Inputs"
       description="White fields with slate-300 borders and labels above, as on the website's forms. Measurements open the decimal keypad and reject anything that is not a number. Computed values are read-only on grey: never typed."
       source="contact-form.tsx (field styling)"
     >
@@ -46,7 +45,7 @@ export function InputSection() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor={`${id}-unit`}>Inner unit</Label>
+            <Label htmlFor={`${id}-unit`}>Inner Unit</Label>
             <Select defaultValue="Inner box">
               <SelectTrigger id={`${id}-unit`} className="w-full">
                 <SelectValue />
@@ -67,7 +66,7 @@ export function InputSection() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor={`${id}-palm`}>Palm Thickness · error state</Label>
+            <Label htmlFor={`${id}-palm`}>Palm Thickness · Error State</Label>
             <NumericCell
               id={`${id}-palm`}
               value={palm}
@@ -80,7 +79,7 @@ export function InputSection() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor={`${id}-case`}># gloves per case · computed</Label>
+            <Label htmlFor={`${id}-case`}># gloves per case · Computed</Label>
             <Input id={`${id}-case`} readOnly value="1,000" aria-describedby={`${id}-case-hint`} />
             <p id={`${id}-case-hint`} className="text-sm text-muted-foreground">
               100 per inner box × 10 inner boxes
@@ -98,11 +97,11 @@ export function InputSection() {
         <div className="flex flex-wrap items-start gap-x-10 gap-y-6">
           <div className="flex items-center gap-3">
             <Checkbox id={`${id}-lot`} checked={verified} onCheckedChange={(value) => setVerified(value === true)} />
-            <Label htmlFor={`${id}-lot`}>Lot number verified</Label>
+            <Label htmlFor={`${id}-lot`}>Lot Number Verified</Label>
           </div>
           <div className="flex items-center gap-3">
             <Switch id={`${id}-hand`} checked={handSplit} onCheckedChange={setHandSplit} />
-            <Label htmlFor={`${id}-hand`}>Record R and L separately</Label>
+            <Label htmlFor={`${id}-hand`}>Record R and L Separately</Label>
           </div>
           {/* The overall result in the template's words, as the conclusion module shows it (docs/DESIGN.md). */}
           <RadioGroup defaultValue="pass" aria-label={CONCLUSION_LABELS.finalResult} className="flex flex-wrap gap-6">

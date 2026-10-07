@@ -144,7 +144,7 @@ function frameHeader(page: Page): Locator {
   return frame(page).locator(":scope > header");
 }
 
-/** The section's result pill in its frame header ("Passed", "Warning", "Info", "Not done"). */
+/** The section's result pill in its frame header ("Passed", "Warning", "Info", "Not Done"). */
 function sectionStatus(page: Page): Locator {
   return frameHeader(page).locator("[data-slot='status-pill']");
 }
@@ -340,8 +340,8 @@ test("Dimension: the five size S cells typed with a space are refused, and S sta
   await expect(section.locator('[data-slot="measurement-grid"]').getByRole("button", { name: /^No\. \d+, / })).toHaveCount(refused.length);
   // Not done, never Passed (6.2 rule 5). Meanwhile the footer averages the readings stored so far, marked "12 of 13":
   // the report's own average over its numeric cells, never a result.
-  await expect(section.locator('[role="tab"][data-size="S"]')).toHaveAccessibleName(/Not done/);
-  await expect(dimensionFooter(page, 2)).toHaveText(["Not done", "A", "Not done", "Not done"]);
+  await expect(section.locator('[role="tab"][data-size="S"]')).toHaveAccessibleName(/Not Done/);
+  await expect(dimensionFooter(page, 2)).toHaveText(["Not Done", "A", "Not Done", "Not Done"]);
   await expect(dimensionFooter(page, 0).nth(0)).toContainText("12 of 13");
   await expect(dimensionFooter(page, 0).nth(2)).toContainText("11 of 13");
   await expect(dimensionFooter(page, 0).nth(3)).toContainText("11 of 13");
@@ -349,7 +349,7 @@ test("Dimension: the five size S cells typed with a space are refused, and S sta
 
   await enterDimensions(page, ["M", "L"], "typed");
   await saved(page);
-  await expect(sectionStatus(page)).toHaveText("Not done");
+  await expect(sectionStatus(page)).toHaveText("Not Done");
   await expect(frameHeader(page)).toContainText("Not done for size S.");
   // Text is never stored (6.2 rule 1): the five cells are empty in the data.
   await expect
@@ -362,7 +362,7 @@ test("Dimension: the five size S cells typed with a space are refused, and S sta
     .toEqual(refused.map(() => null));
   // Back on S after the other sizes: still not done, 12 of 13 lengths.
   await showSize(page, "S");
-  await expect(dimensionFooter(page, 2)).toHaveText(["Not done", "A", "Not done", "Not done"]);
+  await expect(dimensionFooter(page, 2)).toHaveText(["Not Done", "A", "Not Done", "Not Done"]);
   await expect(dimensionFooter(page, 0).nth(0)).toContainText("12 of 13");
 });
 

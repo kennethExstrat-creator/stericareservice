@@ -15,9 +15,9 @@ const headingTag = (html: string) => html.match(/<h1[^>]*>/)?.[0] ?? "";
 describe("NotFoundScreen", () => {
   it("says what happened and links back to the inspections", () => {
     const html = renderToStaticMarkup(<NotFoundScreen />);
-    expect(html).toContain(">Page not found</h1>");
+    expect(html).toContain(">Page Not Found</h1>");
     expect(html).toContain('href="/inspections"');
-    expect(html).toContain(">Go to inspections<");
+    expect(html).toContain(">Go to Inspections<");
     // Only the error screens move focus to their heading.
     expect(headingTag(html)).not.toContain("tabindex");
   });
@@ -34,11 +34,11 @@ describe("NotFoundScreen", () => {
 });
 
 describe("ErrorScreen", () => {
-  it("offers Try again and shows the digest as a reference", () => {
+  it("offers Try Again and shows the digest as a reference", () => {
     const error = Object.assign(new Error("boom"), { digest: "1399811856" });
     const html = renderToStaticMarkup(<ErrorScreen error={error} retry={retry} />);
-    expect(html).toContain(">This page did not load</h1>");
-    expect(html).toContain("Try again");
+    expect(html).toContain(">This Page Did Not Load</h1>");
+    expect(html).toContain("Try Again");
     expect(html).toContain("quote the reference below");
     expect(html).toContain(">1399811856<");
     // The message itself can be technical or sensitive: it never shows.
@@ -55,7 +55,7 @@ describe("ErrorScreen", () => {
     const html = renderToStaticMarkup(<ErrorScreen error={new Error("boom")} retry={retry} />);
     // React moves the title into <head>; Next's route announcer reads it after a navigation.
     expect(html).toContain(`<title>${ERROR_SCREEN_TITLE}</title>`);
-    expect(ERROR_SCREEN_TITLE).toBe("This page did not load · SteriCare QC");
+    expect(ERROR_SCREEN_TITLE).toBe("This Page Did Not Load · SteriCare QC");
     // Focus moves here on mount (e2e/shell checks it), so VoiceOver says what happened.
     expect(headingTag(html)).toContain('tabindex="-1"');
   });
@@ -75,12 +75,12 @@ describe("GlobalError", () => {
     const html = renderToStaticMarkup(<GlobalError error={error} retry={retry} />);
     expect(html).toMatch(/^<html lang="en"/);
     expect(html).toContain("<body");
-    expect(html).toContain("<title>SteriCare QC could not load</title>");
-    expect(html).toContain(">The app could not load</h1>");
+    expect(html).toContain("<title>SteriCare QC Could Not Load</title>");
+    expect(html).toContain(">The App Could Not Load</h1>");
     expect(headingTag(html)).toContain('tabindex="-1"');
-    expect(html).toContain("Try again");
+    expect(html).toContain("Try Again");
     // A plain link: the root layout failed, so it loads the app afresh.
-    expect(html).toMatch(/<a [^>]*href="\/inspections"[^>]*>Go to inspections<\/a>/);
+    expect(html).toMatch(/<a [^>]*href="\/inspections"[^>]*>Go to Inspections<\/a>/);
     expect(html).toContain(">42<");
     expect(html).not.toContain("root layout failed");
   });

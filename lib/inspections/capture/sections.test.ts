@@ -71,7 +71,7 @@ describe("captureSections", () => {
     const data = { ...filled, modules: { ...filled.modules, conclusion: { finalResult: "hold", remark: null } } };
     const { template, report } = evaluateCapture({ template: testTemplate(), overrides: {}, data, meta: TEST_META }, TEST_REGISTRY);
     const sections = captureSections(template, report, data);
-    // The pill and the chip say On hold, as the review and the final result do.
+    // The pill and the chip say On Hold, as the review and the final result do.
     expect(findSection(sections, "conclusion")).toMatchObject({ status: "hold", progress: "done" });
     expect(progressSteps(sections).at(-1)).toEqual({ key: "conclusion", label: "Conclusion", state: "done", result: "hold" });
     expect(progressSummary(sections).done).toBe(progressSummary(sectionsFor()).done + 1);

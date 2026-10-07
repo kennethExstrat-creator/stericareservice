@@ -98,8 +98,8 @@ test("checkbox, radio and switch: 44 px hit areas", async ({ page }) => {
   test.skip(response?.status() === 404, "/design is hidden in production builds");
   await hydrated(page);
 
-  const checkbox = page.getByRole("checkbox", { name: "Lot number verified" });
-  const toggle = page.getByRole("switch", { name: "Record R and L separately" });
+  const checkbox = page.getByRole("checkbox", { name: "Lot Number Verified" });
+  const toggle = page.getByRole("switch", { name: "Record R and L Separately" });
   const radio = page.getByRole("radiogroup", { name: "Conclusion" }).getByRole("radio", { name: "FAILED" });
 
   for (const [control, size] of [

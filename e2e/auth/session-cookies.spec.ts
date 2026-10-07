@@ -29,7 +29,7 @@ async function signInThroughForm(page: Page, testInfo: TestInfo, email: string):
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(TEST_PASSWORD);
   const answer = page.waitForResponse((response) => response.request().method() === "POST" && new URL(response.url()).pathname === "/login");
-  await press(page.getByRole("button", { name: "Sign in" }), testInfo);
+  await press(page.getByRole("button", { name: "Sign In" }), testInfo);
   return answer;
 }
 
@@ -97,7 +97,7 @@ test("an email link opens a session through the auth client, with Secure cookies
     }
 
     await expect(page).toHaveURL(/\/reset-password\?flow=recovery$/);
-    await expect(page.getByRole("heading", { level: 1, name: "Choose a new password" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Choose a New Password" })).toBeVisible();
     await expect(page.getByRole("main")).toContainText(email);
     await shot(page, testInfo, "email-link-landing");
   } finally {

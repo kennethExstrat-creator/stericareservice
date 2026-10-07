@@ -9,7 +9,7 @@ export function BackToSignIn({ variant = "link" }: { variant?: "link" | "outline
     <Button asChild variant={variant} size={variant === "outline" ? "lg" : "default"} className="w-full">
       <Link href={LOGIN_PATH}>
         <ArrowLeftIcon aria-hidden data-icon="inline-start" />
-        Back to sign in
+        Back to Sign In
       </Link>
     </Button>
   );

@@ -3,7 +3,7 @@ import { isSupabaseConfigured } from "@/lib/env";
 import { SetupNotice } from "../_components/setup-notice";
 import { ForgotPasswordForm } from "./forgot-password-form";
 
-export const metadata: Metadata = { title: "Reset your password" };
+export const metadata: Metadata = { title: "Reset Your Password" };
 
 /**
  * /forgot-password (BUILD_SPEC 3). A guest screen like /login: proxy.ts sends

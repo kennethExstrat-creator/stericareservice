@@ -12,9 +12,9 @@ test("a reset request always gets the same confirmation", async ({ page }, testI
 
   await open(page, "/forgot-password");
   await page.getByLabel("Email").fill(email.toUpperCase());
-  await press(page.getByRole("button", { name: "Send reset link" }), testInfo);
+  await press(page.getByRole("button", { name: "Send Reset Link" }), testInfo);
 
-  const heading = page.getByRole("heading", { level: 1, name: "Check your email" });
+  const heading = page.getByRole("heading", { level: 1, name: "Check Your Email" });
   await expect(heading).toBeFocused();
   // Focus lands on the title, and a screen reader reads the confirmation with it.
   await expect(heading).toHaveAccessibleDescription(/If an account exists for that email, a reset link is on its way\./);
@@ -25,6 +25,6 @@ test("a reset request always gets the same confirmation", async ({ page }, testI
   await expect(page.locator("form")).toHaveCount(0);
   await shot(page, testInfo, "forgot-password-sent");
 
-  await press(page.getByRole("link", { name: "Back to sign in" }), testInfo);
+  await press(page.getByRole("link", { name: "Back to Sign In" }), testInfo);
   await expect(page).toHaveURL(/\/login$/);
 });

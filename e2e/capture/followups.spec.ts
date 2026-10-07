@@ -12,7 +12,7 @@ import { sessionCookies, TEST_ACCOUNTS } from "../support/session";
  * The capture screen's halves of two fixes first made on the review, as an
  * admin on a draft of the test inspector's:
  *
- * - the inspector's HOLD reads On hold, with the pause icon, on the
+ * - the inspector's HOLD reads On Hold, with the pause icon, on the
  *   Conclusion section's pill and its tab (the sidebar row on the desktop),
  *   not an amber Warning, and counts as done (ACC-SGF-7);
  * - a reason typed for switching a module off, and a photo's caption, are
@@ -271,10 +271,10 @@ async function expectCaretAtEnd(field: Locator) {
 }
 
 /* ------------------------------------------------------------------ *
- * ACC-SGF-7: HOLD reads On hold
+ * ACC-SGF-7: HOLD reads On Hold
  * ------------------------------------------------------------------ */
 
-test("the inspector's HOLD reads On hold on the Conclusion's pill and its tab or sidebar row, and counts as done", async ({
+test("the inspector's HOLD reads On Hold on the Conclusion's pill and its tab or sidebar row, and counts as done", async ({
   page,
   context,
   baseURL,
@@ -285,19 +285,19 @@ test("the inspector's HOLD reads On hold on the Conclusion's pill and its tab or
   const frame = await formReady(page);
   await expect(page.getByRole("heading", { level: 2, name: "Conclusion", exact: true })).toBeVisible();
 
-  // The section's pill: On hold, the pause icon, the hold tint.
+  // The section's pill: On Hold, the pause icon, the hold tint.
   const pill = frame.locator('header [data-slot="status-pill"]');
   await expect(pill).toHaveAttribute("data-status", "hold");
-  await expect(pill).toHaveText("On hold");
+  await expect(pill).toHaveText("On Hold");
   await expect(pill.locator("svg.lucide-circle-pause")).toHaveCount(1);
   await expect(frame.locator("header")).not.toContainText("Warning");
 
   if (hasTabs()) {
-    // The tab's chip: the pause glyph, read as On hold.
+    // The tab's chip: the pause glyph, read as On Hold.
     const tab = page.locator('[role="tab"][data-section="conclusion"]');
     const chip = tab.locator('[data-slot="result-chip"]');
     await expect(chip).toHaveAttribute("data-status", "hold");
-    await expect(chip).toHaveText("On hold");
+    await expect(chip).toHaveText("On Hold");
     await expect(tab).not.toContainText("Warning");
     // Done on the progress bar under the tabs.
     await expect(page.locator('[data-slot="progress-tracker"]:visible')).toContainText("Conclusion: Done");
@@ -306,7 +306,7 @@ test("the inspector's HOLD reads On hold on the Conclusion's pill and its tab or
     const row = page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: /^Conclusion\s*,/ });
     await expect(row).toContainText(", Done");
     await expect(row.locator('[data-slot="result-chip"]')).toHaveAttribute("data-status", "hold");
-    await expect(row).toContainText("On hold");
+    await expect(row).toContainText("On Hold");
     await expect(row).not.toContainText("Warning");
   }
   await shot(page, "conclusion-hold");

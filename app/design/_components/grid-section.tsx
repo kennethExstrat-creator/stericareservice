@@ -80,13 +80,12 @@ export function GridSection() {
   return (
     <DesignSection
       id="grid"
-      title="Sample grid"
       description={
         <>
           13 gloves by 5 measures, in the report&apos;s wording. Type a value and press Enter to move down the column;
           arrows move between cells; pasting a column fills down from the focused cell, and values past the last row
           are listed under the grid, never dropped silently. A reading like “2 42” is rejected and never stored. The
-          median shows <em>Not done</em> until a column has data, and P/F waits for the whole column.
+          median shows <em>Not Done</em> until a column has data, and P/F waits for the whole column.
         </>
       }
       source="app-specific (BUILD_SPEC 6.1 dimensions, 6.2, 8)"
@@ -104,7 +103,7 @@ export function GridSection() {
             </TabsList>
             <Button variant="outline" size="sm" onClick={copyTestColumn}>
               <ClipboardCopyIcon aria-hidden />
-              Copy a test column
+              Copy a Test Column
             </Button>
           </div>
           {SIZES.map(({ size, measures }) => (

@@ -97,11 +97,11 @@ export function NotFoundScreen() {
     <StatusScreen
       icon={CompassIcon}
       eyebrow="Error 404"
-      title="Page not found"
+      title="Page Not Found"
       description="There is no page at this address. Check the link, or go back to your inspections."
       actions={
         <Button asChild size="lg">
-          <Link href={HOME_PATH}>Go to inspections</Link>
+          <Link href={HOME_PATH}>Go to Inspections</Link>
         </Button>
       }
     />

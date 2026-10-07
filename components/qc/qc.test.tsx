@@ -132,7 +132,7 @@ describe("StatusPill", () => {
     const html = renderToStaticMarkup(<StatusPill status={status} />);
     expect(html).toContain(`data-status="${status}"`);
     expect(html).toMatch(/<svg[^>]*aria-hidden="true"/);
-    expect(html).toMatch(/<span>[A-Z][a-z ]+<\/span>/);
+    expect(html).toMatch(/<span>[A-Z][a-z]*(?: [A-Z][a-z]*)*<\/span>/);
   });
 
   it("takes the template's wording", () => {
@@ -159,7 +159,7 @@ describe("StatusPill", () => {
 describe("ResultChip", () => {
   it("names the result for screen readers", () => {
     expect(renderToStaticMarkup(<ResultChip status="fail" />)).toContain('<span class="sr-only">Failed</span>');
-    expect(renderToStaticMarkup(<ResultChip status="not_done" />)).toContain(">Not done<");
+    expect(renderToStaticMarkup(<ResultChip status="not_done" />)).toContain(">Not Done<");
   });
 });
 

@@ -98,7 +98,7 @@ describe("AiReviewPanelView for an admin", () => {
     const content = text(html);
     expect(content).toContain("AI Second Opinion");
     for (const column of ["System (Computed)", "Inspector", "AI Second Opinion"]) expect(content).toContain(column);
-    expect(content).toMatch(/Overall Result .*Suggested Result .*Failed.* Final Result .*On hold.*Inspector A/);
+    expect(content).toMatch(/Overall Result .*Suggested Result .*Failed.* Final Result .*On Hold.*Inspector A/);
     expect(content).toContain("Weight below the indicative value; waiting for the spec sheet.");
     expect(content).toContain("Confidence 85%");
     expect(content).toContain("Weighed on the factory scale.");

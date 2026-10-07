@@ -10,27 +10,27 @@ const ROWS: Row[] = [
     spec: "Red Hat Display 800 · 36/40 · tight",
     sample: (
       <p className="font-display text-4xl leading-10 font-extrabold tracking-tight text-foreground">
-        Preshipment <span className="text-gradient-brand">inspection</span>
+        Preshipment <span className="text-gradient-brand">Inspection</span>
       </p>
     ),
   },
   {
-    name: "H1 · page title",
+    name: "H1 · Page Title",
     spec: "Red Hat Display 700 · 30/36 · tight",
     sample: <p className="font-display text-3xl font-bold tracking-tight text-foreground">INS-2026-0001</p>,
   },
   {
-    name: "H2 · section",
+    name: "H2 · Section",
     spec: "Red Hat Display 700 · 24/32",
     sample: <p className="font-display text-2xl font-bold tracking-tight text-foreground">Dimension - Size M</p>,
   },
   {
-    name: "H3 · module card",
+    name: "H3 · Module Card",
     spec: "Red Hat Display 700 · 18/28",
     sample: <p className="font-display text-lg font-bold text-foreground">Freedom from Holes by watertight test</p>,
   },
   {
-    name: "H4 · group",
+    name: "H4 · Group",
     spec: "Red Hat Display 600 · 16/24",
     sample: <p className="font-display text-base font-semibold text-foreground">Major Defects (AQL 2.5)</p>,
   },
@@ -44,7 +44,7 @@ const ROWS: Row[] = [
     ),
   },
   {
-    name: "Small · secondary",
+    name: "Small · Secondary",
     spec: "Outfit 400 · 14/20 · slate-600",
     sample: <p className="text-sm text-muted-foreground">Saved 2 minutes ago · 13 gloves per size</p>,
   },
@@ -56,7 +56,7 @@ const ROWS: Row[] = [
   {
     name: "Eyebrow",
     spec: "Outfit 700 · 12 · 0.2em · brand-600",
-    sample: <Eyebrow dash>Preshipment inspection</Eyebrow>,
+    sample: <Eyebrow dash>Preshipment Inspection</Eyebrow>,
   },
 ];
 
@@ -66,7 +66,6 @@ export function TypeSection() {
   return (
     <DesignSection
       id="type"
-      title="Type scale"
       description="Outfit for body text, Red Hat Display for headings, as on the website. Sizes are smaller than the website's marketing scale: this is a data-entry tool. Field text never drops below 16 px on iPad."
       source="layout.tsx.txt, ui.tsx.txt (Eyebrow, Display)"
     >

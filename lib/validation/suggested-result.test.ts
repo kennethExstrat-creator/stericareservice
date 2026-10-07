@@ -60,7 +60,7 @@ describe("suggestResult", () => {
       [...done, { key: "labeling", status: "not_done" }],
       [{ key: "header", status: "info" }],
     ];
-    for (const modules of cases) expect(suggestResult(modules).summary).not.toMatch(/\b(Pass|Fail|Hold|PASSED|FAILED|HOLD|On hold)\b/);
+    for (const modules of cases) expect(suggestResult(modules).summary).not.toMatch(/\b(Pass|Fail|Hold|PASSED|FAILED|HOLD|On [Hh]old)\b/);
   });
 });
 

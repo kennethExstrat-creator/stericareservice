@@ -1,18 +1,16 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import type { SectionId } from "./sections";
+import { sectionLabel, type SectionId } from "./sections";
 
-/** One /design section: heading, the decision it records, and the specimens. */
+/** One /design section: heading (its name in the index), the decision it records, and the specimens. */
 export function DesignSection({
   id,
-  title,
   description,
   source,
   children,
   className,
 }: {
   id: SectionId;
-  title: string;
   description?: ReactNode;
   /** Where the decision came from: a website file or "app-specific". */
   source?: string;
@@ -23,7 +21,7 @@ export function DesignSection({
     <section id={id} aria-labelledby={`${id}-title`} className={cn("scroll-mt-20 space-y-5 xl:scroll-mt-8", className)}>
       <div className="space-y-1.5">
         <h2 id={`${id}-title`} className="text-2xl font-bold tracking-tight text-foreground">
-          {title}
+          {sectionLabel(id)}
         </h2>
         {description && <div className="max-w-3xl text-base text-muted-foreground">{description}</div>}
         {source && (

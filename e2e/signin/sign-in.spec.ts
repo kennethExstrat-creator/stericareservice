@@ -11,7 +11,7 @@ import { expect, onlyIn, open, press, shot, test } from "./support";
 async function signInThroughForm(page: Page, testInfo: TestInfo, email: string, password: string) {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
-  await press(page.getByRole("button", { name: "Sign in" }), testInfo);
+  await press(page.getByRole("button", { name: "Sign In" }), testInfo);
 }
 
 async function authCookies(context: BrowserContext) {

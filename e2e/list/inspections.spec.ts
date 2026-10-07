@@ -303,7 +303,7 @@ test.describe("with inspections", () => {
     // The status and the result, each in its own column.
     const result = (ref: string, text: string) => row(page, ref).getByText(text, { exact: true }).filter({ visible: true });
     await expect(row(page, refs.A).getByText("Draft")).toBeVisible();
-    await expect(result(refs.A, "Not done")).toBeVisible();
+    await expect(result(refs.A, "Not Done")).toBeVisible();
     await expect(row(page, refs.B).getByText("Submitted")).toBeVisible();
     await expect(result(refs.B, "Passed")).toBeVisible();
     // Approved and failed: the workflow badge never borrows the result's colour.
@@ -384,7 +384,7 @@ test.describe("with inspections", () => {
     await expect(row(page, refs.A)).toContainText("Test Inspector", { useInnerText: true });
     await expect(row(page, refs.C)).toContainText("Test Admin", { useInnerText: true });
     await expect(row(page, refs.C).getByText("Reopened")).toBeVisible();
-    await expect(row(page, refs.C).getByText("On hold", { exact: true }).filter({ visible: true })).toBeVisible();
+    await expect(row(page, refs.C).getByText("On Hold", { exact: true }).filter({ visible: true })).toBeVisible();
     await expect(page.getByText("All Inspectors")).toBeVisible();
     await expect(row(page, refs.C)).toContainText("Safedon nitrile examination gloves", { useInnerText: true });
     await expectNamesWhole([

@@ -7,7 +7,7 @@
 // through Sign out, it asks every guard. A guard saves what it can, then
 // answers with one plain sentence saying what would still be lost, or null
 // when nothing would. With an answer the shell asks the user first (Stay /
-// Leave anyway); without one it goes. A guard that throws or takes longer
+// Leave Anyway); without one it goes. A guard that throws or takes longer
 // than LEAVE_CHECK_TIMEOUT_MS counts as unsaved work, so nothing is dropped
 // unasked.
 //
