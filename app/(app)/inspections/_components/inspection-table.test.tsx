@@ -13,6 +13,8 @@ const INSPECTOR = "7c2d4e1a-0b3f-4a5c-9d8e-1f2a3b4c5d6e";
 const ADMIN = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const AS_INSPECTOR: ListViewer = { id: INSPECTOR, role: "inspector" };
 const AS_ADMIN: ListViewer = { id: ADMIN, role: "admin" };
+const LEAD = "5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b";
+const AS_LEAD: ListViewer = { id: LEAD, role: "inspector", isLead: true };
 
 const ROW: InspectionListRow = {
   id: "9b0b4c55-1b6e-4c50-9a39-0f6f1e1f0001",
@@ -51,10 +53,23 @@ describe("InspectionTable", () => {
     expect(html).not.toContain("Test Inspector");
   });
 
-  it("gives admins the Inspector column with the name in its own cell", () => {
-    const html = render([ROW], AS_ADMIN);
-    expect(headers(html)).toEqual(["Ref", "Date", "Client", "Manufacturer", "Product", "PO", "Status", "Result", "Inspector", "Actions"]);
-    expect(cells(html)[8]).toContain('title="Test Inspector">Test Inspector</span>');
+  it("gives admins and lead inspectors the Inspector in charge column, with the name in its own cell", () => {
+    for (const viewer of [AS_ADMIN, AS_LEAD]) {
+      const html = render([ROW], viewer);
+      expect(headers(html)).toEqual([
+        "Ref",
+        "Date",
+        "Client",
+        "Manufacturer",
+        "Product",
+        "PO",
+        "Status",
+        "Result",
+        "Inspector in charge",
+        "Actions",
+      ]);
+      expect(cells(html)[8]).toContain('title="Test Inspector">Test Inspector</span>');
+    }
   });
 
   it("heads each row with its ref as plain text, pinned on the left", () => {
@@ -159,6 +174,16 @@ describe("the row actions", () => {
     expect(seen.reopened).toMatchObject({ text: "Continue", href: CAPTURE });
     expect(seen.submitted).toMatchObject({ text: "Review", href: REVIEW, kind: "review" });
     expect(seen.approved).toMatchObject({ text: "View", href: REVIEW });
+  });
+
+  it("offers a lead inspector only View on their team's inspections, in every status, and never Delete", () => {
+    for (const status of STATUSES) {
+      expect(forStatus(status, AS_LEAD), status).toMatchObject({ text: "View", href: REVIEW, kind: "view", deleteButton: null });
+    }
+    // Their own draft: Continue and Delete, as for any inspector.
+    const own = forStatus("draft", AS_LEAD, LEAD);
+    expect(own).toMatchObject({ text: "Continue", href: CAPTURE });
+    expect(own.deleteButton).toContain('aria-label="Delete INS-2026-0001"');
   });
 
   it("offers View, never Continue, on an inspection the viewer may not edit", () => {

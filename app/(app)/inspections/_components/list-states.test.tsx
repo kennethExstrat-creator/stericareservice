@@ -8,7 +8,7 @@ const CLIENT = "20000000-0000-4000-8000-000000000001";
 
 describe("NoInspectionsYet", () => {
   it("tells an inspector they see only their own", () => {
-    const html = renderToStaticMarkup(<NoInspectionsYet role="inspector" />);
+    const html = renderToStaticMarkup(<NoInspectionsYet scope="own" />);
     expect(html).toContain("<h2");
     expect(html).toContain("No inspections yet");
     expect(html).toContain("You see only your own; admins see everyone&#x27;s.");
@@ -17,9 +17,15 @@ describe("NoInspectionsYet", () => {
   });
 
   it("tells an admin they see every inspector's", () => {
-    const html = renderToStaticMarkup(<NoInspectionsYet role="admin" />);
+    const html = renderToStaticMarkup(<NoInspectionsYet scope="all" />);
     expect(html).toContain("Inspections from every inspector will appear here");
     expect(html).toContain("Inspectors see only their own.");
+  });
+
+  it("tells a lead inspector they see their team's too, read-only", () => {
+    const html = renderToStaticMarkup(<NoInspectionsYet scope="team" />);
+    expect(html).toContain("Inspections you and your team start will appear here");
+    expect(html).toContain("Your team&#x27;s open read-only.");
   });
 });
 
@@ -67,7 +73,7 @@ describe("LoadFailed", () => {
 
 describe("focus after a list link goes away", () => {
   it.each([
-    ["no inspections yet", <NoInspectionsYet key="empty" role="inspector" />],
+    ["no inspections yet", <NoInspectionsYet key="empty" scope="own" />],
     ["no matches", <NoMatches key="no-matches" filters={{ q: "X", page: 1 }} names={{}} />],
     ["past the end", <PastTheEnd key="past" filters={{ page: 2 }} total={1} pageCount={1} />],
     ["load failed", <LoadFailed key="failed" retryHref="/inspections" />],

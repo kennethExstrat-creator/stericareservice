@@ -218,7 +218,7 @@ test.describe("with inspections", () => {
     await expect(row(page, refs.A)).toBeVisible();
     await expect(row(page, refs.D)).toBeVisible();
     await expect(row(page, refs.C)).toHaveCount(0);
-    await expect(page.getByRole("columnheader", { name: "Inspector", exact: true, includeHidden: true })).toHaveCount(0);
+    await expect(page.getByRole("columnheader", { name: "Inspector in charge", exact: true, includeHidden: true })).toHaveCount(0);
     await expect(row(page, refs.A)).not.toContainText("Test Inspector");
     await expect(page.getByText("Your inspections", { exact: true })).toBeVisible();
 
@@ -286,7 +286,7 @@ test.describe("with inspections", () => {
 
     for (const ref of [refs.A, refs.B, refs.C, refs.D]) await expect(row(page, ref)).toBeVisible();
     // A column of its own at every size.
-    await expect(page.getByRole("columnheader", { name: "Inspector", exact: true })).toHaveCount(1);
+    await expect(page.getByRole("columnheader", { name: "Inspector in charge", exact: true })).toHaveCount(1);
     await expect(row(page, refs.A)).toContainText("Test Inspector", { useInnerText: true });
     await expect(row(page, refs.C)).toContainText("Test Admin", { useInnerText: true });
     await expect(row(page, refs.C).getByText("Reopened")).toBeVisible();

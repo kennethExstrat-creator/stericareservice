@@ -41,6 +41,9 @@ function fakeSupabase(...responses: Response[]) {
   return { supabase: client as unknown as SupabaseClient<Database>, queries };
 }
 
+const INSPECTOR = { role: "inspector" } as const;
+const LEAD = { role: "inspector", isLead: true } as const;
+const ADMIN = { role: "admin" } as const;
 const CLIENT = "20000000-0000-4000-8000-000000000001";
 const MANUFACTURER = "10000000-0000-4000-8000-000000000002";
 
@@ -71,7 +74,7 @@ afterEach(() => {
 describe("listInspections", () => {
   it("asks for the first 50, newest first, with the names joined in and the total counted", async () => {
     const { supabase, queries } = fakeSupabase({ data: [], count: 0 });
-    await listInspections(supabase, { page: 1 }, "inspector");
+    await listInspections(supabase, { page: 1 }, INSPECTOR);
 
     expect(queries).toEqual([
       [
@@ -90,7 +93,7 @@ describe("listInspections", () => {
 
   it("never filters by inspector itself: Row Level Security scopes the rows", async () => {
     const { supabase, queries } = fakeSupabase({ data: [], count: 0 });
-    await listInspections(supabase, { q: "x", status: "draft", page: 1 }, "inspector");
+    await listInspections(supabase, { q: "x", status: "draft", page: 1 }, INSPECTOR);
     const filterCalls = queries[0].filter(([method]) => !["from", "select", "order", "range"].includes(method));
     expect(filterCalls.map(([method, column]) => `${method} ${String(column)}`)).toEqual([
       "eq status",
@@ -108,7 +111,7 @@ describe("listInspections", () => {
       page: 3,
     };
     const { supabase, queries } = fakeSupabase({ data: [], count: 0 });
-    await listInspections(supabase, filters, "admin");
+    await listInspections(supabase, filters, ADMIN);
 
     expect(queries[0]).toEqual([
       ["from", "inspections"],
@@ -124,7 +127,7 @@ describe("listInspections", () => {
 
   it("returns the rows and the total", async () => {
     const { supabase } = fakeSupabase({ data: [ROW], count: 51 });
-    expect(await listInspections(supabase, { page: 1 }, "admin")).toEqual({
+    expect(await listInspections(supabase, { page: 1 }, ADMIN)).toEqual({
       kind: "rows",
       total: 51,
       rows: [
@@ -146,21 +149,22 @@ describe("listInspections", () => {
   });
 
   it("keeps whose inspection it is for every role, for the row actions", () => {
-    expect(toListRow(ROW, "inspector").inspectorId).toBe(ROW.inspector_id);
-    expect(toListRow(ROW, "admin").inspectorId).toBe(ROW.inspector_id);
+    expect(toListRow(ROW, INSPECTOR).inspectorId).toBe(ROW.inspector_id);
+    expect(toListRow(ROW, ADMIN).inspectorId).toBe(ROW.inspector_id);
   });
 
-  it("names the inspector for admins only", async () => {
-    const asInspector = await listInspections(fakeSupabase({ data: [ROW], count: 1 }).supabase, { page: 1 }, "inspector");
+  it("names the inspector in charge for admins and lead inspectors, not for inspectors", async () => {
+    const asInspector = await listInspections(fakeSupabase({ data: [ROW], count: 1 }).supabase, { page: 1 }, INSPECTOR);
     expect(asInspector.kind === "rows" && asInspector.rows[0].inspector).toBeNull();
-    expect(toListRow(ROW, "admin").inspector).toBe("Test Inspector");
-    expect(toListRow({ ...ROW, inspector: { full_name: null, email: "x@test.local" } }, "admin").inspector).toBe(
+    expect(toListRow(ROW, ADMIN).inspector).toBe("Test Inspector");
+    expect(toListRow(ROW, LEAD).inspector).toBe("Test Inspector");
+    expect(toListRow({ ...ROW, inspector: { full_name: null, email: "x@test.local" } }, ADMIN).inspector).toBe(
       "x@test.local",
     );
   });
 
   it("copes with an inspection that has no client or manufacturer yet", () => {
-    expect(toListRow({ ...ROW, client: null, manufacturer: null }, "inspector")).toMatchObject({
+    expect(toListRow({ ...ROW, client: null, manufacturer: null }, INSPECTOR)).toMatchObject({
       client: null,
       manufacturer: null,
     });
@@ -168,7 +172,7 @@ describe("listInspections", () => {
 
   it("reports an empty list as rows with a total of 0", async () => {
     const { supabase } = fakeSupabase({ data: [], count: 0 });
-    expect(await listInspections(supabase, { page: 1 }, "inspector")).toEqual({ kind: "rows", rows: [], total: 0 });
+    expect(await listInspections(supabase, { page: 1 }, INSPECTOR)).toEqual({ kind: "rows", rows: [], total: 0 });
   });
 
   it("reports a page past the end when PostgREST refuses the range, with the total from a count", async () => {
@@ -176,7 +180,7 @@ describe("listInspections", () => {
       { error: { code: "PGRST103", message: "Requested range not satisfiable" } },
       { count: 7 },
     );
-    expect(await listInspections(supabase, { status: "draft", page: 9 }, "inspector")).toEqual({
+    expect(await listInspections(supabase, { status: "draft", page: 9 }, INSPECTOR)).toEqual({
       kind: "out-of-range",
       total: 7,
     });
@@ -189,18 +193,18 @@ describe("listInspections", () => {
 
   it("treats a page past the end of nothing as an empty list", async () => {
     const { supabase } = fakeSupabase({ error: { code: "PGRST103", message: "Requested range not satisfiable" } }, { count: 0 });
-    expect(await listInspections(supabase, { page: 2 }, "inspector")).toEqual({ kind: "rows", rows: [], total: 0 });
+    expect(await listInspections(supabase, { page: 2 }, INSPECTOR)).toEqual({ kind: "rows", rows: [], total: 0 });
   });
 
   it("reports a page past the end when it comes back empty", async () => {
     const { supabase } = fakeSupabase({ data: [], count: 12 });
-    expect(await listInspections(supabase, { page: 2 }, "inspector")).toEqual({ kind: "out-of-range", total: 12 });
+    expect(await listInspections(supabase, { page: 2 }, INSPECTOR)).toEqual({ kind: "out-of-range", total: 12 });
   });
 
   it("reports a failure without its details and logs it on the server", async () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     const { supabase } = fakeSupabase({ error: { code: "42P01", message: 'relation "inspections" does not exist' } });
-    expect(await listInspections(supabase, { page: 1 }, "admin")).toEqual({ kind: "error" });
+    expect(await listInspections(supabase, { page: 1 }, ADMIN)).toEqual({ kind: "error" });
     expect(log).toHaveBeenCalledWith("Inspections list: list failed", {
       code: "42P01",
       message: 'relation "inspections" does not exist',
@@ -213,7 +217,7 @@ describe("listInspections", () => {
       { error: { code: "PGRST103", message: "Requested range not satisfiable" } },
       { error: { code: "57014", message: "canceling statement due to statement timeout" } },
     );
-    expect(await listInspections(supabase, { page: 4 }, "admin")).toEqual({ kind: "error" });
+    expect(await listInspections(supabase, { page: 4 }, ADMIN)).toEqual({ kind: "error" });
   });
 });
 

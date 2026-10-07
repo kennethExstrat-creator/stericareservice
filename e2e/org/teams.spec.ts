@@ -97,6 +97,24 @@ test.describe("a lead inspector", () => {
       await expect(listRow(page, inspection.ref)).toBeVisible();
     }
     await expect(listRow(page, beaDraft.ref)).toHaveCount(0);
+    await expect(page.getByText("Your team", { exact: true })).toBeVisible();
+
+    // Who is in charge of each, the lead's own included, in a column of its own.
+    await expect(page.getByRole("columnheader", { name: "Inspector in charge", exact: true })).toHaveCount(1);
+    await expect(listRow(page, ivanDraft.ref)).toContainText(fixture.ivan.name, { useInnerText: true });
+    await expect(listRow(page, idaApproved.ref)).toContainText(fixture.ida.name, { useInnerText: true });
+    await expect(listRow(page, linaDraft.ref)).toContainText(fixture.linaLead.name, { useInnerText: true });
+
+    // The team's inspections open read-only: only View, never Continue or Delete, whatever their status.
+    for (const inspection of [ivanDraft, ivanSubmitted, idaApproved]) {
+      const row = listRow(page, inspection.ref);
+      await expect(row.getByRole("link", { name: `View ${inspection.ref}`, exact: true })).toBeVisible();
+      await expect(row.getByRole("link", { name: `Continue ${inspection.ref}` })).toHaveCount(0);
+      await expect(row.getByRole("button", { name: `Delete ${inspection.ref}` })).toHaveCount(0);
+    }
+    // Their own draft, as for any inspector: Continue and Delete.
+    await expect(listRow(page, linaDraft.ref).getByRole("link", { name: `Continue ${linaDraft.ref}`, exact: true })).toBeVisible();
+    await expect(listRow(page, linaDraft.ref).getByRole("button", { name: `Delete ${linaDraft.ref}`, exact: true })).toBeVisible();
     await shot(page, "lead-list");
     expect(errors).toEqual([]);
   });
@@ -141,6 +159,9 @@ test.describe("a lead inspector", () => {
     await expect(listRow(page, ivanSubmitted.ref)).toBeVisible();
     await expect(listRow(page, idaApproved.ref)).toHaveCount(0);
     await expect(listRow(page, linaDraft.ref)).toHaveCount(0);
+    // Only their own, so no Inspector in charge column.
+    await expect(page.getByRole("columnheader", { name: "Inspector in charge", exact: true, includeHidden: true })).toHaveCount(0);
+    await expect(page.getByText("Your inspections", { exact: true })).toBeVisible();
   });
 });
 
