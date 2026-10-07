@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { TEST_ADMIN_ID, testTemplate } from "./__fixtures__/capture";
-import { isInspectionId, loadCaptureInspection, loadOverrideAuthors, normaliseData, toCaptureLoad } from "./load";
+import {
+  isInspectionId,
+  loadCaptureInspection,
+  loadOverrideAuthors,
+  normaliseData,
+  reviewOnSubmitOf,
+  toCaptureLoad,
+} from "./load";
 
 const ID = "7c2d4e1a-0b3f-4a5c-9d8e-1f2a3b4c5d6e";
 const INSPECTOR = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
@@ -63,6 +70,19 @@ describe("toCaptureLoad", () => {
     });
   });
 
+  it("reads the template's AI setting on its own, off when it says nothing", () => {
+    const withAi = (ai: unknown) => row({ template: { id: "t1", code: "TEST_EG", version: 4, resolved: { ...testTemplate(), ai } } });
+    const asked = toCaptureLoad(withAi({ reviewOnSubmit: true }));
+    expect(asked.kind === "found" && asked.inspection.template.aiReviewOnSubmit).toBe(true);
+    expect(asked.kind === "found" && "ai" in asked.inspection.template.resolved).toBe(false);
+    const off = toCaptureLoad(withAi({ reviewOnSubmit: false }));
+    expect(off.kind === "found" && off.inspection.template.aiReviewOnSubmit).toBe(false);
+    const silent = toCaptureLoad(row());
+    expect(silent.kind === "found" && silent.inspection.template.aiReviewOnSubmit).toBe(false);
+    expect(reviewOnSubmitOf({ ai: { reviewOnSubmit: "yes" } })).toBe(false);
+    expect(reviewOnSubmitOf(null)).toBe(false);
+  });
+
   it("says when the template version cannot be read, rather than guessing", () => {
     expect(toCaptureLoad(row({ template: { id: "t1", code: "X", version: 1, resolved: { modules: [] } } }))).toMatchObject({
       kind: "template_unreadable",
@@ -96,6 +116,30 @@ describe("loading", () => {
     await expect(loadCaptureInspection(client({ data: null, error: null }), ID)).resolves.toEqual({ kind: "not_found" });
     await expect(loadCaptureInspection(client({ data: null, error: { message: "boom" } }), ID)).rejects.toThrow(/boom/);
     await expect(loadCaptureInspection(client({ data: row(), error: null }), ID)).resolves.toMatchObject({ kind: "found" });
+  });
+
+  it("reads the inspection's files into the context's meta when asked", async () => {
+    const files = [
+      { id: "f1", module_key: "tensile", kind: "lab_report" },
+      { id: "f2", module_key: null, kind: "other" },
+    ];
+    const tables: string[] = [];
+    const client = {
+      from: (table: string) => {
+        tables.push(table);
+        return table === "inspection_files"
+          ? { select: () => ({ eq: () => ({ order: () => Promise.resolve({ data: files, error: null }) }) }) }
+          : { select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: row(), error: null }) }) }) };
+      },
+    } as never;
+    const loaded = await loadCaptureInspection(client, ID, { files: true });
+    expect(loaded.kind === "found" && loaded.inspection.meta.files).toEqual([
+      { id: "f1", moduleKey: "tensile", kind: "lab_report" },
+      { id: "f2", moduleKey: null, kind: "other" },
+    ]);
+    const plain = await loadCaptureInspection(client, ID);
+    expect(plain.kind === "found" && "files" in plain.inspection.meta).toBe(false);
+    expect(tables).toEqual(["inspections", "inspection_files", "inspections"]);
   });
 
   it("names the admins who switched modules off, where the user may read them", async () => {

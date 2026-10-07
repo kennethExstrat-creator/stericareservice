@@ -8,15 +8,19 @@ vi.mock("@/modules/registry", async () => {
 });
 vi.mock("@/lib/auth/session", () => ({ authorizeAction: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
+vi.mock("@/lib/inspections/ai", () => ({ scheduleAiReviewOnSubmit: vi.fn() }));
 vi.mock("next/navigation", () => ({
   redirect: vi.fn((path: string) => {
     throw new Error(`REDIRECT ${path}`);
   }),
   unstable_rethrow: vi.fn(),
 }));
+vi.mock("next/server", () => ({ after: vi.fn() }));
 
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { authorizeAction } from "@/lib/auth/session";
+import { scheduleAiReviewOnSubmit } from "@/lib/inspections/ai";
 import { contentHash } from "@/lib/offline/stable-json";
 import type { ResolvedTemplate } from "@/lib/schemas/template";
 import { createClient } from "@/lib/supabase/server";
@@ -48,7 +52,7 @@ function fakeClient(respond: Responder, rpc: (name: string, args: unknown) => Re
     const query: Query = { table, calls: [] };
     queries.push(query);
     const builder: Record<string, unknown> = {};
-    for (const method of ["select", "update", "eq", "in", "abortSignal"]) {
+    for (const method of ["select", "update", "eq", "in", "order", "abortSignal"]) {
       builder[method] = (...args: unknown[]) => {
         query.calls.push([method, args]);
         return builder;
@@ -132,8 +136,11 @@ const COMPLETE: InspectionData = {
 
 let client: ReturnType<typeof fakeClient>;
 
+/** The inspection's files as inspection_files answers; none unless a test says so. */
+let fileRows: Result = { data: [], error: null };
+
 function useClient(respond: Responder, rpc?: (name: string, args: unknown) => Result) {
-  client = fakeClient(respond, rpc);
+  client = fakeClient((query) => (query.table === "inspection_files" ? fileRows : respond(query)), rpc);
   vi.mocked(createClient).mockResolvedValue(client.client as never);
 }
 
@@ -146,6 +153,7 @@ function signedInAs(role: "inspector" | "admin", id = role === "admin" ? ADMIN :
 
 beforeEach(() => {
   signedInAs("inspector");
+  fileRows = { data: [], error: null };
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -243,6 +251,22 @@ describe("saveCaptureData", () => {
     expect(updatePayload(update)).not.toHaveProperty("client_id");
   });
 
+  it("reads the inspection's files with it, so the mirrored results count them as the screen does", async () => {
+    useClient((query) =>
+      isUpdate(query) ? { data: { updated_at: NEXT_VERSION }, error: null } : { data: row(), error: null },
+    );
+    await expect(saveCaptureData(request())).resolves.toMatchObject({ ok: true });
+    const files = client.queries.find((query) => query.table === "inspection_files");
+    expect(files && hasEq(files, "inspection_id", INSPECTION)).toBe(true);
+  });
+
+  it("answers a server error the autosave retries when the files cannot be read", async () => {
+    fileRows = { data: null, error: { code: "57014", message: "canceling statement due to statement timeout" } };
+    useClient(() => ({ data: row(), error: null }));
+    await expect(saveCaptureData(request())).resolves.toMatchObject({ ok: false, reason: "server" });
+    expect(client.queries.filter(isUpdate)).toHaveLength(0);
+  });
+
   it("lets an admin save another inspector's draft", async () => {
     signedInAs("admin");
     useClient((query) =>
@@ -304,6 +328,47 @@ describe("submitInspection", () => {
     expect(updatePayload(update)).toMatchObject({ status: "submitted", result: "pass", po_no: "PO-0001" });
     expect(update && hasEq(update, "updated_at", VERSION)).toBe(true);
     expect(redirect).toHaveBeenCalledWith(`/inspections/${INSPECTION}/review`);
+  });
+
+  it("starts the AI second opinion when the template asks for it, and never otherwise", async () => {
+    vi.mocked(scheduleAiReviewOnSubmit).mockResolvedValue({ ok: true, reviewId: "r1", inspectionUpdatedAt: NEXT_VERSION });
+    const asking = { id: "t1", code: "TEST_EG", version: 1, resolved: { ...template(), ai: { reviewOnSubmit: true } } };
+    useClient((query) =>
+      isUpdate(query) ? { data: [{ id: INSPECTION }], error: null } : { data: row({ data: COMPLETE, template: asking }), error: null },
+    );
+    await expect(submit()).rejects.toThrow(`REDIRECT /inspections/${INSPECTION}/review`);
+    expect(scheduleAiReviewOnSubmit).toHaveBeenCalledWith(INSPECTION);
+    // The request stays alive for a review still starting when the review opens.
+    expect(after).toHaveBeenCalledTimes(1);
+
+    vi.mocked(scheduleAiReviewOnSubmit).mockClear();
+    const silent = { ...asking, resolved: { ...template(), ai: { reviewOnSubmit: false } } };
+    useClient((query) =>
+      isUpdate(query) ? { data: [{ id: INSPECTION }], error: null } : { data: row({ data: COMPLETE, template: silent }), error: null },
+    );
+    await expect(submit()).rejects.toThrow("REDIRECT");
+    useClient((query) =>
+      isUpdate(query) ? { data: [{ id: INSPECTION }], error: null } : { data: row({ data: COMPLETE }), error: null },
+    );
+    await expect(submit()).rejects.toThrow("REDIRECT");
+    expect(scheduleAiReviewOnSubmit).not.toHaveBeenCalled();
+  });
+
+  it("submits all the same when the AI second opinion cannot start", async () => {
+    vi.mocked(scheduleAiReviewOnSubmit).mockRejectedValue(new Error("reviewer down"));
+    const asking = { id: "t1", code: "TEST_EG", version: 1, resolved: { ...template(), ai: { reviewOnSubmit: true } } };
+    useClient((query) =>
+      isUpdate(query) ? { data: [{ id: INSPECTION }], error: null } : { data: row({ data: COMPLETE, template: asking }), error: null },
+    );
+    await expect(submit()).rejects.toThrow(`REDIRECT /inspections/${INSPECTION}/review`);
+    expect(updatePayload(client.queries.find(isUpdate))).toMatchObject({ status: "submitted" });
+  });
+
+  it("does not ask for a second opinion of an inspection submitted already", async () => {
+    const asking = { id: "t1", code: "TEST_EG", version: 1, resolved: { ...template(), ai: { reviewOnSubmit: true } } };
+    useClient(() => ({ data: row({ status: "submitted", data: COMPLETE, template: asking }), error: null }));
+    await expect(submit()).rejects.toThrow("REDIRECT");
+    expect(scheduleAiReviewOnSubmit).not.toHaveBeenCalled();
   });
 
   it("stays blocked while the saved data has errors, and lists them", async () => {

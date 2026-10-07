@@ -1,7 +1,9 @@
 "use server";
 
 import { redirect, unstable_rethrow } from "next/navigation";
+import { after } from "next/server";
 import { authorizeAction } from "@/lib/auth/session";
+import { scheduleAiReviewOnSubmit } from "@/lib/inspections/ai";
 import { captureAccess, isEditableStatus } from "@/lib/inspections/capture/access";
 import { changedEntryProblems, describeProblems } from "@/lib/inspections/capture/changes";
 import { evaluateCapture } from "@/lib/inspections/capture/evaluate";
@@ -82,7 +84,8 @@ export async function saveCaptureData(input: unknown): Promise<CaptureSaveOutcom
     const request = parsed.data;
 
     const supabase = await createClient();
-    const loaded = await loadCaptureInspection(supabase, request.inspectionId);
+    // With its files: the mirrored suggestion counts a deleted lab report as the screen does.
+    const loaded = await loadCaptureInspection(supabase, request.inspectionId, { files: true });
     if (loaded.kind === "not_found") return { ok: false, reason: "not_found", message: FAILURE_MESSAGES.not_found };
     if (loaded.kind === "template_unreadable") {
       return { ok: false, reason: "invalid", message: "This inspection's template cannot be read. Ask an admin." };
@@ -154,7 +157,7 @@ export async function submitInspection(input: unknown): Promise<SubmitResult> {
     const { inspectionId, dataHash } = parsed.data;
 
     const supabase = await createClient();
-    const loaded = await loadCaptureInspection(supabase, inspectionId);
+    const loaded = await loadCaptureInspection(supabase, inspectionId, { files: true });
     if (loaded.kind === "not_found") return { status: "error", message: FAILURE_MESSAGES.not_found };
     if (loaded.kind === "template_unreadable") {
       return { status: "error", message: "This inspection's template cannot be read. Ask an admin." };
@@ -213,6 +216,7 @@ export async function submitInspection(input: unknown): Promise<SubmitResult> {
           message: "This inspection changed while it was being submitted. Reload the page, then submit again.",
         };
       }
+      if (row.template.aiReviewOnSubmit) await startReviewOnSubmit(row.id);
     }
   } catch (error) {
     unstable_rethrow(error);
@@ -220,6 +224,36 @@ export async function submitInspection(input: unknown): Promise<SubmitResult> {
     return { status: "error", message: "The inspection could not be submitted. Try again in a moment." };
   }
   redirect(reviewPath);
+}
+
+/** How long submit waits for the AI review to start before it opens the review anyway. */
+const AI_START_WAIT_MS = 3_000;
+
+/**
+ * The AI second opinion on submit, when the template asks for it (BUILD_SPEC
+ * 9.2 "Trigger"): started once the inspection is submitted, as the service
+ * role (inspectors cannot write ai_reviews). It never fails the submit and
+ * holds it up for AI_START_WAIT_MS at most: started by then, the review shows
+ * it pending; otherwise it starts in the background all the same (after()
+ * keeps the request alive for it). Nothing happens when no reviewer is
+ * connected.
+ */
+async function startReviewOnSubmit(inspectionId: string): Promise<void> {
+  const started = scheduleAiReviewOnSubmit(inspectionId).then(
+    (result) => {
+      if (!result.ok && result.reason !== "not_connected" && result.reason !== "pending") {
+        console.error(`[capture] the AI second opinion did not start on submit: ${result.message}`);
+      }
+    },
+    (error: unknown) => console.error("[capture] the AI second opinion did not start on submit", error),
+  );
+  after(() => started);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const waited = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, AI_START_WAIT_MS);
+  });
+  await Promise.race([started, waited]);
+  clearTimeout(timer);
 }
 
 function submitErrorMessage(code: string | undefined): string {
@@ -313,7 +347,7 @@ async function updateOverrides(
   plan: (row: CaptureInspection) => OverridePlan,
 ): Promise<OverrideResult> {
   for (let attempt = 0; attempt < OVERRIDE_ATTEMPTS; attempt += 1) {
-    const loaded = await loadCaptureInspection(supabase, inspectionId);
+    const loaded = await loadCaptureInspection(supabase, inspectionId, { files: true });
     if (loaded.kind === "not_found") return { status: "error", message: FAILURE_MESSAGES.not_found };
     if (loaded.kind === "template_unreadable") {
       return { status: "error", message: "This inspection's template cannot be read." };

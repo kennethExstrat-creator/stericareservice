@@ -13,6 +13,7 @@ import {
   buildInspectionContext,
   type InspectionContext,
   type InspectionData,
+  type InspectionFileRef,
   type ModuleRegistry,
 } from "@/modules/_framework";
 
@@ -24,6 +25,13 @@ export type CaptureMeta = {
   inspector: EntityRef | null;
   client: EntityRef | null;
   manufacturer: EntityRef | null;
+  /**
+   * The inspection's files (lab reports, certificates) as `{ id, moduleKey,
+   * kind }`: whether a kept file is attached (docs/MODULES.md 10.1). The
+   * actions read inspection_files; the screen adds this device's queued
+   * files. Left out, or null, only while they are not known.
+   */
+  files?: readonly InspectionFileRef[] | null;
 };
 
 export type CaptureEvaluation = {
