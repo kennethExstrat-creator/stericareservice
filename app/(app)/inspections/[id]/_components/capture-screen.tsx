@@ -496,13 +496,18 @@ export function CaptureScreen({
    * Leaving without a click: Back, reload, closing the tab, sleep
    * -------------------------------------------------------------- */
 
-  // A value typed and not yet committed is kept however the page goes. Back
-  // (popstate) commits it before the router replaces the screen, so the
-  // unmount's flush sends it. A hidden page (the iPad asleep, another app)
-  // commits it and saves at once; the local copy keeps it if the save does
-  // not get out. A reload or a closed tab does the same, and the browser
-  // asks first only when nothing on this device would keep the change.
-  // Capture-phase listeners on window run before the autosave's own.
+  // A value typed and not yet committed is kept however the page goes.
+  // Back: the router replaces the screen inside its own popstate listener,
+  // registered before this one, and a field removed by React commits
+  // nothing (React ignores the blur of a node it is removing). The
+  // Navigation API's navigate event comes before popstate, so the field is
+  // left there, and the unmount's flush sends the value; popstate stays as
+  // the fallback where there is no Navigation API. A hidden page (the iPad
+  // asleep, another app) commits it and saves at once; the local copy keeps
+  // it if the save does not get out. A reload or a closed tab does the same,
+  // and the browser asks first only when nothing on this device would keep
+  // the change. Listeners on window, in the capture phase, run before the
+  // autosave's own.
   const { flush, getSnapshot } = autosave;
   useEffect(() => {
     const keepAndSave = () => {
@@ -512,17 +517,23 @@ export function CaptureScreen({
     const onVisibility = () => {
       if (document.visibilityState === "hidden") keepAndSave();
     };
+    const onNavigate = (event: Event) => {
+      if ((event as Event & { navigationType?: string }).navigationType === "traverse") leaveActiveField();
+    };
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
       leaveActiveField();
       const state = getSnapshot();
       // Changes only this page holds (no local copy) would be lost by leaving.
       if (state?.pending && !state.localCopy) event.preventDefault();
     };
+    const navigation = (window as Window & { navigation?: EventTarget }).navigation;
+    navigation?.addEventListener("navigate", onNavigate);
     window.addEventListener("popstate", leaveActiveField, true);
     window.addEventListener("pagehide", keepAndSave, true);
     window.addEventListener("visibilitychange", onVisibility, true);
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => {
+      navigation?.removeEventListener("navigate", onNavigate);
       window.removeEventListener("popstate", leaveActiveField, true);
       window.removeEventListener("pagehide", keepAndSave, true);
       window.removeEventListener("visibilitychange", onVisibility, true);
