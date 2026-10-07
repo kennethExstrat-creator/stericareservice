@@ -104,6 +104,8 @@ import { SectionList } from "./section-list";
 import { SectionTabs, tabId } from "./section-tabs";
 import { SubmitControl, type SubmitBlocked, type SubmitPreparation } from "./submit-control";
 import { LEAVE_FLUSH_MS, useCaptureAutosave } from "./use-capture-autosave";
+import { useLandingSpot } from "./use-landing-spot";
+import { useNoPullToRefresh } from "./use-no-pull-to-refresh";
 import { useStickyOffsets } from "./use-sticky-offsets";
 
 export type CaptureScreenProps = {
@@ -274,6 +276,17 @@ export function CaptureScreen({
   const [activeKey, setActiveKey] = useState(() => initialSectionKey(sections, initialSection));
   const active = findSection(sections, activeKey) ?? sections.find(isIncluded) ?? sections[0];
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
+
+  // Reloaded in place (a pull to refresh on the iPad): the last field that
+  // stored a value comes back into view (use-landing-spot.ts). A swipe down
+  // at the top is less likely to reload the page in the first place.
+  const landing = useLandingSpot({
+    inspectionId,
+    panelId,
+    sectionKey: active?.key ?? null,
+    ready: autosave.phase !== "starting",
+  });
+  useNoPullToRefresh();
 
   // The size a module last reported in focus, in whichever section: the next
   // module opens on it (CaptureProps.focus), so the size chosen in one stays
@@ -748,10 +761,23 @@ export function CaptureScreen({
               defectUsage={defectUsage}
               onFocusReported={keepSize}
               onUnreadableRemoved={focusTitleAfterRemoval}
-              onModuleChange={(key, value) => writeEntry("modules", key, value)}
-              onCustomChange={(key, value) => writeEntry("custom", key, value)}
-              onMappedChange={writeMapped}
-              onCommentChange={writeComment}
+              // Each change from the form also marks its field as where the inspector stopped.
+              onModuleChange={(key, value) => {
+                writeEntry("modules", key, value);
+                landing.record();
+              }}
+              onCustomChange={(key, value) => {
+                writeEntry("custom", key, value);
+                landing.record();
+              }}
+              onMappedChange={(mapsTo, value) => {
+                writeMapped(mapsTo, value);
+                landing.record();
+              }}
+              onCommentChange={(namespace, key, comment) => {
+                writeComment(namespace, key, comment);
+                landing.record();
+              }}
               onOverridesChange={onSwitched}
             />
           )}
