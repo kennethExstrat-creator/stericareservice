@@ -163,7 +163,7 @@ test("a grid whose module keeps a paste's overflow leaves it to the module: forc
   await paste(first, readings.join("\n"));
 
   // Kept past the gloves tested, and said so by the module, with a way to clear them: the grid lists nothing.
-  const clear = frame.getByRole("button", { name: "Clear the 2 extra readings" });
+  const clear = frame.getByRole("button", { name: "Clear the 2 Extra Readings" });
   await expect(clear).toBeVisible();
   await expect(frame.locator('[data-slot="size-notice"]').first()).toBeVisible();
   await expect(grid.locator('[data-slot="paste-notice"]')).toHaveCount(0);
