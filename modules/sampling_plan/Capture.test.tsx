@@ -70,7 +70,7 @@ describe("sampling_plan Capture", () => {
     const labels = { ...SAMPLING_PLAN_LABELS, innerUnits: "Inner pack", glovesPhysical: "# gloves for Tensile" };
     const html = render(props(SAFEDON_EG_EXAMPLE, LEVEL_I, labels));
     expect(html).toContain("# gloves for Tensile");
-    expect(html).toContain('aria-label="Inner pack, size XS"');
+    expect(html).toContain('aria-label="Inner pack, Size XS"');
     expect(html).not.toContain("# gloves for FAB");
     expect(html).not.toContain("Inner Box");
     expect(html).toContain("Sampling Quantity");
@@ -105,7 +105,15 @@ describe("sampling_plan Capture", () => {
     expect(html).toContain("Size M, Case: 3,000 cases sampled, more than the 2,900 cases ordered.");
     const red = redCells(html);
     expect(red).toHaveLength(1);
-    expect(red[0]).toContain('aria-label="Case, size M"');
+    expect(red[0]).toContain('aria-label="Case, Size M"');
+  });
+
+  it("names each size's table and its cells with the size as its tab words it, Title Case as a label is", () => {
+    const html = render(props(STD_EG_EXAMPLE));
+    expect(html).toContain('<caption class="sr-only">Sampling Plan, Size M</caption>');
+    // A refused entry's link in the problem list repeats the cell's name.
+    expect(html).toContain('aria-label="Case, Size M"');
+    expect(html).not.toContain(", size M");
   });
 
   it("shows each size's result at the kit's touch size: 16 px text on iPad", () => {
@@ -144,10 +152,10 @@ describe("sampling_plan Capture", () => {
     const group = html.indexOf("Sampling Quantity (WTT &amp; Visual)");
     expect(group).toBeGreaterThan(-1);
     const order = ["Case", "Inner Box", "Pouches", "# gloves", "# gloves for dimension"];
-    const positions = order.map((name) => html.indexOf(`aria-label="${name}, size M"`));
+    const positions = order.map((name) => html.indexOf(`aria-label="${name}, Size M"`));
     expect(positions.every((position) => position > group)).toBe(true);
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);
-    expect(html).not.toContain('aria-label="Gloves, size M"');
+    expect(html).not.toContain('aria-label="Gloves, Size M"');
   });
 
   it("is read-only for an approved inspection: cells become text, tabs still work", () => {

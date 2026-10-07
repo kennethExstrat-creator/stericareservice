@@ -51,7 +51,8 @@ export default function Capture({
   const update = useDataUpdater(data, onChange);
 
   const label = (key: string) => labelFor(labels, key);
-  const sizeName = (size: string) => formatSize(size, { sizes: context.templateSizes });
+  // "Size M", as the size tabs word it.
+  const sizeName = (size: string) => formatSize(size, { sizes: context.templateSizes, prefix: true });
   const groups = columnGroups(config);
   const computed = evaluation?.computed;
   const level = computed?.inspectionLevel ?? config.inspectionLevel ?? context.aql.inspectionLevel;
@@ -67,8 +68,9 @@ export default function Capture({
   const setCount = (size: string, column: SamplingColumn, value: number | null) =>
     update((current) => withCount(current, size, column, value));
 
-  // Names the cell with its size: from 1280 px every size is on screen at once.
-  const cellName = (size: string, column: SamplingColumn) => `${label(column)}, size ${sizeName(size)}`;
+  // Names the cell with its size: from 1280 px every size is on screen at once. The
+  // link to a cell in the problem list repeats it, so it reads "Case, Size M".
+  const cellName = (size: string, column: SamplingColumn) => `${label(column)}, ${sizeName(size)}`;
 
   const setRejectedEntry = (size: string, column: SamplingColumn, entry: EntryProblem["entry"] | null) =>
     setRejected((current) => {
@@ -153,7 +155,7 @@ export default function Capture({
         <FactList facts={facts} />
         <div className="relative overflow-clip rounded-lg border border-border bg-card">
           <table className="w-full border-separate border-spacing-0 text-sm touch:text-base">
-            <caption className="sr-only">{`${title}, size ${sizeName(size)}`}</caption>
+            <caption className="sr-only">{`${title}, ${sizeName(size)}`}</caption>
             {groups.quantity.length > 0 && (
               <tbody>
                 <tr>
