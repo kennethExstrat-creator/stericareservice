@@ -9,7 +9,7 @@ import { LabelMapView } from "../_components/label-map-view";
 /** Checks the role first, so the title never names this page on an inspector's 404. */
 export async function generateMetadata(): Promise<Metadata> {
   await requireAdmin();
-  return { title: "Label mapping" };
+  return { title: "Label Mapping" };
 }
 
 /**

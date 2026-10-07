@@ -388,9 +388,9 @@ export const LABEL_SECTIONS = ["watertight", "visual", "dispensing_safedon"] as 
 export type LabelSection = (typeof LABEL_SECTIONS)[number];
 
 export const SECTION_TITLE: Readonly<Record<LabelSection, string>> = {
-  watertight: "Watertight test: hole locations",
-  visual: "Visual inspection",
-  dispensing_safedon: "Glove dispensing (Safedon)",
+  watertight: "Watertight Test: Hole Locations",
+  visual: "Visual Inspection",
+  dispensing_safedon: "Glove Dispensing (Safedon)",
 };
 
 /** One label of a template, the code it maps to, and the class (severity) for visual defects. */

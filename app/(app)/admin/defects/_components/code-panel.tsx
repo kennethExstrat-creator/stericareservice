@@ -139,7 +139,7 @@ export function CodePanel({ open, target, item, onClose, onDeleted, returnFocus 
       busy={pending}
       onClose={onClose}
       returnFocus={returnFocus}
-      title={editing ? "Edit defect code" : "Add defect code"}
+      title={editing ? "Edit Defect Code" : "Add Defect Code"}
       description={
         editing
           ? "The name and description say what the code means. The code itself never changes."
@@ -157,7 +157,7 @@ export function CodePanel({ open, target, item, onClose, onDeleted, returnFocus 
             </Button>
             <Button type="submit" form={formId} disabled={pending}>
               {pending && <Spinner aria-hidden />}
-              {pending ? (editing ? "Saving…" : "Adding…") : editing ? "Save changes" : "Add code"}
+              {pending ? (editing ? "Saving…" : "Adding…") : editing ? "Save Changes" : "Add Code"}
             </Button>
           </>
         )
@@ -274,7 +274,7 @@ function StatusSection({ item }: { item: DefectCodeItem }) {
             }}
           >
             {reactivating ? <Spinner aria-hidden /> : item.active ? <BanIcon aria-hidden /> : <RotateCcwIcon aria-hidden />}
-            {item.active ? "Deactivate code" : reactivating ? "Reactivating…" : "Reactivate code"}
+            {item.active ? "Deactivate Code" : reactivating ? "Reactivating…" : "Reactivate Code"}
           </Button>
         </div>
         {!item.active && state.status === "error" && (
@@ -380,7 +380,7 @@ function DeleteSection({ item, onDeleted }: { item: DefectCodeItem; onDeleted: (
   const blocker = deleteBlocker(item);
 
   return (
-    <PanelSection title="Delete code" titleId={titleId}>
+    <PanelSection title="Delete Code" titleId={titleId}>
       <p id={reasonId} className="flex gap-2 text-sm text-muted-foreground">
         <InfoIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
         <span>
@@ -398,7 +398,7 @@ function DeleteSection({ item, onDeleted }: { item: DefectCodeItem; onDeleted: (
           onClick={() => setConfirming(true)}
         >
           <Trash2Icon aria-hidden />
-          Delete code
+          Delete Code
         </Button>
       </div>
       {confirming && (
@@ -480,7 +480,7 @@ function ConfirmDelete({
             </AlertDialogCancel>
             <Button type="submit" variant="destructive" disabled={pending}>
               {pending && <Spinner aria-hidden />}
-              {pending ? "Deleting…" : "Delete code"}
+              {pending ? "Deleting…" : "Delete Code"}
             </Button>
           </AlertDialogFooter>
         </form>

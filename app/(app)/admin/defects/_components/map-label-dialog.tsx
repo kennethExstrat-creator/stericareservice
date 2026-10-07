@@ -56,8 +56,8 @@ type Mode = "existing" | "new";
 type FieldErrors = Partial<Record<MapField, string>>;
 
 const MODES: { value: Mode; title: string; description: string }[] = [
-  { value: "existing", title: "An existing code", description: "One of the active codes." },
-  { value: "new", title: "A new code", description: "Add a code for this label first." },
+  { value: "existing", title: "An Existing Code", description: "One of the active codes." },
+  { value: "new", title: "A New Code", description: "Add a code for this label first." },
 ];
 
 /** The fields of each mode in the order they appear, so the first one with an error takes the focus. */
@@ -241,7 +241,7 @@ export function MapLabelDialog({
 
             {mode === "existing" ? (
               <Field data-invalid={errors.code ? true : undefined} className="gap-2">
-                <FieldLabel htmlFor={`${id}-code`}>Defect code</FieldLabel>
+                <FieldLabel htmlFor={`${id}-code`}>Defect Code</FieldLabel>
                 <Select
                   name="code"
                   value={code}
@@ -271,7 +271,7 @@ export function MapLabelDialog({
                       </>
                     )}
                     <SelectGroup>
-                      <SelectLabel>{suggested.length > 0 ? "Every other active code" : "Active codes"}</SelectLabel>
+                      <SelectLabel>{suggested.length > 0 ? "Every Other Active Code" : "Active Codes"}</SelectLabel>
                       {others.map((option) => (
                         <CodeItem key={option.code} option={option} />
                       ))}
@@ -318,7 +318,7 @@ export function MapLabelDialog({
             </DialogClose>
             <Button type="submit" disabled={pending}>
               {pending && <Spinner aria-hidden />}
-              {pending ? "Mapping…" : mode === "new" ? "Add code and map" : "Map label"}
+              {pending ? "Mapping…" : mode === "new" ? "Add Code and Map" : "Map Label"}
             </Button>
           </DialogFooter>
         </form>

@@ -10,7 +10,7 @@ import { UnmappedView } from "../_components/unmapped-view";
 /** Checks the role first, so the title never names this page on an inspector's 404. */
 export async function generateMetadata(): Promise<Metadata> {
   await requireAdmin();
-  return { title: "Unmapped labels" };
+  return { title: "Unmapped Labels" };
 }
 
 const byName = new Intl.Collator("en-GB", { sensitivity: "base", numeric: true });

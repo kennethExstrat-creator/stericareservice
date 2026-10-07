@@ -12,7 +12,7 @@ import { DefectCodesAdmin } from "./_components/codes-admin";
  */
 export async function generateMetadata(): Promise<Metadata> {
   await requireAdmin();
-  return { title: "Defect codes" };
+  return { title: "Defect Codes" };
 }
 
 /**

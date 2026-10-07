@@ -1,7 +1,7 @@
 // The mapping form keeps its choices through a refused mapping: it is
 // submitted by hand (lib/admin/submit.ts), never through a function `action`,
 // which React resets after every action, sending "Map to" back to "An
-// existing code" and the code back to none. The dialog is drawn in place here
+// Existing Code" and the code back to none. The dialog is drawn in place here
 // (a portal draws nothing on the server); e2e/defects refuses a new code in
 // the browser and checks the choice stays.
 import type { ReactNode } from "react";
@@ -68,8 +68,8 @@ function draw(): string {
 describe("MapLabelDialog", () => {
   it("names each Map to radio by its choice and describes it, so Chrome does not leave it unnamed", () => {
     expect(radioNames(draw())).toEqual([
-      { name: "An existing code", description: "One of the active codes." },
-      { name: "A new code", description: "Add a code for this label first." },
+      { name: "An Existing Code", description: "One of the active codes." },
+      { name: "A New Code", description: "Add a code for this label first." },
     ]);
   });
 

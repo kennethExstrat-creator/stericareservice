@@ -65,7 +65,7 @@ export function DefectCodesAdmin({
         actions={
           <Button ref={addButton} onClick={(event) => add(event.currentTarget)}>
             <PlusIcon aria-hidden />
-            Add code
+            Add Code
           </Button>
         }
       />
@@ -76,7 +76,7 @@ export function DefectCodesAdmin({
           title="No defect codes yet"
           action={
             <Button variant="outline" onClick={(event) => add(event.currentTarget)}>
-              Add your first code
+              Add Your First Code
             </Button>
           }
         >

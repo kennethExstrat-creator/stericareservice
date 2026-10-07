@@ -1,6 +1,6 @@
 // Markup of the label map: each template's link to the template editor is
 // named by the words it shows first (WCAG 2.5.3, label in name), so a speech
-// user can say "Open in template editor" and still hears which version opens.
+// user can say "Open in Template Editor" and still hears which version opens.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { templateEditorHref, type TemplateLabelMap } from "@/lib/admin/defects";
@@ -42,10 +42,10 @@ describe("LabelMapView", () => {
       <LabelMapView maps={[map, { ...map, id: "template-2", code: "SAFEDON_EG", version: 1, resolved: false }]} initialQuery="" />,
     );
     const first = editorLink(html, "template-1");
-    expect(first.shown).toBe("Open in template editor");
-    expect(first.tag).toContain('aria-label="Open in template editor: STD_EG v2"');
+    expect(first.shown).toBe("Open in Template Editor");
+    expect(first.tag).toContain('aria-label="Open in Template Editor: STD_EG v2"');
     // A version that has not resolved yet links to the editor the same way.
-    expect(editorLink(html, "template-2").tag).toContain('aria-label="Open in template editor: SAFEDON_EG v1"');
+    expect(editorLink(html, "template-2").tag).toContain('aria-label="Open in Template Editor: SAFEDON_EG v1"');
     expect(html).not.toMatch(/aria-label="Open (STD|SAFEDON)_EG/);
   });
 });

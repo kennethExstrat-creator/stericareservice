@@ -11,8 +11,8 @@ export type DefectsTab = "codes" | "labels" | "unmapped";
 
 const TABS: readonly { key: DefectsTab; label: string; href: string }[] = [
   { key: "codes", label: "Codes", href: DEFECTS_PATH },
-  { key: "labels", label: "Label mapping", href: LABEL_MAPPING_PATH },
-  { key: "unmapped", label: "Unmapped labels", href: UNMAPPED_PATH },
+  { key: "labels", label: "Label Mapping", href: LABEL_MAPPING_PATH },
+  { key: "unmapped", label: "Unmapped Labels", href: UNMAPPED_PATH },
 ];
 
 // Underlined like the iPad top bar's tabs, so they never read as the admin
