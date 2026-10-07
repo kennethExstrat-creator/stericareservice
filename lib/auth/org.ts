@@ -39,11 +39,24 @@ export const ROLE_CHOICE_LABEL: Readonly<Record<RoleChoice, string>> = {
   admin: "Admin",
 };
 
+/** One line each in the role pickers, so a dialog fits an iPad in landscape. */
 export const ROLE_CHOICE_DESCRIPTION: Readonly<Record<RoleChoice, string>> = {
-  inspector: "Records inspections and sees their own. Works in a lead inspector's team.",
-  lead: "Records inspections, and sees every inspection of their team, read-only.",
-  admin: "Manages users, templates and reference data, and approves inspections.",
+  inspector: "Records inspections and sees their own.",
+  lead: "Also sees their team's inspections, read-only.",
+  admin: "Manages users and templates, and approves inspections.",
 };
+
+/** How someone's current role and team read in a dialog: "They are an inspector in Lina Lead's team now." */
+export function currentPlacement(choice: RoleChoice, leadName: string | null): string {
+  switch (choice) {
+    case "admin":
+      return "They are an admin now.";
+    case "lead":
+      return "They are a lead inspector now.";
+    case "inspector":
+      return leadName ? `They are an inspector in ${leadName}'s team now.` : "They are an inspector in no team yet.";
+  }
+}
 
 /** The profile columns behind a choice. */
 export type Placement = { role: UserRole; is_lead: boolean; lead_id: string | null };

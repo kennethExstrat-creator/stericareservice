@@ -36,6 +36,9 @@ export function roleChoicesFor(teams: boolean): readonly RoleChoice[] {
   return teams ? ROLE_CHOICES : ROLES_WITHOUT_TEAMS;
 }
 
+/** Dialogs that hold the role choice scroll inside the viewport: an iPad in landscape, or with its keyboard up, is short. */
+export const SCROLLING_DIALOG = "max-h-[calc(100dvh-2rem)] overflow-y-auto";
+
 export function RoleField({
   id,
   value,
@@ -87,7 +90,7 @@ export function LeadField({
   onChange,
   leads,
   error,
-  hint = "They see their own inspections. Their lead inspector sees them too, read-only.",
+  hint = "Their lead inspector also sees their inspections, read-only.",
   triggerRef,
 }: {
   id: string;

@@ -74,7 +74,7 @@ test("the admin sees everyone, with themselves marked and protected", async ({ p
   if (teams) {
     // inspector@test.local is from before teams: listed as a problem until an admin chooses a lead.
     await expect(page.getByTestId("no-lead-alert")).toBeVisible();
-    await expect(page.getByLabel("Team")).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "Team", exact: true })).toBeVisible();
   } else {
     await expect(page.getByTestId("teams-missing")).toContainText("20261007170000_lead_inspectors.sql");
   }

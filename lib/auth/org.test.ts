@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canLead,
+  currentPlacement,
   inspectionScope,
   INSPECTOR_IN_CHARGE,
   isLeadInspector,
@@ -86,6 +87,13 @@ describe("messages", () => {
     expect(TEAM_MESSAGES.leadsTeam("Lina Lead", ["Ivan", "Olga", "Tom"])).toBe(
       "Lina Lead leads 3 inspectors: Ivan, Olga and Tom. Choose another lead inspector for each of them first (Change lead inspector, next to their name).",
     );
+  });
+
+  it("says where someone is now, for the role dialog", () => {
+    expect(currentPlacement("inspector", "Lina Lead")).toBe("They are an inspector in Lina Lead's team now.");
+    expect(currentPlacement("inspector", null)).toBe("They are an inspector in no team yet.");
+    expect(currentPlacement("lead", null)).toBe("They are a lead inspector now.");
+    expect(currentPlacement("admin", null)).toBe("They are an admin now.");
   });
 
   it("explains who works in no team", () => {

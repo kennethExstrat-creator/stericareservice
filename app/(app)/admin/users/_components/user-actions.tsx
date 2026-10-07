@@ -46,7 +46,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Spinner } from "@/components/ui/spinner";
 import { submitAction } from "@/lib/admin/submit";
-import { needsLead, TEAM_MESSAGES, type RoleChoice } from "@/lib/auth/org";
+import { currentPlacement, needsLead, TEAM_MESSAGES, type RoleChoice } from "@/lib/auth/org";
 import type { LeadOption, UserField } from "@/lib/auth/users";
 import {
   assignLead,
@@ -57,7 +57,8 @@ import {
   type ActionResult,
 } from "../actions";
 import { teamHref } from "../_lib/team-filter";
-import { LeadField, RoleField, roleChoicesFor } from "./role-fields";
+import { cn } from "@/lib/utils";
+import { LeadField, RoleField, roleChoicesFor, SCROLLING_DIALOG } from "./role-fields";
 import { unreachable } from "./unreachable";
 import { activationNeedsPlacement, menuGroups, type MenuAction as Kind, type UserActionsTarget } from "./user-menu";
 
@@ -225,7 +226,7 @@ export function UserActions({
           key={kind}
           user={user}
           title={`Change ${user.name}'s role`}
-          description="Lead inspectors also see every inspection of their team, read-only. Only admins approve inspections."
+          description={teams ? currentPlacement(user.role, user.lead?.name ?? null) : "Only admins manage users and approve inspections."}
           confirm="Save role"
           pending="Saving…"
           action={changeRole}
@@ -448,7 +449,7 @@ function PlacementDialog({
       }}
     >
       <DialogContent
-        className="sm:max-w-lg"
+        className={cn("sm:max-w-lg", SCROLLING_DIALOG)}
         onCloseAutoFocus={(event) => {
           event.preventDefault();
           returnFocusTo.current?.focus();

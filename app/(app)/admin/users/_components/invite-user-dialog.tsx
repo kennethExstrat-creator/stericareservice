@@ -22,7 +22,8 @@ import { submitAction } from "@/lib/admin/submit";
 import { needsLead, type RoleChoice } from "@/lib/auth/org";
 import type { LeadOption, UserField } from "@/lib/auth/users";
 import { inviteUser, type ActionResult } from "../actions";
-import { LeadField, RoleField, roleChoicesFor } from "./role-fields";
+import { cn } from "@/lib/utils";
+import { LeadField, RoleField, roleChoicesFor, SCROLLING_DIALOG } from "./role-fields";
 import { unreachable } from "./unreachable";
 
 type FieldErrors = Partial<Record<UserField, string>>;
@@ -65,7 +66,7 @@ export function InviteUserDialog({
         </Button>
       </DialogTrigger>
       <DialogContent
-        className="sm:max-w-lg"
+        className={cn("sm:max-w-lg", SCROLLING_DIALOG)}
         onInteractOutside={(event) => {
           if (pending.current) event.preventDefault();
         }}

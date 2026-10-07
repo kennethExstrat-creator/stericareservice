@@ -156,7 +156,7 @@ test.describe("an admin on /admin/users", () => {
     await expect(rowFor(page, fixture.ivan.email)).toContainText(fixture.linaLead.name);
     await expect(rowFor(page, fixture.bea.email)).toContainText(fixture.leoLead.name);
 
-    await page.getByLabel("Team").click();
+    await page.getByRole("combobox", { name: "Team", exact: true }).click();
     await page.getByRole("option", { name: `${fixture.linaLead.name}'s team (2)` }).click();
     await expect(page).toHaveURL(new RegExp(`/admin/users\\?team=${fixture.linaLead.id}$`));
     await expect(page.getByRole("status").filter({ hasText: `${fixture.linaLead.name}'s team: 2 inspectors.` })).toBeVisible();
