@@ -16,7 +16,10 @@ import { describePhoto, sectionWording, unlabelledDefects, type PhotoRow, type R
  * Reads for /inspections/[id]/review. Always through the signed-in user's
  * client (lib/supabase/server), never the secret key: row level security
  * decides what comes back. An inspector gets their own inspections only,
- * so anyone else's reads as not found, exactly like one that does not exist.
+ * so anyone else's reads as not found, exactly like one that does not exist;
+ * a lead inspector also gets their team's, with the photos, files and
+ * history the page shows (migration 20261007170000), and the team member's
+ * name through the inspector embed.
  */
 
 type Client = SupabaseClient<Database>;

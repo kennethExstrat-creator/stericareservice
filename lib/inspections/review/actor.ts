@@ -1,9 +1,10 @@
 // Who did something to an inspection, as the viewer may know it. Row level
-// security lets an inspector read their own profile only, so an admin who
-// acted on their inspection reaches them without a name: "an admin". Only
-// admins and the owner can act on an inspection, so that is what any other
-// actor is. Rows written by the service role or the database owner have no
-// actor at all: "the system".
+// security lets an inspector read their own profile only (a lead inspector
+// also their team's), so an admin who acted on their inspection reaches them
+// without a name: "an admin". Only admins and the owner can act on an
+// inspection (a lead inspector only reads their team's), so that is what any
+// other actor is. Rows written by the service role or the database owner
+// have no actor at all: "the system".
 import { personLabel } from "@/lib/inspections/format";
 
 export type Actor = { kind: "person"; name: string } | { kind: "admin" } | { kind: "system" };

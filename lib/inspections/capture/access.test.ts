@@ -50,6 +50,25 @@ describe("captureAccess", () => {
       readOnlyReason: "not_yours",
     });
   });
+
+  // A lead inspector reads their team's inspections (migration 20261007170000),
+  // as an inspector who does not own them: read-only, in every status.
+  it("shows a lead inspector their team's inspections read-only, and lets them switch no module", () => {
+    const LEAD = "00000000-0000-4000-8000-000000000103";
+    for (const status of ["draft", "reopened"] as const) {
+      expect(captureAccess({ status, role: "inspector", userId: LEAD, inspectorId: INSPECTOR })).toEqual({
+        editable: false,
+        readOnlyReason: "not_yours",
+        canSwitchModules: false,
+      });
+    }
+    expect(captureAccess({ status: "submitted", role: "inspector", userId: LEAD, inspectorId: INSPECTOR })).toMatchObject({
+      editable: false,
+      canSwitchModules: false,
+    });
+    // Their own draft is theirs to edit, like any inspector's.
+    expect(captureAccess({ status: "draft", role: "inspector", userId: LEAD, inspectorId: LEAD }).editable).toBe(true);
+  });
 });
 
 describe("isEditableStatus and canSwitchModules", () => {

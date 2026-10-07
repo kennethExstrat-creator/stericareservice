@@ -42,7 +42,8 @@ const IdSchema = z.uuid();
  * The review, read once per request for the title and the page (React
  * cache). Row level security decides who may see it: an inspector asking
  * for someone else's inspection gets the same 404 as for one that does not
- * exist, title included, so the ref never leaks.
+ * exist, title included, so the ref never leaks. A lead inspector also
+ * reads their team's inspections (migration 20261007170000), read-only.
  */
 const getReview = cache(async (id: string): Promise<ReviewData> => {
   const user = await requireUser();
@@ -79,7 +80,9 @@ export async function generateMetadata({ params }: PageProps<"/inspections/[id]/
  * computed result beside the inspector's comment, the issues, the modules
  * switched off, the report photos and the history. Admins approve or reopen
  * a submitted inspection here, and run the AI hand-offs; inspectors read
- * their own.
+ * their own, and lead inspectors their team's, with no approve or reopen.
+ * The AI panel stays with the owner and admins (canExportInspection in
+ * lib/export/access.ts), so a lead sees none on a team member's review.
  *
  * No padding or <main> of its own: the app shell provides both.
  */
