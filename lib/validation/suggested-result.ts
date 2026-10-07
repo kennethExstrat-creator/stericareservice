@@ -13,7 +13,8 @@
 //
 // Why the suggestion is what it is, in words: suggestionReasons below. The
 // result itself is a pill in docs/DESIGN.md's words (Passed, Failed, On hold),
-// so no reason starts with a result word and a clean pass has none.
+// so no reason restates the overall result (as "Pass.", "Fail:" and "Hold:"
+// did) and a clean pass has none.
 import type { InspectionResult } from "@/lib/schemas/common";
 import type { ModuleKey, ModuleStatus } from "@/lib/schemas/module-result";
 
@@ -32,7 +33,7 @@ export type SuggestedResult = {
   /**
    * The reasons on one line, the sections by their titles, e.g. "Failed:
    * Freedom from Holes by watertight test. Warnings: Weight (g)."; empty for
-   * a clean pass. Never a result word: show the result beside it.
+   * a clean pass. Never the overall result itself: show it beside them.
    */
   summary: string;
 };

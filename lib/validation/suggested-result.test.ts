@@ -52,7 +52,7 @@ describe("suggestResult", () => {
     expect(suggestResult([...done, { key: "conclusion", status: "not_done" }]).result).toBe("pass");
   });
 
-  it("never names the result in its summary: the pill beside it does", () => {
+  it("never restates the overall result in its summary: the pill beside it does", () => {
     const cases: SuggestionInput[][] = [
       done,
       [...done, { key: "weight", status: "warn" }],
