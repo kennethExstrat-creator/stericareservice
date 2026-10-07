@@ -222,10 +222,13 @@ function ReopenDialog({ inspectionId, refNo, viewerId, onClose, returnFocusTo }:
       // Cancelled (the button, Escape, outside): the reason goes with it.
       onClose={close}
       returnFocusTo={returnFocusTo}
-      // Straight to the reason: it is the one thing to fill in.
+      // Straight to the reason: it is the one thing to fill in. A reason
+      // brought back from before a reload goes on where it stopped.
       onOpenAutoFocus={(event) => {
         event.preventDefault();
-        reasonRef.current?.focus();
+        const field = reasonRef.current;
+        field?.focus();
+        field?.setSelectionRange(field.value.length, field.value.length);
       }}
     >
       <form action={formAction} noValidate className="grid gap-5">

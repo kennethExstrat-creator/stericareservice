@@ -14,6 +14,7 @@ import { AI_ACTION_IDLE, type AiActionState, type DecisionModel } from "@/lib/in
 import {
   decisionDraftKey,
   readDecisionDraft,
+  useStoredDraft,
   useTabDraft,
   writeDecisionDraft,
   type DecisionDraft,
@@ -38,7 +39,8 @@ const DECISION_ICON: Readonly<Record<AiReviewActionKind, LucideIcon>> = {
  * never handed on to another review's finding with the same id. A decision
  * chosen and not saved yet, with its note, is kept in the tab per admin,
  * opinion and finding (lib/inspections/review/drafts.ts): after a reload the
- * form is back as it was, also when it was opened with "Change".
+ * form is back as it was, also when it was opened with "Change". Saved, the
+ * form shows the choice until the recorded decision takes its place.
  */
 export function DecisionControl({
   viewerId,
@@ -55,11 +57,9 @@ export function DecisionControl({
   history: DecisionModel[];
 }) {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useTabDraft(
-    decisionDraftKey(viewerId, reviewId, findingId),
-    readDecisionDraft,
-    writeDecisionDraft,
-  );
+  const draftKey = decisionDraftKey(viewerId, reviewId, findingId);
+  // A decision half made before a reload opens its form again, on a recorded decision too.
+  const kept = useStoredDraft(draftKey, readDecisionDraft);
   const changeRef = useRef<HTMLButtonElement>(null);
   // Saved: focus goes to "Change" once the saved decision is on screen
   // (with the refresh, which can come before or after the action's answer).
@@ -70,7 +70,7 @@ export function DecisionControl({
     focusIfLost(changeRef.current);
   });
 
-  if (decision && !editing && draft === null) {
+  if (decision && !editing && kept === null) {
     return (
       <div className="space-y-2" data-testid={`decision-${findingId}`}>
         <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
@@ -108,21 +108,18 @@ export function DecisionControl({
     <DecisionForm
       reviewId={reviewId}
       findingId={findingId}
-      draft={draft}
-      onDraftChange={setDraft}
+      draftKey={draftKey}
       // Opened with "Change": focus moves into the form, and back to "Change" on cancel.
       focusOnMount={editing}
       onCancel={
         decision
           ? () => {
-              setDraft(null);
               setEditing(false);
               requestAnimationFrame(() => changeRef.current?.focus());
             }
           : undefined
       }
       onSaved={() => {
-        setDraft(null);
         focusChange.current = true;
         setEditing(false);
         // The refreshed decision may be on screen already.
@@ -156,17 +153,15 @@ function DecisionLine({ decision }: { decision: DecisionModel }) {
 function DecisionForm({
   reviewId,
   findingId,
-  draft,
-  onDraftChange,
+  draftKey,
   focusOnMount,
   onCancel,
   onSaved,
 }: {
   reviewId: string;
   findingId: string;
-  /** The choice and note so far, kept in the tab; null before anything is chosen or typed. */
-  draft: DecisionDraft | null;
-  onDraftChange: (draft: DecisionDraft | null) => void;
+  /** Where the tab keeps the choice and note so far (decisionDraftKey). */
+  draftKey: string;
   focusOnMount: boolean;
   onCancel?: () => void;
   onSaved: () => void;
@@ -179,10 +174,11 @@ function DecisionForm({
   useEffect(() => {
     if (focusOnMount) groupRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
   }, [focusOnMount]);
+  const [draft, setDraft, forgetDraft] = useTabDraft(draftKey, readDecisionDraft, writeDecisionDraft);
   const choice = draft?.action ?? "";
   const note = draft?.note ?? "";
   // Nothing chosen and nothing typed is no draft.
-  const change = (next: DecisionDraft) => onDraftChange(next.action === "" && next.note === "" ? null : next);
+  const change = (next: DecisionDraft) => setDraft(next.action === "" && next.note === "" ? null : next);
   const [noteError, setNoteError] = useState<string | null>(null);
 
   const [state, formAction, pending] = useActionState(async (previous: AiActionState, formData: FormData) => {
@@ -191,6 +187,8 @@ function DecisionForm({
     if (result.status === "success") {
       toast.success(result.message);
       setNoteError(null);
+      // Recorded: no longer a draft, but still on screen until the decision replaces the form.
+      forgetDraft();
       onSaved();
     } else if (result.status === "error") {
       setNoteError(result.fieldErrors?.note ?? null);
@@ -297,7 +295,17 @@ function DecisionForm({
           {pending ? "Saving" : "Save decision"}
         </Button>
         {onCancel && (
-          <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={pending}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              // Cancelled: the half-made decision goes.
+              setDraft(null);
+              onCancel();
+            }}
+            disabled={pending}
+          >
             Cancel
           </Button>
         )}

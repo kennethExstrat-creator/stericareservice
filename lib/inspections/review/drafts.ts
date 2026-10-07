@@ -137,29 +137,46 @@ export function tabStorage(): DraftStorage | null {
 /** The review's drafts in this tab. */
 export const reviewDrafts: DraftStore = createDraftStore(tabStorage);
 
+/** The draft this tab keeps under `key`: none on the server and during hydration, the stored one after. */
+export function useStoredDraft<T>(
+  key: string,
+  read: (raw: string | null) => T | null,
+  store: DraftStore = reviewDrafts,
+): T | null {
+  return read(
+    useSyncExternalStore(
+      store.subscribe,
+      () => store.get(key),
+      () => null,
+    ),
+  );
+}
+
 /**
- * A draft in this tab, for a client component: the stored one once the page
- * has hydrated, then whatever the user types, kept as they type. Setting
- * null removes it (sent or cancelled). `read` and `write` turn the stored
- * JSON into the draft and back.
+ * A draft in this tab, for the field that edits it: the stored one once the
+ * page has hydrated, then whatever the user types, kept as they type.
+ * `update(null)` removes it (cancelled). `forget()` removes the stored copy
+ * once it is sent, while the field goes on showing it until the page moves
+ * on (the saved result replaces the form). `read` and `write` turn the
+ * stored JSON into the draft and back.
  */
 export function useTabDraft<T>(
   key: string,
   read: (raw: string | null) => T | null,
   write: (value: T) => string,
   store: DraftStore = reviewDrafts,
-): [T | null, (value: T | null) => void] {
-  const stored = useSyncExternalStore(
-    store.subscribe,
-    () => store.get(key),
-    () => null,
-  );
+): [value: T | null, update: (value: T | null) => void, forget: () => void] {
+  const stored = useStoredDraft(key, read, store);
   // What was typed since, for this key: the field follows the keyboard, not the storage round trip.
   const [typed, setTyped] = useState<{ key: string; value: T | null } | null>(null);
-  const value = typed !== null && typed.key === key ? typed.value : read(stored);
+  const value = typed !== null && typed.key === key ? typed.value : stored;
   const update = (next: T | null) => {
     setTyped({ key, value: next });
     store.set(key, next === null ? null : write(next));
   };
-  return [value, update];
+  const forget = () => {
+    setTyped({ key, value });
+    store.set(key, null);
+  };
+  return [value, update, forget];
 }
