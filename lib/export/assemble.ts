@@ -132,8 +132,8 @@ export type ExportTemplateDetails = {
  * Phase 3: everything to write the report without opening the app): the
  * fixed size rows (XS to XL for EG, 5.5 to 9.0 for STD_SG) whatever was
  * ordered, the unit, and the running header the template editor sets under
- * "AI report". The export keeps those ExportTemplateSchema lists: validating
- * the document drops any other key.
+ * "AI report". ExportTemplateSchema lists all three: validating the document
+ * drops any key it does not list.
  */
 export function templateDetails(template: Pick<ResolvedTemplate, "sizes" | "unit" | "report">): ExportTemplateDetails {
   return {

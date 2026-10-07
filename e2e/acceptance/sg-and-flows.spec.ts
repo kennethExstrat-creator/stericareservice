@@ -440,7 +440,7 @@ test("(a) an STD_SG inspection with right and left hands and dye leak works on t
   /* Conclusion */
   await openSection(page, "Conclusion");
   const suggestion = panel(page).getByRole("region", { name: "Suggested result" });
-  await expect(suggestion).toContainText("PASS");
+  await expect(suggestion.locator('[data-slot="status-pill"]')).toHaveText("Passed");
   await press(page.getByRole("radio", { name: "PASSED" }));
   await page.getByRole("textbox", { name: "Remark" }).fill("E2E acceptance: STD_SG with right and left hands and dye leak.");
   await panel(page).getByRole("textbox", { name: "Date" }).fill(todayInMalaysia());

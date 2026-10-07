@@ -1,25 +1,27 @@
 "use client";
 
 // The conclusion on the capture screen: the suggested result (computed from
-// every module, read-only) next to the inspector's final result, a warning
-// when the two differ, the remark, who inspected and the date (both
-// automatic; the date can be changed with the picker), and the signature
-// drawn on the pad. Every edit goes through useDataUpdater
-// (docs/CAPTURE_KIT.md), built from the latest data. The pad lives here
-// too: module folders keep React in Capture.tsx
-// (modules/_framework/architecture.test.ts).
+// every module, read-only), its pill saying Passed, Failed or On hold as every
+// result pill does, with why under it as the submit confirmation and the
+// review say it; next to it the inspector's final result, chosen in the
+// template's words (PASSED, FAILED, HOLD; docs/DESIGN.md), and a warning when
+// the two differ; the remark, who inspected and the date (both automatic;
+// the date can be changed with the picker), and the signature drawn on the
+// pad. Every edit goes through useDataUpdater (docs/CAPTURE_KIT.md), built
+// from the latest data. The pad lives here too: module folders keep React
+// in Capture.tsx (modules/_framework/architecture.test.ts).
 import { useId, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { EraserIcon, Redo2Icon, TriangleAlertIcon, Undo2Icon } from "lucide-react";
 import { RadioGroup as RadioGroupPrimitive } from "radix-ui";
 import { cn } from "@/lib/utils";
 import type { Status } from "@/lib/design/status";
-import type { InspectionResult, ModuleKey } from "@/lib/schemas";
+import type { InspectionResult } from "@/lib/schemas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { findIssue, issuePathProps, StatusIcon, StatusPill, useDataUpdater, useIssueFocus } from "@/components/qc";
-import { fieldIssues, labelFor, moduleTitle, type CaptureProps } from "@/modules/_framework";
+import { fieldIssues, labelFor, moduleTitle, suggestionReasons, type CaptureProps } from "@/modules/_framework";
 import type { ConclusionComputed, ConclusionConfig, ConclusionData } from ".";
 import { resultWord } from "./calc";
 import { isoDateOf, withDate, withFinalResult, withRemark, withSignature } from "./edit";
@@ -89,15 +91,15 @@ export default function Capture({
     dateIssue: `${baseId}-date-issue`,
   };
 
-  // Other modules by their titles in the template's wording (6.2 rule 11).
-  const names = (keys: readonly ModuleKey[]) => keys.map((key) => moduleTitle(context, key)).join(", ");
-  const reasons = computed
-    ? [
-        computed.failed?.length ? `Failed: ${names(computed.failed)}.` : null,
-        computed.notDone?.length ? `Not done: ${names(computed.notDone)}.` : null,
-        computed.warned?.length ? `Warnings: ${names(computed.warned)}.` : null,
-      ].filter((reason): reason is string => reason !== null)
-    : [];
+  // Why, a line each, the other modules by their titles in the template's
+  // wording (6.2 rule 11); none until the suggestion is calculated.
+  const reasons =
+    computed && suggested
+      ? suggestionReasons(
+          { result: suggested, failed: computed.failed, notDone: computed.notDone, warned: computed.warned },
+          (key) => moduleTitle(context, key),
+        )
+      : [];
 
   return (
     <div ref={root} className="min-w-0 space-y-6" onFocusCapture={() => onFocusChange?.({})}>
@@ -107,12 +109,9 @@ export default function Capture({
             {labelFor(labels, "suggestedResult")}
           </h3>
           {suggested ? (
-            <StatusPill status={STATUS_OF[suggested]} label={resultWord(labels, suggested)} className={PILL_TOUCH} />
+            <StatusPill status={STATUS_OF[suggested]} className={PILL_TOUCH} />
           ) : (
             <StatusPill status="not_done" label="Not calculated yet" className={PILL_TOUCH} />
-          )}
-          {suggested === "hold" && reasons.length === 0 && (
-            <p className="text-sm text-muted-foreground touch:text-base">No module has a result yet.</p>
           )}
           {reasons.length > 0 && (
             <ul className="space-y-0.5 text-sm text-muted-foreground touch:text-base">

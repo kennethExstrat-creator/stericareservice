@@ -118,6 +118,18 @@ describe("AiReviewPanelView for an admin", () => {
     ]);
   });
 
+  it("says why under the suggested result, and adds no empty line under a clean pass", () => {
+    const overallOf = (html: string) => /<section[^>]*data-section="[^"]*-overall"[^>]*>([\s\S]*?)<\/section>/.exec(html)?.[1] ?? "";
+    expect(text(overallOf(render()))).toContain(
+      "Suggested result Failed Failed: Finished Goods Sampling Information (carton number). Warnings: Packing configuration, Weight (g).",
+    );
+
+    const suggested = { result: "pass" as const, failed: [], notDone: [], warned: [], summary: "" };
+    const overall = overallOf(render({ evaluated: { ...evaluated, report: { ...evaluated.report, suggested } } }));
+    expect(text(overall)).toContain("Suggested result Passed Inspector");
+    expect(overall).not.toMatch(/<p[^>]*><\/p>/);
+  });
+
   it("shows each finding with its severity and the evidence it points to", () => {
     const content = text(render());
     expect(content).toMatch(/Major Finding F1 · Size M/);

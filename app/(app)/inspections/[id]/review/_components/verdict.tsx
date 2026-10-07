@@ -1,10 +1,13 @@
 // The overall picture: what the app suggests from the module results, what
 // the inspector decided and why, and how many problems the checks found.
 // The suggestion never changes the final result (BUILD_SPEC 6.1 conclusion).
+// Its pill says the result (Passed, Failed, On hold) and the lines under it
+// say why, as the submit confirmation does: nothing for a clean pass.
 import type { ReactNode } from "react";
 import { CircleXIcon, InfoIcon, TriangleAlertIcon } from "lucide-react";
 import { StatusPill } from "@/components/qc";
 import { Button } from "@/components/ui/button";
+import { suggestionReasons } from "@/lib/inspections/capture/suggestion";
 import type { ReviewEvaluation } from "@/lib/inspections/review/evaluate";
 import { plural, RESULT_LABEL } from "@/lib/inspections/review/format";
 import type { ReviewInspection } from "@/lib/inspections/review/load";
@@ -37,6 +40,7 @@ function Note({ tone, children }: { tone: "warn" | "info"; children: ReactNode }
 
 export function Verdict({ inspection, evaluation }: { inspection: ReviewInspection; evaluation: ReviewEvaluation }) {
   const suggested = evaluation.ok ? evaluation.report.suggested : null;
+  const reasons = reasonsOf(evaluation);
   const final = inspection.result;
   const differs = final !== null && suggested !== null && final !== suggested.result;
   const savedDiffers =
@@ -49,7 +53,13 @@ export function Verdict({ inspection, evaluation }: { inspection: ReviewInspecti
           {suggested ? (
             <>
               <StatusPill status={suggested.result} label={RESULT_LABEL[suggested.result]} className="touch:h-8 touch:text-base" />
-              <p className="text-base text-foreground fine:text-sm">{suggested.summary}</p>
+              {reasons.length > 0 && (
+                <ul data-slot="suggested-reasons" className="space-y-0.5 text-base text-foreground fine:text-sm">
+                  {reasons.map((reason) => (
+                    <li key={reason}>{reason}</li>
+                  ))}
+                </ul>
+              )}
               {savedDiffers && inspection.savedSuggestion && (
                 <Note tone="info">
                   When the inspection was last saved, the app suggested {RESULT_LABEL[inspection.savedSuggestion].toLowerCase()}.
@@ -87,6 +97,13 @@ export function Verdict({ inspection, evaluation }: { inspection: ReviewInspecti
       </div>
     </ReviewSection>
   );
+}
+
+/** Why the app suggests what it does, a line per reason, the sections by their titles in the template's wording. */
+function reasonsOf(evaluation: ReviewEvaluation): string[] {
+  if (!evaluation.ok) return [];
+  const { modules, suggested } = evaluation.report;
+  return suggestionReasons(suggested, (key) => modules.find((module) => module.key === key)?.title ?? key);
 }
 
 function Checks({ evaluation }: { evaluation: Extract<ReviewEvaluation, { ok: true }> }) {

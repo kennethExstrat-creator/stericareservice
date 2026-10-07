@@ -141,6 +141,7 @@ export function buildAiPanelModel(input: PanelModelInput): AiPanelModel {
     attempt: attempt ? toReview(attempt) : null,
     history: history.map(toReview),
     overall: {
+      // The summary says why, never the overall result (the pill beside it says that); empty for a clean pass.
       system: { result: evaluated.report.suggested.result, summary: evaluated.report.suggested.summary },
       inspector: {
         name: evaluated.inspector.name,
