@@ -216,8 +216,10 @@ export function MapLabelDialog({
             <input type="hidden" name="mode" value={mode} />
 
             <FieldSet className="gap-3">
-              {/* Its own margin (mb-3) keeps the legend off the cards: a fieldset's legend is not a flex item, so gap-3 misses it. */}
-              <FieldLegend variant="label">Map to</FieldLegend>
+              {/* mb-2 matches the 8 px (gap-2) of this dialog's fields; a fieldset's legend is not a flex item, so the FieldSet's gap misses it. */}
+              <FieldLegend variant="label" className="mb-2">
+                Map to
+              </FieldLegend>
               <RadioGroup
                 value={mode}
                 onValueChange={(value) => {
