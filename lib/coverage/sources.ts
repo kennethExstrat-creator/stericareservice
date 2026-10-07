@@ -4,9 +4,11 @@
 // maps to a custom module field. The template's coverage checklist is built
 // from this list; docs/DATA_DICTIONARY.md renders it as the coverage matrix.
 //
-// Labels are as printed, typos included; `corrected` is the app's wording
-// where the source has a typo. Where docs/forms/reports summarises a row,
-// the label is taken from the example report (labels only, no values).
+// Labels are as printed, typos included; `corrected` is the printed words
+// with the typo fixed, where the source has one. The app writes them in
+// Title Case (Kenneth, 8 October 2026): wording.ts compares the two. Where
+// docs/forms/reports summarises a row, the label is taken from the example
+// report (labels only, no values).
 import type { ModuleKey } from "@/lib/schemas/module-result";
 import type { ConfigKey, DataKey, LabelKey } from "./fields";
 import type {

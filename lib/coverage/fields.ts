@@ -1,8 +1,10 @@
 // The data dictionary (BUILD_SPEC 4.2 rules 3 and 5, 6.1, 6.2): for every
 // module, its canonical data fields, its config fields with their complete
 // defaults, and its captions, with STD_EG's wording as the default label and
-// the other templates' wording as overrides. Module schemas
-// (modules/<key>/schema.ts, config.ts) are written from this.
+// the other templates' wording as overrides. Every label is written out in
+// Title Case (docs/DESIGN.md; Kenneth, 8 October 2026): the form's words with
+// the rule's capitals, which sources.ts keeps verbatim and wording.ts checks.
+// Module schemas (modules/<key>/schema.ts, config.ts) are written from this.
 // docs/DATA_DICTIONARY.md renders it.
 import type { ModuleKey } from "@/lib/schemas/module-result";
 import {
