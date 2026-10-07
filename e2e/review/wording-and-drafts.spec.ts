@@ -49,7 +49,7 @@ test.afterAll(async () => {
 });
 
 function moduleRow(page: Page, key: string): Locator {
-  return page.getByRole("region", { name: "Module results" }).locator(`li[data-module=${key}]`);
+  return page.getByRole("region", { name: "Module Results" }).locator(`li[data-module=${key}]`);
 }
 
 /** How often `sentence` occurs in the element's text. */
@@ -103,7 +103,7 @@ test("a labelling photo of the carton says so on the report photos", async ({ pa
   await as.signIn(context, baseURL!, "admin");
   await page.goto(reviewPath(fixture.inspectionId));
   const [cartonPhoto] = fixture.extraPhotoIds;
-  const tile = page.getByRole("region", { name: "Report photos" }).locator(`li[data-photo="${cartonPhoto}"]`);
+  const tile = page.getByRole("region", { name: "Report Photos" }).locator(`li[data-photo="${cartonPhoto}"]`);
   await expect(tile).toContainText("Size M · Box 1324 · Carton Box");
   await expect(tile.getByRole("link")).toHaveAttribute("aria-label", /Size M, Box 1324, Carton Box$/);
   await tile.scrollIntoViewIfNeeded();
@@ -118,7 +118,7 @@ test("the AI second opinion words its evidence: photos in the template's words, 
   await as.signIn(context, baseURL!, "admin");
   await page.goto(reviewPath(fixture.inspectionId));
   const panel = page.getByTestId("ai-panel");
-  await press(panel.getByRole("button", { name: "Request AI second opinion" }));
+  await press(panel.getByRole("button", { name: "Request AI Second Opinion" }));
   const comparison = panel.getByTestId("ai-comparison");
   await expect(comparison).toBeVisible({ timeout: 90_000 });
 
@@ -156,23 +156,23 @@ test("a half-made decision and a reason for reopening are still there after a re
 
   // A disagreement with its note, not saved yet.
   await press(finding.getByRole("radio", { name: "Disagree", exact: true }));
-  await finding.getByRole("textbox", { name: "Why do you disagree?" }).fill(NOTE);
+  await finding.getByRole("textbox", { name: "Why Do You Disagree?" }).fill(NOTE);
   await page.reload();
   await expect(finding.getByRole("radio", { name: "Disagree", exact: true })).toHaveAttribute("aria-checked", "true");
-  await expect(finding.getByRole("textbox", { name: "Why do you disagree?" })).toHaveValue(NOTE);
+  await expect(finding.getByRole("textbox", { name: "Why Do You Disagree?" })).toHaveValue(NOTE);
   await finding.scrollIntoViewIfNeeded();
   await viewShot(page, "wording-decision-after-reload");
   // Saved, it is a decision, and the half-made one is gone.
-  await press(finding.getByRole("button", { name: "Save decision" }));
+  await press(finding.getByRole("button", { name: "Save Decision" }));
   await expect(finding.locator('[data-testid^="decision-"]')).toContainText(NOTE);
   await page.reload();
   await expect(finding.locator('[data-testid^="decision-"]')).toContainText("Disagreed");
-  await expect(finding.getByRole("button", { name: "Save decision" })).toHaveCount(0);
+  await expect(finding.getByRole("button", { name: "Save Decision" })).toHaveCount(0);
 
   // The reason for reopening, typed and not sent.
   await press(page.getByRole("button", { name: "Reopen" }));
   const dialog = page.getByRole("alertdialog", { name: `Reopen ${fixture.refNo}?` });
-  const reason = dialog.getByRole("textbox", { name: "What should the inspector change?" });
+  const reason = dialog.getByRole("textbox", { name: "What Should the Inspector Change?" });
   await reason.fill(REASON);
   await page.reload();
   await expect(dialog).toBeHidden();
