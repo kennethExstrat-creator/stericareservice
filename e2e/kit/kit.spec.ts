@@ -163,21 +163,16 @@ test("a grid whose module keeps a paste's overflow leaves it to the module: forc
   await expect(frame.locator('[data-slot="size-notice"]').first()).toBeVisible();
   await expect(grid.locator('[data-slot="paste-notice"]')).toHaveCount(0);
   await shot(page, "force-at-break-kept", clear);
-  await expect
-    .poll(async () => {
-      const force = (await fixture.modules()).force_at_break as { sizes?: Record<string, { values?: number[] }> };
-      return force?.sizes?.M?.values?.length ?? 0;
-    }, { timeout: 15_000 })
-    .toBe(rows + 2);
+  const savedReadings = async () => {
+    const force = (await fixture.modules()).force_at_break as { sizes?: Record<string, { values?: number[] }> };
+    return force?.sizes?.M?.values?.length ?? 0;
+  };
+  // Saves wait for the one before them, and the shared Mac and database can be slow: generous, never sleeps.
+  await expect.poll(savedReadings, { timeout: 30_000 }).toBe(rows + 2);
 
   await press(clear);
   await expect(clear).toHaveCount(0);
-  await expect
-    .poll(async () => {
-      const force = (await fixture.modules()).force_at_break as { sizes?: Record<string, { values?: number[] }> };
-      return force?.sizes?.M?.values?.length ?? 0;
-    }, { timeout: 15_000 })
-    .toBe(rows);
+  await expect.poll(savedReadings, { timeout: 30_000 }).toBe(rows);
 });
 
 test("a pasted column longer than a table of fields lists what did not fit across the table's foot", async ({
