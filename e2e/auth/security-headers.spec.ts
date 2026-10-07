@@ -97,7 +97,6 @@ test("the headers raise no browser warnings on the sign-in screens", async ({ pa
 });
 
 test("the framework is not announced (X-Powered-By)", async ({ request }) => {
-  test.fail(true, "SEC-01, rest: needs poweredByHeader: false in next.config.ts, which is outside the auth area");
   const answer = await request.get("/login");
   expect(answer.headers()["x-powered-by"]).toBeUndefined();
 });
