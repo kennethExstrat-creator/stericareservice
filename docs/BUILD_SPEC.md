@@ -110,7 +110,7 @@ Supabase Auth, email and password. No public sign-up.
 | Role | Can |
 |---|---|
 | `inspector` | Log in, create inspections, edit own drafts, submit, view own inspections |
-| `admin` | All of the above, plus: invite and deactivate users, set roles, manage manufacturers, clients, templates and defect codes, switch modules on or off, view and edit all inspections, approve or reopen, send to AI report, act on AI reviews |
+| `admin` | All of the above, plus: invite and deactivate users, set roles, change users' names (Kenneth, 8 October 2026), manage manufacturers, clients, templates and defect codes, switch modules on or off, view and edit all inspections, approve or reopen, send to AI report, act on AI reviews |
 
 - Admin invites users by email (server action using the secret key). The invitee sets a password from the email link.
 - Forgot password and reset password flow.
@@ -442,7 +442,7 @@ Build every seed template field for field from `docs/forms/reports/` first, then
 | `no_cuff`, `finger_out`, `multiple_out`, `stuck`, `sticky`, `faulty_cuff` | Safedon dispensing defects |
 
 - **Labelling checks:** `lot_no`, `mfg_date`, `expiry_date`, `artwork`, `carton_no`.
-- **Local test users** (local dev only): `inspector@test.local`, `admin@test.local`.
+- **Local test users** (local dev only): `inspector@test.local`, `admin@test.local`, and the lead inspector `lead@test.local` (Ngan Boon Keat), whose team `inspector@test.local` is in.
 
 ---
 
