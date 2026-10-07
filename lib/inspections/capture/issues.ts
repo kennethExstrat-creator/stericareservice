@@ -262,11 +262,17 @@ function notDoneStatus(issue: ValidationIssue, { notStarted, sizesNotDone }: Tas
   return { status: "Not done yet", sizes: [] };
 }
 
-/** One or two short field names as the task ("Glove Colour and Glove Length", "Final result and date"); null when that would be long. */
+/**
+ * One or two short field names as the task ("Glove Colour and Glove Length",
+ * "Final result and date"); null when that would be long. A pair reads in one
+ * style: when either label is in Title Case, both are quoted as shown
+ * ("Product Name and Date", docs/DESIGN.md), else the second starts lower case.
+ */
 function fieldsStatus(fields: readonly string[]): string | null {
   if (fields.length === 1 && fields[0].length <= 30) return fields[0];
   if (fields.length === 2) {
-    const both = `${fields[0]} and ${lowerFirst(fields[1])}`;
+    const asShown = fields.some(inTitleCase);
+    const both = `${fields[0]} and ${asShown ? fields[1] : lowerFirst(fields[1])}`;
     if (both.length <= 32) return both;
   }
   return fields.length > 2 ? `${fields.length} fields to fill` : null;
@@ -313,12 +319,16 @@ function splitList(list: string): string[] {
 }
 
 /**
- * "Date" as "date", "Glove length" as "glove length"; a label in Title Case
- * stays as shown ("Glove Length", docs/DESIGN.md), as does an acronym ("PO /
- * SO Number").
+ * A label whose later words start with a capital: Title Case ("Product Name",
+ * "Glove Length", "PO / SO Number"). A one-word label ("Date") reads either way.
  */
+function inTitleCase(label: string): boolean {
+  return /\s\p{Lu}/u.test(label);
+}
+
+/** "Date" as "date", "Glove length" as "glove length"; an acronym stays ("AQL level"). */
 function lowerFirst(text: string): string {
-  return /^[A-Z][a-z]/.test(text) && !/\s\p{Lu}/u.test(text) ? `${text.charAt(0).toLowerCase()}${text.slice(1)}` : text;
+  return /^[A-Z][a-z]/.test(text) ? `${text.charAt(0).toLowerCase()}${text.slice(1)}` : text;
 }
 
 function union(into: readonly string[], more: readonly string[]): string[] {
