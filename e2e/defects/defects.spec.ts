@@ -350,8 +350,9 @@ test.describe("as an admin", () => {
     await press(dialog.getByRole("button", { name: "Map Label" }));
     await expect(dialog.getByText("Choose a code.")).toBeVisible();
     // Never a hole location or a Safedon dispensing fault for a visual defect: they would count where
-    // no visual list has them. They stay on the full list.
-    const elsewhere = /Faulty cuff|Hole in cuff|No cuff|Finger out/;
+    // no visual list has them. They stay on the full list. In any case: the library's names are in
+    // sentence case, the templates' labels in Title Case.
+    const elsewhere = /Faulty cuff|Hole in cuff|No cuff|Finger out/i;
     await expect(dialog.locator('[id$="-code-description"]')).not.toContainText(elsewhere);
     await press(dialog.getByRole("combobox", { name: "Defect Code" }));
     await expect(page.getByRole("group", { name: "Suggested" }).getByRole("option", { name: elsewhere })).toHaveCount(0);
