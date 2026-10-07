@@ -21,7 +21,7 @@ export function runTag(): string {
 /** The desktop layout: 1280 px and wider with a mouse or trackpad; every touch size is the iPad layout (app/globals.css). */
 export const isDesktop = (page: Page) => (page.viewportSize()?.width ?? 0) >= 1280 && test.info().project.use.hasTouch !== true;
 
-/** The iPad sizes: touch, so (pointer: coarse) styles apply. */
+/** The iPad sizes: touch, so (any-pointer: coarse) styles apply. */
 export const hasTouch = () => test.info().project.use.hasTouch === true;
 
 export async function shot(page: Page, name: string) {

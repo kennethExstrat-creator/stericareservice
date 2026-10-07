@@ -31,7 +31,6 @@ export function ClientsAdmin({ clients, initialQuery }: { clients: ClientItem[];
       <PageHeader
         eyebrow="Admin"
         title="Clients"
-        description="The companies you inspect for, with the logo for their reports."
         actions={
           <Button ref={addButton} onClick={add}>
             <PlusIcon aria-hidden />

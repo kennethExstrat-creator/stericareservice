@@ -54,7 +54,7 @@ Utilities: `text-pass`, `bg-pass-tint`, `border-pass-border`, `bg-pass-solid tex
 
 ## Density (by pointer, not width)
 
-- `touch:` = `(pointer: coarse)` (iPad), `fine:` = `(pointer: fine)` (mouse or trackpad). Layout switches at 1280 px with a fine pointer (`xl`, redefined in app/globals.css): below it, and on every touch screen whatever its width, a top tab bar and full-width grid; from 1280 px with a mouse or trackpad a left sidebar, wider grid, photos alongside. Check 820×1180, 1180×820, 1366×1024 (touch: 12.9 and 13 inch iPads) and 1440×900.
+- `touch:` = `(any-pointer: coarse)`: any touchscreen, an iPad also with a keyboard and trackpad attached. `fine:` = no touchscreen (mouse or trackpad only). Layout switches at 1280 px on devices with no touchscreen (`xl`, redefined in app/globals.css): below it, and on every touch screen whatever its width, a top tab bar and full-width grid; from 1280 px without a touchscreen a left sidebar, wider grid, photos alongside. Check 820×1180, 1180×820, 1366×1024 (touch: 12.9 and 13 inch iPads) and 1440×900.
 - iPad: every control at least 44×44 px (buttons, steppers, chips, tabs, menu items, grid rows, the grid's error list; checkbox, radio and switch grow to 24–28 px with a 44 px hit area). Field text 16 px so iOS never zooms on focus (Input and Textarea are 14 px only under `fine:`).
 - Desktop: compact controls (32–36 px) and 32–36 px table rows.
 - To resize a control, override both: `h-12 touch:h-14`.

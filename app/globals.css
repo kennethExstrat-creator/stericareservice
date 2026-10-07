@@ -18,19 +18,22 @@
    prefers-color-scheme: dark). */
 @custom-variant dark (&:not(*));
 
-/* Density by input device, not width: iPad reports a coarse pointer, a
-   desktop with mouse or trackpad a fine one. touch: grows controls to 44 px. */
-@custom-variant touch (@media (pointer: coarse));
-@custom-variant fine (@media (pointer: fine));
+/* Density by input device, not width. Any touchscreen (an iPad, also with a
+   keyboard and trackpad attached, which make iPadOS report a fine pointer)
+   gets touch: sizes, 44 px targets and 16 px text; fine: is for devices with
+   no touchscreen at all (a mouse or trackpad only). */
+@custom-variant touch (@media (any-pointer: coarse));
+@custom-variant fine (@media not all and (any-pointer: coarse));
 
-/* The desktop layout (sidebars, compact tables) needs a mouse or trackpad as
-   well as 1280 px: a 12.9 or 13 inch iPad is 1366 px wide in landscape, and
-   with touch-sized text and targets the desktop layout squeezed its tables
-   and fields. Every touch screen gets the iPad layout, whatever its width.
-   xl: and max-xl: stay the one desktop switch; WIDE_QUERY in
-   components/qc/use-media-query.ts is the same rule for scripts. */
-@custom-variant xl (@media (width >= 80rem) and (pointer: fine));
-@custom-variant max-xl (@media not all and (width >= 80rem) and (pointer: fine));
+/* The desktop layout (sidebars, compact tables) needs 1280 px and no
+   touchscreen: a 12.9 or 13 inch iPad is 1366 px wide in landscape, and with
+   touch-sized text and targets the desktop layout squeezed its tables and
+   fields. Every touch screen gets the iPad layout, whatever its width and
+   whatever is plugged in. xl: and max-xl: stay the one desktop switch;
+   WIDE_QUERY and COARSE_QUERY in components/qc/use-media-query.ts are the
+   same rules for scripts. */
+@custom-variant xl (@media (width >= 80rem) and (not (any-pointer: coarse)));
+@custom-variant max-xl (@media (width < 80rem) or (any-pointer: coarse));
 
 /* Static: components and inline styles read these as CSS variables, so they
    must exist even where no utility uses them. */

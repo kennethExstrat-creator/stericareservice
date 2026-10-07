@@ -37,7 +37,6 @@ export default async function UsersPage() {
       <PageHeader
         eyebrow="Admin"
         title="Users"
-        description="Invite people, set their roles and deactivate accounts that should no longer have access."
         actions={<InviteUserDialog disabled={!canInvite} />}
       />
 

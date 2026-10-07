@@ -29,7 +29,6 @@ export default async function NewInspectionPage() {
       <PageHeader
         eyebrow="Inspections"
         title="New inspection"
-        description="Choose the client, manufacturer and product type: the template follows from them."
       />
       {options ? (
         <NewInspectionForm

@@ -48,7 +48,6 @@ export default async function TemplatesPage() {
       <PageHeader
         eyebrow="Admin"
         title="Templates"
-        description="Each template by code, with its versions. Inspectors start new inspections from a code's active version; an inspection keeps the version it started with."
         actions={
           list.ok &&
           scope && (

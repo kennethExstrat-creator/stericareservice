@@ -7,6 +7,7 @@
 
 import { useCallback, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { COARSE_QUERY } from "@/components/qc";
 
 /** What the panel shows: a new code (possibly filled in from a link), or the code being edited. */
 export type PanelTarget = { mode: "create"; prefill?: { code: string; name: string } } | { mode: "edit"; code: string };
@@ -101,7 +102,7 @@ export function Panel({ open, busy, onClose, returnFocus, title, description, ch
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           const content = contentRef.current;
-          const field = window.matchMedia("(pointer: coarse)").matches
+          const field = window.matchMedia(COARSE_QUERY).matches
             ? null
             : content?.querySelector<HTMLElement>("input:not([type='hidden']):not([readonly]), textarea");
           (field ?? content)?.focus();

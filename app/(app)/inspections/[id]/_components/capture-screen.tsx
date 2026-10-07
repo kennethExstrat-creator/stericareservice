@@ -47,7 +47,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronLeftIcon, ChevronRightIcon, FileSearchIcon, ImagesIcon, ListChecksIcon, RefreshCwIcon } from "lucide-react";
+import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, FileSearchIcon, ImagesIcon, ListChecksIcon, RefreshCwIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useInspectionFiles } from "@/components/capture/files";
 import { PhotoSlot, photoUploadsSettled, useUploadsWaiting } from "@/components/capture/photos";
@@ -55,6 +55,7 @@ import { ProgressTracker, useMediaQuery, WIDE_QUERY } from "@/components/qc";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { isEditableStatus, type CaptureAccess, type UserRole } from "@/lib/inspections/capture/access";
+import { INSPECTIONS_PATH } from "@/lib/inspections/search-params";
 import type { DefectUsage } from "@/lib/inspections/capture/defect-usage";
 import { evaluateCapture, type CaptureMeta } from "@/lib/inspections/capture/evaluate";
 import { mappedFieldValues } from "@/lib/inspections/capture/fields";
@@ -631,6 +632,17 @@ export function CaptureScreen({
             )}
             {issuesButton("xl:hidden")}
             {submitControl("xl:hidden")}
+            {/* Last, on the right: back to the list, saving first like the links above. */}
+            <LeaveLink
+              href={INSPECTIONS_PATH}
+              icon={<ArrowLeftIcon aria-hidden />}
+              leaving={leavingTo === INSPECTIONS_PATH}
+              onLeave={leaveTo}
+              // In the iPad's row of actions under the title, at the far right as on desktop.
+              className="ml-auto xl:ml-0"
+            >
+              Back<span className="sr-only"> to inspections</span>
+            </LeaveLink>
           </>
         }
       />
@@ -1010,6 +1022,7 @@ function LeaveLink({
   icon,
   leaving,
   onLeave,
+  className,
   children,
 }: {
   href: string;
@@ -1017,6 +1030,7 @@ function LeaveLink({
   /** Saving before leaving for this link. */
   leaving: boolean;
   onLeave: (href: string) => void;
+  className?: string;
   children: ReactNode;
 }) {
   const onNavigate: ComponentProps<typeof Link>["onNavigate"] = (event) => {
@@ -1024,7 +1038,7 @@ function LeaveLink({
     onLeave(href);
   };
   return (
-    <Button asChild variant="outline">
+    <Button asChild variant="outline" className={className}>
       <Link href={href} onNavigate={onNavigate} aria-busy={leaving || undefined}>
         {leaving ? <Spinner aria-hidden /> : icon}
         {children}
@@ -1044,26 +1058,24 @@ function IssuesButton({
   onClick: () => void;
   className?: string;
 }) {
+  // Calm on purpose (Kenneth: red and amber counts felt alarming): "Pending" with a blue dot
+  // while anything is open; the counts and what blocks submit are read out, and shown in the sheet.
+  const open = errors + warnings;
   return (
     <Button type="button" variant="outline" onClick={onClick} className={className} data-action="issues" aria-haspopup="dialog">
       <span className="inline-flex items-center gap-1.5">
         <ListChecksIcon aria-hidden />
-        Issues
+        Pending
       </span>
-      <span className="inline-flex items-center gap-1">
-        {errors > 0 && (
-          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-fail-solid px-1.5 text-xs font-bold text-fail-solid-foreground tabular-nums">
-            {errors}
-            <span className="sr-only">{errors === 1 ? " error" : " errors"}</span>
+      {open > 0 && (
+        <>
+          <span aria-hidden data-slot="pending-dot" className="size-2.5 shrink-0 rounded-full bg-primary" />
+          <span className="sr-only">
+            {`: ${open} open`}
+            {errors > 0 ? `, ${errors} to fix before submit` : ""}
           </span>
-        )}
-        {warnings > 0 && (
-          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-warn-solid px-1.5 text-xs font-bold text-warn-solid-foreground tabular-nums">
-            {warnings}
-            <span className="sr-only">{warnings === 1 ? " warning" : " warnings"}</span>
-          </span>
-        )}
-      </span>
+        </>
+      )}
     </Button>
   );
 }

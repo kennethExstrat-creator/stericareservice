@@ -82,7 +82,6 @@ export function DefectsHeader({
       <PageHeader
         eyebrow="Admin"
         title="Defects"
-        description="One code per defect, whatever each template calls it, so “Oil stain” and “Stain” count together. Severity is set per template."
         actions={actions}
       />
       <nav aria-label="Defects" className="border-b border-border">

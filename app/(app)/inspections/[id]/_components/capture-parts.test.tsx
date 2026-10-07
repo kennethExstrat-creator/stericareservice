@@ -162,7 +162,7 @@ describe("CaptureNotices", () => {
 });
 
 describe("CaptureHeader", () => {
-  it("names the inspection, its template version and status, and who and what it is about", () => {
+  it("names the inspection and its status, with one short line: the client and the manufacturer", () => {
     const html = renderToStaticMarkup(
       <CaptureHeader
         heading={{
@@ -172,15 +172,17 @@ describe("CaptureHeader", () => {
           templateVersion: 3,
           clientName: "Client A",
           manufacturerLabel: "Manufacturer A · Factory 1",
+          manufacturerName: "Manufacturer A",
           inspectionDate: "2026-10-06",
           inspectorName: "Inspector A",
         }}
       />,
     );
     expect(html).toMatch(/<h1[^>]*>.*INS-2026-0001/);
-    expect(html).toContain("Standard examination gloves · v3");
     expect(html).toContain('data-status="reopened"');
-    for (const fact of ["Client A", "Manufacturer A · Factory 1", "6 Oct 2026", "Inspector A"]) expect(html).toContain(fact);
+    for (const fact of ["Client A", "Manufacturer A"]) expect(html).toContain(fact);
+    // Kept short (Kenneth): no template line, factory, date or inspector in the header.
+    for (const gone of ["Standard examination gloves", "Factory 1", "6 Oct 2026", "Inspector A"]) expect(html).not.toContain(gone);
     // The actions take a row of their own below 1280 px and sit beside the title from 1280 px.
     const header = tagsWith(html, 'data-slot="page-header"')[0];
     expect(header).toContain("md:flex-col");
