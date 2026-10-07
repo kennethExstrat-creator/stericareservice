@@ -15,29 +15,34 @@ import { TEST_ACCOUNTS } from "../support/session";
  * manufacturer) can apply there. No standard template is made here: it would
  * apply to anyone's new inspection while it existed.
  *
- *   E2E_NEW     the client at Hartalega   client and manufacturer   STD_EG
- *   E2E_NEW_CM  the client at A           client and manufacturer   STD_EG
- *   E2E_NEW_C   the client, anywhere      client                    STD_EG, no product name in its header
- *   E2E_NEW_M   anyone at A               manufacturer              SAFEDON_EG
+ *   E2E_NEWSEED     the client at Hartalega   client and manufacturer   STD_EG
+ *   E2E_NEWSEED_CM  the client at A           client and manufacturer   STD_EG
+ *   E2E_NEWSEED_C   the client, anywhere      client                    STD_EG, no product name in its header
+ *   E2E_NEWSEED_M   anyone at A               manufacturer              SAFEDON_EG
  *
  * The templates are seed templates from the seed bundle under other codes,
  * so the page shows real templates: their modules, sizes and titles.
  * Everything is deleted afterwards: inspections through
  * deleteTestInspection(), then the templates, the client and the
- * manufacturers. A run that died half way is cleaned up by the next.
+ * manufacturers. A run that died half way is cleaned up by the next,
+ * including one of this spec's earlier version, whose templates were E2E_NEW
+ * and whose client had the same name.
  */
 
 type AdminClient = ReturnType<typeof createTestAdminClient>;
 
-export const FIXTURE_TEMPLATE_CODE = "E2E_NEW";
+/** E2E_ and the package that owns the spec (newseed), so the shared database tells whose rows they are. */
+export const FIXTURE_TEMPLATE_CODE = "E2E_NEWSEED";
 export const FIXTURE_TEMPLATE_NAME = "E2E new inspection template (temporary)";
 /** One template per level below the fixture's own (see above). */
 export const LEVEL_TEMPLATES = {
-  clientManufacturer: { code: "E2E_NEW_CM", name: "E2E new: the client at manufacturer A (temporary)" },
-  client: { code: "E2E_NEW_C", name: "E2E new: the client anywhere (temporary)" },
-  manufacturer: { code: "E2E_NEW_M", name: "E2E new: anyone at manufacturer A (temporary)" },
+  clientManufacturer: { code: "E2E_NEWSEED_CM", name: "E2E new: the client at manufacturer A (temporary)" },
+  client: { code: "E2E_NEWSEED_C", name: "E2E new: the client anywhere (temporary)" },
+  manufacturer: { code: "E2E_NEWSEED_M", name: "E2E new: anyone at manufacturer A (temporary)" },
 } as const;
-const FIXTURE_CODES = [FIXTURE_TEMPLATE_CODE, ...Object.values(LEVEL_TEMPLATES).map((entry) => entry.code)];
+/** This spec's codes before: their templates may still hold a fixture client the next run deletes. */
+const EARLIER_CODES = ["E2E_NEW", "E2E_NEW_CM", "E2E_NEW_C", "E2E_NEW_M"];
+const FIXTURE_CODES = [FIXTURE_TEMPLATE_CODE, ...Object.values(LEVEL_TEMPLATES).map((entry) => entry.code), ...EARLIER_CODES];
 export const FIXTURE_CLIENT_PREFIX = "E2E new client (temporary)";
 export const FIXTURE_MANUFACTURER_PREFIX = "E2E new manufacturer";
 /** Hartalega NGC, from supabase/seed.sql (fixed id). */

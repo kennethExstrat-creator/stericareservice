@@ -61,7 +61,7 @@ for the rest, list them first, then delete:
 ```bash
 npm run clean:e2e                       # lists; deletes nothing
 npm run clean:e2e -- --apply            # deletes what the listing said
-npm run clean:e2e -- --only E2E_NEW     # only codes that start with E2E_NEW
+npm run clean:e2e -- --only E2E_NEWSEED # only codes that start with E2E_NEWSEED
 ```
 
 For each template it removes the Storage objects of each inspection (`inspection-photos`,

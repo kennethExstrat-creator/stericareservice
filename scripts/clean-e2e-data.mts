@@ -46,7 +46,7 @@ import type { Database } from "../lib/supabase/database.types";
  * What e2e runs leave
  * ------------------------------------------------------------------ */
 
-/** Template codes the specs use: E2E_NEW, E2E_CAPTURE, E2E_TEMPLATES_<run>_ROOT... */
+/** Template codes the specs use: E2E_NEWSEED, E2E_CAPTURE, E2E_TEMPLATES_<run>_ROOT... */
 export const E2E_CODE_PREFIX = "E2E_";
 /** The buckets that hold an inspection's photos and files, under <inspection id>/. */
 export const INSPECTION_BUCKETS = ["inspection-photos", "inspection-files"] as const;
