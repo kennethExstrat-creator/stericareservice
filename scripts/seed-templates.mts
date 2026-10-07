@@ -443,7 +443,7 @@ async function main(): Promise<void> {
   const drafts = report.outcomes.filter((outcome) => outcome.status === "draft").map((outcome) => outcome.plan.code);
   if (drafts.length > 0) {
     console.log(
-      `\nDrafts: ${drafts.join(", ")}. Nothing starts from them until an admin attaches the source form, ` +
+      `\nDrafts: ${drafts.join(", ")}. Inspectors cannot start from them until an admin attaches the source form, ` +
         "confirms the coverage checklist and activates each one under Admin > Templates, bases first.",
     );
   }
