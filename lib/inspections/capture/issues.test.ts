@@ -183,6 +183,8 @@ describe("summariseIssues", () => {
     const context = { ...CONTEXT, title: "Glove Information" };
     expect(summariseIssues([missing("Glove colour")], context).status).toBe("Glove colour");
     expect(summariseIssues([missing("Glove colour, Glove length")], context).status).toBe("Glove colour and glove length");
+    // Labels in Title Case are quoted as shown (docs/DESIGN.md): the seed templates' words.
+    expect(summariseIssues([missing("Glove Colour, Glove Length")], context).status).toBe("Glove Colour and Glove Length");
     expect(summariseIssues([missing("PO / SO Number, Product Name (Brand, code & description), Expiry date")], context).status).toBe(
       "3 fields to fill",
     );
