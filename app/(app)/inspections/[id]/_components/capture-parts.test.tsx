@@ -13,6 +13,7 @@ vi.mock("../actions", () => ({
 
 import { SITE_NOTES, SIZE_TABLE, TEST_ADMIN_ID } from "@/lib/inspections/capture/__fixtures__/capture";
 import type { CaptureSection } from "@/lib/inspections/capture/sections";
+import type { ValidationIssue } from "@/lib/validation";
 import { TEST_REGISTRY } from "@/modules/_framework/__fixtures__/test-registry";
 import { makeTestContext } from "@/modules/_framework/testing";
 import CaptureLoading from "../loading";
@@ -80,53 +81,57 @@ describe("SectionTabs", () => {
 });
 
 describe("TaskItem (the Pending panel)", () => {
-  const notDone = renderToStaticMarkup(
+  const issue: ValidationIssue = { level: "warning", moduleKey: "weight", code: "module_not_done", message: "x", path: [] };
+  const weight = renderToStaticMarkup(
     <TaskItem
-      issue={{
-        level: "warning",
-        moduleKey: "glove_info",
-        code: "module_not_done",
-        message: "Glove Information is not done: Missing: Glove colour.",
-        path: ["colour"],
+      task={{
+        key: "weight",
+        title: "Weight (g)",
+        linkable: true,
+        needed: false,
+        status: "6 sizes not done",
+        sizes: ["XS", "S", "M", "L", "XL", "XXL"],
+        more: 1,
+        first: issue,
       }}
-      section={{ title: "Glove Information", linkable: true }}
       onGo={noop}
     />,
   );
   const needed = renderToStaticMarkup(
     <TaskItem
-      issue={{
-        level: "error",
-        moduleKey: "conclusion",
-        code: "module_not_done",
-        message: "Conclusion must be complete before submit: No final result.",
-        path: [],
+      task={{
+        key: "conclusion",
+        title: "Conclusion",
+        linkable: true,
+        needed: true,
+        status: "Final result and date",
+        sizes: [],
+        more: 0,
+        first: { ...issue, level: "error", moduleKey: "conclusion" },
       }}
-      section={{ title: "Conclusion", linkable: true }}
       onGo={noop}
     />,
   );
   const text = (html: string) => html.replace(/<[^>]+>/g, "");
 
-  it("is a button that reads its section and its task, without the section's own words twice", () => {
-    expect(notDone).toMatch(/^<button type="button"/);
-    expect(text(notDone)).toBe("Glove Information: Missing: Glove colour.");
-    expect(notDone).not.toContain("data-needed");
-    expect(notDone).not.toContain("Needed to submit");
+  it("is a button named with its section, status and sizes, showing the title over one short line", () => {
+    expect(weight).toMatch(/^<button type="button"/);
+    expect(weight).toContain('aria-label="Weight (g): 6 sizes not done: XS, S, M, L, XL and XXL, and 1 more."');
+    expect(text(weight)).toBe("Weight (g)6 sizes not doneXSSMLXL+1· 1 more");
+    // One line: the status line never wraps, and long text is cut rather than pushed to a second line.
+    expect(weight).toMatch(/data-slot="task-status"[^>]*class="[^"]*\bwhitespace-nowrap\b[^"]*\boverflow-hidden\b|data-slot="task-status"[^>]*class="[^"]*\boverflow-hidden\b[^"]*\bwhitespace-nowrap\b/);
+    expect(weight).not.toContain("data-needed");
   });
 
-  it("shows a task submit needs with its section's name, brand circle and medium weight, read out as needed", () => {
-    // The section's name shows above the task, hidden from screen readers, which hear it once before it.
-    expect(text(needed)).toBe("Conclusion: ConclusionNo final result. Needed before you submit.");
-    expect(needed).toMatch(/<span aria-hidden="true"[^>]*>Conclusion<\/span>/);
+  it("marks what submit needs with a brand circle, read out as needed before you submit", () => {
+    expect(needed).toContain('aria-label="Conclusion: Final result and date. Needed before you submit."');
     expect(needed).toContain("data-needed");
-    expect(needed).toContain("font-medium");
     expect(needed).toMatch(/lucide-circle[^"]*text-primary/);
-    expect(notDone).toMatch(/lucide-circle[^"]*text-control/);
+    expect(weight).toMatch(/lucide-circle[^"]*text-control/);
   });
 
   it("looks like a task, not a warning: a checklist circle, no red or amber", () => {
-    for (const html of [notDone, needed]) {
+    for (const html of [weight, needed]) {
       expect(html).toContain("lucide-circle");
       expect(html).not.toMatch(/\b(text|bg|border)-(fail|warn)\b/);
       expect(html).not.toMatch(/lucide-(triangle-alert|circle-x)/);

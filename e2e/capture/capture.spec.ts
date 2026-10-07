@@ -863,7 +863,7 @@ test("tensile counts its lab report once attached and not once it is deleted, an
   expect(hydration()).toEqual([]);
 });
 
-test("Pending lists what is open as calm tasks, with what submit needs first and tagged", async ({ page, context, baseURL }) => {
+test("Pending lists one short task per section, what submit needs first", async ({ page, context, baseURL }) => {
   await signInAs(context, baseURL!, "inspector");
   await page.goto(`/inspections/${fixture.inspectionId}`);
   await expect(savePill(page)).toHaveAttribute("data-state", "saved");
@@ -878,23 +878,34 @@ test("Pending lists what is open as calm tasks, with what submit needs first and
       element.querySelectorAll('[class*="-fail"], [class*="-warn"], .lucide-triangle-alert, .lucide-circle-x').length,
   );
   expect(alarming).toBe(0);
-  // What submit needs comes first, together under its tag, each task with its section's name; the rest follow.
+
+  // One row per section, counted as the summary says.
+  const tasks = sheet.locator("[data-task]");
+  const keys = await tasks.evaluateAll((rows) => rows.map((row) => row.getAttribute("data-task")));
+  expect(new Set(keys).size).toBe(keys.length);
+  const [total] = (await sheet.locator('[data-slot="pending-summary"]').innerText()).match(/^\d+/) ?? [];
+  expect(keys.length).toBe(Number(total));
+
+  // What submit needs comes first, under its tag; the rest follow.
   const neededGroup = sheet.locator('[data-slot="needed-tasks"]');
   await expect(sheet.locator("section").first()).toHaveAttribute("data-slot", "needed-tasks");
   await expect(neededGroup.getByRole("heading", { name: "Needed to submit" })).toBeVisible();
-  const neededCount = await neededGroup.locator("[data-issue]").count();
-  expect(neededCount).toBeGreaterThan(0);
-  await expect(sheet.locator("[data-issue][data-needed]")).toHaveCount(neededCount);
-  await expect(neededGroup.locator("[data-issue]:not([data-needed])")).toHaveCount(0);
-  await expect(neededGroup.getByRole("button", { name: /^Site notes: Container seal intact is required/ })).toBeVisible();
-  // Under its section's heading a task does not say the section's name again.
+  await expect(neededGroup.locator("[data-task]:not([data-needed])")).toHaveCount(0);
+  await expect(neededGroup.getByRole("button", { name: /^Site notes: Container seal intact is required\. Needed before you submit\.$/ })).toBeVisible();
+  await expect(neededGroup.getByRole("button", { name: "Conclusion: Final result and date. Needed before you submit." })).toBeVisible();
+
+  // Each row: the section's title and one short line, no long messages.
+  for (const status of await sheet.locator('[data-slot="task-status"]').allInnerTexts()) {
+    expect(status.length, status).toBeLessThanOrEqual(48);
+  }
   await expect(sheet).not.toContainText("is not done");
   await expect(sheet).not.toContainText("must be complete before submit");
-  await expect(sheet.getByRole("button", { name: /^Conclusion: .*Needed before you submit\.$/ })).toBeVisible();
-  if (isTouch()) {
-    for (const task of await sheet.locator("button[data-issue]").all()) {
-      expect((await task.boundingBox())!.height).toBeGreaterThanOrEqual(44);
-    }
+  await expect(sheet).not.toContainText("Suggested result");
+  for (const row of await tasks.all()) {
+    const box = (await row.locator('[data-slot="task-status"]').boundingBox())!;
+    // One line of 14 px text (20 px) at most.
+    expect(box.height, (await row.getAttribute("data-task")) ?? "").toBeLessThanOrEqual(22);
+    if (isTouch()) expect((await row.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   }
   await viewportShot(page, "pending");
 });

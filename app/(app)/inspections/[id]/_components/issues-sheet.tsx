@@ -1,16 +1,17 @@
 "use client";
 
-// The Pending panel (BUILD_SPEC 6.2): every error and warning of the
-// inspection as a task list, grouped by section in screen order. Calm on
-// purpose (Kenneth: a task list, not warnings): each task is an empty
-// checklist circle and its words, never red or amber. The ones submit needs
-// (errors) come first, in a short group under a brand-blue "Needed to
-// submit" tag, each with its section's name, in medium weight with a brand
-// circle; the rest (warnings, which go into the report) follow as plain tasks
-// under their sections. Each task is a link: it opens its section and moves
-// focus to the value it is about. When submit is blocked the panel opens
-// itself and says so; tasks the server found that this screen does not show
-// (the inspection changed elsewhere) are listed apart, with Reload.
+// The Pending panel (BUILD_SPEC 6.2): what is still open in the inspection,
+// one short row per section (Kenneth: "too crowded and many words, make it
+// cleaner and easy to read"). Each row is the section's title and one muted
+// line under it ("4 sizes not done · XS S M L", "Final result and date"),
+// worded by pendingTasks (lib/inspections/capture/issues.ts); the review and
+// the export keep every message in full. Calm on purpose: an empty checklist
+// circle, never red or amber. Sections with something submit needs (errors)
+// come first under a brand-blue "Needed to submit" tag, with a brand circle;
+// the rest follow in capture order. Each row is a link: it opens its section
+// at its first open item. When submit is blocked the panel opens itself and
+// says so; what the server found that this screen does not show (the
+// inspection changed elsewhere) is listed apart, with Reload.
 import { useRef } from "react";
 import { ArrowRightIcon, CircleIcon, RefreshCwIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,15 +22,16 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { describePending, issueKey, taskText, type IssueGroup } from "@/lib/inspections/capture/issues";
+import { describePending, issueKey, taskName, type PendingTask } from "@/lib/inspections/capture/issues";
 import type { ValidationIssue } from "@/lib/validation";
 import { cn } from "@/lib/utils";
 
 type IssuesSheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  groups: readonly IssueGroup[];
-  counts: { errors: number; warnings: number };
+  /** One per section with open items, what submit needs first (pendingTasks). */
+  tasks: readonly PendingTask[];
+  counts: { total: number; needed: number };
   /** Set when submit was refused: why. */
   blockedMessage: string | null;
   /** Errors the server found in the saved inspection that this screen does not show. */
@@ -37,10 +39,13 @@ type IssuesSheetProps = {
   onGo: (issue: ValidationIssue) => void;
 };
 
+/** Size chips shown on a row; more read as "+2". */
+const MAX_CHIPS = 5;
+
 export function IssuesSheet({
   open,
   onOpenChange,
-  groups,
+  tasks,
   counts,
   blockedMessage,
   unseenErrors = [],
@@ -52,8 +57,8 @@ export function IssuesSheet({
     leavingToIssue.current = true;
     onGo(issue);
   };
-  const needed = groups.flatMap((group) => group.errors.map((issue) => ({ issue, group })));
-  const rest = groups.filter((group) => group.warnings.length > 0);
+  const needed = tasks.filter((task) => task.needed);
+  const rest = tasks.filter((task) => !task.needed);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -105,7 +110,7 @@ export function IssuesSheet({
               </Button>
             </section>
           )}
-          {groups.length === 0 ? (
+          {tasks.length === 0 ? (
             unseenErrors.length === 0 && (
               <p className="px-2 text-sm text-muted-foreground touch:text-base">Every section is done.</p>
             )
@@ -118,30 +123,24 @@ export function IssuesSheet({
                       Needed to submit
                     </span>
                   </h3>
-                  <ul className="space-y-0.5">
-                    {needed.map(({ issue, group }) => (
-                      <li key={issueKey(issue)}>
-                        <TaskItem issue={issue} section={group} onGo={() => go(issue)} />
-                      </li>
-                    ))}
-                  </ul>
+                  <TaskList tasks={needed} onGo={go} />
                 </section>
               )}
-              {rest.map((group) => (
-                <section key={group.key} aria-labelledby={`issues-${group.key}`} className="space-y-1.5">
-                  <h3 id={`issues-${group.key}`} className="px-2 text-sm font-semibold text-foreground touch:text-base">
-                    {group.title}
-                    {!group.linkable && <span className="font-normal text-muted-foreground"> (switched off)</span>}
-                  </h3>
-                  <ul className="space-y-0.5">
-                    {group.warnings.map((issue) => (
-                      <li key={issueKey(issue)}>
-                        <TaskItem issue={issue} section={group} onGo={() => go(issue)} />
-                      </li>
-                    ))}
-                  </ul>
+              {rest.length > 0 && (
+                <section
+                  aria-labelledby={needed.length > 0 ? "issues-rest" : undefined}
+                  aria-label={needed.length > 0 ? undefined : "To do"}
+                  data-slot="other-tasks"
+                  className="space-y-1.5"
+                >
+                  {needed.length > 0 && (
+                    <h3 id="issues-rest" className="px-2 text-sm font-medium text-muted-foreground">
+                      Still to do
+                    </h3>
+                  )}
+                  <TaskList tasks={rest} onGo={go} />
                 </section>
-              ))}
+              )}
             </div>
           )}
         </div>
@@ -150,56 +149,83 @@ export function IssuesSheet({
   );
 }
 
+function TaskList({ tasks, onGo }: { tasks: readonly PendingTask[]; onGo: (issue: ValidationIssue) => void }) {
+  return (
+    <ul className="space-y-0.5">
+      {tasks.map((task) => (
+        <li key={task.key}>
+          <TaskItem task={task} onGo={() => onGo(task.first)} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /**
- * One task, read as "<Section>: <task>", with "Needed before you submit."
- * for the ones submit needs: a heading is not part of a button's name. Those
- * sit under the "Needed to submit" tag, away from their sections, so they
- * show their section's name too.
+ * One section's row: its title, and one muted line with its status, the
+ * sizes as chips and "· 1 more" for other kinds of open items. Named for
+ * screen readers in full (taskName): "Weight (g): 4 sizes not done: XS, S, M
+ * and L.", and "Needed before you submit." for what submit needs.
  */
-export function TaskItem({
-  issue,
-  section,
-  onGo,
-}: {
-  issue: ValidationIssue;
-  section: Pick<IssueGroup, "title" | "linkable">;
-  onGo: () => void;
-}) {
-  const needed = issue.level === "error";
+export function TaskItem({ task, onGo }: { task: PendingTask; onGo: () => void }) {
+  const chips = task.sizes.slice(0, MAX_CHIPS);
+  const hidden = task.sizes.length - chips.length;
   const content = (
     <>
       <CircleIcon
         aria-hidden
-        className={cn("mt-0.5 size-4 shrink-0 touch:mt-1", needed ? "text-primary" : "text-control")}
+        className={cn("mt-0.5 size-4 shrink-0 touch:mt-1", task.needed ? "text-primary" : "text-control")}
       />
-      <span className="min-w-0 flex-1">
-        <span className="sr-only">{section.title}: </span>
-        {needed && (
-          <span aria-hidden className="block text-xs font-medium text-muted-foreground touch:text-sm">
-            {section.title}
-            {!section.linkable && " (switched off)"}
-          </span>
-        )}
-        <span className={cn("block", needed && "font-medium")}>{taskText(issue, section.title)}</span>
-        {needed && <span className="sr-only"> Needed before you submit.</span>}
+      <span aria-hidden className="min-w-0 flex-1">
+        <span className="block font-medium text-foreground">
+          {task.title}
+          {!task.linkable && <span className="font-normal text-muted-foreground"> (switched off)</span>}
+        </span>
+        <span
+          data-slot="task-status"
+          className="mt-0.5 flex min-w-0 items-center gap-1.5 overflow-hidden text-sm whitespace-nowrap text-muted-foreground"
+        >
+          <span className="truncate">{task.status}</span>
+          {chips.length > 0 && (
+            <span data-slot="task-sizes" className="flex shrink-0 items-center gap-1">
+              {chips.map((size) => (
+                <span
+                  key={size}
+                  className="rounded-sm bg-muted px-1.5 text-xs leading-5 font-medium text-slate-700 tabular-nums"
+                >
+                  {size}
+                </span>
+              ))}
+              {hidden > 0 && <span className="text-xs leading-5 tabular-nums">+{hidden}</span>}
+            </span>
+          )}
+          {task.more > 0 && <span className="shrink-0">· {task.more} more</span>}
+        </span>
       </span>
-      {section.linkable && <ArrowRightIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground touch:mt-1" />}
+      {task.linkable && <ArrowRightIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground touch:mt-1" />}
     </>
   );
   const className =
     "flex w-full items-start gap-2.5 rounded-md px-2 py-2 text-left text-sm text-foreground touch:min-h-11 touch:text-base";
-  if (!section.linkable) {
+  if (!task.linkable) {
     return (
-      <p data-issue={issue.code} data-needed={needed || undefined} className={className}>
+      <div
+        role="group"
+        data-task={task.key}
+        data-needed={task.needed || undefined}
+        aria-label={taskName({ ...task, title: `${task.title} (switched off)` })}
+        className={className}
+      >
         {content}
-      </p>
+      </div>
     );
   }
   return (
     <button
       type="button"
-      data-issue={issue.code}
-      data-needed={needed || undefined}
+      data-task={task.key}
+      data-needed={task.needed || undefined}
+      aria-label={taskName(task)}
       onClick={onGo}
       className={cn(className, "outline-none hover:bg-muted focus-ring-inset")}
     >
