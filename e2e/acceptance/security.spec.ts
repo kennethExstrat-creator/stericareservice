@@ -772,9 +772,15 @@ test("an inspector cannot approve, override, pick report photos, write AI rows o
   expect.soft(await rows(m.from("manufacturers").update({ notes: "probe" }).eq("id", "10000000-0000-4000-8000-000000000001").select("id")), "edit manufacturer").toBe(0);
   expect.soft(await code(m.from("defect_codes").insert({ code: "zz_security_probe", name: "Probe" })), "insert defect code").toBe("42501");
 
-  // Controls: what an owner may do still works.
-  expect.soft(await rows(m.from("inspections").update({ remarks: "owner edit" }).eq("id", i.mDraft.id).select("id")), "owner edits a draft").toBe(1);
-  expect.soft(await rows(m.from("inspections").update({ remarks: "owner edit" }).eq("id", i.mReopened.id).select("id")), "owner edits a reopened one").toBe(1);
+  // The owner's own session no longer writes their draft or reopened inspection either: the app
+  // saves it for them (migration 20261007190000, SEC-02). Reading their AI review still works.
+  for (const [what, id] of [
+    ["owner edits a draft", i.mDraft.id],
+    ["owner edits a reopened one", i.mReopened.id],
+  ] as const) {
+    const { error } = await m.from("inspections").update({ remarks: "owner edit" }).eq("id", id);
+    expect.soft([error?.code, error?.message], what).toEqual(["42501", "inspectors save and submit inspections through the app"]);
+  }
   expect.soft((await m.from("ai_reviews").select("id").eq("id", media.aiReviewId)).data, "owner reads their AI review").toHaveLength(1);
 });
 
@@ -1010,78 +1016,108 @@ test("session cookies are SameSite=Lax; their other attributes are recorded", as
 });
 
 /* ------------------------------------------------------------------ *
- * Findings: these pass while the finding stands (test.fail)
+ * Findings of the audit. SEC-01 to SEC-03 are fixed and tested as such;
+ * SEC-04 still stands and passes while it does (test.fail).
  * ------------------------------------------------------------------ */
 
 async function adminPage(page: Page, baseURL: string): Promise<void> {
   await page.context().addCookies(admin.cookies.map((cookie) => ({ ...cookie, url: baseURL })));
 }
 
-test("finding SEC-01: pages may be framed by another site and announce the framework", async ({ baseURL }) => {
-  test.fail(true, "SEC-01: no X-Frame-Options or CSP frame-ancestors, and X-Powered-By: Next.js");
-  const answers = [
-    await probe(baseURL!, "/login"),
-    await probe(baseURL!, "/inspections", { session: member }),
-    await probe(baseURL!, "/admin/users", { session: admin }),
+test("SEC-01: no other site may frame a page, and no answer announces the framework", async ({ baseURL }) => {
+  const answers: [string, Awaited<ReturnType<typeof probe>>][] = [
+    ["/login, signed out", await probe(baseURL!, "/login")],
+    ["/inspections, signed out (the redirect to sign in)", await probe(baseURL!, "/inspections")],
+    ["/inspections, an inspector", await probe(baseURL!, "/inspections", { session: member })],
+    ["/admin/users, an admin", await probe(baseURL!, "/admin/users", { session: admin })],
+    ["the export, signed out (a Route Handler's 401)", await probe(baseURL!, `/api/inspections/${fx.inspections.mApproved.id}/export`)],
   ];
-  for (const answer of answers) {
-    const frameOptions = answer.headers.get("x-frame-options");
-    const csp = answer.headers.get("content-security-policy") ?? "";
-    expect(frameOptions !== null || /frame-ancestors/.test(csp), "framing is refused").toBe(true);
-    expect(answer.headers.get("x-powered-by")).toBeNull();
+  for (const [what, answer] of answers) {
+    const header = (name: string) => answer.headers.get(name);
+    expect.soft(header("content-security-policy"), `${what}: CSP`).toMatch(/(^|;\s*)frame-ancestors 'none'(;|$)/);
+    expect.soft(header("x-frame-options"), `${what}: X-Frame-Options`).toBe("DENY");
+    expect.soft(header("referrer-policy"), `${what}: Referrer-Policy`).toBe("strict-origin-when-cross-origin");
+    expect.soft(header("x-content-type-options"), `${what}: X-Content-Type-Options`).toBe("nosniff");
+    expect.soft(header("permissions-policy"), `${what}: Permissions-Policy`).toBe("camera=(self), microphone=(), geolocation=(), payment=(), usb=()");
+    expect.soft(header("x-powered-by"), `${what}: X-Powered-By`).toBeNull();
   }
 });
 
-test("finding SEC-02: an inspector can write invalid data and the computed columns, and submit, through the Data API", async ({ page, baseURL }) => {
-  test.fail(true, "SEC-02: RLS lets the owner update every column of a draft directly; validation and the submit gate live only in the Server Actions");
+test("SEC-02: an inspector's own session cannot write invalid data or the computed columns, or submit, through the Data API", async ({ page, baseURL }) => {
   const { inspections: i } = fx;
   const invalid = { modules: { header: { poNo: 12345, inspectionDate: "31/02/2026" }, sampling_plan: { anything: "goes" } }, custom: {} };
+  const columns = "status, data, suggested_result, result, lot_numbers, submitted_at, updated_at";
+  const before = await service().from("inspections").select(columns).eq("id", i.mBypass.id).single();
+  expect(before.data).toMatchObject({ status: "draft", suggested_result: null, result: null, lot_numbers: [], submitted_at: null });
 
   // The app's own path refuses this data...
-  const current = await service().from("inspections").select("updated_at").eq("id", i.mBypass.id).single();
-  const viaAction = await callAction(baseURL!, { id: actions.get("saveCaptureData")!, path: `/inspections/${i.mBypass.id}` }, [{ inspectionId: i.mBypass.id, data: invalid, baseUpdatedAt: current.data!.updated_at }], { session: member });
+  const viaAction = await callAction(baseURL!, { id: actions.get("saveCaptureData")!, path: `/inspections/${i.mBypass.id}` }, [{ inspectionId: i.mBypass.id, data: invalid, baseUpdatedAt: before.data!.updated_at }], { session: member });
   expect(viaAction.result).toMatchObject({ ok: false, reason: "invalid" });
 
-  // ...the Data API, with the same session, takes it, sets the "computed" columns and submits.
+  // ...and so does the Data API, with the same session: no data, no "computed" columns, no submit.
   const direct = await member.client
     .from("inspections")
     .update({ data: invalid, suggested_result: "pass", result: "pass", lot_numbers: ["FORGED"], status: "submitted" })
     .eq("id", i.mBypass.id)
     .select("status, suggested_result, result, submitted_at");
   test.info().annotations.push({ type: "evidence", description: `direct update: ${JSON.stringify(direct)}` });
+  expect([direct.error?.code, direct.error?.message], "the database refuses a direct submit or computed columns").toEqual([
+    "42501",
+    "inspectors save and submit inspections through the app",
+  ]);
+  expect(direct.data).toBeNull();
+  // Invalid data on its own is refused too, not only together with the computed columns and a submit.
+  const dataOnly = await member.client.from("inspections").update({ data: invalid }).eq("id", i.mBypass.id).select("id");
+  test.info().annotations.push({ type: "evidence", description: `invalid data alone: ${JSON.stringify(dataOnly)}` });
+  expect([dataOnly.error?.code, dataOnly.error?.message], "invalid data alone").toEqual(["42501", "inspectors save and submit inspections through the app"]);
+  const after = await service().from("inspections").select(columns).eq("id", i.mBypass.id).single();
+  expect(after.data, "the row is as it was").toEqual(before.data);
 
+  // An admin finds it still a draft, in the review and in the list.
   await adminPage(page, baseURL!);
   await page.goto(`/inspections/${i.mBypass.id}/review`);
-  await page.getByRole("heading", { name: "Result", exact: true }).waitFor();
-  await page.screenshot({ path: `${SHOTS}/sec-02-review-of-a-forged-submit.png`, fullPage: true });
+  await expect(page.getByRole("heading", { name: "Result", exact: true })).toBeVisible();
+  await expect(page.locator('[data-slot="inspection-status"]').first()).toHaveAttribute("data-status", "draft");
+  await page.screenshot({ path: `${SHOTS}/sec-02-review-after-a-refused-submit.png`, fullPage: true });
   await page.goto(`/inspections?q=${encodeURIComponent(i.mBypass.ref)}`);
-  await page.getByText(i.mBypass.ref).first().waitFor();
-  await page.screenshot({ path: `${SHOTS}/sec-02-list-row-of-a-forged-submit.png`, fullPage: true });
-
-  expect(direct.error?.code, "the database refuses a direct submit or computed columns").toBeTruthy();
+  const row = page.locator(`tbody tr[data-ref="${i.mBypass.ref}"]`);
+  await expect(row.locator('[data-slot="inspection-status"]')).toHaveAttribute("data-status", "draft");
+  await page.screenshot({ path: `${SHOTS}/sec-02-list-row-after-a-refused-submit.png`, fullPage: true });
 });
 
-test("finding SEC-03: an inspector can add any event to the audit trail of their own inspection, approved ones included", async ({ page, baseURL }) => {
-  test.fail(true, "SEC-03: log_inspection_event() takes any action and changes from the owner, in every status");
+test("SEC-03: an inspector cannot add an admin's or the system's events to the audit trail of their own inspection", async ({ page, baseURL }) => {
   const { inspections: i } = fx;
   const forged = [
     { action: "review.reopened", changes: { reason: "Approved by phone, no need to check the weights" } },
     { action: "ai_report.sent", changes: { reportUrl: "https://evil.example/report" } },
     { action: "module_override", changes: { module: "visual", include: false, reason: "Switched off by the admin" } },
   ];
-  const ids: unknown[] = [];
-  for (const event of forged) {
-    const logged = await member.client.rpc("log_inspection_event", { inspection_id: i.mApproved.id, ...event });
-    ids.push(logged.error?.code ?? logged.data);
+  // On the owner's own draft, which they may still change, only the list of an inspector's
+  // events refuses them; on the approved one, that list answers before "can no longer change".
+  const answers: unknown[] = [];
+  for (const target of [i.mDraft, i.mApproved]) {
+    for (const event of forged) {
+      const logged = await member.client.rpc("log_inspection_event", { inspection_id: target.id, ...event });
+      answers.push(logged.error ? [logged.error.code, logged.error.message] : logged.data);
+    }
   }
-  test.info().annotations.push({ type: "evidence", description: `audit rows written on the approved ${i.mApproved.ref}: ${JSON.stringify(ids)}` });
+  test.info().annotations.push({ type: "evidence", description: `answers for ${i.mDraft.ref} and the approved ${i.mApproved.ref}: ${JSON.stringify(answers)}` });
+  const refused = forged.map((event) => ["42501", `an inspector cannot record ${event.action}`]);
+  expect(answers, "the database refuses each event: not an inspector's to record").toEqual([...refused, ...refused]);
+  const trail = await service().from("audit_log").select("action").in("inspection_id", [i.mDraft.id, i.mApproved.id]);
+  expect(trail.error).toBeNull();
+  const recorded = trail.data!.map((row) => row.action);
+  expect(recorded.filter((action) => forged.some((event) => event.action === action)), "no forged row in the audit log").toEqual([]);
 
+  // The history an admin reads shows none of them.
   await adminPage(page, baseURL!);
   await page.goto(`/inspections/${i.mApproved.id}/review`);
-  await page.getByText("Sent to the AI report").first().waitFor();
-  await page.screenshot({ path: `${SHOTS}/sec-03-history-with-forged-events.png`, fullPage: true });
-
-  for (const id of ids) expect(typeof id, "the database refuses the event").toBe("string");
+  await expect(page.getByRole("heading", { name: "History", exact: true })).toBeVisible();
+  await expect(page.locator("li[data-kind]").first()).toBeVisible();
+  for (const text of ["Sent to the AI report", "Reason for reopening", "Module settings changed for this inspection", "Approved by phone"]) {
+    await expect(page.getByText(text), text).toHaveCount(0);
+  }
+  await page.screenshot({ path: `${SHOTS}/sec-03-history-without-forged-events.png`, fullPage: true });
 });
 
 test("finding SEC-04: a signed-in session sets a new password without the current one", async () => {

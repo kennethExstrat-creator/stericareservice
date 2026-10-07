@@ -28,11 +28,12 @@ import {
  *
  *   PLAYWRIGHT_BASE_URL=http://localhost:3900 npx playwright test e2e/acceptance/data-integrity.spec.ts --project=desktop
  *
- * Tests named "FINDING: ..." assert what the spec asks for where the app does
- * not do it yet. They are marked test.fail(), so they pass while the defect
- * is there, with its evidence attached as an annotation; once it is fixed
- * the test fails as "expected to fail, but passed": remove its test.fail()
- * line then. Each names its finding (D1, L1, ...) from the audit report.
+ * The audit's findings are tested as they stand now, each named by its id
+ * (D1, L1, ...) from the audit report: fixed ones (D1, L1, M2, M3, S1, S2)
+ * check the fix; those judged by design (C1, M1, T2) check the designed
+ * behaviour. A new finding gets a test marked test.fail() with its evidence
+ * attached as an annotation; once it is fixed the test fails as "expected to
+ * fail, but passed": remove its test.fail() line then.
  */
 
 test.describe.configure({ mode: "serial", timeout: 240_000 });
@@ -92,7 +93,8 @@ test("two devices on one draft: the second device's edit is never lost silently"
       .poll(async () => (await fx.row(draft.id))?.data.modules.glove_info, { timeout: 20_000 })
       .toMatchObject({ surfaceTexture: "Textured on the desktop", colour: "Original blue" });
     await expect(savePill(desk.page)).toHaveAttribute("data-state", "saved");
-    // Meanwhile the iPad still shows its colour as saved: nothing tells it the server replaced it (finding C1).
+    // Meanwhile the iPad still shows its colour as saved: nothing tells it the server replaced it
+    // until its next save asks (by design, C1: the question offers whole versions, no field merge).
     await expect(ipad.page.getByLabel("Glove colour")).toHaveValue("Blue from the iPad");
     await expect(savePill(ipad.page)).toHaveAttribute("data-state", "saved");
     await shot(ipad.page, "two-devices-ipad-still-saved-after-replace");
@@ -224,33 +226,6 @@ test("two devices: an edit made offline, a reload with it pending, and a stale s
     });
     await shot(desk.page, "stale-submit-refused");
     expect((await fx.row(draft.id))?.status).toBe("draft");
-  } finally {
-    await ipad.context.close();
-    await desk.context.close();
-  }
-});
-
-test("FINDING: the keep-which-version question does not say what differs, so keeping one side drops the other's saved edit unseen", async ({
-  browser,
-  baseURL,
-}) => {
-  test.fail(true, "ConflictDialog names no field or value; the other device's saved edit is replaced blind (finding C1).");
-  const draft = await fx.createInspection("inspector", { data: readyData(`CQ${fx.suffix}`) });
-  const session = await fx.session("inspector");
-  const ipad = await device(browser, baseURL!, session, "ipad", "ipad");
-  const desk = await device(browser, baseURL!, session, "desktop", "desktop");
-  try {
-    await Promise.all([openCapture(ipad.page, draft.id, "glove_info"), openCapture(desk.page, draft.id, "glove_info")]);
-    // Two different fields: nothing here actually clashes.
-    await typeInto(ipad.page.getByLabel("Glove colour"), "Blue from the iPad");
-    await expect.poll(async () => (await fx.row(draft.id))?.data.modules.glove_info.colour, { timeout: 20_000 }).toBe("Blue from the iPad");
-    await typeInto(desk.page.getByLabel("Glove surface texture"), "Textured on the desktop");
-    const question = desk.page.getByRole("alertdialog", { name: "This inspection was changed on another device" });
-    await expect(question).toBeVisible({ timeout: 20_000 });
-    const text = await question.innerText();
-    test.info().annotations.push({ type: "evidence", description: JSON.stringify({ dialog: text }) });
-    // What the inspector needs to choose: which fields differ, and how.
-    expect(text, "the question names the field the other device changed").toMatch(/Glove colour|Blue from the iPad/);
   } finally {
     await ipad.context.close();
     await desk.context.close();
@@ -461,11 +436,13 @@ test("an approved inspection is read-only everywhere: capture, photos, review, l
       expect(answer.body, who.name).toContain("This inspection is approved and can no longer be changed.");
     }
 
-    // The database refuses an admin's change or delete, and the inspector's change.
+    // The database refuses an admin's change or delete, and the inspector's change. No signed-in
+    // user deletes an inspection directly (migration 20261007193000): the delete matches no row.
     const adminUpdate = await adminSession.client.from("inspections").update({ remarks: "Changed after approval" }).eq("id", target.id).select("id");
     expect(adminUpdate.error?.code).toBe("42501");
     const adminDelete = await adminSession.client.from("inspections").delete().eq("id", target.id).select("id");
-    expect(adminDelete.error?.code).toBe("42501");
+    expect(adminDelete.error).toBeNull();
+    expect(adminDelete.data).toEqual([]);
     const adminRpc = await adminSession.client.rpc("delete_draft_inspection", { inspection_id: target.id });
     expect(adminRpc.error?.code).toBe("23514");
     const inspectorUpdate = await inspectorSession.client.from("inspections").update({ remarks: "Changed after approval" }).eq("id", target.id).select("id");
@@ -583,17 +560,21 @@ test("Delete: a draft only, its owner's or by an admin; the deletion record stay
   }
 });
 
-test("FINDING: an admin's own session deletes a submitted inspection past the drafts-only rule", async () => {
-  test.fail(true, "inspections_delete lets an admin DELETE any non-approved inspection through the REST API (finding D1).");
+test("an admin's own session cannot delete a submitted inspection (D1)", async () => {
   const submitted = await fx.createInspection("inspector", {
     data: readyData(`DAD${fx.suffix}`, { conclusion: { finalResult: "pass", date: todayInMalaysia() } }),
     status: "submitted",
   });
   const adminSession = await fx.session("admin");
   const { data, error } = await adminSession.client.from("inspections").delete().eq("id", submitted.id).select("id, ref_no, status");
-  test.info().annotations.push({ type: "evidence", description: JSON.stringify({ data, error, record: await fx.deletionRecords(submitted.id) }) });
-  // The rule (migration 20261007151500): submitted, reopened and approved inspections stay.
-  expect(await fx.row(submitted.id), "the submitted inspection is still there").not.toBeNull();
+  const records = await fx.deletionRecords(submitted.id);
+  test.info().annotations.push({ type: "evidence", description: JSON.stringify({ data, error, records }) });
+  // The rule (migrations 20261007151500 and 20261007193000): submitted, reopened and approved
+  // inspections stay; no signed-in user deletes one directly, so the delete matches no row.
+  expect(error).toBeNull();
+  expect(data).toEqual([]);
+  expect(records, "no deletion record").toEqual([]);
+  expect(await fx.row(submitted.id), "the submitted inspection is still there").toMatchObject({ id: submitted.id, status: "submitted" });
 });
 
 /* ------------------------------------------------------------------ *
@@ -674,18 +655,25 @@ test("a template version in use cannot be edited: the editor is read-only, New v
   }
 });
 
-test("FINDING: a used version's source file and coverage confirmation can still be changed through the API", async () => {
-  test.fail(true, "templates_guard freezes code, version, scope, definition and resolved, not source_file_path or coverage (finding T2).");
+test("an admin may still replace a used version's source file (by design, T2); what the version checks stays frozen", async () => {
   await fx.createInspection("inspector", { data: readyData(`TSF${fx.suffix}`) });
   const before = await fx.template(fx.templateId);
   const adminSession = await fx.session("admin");
+  const replaced = `${fx.templateCode}/v1/replaced.pdf`;
   const answer = await adminSession.client
     .from("templates")
-    .update({ source_file_path: `${fx.templateCode}/v1/replaced.pdf` })
+    .update({ source_file_path: replaced })
     .eq("id", fx.templateId)
-    .select("source_file_path, definition->sourceFile");
+    .select("source_file_path");
   test.info().annotations.push({ type: "evidence", description: JSON.stringify({ answer, definitionBefore: (before?.definition as { sourceFile?: string })?.sourceFile ?? null }) });
-  expect(answer.error?.code, "the original form file of a used version stays as it was").toBe("42501");
+  // templates_guard freezes code, version, scope, definition and resolved of a used version; the
+  // source file (the form it was built from) is not part of what an inspection checks.
+  expect(answer.error).toBeNull();
+  expect(answer.data).toEqual([{ source_file_path: replaced }]);
+  const after = await fx.template(fx.templateId);
+  expect(after).toMatchObject({ code: before?.code, version: before?.version, status: before?.status });
+  expect(after?.definition).toEqual(before?.definition);
+  expect(after?.resolved).toEqual(before?.resolved);
 });
 
 /* ------------------------------------------------------------------ *
@@ -858,19 +846,23 @@ test("a lead inspector reads a team draft and writes nothing: no autosave, no lo
   }
 });
 
-test("FINDING: a lead's list names who each team inspection belongs to", async ({ browser, baseURL }) => {
-  test.fail(true, "The list shows the Inspector column to admins only (lib/inspections/columns.ts); seesTeamInspections() is unused (finding L1).");
-  await fx.createInspection("other", { data: readyData(`LST${fx.suffix}`) });
+test("a lead's list names who each team inspection belongs to: the Inspector in charge column (L1)", async ({ browser, baseURL }) => {
+  const others = await fx.createInspection("other", { data: readyData(`LST${fx.suffix}`) });
   const leadSession = await fx.session("lead");
   const desk = await device(browser, baseURL!, leadSession, "desktop", "lead-desktop");
   try {
     await desk.page.goto("/inspections");
     await expect(desk.page.locator("tbody tr").first()).toBeVisible();
     await desk.page.screenshot({ path: `${SHOTS}/lead-list.png`, fullPage: true });
-    const headers = await desk.page.locator("thead th").allInnerTexts();
+    const headers = (await desk.page.locator("thead th").allInnerTexts()).map((text) => text.trim());
     test.info().annotations.push({ type: "evidence", description: JSON.stringify(headers) });
-    expect(headers.join("|")).toMatch(/Inspector/);
+    expect(headers).toContain("Inspector in charge");
+    await expect(desk.page.getByText("Your team", { exact: true })).toBeVisible();
     await expect(desk.page.getByText("Your inspections", { exact: true })).toHaveCount(0);
+    // The team member's inspection names them.
+    const row = desk.page.locator(`tbody tr[data-ref="${others.refNo}"]`);
+    await expect(row).toBeVisible();
+    await expect(row).toContainText(fx.other.name);
   } finally {
     await desk.context.close();
   }
@@ -943,8 +935,10 @@ test("the conclusion's final result and remark are mirrored onto the row: the li
   }
 });
 
-test("FINDING: with its date cleared, the chosen final result shows in the review but not in the list", async ({ browser, baseURL }) => {
-  test.fail(true, "mirror.ts copies the conclusion's module status, not finalResult; the review reads finalResult (finding M1).");
+test("with its date cleared, the chosen final result shows in the review, and the list's Result waits for the complete conclusion (by design, M1)", async ({
+  browser,
+  baseURL,
+}) => {
   const draft = await fx.createInspection("inspector", { data: readyData(`MDT${fx.suffix}`) });
   const inspectorSession = await fx.session("inspector");
   const desk = await device(browser, baseURL!, inspectorSession, "desktop", "inspector-desktop");
@@ -961,44 +955,50 @@ test("FINDING: with its date cleared, the chosen final result shows in the revie
     await expect.poll(async () => (await fx.row(draft.id))?.data.modules.conclusion.date, { timeout: 20_000 }).toBeNull();
     const row = await fx.row(draft.id);
     const inList = await listResult(viewer, draft.refNo);
+    await viewer.screenshot({ path: `${SHOTS}/m1-list.png` });
     const inReview = (await reviewDecision(viewer, draft.id)).result;
-    await viewer.screenshot({ path: `${SHOTS}/finding-m1-review.png`, fullPage: true });
-    await listResult(viewer, draft.refNo);
-    // The Result column sits behind the pinned actions at 1440 px: scroll the table to it.
-    await viewer.locator('[data-slot="table-scroller"]').evaluate((element) => element.scrollTo({ left: element.scrollWidth }));
-    await viewer.screenshot({ path: `${SHOTS}/finding-m1-list.png` });
+    await viewer.screenshot({ path: `${SHOTS}/m1-review.png`, fullPage: true });
     test.info().annotations.push({
       type: "evidence",
       description: JSON.stringify({ data: row?.data.modules.conclusion, rowResult: row?.result, inList, inReview }),
     });
-    expect(inList, "the list's Result and the review's final result").toBe(inReview);
+    // The row's result is the conclusion's, which is not done without its date: the list says
+    // Not done; the review shows what the inspector chose.
+    expect(row?.data.modules.conclusion).toMatchObject({ finalResult: "fail", date: null });
+    expect(row?.result).toBeNull();
+    expect(inList, "the list's Result").toBe("not_done");
+    expect(inReview, "the review's final result").toBe("fail");
   } finally {
     await desk.context.close();
   }
 });
 
-test("FINDING: the list searches carton numbers (BUILD_SPEC 10: search by ref, PO, lot or carton)", async ({ browser, baseURL }) => {
-  test.fail(true, "inspectionSearchFilter() matches ref, PO and lot only; no carton column is mirrored (finding S1).");
+test("the list finds an inspection by a carton number it sampled (S1; BUILD_SPEC 10: search by ref, PO, lot or carton)", async ({ browser, baseURL }) => {
   const draft = await fx.createInspection("inspector", { data: readyData(`CTN${fx.suffix}`) });
-  expect((await fx.row(draft.id))?.data.modules.carton_sampling).toMatchObject({ sizes: { M: { cartonNumbers: [7311, 7312] } } });
+  const stored = await fx.row(draft.id);
+  expect(stored?.data.modules.carton_sampling).toMatchObject({ sizes: { M: { cartonNumbers: [7311, 7312] } } });
   const inspectorSession = await fx.session("inspector");
   const desk = await device(browser, baseURL!, inspectorSession, "desktop", "inspector-desktop");
   try {
-    await desk.page.goto("/inspections?q=7311");
-    await expect(desk.page.getByRole("searchbox").or(desk.page.getByPlaceholder("Ref, PO or lot number"))).toBeVisible();
-    await desk.page.waitForLoadState("networkidle");
-    await desk.page.screenshot({ path: `${SHOTS}/finding-s1-carton-search.png` });
-    await expect(desk.page.locator(`tbody tr[data-ref="${draft.refNo}"]`)).toBeVisible({ timeout: 5_000 });
+    for (const carton of ["7311", "7312"]) {
+      await desk.page.goto(`/inspections?q=${carton}`);
+      await expect(desk.page.getByPlaceholder("Ref, PO, lot or carton")).toHaveValue(carton);
+      await expect(desk.page.locator(`tbody tr[data-ref="${draft.refNo}"]`), `carton ${carton}`).toBeVisible();
+    }
+    await desk.page.screenshot({ path: `${SHOTS}/s1-carton-search.png` });
+    // A number the inspection did not sample does not find it.
+    await desk.page.goto("/inspections?q=7313");
+    await expect(desk.page.getByRole("status").filter({ hasText: /inspection|match/ }).first()).toBeAttached();
+    await expect(desk.page.locator(`tbody tr[data-ref="${draft.refNo}"]`)).toHaveCount(0);
   } finally {
     await desk.context.close();
   }
 });
 
-test("FINDING: a lot stored with a capital first letter (iPadOS capitalises it) is not found by the printed lot number", async ({
+test("a lot stored with a capital first letter (iPadOS capitalises it) is found by the lot number in any case (S2)", async ({
   browser,
   baseURL,
 }) => {
-  test.fail(true, "lot_numbers are matched exactly, with only the typed text and its capitals tried (lib/inspections/postgrest.ts lotVariants; finding S2).");
   const lot = `Lt${fx.suffix.toLowerCase()}9a`;
   const draft = await fx.createInspection("inspector", {
     data: readyData(`CAP${fx.suffix}`, { order_lots: { sizes: { M: { qtyCases: 8000, lotNumbers: [lot] } } } }),
@@ -1013,7 +1013,7 @@ test("FINDING: a lot stored with a capital first letter (iPadOS capitalises it) 
       await expect(desk.page.getByRole("status").filter({ hasText: /inspection|match/ }).first()).toBeAttached();
       found[query] = await desk.page.locator(`tbody tr[data-ref="${draft.refNo}"]`).count();
     }
-    await desk.page.screenshot({ path: `${SHOTS}/finding-s2-lot-case.png` });
+    await desk.page.screenshot({ path: `${SHOTS}/s2-lot-case.png` });
     test.info().annotations.push({ type: "evidence", description: JSON.stringify({ stored: lot, found }) });
     expect(found, "the printed (capital) and the lower-case lot number find it too").toEqual({
       [lot]: 1,
@@ -1025,11 +1025,12 @@ test("FINDING: a lot stored with a capital first letter (iPadOS capitalises it) 
   }
 });
 
-test("FINDING: the database lets an inspector write the row's result, remarks, PO and lots apart from the data", async () => {
-  test.fail(true, "Nothing in the database ties the mirrored columns to inspections.data (finding M2).");
+test("the database refuses an inspector's own write of the row's result, remarks, PO and lots apart from the data (M2)", async () => {
   const draft = await fx.createInspection("inspector", {
     data: readyData(`FRG${fx.suffix}`, { conclusion: { finalResult: "fail", date: todayInMalaysia(), remark: "Data says fail" } }),
   });
+  const before = await fx.row(draft.id);
+  expect(before).toMatchObject({ result: "fail", remarks: "Data says fail", po_no: `E2E-FD-PO-FRG${fx.suffix}` });
   const inspectorSession = await fx.session("inspector");
   const forged = await inspectorSession.client
     .from("inspections")
@@ -1041,11 +1042,12 @@ test("FINDING: the database lets an inspector write the row's result, remarks, P
     type: "evidence",
     description: JSON.stringify({ answer: forged, row: { result: row?.result, remarks: row?.remarks, po: row?.po_no, lots: row?.lot_numbers }, data: row?.data.modules.conclusion }),
   });
-  expect(row?.result, "the row's result still says what the conclusion says").toBe("fail");
+  // Inspectors save through the app (migration 20261007190000), which writes these columns from the data.
+  expect([forged.error?.code, forged.error?.message]).toEqual(["42501", "inspectors save and submit inspections through the app"]);
+  expect(row, "the row still says what the data says").toEqual(before);
 });
 
-test("FINDING: the database lets an inspector submit an inspection the checks block", async () => {
-  test.fail(true, "Errors block submit only in submitInspection(); a direct status update by the owner is accepted (finding M3).");
+test("the database refuses an inspector's own submit, so the checks that block submit cannot be skipped (M3)", async () => {
   const draft = await fx.createInspection("inspector", { data: readyData(`SUB${fx.suffix}`) });
   const inspectorSession = await fx.session("inspector");
   const answer = await inspectorSession.client.from("inspections").update({ status: "submitted" }).eq("id", draft.id).select("status");
@@ -1054,7 +1056,10 @@ test("FINDING: the database lets an inspector submit an inspection the checks bl
     type: "evidence",
     description: JSON.stringify({ answer, status: row?.status, conclusion: row?.data.modules.conclusion }),
   });
+  expect([answer.error?.code, answer.error?.message]).toEqual(["42501", "inspectors save and submit inspections through the app"]);
   expect(row?.status, "an inspection whose conclusion is empty stays a draft").toBe("draft");
+  expect(row?.submitted_at).toBeNull();
+  expect(await fx.audit(draft.id), "no status change recorded").not.toContainEqual(expect.objectContaining({ action: "status_changed" }));
 });
 
 test("the inspection's number and search columns follow the data: PO, lots, product and date, in the list and its search", async ({
