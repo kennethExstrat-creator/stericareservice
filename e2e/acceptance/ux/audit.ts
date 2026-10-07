@@ -28,7 +28,14 @@ export type AxeViolation = {
   id: string;
   impact: string | null;
   help: string;
-  nodes: { target: string; html: string; summary: string }[];
+  /**
+   * Every node axe reports: strict mode accepts nodes one by one, so a node left out of the
+   * record would pass unseen (html and summary are cut short, the report shows a few).
+   * label: the element's accessible name from aria-label or aria-labelledby, whole (axe cuts
+   * it short in html). shows: the first words it shows, aria-hidden decoration (an avatar's
+   * initials) passed over when it shows other text.
+   */
+  nodes: { target: string; html: string; summary: string; label: string | null; shows: string | null }[];
 };
 
 export type FocusRecord = {
@@ -183,16 +190,57 @@ async function runAxe(page: Page, within?: string): Promise<{ violations: AxeVio
       runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-practice"] },
       resultTypes: ["violations", "incomplete"],
     });
+    const elementOf = (target: unknown[]) => {
+      try {
+        return typeof target[0] === "string" ? document.querySelector(target[0]) : null;
+      } catch {
+        return null;
+      }
+    };
+    const squash = (text: string | null | undefined) => (text ?? "").replace(/\s+/g, " ").trim();
+    const labelOf = (element: Element | null) => {
+      if (!element) return null;
+      const label = element.getAttribute("aria-label");
+      if (label) return squash(label);
+      const ids = element.getAttribute("aria-labelledby");
+      return ids ? squash(ids.split(/\s+/).map((id) => document.getElementById(id)?.textContent).join(" ")) || null : null;
+    };
+    const showsOf = (element: Element | null) => {
+      if (!element) return null;
+      const hidden = (node: Element) => {
+        for (let at: Element | null = node; at; at = at === element ? null : at.parentElement) {
+          if (at.getAttribute("aria-hidden") === "true") return true;
+        }
+        return false;
+      };
+      const first = (passHidden: boolean) => {
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          const parent = node.parentElement;
+          const text = squash(node.textContent);
+          if (!text || !parent || parent.closest(".sr-only") || (passHidden && hidden(parent))) continue;
+          const style = getComputedStyle(parent);
+          if (style.display !== "none" && style.visibility !== "hidden") return text;
+        }
+        return null;
+      };
+      return first(true) ?? first(false);
+    };
     return {
       violations: result.violations.map((violation) => ({
         id: violation.id,
         impact: violation.impact,
         help: violation.help,
-        nodes: violation.nodes.slice(0, 12).map((node) => ({
-          target: JSON.stringify(node.target),
-          html: node.html.slice(0, 240),
-          summary: (node.failureSummary ?? "").replace(/\s+/g, " ").slice(0, 300),
-        })),
+        nodes: violation.nodes.map((node) => {
+          const element = elementOf(node.target);
+          return {
+            target: JSON.stringify(node.target),
+            html: node.html.slice(0, 240),
+            summary: (node.failureSummary ?? "").replace(/\s+/g, " ").slice(0, 300),
+            label: labelOf(element),
+            shows: showsOf(element),
+          };
+        }),
       })),
       incomplete: result.incomplete.map((entry) => ({ id: entry.id, count: entry.nodes.length })),
     };

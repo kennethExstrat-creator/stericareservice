@@ -44,6 +44,12 @@ test("the inspector lands on the inspections list", async ({ page, context, base
 });
 ```
 
+Supabase allows about 30 sign-ins in five minutes for the whole machine, and a failed test restarts
+its worker, whose hooks sign in again. For a series of runs, `E2E_SESSION_CACHE=<directory>` keeps
+each session `sessionCookies()` signs in there and hands it out again, to other workers, projects and
+runs, while its access token has half an hour left; `sign-ins.log` in it lists each real sign-in.
+The files hold live tokens: use a private temporary directory and delete it afterwards.
+
 ## Screenshots on the iPad projects
 
 Playwright's `fullPage: true` capture drops touch emulation while it resizes, so an "iPad"
@@ -100,6 +106,12 @@ ACCEPTANCE=1 PLAYWRIGHT_BASE_URL=http://localhost:3900 npx playwright test e2e/a
 
 A test that pins a finding is marked `test.fail()` with what was found. Once the finding is fixed
 the test turns red; take the marker off then.
+
+The UX audit records rather than fails. With `UX_AUDIT_STRICT=1` it also fails on page overflow,
+small touch targets and field text, serious axe violations and console errors (less what the final
+audit judged acceptable, `ACCEPTED` in the spec), on a step that could not run, and on its findings
+UX-01 to UX-14 coming back. A failed test restarts the worker and with it the fixture: add
+`UX_AUDIT_KEEP=1` so the restart reuses the rows, then delete them with `UX_AUDIT_CLEANUP=1`.
 
 An account named in a deletion record can never be deleted, because the audit log is append-only.
 A throwaway account that deletes an inspection therefore stays behind, deactivated: let

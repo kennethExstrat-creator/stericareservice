@@ -49,6 +49,12 @@ import {
  * checks that a defect counted with a tap on + tags the next photo, as
  * Chromium's tap does by focusing the button.
  *
+ * The final audit's findings, fixed since, are checked strictly: the tap on
+ * + in WebKit (F1), the export's template sizes, unit and page header (F2),
+ * the review's photo tags with the packaging level (F3), the size a module
+ * shows tagging photos as it opens (F4) and the AI evidence photos named in
+ * the template's words (F5).
+ *
  * Runs on the iPad projects only (ipad-pro-landscape is Kenneth's 13 inch
  * iPad); the desktop checks open their own 1440 x 900 context. One
  * inspection per run, as each draws a live ref number; everything it made
@@ -247,10 +253,12 @@ test("photos from four modules on the iPad, the export and the AI second opinion
       await frame.getByRole("button", { name: "Increase Thin spot on glove body, Size M", exact: true }).tap();
       await expect(count).toHaveAttribute("aria-valuenow", "6");
       await view(tab, "0-webkit-visual-after-plus");
-      // BUILD_SPEC 8.1: tagged with the size and the defect in focus, as a Chromium tap tags it.
-      await expect
-        .soft(nextTags(frame), "WebKit: the defect just counted with + is what the next photo is tagged with")
-        .toHaveText("New photos are tagged Size M · Thin spot on glove body.", { timeout: 5_000 });
+      // BUILD_SPEC 8.1: tagged with the size and the defect in focus, as a Chromium tap tags it (F1:
+      // the counter reports the cell it is pressed in, as WebKit never focuses a tapped button).
+      await expect(nextTags(frame), "WebKit: the defect just counted with + is what the next photo is tagged with").toHaveText(
+        "New photos are tagged Size M · Thin spot on glove body.",
+        { timeout: 5_000 },
+      );
       // The count back as the example has it, saved before the iPad's own browser opens the inspection.
       await frame.getByRole("button", { name: "Decrease Thin spot on glove body, Size M", exact: true }).tap();
       await expect(count).toHaveAttribute("aria-valuenow", "5");
@@ -276,6 +284,8 @@ test("photos from four modules on the iPad, the export and the AI second opinion
       // The iPad's two buttons (BUILD_SPEC 8.1).
       await expect(slot.getByRole("button", { name: "Take photo" })).toBeVisible();
       await expect(slot.getByRole("button", { name: "Add from library" })).toBeVisible();
+      // F4: a per-size module tags new photos with the size it shows as it opens, nothing touched yet.
+      await expect(nextTags(frame), `${plan.module} as it opens`).toHaveText("New photos are tagged Size M.");
       await plan.focus(frame, page);
       await expect(nextTags(frame)).toHaveText(`New photos are tagged ${plan.tags}.`);
       const files = [];
@@ -414,8 +424,8 @@ test("photos from four modules on the iPad, the export and the AI second opinion
       for (const photo of photos) {
         const tile = screen.locator(`[data-photo="${photo.id}"]`);
         await expect(tile).toBeVisible();
-        // The same tags the gallery shows, after the module's title.
-        await expect.soft(tile.locator("figcaption p").first(), `review tags of the ${photo.module} photo`).toHaveText(`${photo.title} · ${photo.tags}`);
+        // The same tags the gallery shows, after the module's title: the carton photo's "Carton Box" included (F3).
+        await expect(tile.locator("figcaption p").first(), `review tags of the ${photo.module} photo`).toHaveText(`${photo.title} · ${photo.tags}`);
         const thumb = await naturalSize(tile.locator("img"));
         expect(Math.max(thumb.width, thumb.height)).toBe(400);
         const full = await desktop.request.get((await tile.locator("a").getAttribute("href"))!);
@@ -454,6 +464,13 @@ test("photos from four modules on the iPad, the export and the AI second opinion
         client: { id: SEED.polyco.id, name: SEED.polyco.name },
         manufacturer: { id: SEED.terangNusa.id },
       });
+      // F2: the report's fixed size rows (every size the template lists, as it shows them), the unit
+      // and the header on later pages, which STD_EG leaves unset.
+      expect(doc.template).toMatchObject({
+        sizes: ["XS", "S", "M", "L", "XL"].map((value) => ({ value, label: value })),
+        unit: "pcs",
+        pageHeader: null,
+      });
       expect(doc.modules.map((module) => module.key)).toEqual(STD_EG_MODULES);
       expect(doc.excludedModules).toEqual([]);
       expect(doc.custom).toEqual([expect.objectContaining({ key: "glove_type", values: { gloveType: WORDS.gloveType } })]);
@@ -474,7 +491,8 @@ test("photos from four modules on the iPad, the export and the AI second opinion
       await testInfo.attach("coverage.json", { body: JSON.stringify(coverage, null, 2), contentType: "application/json" });
       await writeFile(`screenshots/acceptance/${testInfo.project.name}-coverage.json`, JSON.stringify(coverage, null, 2));
       expect(coverage.fields).toBeGreaterThan(100);
-      expect.soft(coverage.gaps, "fields of the STD_EG report the export does not carry").toEqual([]);
+      // The size columns' template.sizes and the unit included (F2).
+      expect(coverage.gaps, "fields of the STD_EG report the export does not carry").toEqual([]);
       // Filled in: only the description of an "Other" hole, with no such hole, is empty.
       expect.soft(coverage.empty.map((entry) => entry.target)).toEqual(["watertight.otherDescription"]);
     });
@@ -556,6 +574,12 @@ test("photos from four modules on the iPad, the export and the AI second opinion
       const evidence = weight.locator(`a[href*="${scale.id}"]`).first();
       await expect(evidence).toBeVisible();
       await expect(evidence.locator("img")).toHaveJSProperty("complete", true);
+      // F5: every photo a finding cites is named in the template's words, as the gallery and the review tag it.
+      for (const photo of photos.filter((entry) => attention.some((section) => section.key === entry.module))) {
+        await expect(comparison.locator(`article[data-finding] a[href*="${photo.id}"]`).first()).toHaveAccessibleName(
+          `${photo.title} · ${photo.tags} (opens in a new tab)`,
+        );
+      }
       // What the admin sees at 1440 x 900, the toast gone: the panel from its heading down.
       await expect(screen.locator("[data-sonner-toast]")).toHaveCount(0, { timeout: 15_000 });
       await shot(screen, "8-desktop-ai-panel", false);
