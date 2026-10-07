@@ -155,6 +155,13 @@ describe("SaveStatus", () => {
     expect(renderToStaticMarkup(<SaveStatus state="saved" />)).not.toContain("waiting to upload");
   });
 
+  it("reads 16 px on touch, the pill and the upload badge alike, as StatusPill does", () => {
+    const html = renderToStaticMarkup(<SaveStatus state="error" pendingUploads={2} />);
+    const pills = Array.from(html.matchAll(/<span class="inline-flex h-7[^"]*"/g), (match) => match[0]);
+    expect(pills).toHaveLength(2);
+    for (const pill of pills) expect(pill).toMatch(/touch:h-8 touch:text-base/);
+  });
+
   it("says Not saved in fail red when saving needs the inspector, keeping the upload count", () => {
     const html = renderToStaticMarkup(<SaveStatus state="error" pendingUploads={1} />);
     expect(html).toContain('data-state="error"');

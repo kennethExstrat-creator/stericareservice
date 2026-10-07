@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatLimits } from "./limits";
+import { formatLimitParts, formatLimits } from "./limits";
 
 describe("formatLimits", () => {
   it("prints Ac / Re by default", () => {
@@ -24,5 +24,21 @@ describe("formatLimits", () => {
     expect(formatLimits({ ac: 0, re: 1 }, { accept: "Accept", reject: "Reject" })).toBe("Accept 0 / Reject 1");
     expect(formatLimits({ ac: 0, re: 1 }, { accept: undefined, reject: "Reject" })).toBe("Ac 0 / Reject 1");
     expect(formatLimits({ ac: 0, re: 1 }, { accept: " ", reject: "" })).toBe("Ac 0 / Re 1");
+  });
+});
+
+describe("formatLimitParts", () => {
+  it("halves the line with the slash on the accept half, so a wrap never starts a line with it", () => {
+    expect(formatLimitParts({ ac: 10, re: 11 }, { accept: "Accept", reject: "Reject" })).toEqual(["Accept 10 /", "Reject 11"]);
+    expect(formatLimitParts({ ac: 0, re: 1 }, { accept: "Acc. =", reject: "Rej. =" })).toEqual(["Acc. = 0 /", "Rej. = 1"]);
+    expect(formatLimitParts({ ac: 3, re: 4 })).toEqual(["Ac 3 /", "Re 4"]);
+  });
+
+  it("joins back into formatLimits' line, and is null without limits", () => {
+    for (const format of [{}, { style: "long" as const }, { accept: "Acc. =", reject: " " }]) {
+      expect(formatLimitParts({ ac: 7, re: 8 }, format)?.join(" ")).toBe(formatLimits({ ac: 7, re: 8 }, format));
+    }
+    expect(formatLimitParts(null)).toBeNull();
+    expect(formatLimitParts(undefined)).toBeNull();
   });
 });

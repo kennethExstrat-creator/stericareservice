@@ -17,7 +17,15 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { bestOption, boxOptions, isUnlisted, moveInGrid, pickedElsewhere, readBoxNumber } from "./box-options";
+import {
+  bestOption,
+  boxListChange,
+  boxOptions,
+  isUnlisted,
+  moveInGrid,
+  pickedElsewhere,
+  readBoxNumber,
+} from "./box-options";
 import { caretOf } from "./grid-navigation";
 import { issuePathProps, type IssuePath } from "./issue-path";
 
@@ -103,14 +111,15 @@ export function BoxPicker({
   };
 
   const onOpenChange = (next: boolean) => {
-    if (readOnly) return;
-    if (next) {
+    const change = boxListChange(next, readOnly);
+    if (!change) return;
+    if (change.open) {
       setQuery("");
       setActive(value !== null && listed.includes(value) ? value : null);
       setColumns(window.matchMedia("(pointer: fine)").matches ? 5 : 4);
-      onFocus?.();
     }
-    setOpen(next);
+    if (change.reportFocus) onFocus?.();
+    setOpen(change.open);
   };
 
   const onSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {

@@ -60,7 +60,7 @@ export {
   type RequirementOutcome,
 } from "./requirement-list";
 export { DateField } from "./date-field";
-export { AttachmentStatus } from "./attachment-status";
+export { AttachmentStatus, type AttachmentState } from "./attachment-status";
 export { ModuleSection } from "./module-section";
 export { Figure } from "./figure";
 export {

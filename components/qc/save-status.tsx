@@ -1,6 +1,7 @@
 // Autosave state for the capture screen (BUILD_SPEC 8): Saved, Saving,
 // Offline (will sync), or Not saved when saving needs the inspector (a
 // conflict, a refused save), with the photo upload queue as a count badge.
+// Both read 16 px on iPad, as StatusPill does.
 import { CloudAlertIcon, CloudCheckIcon, CloudOffIcon, LoaderCircleIcon, UploadIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -50,7 +51,7 @@ export function SaveStatus({
     >
       <span
         className={cn(
-          "inline-flex h-7 items-center gap-1.5 rounded-full border px-3 text-sm font-medium whitespace-nowrap [&>svg]:size-4",
+          "inline-flex h-7 items-center gap-1.5 rounded-full border px-3 text-sm font-medium whitespace-nowrap [&>svg]:size-4 touch:h-8 touch:text-base",
           stateClass,
         )}
       >
@@ -58,7 +59,7 @@ export function SaveStatus({
         {label}
       </span>
       {pendingUploads > 0 && (
-        <span className="inline-flex h-7 items-center gap-1 rounded-full bg-primary px-2.5 text-sm font-semibold text-primary-foreground tabular-nums">
+        <span className="inline-flex h-7 items-center gap-1 rounded-full bg-primary px-2.5 text-sm font-semibold text-primary-foreground tabular-nums touch:h-8 touch:text-base">
           <UploadIcon aria-hidden className="size-4" />
           {pendingUploads}
           <span className="sr-only">

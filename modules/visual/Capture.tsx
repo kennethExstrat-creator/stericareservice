@@ -35,7 +35,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { STATUS_LABEL } from "@/lib/design/status";
 import { formatSize } from "@/lib/format";
-import { HANDS, labelFor, samplingFor, type CaptureProps, type Hand } from "@/modules/_framework";
+import { HANDS, labelFor, samplingFor, type CaptureProps, type Hand, type Labels } from "@/modules/_framework";
 import type { VisualComputed, VisualConfig, VisualData } from ".";
 import { classLabel, effectiveClasses } from "./calc";
 import {
@@ -331,9 +331,8 @@ function ClassSection({
           rowHeader: classLabel(labels, cls),
           inspected: labelFor(labels, "inspected"),
           limits: limitLabel,
-          // Per class where a template words one class's limit apart (critical.accept: "Acc. =").
-          limitAccept: labelFor(labels, cls, "accept"),
-          limitReject: labelFor(labels, cls, "reject"),
+          limitAccept: limitWord(labels, cls, "accept"),
+          limitReject: limitWord(labels, cls, "reject"),
           total: labelFor(labels, `${cls}Total`),
           result: labelFor(labels, `${cls}Result`),
           accept: STATUS_LABEL.pass,
@@ -357,4 +356,16 @@ function ClassSection({
       />
     </ModuleSection>
   );
+}
+
+/**
+ * A class's word in its limit row, where a template words one class's limit
+ * apart (STD_EG prints the critical row "Acc. = 0 / Rej. = 1"): its key class
+ * first, as the dictionary keys class wording (`criticalAccept`, like
+ * `criticalTotal`), else a dotted key added in the editor (`critical.accept`),
+ * else the word every class shares.
+ */
+function limitWord(labels: Labels, cls: DefectClass, word: "accept" | "reject"): string {
+  const own = labels[`${cls}${word === "accept" ? "Accept" : "Reject"}`];
+  return own !== undefined && own.trim() !== "" ? own : labelFor(labels, cls, word);
 }

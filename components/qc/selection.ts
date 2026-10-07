@@ -2,7 +2,7 @@
 // the order, or a size set before any was ordered (useState(context.sizes[0]
 // ?? "")). SizeTabs shows the first ordered size and tells the module;
 // CounterTable shows the same column, so the tab that looks selected is the
-// size on screen. Pure, so it is tested.
+// size on screen. And where ColumnSwitcher steps to. Pure, so it is tested.
 
 /** The size on screen: `value` when it is ordered, else the first ordered size; undefined with none. */
 export function activeSize(sizes: readonly string[], value: string): string | undefined {
@@ -30,4 +30,19 @@ export function activeColumnKey(
  */
 export function showsSideBySide(wide: "tabs" | "all", available: number | null, needed: number): boolean {
   return wide === "all" && (available === null || needed <= available);
+}
+
+/** ColumnSwitcher's column on screen: `index` kept inside the `count` columns there are. */
+export function switcherIndex(index: number, count: number): number {
+  return Math.min(Math.max(index, 0), Math.max(count - 1, 0));
+}
+
+/**
+ * Where ColumnSwitcher's Previous (-1) or Next (1) leads, or null at that
+ * end: there the button stays focusable (aria-disabled), so the focus is
+ * never dropped, and pressing it changes nothing.
+ */
+export function switcherStep(index: number, count: number, step: -1 | 1): number | null {
+  const next = switcherIndex(index, count) + step;
+  return next >= 0 && next < count ? next : null;
 }
