@@ -7,6 +7,7 @@ import {
   commitEntry,
   entryKeyAction,
   entryText,
+  pasteAction,
   readEntry,
   rejectionMessage,
   showsEntryError,
@@ -136,6 +137,18 @@ describe("entryKeyAction", () => {
     for (const key of ["Tab", "ArrowDown", "ArrowRight", "5", ".", "Backspace"]) {
       expect(entryKeyAction(key, true), key).toBeNull();
     }
+  });
+});
+
+describe("pasteAction", () => {
+  it("refuses a paste into a read-only cell, whether or not a grid would spread it", () => {
+    expect(pasteAction(true, true)).toBe("refuse");
+    expect(pasteAction(true, false)).toBe("refuse");
+  });
+
+  it("hands the text to the grid or group that spreads it, else leaves it to the cell's text", () => {
+    expect(pasteAction(false, true)).toBe("spread");
+    expect(pasteAction(false, false)).toBe("type");
   });
 });
 

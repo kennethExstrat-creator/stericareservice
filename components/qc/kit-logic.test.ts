@@ -1,15 +1,26 @@
 // The pure rules behind the capture kit: keys, swipes, totals and
-// decisions, the spoken summary, size and column fallbacks, box lists, paste
-// plans and the one-change paste, issue paths. Markup is covered by
-// kit.test.tsx; pointer, key and paste handling were checked in a browser.
+// decisions, the spoken summary, where the focus goes when a row comes off,
+// size and column fallbacks, the column switcher's steps, box lists and
+// opening them, paste plans and the one-change paste, issue paths. Markup is
+// covered by kit.test.tsx; pointer, key and paste handling were checked in a
+// browser.
 import { describe, expect, it } from "vitest";
-import { bestOption, boxOptions, isUnlisted, moveInGrid, pickedElsewhere, readBoxNumber } from "./box-options";
+import {
+  bestOption,
+  boxListChange,
+  boxOptions,
+  isUnlisted,
+  moveInGrid,
+  pickedElsewhere,
+  readBoxNumber,
+} from "./box-options";
 import {
   columnStatus,
   columnTotal,
   counterAnnouncement,
   counterTableWidth,
   countOf,
+  removalFocus,
   type CounterCell,
 } from "./counter-model";
 import { batchDataChanges, createDataUpdater, type DataChange } from "./data-updater";
@@ -32,7 +43,7 @@ import {
 } from "./issue-path";
 import { specOutcome } from "./requirement-list";
 import { rovingIndex } from "./roving";
-import { activeColumnKey, activeSize, showsSideBySide } from "./selection";
+import { activeColumnKey, activeSize, showsSideBySide, switcherIndex, switcherStep } from "./selection";
 import { stepValue, swipeStep } from "./swipe";
 
 describe("rovingIndex", () => {
@@ -181,6 +192,16 @@ describe("counter model", () => {
     );
   });
 
+  it("keeps the focus on Other defect when a row is taken off, else on the row taking its place", () => {
+    expect(removalFocus(2, 5, true)).toEqual({ to: "opener" });
+    // The add form is open, or the table offers none: the next row, or the one before the last.
+    expect(removalFocus(2, 5, false)).toEqual({ to: "row", index: 3 });
+    expect(removalFocus(4, 5, false)).toEqual({ to: "row", index: 3 });
+    expect(removalFocus(0, 2, false)).toEqual({ to: "row", index: 1 });
+    // Its only row: the table itself, never the page.
+    expect(removalFocus(0, 1, false)).toEqual({ to: "table" });
+  });
+
   it("knows how wide every column side by side is", () => {
     // Label 256, value columns 128 (160 on touch), 2 px of frame.
     expect(counterTableWidth(5, false)).toBe(256 + 5 * 128 + 2);
@@ -223,6 +244,23 @@ describe("size and column on screen", () => {
     expect(shownHandView("both", false)).toBe("R");
     expect(shownHandView("both", true)).toBe("both");
     expect(shownHandView("L", false)).toBe("L");
+  });
+});
+
+describe("ColumnSwitcher's steps", () => {
+  it("steps one column at a time and stops at the ends", () => {
+    expect(switcherStep(1, 5, 1)).toBe(2);
+    expect(switcherStep(1, 5, -1)).toBe(0);
+    expect(switcherStep(0, 5, -1)).toBeNull();
+    expect(switcherStep(4, 5, 1)).toBeNull();
+  });
+
+  it("keeps an index past the columns inside them", () => {
+    expect(switcherIndex(7, 5)).toBe(4);
+    expect(switcherIndex(-1, 5)).toBe(0);
+    expect(switcherStep(7, 5, -1)).toBe(3);
+    expect(switcherStep(7, 5, 1)).toBeNull();
+    expect(switcherIndex(3, 0)).toBe(0);
   });
 });
 
@@ -275,6 +313,12 @@ describe("box options", () => {
     expect(readBoxNumber("2 53")).toBeNull();
     expect(readBoxNumber("")).toBeNull();
     expect(readBoxNumber("abc")).toBeNull();
+  });
+
+  it("opens the list only where the box can change, reporting the box in focus as it opens", () => {
+    expect(boxListChange(true, false)).toEqual({ open: true, reportFocus: true });
+    expect(boxListChange(false, false)).toEqual({ open: false, reportFocus: false });
+    expect(boxListChange(true, true)).toBeNull();
   });
 
   it("moves through the grid by one or by a row", () => {

@@ -89,6 +89,17 @@ export function showsEntryError(invalid: InvalidEntry | null, draft: string | nu
 }
 
 /**
+ * What a paste into a cell does. Read-only, it is refused without a word:
+ * nothing changes, so there is nothing to say. With a grid or group to
+ * spread it (several values fill down), the text goes there first; else the
+ * browser pastes it into the cell's text, judged when the cell is left.
+ */
+export function pasteAction(readOnly: boolean, spreads: boolean): "refuse" | "spread" | "type" {
+  if (readOnly) return "refuse";
+  return spreads ? "spread" : "type";
+}
+
+/**
  * The words for a rejected entry, shown under a field and announced when the
  * cell is left, e.g. "Width, No. 3: “2 42” is not stored. One number per cell…".
  */
