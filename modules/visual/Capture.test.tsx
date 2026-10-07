@@ -151,12 +151,21 @@ describe("visual capture", () => {
   });
 
   it("words one class's limit apart where the template does (STD_EG prints Acc. = 0 / Rej. = 1 for critical)", () => {
+    // Keyed class first, as the dictionary keys class wording (criticalTotal).
     const html = render({
       sizes: {},
       context: M_500(),
-      labels: { ...VISUAL_LABELS, "critical.accept": "Acc. =", "critical.reject": "Rej. =" },
+      labels: { ...VISUAL_LABELS, criticalAccept: "Acc. =", criticalReject: "Rej. =" },
     });
     expect(html).toContain("Acc. = 0 / Rej. = 1");
+    // A dotted key added in the editor works too; the class-first key wins over it.
+    const dotted = { ...VISUAL_LABELS, "critical.accept": "Acc. =", "critical.reject": "Rej. =" };
+    expect(render({ sizes: {}, context: M_500(), labels: dotted })).toContain("Acc. = 0 / Rej. = 1");
+    const both = { ...dotted, criticalAccept: "Ac =", criticalReject: "Re =" };
+    expect(render({ sizes: {}, context: M_500(), labels: both })).toContain("Ac = 0 / Re = 1");
+    // A blank class word falls back to the word every class shares.
+    const blank = { ...VISUAL_LABELS, criticalAccept: " ", criticalReject: "" };
+    expect(render({ sizes: {}, context: M_500(), labels: blank })).toContain("Accept 0 / Reject 1");
   });
 
   it("says under a class's gloves inspected what calc found there, warnings in amber", () => {
