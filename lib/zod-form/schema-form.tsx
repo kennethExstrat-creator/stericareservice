@@ -1084,10 +1084,10 @@ function ItemActions({
 }) {
   return (
     <span className="flex shrink-0 items-center gap-1">
-      <Button type="button" variant="ghost" size="icon-sm" disabled={first} onClick={() => onMove("up")} aria-label={`Move ${name} up`}>
+      <Button type="button" variant="ghost" size="icon-sm" disabled={first} onClick={() => onMove("up")} aria-label={`Move ${name} Up`}>
         <ArrowUpIcon aria-hidden />
       </Button>
-      <Button type="button" variant="ghost" size="icon-sm" disabled={last} onClick={() => onMove("down")} aria-label={`Move ${name} down`}>
+      <Button type="button" variant="ghost" size="icon-sm" disabled={last} onClick={() => onMove("down")} aria-label={`Move ${name} Down`}>
         <ArrowDownIcon aria-hidden />
       </Button>
       <Button type="button" variant="ghost" size="icon-sm" onClick={onRemove} aria-label={`Remove ${name}`}>

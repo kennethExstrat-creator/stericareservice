@@ -6,6 +6,7 @@
 import { ChevronRightIcon, CircleOffIcon, CirclePlusIcon, LockIcon, PowerIcon, type LucideIcon } from "lucide-react";
 import type { CustomModuleView, ModuleView, SectionView } from "@/lib/admin/templates";
 import { cn } from "@/lib/utils";
+import { FIELD_TYPE_LABEL } from "../edit/_lib/field-types";
 
 export function ModulesList({ sections }: { sections: SectionView[] }) {
   const included = sections.filter((section) => section.kind === "module" && section.include).length;
@@ -88,7 +89,7 @@ function ModuleItem({ section }: { section: ModuleView }) {
           </h3>
           <IncludeChip section={section} />
           {section.notBuilt && (
-            <span className="text-sm text-muted-foreground">Module Not Built Yet</span>
+            <span className="text-sm text-muted-foreground">Not Built Yet</span>
           )}
         </div>
         <p className="text-sm text-muted-foreground">
@@ -160,7 +161,7 @@ function CustomItem({ section }: { section: CustomModuleView }) {
               <li key={field.key} className="break-words">
                 <span className="font-medium text-foreground">{field.label}</span>{" "}
                 <span className="text-muted-foreground">
-                  · {field.type}
+                  · {FIELD_TYPE_LABEL[field.type]}
                   {field.unit ? ` (${field.unit})` : ""}
                   {field.required ? " · required" : ""}
                   {field.options.length > 0 ? ` · ${field.options.join(", ")}` : ""}

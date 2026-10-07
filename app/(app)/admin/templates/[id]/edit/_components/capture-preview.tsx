@@ -30,7 +30,7 @@ import {
   type InspectionContext,
   type ModuleEvaluation,
 } from "@/modules/_framework";
-import { FIELD_TYPE_LABEL } from "./custom-module-form";
+import { FIELD_TYPE_LABEL } from "../_lib/field-types";
 
 const NO_DATA = emptyInspectionData();
 const noop = () => {};

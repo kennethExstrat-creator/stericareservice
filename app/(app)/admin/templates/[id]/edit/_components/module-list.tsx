@@ -212,7 +212,7 @@ export function ModuleList({
                       if (element) handleRefs.current.set(key, element);
                       else handleRefs.current.delete(key);
                     }}
-                    aria-label={`Move ${title}, position ${index + 1} of ${order.length}`}
+                    aria-label={`Move ${title}, Position ${index + 1} of ${order.length}`}
                     aria-describedby="reorder-hint"
                     className={cn(
                       "flex size-9 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-slate-500 hover:bg-muted hover:text-foreground focus-ring-inset touch:size-11",

@@ -1,6 +1,7 @@
 // The Details tab's AI second opinion switch (BUILD_SPEC 9.2), server-rendered:
 // what it shows for a template of its own and for one that inherits the
-// setting, the Changed mark and reset, and a problem on the setting.
+// setting, the Changed mark and reset, and a problem on the setting; and the
+// fixed rows' Base Template.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { TemplateDefinition } from "@/lib/schemas/template";
@@ -45,7 +46,7 @@ function render(draft: Draft, { bases = [], problems = [] }: { bases?: TemplateD
   const html = renderToStaticMarkup(<DetailsForm api={api} />);
   const section = html.slice(html.indexOf('data-testid="template-ai"'), html.indexOf('data-testid="template-scope"'));
   const control = section.match(new RegExp(`<button[^>]*id="${AI_ON_SUBMIT_ID}"[^>]*>`))?.[0] ?? "";
-  return { section, control };
+  return { html, section, control };
 }
 
 describe("DetailsForm: AI second opinion on submit", () => {
@@ -91,5 +92,14 @@ describe("DetailsForm: AI second opinion on submit", () => {
     expect(control).toContain(`aria-describedby="${AI_ON_SUBMIT_ID}-hint ${AI_ON_SUBMIT_ID}-errors"`);
     expect(section).toContain("Choose yes or no.");
     expect(isDetailPath(["ai", "reviewOnSubmit"])).toBe(true);
+  });
+});
+
+describe("DetailsForm: the fixed rows", () => {
+  it("names the base as a label names a template version: BASE_EG Version 2", () => {
+    const base = definition("BASE_EG", { modules: [{ key: "header", include: true }] });
+    const { html } = render(definition("CHILD_EG", { extends: "BASE_EG" }), { bases: [base] });
+    expect(html).toContain("BASE_EG Version 2");
+    expect(html).not.toContain("BASE_EG, version 2");
   });
 });

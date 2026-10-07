@@ -305,7 +305,7 @@ function NewTemplateForm({
       {/* Relative, so screen-reader-only text inside stays anchored in the scroller. */}
       <div className="relative flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-5">
         <fieldset disabled={pending} className="m-0 min-w-0 border-0 p-0">
-          <legend className="sr-only">The new template</legend>
+          <legend className="sr-only">New Template</legend>
           <FieldGroup className="gap-5">
             {select(
               "base",

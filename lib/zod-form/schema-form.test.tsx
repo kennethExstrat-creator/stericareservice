@@ -81,7 +81,7 @@ describe("SchemaForm", () => {
       'aria-describedby="form-minLayeringPct-range form-minLayeringPct-description"',
     );
     expect(html).toContain("Whole number, 1 to 500.");
-    expect(html).toContain('aria-label="Move Stickiness Code 1 down"');
+    expect(html).toContain('aria-label="Move Stickiness Code 1 Down"');
     expect(html).toContain('aria-label="Remove Stickiness Code 2"');
     expect(html).toContain("Add Stickiness Code");
     // The record's entry, and the sizes still free to add.

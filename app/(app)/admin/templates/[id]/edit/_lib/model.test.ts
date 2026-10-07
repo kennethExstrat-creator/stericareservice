@@ -323,10 +323,10 @@ describe("custom modules", () => {
     expect(added.draft.customModules).toEqual([
       {
         key: "custom_1",
-        title: "New section",
+        title: "New Section",
         after: "labeling",
         layout: "fields",
-        fields: [{ key: "field1", label: "New field", type: "text" }],
+        fields: [{ key: "field1", label: "New Field", type: "text" }],
       },
     ]);
     expect(resolveTemplateOrThrow(added.draft, { getBase, registry }).customModules).toHaveLength(1);

@@ -20,21 +20,11 @@ import { cn } from "@/lib/utils";
 import { deepEqual, moveItem, pathKey, type FormPath } from "@/lib/zod-form";
 import { NumberInput, OptionSelect } from "@/lib/zod-form/controls";
 import { canonicalPathOf, isMappableType } from "@/modules/_framework";
+import { FIELD_TYPE_LABEL } from "../_lib/field-types";
 import { moduleOrder, moduleView } from "../_lib/model";
 import { CUSTOM_FIELD_LABELS, CUSTOM_GRID_LABELS, CUSTOM_MODULE_LABELS } from "../_lib/names";
 import type { EditorProblem } from "../_lib/problems";
 import type { EditorApi } from "./editor-api";
-
-export const FIELD_TYPE_LABEL: Readonly<Record<FieldType, string>> = {
-  counter: "Count (Tap + and −)",
-  number: "Number",
-  text: "Text",
-  textarea: "Long Text",
-  select: "Choice From a List",
-  yes_no: "Yes / No",
-  date: "Date",
-  photo: "Photo",
-};
 
 const LAYOUTS = [
   { value: "fields", label: "Fields", description: "A form: each field once." },
@@ -254,7 +244,7 @@ export function CustomModuleForm({
                 const taken = new Set(custom.fields.map((field) => field.key));
                 let number = custom.fields.length + 1;
                 while (taken.has(`field${number}`)) number += 1;
-                set("fields", [...custom.fields, { key: `field${number}`, label: "New field", type: "text" }]);
+                set("fields", [...custom.fields, { key: `field${number}`, label: "New Field", type: "text" }]);
               }}
             >
               <PlusIcon aria-hidden />
@@ -311,10 +301,10 @@ function FieldEditor({
         </p>
         {!readOnly && (
           <span className="flex items-center gap-1">
-            <Button type="button" variant="ghost" size="icon-sm" disabled={position === 0} onClick={() => onMove(position - 1)} aria-label={`Move ${name} up`}>
+            <Button type="button" variant="ghost" size="icon-sm" disabled={position === 0} onClick={() => onMove(position - 1)} aria-label={`Move ${name} Up`}>
               <ArrowUpIcon aria-hidden />
             </Button>
-            <Button type="button" variant="ghost" size="icon-sm" disabled={position === count - 1} onClick={() => onMove(position + 1)} aria-label={`Move ${name} down`}>
+            <Button type="button" variant="ghost" size="icon-sm" disabled={position === count - 1} onClick={() => onMove(position + 1)} aria-label={`Move ${name} Down`}>
               <ArrowDownIcon aria-hidden />
             </Button>
             <Button type="button" variant="ghost" size="icon-sm" disabled={count === 1} onClick={onRemove} aria-label={`Remove ${name}`}>

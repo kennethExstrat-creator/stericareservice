@@ -384,10 +384,10 @@ export function addCustomModule(draft: Draft, context: EditorContext): { draft: 
   const after = order.filter((key) => key !== "conclusion").at(-1) ?? "header";
   const custom: CustomModule = {
     key: `custom_${number}`,
-    title: "New section",
+    title: "New Section",
     after,
     layout: "fields",
-    fields: [{ key: "field1", label: "New field", type: "text" }],
+    fields: [{ key: "field1", label: "New Field", type: "text" }],
   };
   return { draft: { ...draft, customModules: [...own, custom] }, index: own.length };
 }

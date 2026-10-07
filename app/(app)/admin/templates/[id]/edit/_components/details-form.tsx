@@ -299,7 +299,7 @@ function FixedFields({ api }: { api: EditorApi }) {
     {
       key: "extends",
       label: FIXED_LABELS.extends,
-      value: extendsCode === null ? "None" : base ? `${base.code}, version ${base.version}` : extendsCode,
+      value: extendsCode === null ? "None" : base ? `${base.code} Version ${base.version}` : extendsCode,
       hint:
         extendsCode === null
           ? "A template of its own: it inherits nothing."

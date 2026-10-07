@@ -1,4 +1,4 @@
-// The New template form, drawn in place (a portal draws nothing on the
+// The New Template form, drawn in place (a portal draws nothing on the
 // server): it asks for the base, code, name and scope, and is submitted by
 // hand, so a refused attempt keeps every Select as chosen (lib/admin/submit.ts).
 // e2e/admin-template-flow refuses a taken code in the browser and checks.

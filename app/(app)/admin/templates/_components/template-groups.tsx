@@ -133,7 +133,7 @@ function VersionRow({ version }: { version: TemplateVersionSummary }) {
       <TableHead scope="row" className={cn(CELL, "h-auto font-normal touch:h-auto")}>
         <Link
           href={templatePath(version.id)}
-          aria-label={`${version.code} Version ${version.version}`}
+          aria-label={`Version ${version.version} of ${version.code}`}
           className="inline-flex items-center rounded-sm font-semibold text-brand-600 tabular-nums underline-offset-4 hover:underline focus-ring touch:min-h-11"
         >
           Version {version.version}

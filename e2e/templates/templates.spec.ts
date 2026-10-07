@@ -122,7 +122,7 @@ test("the list shows every code with its versions, status, scope, base and use",
   await expect(rootCard).toContainText("No active version · 1 version");
   const rootRow = rootCard.locator("tbody tr[data-version='1']");
   await expect(rootRow.locator('[data-slot="template-status"]')).toHaveText("Draft");
-  await expect(rootRow).toContainText("Examination · Custom standard");
+  await expect(rootRow).toContainText("Examination · Custom Standard");
   // In a column of its own from 1280 px, under the product type below that.
   await expect(rootRow.getByText(scopeClient.name).filter({ visible: true })).toHaveCount(1);
   await expect(rootRow).toContainText("Not used yet");
@@ -137,7 +137,7 @@ test("the list shows every code with its versions, status, scope, base and use",
   }
 
   // Compact rows with a mouse; 44 px targets on touch (docs/DESIGN.md).
-  const link = rootRow.getByRole("link", { name: `${root.code} Version 1` });
+  const link = rootRow.getByRole("link", { name: `Version 1 of ${root.code}` });
   if (isTouch()) {
     expect((await link.boundingBox())?.height).toBeGreaterThanOrEqual(44);
   } else {

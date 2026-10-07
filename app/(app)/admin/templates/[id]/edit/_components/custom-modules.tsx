@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import type { CustomModule } from "@/lib/schemas/template";
 import { isModuleKey } from "@/lib/schemas/module-result";
+import { FIELD_TYPE_LABEL } from "../_lib/field-types";
 import {
   addCustomModule,
   customModuleViews,
@@ -30,7 +31,7 @@ import {
   setCustomModule,
 } from "../_lib/model";
 import { problemsOfCustom } from "../_lib/problems";
-import { CustomModuleForm, FIELD_TYPE_LABEL } from "./custom-module-form";
+import { CustomModuleForm } from "./custom-module-form";
 import type { EditorApi } from "./editor-api";
 
 const LAYOUT_LABEL = { fields: "Fields", table: "Table per Size", grid: "Grid" } as const;
