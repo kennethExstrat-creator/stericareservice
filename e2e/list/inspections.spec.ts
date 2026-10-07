@@ -1,10 +1,27 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { createTestAdminClient } from "../support/admin";
 import { signIn, TEST_ACCOUNTS } from "../support/session";
-import { countVisibleInspections, createListFixture, FIXTURE_CLIENT_NAME, HOSTILE_PO, type ListFixture } from "./fixtures";
+import {
+  countVisibleInspections,
+  createDraftWithEvidence,
+  createListFixture,
+  DELETE_MIGRATION,
+  deleteFunctionIsLive,
+  deletionRecord,
+  FIXTURE_CLIENT_NAME,
+  HOSTILE_PO,
+  storedObjects,
+  type ListFixture,
+} from "./fixtures";
 
 /**
- * /inspections (BUILD_SPEC 10) against the live project, at the three sizes
- * in playwright.config.ts. Screenshots go to screenshots/list/.
+ * /inspections (BUILD_SPEC 10) against the live project, at the four sizes
+ * in playwright.config.ts. Screenshots go to screenshots/listactions/.
+ *
+ * Each row ends with its actions (Kenneth, 7 October 2026): Continue,
+ * Review or View, and Delete on a draft. Deleting needs the database
+ * function of migration 20261007151500; until a project has it, the test
+ * that deletes skips and says so.
  */
 
 /** The empty list's pointer to the button above it. */
@@ -24,7 +41,7 @@ function isTouch() {
  * which React would report as a hydration mismatch if it landed first.
  */
 async function shot(page: Page, name: string) {
-  const path = (part = "") => `screenshots/list/${test.info().project.name}-${name}${part}.png`;
+  const path = (part = "") => `screenshots/listactions/${test.info().project.name}-${name}${part}.png`;
   const options = { animations: "disabled", caret: "initial" } as const;
   if (!isTouch()) {
     await page.screenshot({ ...options, path: path(), fullPage: true });
@@ -72,6 +89,81 @@ async function expectShownInFull(text: Locator) {
   await expect(text).toHaveCount(1);
   const cut = await text.evaluate((el) => el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1);
   expect(cut, `${await text.textContent()} is cut off`).toBe(false);
+}
+
+/**
+ * Desktop: rows stay one line, and a name too long for its column is cut
+ * with an ellipsis (the tooltip has it all). These names must not be: each
+ * is checked on its own text, since text cut that way never spills out of
+ * its cell (expectRowsFit cannot see it).
+ */
+async function expectNamesWhole(entries: [row: Locator, name: string][]) {
+  for (const [inRow, name] of entries) await expectShownInFull(inRow.locator(`[title="${name}"]`).filter({ visible: true }));
+}
+
+/**
+ * Desktop: the columns of free text are at least as wide as they were before
+ * the row actions came (on the desktop only the product gives way for them).
+ */
+async function expectColumnsAtLeast(page: Page, widths: Record<string, number>) {
+  for (const [name, least] of Object.entries(widths)) {
+    const box = (await page.getByRole("columnheader", { name, exact: true }).boundingBox())!;
+    expect(box.width, `the ${name} column`).toBeGreaterThanOrEqual(least);
+  }
+}
+
+/** Desktop: every row is one line (36 px), its actions included. */
+async function expectCompactRows(page: Page) {
+  const heights = await page.locator("tbody tr").evaluateAll((rows) => rows.map((tr) => tr.getBoundingClientRect().height));
+  expect(heights.length).toBeGreaterThan(0);
+  expect(Math.max(...heights), "the tallest row").toBeLessThanOrEqual(37);
+}
+
+/**
+ * No row overflows or squeezes: no cell's content spills out of it, the
+ * table fits its card, and no action's words are cut.
+ */
+async function expectRowsFit(page: Page) {
+  const spilling = await page.locator("tbody tr").evaluateAll((rows) =>
+    rows.flatMap((tr) =>
+      [...tr.children].flatMap((cell) => {
+        const el = cell as HTMLElement;
+        if (getComputedStyle(el).display === "none") return [];
+        const over = el.scrollWidth - el.clientWidth;
+        return over > 1 ? [`${(tr as HTMLElement).dataset.ref} "${el.textContent?.slice(0, 24)}" by ${over}px`] : [];
+      }),
+    ),
+  );
+  expect(spilling, "cells whose content spills out").toEqual([]);
+  const table = await page.locator("table").evaluate((el) => el.scrollWidth - (el.parentElement?.clientWidth ?? 0));
+  expect(table, "the table is wider than its card").toBeLessThanOrEqual(0);
+  const cut = await page
+    .locator("[data-row-action]")
+    .evaluateAll((els) => els.filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => el.getAttribute("aria-label")));
+  expect(cut, "actions whose words are cut").toEqual([]);
+}
+
+/** A row's main action (Continue, Review or View), by its name. */
+function mainAction(page: Page, ref: string, label: "Continue" | "Review" | "View") {
+  return row(page, ref).getByRole("link", { name: `${label} ${ref}`, exact: true });
+}
+
+function deleteButton(page: Page, ref: string) {
+  return row(page, ref).getByRole("button", { name: `Delete ${ref}`, exact: true });
+}
+
+/** 44 px and 16 px text on touch; compact 32 px with a mouse. */
+async function expectActionSize(action: Locator) {
+  const box = (await action.boundingBox())!;
+  const fontSize = await action.evaluate((el) => getComputedStyle(el).fontSize);
+  if (isTouch()) {
+    expect(box.height, "touch target").toBeGreaterThanOrEqual(44);
+    expect(box.width, "touch target").toBeGreaterThanOrEqual(44);
+  } else {
+    expect(box.height).toBe(32);
+  }
+  // The trash button carries an icon only; its name is for screen readers.
+  if ((await action.getAttribute("data-row-action")) === "primary") expect(fontSize).toBe(isTouch() ? "16px" : "14px");
 }
 
 test("signed out, the list sends you to sign in and back", async ({ page }) => {
@@ -145,20 +237,28 @@ test.describe("with inspections", () => {
     expect(order.indexOf(refs.B)).toBeLessThan(order.indexOf(refs.A));
     expect(order.indexOf(refs.A)).toBeLessThan(order.indexOf(refs.D));
 
+    // The result is in its own column on the desktop and under the status on the iPad: one of them shows.
+    const result = (ref: string, text: string) => row(page, ref).getByText(text, { exact: true }).filter({ visible: true });
     await expect(row(page, refs.A).getByText("Draft")).toBeVisible();
-    await expect(row(page, refs.A).getByText("Not done")).toBeVisible();
+    await expect(result(refs.A, "Not done")).toBeVisible();
     await expect(row(page, refs.B).getByText("Submitted")).toBeVisible();
-    await expect(row(page, refs.B).getByText("Passed")).toBeVisible();
+    await expect(result(refs.B, "Passed")).toBeVisible();
     // Approved and failed: the workflow badge never borrows the result's colour.
     await expect(row(page, refs.D).getByText("Approved")).toBeVisible();
-    await expect(row(page, refs.D).getByText("Failed")).toBeVisible();
-    await expect(row(page, refs.B).getByRole("rowheader")).toContainText(refs.B);
+    await expect(result(refs.D, "Failed")).toBeVisible();
+    // The ref heads the row as plain text: the actions at the end open it.
+    await expect(row(page, refs.B).getByRole("rowheader")).toHaveText(new RegExp(`^${refs.B}`));
+    await expect(row(page, refs.B).getByRole("rowheader").getByRole("link")).toHaveCount(0);
     await expect(row(page, refs.B)).toContainText(FIXTURE_CLIENT_NAME);
-    await expect(row(page, refs.B)).toContainText("3 Oct 2026");
-    // Every value shows at every size: without a column of its own it sits under another.
-    await expect(row(page, refs.A)).toContainText("Nitrile examination gloves, blue", { useInnerText: true });
+    await expect(row(page, refs.B)).toContainText("3 Oct 2026", { useInnerText: true });
+    // Every value shows on the iPad: without a column of its own it sits under another. On the
+    // desktop below 1536 px the product gives way, so the names keep their room (the inspection shows it).
+    const product = "Nitrile examination gloves, blue";
+    if (isTouch()) await expect(row(page, refs.A)).toContainText(product, { useInnerText: true });
+    else await expect(row(page, refs.A)).not.toContainText(product, { useInnerText: true });
     await expect(row(page, refs.A)).toContainText("Hartalega NGC", { useInnerText: true });
     await expect(row(page, refs.A)).toContainText("E2E-LIST-PO-100", { useInnerText: true });
+    await expect(row(page, refs.A)).toContainText("1 Oct 2026", { useInnerText: true });
 
     if (isTouch()) {
       // 44 px rows and controls, 16 px field text.
@@ -170,15 +270,31 @@ test.describe("with inspections", () => {
       // No tooltips on touch: a long manufacturer wraps rather than losing its factory.
       await expectShownInFull(row(page, refs.B).locator(`[title="${TERANG_NUSA_LABEL}"]`).filter({ visible: true }));
     } else {
-      // Compact rows on the desktop.
-      expect((await row(page, refs.A).boundingBox())!.height).toBeLessThanOrEqual(37);
+      // Compact rows on the desktop, the 32 px actions included.
+      await expectCompactRows(page);
+      // At 1440 px the product gives way, so client, manufacturer and PO are not squeezed for the
+      // actions: client and manufacturer wider than before them (165 px), the PO as wide (128 px).
+      await expectColumnsAtLeast(page, { Client: 165, Manufacturer: 165, PO: 128 });
+      await expectNamesWhole([
+        [row(page, refs.A), FIXTURE_CLIENT_NAME],
+        [row(page, refs.A), "Hartalega NGC"],
+        [row(page, refs.D), "Polyco Healthline"],
+      ]);
+    }
+    for (const action of [mainAction(page, refs.A, "Continue"), deleteButton(page, refs.A), mainAction(page, refs.D, "View")]) {
+      await expectActionSize(action);
     }
 
-    const portrait = test.info().project.name === "ipad-portrait";
-    await expect(page.getByRole("columnheader", { name: "PO", exact: true })).toBeVisible({ visible: !portrait });
-    await expect(page.getByRole("columnheader", { name: "Product", exact: true })).toBeVisible({ visible: !isTouch() });
-    if (portrait) await expect(row(page, refs.A)).toContainText("PO E2E-LIST-PO-100");
+    // On the iPad the PO sits under the ref and the result under the status, to make room for the actions.
+    await expect(page.getByRole("columnheader", { name: "PO", exact: true })).toBeVisible({ visible: !isTouch() });
+    await expect(page.getByRole("columnheader", { name: "Result", exact: true })).toBeVisible({ visible: !isTouch() });
+    // The product has a column of its own only on desktops of 1536 px and wider.
+    await expect(page.getByRole("columnheader", { name: "Product", exact: true })).toBeHidden();
+    if (isTouch()) await expect(row(page, refs.A)).toContainText("PO E2E-LIST-PO-100", { useInnerText: true });
+    // The actions' column is named for screen readers.
+    await expect(page.getByRole("columnheader", { name: "Actions", exact: true })).toHaveCount(1);
 
+    await expectRowsFit(page);
     await expectNoPageScroll(page);
     await shot(page, "inspector-list");
     expect(hydration()).toEqual([]);
@@ -191,15 +307,30 @@ test.describe("with inspections", () => {
     const { refs } = fixture;
 
     for (const ref of [refs.A, refs.B, refs.C, refs.D]) await expect(row(page, ref)).toBeVisible();
-    // Its own column on the desktop; on the iPad the name sits under the date.
+    // Its own column on the desktop; on the iPad the name sits under the date (in portrait, the ref).
     await expect(page.getByRole("columnheader", { name: "Inspector", exact: true })).toBeVisible({ visible: !isTouch() });
     await expect(row(page, refs.A)).toContainText("Test Inspector", { useInnerText: true });
     await expect(row(page, refs.C)).toContainText("Test Admin", { useInnerText: true });
     await expect(row(page, refs.C).getByText("Reopened")).toBeVisible();
-    await expect(row(page, refs.C).getByText("On hold")).toBeVisible();
-    await expect(row(page, refs.C)).toContainText("Safedon nitrile examination gloves", { useInnerText: true });
+    await expect(row(page, refs.C).getByText("On hold", { exact: true }).filter({ visible: true })).toBeVisible();
     await expect(page.getByText("All inspectors")).toBeVisible();
+    if (isTouch()) {
+      // On the iPad the product sits under the manufacturer (or the client, in portrait).
+      await expect(row(page, refs.C)).toContainText("Safedon nitrile examination gloves", { useInnerText: true });
+    } else {
+      // At 1440 px the product gives way, so no name is cut to a few letters: client and manufacturer
+      // are wider than before the actions (122 px each); the PO gives up 16 px for the Inspector column.
+      await expect(page.getByRole("columnheader", { name: "Product", exact: true })).toBeHidden();
+      await expectColumnsAtLeast(page, { Client: 122, Manufacturer: 122, PO: 112 });
+      await expectNamesWhole([
+        [row(page, refs.D), "Polyco Healthline"],
+        [row(page, refs.D), "Hartalega NGC"],
+        [row(page, refs.A), "Test Inspector"],
+      ]);
+      await expectCompactRows(page);
+    }
 
+    await expectRowsFit(page);
     await expectNoPageScroll(page);
     await shot(page, "admin-list");
     expect(hydration()).toEqual([]);
@@ -412,7 +543,7 @@ test.describe("with inspections", () => {
     await expect(page.getByRole("tooltip")).toHaveCount(0);
   });
 
-  test("the inspector opens a draft on the capture screen and a submitted one on its review", async ({
+  test("the inspector continues a draft, views a submitted or approved one, and may delete only the draft", async ({
     page,
     context,
     baseURL,
@@ -422,32 +553,30 @@ test.describe("with inspections", () => {
     await page.goto("/inspections");
     const { refs, ids } = fixture;
 
-    // Named by ref and status, for screen readers and the link list alike.
-    const draft = row(page, refs.A).getByRole("link", { name: `${refs.A}, Draft` });
+    // Named by what it does and the ref, for screen readers and the link list alike.
+    const draft = mainAction(page, refs.A, "Continue");
     await expect(draft).toHaveAttribute("href", `/inspections/${ids.A}`);
-    await expect(row(page, refs.B).getByRole("link", { name: `${refs.B}, Submitted` })).toHaveAttribute(
-      "href",
-      `/inspections/${ids.B}/review`,
-    );
-    await expect(row(page, refs.D).getByRole("link", { name: `${refs.D}, Approved` })).toHaveAttribute(
-      "href",
-      `/inspections/${ids.D}/review`,
-    );
-    // One link per row: the ref. Nothing else in a row takes a tab stop.
+    await expect(draft).toHaveText("Continue");
+    await expect(mainAction(page, refs.B, "View")).toHaveAttribute("href", `/inspections/${ids.B}/review`);
+    await expect(mainAction(page, refs.D, "View")).toHaveAttribute("href", `/inspections/${ids.D}/review`);
+    // Delete on the draft only.
+    await expect(deleteButton(page, refs.A)).toBeVisible();
+    await expect(row(page, refs.B).getByRole("button", { name: /^Delete / })).toHaveCount(0);
+    await expect(row(page, refs.D).getByRole("button", { name: /^Delete / })).toHaveCount(0);
+    // One link per row, the main action; the ref is plain text.
     await expect(row(page, refs.A).getByRole("link")).toHaveCount(1);
 
     if (isTouch()) {
-      // The whole ref cell is the target, as tall as the row: tap its far corner, away from the text.
-      const cell = row(page, refs.A).getByRole("rowheader");
-      const box = (await cell.boundingBox())!;
-      expect(box.height).toBeGreaterThanOrEqual(44);
-      await shot(page, "inspector-list-links");
-      await cell.tap({ position: { x: box.width - 6, y: box.height - 4 } });
+      await shot(page, "inspector-list-actions");
+      await draft.tap();
     } else {
-      // Keyboard: the link takes focus and Enter follows it.
+      // Keyboard: the main action, then Delete, take Tab; Enter follows the link.
       await draft.focus();
+      await page.keyboard.press("Tab");
+      await expect(deleteButton(page, refs.A)).toBeFocused();
+      await page.keyboard.press("Shift+Tab");
       await expect(draft).toBeFocused();
-      await shot(page, "inspector-list-links");
+      await shot(page, "inspector-list-actions");
       await page.keyboard.press("Enter");
     }
     await expect(page).toHaveURL(new RegExp(`/inspections/${ids.A}$`));
@@ -456,34 +585,180 @@ test.describe("with inspections", () => {
 
     await page.goBack();
     await expect(page).toHaveURL(/\/inspections$/);
-    await press(row(page, refs.B).getByRole("link", { name: `${refs.B}, Submitted` }));
+    await press(mainAction(page, refs.B, "View"));
     await expect(page).toHaveURL(new RegExp(`/inspections/${ids.B}/review$`));
     await expect(page.getByRole("heading", { level: 1, name: refs.B })).toBeVisible();
     await expect(page).toHaveTitle(new RegExp(`^Review ${refs.B}\\b`));
     expect(hydration()).toEqual([]);
   });
 
-  test("the admin opens a reopened inspection on the capture screen and an approved one on its review", async ({
+  test("the admin continues any open inspection, reviews a submitted one and views an approved one", async ({
     page,
     context,
     baseURL,
   }) => {
+    const hydration = watchConsole(page);
     await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
     await page.goto("/inspections");
     const { refs, ids } = fixture;
 
-    // Another inspector's draft opens on capture too: admins edit every open inspection.
-    await expect(row(page, refs.A).getByRole("link", { name: `${refs.A}, Draft` })).toHaveAttribute(
-      "href",
-      `/inspections/${ids.A}`,
-    );
-    await press(row(page, refs.C).getByRole("link", { name: `${refs.C}, Reopened` }));
+    // Another inspector's draft: Continue, as admins edit every open inspection, and Delete.
+    await expect(mainAction(page, refs.A, "Continue")).toHaveAttribute("href", `/inspections/${ids.A}`);
+    await expect(deleteButton(page, refs.A)).toBeVisible();
+    await expect(mainAction(page, refs.B, "Review")).toHaveAttribute("href", `/inspections/${ids.B}/review`);
+    await expect(mainAction(page, refs.C, "Continue")).toHaveAttribute("href", `/inspections/${ids.C}`);
+    await expect(mainAction(page, refs.D, "View")).toHaveAttribute("href", `/inspections/${ids.D}/review`);
+    // Submitted, reopened and approved inspections are records: no Delete.
+    for (const ref of [refs.B, refs.C, refs.D]) {
+      await expect(row(page, ref).getByRole("button", { name: /^Delete / }), ref).toHaveCount(0);
+    }
+    await expectActionSize(mainAction(page, refs.B, "Review"));
+    await shot(page, "admin-list-actions");
+
+    await press(mainAction(page, refs.B, "Review"));
+    await expect(page).toHaveURL(new RegExp(`/inspections/${ids.B}/review$`));
+    await expect(page.getByRole("heading", { level: 1, name: refs.B })).toBeVisible();
+
+    await page.goBack();
+    await press(mainAction(page, refs.C, "Continue"));
     await expect(page).toHaveURL(new RegExp(`/inspections/${ids.C}$`));
     await expect(page.getByRole("heading", { level: 1, name: refs.C })).toBeVisible();
 
     await page.goBack();
-    await press(row(page, refs.D).getByRole("link", { name: `${refs.D}, Approved` }));
+    await press(mainAction(page, refs.D, "View"));
     await expect(page).toHaveURL(new RegExp(`/inspections/${ids.D}/review$`));
     await expect(page.getByRole("heading", { level: 1, name: refs.D })).toBeVisible();
+    expect(hydration()).toEqual([]);
+  });
+
+  test("Delete asks first, and Cancel or Escape leave the draft where it was", async ({ page, context, baseURL }) => {
+    const hydration = watchConsole(page);
+    await signIn(context, baseURL!, TEST_ACCOUNTS.inspector);
+    await page.goto("/inspections");
+    const { refs } = fixture;
+    const trash = deleteButton(page, refs.A);
+    const dialog = page.getByRole("alertdialog");
+
+    if (isTouch()) await trash.tap();
+    else {
+      await trash.focus();
+      await page.keyboard.press("Enter");
+    }
+    await expect(dialog).toBeVisible();
+    // Measured once it has zoomed in (it opens from 95%).
+    await dialog.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((animation) => animation.finished)));
+    // It names the inspection and says what goes, and that it cannot be undone.
+    await expect(dialog).toHaveAccessibleName(`Delete ${refs.A}?`);
+    await expect(dialog).toContainText(`${FIXTURE_CLIENT_NAME} · 1 Oct 2026`);
+    await expect(dialog).toContainText("The draft is deleted with all its photos and files. This cannot be undone.");
+    const cancel = dialog.getByRole("button", { name: "Cancel" });
+    const confirm = dialog.getByRole("button", { name: "Delete inspection" });
+    // The safe choice has focus first.
+    await expect(cancel).toBeFocused();
+    for (const button of [cancel, confirm]) {
+      const box = (await button.boundingBox())!;
+      expect(box.height).toBeGreaterThanOrEqual(isTouch() ? 44 : 32);
+      expect(await button.evaluate((el) => getComputedStyle(el).fontSize)).toBe(isTouch() ? "16px" : "14px");
+    }
+    await shot(page, "delete-dialog");
+
+    await press(cancel);
+    await expect(dialog).toHaveCount(0);
+    await expect(row(page, refs.A)).toBeVisible();
+    // Focus goes back to Delete, also after a tap (Safari never focuses a tapped button itself).
+    await expect(trash).toBeFocused();
+
+    if (!isTouch()) {
+      await page.keyboard.press("Enter");
+      await expect(dialog).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(dialog).toHaveCount(0);
+      await expect(trash).toBeFocused();
+    }
+
+    // A dropped connection: the request never reaches the server, and the dialog says so.
+    await page.route("**/inspections", (route) =>
+      route.request().method() === "POST" ? route.abort("internetdisconnected") : route.continue(),
+    );
+    await press(trash);
+    await press(confirm);
+    await expect(dialog.getByRole("alert")).toHaveText(
+      "The inspection was not deleted: the server could not be reached. Check the connection, then try again.",
+    );
+    await shot(page, "delete-dialog-unreachable");
+    await page.unroute("**/inspections");
+    await press(cancel);
+    await expect(dialog).toHaveCount(0);
+
+    // Nothing was deleted.
+    await page.reload();
+    await expect(row(page, refs.A)).toBeVisible();
+    expect(hydration()).toEqual([]);
+  });
+
+  test("Delete removes a draft with its photos and files, and focus moves to the next row", async ({
+    page,
+    context,
+    baseURL,
+  }) => {
+    test.skip(
+      !(await deleteFunctionIsLive()),
+      `Needs ${DELETE_MIGRATION} on the project; the integrator applies it after review. Until then Delete answers "not set up on the database yet".`,
+    );
+    const hydration = watchConsole(page);
+    const draft = await createDraftWithEvidence(fixture);
+    try {
+      expect(await storedObjects(draft.id)).toEqual({
+        photos: [...draft.objects.photos].sort(),
+        files: draft.objects.files,
+      });
+      await signIn(context, baseURL!, TEST_ACCOUNTS.inspector);
+      await page.goto("/inspections");
+      const target = row(page, draft.refNo);
+      await expect(target).toBeVisible();
+      // Dated 2 Oct, the draft sits above A (1 Oct), so some row follows it: focus moves there.
+      const next = await target.evaluate((tr) => (tr.nextElementSibling as HTMLElement | null)?.dataset.ref ?? null);
+      expect(next).not.toBeNull();
+
+      const dialog = page.getByRole("alertdialog");
+      if (isTouch()) {
+        await deleteButton(page, draft.refNo).tap();
+        await dialog.getByRole("button", { name: "Delete inspection" }).tap();
+      } else {
+        await deleteButton(page, draft.refNo).focus();
+        await page.keyboard.press("Enter");
+        await page.keyboard.press("Tab");
+        await expect(dialog.getByRole("button", { name: "Delete inspection" })).toBeFocused();
+        await page.keyboard.press("Enter");
+      }
+
+      await expect(page.getByText(`${draft.refNo} deleted.`)).toBeVisible();
+      await expect(dialog).toHaveCount(0);
+      await expect(target).toHaveCount(0);
+      await expect(row(page, next!).locator('[data-row-action="primary"]')).toBeFocused();
+      await shot(page, "deleted");
+
+      // The rows, the Storage objects, and a record that outlives them.
+      const { data: still } = await createTestAdminClient().from("inspections").select("id").eq("id", draft.id);
+      expect(still).toEqual([]);
+      expect(await storedObjects(draft.id)).toEqual({ photos: [], files: [] });
+      expect(await deletionRecord(draft.id)).toEqual([
+        {
+          inspection_id: null,
+          actor_id: fixture.inspectorId,
+          changes: expect.objectContaining({
+            ref_no: draft.refNo,
+            status: "draft",
+            inspector_id: fixture.inspectorId,
+            photos: 1,
+            files: 1,
+            via: "delete_draft_inspection",
+          }),
+        },
+      ]);
+      expect(hydration()).toEqual([]);
+    } finally {
+      await draft.cleanup();
+    }
   });
 });
