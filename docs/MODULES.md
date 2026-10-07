@@ -450,7 +450,7 @@ const saved = parseModuleData(definition, readModuleEntry(data, "modules", key))
   3. **hold** if no module gave a verdict (nothing tested);
   4. **pass** otherwise, with the modules that warned listed.
 
-  Why, in words: `suggestionReasons(suggested, titleOf)` (`lib/validation/suggested-result.ts`; module code takes it from `@/modules/_framework`) gives a line per reason, "Failed: …", "Not done: …" and "Warnings: …" with the sections named by `titleOf`, or "No module has a result yet." when nothing was tested; none for a clean pass. `suggested.summary` is those lines joined, the sections by their titles. Neither restates the overall result: show it beside them as a pill (Passed, Failed, On hold; `docs/DESIGN.md`).
+  Why, in words: `suggestionReasons(suggested, titleOf)` (`lib/validation/suggested-result.ts`; module code takes it from `@/modules/_framework`) gives a line per reason, "Failed: …", "Not done: …" and "Warnings: …" with the sections named by `titleOf`, or "No module has a result yet." when nothing was tested; none for a clean pass. `suggested.summary` is those lines joined, the sections by their titles. Neither restates the overall result: show it beside them as a pill (Passed, Failed, On Hold; `docs/DESIGN.md`).
 
   It never changes the final result: the inspector decides, and an admin reviews. A module not done is a warning, not an error, so an inspection can be submitted on hold (for example while a lab report is pending). The exception is the conclusion (`requiredForSubmit`): submit waits until the inspector has chosen the final result, so `inspections.result` is never empty on a submitted inspection.
 
