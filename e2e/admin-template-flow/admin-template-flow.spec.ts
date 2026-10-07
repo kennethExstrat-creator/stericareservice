@@ -283,7 +283,7 @@ test("an admin builds a template from a base without code changes, and an inspec
       await expect(dialog).toBeVisible({ timeout: 2_000 });
     }).toPass({ timeout: 30_000 });
 
-    await choose(dialog, page, "Build on", new RegExp(`^${fixture.base.code}`));
+    await choose(dialog, page, "Build On", new RegExp(`^${fixture.base.code}`));
     // Where It Applies starts as the base's.
     await expect(dialog.getByRole("combobox", { name: "Product Type" })).toHaveText("Examination Gloves");
     await expect(dialog.getByRole("combobox", { name: "Standard" })).toHaveText("EN 455");
@@ -298,7 +298,7 @@ test("an admin builds a template from a base without code changes, and an inspec
     await choose(dialog, page, "Client", fixture.clientName);
     await choose(dialog, page, "Manufacturer", HARTALEGA.label);
     if (isTouch()) {
-      for (const control of [code, dialog.getByRole("combobox", { name: "Build on" }), dialog.getByRole("button", { name: "Create and Edit" })]) {
+      for (const control of [code, dialog.getByRole("combobox", { name: "Build On" }), dialog.getByRole("button", { name: "Create and Edit" })]) {
         expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(44);
       }
       expect(await code.evaluate((input) => getComputedStyle(input).fontSize)).toBe("16px");
@@ -312,7 +312,7 @@ test("an admin builds a template from a base without code changes, and an inspec
     await expect(code).toBeFocused();
     await expect(code).toHaveAttribute("aria-invalid", "true");
     // React resets a form after its action: nothing here may go back to how it started.
-    await expect(dialog.getByRole("combobox", { name: "Build on" })).toContainText(fixture.base.code);
+    await expect(dialog.getByRole("combobox", { name: "Build On" })).toContainText(fixture.base.code);
     await expect(dialog.getByRole("combobox", { name: "Product Type" })).toHaveText("Examination Gloves");
     await expect(dialog.getByRole("combobox", { name: "Standard" })).toHaveText("EN 455");
     await expect(dialog.getByRole("combobox", { name: "Client" })).toHaveText(fixture.clientName);

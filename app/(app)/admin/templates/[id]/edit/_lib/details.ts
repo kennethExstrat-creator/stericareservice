@@ -13,12 +13,12 @@ const DETAIL_AREAS: readonly unknown[] = [...DETAIL_KEYS, "ai", "scope", "code",
 
 export const DetailsSchema = z.strictObject({
   name: z.string().trim().min(1).meta({ title: "Name", description: "How admins and inspectors know this template." }),
-  unit: TemplateUnitSchema.meta({ title: "Counted in", description: "Pieces for examination gloves, pairs for surgical." }),
+  unit: TemplateUnitSchema.meta({ title: "Counted In", description: "Pieces for examination gloves, pairs for surgical." }),
   sizes: z
     .array(
       TemplateSizeSchema.extend({
         value: TemplateSizeSchema.shape.value.meta({ title: "Size", description: "XS to XXL, or 5.5 to 9.0." }),
-        label: TemplateSizeSchema.shape.label.meta({ title: "Shown as", description: "Optional, e.g. Medium." }),
+        label: TemplateSizeSchema.shape.label.meta({ title: "Shown As", description: "Optional, e.g. Medium." }),
       }),
     )
     .min(1)
@@ -58,7 +58,7 @@ export function isDetailPath(path: FormPath): boolean {
 /**
  * A path in the Details tab, named as the tab names it:
  * ["scope", "clientId"] -> ["Where It Applies", "Client"],
- * ["sizes", 1, "label"] -> ["Sizes", "Size 2", "Shown as"].
+ * ["sizes", 1, "label"] -> ["Sizes", "Size 2", "Shown As"].
  */
 export function detailPathLabels(path: FormPath): string[] {
   const [head, next] = path;

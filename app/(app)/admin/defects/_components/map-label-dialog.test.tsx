@@ -1,6 +1,6 @@
 // The mapping form keeps its choices through a refused mapping: it is
 // submitted by hand (lib/admin/submit.ts), never through a function `action`,
-// which React resets after every action, sending "Map to" back to "An
+// which React resets after every action, sending "Map To" back to "An
 // Existing Code" and the code back to none. The dialog is drawn in place here
 // (a portal draws nothing on the server); e2e/defects refuses a new code in
 // the browser and checks the choice stays.
@@ -66,7 +66,7 @@ function draw(): string {
 }
 
 describe("MapLabelDialog", () => {
-  it("names each Map to radio by its choice and describes it, so Chrome does not leave it unnamed", () => {
+  it("names each Map To radio by its choice and describes it, so Chrome does not leave it unnamed", () => {
     expect(radioNames(draw())).toEqual([
       { name: "An Existing Code", description: "One of the active codes." },
       { name: "A New Code", description: "Add a code for this label first." },
@@ -77,7 +77,7 @@ describe("MapLabelDialog", () => {
     const html = draw();
     expect(html).toContain("<form");
     expect(html).not.toContain(FUNCTION_ACTION);
-    // "Map to" is a radio group, an existing code to start with; the code a select sent with the form.
+    // "Map To" is a radio group, an existing code to start with; the code a select sent with the form.
     expect(html).toMatch(/<button[^>]*role="radio"[^>]*aria-checked="true"[^>]*value="existing"/);
     expect(html).toContain('role="combobox"');
   });

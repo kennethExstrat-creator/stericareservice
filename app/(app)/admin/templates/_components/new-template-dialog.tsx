@@ -309,7 +309,7 @@ function NewTemplateForm({
           <FieldGroup className="gap-5">
             {select(
               "base",
-              "Build on",
+              "Build On",
               base,
               (next) => {
                 setBase(next);

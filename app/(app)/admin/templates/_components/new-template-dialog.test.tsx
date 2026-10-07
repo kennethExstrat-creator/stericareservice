@@ -52,7 +52,7 @@ describe("NewTemplateDialog", () => {
   });
 
   it("asks for the base, the code, the name and where it applies, each value sent in a field of its own", () => {
-    for (const label of ["Build on", "Code", "Name", "Product Type", "Standard", "Client", "Manufacturer"]) {
+    for (const label of ["Build On", "Code", "Name", "Product Type", "Standard", "Client", "Manufacturer"]) {
       expect(html).toContain(`>${label}</label>`);
     }
     for (const name of ["base", "productType", "standard", "clientId", "manufacturerId"]) {

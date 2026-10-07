@@ -48,7 +48,7 @@ export const ExportTemplateSchema = z.object({
   sourceFile: HttpUrlSchema.nullable(),
   /**
    * Every size the template lists, in its order, whatever was ordered: the
-   * report's fixed size rows. `label` is the size's "Shown as", else the size.
+   * report's fixed size rows. `label` is the size's "Shown As", else the size.
    * This and the two below are optional, so documents written before they
    * existed still validate.
    */

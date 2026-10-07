@@ -109,7 +109,7 @@ function TemplateGroupCard({ group }: { group: TemplateGroup }) {
               Extends
             </TableHead>
             <TableHead scope="col" className={cn(HEAD, "w-32 touch:w-40")}>
-              Used by
+              Used By
             </TableHead>
             <TableHead scope="col" className={cn(HEAD, "hidden w-28 xl:table-cell")}>
               Updated

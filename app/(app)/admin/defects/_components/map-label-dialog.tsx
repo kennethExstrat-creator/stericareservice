@@ -218,7 +218,7 @@ export function MapLabelDialog({
             <FieldSet className="gap-3">
               {/* mb-2 matches the 8 px (gap-2) of this dialog's fields; a fieldset's legend is not a flex item, so the FieldSet's gap misses it. */}
               <FieldLegend variant="label" className="mb-2">
-                Map to
+                Map To
               </FieldLegend>
               <RadioGroup
                 value={mode}

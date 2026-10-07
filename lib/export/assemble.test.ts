@@ -32,7 +32,7 @@ describe("templateDetails", () => {
     expect(surgical.sizes.map((size) => size.value)).toEqual(["5.5", "6.0", "6.5", "7.0", "7.5", "8.0", "8.5", "9.0"]);
   });
 
-  it("carries a size's 'Shown as' and the header on later pages when the template sets them", () => {
+  it("carries a size's 'Shown As' and the header on later pages when the template sets them", () => {
     const template = seedTemplate("STD_EG");
     const details = templateDetails({
       ...template,

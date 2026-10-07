@@ -119,7 +119,7 @@ export function assembleExport({ record, evaluated, links, exportedAt }: Assembl
 
 /** The template's sizes, unit and running header, for the report's fixed rows and later pages. */
 export type ExportTemplateDetails = {
-  /** Every size the template lists, in its order, with the name the report shows: its "Shown as", else the size itself. */
+  /** Every size the template lists, in its order, with the name the report shows: its "Shown As", else the size itself. */
   sizes: { value: string; label: string }[];
   /** Gloves counted in pieces or in pairs. */
   unit: TemplateUnit;

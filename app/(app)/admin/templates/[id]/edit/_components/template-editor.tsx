@@ -792,7 +792,7 @@ function SaveState({
     text = "Unsaved Changes";
     tone = "border-warn-border bg-warn-tint text-warn";
   } else if (resolveDue) {
-    text = resolveDue === "resolution" ? "Not Resolved Yet" : "Base Moved on";
+    text = resolveDue === "resolution" ? "Not Resolved Yet" : "Base Moved On";
     tone = "border-warn-border bg-warn-tint text-warn";
   } else {
     text = result.status === "saved" ? "Saved" : "No Changes";

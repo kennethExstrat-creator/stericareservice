@@ -341,7 +341,7 @@ test.describe("as an admin", () => {
     let dialog = page.getByRole("dialog", { name: `Map “${LABELS.tornCuff}”` });
     await expect(dialog).toBeVisible();
     await expect(dialog).toContainText("Size M: 2; Size L: 1 (3 found in all)");
-    // "Map to" named and described as a screen reader hears it, in Chrome's own tree: getByRole finds
+    // "Map To" named and described as a screen reader hears it, in Chrome's own tree: getByRole finds
     // the names even where Chrome has none.
     expect(await chromeNames(dialog, "radio")).toEqual([
       { name: "An Existing Code", description: "One of the active codes." },
@@ -378,7 +378,7 @@ test.describe("as an admin", () => {
     await expect(dialog.getByLabel("Name", { exact: true })).toHaveValue(LABELS.stickyEdge);
     await expect(dialog.locator("[data-note]")).toContainText("A new code is not one of E2E_DEFECTS v1’s minor defects.");
     // A refused code keeps every choice: React resets a form after its action, which must not flip
-    // "Map to" back to an existing code nor clear what was typed.
+    // "Map To" back to an existing code nor clear what was typed.
     await dialog.getByLabel("Code", { exact: true }).fill("9_sticky");
     await press(dialog.getByRole("button", { name: "Add Code and Map" }));
     await expect(dialog.getByText("Start the code with a letter, e.g. torn_cuff.")).toBeVisible();

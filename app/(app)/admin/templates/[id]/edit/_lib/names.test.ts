@@ -118,9 +118,9 @@ describe("placeLabels", () => {
     const where = (path: (string | number)[]) => placeLabels({ area: "template", path }, scope).join(" › ");
     expect(where(["scope", "clientId"])).toBe("Details › Where It Applies › Client");
     expect(where(["ai", "reviewOnSubmit"])).toBe("Details › AI Second Opinion on Submit");
-    expect(where(["sizes", 1, "label"])).toBe("Details › Sizes › Size 2 › Shown as");
+    expect(where(["sizes", 1, "label"])).toBe("Details › Sizes › Size 2 › Shown As");
     expect(where(["report", "showClientLogo"])).toBe("Details › AI Report › Show the Client's Logo");
-    expect(where(["unit"])).toBe("Details › Counted in");
+    expect(where(["unit"])).toBe("Details › Counted In");
     expect(where(["extends"])).toBe("Details › Base Template");
     expect(where(["json"])).toBe("JSON Tab");
     expect(where(["sourceFile"])).toBe("Template › Source File");

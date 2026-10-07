@@ -2,7 +2,7 @@
 
 // One option of a RadioGroup as a card: a title over a one-line description,
 // the whole card a label for the radio, so a tap anywhere on it chooses. Used
-// by the role pickers on /admin/users and "Map to" on /admin/defects.
+// by the role pickers on /admin/users and "Map To" on /admin/defects.
 //
 // The radio is named by its title and described by its description directly.
 // Through the label alone Chrome names it "": the label holds the radio and

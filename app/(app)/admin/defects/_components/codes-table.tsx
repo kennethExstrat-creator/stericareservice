@@ -60,7 +60,7 @@ export function CodesTable({
               Description
             </TableHead>
             <TableHead scope="col" className={cn(HEAD, "hidden w-48 lg:table-cell")}>
-              Used in
+              Used In
             </TableHead>
             <TableHead scope="col" className={cn(HEAD, "w-28 touch:w-32")}>
               Status

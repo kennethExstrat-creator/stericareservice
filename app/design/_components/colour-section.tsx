@@ -87,7 +87,7 @@ export function ColourSection() {
       <Specimen label="Brand: Logo Blue (600 Is the Exact Logo Blue)">
         <ScaleRow scale={brand} />
       </Specimen>
-      <Specimen label="Accent: Logo Teal (the Brand, Never a Result)">
+      <Specimen label="Accent: Logo Teal (The Brand, Never a Result)">
         <ScaleRow scale={accent} />
       </Specimen>
       <Specimen label="Grounds and Neutrals">
@@ -112,7 +112,7 @@ export function ColourSection() {
                 <tr className="border-b border-border text-left text-muted-foreground">
                   <th scope="col" className="py-2 pr-3 font-medium">Variable</th>
                   <th scope="col" className="py-2 pr-3 font-medium">Token</th>
-                  <th scope="col" className="py-2 font-medium">Used for</th>
+                  <th scope="col" className="py-2 font-medium">Used For</th>
                 </tr>
               </thead>
               <tbody>

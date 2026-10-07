@@ -137,7 +137,7 @@ export function DetailsPanel({ view }: { view: DetailsView }) {
         {view.aiOnSubmit !== null && (
           <Row term="AI Second Opinion">{view.aiOnSubmit ? "On submit, and when an admin asks" : "Only when an admin asks"}</Row>
         )}
-        <Row term="Used by">{usageText(detail.usage)}</Row>
+        <Row term="Used By">{usageText(detail.usage)}</Row>
         <Row term="Coverage">
           {view.confirmedText ? (
             <span className="inline-flex items-start gap-1.5 text-pass">
