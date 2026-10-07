@@ -105,7 +105,7 @@ export function NoMatches({
   return (
     <ListState icon={SearchXIcon} title="No inspections match" state="no-matches" action={<ClearFiltersButton />}>
       <p>Nothing matches {asked.join(", ")}.</p>
-      {filters.q && <p className="mt-2">Search matches part of a ref or PO number, or a whole lot number.</p>}
+      {filters.q && <p className="mt-2">Search matches part of a ref or PO number, or a whole lot or carton number.</p>}
     </ListState>
   );
 }

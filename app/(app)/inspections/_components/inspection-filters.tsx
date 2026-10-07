@@ -145,7 +145,7 @@ export function InspectionFilters({
               type="search"
               value={search}
               onChange={(event) => onSearchChange(event.target.value)}
-              placeholder="Ref, PO or lot number"
+              placeholder="Ref, PO, lot or carton number"
               maxLength={MAX_SEARCH_LENGTH}
               enterKeyHint="search"
               autoCapitalize="characters"
@@ -168,7 +168,7 @@ export function InspectionFilters({
           </Button>
         </div>
         <p id={`${id}-q-hint`} className="sr-only">
-          Matches part of a ref or PO number, or a whole lot number.
+          Matches part of a ref or PO number, or a whole lot or carton number.
         </p>
       </div>
 
