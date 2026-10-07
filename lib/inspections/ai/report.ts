@@ -1,5 +1,5 @@
 import "server-only";
-import { getAiStatus, requestAiReport, type AiReportOutcome } from "@/lib/ai";
+import { getAiStatus, reportNotConnectedMessage, requestAiReport, type AiReportOutcome } from "@/lib/ai";
 import {
   canExportInspection,
   evaluateRecord,
@@ -17,7 +17,7 @@ import { AI_STATUSES, NOT_REPORTABLE } from "./panel-model";
  * "Send to AI Report" (BUILD_SPEC 9.1): the export of a submitted or
  * approved inspection goes to the report service, and the URL it answers
  * with is stored in inspections.report_url. Without a report service the
- * admin gets "AI not connected" and the JSON download instead.
+ * admin gets "AI Not Connected" and the JSON download instead.
  * ------------------------------------------------------------------ */
 
 export type SendReportResult =
@@ -41,7 +41,7 @@ export async function sendInspectionToAiReport(input: SendReportInput): Promise<
     return {
       ok: false,
       reason: "not_connected",
-      message: status.detail ? `${status.label}. ${status.detail}` : `${status.label}.`,
+      message: reportNotConnectedMessage(status),
       downloadHref: exportPath(inspectionId),
     };
   }

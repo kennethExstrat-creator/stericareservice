@@ -1,6 +1,6 @@
 import "server-only";
 import { after } from "next/server";
-import { getAiStatus, requestAiReview, type AiReviewOutcome } from "@/lib/ai";
+import { getAiStatus, requestAiReview, reviewNotConnectedMessage, type AiReviewOutcome } from "@/lib/ai";
 import {
   canExportInspection,
   evaluateRecord,
@@ -68,7 +68,7 @@ export async function startAiReview(input: StartAiReviewInput): Promise<StartAiR
 
   const status = getAiStatus().review;
   if (!status.connected) {
-    return { ok: false, reason: "not_connected", message: status.detail ? `${status.label}. ${status.detail}` : `${status.label}.` };
+    return { ok: false, reason: "not_connected", message: reviewNotConnectedMessage(status) };
   }
 
   const id = parseInspectionId(inspectionId);

@@ -184,13 +184,13 @@ export function decisions(): StoredDecision[] {
 }
 
 export const MOCK_STATUS: AiStatus = {
-  review: { connected: true, provider: "mock", label: "AI second opinion: mock reviewer (test data only)" },
-  report: { connected: false, provider: "off", label: "AI not connected" },
+  review: { connected: true, provider: "mock", label: "AI Second Opinion: Mock Reviewer (Test Data Only)" },
+  report: { connected: false, provider: "off", label: "AI Not Connected" },
 };
 
 export const OFF_STATUS: AiStatus = {
-  review: { connected: false, provider: "off", label: "AI second opinion not connected" },
-  report: { connected: false, provider: "off", label: "AI not connected" },
+  review: { connected: false, provider: "off", label: "AI Second Opinion Not Connected" },
+  report: { connected: false, provider: "off", label: "AI Not Connected" },
 };
 
 export const PHOTO_LINKS = {

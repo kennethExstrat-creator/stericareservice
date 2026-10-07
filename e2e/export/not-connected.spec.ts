@@ -13,7 +13,7 @@ import {
 
 /**
  * The panel on the review screen with nothing connected (BUILD_SPEC 9.1,
- * 9.2): "AI second opinion not connected", and "AI not connected" with the
+ * 9.2): "AI Second Opinion Not Connected", and "AI Not Connected" with the
  * JSON download. Run against a dev server with the second opinion switched
  * off and no report service (an empty variable counts as not set):
  *
@@ -49,14 +49,14 @@ test("an admin sees that neither hand-off is connected, and can still download t
   await page.goto(panelPath(fixture.inspectionId));
   const panel = page.getByTestId("ai-panel");
 
-  await expect(panel.getByTestId("ai-review-not-connected")).toContainText("AI second opinion not connected");
+  await expect(panel.getByTestId("ai-review-not-connected")).toContainText("AI Second Opinion Not Connected");
   // This dev server runs AI_REVIEW_PROVIDER=off: the hint says it is switched off, and how to switch it on.
   await expect(panel.getByTestId("ai-review-not-connected")).toContainText(
     "It is switched off on the server: AI_REVIEW_PROVIDER is set to off.",
   );
   await expect(panel.getByRole("button", { name: /Second Opinion/ })).toHaveCount(0);
   const report = panel.getByTestId("ai-report");
-  await expect(report).toContainText("AI not connected");
+  await expect(report).toContainText("AI Not Connected");
   await expect(report.getByRole("button", { name: /Send to AI Report/ })).toHaveCount(0);
   await expect(report.getByRole("link", { name: "Download JSON" })).toHaveAttribute(
     "href",

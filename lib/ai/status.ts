@@ -6,8 +6,17 @@ import { readAiConfig, type AiEnv, type ReportTarget, type ReviewTarget } from "
  * this object can be passed to client components.
  * ------------------------------------------------------------------ */
 
+/** The not-connected states as a sentence starts them: "AI not connected." (the hand-offs' messages). */
 export const AI_REVIEW_NOT_CONNECTED = "AI second opinion not connected";
 export const AI_REPORT_NOT_CONNECTED = "AI not connected";
+
+/**
+ * The same states as labels (Title Case, docs/DESIGN.md Capitalisation): the
+ * AI panel's title for the second opinion and the AI Report's pill.
+ */
+export const AI_REVIEW_NOT_CONNECTED_LABEL = "AI Second Opinion Not Connected";
+export const AI_REPORT_NOT_CONNECTED_LABEL = "AI Not Connected";
+const CONFIGURATION_ERROR_LABEL = "Configuration Error";
 
 export interface AiReviewStatus {
   connected: boolean;
@@ -44,28 +53,28 @@ export function getAiStatus(env: AiEnv = process.env): AiStatus {
 function reviewStatus(target: ReviewTarget): AiReviewStatus {
   switch (target.provider) {
     case "webhook":
-      return { connected: true, provider: "webhook", label: "AI second opinion connected (webhook)" };
+      return { connected: true, provider: "webhook", label: "AI Second Opinion Connected (Webhook)" };
     case "claude":
       return {
         connected: true,
         provider: "claude",
         model: target.claude.model,
-        label: `AI second opinion connected (Claude, ${target.claude.model})`,
+        label: `AI Second Opinion Connected (Claude, ${target.claude.model})`,
       };
     case "mock":
-      return { connected: true, provider: "mock", label: "AI second opinion: mock reviewer (test data only)" };
+      return { connected: true, provider: "mock", label: "AI Second Opinion: Mock Reviewer (Test Data Only)" };
     case "off":
       return {
         connected: false,
         provider: "off",
-        label: AI_REVIEW_NOT_CONNECTED,
+        label: AI_REVIEW_NOT_CONNECTED_LABEL,
         ...(target.switchedOff ? { switchedOff: true as const } : {}),
       };
     case "misconfigured":
       return {
         connected: false,
         provider: "misconfigured",
-        label: `${AI_REVIEW_NOT_CONNECTED}: configuration error`,
+        label: `${AI_REVIEW_NOT_CONNECTED_LABEL}: ${CONFIGURATION_ERROR_LABEL}`,
         detail: target.problems.join(" "),
       };
   }
@@ -74,15 +83,33 @@ function reviewStatus(target: ReviewTarget): AiReviewStatus {
 function reportStatus(target: ReportTarget): AiReportStatus {
   switch (target.provider) {
     case "webhook":
-      return { connected: true, provider: "webhook", label: "AI report connected (webhook)" };
+      return { connected: true, provider: "webhook", label: "AI Report Connected (Webhook)" };
     case "off":
-      return { connected: false, provider: "off", label: AI_REPORT_NOT_CONNECTED };
+      return { connected: false, provider: "off", label: AI_REPORT_NOT_CONNECTED_LABEL };
     case "misconfigured":
       return {
         connected: false,
         provider: "misconfigured",
-        label: `${AI_REPORT_NOT_CONNECTED}: configuration error`,
+        label: `${AI_REPORT_NOT_CONNECTED_LABEL}: ${CONFIGURATION_ERROR_LABEL}`,
         detail: target.problems.join(" "),
       };
   }
+}
+
+/**
+ * Why a hand-off that is not connected cannot run, as a message: a sentence
+ * ("AI not connected.", or "AI not connected: configuration error. <what to
+ * fix>"), where the status's label is the Title Case pill or title.
+ */
+export function reviewNotConnectedMessage(status: AiReviewStatus): string {
+  return notConnectedMessage(AI_REVIEW_NOT_CONNECTED, status);
+}
+
+export function reportNotConnectedMessage(status: AiReportStatus): string {
+  return notConnectedMessage(AI_REPORT_NOT_CONNECTED, status);
+}
+
+function notConnectedMessage(words: string, status: AiReviewStatus | AiReportStatus): string {
+  const head = status.provider === "misconfigured" ? `${words}: configuration error` : words;
+  return status.detail ? `${head}. ${status.detail}` : `${head}.`;
 }

@@ -409,7 +409,7 @@ test("the AI report hand-off: sends to the report service, or offers the JSON wh
   const send = report.getByRole("button", { name: /Send to AI Report/ });
 
   if ((await send.count()) === 0) {
-    await expect(report).toContainText("AI not connected");
+    await expect(report).toContainText("AI Not Connected");
     await expect(report.getByRole("link", { name: "Download JSON" })).toBeVisible();
     await shot(page, "admin-report-not-connected");
     return;

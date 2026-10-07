@@ -9,8 +9,12 @@ export { requestAiReport, REPORT_WEBHOOK_TIMEOUT_MS, type RequestAiReportOptions
 export { AiReportResponseSchema, type AiReportResponse } from "@/lib/schemas";
 export {
   getAiStatus,
+  reviewNotConnectedMessage,
+  reportNotConnectedMessage,
   AI_REVIEW_NOT_CONNECTED,
   AI_REPORT_NOT_CONNECTED,
+  AI_REVIEW_NOT_CONNECTED_LABEL,
+  AI_REPORT_NOT_CONNECTED_LABEL,
   type AiStatus,
   type AiReviewStatus,
   type AiReportStatus,

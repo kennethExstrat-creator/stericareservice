@@ -239,7 +239,9 @@ describe("AiReviewPanelView for an admin", () => {
     const html = render();
     const content = text(html);
     expect(content).toContain("AI Report");
-    expect(content).toContain("AI not connected");
+    // The pill in Title Case; the line under the heading is a sentence.
+    expect(content).toContain("AI Not Connected");
+    expect(content).toContain("AI not connected. Download the export (JSON)");
     expect(html).toContain(`href="/api/inspections/${IDS.inspection}/export"`);
     expect(html).toMatch(/<a[^>]*download=""[^>]*>|<a[^>]*download[^>]*>/);
     expect(content).not.toContain("Send to AI Report");
@@ -247,10 +249,10 @@ describe("AiReviewPanelView for an admin", () => {
 
   it("sends to the AI report when a report service is connected", () => {
     const content = text(
-      render({ aiStatus: { ...MOCK_STATUS, report: { connected: true, provider: "webhook", label: "AI report connected (webhook)" } } }),
+      render({ aiStatus: { ...MOCK_STATUS, report: { connected: true, provider: "webhook", label: "AI Report Connected (Webhook)" } } }),
     );
     expect(content).toContain("Send to AI Report");
-    expect(content).not.toContain("AI not connected");
+    expect(content).not.toMatch(/AI not connected/i);
   });
 
   it("keeps screen-reader text inside its component", () => {
@@ -308,7 +310,7 @@ describe("AiReviewPanelView for the inspector", () => {
 describe("AiReviewPanelView states", () => {
   it("says the second opinion is not connected, and what to set up", () => {
     const content = text(render({ aiStatus: OFF_STATUS, reviews: [], decisions: [] }));
-    expect(content).toContain("AI second opinion not connected");
+    expect(content).toContain("AI Second Opinion Not Connected");
     expect(content).toContain("To connect it, set ANTHROPIC_API_KEY or AI_REVIEW_WEBHOOK_URL on the server.");
     // Nothing is switched off: the hint does not send the admin looking for AI_REVIEW_PROVIDER.
     expect(content).not.toContain("AI_REVIEW_PROVIDER");
@@ -319,7 +321,7 @@ describe("AiReviewPanelView states", () => {
   it("says when the second opinion is switched off on purpose, and how to switch it on", () => {
     const switchedOff = { ...OFF_STATUS, review: { ...OFF_STATUS.review, switchedOff: true as const } };
     const content = text(render({ aiStatus: switchedOff, reviews: [], decisions: [] }));
-    expect(content).toContain("AI second opinion not connected");
+    expect(content).toContain("AI Second Opinion Not Connected");
     expect(content).toContain("It is switched off on the server: AI_REVIEW_PROVIDER is set to off. To connect it, set it to auto");
     // Inspectors are told who can change it, not how.
     const inspector = text(render({ aiStatus: switchedOff, reviews: [], decisions: [], isAdmin: false }));
@@ -329,7 +331,7 @@ describe("AiReviewPanelView states", () => {
 
   it("keeps earlier opinions readable after the reviewer is disconnected", () => {
     const content = text(render({ aiStatus: OFF_STATUS }));
-    expect(content).toContain("AI second opinion not connected");
+    expect(content).toContain("AI Second Opinion Not Connected");
     expect(content).toContain("Earlier second opinions are kept below.");
     expect(content).toContain("Finding F1");
   });

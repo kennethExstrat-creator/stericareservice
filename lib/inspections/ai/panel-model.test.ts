@@ -269,7 +269,7 @@ describe("buildAiPanelModel: who may do what", () => {
     expect(model({ aiStatus: OFF_STATUS }).review).toMatchObject({
       connected: false,
       canRequest: false,
-      label: "AI second opinion not connected",
+      label: "AI Second Opinion Not Connected",
     });
   });
 
@@ -283,7 +283,7 @@ describe("buildAiPanelModel: who may do what", () => {
 
   it("keeps drafts out of both hand-offs, and says why", () => {
     const draft = { ...record, status: "draft" as const };
-    const panel = model({ record: draft, aiStatus: { ...MOCK_STATUS, report: { connected: true, provider: "webhook", label: "AI report connected (webhook)" } } });
+    const panel = model({ record: draft, aiStatus: { ...MOCK_STATUS, report: { connected: true, provider: "webhook", label: "AI Report Connected (Webhook)" } } });
     expect(panel.review).toMatchObject({ canRequest: false, blockedReason: NOT_REVIEWABLE });
     expect(panel.report).toMatchObject({ connected: true, canSend: false, blockedReason: NOT_REPORTABLE });
   });
@@ -294,7 +294,7 @@ describe("buildAiPanelModel: who may do what", () => {
       review: {
         connected: false,
         provider: "misconfigured" as const,
-        label: "AI second opinion not connected: configuration error",
+        label: "AI Second Opinion Not Connected: Configuration Error",
         detail: "AI_REVIEW_PROVIDER is claude but ANTHROPIC_API_KEY is not set.",
       },
     };
