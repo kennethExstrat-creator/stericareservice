@@ -3,6 +3,7 @@ import type { EvaluatedInspection } from "@/lib/export/evaluate";
 import type { InspectionRecord } from "@/lib/export/record";
 import {
   decisions,
+  findings,
   IDS,
   loadFixture,
   MOCK_STATUS,
@@ -33,6 +34,7 @@ function model(overrides: Partial<PanelModelInput> = {}) {
     decisions: decisions(),
     photoLinks: PHOTO_LINKS,
     aiStatus: MOCK_STATUS,
+    viewerId: IDS.admin,
     isAdmin: true,
     now: NOW,
     ...overrides,
@@ -105,6 +107,35 @@ describe("buildAiPanelModel: reviews", () => {
         state: "flagged",
       },
     ]);
+  });
+
+  it("words cited photos as the review and the gallery do: the defect in the template's words, levels and entries named", () => {
+    const cite = (photos: string[]) =>
+      storedReview({
+        findings: [{ ...findings()[0], id: "F1", module: "visual", evidence: { values: [], boxes: [], photos } }],
+      });
+    const labelled = model({ reviews: [cite([IDS.photoVisual])] }).current?.findings[0].evidence.photos[0];
+    // Tagged size:M/defect:thin_spot; visual words thin_spot "Thin spot on glove body".
+    expect(labelled?.tags).toBe("Visual Inspection · Size M · Thin spot on glove body");
+
+    // A defect the module has no word for is named from the master list (defect_codes), as on the review.
+    const photos = record.photos.map((photo) =>
+      photo.id === IDS.photoVisual ? { ...photo, moduleKey: "labeling", target: "size:M/box:1324/defect:hole_cuff/level:carton" } : photo,
+    );
+    const named = model({
+      record: { ...record, photos },
+      reviews: [cite([IDS.photoVisual])],
+      defectNames: new Map([["hole_cuff", "Hole in cuff"]]),
+    }).current?.findings[0].evidence.photos[0];
+    // Labelling is not in this template: the module's own name, and the level in plain words, as the gallery has them.
+    expect(named?.tags).toBe("Packaging Labeling Inspection · Size M · Hole in cuff · Box 1324 · Carton");
+    // Without the name, the code as tagged.
+    const unnamed = model({ record: { ...record, photos }, reviews: [cite([IDS.photoVisual])] }).current?.findings[0];
+    expect(unnamed?.evidence.photos[0].tags).toContain("· hole_cuff ·");
+  });
+
+  it("knows who is looking: a half-made decision is kept under the admin's id", () => {
+    expect(model().viewer).toEqual({ id: IDS.admin, isAdmin: true });
   });
 
   it("waits for a review still being written and lets no second one start for the same version", () => {

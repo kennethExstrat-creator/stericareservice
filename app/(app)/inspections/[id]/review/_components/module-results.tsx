@@ -2,7 +2,10 @@
 // the inspector's comment on it (BUILD_SPEC 4.2 rule 7, 9.2). Custom modules
 // sit after the module they follow, with their values. Each module lists its
 // errors and warnings; "not done" is its own result, so the framework's
-// not-done warning is not repeated under it.
+// not-done warning is not repeated under it. Nor is a sentence twice: a
+// summary that only strings the per-size lines together stays out, and the
+// conclusion's HOLD reads "On hold", as the final result does
+// (lib/inspections/review/results.ts).
 //
 // Desktop (from 1024 px): one row per module in three columns under a
 // header row. iPad portrait: each module stacks, and the comment is labelled.
@@ -12,7 +15,8 @@ import { StatusPill } from "@/components/qc";
 import { formatNumber, formatSize } from "@/lib/format";
 import { formatInspectionDate } from "@/lib/inspections/format";
 import { isListedIssue, type ReviewEvaluation } from "@/lib/inspections/review/evaluate";
-import { inTemplateOrder, plural } from "@/lib/inspections/review/format";
+import { plural } from "@/lib/inspections/review/format";
+import { moduleSummary, shownStatus, sizeResults } from "@/lib/inspections/review/results";
 import type { CustomModule, Field } from "@/lib/schemas/template";
 import { templateSections } from "@/lib/templates";
 import type { ValidationIssue } from "@/lib/validation";
@@ -135,34 +139,33 @@ function Row({
 }
 
 function ModuleRow({ entry, issues, context }: { entry: ModuleEvaluation; issues: ValidationIssue[]; context: InspectionContext }) {
-  const { result } = entry;
-  const sizes = result.perSize ? inTemplateOrder(context, Object.keys(result.perSize)) : [];
+  // The conclusion's HOLD reads "On hold", as the final result does.
+  const status = shownStatus(entry);
+  const sizes = sizeResults(entry, context);
+  // Without the sentences the per-size lines below repeat.
+  const summary = moduleSummary(entry, context);
   return (
     <Row
       id={`module-${entry.key}`}
-      dataAttributes={{ "data-module": entry.key, "data-status": result.status }}
+      dataAttributes={{ "data-module": entry.key, "data-status": status }}
       heading={entry.title}
-      badge={<StatusPill status={result.status} size="sm" />}
+      badge={<StatusPill status={status} size="sm" />}
       comment={entry.comment}
       result={
         <>
-          {result.summary.trim() && <p className={cn("text-foreground", TEXT)}>{result.summary}</p>}
+          {summary && <p className={cn("text-foreground", TEXT)}>{summary}</p>}
           {sizes.length > 0 && (
             <ul aria-label={`${entry.title}: result per size`} className="grid gap-1.5">
-              {sizes.map((size) => {
-                const own = result.perSize?.[size];
-                if (!own) return null;
-                return (
-                  <li key={size} data-size={size} className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                    {/* Spaces between the parts for screen readers; the gap spaces them on screen. */}
-                    <span className={cn("min-w-18 font-medium text-foreground", TEXT)}>
-                      {formatSize(size, { sizes: context.templateSizes, prefix: true })}
-                    </span>{" "}
-                    <StatusPill status={own.status} size="sm" />{" "}
-                    {own.summary && <span className={cn("text-muted-foreground", TEXT)}>{own.summary}</span>}
-                  </li>
-                );
-              })}
+              {sizes.map((own) => (
+                <li key={own.size} data-size={own.size} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  {/* Spaces between the parts for screen readers; the gap spaces them on screen. */}
+                  <span className={cn("min-w-18 font-medium text-foreground", TEXT)}>
+                    {formatSize(own.size, { sizes: context.templateSizes, prefix: true })}
+                  </span>{" "}
+                  <StatusPill status={own.status} size="sm" />{" "}
+                  {own.summary && <span className={cn("text-muted-foreground", TEXT)}>{own.summary}</span>}
+                </li>
+              ))}
             </ul>
           )}
           {issues.length > 0 && <IssueList title={entry.title} issues={issues} />}

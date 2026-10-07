@@ -8,9 +8,11 @@ import type { InspectionStatus } from "@/lib/schemas/common";
 import type { ModuleStatus } from "@/lib/schemas/module-result";
 import type { CustomModule } from "@/lib/schemas/template";
 import type { ValidationIssue } from "@/lib/validation";
+import { tagLine } from "@/components/qc/photo-tags";
+import { photoTags, photoWording, type SectionWording } from "@/lib/inspections/review/photos";
 import { readModuleEntry, sizeLabel, type ModuleEvaluation } from "@/modules/_framework";
 import { inspectionFingerprint } from "./fingerprint";
-import { confidencePercent, formatDateTime, photoTagLine } from "./format";
+import { confidencePercent, formatDateTime } from "./format";
 import {
   aiReviewSourceLabel,
   isSameVersion,
@@ -66,17 +68,26 @@ export type PanelModelInput = {
   /** Photo id to signed URL, for the photos findings cite. */
   photoLinks: { thumbs: ReadonlyMap<string, string>; full: ReadonlyMap<string, string> };
   aiStatus: AiStatus;
+  /** The signed-in user: their half-made decisions are kept on this device under their id. */
+  viewerId: string;
   isAdmin: boolean;
+  /**
+   * The master list's names (defect_codes) of defects the cited photos are
+   * tagged with that their module has no label for, as the review's report
+   * photos and the gallery name them. Left out: such a defect shows as tagged.
+   */
+  defectNames?: ReadonlyMap<string, string>;
   /** Milliseconds since the epoch. */
   now: number;
 };
 
 export function buildAiPanelModel(input: PanelModelInput): AiPanelModel {
   const { record, evaluated, reviews, isAdmin, aiStatus, now } = input;
-  const titles = sectionTitles(evaluated);
+  // Cited photos are worded as the review's report photos are: module, size, defect, level and entry.
+  const wording = photoWording(evaluated);
   // The version reviews are compared with: the inspection's content as it is now.
   const version: InspectionVersion = { fingerprint: inspectionFingerprint(record), updatedAt: record.updatedAt };
-  const toReview = (review: StoredAiReview) => reviewModel(review, input, titles, version);
+  const toReview = (review: StoredAiReview) => reviewModel(review, input, wording, version);
 
   // The AI column shows the newest finished review; a newer request that is
   // still running, failed or stopped is the attempt shown above it.
@@ -114,7 +125,7 @@ export function buildAiPanelModel(input: PanelModelInput): AiPanelModel {
       reportUrl: record.reportUrl,
       exportHref: exportPath(record.id),
     },
-    viewer: { isAdmin },
+    viewer: { id: input.viewerId, isAdmin },
     review: {
       ...reviewHandoff,
       canRequest: isAdmin && reviewHandoff.connected && reviewable && !runningNow,
@@ -285,14 +296,6 @@ function isNotable(section: SectionModel): boolean {
   );
 }
 
-/** Section titles in the template's wording, for photo tags. */
-function sectionTitles(evaluated: EvaluatedInspection): Map<string, string> {
-  return new Map([
-    ...evaluated.template.modules.map((module) => [module.key as string, module.title] as const),
-    ...evaluated.template.customModules.map((custom) => [custom.key, custom.title] as const),
-  ]);
-}
-
 /* ------------------------------------------------------------------ *
  * Reviews, findings and decisions
  * ------------------------------------------------------------------ */
@@ -300,7 +303,7 @@ function sectionTitles(evaluated: EvaluatedInspection): Map<string, string> {
 function reviewModel(
   review: StoredAiReview,
   input: PanelModelInput,
-  titles: ReadonlyMap<string, string>,
+  wording: SectionWording,
   version: InspectionVersion,
 ): ReviewModel {
   const stale = isStale(review, input.now);
@@ -324,7 +327,7 @@ function reviewModel(
           ? STOPPED_MESSAGE
           : null,
     readable: review.readable,
-    findings: done ? review.findings.map((finding) => findingModel(review.id, finding, input, titles)) : [],
+    findings: done ? review.findings.map((finding) => findingModel(review.id, finding, input, wording)) : [],
     questions: done ? review.questions.map(questionModel) : [],
   };
 }
@@ -333,7 +336,7 @@ function findingModel(
   reviewId: string,
   finding: AiFinding,
   input: PanelModelInput,
-  titles: ReadonlyMap<string, string>,
+  wording: SectionWording,
 ): FindingModel {
   const decisions = input.decisions
     .filter((decision) => decision.reviewId === reviewId && decision.findingId === finding.id)
@@ -348,23 +351,26 @@ function findingModel(
     evidence: {
       values: finding.evidence.values.map((value) => ({ label: value.label, value: value.value, unit: value.unit ?? null })),
       boxes: finding.evidence.boxes,
-      photos: finding.evidence.photos.map((id) => photoEvidence(id, input, titles)),
+      photos: finding.evidence.photos.map((id) => photoEvidence(id, input, wording)),
     },
     decision: decisions[0] ?? null,
     history: decisions.slice(1),
   };
 }
 
-function photoEvidence(id: string, input: PanelModelInput, titles: ReadonlyMap<string, string>): PhotoEvidenceModel {
+function photoEvidence(id: string, input: PanelModelInput, wording: SectionWording): PhotoEvidenceModel {
   const photo = input.record.photos.find((candidate) => candidate.id === id);
   if (!photo) return { id, caption: null, tags: null, thumbUrl: null, url: null, state: "missing" };
   // A blank tag is no tag (as in the export).
   const moduleKey = blankToNull(photo.moduleKey)?.trim() ?? null;
-  const moduleTitle = moduleKey ? (titles.get(moduleKey) ?? moduleKey) : null;
+  const target = blankToNull(photo.target);
+  // "Visual Inspection · Size M · Thin spot on glove body"; nothing for a photo tagged with nothing.
+  const tags =
+    moduleKey === null && target === null ? null : tagLine(photoTags({ module_key: moduleKey, target }, wording, input.defectNames));
   return {
     id,
     caption: blankToNull(photo.caption),
-    tags: photoTagLine(moduleTitle, photo.target),
+    tags,
     thumbUrl: photo.flagged ? null : (input.photoLinks.thumbs.get(id) ?? null),
     url: input.photoLinks.full.get(id) ?? null,
     state: photo.flagged ? "flagged" : "ok",

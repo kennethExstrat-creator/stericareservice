@@ -3,14 +3,18 @@
 // while the modules are stubs (passes, fails, warnings, per-size results).
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { stdEgInspectionData, stdEgTemplate } from "@/lib/export/__fixtures__/std-eg";
 import {
   evaluated,
   INSPECTION_ID,
   reviewInspection,
   savedData,
+  storedInspection,
 } from "@/lib/inspections/review/__fixtures__/review";
 import type { AuditEntry } from "@/lib/inspections/review/audit";
+import { evaluateStoredInspection } from "@/lib/inspections/review/evaluate";
 import type { ReviewPhoto } from "@/lib/inspections/review/photos";
+import { MODULE_REGISTRY } from "@/modules/registry";
 import { History } from "./history";
 import { InspectionFacts } from "./inspection-facts";
 import { formatCustomValue, ModuleResults } from "./module-results";
@@ -117,6 +121,54 @@ describe("ModuleResults", () => {
     const broken = renderToStaticMarkup(<ModuleResults evaluation={evaluated({ resolved: null })} />);
     expect(text(broken)).toContain("could not be read, so its results cannot be worked out");
     expect(broken).not.toContain("<ol");
+  });
+
+  it("shows the inspector's HOLD as on hold, as the final result reads, not as a warning", () => {
+    const held = renderToStaticMarkup(
+      <ModuleResults
+        evaluation={evaluated({
+          data: { ...savedData(), modules: { ...savedData().modules, conclusion: { finalResult: "hold", remark: null } } },
+        })}
+      />,
+    );
+    const conclusion = row(held, "module-conclusion");
+    expect(conclusion).toContain('data-status="hold"');
+    expect(conclusion).toContain('data-slot="status-pill" data-status="hold"');
+    expect(text(conclusion)).toContain("On hold");
+    expect(text(conclusion)).not.toContain("Warning");
+  });
+});
+
+describe("ModuleResults on the STD_EG example", () => {
+  // The real modules, whose summaries often string the sizes' lines together.
+  const html = renderToStaticMarkup(
+    <ModuleResults
+      evaluation={evaluateStoredInspection(
+        storedInspection({ resolved: stdEgTemplate(), data: stdEgInspectionData() }),
+        MODULE_REGISTRY,
+      )}
+    />,
+  );
+  const count = (haystack: string, needle: string) => haystack.split(needle).length - 1;
+
+  it.each([
+    ["module-watertight", "1 / 500 (Finger 1), Defect Limit 14 / 15: Passed"],
+    ["module-dispensing_packing", "Layering 88.3% (min. 70%), Dispensing 90.3% (min. 80%), Stickiness A: Passed"],
+    ["module-carton_sampling", "50 carton numbers, unique and between 1 and 2,900"],
+  ])("says %s's result for size M once, on the size's line", (id, sentence) => {
+    const found = text(row(html, id));
+    expect(count(found, sentence)).toBe(1);
+    expect(found).toMatch(new RegExp(`Size M Passed ${sentence.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+  });
+
+  it("keeps what a summary adds to the sizes' lines: force at break's spec", () => {
+    const found = text(row(html, "module-force_at_break"));
+    expect(count(found, "Median 6.537 N")).toBe(1);
+    expect(found).toContain("Spec. ≥ 6 N. Size M Passed Median 6.537 N");
+  });
+
+  it("keeps a headline that says something of its own", () => {
+    expect(text(row(html, "module-dimensions"))).toContain("Median within spec for size M. Size M Passed Median: Length 245");
   });
 });
 

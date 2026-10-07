@@ -41,7 +41,7 @@ export type DecisionModel = {
 export type PhotoEvidenceModel = {
   id: string;
   caption: string | null;
-  /** "Size M · Box 253", from the photo's tags. */
+  /** "Visual Inspection · Size M · Thin spot on glove body", from the photo's tags in the template's wording. */
   tags: string | null;
   /** Signed for an hour; null when it could not be signed or the photo has no thumbnail. */
   thumbUrl: string | null;
@@ -134,7 +134,8 @@ export type AiPanelModel = {
     reportUrl: string | null;
     exportHref: string;
   };
-  viewer: { isAdmin: boolean };
+  /** The signed-in user: decisions are for admins, and a half-made one is kept under the user's id on this device. */
+  viewer: { id: string; isAdmin: boolean };
   review: HandoffModel & {
     canRequest: boolean;
     /** Why an admin cannot request one now, e.g. "Only submitted or approved inspections are reviewed." */

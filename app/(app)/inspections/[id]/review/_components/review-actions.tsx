@@ -21,6 +21,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { approveInspection, reopenInspection, type ReviewActionResult } from "@/lib/inspections/review/actions";
 import { approvalCautions, type ApprovalFacts } from "@/lib/inspections/review/approval";
+import { readReopenDraft, reopenDraftKey, useTabDraft, writeReopenDraft } from "@/lib/inspections/review/drafts";
 import { RESULT_LABEL } from "@/lib/inspections/review/format";
 import { REOPEN_REASON_MAX, REVIEW_MESSAGES } from "@/lib/inspections/review/schemas";
 import { unreachable } from "./unreachable";
@@ -31,6 +32,8 @@ export type ReviewActionsProps = ApprovalFacts & {
   refNo: string;
   /** `updated_at` as rendered: approving applies to this version only. */
   version: string;
+  /** The signed-in admin: a reason for reopening, typed and not sent, is kept in this tab under their id. */
+  viewerId: string;
 };
 
 const IDLE: ReviewActionResult = { status: "idle" };
@@ -183,11 +186,18 @@ export function ApproveDescription({ finalResult, suggestedResult, errors }: App
   );
 }
 
-function ReopenDialog({ inspectionId, refNo, onClose, returnFocusTo }: DialogProps) {
+function ReopenDialog({ inspectionId, refNo, viewerId, onClose, returnFocusTo }: DialogProps) {
   const id = useId();
   const reasonRef = useRef<HTMLTextAreaElement>(null);
-  // Controlled, so a failed attempt keeps what the admin wrote.
-  const [reason, setReason] = useState("");
+  // Controlled, so a failed attempt keeps what the admin wrote; kept in the
+  // tab as it is typed, so a reload does not lose it either. Sent, or the
+  // dialog cancelled, it goes.
+  const [draft, setDraft] = useTabDraft(reopenDraftKey(viewerId, inspectionId), readReopenDraft, writeReopenDraft);
+  const reason = draft ?? "";
+  const close = () => {
+    setDraft(null);
+    onClose();
+  };
   const [reasonError, setReasonError] = useState<string | null>(null);
 
   const [state, formAction, pending] = useActionState(async (previous: ReviewActionResult, formData: FormData) => {
@@ -199,7 +209,7 @@ function ReopenDialog({ inspectionId, refNo, onClose, returnFocusTo }: DialogPro
     const fieldError = result.status === "error" ? (result.fieldErrors?.reason ?? null) : null;
     setReasonError(fieldError);
     if (fieldError) reasonRef.current?.focus();
-    return settle(inspectionId, result, onClose);
+    return settle(inspectionId, result, close);
   }, IDLE);
 
   const formError = state.status === "error" && !state.fieldErrors ? state.message : null;
@@ -209,12 +219,16 @@ function ReopenDialog({ inspectionId, refNo, onClose, returnFocusTo }: DialogPro
   return (
     <ReviewDialog
       pending={pending}
-      onClose={onClose}
+      // Cancelled (the button, Escape, outside): the reason goes with it.
+      onClose={close}
       returnFocusTo={returnFocusTo}
-      // Straight to the reason: it is the one thing to fill in.
+      // Straight to the reason: it is the one thing to fill in. A reason
+      // brought back from before a reload goes on where it stopped.
       onOpenAutoFocus={(event) => {
         event.preventDefault();
-        reasonRef.current?.focus();
+        const field = reasonRef.current;
+        field?.focus();
+        field?.setSelectionRange(field.value.length, field.value.length);
       }}
     >
       <form action={formAction} noValidate className="grid gap-5">
@@ -235,7 +249,7 @@ function ReopenDialog({ inspectionId, refNo, onClose, returnFocusTo }: DialogPro
             maxLength={REOPEN_REASON_MAX}
             value={reason}
             onChange={(event) => {
-              setReason(event.target.value);
+              setDraft(event.target.value === "" ? null : event.target.value);
               if (reasonError) setReasonError(null);
             }}
             aria-invalid={reasonError ? true : undefined}

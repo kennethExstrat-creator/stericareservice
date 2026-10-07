@@ -43,6 +43,7 @@ function model(overrides: Partial<PanelModelInput> = {}) {
     decisions: decisions(),
     photoLinks: PHOTO_LINKS,
     aiStatus: MOCK_STATUS,
+    viewerId: IDS.admin,
     isAdmin: true,
     now: NOW,
     ...overrides,
@@ -129,6 +130,55 @@ describe("AiReviewPanelView for an admin", () => {
     expect(html).toContain('href="https://storage.test/weight.jpg"');
     expect(html).toContain('src="https://storage.test/thumb-weight.jpg"');
     expect(html).toContain('aria-label="Scale reading, Weight (g) · Size M (opens in a new tab)"');
+  });
+
+  it("keeps a short value beside its label, right aligned, and gives a quoted sentence a left-aligned line of its own", () => {
+    const sentence = "Manufacturer Information is not done: Missing: Supplier Factory Address / Location.";
+    const panel = model();
+    const finding = {
+      ...panel.current!.findings[0],
+      evidence: {
+        values: [
+          { label: "Module result", value: "not_done", unit: null },
+          { label: "Warning module_not_done", value: sentence, unit: null },
+        ],
+        boxes: [],
+        photos: [],
+      },
+    };
+    const html = renderToStaticMarkup(
+      <FindingCard finding={finding} reviewId={panel.current!.id} canDecide={false} viewerId={IDS.admin} />,
+    );
+    const rows = [...html.matchAll(/<div data-layout="(inline|block)" class="([^"]*)"><dt[^>]*>([^<]*)<\/dt><dd class="([^"]*)">([^<]*)<\/dd>/g)].map(
+      ([, layout, row, label, value, words]) => ({ layout, row, label, value, words }),
+    );
+    expect(rows.map(({ layout, label }) => [label, layout])).toEqual([
+      ["Module result", "inline"],
+      ["Warning module_not_done", "block"],
+    ]);
+    expect(rows[0].row).toContain("justify-between");
+    expect(rows[0].value).toContain("text-right");
+    expect(rows[1].row).not.toContain("justify-between");
+    expect(rows[1].value).toContain("basis-full");
+    expect(rows[1].value).toContain("text-left");
+    expect(rows[1].value).not.toContain("text-right");
+    expect(rows[1].words).toBe(sentence);
+  });
+
+  it("names a cited photo by the template's words for its tags, in its title and its link", () => {
+    const panel = model({
+      reviews: [
+        storedReview({
+          findings: [{ ...storedReview().findings[0], module: "visual", evidence: { values: [], boxes: [], photos: [IDS.photoVisual] } }],
+        }),
+      ],
+      photoLinks: { thumbs: new Map(), full: new Map([[IDS.photoVisual, "https://storage.test/visual.jpg"]]) },
+    });
+    const html = renderToStaticMarkup(<AiReviewPanelView model={panel} />);
+    // Tagged size:M/defect:thin_spot: never the code.
+    expect(html).toContain('title="Visual Inspection · Size M · Thin spot on glove body"');
+    expect(html).toContain('aria-label="Thin spot on glove body, Visual Inspection · Size M · Thin spot on glove body (opens in a new tab)"');
+    expect(html).not.toContain("thin_spot");
   });
 
   it("lists the AI's questions for the inspector where they belong", () => {

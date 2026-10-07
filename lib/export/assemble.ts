@@ -8,6 +8,7 @@ import {
   type ExportPhoto,
 } from "@/lib/schemas/export";
 import { IsoDateSchema, type JsonValue } from "@/lib/schemas/common";
+import type { ResolvedTemplate, TemplateUnit } from "@/lib/schemas/template";
 import { sectionOrder } from "@/lib/templates";
 import { exportIssuesOf } from "@/lib/validation";
 import { readModuleEntry, type ModuleEvaluation } from "@/modules/_framework";
@@ -72,6 +73,7 @@ export function assembleExport({ record, evaluated, links, exportedAt }: Assembl
       reportTitle: template.report.title,
       clientLogoUrl: links.clientLogo,
       sourceFile: links.sourceFile,
+      ...templateDetails(template),
     },
     modules: report.modules.map((evaluation) => exportModule(evaluated, evaluation)),
     excludedModules: report.excluded.map(({ key, title, reason }) => ({ key, title, reason })),
@@ -112,6 +114,32 @@ export function assembleExport({ record, evaluated, links, exportedAt }: Assembl
       return url ? [{ id: file.id, url, moduleKey: file.moduleKey, kind: file.kind, name: file.name }] : [];
     }),
     conclusion: conclusionOf(record, evaluated),
+  };
+}
+
+/** The template's sizes, unit and running header, for the report's fixed rows and later pages. */
+export type ExportTemplateDetails = {
+  /** Every size the template lists, in its order, with the name the report shows: its "Shown as", else the size itself. */
+  sizes: { value: string; label: string }[];
+  /** Gloves counted in pieces or in pairs. */
+  unit: TemplateUnit;
+  /** The header on pages after the first; null when the template sets none. */
+  pageHeader: string | null;
+};
+
+/**
+ * What the report needs from the template besides its title (BUILD_SPEC 9.1,
+ * Phase 3: everything to write the report without opening the app): the
+ * fixed size rows (XS to XL for EG, 5.5 to 9.0 for STD_SG) whatever was
+ * ordered, the unit, and the running header the template editor sets under
+ * "AI report". The export keeps those ExportTemplateSchema lists: validating
+ * the document drops any other key.
+ */
+export function templateDetails(template: Pick<ResolvedTemplate, "sizes" | "unit" | "report">): ExportTemplateDetails {
+  return {
+    sizes: template.sizes.map(({ value, label }) => ({ value, label })),
+    unit: template.unit,
+    pageHeader: template.report.pageHeader ?? null,
   };
 }
 
