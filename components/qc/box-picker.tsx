@@ -28,6 +28,7 @@ import {
 } from "./box-options";
 import { caretOf } from "./grid-navigation";
 import { issuePathProps, type IssuePath } from "./issue-path";
+import { COARSE_QUERY } from "./use-media-query";
 
 type BoxPickerProps = {
   value: number | null;
@@ -116,7 +117,7 @@ export function BoxPicker({
     if (change.open) {
       setQuery("");
       setActive(value !== null && listed.includes(value) ? value : null);
-      setColumns(window.matchMedia("(pointer: fine)").matches ? 5 : 4);
+      setColumns(window.matchMedia(COARSE_QUERY).matches ? 4 : 5);
     }
     if (change.reportFocus) onFocus?.();
     setOpen(change.open);
@@ -211,7 +212,7 @@ export function BoxPicker({
             // the on-screen keyboard does not cover the boxes; without a list
             // the box number has to be typed, so the field takes focus.
             event.preventDefault();
-            const typing = !hasList || window.matchMedia("(pointer: fine)").matches;
+            const typing = !hasList || !window.matchMedia(COARSE_QUERY).matches;
             document.getElementById(typing ? searchId : listId)?.focus();
           }}
         >

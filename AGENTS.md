@@ -39,9 +39,10 @@ QC inspection app for SteriCare glove inspectors: iPad for capture, desktop for 
 - Light SteriCare theme from `docs/design-reference/` (read-only snapshot of the website).
   Tokens live in `app/globals.css`; rules in `docs/DESIGN.md`. No dark mode, no marketing motion.
 - Status colours are separate from the brand: pass green, fail red, warn/hold amber, not done slate.
-- iPad: 44 px touch targets (`pointer: coarse`). Desktop (>= 1280 px with a mouse or trackpad): compact rows,
-  sidebar layout. Every touch screen gets the iPad layout whatever its width: `xl:`/`max-xl:` and `WIDE_QUERY`
-  include `(pointer: fine)` (12.9 and 13 inch iPads are 1366 px wide in landscape).
+- iPad: 44 px touch targets on any touchscreen (`touch:` = `any-pointer: coarse`, also with a keyboard and
+  trackpad attached). Desktop (>= 1280 px and no touchscreen): compact rows, sidebar layout. Every touch screen
+  gets the iPad layout whatever its width: `xl:`/`max-xl:` and `WIDE_QUERY` require no touchscreen (12.9 and
+  13 inch iPads are 1366 px wide in landscape).
 
 ## AI
 - `lib/ai/` holds the AI hand-offs (BUILD_SPEC 9). Default model `claude-opus-5-5`.

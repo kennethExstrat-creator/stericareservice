@@ -6,6 +6,7 @@
 
 import { useCallback, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { COARSE_QUERY } from "@/components/qc";
 
 /** What the panel shows: a new row, or the row with this id. */
 export type PanelTarget = { mode: "create" } | { mode: "edit"; id: string };
@@ -107,7 +108,7 @@ export function ReferencePanel({
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           const content = contentRef.current;
-          const field = window.matchMedia("(pointer: coarse)").matches
+          const field = window.matchMedia(COARSE_QUERY).matches
             ? null
             : content?.querySelector<HTMLElement>("input:not([type='hidden']):not([type='file']), textarea");
           (field ?? content)?.focus();
