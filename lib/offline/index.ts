@@ -51,6 +51,13 @@ export {
   type Reconciliation,
   type SetAsideDraft,
 } from "./drafts";
+export {
+  readRefusedEntries,
+  writeRefusedEntries,
+  refusedEntriesKey,
+  MAX_REFUSED_ENTRIES,
+  type StoredRefusedEntry,
+} from "./refused";
 export { defaultWriterLock, pageLock, webLock, type ReleaseLock, type WriterLock } from "./lock";
 export {
   openOfflineDatabase,

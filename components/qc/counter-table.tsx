@@ -242,6 +242,9 @@ export function CounterTable({
     onCountChange(cell, next);
     setTouched(cell);
     setRemoved(null);
+    // Counting is being in that cell, for photo tags, however the count changed: a tap, a held
+    // button (WebKit may send no click after it), a key (cellFocusProps).
+    onCellFocus?.(cell);
   };
   const touchedColumn = touched ? columns.find((column) => column.key === touched.column) : undefined;
   const announcement =
@@ -440,7 +443,7 @@ export function CounterTable({
                       <td
                         key={`${column.key}:${hand}`}
                         data-nonzero={count > 0 || undefined}
-                        onFocus={onCellFocus ? () => onCellFocus(cell) : undefined}
+                        {...cellFocusProps(onCellFocus, cell)}
                         {...issuePathProps(cellIssuePath?.(cell))}
                         className={cn(
                           // A fixed width (COUNTER_WIDTHS.value), so stacked tables line up.
@@ -520,6 +523,24 @@ export function CounterTable({
       </p>
     </div>
   );
+}
+
+/**
+ * How a count's cell reports itself for photo tags (BUILD_SPEC 8.1): when
+ * the focus comes in (the keyboard), and when it is pressed. Safari and
+ * Chrome on the iPad (WebKit) never focus a tapped button, so a tap on + or −
+ * would report nothing and the next photo would miss its size and defect.
+ * The press is the click that lands, which a swipe to the next size (SizeTabs
+ * drops it) or a scroll that starts on a stepper never makes. A count that
+ * changes reports its cell too (CounterTable's change), for a held button.
+ */
+export function cellFocusProps(
+  onCellFocus: ((cell: CounterCell) => void) | undefined,
+  cell: CounterCell,
+): { onFocus?: () => void; onClick?: () => void } {
+  if (!onCellFocus) return {};
+  const report = () => onCellFocus(cell);
+  return { onFocus: report, onClick: report };
 }
 
 /**

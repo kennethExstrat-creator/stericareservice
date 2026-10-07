@@ -14,7 +14,10 @@
 // run's last field, other spreadsheet columns) shows on screen: under the
 // field pasted into, or for cells and named runs (a table's column or row),
 // across the foot of their EnterGroup. PercentField is the same with "%" and
-// 0 to 100.
+// 0 to 100. With `issuePath`, a refused entry is kept in the screen's store
+// of refused entries (refused-entries.ts): it comes back with the field after
+// a size or section switch or a reload, and the module hears of it again
+// through onInvalidChange, so its own list of problems has it too.
 import {
   createContext,
   useContext,
@@ -44,10 +47,11 @@ import {
   type PasteLeftOut,
   type PasteResult,
 } from "./field-navigation";
-import { issuePathProps, type IssuePath } from "./issue-path";
+import { issuePathKey, issuePathProps, type IssuePath } from "./issue-path";
 import { NumericCell, type InvalidEntry } from "./numeric-cell";
 import { readEntry } from "./numeric-entry";
 import { PasteNotice } from "./paste-notice";
+import { sameInvalidEntry, useRefusedEntryStore } from "./refused-entries";
 import { StatusIcon } from "./status-icon";
 import { useAnnouncement } from "./use-announcement";
 
@@ -172,11 +176,42 @@ export function NumberField({
   const input = useRef<HTMLInputElement>(null);
   // What the last paste into this field left out, where the field shows it itself.
   const [leftOut, setLeftOut] = useState<PasteLeftOut | null>(null);
-  const [ownInvalid, setOwnInvalidState] = useState<InvalidEntry | null>(null);
+  const name = labelText(label, unit);
+
+  // A refused entry: in the screen's store when the field has an issue path, else the field's own.
+  const refusedStore = useRefusedEntryStore();
+  const kept = refusedStore !== null && issuePath !== undefined;
+  const keptEntry = kept ? (refusedStore.get(issuePath) ?? null) : null;
+  const [localInvalid, setLocalInvalid] = useState<InvalidEntry | null>(null);
+  const ownInvalid = kept ? keptEntry : localInvalid;
+  // The entry the module last heard of (onInvalidChange).
+  const reported = useRef<InvalidEntry | null>(null);
   const setOwnInvalid = (entry: InvalidEntry | null) => {
-    setOwnInvalidState(entry);
+    if (kept) refusedStore.set(issuePath, entry, name);
+    else setLocalInvalid(entry);
+    reported.current = entry;
     onInvalidChange?.(entry);
   };
+
+  // A kept entry the module has not heard of (made before the field came
+  // back: another size, another section, a reload) is told now, so its list
+  // of problems has it too; and one a value has since replaced is let go.
+  const shownKept = kept && value === null ? keptEntry : null;
+  const tellModule = useEffectEvent((entry: InvalidEntry | null) => {
+    reported.current = entry;
+    onInvalidChange?.(entry);
+  });
+  useEffect(() => {
+    if (kept && !sameInvalidEntry(shownKept, reported.current)) tellModule(shownKept);
+  }, [kept, shownKept]);
+  const replaced = keptEntry !== null && value !== null;
+  const letGo = useEffectEvent(() => {
+    if (refusedStore && issuePath) refusedStore.set(issuePath, null);
+  });
+  const pathKey = issuePath ? issuePathKey(issuePath) : null;
+  useEffect(() => {
+    if (replaced) letGo();
+  }, [replaced, pathKey]);
   // Said again when the same paste repeats.
   const [notice, announce] = useAnnouncement();
   // A rejected entry leaves the value null; a value set later (a prefill) supersedes it.
@@ -276,8 +311,6 @@ export function NumberField({
     input.current?.focus();
     setLeftOut(null);
   };
-
-  const name = labelText(label, unit);
 
   const describedBy = [
     hint && variant === "field" ? hintId : null,

@@ -12,19 +12,24 @@ vi.mock("../actions", () => ({
 }));
 
 import { SITE_NOTES, SIZE_TABLE, TEST_ADMIN_ID } from "@/lib/inspections/capture/__fixtures__/capture";
+import { captureAccess } from "@/lib/inspections/capture/access";
 import type { CaptureSection } from "@/lib/inspections/capture/sections";
 import type { ValidationIssue } from "@/lib/validation";
 import { TEST_REGISTRY } from "@/modules/_framework/__fixtures__/test-registry";
 import { makeTestContext } from "@/modules/_framework/testing";
 import CaptureLoading from "../loading";
 import { CaptureHeader } from "./capture-header";
-import { CaptureNotices } from "./capture-notices";
+import { captureNotices, CaptureNotices, submittedMessage } from "./capture-notices";
 import { FieldControl } from "./field-control";
 import { TaskItem } from "./issues-sheet";
+import { isLoadFailure, sectionFailure } from "./load-failure";
 import { formatOverrideTime, SwitchedOffPanel } from "./module-switch";
 import { CustomModuleForm, FallbackModuleForm } from "./plain-forms";
 import { SaveIndicator } from "./save-indicator";
+import { SectionErrorBoundary } from "./section-error-boundary";
 import { SectionFrame } from "./section-frame";
+import { SectionList } from "./section-list";
+import { SubmitSummary } from "./submit-control";
 import { nextTabIndex, SectionTabs, tabId } from "./section-tabs";
 import { UnreadableData } from "./unreadable-data";
 
@@ -219,6 +224,167 @@ describe("CaptureNotices", () => {
 
   it("renders nothing without notices", () => {
     expect(renderToStaticMarkup(<CaptureNotices notices={[]} />)).toBe("");
+  });
+});
+
+describe("captureNotices (who reads a read-only inspection)", () => {
+  const INSPECTOR = "00000000-0000-4000-8000-000000000101";
+  const LEAD = "00000000-0000-4000-8000-000000000103";
+  const notice = (status: "submitted" | "approved" | "draft", role: "inspector" | "admin", userId: string) =>
+    captureNotices({
+      access: captureAccess({ status, role, userId, inspectorId: INSPECTOR }),
+      role,
+      inspectorName: "Ivan Inspector",
+      reviewHref: "/inspections/x/review",
+      lockedElsewhere: false,
+      reopenNote: null,
+      phase: "off",
+      setAside: false,
+      error: null,
+      localCopy: true,
+      pending: false,
+      retry: noop,
+      signInHref: "/login",
+    })[0];
+
+  it("tells the inspector an admin can send their own submitted inspection back", () => {
+    expect(notice("submitted", "inspector", INSPECTOR)).toMatchObject({
+      key: "submitted",
+      message: "Submitted for review: read-only. An admin can send it back to you for changes.",
+    });
+  });
+
+  it("tells a lead whose submitted inspection it is, never that it can be sent back to them", () => {
+    const lead = notice("submitted", "inspector", LEAD);
+    expect(lead).toMatchObject({ key: "submitted", message: "Submitted for review by Ivan Inspector: read-only." });
+    expect(String(lead.message)).not.toContain("back to you");
+    expect(renderToStaticMarkup(<>{lead.action}</>)).toContain("Open the review");
+    expect(submittedMessage({ role: "inspector", own: false, inspectorName: " " })).toBe(
+      "Submitted for review by another inspector: read-only.",
+    );
+  });
+
+  it("keeps the admin's wording, and a team member's draft says it belongs to another inspector", () => {
+    expect(notice("submitted", "admin", LEAD).message).toBe(
+      "Submitted for review: read-only here. To change it, reopen it from the review.",
+    );
+    expect(notice("draft", "inspector", LEAD)).toMatchObject({
+      key: "not-yours",
+      message: "This inspection belongs to another inspector: read-only.",
+    });
+    expect(notice("approved", "inspector", LEAD).message).toBe("Approved: this inspection is read-only.");
+  });
+});
+
+describe("SubmitSummary (the submit confirmation)", () => {
+  const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+
+  it("names the result in DESIGN.md's words, with nothing repeating it for a clean pass", () => {
+    const html = renderToStaticMarkup(<SubmitSummary suggested={{ result: "pass", reasons: [] }} warningCount={0} />);
+    expect(text(html)).toBe("Suggested result Passed");
+    expect(html).not.toContain('data-slot="suggested-reasons"');
+    expect(html).not.toMatch(/>Pass\.?</);
+  });
+
+  it("says why under the pill, a line each, as the Conclusion section words it", () => {
+    const html = renderToStaticMarkup(
+      <SubmitSummary
+        suggested={{ result: "pass", reasons: ["Warnings: Weight (g) - average of 13 gloves per size."] }}
+        warningCount={1}
+      />,
+    );
+    expect(text(html)).toBe(
+      "Suggested result Passed Why Warnings: Weight (g) - average of 13 gloves per size. Warnings 1 warning goes into the report.",
+    );
+    expect(text(renderToStaticMarkup(<SubmitSummary suggested={{ result: "hold", reasons: ["Not done: Visual Inspection."] }} warningCount={0} />))).toBe(
+      "Suggested result On hold Why Not done: Visual Inspection.",
+    );
+    expect(text(renderToStaticMarkup(<SubmitSummary suggested={{ result: "fail", reasons: [] }} warningCount={0} />))).toBe(
+      "Suggested result Failed",
+    );
+  });
+});
+
+describe("SectionErrorBoundary (a section's form that did not show)", () => {
+  const chunkError = Object.assign(new Error("Failed to load chunk /_next/static/chunks/abc.js from module 123"), {
+    name: "ChunkLoadError",
+  });
+  const shown = (error: Error, online: boolean) => {
+    const boundary = new SectionErrorBoundary({ title: "Visual Inspection", children: <p>Form</p> });
+    boundary.state = { error, online };
+    return renderToStaticMarkup(<>{boundary.render()}</>);
+  };
+
+  it("tells a form that could not download from one that crashed", () => {
+    expect(isLoadFailure(chunkError)).toBe(true);
+    expect(isLoadFailure(new TypeError("Failed to fetch dynamically imported module: https://x/_next/a.js"))).toBe(true);
+    expect(isLoadFailure(new TypeError("Importing a module script failed."))).toBe(true);
+    expect(isLoadFailure(new TypeError("Cannot read properties of undefined (reading 'sizes')"))).toBe(false);
+    expect(isLoadFailure("Failed to load chunk")).toBe(false);
+    expect(sectionFailure(chunkError, false)).toBe("offline");
+    expect(sectionFailure(new Error("boom"), false)).toBe("offline");
+    expect(sectionFailure(chunkError, true)).toBe("not_loaded");
+    expect(sectionFailure(new Error("boom"), true)).toBe("crashed");
+  });
+
+  it("says calmly that an offline section opens once the connection is back: no red, no developer", () => {
+    const html = shown(chunkError, false);
+    expect(html).toContain('role="status"');
+    expect(html).toContain('data-failure="offline"');
+    expect(html).toContain("This section opens once the connection is back.");
+    expect(html).toContain("Nothing is lost.");
+    expect(html).toContain("Try again");
+    expect(html).not.toMatch(/\b(text|bg|border)-fail/);
+    expect(html).not.toContain("developer");
+    expect(html).not.toContain("Reload");
+  });
+
+  it("offers Try again and Reload for a download that failed online", () => {
+    const html = shown(chunkError, true);
+    expect(html).toContain('data-failure="not_loaded"');
+    expect(html).toContain("The form for Visual Inspection did not load.");
+    expect(html).toContain("Reload");
+    expect(html).not.toContain("developer");
+  });
+
+  it("keeps the red alert for a form that crashed", () => {
+    const html = shown(new TypeError("Cannot read properties of undefined"), true);
+    expect(html).toContain('role="alert"');
+    expect(html).toContain("The form for Visual Inspection could not be shown.");
+    expect(html).toContain("report this to a developer");
+  });
+
+  it("shows the form while nothing failed", () => {
+    expect(renderToStaticMarkup(<SectionErrorBoundary title="Visual Inspection">{<p>Form</p>}</SectionErrorBoundary>)).toBe(
+      "<p>Form</p>",
+    );
+  });
+});
+
+describe("SectionList (the desktop sidebar)", () => {
+  const long: CaptureSection[] = [
+    { kind: "module", key: "dispensing_safedon", title: "Glove Dispensing Inspection", status: "not_done", summary: "", progress: "not_started", stub: false, errors: 0, warnings: 0 },
+    { kind: "custom", key: "onsite", title: "Glove Dispensing Inspection: onsite notes", status: "not_done", summary: "", progress: "not_started", custom: { key: "onsite", title: "Glove Dispensing Inspection: onsite notes", after: "dispensing_safedon", layout: "fields", fields: [] }, errors: 0, warnings: 0 },
+    { kind: "excluded", key: "labeling", title: "Packaging Labeling Inspection", override: { reason: "Not ordered.", by: TEST_ADMIN_ID, at: "2026-10-06T08:00:00.000Z" } },
+  ];
+  const html = renderToStaticMarkup(<SectionList sections={long} activeKey="onsite" onSelect={noop} />);
+
+  it("wraps a long title to two lines instead of cutting it to one, and names it in full on hover", () => {
+    const buttons = tagsWith(html, `type="button"`);
+    expect(buttons).toHaveLength(3);
+    expect(buttons.map((button) => /title="([^"]*)"/.exec(button)?.[1])).toEqual([
+      "Glove Dispensing Inspection",
+      "Glove Dispensing Inspection: onsite notes",
+      "Packaging Labeling Inspection",
+    ]);
+    // Rows grow from their 36 px (44 px on touch) instead of clipping the second line.
+    for (const button of buttons) {
+      expect(button).toMatch(/\bmin-h-9\b/);
+      expect(button).toMatch(/touch:min-h-11/);
+      expect(button).not.toMatch(/[\s"]h-9[\s"]/);
+    }
+    expect(html).toMatch(/class="line-clamp-2[^"]*">Glove Dispensing Inspection: onsite notes</);
+    expect(html).not.toMatch(/\btruncate\b/);
   });
 });
 

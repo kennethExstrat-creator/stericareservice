@@ -107,6 +107,26 @@ describe("screen-reader text stays inside its component (D1)", () => {
   });
 });
 
+describe("ProgressTracker list (the desktop sidebar)", () => {
+  const steps = [
+    { key: "dispensing", label: "Glove Dispensing Inspection", state: "in_progress", result: "not_done" },
+    { key: "onsite", label: "Glove Dispensing Inspection: onsite notes", state: "not_started" },
+  ] as const;
+
+  it("wraps a long title to two lines instead of cutting it short, and names it in full on hover", () => {
+    for (const onStepSelect of [noop, undefined]) {
+      const html = renderToStaticMarkup(
+        <ProgressTracker variant="list" steps={steps} activeKey="onsite" onStepSelect={onStepSelect} />,
+      );
+      expect(html).toContain('title="Glove Dispensing Inspection: onsite notes"');
+      expect(html).toMatch(/class="line-clamp-2[^"]*">Glove Dispensing Inspection: onsite notes</);
+      expect(html).not.toMatch(/\btruncate\b/);
+      // Rows grow with a second line: a minimum height, never a fixed one.
+      expect(html).toMatch(/class="relative flex min-h-9 [^"]*touch:min-h-11/);
+    }
+  });
+});
+
 describe("StatusPill", () => {
   it.each(STATUSES)("shows %s as an icon and words, never colour alone", (status) => {
     const html = renderToStaticMarkup(<StatusPill status={status} />);
