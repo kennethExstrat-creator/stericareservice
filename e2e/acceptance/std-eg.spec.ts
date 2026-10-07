@@ -840,11 +840,6 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await sectionReady(page, SECTION.cartons);
     const second = page.getByRole("textbox", { name: `M (Carton #), row ${FIX_CARTON.cell.row} column ${FIX_CARTON.cell.column}`, exact: true });
     await check(second, "the link lands on the second 525").toBeFocused();
-    // Waits out a known app weakness: goToIssue's 700 ms fallback (capture-screen.tsx) takes focus
-    // from a popover opened within 0.7 s of an issue link and closes it. Without this wait it
-    // closed the box list of Correction 2 (another section by then), and the pick from it timed out.
-    await page.waitForTimeout(1_000);
-    await check(second, "the cell keeps the focus").toBeFocused();
   });
 
   await test.step("Correction 1: the second 525 becomes 830; the carton list passes", async () => {
@@ -854,6 +849,26 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await check(sectionSummary(page)).toContainText(`Size M: ${EXPECTED.cartonList.entries} carton numbers, unique and between 1 and ${grouped(ORDER.qtyCases)}.`);
     await check(frame.locator(".text-fail"), "no carton error left").toHaveCount(0);
     await shot(page, "18-cartons-corrected");
+  });
+
+  await test.step("A box list opened right after an issue link stays open", async () => {
+    // goToIssue (capture-screen.tsx) gives the section title focus 0.7 s after an issue link when
+    // nothing in the section took it. It once took focus from a box list opened within that time
+    // (a portal outside the section), and the list closed; it now stands down once the inspector
+    // presses or types.
+    await page.getByRole("button", { name: /^Pending/ }).tap();
+    const sheet = page.getByRole("dialog", { name: "Pending" });
+    await expect(sheet).toBeVisible();
+    await sheet.getByRole("button", { name: PENDING_ROW.box, exact: true }).tap();
+    await sectionReady(page, SECTION.packingCheck);
+    const { dispensingBox } = EXPECTED;
+    await frameOf(page).getByRole("combobox", { name: `Box #, Item ${dispensingBox.item}`, exact: true }).tap();
+    const list = page.getByRole("dialog", { name: new RegExp(`^Box #, Item ${dispensingBox.item}: carton list for size M`) });
+    await expect(list).toBeVisible();
+    await page.waitForTimeout(1_000);
+    await check(list, "the box list stays open past the link's 0.7 s").toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(list).toBeHidden();
   });
 
   await test.step("Correction 2: box 2336 cannot be picked from the list; 2236 is, and the error goes", async () => {
