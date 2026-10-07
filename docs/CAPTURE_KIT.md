@@ -322,7 +322,7 @@ Mark the control that holds each value with the path an issue would carry: `issu
 
 A message with no control of its own (readings past the plan, a deviation from the indicative weight, a sampling plan too large) is marked with `{...issueNoticeProps(path)}` and given a visible focus style (`outline-none focus-ring`): it takes the focus itself (tabIndex -1, out of the Tab order), so a screen reader reads it and Tab goes on to its button. `AttachmentStatus` marks itself this way when given an `issuePath`. Where a notice and a container (the size's panel) carry the same path, the link lands on the notice.
 
-It runs once for each new `focusPath` array, so pass the prop straight through. The capture screen sets a new array for every click on an issue (`setFocusPath([...issue.path])`) and keeps it in state: a second click on the same issue then works, and a re-render does nothing.
+It runs once for each new `focusPath` array, so pass the prop straight through. A path made with `revealOnlyPath(path)` only calls `reveal` (size, hand, box) and focuses nothing: the capture screen uses it to land on the last field after a reload without bringing up the iPad's keyboard. The capture screen sets a new array for every click on an issue (`setFocusPath([...issue.path])`) and keeps it in state: a second click on the same issue then works, and a re-render does nothing.
 
 ## Photo tags (`onFocusChange`)
 
