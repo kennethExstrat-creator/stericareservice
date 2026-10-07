@@ -80,6 +80,32 @@ describe("/inspections/new", () => {
     expect(html).not.toContain('name="templateId"');
   });
 
+  it("leaves a draft kept in the tab out of the server's HTML, so hydration starts from the same empty form", async () => {
+    const draft = {
+      v: 1,
+      clientId: OPTIONS.clients[0].id,
+      manufacturerId: OPTIONS.manufacturers[0].id,
+      productType: "examination",
+      productName: "Typed before a reload",
+      previous: "",
+      nameFromPrevious: false,
+      templateId: "",
+    };
+    const sessionStorage = { getItem: vi.fn(() => JSON.stringify(draft)), setItem: vi.fn(), removeItem: vi.fn() };
+    vi.stubGlobal("window", { sessionStorage });
+    try {
+      const html = await render();
+      expect(html).toContain('name="clientId" value=""');
+      expect(html).toContain('name="manufacturerId" value=""');
+      expect(html).toContain("Choose the client");
+      expect(html).not.toContain(draft.productName);
+      // The browser brings the draft back once the page has hydrated.
+      expect(sessionStorage.getItem).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("lets an admin's form carry a template choice", async () => {
     vi.mocked(requireUser).mockResolvedValue({ id: "admin-id", email: "admin@test.local", fullName: null, role: "admin" });
     const html = await render();
