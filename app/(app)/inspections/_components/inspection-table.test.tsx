@@ -55,7 +55,7 @@ describe("InspectionTable", () => {
 
   it("makes the ref the row header and writes the date the British way", () => {
     const html = renderToStaticMarkup(<InspectionTable rows={[ROW]} role="inspector" caption="Your inspections" />);
-    expect(html).toMatch(/<th[^>]*scope="row"[^>]*><a[^>]*>INS-2026-0001<span class="sr-only">/);
+    expect(html).toMatch(/<th[^>]*scope="row"[^>]*><a[^>]*>INS-2026-0001</);
     expect(html).toContain('<time dateTime="2026-10-06"');
     expect(html).toContain("6 Oct 2026");
     expect(html).toContain('<caption class="sr-only">Your inspections</caption>');
@@ -126,14 +126,15 @@ describe("the ref opens the inspection", () => {
   const STATUSES = ["draft", "submitted", "approved", "reopened"] as const;
   const ID = ROW.id;
 
-  /** The row header's link: its href and the text a screen reader reads as its name. */
-  function refLink(html: string): { href: string; name: string; tag: string } {
+  /** The row header's link: its href, the name a screen reader reads and the text the eye sees. */
+  function refLink(html: string): { href: string; name: string; text: string; tag: string } {
     const match = /<th[^>]*scope="row"[^>]*>(<a [^>]*>)(.*?)<\/a>/.exec(html);
     if (!match) throw new Error("no link in the row header");
     return {
       tag: match[1],
       href: /href="([^"]*)"/.exec(match[1])?.[1] ?? "",
-      name: match[2].replace(/<[^>]+>/g, ""),
+      name: /aria-label="([^"]*)"/.exec(match[1])?.[1] ?? "",
+      text: match[2].replace(/<[^>]+>/g, ""),
     };
   }
 
@@ -156,11 +157,15 @@ describe("the ref opens the inspection", () => {
     ["submitted", "INS-2026-0001, Submitted"],
     ["approved", "INS-2026-0001, Approved"],
     ["reopened", "INS-2026-0001, Reopened"],
-  ] as const)("names a %s inspection by its ref and status", (status, name) => {
+  ] as const)("names a %s inspection by its ref and status, starting with the ref the eye sees", (status, name) => {
     const html = renderToStaticMarkup(<InspectionTable rows={[{ ...ROW, status }]} role="inspector" caption="x" />);
-    expect(refLink(html).name).toBe(name);
+    const link = refLink(html);
+    expect(link.name).toBe(name);
     // The status words are for screen readers; the eye has the Status column.
-    expect(html).toContain(`<span class="sr-only">, ${name.split(", ")[1]}</span>`);
+    expect(link.text).toBe("INS-2026-0001");
+    expect(link.name.startsWith(link.text)).toBe(true);
+    // An aria-label, not hidden text: browsers would read that as "INS-2026-0001 , Draft".
+    expect(html).not.toContain('class="sr-only">,');
   });
 
   it("is one link per row, with the folded PO beside it, not inside", () => {
@@ -185,7 +190,7 @@ describe("the ref opens the inspection", () => {
 
   it("dims the list while the inspection opens, like the list's own links", () => {
     const html = renderToStaticMarkup(<InspectionTable rows={[ROW]} role="inspector" caption="x" />);
-    expect(html).toMatch(/<a [^>]*>INS-2026-0001<span class="sr-only">, Submitted<\/span><span aria-hidden="true" hidden=""><\/span><\/a>/);
+    expect(html).toMatch(/<a [^>]*>INS-2026-0001<span aria-hidden="true" hidden=""><\/span><\/a>/);
   });
 });
 
