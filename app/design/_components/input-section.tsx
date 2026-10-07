@@ -9,9 +9,11 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { CONCLUSION_LABELS } from "@/modules/conclusion/config";
 import { DesignSection, Specimen } from "./design-section";
 
 const INNER_UNITS = ["Inner box", "Plastic pack", "Dispenser box", "Pouch"];
+const RESULTS = ["pass", "fail", "hold"] as const;
 
 export function InputSection() {
   const id = useId();
@@ -102,15 +104,12 @@ export function InputSection() {
             <Switch id={`${id}-hand`} checked={handSplit} onCheckedChange={setHandSplit} />
             <Label htmlFor={`${id}-hand`}>Record R and L separately</Label>
           </div>
-          <RadioGroup defaultValue="pass" aria-label="Final result" className="flex flex-wrap gap-6">
-            {[
-              ["pass", "Passed"],
-              ["fail", "Failed"],
-              ["hold", "On hold"],
-            ].map(([value, label]) => (
+          {/* The overall result in the template's words, as the conclusion module shows it (docs/DESIGN.md). */}
+          <RadioGroup defaultValue="pass" aria-label={CONCLUSION_LABELS.finalResult} className="flex flex-wrap gap-6">
+            {RESULTS.map((value) => (
               <div key={value} className="flex items-center gap-3">
                 <RadioGroupItem id={`${id}-result-${value}`} value={value} />
-                <Label htmlFor={`${id}-result-${value}`}>{label}</Label>
+                <Label htmlFor={`${id}-result-${value}`}>{CONCLUSION_LABELS[value]}</Label>
               </div>
             ))}
           </RadioGroup>
