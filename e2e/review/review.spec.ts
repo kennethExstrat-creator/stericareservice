@@ -342,6 +342,12 @@ test.describe("reviewing inspections", () => {
     await expect(page.getByRole("heading", { name: "Waiting for your review" })).toBeVisible();
     await expect(page.getByText("The template version this inspection uses could not be read").first()).toBeVisible();
 
+    // The AI hand-offs need the results: a quiet note in the panel's place, not an error. The checks above say why.
+    const ai = page.getByTestId("ai-panel-no-results");
+    await expect(ai.getByRole("heading", { level: 2, name: "AI second opinion" })).toBeVisible();
+    await expect(ai.getByText("Not available", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("ai-panel-unavailable")).toHaveCount(0);
+
     await press(page.getByRole("button", { name: "Approve" }));
     const dialog = page.getByRole("alertdialog", { name: `Approve ${fixture.D.refNo}?` });
     await expect(dialog.getByText("The results could not be worked out, so nothing was checked.", { exact: false })).toBeVisible();

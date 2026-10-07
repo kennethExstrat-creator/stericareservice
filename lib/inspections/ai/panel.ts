@@ -45,9 +45,18 @@ type DecisionRow = {
   actor: Person | Person[] | null;
 };
 
+/**
+ * The panel, or why there is none:
+ * - `not_found`: no such inspection, or one this user may not read;
+ * - `unreadable`: its results cannot be worked out (the template version or
+ *   the saved data cannot be read), so there is nothing to compare and no
+ *   export to build. It lasts until a developer fixes the inspection, and
+ *   the review already says why (its checks and module results);
+ * - `unavailable`: a read failed (the inspection, its reviews); worth another try.
+ */
 export type AiPanelLoad =
   | { ok: true; model: AiPanelModel }
-  | { ok: false; reason: "not_found" | "unavailable"; message: string };
+  | { ok: false; reason: "not_found" | "unreadable" | "unavailable"; message: string };
 
 export async function loadAiPanel(
   user: Pick<SessionUser, "id" | "role">,
@@ -75,10 +84,12 @@ export async function loadAiPanel(
   }
   const { record } = loaded;
   if (!canExportInspection(user, record)) return { ok: false, reason: "not_found", message: "Inspection not found." };
-  if (reviewRows.error) return unavailable("the AI reviews", reviewRows.error);
 
+  // Before the reviews: without results the panel has nothing to show them
+  // against, and trying again changes nothing.
   const evaluation = evaluateRecord(record);
-  if (!evaluation.ok) return { ok: false, reason: "unavailable", message: evaluation.message };
+  if (!evaluation.ok) return { ok: false, reason: "unreadable", message: evaluation.message };
+  if (reviewRows.error) return unavailable("the AI reviews", reviewRows.error);
 
   const rows = reviewRows.data as unknown as (AiReviewRow & { decisions?: DecisionRow[] })[];
   const reviews = rows.map(parseStoredReview);

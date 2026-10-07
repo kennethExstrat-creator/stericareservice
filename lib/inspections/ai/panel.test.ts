@@ -9,7 +9,7 @@ vi.mock("@/modules/registry", async () => {
 
 import { makeAiReview } from "@/lib/ai/__fixtures__/ai-review";
 import { createFakeSupabase, type FakeSupabase } from "@/lib/export/__fixtures__/fake-supabase";
-import { IDS, makeObjects, makeTables, PATHS, UPDATED_AT } from "@/lib/export/__fixtures__/inspection";
+import { IDS, makeInspectionRow, makeObjects, makeTables, PATHS, UPDATED_AT } from "@/lib/export/__fixtures__/inspection";
 import { createClient } from "@/lib/supabase/server";
 import { loadAiPanel, PANEL_LINK_TTL_SECONDS } from "./panel";
 
@@ -131,6 +131,33 @@ describe("loadAiPanel", () => {
       ok: false,
       reason: "unavailable",
       message: "Could not read the AI reviews. Try again.",
+    });
+  });
+
+  it("answers unreadable, apart from a failed read, when the inspection's results cannot be worked out", async () => {
+    const withRow = (row: ReturnType<typeof makeInspectionRow>, options: Parameters<typeof fake>[0] = {}) =>
+      fake({ tables: { ...makeTables(), inspections: [row], ai_reviews: [reviewRow()] }, ...options }).client;
+
+    const brokenTemplate = makeInspectionRow({}, { resolved: { broken: true } });
+    expect(await loadAiPanel(ADMIN, IDS.inspection, { client: withRow(brokenTemplate), now: NOW })).toEqual({
+      ok: false,
+      reason: "unreadable",
+      message: expect.stringContaining("TEST_EG version 3, which could not be read"),
+    });
+    expect(
+      await loadAiPanel(ADMIN, IDS.inspection, { client: withRow(makeInspectionRow({ data: "not an object" })), now: NOW }),
+    ).toMatchObject({ ok: false, reason: "unreadable", message: expect.stringContaining("saved data") });
+
+    // A failed read of the reviews changes nothing then: trying again would not help.
+    const failing = withRow(brokenTemplate, {
+      failQuery: (query) => (query.table === "ai_reviews" ? { code: "XX000", message: "secret detail" } : null),
+    });
+    expect(await loadAiPanel(ADMIN, IDS.inspection, { client: failing, now: NOW })).toMatchObject({ reason: "unreadable" });
+
+    // Someone the inspection is not for still learns nothing about it.
+    const other = { id: IDS.otherInspector, role: "inspector" } as const;
+    expect(await loadAiPanel(other, IDS.inspection, { client: withRow(brokenTemplate), now: NOW })).toMatchObject({
+      reason: "not_found",
     });
   });
 

@@ -25,10 +25,7 @@ export function AiReviewPanelView({ model, className }: { model: AiPanelModel; c
     <section aria-labelledby="ai-panel-title" className={cn("@container/ai space-y-5", className)} data-testid="ai-panel">
       <header className="flex flex-col gap-3 @2xl/ai:flex-row @2xl/ai:items-start @2xl/ai:justify-between">
         <div className="min-w-0 space-y-1">
-          <h2 id="ai-panel-title" className="flex items-center gap-2 text-2xl font-bold tracking-tight text-foreground">
-            <SparklesIcon aria-hidden className="size-5 shrink-0 text-brand-600" />
-            AI second opinion
-          </h2>
+          <AiPanelTitle />
           <p className="text-sm text-muted-foreground">
             {viewer.isAdmin
               ? "The AI suggests and never changes a result. Record agree, disagree or fixed for each finding."
@@ -95,6 +92,16 @@ export function AiReviewPanelView({ model, className }: { model: AiPanelModel; c
 
       <ReportSection model={model} />
     </section>
+  );
+}
+
+/** The panel's heading, which its sections name themselves by (`ai-panel-title`); also over the panel's quiet states (ai-review-panel.tsx). */
+export function AiPanelTitle() {
+  return (
+    <h2 id="ai-panel-title" className="flex items-center gap-2 text-2xl font-bold tracking-tight text-foreground">
+      <SparklesIcon aria-hidden className="size-5 shrink-0 text-brand-600" />
+      AI second opinion
+    </h2>
   );
 }
 
