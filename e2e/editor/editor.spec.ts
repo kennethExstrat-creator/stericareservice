@@ -303,7 +303,7 @@ test("the admin edits a draft: switches, order, wording, settings, a custom fiel
   await press(page.getByRole("option", { name: "mm", exact: true }));
   const min = form.locator("#custom-0-fields-1-min");
   await min.fill("2 40");
-  const notANumber = "“2 40” is not a number. Remove the space: one number only, e.g. 2.42.";
+  const notANumber = "“2 40” is not a number: remove the space (240).";
   await expect(form.getByText(notANumber)).toHaveCount(1);
   await expect(min).toHaveAttribute("aria-describedby", "custom-0-fields-1-min-errors");
   await expect(save).toBeDisabled();
