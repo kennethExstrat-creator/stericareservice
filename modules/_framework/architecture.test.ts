@@ -49,9 +49,10 @@ function offenders(imports: Import[], forbidden: (specifier: string) => boolean)
 
 /**
  * The framework's React parts, for Capture.tsx only: imported by their own
- * path (`@/modules/_framework/file-slot`), never through the framework's index.
+ * path (`@/modules/_framework/file-slot`, `@/modules/_framework/shown-size`),
+ * never through the framework's index.
  */
-const FRAMEWORK_CLIENT_FILES = ["modules/_framework/file-slot.tsx"];
+const FRAMEWORK_CLIENT_FILES = ["modules/_framework/file-slot.tsx", "modules/_framework/shown-size.ts"];
 
 const REGISTRY = (specifier: string) =>
   specifier === "@/modules" || specifier === "@/modules/registry" || specifier === "@/modules/index";
@@ -93,12 +94,17 @@ describe("module layering", () => {
     const imports = runtimeImports([...moduleFolders, "modules/_framework", "lib/validation", "lib/templates"]).filter(
       (entry) => !/\/Capture\.tsx$/.test(entry.file) && !FRAMEWORK_CLIENT_FILES.includes(entry.file),
     );
-    const client = (specifier: string) =>
-      FRAMEWORK_CLIENT_FILES.some((file) => {
-        const stem = file.replace(/\.tsx$/, "");
-        return specifier === `@/${stem}` || specifier === `./${stem.slice("modules/_framework/".length)}`;
-      });
-    expect(offenders(imports, client)).toEqual([]);
+    const specifiers = FRAMEWORK_CLIENT_FILES.flatMap((file) => {
+      const stem = file.replace(/\.tsx?$/, "");
+      return [`@/${stem}`, `./${stem.slice("modules/_framework/".length)}`];
+    });
+    expect(specifiers).toEqual([
+      "@/modules/_framework/file-slot",
+      "./file-slot",
+      "@/modules/_framework/shown-size",
+      "./shown-size",
+    ]);
+    expect(offenders(imports, (specifier) => specifiers.includes(specifier))).toEqual([]);
     for (const file of FRAMEWORK_CLIENT_FILES) {
       expect(readFileSync(join(ROOT, file), "utf8").startsWith('"use client";'), file).toBe(true);
     }

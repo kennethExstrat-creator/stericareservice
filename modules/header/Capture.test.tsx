@@ -134,7 +134,8 @@ describe("header capture", () => {
 
   it("shows the expiry warning under its date and marks each field for issue links", () => {
     const html = render({ data: { ...headerData(STD_EG_EXAMPLE.header), expiryDate: "2025-03-01" } });
-    expect(html).toContain("Expiry date 2025-03-01 is not after Manufacturing date 2025-04-01.");
+    // The dates in the words the app shows them in elsewhere; the fields keep ISO.
+    expect(html).toContain("Expiry date 1 Mar 2025 is not after Manufacturing date 1 Apr 2025.");
     expect(html).toContain('data-issue-path="[&quot;expiryDate&quot;]"');
     expect(html).toContain('data-issue-path="[&quot;poNo&quot;]"');
   });

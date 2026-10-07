@@ -19,7 +19,7 @@ import {
   type Labels,
 } from "@/modules/_framework";
 import { HEADER_FIELDS, type HeaderConfig, type HeaderField } from "./config";
-import { datePart } from "./dates";
+import { datePart, formatDate, formatDay } from "./dates";
 import { HEADER_DATE_FIELDS, type HeaderData } from "./schema";
 
 /** The header as the report prints it, with what the inspection row and the app fill in. Exported. */
@@ -122,6 +122,7 @@ export function headerRows(data: HeaderData, config: HeaderConfig, context: Insp
   };
 }
 
+/** Compared as ISO text at the template's precision; worded as the app shows dates ("1 Apr 2025", "Apr 2025"). */
 function dateIssues(rows: HeaderRows, config: HeaderConfig, labels: Labels): CalcIssue[] {
   const precision = config.mfgExpiryPrecision;
   const mfg = config.fields.mfgDate ? rows.mfgDate : null;
@@ -131,7 +132,7 @@ function dateIssues(rows: HeaderRows, config: HeaderConfig, labels: Labels): Cal
     issues.push(
       warningIssue(
         "expiry_not_after_mfg",
-        `${labelFor(labels, "expiryDate")} ${datePart(expiry, precision)} is not after ${labelFor(labels, "mfgDate")} ${datePart(mfg, precision)}.`,
+        `${labelFor(labels, "expiryDate")} ${formatDate(expiry, precision)} is not after ${labelFor(labels, "mfgDate")} ${formatDate(mfg, precision)}.`,
         { path: ["expiryDate"] },
       ),
     );
@@ -142,7 +143,7 @@ function dateIssues(rows: HeaderRows, config: HeaderConfig, labels: Labels): Cal
     issues.push(
       warningIssue(
         "mfg_after_inspection",
-        `${labelFor(labels, "mfgDate")} ${datePart(mfg, precision)} is after ${labelFor(labels, "inspectionDate")} ${inspected}.`,
+        `${labelFor(labels, "mfgDate")} ${formatDate(mfg, precision)} is after ${labelFor(labels, "inspectionDate")} ${formatDay(inspected)}.`,
         { path: ["mfgDate"] },
       ),
     );
@@ -150,13 +151,17 @@ function dateIssues(rows: HeaderRows, config: HeaderConfig, labels: Labels): Cal
   return issues;
 }
 
-/** "PO-0001 (SO-0001): Brand A PC-A01 Blue Nitrile; Manufacturer A; Inspection date 2025-04-11." */
+/** "PO-0001 (SO-0001): Brand A PC-A01 Blue Nitrile; Manufacturer A; Inspection date 11 Apr 2025." */
 function summarise(rows: HeaderRows, config: HeaderConfig, labels: Labels): string {
   const shown = (field: HeaderField) => (config.fields[field] ? rows[field] : null);
   const product = shown("productName")?.replace(/\s+/g, " ") ?? null;
   const order = [shown("poNo"), product].filter((part) => part !== null).join(": ");
   const date = shown("inspectionDate");
-  const parts = [order, shown("manufacturer"), date === null ? null : `${labelFor(labels, "inspectionDate")} ${date}`];
+  const parts = [
+    order,
+    shown("manufacturer"),
+    date === null ? null : `${labelFor(labels, "inspectionDate")} ${formatDay(date)}`,
+  ];
   const text = parts.filter((part) => part !== null && part !== "").join("; ");
   return text === "" ? "Complete." : sentence(text);
 }

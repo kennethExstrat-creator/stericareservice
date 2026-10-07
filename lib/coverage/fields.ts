@@ -348,7 +348,8 @@ const packingConfig = defineModule({
     {
       key: "glovesPerInner",
       label: "# glove per inner box",
-      labels: { SAFEDON_EG: "# glove per plastic pack" },
+      // STD_SG's inner unit is the pouch (BUILD_SPEC 11); the SG form has no packing counts to word it.
+      labels: { SAFEDON_EG: "# glove per plastic pack", STD_SG: "# gloves per pouch" },
       type: "integer",
       unit: "pcs",
       per: [],
@@ -358,7 +359,7 @@ const packingConfig = defineModule({
     {
       key: "innersPerCase",
       label: "# inners per case",
-      labels: { SAFEDON_EG: "# packs per case" },
+      labels: { SAFEDON_EG: "# packs per case", STD_SG: "# pouches per case" },
       type: "integer",
       countOf: "inner units",
       per: [],

@@ -1,15 +1,16 @@
 // Every per-size Capture opens on the size the screen has in focus
 // (CaptureProps.focus, initialSize), so the size chosen in one module stays
-// chosen in the next (docs/MODULES.md section 10). watertight and visual are
-// left to the capture screen's package, which owns their Capture.tsx.
+// chosen in the next, and reports the size it shows as it mounts, so a photo
+// taken straight away is tagged with it (docs/MODULES.md sections 10 and
+// 10.1, BUILD_SPEC 8.1).
+import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
-import { MODULE_KEYS, type ModuleKey } from "@/lib/schemas/module-result";
+import { beforeAll, describe, expect, it } from "vitest";
+import { MODULE_KEYS } from "@/lib/schemas/module-result";
 import { evaluateInspection, type AnyModuleDefinition, type CaptureFocus } from "@/modules/_framework";
 import { makeTestContext, makeTestTemplate } from "@/modules/_framework/testing";
 import { MODULE_REGISTRY } from "@/modules/registry";
 
-const NOT_YET: readonly ModuleKey[] = ["watertight", "visual"];
 const PER_SIZE = MODULE_KEYS.filter((key) => MODULE_REGISTRY[key].perSize && MODULE_REGISTRY[key].loadCapture);
 const CONTEXT = makeTestContext({ sizes: ["S", "M", "L"] });
 
@@ -44,15 +45,34 @@ async function selectedTab(definition: AnyModuleDefinition, focus: CaptureFocus 
 }
 
 describe("per-size captures open on the size in focus", () => {
+  // Each Capture's code (with the kit) is loaded once, here, with time to spare: the first
+  // import inside a case could take longer than a case may while the whole suite runs.
+  beforeAll(async () => {
+    await Promise.all(PER_SIZE.map((key) => MODULE_REGISTRY[key].loadCapture?.()));
+  }, 60_000);
+
   it("covers every per-size module with a Capture", () => {
     expect(PER_SIZE.length).toBeGreaterThan(8);
   });
 
-  it.each(PER_SIZE.filter((key) => !NOT_YET.includes(key)))("%s", async (key) => {
+  it.each(PER_SIZE)("%s", async (key) => {
     const definition = MODULE_REGISTRY[key];
     expect(await selectedTab(definition, { size: "L" })).toBe("L");
     // A size that is not ordered, or no focus: the first ordered size.
     expect(await selectedTab(definition, { size: "XL" })).toBe("S");
     expect(await selectedTab(definition, null)).toBe("S");
+  });
+});
+
+/**
+ * The shared report (modules/_framework/shown-size.ts) runs in a layout
+ * effect, which a server render never runs: the e2e specs see it work. Here,
+ * that every per-size Capture uses it, so none waits for a tap to tag photos.
+ */
+describe("per-size captures report the size they show for photo tags", () => {
+  it.each(PER_SIZE)("%s", (key) => {
+    const source = readFileSync(new URL(`./${key}/Capture.tsx`, import.meta.url), "utf8");
+    expect(source).toContain('from "@/modules/_framework/shown-size"');
+    expect(source).toMatch(/useReportShownSize\(|<ShownSizeReport\b/);
   });
 });

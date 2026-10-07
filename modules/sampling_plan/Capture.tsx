@@ -22,6 +22,7 @@ import {
 import { formatSize } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { initialSize, labelFor, lotSizeGloves, type CaptureProps, type ValidationIssue } from "@/modules/_framework";
+import { useReportShownSize, useSizeShownAlone } from "@/modules/_framework/shown-size";
 import type { SamplingPlanComputed } from "./calc";
 import { columnGroups, shownColumns, type SamplingColumn, type SamplingPlanConfig } from "./config";
 import { withCount, type SamplingPlanData } from "./schema";
@@ -42,6 +43,9 @@ export default function Capture({
   const root = useRef<HTMLDivElement>(null);
   // Opens on the size chosen in the last module (CaptureProps.focus).
   const [active, setActive] = useState(() => initialSize(context, focus));
+  // The size on the tabs tags the photos taken now (BUILD_SPEC 8.1), from the moment the section
+  // opens; from 1280 px every size is on screen and none is.
+  useReportShownSize(useSizeShownAlone(context.sizes, active), onFocusChange);
   const [rejected, setRejected] = useState<Readonly<Record<string, RejectedEntry>>>({});
   // Every write starts from the latest data, so a pasted run of counts keeps every value (docs/CAPTURE_KIT.md).
   const update = useDataUpdater(data, onChange);

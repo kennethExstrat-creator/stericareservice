@@ -6,9 +6,12 @@
 // dispensing % are typed on the numeric keypad, Enter going down the column
 // and a pasted column filling down it; the stickiness code is picked from the
 // template's codes. Averages and Passed / Failed come from calc as you type,
-// read-only (rule 2). Wording comes from the template (rule 11). Every write
-// goes through useDataUpdater, starting from the latest data: a pasted column
-// reaches the screen as one change with every value (docs/CAPTURE_KIT.md).
+// read-only (rule 2). Wording comes from the template (rule 11). A box that
+// is not in the carton list, and any other problem calc finds in a row, is
+// listed under the table with a link to its cell: the cell itself only turns
+// red. Every write goes through useDataUpdater, starting from the latest
+// data: a pasted column reaches the screen as one change with every value
+// (docs/CAPTURE_KIT.md).
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
 import { ChevronDownIcon, PlusIcon } from "lucide-react";
 import {
@@ -16,11 +19,13 @@ import {
   EnterGroup,
   EntryProblems,
   findIssue,
+  focusIssuePath,
   issuePathProps,
   ModuleSection,
   PercentField,
   RequirementList,
   SizeTabs,
+  StatusIcon,
   StatusPill,
   useDataUpdater,
   useIssueFocus,
@@ -32,6 +37,7 @@ import { Button } from "@/components/ui/button";
 import { formatSize, formatSpec } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { cartonsFor, initialSize, labelFor, type CaptureProps, type Labels, type ValidationIssue } from "@/modules/_framework";
+import { sizeOnTabs, useReportShownSize } from "@/modules/_framework/shown-size";
 import type { DispensingPackingComputed, DispensingPackingConfig, DispensingPackingData } from ".";
 import { AVERAGE_DECIMALS, packingHeading, plannedBoxes } from "./calc";
 import { MAX_BOXES_PER_SIZE } from "./config";
@@ -63,6 +69,8 @@ export default function Capture({
   const update = useDataUpdater(data, onChange);
   // Opens on the size chosen in the last module; SizeTabs corrects a size that is not (or no longer) ordered.
   const [size, setSize] = useState(() => initialSize(context, focus));
+  // The size on the tabs tags the photos taken now (BUILD_SPEC 8.1), from the moment the section opens.
+  useReportShownSize(sizeOnTabs(context.sizes, size), onFocusChange);
   // Rows asked for with "Add box", per size, beyond the plan.
   const [requested, setRequested] = useState<Record<string, number>>({});
   // Entries the cells refused ("2 42"), listed under the table with a link.
@@ -142,7 +150,10 @@ function PackingSizePanel({ size, props, update, requested, onRequest, rejected,
   // Inside the picker's sentences: "Box 2336 is not in the carton list for size M."
   const pickerSize = `size ${formatSize(size, { sizes: context.templateSizes })}`;
   const issues = evaluation?.issues ?? [];
+  // calc's problems in this size's rows, such as a box missing from the carton list (6.2 rule 7).
+  const rowIssues = boxIssues(issues, size);
   const keyOf = (field: PercentKey, index: number) => `${size}:${field}:${index}`;
+  const panel = useRef<HTMLDivElement>(null);
   const head = useRef<HTMLTableSectionElement>(null);
   const headHeight = useHeadHeight(head);
   const passing = config.stickinessCodes.filter((entry) => entry.pass).map((entry) => entry.code);
@@ -154,7 +165,7 @@ function PackingSizePanel({ size, props, update, requested, onRequest, rejected,
   });
 
   return (
-    <div className="min-w-0 space-y-4">
+    <div ref={panel} className="min-w-0 space-y-4">
       {planned === 0 && (
         <p className="rounded-lg border border-dashed border-not-done-border bg-not-done-tint px-4 py-3 text-sm text-not-done touch:text-base">
           {result?.summary}
@@ -227,6 +238,7 @@ function PackingSizePanel({ size, props, update, requested, onRequest, rejected,
       </EnterGroup>
 
       <EntryProblems problems={problems} />
+      <IssueLinks issues={rowIssues} root={panel} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         {result?.status === "not_done" && planned > 0 ? (
@@ -516,10 +528,13 @@ function NoteCell({ value, label, issuePath, readOnly, onFocus, onValueChange }:
   );
 }
 
-/** The template's stickiness legend: what each code means and whether it passes. */
+/**
+ * The template's stickiness legend: what each code means and whether it
+ * passes. An h3 under the section's h2, as the Photos heading after it.
+ */
 function StickinessLegend({ labels, config }: { labels: Labels; config: DispensingPackingConfig }) {
   return (
-    <ModuleSection title={plainLabel(labelFor(labels, "stickinessLegend"))} headingLevel={4}>
+    <ModuleSection title={plainLabel(labelFor(labels, "stickinessLegend"))}>
       <dl className="grid gap-x-4 gap-y-1.5 text-sm touch:text-base sm:grid-cols-[auto_1fr_auto]">
         {config.stickinessCodes.map((entry) => (
           <div key={entry.code} className="contents">
@@ -532,6 +547,41 @@ function StickinessLegend({ labels, config }: { labels: Labels; config: Dispensi
         ))}
       </dl>
     </ModuleSection>
+  );
+}
+
+/** calc's issues about a size's rows (`["sizes", size, "boxes", ...]`), in row order. */
+function boxIssues(issues: readonly ValidationIssue[], size: string): ValidationIssue[] {
+  return issues.filter((issue) => issue.path[0] === "sizes" && issue.path[1] === size && issue.path[2] === "boxes");
+}
+
+/**
+ * calc's problems in the rows, each with a link to its cell (BUILD_SPEC 6.2),
+ * listed as the carton grid lists its own: a cell only turns red, and its
+ * message is read to screen readers alone. The Passed or Failed of the size
+ * stays calc's: a box missing from the carton list blocks submit, it does
+ * not fail the check (docs/FIXTURES.md).
+ */
+function IssueLinks({ issues, root }: { issues: readonly ValidationIssue[]; root: RefObject<HTMLElement | null> }) {
+  if (issues.length === 0) return null;
+  return (
+    <ul data-slot="box-issues" className="space-y-1">
+      {issues.map((issue) => (
+        <li key={`${issue.code}-${issue.path.join("/")}`}>
+          <button
+            type="button"
+            onClick={() => root.current && focusIssuePath(root.current, issue.path)}
+            className={cn(
+              "flex w-full items-start gap-1.5 rounded-sm text-left text-sm focus-ring-inset touch:min-h-11 touch:text-base",
+              issue.level === "error" ? "text-fail" : "text-warn",
+            )}
+          >
+            <StatusIcon status={issue.level === "error" ? "fail" : "warn"} className="mt-0.5 size-4 shrink-0" />
+            <span>{issue.message}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }
 

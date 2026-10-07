@@ -22,6 +22,7 @@ import {
 } from "@/components/qc";
 import { formatSize } from "@/lib/format";
 import { initialSize, labelFor, type CaptureProps } from "@/modules/_framework";
+import { useReportShownSize, useSizeShownAlone } from "@/modules/_framework/shown-size";
 import { plannedPouches, type DyeLeakComputed } from "./calc";
 import type { DyeLeakConfig } from "./config";
 import { withNoLeaks, withSizeValues } from "./edit";
@@ -42,6 +43,9 @@ export default function Capture({
   const update = useDataUpdater(data, onChange);
   // Opens on the size chosen in the last module; SizeTabs corrects a size that is not ordered (or set before sizes were).
   const [size, setSize] = useState(() => initialSize(context, focus));
+  // The size on the tabs tags the photos taken now (BUILD_SPEC 8.1), from the moment the section
+  // opens; from 1280 px every size is on screen and none is.
+  useReportShownSize(useSizeShownAlone(context.sizes, size), onFocusChange);
   const root = useRef<HTMLDivElement>(null);
   useIssueFocus(focusPath, {
     root,

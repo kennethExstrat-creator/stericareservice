@@ -137,6 +137,41 @@ describe("dispensing_packing capture", () => {
     expect(medium).toContain("Box 2336 is not in the carton list for size Medium.");
   });
 
+  it("lists the box that is not in the carton list under the table, with a link to its cell, and keeps calc's Passed", () => {
+    const html = render();
+    // The STD_EG stray box: its cell turns red and its own message is for screen readers only,
+    // so calc's message is listed where it can be seen (6.2 rule 7).
+    const list = /<ul[^>]*data-slot="box-issues"[^>]*>[\s\S]*?<\/ul>/.exec(html)?.[0] ?? "";
+    expect(list).toContain("Box 2336 (item 12) is not in the size M carton list.");
+    expect(count(list, "<button")).toBe(1);
+    expect(list).toContain('type="button"');
+    expect(list).toContain("text-fail");
+    // A 44 px target on the iPad.
+    expect(list).toContain("touch:min-h-11");
+    // Below the table, as the refused entries are.
+    expect(html.indexOf('data-slot="box-issues"')).toBeGreaterThan(html.indexOf("</table>"));
+    // The check itself still passes: the stray box blocks submit, it does not fail the size (docs/FIXTURES.md).
+    expect(count(html, 'data-outcome="pass"')).toBe(3);
+    // Nothing to list once every box is in the carton list.
+    const listed = stdEgData().sizes.M.boxes.map((box) => (box.boxNo === 2336 ? { ...box, boxNo: 13 } : box));
+    expect(render({ data: { sizes: { M: { boxes: listed } } } })).not.toContain('data-slot="box-issues"');
+  });
+
+  it("lists every problem calc finds in a row of the size on screen, and only those", () => {
+    const boxes = stdEgData().sizes.M.boxes.map((box, index) => (index === 2 ? { ...box, stickiness: "Z" } : box));
+    const html = render({ data: { sizes: { M: { boxes } } } });
+    const list = /<ul[^>]*data-slot="box-issues"[^>]*>[\s\S]*?<\/ul>/.exec(html)?.[0] ?? "";
+    expect(count(list, "<li")).toBe(2);
+    expect(list).toContain("Stickiness &quot;Z&quot; (item 3) for size M is not one of this template&#x27;s codes");
+    expect(list.indexOf("(item 3)")).toBeLessThan(list.indexOf("(item 12)"));
+  });
+
+  it("titles the stickiness legend one level under the section's heading, as the photos are", () => {
+    const html = render();
+    expect(html).toMatch(/<h3[^>]*>Glove stickiness Code<\/h3>/);
+    expect(html).not.toContain("<h4");
+  });
+
   it("offers the template's stickiness codes and shows its legend", () => {
     const html = render();
     expect(count(html, '<option value="B1">B1</option>')).toBe(13);

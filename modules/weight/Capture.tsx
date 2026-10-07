@@ -37,6 +37,7 @@ import { formatNumber, formatSpec } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { ModuleStatus } from "@/lib/schemas";
 import { initialSize, labelFor, sizeLabel, type CaptureProps, type Labels, type ValidationIssue } from "@/modules/_framework";
+import { sizeOnTabs, useReportShownSize } from "@/modules/_framework/shown-size";
 import { indicativeFor, specFor, type WeightComputed } from "./calc";
 import {
   firstValues,
@@ -88,6 +89,8 @@ function OneValuePerSize({
   const idBase = useId();
   const [rejected, setRejected] = useState<Readonly<Record<string, InvalidEntry>>>({});
   useIssueFocus(focusPath, { root });
+  // Every ordered size is a row of the table: one is on screen alone only when it is the only one ordered.
+  useReportShownSize(context.sizes.length === 1 ? context.sizes[0] : null, onFocusChange);
 
   // No size ordered yet: SizeTabs says so, in the kit's words (6.2 rule 4).
   if (context.sizes.length === 0) return <SizeTabs sizes={context.sizes} value="" onValueChange={() => undefined} />;
@@ -202,6 +205,8 @@ function GlovesPerSize(props: Props & { update: Update }) {
   // Opens on the size chosen in the last module (CaptureProps.focus). SizeTabs shows the first
   // ordered size while this is not one (6.2 rule 4) and says so through show.
   const [size, setSize] = useState(() => initialSize(context, focus));
+  // The size on the tabs tags the photos taken now (BUILD_SPEC 8.1), from the moment the section opens.
+  useReportShownSize(sizeOnTabs(context.sizes, size), onFocusChange);
 
   const show = (next: string) => {
     setSize(next);

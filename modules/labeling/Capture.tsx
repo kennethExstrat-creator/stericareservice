@@ -26,6 +26,7 @@ import {
 import { STATUS_LABEL } from "@/lib/design/status";
 import { formatSize } from "@/lib/format";
 import { cartonsFor, initialSize, labelFor, type CaptureProps, type Labels } from "@/modules/_framework";
+import { sizeOnTabs, useReportShownSize } from "@/modules/_framework/shown-size";
 import type { LabelingComputed, LabelingConfig, LabelingData } from ".";
 import { checkLabel, includedLevels, levelFieldLabel, levelLabel } from "./calc";
 import type { LabelingCheck, LabelingLevel } from "./config";
@@ -50,6 +51,8 @@ export default function Capture({ onChange, focusPath, ...props }: Props) {
   // Opens on the size chosen in the last module; SizeTabs corrects a size that is not (or no longer) ordered.
   const [size, setSize] = useState(() => initialSize(context, props.focus));
   const levels = includedLevels(config);
+  // The size on the tabs tags the photos taken now (BUILD_SPEC 8.1), from the moment the section opens.
+  useReportShownSize(levels.length === 0 ? null : sizeOnTabs(context.sizes, size), onFocusChange);
 
   useIssueFocus(focusPath, {
     root,
