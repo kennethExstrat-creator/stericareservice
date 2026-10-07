@@ -128,7 +128,7 @@ export function PhotoViewer({ photos, openId, onOpenIdChange, actions }: PhotoVi
                   onClick={() => step(-1)}
                 >
                   <ChevronLeftIcon aria-hidden />
-                  <span className="sr-only">Previous photo</span>
+                  <span className="sr-only">Previous Photo</span>
                 </Button>
                 <Button
                   type="button"
@@ -138,7 +138,7 @@ export function PhotoViewer({ photos, openId, onOpenIdChange, actions }: PhotoVi
                   onClick={() => step(1)}
                 >
                   <ChevronRightIcon aria-hidden />
-                  <span className="sr-only">Next photo</span>
+                  <span className="sr-only">Next Photo</span>
                 </Button>
               </>
             )}

@@ -132,7 +132,7 @@ export function IssuesSheet({
               {rest.length > 0 && (
                 <section
                   aria-labelledby={needed.length > 0 ? "issues-rest" : undefined}
-                  aria-label={needed.length > 0 ? undefined : "To do"}
+                  aria-label={needed.length > 0 ? undefined : "To Do"}
                   data-slot="other-tasks"
                   className="space-y-1.5"
                 >

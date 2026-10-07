@@ -111,7 +111,7 @@ export function PhotoGallery({ inspectionId }: { inspectionId: string }) {
                 {access.canEdit ? <CameraIcon aria-hidden /> : <ImagesIcon aria-hidden />}
               </EmptyMedia>
               <EmptyTitle>
-                <h2 className="text-lg font-bold text-foreground">No photos yet</h2>
+                <h2 className="text-lg font-bold text-foreground">No Photos Yet</h2>
               </EmptyTitle>
               <EmptyDescription className="text-base text-muted-foreground fine:text-sm">
                 Photos taken in a module on the capture screen show here, grouped by module.

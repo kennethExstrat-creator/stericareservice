@@ -94,7 +94,7 @@ test("the inspector adds photos and a lab report, then retags, captions, views a
   await test.step("an empty gallery offers to add photos", async () => {
     await expect(page.getByRole("heading", { level: 1, name: "Photos and Files" })).toBeVisible();
     await expect(page.getByText(fixture.refNo, { exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "No photos yet" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "No Photos Yet", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Lab Reports and Certificates" })).toBeVisible();
     await expect(page).toHaveTitle(`Photos · ${fixture.refNo} · SteriCare QC`);
     if (isTouch()) {
@@ -247,8 +247,8 @@ test("the inspector adds photos and a lab report, then retags, captions, views a
     expect(full.width).toBe(2048);
     await viewportShot(page, "5-viewer");
     if (isTouch()) {
-      await expectTouchTarget(viewer.getByRole("button", { name: "Next photo" }));
-      await press(viewer.getByRole("button", { name: "Next photo" }));
+      await expectTouchTarget(viewer.getByRole("button", { name: "Next Photo", exact: true }));
+      await press(viewer.getByRole("button", { name: "Next Photo", exact: true }));
     } else {
       await page.keyboard.press("ArrowRight");
     }

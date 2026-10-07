@@ -230,7 +230,7 @@ describe("/inspections/[id]/photos", () => {
       media: media({ photos: [], files: [], problems: ["Some photos could not be shown. Reload the page to try again."] }),
     });
     expect(html).toContain("Some photos could not be shown.");
-    expect(html).toContain("No photos yet");
+    expect(html).toContain(">No Photos Yet</h2>");
     expect(html).toContain("No lab reports yet.");
   });
 });
