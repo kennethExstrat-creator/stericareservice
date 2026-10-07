@@ -841,14 +841,14 @@ test.describe("admin", () => {
     await audit(auditor, "editor-modules", { tabs: 50, maxParts: 8 });
 
     await step(auditor, "editor-module-details", async () => {
-      await press(page, page.locator('[data-module-key="dimensions"]').getByRole("button", { name: /^Edit / }).first());
+      await press(page, page.locator('[data-module-key="dimensions"]').getByRole("button", { name: /, edit$/ }).first());
       await page.waitForTimeout(400);
       await settle(page);
       await audit(auditor, "editor-module-dimensions", { tabs: 40, maxParts: 8 });
       if (await page.getByRole("dialog").count()) await closeOverlay(page);
     });
     await step(auditor, "editor-module-visual", async () => {
-      await press(page, page.locator('[data-module-key="visual"]').getByRole("button", { name: /^Edit / }).first());
+      await press(page, page.locator('[data-module-key="visual"]').getByRole("button", { name: /, edit$/ }).first());
       await page.waitForTimeout(400);
       await settle(page);
       await audit(auditor, "editor-module-visual", { maxParts: 10 });
