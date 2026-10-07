@@ -175,7 +175,7 @@ test("the most specific template wins: client and manufacturer, client, manufact
   const chosen = page.getByTestId("chosen-template");
   await expectTemplate(page, FIXTURE_TEMPLATE_CODE, `For ${fixture.clientName} at ${HARTALEGA.label}`);
   await expect(chosen).toContainText(FIXTURE_TEMPLATE_NAME);
-  await expect(chosen).toContainText(`${FIXTURE_TEMPLATE_CODE} version 1 · EN 455`);
+  await expect(chosen).toContainText(`${FIXTURE_TEMPLATE_CODE} Version 1 · EN 455`);
   await expect(chosen).toContainText("XS, S, M, L, XL (pieces)");
   await expect(page.getByRole("radio", { name: new RegExp(PREVIOUS.productName) })).toBeVisible();
   await expect(page.getByRole("radio", { name: "Start Blank" })).toBeChecked();
@@ -211,7 +211,7 @@ test("the most specific template wins: client and manufacturer, client, manufact
   await choose(page, "Client", "No Client");
   await choose(page, "Manufacturer", fixture.manufacturerA.label);
   await expectTemplate(page, LEVEL_TEMPLATES.manufacturer.code, `For ${fixture.manufacturerA.label}`);
-  await expect(chosen).toContainText(`${LEVEL_TEMPLATES.manufacturer.code} version 1 · ASTM D6319`);
+  await expect(chosen).toContainText(`${LEVEL_TEMPLATES.manufacturer.code} Version 1 · ASTM D6319`);
   await expect(productName).toBeEnabled();
   await shot(page, "level-manufacturer");
 
@@ -442,9 +442,9 @@ test("an admin can choose another template", async ({ page, context, baseURL }) 
   await pickFixtureOrder(page);
   await expect(page.getByTestId("chosen-template")).toHaveAttribute("data-code", FIXTURE_TEMPLATE_CODE);
   const picker = page.getByRole("combobox", { name: "Use Another Template" });
-  await expect(picker).toHaveText(`Automatic: ${FIXTURE_TEMPLATE_CODE} version 1`);
+  await expect(picker).toHaveText(`Automatic: ${FIXTURE_TEMPLATE_CODE} Version 1`);
   await press(picker);
-  const option = page.getByRole("option", { name: `${FIXTURE_TEMPLATE_CODE} version 1`, exact: true });
+  const option = page.getByRole("option", { name: `${FIXTURE_TEMPLATE_CODE} Version 1`, exact: true });
   await expect(option).toBeVisible();
   await press(option);
   await expect(page.getByTestId("choice-reason")).toHaveText("Chosen by an admin");
@@ -458,7 +458,7 @@ test("an admin can choose another template", async ({ page, context, baseURL }) 
   await press(page.getByRole("button", { name: "Create Inspection" }));
   await expect(page.getByTestId("form-error")).toContainText(UNREACHABLE);
   await expect(page.getByTestId("form-error")).toBeFocused();
-  await expect(picker).toHaveText(`${FIXTURE_TEMPLATE_CODE} version 1`);
+  await expect(picker).toHaveText(`${FIXTURE_TEMPLATE_CODE} Version 1`);
   await expect(page.getByTestId("choice-reason")).toHaveText("Chosen by an admin");
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });

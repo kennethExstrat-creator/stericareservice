@@ -9,7 +9,7 @@ import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { choiceReason, PRODUCT_TYPE_LABEL, type TemplateChoice } from "@/lib/inspections/create";
 import type { ProductType } from "@/lib/schemas/common";
-import { templateLabel } from "../_lib/text";
+import { overrideOptionLabel, templateInSentence, templateLabel } from "../_lib/text";
 import { STANDARD_LABEL, type TemplateOption } from "../_lib/types";
 import { Panel } from "./panel";
 
@@ -41,7 +41,7 @@ export function TemplatePanel(props: TemplatePanelProps) {
   const announcement = waiting
     ? ""
     : chosen && choice?.ok
-      ? `Template: ${chosen.name}, ${templateLabel(chosen)}.`
+      ? `Template: ${chosen.name}, ${templateInSentence(chosen)}.`
       : choice && !choice.ok
         ? choice.message
         : "";
@@ -160,7 +160,7 @@ function Chosen({
       )}
       {ties.length > 0 && (
         <p className="text-sm text-muted-foreground touch:text-base">
-          Also applies just as closely: {ties.map(templateLabel).join(", ")}. The first by code was taken.
+          Also applies just as closely: {ties.map(templateInSentence).join(", ")}. The first by code was taken.
         </p>
       )}
     </div>
@@ -216,11 +216,7 @@ function OverridePicker({
           {forType.length > 0 && <SelectSeparator />}
           {forType.map((template) => (
             <SelectItem key={template.id} value={template.id} disabled={!template.ready}>
-              <span className="truncate">
-                {templateLabel(template)}
-                {template.status === "draft" ? " · Draft" : ""}
-                {template.ready ? "" : " · cannot be used yet"}
-              </span>
+              <span className="truncate">{overrideOptionLabel(template)}</span>
             </SelectItem>
           ))}
         </SelectContent>

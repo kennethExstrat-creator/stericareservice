@@ -98,7 +98,8 @@ describe("the template panel", () => {
     const html = panel({ templates: [option("STD_EG"), option("SAFEDON_EG", { client_id: CLIENT })] });
     expect(html).toContain('data-code="SAFEDON_EG"');
     expect(html).toContain("Safedon examination gloves (ASTM D6319)");
-    expect(html).toContain("SAFEDON_EG version 1 · ASTM D6319");
+    // A label names the version in Title Case; the announcement is a sentence.
+    expect(html).toContain("SAFEDON_EG Version 1 · ASTM D6319");
     expect(html).toContain("For Polyco Healthline");
     expect(html).toContain("XS, S, M, L, XL");
     expect(html).toContain("(pieces)");
@@ -120,7 +121,8 @@ describe("the template panel", () => {
   it("gives an admin the choice of another template, and shows ties to admins only", () => {
     const templates = [option("STD_EG"), option("STD_EG", { code: "OTHER_EG" })];
     const admin = panel({ role: "admin", templates });
-    // The picker's options render when it opens (e2e/new checks "Automatic: <code> version <n>").
+    // The picker's options render when it opens (e2e/new checks "Automatic: <code> Version <n>";
+    // options.test.ts the options' words).
     expect(admin).toContain("Use Another Template");
     expect(admin).toContain('data-code="OTHER_EG"');
     expect(admin).toContain("Also applies just as closely: STD_EG version 1. The first by code was taken.");
@@ -143,13 +145,13 @@ describe("the template panel", () => {
     const draft = option("STD_EG", { code: "DRAFT_EG", status: "draft" });
     const html = panel({ role: "admin", templates: [option("STD_EG"), draft], overrideId: draft.id });
     expect(html).toContain("Chosen by an admin");
-    expect(html).toContain("DRAFT_EG version 1 · EN 455 · Draft");
+    expect(html).toContain("DRAFT_EG Version 1 · EN 455 · Draft");
     expect(html).toContain("A draft is frozen once an inspection uses it: later edits become a new version.");
   });
 
   it("names a standard still to be confirmed in Title Case, like the others' names", () => {
     const html = panel({ templates: [option("STD_EG", { standard: "custom" })] });
-    expect(html).toContain("STD_EG version 1 · Standard to Be Confirmed");
+    expect(html).toContain("STD_EG Version 1 · Standard to Be Confirmed");
   });
 
   it("says when the version picked cannot be used yet", () => {

@@ -66,7 +66,7 @@ import {
   writeDraft,
   type NewInspectionChoices,
 } from "../_lib/draft";
-import { templateLabel } from "../_lib/text";
+import { templateInSentence } from "../_lib/text";
 import type { Option, PreviousProduct, TemplateOption } from "../_lib/types";
 import { ChoiceCard } from "./choice-card";
 import { Panel } from "./panel";
@@ -201,7 +201,7 @@ function ChoicesForm({ storageKey, initial, role, clients, manufacturers, templa
       }
       const option = templates.find((template) => template.id === check.template.id);
       if (option && !option.ready) {
-        return settle({ status: "error", message: `${templateLabel(option)} cannot be used yet: an admin needs to save it again.` });
+        return settle({ status: "error", message: `${templateInSentence(option)} cannot be used yet: an admin needs to save it again.` });
       }
       try {
         return settle(await createInspection(current, formData));
