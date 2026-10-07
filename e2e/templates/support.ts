@@ -479,10 +479,7 @@ export function watchConsole(page: Page): () => string[] {
   return () => errors.filter((text) => /hydrat|did not match|server rendered/i.test(text));
 }
 
-export async function expectNoPageScroll(page: Page): Promise<void> {
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-  expect(overflow, "the page scrolls sideways").toBeLessThanOrEqual(0);
-}
+export { expectNoPageScroll } from "../support/layout";
 
 /** A tiny but real PDF: what an admin uploads as the source form. */
 export const SOURCE_PDF = Buffer.from(

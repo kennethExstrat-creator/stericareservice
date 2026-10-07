@@ -2,6 +2,7 @@ import { expect, test, type BrowserContext, type Locator, type Page, type Route 
 import type { Json } from "../../lib/supabase/database.types";
 import { drawImage, holdUploads, labReportPdf } from "../photos/support";
 import { createTestAdminClient } from "../support/admin";
+import { expectNoPageScroll } from "../support/layout";
 import { sessionCookies, TEST_ACCOUNTS } from "../support/session";
 import { createCaptureFixture, type CaptureFixture } from "./fixtures";
 
@@ -82,11 +83,6 @@ function watchConsole(page: Page) {
   });
   page.on("pageerror", (error) => errors.push(error.message));
   return () => errors.filter((text) => /hydrat|did not match|server rendered/i.test(text));
-}
-
-async function expectNoPageScroll(page: Page) {
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-  expect(overflow, "the page scrolls sideways").toBeLessThanOrEqual(0);
 }
 
 /**

@@ -1,4 +1,5 @@
 import { expect, test, type BrowserContext, type Locator, type Page, type Route } from "@playwright/test";
+import { expectNoPageScroll } from "../support/layout";
 import { sessionCookies, signIn, TEST_ACCOUNTS } from "../support/session";
 import { createShellFixture, type ShellFixture } from "./fixtures";
 
@@ -364,7 +365,7 @@ test.describe("as the admin", () => {
     // Tabs keep their names for screen readers when only the icons show.
     await expect(nav.getByRole("link")).toHaveText(["Inspections", "Admin"]);
     // The admin row wraps rather than widening the page.
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await expectNoPageScroll(page);
     await shot(page, "admin-top-bar-320", false);
   });
 
