@@ -29,12 +29,12 @@ import { unreachable } from "./unreachable";
 type FieldErrors = Partial<Record<UserField, string>>;
 
 /**
- * "Invite user": the button and its dialog. Disabled, with the reason shown on
+ * "Invite User": the button and its dialog. Disabled, with the reason shown on
  * the page, when the server has no secret key to send invites with.
  */
 export function InviteUserDialog({
   disabled = false,
-  label = "Invite user",
+  label = "Invite User",
   teams = true,
   leads = [],
 }: {
@@ -145,13 +145,13 @@ function InviteForm({
   return (
     <form onSubmit={submitAction(formAction, pending)} noValidate className="grid gap-6">
       <DialogHeader>
-        <DialogTitle className="text-lg font-bold">Invite a user</DialogTitle>
+        <DialogTitle className="text-lg font-bold">Invite a User</DialogTitle>
         <DialogDescription>They get an email with a link to choose a password and sign in.</DialogDescription>
       </DialogHeader>
 
       <FieldGroup className="gap-5">
         <Field data-invalid={nameError ? true : undefined}>
-          <FieldLabel htmlFor={`${id}-name`}>Full name</FieldLabel>
+          <FieldLabel htmlFor={`${id}-name`}>Full Name</FieldLabel>
           <Input
             ref={nameRef}
             id={`${id}-name`}
@@ -234,7 +234,7 @@ function InviteForm({
         </DialogClose>
         <Button type="submit" disabled={pending}>
           {pending && <Spinner aria-hidden />}
-          {pending ? "Sending invite…" : "Send invite"}
+          {pending ? "Sending Invite…" : "Send Invite"}
         </Button>
       </DialogFooter>
     </form>

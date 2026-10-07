@@ -59,9 +59,9 @@ export function UsersTable({
             <TableHead className={cn("pl-4", HEAD)}>Name</TableHead>
             <TableHead className={cn("hidden xl:table-cell", HEAD)}>Email</TableHead>
             <TableHead className={HEAD}>Role</TableHead>
-            {teams && <TableHead className={cn("hidden lg:table-cell", HEAD)}>Lead inspector</TableHead>}
+            {teams && <TableHead className={cn("hidden lg:table-cell", HEAD)}>Lead Inspector</TableHead>}
             <TableHead className={HEAD}>Status</TableHead>
-            {showSignIns && <TableHead className={HEAD}>Last signed in</TableHead>}
+            {showSignIns && <TableHead className={HEAD}>Last Signed In</TableHead>}
             <TableHead className={cn("hidden lg:table-cell", HEAD)}>Added</TableHead>
             <TableHead className={cn("w-0 pr-4", HEAD)}>
               <span className="sr-only">Actions</span>
@@ -100,7 +100,7 @@ export function UsersTable({
                 <TableCell className={cn("whitespace-normal", CELL)}>
                   <div className="flex flex-col items-start gap-1">
                     <RoleLabel role={user.roleChoice} />
-                    {/* The Lead inspector column starts at 1024 px; below that the lead sits here. */}
+                    {/* The Lead Inspector column starts at 1024 px; below that the lead sits here. */}
                     {teams && user.roleChoice !== "admin" && (
                       <span className="text-muted-foreground lg:hidden" data-slot="team-under-role">
                         {user.lead && "Lead: "}
@@ -121,7 +121,7 @@ export function UsersTable({
                     {user.signInBlocked && (
                       <span className="inline-flex items-center gap-1 text-sm font-medium text-warn">
                         <LockIcon aria-hidden className="size-3.5" />
-                        Sign-in blocked
+                        Sign-In Blocked
                       </span>
                     )}
                   </div>
@@ -141,6 +141,7 @@ export function UsersTable({
                     user={{
                       id: user.id,
                       name,
+                      fullName: user.fullName,
                       email: user.email,
                       role: user.roleChoice,
                       status: user.status,

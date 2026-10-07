@@ -60,12 +60,36 @@ export const InviteUserSchema = z.object({
 });
 export type InviteUserInput = z.infer<typeof InviteUserSchema>;
 
-/** Fields a user form can mark: the invite's, and the role and lead in every dialog. */
+/** Fields a user form can mark: the invite's, the role and lead in every dialog, and Change Name's. */
 export type UserField = "email" | "fullName" | "role" | "leadId";
 
-/** Change role: inspector (in a lead's team), lead inspector or admin. */
+/** The longest name Change Name saves. */
+export const NAME_MAX_LENGTH = 100;
+
+/** One line: any run of spaces, tabs or pasted line breaks becomes a single space (as lib/admin/reference.ts). */
+function oneLine(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Change Name: the name the app shows for someone everywhere
+ * (profiles.full_name), on one line, 1 to 100 characters. Any other control
+ * character (a pasted NUL or NEL, which no line break rule catches) is
+ * refused rather than saved where nobody can see it.
+ */
+export const RenameUserSchema = z.object({
+  userId: UserIdSchema,
+  fullName: z
+    .string({ error: "Enter their name." })
+    .overwrite(oneLine)
+    .min(1, "Enter their name.")
+    .max(NAME_MAX_LENGTH, `Keep the name to ${NAME_MAX_LENGTH} characters or fewer.`)
+    .refine((name) => !/\p{Cc}/u.test(name), "The name holds a hidden control character. Type it again."),
+});
+
+/** Change Role: inspector (in a lead's team), lead inspector or admin. */
 export const ChangeRoleSchema = z.object({ userId: UserIdSchema, role: RoleChoiceSchema, leadId: LeadChoiceSchema });
-/** Change lead inspector: move an inspector to another team. */
+/** Change Lead Inspector: move an inspector to another team. */
 export const AssignLeadSchema = z.object({
   userId: UserIdSchema,
   leadId: z.preprocess(

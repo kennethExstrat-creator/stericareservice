@@ -61,8 +61,8 @@ describe("team filter", () => {
   it("offers everyone, the inspectors in no team when there are any, then each lead's team", () => {
     expect(filterOptions(USERS)).toEqual([
       { value: EVERYONE, label: "Everyone" },
-      { value: NO_LEAD, label: "No lead inspector (1)" },
-      { value: LEAD, label: "Lina Lead's team (1)" },
+      { value: NO_LEAD, label: "No Lead Inspector (1)" },
+      { value: LEAD, label: "Lina Lead's Team (1)" },
     ]);
     expect(filterOptions(USERS.filter((u) => !u.missingLead)).map((option) => option.value)).toEqual([EVERYONE, LEAD]);
   });

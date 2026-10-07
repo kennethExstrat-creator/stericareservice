@@ -11,8 +11,8 @@ import { radioNames, radiosIn, textOf } from "./radio-card.testing";
 function draw(value = "a") {
   return renderToStaticMarkup(
     <RadioGroup value={value}>
-      <RadioCard id="c-a" value="a" title="Their team's codes" description="One of the active codes." />
-      <RadioCard id="c-b" value="b" title="A new code" description="Add a code for this label first." />
+      <RadioCard id="c-a" value="a" title="Their Team's Codes" description="One of the active codes." />
+      <RadioCard id="c-b" value="b" title="A New Code" description="Add a code for this label first." />
     </RadioGroup>,
   );
 }
@@ -23,8 +23,8 @@ describe("RadioCard", () => {
     expect(radiosIn(html).map((radio) => radio["aria-labelledby"])).toEqual(["c-a-title", "c-b-title"]);
     expect(radiosIn(html).map((radio) => radio["aria-describedby"])).toEqual(["c-a-description", "c-b-description"]);
     expect(radioNames(html)).toEqual([
-      { name: "Their team's codes", description: "One of the active codes." },
-      { name: "A new code", description: "Add a code for this label first." },
+      { name: "Their Team's Codes", description: "One of the active codes." },
+      { name: "A New Code", description: "Add a code for this label first." },
     ]);
   });
 

@@ -64,16 +64,20 @@ export function applyTeamFilter(users: readonly UserListItem[], filter: TeamFilt
 
 export type FilterOption = { value: string; label: string };
 
-/** The picker's choices: everyone, the inspectors in no team (when there are any), then each lead's team by name. */
+/**
+ * The picker's choices: everyone, the inspectors in no team (when there are
+ * any), then each lead's team by name. Labels, so in Title Case: "No Lead
+ * Inspector (2)", "Lina Lead's Team (3)".
+ */
 export function filterOptions(users: readonly UserListItem[]): FilterOption[] {
   const missing = users.filter((user) => user.missingLead).length;
   const leads = users.filter((user) => user.roleChoice === "lead");
   return [
     { value: EVERYONE, label: "Everyone" },
-    ...(missing > 0 ? [{ value: NO_LEAD, label: `No lead inspector (${missing})` }] : []),
+    ...(missing > 0 ? [{ value: NO_LEAD, label: `No Lead Inspector (${missing})` }] : []),
     ...leads.map((lead) => ({
       value: lead.id,
-      label: `${lead.fullName?.trim() || lead.email}'s team (${lead.team.length})`,
+      label: `${lead.fullName?.trim() || lead.email}'s Team (${lead.team.length})`,
     })),
   ];
 }

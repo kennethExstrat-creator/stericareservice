@@ -40,12 +40,23 @@ describe("InviteUserDialog", () => {
     expect(html).toContain('<input type="hidden" name="role" value="inspector"/>');
   });
 
-  it("offers Inspector, Lead inspector and Admin, and asks an inspector's lead", () => {
+  it("offers Inspector, Lead Inspector and Admin, and asks an inspector's lead", () => {
     const html = renderToStaticMarkup(<InviteUserDialog leads={LEADS} />);
     for (const role of ["inspector", "lead", "admin"]) expect(html).toMatch(new RegExp(`role="radio"[^>]*value="${role}"`));
-    expect(html).toContain(">Lead inspector</label>");
+    expect(html).toContain(">Lead Inspector</label>");
+    // The picker's placeholder is a sentence, so it keeps its case.
     expect(html).toContain("Choose their lead inspector");
     expect(html).toContain('<input type="hidden" name="leadId" value=""/>');
+  });
+
+  it("names the button, the dialog, the fields and the submit in Title Case", () => {
+    const html = renderToStaticMarkup(<InviteUserDialog leads={LEADS} />);
+    expect(html).toMatch(/<button[^>]*>(?:(?!<\/button>).)*Invite User<\/button>/);
+    expect(html).toContain(">Invite a User</div>");
+    expect(html).toContain(">Full Name</label>");
+    expect(html).toContain(">Email</label>");
+    expect(html).toContain(">Send Invite</button>");
+    expect(renderToStaticMarkup(<InviteUserDialog label="Invite Your First User" />)).toContain("Invite Your First User");
   });
 
   it("says there is no lead inspector to choose yet", () => {

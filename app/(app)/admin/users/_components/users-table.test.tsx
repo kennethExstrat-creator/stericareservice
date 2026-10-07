@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { UserListItem } from "@/lib/auth/users";
 
 vi.mock("../actions", () => ({
+  renameUser: vi.fn(),
   changeRole: vi.fn(),
   assignLead: vi.fn(),
   deactivateUser: vi.fn(),
@@ -107,9 +108,9 @@ describe("UsersTable", () => {
   const html = renderToStaticMarkup(<UsersTable users={USERS} showSignIns />);
   const [admin, olga, pending] = rows(html);
 
-  it("names its columns, with an accessible caption", () => {
+  it("names its columns in Title Case, with an accessible caption", () => {
     expect(html).toContain('<caption class="sr-only">Users, their roles, lead inspectors and access</caption>');
-    for (const header of ["Name", "Email", "Role", "Lead inspector", "Status", "Last signed in", "Added"]) {
+    for (const header of ["Name", "Email", "Role", "Lead Inspector", "Status", "Last Signed In", "Added"]) {
       expect(html).toContain(`>${header}</th>`);
     }
     expect(html).toContain('<span class="sr-only">Actions</span>');
@@ -123,7 +124,7 @@ describe("UsersTable", () => {
   it("shows each status as an icon and words", () => {
     expect(admin).toMatch(/data-status="active"[^>]*>.*Active<\/span>/);
     expect(olga).toContain("Deactivated");
-    expect(pending).toContain("Pending activation");
+    expect(pending).toContain("Pending Activation");
     for (const row of [admin, olga, pending]) expect(row).toMatch(/<svg[^>]*aria-hidden="true"/);
   });
 
@@ -155,13 +156,13 @@ describe("UsersTable", () => {
 
   it("flags an active account whose sign-in Supabase still blocks", () => {
     const blocked = renderToStaticMarkup(<UsersTable users={[{ ...USERS[1], status: "active", signInBlocked: true }]} showSignIns />);
-    expect(blocked).toContain("Sign-in blocked");
-    expect(html).not.toContain("Sign-in blocked");
+    expect(blocked).toContain("Sign-In Blocked");
+    expect(html).not.toContain("Sign-In Blocked");
   });
 
   it("drops the sign-in column when sign-in details are unavailable", () => {
     const withoutSignIns = renderToStaticMarkup(<UsersTable users={USERS} showSignIns={false} />);
-    expect(withoutSignIns).not.toContain(">Last signed in</th>");
+    expect(withoutSignIns).not.toContain(">Last Signed In</th>");
     expect(withoutSignIns).not.toContain(">Never</span>");
   });
 });
@@ -170,9 +171,9 @@ describe("UsersTable: lead inspectors and their teams", () => {
   const html = renderToStaticMarkup(<UsersTable users={[...USERS, ...LEADS]} showSignIns />);
   const [admin, olga, , lina, gail] = rows(html);
 
-  it("says Inspector, Lead inspector or Admin", () => {
+  it("says Inspector, Lead Inspector or Admin", () => {
     expect(admin).toMatch(/data-role="admin"[^>]*>.*Admin<\/span>/);
-    expect(lina).toMatch(/data-role="lead"[^>]*>.*Lead inspector<\/span>/);
+    expect(lina).toMatch(/data-role="lead"[^>]*>.*Lead Inspector<\/span>/);
     expect(olga).toMatch(/data-role="inspector"[^>]*>.*Inspector<\/span>/);
   });
 
@@ -185,8 +186,8 @@ describe("UsersTable: lead inspectors and their teams", () => {
 
   it("flags an active inspector in no team", () => {
     expect(gail).toContain('data-slot="no-lead"');
-    expect(gail).toContain("No lead inspector");
-    expect(olga).not.toContain("No lead inspector");
+    expect(gail).toContain("No Lead Inspector");
+    expect(olga).not.toContain("No Lead Inspector");
   });
 
   it("shows admins in no team", () => {
@@ -194,14 +195,14 @@ describe("UsersTable: lead inspectors and their teams", () => {
   });
 
   it("puts the lead under the role below 1024 px, where the column drops out", () => {
-    expect(html).toMatch(/<th[^>]*class="[^"]*hidden lg:table-cell[^"]*"[^>]*>Lead inspector<\/th>/);
+    expect(html).toMatch(/<th[^>]*class="[^"]*hidden lg:table-cell[^"]*"[^>]*>Lead Inspector<\/th>/);
     expect(olga).toMatch(/data-slot="team-under-role">Lead: <a/);
     expect(admin).not.toContain('data-slot="team-under-role"');
   });
 
   it("has no team column on a project without lead inspectors", () => {
     const withoutTeams = renderToStaticMarkup(<UsersTable users={USERS} showSignIns teams={false} />);
-    expect(withoutTeams).not.toContain(">Lead inspector</th>");
+    expect(withoutTeams).not.toContain(">Lead Inspector</th>");
     expect(withoutTeams).not.toContain("team-under-role");
   });
 

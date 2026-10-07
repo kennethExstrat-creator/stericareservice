@@ -12,6 +12,7 @@ vi.mock("@/lib/auth/users", async (importOriginal) => ({
 }));
 vi.mock("./actions", () => ({
   inviteUser: vi.fn(),
+  renameUser: vi.fn(),
   changeRole: vi.fn(),
   assignLead: vi.fn(),
   deactivateUser: vi.fn(),
@@ -87,9 +88,9 @@ async function render(value: UserDirectory, query: Record<string, string> = {}):
   return renderToStaticMarkup(await UsersPage({ params: Promise.resolve({}), searchParams: Promise.resolve(query) }));
 }
 
-/** The header's Invite user button, or null. */
+/** The header's Invite User button, or null. */
 function inviteButton(html: string): string | null {
-  return html.match(/<button[^>]*>(?:(?!<\/button>).)*Invite user<\/button>/)?.[0] ?? null;
+  return html.match(/<button[^>]*>(?:(?!<\/button>).)*Invite User<\/button>/)?.[0] ?? null;
 }
 
 /** The table's body rows. */
@@ -132,7 +133,7 @@ describe("/admin/users", () => {
     expect(html).toContain("SUPABASE_SECRET_KEY");
     expect(inviteButton(html)).toMatch(/disabled=""/);
     // Without sign-in details there is no last sign-in column.
-    expect(html).not.toContain(">Last signed in</th>");
+    expect(html).not.toContain(">Last Signed In</th>");
   });
 
   it("explains when Supabase Auth did not answer, and still lists everyone", async () => {
@@ -147,14 +148,14 @@ describe("/admin/users", () => {
     const html = await render(directory({ users: [me], leads: [] }));
 
     expect(html).toContain("Only you so far");
-    expect(html).toContain("Invite your first user");
+    expect(html).toContain("Invite Your First User");
   });
 
   it("does not offer the first invite when invites are off", async () => {
     const html = await render(directory({ users: [me], adminApi: "missing-key", leads: [] }));
 
     expect(html).toContain("Only you so far");
-    expect(html).not.toContain("Invite your first user");
+    expect(html).not.toContain("Invite Your First User");
   });
 });
 
@@ -166,7 +167,7 @@ describe("/admin/users: lead inspectors and teams", () => {
 
   it("shows the team column and the Team picker", async () => {
     const html = await render(directory({ users: [me, lina, olga] }));
-    expect(html).toContain(">Lead inspector</th>");
+    expect(html).toContain(">Lead Inspector</th>");
     expect(html).toContain(">Team</label>");
     expect(html).toContain('role="status">3 people.</p>');
     expect(html).not.toContain('data-testid="no-lead-alert"');
@@ -177,10 +178,15 @@ describe("/admin/users: lead inspectors and teams", () => {
     const alert = html.slice(html.indexOf('data-testid="no-lead-alert"'));
     expect(alert).toContain("1 inspector has no lead inspector");
     expect(alert).toContain("Gail Grandfathered works in no team, so no lead inspector sees their inspections.");
+    // The menu item it names, as the menu says it.
+    expect(alert).toContain("Choose Change Lead Inspector next to their name.");
     // On its own line, and 44 px tall on touch (docs/DESIGN.md, Density): e2e/org measures it.
     const link = alert.match(/<a[^>]*href="\/admin\/users\?team=none"[^>]*>/)?.[0] ?? "";
     expect(link).toMatch(/touch:inline-flex touch:min-h-11 touch:items-center/);
-    expect(alert).toMatch(/<p><a[^>]*>Show them<\/a><\/p>/);
+    expect(alert).toMatch(/<p><a[^>]*>Show Them<\/a><\/p>/);
+
+    const two = await render(directory({ users: [me, olga, gail, { ...gail, id: "4e5f6071-8293-4d0e-9f1a-3b4c5d6e7f80", fullName: "Gus" }] }));
+    expect(two.slice(two.indexOf('data-testid="no-lead-alert"'))).toMatch(/<p><a[^>]*>Show Only Them<\/a><\/p>/);
   });
 
   it("shows one lead's team, the lead first", async () => {
@@ -206,7 +212,7 @@ describe("/admin/users: lead inspectors and teams", () => {
     expect(html).toContain('data-testid="teams-missing"');
     expect(html).toContain("Lead inspectors are not set up yet");
     expect(html).toContain("20261007170000_lead_inspectors.sql");
-    expect(html).not.toContain(">Lead inspector</th>");
+    expect(html).not.toContain(">Lead Inspector</th>");
     expect(html).not.toContain(">Team</label>");
     // The filter is ignored: everyone is listed.
     expect(bodyRows(html)).toHaveLength(2);

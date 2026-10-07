@@ -31,11 +31,12 @@ export type UserRole = Database["public"]["Enums"]["user_role"];
 export const ROLE_CHOICES = ["inspector", "lead", "admin"] as const;
 export type RoleChoice = (typeof ROLE_CHOICES)[number];
 
-export const RoleChoiceSchema = z.enum(ROLE_CHOICES, { error: "Choose Inspector, Lead inspector or Admin." });
+export const RoleChoiceSchema = z.enum(ROLE_CHOICES, { error: "Choose Inspector, Lead Inspector or Admin." });
 
+/** The roles as labels (Title Case, Kenneth 8 October 2026); sentences say "lead inspector". */
 export const ROLE_CHOICE_LABEL: Readonly<Record<RoleChoice, string>> = {
   inspector: "Inspector",
-  lead: "Lead inspector",
+  lead: "Lead Inspector",
   admin: "Admin",
 };
 
@@ -131,7 +132,7 @@ export const TEAM_MESSAGES = {
   /** The lead picker for the only active lead inspector, who cannot lead themselves. */
   noOtherLead: "There is no other active lead inspector. Make someone else a lead inspector first.",
   /** An inspector needs a lead and nobody can lead them: said at the Role field, where the admin can choose otherwise. */
-  nobodyToLead: "Nobody can lead them yet. Choose Lead inspector or Admin, or make someone a lead inspector first.",
+  nobodyToLead: "Nobody can lead them yet. Choose Lead Inspector or Admin, or make someone a lead inspector first.",
   ownLead: "Nobody can be their own lead inspector. Choose someone else.",
   /** Only inspectors who are not leads work in a team. */
   inNoTeam: (name: string, choice: RoleChoice) =>
@@ -142,7 +143,7 @@ export const TEAM_MESSAGES = {
   leadsTeam: (name: string, members: readonly string[]) =>
     `${name} leads ${inspectors(members.length)}: ${listNames(members)}. Choose another lead inspector for ${
       members.length === 1 ? "them" : "each of them"
-    } first (Change lead inspector, next to their name).`,
+    } first (Change Lead Inspector, next to their name).`,
   teamsMissing:
     "Lead inspectors need a database update first: apply supabase/migrations/20261007170000_lead_inspectors.sql, then reload this page.",
 } as const;

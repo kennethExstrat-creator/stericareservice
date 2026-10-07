@@ -12,6 +12,8 @@ import {
   ChangeRoleSchema,
   InviteUserSchema,
   MESSAGES,
+  NAME_MAX_LENGTH,
+  RenameUserSchema,
   UserTargetSchema,
   accountStatus,
   authConfirmUrl,
@@ -46,7 +48,7 @@ describe("InviteUserSchema", () => {
     [{ email: "jane@", fullName: "Jane", role: "inspector" }, "email", "Enter a valid email address, like name@example.com."],
     [{ email: "jane@example.com", fullName: "   ", role: "inspector" }, "fullName", "Enter their full name."],
     [{ email: "jane@example.com", fullName: "x".repeat(121), role: "inspector" }, "fullName", "Keep the name under 120 characters."],
-    [{ email: "jane@example.com", fullName: "Jane", role: "owner" }, "role", "Choose Inspector, Lead inspector or Admin."],
+    [{ email: "jane@example.com", fullName: "Jane", role: "owner" }, "role", "Choose Inspector, Lead Inspector or Admin."],
     // A field missing from the form arrives as null.
     [{ email: null, fullName: null, role: null }, "email", "Enter their email address."],
   ])("explains what is wrong with %j", (input, field, message) => {
@@ -60,7 +62,7 @@ describe("InviteUserSchema", () => {
     expect(firstFieldErrors(result.error!)).toEqual({
       email: "Enter their email address.",
       fullName: "Enter their full name.",
-      role: "Choose Inspector, Lead inspector or Admin.",
+      role: "Choose Inspector, Lead Inspector or Admin.",
     });
   });
 });
@@ -84,6 +86,39 @@ describe("role and target schemas", () => {
       expect(UserTargetSchema.safeParse({ userId }).success).toBe(false);
     }
     expect(ChangeRoleSchema.safeParse({ userId: OTHER, role: "superuser" }).success).toBe(false);
+  });
+});
+
+describe("RenameUserSchema", () => {
+  it("keeps the name on one line: trimmed, with runs of spaces, tabs and line breaks made one space", () => {
+    expect(RenameUserSchema.parse({ userId: OTHER.toUpperCase(), fullName: "  Ngan \t Boon\r\nKeat  " })).toEqual({
+      userId: OTHER,
+      fullName: "Ngan Boon Keat",
+    });
+  });
+
+  it("takes 1 to 100 characters", () => {
+    expect(NAME_MAX_LENGTH).toBe(100);
+    expect(RenameUserSchema.parse({ userId: OTHER, fullName: "x".repeat(100) }).fullName).toHaveLength(100);
+    expect(RenameUserSchema.parse({ userId: OTHER, fullName: "Q" }).fullName).toBe("Q");
+  });
+
+  it.each([
+    ["an empty name", "", "Enter their name."],
+    ["spaces only", " \n\t ", "Enter their name."],
+    ["a missing field", null, "Enter their name."],
+    ["101 characters", "x".repeat(101), "Keep the name to 100 characters or fewer."],
+    ["a hidden control character", "Ngan\u0000Keat", "The name holds a hidden control character. Type it again."],
+    ["a pasted next-line character", "Ngan\u0085Keat", "The name holds a hidden control character. Type it again."],
+  ])("refuses %s, at the name", (_case, fullName, message) => {
+    const result = RenameUserSchema.safeParse({ userId: OTHER, fullName });
+    expect(result.success).toBe(false);
+    expect(firstFieldErrors(result.error!)).toEqual({ fullName: message });
+  });
+
+  it("refuses anything that is not a user id", () => {
+    const result = RenameUserSchema.safeParse({ userId: "1 or 1=1", fullName: "Ngan Boon Keat" });
+    expect(firstFieldErrors(result.error!)).toEqual({ userId: MESSAGES.userNotFound });
   });
 });
 
