@@ -1,4 +1,4 @@
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
 import { sessionCookies, signIn, TEST_ACCOUNTS } from "../support/session";
 import { createShellFixture, type ShellFixture } from "./fixtures";
 
@@ -109,12 +109,16 @@ async function authCookies(context: BrowserContext) {
   return (await context.cookies()).filter((cookie) => cookie.name.includes("-auth-token"));
 }
 
+/** Lets a menu's or dialog's 100 ms zoom-in finish, or sizes are measured mid-scale. */
+async function settled(element: Locator) {
+  await element.evaluate((node) => Promise.all(node.getAnimations({ subtree: true }).map((animation) => animation.finished)));
+}
+
 async function openUserMenu(page: Page) {
   await page.getByRole("button", { name: /account menu/ }).click();
   const menu = page.getByRole("menu");
   await expect(menu).toBeVisible();
-  // Let the 100 ms zoom-in finish, or sizes are measured mid-scale.
-  await menu.evaluate((element) => Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished)));
+  await settled(menu);
   return menu;
 }
 
@@ -138,6 +142,20 @@ async function drawPhoto(page: Page) {
     mimeType: "image/jpeg",
     buffer: Buffer.from(dataUrl.slice(dataUrl.indexOf(",") + 1), "base64"),
   };
+}
+
+/**
+ * Uncaught errors and console errors on the page from now on, apart from
+ * requests the test itself cut off. Sign out rethrows the Server Action's
+ * redirect to Next.js: it must never surface as an error.
+ */
+function watchErrors(page: Page) {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error" && !/^Failed to load resource/.test(message.text())) errors.push(message.text());
+  });
+  return () => errors;
 }
 
 // React reports hydration mismatches as console errors; none are allowed.
@@ -422,12 +440,14 @@ test.describe("as the admin", () => {
     await context.clearCookies();
     await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
     await page.goto("/admin");
+    const errors = watchErrors(page);
     const menu = await openUserMenu(page);
     await menu.getByRole("menuitem", { name: "Sign out" }).click();
     // No question first: straight to sign-in.
     await expect(page).toHaveURL(/\/login$/);
     await expect(page.getByRole("alertdialog")).toHaveCount(0);
     expect(await authCookies(context)).toEqual([]);
+    expect(errors()).toEqual([]);
 
     await page.goto("/admin");
     await expect(page).toHaveURL(/\/login\?next=%2Fadmin$/);
@@ -513,6 +533,7 @@ test.describe("as the admin", () => {
       await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
       // Uploads fail as on a dropped connection, so the photo stays on this device.
       await page.route(PHOTO_UPLOADS, (route) => route.abort("internetdisconnected"));
+      const errors = watchErrors(page);
       const gallery = `/inspections/${fixture.inspectionId}/photos`;
       await page.goto(gallery);
       await expect(page.getByRole("heading", { level: 1, name: "Photos and files" })).toBeVisible();
@@ -529,7 +550,12 @@ test.describe("as the admin", () => {
       // Staying is the default: it has the focus, and the menu has handed over to the dialog.
       await expect(stay).toBeFocused();
       await expect(page.getByRole("menu")).toHaveCount(0);
-      if (isTouch()) expect((await stay.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+      await settled(dialog);
+      if (isTouch()) {
+        for (const button of await dialog.getByRole("button").all()) {
+          expect((await button.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+        }
+      }
       await shot(page, "admin-sign-out-photo-waiting", false);
 
       // Stay: still signed in, on the same page, the photo still waiting, focus back on the menu button.
@@ -553,6 +579,7 @@ test.describe("as the admin", () => {
       await dialog.getByRole("button", { name: "Sign out anyway" }).click();
       await expect(page).toHaveURL(/\/login$/);
       expect(await authCookies(context)).toEqual([]);
+      expect(errors()).toEqual([]);
     });
   });
 });
