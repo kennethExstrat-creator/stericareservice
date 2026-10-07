@@ -39,7 +39,18 @@ export {
   type FormIssues,
   type FormPath,
 } from "./issues";
-export { humanize, numberRange, optionText } from "./labels";
+export {
+  fieldLabel,
+  humanize,
+  itemLabel,
+  numberRange,
+  optionText,
+  pathLabels,
+  recordKeyLabel,
+  singularLabel,
+  type KeyOption,
+  type NamingHooks,
+} from "./labels";
 export {
   deepEqual,
   emptyObject,

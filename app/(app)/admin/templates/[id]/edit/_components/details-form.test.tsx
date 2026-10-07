@@ -6,10 +6,11 @@ import { describe, expect, it } from "vitest";
 import type { TemplateDefinition } from "@/lib/schemas/template";
 import { lookupFrom } from "@/lib/templates";
 import { MODULE_REGISTRY } from "@/modules";
+import { isDetailPath } from "../_lib/details";
 import { inheritanceOf } from "../_lib/inheritance";
 import type { Draft, EditorContext } from "../_lib/model";
 import type { EditorProblem } from "../_lib/problems";
-import { AI_ON_SUBMIT_ID, DetailsForm, isDetailPath } from "./details-form";
+import { AI_ON_SUBMIT_ID, DetailsForm } from "./details-form";
 import type { EditorApi } from "./editor-api";
 
 function definition(code: string, extra: Partial<TemplateDefinition> = {}): TemplateDefinition {

@@ -21,6 +21,7 @@ import { deepEqual, moveItem, pathKey, type FormPath } from "@/lib/zod-form";
 import { NumberInput, OptionSelect } from "@/lib/zod-form/controls";
 import { canonicalPathOf, isMappableType } from "@/modules/_framework";
 import { moduleOrder, moduleView } from "../_lib/model";
+import { CUSTOM_FIELD_LABELS, CUSTOM_GRID_LABELS, CUSTOM_MODULE_LABELS } from "../_lib/names";
 import type { EditorProblem } from "../_lib/problems";
 import type { EditorApi } from "./editor-api";
 
@@ -89,7 +90,7 @@ export function CustomModuleForm({
       <div className="grid gap-4 md:grid-cols-2">
         <TextField
           id={idOf(["title"])}
-          label="Title"
+          label={CUSTOM_MODULE_LABELS.title}
           hint="The section heading in the form's wording."
           value={custom.title}
           readOnly={readOnly}
@@ -98,7 +99,7 @@ export function CustomModuleForm({
         />
         <TextField
           id={idOf(["key"])}
-          label="Key"
+          label={CUSTOM_MODULE_LABELS.key}
           hint="Where its values are stored: lower case, digits and _."
           value={custom.key}
           readOnly={readOnly}
@@ -109,7 +110,7 @@ export function CustomModuleForm({
       </div>
 
       <div className="grid gap-1.5">
-        <Label htmlFor={idOf(["after"])}>Comes after</Label>
+        <Label htmlFor={idOf(["after"])}>{CUSTOM_MODULE_LABELS.after}</Label>
         <OptionSelect
           id={idOf(["after"])}
           value={custom.after}
@@ -123,7 +124,7 @@ export function CustomModuleForm({
       </div>
 
       <fieldset className="grid gap-2">
-        <legend className="mb-2 text-sm font-medium">Layout</legend>
+        <legend className="mb-2 text-sm font-medium">{CUSTOM_MODULE_LABELS.layout}</legend>
         <RadioGroup
           value={custom.layout}
           disabled={readOnly}
@@ -160,11 +161,11 @@ export function CustomModuleForm({
 
       {custom.layout === "grid" && custom.grid && (
         <fieldset className="grid gap-4 rounded-lg border border-border p-4">
-          <legend className="px-1 text-sm font-semibold">Repeated columns</legend>
+          <legend className="px-1 text-sm font-semibold">{CUSTOM_MODULE_LABELS.grid}</legend>
           <div className="grid gap-4 md:grid-cols-2">
             <TextField
               id={idOf(["grid", "columns", "label"])}
-              label="Column heading"
+              label={CUSTOM_GRID_LABELS.label}
               hint="Numbered on screen: Box # 1, Box # 2…"
               value={custom.grid.columns.label}
               readOnly={readOnly}
@@ -172,7 +173,7 @@ export function CustomModuleForm({
               onChange={(label) => set("grid", { ...custom.grid!, columns: { ...custom.grid!.columns, label } })}
             />
             <div className="grid gap-1.5">
-              <Label htmlFor={idOf(["grid", "columns", "default"])}>Columns to start with</Label>
+              <Label htmlFor={idOf(["grid", "columns", "default"])}>{CUSTOM_GRID_LABELS.default}</Label>
               <NumberInput
                 id={idOf(["grid", "columns", "default"])}
                 value={custom.grid.columns.default}
@@ -198,14 +199,14 @@ export function CustomModuleForm({
           </div>
           <SwitchField
             id={idOf(["grid", "columns", "addable"])}
-            label="The inspector can add columns"
+            label={CUSTOM_GRID_LABELS.addable}
             checked={custom.grid.columns.addable}
             readOnly={readOnly}
             onChange={(addable) => set("grid", { ...custom.grid!, columns: { ...custom.grid!.columns, addable } })}
           />
           <SwitchField
             id={idOf(["grid", "repeatPer"])}
-            label="One grid for each ordered size"
+            label={CUSTOM_GRID_LABELS.repeatPer}
             checked={custom.grid.repeatPer === "size"}
             readOnly={readOnly}
             onChange={(perSize) => {
@@ -217,7 +218,7 @@ export function CustomModuleForm({
       )}
 
       <fieldset className="grid gap-3" aria-describedby={describedBy(idOf(["fields"]), messagesAt(["fields"]))}>
-        <legend className="mb-2 text-base font-bold">Fields</legend>
+        <legend className="mb-2 text-base font-bold">{CUSTOM_MODULE_LABELS.fields}</legend>
         <Messages id={`${idOf(["fields"])}-errors`} problems={messagesAt(["fields"])} />
         <ol className="grid gap-3">
           {custom.fields.map((field, position) => (
@@ -322,10 +323,10 @@ function FieldEditor({
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <TextField id={idOf("label")} label="Label" value={field.label} readOnly={readOnly} problems={messagesAt(at("label"))} onChange={(label) => set("label", label)} />
-        <TextField id={idOf("key")} label="Key" value={field.key} readOnly={readOnly} monospace problems={messagesAt(at("key"))} onChange={(key) => set("key", key)} />
+        <TextField id={idOf("label")} label={CUSTOM_FIELD_LABELS.label} value={field.label} readOnly={readOnly} problems={messagesAt(at("label"))} onChange={(label) => set("label", label)} />
+        <TextField id={idOf("key")} label={CUSTOM_FIELD_LABELS.key} value={field.key} readOnly={readOnly} monospace problems={messagesAt(at("key"))} onChange={(key) => set("key", key)} />
         <div className="grid gap-1.5">
-          <Label htmlFor={idOf("type")}>Type</Label>
+          <Label htmlFor={idOf("type")}>{CUSTOM_FIELD_LABELS.type}</Label>
           <OptionSelect
             id={idOf("type")}
             value={field.type}
@@ -339,7 +340,7 @@ function FieldEditor({
         </div>
         {numeric && (
           <div className="grid gap-1.5">
-            <Label htmlFor={idOf("unit")}>Unit</Label>
+            <Label htmlFor={idOf("unit")}>{CUSTOM_FIELD_LABELS.unit}</Label>
             <OptionSelect
               id={idOf("unit")}
               value={field.unit ?? null}
@@ -355,7 +356,7 @@ function FieldEditor({
         {numeric &&
           (["min", "max"] as const).map((bound) => (
             <div key={bound} className="grid gap-1.5">
-              <Label htmlFor={idOf(bound)}>{bound === "min" ? "Lowest value" : "Highest value"}</Label>
+              <Label htmlFor={idOf(bound)}>{CUSTOM_FIELD_LABELS[bound]}</Label>
               <NumberInput
                 id={idOf(bound)}
                 value={field[bound]}
@@ -373,7 +374,7 @@ function FieldEditor({
           ))}
         {field.type === "select" && (
           <div className="grid gap-1.5 md:col-span-2">
-            <Label htmlFor={idOf("options")}>Options, one per line</Label>
+            <Label htmlFor={idOf("options")}>{CUSTOM_FIELD_LABELS.options}</Label>
             <LinesInput
               id={idOf("options")}
               value={field.options ?? []}
@@ -387,7 +388,7 @@ function FieldEditor({
         )}
         <TextField
           id={idOf("hint")}
-          label="Hint"
+          label={CUSTOM_FIELD_LABELS.hint}
           hint="Shown under the field on the capture screen."
           value={field.hint ?? ""}
           readOnly={readOnly}
@@ -396,7 +397,7 @@ function FieldEditor({
         />
         {custom.layout === "fields" && (
           <div className="grid gap-1.5">
-            <Label htmlFor={idOf("mapsTo")}>Shows a module&apos;s value</Label>
+            <Label htmlFor={idOf("mapsTo")}>{CUSTOM_FIELD_LABELS.mapsTo}</Label>
             <OptionSelect
               id={idOf("mapsTo")}
               value={field.mapsTo ?? null}
@@ -415,7 +416,7 @@ function FieldEditor({
       </div>
       <SwitchField
         id={idOf("required")}
-        label="Required before submit"
+        label={CUSTOM_FIELD_LABELS.required}
         checked={field.required === true}
         readOnly={readOnly}
         onChange={(required) => set("required", required ? true : undefined)}

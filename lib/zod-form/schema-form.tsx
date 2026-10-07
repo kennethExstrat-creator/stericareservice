@@ -35,21 +35,27 @@ import type {
   UnionNode,
 } from "./describe";
 import { issuesAt, NO_ISSUES, type FormIssues, type FormPath } from "./issues";
-import { humanize, numberRange, optionText } from "./labels";
+import {
+  fieldLabel,
+  humanize,
+  numberRange,
+  optionText,
+  recordKeyLabel,
+  singularLabel,
+  type KeyOption,
+  type NamingHooks,
+} from "./labels";
 import { emptyValue, emptyVariant, isPlainObject, moveItem, setAt, variantOf } from "./values";
 
-export type KeyOption = { value: string; label: string };
+export type { KeyOption, NamingHooks };
 
-/** What the page knows that the schema does not. Every hook is optional. */
-export type SchemaFormHooks = {
-  /** Words for a property or record key, e.g. the module's own label for that key; `node` is its value's. */
-  labelForKey?: (key: string, path: FormPath, node: FormNode | undefined) => string | undefined;
+/**
+ * What the page knows that the schema does not. Every hook is optional. The
+ * naming hooks (labels.ts) also name a path outside the form: pathLabels.
+ */
+export type SchemaFormHooks = NamingHooks & {
   /** Words for an option of a select. */
   labelForOption?: (value: FormScalar, path: FormPath) => string | undefined;
-  /** Choices for a string, or a record's keys, the schema marks (e.g. "size": the template's sizes). */
-  markerOptions?: (marker: string, path: FormPath) => readonly KeyOption[] | undefined;
-  /** Words for a union's variants, e.g. a spec's "min" as "Minimum (≥)". */
-  variantLabel?: (marker: string | undefined, value: string) => string | undefined;
   /** Whether a setting or record entry may be removed (one the template inherits cannot). */
   canRemove?: (path: FormPath) => boolean;
   /** Set by this template, so it can be reset to what it inherits. */
@@ -67,8 +73,8 @@ export type SchemaFormHooks = {
   draftFor?: (path: FormPath) => DraftText | undefined;
   /** Suggestions while typing into a text field, e.g. the defect codes for a `code`. */
   suggestionsFor?: (path: FormPath, node: FormNode) => readonly KeyOption[] | undefined;
-  /** A note under a field that is valid but worth a look, e.g. a code that is not in the list. */
-  noteFor?: (path: FormPath, value: unknown, node: FormNode) => string | undefined;
+  /** A note under a field that is valid but worth a look, e.g. a code that is not in the list, with a link to fix it. */
+  noteFor?: (path: FormPath, value: unknown, node: FormNode) => ReactNode;
 };
 
 type FormContextValue = {
@@ -173,12 +179,6 @@ type FieldProps = NodeProps & {
   /** Label for screen readers only; "sm" from 640 px, where a compact row's header names the column. */
   hideLabel?: boolean | "sm";
 };
-
-function labelText(node: FormNode, key: string | number | undefined, path: FormPath, hooks: SchemaFormHooks): string {
-  if (node.title) return node.title;
-  if (typeof key === "string") return hooks.labelForKey?.(key, path, node) ?? humanize(key);
-  return typeof key === "number" ? String(key + 1) : "Value";
-}
 
 function optionsOf(node: EnumNode, path: FormPath, hooks: SchemaFormHooks): SelectOption[] {
   return node.options.map((option) => ({
@@ -498,7 +498,7 @@ function ObjectFields({ node, value, onChange, path, unit, columns = false }: No
         const childPath = [...path, property.key];
         const childValue = object[property.key];
         const present = childValue !== undefined;
-        const label = labelText(property.node, property.key, childPath, hooks);
+        const label = fieldLabel(property.node, property.key, childPath, hooks);
         const set = (next: unknown) => onChange(setAt(object, [property.key], next));
         const removable =
           !property.required && present && !readOnly && (hooks.canRemove?.(childPath) ?? true) && !inlineOptional(property.node);
@@ -596,8 +596,7 @@ function RecordGroup({ node, value, onChange, path, label, onRemove, unit }: Fie
   const object = isPlainObject(value) ? value : {};
   const keys = Object.keys(object);
   const offered = node.key.marker ? hooks.markerOptions?.(node.key.marker, path) : undefined;
-  const keyLabel = (key: string) =>
-    offered?.find((option) => option.value === key)?.label ?? hooks.labelForKey?.(key, [...path, key], node.value) ?? key;
+  const keyLabel = (key: string) => recordKeyLabel(node, key, path, hooks);
   const available = offered?.filter((option) => !keys.includes(option.value));
 
   return (
@@ -949,7 +948,7 @@ function CompactRows({
     const inner = property.node.kind === "nullable" ? property.node.inner : property.node;
     return {
       key: property.key,
-      label: labelText(property.node, property.key, [...path, 0, property.key], hooks),
+      label: fieldLabel(property.node, property.key, [...path, 0, property.key], hooks),
       note: [property.node.description, inner.kind === "number" ? numberRange(inner) : undefined].filter(Boolean).join(" "),
     };
   });
@@ -1046,14 +1045,6 @@ function isPlain(child: FormNode): boolean {
 /** An object of plain values only (a size and its label, a code, its label and pass): its fields fit side by side. */
 function isFlat(node: ObjectNode): boolean {
   return node.properties.length <= 4 && node.properties.every((property) => isPlain(property.node));
-}
-
-/** "Hole locations" names one item "hole location". */
-function singularLabel(label: string): string {
-  if (/ies$/i.test(label)) return `${label.slice(0, -3)}y`;
-  if (/(ss|us)$/i.test(label)) return label;
-  if (/s$/i.test(label)) return label.slice(0, -1);
-  return label;
 }
 
 /** A short reminder of what an item is, from its first text values: "A · Non sticky". */
@@ -1210,7 +1201,7 @@ function UnionField({ node, value, onChange, path, label, onRemove, hideLabel, u
                   value={object[property.key]}
                   onChange={(next) => onChange(setAt(object, [property.key], next))}
                   path={childPath}
-                  label={labelText(property.node, property.key, childPath, hooks)}
+                  label={fieldLabel(property.node, property.key, childPath, hooks)}
                   required={property.required}
                   unit
                 />

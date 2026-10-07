@@ -15,8 +15,7 @@ import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ArrowLeftIcon, HistoryIcon, LoaderCircleIcon, OctagonXIcon, SaveIcon, Undo2Icon } from "lucide-react";
 import { toast } from "sonner";
-import { PageHeader } from "@/components/qc";
-import { useMediaQuery } from "@/components/qc/use-media-query";
+import { PageHeader, useMediaQuery } from "@/components/qc";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -51,6 +50,7 @@ import {
   sweepBackups,
   writeBackup,
 } from "../_lib/backup";
+import { isDetailPath } from "../_lib/details";
 import { inheritanceOf } from "../_lib/inheritance";
 import { leavingTo } from "../_lib/leave";
 import type { DefectCodeOption, EditorTemplate, ReferenceOption } from "../_lib/load";
@@ -59,7 +59,6 @@ import {
   moduleOrder,
   moduleView,
   moveModule,
-  ownCustomModules,
   setInclude,
   unusedModules,
   type Draft,
@@ -75,12 +74,13 @@ import {
   type DraftError,
   type ProblemPlace,
 } from "../_lib/problems";
+import { placeLabels } from "../_lib/names";
 import { lockedReason, SAVE_IDLE, type SaveResult } from "../_lib/results";
 import { CapturePreview } from "./capture-preview";
 import { configFieldPrefix } from "./config-form";
 import { customFieldId } from "./custom-module-form";
 import { CustomModules } from "./custom-modules";
-import { DetailsForm, isDetailPath } from "./details-form";
+import { DetailsForm } from "./details-form";
 import type { EditorApi } from "./editor-api";
 import { JsonView } from "./json-view";
 import { labelFieldId } from "./label-overrides";
@@ -618,8 +618,7 @@ export function TemplateEditor({
         {editable && (
           <ProblemsSummary
             problems={problems}
-            titleOf={(place) => titleOf(place.moduleKey)}
-            customTitleOf={(index) => ownCustomModules(draft)[index]?.title || `#${index + 1}`}
+            whereOf={(place) => placeLabels(place, { draft, context, sizes, shapeOk })}
             onGo={go}
           />
         )}

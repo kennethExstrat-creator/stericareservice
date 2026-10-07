@@ -7,54 +7,32 @@
 // and what is fixed for a version: its code and its base template.
 import { useMemo } from "react";
 import { RotateCcwIcon } from "lucide-react";
-import { z } from "zod";
+import type { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ProductTypeSchema, StandardSchema } from "@/lib/schemas/common";
-import {
-  TemplateAiSchema,
-  TemplateReportSchema,
-  TemplateSizeSchema,
-  TemplateUnitSchema,
-} from "@/lib/schemas/template";
+import { TemplateAiSchema } from "@/lib/schemas/template";
 import { describeSchema, isPlainObject, pathKey } from "@/lib/zod-form";
 import { OptionSelect, type SelectOption } from "@/lib/zod-form/controls";
 import { fieldId, SchemaForm } from "@/lib/zod-form/schema-form";
+import {
+  AI_ON_SUBMIT_LABEL,
+  DETAIL_KEYS,
+  DetailsSchema,
+  FIXED_LABELS,
+  SCOPE_HEADING,
+  SCOPE_LABELS,
+  type ScopeKey,
+} from "../_lib/details";
 import type { ReferenceOption } from "../_lib/load";
 import type { Draft } from "../_lib/model";
 import type { EditorProblem } from "../_lib/problems";
 import type { EditorApi } from "./editor-api";
 
-const DETAIL_KEYS = ["name", "unit", "sizes", "report"] as const;
-
-/** Template paths the Details tab shows; the rest belong to the JSON tab. */
-const DETAIL_AREAS: readonly unknown[] = [...DETAIL_KEYS, "ai", "scope", "code", "extends"];
-
 /** The AI second opinion switch: the problem list links here. */
 export const AI_ON_SUBMIT_ID = fieldId("details", ["ai", "reviewOnSubmit"]);
-
-const DetailsSchema = z.strictObject({
-  name: z.string().trim().min(1).meta({ title: "Name", description: "How admins and inspectors know this template." }),
-  unit: TemplateUnitSchema.meta({ title: "Counted in", description: "Pieces for examination gloves, pairs for surgical." }),
-  sizes: z
-    .array(
-      TemplateSizeSchema.extend({
-        value: TemplateSizeSchema.shape.value.meta({ title: "Size", description: "XS to XXL, or 5.5 to 9.0." }),
-        label: TemplateSizeSchema.shape.label.meta({ title: "Shown as", description: "Optional, e.g. Medium." }),
-      }),
-    )
-    .min(1)
-    .meta({ title: "Sizes", description: "The sizes this template offers, in order. Order lots picks from them." }),
-  report: TemplateReportSchema.extend({
-    title: TemplateReportSchema.shape.title.meta({ title: "Report title" }),
-    showClientLogo: TemplateReportSchema.shape.showClientLogo.meta({ title: "Show the client's logo" }),
-    pageHeader: TemplateReportSchema.shape.pageHeader.meta({ title: "Header on later pages" }),
-  })
-    .optional()
-    .meta({ title: "AI report", description: "For the report the AI writes from the export. Inherited when not set." }),
-});
 
 const OPTION_LABELS: Readonly<Record<string, string>> = { pcs: "Pieces (pcs)", pairs: "Pairs" };
 
@@ -70,8 +48,6 @@ const STANDARD_LABELS: Readonly<Record<z.infer<typeof StandardSchema>, string>> 
   ASTM_D3577: "ASTM D3577",
   custom: "Custom",
 };
-
-type ScopeKey = "productType" | "standard" | "clientId" | "manufacturerId";
 
 export function DetailsForm({ api }: { api: EditorApi }) {
   const node = useMemo(() => describeSchema(DetailsSchema), []);
@@ -131,7 +107,7 @@ function AiFields({ api }: { api: EditorApi }) {
     .map((problem) => problem.message);
   const hintId = `${AI_ON_SUBMIT_ID}-hint`;
   const errorsId = `${AI_ON_SUBMIT_ID}-errors`;
-  const label = "AI second opinion on submit";
+  const label = AI_ON_SUBMIT_LABEL;
   // Where the switch's state comes from, when it is not this template's own.
   const source = base
     ? setsOwn
@@ -229,22 +205,22 @@ function ScopeFields({ api }: { api: EditorApi }) {
   const fields: { key: ScopeKey; label: string; options: SelectOption[] }[] = [
     {
       key: "productType",
-      label: "Product type",
+      label: SCOPE_LABELS.productType,
       options: ProductTypeSchema.options.map((option) => ({ value: option, label: PRODUCT_TYPE_LABELS[option] })),
     },
     {
       key: "standard",
-      label: "Standard",
+      label: SCOPE_LABELS.standard,
       options: StandardSchema.options.map((option) => ({ value: option, label: STANDARD_LABELS[option] })),
     },
     {
       key: "clientId",
-      label: "Client",
+      label: SCOPE_LABELS.clientId,
       options: referenceOptions("Any client", api.scopeOptions.clients, scope.clientId),
     },
     {
       key: "manufacturerId",
-      label: "Manufacturer",
+      label: SCOPE_LABELS.manufacturerId,
       options: referenceOptions("Any manufacturer", api.scopeOptions.manufacturers, scope.manufacturerId),
     },
   ];
@@ -257,7 +233,7 @@ function ScopeFields({ api }: { api: EditorApi }) {
     >
       <div className="grid gap-1">
         <h3 id="details-scope-heading" className="text-base font-bold text-foreground">
-          Where it applies
+          {SCOPE_HEADING}
         </h3>
         <p className="text-sm text-muted-foreground" id="details-scope-hint">
           A new inspection takes the most specific active template: client and manufacturer, then client, then
@@ -313,13 +289,13 @@ function FixedFields({ api }: { api: EditorApi }) {
   const rows = [
     {
       key: "code",
-      label: "Code",
+      label: FIXED_LABELS.code,
       value: typeof api.draft.code === "string" ? api.draft.code : "",
       hint: "Every version of a template keeps its code.",
     },
     {
       key: "extends",
-      label: "Base template",
+      label: FIXED_LABELS.extends,
       value: extendsCode === null ? "None" : base ? `${base.code}, version ${base.version}` : extendsCode,
       hint:
         extendsCode === null
@@ -386,9 +362,4 @@ function detailIssues(problems: readonly EditorProblem[]): Map<string, string[]>
     issues.set(id, [...(issues.get(id) ?? []), problem.message]);
   }
   return issues;
-}
-
-/** Template problems the Details tab shows; the rest belong to the JSON tab. */
-export function isDetailPath(path: readonly (string | number)[]): boolean {
-  return DETAIL_AREAS.includes(path[0]);
 }
