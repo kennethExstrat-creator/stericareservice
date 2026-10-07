@@ -287,6 +287,10 @@ for (const act of ["a tap", "a scroll"] as const) {
     const weight = page.getByLabel("Indicative weight (size M)");
     await weight.fill("3.7");
     await weight.press("Tab");
+    // Saved before the reload: this test is about input while the page starts, not a save still on its way,
+    // which could land after the reloaded page has read the inspection and ask which version to keep.
+    await expectStored({ modules: { glove_info: { indicativeWeight: 3.7 } } });
+    await expect(page.locator('[data-slot="save-status"]:visible')).toHaveAttribute("data-state", "saved");
 
     // A second tab holds the inspection's writer lock for 2.5 s once this page lets go of it at the reload:
     // the reloaded screen is on the page, its saving not started yet (fields read-only), for that long.
