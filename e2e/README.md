@@ -17,8 +17,11 @@ Specs need the test accounts (`npm run seed:dev-users -- --force`).
 
 Chrome and Safari on the iPad run on WebKit, so the reload specs (`e2e/autosave`) also run in the
 `webkit-ipad-portrait` project (Playwright's WebKit, 820 × 1180, touch). Install it once with
-`npx playwright install webkit`. Playwright cannot drive the iPad's own scrolling, so two things
-are checked by hand on a real iPad after a change to the capture screen's reload handling:
+`npx playwright install webkit`. That project matches `e2e/autosave` only, so
+`e2e/capture/final.spec.ts` launches WebKit itself for its photo-tag test (a tap on + in WebKit),
+from the `ipad-portrait` and `ipad-pro-landscape` projects. Playwright cannot drive the iPad's own
+scrolling, so two things are checked by hand on a real iPad after a change to the capture screen's
+reload handling:
 
 - Chrome for iPad: a swipe down at the top of the capture screen does not pull to refresh (the page
   sets `overscroll-behavior-y: none`; the spec can only check that style). If it still refreshes,
