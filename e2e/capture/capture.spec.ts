@@ -779,7 +779,8 @@ test("a section switched off on another device leaves this screen at the next sa
     // The next save lands on top of that change and brings it back.
     await colour.fill("Olive");
     await expect(sections).toContainText("Switched Off", { timeout: 15_000 });
-    await expect(sections.getByRole("button", { name: /^Packing configuration\s*, switched off/ })).toBeVisible();
+    // Its sidebar row, in the Switched Off group, read out as such; the title in whichever case the template words it.
+    await expect(sections.getByRole("button", { name: /^packing configuration\s*, switched off/i })).toBeVisible();
     await expect
       .poll(async () => (await storedData(fixture.inspectionId)).data, { timeout: 15_000 })
       .toMatchObject({ modules: { glove_info: { colour: "Olive" } } });
