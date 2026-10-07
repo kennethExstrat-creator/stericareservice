@@ -299,10 +299,12 @@ export function CounterTable({
     <div data-slot="counter-table" className={cn("min-w-0 space-y-3", className)}>
       {/* Following SizeTabs the table never scrolls sideways (it shows every
           size only where they fit), so its header and totals can stick to the
-          screen. Elsewhere a wide table (many boxes) scrolls inside. */}
+          screen. Elsewhere a wide table (many boxes) scrolls inside, and its
+          scroll padding keeps a focused cell clear of the pinned label column
+          (LABEL_COLUMN's 16rem). */}
       <div
         className={cn(
-          "relative w-fit max-w-full rounded-lg border border-border bg-card",
+          "relative w-fit max-w-full scroll-pl-64 rounded-lg border border-border bg-card",
           following ? "overflow-clip" : active !== undefined ? "overflow-clip xl:overflow-x-auto" : "overflow-x-auto",
         )}
       >
