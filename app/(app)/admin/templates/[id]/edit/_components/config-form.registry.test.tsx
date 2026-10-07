@@ -191,6 +191,41 @@ describe("every module's settings form (MODULE_REGISTRY)", () => {
     expect(shown).toBeGreaterThan(20);
   });
 
+  it("shows the unit of every measured setting: the schema's (N, MPa, %), else the canonical unit of a module's specs", () => {
+    const draft = everyModuleDraft();
+    const context = contextFor(draft);
+    const unitAt = (key: ModuleKey, html: string, path: FormPath) => unitOf(html, fieldId(configFieldPrefix(key), path));
+    // From the schemas: .meta({ unit }) and the Pct keys (BUILD_SPEC 4.2 rule 5: mm, g, N, MPa and %).
+    expect(unitAt("force_at_break", render(draft, context, "force_at_break"), ["specMin"])).toBe("N");
+    const tensile = render(draft, context, "tensile");
+    expect(unitAt("tensile", tensile, ["tensileMin"])).toBe("MPa");
+    expect(unitAt("tensile", tensile, ["elongationMin"])).toBe("%");
+    expect(unitAt("dispensing_packing", render(draft, context, "dispensing_packing"), ["minLayeringPct"])).toBe("%");
+    expect(unitAt("dispensing_safedon", render(draft, context, "dispensing_safedon"), ["maxRatePct"])).toBe("%");
+    expect(unitAt("weight", render(draft, context, "weight"), ["warnThresholdPct"])).toBe("%");
+    // Counts have none.
+    expect(unitAt("weight", render(draft, context, "weight"), ["n"])).toBeNull();
+
+    // A spec's values, which the shared spec schema cannot mark: STD_EG's dimension specs in mm, a weight spec in g.
+    const [{ definition, getBase }] = seedDefinitions();
+    const stdEg = definition as Draft;
+    const stdContext = contextFor(stdEg, getBase);
+    const weighed = setConfig(stdEg, stdContext, "weight", {
+      ...(moduleView(stdEg, stdContext, "weight").config as object),
+      specs: [{ size: "M", spec: { kind: "range", min: 3, max: 4 } }],
+    });
+    for (const [key, unit, html] of [
+      ["dimensions", "mm", render(stdEg, stdContext, "dimensions")],
+      ["weight", "g", render(weighed, contextFor(weighed, getBase), "weight")],
+    ] as const) {
+      const ids = [...html.matchAll(new RegExp(`id="(config-${key}-specs-[^"]+-(?:min|max|nominal|tolerance))"`, "g"))].map(
+        (match) => match[1],
+      );
+      expect(ids.length, key).toBeGreaterThan(0);
+      for (const id of ids) expect(unitOf(html, id), id).toBe(unit);
+    }
+  });
+
   it("puts the schema's own limit, in plain words, on the field that breaks it", () => {
     const checked: string[] = [];
     for (const key of MODULE_KEYS) {
@@ -226,6 +261,15 @@ describe("every module's settings form (MODULE_REGISTRY)", () => {
 function nameOf(key: ModuleKey, setting: Setting, context: EditorContext, draft: Draft): string {
   const naming = settingNaming(key, moduleView(draft, context, key).labels, SIZES);
   return fieldLabel(setting.node, setting.key, setting.path, naming);
+}
+
+/** The unit drawn beside a number field (its input group's addon), or null when it has none. */
+function unitOf(html: string, id: string): string | null {
+  const start = html.indexOf(`id="${id}"`);
+  if (start === -1) throw new Error(`no field ${id}`);
+  // The input ends its group: the addon follows before the group's </div>.
+  const group = html.slice(start, html.indexOf("</div>", start) + "</div>".length);
+  return /data-slot="input-group-addon"[^>]*>([^<]*)</.exec(group)?.[1] ?? null;
 }
 
 /** Text as renderToStaticMarkup writes it. */

@@ -10,7 +10,7 @@ import { MODULE_REGISTRY } from "@/modules/registry";
 import { inheritanceOf } from "./inheritance";
 import { setConfig, setLabel, type Draft, type EditorContext } from "./model";
 import { customFieldName, customPathLabels, placeLabels, type NamingScope } from "./names";
-import { collectProblems, type ProblemPlace } from "./problems";
+import { collectProblems, serverProblem, type ProblemPlace } from "./problems";
 
 const SIZES = [
   { value: "S", label: "S" },
@@ -136,5 +136,33 @@ describe("placeLabels", () => {
     expect(names.length).toBeGreaterThanOrEqual(3);
     for (const name of names) expect(name.split(" › ")).not.toContain("n");
     expect(names).toEqual(expect.arrayContaining([expect.stringMatching(/› Gloves weighed$/), expect.stringMatching(/› Gloves tested$/), "Details › Name"]));
+  });
+});
+
+describe("serverProblem", () => {
+  it("names what the save action found as the problem list does, never by schema keys", () => {
+    const draft = stdEg();
+    const scope = scopeOf(draft);
+    const where = (problem: { template: string; path: (string | number)[]; message: string }) => {
+      const found = serverProblem(draft, problem, draft.code);
+      return [placeLabels(found.place, scope).join(" › "), found.message];
+    };
+    const weight = "Weight (g) - average of 13 gloves per size › Settings › Gloves weighed";
+    // A definition that did not parse: TemplateDefinitionSchema's path, modules by position.
+    const at = draft.modules.findIndex((entry) => entry.key === "weight");
+    expect(where({ template: "", path: ["modules", at, "config", "n"], message: "Must be 1 or more." })).toEqual([
+      weight,
+      "Must be 1 or more.",
+    ]);
+    // The resolver's: modules by key, in this template...
+    expect(where({ template: draft.code, path: ["modules", "weight", "config", "n"], message: "Must be 1 or more." })).toEqual([
+      weight,
+      "Must be 1 or more.",
+    ]);
+    // ...or in a base, which the admin changes through the base template.
+    expect(where({ template: "BASE_EG", path: ["modules", "visual", "config"], message: "Unknown defect." })).toEqual([
+      "Details › Base template",
+      "In base template BASE_EG: Unknown defect.",
+    ]);
   });
 });

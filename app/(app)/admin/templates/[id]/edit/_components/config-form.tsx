@@ -15,7 +15,7 @@ import { getAt, humanize, type FormNode, type FormPath } from "@/lib/zod-form";
 import { SchemaForm, type SchemaFormHooks } from "@/lib/zod-form/schema-form";
 import { canRemoveConfigAt, isConfigOverridden, resetConfigAt, setConfig, type ModuleView } from "../_lib/model";
 import { configIssues } from "../_lib/problems";
-import { configNodeOf, settingNaming } from "../_lib/settings";
+import { configNodeOf, settingNaming, specUnit } from "../_lib/settings";
 import type { EditorApi } from "./editor-api";
 
 const DEFECT_CODE = /^[a-z][a-z0-9_]*$/;
@@ -42,6 +42,7 @@ export function ConfigForm({ api, view }: { api: EditorApi; view: ModuleView }) 
       api.reportDraftError({ area: "module", moduleKey: key, part: "config", path }, draft),
     draftFor: (path) => api.draftFor({ area: "module", moduleKey: key, part: "config", path }),
     suggestionsFor: (path, field) => (isDefectCodeField(path, field) ? codeOptions : undefined),
+    unitFor: (path, field) => specUnit(key, path, field),
     noteFor: (path, value, field) =>
       isDefectCodeField(path, field) &&
       typeof value === "string" &&

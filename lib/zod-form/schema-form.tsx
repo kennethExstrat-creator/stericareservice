@@ -73,6 +73,12 @@ export type SchemaFormHooks = NamingHooks & {
   draftFor?: (path: FormPath) => DraftText | undefined;
   /** Suggestions while typing into a text field, e.g. the defect codes for a `code`. */
   suggestionsFor?: (path: FormPath, node: FormNode) => readonly KeyOption[] | undefined;
+  /**
+   * The unit of a number the schema leaves unmarked, e.g. the "mm" of a
+   * dimension's spec, which a shared spec schema cannot know. A unit the
+   * schema gives (`.meta({ unit })`, a Pct key) wins.
+   */
+  unitFor?: (path: FormPath, node: FormNode) => string | undefined;
   /** A note under a field that is valid but worth a look, e.g. a code that is not in the list, with a link to fix it. */
   noteFor?: (path: FormPath, value: unknown, node: FormNode) => ReactNode;
 };
@@ -227,10 +233,12 @@ function FieldHeader({
       <span className={cn("text-sm font-medium", hide)}>{name}</span>
     );
   if (!overridden && !onRemove) return title;
+  const resetLabel = hooks.resetLabel ?? "Reset";
   return (
     <div className="flex min-h-6 flex-wrap items-center justify-between gap-x-3 gap-y-1">
       {title}
-      <span className="flex items-center gap-1">
+      {/* A long base code ("Use CLIENT_A_NITRILE_EG's") wraps under the name, then ends in an ellipsis: never past the card. */}
+      <span className="flex max-w-full min-w-0 flex-wrap items-center gap-1">
         {overridden && (
           <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">Changed</span>
         )}
@@ -239,11 +247,13 @@ function FieldHeader({
             type="button"
             variant="ghost"
             size="xs"
+            className="max-w-full min-w-0 shrink"
             onClick={() => hooks.onReset?.(path)}
-            aria-label={`${hooks.resetLabel ?? "Reset"}: ${label}`}
+            aria-label={`${resetLabel}: ${label}`}
+            title={resetLabel}
           >
             <RotateCcwIcon aria-hidden />
-            {hooks.resetLabel ?? "Reset"}
+            <span className="truncate">{resetLabel}</span>
           </Button>
         )}
         {onRemove && !readOnly && (
@@ -323,7 +333,7 @@ function ScalarField({ node, value, onChange, path, label, required, onRemove, h
           value={value}
           onChange={onChange}
           integer={node.integer}
-          unit={node.unit}
+          unit={node.unit ?? hooks.unitFor?.(path, node)}
           // Emptied, a required number stays the template's own, empty: the schema asks for a number, and the
           // value it inherits does not come back in its place. "Use default" goes back to that one.
           emptyAs={required ? "null" : "missing"}

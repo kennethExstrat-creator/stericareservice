@@ -131,6 +131,24 @@ function placeOfResolverProblem(draft: Draft, problem: TemplateProblem, code: st
   return { area: "template", path };
 }
 
+/**
+ * A problem the save action found (results.ts ServerProblem), placed and
+ * worded as the problem list does it, so "Not saved" names settings by their
+ * labels too. `template` is "" for a definition that did not parse (its path
+ * uses list positions), else the template the resolver found it in (paths
+ * by key). The browser checks the same things first, so the server finds
+ * one only when something changed meanwhile, such as a base.
+ */
+export function serverProblem(
+  draft: Draft,
+  problem: Pick<TemplateProblem, "template" | "path" | "message">,
+  code: string,
+): { place: ProblemPlace; message: string } {
+  if (problem.template === "") return { place: placeOfDefinitionPath(draft, problem.path), message: problem.message };
+  const found: TemplateProblem = { template: problem.template, path: [...problem.path], message: problem.message };
+  return { place: placeOfResolverProblem(draft, found, code), message: resolverMessage(found, code) };
+}
+
 function resolverMessage(problem: TemplateProblem, code: string): string {
   return problem.template === code ? problem.message : `In base template ${problem.template}: ${problem.message}`;
 }

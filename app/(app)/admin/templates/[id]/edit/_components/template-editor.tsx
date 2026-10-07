@@ -79,6 +79,7 @@ import {
   placeId,
   problemsOfModule,
   scopeProblems,
+  serverProblem,
   type DraftError,
   type ProblemPlace,
 } from "../_lib/problems";
@@ -621,11 +622,15 @@ export function TemplateEditor({
               <p>{saveState.message}</p>
               {saveState.status === "error" && saveState.problems && (
                 <ul className="list-disc pl-5">
-                  {saveState.problems.slice(0, 10).map((problem, index) => (
-                    <li key={index}>
-                      {[problem.template, problem.path.join(".")].filter(Boolean).join(" ")}: {problem.message}
-                    </li>
-                  ))}
+                  {saveState.problems.slice(0, 10).map((problem, index) => {
+                    // Named as the problem list names places: by the labels on the way there, never by keys.
+                    const found = serverProblem(draft, problem, template.code);
+                    return (
+                      <li key={index}>
+                        {placeLabels(found.place, { draft, context, sizes, shapeOk }).join(" › ")}: {found.message}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </AlertDescription>

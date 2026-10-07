@@ -4,7 +4,7 @@
 // wherever the editor shows it.
 import { CanonicalSizeSchema } from "@/lib/sizes";
 import type { ModuleKey } from "@/lib/schemas/module-result";
-import { describeSchema, type FormMarker, type FormNode, type KeyOption, type NamingHooks } from "@/lib/zod-form";
+import { describeSchema, type FormMarker, type FormNode, type FormPath, type KeyOption, type NamingHooks } from "@/lib/zod-form";
 import { SpecSchema, type AnyModuleDefinition } from "@/modules/_framework";
 
 /** Schemas the form recognises wherever they are used: a size offers the template's sizes, a spec its kinds. */
@@ -46,6 +46,22 @@ export const SETTING_NAMES: Readonly<Partial<Record<ModuleKey, Readonly<Record<s
   labeling: { n: "Boxes to inspect" },
   dye_leak: { n: "Pouches to test" },
 };
+
+/**
+ * Units of spec values: the shared spec schema (SpecSchema) cannot carry one,
+ * so the editor gives each module's its canonical unit (BUILD_SPEC 4.2 rule
+ * 5): a dimension's minimum, maximum, nominal and tolerance in mm, a weight's
+ * in g. A unit the schema gives a setting wins.
+ */
+export const SPEC_UNITS: Readonly<Partial<Record<ModuleKey, string>>> = {
+  dimensions: "mm",
+  weight: "g",
+};
+
+/** The unit a number in a module's settings shows, where its schema gives none: its specs'. */
+export function specUnit(key: ModuleKey, path: FormPath, node: FormNode): string | undefined {
+  return node.kind === "number" && path[0] === "specs" ? SPEC_UNITS[key] : undefined;
+}
 
 /**
  * How the editor names a module's settings: the schema's title, else the

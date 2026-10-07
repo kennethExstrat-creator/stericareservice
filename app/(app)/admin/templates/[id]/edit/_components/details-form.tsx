@@ -145,13 +145,16 @@ function AiFields({ api }: { api: EditorApi }) {
               {label}
             </Label>
             {setsOwn && (
-              <span className="flex items-center gap-1">
+              // A long base code wraps, then ends in an ellipsis, as on the settings (lib/zod-form FieldHeader).
+              <span className="flex max-w-full min-w-0 flex-wrap items-center gap-1">
                 <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">Changed</span>
                 {api.editable && (
                   <Button
                     type="button"
                     variant="ghost"
                     size="xs"
+                    className="max-w-full min-w-0 shrink"
+                    title={api.resetLabel}
                     aria-label={`${api.resetLabel}: ${label}`}
                     onClick={() => {
                       api.update((draft) => {
@@ -164,7 +167,7 @@ function AiFields({ api }: { api: EditorApi }) {
                     }}
                   >
                     <RotateCcwIcon aria-hidden />
-                    {api.resetLabel}
+                    <span className="truncate">{api.resetLabel}</span>
                   </Button>
                 )}
               </span>
