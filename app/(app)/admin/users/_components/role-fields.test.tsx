@@ -64,6 +64,15 @@ describe("RoleField", () => {
     expect(radioNames(withoutTeams).map((radio) => radio.name)).toEqual(["Inspector", "Admin"]);
   });
 
+  it("puts the role cards as far below their legend as every other field's control below its label", () => {
+    // A fieldset's legend is no flex item: the FieldSet's gap never reaches it, so its own margin is the gap.
+    const html = renderToStaticMarkup(<RoleField id="f" value="inspector" onChange={() => {}} />);
+    const legend = /<legend data-slot="field-legend"[^>]*class="([^"]*)"/.exec(html)?.[1].split(" ");
+    expect(legend).toContain("mb-3");
+    expect(legend).not.toContain("mb-0");
+    expect(legend).toContain("leading-snug");
+  });
+
   it("puts a refusal about the role under the roles, as the group's description", () => {
     const html = renderToStaticMarkup(<RoleField id="f" value="inspector" onChange={() => {}} error={NOBODY} />);
     expect(html).toMatch(/<fieldset[^>]*aria-describedby="f-role-error"/);

@@ -124,7 +124,9 @@ export function CustomModuleForm({
       </div>
 
       <fieldset className="grid gap-2">
-        <legend className="mb-2 text-sm font-medium">{CUSTOM_MODULE_LABELS.layout}</legend>
+        {/* A fieldset's legend is no grid item, so the gap never reaches it: its own margin and the Label's
+            line (text-sm leading-none) put the cards 6 px under it, as every field here sits under its label. */}
+        <legend className="mb-1.5 text-sm leading-none font-medium">{CUSTOM_MODULE_LABELS.layout}</legend>
         <RadioGroup
           value={custom.layout}
           disabled={readOnly}
