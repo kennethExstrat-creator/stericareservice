@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ALWAYS_ON_MODULE_KEYS, isModuleKey, MODULE_KEYS, type ModuleKey } from "@/lib/schemas/module-result";
 import { LABEL_KEY_PATTERN } from "@/lib/schemas/template";
 import { formatSpec } from "@/lib/stats/spec";
-import { defaultLabels, DIMENSION_DECIMALS, moduleSpec } from "./fields";
+import { defaultLabels, DIMENSION_DECIMALS, fieldLabel, moduleSpec } from "./fields";
 import { DEFECT_CLASSES, LABELLING_CHECKS, MEASURES } from "./keys";
 import { configEqual, droppedKeys, mergeConfig, type ConfigObject } from "./merge";
 import {
@@ -174,6 +174,29 @@ describe("what the reports fix", () => {
     expect(moduleConfig("STD_EG", "packing_config")?.innerUnit).toBe("inner_box");
     expect(moduleConfig("SAFEDON_EG", "packing_config")?.innerUnit).toBe("plastic_pack");
     expect(moduleConfig("STD_SG", "packing_config")?.innerUnit).toBe("pouch");
+  });
+
+  it("words the packing counts by each template's inner unit, as the export names it", () => {
+    // What is typed per inner unit is what the export and the AI report say it is per (config.innerUnit).
+    const named: Readonly<Record<string, RegExp>> = {
+      inner_box: /\binners?\b/,
+      plastic_pack: /\bpacks?\b/,
+      dispenser_box: /\bdispenser/,
+      pouch: /\bpouch(es)?\b/,
+    };
+    for (const template of TEMPLATE_CODES) {
+      const unit = moduleConfig(template, "packing_config")?.innerUnit;
+      if (unit === undefined) continue;
+      for (const key of ["glovesPerInner", "innersPerCase"]) {
+        expect(fieldLabel(template, "packing_config", key), `${template} ${key}`).toMatch(named[unit]);
+      }
+    }
+    expect(fieldLabel("STD_SG", "packing_config", "glovesPerInner")).toBe("# gloves per pouch");
+    expect(fieldLabel("STD_SG", "packing_config", "innersPerCase")).toBe("# pouches per case");
+    expect(labelOverrides("STD_SG", "packing_config")).toMatchObject({
+      glovesPerInner: "# gloves per pouch",
+      innersPerCase: "# pouches per case",
+    });
   });
 
   it("uses the median for STD_EG and the average for SAFEDON_EG", () => {

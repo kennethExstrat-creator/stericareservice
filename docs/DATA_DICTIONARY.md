@@ -189,8 +189,8 @@ Report module. Captures: Gloves per inner unit, inner units per case, gloves per
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `glovesPerInner` | # glove per inner box | SAFEDON_EG: # glove per plastic pack | integer | pcs | inspection | entered | 1 |  |
-| `innersPerCase` | # inners per case | SAFEDON_EG: # packs per case | integer |  | inspection | entered | 1 | Counts inner units. |
+| `glovesPerInner` | # glove per inner box | SAFEDON_EG: # glove per plastic pack<br>STD_SG: # gloves per pouch | integer | pcs | inspection | entered | 1 |  |
+| `innersPerCase` | # inners per case | SAFEDON_EG: # packs per case<br>STD_SG: # pouches per case | integer |  | inspection | entered | 1 | Counts inner units. |
 | `glovesPerCase` | # gloves per case |  | integer | pcs | inspection | entered | 1 | Entered as printed, then checked against glovesPerCaseCheck (BUILD_SPEC 6.1). |
 | `packingMode` | Packing Mode |  | text |  | inspection | entered |  | **Beyond BUILD_SPEC 6.1:** All three onsite forms have a 'Packing Mode' text box (forms/README.md: packing mode text). Free text as written on site. config fields.packingMode switches it on. |
 | `glovesPerCaseCheck` | Gloves per case (inner × per case) |  | integer | pcs | inspection | **computed** | 2 | glovesPerInner × innersPerCase. |
@@ -749,6 +749,7 @@ Wording that differs from the defaults:
 
 - `header`: `manufacturer` "Manufacturer Name", `poNo` "Purchase/Sales Order No.", `productName` "Product Name", `inspectionDate` "Date", `mfgDate` "Mfg Date", `expiryDate` "Exp Date"
 - `order_lots`: `qtyCases` "Qty (case)"
+- `packing_config`: `glovesPerInner` "# gloves per pouch", `innersPerCase` "# pouches per case"
 - `sampling_plan`: `glovesWatertightVisual` "# gloves", `glovesDimensions` "# Gloves dimension", `glovesPhysical` "# Gloves (FAB)", `samplingQuantity` "Sampling Quantity (WTT & Visual)", `orderQty` "Qty (case)"
 - `watertight`: `holes` "Defect", `totalDefects` "Total WTT", `heading` "Watertight Inspection"
 - `visual`: `majorCounts` "Major defect", `minorCounts` "Minor defect", `majorTotal` "Total Major", `minorTotal` "Total Minor", `heading` "Visual Inspection", `majorHeading` "Major defect", `minorHeading` "Minor defect"
@@ -760,7 +761,7 @@ To confirm:
 - `sizes`: The form has 8 size columns with blank headings: 5.5 to 9.0 assumed.
 - `report.titleLines`: No filled SG report.
 - `header.fields`: The SG form has no factory address, client or factory glove code: off.
-- `packing_config.innerUnit`: pouch (BUILD_SPEC 11); the SG sampling plan counts both Inner Box and Pouches, so a second packing level may be needed.
+- `packing_config.innerUnit`: pouch (BUILD_SPEC 11), so the counts read '# gloves per pouch' and '# pouches per case' (the SG form words neither); the SG sampling plan counts both Inner Box and Pouches, so a second packing level may be needed.
 - `sampling_plan.inspectionLevel`: Not on the form.
 - `watertight.locations`: The form has 7 blank rows: STD_EG's locations until confirmed. AQL 1.5 is the default.
 - `watertight.handSplit`: R and L per size as on the form; tested and the limits per size (the sampling plan has one '# gloves' per size).
@@ -973,7 +974,9 @@ Values that wait on Kenneth. BUILD_SPEC 13 first.
 15. **STD_EG dispensing rows.** 13 per size and 5 in the XL block, as printed; the sampling plan's
     inner box count sets the rows when entered. Confirm the XL default.
 16. **SG packing.** The SG form samples Inner Box and Pouches; `packing_config` has one inner unit
-    (pouch, BUILD_SPEC 11). A second packing level may be needed.
+    (pouch, BUILD_SPEC 11). A second packing level may be needed. The form words no packing counts,
+    so STD_SG words them by its inner unit, "# gloves per pouch" and "# pouches per case", as the
+    export's `innerUnit` says: confirm the wording, and whether a pouch is counted in gloves or pairs.
 17. **Safedon** is called the manufacturer in onsite/SAFEDON_EG.md and the product line in
     reports/SAFEDON_EG.md. The dictionary treats it as the product line.
 18. **AQL per client.** The templates set the AQLs their reports print (watertight 1.5; 0, 2.5 and

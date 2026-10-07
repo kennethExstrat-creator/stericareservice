@@ -2622,6 +2622,10 @@
             "key": "packing_config",
             "include": true,
             "title": "Packing Mode",
+            "labels": {
+              "glovesPerInner": "# gloves per pouch",
+              "innersPerCase": "# pouches per case"
+            },
             "config": {
               "innerUnit": "pouch",
               "fields": {
@@ -2957,8 +2961,8 @@
             "include": true,
             "title": "Packing Mode",
             "labels": {
-              "glovesPerInner": "# glove per inner box",
-              "innersPerCase": "# inners per case",
+              "glovesPerInner": "# gloves per pouch",
+              "innersPerCase": "# pouches per case",
               "glovesPerCase": "# gloves per case",
               "packingMode": "Packing Mode",
               "glovesPerCaseCheck": "Gloves per case (inner × per case)"

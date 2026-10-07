@@ -623,7 +623,7 @@ const STD_SG: TemplateSpec = {
     { path: "header.fields", note: "The SG form has no factory address, client or factory glove code: off." },
     {
       path: "packing_config.innerUnit",
-      note: "pouch (BUILD_SPEC 11); the SG sampling plan counts both Inner Box and Pouches, so a second packing level may be needed.",
+      note: "pouch (BUILD_SPEC 11), so the counts read '# gloves per pouch' and '# pouches per case' (the SG form words neither); the SG sampling plan counts both Inner Box and Pouches, so a second packing level may be needed.",
     },
     { path: "sampling_plan.inspectionLevel", note: "Not on the form." },
     { path: "watertight.locations", note: "The form has 7 blank rows: STD_EG's locations until confirmed. AQL 1.5 is the default." },
