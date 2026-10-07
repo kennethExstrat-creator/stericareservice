@@ -88,6 +88,24 @@ describe("conclusion capture", () => {
     expect(html).toContain("Failed: Labeling.");
   });
 
+  it("names the modules behind the suggestion by the template's titles", () => {
+    const context = makeTestContext({
+      sizes: ["M"],
+      modules: [
+        { key: "labeling", title: "Packaging Labeling Inspection" },
+        { key: "conclusion", title: "Conclusion" },
+      ],
+    });
+    expect(render({}, { defects: 1, context })).toContain("Failed: Packaging Labeling Inspection.");
+  });
+
+  it("keeps the blocking not-done error, which links to the choice, out of the choice's own warning", () => {
+    const html = render({});
+    expect(html).not.toContain("must be complete before submit");
+    expect(html).not.toMatch(/role="radiogroup"[^>]*aria-describedby=/);
+    expect(render({ finalResult: "pass" })).not.toContain("must be complete before submit");
+  });
+
   it("offers pass, fail and hold as one choice, in the template's words", () => {
     const html = render({ finalResult: "hold", date: "2025-04-12" });
     expect(html).toMatch(/role="radiogroup"[^>]*aria-labelledby="[^"]+"/);

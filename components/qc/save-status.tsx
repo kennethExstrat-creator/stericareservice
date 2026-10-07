@@ -1,9 +1,10 @@
-// Autosave state for the capture screen (BUILD_SPEC 8): Saved, Saving, or
-// Offline (will sync), with the photo upload queue as a count badge.
-import { CloudCheckIcon, CloudOffIcon, LoaderCircleIcon, UploadIcon } from "lucide-react";
+// Autosave state for the capture screen (BUILD_SPEC 8): Saved, Saving,
+// Offline (will sync), or Not saved when saving needs the inspector (a
+// conflict, a refused save), with the photo upload queue as a count badge.
+import { CloudAlertIcon, CloudCheckIcon, CloudOffIcon, LoaderCircleIcon, UploadIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type SaveState = "saved" | "saving" | "offline";
+export type SaveState = "saved" | "saving" | "offline" | "error";
 
 const STATE = {
   saved: {
@@ -20,6 +21,12 @@ const STATE = {
     label: "Offline (will sync)",
     Icon: CloudOffIcon,
     className: "border-warn-border bg-warn-tint text-warn",
+  },
+  // Two words in the pill: the screen says what happened and what to do beside it.
+  error: {
+    label: "Not saved",
+    Icon: CloudAlertIcon,
+    className: "border-fail-border bg-fail-tint text-fail",
   },
 } as const;
 

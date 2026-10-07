@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { batchDataChanges, createDataUpdater } from "@/components/qc/data-updater";
-import { firstValues, valueChanges, withoutValuesPast, withValues } from "./capture-data";
+import { makeTestContext } from "@/modules/_framework/testing";
+import { calcWeight } from "./calc";
+import { firstValues, gridSummary, valueChanges, withoutValuesPast, withValues } from "./capture-data";
+import { WEIGHT_DEFAULT_CONFIG, WEIGHT_LABELS, type WeightConfig } from "./config";
 import { emptyWeight, WeightDataSchema, type WeightData } from "./schema";
 
 const saved: WeightData = {
@@ -18,14 +21,18 @@ describe("weight capture data", () => {
     expect(firstValues(saved, "S", 2)).toEqual([null, null]);
   });
 
-  it("finds the values a grid change touched, nothing else", () => {
-    const before = firstValues(saved, "M", 3);
-    expect(valueChanges(before, [2.9, 3.1, 2.8], 3)).toEqual([
+  it("reads the grid's changed cells as values, nothing else", () => {
+    expect(
+      valueChanges([
+        { row: 1, measure: "values", value: 3.1 },
+        { row: 2, measure: "values", value: null },
+        { row: 0, measure: "other", value: 4 },
+      ]),
+    ).toEqual([
       { index: 1, value: 3.1 },
-      { index: 2, value: 2.8 },
+      { index: 2, value: null },
     ]);
-    expect(valueChanges(before, [null, 3.0, null], 3)).toEqual([{ index: 0, value: null }]);
-    expect(valueChanges(before, before, 3)).toEqual([]);
+    expect(valueChanges([])).toEqual([]);
   });
 
   it("writes the values and hands back the whole data, other sizes untouched", () => {
@@ -94,14 +101,52 @@ describe("weight capture data", () => {
     it("keeps both of two grid changes made in one event", () => {
       const changes: WeightData[] = [];
       const updater = createDataUpdater(saved, (next) => changes.push(next));
-      // The grid builds each change from the values it rendered, here [2.9, 3.0, null].
-      const rendered = firstValues(saved, "M", 3);
-      const write = (next: (number | null)[]) =>
-        updater.update((current) => withValues(current, "M", valueChanges(rendered, next, 3)));
-      write([2.9, 3.0, 2.8]);
-      write([2.95, 3.0, null]);
+      // The grid hands over only the cell each change touched.
+      const write = (row: number, value: number | null) =>
+        updater.update((current) => withValues(current, "M", valueChanges([{ row, measure: "values", value }])));
+      write(2, 2.8);
+      write(0, 2.95);
       expect(changes.at(-1)?.sizes.M.values).toEqual([2.95, 3.0, 2.8]);
       expect(changes.at(-1)?.sizes.XL).toBe(saved.sizes.XL);
+    });
+  });
+
+  describe("calc's figures for the grid's footer", () => {
+    const thirteen = (value: number): WeightData => ({ sizes: { M: { values: Array.from({ length: 13 }, () => value) } } });
+    const computed = (data: WeightData, config: Partial<WeightConfig> = {}) =>
+      calcWeight({
+        data,
+        config: { ...WEIGHT_DEFAULT_CONFIG, ...config },
+        title: "Weight",
+        labels: WEIGHT_LABELS,
+        context: makeTestContext({ sizes: ["M"], indicativeWeight: { grams: 3.5, size: "M" } }),
+        results: {},
+        hasData: true,
+      }).computed;
+    const spec = { specs: [{ size: "M", spec: { kind: "range" as const, min: 2.5, max: 3.5 } }] };
+
+    it("judges only the spec: NA without one, even when the size warns", () => {
+      // 2.9 g is 17.1% below the indicative 3.5 g: the size warns, the spec says nothing.
+      const summary = gridSummary(computed(thirteen(2.9)), "M");
+      expect(summary).toMatchObject({ outcome: "na", count: 13 });
+      // Unrounded, as calc keeps it; the grid prints it at the template's decimals.
+      expect(summary?.statistic).toBeCloseTo(2.9, 10);
+    });
+
+    it("passes on the spec when the size only warns, and fails when the spec fails", () => {
+      expect(gridSummary(computed(thirteen(2.9), spec), "M")?.outcome).toBe("pass");
+      expect(gridSummary(computed(thirteen(3.9), spec), "M")?.outcome).toBe("fail");
+    });
+
+    it("is not done while gloves are missing, with the count", () => {
+      const partial = { sizes: { M: { values: [2.9, 3.0] } } };
+      expect(gridSummary(computed(partial, spec), "M")).toEqual({ statistic: 2.95, outcome: "not_done", count: 2 });
+    });
+
+    it("gives nothing while calc has no figures, so the grid summarises its cells", () => {
+      expect(gridSummary(computed(thirteen(2.9)), "S")).toBeUndefined();
+      expect(gridSummary({}, "M")).toBeUndefined();
+      expect(gridSummary(undefined, "M")).toBeUndefined();
     });
   });
 });

@@ -28,8 +28,6 @@ import {
   type EntryProblem,
   type InvalidEntry,
 } from "@/components/qc";
-// Not exported from @/components/qc yet: imported, not copied, so the legend keeps the kit's pill size.
-import { SMALL_PILL_TOUCH } from "@/components/qc/status-pill";
 import { Button } from "@/components/ui/button";
 import { formatSize, formatSpec } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -527,8 +525,7 @@ function StickinessLegend({ labels, config }: { labels: Labels; config: Dispensi
             <dt className="font-semibold tabular-nums">{entry.code}</dt>
             <dd className="text-muted-foreground">{entry.label}</dd>
             <dd>
-              {/* 16 px on iPad, as the kit's small pills in tables. */}
-              <StatusPill size="sm" status={entry.pass ? "pass" : "fail"} className={SMALL_PILL_TOUCH} />
+              <StatusPill size="sm" status={entry.pass ? "pass" : "fail"} />
             </dd>
           </div>
         ))}

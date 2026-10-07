@@ -1,9 +1,12 @@
 // What the capture screen reads from and writes to the saved data, kept pure
 // so it is tested without a browser: a size's readings as grid columns, the
-// readings a grid change touched, the data with them written in, and the data
-// without the gloves past the grid's rows. Writes
-// go through useDataUpdater (docs/CAPTURE_KIT.md), so each starts from the
-// latest data, never from the data the grid rendered with.
+// grid's changed cells as readings, the data with them written in, the data
+// without the gloves past the grid's rows, calc's figures for the grid's
+// footer and the path of each cell. Writes go through useDataUpdater
+// (docs/CAPTURE_KIT.md), so each starts from the latest data, never from the
+// data the grid rendered with.
+import type { MeasureSummary, MeasurementCell, MeasurementChange } from "@/components/qc";
+import type { DimensionsComputed } from "./calc";
 import type { Measure } from "./config";
 import { emptyGlove, type DimensionGlove, type DimensionsData } from "./schema";
 
@@ -22,23 +25,13 @@ export function gridColumns(data: DimensionsData, size: string, measures: readon
 }
 
 /**
- * The readings a grid change touched: its new columns against the columns it
- * was rendered with. Only these are written. The grid builds each change from
- * the columns it last rendered, so its other cells may be out of date by the
- * time the change lands (two commits in one event) and must not be written back.
+ * The grid's changed cells (onCellsChange) as readings of the measures on
+ * screen; a cell of any other key is not a reading and is left out.
  */
-export function gridChanges(
-  before: GridColumns,
-  after: GridColumns,
-  measures: readonly Measure[],
-  rows: number,
-): ReadingChange[] {
-  return measures.flatMap((measure) => {
-    const column = after[measure];
-    if (column === undefined) return [];
-    return Array.from({ length: rows }, (_, row) => ({ row, measure, value: column[row] ?? null })).filter(
-      (change) => change.value !== (before[measure]?.[change.row] ?? null),
-    );
+export function readingChanges(changes: readonly MeasurementChange[], measures: readonly Measure[]): ReadingChange[] {
+  return changes.flatMap(({ row, measure: key, value }) => {
+    const measure = measures.find((candidate) => candidate === key);
+    return measure === undefined ? [] : [{ row, measure, value }];
   });
 }
 
@@ -83,11 +76,25 @@ function isEmpty(glove: DimensionGlove): boolean {
 }
 
 /**
- * The data path of the grid's `index`th cell, as calc's issues point at it:
- * MeasurementGrid lays its cells out row by row (a glove), a column per measure.
+ * calc's figures for one column of the size's grid, so the footer shows the
+ * statistic, count and verdict the size's result is made of. Undefined while
+ * calc has none for it (no evaluation yet, or a module calc could not run):
+ * the grid then summarises its cells itself.
  */
-export function cellPath(size: string, measures: readonly Measure[], index: number): ["sizes", string, "gloves", number, Measure] {
-  return ["sizes", size, "gloves", Math.floor(index / measures.length), measures[index % measures.length]];
+export function measureSummary(
+  computed: Partial<DimensionsComputed> | undefined,
+  size: string,
+  measure: Measure,
+): MeasureSummary | undefined {
+  const statistic = computed?.statistic?.[size]?.[measure];
+  const outcome = computed?.measureResult?.[size]?.[measure];
+  if (statistic === undefined || outcome === undefined) return undefined;
+  return { statistic, outcome, count: computed?.count?.[size]?.[measure] };
+}
+
+/** The data path of a grid cell, as calc's issues point at it: `["sizes", "M", "gloves", 3, "width"]`. */
+export function cellPath(size: string, { row, measure }: MeasurementCell): ["sizes", string, "gloves", number, string] {
+  return ["sizes", size, "gloves", row, measure];
 }
 
 /** The size heading in the template's wording: "Dimension - Size {size}". */

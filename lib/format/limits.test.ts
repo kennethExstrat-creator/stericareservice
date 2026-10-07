@@ -19,4 +19,10 @@ describe("formatLimits", () => {
     expect(formatLimits(null)).toBe("");
     expect(formatLimits(undefined, { empty: "No plan" })).toBe("No plan");
   });
+
+  it("falls back to Ac and Re only where the template gives no word", () => {
+    expect(formatLimits({ ac: 0, re: 1 }, { accept: "Accept", reject: "Reject" })).toBe("Accept 0 / Reject 1");
+    expect(formatLimits({ ac: 0, re: 1 }, { accept: undefined, reject: "Reject" })).toBe("Ac 0 / Reject 1");
+    expect(formatLimits({ ac: 0, re: 1 }, { accept: " ", reject: "" })).toBe("Ac 0 / Re 1");
+  });
 });

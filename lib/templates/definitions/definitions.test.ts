@@ -1,8 +1,7 @@
 // The seed templates against the data dictionary (lib/coverage, the source of
-// truth) and against the real module registry. While a module is still a
-// placeholder its config schema takes any config; once it is built, the
-// resolution checks the seed's config against its real schema, so these
-// tests turn strict on their own as the modules land.
+// truth) and against the real module registry. Every module the seeds switch
+// on is built, so each seed's config is checked by that module's real schema;
+// a placeholder (which takes any config) fails these tests.
 import { describe, expect, it } from "vitest";
 import {
   labelOverrides,
@@ -80,6 +79,11 @@ describe("the seed templates (BUILD_SPEC 11)", () => {
     const template = resolved(code);
     expect(ResolvedTemplateSchema.safeParse(template).success).toBe(true);
     expect(template.chain).toEqual(code === "SAFEDON_EG" ? ["SAFEDON_EG", "STD_EG"] : [code]);
+  });
+
+  it.each(SEED_TEMPLATES.map((seed) => seed.code))("%s switches on only built modules, checked by their real schemas", (code) => {
+    const placeholders = included(resolved(code)).filter((entry) => MODULE_REGISTRY[entry.key].stub);
+    expect(placeholders.map((entry) => entry.key)).toEqual([]);
   });
 });
 

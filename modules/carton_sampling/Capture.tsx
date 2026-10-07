@@ -22,8 +22,6 @@ import {
   useIssueFocus,
   type EntryProblem,
 } from "@/components/qc";
-// Not exported from @/components/qc yet: the kit's own touch size for a small pill (16 px text on iPad).
-import { SMALL_PILL_TOUCH } from "@/components/qc/status-pill";
 import { formatCount, formatSize } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { labelFor, samplingFor, type CaptureProps, type ValidationIssue } from "@/modules/_framework";
@@ -207,7 +205,7 @@ export default function Capture({
         )}
         {result && (
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-foreground touch:text-base">
-            <StatusPill size="sm" status={result.status} className={SMALL_PILL_TOUCH} />
+            <StatusPill size="sm" status={result.status} />
             {result.summary && <span>{result.summary}</span>}
           </p>
         )}

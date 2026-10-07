@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
+  describeDataPath,
+  fieldIssues,
   FRAMEWORK_ISSUE_CODES,
   inspectorIssues,
   invalidConfigIssues,
@@ -88,6 +90,72 @@ describe("framework issues", () => {
       },
     ]);
     expect(notDoneIssues("Conclusion", { status: "warn", summary: "Final result: hold." }, true)).toEqual([]);
+  });
+
+  it("keep the not-done issue, which only links to a field, out of the issues shown beside fields", () => {
+    const linked = notDoneIssues("Conclusion", { status: "not_done", summary: "No final result." }, true, ["finalResult"]);
+    const differs = { level: "warning", code: "final_result_differs", message: "Differs.", path: ["finalResult"] };
+    expect(fieldIssues([...linked, differs])).toEqual([differs]);
+    expect(fieldIssues(undefined)).toEqual([]);
+  });
+
+  it("link a not-done module to the field it names", () => {
+    expect(notDoneIssues("Conclusion", { status: "not_done", summary: "No final result." }, true, ["finalResult"])).toEqual([
+      expect.objectContaining({ level: "error", code: "module_not_done", path: ["finalResult"] }),
+    ]);
+    expect(notDoneIssues("Tensile", { status: "not_done", summary: "" }, false, ["labReport"])).toEqual([
+      expect.objectContaining({ level: "warning", message: "Tensile is not done.", path: ["labReport"] }),
+    ]);
+  });
+
+  it("name the module and the field of a value the schema rejects, in plain words", () => {
+    const schema = z.strictObject({
+      sizes: z.record(
+        z.string(),
+        z.strictObject({
+          qtyCases: z.number().int().min(0).nullable(),
+          lotNumbers: z.array(z.string().max(200)),
+          note: z.string(),
+          when: z.iso.date().nullable(),
+        }),
+      ),
+    });
+    const parsed = schema.safeParse({
+      sizes: { M: { qtyCases: 2.5, lotNumbers: ["L".repeat(201)], when: "12/07/2024", colour: "blue" } },
+    });
+    if (parsed.success) throw new Error("expected a schema error");
+    const labels = { qtyCases: "Qty (cases)", lotNumbers: "Lot Number" };
+    const messages = invalidDataIssues("Order", parsed.error, [], {
+      describe: (path) => describeDataPath(path, labels),
+      consequence: "Until it is corrected, the other sections use the rest.",
+    }).map((issue) => [issue.path, issue.message]);
+    expect(messages).toEqual([
+      [["sizes", "M", "qtyCases"], "Order: size M, Qty (cases) is not a whole number. Until it is corrected, the other sections use the rest."],
+      [
+        ["sizes", "M", "lotNumbers", 0],
+        "Order: size M, Lot Number no. 1 is longer than 200 characters. Until it is corrected, the other sections use the rest.",
+      ],
+      [["sizes", "M", "note"], "Order: size M, note is missing. Until it is corrected, the other sections use the rest."],
+      [["sizes", "M", "when"], "Order: size M, when is not a date (YYYY-MM-DD). Until it is corrected, the other sections use the rest."],
+      [["sizes", "M", "colour"], "Order: size M, colour is not a field of this section. Until it is corrected, the other sections use the rest."],
+    ]);
+  });
+
+  it("describe a place in a module's data by its labels", () => {
+    const labels = { lotNumbers: "Lot Number", iso13485: "ISO 13485", expiryDate: "Expiry date" };
+    expect(describeDataPath(["sizes", "M", "lotNumbers", 1], labels)).toBe("size M, Lot Number no. 2");
+    expect(describeDataPath(["items", "iso13485", "expiryDate"], labels)).toBe("ISO 13485, Expiry date");
+    expect(describeDataPath(["sizes", "XL", 12])).toBe("size XL no. 13");
+    expect(describeDataPath(["labReport"])).toBe("labReport");
+    expect(describeDataPath([])).toBe("");
+  });
+
+  it("name the hand under a size in a hand-split module's data", () => {
+    const labels = { holes: "Pin hole" };
+    expect(describeDataPath(["sizes", "M", "R", "holes", "hole_finger"], labels)).toBe("size M, right hand, Pin hole, hole_finger");
+    expect(describeDataPath(["sizes", "M", "L"], labels)).toBe("size M, left hand");
+    // R and L are hands only right under a size.
+    expect(describeDataPath(["R", "holes"], labels)).toBe("Pin hole");
   });
 
   it("turn schema errors into errors with paths into the data", () => {

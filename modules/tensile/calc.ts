@@ -2,21 +2,30 @@
 // strength and elongation at break averages against their minimums, each
 // judged at the decimals it is printed with; a size fails if either fails.
 // Not done until both averages of every ordered size are in and the lab
-// report is attached, which this module requires (6.2 rule 5). An average
-// of 0 or less is wrong data: an error with its path.
+// report is attached, which this module requires (6.2 rule 5): the module
+// keeps the id of the file attached through its file slot (the framework's
+// file channel). Once the inspection's files are known, a lab report of the
+// module added elsewhere (the gallery) counts too, and a kept file the
+// inspection does not hold is not attached. An average of 0 or less is wrong
+// data: an error with its path.
 import type { ModuleStatus, PerSizeResult } from "@/lib/schemas/module-result";
 import { checkSpec, formatDecimal, roundTo, type Spec } from "@/lib/stats";
 import {
   combinePerSize,
   errorIssue,
   labelFor,
+  missingFileMessage,
+  moduleFileState,
   perSizeResults,
   sizeLabel,
+  warningIssue,
   worstStatus,
   type CalcInput,
   type CalcIssue,
   type CalcOutput,
+  type HeldFileState,
   type InspectionContext,
+  type IssuePath,
   type Labels,
 } from "@/modules/_framework";
 import { TENSILE_MEASURES, type TensileConfig, type TensileMeasure } from "./config";
@@ -95,7 +104,9 @@ export function calcTensile({
   });
 
   // The lab report is required: without it the module is not done, whatever its sizes say.
-  const attached = data.labReport !== null;
+  const report = labReportState(context, data.labReport);
+  const attached = report === "attached";
+  if (report === "missing") issues.push(labReportMissing(labels));
   const status = attached ? combinePerSize(perSize) : worstStatus([combinePerSize(perSize), "not_done"]);
   return {
     result: { status, summary: summarise(context, perSize, sizes, attached, config, labels), perSize },
@@ -108,7 +119,29 @@ export function calcTensile({
       sizes,
     },
     issues,
+    notDonePath: firstMissing(data, context, attached),
   };
+}
+
+/** The lab report: the one kept, or any of the module's lab reports once the inspection's files are known. */
+export function labReportState(context: InspectionContext, fileId: string | null): HeldFileState {
+  return moduleFileState(context, { moduleKey: "tensile", kind: "lab_report", fileId });
+}
+
+/** A kept lab report the inspection's files do not hold: deleted since, or still uploading elsewhere. */
+export function labReportMissing(labels: Labels): CalcIssue {
+  return warningIssue("lab_report_missing", missingFileMessage(labelFor(labels, "labReport")), { path: ["labReport"] });
+}
+
+/** Where the not-done link goes, in screen order: the lab report, then the first average still to enter. */
+function firstMissing(data: TensileData, context: InspectionContext, attached: boolean): IssuePath | undefined {
+  if (!attached) return ["labReport"];
+  for (const size of context.sizes) {
+    const entry = data.sizes[size] ?? emptyTensileSize();
+    const measure = TENSILE_MEASURES.find((candidate) => entry[candidate] === null);
+    if (measure) return ["sizes", size, measure];
+  }
+  return undefined;
 }
 
 export function measureSpec(config: TensileConfig, measure: TensileMeasure): Spec {

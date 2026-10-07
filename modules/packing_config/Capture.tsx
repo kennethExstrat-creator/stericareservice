@@ -7,16 +7,7 @@
 // the template shows it. Every label is the template's (rule 11). Every
 // change goes through useDataUpdater, built from the latest data.
 import { useId, useRef, type FocusEvent } from "react";
-import {
-  EnterGroup,
-  Figure,
-  findIssue,
-  issuePathProps,
-  NumberField,
-  StatusIcon,
-  useDataUpdater,
-  useIssueFocus,
-} from "@/components/qc";
+import { EnterGroup, Figure, issuePathProps, NumberField, useDataUpdater, useIssueFocus } from "@/components/qc";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { labelFor, type CaptureProps } from "@/modules/_framework";
@@ -40,12 +31,11 @@ export default function Capture({
   const id = useId();
   const update = useDataUpdater(data, onChange);
   const issues = evaluation?.issues ?? [];
-  const mismatch = issues.find((issue) => issue.code === "gloves_per_case_mismatch");
-  // Errors show on the field; the mismatch is a warning and shows by the computed check.
-  const errorAt = (field: string) => {
-    const issue = findIssue(issues, [field]);
-    return issue?.level === "error" ? issue.message : null;
-  };
+  // calc's problems show on the field they point at: errors in red, the mismatch with the computed check in amber.
+  const messagesAt = (field: string, level: "error" | "warning") =>
+    issues
+      .filter((issue) => issue.level === level && issue.path.length === 1 && issue.path[0] === field)
+      .map((issue) => issue.message);
 
   // A photo taken here has no size, hand, defect or box to tag.
   const clearFocus = (event: FocusEvent<HTMLDivElement>) => {
@@ -64,26 +54,21 @@ export default function Capture({
             min={1}
             value={data[field]}
             onValueChange={(value) => update((current) => setCount(current, field, value))}
-            error={errorAt(field)}
+            error={messagesAt(field, "error")[0] ?? null}
+            warning={messagesAt(field, "warning")}
             issuePath={[field]}
             readOnly={readOnly}
           />
         ))}
       </EnterGroup>
 
-      <div className="space-y-2 rounded-lg border border-border bg-muted px-4 py-3">
+      <div className="rounded-lg border border-border bg-muted px-4 py-3">
         <dl className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
           <dt className="text-sm text-muted-foreground touch:text-base">{labelFor(labels, "glovesPerCaseCheck")}</dt>
           <dd className="text-base font-semibold">
             <Figure value={evaluation?.computed.glovesPerCaseCheck} grouping />
           </dd>
         </dl>
-        {mismatch && (
-          <p className="flex items-start gap-1.5 text-sm text-warn touch:text-base">
-            <StatusIcon status="warn" className="mt-0.5 size-4 shrink-0" />
-            {mismatch.message}
-          </p>
-        )}
       </div>
 
       {config.fields.packingMode && (

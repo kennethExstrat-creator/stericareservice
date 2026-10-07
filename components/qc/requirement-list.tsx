@@ -11,7 +11,7 @@ import { checkSpec, roundTo, type Spec } from "@/lib/stats";
 import { formatSpec, hasLimit } from "@/lib/format";
 import { Figure } from "./figure";
 import { issuePathProps, type IssuePath } from "./issue-path";
-import { SMALL_PILL_TOUCH, StatusPill } from "./status-pill";
+import { StatusPill } from "./status-pill";
 
 /** A result, or "na" when the spec sets no limit (shown as NA, no verdict). */
 export type RequirementOutcome = Status | "na";
@@ -71,7 +71,7 @@ function outcomeOf(item: Pick<Requirement, "value" | "spec" | "decimals" | "stat
 function Outcome({ outcome, labels }: { outcome: RequirementOutcome; labels: RequirementLabels }) {
   if (outcome === "na") return <span className="font-medium text-muted-foreground">NA</span>;
   const label = outcome === "pass" ? labels.pass : outcome === "fail" ? labels.fail : undefined;
-  return <StatusPill size="sm" status={outcome} label={label} className={SMALL_PILL_TOUCH} />;
+  return <StatusPill size="sm" status={outcome} label={label} />;
 }
 
 function specLine(item: Pick<Requirement, "spec" | "specText" | "unit" | "decimals">): ReactNode {

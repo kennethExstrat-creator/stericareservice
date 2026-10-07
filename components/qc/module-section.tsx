@@ -7,7 +7,7 @@ import { useId, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import type { Status } from "@/lib/design/status";
 import { issuePathProps, type IssuePath } from "./issue-path";
-import { SMALL_PILL_TOUCH, StatusPill } from "./status-pill";
+import { StatusPill } from "./status-pill";
 
 type ModuleSectionProps = {
   /** In the template's wording; never editable on the capture screen (6.2 rule 11). */
@@ -61,7 +61,7 @@ export function ModuleSection({
         {(actions || status) && (
           <div className="flex flex-wrap items-center gap-2">
             {actions}
-            {status && <StatusPill size="sm" status={status} label={statusLabel} className={SMALL_PILL_TOUCH} />}
+            {status && <StatusPill size="sm" status={status} label={statusLabel} />}
           </div>
         )}
       </header>
