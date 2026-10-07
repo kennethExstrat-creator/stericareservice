@@ -1,5 +1,5 @@
 import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
-import { signIn, TEST_ACCOUNTS } from "../support/session";
+import { sessionCookies, TEST_ACCOUNTS } from "../support/session";
 import { createKitFixture, CUSTOM_GRID, SAFEDON_BOXES, type KitFixture } from "./fixtures";
 
 /**
@@ -67,9 +67,13 @@ function watchConsole(page: Page) {
   return () => errors.filter((text) => /hydrat|did not match|server rendered/i.test(text));
 }
 
+let session: { name: string; value: string }[] | null = null;
+
+/** Signs in once per project, then reuses the session (the sign-in limit: e2e/README.md). */
 async function signInAs(context: BrowserContext, baseURL: string) {
   await context.clearCookies();
-  await signIn(context, baseURL, TEST_ACCOUNTS.inspector);
+  session ??= await sessionCookies(TEST_ACCOUNTS.inspector);
+  await context.addCookies(session.map((cookie) => ({ ...cookie, url: baseURL })));
 }
 
 /** The open section's frame, once its module's code has loaded and the screen can be changed. */

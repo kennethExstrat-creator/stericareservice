@@ -11,6 +11,7 @@ describe("captureAccess", () => {
         editable: true,
         readOnlyReason: null,
         canSwitchModules: false,
+        own: true,
       });
     }
   });
@@ -20,6 +21,7 @@ describe("captureAccess", () => {
       editable: true,
       readOnlyReason: null,
       canSwitchModules: true,
+      own: false,
     });
   });
 
@@ -28,11 +30,13 @@ describe("captureAccess", () => {
       editable: false,
       readOnlyReason: "submitted",
       canSwitchModules: false,
+      own: true,
     });
     expect(captureAccess({ status: "submitted", role: "admin", userId: OTHER, inspectorId: INSPECTOR })).toEqual({
       editable: false,
       readOnlyReason: "submitted",
       canSwitchModules: true,
+      own: false,
     });
   });
 
@@ -41,6 +45,7 @@ describe("captureAccess", () => {
       editable: false,
       readOnlyReason: "approved",
       canSwitchModules: false,
+      own: false,
     });
   });
 
@@ -60,11 +65,15 @@ describe("captureAccess", () => {
         editable: false,
         readOnlyReason: "not_yours",
         canSwitchModules: false,
+        own: false,
       });
     }
+    // Submitted, it is read-only for everyone; it is still not the lead's own (the notice names whose it is).
     expect(captureAccess({ status: "submitted", role: "inspector", userId: LEAD, inspectorId: INSPECTOR })).toMatchObject({
       editable: false,
+      readOnlyReason: "submitted",
       canSwitchModules: false,
+      own: false,
     });
     // Their own draft is theirs to edit, like any inspector's.
     expect(captureAccess({ status: "draft", role: "inspector", userId: LEAD, inspectorId: LEAD }).editable).toBe(true);

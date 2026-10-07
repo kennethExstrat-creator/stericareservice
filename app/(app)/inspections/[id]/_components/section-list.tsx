@@ -41,9 +41,10 @@ export function SectionList({ sections, activeKey, onSelect, className }: Sectio
                   <button
                     type="button"
                     data-section={section.key}
+                    title={section.title}
                     onClick={() => onSelect(section.key)}
                     className={cn(
-                      "relative flex h-9 w-full items-center gap-2.5 rounded-md pr-2 pl-3.5 text-sm text-muted-foreground outline-none hover:bg-muted focus-ring-inset touch:h-11",
+                      "relative flex min-h-9 w-full items-center gap-2.5 rounded-md py-1.5 pr-2 pl-3.5 text-sm text-muted-foreground outline-none hover:bg-muted focus-ring-inset touch:min-h-11",
                       active && "bg-accent font-semibold text-accent-foreground hover:bg-accent",
                     )}
                   >
@@ -55,7 +56,9 @@ export function SectionList({ sections, activeKey, onSelect, className }: Sectio
                       )}
                     />
                     <CircleOffIcon aria-hidden className="size-4 shrink-0 text-slate-500" />
-                    <span className="min-w-0 flex-1 truncate text-left">{section.title}</span>
+                    <span className="line-clamp-2 min-w-0 flex-1 text-left leading-snug [overflow-wrap:anywhere]">
+                      {section.title}
+                    </span>
                     <span className="sr-only">, switched off for this inspection</span>
                   </button>
                 </li>

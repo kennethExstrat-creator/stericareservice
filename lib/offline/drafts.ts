@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { KeyValueStore } from "./kv";
 import { defaultWriterLock, type WriterLock } from "./lock";
 import type { ServerCopy } from "./protocol";
+import { isRefusedEntriesKey, refusedRecordIsOld } from "./refused";
 import { contentHash } from "./stable-json";
 import { compareVersions } from "./version";
 
@@ -295,13 +296,21 @@ export async function discardSetAsideDraft(store: KeyValueStore<unknown>, key: s
 }
 
 /**
- * Deletes fully synced local copies last touched before `before` (ms).
+ * Deletes fully synced local copies last touched before `before` (ms), and
+ * the refused entries kept beside them (refused.ts) last changed before it.
  * Unsynced ones and set-aside unreadable ones are kept. Returns how many
- * were deleted.
+ * records were deleted.
  */
 export async function pruneSyncedDrafts(store: KeyValueStore<unknown>, before: number): Promise<number> {
   let deleted = 0;
   for (const key of await store.keys()) {
+    if (isRefusedEntriesKey(key)) {
+      if (refusedRecordIsOld(await store.get(key), before)) {
+        await store.delete(key);
+        deleted++;
+      }
+      continue;
+    }
     if (!key.startsWith(DRAFT_PREFIX)) continue;
     const parsed = LocalDraftSchema.safeParse(await store.get(key));
     if (!parsed.success || hasUnsavedChanges(parsed.data)) continue;

@@ -53,6 +53,8 @@ export {
 } from "./number-field";
 // What a paste left out, on screen: NumberField, EnterGroup and MeasurementGrid show it themselves.
 export { PasteNotice } from "./paste-notice";
+// Where the capture screen keeps refused entries ("2 42") so they outlive their field: NumberField and MeasurementGrid use it.
+export { RefusedEntryStoreContext, useRefusedEntryStore, type RefusedEntryStore } from "./refused-entries";
 export type { PasteLeftOut } from "./field-navigation";
 export {
   RequirementList,

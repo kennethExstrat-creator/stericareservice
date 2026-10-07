@@ -62,17 +62,21 @@ export function ProgressTracker({
   // scroll or clip) take it inside.
   const focusClass = variant === "list" ? "focus-ring-inset" : "focus-ring";
 
-  const item = (step: ProgressStep, content: ReactNode, itemClass: string) =>
+  // A list row's title shows its whole name on hover (title), however it is cut.
+  const item = (step: ProgressStep, content: ReactNode, itemClass: string, title?: string) =>
     onStepSelect ? (
       <button
         type="button"
+        title={title}
         onClick={() => onStepSelect(step.key)}
         className={cn(itemClass, "outline-none", focusClass)}
       >
         {content}
       </button>
     ) : (
-      <div className={itemClass}>{content}</div>
+      <div title={title} className={itemClass}>
+        {content}
+      </div>
     );
 
   if (variant === "list") {
@@ -94,15 +98,20 @@ export function ProgressTracker({
                     )}
                   />
                   <Icon aria-hidden className={cn("size-4 shrink-0", iconClass)} />
-                  <span className="min-w-0 flex-1 truncate text-left">{step.label}</span>
+                  {/* Two lines before it is cut, so titles that start alike ("Glove Dispensing
+                      Inspection" and its "onsite notes") are told apart in a 16 rem sidebar. */}
+                  <span className="line-clamp-2 min-w-0 flex-1 text-left leading-snug [overflow-wrap:anywhere]">
+                    {step.label}
+                  </span>
                   <span className="sr-only">, {STATE_LABEL[step.state]}</span>
                   {step.result && <ResultChip status={step.result} />}
                 </>,
                 cn(
-                  "relative flex h-9 w-full items-center gap-2.5 rounded-md pr-2 pl-3.5 text-sm text-foreground touch:h-11",
+                  "relative flex min-h-9 w-full items-center gap-2.5 rounded-md py-1.5 pr-2 pl-3.5 text-sm text-foreground touch:min-h-11",
                   onStepSelect && "hover:bg-muted",
                   isActive && "bg-accent font-semibold text-accent-foreground hover:bg-accent",
                 ),
+                step.label,
               )}
             </li>
           );
@@ -114,7 +123,9 @@ export function ProgressTracker({
   return (
     <div data-slot="progress-tracker" className={cn("space-y-2", className)}>
       <div className="flex items-baseline justify-between gap-3 text-sm">
-        <span className="truncate font-medium text-foreground">{active?.label}</span>
+        <span className="truncate font-medium text-foreground" title={active?.label}>
+          {active?.label}
+        </span>
         <span className="shrink-0 text-muted-foreground tabular-nums">
           {done} of {steps.length} done
         </span>

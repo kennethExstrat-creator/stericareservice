@@ -9,7 +9,15 @@
 // custom module gets the screen's own form. A module whose settings cannot
 // be read says so; saved values that no longer read are listed, with one
 // confirmed way to remove them (unreadable-data.tsx).
-import { lazy, Suspense, useCallback, useMemo, type LazyExoticComponent, type ReactNode } from "react";
+//
+// Offline (docs/OFFLINE.md: editing continues on a page already open): the
+// screen downloads every section's form soon after it opens
+// (preloadCaptures), so a section opened later without a connection still
+// shows its form. One that did not arrive is asked for again once the
+// connection is back, by the section itself or its "Try again": a new
+// download, rendered by a new boundary (a failed lazy component stays
+// failed, and the boundary's own children would still hold it).
+import { lazy, Suspense, useCallback, useMemo, useState, type LazyExoticComponent, type ReactNode } from "react";
 import { FileSlot } from "@/components/capture/files";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MODULE_KEYS, type ModuleKey } from "@/lib/schemas/module-result";
@@ -32,18 +40,47 @@ import { SectionErrorBoundary } from "./section-error-boundary";
 import { UnreadableData } from "./unreadable-data";
 
 type LazyCapture = LazyExoticComponent<CaptureComponent>;
+type CaptureCode = { default: CaptureComponent };
+
+/* Each module's form code, downloading or downloaded, once per page: the
+   preload and the section share one download. One that failed is
+   forgotten, so the next asks again. */
+const DOWNLOADS = new Map<ModuleKey, Promise<CaptureCode>>();
+
+function downloadCapture(key: ModuleKey): Promise<CaptureCode> | null {
+  const load = MODULE_REGISTRY[key].loadCapture;
+  if (!load) return null;
+  let download = DOWNLOADS.get(key);
+  if (!download) {
+    download = (load() as Promise<CaptureCode>).catch((error: unknown) => {
+      DOWNLOADS.delete(key);
+      throw error;
+    });
+    DOWNLOADS.set(key, download);
+  }
+  return download;
+}
 
 function lazyCapture(key: ModuleKey): LazyCapture | null {
-  const load = MODULE_REGISTRY[key].loadCapture;
-  return load ? lazy(() => load()) : null;
+  if (!MODULE_REGISTRY[key].loadCapture) return null;
+  return lazy(() => downloadCapture(key) as Promise<CaptureCode>);
 }
 
 /* One lazy component per module, made once for the page, so switching back
-   and forth never downloads a form's code again. A download that failed is
-   made afresh by "Try again" (SectionErrorBoundary's onReset). */
+   and forth never downloads a form's code again. One whose download failed
+   stays failed: "Try again" makes it afresh (ModuleBody's retry). */
 const CAPTURES: Partial<Record<ModuleKey, LazyCapture | null>> = Object.fromEntries(
   MODULE_KEYS.map((key) => [key, lazyCapture(key)]),
 );
+
+/**
+ * Downloads the forms of these modules now, while there is a connection, so
+ * their sections open later without one. Each once per page; a failed one
+ * is tried again on the next call.
+ */
+export function preloadCaptures(keys: readonly ModuleKey[]): void {
+  for (const key of keys) void downloadCapture(key)?.catch(() => undefined);
+}
 
 type ModuleBodyProps = {
   inspectionId: string;
@@ -81,6 +118,12 @@ export function ModuleBody({
   onUnreadableRemoved,
 }: ModuleBodyProps) {
   const definition = MODULE_REGISTRY[moduleKey];
+  // A form that failed to show is asked for afresh: a new lazy component, under a new boundary.
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => {
+    CAPTURES[moduleKey] = lazyCapture(moduleKey);
+    setAttempt((count) => count + 1);
+  }, [moduleKey]);
   const labels = useMemo(() => effectiveLabels(definition, resolved), [definition, resolved]);
   const config = useMemo(() => definition.configSchema.safeParse(resolved.config), [definition, resolved.config]);
   const moduleEntry = useMemo(
@@ -155,7 +198,7 @@ export function ModuleBody({
     );
   }
   return (
-    <SectionErrorBoundary title={resolved.title} onReset={() => (CAPTURES[moduleKey] = lazyCapture(moduleKey))}>
+    <SectionErrorBoundary key={attempt} title={resolved.title} onRetry={retry}>
       <Suspense fallback={<BodySkeleton />}>
         <FileSlotProvider render={renderFileSlot}>
           <Capture

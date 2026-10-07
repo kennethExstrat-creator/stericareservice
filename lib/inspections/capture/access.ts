@@ -23,9 +23,14 @@ export const EDITABLE_STATUSES: readonly InspectionStatus[] = ["draft", "reopene
 
 export type ReadOnlyReason = "approved" | "submitted" | "not_yours";
 
+/**
+ * `own`: the viewer is the inspection's inspector, so what the screen says
+ * is about their own work ("An admin can send it back to you"); a lead
+ * reading a team member's inspection is told whose it is instead.
+ */
 export type CaptureAccess =
-  | { editable: true; readOnlyReason: null; canSwitchModules: boolean }
-  | { editable: false; readOnlyReason: ReadOnlyReason; canSwitchModules: boolean };
+  | { editable: true; readOnlyReason: null; canSwitchModules: boolean; own: boolean }
+  | { editable: false; readOnlyReason: ReadOnlyReason; canSwitchModules: boolean; own: boolean };
 
 export type AccessInput = {
   status: InspectionStatus;
@@ -45,12 +50,13 @@ export function canSwitchModules({ status, role }: Pick<AccessInput, "status" | 
 
 export function captureAccess(input: AccessInput): CaptureAccess {
   const canSwitch = canSwitchModules(input);
-  if (input.status === "approved") return { editable: false, readOnlyReason: "approved", canSwitchModules: canSwitch };
+  const own = input.userId === input.inspectorId;
+  if (input.status === "approved") return { editable: false, readOnlyReason: "approved", canSwitchModules: canSwitch, own };
   if (!isEditableStatus(input.status)) {
-    return { editable: false, readOnlyReason: "submitted", canSwitchModules: canSwitch };
+    return { editable: false, readOnlyReason: "submitted", canSwitchModules: canSwitch, own };
   }
-  if (input.role !== "admin" && input.userId !== input.inspectorId) {
-    return { editable: false, readOnlyReason: "not_yours", canSwitchModules: canSwitch };
+  if (input.role !== "admin" && !own) {
+    return { editable: false, readOnlyReason: "not_yours", canSwitchModules: canSwitch, own };
   }
-  return { editable: true, readOnlyReason: null, canSwitchModules: canSwitch };
+  return { editable: true, readOnlyReason: null, canSwitchModules: canSwitch, own };
 }

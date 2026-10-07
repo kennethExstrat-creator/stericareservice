@@ -7,7 +7,9 @@
 // queue is empty); confirming checks the queue once more, other tabs
 // included, saves what is not saved yet, and asks the server to move the
 // inspection to submitted, which checks the saved data once more and opens
-// the review.
+// the review. The suggested result is a pill in DESIGN.md's words (Passed,
+// Failed, On hold), with the reasons under it only when there are any
+// (suggestion.ts): a clean pass says nothing twice.
 import { useActionState, useState } from "react";
 import { unstable_rethrow } from "next/navigation";
 import { CloudUploadIcon, OctagonXIcon, SendIcon } from "lucide-react";
@@ -25,8 +27,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { blockedSubmitMessage } from "@/lib/inspections/capture/issues";
+import type { InspectionResult } from "@/lib/schemas/common";
 import type { ModuleOverrides } from "@/lib/schemas/template";
-import type { SuggestedResult, ValidationIssue } from "@/lib/validation";
+import type { ValidationIssue } from "@/lib/validation";
 import { cn } from "@/lib/utils";
 import { submitInspection, type SubmitResult } from "../actions";
 import { unreachable } from "./unreachable";
@@ -51,18 +54,19 @@ type SubmitControlProps = {
   /** Errors on screen: the button opens the issues panel instead of submitting. */
   errorCount: number;
   warningCount: number;
-  suggested: Pick<SuggestedResult, "result" | "summary">;
+  /** The suggested result, and why (suggestionReasons): no reasons for a clean pass. */
+  suggested: { result: InspectionResult; reasons: readonly string[] };
   /** Waits for uploads and saves; resolves with the hash of the data that was saved. */
   prepare: () => Promise<SubmitPreparation>;
   /** Submit was refused for errors (on screen, or found by the server in the saved data). */
   onBlocked: (blocked: SubmitBlocked) => void;
+  /** Submitted: the server is opening the review. */
+  onSubmitted?: () => void;
   /** Why photos or files on this device hold the submit up ("Waiting for 2 photos to upload."); null when nothing does. */
   uploadsWaiting: string | null;
   disabled?: boolean;
   className?: string;
 };
-
-const SUGGESTED_LABEL = { pass: "Pass", fail: "Fail", hold: "Hold" } as const;
 
 export function SubmitControl({
   inspectionId,
@@ -72,6 +76,7 @@ export function SubmitControl({
   suggested,
   prepare,
   onBlocked,
+  onSubmitted,
   uploadsWaiting,
   disabled = false,
   className,
@@ -87,6 +92,7 @@ export function SubmitControl({
       } catch (signal) {
         // The redirect to the review: submitted. The page's photo store reads the inspection's new rights.
         void refreshInspectionMedia(inspectionId);
+        onSubmitted?.();
         throw signal;
       }
       return unreachable(error);
@@ -138,26 +144,7 @@ export function SubmitControl({
                 Once it is submitted it can no longer be changed here. An admin reviews it and can send it back.
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <dl className="grid gap-3 text-sm touch:text-base">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                <dt className="text-muted-foreground">Suggested result</dt>
-                <dd>
-                  <StatusPill status={suggested.result} label={SUGGESTED_LABEL[suggested.result]} />
-                </dd>
-              </div>
-              <div>
-                <dt className="sr-only">Why</dt>
-                <dd className="text-foreground">{suggested.summary}</dd>
-              </div>
-              {warningCount > 0 && (
-                <div>
-                  <dt className="sr-only">Warnings</dt>
-                  <dd className="text-foreground">
-                    {warningCount === 1 ? "1 warning goes" : `${warningCount} warnings go`} into the report.
-                  </dd>
-                </div>
-              )}
-            </dl>
+            <SubmitSummary suggested={suggested} warningCount={warningCount} />
             {uploadsWaiting && !pending && (
               <p
                 role="status"
@@ -189,5 +176,50 @@ export function SubmitControl({
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+/**
+ * The confirmation's summary: the suggested result as a pill in DESIGN.md's
+ * words (Passed, Failed, On hold, as every pill outside the Conclusion
+ * section), why in a line each only when there is something to say (none for
+ * a clean pass: the pill says it), and how many warnings go into the report.
+ */
+export function SubmitSummary({
+  suggested,
+  warningCount,
+}: {
+  suggested: SubmitControlProps["suggested"];
+  warningCount: number;
+}) {
+  return (
+    <dl className="grid gap-3 text-sm touch:text-base">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <dt className="text-muted-foreground">Suggested result</dt>
+        <dd>
+          <StatusPill status={suggested.result} />
+        </dd>
+      </div>
+      {suggested.reasons.length > 0 && (
+        <div>
+          <dt className="sr-only">Why</dt>
+          <dd data-slot="suggested-reasons" className="space-y-0.5 text-foreground">
+            {suggested.reasons.map((reason) => (
+              <span key={reason} className="block">
+                {reason}
+              </span>
+            ))}
+          </dd>
+        </div>
+      )}
+      {warningCount > 0 && (
+        <div>
+          <dt className="sr-only">Warnings</dt>
+          <dd className="text-foreground">
+            {warningCount === 1 ? "1 warning goes" : `${warningCount} warnings go`} into the report.
+          </dd>
+        </div>
+      )}
+    </dl>
   );
 }

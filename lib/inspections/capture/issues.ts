@@ -4,7 +4,10 @@
 // within a section); here they are grouped under their section's title. The
 // screen shows them as tasks ("Pending"), one short row per section
 // (pendingTasks): errors are needed before submit, warnings are the rest to do.
+// Entries a field refused (refused.ts) join their section's row first: the
+// row names the field and links to it.
 import { FRAMEWORK_ISSUE_CODES, type IssuePath, type ValidationIssue } from "@/lib/validation";
+import { REFUSED_ENTRY_CODE, refusedEntriesStatus } from "./refused";
 import type { CaptureSection } from "./sections";
 
 export type IssueGroup = {
@@ -67,7 +70,7 @@ export type PendingTask = {
   sizes: string[];
   /** Other kinds of open items in the section, beyond the status: "· 1 more". */
   more: number;
-  /** Where the row goes: the section's first open item, what submit needs first. */
+  /** Where the row goes: a refused entry's field first, else the section's first open item, what submit needs first. */
   first: ValidationIssue;
 };
 
@@ -85,16 +88,21 @@ type ModuleResults = readonly { key: string; result: { perSize?: Readonly<Record
 
 /**
  * The panel's rows: one per section with open items, what submit needs first
- * (in capture order), then the rest (in capture order).
+ * (in capture order), then the rest (in capture order). A section's refused
+ * entries (code REFUSED_ENTRY_CODE) come first in its row.
  */
 export function pendingTasks(
   groups: readonly IssueGroup[],
   sections: readonly CaptureSection[],
   modules: ModuleResults,
 ): PendingTask[] {
-  const tasks = groups.flatMap((group): PendingTask[] => {
+  const position = new Map(sections.map((section, index) => [section.key, index]));
+  const ordered = [...groups].sort(
+    (a, b) => (position.get(a.key) ?? sections.length) - (position.get(b.key) ?? sections.length),
+  );
+  const tasks = ordered.flatMap((group): PendingTask[] => {
     const issues = [...group.errors, ...group.warnings];
-    const first = issues[0];
+    const first = issues.find(isRefusedEntry) ?? issues[0];
     if (!first) return [];
     const section = sections.find((candidate) => candidate.key === group.key);
     const perSize = modules.find((entry) => entry.key === group.key)?.result.perSize ?? {};
@@ -106,6 +114,11 @@ export function pendingTasks(
     return [{ key: group.key, title: shortTitle(group.title), linkable: group.linkable, needed: group.errors.length > 0, first, ...summary }];
   });
   return [...tasks.filter((task) => task.needed), ...tasks.filter((task) => !task.needed)];
+}
+
+/** An entry a field refused, listed with the section's issues (refused.ts). */
+export function isRefusedEntry(issue: Pick<ValidationIssue, "code">): boolean {
+  return issue.code === REFUSED_ENTRY_CODE;
 }
 
 /** "Physical Properties average (Refer to attached lab. reports)" as "Physical Properties average"; a title that is only brackets stays. */
@@ -193,8 +206,21 @@ export function summariseIssues(
   for (const issue of issues) byCode.set(issue.code, [...(byCode.get(issue.code) ?? []), issue]);
   const items: { rank: number; status: string; sizes: string[] }[] = [];
   for (const [code, group] of byCode) {
-    const rank = group.some((issue) => issue.level === "error") ? 0 : code === FRAMEWORK_ISSUE_CODES.moduleNotDone ? 1 : 2;
-    const item = code === FRAMEWORK_ISSUE_CODES.moduleNotDone ? notDoneStatus(group[0], context) : codeStatus(code, group);
+    // A refused entry first: the row then names the field its link focuses.
+    const rank =
+      code === REFUSED_ENTRY_CODE
+        ? -1
+        : group.some((issue) => issue.level === "error")
+          ? 0
+          : code === FRAMEWORK_ISSUE_CODES.moduleNotDone
+            ? 1
+            : 2;
+    const item =
+      code === REFUSED_ENTRY_CODE
+        ? refusedStatus(group)
+        : code === FRAMEWORK_ISSUE_CODES.moduleNotDone
+          ? notDoneStatus(group[0], context)
+          : codeStatus(code, group);
     const same = items.find((existing) => existing.status === item.status);
     if (same) {
       same.rank = Math.min(same.rank, rank);
@@ -206,6 +232,15 @@ export function summariseIssues(
   items.sort((a, b) => a.rank - b.rank);
   const [first] = items;
   return first ? { status: first.status, sizes: first.sizes, more: items.length - 1 } : { status: "To check", sizes: [], more: 0 };
+}
+
+/** One refused entry says itself (its message is its status, refusedTaskIssues); several are counted. */
+function refusedStatus(issues: readonly ValidationIssue[]): { status: string; sizes: string[] } {
+  const sizes = union(
+    [],
+    issues.flatMap((issue) => (issue.size ? [issue.size] : [])),
+  );
+  return { status: issues.length === 1 ? issues[0].message : refusedEntriesStatus(issues.length), sizes };
 }
 
 function notDoneStatus(issue: ValidationIssue, { notStarted, sizesNotDone }: TaskContext): { status: string; sizes: string[] } {

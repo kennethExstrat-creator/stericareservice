@@ -16,7 +16,19 @@
 // inspection is evaluated again with the framework (results, live totals,
 // issues), a frame behind typing at most (useDeferredValue). Saves also
 // bring back the inspection's status and module overrides, so a section
-// switched off or a submit made on another device shows here too.
+// switched off or a submit made on another device shows here too. What a
+// number field refuses ("2 42") is kept beside the data, never in it, by
+// section and path, on this device too (use-refused-entries.ts): it comes
+// back with its field after a size or section switch or a reload, and the
+// Pending panel names it first in its section's row.
+//
+// Offline: every section's form is downloaded soon after the screen opens
+// (preloadCaptures), so a section first opened without a connection still
+// shows it; one that did not arrive says so calmly and opens once the
+// connection is back (section-error-boundary.tsx).
+//
+// Pending (the to-do list) shows only where the inspection can be changed
+// here: read-only, the review lists every check.
 //
 // Focus (BUILD_SPEC 8.1): what a module reports in focus tags its section's
 // photos, and nothing else does: each section starts untagged. The size in
@@ -49,11 +61,18 @@ import {
 } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, FileSearchIcon, ImagesIcon, ListChecksIcon, RefreshCwIcon } from "lucide-react";
+import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, FileSearchIcon, ImagesIcon, ListChecksIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useInspectionFiles } from "@/components/capture/files";
 import { PhotoSlot, photoUploadsSettled, useUploadsWaiting } from "@/components/capture/photos";
-import { ProgressTracker, revealOnlyPath, useMediaQuery, WIDE_QUERY } from "@/components/qc";
+import {
+  ProgressTracker,
+  RefusedEntryStoreContext,
+  revealOnlyPath,
+  useMediaQuery,
+  WIDE_QUERY,
+  type RefusedEntryStore,
+} from "@/components/qc";
 import { useLeaveGuard } from "@/components/shell/use-leave-guard";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -71,6 +90,7 @@ import {
   unseenIssues,
 } from "@/lib/inspections/capture/issues";
 import { canBeSwitchedOff } from "@/lib/inspections/capture/overrides";
+import { refusedTaskIssues } from "@/lib/inspections/capture/refused";
 import type { ReopenNote } from "@/lib/inspections/capture/reopen";
 import {
   captureSections,
@@ -81,7 +101,8 @@ import {
   progressSteps,
   type CaptureSection,
 } from "@/lib/inspections/capture/sections";
-import { BUSY_MESSAGE, type AutosaveError, type StartResult } from "@/lib/offline";
+import { suggestionReasons } from "@/lib/inspections/capture/suggestion";
+import type { StartResult } from "@/lib/offline";
 import { contentHash } from "@/lib/offline/stable-json";
 import { isModuleKey } from "@/lib/schemas/module-result";
 import type { ModuleOverrides, ResolvedTemplate } from "@/lib/schemas/template";
@@ -99,13 +120,13 @@ import {
 } from "@/modules/_framework";
 import type { CaptureServerState } from "../actions";
 import { CaptureHeader, type CaptureHeading } from "./capture-header";
-import { CaptureNotices, type CaptureNotice } from "./capture-notices";
+import { captureNotices, CaptureNotices } from "./capture-notices";
 import { ConflictDialog } from "./conflict-dialog";
 import { IssuesSheet } from "./issues-sheet";
 import { leaveAnswer } from "./leave-answer";
 import { SwitchedOffPanel, SwitchOffDialog } from "./module-switch";
 import { SaveIndicator } from "./save-indicator";
-import { CustomBody, ModuleBody } from "./section-body";
+import { CustomBody, ModuleBody, preloadCaptures } from "./section-body";
 import { SectionComment, SectionFrame } from "./section-frame";
 import { SectionList } from "./section-list";
 import { SectionTabs, tabId } from "./section-tabs";
@@ -113,6 +134,7 @@ import { SubmitControl, type SubmitBlocked, type SubmitPreparation } from "./sub
 import { LEAVE_FLUSH_MS, useCaptureAutosave } from "./use-capture-autosave";
 import { useLandingSpot } from "./use-landing-spot";
 import { useNoPullToRefresh } from "./use-no-pull-to-refresh";
+import { useRefusedEntries } from "./use-refused-entries";
 import { useStickyOffsets } from "./use-sticky-offsets";
 
 export type CaptureScreenProps = {
@@ -232,6 +254,39 @@ export function CaptureScreen({
     },
     [autosave],
   );
+
+  // What number fields refused ("2 42" is not stored), kept by section and
+  // path beside the data, so the red cell and its link come back after a
+  // size or section switch or a reload (use-refused-entries.ts). Kept only
+  // where this screen saves the inspection.
+  const refusedEntries = useRefusedEntries({
+    inspectionId,
+    userId: user.id,
+    active: access.editable && autosave.phase === "running",
+  });
+  const { settle: settleRefused, storeFor: refusedStoreFor, clear: clearRefused } = refusedEntries;
+  // A number landing where one was refused (typed, pasted, another device's, a conflict's choice) lets it go.
+  useEffect(() => {
+    settleRefused(data);
+  }, [data, refusedEntries.entries, settleRefused]);
+
+  // Every section's form, downloaded while there is a connection, so a
+  // section first opened offline still shows it (section-body.tsx); those a
+  // dropped connection stopped are fetched once it is back.
+  useEffect(() => {
+    const keys = template.modules.filter((entry) => entry.include).map((entry) => entry.key);
+    const preload = () => preloadCaptures(keys);
+    let idle: number | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    if (typeof window.requestIdleCallback === "function") idle = window.requestIdleCallback(preload, { timeout: 2_000 });
+    else timer = setTimeout(preload, 500);
+    window.addEventListener("online", preload);
+    return () => {
+      if (idle !== undefined) window.cancelIdleCallback(idle);
+      clearTimeout(timer);
+      window.removeEventListener("online", preload);
+    };
+  }, [template]);
 
   const writeEntry = useCallback(
     (namespace: DataNamespace, key: string, next: unknown) => {
@@ -394,9 +449,25 @@ export function CaptureScreen({
    * -------------------------------------------------------------- */
 
   const counts = useMemo(() => countIssues(report.issues), [report.issues]);
-  const groups = useMemo(() => groupIssues(report.issues, sections), [report.issues, sections]);
+  // Refused entries join their section's row in the Pending panel, first, linked to their field.
+  const refusedTasks = useMemo(
+    () => refusedTaskIssues(refusedEntries.entries, sections, context.sizes),
+    [refusedEntries.entries, sections, context.sizes],
+  );
+  const groups = useMemo(
+    () => groupIssues([...report.issues, ...refusedTasks], sections),
+    [report.issues, refusedTasks, sections],
+  );
   // The Pending panel's rows, one per section, and their counts: the button, the panel and submit count the same.
   const tasks = useMemo(() => pendingTasks(groups, sections, report.modules), [groups, sections, report.modules]);
+  // The submit confirmation's suggestion: the result, and why in the Conclusion section's words (none for a clean pass).
+  const suggested = useMemo(
+    () => ({
+      result: report.suggested.result,
+      reasons: suggestionReasons(report.suggested, (key) => sections.find((section) => section.key === key)?.title ?? key),
+    }),
+    [report.suggested, sections],
+  );
   const pending = useMemo(() => pendingCounts(tasks), [tasks]);
   const [issuesOpen, setIssuesOpen] = useState(false);
   const [blockedMessage, setBlockedMessage] = useState<string | null>(null);
@@ -522,6 +593,7 @@ export function CaptureScreen({
       captureNotices({
         access,
         role: user.role,
+        inspectorName: heading.inspectorName,
         reviewHref,
         lockedElsewhere,
         // Only while it is still reopened: submitted again, the note has done its work.
@@ -537,6 +609,7 @@ export function CaptureScreen({
     [
       access,
       user.role,
+      heading.inspectorName,
       reviewHref,
       inspectionId,
       lockedElsewhere,
@@ -634,18 +707,32 @@ export function CaptureScreen({
         // Sections with something submit needs, as the Pending panel counts them.
         errorCount={pending.needed}
         warningCount={counts.warnings}
-        suggested={report.suggested}
+        suggested={suggested}
         prepare={prepareSubmit}
         onBlocked={onBlocked}
+        // Submitted: what was refused on the way is done with.
+        onSubmitted={clearRefused}
         uploadsWaiting={uploadsWaiting}
         disabled={readOnly}
         className={className}
       />
     ) : null;
-  const issuesButton = (className?: string) => (
-    <IssuesButton counts={pending} onClick={openIssues} className={className} />
-  );
+  // Pending is a to-do list for whoever can act on it: only where the inspection can be changed
+  // here. Read-only (submitted, approved, a team member's), the review lists every check.
+  const showPending = access.editable && !lockedElsewhere;
+  const issuesButton = (className?: string) =>
+    showPending ? <IssuesButton counts={pending} onClick={openIssues} className={className} /> : null;
   const { previous, next } = active ? neighbours(sections, active.key) : { previous: null, next: null };
+  // The open section's refused entries, for its fields (null where this screen keeps none).
+  const activeKind = active?.kind;
+  const activeSectionKey = active?.key;
+  const activeRefused = useMemo(
+    () =>
+      activeKind === "module" || activeKind === "custom"
+        ? refusedStoreFor(activeKind === "module" ? "modules" : "custom", activeSectionKey ?? "")
+        : null,
+    [activeKind, activeSectionKey, refusedStoreFor],
+  );
 
   return (
     <div
@@ -721,10 +808,12 @@ export function CaptureScreen({
               label="Progress"
             />
             <SectionList sections={sections} activeKey={active?.key ?? ""} onSelect={(key) => selectSection(key)} />
-            <div className="flex flex-col gap-2 border-t border-border px-1 pt-3">
-              {issuesButton("w-full justify-between")}
-              {submitControl("w-full")}
-            </div>
+            {(showPending || access.editable) && (
+              <div className="flex flex-col gap-2 border-t border-border px-1 pt-3">
+                {issuesButton("w-full justify-between")}
+                {submitControl("w-full")}
+              </div>
+            )}
           </div>
         </aside>
 
@@ -778,6 +867,7 @@ export function CaptureScreen({
               inspectionId={inspectionId}
               keptFocus={keptFocus}
               defectUsage={defectUsage}
+              refusedEntries={activeRefused}
               onFocusReported={keepSize}
               onUnreadableRemoved={focusTitleAfterRemoval}
               // Each change from the form also marks its field as where the inspector stopped.
@@ -878,6 +968,8 @@ type ActiveSectionProps = {
   /** The size kept from the sections before: the module opens on it (CaptureProps.focus). Never a photo tag. */
   keptFocus: CaptureFocus;
   defectUsage: DefectUsage;
+  /** Where the section's number fields keep what they refused, so it outlives them; null to keep their own. */
+  refusedEntries: RefusedEntryStore | null;
   /** Every focus the section's module or form reports, so its size is kept for the next section. */
   onFocusReported: (focus: CaptureFocus) => void;
   /** Saved values that could not be read were removed, and the button that did it went with their list. */
@@ -909,6 +1001,7 @@ function ActiveSection({
   inspectionId,
   keptFocus,
   defectUsage,
+  refusedEntries,
   onFocusReported,
   onUnreadableRemoved,
   onModuleChange,
@@ -986,18 +1079,20 @@ function ActiveSection({
         footer={footer}
       >
         {evaluation && (
-          <CustomBody
-            evaluation={evaluation}
-            entry={entry}
-            mappedValues={mappedFieldValues(evaluation.custom, data)}
-            context={context}
-            focusPath={focusPath}
-            readOnly={readOnly}
-            showRequired={showRequired}
-            onChange={(next) => onCustomChange(section.key, next)}
-            onMappedChange={onMappedChange}
-            onFocusChange={onFocusChange}
-          />
+          <RefusedEntryStoreContext.Provider value={refusedEntries}>
+            <CustomBody
+              evaluation={evaluation}
+              entry={entry}
+              mappedValues={mappedFieldValues(evaluation.custom, data)}
+              context={context}
+              focusPath={focusPath}
+              readOnly={readOnly}
+              showRequired={showRequired}
+              onChange={(next) => onCustomChange(section.key, next)}
+              onMappedChange={onMappedChange}
+              onFocusChange={onFocusChange}
+            />
+          </RefusedEntryStoreContext.Provider>
         )}
       </SectionFrame>
     );
@@ -1029,21 +1124,23 @@ function ActiveSection({
       footer={footer}
     >
       {resolved && (
-        <ModuleBody
-          inspectionId={inspectionId}
-          moduleKey={section.key}
-          resolved={resolved}
-          entry={entry}
-          evaluation={evaluation}
-          context={context}
-          focusPath={focusPath}
-          focus={keptFocus}
-          defectUsage={defectUsage}
-          readOnly={readOnly}
-          onChange={(next) => onModuleChange(section.key, next)}
-          onFocusChange={onFocusChange}
-          onUnreadableRemoved={onUnreadableRemoved}
-        />
+        <RefusedEntryStoreContext.Provider value={refusedEntries}>
+          <ModuleBody
+            inspectionId={inspectionId}
+            moduleKey={section.key}
+            resolved={resolved}
+            entry={entry}
+            evaluation={evaluation}
+            context={context}
+            focusPath={focusPath}
+            focus={keptFocus}
+            defectUsage={defectUsage}
+            readOnly={readOnly}
+            onChange={(next) => onModuleChange(section.key, next)}
+            onFocusChange={onFocusChange}
+            onUnreadableRemoved={onUnreadableRemoved}
+          />
+        </RefusedEntryStoreContext.Provider>
       )}
     </SectionFrame>
   );
@@ -1140,136 +1237,4 @@ function IssuesButton({
       )}
     </Button>
   );
-}
-
-function captureNotices({
-  access,
-  role,
-  reviewHref,
-  lockedElsewhere,
-  reopenNote,
-  phase,
-  setAside,
-  error,
-  localCopy,
-  pending,
-  retry,
-  signInHref,
-}: {
-  access: CaptureAccess;
-  role: UserRole;
-  reviewHref: string;
-  /** Submitted or approved since this page loaded, as a save found: the review is where it went. */
-  lockedElsewhere: boolean;
-  /** Why it was reopened, while it is. */
-  reopenNote: ReopenNote | null;
-  phase: ReturnType<typeof useCaptureAutosave>["phase"];
-  setAside: boolean;
-  error: AutosaveError | null;
-  localCopy: boolean;
-  pending: boolean;
-  retry: () => void;
-  signInHref: string;
-}): CaptureNotice[] {
-  const notices: CaptureNotice[] = [];
-  const reload = (
-    <Button type="button" variant="outline" size="sm" onClick={() => window.location.reload()}>
-      <RefreshCwIcon aria-hidden />
-      Reload
-    </Button>
-  );
-
-  if (access.readOnlyReason === "approved") {
-    notices.push({ key: "approved", tone: "lock", message: "Approved: this inspection is read-only." });
-  } else if (access.readOnlyReason === "submitted") {
-    notices.push({
-      key: "submitted",
-      tone: "lock",
-      message:
-        role === "admin"
-          ? "Submitted for review: read-only here. To change it, reopen it from the review."
-          : "Submitted for review: read-only. An admin can send it back to you for changes.",
-      action: (
-        <Button asChild variant="outline" size="sm">
-          <Link href={reviewHref}>Open the review</Link>
-        </Button>
-      ),
-    });
-  } else if (access.readOnlyReason === "not_yours") {
-    notices.push({ key: "not-yours", tone: "lock", message: "This inspection belongs to another inspector: read-only." });
-  }
-
-  if (reopenNote) {
-    notices.push({
-      key: "reopened",
-      tone: "info",
-      message: (
-        <>
-          <span className="font-semibold">{reopenNote.title}.</span> {reopenNote.body}
-          {reopenNote.reason && (
-            <span className="mt-1 block font-normal whitespace-pre-line text-foreground">
-              <span className="font-semibold">{reopenNote.reason.label}:</span> {reopenNote.reason.text}
-            </span>
-          )}
-        </>
-      ),
-    });
-  }
-
-  if (phase === "busy") notices.push({ key: "busy", tone: "warn", message: BUSY_MESSAGE, action: reload });
-  if (phase === "failed") {
-    notices.push({
-      key: "failed",
-      tone: "error",
-      message: "Saving could not start on this page. Reload it before entering anything.",
-      action: reload,
-    });
-  }
-  if (setAside) {
-    notices.push({
-      key: "set-aside",
-      tone: "info",
-      message: "An older unsaved copy on this device could not be read and was kept aside.",
-    });
-  }
-
-  if (error && error.reason !== "conflict") {
-    let action: ReactNode;
-    if (error.reason === "unauthorized") {
-      action = (
-        <Button asChild variant="outline" size="sm">
-          <Link href={signInHref}>Sign in again</Link>
-        </Button>
-      );
-    } else if (error.reason === "forbidden" || error.reason === "not_found") {
-      // Refused for good (submitted elsewhere, no longer this user's, gone): trying again cannot help.
-      action = lockedElsewhere ? (
-        <>
-          <Button asChild variant="outline" size="sm">
-            <Link href={reviewHref}>Open the review</Link>
-          </Button>
-          {reload}
-        </>
-      ) : (
-        reload
-      );
-    } else if (error.reason === "other_tab") {
-      action = reload;
-    } else if (error.reason !== "storage") {
-      action = (
-        <Button type="button" variant="outline" size="sm" onClick={retry}>
-          <RefreshCwIcon aria-hidden />
-          Try again
-        </Button>
-      );
-    }
-    notices.push({ key: "save-error", tone: "error", message: `Not saved. ${error.message}`, action });
-  } else if (!localCopy && pending) {
-    notices.push({
-      key: "no-local-copy",
-      tone: "warn",
-      message: "This browser keeps no copy on this device. Keep the page open until it shows Saved.",
-    });
-  }
-  return notices;
 }

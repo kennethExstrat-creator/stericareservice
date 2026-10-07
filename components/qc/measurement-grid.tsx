@@ -5,6 +5,10 @@
 // down a column, arrows move between cells, and pasting a column of values
 // fills down from the focused cell. Rejected entries are announced and listed
 // under the grid as full-width buttons back to their cells (BUILD_SPEC 6.2).
+// With `cellIssuePath`, they are kept in the screen's store of refused
+// entries (refused-entries.ts), so a size switch (SizeTabs shows one size's
+// grid at a time), a section switch or a reload brings the red cells and
+// their list back; without it the grid keeps them while it is on screen.
 // A paste longer than the grid says on screen, under it, which values did not
 // fit and were not stored, unless the module kept them past its last row
 // (`values` holds them there: force at break's readings past the gloves
@@ -40,6 +44,7 @@ import { issuePathProps, type IssuePath } from "./issue-path";
 import { NumericCell, type InvalidEntry } from "./numeric-cell";
 import { rejectionMessage } from "./numeric-entry";
 import { PasteNotice } from "./paste-notice";
+import { sameInvalidEntry, useRefusedEntryStore, type RefusedEntryStore } from "./refused-entries";
 import { StatusPill } from "./status-pill";
 import { useAnnouncement } from "./use-announcement";
 
@@ -154,7 +159,11 @@ export function MeasurementGrid({
     ...labels,
   };
   const idBase = useId();
-  const [invalid, setInvalid] = useState<InvalidCells>({});
+  // Refused entries: in the screen's store when cells have issue paths, else the grid's own.
+  const store = useRefusedEntryStore();
+  const kept = store && cellIssuePath ? { store, pathOf: cellIssuePath } : null;
+  const [ownInvalid, setOwnInvalid] = useState<InvalidCells>({});
+  const invalid: InvalidCells = kept ? keptCells(kept, measures, rows) : ownInvalid;
   const [notice, announce] = useAnnouncement();
   // The last paste's values past the last row or column, and the cell it started in (Dismiss goes back there).
   const [overflow, setOverflow] = useState<PasteOverflow | null>(null);
@@ -199,15 +208,35 @@ export function MeasurementGrid({
   };
 
   const setInvalidAt = (measure: Measure, row: number, entry: InvalidEntry | null) => {
-    setInvalid((current) => {
-      const next = { ...current };
-      if (entry) next[cellKey(measure.key, row)] = entry;
-      else delete next[cellKey(measure.key, row)];
-      return next;
-    });
+    if (kept) {
+      kept.store.set(kept.pathOf({ row, measure: measure.key }), entry, cellName(measure, row));
+    } else {
+      setOwnInvalid((current) => {
+        const next = { ...current };
+        if (entry) next[cellKey(measure.key, row)] = entry;
+        else delete next[cellKey(measure.key, row)];
+        return next;
+      });
+    }
     // Focus has usually moved on (Enter, an arrow, a tap elsewhere), so the
     // cell's own error would go unheard: say it, with the cell's name.
     if (entry) announce(rejectionMessage(entry, cellName(measure, row)));
+  };
+
+  /** The refused entries after a paste: each cell the paste changed is kept or let go. */
+  const setInvalid = (next: InvalidCells) => {
+    if (!kept) {
+      setOwnInvalid(next);
+      return;
+    }
+    for (const measure of measures) {
+      for (let row = 0; row < rows; row++) {
+        const key = cellKey(measure.key, row);
+        if (!sameInvalidEntry(invalid[key], next[key])) {
+          kept.store.set(kept.pathOf({ row, measure: measure.key }), next[key] ?? null, cellName(measure, row));
+        }
+      }
+    }
   };
 
   const onCellKeyDown = (row: number, col: number) => (event: KeyboardEvent<HTMLInputElement>) => {
@@ -438,4 +467,20 @@ export function MeasurementGrid({
       </p>
     </div>
   );
+}
+
+/** The refused entries the screen keeps for the grid's cells, keyed as the grid keys them (cellKey). */
+function keptCells(
+  kept: { store: RefusedEntryStore; pathOf: (cell: MeasurementCell) => IssuePath },
+  measures: readonly Measure[],
+  rows: number,
+): InvalidCells {
+  const cells: Record<string, InvalidEntry> = {};
+  for (const measure of measures) {
+    for (let row = 0; row < rows; row++) {
+      const entry = kept.store.get(kept.pathOf({ row, measure: measure.key }));
+      if (entry) cells[cellKey(measure.key, row)] = entry;
+    }
+  }
+  return cells;
 }
