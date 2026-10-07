@@ -48,7 +48,7 @@ export function ButtonSection() {
             <Button size="icon-sm" variant="outline" aria-label="Add">
               <PlusIcon aria-hidden />
             </Button>
-            <Button size="icon" variant="outline" aria-label="Take photo">
+            <Button size="icon" variant="outline" aria-label="Take Photo">
               <CameraIcon aria-hidden />
             </Button>
             <Button size="icon-lg" aria-label="Confirm">

@@ -6,7 +6,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  * is drawn smaller than 44 px, and an invisible ::after takes its target to
  * 44 × 44. The ::after is placed from inside the control's 1 px border, so
  * its insets make up for the border. Signed out and without Supabase: the
- * sign-in page's Show password button, and the other three on /design (shown
+ * sign-in page's Show Password button, and the other three on /design (shown
  * outside production builds only, so those checks skip on a production
  * server). Touch projects only. Screenshots go to screenshots/design/.
  */
@@ -73,11 +73,11 @@ async function tapBeside(page: Page, control: Locator, side: "right" | "below" |
   await page.touchscreen.tap(x, y);
 }
 
-test("Show password: a 36 px button with a 44 px hit area", async ({ page }) => {
+test("Show Password: a 36 px button with a 44 px hit area", async ({ page }) => {
   await page.goto("/login");
   await hydrated(page);
   const password = page.getByLabel("Password", { exact: true });
-  const toggle = page.getByRole("button", { name: "Show password" });
+  const toggle = page.getByRole("button", { name: "Show Password" });
 
   const area = await hitArea(toggle);
   expect(area.box).toEqual({ width: 36, height: 36 });

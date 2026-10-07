@@ -664,9 +664,9 @@ test.describe("with inspections", () => {
     await signInAs(context, baseURL!, "admin");
     const { refs } = fixture;
     const search = page.getByRole("searchbox", { name: "Search" });
-    const clearSearch = page.getByRole("button", { name: "Clear search" });
+    const clearSearch = page.getByRole("button", { name: "Clear Search" });
 
-    // Clear search on text that never ran: the button goes, focus stays in the box.
+    // Clear Search on text that never ran: the button goes, focus stays in the box.
     await page.goto("/inspections");
     await search.fill("ABC");
     await clearSearch.press("Enter");
@@ -674,7 +674,7 @@ test.describe("with inspections", () => {
     await expect(search).toHaveValue("");
     await expect(clearSearch).toHaveCount(0);
 
-    // Clear search after a search ran: the whole list comes back, focus stays in the box.
+    // Clear Search after a search ran: the whole list comes back, focus stays in the box.
     await search.fill(refs.A);
     await search.press("Enter");
     await expect(page).toHaveURL(new RegExp(`\\?q=${refs.A}$`));
@@ -712,7 +712,7 @@ test.describe("with inspections", () => {
     await expect(row(page, fixture.refs.A)).toBeVisible();
     // The box shows what the list applies: nothing.
     await expect(search).toHaveValue("");
-    await expect(page.getByRole("button", { name: "Clear search" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Clear Search" })).toHaveCount(0);
   });
 
   test("a link to a page past the end says so", async ({ page, context, baseURL }) => {

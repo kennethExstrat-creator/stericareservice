@@ -70,7 +70,7 @@ export function LoginForm({ next, notice }: { next?: string; notice: LoginNotice
       <Field data-invalid={passwordError ? true : undefined}>
         {/*
           "Forgot Password?" is drawn in the label row but comes after the field
-          in the DOM, so Tab goes Email, Password, Show password, Forgot
+          in the DOM, so Tab goes Email, Password, Show Password, Forgot
           Password?, Sign In. Placed before the field, it would take the Tab
           from the email: the password typed next would go nowhere, and Enter
           would open the link.

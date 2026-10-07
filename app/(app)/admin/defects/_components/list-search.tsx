@@ -65,7 +65,7 @@ export function ListSearch({ query, onQueryChange, label, placeholder, count }: 
           <InputGroupAddon align="inline-end">
             <InputGroupButton
               size="icon-xs"
-              aria-label="Clear search"
+              aria-label="Clear Search"
               onClick={() => {
                 onQueryChange("");
                 // The button goes with the query; keep the keyboard in the box.

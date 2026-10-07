@@ -222,8 +222,8 @@ test("a count in box 3 of a one-box-at-a-time module lands on box 3 again", asyn
   const count = page.getByRole("button", { name: "Increase No cuff, column 3", exact: true });
   // On the iPads one box shows at a time: step to the third. From 1280 px without a touchscreen every box is side by side.
   if (!isDesktop()) {
-    await press(page.getByRole("button", { name: "Next box" }));
-    await press(page.getByRole("button", { name: "Next box" }));
+    await press(page.getByRole("button", { name: "Next Box" }));
+    await press(page.getByRole("button", { name: "Next Box" }));
   }
   await press(count);
   await page.reload();

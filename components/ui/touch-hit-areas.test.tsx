@@ -121,7 +121,7 @@ describe("touch hit areas", () => {
       <InputGroup key="field">
         <InputGroupInput aria-label="Password" />
         <InputGroupAddon align="inline-end">
-          <InputGroupButton size="icon-xs" aria-label="Show password">
+          <InputGroupButton size="icon-xs" aria-label="Show Password">
             eye
           </InputGroupButton>
         </InputGroupAddon>

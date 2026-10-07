@@ -11,7 +11,7 @@
 // manufacturer names truncate in the pickers (the label span is what the
 // picker shows once chosen).
 //
-// Focus stays in the bar: Clear search puts it back in the search box (on the
+// Focus stays in the bar: Clear Search puts it back in the search box (on the
 // iPad the keyboard stays up for the next search), and the pickers keep it.
 // Should the bar itself go (nothing left to filter), the list moves focus to
 // the results instead (list-focus.tsx).
@@ -157,7 +157,7 @@ export function InspectionFilters({
             />
             {search && (
               <InputGroupAddon align="inline-end">
-                <InputGroupButton size="icon-xs" aria-label="Clear search" onClick={clearSearch}>
+                <InputGroupButton size="icon-xs" aria-label="Clear Search" onClick={clearSearch}>
                   <XIcon aria-hidden />
                 </InputGroupButton>
               </InputGroupAddon>

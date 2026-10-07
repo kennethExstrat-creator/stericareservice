@@ -281,8 +281,8 @@ test("Safedon's box switcher holds at either end and keeps the focus", async ({ 
     return;
   }
   await expect(switcher).toBeVisible();
-  const previous = switcher.getByRole("button", { name: "Previous box" });
-  const next = switcher.getByRole("button", { name: "Next box" });
+  const previous = switcher.getByRole("button", { name: "Previous Box" });
+  const next = switcher.getByRole("button", { name: "Next Box" });
   await expect(switcher).toContainText(`1 / ${SAFEDON_BOXES}`);
   await expect(previous).toHaveAttribute("aria-disabled", "true");
   await previous.focus();

@@ -241,8 +241,8 @@ function SafedonSizePanel({ size, props, update, active, onActive, requested, on
               index={counted}
               onIndexChange={select}
               current={`${boxLabel} ${columnLabel(counted)}`}
-              previousLabel="Previous box"
-              nextLabel="Next box"
+              previousLabel="Previous Box"
+              nextLabel="Next Box"
             />
           )
         }

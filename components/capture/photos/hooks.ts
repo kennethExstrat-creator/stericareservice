@@ -142,7 +142,7 @@ export function stopPhotoQueue(): void {
 /**
  * Adds photos to the upload queue, tagged with the module and what is in
  * focus at the moment they are added (BUILD_SPEC 8.1). For ModuleCard's
- * own "Take photo" and "Add from library": `onFiles={addPhotos}`.
+ * own "Take Photo" and "Add From Library": `onFiles={addPhotos}`.
  */
 export function useAddPhotos({
   inspectionId,

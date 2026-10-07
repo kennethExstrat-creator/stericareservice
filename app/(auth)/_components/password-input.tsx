@@ -43,7 +43,7 @@ export function PasswordInput({ id, ref, ...props }: PasswordInputProps) {
       <InputGroupAddon align="inline-end">
         <InputGroupButton
           size="icon-sm"
-          aria-label="Show password"
+          aria-label="Show Password"
           aria-pressed={visible}
           aria-controls={id}
           onClick={() => setVisible((shown) => !shown)}

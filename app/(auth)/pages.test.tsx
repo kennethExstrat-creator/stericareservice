@@ -73,7 +73,7 @@ describe("/login", () => {
     // HTML attribute names are case-insensitive; React keeps the camelCase spelling.
     expect(page).toMatch(/autocomplete="username"/i);
     expect(page).toMatch(/autocomplete="current-password"/i);
-    expect(page).toContain('aria-label="Show password"');
+    expect(page).toContain('aria-label="Show Password"');
     expect(page).toContain('href="/forgot-password"');
     expect(page).not.toMatch(/sign up|create an account|register/i);
   });

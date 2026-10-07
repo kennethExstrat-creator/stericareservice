@@ -94,7 +94,7 @@ test.describe("manufacturers, as the admin", () => {
     await search(page, "Search manufacturers", "no factory is called this");
     await expect(page.getByText("No Manufacturers Match “no factory is called this”")).toBeVisible();
     await shot(page, "manufacturers-no-match");
-    await page.getByRole("button", { name: "Clear search" }).first().click();
+    await page.getByRole("button", { name: "Clear Search" }).first().click();
     await expect(row(page, inUse.name)).toBeVisible();
     await expect(page).not.toHaveURL(/\?q=/);
   });

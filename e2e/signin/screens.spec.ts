@@ -21,7 +21,7 @@ test.describe("/login", () => {
     await shot(page, testInfo, "login");
 
     // Show / hide: one named toggle button that reports its state.
-    const toggle = page.getByRole("button", { name: "Show password" });
+    const toggle = page.getByRole("button", { name: "Show Password" });
     await password.fill("not-a-real-password-1");
     await press(toggle, testInfo);
     await expect(toggle).toHaveAttribute("aria-pressed", "true");
@@ -46,7 +46,7 @@ test.describe("/login", () => {
       expect(box?.height, await target.evaluate((element) => element.outerHTML.slice(0, 80))).toBeGreaterThanOrEqual(44);
     }
     // The eye button is 36 px with an invisible 4 px ring of extra hit area (input-group.tsx).
-    const toggle = await page.getByRole("button", { name: "Show password" }).boundingBox();
+    const toggle = await page.getByRole("button", { name: "Show Password" }).boundingBox();
     expect(toggle?.height).toBeGreaterThanOrEqual(36);
     // 16 px field text, so iPad Safari does not zoom in on focus.
     await expect(page.getByLabel("Email")).toHaveCSS("font-size", "16px");
@@ -114,7 +114,7 @@ test.describe("/login", () => {
     await expect(password).toHaveValue("typed-after-tab-1");
 
     for (const next of [
-      page.getByRole("button", { name: "Show password" }),
+      page.getByRole("button", { name: "Show Password" }),
       page.getByRole("link", { name: "Forgot Password?" }),
       page.getByRole("button", { name: "Sign In" }),
     ]) {
