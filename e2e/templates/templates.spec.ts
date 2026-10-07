@@ -137,7 +137,7 @@ test("the list shows every code with its versions, status, scope, base and use",
   }
 
   // Compact rows with a mouse; 44 px targets on touch (docs/DESIGN.md).
-  const link = rootRow.getByRole("link", { name: `${root.code} version 1` });
+  const link = rootRow.getByRole("link", { name: `${root.code} Version 1` });
   if (isTouch()) {
     expect((await link.boundingBox())?.height).toBeGreaterThanOrEqual(44);
   } else {
@@ -150,7 +150,7 @@ test("the list shows every code with its versions, status, scope, base and use",
 
   await press(link);
   await expect(page).toHaveURL(new RegExp(`/admin/templates/${root.id}$`), ACTION);
-  await expect(page.getByRole("heading", { level: 1 })).toContainText(`${root.code} version 1`);
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(`${root.code} Version 1`);
   expect(hydration()).toEqual([]);
 });
 
@@ -158,7 +158,7 @@ test("a version shows its modules in order, with wording, switches and custom mo
   const hydration = watchConsole(page);
   await asAdmin(page, baseURL!);
   await page.goto(`/admin/templates/${root.id}`);
-  await expect(page).toHaveTitle(`${root.code} version 1 · SteriCare QC`);
+  await expect(page).toHaveTitle(`${root.code} Version 1 · SteriCare QC`);
 
   const modules = page.locator("section", { has: page.getByRole("heading", { name: "Modules", level: 2 }) });
   const items = modules.locator("li[data-module], li[data-custom]");
@@ -167,7 +167,7 @@ test("a version shows its modules in order, with wording, switches and custom mo
   await expect(items.nth(1)).toHaveAttribute("data-custom", "glove_type");
   await expect(items.last()).toHaveAttribute("data-module", "conclusion");
   await expect(modules.locator("li[data-module='glove_info']")).toContainText("Off");
-  await expect(modules.locator("li[data-module='header']")).toContainText("Always on");
+  await expect(modules.locator("li[data-module='header']")).toContainText("Always On");
   await expect(modules.locator("li[data-module='watertight']")).toContainText("Watertight test");
 
   const labels = modules.locator("li[data-module='header'] details");
@@ -182,15 +182,15 @@ test("a version shows its modules in order, with wording, switches and custom mo
   await expect(details).toContainText(`${base.code}: built on version 1`);
 
   // Draft: edit it in the editor; nothing to activate until the file is in and the checklist confirmed.
-  await expect(page.getByRole("link", { name: "Edit draft" })).toHaveAttribute("href", `/admin/templates/${root.id}/edit`);
-  await expect(page.getByRole("button", { name: "New version" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Edit Draft" })).toHaveAttribute("href", `/admin/templates/${root.id}/edit`);
+  await expect(page.getByRole("button", { name: "New Version" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Activate" })).toBeDisabled();
   await expect(page.getByRole("note").filter({ hasText: "Before this version can be activated" })).toContainText(
     "Upload the source form or report first",
   );
-  await expect(page.getByRole("button", { name: "Confirm coverage" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Confirm Coverage" })).toBeDisabled();
   if (isTouch()) {
-    const targets = [page.getByRole("button", { name: "Upload source file" }), labels.locator("summary"), extendsLink];
+    const targets = [page.getByRole("button", { name: "Upload Source File" }), labels.locator("summary"), extendsLink];
     for (const target of targets) {
       expect((await target.boundingBox())?.height).toBeGreaterThanOrEqual(44);
     }
@@ -207,10 +207,10 @@ test("a template on top of STD_EG checks STD_EG's forms field by field", async (
 
   const checklist = page.locator("#coverage");
   await expect(checklist.getByRole("tab", { name: /Report · STD_EG/ })).toBeVisible();
-  await expect(checklist.getByRole("tab", { name: /Onsite form · EG/ })).toBeVisible();
+  await expect(checklist.getByRole("tab", { name: /Onsite Form · EG/ })).toBeVisible();
   // Force at break is off here: its fields are left out, and say why.
   const forceAtBreak = checklist.locator("tr[data-covered='false']").filter({ hasText: "Force At Break" }).first();
-  await expect(forceAtBreak).toContainText("Left out");
+  await expect(forceAtBreak).toContainText("Left Out");
   await expect(forceAtBreak).toContainText("switched off in this version");
   // The header's PO row reads in this template's wording.
   await expect(checklist.getByText("Manufacturer Information › PO Number").first()).toBeVisible();
@@ -278,7 +278,7 @@ test("the checklist is ticked section by section, then confirmed", async ({ page
   await asAdmin(page, baseURL!);
   await page.goto(`/admin/templates/${client.id}`);
 
-  await chooseFile(page, page.getByRole("button", { name: "Upload source file" }), {
+  await chooseFile(page, page.getByRole("button", { name: "Upload Source File" }), {
     name: "Client variant form.pdf",
     mimeType: "application/pdf",
     buffer: SOURCE_PDF,
@@ -292,7 +292,7 @@ test("the checklist is ticked section by section, then confirmed", async ({ page
     const panel = checklist.getByRole("tabpanel");
     for (const box of await panel.getByRole("checkbox").all()) await box.check();
   }
-  await expect(checklist.getByRole("button", { name: "Confirm coverage" })).toBeDisabled();
+  await expect(checklist.getByRole("button", { name: "Confirm Coverage" })).toBeDisabled();
   const attest = checklist.getByRole("checkbox", { name: /I have checked Client-variant-form\.pdf/ });
   await attest.check();
   await expect(checklist.getByText("Ready to confirm.")).toBeVisible();
@@ -301,7 +301,7 @@ test("the checklist is ticked section by section, then confirmed", async ({ page
   // Refused (someone saved the version since the page was read): every tick stays, the last one too.
   // React resets a form after its action, which must not clear the Checkbox.
   await touchTemplate(client.id);
-  await checklist.getByRole("button", { name: "Confirm coverage" }).click();
+  await checklist.getByRole("button", { name: "Confirm Coverage" }).click();
   await expect(checklist.getByRole("alert").filter({ hasText: "Someone changed this version" })).toBeVisible(ACTION);
   await expect(attest).toBeChecked();
   await expect(checklist.getByText("Ready to confirm.")).toBeVisible();
@@ -309,9 +309,9 @@ test("the checklist is ticked section by section, then confirmed", async ({ page
   await shot(page, "checklist-refused");
 
   // The page took in the newer version (refresh()): confirming again goes through.
-  await checklist.getByRole("button", { name: "Confirm coverage" }).click();
+  await checklist.getByRole("button", { name: "Confirm Coverage" }).click();
   await expect(toast(page, /Coverage confirmed for .* It can be activated now\./)).toBeVisible(ACTION);
-  await expect(checklist.getByText("Coverage confirmed")).toBeVisible(ACTION);
+  await expect(checklist.getByText("Coverage Confirmed")).toBeVisible(ACTION);
   const row = await templateRow(client.id);
   expect(row.coverage_confirmed_at).not.toBeNull();
   expect(row.coverage_confirmed_by).not.toBeNull();
@@ -326,7 +326,7 @@ test("a version's life: source file, coverage, frozen by use, activate, retire, 
   await page.goto(`/admin/templates/${root.id}`);
 
   await test.step("upload the source form", async () => {
-    await chooseFile(page, page.getByRole("button", { name: "Upload source file" }), {
+    await chooseFile(page, page.getByRole("button", { name: "Upload Source File" }), {
       name: "E2E source form (v1).pdf",
       mimeType: "application/pdf",
       buffer: SOURCE_PDF,
@@ -347,7 +347,7 @@ test("a version's life: source file, coverage, frozen by use, activate, retire, 
   });
 
   await test.step("a wrong file is refused before it is sent", async () => {
-    await chooseFile(page, page.getByRole("button", { name: "Replace file" }), {
+    await chooseFile(page, page.getByRole("button", { name: "Replace File" }), {
       name: "notes.txt",
       mimeType: "text/plain",
       buffer: Buffer.from("x"),
@@ -359,7 +359,7 @@ test("a version's life: source file, coverage, frozen by use, activate, retire, 
     const checklist = page.locator("#coverage");
     await checklist.getByRole("checkbox", { name: /I have checked E2E-source-form-v1\.pdf/ }).check();
     await shot(page, "version-ready");
-    await checklist.getByRole("button", { name: "Confirm coverage" }).click();
+    await checklist.getByRole("button", { name: "Confirm Coverage" }).click();
     await expect(toast(page, /Coverage confirmed/)).toBeVisible(ACTION);
     await expect(page.getByRole("button", { name: "Activate" })).toBeEnabled(ACTION);
   });
@@ -371,15 +371,15 @@ test("a version's life: source file, coverage, frozen by use, activate, retire, 
     await expect(page.getByRole("note").filter({ hasText: "Frozen: used by 1 inspection" })).toContainText(
       `To change ${root.code}, make a new version.`,
     );
-    await expect(page.getByRole("link", { name: "Edit draft" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /Replace file|Upload source file/ })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Edit Draft" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Replace File|Upload Source File/ })).toHaveCount(0);
     await expect(page.getByText("Version 1 is used by inspections, so its source file stays as it is.")).toBeVisible();
     // Its file and checklist are in, so it can still be activated as it is.
     await expect(page.getByRole("button", { name: "Activate" })).toBeEnabled();
     await shot(page, "version-draft-in-use");
 
-    const dialog = await openDialog(page, page.getByRole("button", { name: "New version" }));
-    await expect(dialog).toContainText(`Make version 2 of ${root.code}?`);
+    const dialog = await openDialog(page, page.getByRole("button", { name: "New Version" }));
+    await expect(dialog).toContainText(`Make Version 2 of ${root.code}?`);
     await expect(dialog).toContainText("starts as a draft copy of version 1, with the same source file,");
     await dialog.getByRole("button", { name: "Cancel" }).click();
     await expect(dialog).toHaveCount(0);
@@ -387,7 +387,7 @@ test("a version's life: source file, coverage, frozen by use, activate, retire, 
 
   await test.step("activate it", async () => {
     const dialog = await openDialog(page, page.getByRole("button", { name: "Activate" }));
-    await expect(dialog).toContainText(`Activate ${root.code} version 1?`);
+    await expect(dialog).toContainText(`Activate ${root.code} Version 1?`);
     await shot(page, "activate-dialog");
     await dialog.getByRole("button", { name: "Activate" }).click();
     await expect(toast(page, `${root.code} version 1 is active.`)).toBeVisible(ACTION);
@@ -401,7 +401,7 @@ test("a version's life: source file, coverage, frozen by use, activate, retire, 
     await expect(page.getByRole("note").filter({ hasText: "Frozen: used by 1 inspection" })).toContainText(
       "the database refuses any edit to a version an inspection uses",
     );
-    await expect(page.getByRole("button", { name: /Replace file|Upload source file/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Replace File|Upload Source File/ })).toHaveCount(0);
     await expect(page.getByText("so its source file stays as it was checked")).toHaveCount(0);
     await expect(page.getByText("Version 1 is used by inspections, so its source file stays as it is.", { exact: false })).toBeVisible();
     await shot(page, "version-frozen");
@@ -414,15 +414,15 @@ test("a version's life: source file, coverage, frozen by use, activate, retire, 
     await dialog.getByRole("button", { name: "Retire" }).click();
     await expect(toast(page, `${root.code} version 1 is retired.`)).toBeVisible(ACTION);
     await expect(page.locator('[data-slot="page-header"] [data-slot="template-status"]')).toHaveText("Retired", ACTION);
-    await expect(page.getByRole("button", { name: "Activate again" })).toBeEnabled(ACTION);
+    await expect(page.getByRole("button", { name: "Activate Again" })).toBeEnabled(ACTION);
   });
 
   let draftId = "";
   await test.step("make a new version: a draft copy that opens in the editor", async () => {
-    const dialog = await openDialog(page, page.getByRole("button", { name: "New version" }));
-    await expect(dialog).toContainText(`Make version 2 of ${root.code}?`);
+    const dialog = await openDialog(page, page.getByRole("button", { name: "New Version" }));
+    await expect(dialog).toContainText(`Make Version 2 of ${root.code}?`);
     await shot(page, "new-version-dialog");
-    await dialog.getByRole("button", { name: "Make new version" }).click();
+    await dialog.getByRole("button", { name: "Make New Version" }).click();
     await expect(page).toHaveURL(/\/admin\/templates\/[0-9a-f-]{36}\/edit$/, ACTION);
 
     const versions = await templatesOfCode(root.code);
@@ -443,15 +443,15 @@ test("a version's life: source file, coverage, frozen by use, activate, retire, 
 
   await test.step("another new version first points to the open draft", async () => {
     await page.goto(`/admin/templates/${root.id}`);
-    const dialog = await openDialog(page, page.getByRole("button", { name: "New version" }));
-    await expect(dialog).toContainText(`Make version 3 of ${root.code}?`);
+    const dialog = await openDialog(page, page.getByRole("button", { name: "New Version" }));
+    await expect(dialog).toContainText(`Make Version 3 of ${root.code}?`);
     await expect(dialog).toContainText(`Version 2 is already a draft of ${root.code}`);
     await expect(dialog.getByRole("link", { name: "open version 2" })).toHaveAttribute("href", `/admin/templates/${draftId}`);
     await shot(page, "new-version-dialog-draft");
     await dialog.getByRole("button", { name: "Cancel" }).click();
     await expect(dialog).toHaveCount(0);
     // Focus goes back to the button that opened it.
-    await expect(page.getByRole("button", { name: "New version" })).toBeFocused();
+    await expect(page.getByRole("button", { name: "New Version" })).toBeFocused();
   });
 
   await test.step("the list shows both versions and what uses them", async () => {

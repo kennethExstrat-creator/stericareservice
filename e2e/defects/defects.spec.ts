@@ -105,7 +105,7 @@ test("an inspector gets a 404 for every defects tab, and nothing names them", as
     await expect(page.getByText(/page not found|could not be found/i).first()).toBeVisible();
     await expect(page.getByRole("heading", { name: "Defects", level: 1 })).toHaveCount(0);
     const html = (await response?.text()) ?? "";
-    for (const title of ["Defect codes", "Label mapping", "Unmapped labels"]) {
+    for (const title of ["Defect Codes", "Label Mapping", "Unmapped Labels"]) {
       expect(html, `${path} names "${title}"`).not.toContain(`${title} · SteriCare QC`);
     }
   }
@@ -134,7 +134,7 @@ test.describe("as an admin", () => {
     const hydration = watchConsole(page);
     const response = await page.goto("/admin/defects");
     expect(response?.status()).toBe(200);
-    await expect(page).toHaveTitle("Defect codes · SteriCare QC");
+    await expect(page).toHaveTitle("Defect Codes · SteriCare QC");
     await expect(page.getByRole("heading", { name: "Defects", level: 1 })).toBeVisible();
     await expect(page.getByRole("link", { name: /^Codes/ })).toHaveAttribute("aria-current", "page");
     // The seeded master list (BUILD_SPEC 11).
@@ -151,22 +151,22 @@ test.describe("as an admin", () => {
     await shot(page, "codes");
 
     // Add: the code is checked as typed, and a duplicate is refused next to its field.
-    await press(page.getByRole("button", { name: "Add code" }));
-    const panel = page.getByRole("dialog", { name: "Add defect code" });
+    await press(page.getByRole("button", { name: "Add Code" }));
+    const panel = page.getByRole("dialog", { name: "Add Defect Code" });
     await expect(panel).toBeVisible();
     await panel.getByLabel("Code", { exact: true }).fill("2 bad");
     await panel.getByLabel("Name", { exact: true }).fill("E2E defect X (temporary)");
-    await press(panel.getByRole("button", { name: "Add code" }));
+    await press(panel.getByRole("button", { name: "Add Code" }));
     await expect(panel.getByText("Start the code with a letter, e.g. torn_cuff.")).toBeVisible();
     await shot(page, "code-add-invalid", { scroll: false });
 
     await panel.getByLabel("Code", { exact: true }).fill("stain");
-    await press(panel.getByRole("button", { name: "Add code" }));
+    await press(panel.getByRole("button", { name: "Add Code" }));
     await expect(panel.getByText("There is already a code stain.")).toBeVisible();
 
     await panel.getByLabel("Code", { exact: true }).fill("E2E defect x");
     await panel.getByLabel("Description", { exact: true }).fill("Created by e2e/defects. Safe to delete.");
-    await press(panel.getByRole("button", { name: "Add code" }));
+    await press(panel.getByRole("button", { name: "Add Code" }));
     await expect(toast(page, "Code e2e_defect_x added.")).toBeVisible();
     await expect(panel).toBeHidden();
     const row = page.locator('tbody tr[data-code="e2e_defect_x"]');
@@ -188,13 +188,13 @@ test.describe("as an admin", () => {
 
     // Edit: the code itself is read-only; the name and description change.
     await press(row.getByRole("button", { name: "Edit e2e_defect_x" }));
-    const edit = page.getByRole("dialog", { name: "Edit defect code" });
+    const edit = page.getByRole("dialog", { name: "Edit Defect Code" });
     await expect(edit).toBeVisible();
     await expect(edit.getByLabel("Code", { exact: true })).toHaveCount(0);
     await expect(edit.getByText("e2e_defect_x", { exact: true })).toBeVisible();
     await edit.getByLabel("Name", { exact: true }).fill("E2E defect X, edited");
     await shot(page, "code-edit", { scroll: false });
-    await press(edit.getByRole("button", { name: "Save changes" }));
+    await press(edit.getByRole("button", { name: "Save Changes" }));
     await expect(toast(page, "Code e2e_defect_x saved.")).toBeVisible();
     await expect(row).toContainText("E2E defect X, edited");
     expect((await storedCode("e2e_defect_x"))?.name).toBe("E2E defect X, edited");
@@ -207,25 +207,25 @@ test.describe("as an admin", () => {
     await edit.getByLabel("Name", { exact: true }).fill("E2E defect X, typed here");
     // Still found by the search above, so the row stays in the list.
     await changeCode("e2e_defect_x", { description: "Changed by another admin in e2e/defects." });
-    await press(edit.getByRole("button", { name: "Deactivate code" }));
+    await press(edit.getByRole("button", { name: "Deactivate Code" }));
     const confirm = page.getByRole("alertdialog", { name: "Deactivate e2e_defect_x?" });
     await expect(confirm).toBeVisible();
     await shot(page, "code-deactivate", { scroll: false });
     await press(confirm.getByRole("button", { name: "Deactivate" }));
     await expect(toast(page, /^e2e_defect_x is inactive\./)).toBeVisible();
     // The same button, now Reactivate, keeps the keyboard.
-    await expect(edit.getByRole("button", { name: "Reactivate code" })).toBeFocused();
+    await expect(edit.getByRole("button", { name: "Reactivate Code" })).toBeFocused();
     expect((await storedCode("e2e_defect_x"))?.active).toBe(false);
     await shot(page, "code-inactive-panel", { scroll: false });
 
-    await press(edit.getByRole("button", { name: "Save changes" }));
+    await press(edit.getByRole("button", { name: "Save Changes" }));
     await expect(edit.getByText(/^Someone else changed this code while you were editing\./)).toBeVisible();
     expect(await storedCode("e2e_defect_x")).toMatchObject({
       name: "E2E defect X, edited",
       description: "Changed by another admin in e2e/defects.",
     });
     await shot(page, "code-save-refused", { scroll: false });
-    await press(edit.getByRole("button", { name: "Save changes" }));
+    await press(edit.getByRole("button", { name: "Save Changes" }));
     await expect(edit).toBeHidden();
     expect(await storedCode("e2e_defect_x")).toEqual({
       code: "e2e_defect_x",
@@ -241,13 +241,13 @@ test.describe("as an admin", () => {
 
     // A code the seeded templates mention cannot be deleted; this unused one can.
     await press(row.getByRole("button", { name: "Edit e2e_defect_x" }));
-    await press(edit.getByRole("button", { name: "Delete code" }));
+    await press(edit.getByRole("button", { name: "Delete Code" }));
     const remove = page.getByRole("alertdialog", { name: "Delete e2e_defect_x?" });
-    await press(remove.getByRole("button", { name: "Delete code" }));
+    await press(remove.getByRole("button", { name: "Delete Code" }));
     await expect(toast(page, "Code e2e_defect_x deleted.")).toBeVisible();
     await expect(row).toHaveCount(0);
-    // Its row went with the Edit button, so the keyboard goes to Add code.
-    await expect(page.getByRole("button", { name: "Add code" })).toBeFocused();
+    // Its row went with the Edit button, so the keyboard goes to Add Code.
+    await expect(page.getByRole("button", { name: "Add Code" })).toBeFocused();
     expect(await storedCode("e2e_defect_x")).toBeNull();
     expect(hydration()).toEqual([]);
   });
@@ -255,19 +255,19 @@ test.describe("as an admin", () => {
   test("shows each template's labels with their code and severity, and flags a label without a code", async ({ page }) => {
     const hydration = watchConsole(page);
     await page.goto("/admin/defects");
-    await press(page.getByRole("link", { name: /^Label mapping/ }));
+    await press(page.getByRole("link", { name: /^Label Mapping/ }));
     await expect(page).toHaveURL(/\/admin\/defects\/labels$/);
-    await expect(page).toHaveTitle("Label mapping · SteriCare QC");
+    await expect(page).toHaveTitle("Label Mapping · SteriCare QC");
 
     const card = page.locator(`section[data-template="${TEMPLATE_CODE}"]`);
     await expect(card).toBeVisible();
     await expect(card.locator('[data-slot="template-status"]')).toHaveText("Draft");
     // Named by the words it shows first, then the version it opens (WCAG 2.5.3).
-    const editorLink = card.getByRole("link", { name: `Open in template editor: ${TEMPLATE_CODE} v1`, exact: true });
+    const editorLink = card.getByRole("link", { name: `Open in Template Editor: ${TEMPLATE_CODE} v1`, exact: true });
     await expect(editorLink).toHaveAttribute("href", `/admin/templates/${fixture.templateId}/edit`);
     // Severity is the class: "Defective bead" is major, "Defective beads" minor, both bead_defective.
     const visual = card.locator('[data-section="visual"]');
-    await expect(visual.locator('tbody[data-class="major"]')).toContainText("Major defects · AQL 2.5");
+    await expect(visual.locator('tbody[data-class="major"]')).toContainText("Major Defects · AQL 2.5");
     await expect(visual.locator('tbody[data-class="major"] tr[data-code="bead_defective"]')).toContainText("Defective bead");
     await expect(visual.locator('tbody[data-class="minor"] tr[data-code="bead_defective"]')).toContainText(
       "Defective beads",
@@ -280,7 +280,7 @@ test.describe("as an admin", () => {
     );
     // A label whose code is not a defect code.
     const unknown = visual.locator(`tr[data-code="${NOT_A_CODE}"]`);
-    await expect(unknown).toContainText("Not a defect code");
+    await expect(unknown).toContainText("Not a Defect Code");
     await expect(card).toContainText("1 label needs attention");
     await expectNoPageScroll(page);
 
@@ -289,25 +289,25 @@ test.describe("as an admin", () => {
     await shot(page, "labels");
 
     // The flag links to the codes tab with the add panel filled in.
-    const addThisCode = unknown.getByRole("link", { name: `Add this code: ${NOT_A_CODE}` });
+    const addThisCode = unknown.getByRole("link", { name: `Add This Code: ${NOT_A_CODE}` });
     await expectTouchTarget(addThisCode);
     await press(addThisCode);
-    const panel = page.getByRole("dialog", { name: "Add defect code" });
+    const panel = page.getByRole("dialog", { name: "Add Defect Code" });
     await expect(panel).toBeVisible();
     await expect(panel.getByLabel("Code", { exact: true })).toHaveValue(NOT_A_CODE);
     await expect(panel.getByLabel("Name", { exact: true })).toHaveValue("E2E label without a code");
     await expect(page).toHaveURL(/\/admin\/defects$/);
     await shot(page, "code-add-prefilled", { scroll: false });
     await press(panel.getByRole("button", { name: "Close", exact: true }).first());
-    // Opened by the link, not a button on this page: the keyboard goes to Add code.
-    await expect(page.getByRole("button", { name: "Add code" })).toBeFocused();
+    // Opened by the link, not a button on this page: the keyboard goes to Add Code.
+    await expect(page.getByRole("button", { name: "Add Code" })).toBeFocused();
     expect(hydration()).toEqual([]);
   });
 
   test("maps one-off labels to a code, to a new code, and an Other : hole; a draft waits", async ({ page }) => {
     const hydration = watchConsole(page);
     await page.goto("/admin/defects/unmapped");
-    await expect(page).toHaveTitle("Unmapped labels · SteriCare QC");
+    await expect(page).toHaveTitle("Unmapped Labels · SteriCare QC");
 
     const submitted = page.locator(`section[data-ref="${fixture.submitted.refNo}"]`);
     const draft = page.locator(`section[data-ref="${fixture.draft.refNo}"]`);
@@ -344,26 +344,26 @@ test.describe("as an admin", () => {
     // "Map to" named and described as a screen reader hears it, in Chrome's own tree: getByRole finds
     // the names even where Chrome has none.
     expect(await chromeNames(dialog, "radio")).toEqual([
-      { name: "An existing code", description: "One of the active codes." },
-      { name: "A new code", description: "Add a code for this label first." },
+      { name: "An Existing Code", description: "One of the active codes." },
+      { name: "A New Code", description: "Add a code for this label first." },
     ]);
-    await press(dialog.getByRole("button", { name: "Map label" }));
+    await press(dialog.getByRole("button", { name: "Map Label" }));
     await expect(dialog.getByText("Choose a code.")).toBeVisible();
     // Never a hole location or a Safedon dispensing fault for a visual defect: they would count where
     // no visual list has them. They stay on the full list.
     const elsewhere = /Faulty cuff|Hole in cuff|No cuff|Finger out/;
     await expect(dialog.locator('[id$="-code-description"]')).not.toContainText(elsewhere);
-    await press(dialog.getByRole("combobox", { name: "Defect code" }));
+    await press(dialog.getByRole("combobox", { name: "Defect Code" }));
     await expect(page.getByRole("group", { name: "Suggested" }).getByRole("option", { name: elsewhere })).toHaveCount(0);
     await shot(page, "map-choose", { scroll: false });
     // A code the template does not list in the class still counts; the dialog says so.
     await press(page.getByRole("option", { name: /^Faulty cuff\b/ }));
     await expect(dialog.getByText(/^Faulty cuff \(faulty_cuff\) is not one of E2E_DEFECTS v1’s major defects\./)).toBeVisible();
     await shot(page, "map-off-list", { scroll: false });
-    await press(dialog.getByRole("combobox", { name: "Defect code" }));
+    await press(dialog.getByRole("combobox", { name: "Defect Code" }));
     await press(page.getByRole("option", { name: /^Stain\b/ }));
     await expect(dialog.locator("[data-note]")).toHaveCount(0);
-    await press(dialog.getByRole("button", { name: "Map label" }));
+    await press(dialog.getByRole("button", { name: "Map Label" }));
     await expect(toast(page, `“${LABELS.tornCuff}” on ${fixture.submitted.refNo} now counts as Stain (stain).`)).toBeVisible();
     await expect(tornCuff).toHaveCount(0);
     // Its row has gone: the keyboard waits on the inspection's heading.
@@ -373,21 +373,21 @@ test.describe("as an admin", () => {
     const stickyEdge = submitted.locator(`tr[data-label="${LABELS.stickyEdge}"]`);
     await press(stickyEdge.getByRole("button", { name: /^Map/ }));
     dialog = page.getByRole("dialog", { name: `Map “${LABELS.stickyEdge}”` });
-    await press(dialog.getByRole("radio", { name: /A new code/ }));
+    await press(dialog.getByRole("radio", { name: /A New Code/ }));
     await expect(dialog.getByLabel("Code", { exact: true })).toHaveValue("e2e_sticky_edge");
     await expect(dialog.getByLabel("Name", { exact: true })).toHaveValue(LABELS.stickyEdge);
     await expect(dialog.locator("[data-note]")).toContainText("A new code is not one of E2E_DEFECTS v1’s minor defects.");
     // A refused code keeps every choice: React resets a form after its action, which must not flip
     // "Map to" back to an existing code nor clear what was typed.
     await dialog.getByLabel("Code", { exact: true }).fill("9_sticky");
-    await press(dialog.getByRole("button", { name: "Add code and map" }));
+    await press(dialog.getByRole("button", { name: "Add Code and Map" }));
     await expect(dialog.getByText("Start the code with a letter, e.g. torn_cuff.")).toBeVisible();
-    await expect(dialog.getByRole("radio", { name: /A new code/ })).toBeChecked();
+    await expect(dialog.getByRole("radio", { name: /A New Code/ })).toBeChecked();
     await expect(dialog.getByLabel("Code", { exact: true })).toHaveValue("9_sticky");
     await expect(dialog.getByLabel("Name", { exact: true })).toHaveValue(LABELS.stickyEdge);
     await dialog.getByLabel("Code", { exact: true }).fill("e2e_defect_y");
     await shot(page, "map-new-code", { scroll: false });
-    await press(dialog.getByRole("button", { name: "Add code and map" }));
+    await press(dialog.getByRole("button", { name: "Add Code and Map" }));
     await expect(toast(page, `Code e2e_defect_y added. “${LABELS.stickyEdge}” on ${fixture.submitted.refNo} now counts as`)).toBeVisible();
     await expect(stickyEdge).toHaveCount(0);
     expect(await storedCode("e2e_defect_y")).toMatchObject({ name: LABELS.stickyEdge, active: true });
@@ -396,9 +396,9 @@ test.describe("as an admin", () => {
     const thumbTip = submitted.locator(`tr[data-label="${LABELS.thumbTip}"]`);
     await press(thumbTip.getByRole("button", { name: /^Map/ }));
     dialog = page.getByRole("dialog", { name: `Map “${LABELS.thumbTip}”` });
-    await press(dialog.getByRole("combobox", { name: "Defect code" }));
+    await press(dialog.getByRole("combobox", { name: "Defect Code" }));
     await press(page.getByRole("option", { name: /^Hole in finger\b/ }));
-    await press(dialog.getByRole("button", { name: "Map label" }));
+    await press(dialog.getByRole("button", { name: "Map Label" }));
     await expect(toast(page, /now counts as Hole in finger \(hole_finger\)\.$/)).toBeVisible();
 
     // Nothing left to map on the submitted inspection: only the draft remains, and has the keyboard.

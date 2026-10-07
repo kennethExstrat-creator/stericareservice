@@ -18,7 +18,7 @@ import {
  * flow of BUILD_SPEC 4.5), at the three sizes in playwright.config.ts.
  *
  * From an active copy of STD_EG (the fixture's base, scoped to a client of
- * the run's own): New template on /admin/templates (a code another admin
+ * the run's own): New Template on /admin/templates (a code another admin
  * takes meanwhile is refused, and every choice stays), then in the editor
  * two modules off and one on, a module moved, a heading and a field label in
  * the client's words, a setting changed, a custom field added, the AI second
@@ -273,19 +273,19 @@ test("an admin builds a template from a base without code changes, and an inspec
   await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
   let templateId = "";
 
-  await test.step("New template: built on the base, and a code taken meanwhile is refused with every choice kept", async () => {
+  await test.step("New Template: built on the base, and a code taken meanwhile is refused with every choice kept", async () => {
     await page.goto("/admin/templates");
     await expect(page.getByRole("heading", { level: 1, name: "Templates" })).toBeVisible();
-    const dialog = page.getByRole("dialog", { name: "New template" });
+    const dialog = page.getByRole("dialog", { name: "New Template" });
     // Until the page has hydrated the button does nothing: press until the dialog shows.
     await expect(async () => {
-      if (!(await dialog.isVisible())) await press(page.getByRole("button", { name: "New template" }));
+      if (!(await dialog.isVisible())) await press(page.getByRole("button", { name: "New Template" }));
       await expect(dialog).toBeVisible({ timeout: 2_000 });
     }).toPass({ timeout: 30_000 });
 
     await choose(dialog, page, "Build on", new RegExp(`^${fixture.base.code}`));
     // Where it applies starts as the base's.
-    await expect(dialog.getByRole("combobox", { name: "Product type" })).toHaveText("Examination gloves");
+    await expect(dialog.getByRole("combobox", { name: "Product Type" })).toHaveText("Examination Gloves");
     await expect(dialog.getByRole("combobox", { name: "Standard" })).toHaveText("EN 455");
     await expect(dialog.locator("[data-note]")).toContainText(
       `every module, label and setting comes from ${fixture.base.code} v1, and so do the sizes (XS, S, M, L, XL, in pieces)`,
@@ -298,7 +298,7 @@ test("an admin builds a template from a base without code changes, and an inspec
     await choose(dialog, page, "Client", fixture.clientName);
     await choose(dialog, page, "Manufacturer", HARTALEGA.label);
     if (isTouch()) {
-      for (const control of [code, dialog.getByRole("combobox", { name: "Build on" }), dialog.getByRole("button", { name: "Create and edit" })]) {
+      for (const control of [code, dialog.getByRole("combobox", { name: "Build on" }), dialog.getByRole("button", { name: "Create and Edit" })]) {
         expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(44);
       }
       expect(await code.evaluate((input) => getComputedStyle(input).fontSize)).toBe("16px");
@@ -307,13 +307,13 @@ test("an admin builds a template from a base without code changes, and an inspec
 
     // Another admin takes the code while the form is open: the page's list of codes cannot know.
     await takeCode(fixture.takenCode, fixture.clientId);
-    await press(dialog.getByRole("button", { name: "Create and edit" }));
+    await press(dialog.getByRole("button", { name: "Create and Edit" }));
     await expect(dialog.getByText(`${fixture.takenCode} is taken`)).toBeVisible(ACTION);
     await expect(code).toBeFocused();
     await expect(code).toHaveAttribute("aria-invalid", "true");
     // React resets a form after its action: nothing here may go back to how it started.
     await expect(dialog.getByRole("combobox", { name: "Build on" })).toContainText(fixture.base.code);
-    await expect(dialog.getByRole("combobox", { name: "Product type" })).toHaveText("Examination gloves");
+    await expect(dialog.getByRole("combobox", { name: "Product Type" })).toHaveText("Examination Gloves");
     await expect(dialog.getByRole("combobox", { name: "Standard" })).toHaveText("EN 455");
     await expect(dialog.getByRole("combobox", { name: "Client" })).toHaveText(fixture.clientName);
     await expect(dialog.getByRole("combobox", { name: "Manufacturer" })).toHaveText(HARTALEGA.label);
@@ -324,7 +324,7 @@ test("an admin builds a template from a base without code changes, and an inspec
 
     await code.fill(fixture.newCode);
     await expect(dialog.getByText(`${fixture.takenCode} is taken`)).toHaveCount(0);
-    await press(dialog.getByRole("button", { name: "Create and edit" }));
+    await press(dialog.getByRole("button", { name: "Create and Edit" }));
     await expect(page).toHaveURL(EDITOR_URL, ACTION);
     templateId = page.url().split("/").at(-2)!;
 
@@ -363,7 +363,7 @@ test("an admin builds a template from a base without code changes, and an inspec
     );
     await expect.poll(moduleOrder(page)).toEqual(BASE_ORDER);
     const saveState = page.getByTestId("save-state");
-    await expect(saveState).toHaveText("No changes");
+    await expect(saveState).toHaveText("No Changes");
     await expectNoPageScroll(page);
     await shot(page, "3-editor");
 
@@ -374,15 +374,15 @@ test("an admin builds a template from a base without code changes, and an inspec
       await expect(toggle).toHaveAttribute("aria-checked", "false");
       await expect(moduleRow(page, key)).toHaveAttribute("data-included", "false");
     }
-    await expect(saveState).toHaveText("Unsaved changes");
+    await expect(saveState).toHaveText("Unsaved Changes");
 
     // One on that the base does not use: it goes in before the conclusion.
-    await press(page.getByRole("button", { name: /^Not in this template/ }));
+    await press(page.getByRole("button", { name: /^Not in This Template/ }));
     await press(page.getByTestId("unused-modules").getByRole("button", { name: "Add Documents", exact: true }));
     await expect(moduleRow(page, "documents").getByRole("switch")).toHaveAttribute("aria-checked", "true");
     await expect.poll(moduleOrder(page)).toEqual([...BASE_ORDER.slice(0, -1), "documents", "conclusion"]);
 
-    // Visual above watertight: the handle's arrow keys on the desktop, Move up in its details on the iPads.
+    // Visual above watertight: the handle's arrow keys on the desktop, Move Up in its details on the iPads.
     if (isDesktop()) {
       const handle = moduleRow(page, "visual").getByRole("button", { name: /^Move / });
       await handle.focus();
@@ -390,7 +390,7 @@ test("an admin builds a template from a base without code changes, and an inspec
       await expect(moduleRow(page, "visual").getByRole("button", { name: /^Move / })).toBeFocused();
     } else {
       const details = await openDetails(page, "visual");
-      await press(details.getByRole("button", { name: "Move up" }));
+      await press(details.getByRole("button", { name: "Move Up" }));
       await expect(details.getByText("Position 10 of 15")).toBeVisible();
       await closeDetails(page);
     }
@@ -433,9 +433,9 @@ test("an admin builds a template from a base without code changes, and an inspec
     await closeDetails(page);
 
     // A custom field, after the labelling inspection.
-    await press(page.getByRole("tab", { name: "Custom modules" }));
+    await press(page.getByRole("tab", { name: "Custom Modules" }));
     await expect(page.locator('[data-custom-key="glove_type"]')).toContainText("Glove Type");
-    await press(page.getByRole("button", { name: "Add custom module" }).first());
+    await press(page.getByRole("button", { name: "Add Custom Module" }).first());
     const form = page.getByTestId("custom-module-form");
     await form.locator("#custom-0-title").fill(WORDS.customTitle);
     await form.locator("#custom-0-key").fill(WORDS.customKey);
@@ -505,9 +505,9 @@ test("an admin builds a template from a base without code changes, and an inspec
   await test.step("its version page: the source file, the coverage checklist, then activate", async () => {
     await press(page.getByTestId("version-page-link"));
     await expect(page).toHaveURL(new RegExp(`/admin/templates/${templateId}$`), ACTION);
-    await expect(page.getByRole("heading", { level: 1 })).toContainText(`${fixture.newCode} version 1`);
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(`${fixture.newCode} Version 1`);
 
-    await chooseFile(page, page.getByRole("button", { name: "Upload source file" }), {
+    await chooseFile(page, page.getByRole("button", { name: "Upload Source File" }), {
       name: WORDS.sourceFile,
       mimeType: "application/pdf",
       buffer: SOURCE_PDF,
@@ -523,13 +523,13 @@ test("an admin builds a template from a base without code changes, and an inspec
     await checklist.getByRole("checkbox", { name: new RegExp(`I have checked ${escapeRegExp(WORDS.storedFile)}`) }).check();
     await expect(checklist.getByText("Ready to confirm.")).toBeVisible();
     await shot(page, "9-version-ready");
-    await press(checklist.getByRole("button", { name: "Confirm coverage" }));
+    await press(checklist.getByRole("button", { name: "Confirm Coverage" }));
     await expect(toast(page, /Coverage confirmed/)).toBeVisible(ACTION);
 
     const activate = page.getByRole("button", { name: "Activate", exact: true });
     await expect(activate).toBeEnabled(ACTION);
     const dialog = await openDialog(page, activate);
-    await expect(dialog).toContainText(`Activate ${fixture.newCode} version 1?`);
+    await expect(dialog).toContainText(`Activate ${fixture.newCode} Version 1?`);
     await press(dialog.getByRole("button", { name: "Activate", exact: true }));
     await expect(toast(page, `${fixture.newCode} version 1 is active.`)).toBeVisible(ACTION);
     await expect(page.locator('[data-slot="page-header"] [data-slot="template-status"]')).toHaveText("Active", ACTION);
@@ -545,13 +545,13 @@ test("an admin builds a template from a base without code changes, and an inspec
     await page.goto("/inspections/new");
     await choose(page, page, "Client", fixture.clientName);
     await choose(page, page, "Manufacturer", HARTALEGA.label);
-    await press(page.getByRole("radio", { name: /Examination gloves/ }));
+    await press(page.getByRole("radio", { name: /Examination gloves/i }));
     // The most specific active template wins (BUILD_SPEC 4.4): the client's at this manufacturer, not the base.
     const chosen = page.getByTestId("chosen-template");
     await expect(chosen).toHaveAttribute("data-code", fixture.newCode);
     await press(page.getByText("Show the sections"));
     await expect(chosen.getByRole("listitem")).toHaveText(SECTIONS);
-    await page.getByRole("textbox", { name: /Product name/ }).fill("E2E admin flow nitrile gloves");
+    await page.getByRole("textbox", { name: /Product name/i }).fill("E2E admin flow nitrile gloves");
     await shot(page, "11-new-inspection");
   });
 
