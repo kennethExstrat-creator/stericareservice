@@ -47,19 +47,24 @@ const INSPECTION_URL = /\/inspections\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9
 /** Where a crashed run leaves the id of the inspection it created (git-ignored, never cleared by Playwright). */
 const LEFTOVER = "screenshots/acceptance/std-eg-inspection.json";
 
-/** The STD_EG section titles, in the template's (the report's) wording. */
+/**
+ * The STD_EG section titles, in the seed template's wording (Title Case,
+ * lib/templates/definitions). The live STD_EG may still word them in the
+ * report's case until it is seeded again, so titles and labels are matched
+ * whatever their case (named, ignoreCase); the wording itself is checked.
+ */
 const SECTION = {
   header: "Manufacturer Information",
   gloveType: "Glove Type",
   gloveInfo: "Glove Information",
   order: "Order",
-  packing: "Packing configuration",
+  packing: "Packing Configuration",
   sampling: "Sampling Plan",
-  cartons: "Finished Goods Sampling Information (carton number)",
+  cartons: "Finished Goods Sampling Information (Carton Number)",
   dimensions: "Dimension",
-  force: "Force At Break in Newton (Refer to attached where applicable)",
-  weight: "Weight (g) - average of 13 gloves per size",
-  watertight: "Freedom from Holes by watertight test",
+  force: "Force at Break in Newton (Refer to Attached Where Applicable)",
+  weight: "Weight (g) - Average of 13 Gloves per Size",
+  watertight: "Freedom From Holes by Watertight Test",
   visual: "Visual Inspection",
   packingCheck: "Glove Packing Check",
   labeling: "Packaging Labeling Inspection",
@@ -157,6 +162,14 @@ function escapeRegExp(text: string) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** An accessible name or label that is exactly `text`, whatever its case: the template's wording (SECTION). */
+function named(text: string) {
+  return new RegExp(`^${escapeRegExp(text)}$`, "i");
+}
+
+/** Text checks on the template's wording, whatever its case (SECTION). */
+const ANY_CASE = { ignoreCase: true } as const;
+
 function specText(spec: { kind: string; min?: number; max?: number; nominal?: number; tolerance?: number } | undefined) {
   if (!spec || spec.kind === "na") return "NA";
   if (spec.kind === "min") return `≥ ${spec.min}`;
@@ -181,18 +194,24 @@ async function shot(page: Page, name: string, at?: Locator) {
   });
 }
 
-function frameOf(page: Page) {
-  return page.locator('[data-slot="section-frame"]');
+/**
+ * A section's frame, by its title (its h2). A page can show two: packing
+ * configuration sits below the order, on the order's tab
+ * (lib/inspections/capture/sections.ts SHOWN_WITH), so a frame is always
+ * found by its own title (e2e/README.md).
+ */
+function frameOf(page: Page, title: string) {
+  return page.locator('[data-slot="section-frame"]').filter({ has: page.getByRole("heading", { level: 2, name: named(title) }) });
 }
 
-/** The open section's result: the pill in its frame's header. */
-function sectionStatus(page: Page) {
-  return frameOf(page).locator(':scope > header [data-slot="status-pill"]').first();
+/** A section's result: the pill in its frame's header. */
+function sectionStatus(page: Page, title: string) {
+  return frameOf(page, title).locator(':scope > header [data-slot="status-pill"]').first();
 }
 
-/** The open section's summary line under its title. */
-function sectionSummary(page: Page) {
-  return frameOf(page).locator(":scope > header").first();
+/** A section's summary line under its title. */
+function sectionSummary(page: Page, title: string) {
+  return frameOf(page, title).locator(":scope > header").first();
 }
 
 function savePill(page: Page) {
@@ -201,8 +220,8 @@ function savePill(page: Page) {
 
 /** The section's form has loaded and saving has started: it takes changes. */
 async function sectionReady(page: Page, title: string) {
-  await expect(page.getByRole("heading", { level: 2, name: title, exact: true })).toBeVisible();
-  const frame = frameOf(page);
+  await expect(page.getByRole("heading", { level: 2, name: named(title) })).toBeVisible();
+  const frame = frameOf(page, title);
   await expect(frame.getByText("Loading the form…")).toHaveCount(0);
   await expect(frame.locator('[data-slot="photo-add"]')).toBeVisible();
   return frame;
@@ -212,7 +231,7 @@ async function sectionReady(page: Page, title: string) {
 async function openTab(page: Page, title: string) {
   await page
     .getByRole("tablist", { name: "Sections" })
-    .getByRole("tab", { name: new RegExp(`^${escapeRegExp(title)}`) })
+    .getByRole("tab", { name: new RegExp(`^${escapeRegExp(title)}`, "i") })
     .tap();
   return sectionReady(page, title);
 }
@@ -245,14 +264,17 @@ async function paste(input: Locator, text: string) {
   }, text);
 }
 
-/** A table row, found by its header cell; checked by its accessible name (header and cells, as read out). */
+/**
+ * A table row, found by its header cell (the template's wording, whatever its case); checked by its
+ * accessible name (header and cells, as read out).
+ */
 function row(scope: Locator, header: string) {
-  return scope.getByRole("row", { name: new RegExp(`^${escapeRegExp(header)}( |$)`) });
+  return scope.getByRole("row", { name: new RegExp(`^${escapeRegExp(header)}( |$)`, "i") });
 }
 
 /** The size tabs of a per-size section: only the ordered size, M (6.2 rule 4). */
 async function expectOnlySizeM(page: Page, title: string) {
-  const tabs = frameOf(page).getByRole("tab");
+  const tabs = frameOf(page, title).getByRole("tab");
   await check(tabs, `${title}: one size tab`).toHaveCount(1);
   await check(tabs.first(), `${title}: the size tab is M`).toHaveAccessibleName(/^Size M\b/);
 }
@@ -377,27 +399,28 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     const frame = await sectionReady(page, SECTION.header);
     const facts = frame.getByRole("region", { name: "From the inspection" });
     // Inspector: recorded automatically (the report has no inspector at all).
-    await check(facts, EXPECTED.inspector.check).toContainText(`Inspected by${inspectorName}`);
+    await check(facts, EXPECTED.inspector.check).toContainText(`Inspected By${inspectorName}`, ANY_CASE);
     await check(facts).toContainText(`Manufacturer / Supplier${HARTALEGA.label}`);
     await check(facts).toContainText("Client Name—");
     const text = async (label: string, value: string) => {
-      const field = frame.getByLabel(label, { exact: true });
+      const field = frame.getByLabel(named(label));
       await field.tap();
       await field.fill(value);
     };
     await text("Supplier Factory Address / Location", REPORT.header.factoryAddress);
     await text("PO / SO Number", REPORT.header.po.printed);
     // Product code: one value, typed once here (expected results: "one value, used everywhere").
-    await text("Product code", must(REPORT.header.productCode, "product code"));
-    await check(frame.getByLabel("Product Name (Brand, code & description)", { exact: true })).toHaveValue(REPORT.header.productName);
+    await text("Product Code", must(REPORT.header.productCode, "product code"));
+    await check(frame.getByLabel(named("Product Name (Brand, Code & Description)"))).toHaveValue(REPORT.header.productName);
     // Dates from the date picker (6.2 rule 3).
-    await frame.getByLabel("Inspection date", { exact: true }).fill(REPORT.header.inspectionDate.iso);
-    await frame.getByLabel("Manufacturing date", { exact: true }).fill(REPORT.header.mfgDate.iso);
-    await frame.getByLabel("Expiry date", { exact: true }).fill(REPORT.header.expiryDate.iso);
-    await check(sectionStatus(page)).toHaveAttribute("data-status", "info");
+    await frame.getByLabel(named("Inspection Date")).fill(REPORT.header.inspectionDate.iso);
+    await frame.getByLabel(named("Manufacturing Date")).fill(REPORT.header.mfgDate.iso);
+    await frame.getByLabel(named("Expiry Date")).fill(REPORT.header.expiryDate.iso);
+    await check(sectionStatus(page, SECTION.header)).toHaveAttribute("data-status", "info");
     // The summary writes the day in words, as the rest of the app does.
-    await check(sectionSummary(page)).toContainText(
-      `${REPORT.header.po.printed}: ${REPORT.header.productName}; ${HARTALEGA.label}; Inspection date ${dayInWords(REPORT.header.inspectionDate.iso)}.`,
+    await check(sectionSummary(page, SECTION.header)).toContainText(
+      `${REPORT.header.po.printed}: ${REPORT.header.productName}; ${HARTALEGA.label}; Inspection Date ${dayInWords(REPORT.header.inspectionDate.iso)}.`,
+      ANY_CASE,
     );
     await shot(page, "02-header");
   });
@@ -409,40 +432,47 @@ test("the STD_EG example entered on the iPad gives every expected result", async
   await test.step("Glove Information", async () => {
     const frame = await next(page, SECTION.gloveInfo);
     const info = REPORT.gloveInfo;
-    await frame.getByLabel("Glove surface texture", { exact: true }).tap();
-    await frame.getByLabel("Glove surface texture", { exact: true }).fill(info.surfaceTexture);
-    await typeNumber(page, frame.getByLabel("Indicative weight (size M)", { exact: true }), info.indicativeWeightG);
-    await frame.getByLabel("Glove colour", { exact: true }).fill(info.colour);
-    await frame.getByLabel("Glove length", { exact: true }).fill(info.length);
-    await frame.getByLabel("Glove length", { exact: true }).press("Tab");
-    await check(sectionStatus(page)).toHaveAttribute("data-status", "info");
-    await check(sectionSummary(page)).toContainText(
+    await frame.getByLabel(named("Glove Surface Texture")).tap();
+    await frame.getByLabel(named("Glove Surface Texture")).fill(info.surfaceTexture);
+    await typeNumber(page, frame.getByLabel(named("Indicative Weight (Size M)")), info.indicativeWeightG);
+    await frame.getByLabel(named("Glove Colour")).fill(info.colour);
+    await frame.getByLabel(named("Glove Length")).fill(info.length);
+    await frame.getByLabel(named("Glove Length")).press("Tab");
+    await check(sectionStatus(page, SECTION.gloveInfo)).toHaveAttribute("data-status", "info");
+    await check(sectionSummary(page, SECTION.gloveInfo)).toContainText(
       `${info.surfaceTexture}, ${info.colour}, ${info.length}; indicative weight ${info.indicativeWeightG} g (size M).`,
     );
   });
 
   await test.step("Order: size M only, 2,900 cases, one lot", async () => {
     const frame = await next(page, SECTION.order);
-    await typeNumber(page, frame.getByRole("textbox", { name: "Qty (cases), Size M", exact: true }), ORDER.qtyCases);
+    await typeNumber(page, frame.getByRole("textbox", { name: named("Qty (Cases), Size M") }), ORDER.qtyCases);
     for (const lot of ORDER.lots) {
       await frame.getByRole("textbox", { name: "Lot Number, Size M: add" }).tap();
       await page.keyboard.type(lot);
       await page.keyboard.press("Enter");
     }
     await check(frame.getByRole("button", { name: `Remove Lot Number ${ORDER.lots[0]}, Size M` })).toBeVisible();
-    await check(frame.getByRole("definition").first(), "Total # carton").toHaveText(grouped(EXPECTED.totals.cartons));
+    await check(frame.getByRole("definition").first(), "Total # Carton").toHaveText(grouped(EXPECTED.totals.cartons));
   });
 
-  await test.step("Packing configuration: 200 per inner box, 10 per case, 2,000 per case", async () => {
-    const frame = await next(page, SECTION.packing);
-    await typeNumber(page, frame.getByLabel("# glove per inner box", { exact: true }), REPORT.packing.glovesPerInner);
-    await typeNumber(page, frame.getByLabel("# inners per case", { exact: true }), REPORT.packing.innersPerCase);
-    await typeNumber(page, frame.getByLabel("# gloves per case", { exact: true }), REPORT.packing.printedGlovesPerCase);
+  await test.step("Packing configuration, below the order on its page: 200 per inner box, 10 per case, 2,000 per case", async () => {
+    // No tab of its own and no Next: packing configuration is on the order's page
+    // (lib/inspections/capture/sections.ts SHOWN_WITH), right below the order.
+    const frame = await sectionReady(page, SECTION.packing);
+    await check(page.locator('[role="tab"][data-sections~="packing_config"]'), "on the order's tab").toHaveAttribute("data-section", "order_lots");
+    await typeNumber(page, frame.getByLabel(named("# Glove per Inner Box")), REPORT.packing.glovesPerInner);
+    await typeNumber(page, frame.getByLabel(named("# Inners per Case")), REPORT.packing.innersPerCase);
+    await typeNumber(page, frame.getByLabel(named("# Gloves per Case")), REPORT.packing.printedGlovesPerCase);
     await check(frame.getByRole("definition"), "gloves per case, computed").toHaveText(grouped(REPORT.packing.printedGlovesPerCase));
-    await check(sectionStatus(page)).toHaveAttribute("data-status", "info");
+    await check(sectionStatus(page, SECTION.packing)).toHaveAttribute("data-status", "info");
+    // The order's total gloves, on the same page, as soon as the gloves per case are in: 2,900 cases × 2,000.
+    const totals = frameOf(page, SECTION.order).locator("dl").filter({ hasText: "Total # Gloves" });
+    await check(totals, EXPECTED.totals.check).toContainText(`Total # Gloves${grouped(EXPECTED.totals.gloves)}`, ANY_CASE);
   });
 
   await test.step("Sampling Plan: the seven counts in one run, Enter moving on; level I gives code N, 500", async () => {
+    // Next from the order's page, packing configuration and all.
     const frame = await next(page, SECTION.sampling);
     await expectOnlySizeM(page, SECTION.sampling);
     await frame.getByRole("textbox", { name: "Case, Size M", exact: true }).tap();
@@ -458,19 +488,20 @@ test("the STD_EG example entered on the iPad gives every expected result", async
       await page.keyboard.type(String(value));
       await page.keyboard.press("Enter");
     }
-    await check(frame.getByRole("textbox", { name: "# inner box for packaging & dispensing inspection, Size M", exact: true })).toHaveValue(
+    await check(frame.getByRole("textbox", { name: named("# Inner Box for Packaging & Dispensing Inspection, Size M") })).toHaveValue(
       String(SAMPLING.dispensingInners),
     );
     const facts = frame.getByRole("tabpanel", { name: /^Size M\b/ });
-    await check(facts).toContainText(`Order Qty (case)${grouped(ORDER.qtyCases)}`);
-    await check(facts, "lot size in gloves").toContainText(`Lot size (gloves)${grouped(EXPECT_SAMPLING.lotGloves)}`);
-    await check(facts).toContainText(`Inspection level${EXPECT_SAMPLING.level}`);
-    await check(facts).toContainText(`Code letter${EXPECT_SAMPLING.codeLetter}`);
-    await check(facts).toContainText(`Sample size by plan${EXPECT_SAMPLING.required}`);
+    await check(facts).toContainText(`Order Qty (Case)${grouped(ORDER.qtyCases)}`, ANY_CASE);
+    await check(facts, "lot size in gloves").toContainText(`Lot Size (Gloves)${grouped(EXPECT_SAMPLING.lotGloves)}`, ANY_CASE);
+    await check(facts).toContainText(`Inspection Level${EXPECT_SAMPLING.level}`, ANY_CASE);
+    await check(facts).toContainText(`Code Letter${EXPECT_SAMPLING.codeLetter}`, ANY_CASE);
+    await check(facts).toContainText(`Sample Size by Plan${EXPECT_SAMPLING.required}`, ANY_CASE);
     // 500 sampled meets level I: an info result, no notice (expected results: the plan matches).
-    await check(sectionStatus(page)).toHaveAttribute("data-status", "info");
-    await check(sectionSummary(page)).toContainText(
-      `Size M: Case: ${SAMPLING.cases}; # gloves for watertight & Visual: ${SAMPLING.watertightVisualGloves}; inspection level I needs ${EXPECT_SAMPLING.required} (code ${EXPECT_SAMPLING.codeLetter}).`,
+    await check(sectionStatus(page, SECTION.sampling)).toHaveAttribute("data-status", "info");
+    await check(sectionSummary(page, SECTION.sampling)).toContainText(
+      `Size M: Case: ${SAMPLING.cases}; # Gloves for Watertight & Visual: ${SAMPLING.watertightVisualGloves}; inspection level I needs ${EXPECT_SAMPLING.required} (code ${EXPECT_SAMPLING.codeLetter}).`,
+      ANY_CASE,
     );
     await check(frame.locator(".text-warn, .text-fail"), "no sampling notice").toHaveCount(0);
     await shot(page, "03-sampling-plan");
@@ -478,15 +509,15 @@ test("the STD_EG example entered on the iPad gives every expected result", async
 
   await test.step("Order totals: 2,900 cartons, 5,800,000 gloves", async () => {
     const frame = await openTab(page, SECTION.order);
-    const totals = frame.locator("dl").filter({ hasText: "Total # carton" });
-    await check(totals, EXPECTED.totals.check).toContainText(`Total # carton${grouped(EXPECTED.totals.cartons)}`);
-    await check(totals, EXPECTED.totals.check).toContainText(`Total # gloves${grouped(EXPECTED.totals.gloves)}`);
+    const totals = frame.locator("dl").filter({ hasText: "Total # Carton" });
+    await check(totals, EXPECTED.totals.check).toContainText(`Total # Carton${grouped(EXPECTED.totals.cartons)}`, ANY_CASE);
+    await check(totals, EXPECTED.totals.check).toContainText(`Total # Gloves${grouped(EXPECTED.totals.gloves)}`, ANY_CASE);
     await check(row(frame, SIZE), "lot size of size M").toHaveAccessibleName(
       new RegExp(`^M ${ORDER.qtyCases} ${ORDER.lots[0]} .*${escapeRegExp(grouped(EXPECTED.totals.gloves))}$`),
     );
     // Sizes not ordered stay in the order table (to order them), empty.
     for (const size of EXPECTED.unorderedSizes.sizes) {
-      await check(frame.getByRole("textbox", { name: `Qty (cases), Size ${size}`, exact: true })).toHaveValue("");
+      await check(frame.getByRole("textbox", { name: named(`Qty (Cases), Size ${size}`) })).toHaveValue("");
     }
     await shot(page, "04-order");
   });
@@ -529,12 +560,12 @@ test("the STD_EG example entered on the iPad gives every expected result", async
       `Dispensing % ${dispensingCheck.dispensingAvgPct}% ≥ ${dispensingCheck.minDispensingPct}% Passed`,
     );
     await check(row(results, "Stickiness **"), dispensingCheck.check).toHaveAccessibleName("Stickiness ** A A, B, B1, C Passed");
-    await check(sectionStatus(page), dispensingCheck.check).toHaveAttribute("data-status", dispensingCheck.status);
-    await check(sectionSummary(page)).toContainText(
+    await check(sectionStatus(page, SECTION.packingCheck), dispensingCheck.check).toHaveAttribute("data-status", dispensingCheck.status);
+    await check(sectionSummary(page, SECTION.packingCheck)).toContainText(
       `Size M: Layering ${dispensingCheck.layeringAvgPct}% (min. ${dispensingCheck.minLayeringPct}%), Dispensing ${dispensingCheck.dispensingAvgPct}% (min. ${dispensingCheck.minDispensingPct}%), Stickiness A: Passed.`,
     );
     // 13 boxes is code letter E (the report's title says "D & E").
-    await check(frame.getByText(/^Glove Packing Check \(Sampling code letter E\) : min\. 70% layering & 80% dispensing$/)).toBeVisible();
+    await check(frame.getByText(/^Glove Packing Check \(Sampling Code Letter E\) : Min\. 70% Layering & 80% Dispensing$/i)).toBeVisible();
     await shot(page, "05-packing-check-typed", results);
   });
 
@@ -569,8 +600,8 @@ test("the STD_EG example entered on the iPad gives every expected result", async
       ).toHaveAccessibleDescription(message);
     }
     await check(frame.getByRole("button", { name: message }), `${cartonList.check}: the error under the grid`).toBeVisible();
-    await check(sectionStatus(page), cartonList.check).toHaveAttribute("data-status", cartonList.status);
-    await check(sectionSummary(page)).toContainText(message);
+    await check(sectionStatus(page, SECTION.cartons), cartonList.check).toHaveAttribute("data-status", cartonList.status);
+    await check(sectionSummary(page, SECTION.cartons)).toContainText(message);
     await shot(page, "06-cartons-duplicate", frame.getByRole("button", { name: message }));
   });
 
@@ -601,22 +632,22 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await check(row(table, "P/F *"), expected.check).toHaveAccessibleName(
       `P/F * ${columns.map((measure) => (expected.perMeasure[measure] === "na" ? "NA" : expected.perMeasure[measure] === "pass" ? "Passed" : "Failed")).join(" ")}`,
     );
-    await check(sectionStatus(page), expected.check).toHaveAttribute("data-status", expected.status);
+    await check(sectionStatus(page, SECTION.dimensions), expected.check).toHaveAttribute("data-status", expected.status);
     await shot(page, "07-dimensions", table.getByRole("row", { name: /^Median/ }));
   });
 
   await test.step("Force at break: the lab report's 13 readings pasted; median 6.537 N against 6 N", async () => {
     const frame = await next(page, SECTION.force);
     await expectOnlySizeM(page, SECTION.force);
-    const first = frame.getByRole("textbox", { name: "Force at break (N), No. 1", exact: true });
+    const first = frame.getByRole("textbox", { name: named("Force at Break (N), No. 1") });
     await first.tap();
     await paste(first, readingsWithMedian(FORCE.medianN).join("\n"));
     const table = frame.getByRole("table", { name: /, size M$/ });
     await check(row(table, "Median"), EXPECT_FORCE.check).toHaveAccessibleName(`Median ${EXPECT_FORCE.medianN}`);
     await check(row(table, "Spec."), EXPECT_FORCE.check).toHaveAccessibleName(`Spec. ≥ ${EXPECT_FORCE.minN}`);
     await check(row(table, "Passed / Failed"), EXPECT_FORCE.check).toHaveAccessibleName("Passed / Failed Passed");
-    await check(sectionStatus(page), EXPECT_FORCE.check).toHaveAttribute("data-status", EXPECT_FORCE.status);
-    await check(sectionSummary(page)).toContainText(`Size M: Median ${EXPECT_FORCE.medianN} N. Spec. ≥ ${EXPECT_FORCE.minN} N.`);
+    await check(sectionStatus(page, SECTION.force), EXPECT_FORCE.check).toHaveAttribute("data-status", EXPECT_FORCE.status);
+    await check(sectionSummary(page, SECTION.force)).toContainText(`Size M: Median ${EXPECT_FORCE.medianN} N. Spec. ≥ ${EXPECT_FORCE.minN} N.`);
     await shot(page, "08-force-at-break", table.getByRole("row", { name: /^Median/ }));
   });
 
@@ -638,8 +669,8 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await check(deviation, expected.check).toContainText(new RegExp(`[-−]${escapeRegExp(String(Math.abs(expected.deviationPct)))}%`));
     await check(deviation, expected.check).toContainText(`Indicative ${expected.indicativeG} g, Threshold ${expected.thresholdPct}%`);
     await check(deviation.locator('[data-slot="status-pill"]'), expected.check).toHaveAttribute("data-status", "warn");
-    await check(sectionStatus(page), expected.check).toHaveAttribute("data-status", expected.status);
-    await check(sectionSummary(page)).toContainText(
+    await check(sectionStatus(page, SECTION.weight), expected.check).toHaveAttribute("data-status", expected.status);
+    await check(sectionSummary(page, SECTION.weight)).toContainText(
       `Average: M ${expected.averageG.toFixed(2)} g (${Math.abs(expected.deviationPct)}% below the indicative ${expected.indicativeG} g, beyond the ${expected.thresholdPct}% threshold).`,
     );
     await shot(page, "09-weight", deviation);
@@ -649,36 +680,39 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     const frame = await next(page, SECTION.watertight);
     await expectOnlySizeM(page, SECTION.watertight);
     await frame.getByRole("button", { name: `Use ${WATERTIGHT.tested} for size M` }).tap();
-    await check(frame.getByRole("textbox", { name: /^No\. of sample tested/ })).toHaveValue(String(WATERTIGHT.tested));
+    await check(frame.getByRole("textbox", { name: /^No\. of Sample Tested/i })).toHaveValue(String(WATERTIGHT.tested));
+    // The report's row labels, which the template words in Title Case: matched whatever their case.
     for (const location of REPORT.watertight.rows) {
       const holes = WATERTIGHT.holes[location.code] ?? 0;
       for (let tap = 0; tap < holes; tap++) {
-        await frame.getByRole("button", { name: `Increase ${location.label}, Size M`, exact: true }).tap();
+        await frame.getByRole("button", { name: named(`Increase ${location.label}, Size M`) }).tap();
       }
     }
     const expected = EXPECT_WATERTIGHT;
     const table = frame.getByRole("table", {
-      name: `Freedom from Holes by watertight test (Single sampling code letter ${expected.codeLetter}, AQL ${expected.aql})`,
+      name: `Freedom From Holes by Watertight Test (Single Sampling Code Letter ${expected.codeLetter}, AQL ${expected.aql})`,
     });
     await check(table, `${expected.check}: the heading names code ${expected.codeLetter}`).toBeVisible();
-    await check(frame.getByText(`Sampling code letter ${expected.codeLetter} · AQL ${expected.aql}`)).toBeVisible();
+    await check(frame.getByText(`Sampling Code Letter ${expected.codeLetter} · AQL ${expected.aql}`)).toBeVisible();
     await check(row(table, "Defect Limit"), expected.check).toHaveAccessibleName(
       `Defect Limit Accept ${expected.accept} / Reject ${expected.reject}`,
     );
     for (const location of REPORT.watertight.rows) {
-      await check(frame.getByRole("spinbutton", { name: `${location.label}, Size M`, exact: true })).toHaveAttribute(
+      await check(frame.getByRole("spinbutton", { name: named(`${location.label}, Size M`) })).toHaveAttribute(
         "aria-valuenow",
         String(expected.byLocation[location.code] ?? 0),
       );
     }
-    await check(row(table, "Total number of defects found"), expected.check).toHaveAccessibleName(
-      `Total number of defects found ${expected.found}`,
+    await check(row(table, "Total Number of Defects Found"), expected.check).toHaveAccessibleName(
+      `Total Number of Defects Found ${expected.found}`,
+      ANY_CASE,
     );
-    await check(row(table, "Freedom from holes (Passed / Failed)"), expected.check).toHaveAccessibleName(
-      "Freedom from holes (Passed / Failed) Passed",
+    await check(row(table, "Freedom From Holes (Passed / Failed)"), expected.check).toHaveAccessibleName(
+      "Freedom From Holes (Passed / Failed) Passed",
+      ANY_CASE,
     );
-    await check(sectionStatus(page), expected.check).toHaveAttribute("data-status", expected.status);
-    await check(sectionSummary(page)).toContainText(
+    await check(sectionStatus(page, SECTION.watertight), expected.check).toHaveAttribute("data-status", expected.status);
+    await check(sectionSummary(page, SECTION.watertight)).toContainText(
       `Size M: ${expected.found} / ${expected.n} (Finger ${expected.found}), Defect Limit ${expected.accept} / ${expected.reject}: Passed.`,
     );
     await shot(page, "10-watertight", table);
@@ -693,32 +727,32 @@ test("the STD_EG example entered on the iPad gives every expected result", async
       for (const defect of block.rows) {
         const count = block.perSize.M?.counts[defect.code] ?? 0;
         for (let tap = 0; tap < count; tap++) {
-          await frame.getByRole("button", { name: `Increase ${defect.label}, Size M`, exact: true }).tap();
+          await frame.getByRole("button", { name: named(`Increase ${defect.label}, Size M`) }).tap();
         }
       }
     }
-    await check(frame.getByText(`Sampling code letter ${EXPECT_MAJOR.codeLetter}`, { exact: true })).toBeVisible();
+    await check(frame.getByText(named(`Sampling Code Letter ${EXPECT_MAJOR.codeLetter}`))).toBeVisible();
     const classes = [
-      { expected: EXPECT_CRITICAL, region: "Critical Defects (AQL 0.0)", limit: "Defect Limit : Accept / Reject", limitText: `Acc. = ${EXPECT_CRITICAL.accept} / Rej. = ${EXPECT_CRITICAL.reject}`, total: 'Total number of "Critical Defects" found', result: "Disposition - Visual Critical (Passed / Failed)" },
-      { expected: EXPECT_MAJOR, region: "Major Defects (AQL 2.5)", limit: "Defect Limit", limitText: `Accept ${EXPECT_MAJOR.accept} / Reject ${EXPECT_MAJOR.reject}`, total: 'Total number of "Major Defects" found', result: "Disposition - Visual Major (Passed / Failed)" },
-      { expected: EXPECT_MINOR, region: "Minor Defects (AQL 4.0)", limit: "Defect Limit", limitText: `Accept ${EXPECT_MINOR.accept} / Reject ${EXPECT_MINOR.reject}`, total: 'Total number of "Minor Defects" found', result: "Disposition - Visual Minor (Passed / Failed)" },
+      { expected: EXPECT_CRITICAL, region: "Critical Defects (AQL 0.0)", limit: "Defect Limit : Accept / Reject", limitText: `Acc. = ${EXPECT_CRITICAL.accept} / Rej. = ${EXPECT_CRITICAL.reject}`, total: 'Total Number of "Critical Defects" Found', result: "Disposition - Visual Critical (Passed / Failed)" },
+      { expected: EXPECT_MAJOR, region: "Major Defects (AQL 2.5)", limit: "Defect Limit", limitText: `Accept ${EXPECT_MAJOR.accept} / Reject ${EXPECT_MAJOR.reject}`, total: 'Total Number of "Major Defects" Found', result: "Disposition - Visual Major (Passed / Failed)" },
+      { expected: EXPECT_MINOR, region: "Minor Defects (AQL 4.0)", limit: "Defect Limit", limitText: `Accept ${EXPECT_MINOR.accept} / Reject ${EXPECT_MINOR.reject}`, total: 'Total Number of "Minor Defects" Found', result: "Disposition - Visual Minor (Passed / Failed)" },
     ];
     for (const { expected, region, limit, limitText, total, result } of classes) {
       const section = frame.getByRole("region", { name: region });
-      await check(section.getByRole("textbox", { name: /^No\. of sample inspected/ }), expected.check).toHaveValue(String(expected.n));
+      await check(section.getByRole("textbox", { name: /^No\. of Sample Inspected/i }), expected.check).toHaveValue(String(expected.n));
       await check(row(section, limit), expected.check).toHaveAccessibleName(`${limit} ${limitText}`);
-      await check(row(section, total), expected.check).toHaveAccessibleName(`${total} ${expected.found}`);
+      await check(row(section, total), expected.check).toHaveAccessibleName(`${total} ${expected.found}`, ANY_CASE);
       await check(row(section, result), expected.check).toHaveAccessibleName(`${result} Passed`);
     }
     for (const [code, count] of Object.entries(EXPECT_MAJOR.byDefect)) {
       const label = must(REPORT.visual.major.rows.find((defect) => defect.code === code), `major row ${code}`).label;
-      await check(frame.getByRole("spinbutton", { name: `${label}, Size M`, exact: true }), EXPECT_MAJOR.check).toHaveAttribute(
+      await check(frame.getByRole("spinbutton", { name: named(`${label}, Size M`) }), EXPECT_MAJOR.check).toHaveAttribute(
         "aria-valuenow",
         String(count),
       );
     }
-    await check(sectionStatus(page), "Visual M").toHaveAttribute("data-status", "pass");
-    await check(sectionSummary(page)).toContainText(
+    await check(sectionStatus(page, SECTION.visual), "Visual M").toHaveAttribute("data-status", "pass");
+    await check(sectionSummary(page, SECTION.visual)).toContainText(
       `Size M: Critical Defects ${EXPECT_CRITICAL.found} / ${EXPECT_CRITICAL.n}, Major Defects ${EXPECT_MAJOR.found} / ${EXPECT_MAJOR.n}, Minor Defects ${EXPECT_MINOR.found} / ${EXPECT_MINOR.n}: Passed.`,
     );
     await shot(page, "11-visual-major", frame.getByRole("region", { name: "Major Defects (AQL 2.5)" }));
@@ -736,7 +770,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     // The other twelve boxes are in the list.
     await check(frame.locator('[role="combobox"][aria-invalid="true"]'), "only the stray box is marked").toHaveCount(1);
     // The packing check's own result stands on its averages and codes (docs/FIXTURES.md).
-    await check(sectionStatus(page), EXPECT_DISPENSING.check).toHaveAttribute("data-status", EXPECT_DISPENSING.status);
+    await check(sectionStatus(page, SECTION.packingCheck), EXPECT_DISPENSING.check).toHaveAttribute("data-status", EXPECT_DISPENSING.status);
     await shot(page, "12-packing-check-stray-box", stray);
   });
 
@@ -751,16 +785,19 @@ test("the STD_EG example entered on the iPad gives every expected result", async
       ["Carton Box", expected.carton.n, expected.carton.defects, "Disposition - Carton Box (Passed / Failed)"],
     ] as const) {
       const section = frame.getByRole("region", { name: level });
-      await check(section.getByRole("spinbutton", { name: `No. of sampled boxes inspected, ${level}, Size M` }), expected.check).toHaveAttribute(
+      await check(section.getByRole("spinbutton", { name: `No. of Sampled Boxes Inspected, ${level}, Size M` }), expected.check).toHaveAttribute(
         "aria-valuenow",
         String(n),
       );
       await check(row(section, "Defect Limit"), expected.check).toHaveAccessibleName("Defect Limit Accept 0 / Reject 1");
-      await check(row(section, "Total number of defects found"), expected.check).toHaveAccessibleName(`Total number of defects found ${defects}`);
+      await check(row(section, "Total Number of Defects Found"), expected.check).toHaveAccessibleName(
+        `Total Number of Defects Found ${defects}`,
+        ANY_CASE,
+      );
       // The carton level reads "Carton Box", not the report's "Inner Box" [sic].
       await check(row(section, result), expected.check).toHaveAccessibleName(`${result} Passed`);
     }
-    await check(sectionStatus(page), expected.check).toHaveAttribute("data-status", expected.status);
+    await check(sectionStatus(page, SECTION.labeling), expected.check).toHaveAttribute("data-status", expected.status);
     await shot(page, "13-labelling");
   });
 
@@ -768,13 +805,13 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     const frame = await next(page, SECTION.conclusion);
     await frame.getByRole("radiogroup", { name: "Conclusion" }).getByRole("radio", { name: "PASSED" }).tap();
     await frame.getByRole("textbox", { name: "Date", exact: true }).fill(REPORT.conclusion.date.iso);
-    const suggested = frame.getByRole("region", { name: "Suggested result" });
+    const suggested = frame.getByRole("region", { name: "Suggested Result" });
     // Failed on the pill, as on every result pill; the template's FAILED stays with the choice and its warning.
     await check(suggested.locator('[data-slot="status-pill"]'), EXPECTED.conclusion.check).toHaveText("Failed");
-    await check(suggested).toContainText(`Failed: ${SECTION.cartons}.`);
-    await check(suggested).toContainText(`Warnings: ${SECTION.weight}.`);
+    await check(suggested).toContainText(`Failed: ${SECTION.cartons}.`, ANY_CASE);
+    await check(suggested).toContainText(`Warnings: ${SECTION.weight}.`, ANY_CASE);
     await check(frame.getByText(`Conclusion PASSED differs from the suggestion, FAILED (failed: ${SECTION.cartons}). Explain why under Remark.`)).toBeVisible();
-    await check(frame.getByRole("textbox", { name: "Inspected by", exact: true }), EXPECTED.inspector.check).toHaveValue(inspectorName);
+    await check(frame.getByRole("textbox", { name: named("Inspected By") }), EXPECTED.inspector.check).toHaveValue(inspectorName);
     // The report is signed: the inspector signs on the pad with a finger (touch events, as on the iPad).
     if (REPORT.conclusion.signed) {
       const pad = frame.getByRole("group", { name: "Signature" });
@@ -806,9 +843,9 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     // the export keep each message in full (checked there).
     const needed = sheet.locator('[data-slot="needed-tasks"] [data-task]');
     await check(needed, "two errors block submit, one section each").toHaveCount(EXPECTED.errors.length);
-    await check(sheet.getByRole("button", { name: PENDING_ROW.cartons, exact: true })).toBeVisible();
-    await check(sheet.getByRole("button", { name: PENDING_ROW.box, exact: true })).toBeVisible();
-    await check(sheet.getByRole("button", { name: PENDING_ROW.weight, exact: true })).toBeVisible();
+    await check(sheet.getByRole("button", { name: named(PENDING_ROW.cartons) })).toBeVisible();
+    await check(sheet.getByRole("button", { name: named(PENDING_ROW.box) })).toBeVisible();
+    await check(sheet.getByRole("button", { name: named(PENDING_ROW.weight) })).toBeVisible();
     await shot(page, "15-pending-errors");
     await sheet.getByRole("button", { name: "Close" }).tap();
     await expect(sheet).toBeHidden();
@@ -836,17 +873,17 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await check(sheet.getByRole("alert")).toHaveText("2 items are needed before you can submit.");
     await shot(page, "17-submit-blocked");
     expect((await storedRow(id)).status, "still a draft").toBe("draft");
-    await sheet.getByRole("button", { name: PENDING_ROW.cartons, exact: true }).tap();
+    await sheet.getByRole("button", { name: named(PENDING_ROW.cartons) }).tap();
     await sectionReady(page, SECTION.cartons);
     const second = page.getByRole("textbox", { name: `M (Carton #), row ${FIX_CARTON.cell.row} column ${FIX_CARTON.cell.column}`, exact: true });
     await check(second, "the link lands on the second 525").toBeFocused();
   });
 
   await test.step("Correction 1: the second 525 becomes 830; the carton list passes", async () => {
-    const frame = frameOf(page);
+    const frame = frameOf(page, SECTION.cartons);
     await typeNumber(page, frame.getByRole("textbox", { name: `M (Carton #), row ${FIX_CARTON.cell.row} column ${FIX_CARTON.cell.column}`, exact: true }), FIX_CARTON.to);
-    await check(sectionStatus(page), "carton list once corrected").toHaveAttribute("data-status", "pass");
-    await check(sectionSummary(page)).toContainText(`Size M: ${EXPECTED.cartonList.entries} carton numbers, unique and between 1 and ${grouped(ORDER.qtyCases)}.`);
+    await check(sectionStatus(page, SECTION.cartons), "carton list once corrected").toHaveAttribute("data-status", "pass");
+    await check(sectionSummary(page, SECTION.cartons)).toContainText(`Size M: ${EXPECTED.cartonList.entries} carton numbers, unique and between 1 and ${grouped(ORDER.qtyCases)}.`);
     await check(frame.locator(".text-fail"), "no carton error left").toHaveCount(0);
     await shot(page, "18-cartons-corrected");
   });
@@ -859,10 +896,10 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await page.getByRole("button", { name: /^Pending/ }).tap();
     const sheet = page.getByRole("dialog", { name: "Pending" });
     await expect(sheet).toBeVisible();
-    await sheet.getByRole("button", { name: PENDING_ROW.box, exact: true }).tap();
+    await sheet.getByRole("button", { name: named(PENDING_ROW.box) }).tap();
     await sectionReady(page, SECTION.packingCheck);
     const { dispensingBox } = EXPECTED;
-    await frameOf(page).getByRole("combobox", { name: `Box #, Item ${dispensingBox.item}`, exact: true }).tap();
+    await frameOf(page, SECTION.packingCheck).getByRole("combobox", { name: `Box #, Item ${dispensingBox.item}`, exact: true }).tap();
     const list = page.getByRole("dialog", { name: new RegExp(`^Box #, Item ${dispensingBox.item}: carton list for size M`) });
     await expect(list).toBeVisible();
     await page.waitForTimeout(1_000);
@@ -891,19 +928,22 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await check(box).toHaveText(String(FIX_BOX.to));
     await check(box).not.toHaveAttribute("aria-invalid", "true");
     await check(frame.locator('[role="combobox"][aria-invalid="true"]'), "no box outside the list").toHaveCount(0);
-    await check(sectionStatus(page), EXPECT_DISPENSING.check).toHaveAttribute("data-status", EXPECT_DISPENSING.status);
+    await check(sectionStatus(page, SECTION.packingCheck), EXPECT_DISPENSING.check).toHaveAttribute("data-status", EXPECT_DISPENSING.status);
   });
 
   await test.step("Conclusion once corrected: the app suggests PASSED, with the weight warning", async () => {
     const frame = await openTab(page, SECTION.conclusion);
-    const suggested = frame.getByRole("region", { name: "Suggested result" });
+    const suggested = frame.getByRole("region", { name: "Suggested Result" });
     await check(suggested.locator('[data-slot="status-pill"]'), EXPECTED.conclusion.check).toHaveText("Passed");
-    await check(suggested).toContainText(`Warnings: ${SECTION.weight}.`);
+    await check(suggested).toContainText(`Warnings: ${SECTION.weight}.`, ANY_CASE);
     await check(suggested).not.toContainText("Failed:");
     await check(frame.getByText(/differs from the suggestion/)).toHaveCount(0);
-    await check(sectionStatus(page)).toHaveAttribute("data-status", "pass");
-    await check(sectionSummary(page)).toContainText(`Conclusion: PASSED. Suggested result: PASSED (warnings: ${SECTION.weight}).`);
-    await check(sectionSummary(page), "signed").not.toContainText("Not signed.");
+    await check(sectionStatus(page, SECTION.conclusion)).toHaveAttribute("data-status", "pass");
+    await check(sectionSummary(page, SECTION.conclusion)).toContainText(
+      `Conclusion: PASSED. Suggested Result: PASSED (warnings: ${SECTION.weight}).`,
+      ANY_CASE,
+    );
+    await check(sectionSummary(page, SECTION.conclusion), "signed").not.toContainText("Not signed.");
     await waitSaved(page);
     await shot(page, "20-conclusion-passed");
 
@@ -918,7 +958,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     const sheet = page.getByRole("dialog", { name: "Pending" });
     await check(sheet.locator('[data-slot="needed-tasks"]'), "nothing needed before submit").toHaveCount(0);
     await check(sheet.locator("[data-task]"), "only the weight warning").toHaveCount(EXPECTED.warnings.length);
-    await check(sheet.getByRole("button", { name: PENDING_ROW.weight, exact: true })).toBeVisible();
+    await check(sheet.getByRole("button", { name: named(PENDING_ROW.weight) })).toBeVisible();
     await shot(page, "21-pending-warning-only");
     await sheet.getByRole("button", { name: "Close" }).tap();
     await expect(sheet).toBeHidden();
@@ -950,7 +990,8 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     const moduleRow = (key: string) => page.locator(`li[data-module="${key}"]`);
     const sizeLine = (key: string) => moduleRow(key).locator(`li[data-size="${SIZE}"]`);
     await check(moduleRow("order_lots"), EXPECTED.totals.check).toContainText(
-      `Total # carton ${grouped(EXPECTED.totals.cartons)}; Total # gloves ${grouped(EXPECTED.totals.gloves)}.`,
+      `Total # Carton ${grouped(EXPECTED.totals.cartons)}; Total # Gloves ${grouped(EXPECTED.totals.gloves)}.`,
+      ANY_CASE,
     );
     const statuses: [string, string][] = [
       ["header", "info"],
@@ -976,7 +1017,8 @@ test("the STD_EG example entered on the iPad gives every expected result", async
       `Critical Defects ${EXPECT_CRITICAL.found} / ${EXPECT_CRITICAL.n}, Defect Limit ${EXPECT_CRITICAL.accept} / ${EXPECT_CRITICAL.reject}: Passed`,
     );
     await check(sizeLine("visual"), EXPECT_MAJOR.check).toContainText(
-      `Major Defects ${EXPECT_MAJOR.found} / ${EXPECT_MAJOR.n} (Thin area between fingers (crotch) 2, Thin area on glove body 1, Thin spot on glove body 5), Defect Limit ${EXPECT_MAJOR.accept} / ${EXPECT_MAJOR.reject}: Passed`,
+      `Major Defects ${EXPECT_MAJOR.found} / ${EXPECT_MAJOR.n} (Thin Area Between Fingers (Crotch) 2, Thin Area on Glove Body 1, Thin Spot on Glove Body 5), Defect Limit ${EXPECT_MAJOR.accept} / ${EXPECT_MAJOR.reject}: Passed`,
+      ANY_CASE,
     );
     await check(sizeLine("visual"), EXPECT_MINOR.check).toContainText(
       `Minor Defects ${EXPECT_MINOR.found} / ${EXPECT_MINOR.n}, Defect Limit ${EXPECT_MINOR.accept} / ${EXPECT_MINOR.reject}: Passed`,
