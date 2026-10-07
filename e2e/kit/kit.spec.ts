@@ -231,7 +231,7 @@ test("Safedon's box switcher holds at either end and keeps the focus", async ({ 
   const frame = await openModule(page, "dispensing_safedon");
   const switcher = frame.locator('[data-slot="column-switcher"]');
   if (isDesktop()) {
-    // From 1280 px every box sits side by side: no switcher.
+    // The desktop layout (1280 px and wider with a mouse) shows every box side by side: no switcher.
     await expect(switcher).toBeHidden();
     return;
   }
