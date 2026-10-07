@@ -501,6 +501,8 @@ export type Database = {
           email: string | null
           full_name: string | null
           id: string
+          is_lead: boolean
+          lead_id: string | null
           role: Database["public"]["Enums"]["user_role"]
           signature_path: string | null
           updated_at: string
@@ -511,6 +513,8 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id: string
+          is_lead?: boolean
+          lead_id?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           signature_path?: string | null
           updated_at?: string
@@ -521,11 +525,21 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          is_lead?: boolean
+          lead_id?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           signature_path?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       templates: {
         Row: {
@@ -623,6 +637,10 @@ export type Database = {
       }
       is_active: { Args: Record<PropertyKey, never>; Returns: boolean }
       is_admin: { Args: Record<PropertyKey, never>; Returns: boolean }
+      is_lead: { Args: Record<PropertyKey, never>; Returns: boolean }
+      leads: { Args: { inspector: string }; Returns: boolean }
+      leads_ai_review: { Args: { ai_review_id: string }; Returns: boolean }
+      leads_inspection: { Args: { inspection_id: string }; Returns: boolean }
       log_inspection_event: {
         Args: { action: string; changes?: Json; inspection_id: string }
         Returns: number
@@ -631,9 +649,12 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: {
           active: boolean
+          is_lead: boolean
+          lead_id: string
           role: Database["public"]["Enums"]["user_role"]
         }[]
       }
+      my_team: { Args: Record<PropertyKey, never>; Returns: string[] }
       storage_folder_uuid: { Args: { object_name: string }; Returns: string }
       storage_inspection_id: { Args: { object_name: string }; Returns: string }
     }

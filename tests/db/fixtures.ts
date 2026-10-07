@@ -64,6 +64,21 @@ export async function activate(db: Db, userId: string): Promise<void> {
   await asService(db, (tx) => tx.query("update public.profiles set active = true where id = $1", [userId]));
 }
 
+/**
+ * A lead inspector (migration 20261007170000), active and set up by the
+ * owner, as Kenneth would in the SQL editor. Their team starts empty.
+ */
+export async function createLead(db: Db, email: string, fullName: string): Promise<string> {
+  const id = await createAuthUser(db, { email, fullName });
+  await asOwner(db, (tx) => tx.query("update public.profiles set is_lead = true where id = $1", [id]));
+  return id;
+}
+
+/** Puts an inspector in a lead inspector's team (or takes them out with null), as the owner. */
+export async function assignLead(db: Db, inspectorId: string, leadId: string | null): Promise<void> {
+  await asOwner(db, (tx) => tx.query("update public.profiles set lead_id = $2 where id = $1", [inspectorId, leadId]));
+}
+
 export async function createPeople(db: Db): Promise<People> {
   const admin = await createAuthUser(db, { email: "admin@test.local", fullName: "Ada Admin" });
   await promoteToAdmin(db, admin);

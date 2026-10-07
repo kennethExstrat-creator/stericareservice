@@ -6,6 +6,7 @@ import {
   addPhoto,
   addReview,
   createInspection,
+  createLead,
   createPeople,
   createTemplate,
   promoteToAdmin,
@@ -78,7 +79,7 @@ describe("deactivated users, new accounts and anon", { timeout: 30_000 }, () => 
     const flags = await asUser(db, secondAdmin, (tx) =>
       tx.query("select public.is_admin() as admin, public.is_active() as active"),
     );
-    expect(status.rows).toEqual([{ active: false, role: "admin" }]);
+    expect(status.rows).toEqual([{ active: false, role: "admin", is_lead: false, lead_id: null }]);
     expect(flags.rows).toEqual([{ admin: false, active: false }]);
   });
 
@@ -147,7 +148,7 @@ describe("deactivated users, new accounts and anon", { timeout: 30_000 }, () => 
     // creates: the raw trigger result, before anyone activates it.
     const stranger = await createAuthUser(db, { email: "stranger@example.com", active: false });
     const status = await asUser(db, stranger, (tx) => tx.query("select * from public.my_profile_status()"));
-    expect(status.rows).toEqual([{ active: false, role: "inspector" }]);
+    expect(status.rows).toEqual([{ active: false, role: "inspector", is_lead: false, lead_id: null }]);
     expect(await asUser(db, stranger, everythingVisible)).toEqual(nothing);
 
     const insert = await pgError(createInspection(db, stranger, templateId));
@@ -173,8 +174,10 @@ describe("deactivated users, new accounts and anon", { timeout: 30_000 }, () => 
   });
 
   it("lets a reactivated inspector back in", async () => {
+    // An admin activates an inspector into a lead inspector's team (migration 20261007170000).
+    const lead = await createLead(db, "lead@test.local", "Lina Lead");
     await asUser(db, people.admin, (tx) =>
-      tx.query("update public.profiles set active = true where id = $1", [people.inspector]),
+      tx.query("update public.profiles set active = true, lead_id = $2 where id = $1", [people.inspector, lead]),
     );
     const own = await asUser(db, people.inspector, (tx) => column<string>(tx, "select id from public.inspections"));
     expect(own).toEqual([inspection.id]);
