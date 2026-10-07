@@ -3,15 +3,32 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { FileWarningIcon } from "lucide-react";
+import { PhotoQueueProvider } from "@/components/capture/photos";
 import { StatusScreen } from "@/components/shell/status-screen";
 import { Button } from "@/components/ui/button";
 import { HOME_PATH } from "@/lib/auth/routes";
 import { requireUser } from "@/lib/auth/session";
 import { captureAccess } from "@/lib/inspections/capture/access";
+import { loadDefectUsage, type DefectUsage } from "@/lib/inspections/capture/defect-usage";
 import { loadCaptureInspection, loadOverrideAuthors } from "@/lib/inspections/capture/load";
+import { loadReopenNote } from "@/lib/inspections/capture/reopen";
 import { readSectionParam } from "@/lib/inspections/capture/schemas";
+import { personLabel } from "@/lib/inspections/format";
 import { createClient } from "@/lib/supabase/server";
 import { CaptureScreen } from "./_components/capture-screen";
+
+/**
+ * Server Actions on this page run as long as the page may: submit starts
+ * the AI second opinion when the template asks for it, and the review is
+ * written in after() inside that action; Claude may take up to 10 minutes
+ * at AI_REVIEW_EFFORT high, the default (docs/AI.md). 800 seconds is the
+ * most Vercel allows a function on Pro, as on the review page. A literal,
+ * as Next reads it.
+ */
+export const maxDuration = 800;
+
+/** Modules whose rows are defect codes, ordered most-used first (BUILD_SPEC 8). */
+const DEFECT_MODULES = ["watertight", "visual"];
 
 /** One read per request, shared by the title and the page. RLS decides whether it exists for this user. */
 const loadInspection = cache(async (id: string) => loadCaptureInspection(await createClient(), id));
@@ -32,7 +49,9 @@ export async function generateMetadata({ params }: PageProps<"/inspections/[id]"
 /**
  * The capture screen (BUILD_SPEC 8 and 10): the inspection, the exact
  * template version it started with (templates.resolved) and its module
- * overrides, read on the server through the user's own client.
+ * overrides, read on the server through the user's own client. With them:
+ * why it was reopened, when it was, and how often each defect was counted
+ * before, so the defect lists open on the most-used ones.
  */
 export default async function CapturePage({ params, searchParams }: PageProps<"/inspections/[id]">) {
   const user = await requireUser();
@@ -59,9 +78,30 @@ export default async function CapturePage({ params, searchParams }: PageProps<"/
   }
 
   const { inspection } = loaded;
-  const [authors, query] = await Promise.all([
-    loadOverrideAuthors(await createClient(), inspection.overrides),
+  const supabase = await createClient();
+  const inspectorName = inspection.meta.inspector?.name ?? "Inspector";
+  const countsDefects = inspection.template.resolved.modules.some((entry) => entry.include && DEFECT_MODULES.includes(entry.key));
+  const [authors, query, reopen, defectUsage] = await Promise.all([
+    loadOverrideAuthors(supabase, inspection.overrides),
     searchParams,
+    loadReopenNote(
+      supabase,
+      { id: inspection.id, status: inspection.status },
+      { id: user.id, role: user.role },
+      {
+        viewerId: user.id,
+        viewerName: personLabel({ full_name: user.fullName, email: user.email }) ?? "You",
+        inspectorId: inspection.inspectorId,
+        inspectorName,
+      },
+    ),
+    countsDefects
+      ? loadDefectUsage(supabase, {
+          id: inspection.id,
+          clientId: inspection.meta.client?.id ?? null,
+          manufacturerId: inspection.meta.manufacturer?.id ?? null,
+        })
+      : Promise.resolve<DefectUsage>({}),
   ]);
   const access = captureAccess({
     status: inspection.status,
@@ -71,27 +111,32 @@ export default async function CapturePage({ params, searchParams }: PageProps<"/
   });
 
   return (
-    <CaptureScreen
-      inspectionId={inspection.id}
-      heading={{
-        refNo: inspection.refNo,
-        status: inspection.status,
-        templateName: inspection.template.resolved.name,
-        templateVersion: inspection.template.version,
-        clientName: inspection.meta.client?.name ?? null,
-        manufacturerLabel: inspection.manufacturerLabel,
-        inspectionDate: inspection.inspectionDate,
-        inspectorName: inspection.meta.inspector?.name ?? "Inspector",
-      }}
-      template={inspection.template.resolved}
-      meta={inspection.meta}
-      initialData={inspection.data}
-      initialUpdatedAt={inspection.updatedAt}
-      initialOverrides={inspection.overrides}
-      overrideAuthors={authors}
-      user={{ id: user.id, role: user.role }}
-      access={access}
-      initialSection={readSectionParam(query.module)}
-    />
+    // The page's upload queue starts for this user at once, offline too (components/capture/photos).
+    <PhotoQueueProvider userId={user.id}>
+      <CaptureScreen
+        inspectionId={inspection.id}
+        heading={{
+          refNo: inspection.refNo,
+          status: inspection.status,
+          templateName: inspection.template.resolved.name,
+          templateVersion: inspection.template.version,
+          clientName: inspection.meta.client?.name ?? null,
+          manufacturerLabel: inspection.manufacturerLabel,
+          inspectionDate: inspection.inspectionDate,
+          inspectorName,
+        }}
+        template={inspection.template.resolved}
+        meta={inspection.meta}
+        initialData={inspection.data}
+        initialUpdatedAt={inspection.updatedAt}
+        initialOverrides={inspection.overrides}
+        overrideAuthors={authors}
+        user={{ id: user.id, role: user.role }}
+        access={access}
+        initialSection={readSectionParam(query.module)}
+        reopenNote={reopen}
+        defectUsage={defectUsage}
+      />
+    </PhotoQueueProvider>
   );
 }

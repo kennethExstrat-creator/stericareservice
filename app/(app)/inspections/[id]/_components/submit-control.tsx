@@ -2,12 +2,16 @@
 
 // Submit (BUILD_SPEC 6.2, 8 and 8.1). With errors on screen the button opens
 // the issues panel instead: errors block submit, each with a link. Without,
-// it asks for confirmation; confirming waits for photos to finish
-// uploading, saves what is not saved yet, and asks the server to move the
+// it asks for confirmation. While photos or files wait on this device the
+// confirmation says so and cannot be given (8.1: submit is blocked until the
+// queue is empty); confirming checks the queue once more, other tabs
+// included, saves what is not saved yet, and asks the server to move the
 // inspection to submitted, which checks the saved data once more and opens
 // the review.
 import { useActionState, useState } from "react";
-import { OctagonXIcon, SendIcon } from "lucide-react";
+import { unstable_rethrow } from "next/navigation";
+import { CloudUploadIcon, OctagonXIcon, SendIcon } from "lucide-react";
+import { refreshInspectionMedia } from "@/components/capture/photos";
 import { StatusPill } from "@/components/qc";
 import {
   AlertDialog,
@@ -51,6 +55,8 @@ type SubmitControlProps = {
   prepare: () => Promise<SubmitPreparation>;
   /** Submit was refused for errors (on screen, or found by the server in the saved data). */
   onBlocked: (blocked: SubmitBlocked) => void;
+  /** Why photos or files on this device hold the submit up ("Waiting for 2 photos to upload."); null when nothing does. */
+  uploadsWaiting: string | null;
   disabled?: boolean;
   className?: string;
 };
@@ -65,6 +71,7 @@ export function SubmitControl({
   suggested,
   prepare,
   onBlocked,
+  uploadsWaiting,
   disabled = false,
   className,
 }: SubmitControlProps) {
@@ -73,7 +80,16 @@ export function SubmitControl({
   const [state, formAction, pending] = useActionState(async (): Promise<SubmitResult> => {
     const prepared = await prepare();
     if (!prepared.ok) return { status: "error", message: prepared.message };
-    const result = await submitInspection({ inspectionId, dataHash: prepared.dataHash }).catch(unreachable);
+    const result = await submitInspection({ inspectionId, dataHash: prepared.dataHash }).catch((error: unknown) => {
+      try {
+        unstable_rethrow(error);
+      } catch (signal) {
+        // The redirect to the review: submitted. The page's photo store reads the inspection's new rights.
+        void refreshInspectionMedia(inspectionId);
+        throw signal;
+      }
+      return unreachable(error);
+    });
     if (result.status === "blocked") {
       setOpen(false);
       onBlocked({ message: result.message, errors: result.errors, overrides: result.overrides });
@@ -141,6 +157,16 @@ export function SubmitControl({
                 </div>
               )}
             </dl>
+            {uploadsWaiting && !pending && (
+              <p
+                role="status"
+                data-slot="submit-uploads"
+                className="flex items-start gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm font-medium text-brand-700 touch:text-base"
+              >
+                <CloudUploadIcon aria-hidden className="mt-0.5 size-4 shrink-0 touch:mt-1" />
+                <span>{uploadsWaiting}</span>
+              </p>
+            )}
             {state.status === "error" && (
               <p role="alert" className="flex items-start gap-2 text-sm font-medium text-fail touch:text-base">
                 <OctagonXIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
@@ -149,7 +175,11 @@ export function SubmitControl({
             )}
             <AlertDialogFooter>
               <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
-              <Button type="submit" disabled={pending} className={cn(pending && "cursor-progress")}>
+              <Button
+                type="submit"
+                disabled={pending || uploadsWaiting !== null}
+                className={cn(pending && "cursor-progress")}
+              >
                 {pending ? <Spinner aria-hidden /> : <SendIcon aria-hidden />}
                 {pending ? "Submitting…" : "Submit for review"}
               </Button>
