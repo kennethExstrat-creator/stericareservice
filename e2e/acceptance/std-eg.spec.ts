@@ -384,7 +384,8 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await page.getByRole("radio", { name: /^Examination Gloves/ }).tap();
     await expect(page.getByTestId("chosen-template")).toHaveAttribute("data-code", EXPECTED.template);
     await check(page.getByTestId("choice-reason")).toHaveText("Standard Template for Examination Gloves");
-    await check(page.getByTestId("chosen-template")).toContainText("STD_EG Version 1 · EN 455");
+    // Whichever version is live: seed:templates adds a new one when the bundle changes.
+    await check(page.getByTestId("chosen-template")).toContainText(/STD_EG Version \d+ · EN 455/);
     await check(page.getByTestId("chosen-template")).toContainText("XS, S, M, L, XL (pieces)");
     await page.getByRole("textbox", { name: /Product Name/ }).fill(REPORT.header.productName);
     await shot(page, "01-new");

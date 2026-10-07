@@ -190,7 +190,11 @@ test("the inspector starts it on /inspections/new: the SAFEDON_EG client at the 
   await expect(chosen).toContainText(`SAFEDON_EG Version ${live.version} · ASTM D6319`);
   await expect(chosen).toContainText("XS, S, M, L, XL (pieces)");
   await expect(page.getByTestId("choice-reason")).toHaveText(`For ${names.client}`);
-  await expect(page.getByRole("radio", { name: "Start Blank" })).toBeChecked();
+  // Start Blank is chosen when there are earlier inspections to copy from; with none, the card says so.
+  const startBlank = page.getByRole("radio", { name: "Start Blank" });
+  const noneEarlier = page.getByText(/^No earlier inspections of yours for this client/);
+  await expect(startBlank.or(noneEarlier)).toBeVisible();
+  if (await startBlank.isVisible()) await expect(startBlank).toBeChecked();
   await page.getByRole("textbox", { name: /Product Name/ }).fill(HEADER.productName);
   await shot(page, "01-new");
   await press(page.getByRole("button", { name: "Create Inspection" }));
