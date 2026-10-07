@@ -31,7 +31,8 @@ import {
  *     mid-entry, the inspector keeps typing, the pill says offline, and once
  *     it is back the server has every value; a tab closed while offline keeps
  *     them too, and (c3) a section never opened before the connection dropped
- *     still shows its form offline (ACC-SGF-1, fixed).
+ *     still shows its form offline (ACC-SGF-1, fixed), and one whose form did
+ *     not arrive opens by itself once the connection is back.
  *
  * The inspector works on the iPad in landscape; the admin on a desktop
  * (1440 x 900) in a second browser context. One sign-in per role per run:
@@ -790,17 +791,21 @@ test("(c2) a tab closed while offline keeps what was typed: opened again online,
 /**
  * Follows the page's script downloads from before it opens, so `settled` can wait for the
  * capture screen to download every section's form: it asks for them once it is idle, at the
- * latest 2 s after it opens (capture-screen.tsx, preloadCaptures).
+ * latest 2 s after it opens (capture-screen.tsx, preloadCaptures). `downloaded` keeps the
+ * address of every script that arrived.
  */
 function trackScripts(page: Page) {
   const loading = new Set<Request>();
+  const downloaded = new Set<string>();
   page.on("request", (request) => {
     if (request.resourceType() === "script") loading.add(request);
   });
-  const done = (request: Request) => loading.delete(request);
-  page.on("requestfinished", done);
-  page.on("requestfailed", done);
+  page.on("requestfinished", (request) => {
+    if (loading.delete(request)) downloaded.add(request.url());
+  });
+  page.on("requestfailed", (request) => loading.delete(request));
   return {
+    downloaded,
     async settled() {
       await page.waitForTimeout(2_500);
       await expect.poll(() => loading.size, { message: "every section's form is downloaded", timeout: 20_000 }).toBe(0);
@@ -808,21 +813,56 @@ function trackScripts(page: Page) {
   };
 }
 
-test("(c3) a section not opened before the signal dropped opens offline: the screen has every section's form", async ({
+/** Words only the labelling form has (modules/labeling/Capture.tsx): how its script is found. */
+const LABELING_FORM_WORDS = "This template inspects no labelling level.";
+
+/**
+ * The scripts among `urls` whose code has `words`. A production build names its scripts by
+ * hash, not by module as the dev server does (formCode in e2e/capture/final.spec.ts), so a
+ * form's script is found by what it says.
+ */
+async function scriptsWith(page: Page, urls: Iterable<string>, words: string) {
+  const found: string[] = [];
+  for (const url of urls) {
+    const response = await page.request.get(url);
+    if ((await response.text()).includes(words)) found.push(url);
+  }
+  return found;
+}
+
+test("(c3) a section not opened before the signal dropped opens offline, and one whose form did not arrive opens by itself once it is back", async ({
   page,
   context,
   baseURL,
 }) => {
   // ACC-SGF-1, fixed: the capture screen downloads every section's form soon after it opens
   // (capture-screen.tsx, preloadCaptures), so a section opened for the first time offline shows
-  // its form, never "The form for ... could not be shown".
+  // its form, never "The form for ... could not be shown". A form whose download failed says so
+  // calmly and opens by itself once the connection is back (section-error-boundary.tsx). Try
+  // again, and a download that fails online, are tested in e2e/capture/final.spec.ts.
   const fixture = flows!;
+  const capture = `/inspections/${fixture.inspectionId}?module=glove_info`;
   await useSession(page, baseURL!, inspectorCookies);
   const scripts = trackScripts(page);
-  await page.goto(`/inspections/${fixture.inspectionId}?module=glove_info`);
+
+  // Opened once with every form, to find the labelling form's script in this build.
+  await page.goto(capture);
+  await captureReady(page);
+  await scripts.settled();
+  const labelingForm = new Set(
+    (await scriptsWith(page, scripts.downloaded, LABELING_FORM_WORDS)).map((url) => new URL(url).pathname),
+  );
+  expect(labelingForm.size, "the labelling form's script is found").toBeGreaterThan(0);
+  console.log(`[c3] the labelling form's script: ${[...labelingForm].join(", ")}`);
+
+  // Opened again with that download failing like a dropped signal, the preload's too.
+  const refused = (url: URL) => labelingForm.has(url.pathname);
+  await page.route(refused, (route) => route.abort("internetdisconnected"));
+  await page.goto(capture);
   await captureReady(page);
   await scripts.settled();
   await context.setOffline(true);
+  const notice = panel(page).locator('[data-slot="section-not-loaded"]');
   try {
     // Neither section has been opened on this page: a counter form, then another.
     for (const title of [fixture.titles.visual, fixture.titles.watertight]) {
@@ -833,9 +873,23 @@ test("(c3) a section not opened before the signal dropped opens offline: the scr
       await expect(panel(page).getByText(/could not be shown/), `${title} shows its form offline`).toHaveCount(0);
       if (title === fixture.titles.visual) await shot(page, "c3-offline-section");
     }
+
+    // The labelling form never arrived: a calm notice, no red.
+    await openSection(page, fixture.titles.labeling);
+    await expect(notice).toHaveAttribute("data-failure", "offline", { timeout: 15_000 });
+    await expect(notice).toContainText("This section opens once the connection is back. Nothing is lost.");
+    await expect(panel(page).locator('[data-slot="section-crashed"]')).toHaveCount(0);
+    await shot(page, "c3-offline-not-arrived");
+    await page.unroute(refused);
   } finally {
     await context.setOffline(false);
   }
+
+  // Back online, it opens by itself.
+  await expect(notice).toHaveCount(0, { timeout: 30_000 });
+  await expect(panel(page).getByRole("button", { name: /^Record \d+ box(es)? inspected: .+, size M$/ }).first()).toBeVisible({
+    timeout: 30_000,
+  });
   await expect(panel(page).getByText(/could not be shown/)).toHaveCount(0);
 });
 
