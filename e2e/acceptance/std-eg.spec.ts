@@ -114,6 +114,16 @@ const BOX_ERROR = must(EXPECTED.errors.find((issue) => issue.module === "dispens
 const WEIGHT_WARNING = must(EXPECTED.warnings.find((issue) => issue.module === "weight"), "weight warning");
 const { duplicateCarton: FIX_CARTON, strayBox: FIX_BOX } = EXPECTED.corrections;
 
+/**
+ * The Pending panel's rows for the two errors and the warning: one row per section, its title
+ * (a closing bracket left out) over a few words and the size, named in full for screen readers.
+ */
+const PENDING_ROW = {
+  cartons: "Finished Goods Sampling Information: Carton entered twice: M. Needed before you submit.",
+  box: `${SECTION.packingCheck}: Box not in the carton list: M. Needed before you submit.`,
+  weight: `${SECTION.weight}: Weight differs from indicative: M.`,
+} as const;
+
 /** The carton numbers as entered, row by row, the duplicate kept. */
 const CARTONS_ENTERED = CARTON_ROWS.flat();
 /** The carton list once the second 525 is corrected. */
@@ -134,6 +144,14 @@ function readingsWithMedian(value: number, n = 13): number[] {
 
 /** "5,800,000", as the screen groups thousands. */
 const grouped = (value: number) => value.toLocaleString("en-US");
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "2025-04-11" as the screens write a day in words: "11 Apr 2025". */
+function dayInWords(iso: string) {
+  const [year, month, day] = iso.split("-").map(Number);
+  return `${day} ${MONTHS[month - 1]} ${year}`;
+}
 
 function escapeRegExp(text: string) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -377,8 +395,9 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await frame.getByLabel("Manufacturing date", { exact: true }).fill(REPORT.header.mfgDate.iso);
     await frame.getByLabel("Expiry date", { exact: true }).fill(REPORT.header.expiryDate.iso);
     await check(sectionStatus(page)).toHaveAttribute("data-status", "info");
+    // The summary writes the day in words, as the rest of the app does.
     await check(sectionSummary(page)).toContainText(
-      `${REPORT.header.po.printed}: ${REPORT.header.productName}; ${HARTALEGA.label}; Inspection date ${REPORT.header.inspectionDate.iso}.`,
+      `${REPORT.header.po.printed}: ${REPORT.header.productName}; ${HARTALEGA.label}; Inspection date ${dayInWords(REPORT.header.inspectionDate.iso)}.`,
     );
     await shot(page, "02-header");
   });
@@ -783,11 +802,13 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await page.getByRole("button", { name: /^Pending/ }).tap();
     const sheet = page.getByRole("dialog", { name: "Pending" });
     await expect(sheet).toBeVisible();
-    const needed = sheet.locator('[data-slot="needed-tasks"] [data-issue]');
-    await check(needed, "two errors block submit").toHaveCount(EXPECTED.errors.length);
-    await check(sheet.getByRole("button", { name: `${SECTION.cartons}: Size M: ${CARTON_ERROR.message} Needed before you submit.` })).toBeVisible();
-    await check(sheet.getByRole("button", { name: `${SECTION.packingCheck}: ${BOX_ERROR.message} Needed before you submit.` })).toBeVisible();
-    await check(sheet.getByRole("button", { name: `${SECTION.weight}: ${WEIGHT_WARNING.message}` })).toBeVisible();
+    // One short row per section, named in full for screen readers; the section, the review and
+    // the export keep each message in full (checked there).
+    const needed = sheet.locator('[data-slot="needed-tasks"] [data-task]');
+    await check(needed, "two errors block submit, one section each").toHaveCount(EXPECTED.errors.length);
+    await check(sheet.getByRole("button", { name: PENDING_ROW.cartons, exact: true })).toBeVisible();
+    await check(sheet.getByRole("button", { name: PENDING_ROW.box, exact: true })).toBeVisible();
+    await check(sheet.getByRole("button", { name: PENDING_ROW.weight, exact: true })).toBeVisible();
     await shot(page, "15-pending-errors");
     await sheet.getByRole("button", { name: "Close" }).tap();
     await expect(sheet).toBeHidden();
@@ -815,10 +836,15 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await check(sheet.getByRole("alert")).toHaveText("2 items are needed before you can submit.");
     await shot(page, "17-submit-blocked");
     expect((await storedRow(id)).status, "still a draft").toBe("draft");
-    await sheet.getByRole("button", { name: new RegExp(`^${escapeRegExp(SECTION.cartons)}: Size M: ${escapeRegExp(CARTON_ERROR.message)}`) }).tap();
+    await sheet.getByRole("button", { name: PENDING_ROW.cartons, exact: true }).tap();
     await sectionReady(page, SECTION.cartons);
     const second = page.getByRole("textbox", { name: `M (Carton #), row ${FIX_CARTON.cell.row} column ${FIX_CARTON.cell.column}`, exact: true });
     await check(second, "the link lands on the second 525").toBeFocused();
+    // An issue link checks 700 ms on that its section has the focus, and gives it to the section
+    // title if not (capture-screen.tsx, goToIssue). At the spec's speed that check would land
+    // while the box list opened below is open, and close it: an inspector reads the cell first.
+    await page.waitForTimeout(1_000);
+    await check(second, "the cell keeps the focus").toBeFocused();
   });
 
   await test.step("Correction 1: the second 525 becomes 830; the carton list passes", async () => {
@@ -876,8 +902,8 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await pending.tap();
     const sheet = page.getByRole("dialog", { name: "Pending" });
     await check(sheet.locator('[data-slot="needed-tasks"]'), "nothing needed before submit").toHaveCount(0);
-    await check(sheet.locator("[data-issue]"), "only the weight warning").toHaveCount(EXPECTED.warnings.length);
-    await check(sheet.getByRole("button", { name: `${SECTION.weight}: ${WEIGHT_WARNING.message}` })).toBeVisible();
+    await check(sheet.locator("[data-task]"), "only the weight warning").toHaveCount(EXPECTED.warnings.length);
+    await check(sheet.getByRole("button", { name: PENDING_ROW.weight, exact: true })).toBeVisible();
     await shot(page, "21-pending-warning-only");
     await sheet.getByRole("button", { name: "Close" }).tap();
     await expect(sheet).toBeHidden();
