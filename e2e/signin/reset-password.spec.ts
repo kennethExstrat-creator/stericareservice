@@ -129,7 +129,8 @@ test("an invite link: welcome, then set a password", async ({ page, accounts }, 
 test("a password sign-in is sent to the email link instead", async ({ page, context, baseURL }, testInfo) => {
   // The app's own screens set passwords only from an email link. This is UI
   // hardening: Supabase Auth would still take a change from this session.
-  await signIn(context, baseURL!, TEST_ACCOUNTS.inspector);
+  // A session of its own: the test signs it out, which revokes it for anyone sharing it (E2E_SESSION_CACHE).
+  await signIn(context, baseURL!, TEST_ACCOUNTS.inspector, undefined, { fresh: true });
   await open(page, "/reset-password?flow=recovery");
 
   await expect(page.getByRole("heading", { level: 1, name: "Use your email link" })).toBeVisible();
