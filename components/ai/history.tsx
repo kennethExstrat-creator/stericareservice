@@ -76,7 +76,7 @@ function HistoryEntry({ review, canDecide, viewerId }: { review: ReviewModel; ca
               />
             ))}
             {review.questions.length > 0 && (
-              <ul className="space-y-2" aria-label="Questions for the inspector">
+              <ul className="space-y-2" aria-label="Questions for the Inspector">
                 {review.questions.map((question) => (
                   <QuestionItem key={question.id} question={question} />
                 ))}
