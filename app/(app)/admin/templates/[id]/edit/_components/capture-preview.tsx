@@ -81,7 +81,7 @@ export function CapturePreview({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="grid gap-1">
           <h2 id="preview-heading" className="text-lg font-bold text-foreground">
-            Capture preview
+            Capture Preview
           </h2>
           <p className="max-w-2xl text-sm text-muted-foreground">
             What inspectors see, with nothing entered. Read only; it follows your changes before they are saved.
@@ -90,7 +90,7 @@ export function CapturePreview({
         <div className="flex items-center gap-3">
           <Switch id="preview-every-size" checked={everySize} onCheckedChange={setEverySize} />
           <Label htmlFor="preview-every-size" className="font-normal">
-            Show every size as ordered
+            Show Every Size as Ordered
           </Label>
         </div>
       </div>

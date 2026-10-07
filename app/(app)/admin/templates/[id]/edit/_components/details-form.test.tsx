@@ -40,7 +40,7 @@ function render(draft: Draft, { bases = [], problems = [] }: { bases?: TemplateD
     sizes: [{ value: "M", label: "M" }],
     defectCodes: [],
     scopeOptions: { clients: [], manufacturers: [] },
-    resetLabel: inheritance.bases[0] ? `Use ${inheritance.bases[0].code}'s` : "Use default",
+    resetLabel: inheritance.bases[0] ? `Use ${inheritance.bases[0].code}'s` : "Use Default",
   };
   const html = renderToStaticMarkup(<DetailsForm api={api} />);
   const section = html.slice(html.indexOf('data-testid="template-ai"'), html.indexOf('data-testid="template-scope"'));
@@ -53,7 +53,7 @@ describe("DetailsForm: AI second opinion on submit", () => {
     const { section, control } = render(definition("OWN_EG"));
     expect(control).toContain('role="switch"');
     expect(control).toContain('aria-checked="false"');
-    expect(section).toContain("AI second opinion on submit");
+    expect(section).toContain("AI Second Opinion on Submit");
     expect(section).toContain("Off unless switched on here.");
     expect(section).not.toContain("Changed");
   });
@@ -72,7 +72,7 @@ describe("DetailsForm: AI second opinion on submit", () => {
     const { section, control } = render(child, { bases: [base] });
     expect(control).toContain('aria-checked="false"');
     expect(section).toContain("Changed");
-    expect(section).toContain("aria-label=\"Use BASE_EG&#x27;s: AI second opinion on submit\"");
+    expect(section).toContain("aria-label=\"Use BASE_EG&#x27;s: AI Second Opinion on Submit\"");
     expect(section).toContain("BASE_EG has it on.");
   });
 

@@ -26,11 +26,11 @@ import type { EditorProblem } from "../_lib/problems";
 import type { EditorApi } from "./editor-api";
 
 export const FIELD_TYPE_LABEL: Readonly<Record<FieldType, string>> = {
-  counter: "Count (tap + and −)",
+  counter: "Count (Tap + and −)",
   number: "Number",
   text: "Text",
-  textarea: "Long text",
-  select: "Choice from a list",
+  textarea: "Long Text",
+  select: "Choice from a List",
   yes_no: "Yes / No",
   date: "Date",
   photo: "Photo",
@@ -71,7 +71,7 @@ export function CustomModuleForm({
     .filter((key) => key !== "conclusion" || custom.after === "conclusion")
     .map((key) => {
       const view = moduleView(api.draft, api.context, key);
-      return { value: key, label: view.include ? view.title : `${view.title} (off)` };
+      return { value: key, label: view.include ? view.title : `${view.title} (Off)` };
     });
   const set = <K extends keyof CustomModule>(name: K, value: CustomModule[K] | undefined) => {
     const next = { ...custom } as Record<string, unknown>;
@@ -256,7 +256,7 @@ export function CustomModuleForm({
               }}
             >
               <PlusIcon aria-hidden />
-              Add field
+              Add Field
             </Button>
           </div>
         )}

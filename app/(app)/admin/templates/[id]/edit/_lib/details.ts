@@ -24,22 +24,22 @@ export const DetailsSchema = z.strictObject({
     .min(1)
     .meta({ title: "Sizes", description: "The sizes this template offers, in order. Order lots picks from them." }),
   report: TemplateReportSchema.extend({
-    title: TemplateReportSchema.shape.title.meta({ title: "Report title" }),
-    showClientLogo: TemplateReportSchema.shape.showClientLogo.meta({ title: "Show the client's logo" }),
-    pageHeader: TemplateReportSchema.shape.pageHeader.meta({ title: "Header on later pages" }),
+    title: TemplateReportSchema.shape.title.meta({ title: "Report Title" }),
+    showClientLogo: TemplateReportSchema.shape.showClientLogo.meta({ title: "Show the Client's Logo" }),
+    pageHeader: TemplateReportSchema.shape.pageHeader.meta({ title: "Header on Later Pages" }),
   })
     .optional()
-    .meta({ title: "AI report", description: "For the report the AI writes from the export. Inherited when not set." }),
+    .meta({ title: "AI Report", description: "For the report the AI writes from the export. Inherited when not set." }),
 });
 
 /** The AI second opinion switch (BUILD_SPEC 9.2). */
-export const AI_ON_SUBMIT_LABEL = "AI second opinion on submit";
+export const AI_ON_SUBMIT_LABEL = "AI Second Opinion on Submit";
 
 /** Where the template applies (BUILD_SPEC 4.4). */
-export const SCOPE_HEADING = "Where it applies";
+export const SCOPE_HEADING = "Where It Applies";
 
 export const SCOPE_LABELS = {
-  productType: "Product type",
+  productType: "Product Type",
   standard: "Standard",
   clientId: "Client",
   manufacturerId: "Manufacturer",
@@ -48,7 +48,7 @@ export const SCOPE_LABELS = {
 export type ScopeKey = keyof typeof SCOPE_LABELS;
 
 /** What is fixed for a version: shown on the tab, changed only in the JSON tab. */
-export const FIXED_LABELS = { code: "Code", extends: "Base template" } as const;
+export const FIXED_LABELS = { code: "Code", extends: "Base Template" } as const;
 
 /** Template problems the Details tab shows; the rest belong to the JSON tab. */
 export function isDetailPath(path: FormPath): boolean {
@@ -57,7 +57,7 @@ export function isDetailPath(path: FormPath): boolean {
 
 /**
  * A path in the Details tab, named as the tab names it:
- * ["scope", "clientId"] -> ["Where it applies", "Client"],
+ * ["scope", "clientId"] -> ["Where It Applies", "Client"],
  * ["sizes", 1, "label"] -> ["Sizes", "Size 2", "Shown as"].
  */
 export function detailPathLabels(path: FormPath): string[] {

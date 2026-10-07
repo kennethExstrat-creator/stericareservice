@@ -204,11 +204,11 @@ export function scopeProblems(
 ): EditorProblem[] {
   const scope: Record<string, unknown> = isRecord(draft.scope) ? draft.scope : {};
   const checks = [
-    { key: "clientId", list: options.clients, message: "Not one of the clients: choose a client, or Any client." },
+    { key: "clientId", list: options.clients, message: "Not one of the clients: choose a client, or Any Client." },
     {
       key: "manufacturerId",
       list: options.manufacturers,
-      message: "Not one of the manufacturers: choose a manufacturer, or Any manufacturer.",
+      message: "Not one of the manufacturers: choose a manufacturer, or Any Manufacturer.",
     },
   ] as const;
   return checks.flatMap(({ key, list, message }) => {

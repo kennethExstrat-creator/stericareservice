@@ -94,7 +94,7 @@ function render(key: ModuleKey) {
     sizes: [{ value: "M", label: "M" }],
     defectCodes: [{ code: "hole_finger", name: "Finger", active: true }],
     scopeOptions: { clients: [], manufacturers: [] },
-    resetLabel: "Use default",
+    resetLabel: "Use Default",
   };
   return renderToStaticMarkup(<ConfigForm api={api} view={moduleView(draft, context, key)} />);
 }
@@ -116,7 +116,7 @@ describe("ConfigForm", () => {
     expect(note).toContain('href="/admin/defects?add=pin_hole&amp;name=Pin+hole"');
     expect(note).toContain('target="_blank"');
     expect(note).toContain('rel="noopener noreferrer"');
-    expect(note).toContain("Add pin_hole as a defect code");
+    expect(note).toContain("Add pin_hole as a Defect Code");
     expect(note).toContain('<span class="sr-only"> (opens in a new tab)</span>');
     // A known code has no note and no link.
     expect(html).not.toContain('data-unknown-code="hole_finger"');

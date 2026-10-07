@@ -173,7 +173,7 @@ describe("scopeProblems", () => {
     expect(problems).toEqual([
       expect.objectContaining({
         place: { area: "template", path: ["scope", "clientId"] },
-        message: "Not one of the clients: choose a client, or Any client.",
+        message: "Not one of the clients: choose a client, or Any Client.",
       }),
     ]);
     const malformed = { ...draft, scope: { ...draft.scope, clientId: "acme" } } as Draft;

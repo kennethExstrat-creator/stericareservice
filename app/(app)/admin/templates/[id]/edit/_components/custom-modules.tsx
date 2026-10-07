@@ -63,7 +63,7 @@ export function CustomModules({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="grid gap-1">
           <h2 id="custom-heading" tabIndex={-1} className="text-lg font-bold text-foreground outline-none">
-            Custom modules
+            Custom Modules
           </h2>
           <p className="max-w-2xl text-sm text-muted-foreground">
             Fields a source form has that no module captures. Each sits after a module of your choice, on the capture
@@ -73,7 +73,7 @@ export function CustomModules({
         {api.editable && views.length > 0 && (
           <Button type="button" variant="outline" onClick={add}>
             <PlusIcon aria-hidden />
-            Add custom module
+            Add Custom Module
           </Button>
         )}
       </div>
@@ -91,7 +91,7 @@ export function CustomModules({
             <EmptyContent>
               <Button type="button" onClick={add}>
                 <PlusIcon aria-hidden />
-                Add custom module
+                Add Custom Module
               </Button>
             </EmptyContent>
           )}
@@ -164,7 +164,7 @@ export function CustomModules({
                         }}
                       >
                         <CopyPlusIcon aria-hidden />
-                        Change it here
+                        Change It Here
                       </Button>
                     )
                   )}
@@ -224,7 +224,7 @@ function RemoveCustom({ title, onRemove }: { title: string; onRemove: () => void
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Keep it</AlertDialogCancel>
+          <AlertDialogCancel>Keep It</AlertDialogCancel>
           <AlertDialogAction
             onClick={() => {
               removed.current = true;

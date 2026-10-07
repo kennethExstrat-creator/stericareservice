@@ -42,6 +42,7 @@ export {
 export {
   fieldLabel,
   humanize,
+  humanizeValue,
   itemLabel,
   numberRange,
   optionText,

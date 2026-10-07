@@ -72,7 +72,7 @@ export function JsonView({
       </div>
 
       <div className="grid gap-1.5">
-        <Label htmlFor="template-json">Template definition</Label>
+        <Label htmlFor="template-json">Template Definition</Label>
         <Textarea
           id="template-json"
           value={shown}
@@ -123,7 +123,7 @@ export function JsonView({
             </Button>
             <Button type="button" variant="outline" disabled={text === null} onClick={() => onTextChange(null)}>
               <Undo2Icon aria-hidden />
-              Undo JSON edits
+              Undo JSON Edits
             </Button>
           </>
         )}
