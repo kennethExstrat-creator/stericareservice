@@ -35,7 +35,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { STATUS_LABEL } from "@/lib/design/status";
 import { formatSize, formatSizeHand } from "@/lib/format";
-import { HANDS, labelFor, samplingFor, type CaptureProps, type Hand } from "@/modules/_framework";
+import { HANDS, initialSize, labelFor, samplingFor, type CaptureProps, type Hand } from "@/modules/_framework";
+import { ShownSizeReport } from "@/modules/_framework/shown-size";
 import type { WatertightComputed, WatertightConfig, WatertightData } from ".";
 import { aqlCaption, effectiveAql, effectiveLocations } from "./calc";
 import { OTHER_LOCATION } from "./config";
@@ -66,6 +67,7 @@ export default function WatertightCapture({
   evaluation,
   focusPath,
   readOnly,
+  focus,
   onChange,
   onFocusChange,
   defectUsage,
@@ -73,7 +75,8 @@ export default function WatertightCapture({
   const root = useRef<HTMLDivElement>(null);
   const update = useDataUpdater(data, onChange);
   const sizes = context.sizes;
-  const [chosen, setChosen] = useState(sizes[0] ?? "");
+  // Opens on the size chosen in the last module (CaptureProps.focus), else the first one ordered.
+  const [chosen, setChosen] = useState(() => initialSize(context, focus));
   const size = sizes.includes(chosen) ? chosen : (sizes[0] ?? "");
   const split = config.handSplit;
   const [view, setView] = useState<HandView>("both");
@@ -186,6 +189,8 @@ export default function WatertightCapture({
         }
       >
         <div className="space-y-4">
+          {/* The size on the tabs tags the photos taken now, while it is the only size on screen. */}
+          <ShownSizeReport sizes={sizes} onFocusChange={onFocusChange} />
           <EnterGroup className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[repeat(auto-fill,minmax(14rem,1fr))]">
             {sizes.map((entry) => (
               <TestedField

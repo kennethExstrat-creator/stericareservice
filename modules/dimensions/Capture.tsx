@@ -26,6 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { initialSize, labelFor, sizeLabel, type CaptureProps, type Labels, type ValidationIssue } from "@/modules/_framework";
+import { sizeOnTabs, useReportShownSize } from "@/modules/_framework/shown-size";
 import { rowsFor, specFor, type DimensionsComputed } from "./calc";
 import {
   cellPath,
@@ -48,6 +49,8 @@ export default function Capture(props: Props) {
   // Opens on the size chosen in the last module (CaptureProps.focus). SizeTabs shows the first
   // ordered size while this is not one (6.2 rule 4) and says so through show.
   const [size, setSize] = useState(() => initialSize(context, focus));
+  // The size on the tabs tags the photos taken now (BUILD_SPEC 8.1), from the moment the section opens.
+  useReportShownSize(sizeOnTabs(context.sizes, size), onFocusChange);
 
   const show = (next: string) => {
     setSize(next);

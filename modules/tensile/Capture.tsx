@@ -10,7 +10,7 @@
 // is the template's (6.2 rule 11); verdicts are computed, never typed. Every
 // write goes through useDataUpdater, from the latest data, so a pasted block
 // lands whole in one change (docs/CAPTURE_KIT.md).
-import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import {
   AttachmentStatus,
   EnterGroup,
@@ -23,6 +23,7 @@ import {
 } from "@/components/qc";
 import { fieldIssues, initialSize, labelFor, type CaptureProps } from "@/modules/_framework";
 import { ModuleFileSlot } from "@/modules/_framework/file-slot";
+import { useReportShownSize } from "@/modules/_framework/shown-size";
 import { formatMinimum, judgeAverage, labReportState, MEASURE_RULES, specCaption, type TensileOutcome } from "./calc";
 import { TENSILE_MEASURES } from "./config";
 import { withAverage, withLabReport, withoutLabReport } from "./edit";
@@ -48,11 +49,9 @@ export default function Capture({
   // A size taken out of the order falls back to the first one ordered.
   const size = context.sizes.includes(selected) ? selected : (context.sizes[0] ?? "");
 
-  // The size on screen tags the photos taken now (BUILD_SPEC 8.1).
-  const reportSize = useEffectEvent((shown: string) => onFocusChange?.({ size: shown }));
-  useEffect(() => {
-    if (size !== "") reportSize(size);
-  }, [size]);
+  // The size chosen tags the photos taken now (BUILD_SPEC 8.1), on the desktop too, where the
+  // sizes sit side by side and the one chosen is the one whose value was last in focus.
+  useReportShownSize(size, onFocusChange);
 
   useIssueFocus(focusPath, {
     root,

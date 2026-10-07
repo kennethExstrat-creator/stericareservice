@@ -35,7 +35,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { STATUS_LABEL } from "@/lib/design/status";
 import { formatSize } from "@/lib/format";
-import { HANDS, labelFor, samplingFor, type CaptureProps, type Hand, type Labels } from "@/modules/_framework";
+import { HANDS, initialSize, labelFor, samplingFor, type CaptureProps, type Hand, type Labels } from "@/modules/_framework";
+import { ShownSizeReport } from "@/modules/_framework/shown-size";
 import type { VisualComputed, VisualConfig, VisualData } from ".";
 import { classLabel, effectiveClasses } from "./calc";
 import {
@@ -64,6 +65,7 @@ export default function VisualCapture({
   evaluation,
   focusPath,
   readOnly,
+  focus,
   onChange,
   onFocusChange,
   defectUsage,
@@ -71,7 +73,8 @@ export default function VisualCapture({
   const root = useRef<HTMLDivElement>(null);
   const update = useDataUpdater(data, onChange);
   const sizes = context.sizes;
-  const [chosen, setChosen] = useState(sizes[0] ?? "");
+  // Opens on the size chosen in the last module (CaptureProps.focus), else the first one ordered.
+  const [chosen, setChosen] = useState(() => initialSize(context, focus));
   const size = sizes.includes(chosen) ? chosen : (sizes[0] ?? "");
   const split = config.handSplit;
   const [view, setView] = useState<HandView>("both");
@@ -126,6 +129,8 @@ export default function VisualCapture({
           ) : undefined
         }
       >
+        {/* The size on the tabs tags the photos taken now, while it is the only size on screen. */}
+        <ShownSizeReport sizes={sizes} onFocusChange={onFocusChange} />
         {/* One run: Enter goes from one class's gloves inspected to the next, and a pasted column fills them. */}
         <EnterGroup className="space-y-6">
           <div className="space-y-2 text-sm text-muted-foreground touch:text-base">

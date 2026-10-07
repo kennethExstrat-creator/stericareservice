@@ -7,26 +7,32 @@
 // stepped through with Previous and Next or by tapping the box's column
 // number; from 1280 px every box sits side by side, as on the sheet. The per
 // box "1/125" and rate, the size total "3 / 625 (0.48%)" and its result
-// against the maximum come from calc as you tap (rule 2). Every write goes
-// through useDataUpdater, starting from the latest data, so taps faster than
-// the screen renders all count (docs/CAPTURE_KIT.md).
-import { useRef, useState } from "react";
+// against the maximum come from calc as you tap (rule 2). A box that is not
+// in the carton list, and any other problem calc finds in a box, is listed
+// under the box pickers with a link to it: the picker itself only turns red.
+// Every write goes through useDataUpdater, starting from the latest data, so
+// taps faster than the screen renders all count (docs/CAPTURE_KIT.md).
+import { useRef, useState, type RefObject } from "react";
 import { PlusIcon } from "lucide-react";
 import {
   BoxPicker,
   ColumnSwitcher,
   CounterTable,
+  focusIssuePath,
   issuePathProps,
   ModuleSection,
   RequirementList,
   SizeTabs,
+  StatusIcon,
   useDataUpdater,
   useIssueFocus,
   type DataChange,
 } from "@/components/qc";
 import { Button } from "@/components/ui/button";
 import { formatRatio, formatRatioDecimal, formatSize } from "@/lib/format";
-import { cartonsFor, initialSize, labelFor, type CaptureProps } from "@/modules/_framework";
+import { cn } from "@/lib/utils";
+import { cartonsFor, initialSize, labelFor, type CaptureProps, type ValidationIssue } from "@/modules/_framework";
+import { sizeOnTabs, useReportShownSize } from "@/modules/_framework/shown-size";
 import type { DispensingSafedonComputed, DispensingSafedonConfig, DispensingSafedonData } from ".";
 import { plannedBoxes, safedonHeading } from "./calc";
 import { MAX_BOXES_PER_SIZE } from "./config";
@@ -35,6 +41,14 @@ import { formatSizeRate } from "./text";
 
 type Props = CaptureProps<DispensingSafedonData, DispensingSafedonConfig, DispensingSafedonComputed>;
 type Update = (change: DataChange<DispensingSafedonData>) => void;
+
+// From 1280 px every box column sits side by side, 13 by default, far wider
+// than the module: the table scrolls sideways inside its frame with the
+// defect labels pinned. A table cell's width is no minimum, and the label
+// column (the first cell of each row) would shrink to one letter a line to
+// make room; at its 16rem minimum (COUNTER_WIDTHS.label) it keeps the labels
+// and their hints readable.
+const DESKTOP_LABEL_COLUMN = "xl:[&_tr>th:first-child]:min-w-64";
 
 export default function Capture({
   data,
@@ -53,6 +67,8 @@ export default function Capture({
   const update = useDataUpdater(data, onChange);
   // Opens on the size chosen in the last module; SizeTabs corrects a size that is not (or no longer) ordered.
   const [size, setSize] = useState(() => initialSize(context, focus));
+  // The size on the tabs tags the photos taken now (BUILD_SPEC 8.1), from the moment the section opens.
+  useReportShownSize(sizeOnTabs(context.sizes, size), onFocusChange);
   // The box column being counted, per size (the one shown on iPad).
   const [active, setActive] = useState<Record<string, number>>({});
   // Columns asked for with "Add box", per size, beyond the plan.
@@ -129,6 +145,9 @@ function SafedonSizePanel({ size, props, update, active, onActive, requested, on
   // Inside the picker's sentences: "Box 2336 is not in the carton list for size M."
   const pickerSize = `size ${formatSize(size, { sizes: context.templateSizes })}`;
   const boxLabel = labelFor(labels, "boxNo");
+  // calc's problems in this size's boxes, such as a box missing from the carton list (6.2 rule 7).
+  const issues = boxIssues(evaluation?.issues ?? [], size);
+  const panel = useRef<HTMLDivElement>(null);
   const indices = Array.from({ length: columns }, (_, index) => index);
   const boxNoAt = (index: number) => boxes[index]?.boxNo ?? null;
   // A column without a box number yet shows its place in brackets, never a number that reads as a box.
@@ -146,7 +165,7 @@ function SafedonSizePanel({ size, props, update, active, onActive, requested, on
   };
 
   return (
-    <div className="min-w-0 space-y-5">
+    <div ref={panel} className="min-w-0 space-y-5">
       {planned === 0 && (
         <p className="rounded-lg border border-dashed border-not-done-border bg-not-done-tint px-4 py-3 text-sm text-not-done touch:text-base">
           {result?.summary}
@@ -218,6 +237,7 @@ function SafedonSizePanel({ size, props, update, active, onActive, requested, on
             </li>
           ))}
         </ol>
+        <IssueLinks issues={issues} root={panel} />
       </ModuleSection>
 
       <ModuleSection
@@ -236,6 +256,7 @@ function SafedonSizePanel({ size, props, update, active, onActive, requested, on
         }
       >
         <CounterTable
+          className={DESKTOP_LABEL_COLUMN}
           caption={`${labelFor(labels, "counts")}, ${sizeName}`}
           rows={config.defects.map((defect) => ({
             key: defect.code,
@@ -308,5 +329,40 @@ function SafedonSizePanel({ size, props, update, active, onActive, requested, on
         ]}
       />
     </div>
+  );
+}
+
+/** calc's issues about a size's boxes (`["sizes", size, "boxes", ...]`), in column order. */
+function boxIssues(issues: readonly ValidationIssue[], size: string): ValidationIssue[] {
+  return issues.filter((issue) => issue.path[0] === "sizes" && issue.path[1] === size && issue.path[2] === "boxes");
+}
+
+/**
+ * calc's problems in the boxes, each with a link to its box (BUILD_SPEC 6.2),
+ * listed as the carton grid and labelling list their own: a picker only turns
+ * red, and its message is read to screen readers alone. The size's Passed or
+ * Failed stays calc's: a box missing from the carton list blocks submit, it
+ * does not change the rate.
+ */
+function IssueLinks({ issues, root }: { issues: readonly ValidationIssue[]; root: RefObject<HTMLElement | null> }) {
+  if (issues.length === 0) return null;
+  return (
+    <ul data-slot="box-issues" className="space-y-1">
+      {issues.map((issue) => (
+        <li key={`${issue.code}-${issue.path.join("/")}`}>
+          <button
+            type="button"
+            onClick={() => root.current && focusIssuePath(root.current, issue.path)}
+            className={cn(
+              "flex w-full items-start gap-1.5 rounded-sm text-left text-sm focus-ring-inset touch:min-h-11 touch:text-base",
+              issue.level === "error" ? "text-fail" : "text-warn",
+            )}
+          >
+            <StatusIcon status={issue.level === "error" ? "fail" : "warn"} className="mt-0.5 size-4 shrink-0" />
+            <span>{issue.message}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }

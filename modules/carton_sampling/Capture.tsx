@@ -25,6 +25,7 @@ import {
 import { formatCount, formatSize } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { initialSize, labelFor, samplingFor, type CaptureProps, type ValidationIssue } from "@/modules/_framework";
+import { useReportShownSize } from "@/modules/_framework/shown-size";
 import { gridCell, type CartonSamplingComputed } from "./calc";
 import { GRID_COLUMNS, REPORT_GRID_CELLS, type CartonSamplingConfig } from "./config";
 import { MAX_CARTONS_PER_SIZE, withCartonNumber, type CartonSamplingData } from "./schema";
@@ -57,6 +58,8 @@ export default function Capture({
 
   // SizeTabs shows the first size when the active one is no longer ordered.
   const shown = context.sizes.includes(active) ? active : context.sizes[0];
+  // The size on the tabs tags the photos taken now (BUILD_SPEC 8.1), from the moment the section opens.
+  useReportShownSize(shown ?? null, onFocusChange);
   // The panel of the size left behind unmounts, and with it any rejected text.
   const show = (size: string) => {
     if (size !== shown) setRejected({});

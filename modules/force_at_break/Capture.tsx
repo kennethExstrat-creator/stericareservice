@@ -12,7 +12,7 @@
 // (docs/CAPTURE_KIT.md). A pasted column that runs past the gloves tested
 // keeps the rest as readings past them, which calc reports, instead of
 // losing them at the grid's end.
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   AttachmentStatus,
   findIssue,
@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { formatNumber, formatSize } from "@/lib/format";
 import { initialSize, labelFor, type CaptureProps, type ValidationIssue } from "@/modules/_framework";
 import { ModuleFileSlot } from "@/modules/_framework/file-slot";
+import { useReportShownSize } from "@/modules/_framework/shown-size";
 import { forceSpec, labReportState, plannedReadings, readingsFor, specCaption } from "./calc";
 import { readingSummary } from "./capture-data";
 import { MAX_READINGS } from "./config";
@@ -75,10 +76,7 @@ export default function Capture({
   const size = context.sizes.includes(selected) ? selected : (context.sizes[0] ?? "");
 
   // The size on screen tags the photos taken now (BUILD_SPEC 8.1).
-  const reportSize = useEffectEvent((shown: string) => onFocusChange?.({ size: shown }));
-  useEffect(() => {
-    if (size !== "") reportSize(size);
-  }, [size]);
+  useReportShownSize(size, onFocusChange);
 
   // An issue link shows its size, then lands on the reading's cell, or on the
   // notice for a reading the grid has no cell for (past the plan, a plan too large).

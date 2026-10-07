@@ -123,6 +123,34 @@ describe("dispensing_safedon capture", () => {
     expect(picker(1)).not.toContain('aria-invalid="true"');
     // The picker names the size as the tabs and calc do.
     expect(html).toContain(`Box ${stray} is not in the carton list for size XS.`);
+    // That text is for screen readers: calc's message is listed under the pickers, with a link to the box.
+    const list = /<ul[^>]*data-slot="box-issues"[^>]*>[\s\S]*?<\/ul>/.exec(html)?.[0] ?? "";
+    expect(list).toContain(`Box ${stray} (column 2) is not in the size XS carton list.`);
+    expect(count(list, "<button")).toBe(1);
+    expect(list).toContain("touch:min-h-11");
+    expect(html.indexOf('data-slot="box-issues"')).toBeGreaterThan(html.indexOf('aria-label="Box #, column 5"'));
+    expect(html.indexOf('data-slot="box-issues"')).toBeLessThan(html.indexOf('data-slot="counter-table"'));
+    // Its rate decides the size, as before: the stray box blocks submit, it does not fail the size.
+    expect(html).toContain('data-outcome="pass"');
+    expect(render()).not.toContain('data-slot="box-issues"');
+  });
+
+  it("lists a count kept under a defect the template does not list, which has no cell of its own", () => {
+    const data = safedonData();
+    const boxes = data.sizes.XS.boxes.map((box, index) => (index === 0 ? { ...box, counts: { ...box.counts, torn_pack: 2 } } : box));
+    const html = render({ data: { sizes: { ...data.sizes, XS: { boxes } } } });
+    const list = /<ul[^>]*data-slot="box-issues"[^>]*>[\s\S]*?<\/ul>/.exec(html)?.[0] ?? "";
+    expect(list).toContain("2 &quot;torn_pack&quot; counted in column 1 for size XS is not a defect of this template");
+    // A warning, in amber.
+    expect(list).toContain("text-warn");
+  });
+
+  it("keeps the defect labels at their column's width from 1280 px, where every box sits side by side", () => {
+    // 13 boxes by default: the table scrolls sideways with the labels pinned, rather than
+    // squeezing the label column to one letter a line (a cell's width is no minimum).
+    const html = render();
+    const table = /<div[^>]*data-slot="counter-table"[^>]*>/.exec(html)?.[0] ?? "";
+    expect(table).toContain("xl:[&amp;_tr&gt;th:first-child]:min-w-64");
   });
 
   it("keeps keyboard focus visible on the pressed column button", () => {
