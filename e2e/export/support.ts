@@ -77,6 +77,15 @@ export function expectedAiMode(): "mock" | "off" {
   return process.env.E2E_EXPORT_AI?.trim() === "off" ? "off" : "mock";
 }
 
+/** A photo a spec adds to the fixture, tagged as capture would tag it. */
+export type ExtraPhoto = {
+  moduleKey: string;
+  /** e.g. `size:M/box:1324/level:carton`. */
+  target: string | null;
+  caption: string | null;
+  includeInReport: boolean;
+};
+
 export type ExportFixture = {
   inspectionId: string;
   refNo: string;
@@ -84,6 +93,8 @@ export type ExportFixture = {
   adminId: string;
   /** `scale`: a report photo of the weight module, which the mock reviewer cites with its weight finding. */
   photoIds: { scale: string; untagged: string };
+  /** The ids of the spec's own photos, in the order given. */
+  extraPhotoIds: string[];
   /** The force-at-break lab report, kept by id in that module's data. */
   fileId: string;
   cleanup: () => Promise<void>;
@@ -201,14 +212,17 @@ async function removeFixture(admin: AdminClient, code: string) {
 export async function createExportFixture({
   code,
   images,
+  extraPhotos = [],
 }: {
   code: string;
   images: { photo: Uint8Array; thumb: Uint8Array };
+  /** More photos, each with a thumbnail, added before the inspection is submitted. */
+  extraPhotos?: readonly ExtraPhoto[];
 }): Promise<ExportFixture> {
   const admin = createTestAdminClient();
   await removeFixture(admin, code);
   try {
-    return await insertFixture(admin, code, images);
+    return await insertFixture(admin, code, images, extraPhotos);
   } catch (error) {
     await removeFixture(admin, code).catch(() => undefined);
     throw error;
@@ -219,6 +233,7 @@ async function insertFixture(
   admin: AdminClient,
   code: string,
   images: { photo: Uint8Array; thumb: Uint8Array },
+  extraPhotos: readonly ExtraPhoto[],
 ): Promise<ExportFixture> {
   const { data: people, error: peopleError } = await admin
     .from("profiles")
@@ -320,6 +335,33 @@ async function insertFixture(
   });
   if (files.error) fail("adding the lab report", files.error);
 
+  const extraPhotoIds = extraPhotos.map(() => randomUUID());
+  for (const [index, extra] of extraPhotos.entries()) {
+    const id = extraPhotoIds[index];
+    for (const [objectName, bytes] of [
+      [path(id), images.photo],
+      [`${inspection.id}/thumbs/${id}.jpg`, images.thumb],
+    ] as const) {
+      const { error } = await admin.storage.from(PHOTO_BUCKET).upload(objectName, bytes, { contentType: "image/jpeg", upsert: false });
+      if (error) fail(`uploading ${objectName}`, error);
+    }
+    const added = await admin.from("inspection_photos").insert({
+      id,
+      inspection_id: inspection.id,
+      module_key: extra.moduleKey,
+      target: extra.target,
+      storage_path: path(id),
+      thumb_path: `${inspection.id}/thumbs/${id}.jpg`,
+      caption: extra.caption,
+      taken_at: new Date(Date.now() - 900_000 + index * 1000).toISOString(),
+      width: 1200,
+      height: 900,
+      include_in_report: extra.includeInReport,
+      created_by: inspectorId,
+    });
+    if (added.error) fail(`adding the spec's photo ${index + 1}`, added.error);
+  }
+
   // Every inspection starts as a draft; the status flow moves it on.
   const submitted = await admin.from("inspections").update({ status: "submitted" }).eq("id", inspection.id);
   if (submitted.error) fail("submitting the inspection", submitted.error);
@@ -330,6 +372,7 @@ async function insertFixture(
     inspectorId,
     adminId,
     photoIds,
+    extraPhotoIds,
     fileId,
     cleanup: () => removeFixture(admin, code),
   };

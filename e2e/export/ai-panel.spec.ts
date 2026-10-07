@@ -1,8 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { expect as baseExpect, test, type Locator, type Page } from "@playwright/test";
 import { ExportSchema } from "../../lib/schemas/export";
+import { sessions } from "../review/support";
 import { createTestAdminClient } from "../support/admin";
-import { signIn, TEST_ACCOUNTS } from "../support/session";
+import { TEST_ACCOUNTS } from "../support/session";
 import {
   activate,
   createExportFixture,
@@ -44,17 +45,19 @@ import {
  * findings beside the system's results and the inspector's (BUILD_SPEC 12,
  * Phase 3: the AI review panel shows mock findings next to the inspector's
  * results), records agree, disagree (a note is required) and fixed, keeps a
- * half-made decision through a dropped connection and away from a newer
- * opinion; keyboard focus follows each step; the inspector sees it
+ * half-made decision through a dropped connection and with its own opinion
+ * when a newer one lands (in the history, never on the newer one); keyboard
+ * focus follows each step; the inspector sees it
  * read-only; the export downloads and validates with the real modules'
  * data; the export route answers the inspector and admins only.
  * Screenshots go to screenshots/export/.
  */
 
 // A dev server compiles on first use and the database is shared: allow for slow pages
-// and for each saved decision's round trip.
-test.describe.configure({ mode: "serial", timeout: 180_000 });
-const expect = baseExpect.configure({ timeout: 30_000 });
+// and for each saved decision's round trip, which brings the whole page again (on a
+// machine busy with other builds, that alone has taken half a minute).
+test.describe.configure({ mode: "serial", timeout: 240_000 });
+const expect = baseExpect.configure({ timeout: 60_000 });
 test.skip(expectedAiMode() !== "mock", "E2E_EXPORT_AI=off runs not-connected.spec.ts instead");
 
 const PANEL_CODE = "E2E_EXPORT_PANEL";
@@ -64,6 +67,8 @@ const HALF_NOTE = "Half-written note on the earlier opinion: never saved.";
 const UNREACHABLE = "Could not reach the server. Check the connection, then try again.";
 
 let fixture: ExportFixture;
+// One sign-in per account and project: the shared project rate-limits sign-ins.
+const as = sessions();
 
 test.beforeAll(async ({ browser }) => {
   fixture = await createExportFixture({ code: PANEL_CODE, images: await makeImages(browser) });
@@ -99,7 +104,7 @@ test("an admin requests a second opinion and compares it with the system and the
   baseURL,
 }) => {
   const hydration = watchConsole(page);
-  await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
+  await as.signIn(context, baseURL!, "admin");
   await openPanel(page);
 
   await expect(panel(page).getByTestId("ai-review-not-connected"), "start the dev server with AI_REVIEW_PROVIDER=mock").toHaveCount(0);
@@ -176,7 +181,7 @@ async function storedReviews() {
 
 test("the admin records agree, disagree with a note, and fixed", async ({ page, context, baseURL }) => {
   const hydration = watchConsole(page);
-  await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
+  await as.signIn(context, baseURL!, "admin");
   await openPanel(page);
   const [first, second, third] = [0, 1, 2].map((index) => currentFindings(page).nth(index));
 
@@ -243,7 +248,7 @@ function decisionOf(finding: Locator) {
 }
 
 test("a dropped connection leaves the decision form and its note in place", async ({ page, context, baseURL }) => {
-  await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
+  await as.signIn(context, baseURL!, "admin");
   await openPanel(page);
   const first = currentFindings(page).first();
   await press(first.getByRole("button", { name: /Change your decision/ }));
@@ -270,7 +275,7 @@ test("a dropped connection leaves the decision form and its note in place", asyn
 });
 
 test("a half-made decision stays with its own opinion when a newer one lands", async ({ page, context, baseURL }) => {
-  await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
+  await as.signIn(context, baseURL!, "admin");
   await openPanel(page);
   const comparison = panel(page).getByTestId("ai-comparison");
   const earlier = await comparison.getAttribute("data-review");
@@ -297,8 +302,15 @@ test("a half-made decision stays with its own opinion when a newer one lands", a
     .evaluateAll((inputs) => inputs.map((input) => (input as HTMLInputElement).value));
   expect(reviewIds.length).toBeGreaterThan(0);
   expect(new Set(reviewIds)).toEqual(new Set([newer]));
-  await expect(panel(page)).not.toContainText(HALF_NOTE);
-  await expect(panel(page).getByTestId("ai-review-history")).toContainText("Earlier second opinions (1)");
+  await expect(comparison).not.toContainText(HALF_NOTE);
+  // The half-made decision stays with the earlier opinion, now in the history, for the admin to finish or drop.
+  const history = panel(page).getByTestId("ai-review-history");
+  await expect(history).toContainText("Earlier second opinions (1)");
+  await press(history.getByText("Earlier second opinions (1)"));
+  await press(history.getByText("Show this opinion"));
+  const kept = history.locator(`article[data-finding="${findingId}"]`);
+  await expect(kept.getByRole("radio", { name: "Disagree", exact: true })).toHaveAttribute("aria-checked", "true");
+  await expect(kept.getByRole("textbox")).toHaveValue(HALF_NOTE);
   await shot(page, "admin-newer-opinion");
 
   // Nothing was saved with the half-written note.
@@ -308,7 +320,7 @@ test("a half-made decision stays with its own opinion when a newer one lands", a
 
 test("the inspector sees the second opinion read-only", async ({ page, context, baseURL }) => {
   const hydration = watchConsole(page);
-  await signIn(context, baseURL!, TEST_ACCOUNTS.inspector);
+  await as.signIn(context, baseURL!, "inspector");
   await openPanel(page);
   await expect(panel(page).getByText("An admin decides on each finding.")).toBeVisible();
   await expect(currentFindings(page).first()).toBeVisible();
@@ -326,7 +338,7 @@ test("the inspector sees the second opinion read-only", async ({ page, context, 
 
 test("the export downloads from the panel and validates, with working 24-hour links", async ({ page, context, baseURL }) => {
   test.skip(isTouch(), "The download is checked once, on the desktop");
-  await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
+  await as.signIn(context, baseURL!, "admin");
   await openPanel(page);
 
   const [download] = await Promise.all([
@@ -391,7 +403,7 @@ test("the AI report hand-off: sends to the report service, or offers the JSON wh
   context,
   baseURL,
 }) => {
-  await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
+  await as.signIn(context, baseURL!, "admin");
   await openPanel(page);
   const report = panel(page).getByTestId("ai-report");
   const send = report.getByRole("button", { name: /Send to AI report/ });
