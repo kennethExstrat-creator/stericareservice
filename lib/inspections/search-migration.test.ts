@@ -6,7 +6,7 @@
 import { readFile } from "node:fs/promises";
 import { PGlite, types } from "@electric-sql/pglite";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createPeople, createTemplate, setStatus, type People } from "@/tests/db/fixtures";
+import { createPeople, createTemplate, saveInspection, setStatus, type People } from "@/tests/db/fixtures";
 import {
   applyAsOwner,
   asOwner,
@@ -36,15 +36,22 @@ function withCartons(sizes: Record<string, unknown>): Record<string, unknown> {
 
 const EMPTY_DATA = { modules: {}, custom: {} };
 
-/** Inserts an inspection as `userId`, the way the app does, with whatever the caller sends. */
+/**
+ * Inserts an inspection for `inspectorId` with whatever the caller sends,
+ * through the Data API. Since 20261007190000 only an admin's session writes
+ * inspections directly (inspectors write through the app's functions), so the
+ * admin `adminId` sends it: the trigger must ignore a caller's values whoever
+ * that is.
+ */
 async function insertInspection(
   db: Db,
-  userId: string,
+  adminId: string,
+  inspectorId: string,
   templateId: string,
   values: { data?: unknown; lots?: string[]; cartons?: number[]; lotsUpper?: string[] } = {},
 ): Promise<SearchColumns> {
-  const columns = ["template_id", "data", "lot_numbers"];
-  const params: unknown[] = [templateId, JSON.stringify(values.data ?? EMPTY_DATA), values.lots ?? []];
+  const columns = ["template_id", "inspector_id", "data", "lot_numbers"];
+  const params: unknown[] = [templateId, inspectorId, JSON.stringify(values.data ?? EMPTY_DATA), values.lots ?? []];
   if (values.cartons) {
     columns.push("carton_numbers");
     params.push(values.cartons);
@@ -53,7 +60,7 @@ async function insertInspection(
     columns.push("lot_numbers_upper");
     params.push(values.lotsUpper);
   }
-  const result = await asUser(db, userId, (tx) =>
+  const result = await asUser(db, adminId, (tx) =>
     tx.query<SearchColumns>(
       `insert into public.inspections (${columns.join(", ")})
        values (${columns.map((_, index) => `$${index + 1}`).join(", ")})
@@ -99,44 +106,44 @@ describe("the search columns", { timeout: 30_000 }, () => {
   });
 
   it("hold every sampled carton number and every lot in capitals, each once, from what is saved", async () => {
-    const inspection = await insertInspection(db, people.inspector, templateId, {
+    const inspection = await insertInspection(db, people.admin, people.inspector, templateId, {
       data: withCartons({ M: [5420, null, 5421, 5420], "7.0": [3], L: [] }),
       lots: ["Lt081315", "LT081315", "b2"],
     });
     expect(inspection).toMatchObject({ carton_numbers: [3, 5420, 5421], lot_numbers_upper: ["B2", "LT081315"] });
 
-    const blank = await insertInspection(db, people.inspector, templateId);
+    const blank = await insertInspection(db, people.admin, people.inspector, templateId);
     expect(blank).toMatchObject({ carton_numbers: [], lot_numbers_upper: [] });
   });
 
   it("follow every save of the data or the lots", async () => {
-    const { id } = await insertInspection(db, people.inspector, templateId, { data: withCartons({ M: [1] }), lots: ["a1"] });
+    const { id } = await insertInspection(db, people.admin, people.inspector, templateId, { data: withCartons({ M: [1] }), lots: ["a1"] });
 
-    // An autosave: the data and the mirrored columns together.
-    expect(await update(db, people.inspector, id, "data = $2, lot_numbers = $3", [JSON.stringify(withCartons({ M: [1, 2], S: [9] })), ["a1", "Lt7"]])).toMatchObject({
-      carton_numbers: [1, 2, 9],
-      lot_numbers_upper: ["A1", "LT7"],
-    });
-    expect(await update(db, people.inspector, id, "lot_numbers = '{}'")).toMatchObject({ carton_numbers: [1, 2, 9], lot_numbers_upper: [] });
-    expect(await update(db, people.inspector, id, "data = $2", [JSON.stringify(EMPTY_DATA)])).toMatchObject({ carton_numbers: [] });
+    // The inspector's autosave (save_inspection(), as the app calls it): the data and the mirrored columns together.
+    await saveInspection(db, people.inspector, id, { data: withCartons({ M: [1, 2], S: [9] }), columns: { lot_numbers: ["a1", "Lt7"] } });
+    expect(await searchColumnsOf(db, id)).toEqual({ carton_numbers: [1, 2, 9], lot_numbers_upper: ["A1", "LT7"] });
+    await saveInspection(db, people.inspector, id, { columns: { lot_numbers: [] } });
+    expect(await searchColumnsOf(db, id)).toEqual({ carton_numbers: [1, 2, 9], lot_numbers_upper: [] });
+    // An admin's direct write too.
+    expect(await update(db, people.admin, id, "data = $2", [JSON.stringify(EMPTY_DATA)])).toMatchObject({ carton_numbers: [] });
   });
 
   it("never take a value from the caller", async () => {
-    const forged = await insertInspection(db, people.inspector, templateId, {
+    const forged = await insertInspection(db, people.admin, people.inspector, templateId, {
       data: withCartons({ M: [5] }),
       lots: ["x1"],
       cartons: [9999],
       lotsUpper: ["FORGED"],
     });
     expect(forged).toMatchObject({ carton_numbers: [5], lot_numbers_upper: ["X1"] });
-    expect(await update(db, people.inspector, forged.id, "carton_numbers = '{1}', lot_numbers_upper = '{Y}'")).toMatchObject({
+    expect(await update(db, people.admin, forged.id, "carton_numbers = '{1}', lot_numbers_upper = '{Y}'")).toMatchObject({
       carton_numbers: [5],
       lot_numbers_upper: ["X1"],
     });
   });
 
   it("leave out what is not a carton number, and never fail a save over it", async () => {
-    const odd = await insertInspection(db, people.inspector, templateId, {
+    const odd = await insertInspection(db, people.admin, people.inspector, templateId, {
       data: withCartons({ M: [12.0, 12.5, -1, 0, "77", 99999999999, null, true, { n: 5 }, 7], S: "x", L: null }),
     });
     expect(odd.carton_numbers).toEqual([7, 12]);
@@ -146,12 +153,12 @@ describe("the search columns", { timeout: 30_000 }, () => {
       { modules: { carton_sampling: { sizes: { M: { cartonNumbers: "5420" } } } }, custom: {} },
       { modules: { carton_sampling: { sizes: { M: {} } } }, custom: {} },
     ]) {
-      expect((await insertInspection(db, people.inspector, templateId, { data })).carton_numbers, JSON.stringify(data)).toEqual([]);
+      expect((await insertInspection(db, people.admin, people.inspector, templateId, { data })).carton_numbers, JSON.stringify(data)).toEqual([]);
     }
   });
 
   it("leave an approved inspection read-only, its report link to the admin", async () => {
-    const { id } = await insertInspection(db, people.inspector, templateId, { data: withCartons({ M: [31] }), lots: ["Lt31"] });
+    const { id } = await insertInspection(db, people.admin, people.inspector, templateId, { data: withCartons({ M: [31] }), lots: ["Lt31"] });
     await setStatus(db, people.inspector, id, "submitted");
     await setStatus(db, people.admin, id, "approved");
 
@@ -183,11 +190,11 @@ describe("the search columns", { timeout: 30_000 }, () => {
   }
 
   it("find an inspection by a whole lot in any case, or by a carton number, as the list asks", async () => {
-    const match = await insertInspection(db, people.otherInspector, templateId, {
+    const match = await insertInspection(db, people.admin, people.otherInspector, templateId, {
       data: withCartons({ M: [24680, 24681] }),
       lots: ["Lt-SEARCH-1"],
     });
-    const other = await insertInspection(db, people.otherInspector, templateId, {
+    const other = await insertInspection(db, people.admin, people.otherInspector, templateId, {
       data: withCartons({ S: [97] }),
       lots: ["LT-SEARCH-2"],
     });
@@ -249,10 +256,10 @@ describe(`inspections saved before ${SEARCH_COLUMNS_MIGRATION}`, { timeout: 30_0
   it("get their values, without a save: updated_at and the audit trail stay, an approved one included", async () => {
     const templateId = await createTemplate(db);
     const insert = (data: unknown, lots: string[]) =>
-      asUser(db, people.inspector, (tx) =>
+      asUser(db, people.admin, (tx) =>
         tx.query<{ id: string }>(
-          "insert into public.inspections (template_id, data, lot_numbers) values ($1, $2, $3) returning id",
-          [templateId, JSON.stringify(data), lots],
+          "insert into public.inspections (template_id, inspector_id, data, lot_numbers) values ($1, $2, $3, $4) returning id",
+          [templateId, people.inspector, JSON.stringify(data), lots],
         ),
       ).then((result) => result.rows[0].id);
     const draft = await insert(withCartons({ M: [5421, 5420] }), ["Lt081315"]);
@@ -274,7 +281,7 @@ describe(`inspections saved before ${SEARCH_COLUMNS_MIGRATION}`, { timeout: 30_0
     expect(await audit()).toEqual(auditBefore);
 
     // From now on the trigger keeps them: the next autosave of the draft, the approved one's report link.
-    expect(await update(db, people.inspector, draft, "data = $2", [JSON.stringify(withCartons({ M: [1] }))])).toMatchObject({
+    expect(await update(db, people.admin, draft, "data = $2", [JSON.stringify(withCartons({ M: [1] }))])).toMatchObject({
       carton_numbers: [1],
     });
     expect(await update(db, people.admin, approved, "report_url = 'https://example.com/report.pdf'")).toMatchObject({
