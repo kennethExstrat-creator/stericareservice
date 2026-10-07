@@ -288,6 +288,32 @@ describe("names", () => {
     expect(moduleOption(null, options)).toBeNull();
   });
 
+  it("names a defect as the module's rows do when the word is only in its config's lists", () => {
+    // As the visual and watertight Captures read them: { code, label } lists in the config, not labels.
+    const template = resolvedTemplate();
+    const visual = module("visual", "Visual Inspection", {
+      config: {
+        classes: {
+          major: { defects: [{ code: "thin_spot", label: "Thin Spot on Glove Body" }, { code: "bead_defective", label: "Defective Bead" }] },
+          minor: { defects: [{ code: "bead_defective", label: "Defective Beads" }, { code: "pleats", label: "Sticky Pleats" }] },
+        },
+      },
+    });
+    const listed = tagOptionsFromTemplate(
+      { ...template, modules: template.modules.map((entry) => (entry.key === "visual" ? visual : entry)) },
+      {},
+      DEFECTS,
+    );
+    expect(defectName("visual", "thin_spot", listed)).toBe("Thin Spot on Glove Body");
+    // Listed in two classes: the first class's word.
+    expect(defectName("visual", "bead_defective", listed)).toBe("Defective Bead");
+    // Only the template lists it.
+    expect(defectName("visual", "pleats", listed)).toBe("Sticky Pleats");
+    // Not listed by the module: the master list's name.
+    expect(defectName("visual", "hole_palm", listed)).toBe("Hole in palm");
+    expect(displayTags("visual", "size:M/defect:thin_spot", listed).defect).toBe("Thin Spot on Glove Body");
+  });
+
   it("names defects in the module's wording, else the master list's, else as stored", () => {
     expect(defectName("visual", "thin_spot", options)).toBe("Thin spot");
     expect(defectName("dimensions", "thin_spot", options)).toBe("Thin spot on glove body");

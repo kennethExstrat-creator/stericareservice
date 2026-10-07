@@ -274,7 +274,7 @@ export function tagOptionsFromTemplate(
         handSplit: section.module.config.handSplit === true,
         included: true,
       });
-      defectLabels[section.key] = defectWording(section.module.labels, defects);
+      defectLabels[section.key] = defectWording(section.module, defects);
       addLists(section.module);
     } else {
       modules.push({ key: section.key, title: section.custom.title, targetKeys: CUSTOM_TARGET_KEYS, handSplit: false, included: true });
@@ -289,7 +289,7 @@ export function tagOptionsFromTemplate(
       handSplit: entry.config.handSplit === true,
       included: false,
     });
-    defectLabels[entry.key] = defectWording(entry.labels, defects);
+    defectLabels[entry.key] = defectWording(entry, defects);
     addLists(entry);
   }
   return { modules, sizes: template.sizes.map(({ value, label }) => ({ value, label })), defects, defectLabels, levels, items };
@@ -330,15 +330,50 @@ function wordOf(label: string | undefined): string | null {
   return label !== undefined && label.trim() !== "" ? label : null;
 }
 
-/** The template's word for each defect code: its own key, else a dotted key (`minor.bead_defective`). */
-function defectWording(labels: Readonly<Record<string, string>>, defects: readonly DefectOption[]): Record<string, string> {
+/**
+ * The template's word for each defect code, as the module's own rows read it.
+ * First its labels: the code's own key, else a dotted key
+ * (`minor.bead_defective`). Then the defect lists in its config, where the
+ * counter rows take their words (visual's classes, watertight's hole
+ * locations, Safedon's items): every `{ code, label }`, the first for a code,
+ * so a code listed in two classes keeps the first class's word. Codes only the
+ * template lists are named too. Without this a photo's tag fell back to the
+ * master list's name, which may be worded differently from the row beside it.
+ */
+function defectWording(
+  module: { labels: Readonly<Record<string, string>>; config: unknown },
+  defects: readonly DefectOption[],
+): Record<string, string> {
+  const listed = listedDefects(module.config);
   const wording: Record<string, string> = {};
-  const entries = Object.entries(labels);
+  const entries = Object.entries(module.labels);
   for (const { code } of defects) {
-    const label = labels[code] ?? entries.find(([key]) => key.endsWith(`.${code}`))?.[1];
+    const label = module.labels[code] ?? entries.find(([key]) => key.endsWith(`.${code}`))?.[1] ?? listed.get(code);
     if (label) wording[code] = label;
   }
+  for (const [code, label] of listed) {
+    if (!(code in wording)) wording[code] = label;
+  }
   return wording;
+}
+
+/** Every `{ code, label }` entry in a module's config, depth first, the first one for each code. */
+function listedDefects(config: unknown): Map<string, string> {
+  const found = new Map<string, string>();
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item);
+      return;
+    }
+    if (value === null || typeof value !== "object") return;
+    const { code, label } = value as { code?: unknown; label?: unknown };
+    if (typeof code === "string" && typeof label === "string" && label.trim() !== "" && !found.has(code)) {
+      found.set(code, label);
+    }
+    for (const child of Object.values(value)) visit(child);
+  };
+  visit(config);
+  return found;
 }
 
 /**
