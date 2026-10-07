@@ -4,14 +4,18 @@
 // browser at iPad and desktop sizes (docs/CAPTURE_KIT.md).
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { AttachmentStatus } from "./attachment-status";
 import { BoxPicker } from "./box-picker";
+import { ColumnSwitcher } from "./column-switcher";
 import { CounterTable, type CounterColumn, type CounterRow } from "./counter-table";
+import { DateField } from "./date-field";
 import type { CounterCell } from "./counter-model";
 import { Figure } from "./figure";
 import { HandToggle } from "./hand-toggle";
 import { ModuleSection } from "./module-section";
 import { EnterGroup, EntryProblems, labelText, NumberField, PercentField } from "./number-field";
 import { RequirementList, SpecValue } from "./requirement-list";
+import { SideBySideText, SizeBlock } from "./size-block";
 import { SizeStatusStrip, SizeTabs } from "./size-tabs";
 
 const noop = () => {};
@@ -275,6 +279,22 @@ describe("CounterTable", () => {
     expect(html).toContain(">Failed<");
   });
 
+  it("words the limit row as the template does, Ac and Re only as the fallback", () => {
+    const html = render({ labels: { limits: "Defect Limit", limitAccept: "Accept", limitReject: "Reject" } });
+    expect(html).toContain("Accept 7 / Reject 8");
+    expect(html).toContain("Accept 1 / Reject 2");
+    expect(html).not.toContain("Ac 7");
+    expect(render({ labels: { limitAccept: "Acc. =", limitReject: "Rej. =" } })).toContain("Acc. = 1 / Rej. = 2");
+    // The chip keeps its own words.
+    expect(html).toContain(">Accept<");
+  });
+
+  it("lets long limit wording wrap, so the column keeps its width", () => {
+    const cell = tagsWith(render({ labels: { limitAccept: "Accept", limitReject: "Reject" } }), "text-balance")[0];
+    expect(cell).toBeDefined();
+    expect(cell).not.toContain("whitespace-nowrap");
+  });
+
   it("lets calc's status win over the live decision", () => {
     const html = render({ columns: [{ ...columns[0], status: "not_done" }] });
     expect(tagsWith(html, 'data-slot="status-pill"')[0]).toContain('data-status="not_done"');
@@ -343,6 +363,25 @@ describe("CounterTable", () => {
     expect(tagsWith(html, 'data-unmapped="true"')).toHaveLength(1);
     expect(html).toContain("(unmapped label)");
     expect(html).toContain("One-off");
+  });
+
+  it("offers to take off a one-off row the inspector added, only while it counts nothing", () => {
+    const added: CounterRow[] = [...rows, { key: "unmapped:near thumb", label: "Near thumb", unmapped: true, removable: true }];
+    const html = render({ rows: added, onRemoveRow: noop, onAddRow: noop });
+    expect(html).toContain('aria-label="Remove Near thumb"');
+    // Torn cuff counts 1 in size M; it is not removable anyway.
+    expect(html).not.toContain('aria-label="Remove Torn cuff"');
+    const counted = render({ rows: [...rows.slice(0, 2), { ...rows[2], removable: true }], onRemoveRow: noop });
+    expect(counted).not.toContain("Remove Torn cuff");
+    expect(render({ rows: added, onRemoveRow: noop, readOnly: true })).not.toContain("Remove Near thumb");
+    expect(render({ rows: added })).not.toContain("Remove Near thumb");
+  });
+
+  it("puts a column's own heading, such as its box picker, over the column", () => {
+    const html = render({ columns: [{ ...columns[0], heading: <button type="button">Pick box</button> }, columns[1]] });
+    expect(html).toMatch(/<th[^>]*scope="col"[^>]*><button type="button">Pick box<\/button><\/th>/);
+    // The label still names the column's steppers.
+    expect(html).toContain('aria-label="Increase Palm, size S"');
   });
 
   it("offers a one-off defect only with onAddRow", () => {
@@ -440,6 +479,71 @@ describe("CounterTable inside SizeTabs", () => {
   });
 });
 
+describe("ColumnSwitcher", () => {
+  const render = (props: Partial<Parameters<typeof ColumnSwitcher>[0]> = {}) =>
+    renderToStaticMarkup(
+      <ColumnSwitcher count={5} index={1} onIndexChange={noop} current="Box 253" previousLabel="Previous box" nextLabel="Next box" {...props} />,
+    );
+
+  it("says which column is on screen, between Previous and Next, and hides from 1280 px", () => {
+    const html = render();
+    expect(html).toContain("Box 253 · 2 / 5");
+    expect(html).toContain('aria-label="Previous box"');
+    expect(html).toContain('aria-label="Next box"');
+    expect(html).toMatch(/aria-live="polite"/);
+    expect(tagsWith(html, 'data-slot="column-switcher"')[0]).toContain("xl:hidden");
+    expect(tagsWith(render({ alwaysShown: true }), 'data-slot="column-switcher"')[0]).not.toContain("xl:hidden");
+  });
+
+  it("keeps its buttons focusable at the ends, marked disabled rather than removed", () => {
+    const first = render({ index: 0 });
+    expect(tagsWith(first, 'aria-label="Previous box"')[0]).toContain('aria-disabled="true"');
+    expect(first).not.toMatch(/<button[^>]*disabled=""/);
+    expect(tagsWith(render({ index: 4 }), 'aria-label="Next box"')[0]).toContain('aria-disabled="true"');
+  });
+
+  it("shows nothing for a single column", () => {
+    expect(render({ count: 1, index: 0 })).toBe("");
+  });
+});
+
+describe("SizeBlock and SideBySideText", () => {
+  const render = (wide: "tabs" | "all", value: string, node = true) =>
+    renderToStaticMarkup(
+      <SizeTabs sizes={["S", "M"]} value={value} onValueChange={noop} wide={wide}>
+        {node
+          ? ["S", "M"].map((size) => (
+              <SizeBlock key={size} size={size} className="space-y-2">
+                Tested<SideBySideText>, size {size}</SideBySideText>
+              </SizeBlock>
+            ))
+          : (size: string) => <SizeBlock size={size}>Panel {size}</SizeBlock>}
+      </SizeTabs>,
+    );
+  const block = (html: string, size: string) => tagsWith(html, `data-size="${size}"[^>]*data-slot="size-block"|data-slot="size-block"[^>]*data-size="${size}"`)[0] ?? "";
+
+  it("shows the size on the tabs, and the others from 1280 px while the sizes sit side by side", () => {
+    const html = render("all", "M");
+    expect(block(html, "M")).not.toContain("hidden");
+    expect(block(html, "S")).toContain("max-xl:hidden");
+    expect(block(html, "S")).toContain("space-y-2");
+    expect(html).toContain('<span class="sr-only xl:not-sr-only">, size S</span>');
+  });
+
+  it("follows the tabs, not a stale value, and keeps one size where SizeTabs keeps its tabs", () => {
+    const html = render("tabs", "XXL");
+    expect(block(html, "S")).not.toContain("hidden");
+    expect(block(html, "M")).toMatch(/class="[^"]*(?<![\w:-])hidden/);
+    expect(block(html, "M")).not.toContain("max-xl:hidden");
+    expect(html).toContain('<span class="sr-only">, size M</span>');
+  });
+
+  it("is always shown in a per-size function panel or outside SizeTabs", () => {
+    expect(block(render("tabs", "M", false), "M")).not.toContain("hidden");
+    expect(renderToStaticMarkup(<SizeBlock size="M">Alone</SizeBlock>)).not.toContain("hidden");
+  });
+});
+
 describe("NumberField", () => {
   it("labels a decimal field with its unit and hint", () => {
     const html = renderToStaticMarkup(
@@ -462,6 +566,42 @@ describe("NumberField", () => {
     expect(html).toContain("More than 10% from the indicative 3.2 g.");
     expect(html).toContain('aria-describedby="weight-calc-error weight-unit"');
     expect(html).toContain("border-destructive");
+  });
+
+  it("shows calc's warnings in amber below, one line each, and describes the field with them", () => {
+    const html = renderToStaticMarkup(
+      <NumberField
+        id="tested"
+        label="No. of sample tested"
+        value={315}
+        warning={["315 is below the plan's 500.", "Too small for AQL 0.65."]}
+        onValueChange={noop}
+      />,
+    );
+    expect(html).toContain('aria-describedby="tested-calc-warning"');
+    const block = /<div id="tested-calc-warning"[\s\S]*?<\/div>/.exec(html)?.[0] ?? "";
+    expect(block).toContain("text-warn");
+    expect(block.match(/<p /g)).toHaveLength(2);
+    expect(block.match(/lucide-triangle-alert/g)).toHaveLength(2);
+    expect(html).toContain("border-warn-solid");
+    expect(html).not.toMatch(/[\s"]border-destructive[\s"]/);
+  });
+
+  it("puts an error before the warnings, and its red edge wins", () => {
+    const html = renderToStaticMarkup(
+      <NumberField id="w" label="Weight" value={0} error="Must be more than 0 g." warning="Far from the indicative weight." onValueChange={noop} />,
+    );
+    expect(html).toContain('aria-describedby="w-calc-error w-calc-warning"');
+    expect(html).toMatch(/[\s"]border-destructive[\s"]/);
+    expect(html).not.toContain("border-warn-solid");
+  });
+
+  it("keeps a warning in a cell for screen readers, on an amber tint", () => {
+    const html = renderToStaticMarkup(
+      <NumberField id="q" variant="cell" label="Qty, size M" value={12} warning="More than ordered." onValueChange={noop} />,
+    );
+    expect(html).toContain('<span id="q-calc-warning" class="sr-only">More than ordered.</span>');
+    expect(html).toContain("bg-warn-tint");
   });
 
   it("names a table cell for screen readers, with its unit", () => {
@@ -520,6 +660,70 @@ describe("NumberField", () => {
     const html = renderToStaticMarkup(<PercentField label="Layering" value={88} onValueChange={noop} />);
     expect(html).toContain(">%<");
     expect(html).toContain('value="88"');
+  });
+});
+
+describe("AttachmentStatus", () => {
+  it("says whether the file is attached, by name where the screen knows it", () => {
+    const html = renderToStaticMarkup(<AttachmentStatus label="Lab report" attached fileName="lab-0001.pdf" issuePath={["labReport"]} />);
+    expect(html).toContain('data-attached="true"');
+    expect(html).toContain(">lab-0001.pdf<");
+    expect(html).toContain('data-issue-path="[&quot;labReport&quot;]"');
+    expect(renderToStaticMarkup(<AttachmentStatus label="Lab report" attached />)).toContain(">Attached<");
+  });
+
+  it("reads Not done for a required file that is missing, and says why", () => {
+    const html = renderToStaticMarkup(<AttachmentStatus label="Lab report" attached={false} required />);
+    expect(tagsWith(html, 'data-slot="status-pill"')[0]).toContain('data-status="not_done"');
+    expect(html).toContain(">Not attached<");
+    expect(html).toContain("Required before this section is done.");
+  });
+
+  it("is a plain line for an optional file that is missing", () => {
+    const html = renderToStaticMarkup(<AttachmentStatus label="Lab report" attached={false} />);
+    expect(html).not.toContain('data-slot="status-pill"');
+    expect(html).toContain(">Not attached<");
+  });
+});
+
+describe("DateField", () => {
+  it("is a labelled date picker that keeps four-digit years (6.2 rule 3)", () => {
+    const html = renderToStaticMarkup(<DateField id="expiry" label="Expiry date" value="2030-03-01" onValueChange={noop} />);
+    expect(html).toContain('<label data-slot="label"');
+    expect(html).toContain('for="expiry"');
+    const input = tagsWith(html, 'id="expiry"')[0];
+    expect(input).toContain('type="date"');
+    expect(input).toContain('max="9999-12-31"');
+    expect(input).toContain('value="2030-03-01"');
+    expect(tagsWith(renderToStaticMarkup(<DateField label="Date" value={null} onValueChange={noop} />), 'type="date"')[0]).toContain(
+      'value=""',
+    );
+  });
+
+  it("shows calc's warning in amber, describing the date, and marks itself for issue links", () => {
+    const html = renderToStaticMarkup(
+      <DateField
+        id="expiry"
+        label="Expiry date"
+        value="2025-03-01"
+        warning="Expiry date 2025-03-01 is not after Manufacturing date 2025-04-01."
+        issuePath={["expiryDate"]}
+        onValueChange={noop}
+      />,
+    );
+    expect(tagsWith(html, 'id="expiry"')[0]).toContain('aria-describedby="expiry-calc-warning"');
+    expect(html).toMatch(/id="expiry-calc-warning"[^>]*text-warn/);
+    expect(html).toContain('data-issue-path="[&quot;expiryDate&quot;]"');
+  });
+
+  it("passes the input's own attributes through, read-only included", () => {
+    const html = renderToStaticMarkup(
+      <DateField id="d" label="Date" value="2025-04-11" readOnly enterKeyHint="next" data-header-field="" onValueChange={noop} />,
+    );
+    const input = tagsWith(html, 'id="d"')[0];
+    expect(input).toContain('readOnly=""');
+    expect(input).toContain('enterKeyHint="next"');
+    expect(input).toContain('data-header-field=""');
   });
 });
 

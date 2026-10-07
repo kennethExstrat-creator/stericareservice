@@ -20,6 +20,8 @@ import {
   issuePathProps,
   ModuleSection,
   NumberField,
+  SideBySideText,
+  SizeBlock,
   SizeTabs,
   useDataUpdater,
   useIssueFocus,
@@ -33,7 +35,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { STATUS_LABEL } from "@/lib/design/status";
 import { formatSize } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import { HANDS, labelFor, samplingFor, type CaptureProps, type Hand } from "@/modules/_framework";
 import type { VisualComputed, VisualConfig, VisualData } from ".";
 import { classLabel, effectiveClasses } from "./calc";
@@ -44,6 +45,7 @@ import {
   oneOffRowKey,
   readCount,
   readOneOff,
+  removeOneOff,
   setCount,
   setInspected,
   setOneOff,
@@ -53,16 +55,6 @@ import {
 import { DEFECT_CLASSES, type DefectClass } from "./schema";
 
 type Props = CaptureProps<VisualData, VisualConfig, VisualComputed>;
-
-/**
- * A size's own block beside the tables: shown for the size on the tab, and
- * for every size from 1280 px only while SizeTabs shows the sizes side by
- * side (it marks itself data-side-by-side, and keeps its tabs where a table
- * does not fit, such as a hand split over many sizes), as the tables do.
- */
-const OTHER_SIZE = "hidden xl:in-data-[side-by-side]:block";
-/** The size in a label: read out always, shown where the sizes sit side by side. */
-const SIZE_IN_LABEL = "sr-only xl:in-data-[side-by-side]:not-sr-only";
 
 export default function VisualCapture({
   data,
@@ -145,17 +137,15 @@ export default function VisualCapture({
                 const missing = included.some((cls) => (data.sizes[entry]?.[cls].inspected ?? null) === null);
                 return (
                   // Also where an issue about the whole size points.
-                  <div
+                  <SizeBlock
                     key={entry}
-                    className={cn(
-                      "relative flex-wrap items-center gap-2",
-                      entry === size ? "flex" : "hidden xl:in-data-[side-by-side]:flex",
-                    )}
+                    size={entry}
+                    className="relative flex flex-wrap items-center gap-2"
                     {...issuePathProps(["sizes", entry])}
                   >
                     {planned !== null && (
                       <span>
-                        <span className={SIZE_IN_LABEL}>Size {sizeName(entry)}: </span>Sampling plan: {planned}
+                        <SideBySideText>Size {sizeName(entry)}: </SideBySideText>Sampling plan: {planned}
                       </span>
                     )}
                     {!readOnly && planned !== null && missing && (
@@ -170,7 +160,7 @@ export default function VisualCapture({
                         <span className="sr-only"> of size {sizeName(entry)}</span>
                       </Button>
                     )}
-                  </div>
+                  </SizeBlock>
                 );
               })}
             </div>
@@ -236,7 +226,7 @@ function ClassSection({
     ...defects.map((defect) => ({ key: defect.code, label: defect.label })),
     // Saved under a code the list lacks: calc counts them, so they show, flagged.
     ...unlistedCodes(data, sizes, cls, split, listed).map((code) => ({ key: code, label: code, unmapped: true })),
-    ...oneOffs.map((label) => ({ key: oneOffRowKey(label), label, unmapped: true })),
+    ...oneOffs.map((label) => ({ key: oneOffRowKey(label), label, unmapped: true, removable: true })),
   ];
 
   const computed = evaluation?.computed.sizes;
@@ -282,6 +272,10 @@ function ClassSection({
     // Unchanged (the label is already a row of the class) is no change at all.
     update((current) => addOneOff(current, cell, label, defects, sizes, split));
   };
+  const removeRow = (key: string) => {
+    const label = oneOffByRow.get(key);
+    if (label !== undefined) update((current) => removeOneOff(current, cls, label, sizes, split));
+  };
   /** calc's messages about the value at `path`: errors show in red under the field, warnings in amber. */
   const messagesAt = (path: IssuePath, level: "error" | "warning") => {
     const key = issuePathKey(path);
@@ -298,11 +292,7 @@ function ClassSection({
           const path: IssuePath = ["sizes", entry, cls, "inspected"];
           const warnings = messagesAt(path, "warning");
           return (
-            <div
-              key={entry}
-              className={cn("relative min-w-0", entry !== size && OTHER_SIZE)}
-              {...issuePathProps(["sizes", entry, cls])}
-            >
+            <SizeBlock key={entry} size={entry} className="relative min-w-0" {...issuePathProps(["sizes", entry, cls])}>
               {/* Only what was entered, no placeholder: an empty field is a class not yet inspected. */}
               <NumberField
                 label={
@@ -310,7 +300,7 @@ function ClassSection({
                   <span>
                     {labelFor(labels, "inspected")}
                     <span className="sr-only">, {classLabel(labels, cls)}</span>
-                    <span className={SIZE_IN_LABEL}>, size {formatSize(entry, { sizes: context.templateSizes })}</span>
+                    <SideBySideText>, size {formatSize(entry, { sizes: context.templateSizes })}</SideBySideText>
                   </span>
                 }
                 value={data.sizes[entry]?.[cls].inspected ?? null}
@@ -318,12 +308,12 @@ function ClassSection({
                 integer
                 min={2}
                 error={messagesAt(path, "error")[0] ?? null}
-                hint={warnings.length > 0 ? <WarningNotes messages={warnings} /> : undefined}
+                warning={warnings}
                 issuePath={path}
                 readOnly={readOnly}
                 onFocus={() => onFocusChange?.({ size: entry })}
               />
-            </div>
+            </SizeBlock>
           );
         })}
       </div>
@@ -341,6 +331,9 @@ function ClassSection({
           rowHeader: classLabel(labels, cls),
           inspected: labelFor(labels, "inspected"),
           limits: limitLabel,
+          // Per class where a template words one class's limit apart (critical.accept: "Acc. =").
+          limitAccept: labelFor(labels, cls, "accept"),
+          limitReject: labelFor(labels, cls, "reject"),
           total: labelFor(labels, `${cls}Total`),
           result: labelFor(labels, `${cls}Result`),
           accept: STATUS_LABEL.pass,
@@ -351,6 +344,7 @@ function ClassSection({
         showResult
         onAddRow={readOnly ? undefined : addRow}
         addRowLabel={labelFor(labels, "unmapped")}
+        onRemoveRow={readOnly ? undefined : removeRow}
         onCellFocus={(cell) =>
           onFocusChange?.({
             size: cell.column,
@@ -363,13 +357,4 @@ function ClassSection({
       />
     </ModuleSection>
   );
-}
-
-/** calc's warnings about a field, in amber: NumberField's hint, so they describe the field. */
-function WarningNotes({ messages }: { messages: readonly string[] }) {
-  return messages.map((message) => (
-    <span key={message} className="block text-warn">
-      {message}
-    </span>
-  ));
 }

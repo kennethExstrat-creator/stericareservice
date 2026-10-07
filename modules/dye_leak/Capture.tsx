@@ -6,24 +6,20 @@
 // config n), "No leaks" records a clean size in one tap, and the stepper
 // counts leaking pouches. Every size tab carries calc's result. Every change
 // goes through useDataUpdater, built from the latest data (edit.ts).
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { XIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { useId, useRef, useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  CountField,
   Figure,
   findIssue,
   issuePathProps,
   SizeTabs,
   StatusPill,
-  Stepper,
   useDataUpdater,
   useIssueFocus,
   type IssuePath,
 } from "@/components/qc";
-import { SMALL_PILL_TOUCH } from "@/components/qc/status-pill";
 import { formatSize } from "@/lib/format";
 import { labelFor, type CaptureProps } from "@/modules/_framework";
 import { plannedPouches, type DyeLeakComputed } from "./calc";
@@ -110,7 +106,7 @@ export default function Capture({
                   {labelFor(labels, "pouchesPlanned")}:
                   <Figure value={planned} className="font-semibold text-foreground" />
                 </p>
-                <StatusPill size="sm" status={result?.status ?? "not_done"} className={SMALL_PILL_TOUCH} />
+                <StatusPill size="sm" status={result?.status ?? "not_done"} />
               </div>
               <CountField
                 label={testedLabel}
@@ -120,7 +116,7 @@ export default function Capture({
                 start={planned ?? 0}
                 startLabel={planned === null ? "Start counting" : `${planned} as planned`}
                 issuePath={path("pouchesTested")}
-                message={message("pouchesTested")}
+                {...messageProps(message("pouchesTested"))}
                 readOnly={readOnly}
               />
               <CountField
@@ -133,7 +129,7 @@ export default function Capture({
                 startLabel="No leaks"
                 max={entry.pouchesTested ?? undefined}
                 issuePath={path("pouchesFailed")}
-                message={message("pouchesFailed")}
+                {...messageProps(message("pouchesFailed"))}
                 readOnly={readOnly}
               />
               <NotesField
@@ -155,99 +151,10 @@ export default function Capture({
 
 type Issue = { readonly level: "error" | "warning"; readonly message: string };
 
-/**
- * A count tapped with the stepper. Until it is entered it shows one button
- * that sets the starting value, so "not entered" never looks like 0
- * (BUILD_SPEC 6.2 rule 5); the clear button takes it back to not entered.
- * Read-only, it is the number (or a dash), as the kit's steppers are.
- */
-function CountField({
-  label,
-  name,
-  value,
-  onValueChange,
-  start,
-  onStart,
-  startLabel,
-  max,
-  issuePath,
-  message,
-  readOnly,
-}: {
-  label: string;
-  /** Accessible name with the size, e.g. "Pouches failed, Size 7.0". */
-  name: string;
-  value: number | null;
-  onValueChange: (value: number | null) => void;
-  start: number;
-  onStart?: () => void;
-  startLabel: string;
-  max?: number;
-  issuePath: IssuePath;
-  message?: Issue;
-  readOnly: boolean;
-}) {
-  const box = useRef<HTMLDivElement>(null);
-  // The start and clear buttons each replace themselves with the other
-  // control: a keyboard user's focus moves on to it instead of being dropped.
-  const refocus = useRef(false);
-  const holdFocus = () => {
-    refocus.current = box.current?.contains(document.activeElement) ?? false;
-  };
-  const entered = value !== null;
-  useEffect(() => {
-    if (!refocus.current) return;
-    refocus.current = false;
-    box.current?.querySelector<HTMLElement>(entered ? '[role="spinbutton"]' : "button")?.focus();
-  }, [entered]);
-
-  return (
-    <div ref={box} className="space-y-1.5" {...issuePathProps(issuePath)}>
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        <span className="text-sm font-medium touch:text-base">{label}</span>
-        {readOnly ? (
-          <Figure value={value} className="text-base font-semibold touch:text-lg" />
-        ) : value === null ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="touch:text-base"
-            aria-label={`${startLabel}, ${name}`}
-            onClick={() => {
-              holdFocus();
-              if (onStart) onStart();
-              else onValueChange(start);
-            }}
-          >
-            {startLabel}
-          </Button>
-        ) : (
-          <div className="flex items-center gap-1">
-            <Stepper
-              label={name}
-              value={value}
-              onValueChange={onValueChange}
-              max={max !== undefined && max >= value ? max : undefined}
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={`Clear ${name}`}
-              onClick={() => {
-                holdFocus();
-                onValueChange(null);
-              }}
-            >
-              <XIcon aria-hidden />
-            </Button>
-          </div>
-        )}
-      </div>
-      {message && <IssueText issue={message} />}
-    </div>
-  );
+/** calc's issue about a count, as CountField shows it: an error in red, a warning in amber. */
+function messageProps(issue: Issue | undefined): { error?: string; warning?: string } {
+  if (!issue) return {};
+  return issue.level === "error" ? { error: issue.message } : { warning: issue.message };
 }
 
 function NotesField({
@@ -280,11 +187,5 @@ function NotesField({
         rows={2}
       />
     </div>
-  );
-}
-
-function IssueText({ issue }: { issue: Issue }): ReactNode {
-  return (
-    <p className={cn("text-sm touch:text-base", issue.level === "error" ? "text-fail" : "text-warn")}>{issue.message}</p>
   );
 }

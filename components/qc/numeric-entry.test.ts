@@ -1,11 +1,13 @@
 // The numbers-only rule as NumericCell applies it (BUILD_SPEC 6.2 rule 1):
 // what is stored, what is shown and what is said when a cell is left.
 import { describe, expect, it } from "vitest";
+import { readDecimal } from "@/lib/stats";
 import {
   commitChange,
   commitEntry,
   entryKeyAction,
   entryText,
+  readEntry,
   rejectionMessage,
   showsEntryError,
   type InvalidEntry,
@@ -46,6 +48,27 @@ describe("commitEntry", () => {
     });
     expect(commitEntry("-1", { min: 0 }).invalid?.error).toBe("Must be 0 or more.");
     expect(commitEntry("400", { min: 0, max: 400 })).toEqual({ value: 400, invalid: null });
+  });
+
+  it("refuses the minimum itself when it is exclusive: a force or a length is more than 0", () => {
+    expect(commitEntry("0", { min: 0, minExclusive: true })).toEqual({
+      value: null,
+      invalid: rejected("0", "Must be more than 0."),
+    });
+    expect(commitEntry("-2", { min: 0, minExclusive: true }).invalid?.error).toBe("Must be more than 0.");
+    expect(commitEntry("0.001", { min: 0, minExclusive: true })).toEqual({ value: 0.001, invalid: null });
+    expect(commitEntry("0", { min: 0 })).toEqual({ value: 0, invalid: null });
+    // The maximum still applies, and blank is still no value.
+    expect(commitEntry("6", { min: 0, max: 5, minExclusive: true }).invalid?.error).toBe("Must be 5 or less.");
+    expect(commitEntry("", { min: 0, minExclusive: true })).toEqual({ value: null, invalid: null });
+  });
+});
+
+describe("readEntry", () => {
+  it("is lib/stats' readDecimal without an exclusive minimum", () => {
+    expect(readEntry("2 42")).toEqual(readDecimal("2 42"));
+    expect(readEntry("3", { min: 4 })).toEqual(readDecimal("3", { min: 4 }));
+    expect(readEntry("3", { minExclusive: true })).toEqual({ ok: true, value: 3 });
   });
 });
 
@@ -158,6 +181,8 @@ describe("showsEntryError", () => {
   it("judges the edit against the limits", () => {
     expect(showsEntryError(rejected("401", "Must be 400 or less."), "401", { max: 400 })).toBe(true);
     expect(showsEntryError(rejected("401", "Must be 400 or less."), "400", { max: 400 })).toBe(false);
+    expect(showsEntryError(rejected("0", "Must be more than 0."), "0", { min: 0, minExclusive: true })).toBe(true);
+    expect(showsEntryError(rejected("0", "Must be more than 0."), "0.5", { min: 0, minExclusive: true })).toBe(false);
   });
 });
 
