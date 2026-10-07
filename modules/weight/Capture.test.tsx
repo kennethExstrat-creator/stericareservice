@@ -61,6 +61,12 @@ describe("weight capture, 13 gloves per size (STD_EG)", () => {
     for (const label of ["Weight (g)", "Average"]) expect(html).toContain(`>${label}<`);
   });
 
+  it("heads the size's grid with the template's label and the size, Title Case as a heading is", () => {
+    expect(html).toMatch(/<h3[^>]*>Weight \(g\), Size M<\/h3>/);
+    // The grid is named as its heading reads.
+    expect(html).toContain('<caption class="sr-only">Weight (g), Size M</caption>');
+  });
+
   it("puts the template's Remark beside the size's result, not on the grid's spec verdict", () => {
     const footer = /<tfoot[\s\S]*<\/tfoot>/.exec(html)?.[0] ?? "";
     expect(footer).toContain(">P/F<");
@@ -78,9 +84,9 @@ describe("weight capture, 13 gloves per size (STD_EG)", () => {
 
   it("shows the deviation from the indicative weight as a warning", () => {
     const note = html.slice(html.indexOf('data-slot="weight-deviation"'));
-    expect(note).toContain("Deviation from indicative weight, size M");
+    expect(note).toContain("Deviation from indicative weight, Size M");
     expect(note).toContain("-17.1");
-    expect(note).toContain("indicative 3.5 g, threshold 10%");
+    expect(note).toContain("Indicative 3.5 g, Threshold 10%");
     expect(tags(note, 'data-slot="status-pill"')[0]).toContain('data-status="warn"');
   });
 
@@ -176,7 +182,7 @@ describe("weight capture, one value per size (SAFEDON_EG)", () => {
 
   it("offers to remove the values past n, which have no cell, unless read-only", () => {
     const extra = { sizes: { ...data.sizes, M: { values: [3.18, 3.2] } } };
-    const action = "Remove the values that are not counted";
+    const action = "Remove the Values That Are Not Counted";
     const shown = render("SAFEDON_EG", extra, exampleContext(SAFEDON_EG_EXAMPLE));
     expect(shown).toContain(`>${action}</button>`);
     // The button is described by its warning, which names the size.

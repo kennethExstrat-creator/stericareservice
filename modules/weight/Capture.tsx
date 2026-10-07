@@ -248,15 +248,16 @@ function SizeGrid({
   readOnly,
   onFocusChange,
 }: Props & { size: string; root: RefObject<HTMLDivElement | null>; update: Update }) {
-  const name = sizeLabel(context, size);
   const status = evaluation?.result.perSize?.[size]?.status;
   const label = labelFor(labels, "values");
+  // The section's heading, and the grid's name: the template's label, then the size as a heading words it.
+  const heading = `${label}, Size ${sizeLabel(context, size)}`;
   // A module whose config or data is broken comes back with no computed values.
   const computed: Partial<WeightComputed> | undefined = evaluation?.computed;
 
   return (
     <ModuleSection
-      title={`${label}, size ${name}`}
+      title={heading}
       description={`${labelFor(labels, "average")} of ${config.n} gloves`}
       status={status}
       statusLabel={statusWord(status, labels)}
@@ -271,7 +272,7 @@ function SizeGrid({
         }}
       >
         <MeasurementGrid
-          caption={`${label}, size ${name}`}
+          caption={heading}
           measures={[
             {
               key: VALUES_COLUMN,
@@ -327,8 +328,9 @@ function ResultPill({ status, labels }: { status: ModuleStatus | undefined; labe
 }
 
 /**
- * "Deviation from indicative weight −17.1% · indicative 3.5 g, threshold 10% ·
- * Warning", for that size only. Within the threshold the note says so in a
+ * "Deviation from indicative weight, Size M −17.1% · Indicative 3.5 g,
+ * Threshold 10% · Warning", for that size only: the template's label, then
+ * the app's own in Title Case. Within the threshold the note says so in a
  * neutral pill: the deviation is no verdict on the weight, only a spec is.
  */
 function DeviationNote({
@@ -351,11 +353,11 @@ function DeviationNote({
       className="relative flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-slate-50 px-3 py-2 text-sm outline-none focus-ring touch:text-base"
     >
       <span className="text-muted-foreground">
-        {labelFor(labels, "deviationPct")}, size {sizeLabel(context, size)}
+        {labelFor(labels, "deviationPct")}, Size {sizeLabel(context, size)}
       </span>
       <Figure value={deviation} decimals={1} unit="%" className="font-semibold text-foreground" />
       <span className="text-muted-foreground tabular-nums">
-        {`indicative ${formatNumber(indicative.grams, { unit: "g" })}, threshold ${threshold}`}
+        {`Indicative ${formatNumber(indicative.grams, { unit: "g" })}, Threshold ${threshold}`}
       </span>
       <StatusPill size="sm" status={beyond ? "warn" : "info"} label={beyond ? undefined : `Within ${threshold}`} />
     </p>
@@ -423,7 +425,7 @@ function IssueLinks({
                   aria-describedby={messageId}
                   onClick={() => onRemoveUncounted(size)}
                 >
-                  Remove the values that are not counted
+                  Remove the Values That Are Not Counted
                 </Button>
               )}
             </li>

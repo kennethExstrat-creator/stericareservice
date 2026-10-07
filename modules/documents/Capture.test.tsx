@@ -168,7 +168,7 @@ describe("documents capture: files", () => {
     expect(render(data)).toMatch(/>File<\/span><span[^>]*>Attached<\/span>/);
     const gone = render(data, { context: makeTestContext({ ...CONTEXT, files: [] }) });
     expect(gone).toContain('data-file-state="missing"');
-    expect(gone).toMatch(/>File<\/span><span[^>]*>Not attached<\/span>/);
+    expect(gone).toMatch(/>File<\/span><span[^>]*>Not Attached<\/span>/);
     // calc's warning, in the template's wording, replaces the line's own words.
     expect(gone).toContain("ISO 13485: the file attached here is not among this inspection&#x27;s files. It may still be uploading from another device; if it was deleted, attach it again.");
     expect(gone).not.toContain("The file attached here is not among");

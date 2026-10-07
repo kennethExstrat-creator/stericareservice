@@ -214,7 +214,7 @@ function IssueLinks({
                 aria-describedby={`${idBase}-${index}`}
                 onClick={onRemoveUncounted}
               >
-                Remove the readings that are not counted
+                Remove the Readings That Are Not Counted
               </Button>
             )}
           </li>

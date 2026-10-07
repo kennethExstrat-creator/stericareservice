@@ -65,7 +65,7 @@ describe("loading capture", () => {
     for (const label of ["Container no.", "Bolt seal", "Cartons loaded", "Carton condition"]) expect(html).toContain(label);
     expect(STD_EG_EXPECTED.totals.cartons).toBe(2900);
     expect(html).toMatch(/PO cartons:<span[^>]*>2,900<\/span>/);
-    expect(html).toContain("All 2,900 loaded");
+    expect(html).toContain("All 2,900 Loaded");
   });
 
   it("hides the fields the template switches off", () => {
@@ -86,7 +86,7 @@ describe("loading capture", () => {
     expect(html).toMatch(
       /<div id="[^"]+-calc-warning"[^>]*text-warn[^>]*>.*?<span>Cartons loaded \(2,850\) does not match Cartons ordered \(2,900\): 50 short\.<\/span>/,
     );
-    expect(html).not.toContain("All 2,900 loaded");
+    expect(html).not.toContain("All 2,900 Loaded");
   });
 
   it("offers the loading stages, and says the photos taken at a stage are tagged with it", () => {
@@ -110,7 +110,7 @@ describe("loading capture", () => {
   });
 
   it("still shows the order's cartons from the context when calc could not run", () => {
-    expect(render({}, { broken: true })).toContain("All 2,900 loaded");
+    expect(render({}, { broken: true })).toContain("All 2,900 Loaded");
   });
 
   it("is read-only on an approved inspection: no quick fill, no stage picker", () => {
@@ -118,7 +118,7 @@ describe("loading capture", () => {
     const inputs = Array.from(html.matchAll(/<input[^>]*>/g), (match) => match[0]);
     expect(inputs).toHaveLength(3);
     expect(inputs.every((tag) => /readonly=""/i.test(tag))).toBe(true);
-    expect(html).not.toContain("All 2,900 loaded");
+    expect(html).not.toContain("All 2,900 Loaded");
     expect(html).not.toContain(LOADING_LABELS.loadingStage);
   });
 });

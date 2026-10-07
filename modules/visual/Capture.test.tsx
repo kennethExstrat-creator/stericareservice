@@ -126,14 +126,14 @@ describe("visual capture", () => {
 
   it("offers the sampling plan's n for every class still without one", () => {
     const empty = render({ sizes: {}, context: M_500() });
-    expect(empty).toContain("Sampling plan: 500");
-    expect(empty).toMatch(/Use 500 for every class<span class="sr-only"> of size M<\/span>/);
+    expect(empty).toContain("Sampling Plan: 500");
+    expect(empty).toMatch(/Use 500 for Every Class<span class="sr-only"> of size M<\/span>/);
     // 16 px text on touch, as every field's; size sm alone keeps 14 px there.
-    expect(/<button[^>]*>Use 500 for every class/.exec(empty)?.[0]).toContain("touch:text-base");
+    expect(/<button[^>]*>Use 500 for Every Class/.exec(empty)?.[0]).toContain("touch:text-base");
     // Offered beside the fields, never inside them: an empty field must not look filled (6.2 rule 5).
     expect(numberInputs(empty)).toHaveLength(3);
     expect(numberInputs(empty).every((field) => field.includes('value=""') && !field.includes(" placeholder="))).toBe(true);
-    expect(render({ sizes: { M: inspectedAll(500) }, context: M_500() })).not.toContain("for every class");
+    expect(render({ sizes: { M: inspectedAll(500) }, context: M_500() })).not.toContain("for Every Class");
   });
 
   it("shows a class not inspected as an empty field when read-only, never the sampling plan's n as if recorded", () => {
@@ -201,9 +201,9 @@ describe("visual capture", () => {
     expect(fields[0]).toContain("max-xl:hidden");
     expect(tagsWith(html, 'data-issue-path="\\[&quot;sizes&quot;,&quot;S&quot;,&quot;major&quot;\\]"')[0]).not.toContain("hidden");
     expect(tagsWith(html, 'data-slot="size-tabs"')[0]).toContain("data-side-by-side");
-    // One element in the flex Label, so ", size M" follows the text with no gap when it shows.
+    // One element in the flex Label, so ", Size M" follows the text with no gap when it shows.
     expect(html).toMatch(
-      /<label[^>]*><span>No\. of sample inspected<span class="sr-only">, Major Defects<\/span><span class="sr-only xl:not-sr-only">, size M<\/span><\/span><\/label>/,
+      /<label[^>]*><span>No\. of sample inspected<span class="sr-only">, Major Defects<\/span><span class="sr-only xl:not-sr-only">, Size M<\/span><\/span><\/label>/,
     );
   });
 
@@ -224,7 +224,7 @@ describe("visual capture", () => {
       config: { ...VISUAL_DEFAULT_CONFIG, handSplit: true },
     });
     expect(tagsWith(html, 'role="radio"')).toHaveLength(3);
-    expect(html).toContain('aria-label="Increase Thin spot on glove body, Size 7.0, left hand"');
+    expect(html).toContain('aria-label="Increase Thin spot on glove body, Size 7.0, Left Hand"');
     expect(totals(html)).toEqual([0, 2, 0]);
   });
 
@@ -249,7 +249,7 @@ describe("visual capture", () => {
     const html = render({ sizes: { M: inspectedAll(500) }, context: M_500(), readOnly: true });
     expect(html).not.toContain('role="spinbutton"');
     expect(html).not.toContain("Defect not in the list");
-    expect(html).not.toContain("for every class");
+    expect(html).not.toContain("for Every Class");
   });
 
   it("says so when the template switches every class off", () => {

@@ -223,10 +223,10 @@ describe("dispensing_packing capture", () => {
 
   it("is read-only when the inspection is not the user's to edit", () => {
     const html = render({ readOnly: true });
-    expect(html).not.toContain("Add box");
+    expect(html).not.toContain("Add Box");
     expect(html).not.toContain("<select");
     expect(html).not.toContain('role="combobox"');
     expect(html).toContain("2336");
-    expect(render()).toContain("Add box");
+    expect(render()).toContain("Add Box");
   });
 });

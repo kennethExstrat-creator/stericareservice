@@ -118,7 +118,7 @@ describe("force_at_break capture", () => {
   });
 
   it("says whether the lab report is attached", () => {
-    expect(render()).toMatch(/>Lab report<\/span><span class="text-muted-foreground">Not attached</);
+    expect(render()).toMatch(/>Lab report<\/span><span class="text-muted-foreground">Not Attached</);
     const attached = render({ data: { sizes: { M: { values: READINGS } }, labReport: LAB_REPORT_ID } });
     expect(attached).toContain('data-attached="true"');
     expect(attached).toContain(">Attached</span>");
@@ -199,8 +199,8 @@ describe("force_at_break capture", () => {
     const html = render({ data });
     expect(html).toContain("Size M: 2 readings are entered beyond the 13 gloves tested. Clear them or correct the sampling plan.");
     expect(html).toContain("No. 15: 6.1 N, No. 16: 6.3 N");
-    expect(html).toMatch(/<button[^>]*touch:text-base[^>]*>Clear the 2 extra readings<\/button>/);
-    expect(render({ data, readOnly: true })).not.toContain("Clear the 2 extra readings");
+    expect(html).toMatch(/<button[^>]*touch:text-base[^>]*>Clear the 2 Extra Readings<\/button>/);
+    expect(render({ data, readOnly: true })).not.toContain("Clear the 2 Extra Readings");
   });
 
   it("sends the issue link to the notice's message, never to the button that clears readings", () => {
@@ -244,7 +244,7 @@ describe("force_at_break capture", () => {
     expect(html).toContain(
       "Size M: 2 readings are entered, but the sampling plan gives no gloves to test. Clear them or correct the sampling plan.",
     );
-    expect(html).toContain(">Clear the 2 extra readings</button>");
+    expect(html).toContain(">Clear the 2 Extra Readings</button>");
     // The issue link lands on the notice.
     expect(html).toContain('data-issue-path="[&quot;sizes&quot;,&quot;M&quot;,&quot;values&quot;]"');
   });
@@ -280,6 +280,6 @@ describe("force_at_break capture", () => {
     // From 1280 px one column of readings stays near its glove numbers, as weight's grid does.
     expect(tags(html, 'data-slot="measurement-grid"')[0]).toContain("xl:max-w-md xl:[&amp;_table]:min-w-0");
     // The button that clears readings wraps rather than runs out of a narrow column.
-    expect(html).toMatch(/<button[^>]*whitespace-normal[^>]*>Clear the 2 extra readings<\/button>/);
+    expect(html).toMatch(/<button[^>]*whitespace-normal[^>]*>Clear the 2 Extra Readings<\/button>/);
   });
 });

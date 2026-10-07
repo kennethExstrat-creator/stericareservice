@@ -115,7 +115,7 @@ describe("tensile capture", () => {
 
   it("sizes its pills for touch as the kit's own small pills: 16 px on iPad (docs/DESIGN.md)", () => {
     const pills = tags(render({ data: { ...EXAMPLE, labReport: null } }), 'data-slot="status-pill"');
-    // Eight verdicts and the lab report's "Not attached".
+    // Eight verdicts and the lab report's "Not Attached".
     expect(pills).toHaveLength(9);
     expect(pills.filter((pill) => !pill.includes("touch:text-base"))).toEqual([]);
   });
@@ -123,7 +123,7 @@ describe("tensile capture", () => {
   it("says the lab report is required until it is attached", () => {
     const html = render({ data: { ...EXAMPLE, labReport: null } });
     expect(html).toContain(">Lab report</span>");
-    expect(html).toContain("Not attached");
+    expect(html).toContain("Not Attached");
     expect(html).toContain("Required before this section is done.");
     const attached = render();
     expect(attached).toContain(">Attached</span>");

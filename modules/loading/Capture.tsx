@@ -153,7 +153,7 @@ export default function Capture({
                   className="touch:text-base"
                   onClick={() => set({ cartonsLoaded: ordered })}
                 >
-                  All {formatCount(ordered)} loaded
+                  All {formatCount(ordered)} Loaded
                 </Button>
               )}
             </div>

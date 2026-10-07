@@ -328,10 +328,10 @@ function ReadingNotices({
               variant="outline"
               size="sm"
               onClick={onClear}
-              // Wraps rather than runs out of a narrow column ("Clear the 587 extra readings").
+              // Wraps rather than runs out of a narrow column ("Clear the 587 Extra Readings").
               className="h-auto min-h-8 max-w-full py-1.5 whitespace-normal touch:h-auto touch:min-h-11 touch:text-base"
             >
-              {beyond.length === 1 ? "Clear the extra reading" : `Clear the ${beyond.length} extra readings`}
+              {beyond.length === 1 ? "Clear the Extra Reading" : `Clear the ${beyond.length} Extra Readings`}
             </Button>
           )}
         </div>

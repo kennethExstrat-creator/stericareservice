@@ -71,7 +71,7 @@ export default function Capture({
   const [size, setSize] = useState(() => initialSize(context, focus));
   // The size on the tabs tags the photos taken now (BUILD_SPEC 8.1), from the moment the section opens.
   useReportShownSize(sizeOnTabs(context.sizes, size), onFocusChange);
-  // Rows asked for with "Add box", per size, beyond the plan.
+  // Rows asked for with "Add Box", per size, beyond the plan.
   const [requested, setRequested] = useState<Record<string, number>>({});
   // Entries the cells refused ("2 42"), listed under the table with a link.
   const [rejected, setRejected] = useState<Record<string, EntryProblem>>({});
@@ -256,7 +256,7 @@ function PackingSizePanel({ size, props, update, requested, onRequest, rejected,
             onClick={() => onRequest(rows + 1)}
           >
             <PlusIcon aria-hidden />
-            Add box
+            Add Box
           </Button>
         )}
       </div>
