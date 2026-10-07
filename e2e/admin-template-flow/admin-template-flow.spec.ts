@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expectNoPageScroll } from "../support/layout";
 import { signIn, TEST_ACCOUNTS } from "../support/session";
 import { chooseFile, openDialog, SOURCE_PDF, toast } from "../templates/support";
 import {
@@ -195,11 +196,6 @@ function watchConsole(page: Page): () => string[] {
   });
   page.on("pageerror", (error) => errors.push(error.message));
   return () => errors.filter((text) => /hydrat|did not match|server rendered/i.test(text));
-}
-
-async function expectNoPageScroll(page: Page): Promise<void> {
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-  expect(overflow, "the page scrolls sideways").toBeLessThanOrEqual(0);
 }
 
 function escapeRegExp(text: string): string {

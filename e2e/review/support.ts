@@ -95,10 +95,7 @@ export function watchConsole(page: Page) {
   return () => errors.filter((text) => /hydrat|did not match|server rendered/i.test(text));
 }
 
-export async function expectNoPageScroll(page: Page) {
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-  expect(overflow, "the page scrolls sideways").toBeLessThanOrEqual(0);
-}
+export { expectNoPageScroll } from "../support/layout";
 
 /** 44 px targets on the iPads (docs/DESIGN.md). */
 export async function expectTouchTarget(locator: Locator) {

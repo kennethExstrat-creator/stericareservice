@@ -1,4 +1,5 @@
 import { expect as baseExpect, test, type Locator, type Page } from "@playwright/test";
+import { expectNoPageScroll } from "../support/layout";
 import { signIn, TEST_ACCOUNTS } from "../support/session";
 import { chromeNames } from "../users/support";
 import {
@@ -78,11 +79,6 @@ function watchConsole(page: Page) {
   });
   page.on("pageerror", (error) => errors.push(error.message));
   return () => errors.filter((text) => /hydrat|did not match|server rendered/i.test(text));
-}
-
-async function expectNoPageScroll(page: Page) {
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-  expect(overflow, "the page scrolls sideways").toBeLessThanOrEqual(0);
 }
 
 /** 44 px on touch (docs/DESIGN.md, Density). */
