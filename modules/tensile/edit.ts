@@ -12,10 +12,15 @@ export function withAverage(data: TensileData, size: string, measure: TensileMea
 }
 
 /**
- * The lab report the capture screen queued for this module: the id
- * `enqueueFile` returns, which becomes the inspection_files row id. Null
- * detaches it, and the module is not done again.
+ * The lab report the file slot attached for this module (ModuleFileSlot's
+ * onAdded): the id of its inspection_files row. The latest file attached is
+ * the module's lab report. Null detaches it, and the module is not done again.
  */
 export function withLabReport(data: TensileData, fileId: string | null): TensileData {
   return { ...data, labReport: fileId };
+}
+
+/** A file of the module was deleted: the lab report goes when it was that file; the same data otherwise. */
+export function withoutLabReport(data: TensileData, fileId: string): TensileData {
+  return data.labReport === fileId ? withLabReport(data, null) : data;
 }

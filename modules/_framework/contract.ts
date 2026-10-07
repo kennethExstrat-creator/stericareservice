@@ -38,6 +38,13 @@ export interface CalcOutput<TComputed extends JsonObject = JsonObject> {
   readonly computed: TComputed;
   /** Errors block submit; warnings go into the export. The framework adds the module key. */
   readonly issues: readonly CalcIssue[];
+  /**
+   * While the module is not done: the field to complete first, inside the
+   * module's data (`["finalResult"]`). The framework's `module_not_done`
+   * issue links there instead of to the module as a whole. Ignored once the
+   * module is done.
+   */
+  readonly notDonePath?: IssuePath;
 }
 
 export interface ContributeInput<TData, TConfig> {
@@ -54,14 +61,22 @@ export interface CanonicalPath {
   readonly unit?: Unit;
 }
 
+/** The two packaging levels labelling inspects (BUILD_SPEC 6.1 labeling): the inner unit and the carton. */
+export const PACKAGING_LEVELS = ["inner", "carton"] as const;
+export type PackagingLevel = (typeof PACKAGING_LEVELS)[number];
+
 /** What the inspector has in focus, so a photo taken now is tagged with it (BUILD_SPEC 8.1). */
 export interface CaptureFocus {
   readonly size?: string;
   readonly hand?: Hand;
-  /** Defect code. */
+  /** Defect code, or a check code in labelling. */
   readonly defect?: string;
   /** Carton or box number. */
   readonly box?: number;
+  /** Packaging level in labelling: the inner unit (dispenser box, plastic pack) or the carton. */
+  readonly level?: PackagingLevel;
+  /** An entry of the module's own list: a document on the documents checklist, a loading stage. */
+  readonly item?: string;
 }
 
 /** Props of `modules/<key>/Capture.tsx`. */
@@ -85,10 +100,18 @@ export interface CaptureProps<TData = unknown, TConfig = unknown, TComputed exte
   /** Approved, or not the user's to edit. */
   readonly readOnly: boolean;
   /**
+   * What the screen has in focus now, as the last module reported it: open
+   * on its size when that size is ordered, so the size chosen in one module
+   * stays chosen in the next. Absent on screens that do not track it.
+   */
+  readonly focus?: CaptureFocus | null;
+  /**
    * Replace the module's data with the whole new value; the screen saves it.
-   * Start from `data`, so sizes no longer ordered keep their data:
-   * `onChange({ ...data, sizes: { ...data.sizes, [size]: entry } })`.
-   * Never store text in a numeric cell.
+   * Do not call it yourself: write through the kit's `useDataUpdater(data,
+   * onChange)` and build each change from its `current` value
+   * (docs/CAPTURE_KIT.md), so a pasted column or two changes in one event all
+   * land, and sizes no longer ordered keep their data. Never store text in a
+   * numeric cell.
    */
   onChange(next: TData): void;
   /** Report what is in focus, for photo tags. */
@@ -136,7 +159,10 @@ export interface ModuleDefinition<TData = unknown, TConfig = unknown, TComputed 
   readonly stub: boolean;
   /** Pure: result, computed values and issues from data, config and context. */
   calc(input: CalcInput<TData, TConfig>): CalcOutput<TComputed>;
-  /** Pure: what this module adds to the shared context. Only the fields it owns (CONTEXT_SOURCES). */
+  /**
+   * Pure: what this module adds to the shared context. Only the parts it owns
+   * (CONTEXT_SOURCES), and of the AQL settings only its own (AQL_SOURCES).
+   */
   contribute?(input: ContributeInput<TData, TConfig>): ContextContribution;
   /** The capture UI, loaded on demand: `loadCapture: () => import("./Capture")`. */
   loadCapture?(): Promise<{ default: CaptureComponent<TData, TConfig, TComputed> }>;

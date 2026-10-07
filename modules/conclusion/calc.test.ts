@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { TEMPLATES, type TemplateCode } from "@/lib/coverage";
 import type { ModuleKey, ModuleResult, ModuleStatus } from "@/lib/schemas";
 import { MODULE_REGISTRY } from "@/modules/registry";
-import { evaluateInspection, worstStatus, type CalcInput, type InspectionContext } from "@/modules/_framework";
+import { buildInspectionContext, evaluateInspection, worstStatus, type CalcInput, type InspectionContext } from "@/modules/_framework";
 import { checkModuleContract, makeTestContext, makeTestTemplate, TEST_INSPECTOR } from "@/modules/_framework/testing";
 import {
   SAFEDON_EG_EXAMPLE,
@@ -246,10 +246,30 @@ describe("conclusion", () => {
       });
     });
 
-    it("names modules in words, since calc has their results but not their titles", () => {
+    it("names modules by their titles in the template's wording (6.2 rule 11)", () => {
+      const context = makeTestContext({
+        modules: [
+          { key: "carton_sampling", title: "Finished Goods Sampling Information (carton number)" },
+          { key: "dispensing_packing", title: "Glove Packing Check" },
+          { key: "conclusion", title: "Conclusion" },
+        ],
+      });
+      const output = calcConclusion(
+        input({}, { context, moduleResults: results({ carton_sampling: "fail", dispensing_packing: "warn" }) }),
+      );
+      expect(output.result.summary).toBe(
+        "Missing: Conclusion, Date. Suggested result: FAILED (failed: Finished Goods Sampling Information (carton number)).",
+      );
+      const warned = calcConclusion(input({ ...FILLED, finalResult: "fail" }, { context, moduleResults: results({ dispensing_packing: "warn" }) }));
+      expect(warned.result.summary).toBe("Conclusion: FAILED. Suggested result: PASSED (warnings: Glove Packing Check).");
+    });
+
+    it("names a module the context does not list by its key in words", () => {
       expect(moduleName("carton_sampling")).toBe("Carton sampling");
       expect(moduleName("force_at_break")).toBe("Force at break");
-      expect(moduleName("visual")).toBe("Visual");
+      expect(calcConclusion(input({}, { moduleResults: results({ visual: "fail" }) })).result.summary).toBe(
+        "Missing: Conclusion, Date. Suggested result: FAILED (failed: Visual).",
+      );
     });
   });
 
@@ -322,7 +342,25 @@ describe("conclusion", () => {
       expect(evaluation.issues).toEqual([]);
     });
 
-    it("blocks submit until the final result is chosen: its not done is an error", () => {
+    it("names the modules by the titles the context built from the template carries", () => {
+      const titled = makeTestTemplate(MODULE_REGISTRY, [
+        { key: "header", include: false },
+        { key: "labeling", title: "Packaging Labeling Inspection (client wording)" },
+      ]);
+      const data = { modules: { labeling: labeling({ lot_no: 1 }) }, custom: {} };
+      const built = buildInspectionContext({ template: titled, data, meta: { inspector: TEST_INSPECTOR } }, MODULE_REGISTRY);
+      expect(built.modules).toEqual([
+        { key: "labeling", title: "Packaging Labeling Inspection (client wording)" },
+        { key: "conclusion", title: "Conclusion" },
+      ]);
+      // No order_lots in this template: size M as the other engine tests order it.
+      const evaluation = evaluateInspection({ template: titled, data, context: { ...built, sizes: ["M"] } }, MODULE_REGISTRY);
+      expect(conclusionOfEvaluation(evaluation).result.summary).toBe(
+        "Missing: Conclusion, Date. Suggested result: FAILED (failed: Packaging Labeling Inspection (client wording)).",
+      );
+    });
+
+    it("blocks submit until the final result is chosen: its not done is an error that links to the choice", () => {
       const evaluation = evaluate({ labeling: labeling() });
       expect(conclusionOfEvaluation(evaluation).issues).toEqual([
         {
@@ -330,8 +368,15 @@ describe("conclusion", () => {
           level: "error",
           code: "module_not_done",
           message: "Conclusion must be complete before submit: Missing: Conclusion, Date. Suggested result: PASSED.",
-          path: [],
+          path: ["finalResult"],
         },
+      ]);
+    });
+
+    it("links the blocking issue to the date once the result is chosen", () => {
+      const evaluation = evaluate({ labeling: labeling(), conclusion: { ...FILLED, date: null } });
+      expect(conclusionOfEvaluation(evaluation).issues).toEqual([
+        expect.objectContaining({ code: "module_not_done", level: "error", path: ["date"] }),
       ]);
     });
 

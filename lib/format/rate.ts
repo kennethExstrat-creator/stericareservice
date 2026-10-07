@@ -1,6 +1,8 @@
 // Defect rates the way the reports write them:
 //   per box   "1/125" (defects / gloves per pack) and 0.008 as a decimal,
-//   per size  "3 / 625 (0.48%)" (defects / gloves inspected, rate),
+//   per size  "3 / 625 (0.48%)", "11 / 1,000 (1.1%)" (defects / gloves
+//             inspected, rate; counts with thousands separators, as every
+//             count the app prints and as the expected results write them),
 //   per size  "1/500" for watertight totals.
 import { roundTo } from "@/lib/stats";
 import { formatNumber, toPercent } from "./number";
@@ -19,16 +21,17 @@ export function ratio(part: number | null | undefined, whole: number | null | un
 
 /**
  * "1/125", unspaced as the reports print it per box (or "1 / 125" with
- * `spaced`). A missing whole prints as "1/—"; a missing part as "".
+ * `spaced`; "1/1,000" with `grouping`). A missing whole prints as "1/—"; a
+ * missing part as "".
  */
 export function formatRatio(
   part: number | null | undefined,
   whole: number | null | undefined,
-  { spaced = false }: { spaced?: boolean } = {},
+  { spaced = false, grouping = false }: { spaced?: boolean; grouping?: boolean } = {},
 ): string {
   if (!isCount(part)) return "";
   const separator = spaced ? " / " : "/";
-  return `${formatNumber(part)}${separator}${isCount(whole) ? formatNumber(whole) : MISSING}`;
+  return `${formatNumber(part, { grouping })}${separator}${isCount(whole) ? formatNumber(whole, { grouping }) : MISSING}`;
 }
 
 /** The per-box rate as a decimal: 1 of 125 is "0.008" (3 decimals by default). */
@@ -43,15 +46,16 @@ export function formatRatioDecimal(
 /**
  * "3 / 625 (0.48%)": defects over gloves inspected with the rate. The
  * percentage keeps at most `maxDecimals` (default 2) and drops trailing
- * zeros, as the reports do: "11 / 1000 (1.1%)", "0 / 1000 (0%)". Without a
+ * zeros, as the reports do: "11 / 1,000 (1.1%)", "0 / 1,000 (0%)". The
+ * counts have thousands separators unless `grouping` is false. Without a
  * positive whole there is no rate: "3 / —".
  */
 export function formatRate(
   part: number | null | undefined,
   whole: number | null | undefined,
-  { maxDecimals = 2 }: { maxDecimals?: number } = {},
+  { maxDecimals = 2, grouping = true }: { maxDecimals?: number; grouping?: boolean } = {},
 ): string {
-  const text = formatRatio(part, whole, { spaced: true });
+  const text = formatRatio(part, whole, { spaced: true, grouping });
   const value = ratio(part, whole);
   if (text === "" || value === null) return text;
   return `${text} (${formatNumber(toPercent(value), { maxDecimals, unit: "%" })})`;

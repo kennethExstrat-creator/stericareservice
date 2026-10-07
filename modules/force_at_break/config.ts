@@ -27,7 +27,11 @@ export const ForceAtBreakConfigSchema = z.strictObject({
     .min(1)
     .max(MAX_READINGS)
     .describe("Gloves tested per size, one reading each. The sampling plan's gloves for FAB replace it when entered."),
-  specMin: z.number().positive().describe("Minimum median force at break in N, every size (EN 455: 6)."),
+  specMin: z
+    .number()
+    .positive()
+    .describe("Minimum median force at break in N, every size (EN 455: 6).")
+    .meta({ unit: "N" }),
   standardLabel: z
     .string()
     .max(80)

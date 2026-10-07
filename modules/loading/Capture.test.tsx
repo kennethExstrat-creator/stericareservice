@@ -81,9 +81,10 @@ describe("loading capture", () => {
     expect(html).toMatch(
       /<input[^>]*aria-describedby="[^"]+-container-issue"[^>]*>.*?<p id="[^"]+-container-issue" class="[^"]*text-warn[^"]*">Container no\. CSQU3054384: the ISO 6346 check digit should be 3\./,
     );
-    // Inside the hint the field is described by, so it is read out with the count.
+    // NumberField's warning, which describes the field with the count, in amber.
+    expect(html).toMatch(/<input[^>]*aria-describedby="[^"]+-hint [^"]+-calc-warning"/);
     expect(html).toMatch(
-      /<p id="[^"]+-hint"[^>]*>.*?<span class="block text-warn">Cartons loaded \(2,850\) does not match Cartons ordered \(2,900\): 50 short\.<\/span><\/p>/,
+      /<div id="[^"]+-calc-warning"[^>]*text-warn[^>]*>.*?<span>Cartons loaded \(2,850\) does not match Cartons ordered \(2,900\): 50 short\.<\/span>/,
     );
     expect(html).not.toContain("All 2,900 loaded");
   });

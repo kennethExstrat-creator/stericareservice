@@ -2,9 +2,10 @@
 // definitions must be the current ones exactly. Its resolutions are a
 // snapshot, like a template version saved in the editor: they must resolve
 // the definitions they sit next to (same modules, order, titles, wording,
-// sizes) and still parse with each module's config schema, but a module's
-// later default labels do not make them stale. Regenerate after changing the
-// dictionary or the definitions, and once the report modules are built:
+// sizes, and the configs the real modules resolve, defaults merged in), with
+// no placeholder module left; a module's later default labels do not make
+// them stale. Regenerate after changing the dictionary, the definitions or a
+// module's config defaults:
 //
 //   UPDATE_TEMPLATE_SEEDS=1 npx vitest run lib/templates/definitions/seed-bundle.test.ts
 import { readFileSync, writeFileSync } from "node:fs";
@@ -56,13 +57,21 @@ describe("seed-bundle.json", () => {
     }
   });
 
-  it("keeps configs the modules accept (strict once a module is built)", () => {
-    for (const entry of stored.templates) {
-      for (const stage of entry.resolved.modules.filter((candidate) => candidate.include)) {
+  it("keeps configs the modules accept, as the real modules resolve them (their defaults merged in)", () => {
+    for (const [index, entry] of stored.templates.entries()) {
+      const now = fresh.templates[index].resolved.modules;
+      for (const [at, stage] of entry.resolved.modules.entries()) {
+        if (!stage.include) continue;
         const parsed = MODULE_REGISTRY[stage.key].configSchema.safeParse(stage.config);
         expect(parsed.success, `${entry.code} ${stage.key}: ${parsed.error?.message}`).toBe(true);
+        expect(stage.config, `${entry.code} ${stage.key} is stale: run ${UPDATE}`).toEqual(now[at].config);
       }
     }
+  });
+
+  it("was made with every module built: no placeholder is left for the seed to refuse", () => {
+    expect(fresh.stubModules).toEqual([]);
+    expect(stored.stubModules, `run ${UPDATE}`).toEqual([]);
   });
 
   it("lists every base before the templates that extend it, with no client id of its own", () => {

@@ -1,24 +1,7 @@
 {
   "format": 1,
   "about": "Generated from lib/templates/definitions: do not edit. Regenerate with UPDATE_TEMPLATE_SEEDS=1 npx vitest run lib/templates/definitions/seed-bundle.test.ts; scripts/seed-templates.mts writes it to the templates table.",
-  "stubModules": [
-    "header",
-    "order_lots",
-    "packing_config",
-    "sampling_plan",
-    "carton_sampling",
-    "dimensions",
-    "weight",
-    "force_at_break",
-    "tensile",
-    "watertight",
-    "visual",
-    "dispensing_packing",
-    "dispensing_safedon",
-    "labeling",
-    "conclusion",
-    "dye_leak"
-  ],
+  "stubModules": [],
   "templates": [
     {
       "code": "STD_EG",
@@ -574,7 +557,19 @@
             "key": "header",
             "include": true,
             "title": "Manufacturer Information",
-            "labels": {},
+            "labels": {
+              "manufacturer": "Manufacturer / Supplier",
+              "factoryAddress": "Supplier Factory Address / Location",
+              "poNo": "PO / SO Number",
+              "productName": "Product Name (Brand, code & description)",
+              "productCode": "Product code",
+              "client": "Client Name",
+              "factoryGloveCode": "Factory glove code",
+              "inspectionDate": "Inspection date",
+              "mfgDate": "Manufacturing date",
+              "expiryDate": "Expiry date",
+              "inspector": "Inspected by"
+            },
             "config": {
               "fields": {
                 "manufacturer": true,
@@ -616,7 +611,15 @@
             "key": "order_lots",
             "include": true,
             "title": "Order",
-            "labels": {},
+            "labels": {
+              "size": "Size",
+              "qtyCases": "Qty (cases)",
+              "lotNumbers": "Lot Number",
+              "packingSite": "Packing Site",
+              "lotSizeGloves": "Lot size (gloves)",
+              "totalCartons": "Total # carton",
+              "totalGloves": "Total # gloves"
+            },
             "config": {
               "fields": {
                 "packingSite": false
@@ -627,7 +630,13 @@
             "key": "packing_config",
             "include": true,
             "title": "Packing configuration",
-            "labels": {},
+            "labels": {
+              "glovesPerInner": "# glove per inner box",
+              "innersPerCase": "# inners per case",
+              "glovesPerCase": "# gloves per case",
+              "packingMode": "Packing Mode",
+              "glovesPerCaseCheck": "Gloves per case (inner × per case)"
+            },
             "config": {
               "innerUnit": "inner_box",
               "fields": {
@@ -639,7 +648,25 @@
             "key": "sampling_plan",
             "include": true,
             "title": "Sampling Plan",
-            "labels": {},
+            "labels": {
+              "cases": "Case",
+              "innerUnits": "Inner Box",
+              "gloves": "Gloves",
+              "glovesWatertightVisual": "# gloves for watertight & Visual",
+              "glovesDimensions": "# gloves for dimension",
+              "glovesPhysical": "# gloves for FAB",
+              "innerUnitsDispensing": "# inner box for packaging & dispensing inspection",
+              "pouches": "Pouches",
+              "pouchesDyeLeak": "# pouches (dye leak test)",
+              "codeLetter": "Code letter",
+              "planSampleSize": "Sample size by plan",
+              "totals": "Total:",
+              "samplingQuantity": "Sampling Quantity",
+              "orderQty": "Order Qty (case)",
+              "gloveSize": "Glove Size",
+              "inspectionLevel": "Inspection level",
+              "lotSizeGloves": "Lot size (gloves)"
+            },
             "config": {
               "columns": {
                 "cases": true,
@@ -659,14 +686,31 @@
             "key": "carton_sampling",
             "include": true,
             "title": "Finished Goods Sampling Information (carton number)",
-            "labels": {},
+            "labels": {
+              "cartonNumbers": "(Carton #)",
+              "samplingQuantity": "Sampling Quantity",
+              "sizeCaption": "{size} (Carton #)"
+            },
             "config": {}
           },
           {
             "key": "dimensions",
             "include": true,
             "title": "Dimension",
-            "labels": {},
+            "labels": {
+              "length": "Length",
+              "width": "Width",
+              "fingerThickness": "Finger Thickness",
+              "palmThickness": "Palm Thickness",
+              "cuffThickness": "Cuff Thickness",
+              "statistic": "Median",
+              "measureResult": "P/F *",
+              "sizeHeading": "Dimension - Size {size}",
+              "rowNo": "No.",
+              "specRow": "Spec.",
+              "pass": "Passed",
+              "fail": "Failed"
+            },
             "config": {
               "measures": [
                 "length",
@@ -805,7 +849,13 @@
             "key": "force_at_break",
             "include": true,
             "title": "Force At Break in Newton (Refer to attached where applicable)",
-            "labels": {},
+            "labels": {
+              "values": "Force at break (N)",
+              "labReport": "Lab report",
+              "median": "Median",
+              "result": "Passed / Failed",
+              "specRow": "Spec."
+            },
             "config": {
               "n": 13,
               "specMin": 6,
@@ -817,7 +867,17 @@
             "key": "weight",
             "include": true,
             "title": "Weight (g) - average of 13 gloves per size",
-            "labels": {},
+            "labels": {
+              "values": "Weight (g)",
+              "average": "Average",
+              "deviationPct": "Deviation from indicative weight",
+              "result": "Remark",
+              "info": "Info",
+              "rowNo": "No.",
+              "specRow": "Spec.",
+              "pass": "Passed",
+              "fail": "Failed"
+            },
             "config": {
               "n": 13,
               "specs": [],
@@ -829,7 +889,19 @@
             "key": "watertight",
             "include": true,
             "title": "Freedom from Holes by watertight test",
-            "labels": {},
+            "labels": {
+              "tested": "No. of sample tested",
+              "holes": "Pin hole",
+              "otherDescription": "Other : description",
+              "unmapped": "Defect not in the list",
+              "codeLetter": "Sampling code letter",
+              "accept": "Accept",
+              "reject": "Reject",
+              "totalDefects": "Total number of defects found",
+              "result": "Freedom from holes (Passed / Failed)",
+              "heading": "Freedom from Holes by watertight test (Single sampling code letter {codeLetters}, AQL {aql})",
+              "defectLimit": "Defect Limit"
+            },
             "config": {
               "aql": 1.5,
               "locations": [
@@ -861,7 +933,31 @@
             "key": "visual",
             "include": true,
             "title": "Visual Inspection",
-            "labels": {},
+            "labels": {
+              "inspected": "No. of sample inspected",
+              "counts": "Defects",
+              "criticalCounts": "Critical Defects",
+              "majorCounts": "Major Defects",
+              "minorCounts": "Minor Defects",
+              "unmapped": "Defect not in the list",
+              "codeLetter": "Sampling code letter",
+              "accept": "Accept",
+              "reject": "Reject",
+              "total": "Total number of defects found",
+              "criticalTotal": "Total number of \"Critical Defects\" found",
+              "majorTotal": "Total number of \"Major Defects\" found",
+              "minorTotal": "Total number of \"Minor Defects\" found",
+              "result": "Disposition (Passed / Failed)",
+              "criticalResult": "Disposition - Visual Critical (Passed / Failed)",
+              "majorResult": "Disposition - Visual Major (Passed / Failed)",
+              "minorResult": "Disposition - Visual Minor (Passed / Failed)",
+              "heading": "Visual Inspection (Single Sampling code letter {codeLetters})",
+              "criticalHeading": "Critical Defects (AQL {aql})",
+              "majorHeading": "Major Defects (AQL {aql})",
+              "minorHeading": "Minor Defects (AQL {aql})",
+              "criticalLimit": "Defect Limit : Accept / Reject",
+              "defectLimit": "Defect Limit"
+            },
             "config": {
               "handSplit": false,
               "classes": {
@@ -958,7 +1054,23 @@
             "key": "dispensing_packing",
             "include": true,
             "title": "Glove Packing Check",
-            "labels": {},
+            "labels": {
+              "boxNo": "Box #",
+              "layeringPct": "Layering %",
+              "dispensingPct": "Dispensing %",
+              "stickiness": "Stickiness **",
+              "note": "Others:",
+              "codeLetter": "Sampling code letter",
+              "layeringAverage": "Average",
+              "dispensingAverage": "Average",
+              "stickinessSummary": "Average",
+              "layeringResult": "Passed / Failed",
+              "dispensingResult": "Passed / Failed",
+              "stickinessResult": "Passed / Failed",
+              "heading": "Glove Packing Check (Sampling code letter {codeLetters}) : min. {minLayeringPct}% layering & {minDispensingPct}% dispensing",
+              "itemColumn": "Item",
+              "stickinessLegend": "**Glove stickiness Code"
+            },
             "config": {
               "minLayeringPct": 70,
               "minDispensingPct": 80,
@@ -1001,7 +1113,20 @@
             "key": "labeling",
             "include": true,
             "title": "Packaging Labeling Inspection",
-            "labels": {},
+            "labels": {
+              "inspected": "No. of sampled boxes inspected",
+              "boxNos": "Box #",
+              "defects": "Defects",
+              "accept": "Accept",
+              "reject": "Reject",
+              "total": "Total number of defects found",
+              "result": "Disposition (Passed / Failed)",
+              "innerResult": "Disposition - Inner Box (Passed / Failed)",
+              "cartonResult": "Disposition - Carton Box (Passed / Failed)",
+              "innerLevel": "Dispenser Box",
+              "cartonLevel": "Carton Box",
+              "defectLimit": "Defect Limit"
+            },
             "config": {
               "levels": {
                 "inner": {
@@ -1051,7 +1176,17 @@
             "key": "conclusion",
             "include": true,
             "title": "Conclusion",
-            "labels": {},
+            "labels": {
+              "suggestedResult": "Suggested result",
+              "finalResult": "Conclusion",
+              "remark": "Remark",
+              "inspector": "Inspected by",
+              "date": "Date",
+              "signature": "Signature",
+              "pass": "PASSED",
+              "fail": "FAILED",
+              "hold": "HOLD"
+            },
             "config": {}
           }
         ],
@@ -1613,8 +1748,17 @@
             "include": true,
             "title": "Manufacturer Information",
             "labels": {
+              "manufacturer": "Manufacturer / Supplier",
+              "factoryAddress": "Supplier Factory Address / Location",
               "poNo": "PO Number",
-              "productName": "Product Name (Brand & code)"
+              "productName": "Product Name (Brand & code)",
+              "productCode": "Product code",
+              "client": "Client Name",
+              "factoryGloveCode": "Factory glove code",
+              "inspectionDate": "Inspection date",
+              "mfgDate": "Manufacturing date",
+              "expiryDate": "Expiry date",
+              "inspector": "Inspected by"
             },
             "config": {
               "fields": {
@@ -1657,7 +1801,15 @@
             "key": "order_lots",
             "include": true,
             "title": "Order",
-            "labels": {},
+            "labels": {
+              "size": "Size",
+              "qtyCases": "Qty (cases)",
+              "lotNumbers": "Lot Number",
+              "packingSite": "Packing Site",
+              "lotSizeGloves": "Lot size (gloves)",
+              "totalCartons": "Total # carton",
+              "totalGloves": "Total # gloves"
+            },
             "config": {
               "fields": {
                 "packingSite": true
@@ -1670,7 +1822,10 @@
             "title": "Packing configuration",
             "labels": {
               "glovesPerInner": "# glove per plastic pack",
-              "innersPerCase": "# packs per case"
+              "innersPerCase": "# packs per case",
+              "glovesPerCase": "# gloves per case",
+              "packingMode": "Packing Mode",
+              "glovesPerCaseCheck": "Gloves per case (inner × per case)"
             },
             "config": {
               "innerUnit": "plastic_pack",
@@ -1684,9 +1839,23 @@
             "include": true,
             "title": "Sampling Plan",
             "labels": {
+              "cases": "Case",
               "innerUnits": "Inner pack",
+              "gloves": "Gloves",
+              "glovesWatertightVisual": "# gloves for watertight & Visual",
+              "glovesDimensions": "# gloves for dimension",
               "glovesPhysical": "# gloves for Tensile",
-              "innerUnitsDispensing": "# inner packs for packaging & dispensing inspection"
+              "innerUnitsDispensing": "# inner packs for packaging & dispensing inspection",
+              "pouches": "Pouches",
+              "pouchesDyeLeak": "# pouches (dye leak test)",
+              "codeLetter": "Code letter",
+              "planSampleSize": "Sample size by plan",
+              "totals": "Total:",
+              "samplingQuantity": "Sampling Quantity",
+              "orderQty": "Order Qty (case)",
+              "gloveSize": "Glove Size",
+              "inspectionLevel": "Inspection level",
+              "lotSizeGloves": "Lot size (gloves)"
             },
             "config": {
               "columns": {
@@ -1707,7 +1876,11 @@
             "key": "carton_sampling",
             "include": true,
             "title": "Finished Goods Sampling Information (carton number)",
-            "labels": {},
+            "labels": {
+              "cartonNumbers": "(Carton #)",
+              "samplingQuantity": "Sampling Quantity",
+              "sizeCaption": "{size} (Carton #)"
+            },
             "config": {}
           },
           {
@@ -1715,8 +1888,16 @@
             "include": true,
             "title": "Dimension",
             "labels": {
+              "length": "Length",
+              "width": "Width",
+              "fingerThickness": "Finger Thickness",
+              "palmThickness": "Palm Thickness",
+              "cuffThickness": "Cuff Thickness",
               "statistic": "Average",
               "measureResult": "A / Rej.",
+              "sizeHeading": "Dimension - Size {size}",
+              "rowNo": "No.",
+              "specRow": "Spec.",
               "pass": "A",
               "fail": "Rej."
             },
@@ -1840,7 +2021,14 @@
             "key": "tensile",
             "include": true,
             "title": "Physical Properties average (Refer to attached lab. reports)",
-            "labels": {},
+            "labels": {
+              "tensileStrength": "Tensile Strength (Average) (MPa)",
+              "elongationAtBreak": "Elongation at break, average (%)",
+              "labReport": "Lab report",
+              "tensileResult": "Passed / Failed",
+              "elongationResult": "Passed / Failed",
+              "specRow": "Spec. ({standardLabel})"
+            },
             "config": {
               "tensileMin": 14,
               "elongationMin": 500,
@@ -1855,7 +2043,13 @@
             "key": "force_at_break",
             "include": false,
             "title": "Force At Break in Newton (Refer to attached where applicable)",
-            "labels": {},
+            "labels": {
+              "values": "Force at break (N)",
+              "labReport": "Lab report",
+              "median": "Median",
+              "result": "Passed / Failed",
+              "specRow": "Spec."
+            },
             "config": {
               "n": 13,
               "specMin": 6,
@@ -1868,8 +2062,15 @@
             "include": true,
             "title": "Weight (g)",
             "labels": {
+              "values": "Weight (g)",
+              "average": "Average",
+              "deviationPct": "Deviation from indicative weight",
               "result": "A / Rej.",
-              "info": "A"
+              "info": "A",
+              "rowNo": "No.",
+              "specRow": "Spec.",
+              "pass": "Passed",
+              "fail": "Failed"
             },
             "config": {
               "n": 1,
@@ -1908,8 +2109,17 @@
             "include": true,
             "title": "Freedom from Holes by watertight test",
             "labels": {
+              "tested": "No. of sample tested",
               "holes": "Holes",
-              "heading": "Freedom from Holes by watertight test (Sampling code letter {codeLetters}; AQL={aql})"
+              "otherDescription": "Other : description",
+              "unmapped": "Defect not in the list",
+              "codeLetter": "Sampling code letter",
+              "accept": "Accept",
+              "reject": "Reject",
+              "totalDefects": "Total number of defects found",
+              "result": "Freedom from holes (Passed / Failed)",
+              "heading": "Freedom from Holes by watertight test (Sampling code letter {codeLetters}; AQL={aql})",
+              "defectLimit": "Defect Limit"
             },
             "config": {
               "aql": 1.5,
@@ -1947,8 +2157,29 @@
             "include": true,
             "title": "Visual Inspection",
             "labels": {
+              "inspected": "No. of sample inspected",
+              "counts": "Defects",
+              "criticalCounts": "Critical Defects",
+              "majorCounts": "Major Defects",
+              "minorCounts": "Minor Defects",
+              "unmapped": "Defect not in the list",
+              "codeLetter": "Sampling code letter",
+              "accept": "Accept",
+              "reject": "Reject",
+              "total": "Total number of defects found",
+              "criticalTotal": "Total number of \"Critical Defects\" found",
+              "majorTotal": "Total number of \"Major Defects\" found",
+              "minorTotal": "Total number of \"Minor Defects\" found",
+              "result": "Disposition (Passed / Failed)",
+              "criticalResult": "Disposition - Visual Critical (Passed / Failed)",
+              "majorResult": "Disposition - Visual Major (Passed / Failed)",
+              "minorResult": "Disposition - Visual Minor (Passed / Failed)",
               "heading": "Visual Inspection (Sampling code letter {codeLetters})",
-              "criticalLimit": "Defect Limit"
+              "criticalHeading": "Critical Defects (AQL {aql})",
+              "majorHeading": "Major Defects (AQL {aql})",
+              "minorHeading": "Minor Defects (AQL {aql})",
+              "criticalLimit": "Defect Limit",
+              "defectLimit": "Defect Limit"
             },
             "config": {
               "handSplit": false,
@@ -2038,7 +2269,22 @@
             "key": "dispensing_safedon",
             "include": true,
             "title": "Glove Dispensing Inspection",
-            "labels": {},
+            "labels": {
+              "boxNo": "Box #",
+              "counts": "Safedon Packing Defects",
+              "codeLetter": "Sampling code letter",
+              "boxDefects": "Defects / gloves per pack",
+              "boxRatePct": "Defect rate",
+              "boxesTested": "Boxes tested",
+              "boxesFailed": "Boxes failed",
+              "totalDefects": "Total",
+              "glovesInspected": "Gloves inspected",
+              "ratePct": "Defect rate (%)",
+              "result": "Conclusion",
+              "heading": "Glove Dispensing Inspection (Sampling code letter {codeLetters})",
+              "totalGroup": "Total",
+              "specRow": "Specification / Requirement"
+            },
             "config": {
               "defects": [
                 {
@@ -2083,7 +2329,23 @@
             "key": "dispensing_packing",
             "include": false,
             "title": "Glove Packing Check",
-            "labels": {},
+            "labels": {
+              "boxNo": "Box #",
+              "layeringPct": "Layering %",
+              "dispensingPct": "Dispensing %",
+              "stickiness": "Stickiness **",
+              "note": "Others:",
+              "codeLetter": "Sampling code letter",
+              "layeringAverage": "Average",
+              "dispensingAverage": "Average",
+              "stickinessSummary": "Average",
+              "layeringResult": "Passed / Failed",
+              "dispensingResult": "Passed / Failed",
+              "stickinessResult": "Passed / Failed",
+              "heading": "Glove Packing Check (Sampling code letter {codeLetters}) : min. {minLayeringPct}% layering & {minDispensingPct}% dispensing",
+              "itemColumn": "Item",
+              "stickinessLegend": "**Glove stickiness Code"
+            },
             "config": {
               "minLayeringPct": 70,
               "minDispensingPct": 80,
@@ -2127,6 +2389,15 @@
             "include": true,
             "title": "Packaging Labeling Inspection",
             "labels": {
+              "inspected": "No. of sampled boxes inspected",
+              "boxNos": "Box #",
+              "defects": "Defects",
+              "accept": "Accept",
+              "reject": "Reject",
+              "total": "Total number of defects found",
+              "result": "Disposition (Passed / Failed)",
+              "innerResult": "Disposition - Inner Box (Passed / Failed)",
+              "cartonResult": "Disposition - Carton Box (Passed / Failed)",
               "innerLevel": "Inner Boxes/Packs",
               "cartonLevel": "Carton Boxes",
               "defectLimit": "Limit : Accept / Reject"
@@ -2188,7 +2459,17 @@
             "key": "conclusion",
             "include": true,
             "title": "Conclusion",
-            "labels": {},
+            "labels": {
+              "suggestedResult": "Suggested result",
+              "finalResult": "Conclusion",
+              "remark": "Remark",
+              "inspector": "Inspected by",
+              "date": "Date",
+              "signature": "Signature",
+              "pass": "PASSED",
+              "fail": "FAILED",
+              "hold": "HOLD"
+            },
             "config": {}
           }
         ],
@@ -2602,11 +2883,16 @@
             "title": "Purchase Order / Shipment Information",
             "labels": {
               "manufacturer": "Manufacturer Name",
+              "factoryAddress": "Supplier Factory Address / Location",
               "poNo": "Purchase/Sales Order No.",
               "productName": "Product Name",
+              "productCode": "Product code",
+              "client": "Client Name",
+              "factoryGloveCode": "Factory glove code",
               "inspectionDate": "Date",
               "mfgDate": "Mfg Date",
-              "expiryDate": "Exp Date"
+              "expiryDate": "Exp Date",
+              "inspector": "Inspected by"
             },
             "config": {
               "fields": {
@@ -2630,7 +2916,13 @@
             "include": true,
             "title": "PO Info",
             "labels": {
-              "qtyCases": "Qty (case)"
+              "size": "Size",
+              "qtyCases": "Qty (case)",
+              "lotNumbers": "Lot Number",
+              "packingSite": "Packing Site",
+              "lotSizeGloves": "Lot size (gloves)",
+              "totalCartons": "Total # carton",
+              "totalGloves": "Total # gloves"
             },
             "config": {
               "fields": {
@@ -2642,7 +2934,13 @@
             "key": "packing_config",
             "include": true,
             "title": "Packing Mode",
-            "labels": {},
+            "labels": {
+              "glovesPerInner": "# glove per inner box",
+              "innersPerCase": "# inners per case",
+              "glovesPerCase": "# gloves per case",
+              "packingMode": "Packing Mode",
+              "glovesPerCaseCheck": "Gloves per case (inner × per case)"
+            },
             "config": {
               "innerUnit": "pouch",
               "fields": {
@@ -2655,11 +2953,23 @@
             "include": true,
             "title": "Sampling Plan",
             "labels": {
+              "cases": "Case",
+              "innerUnits": "Inner Box",
+              "gloves": "Gloves",
               "glovesWatertightVisual": "# gloves",
               "glovesDimensions": "# Gloves dimension",
               "glovesPhysical": "# Gloves (FAB)",
+              "innerUnitsDispensing": "# inner box for packaging & dispensing inspection",
+              "pouches": "Pouches",
+              "pouchesDyeLeak": "# pouches (dye leak test)",
+              "codeLetter": "Code letter",
+              "planSampleSize": "Sample size by plan",
+              "totals": "Total:",
               "samplingQuantity": "Sampling Quantity (WTT & Visual)",
-              "orderQty": "Qty (case)"
+              "orderQty": "Qty (case)",
+              "gloveSize": "Glove Size",
+              "inspectionLevel": "Inspection level",
+              "lotSizeGloves": "Lot size (gloves)"
             },
             "config": {
               "columns": {
@@ -2681,9 +2991,17 @@
             "include": true,
             "title": "Watertight Inspection",
             "labels": {
+              "tested": "No. of sample tested",
               "holes": "Defect",
+              "otherDescription": "Other : description",
+              "unmapped": "Defect not in the list",
+              "codeLetter": "Sampling code letter",
+              "accept": "Accept",
+              "reject": "Reject",
               "totalDefects": "Total WTT",
-              "heading": "Watertight Inspection"
+              "result": "Freedom from holes (Passed / Failed)",
+              "heading": "Watertight Inspection",
+              "defectLimit": "Defect Limit"
             },
             "config": {
               "aql": 1.5,
@@ -2717,13 +3035,29 @@
             "include": true,
             "title": "Visual Inspection",
             "labels": {
+              "inspected": "No. of sample inspected",
+              "counts": "Defects",
+              "criticalCounts": "Critical Defects",
               "majorCounts": "Major defect",
               "minorCounts": "Minor defect",
+              "unmapped": "Defect not in the list",
+              "codeLetter": "Sampling code letter",
+              "accept": "Accept",
+              "reject": "Reject",
+              "total": "Total number of defects found",
+              "criticalTotal": "Total number of \"Critical Defects\" found",
               "majorTotal": "Total Major",
               "minorTotal": "Total Minor",
+              "result": "Disposition (Passed / Failed)",
+              "criticalResult": "Disposition - Visual Critical (Passed / Failed)",
+              "majorResult": "Disposition - Visual Major (Passed / Failed)",
+              "minorResult": "Disposition - Visual Minor (Passed / Failed)",
               "heading": "Visual Inspection",
+              "criticalHeading": "Critical Defects (AQL {aql})",
               "majorHeading": "Major defect",
-              "minorHeading": "Minor defect"
+              "minorHeading": "Minor defect",
+              "criticalLimit": "Defect Limit : Accept / Reject",
+              "defectLimit": "Defect Limit"
             },
             "config": {
               "handSplit": true,
@@ -2821,7 +3155,20 @@
             "key": "dimensions",
             "include": true,
             "title": "Dimension",
-            "labels": {},
+            "labels": {
+              "length": "Length",
+              "width": "Width",
+              "fingerThickness": "Finger Thickness",
+              "palmThickness": "Palm Thickness",
+              "cuffThickness": "Cuff Thickness",
+              "statistic": "Median",
+              "measureResult": "P/F *",
+              "sizeHeading": "Dimension - Size {size}",
+              "rowNo": "No.",
+              "specRow": "Spec.",
+              "pass": "Passed",
+              "fail": "Failed"
+            },
             "config": {
               "measures": [
                 "length",
@@ -2846,7 +3193,13 @@
             "key": "dye_leak",
             "include": true,
             "title": "Dye leak test",
-            "labels": {},
+            "labels": {
+              "pouchesTested": "Pouches tested",
+              "pouchesFailed": "Pouches failed",
+              "notes": "Notes",
+              "result": "Passed / Failed",
+              "pouchesPlanned": "Pouches planned"
+            },
             "config": {
               "n": null
             }
@@ -2855,7 +3208,17 @@
             "key": "conclusion",
             "include": true,
             "title": "Conclusion",
-            "labels": {},
+            "labels": {
+              "suggestedResult": "Suggested result",
+              "finalResult": "Conclusion",
+              "remark": "Remark",
+              "inspector": "Inspected by",
+              "date": "Date",
+              "signature": "Signature",
+              "pass": "PASSED",
+              "fail": "FAILED",
+              "hold": "HOLD"
+            },
             "config": {}
           }
         ],

@@ -1,7 +1,7 @@
 // Pure edits behind Capture.tsx: each takes the module's whole data and
 // returns the whole new value for onChange, leaving every other size as it
 // was, ordered or not (MODULES.md section 10).
-import type { Hand } from "@/modules/_framework";
+import { HANDS, type Hand } from "@/modules/_framework";
 import type { HoleLocation } from "./config";
 import {
   emptyWatertightHand,
@@ -115,6 +115,27 @@ export function addOneOff(
   }
   if (oneOffLabels(data, sizes, split).some((existing) => labelKey(existing) === key)) return data;
   return setOneOff(data, cell, label, 0);
+}
+
+/**
+ * Takes a one-off label off every ordered size (and hand) where it counts
+ * nothing: a row added by mistake. An entry with holes stays, so no count is
+ * lost; sizes no longer ordered keep theirs (6.2 rule 4). The same data when
+ * there is nothing to take off.
+ */
+export function removeOneOff(data: WatertightData, label: string, sizes: readonly string[], split: boolean): WatertightData {
+  const key = labelKey(label);
+  let next = data;
+  for (const size of sizes) {
+    for (const hand of split ? HANDS : [undefined]) {
+      const entry = next.sizes[size];
+      const record = hand === undefined ? entry : entry?.[hand];
+      if (!record) continue;
+      const unmapped = record.unmapped.filter((one) => labelKey(one.label) !== key || one.count > 0);
+      if (unmapped.length !== record.unmapped.length) next = withHand(next, { size, hand }, (current) => ({ ...current, unmapped }));
+    }
+  }
+  return next;
 }
 
 /**

@@ -11,9 +11,10 @@
 // through useDataUpdater, starting from the latest data, so taps faster than
 // the screen renders all count (docs/CAPTURE_KIT.md).
 import { useRef, useState } from "react";
-import { ChevronLeftIcon, ChevronRightIcon, PlusIcon } from "lucide-react";
+import { PlusIcon } from "lucide-react";
 import {
   BoxPicker,
+  ColumnSwitcher,
   CounterTable,
   issuePathProps,
   ModuleSection,
@@ -222,31 +223,14 @@ function SafedonSizePanel({ size, props, update, active, onActive, requested, on
         title={labelFor(labels, "counts")}
         actions={
           columns > 1 && (
-            <div className="flex items-center gap-1 xl:hidden">
-              <Button
-                type="button"
-                variant="outline"
-                size="icon-sm"
-                aria-label="Previous box"
-                disabled={counted === 0}
-                onClick={() => select(counted - 1)}
-              >
-                <ChevronLeftIcon aria-hidden />
-              </Button>
-              <span className="min-w-24 text-center text-sm tabular-nums touch:text-base" aria-live="polite">
-                {`${boxLabel} ${columnLabel(counted)} · ${counted + 1} / ${columns}`}
-              </span>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon-sm"
-                aria-label="Next box"
-                disabled={counted >= columns - 1}
-                onClick={() => select(counted + 1)}
-              >
-                <ChevronRightIcon aria-hidden />
-              </Button>
-            </div>
+            <ColumnSwitcher
+              count={columns}
+              index={counted}
+              onIndexChange={select}
+              current={`${boxLabel} ${columnLabel(counted)}`}
+              previousLabel="Previous box"
+              nextLabel="Next box"
+            />
           )
         }
       >

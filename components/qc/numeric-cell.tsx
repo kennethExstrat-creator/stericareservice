@@ -6,6 +6,8 @@
 // becomes null. Text is never stored. Escape restores the last value. The
 // rules are pure functions in numeric-entry.ts. A field announces a rejected
 // entry itself; in a grid, MeasurementGrid announces it with the cell's name.
+// Read-only, the input stays focusable (issue links, keyboard review) and
+// quietly refuses typing and pastes.
 import {
   useId,
   useRef,
@@ -40,6 +42,8 @@ type NumericCellProps = Omit<
   onInvalidChange?: (invalid: InvalidEntry | null) => void;
   min?: number;
   max?: number;
+  /** Refuse `min` itself: the value must be more than it ("Must be more than 0."). */
+  minExclusive?: boolean;
   /** "field" is a standalone input with its error below; "cell" sits in a grid. */
   variant?: "field" | "cell";
   /** Unit shown inside a field, e.g. "mm". */
@@ -57,6 +61,7 @@ export function NumericCell({
   onInvalidChange,
   min,
   max,
+  minExclusive,
   variant = "field",
   unit,
   decimals,
@@ -100,14 +105,14 @@ export function NumericCell({
     const raw = draftRef.current;
     if (raw === null) return;
     updateDraft(null);
-    const change = commitChange(raw, { value, invalid }, { min, max });
+    const change = commitChange(raw, { value, invalid }, { min, max, minExclusive });
     if ("value" in change) onValueChange(change.value ?? null);
     if ("invalid" in change) setInvalid(change.invalid ?? null);
     if (change.invalid && variant === "field") announce(rejectionMessage(change.invalid));
   };
 
   const display = entryText(draft, invalid, value, decimals);
-  const showError = showsEntryError(invalid, draft, { min, max });
+  const showError = showsEntryError(invalid, draft, { min, max, minExclusive });
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     const action = entryKeyAction(event.key, draftRef.current !== null);
@@ -142,6 +147,11 @@ export function NumericCell({
   };
 
   const handlePaste = (event: ClipboardEvent<HTMLInputElement>) => {
+    // Nothing to paste into, and nothing to say about it.
+    if (readOnly) {
+      event.preventDefault();
+      return;
+    }
     if (!onPasteText) return;
     if (onPasteText(event.clipboardData.getData("text"))) {
       event.preventDefault();
@@ -179,7 +189,7 @@ export function NumericCell({
           "h-9 rounded-md border border-input bg-card px-2.5 text-base shadow-xs transition-[color,box-shadow] focus-visible:border-ring focus-ring-inset aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 [&[readonly]]:bg-muted [&[readonly]]:shadow-none fine:text-sm touch:h-11 touch:px-3",
         variant === "field" && unit && "pr-12 touch:pr-12",
         variant === "cell" &&
-          "h-8 rounded-none bg-transparent px-2.5 text-sm focus-visible:bg-card focus-ring-inset aria-invalid:bg-fail-tint aria-invalid:text-fail aria-invalid:ring-2 aria-invalid:ring-fail aria-invalid:ring-inset touch:h-11 touch:text-base",
+          "h-8 rounded-none bg-transparent px-2.5 text-sm focus-visible:bg-card focus-ring-inset aria-invalid:bg-fail-tint aria-invalid:text-fail aria-invalid:ring-2 aria-invalid:ring-fail aria-invalid:ring-inset touch:h-11 touch:text-base [&[readonly]]:cursor-default",
         className,
       )}
     />

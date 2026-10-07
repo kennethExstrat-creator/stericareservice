@@ -60,6 +60,31 @@ const REQUIRE_ISO_AND_FDA = withItems(
 );
 
 describe("documents", () => {
+  it("records each item's file without changing the result, and says when a kept file is gone", () => {
+    const FILE = "00000000-0000-4000-8000-000000000501";
+    const data = documents({ ...allVerified(), iso13485: { status: "verified", file: FILE }, fdaCe: { status: "verified", file: FILE } });
+    const unknown = calcDocuments(input(data));
+    expect(unknown.computed.fileState).toMatchObject({ iso13485: "attached", fdaCe: "attached", labTestReports: "none" });
+    expect(unknown.issues).toEqual([]);
+
+    const blank = makeTestContext();
+    const gone = calcDocuments({
+      ...input(data),
+      context: makeTestContext({ header: { ...blank.header, inspectionDate: STD_EG_INSPECTED }, files: [] }),
+    });
+    expect(gone.result).toEqual(unknown.result);
+    expect(gone.computed.fileState).toMatchObject({ iso13485: "missing", fdaCe: "missing" });
+    expect(gone.issues).toEqual([
+      {
+        level: "warning",
+        code: "document_file_missing",
+        message: "ISO 13485: the file attached here is not among this inspection's files. It may still be uploading from another device; if it was deleted, attach it again.",
+        path: ["items", "iso13485", "file"],
+      },
+      expect.objectContaining({ code: "document_file_missing", path: ["items", "fdaCe", "file"] }),
+    ]);
+  });
+
   it("satisfies the module contract", () => {
     expect(checkModuleContract(definition)).toEqual([]);
     expect(definition.perSize).toBe(false);
@@ -72,6 +97,7 @@ describe("documents", () => {
         expired: Object.fromEntries(DOCUMENT_ITEMS.map((key) => [key, null])),
         itemStatus: Object.fromEntries(DOCUMENT_ITEMS.map((key) => [key, "pass"])),
         counts: { verified: 6, not_verified: 0, na: 0, open: 0 },
+        fileState: Object.fromEntries(DOCUMENT_ITEMS.map((key) => [key, "none"])),
       },
       issues: [],
     });

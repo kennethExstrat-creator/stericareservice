@@ -6,11 +6,13 @@ import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { STATUSES } from "@/lib/design/status";
+import { CountField } from "./count-field";
 import { DefectChip } from "./defect-chip";
 import { DefectChipGroup } from "./defect-chip-group";
 import { MeasurementGrid, type Measure } from "./measurement-grid";
 import { ModuleCard } from "./module-card";
 import { NumericCell } from "./numeric-cell";
+import { tagLine } from "./photo-tags";
 import { PhotoTile } from "./photo-tile";
 import { ProgressTracker } from "./progress-tracker";
 import { ResultChip } from "./result-chip";
@@ -116,6 +118,22 @@ describe("StatusPill", () => {
   it("takes the template's wording", () => {
     expect(renderToStaticMarkup(<StatusPill status="pass" label="Accept" />)).toContain(">Accept<");
   });
+
+  it.each(["sm", "md"] as const)("reads 16 px on touch at size %s, without a class of its own", (size) => {
+    const html = renderToStaticMarkup(<StatusPill status="fail" size={size} />);
+    expect(html).toContain("touch:text-base");
+    expect(html).toContain("touch:h-8");
+  });
+
+  it("stays compact with a mouse at the small size", () => {
+    expect(renderToStaticMarkup(<StatusPill status="pass" size="sm" />)).toMatch(/class="[^"]*\bh-6\b[^"]*\btext-xs\b/);
+  });
+
+  it("lets a caller size it for a compact list", () => {
+    const html = renderToStaticMarkup(<StatusPill status="pass" size="sm" className="touch:h-7 touch:text-sm" />);
+    expect(html).toContain("touch:text-sm");
+    expect(html).not.toContain("touch:text-base");
+  });
 });
 
 describe("ResultChip", () => {
@@ -136,6 +154,28 @@ describe("SaveStatus", () => {
   it("hides the badge with nothing queued", () => {
     expect(renderToStaticMarkup(<SaveStatus state="saved" />)).not.toContain("waiting to upload");
   });
+
+  it("says Not saved in fail red when saving needs the inspector, keeping the upload count", () => {
+    const html = renderToStaticMarkup(<SaveStatus state="error" pendingUploads={1} />);
+    expect(html).toContain('data-state="error"');
+    expect(html).toContain("Not saved");
+    expect(html).toContain("text-fail");
+    expect(html).toContain("lucide-cloud-alert");
+    expect(html).toContain("photo waiting to upload");
+  });
+});
+
+describe("tagLine", () => {
+  it("names what was in focus when the photo was taken", () => {
+    expect(tagLine({ module: "Dimensions", size: "M", box: "253" })).toBe("Dimensions · Size M · Box 253");
+    expect(tagLine({ module: "Watertight", size: "7.0", hand: "L", defect: "Palm" })).toBe(
+      "Watertight · Size 7.0 · Left hand · Palm",
+    );
+  });
+
+  it("ends with an entry of the module's own list, such as a loading stage", () => {
+    expect(tagLine({ module: "Loading", item: "Doors closed" })).toBe("Loading · Doors closed");
+  });
 });
 
 describe("Stepper", () => {
@@ -152,6 +192,44 @@ describe("Stepper", () => {
     const html = renderToStaticMarkup(<Stepper label="Count" value={0} onValueChange={noop} />);
     expect(html).toMatch(/aria-disabled="true"[^>]*aria-label="Decrease Count"|aria-label="Decrease Count"[^>]*aria-disabled="true"/);
     expect(html).not.toMatch(/<button[^>]*disabled=""/);
+  });
+});
+
+describe("CountField", () => {
+  const render = (props: Partial<Parameters<typeof CountField>[0]> = {}) =>
+    renderToStaticMarkup(
+      <CountField label="Pouches failed" name="Pouches failed, Size 7.0" value={null} onValueChange={noop} {...props} />,
+    );
+
+  it("asks for the count with one button while it is not entered, never showing 0", () => {
+    const html = render({ startLabel: "No leaks" });
+    expect(html).toContain('aria-label="No leaks, Pouches failed, Size 7.0"');
+    expect(html).not.toContain('role="spinbutton"');
+    expect(render()).toContain(">Start counting<");
+  });
+
+  it("is a stepper with a way back to not entered once it is", () => {
+    const html = render({ value: 2, max: 13 });
+    expect(html).toContain('role="spinbutton"');
+    expect(html).toContain('aria-valuenow="2"');
+    expect(html).toContain('aria-valuemax="13"');
+    expect(html).toContain('aria-label="Clear Pouches failed, Size 7.0"');
+  });
+
+  it("drops a maximum below the stored count, so the count can still be lowered", () => {
+    expect(render({ value: 5, max: 3 })).not.toContain("aria-valuemax");
+  });
+
+  it("is the number, or a dash, read-only", () => {
+    expect(render({ value: 2, readOnly: true })).not.toContain("<button");
+    expect(render({ value: null, readOnly: true })).toContain("No value");
+  });
+
+  it("shows calc's error in red and warnings in amber, and marks itself for issue links", () => {
+    const html = render({ value: 3, error: "More failed than tested.", warning: "Fewer than planned.", issuePath: ["sizes", "7.0"] });
+    expect(html).toMatch(/class="[^"]*text-fail[^"]*">More failed than tested\./);
+    expect(html).toMatch(/text-warn[\s\S]*<span>Fewer than planned\.<\/span>/);
+    expect(html).toContain('data-issue-path="[&quot;sizes&quot;,&quot;7.0&quot;]"');
   });
 });
 
@@ -259,6 +337,77 @@ describe("MeasurementGrid", () => {
     expect(html).toContain('data-status="fail"');
     expect(html).toContain("≥ 240");
     expect(html).toContain("95 ± 10");
+  });
+
+  const FULL = [6.5, 0, 6.6, 6.7, 6.8];
+  const force: Measure = { key: "values", label: "Force at break (N)", decimals: 3, spec: { kind: "min", min: 6 } };
+  const renderWith = (props: Partial<Parameters<typeof MeasurementGrid>[0]>) =>
+    renderToStaticMarkup(
+      <MeasurementGrid
+        caption="Force at break, size M"
+        measures={[force]}
+        rows={5}
+        values={{ values: FULL }}
+        statistic="median"
+        {...props}
+      />,
+    );
+  const statuses = (html: string) => Array.from(html.matchAll(/data-status="(\w+)"/g), (match) => match[1]);
+
+  it("shows calc's figures when the module passes them: no median or verdict for a reading calc refuses", () => {
+    // Summarising its own cells, the grid would print 6.600 and Passed.
+    expect(renderWith({})).toContain(">6.600<");
+    expect(statuses(renderWith({}))).toEqual(["pass"]);
+    const html = renderWith({ measures: [{ ...force, summary: { statistic: null, outcome: "not_done", count: 4 } }] });
+    expect(html).not.toContain(">6.600<");
+    expect(statuses(html)).toEqual(["not_done", "not_done"]);
+  });
+
+  it("prints calc's statistic at the measure's decimals, with the count while short of the rows", () => {
+    const html = renderWith({
+      measures: [{ ...force, summary: { statistic: 6.54321, outcome: "not_done", count: 4 } }],
+    });
+    expect(html).toContain(">6.543<");
+    expect(html).toContain("4 of 5");
+    const done = renderWith({ measures: [{ ...force, summary: { statistic: 6.6, outcome: "pass", count: 5 } }] });
+    expect(done).not.toContain(" of 5");
+    expect(statuses(done)).toEqual(["pass"]);
+  });
+
+  it("words the verdict, NA and the captions as the template does", () => {
+    const html = renderWith({
+      measures: [force, { key: "cuff", label: "Cuff" }],
+      values: { values: [6.5, 6.4, 6.6, 6.7, 6.8], cuff: [0.1, 0.1, 0.1, 0.1, 0.1] },
+      labels: { result: "A / Rej.", pass: "A", fail: "Rej.", na: "N/A", statistic: "Average" },
+    });
+    expect(html).toContain(">A<");
+    expect(html).not.toContain(">Passed<");
+    expect(html).toContain(">N/A<");
+    expect(html).toContain(">A / Rej.<");
+    expect(html).toContain(">Average<");
+  });
+
+  it("sizes its label column to the longest caption", () => {
+    const html = renderWith({ labels: { result: "Passed / Failed" } });
+    expect(html).toContain("width:clamp(3.5rem, calc(15ch + 2rem), 16rem)");
+  });
+
+  it("marks each cell for issue links and keeps them focusable inputs when read-only", () => {
+    const html = renderWith({ readOnly: true, cellIssuePath: ({ row, measure }) => ["sizes", "M", measure, row] });
+    const inputs = html.match(/<input[^>]*>/g) ?? [];
+    expect(inputs).toHaveLength(5);
+    for (const input of inputs) {
+      expect(input).toContain('readOnly=""');
+      expect(input).not.toMatch(/\sdisabled=""/);
+    }
+    expect(inputs[1]).toContain('data-issue-path="[&quot;sizes&quot;,&quot;M&quot;,&quot;values&quot;,1]"');
+    expect(html).not.toContain("<fieldset");
+    expect(html).toContain('data-readonly="true"');
+  });
+
+  it("takes typing and pastes only when it is not read-only", () => {
+    const editable = (renderWith({}).match(/<input[^>]*>/g) ?? [])[0];
+    expect(editable).not.toContain("readOnly");
   });
 });
 

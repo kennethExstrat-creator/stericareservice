@@ -89,8 +89,9 @@ describe("visual capture", () => {
 
   it("B. counts the STD_EG example with calc's limits, totals and chips: 0 / 1, 21 / 22, 21 / 22", () => {
     const html = stdEg();
-    expect(html).toContain("Ac 0 / Re 1");
-    expect(html.match(/Ac 21 \/ Re 22/g)).toHaveLength(2);
+    // The limit row in the template's words (labels accept, reject), not the kit's Ac / Re.
+    expect(html).toContain("Accept 0 / Reject 1");
+    expect(html.match(/Accept 21 \/ Reject 22/g)).toHaveLength(2);
     expect(totals(html)).toEqual([0, 8, 0]);
     expect(tagsWith(html, 'data-slot="status-pill"').map((pill) => /data-status="(\w+)"/.exec(pill)?.[1])).toEqual([
       "pass",
@@ -141,20 +142,30 @@ describe("visual capture", () => {
     expect(statuses(html)).toEqual(["pass", "not_done", "not_done"]);
   });
 
-  it("shows the critical limit Ac 0 / Re 1 before the gloves inspected are entered, beside a critical defect's failure", () => {
+  it("shows the critical limit Accept 0 / Reject 1 before the gloves inspected are entered, beside a critical defect's failure", () => {
     const html = render({ sizes: { M: { critical: { counts: { embedded_metal: 1 } } } }, context: M_500() });
-    expect(html.match(/Ac 0 \/ Re 1/g)).toHaveLength(1);
+    expect(html.match(/Accept 0 \/ Reject 1/g)).toHaveLength(1);
     expect(statuses(html)).toEqual(["fail", "not_done", "not_done"]);
     // Major and minor need n for their limits.
-    expect(render({ sizes: {}, context: M_500() }).match(/Ac \d+ \/ Re \d+/g)).toEqual(["Ac 0 / Re 1"]);
+    expect(render({ sizes: {}, context: M_500() }).match(/Accept \d+ \/ Reject \d+/g)).toEqual(["Accept 0 / Reject 1"]);
+  });
+
+  it("words one class's limit apart where the template does (STD_EG prints Acc. = 0 / Rej. = 1 for critical)", () => {
+    const html = render({
+      sizes: {},
+      context: M_500(),
+      labels: { ...VISUAL_LABELS, "critical.accept": "Acc. =", "critical.reject": "Rej. =" },
+    });
+    expect(html).toContain("Acc. = 0 / Rej. = 1");
   });
 
   it("says under a class's gloves inspected what calc found there, warnings in amber", () => {
     const html = render({ sizes: { M: { ...inspectedAll(500), minor: { inspected: 315 } } }, context: M_500() });
-    expect(html).toContain(
-      '<span class="block text-warn">Size M, Minor Defects: No. of sample inspected is 315, but the sampling plan has 500 gloves for watertight and visual.</span>',
+    const blocks = Array.from(html.matchAll(/<div id="[^"]*-calc-warning"[^>]*text-warn[^>]*>[\s\S]*?<\/div>/g), (match) => match[0]);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toContain(
+      "<span>Size M, Minor Defects: No. of sample inspected is 315, but the sampling plan has 500 gloves for watertight and visual.</span>",
     );
-    expect(html.match(/block text-warn/g)).toHaveLength(1);
   });
 
   it("shows the tab's fields, and every size's only where SizeTabs puts the sizes side by side", () => {
@@ -165,12 +176,13 @@ describe("visual capture", () => {
     const html = render({ sizes: {}, context });
     const fields = tagsWith(html, 'data-issue-path="\\[&quot;sizes&quot;,&quot;M&quot;,&quot;major&quot;\\]"');
     expect(fields).toHaveLength(1);
-    expect(fields[0]).toContain("hidden xl:in-data-[side-by-side]:block");
+    // SizeBlock: from 1280 px every size shows while SizeTabs puts them side by side (the tables fit).
+    expect(fields[0]).toContain("max-xl:hidden");
     expect(tagsWith(html, 'data-issue-path="\\[&quot;sizes&quot;,&quot;S&quot;,&quot;major&quot;\\]"')[0]).not.toContain("hidden");
     expect(tagsWith(html, 'data-slot="size-tabs"')[0]).toContain("data-side-by-side");
     // One element in the flex Label, so ", size M" follows the text with no gap when it shows.
     expect(html).toMatch(
-      /<label[^>]*><span>No\. of sample inspected<span class="sr-only">, Major Defects<\/span><span class="sr-only xl:in-data-\[side-by-side\]:not-sr-only">, size M<\/span><\/span><\/label>/,
+      /<label[^>]*><span>No\. of sample inspected<span class="sr-only">, Major Defects<\/span><span class="sr-only xl:not-sr-only">, size M<\/span><\/span><\/label>/,
     );
   });
 
@@ -203,6 +215,13 @@ describe("visual capture", () => {
     expect(tagsWith(html, 'data-unmapped="true"')).toHaveLength(1);
     expect(totals(html)).toEqual([0, 0, 1]);
     expect(html.match(/Defect not in the list/g)).toHaveLength(3);
+    // One added by mistake, counting nothing, can be taken off.
+    expect(html).not.toContain("Remove Faint print");
+    const mistake = render({
+      sizes: { M: { ...inspectedAll(500), minor: { inspected: 500, unmapped: [{ label: "Faint print", count: 0 }] } } },
+      context: M_500(),
+    });
+    expect(mistake.match(/aria-label="Remove Faint print"/g)).toHaveLength(1);
   });
 
   it("is read-only for an approved inspection", () => {

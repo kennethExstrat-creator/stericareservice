@@ -7,7 +7,7 @@
 // Enter moves to the next field. Every label is the template's (rule 11).
 // Every change goes through useDataUpdater, built from the latest data.
 import { useId, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
-import { findIssue, issuePathProps, StatusIcon, useDataUpdater, useIssueFocus } from "@/components/qc";
+import { DateField, findIssue, issuePathProps, StatusIcon, useDataUpdater, useIssueFocus } from "@/components/qc";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -98,38 +98,35 @@ export default function Capture({
     const monthly = field !== "inspectionDate" && config.mfgExpiryPrecision === "month";
     // The inspection date shows the inspection row's own until the header sets one.
     const value = field === "inspectionDate" ? rows.inspectionDate : data[field];
+    if (!monthly) {
+      return (
+        <DateField
+          key={field}
+          id={`${id}-${field}`}
+          label={label}
+          value={value}
+          onValueChange={(next) => pickDate(field, next)}
+          error={warning?.level === "error" ? warning.message : null}
+          warning={warning && warning.level !== "error" ? warning.message : null}
+          issuePath={[field]}
+          readOnly={readOnly}
+          onKeyDown={nextOnEnter}
+          enterKeyHint="next"
+          data-header-field=""
+        />
+      );
+    }
     return (
       <div key={field} className="min-w-0 space-y-1.5" {...issuePathProps([field])}>
-        {monthly ? (
-          <MonthPicker
-            id={`${id}-${field}`}
-            label={label}
-            value={value}
-            years={yearRange(referenceYear, value)}
-            onValueChange={(next) => pickDate(field, next)}
-            readOnly={readOnly}
-            describedBy={warning ? warningId : undefined}
-          />
-        ) : (
-          <>
-            <Label htmlFor={`${id}-${field}`} className="leading-snug touch:text-base">
-              {label}
-            </Label>
-            <Input
-              id={`${id}-${field}`}
-              type="date"
-              // Four-digit years only: without a max, some browsers take a sixth year digit.
-              max="9999-12-31"
-              value={value ?? ""}
-              onChange={(event) => pickDate(field, event.target.value === "" ? null : event.target.value)}
-              onKeyDown={nextOnEnter}
-              enterKeyHint="next"
-              readOnly={readOnly}
-              aria-describedby={warning ? warningId : undefined}
-              data-header-field=""
-            />
-          </>
-        )}
+        <MonthPicker
+          id={`${id}-${field}`}
+          label={label}
+          value={value}
+          years={yearRange(referenceYear, value)}
+          onValueChange={(next) => pickDate(field, next)}
+          readOnly={readOnly}
+          describedBy={warning ? warningId : undefined}
+        />
         {warning && (
           <p id={warningId} className="flex items-start gap-1.5 text-sm text-warn touch:text-base">
             <StatusIcon status="warn" className="mt-0.5 size-4 shrink-0" />

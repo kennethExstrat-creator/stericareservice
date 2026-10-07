@@ -40,11 +40,16 @@ describe("formatRatioDecimal", () => {
 });
 
 describe("formatRate", () => {
-  it("prints the size totals of the Safedon dispensing check", () => {
+  it("prints the size totals of the Safedon dispensing check, as the expected results write them", () => {
     expect(formatRate(3, 625)).toBe("3 / 625 (0.48%)");
-    expect(formatRate(11, 1000)).toBe("11 / 1000 (1.1%)");
-    expect(formatRate(0, 1000)).toBe("0 / 1000 (0%)");
+    expect(formatRate(11, 1000)).toBe("11 / 1,000 (1.1%)");
+    expect(formatRate(0, 1000)).toBe("0 / 1,000 (0%)");
     expect(formatRate(7, 625)).toBe("7 / 625 (1.12%)");
+  });
+
+  it("can leave out the thousands separators, as the Safedon report printed them", () => {
+    expect(formatRate(11, 1000, { grouping: false })).toBe("11 / 1000 (1.1%)");
+    expect(formatRatio(1, 1000, { grouping: true })).toBe("1/1,000");
   });
 
   it("rounds the rate to at most two decimals by default", () => {
