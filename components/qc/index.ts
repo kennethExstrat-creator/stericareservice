@@ -51,6 +51,9 @@ export {
   type EntryProblem,
   type NumberFieldProps,
 } from "./number-field";
+// What a paste left out, on screen: NumberField, EnterGroup and MeasurementGrid show it themselves.
+export { PasteNotice } from "./paste-notice";
+export type { PasteLeftOut } from "./field-navigation";
 export {
   RequirementList,
   SpecValue,

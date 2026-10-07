@@ -50,7 +50,10 @@ const INITIAL: Record<string, MeasurementValues> = {
   },
 };
 
-const TEST_COLUMN = ["244", "246", "243", "245", "247", "2 42", "244", "245", "243", "246", "244", "245", "243"].join("\n");
+// 15 values for 13 gloves: one is rejected, and the two past the last row are listed under the grid.
+const TEST_COLUMN = ["244", "246", "243", "245", "247", "2 42", "244", "245", "243", "246", "244", "245", "243", "246", "244"].join(
+  "\n",
+);
 
 /** The dimensions result for a size: fail if any measure fails, not done until all are judged. */
 function sizeResult(measures: readonly Measure[], values: MeasurementValues): Status {
@@ -68,7 +71,7 @@ export function GridSection() {
   const copyTestColumn = async () => {
     try {
       await navigator.clipboard.writeText(TEST_COLUMN);
-      toast.info("13 values copied. Click a Length cell in size S and paste.");
+      toast.info("15 values copied. Click the first Length cell in size S and paste: 13 fit.");
     } catch {
       toast.error("The browser blocked the clipboard. Copy a column from a spreadsheet instead.");
     }
@@ -81,9 +84,9 @@ export function GridSection() {
       description={
         <>
           13 gloves by 5 measures, in the report&apos;s wording. Type a value and press Enter to move down the column;
-          arrows move between cells; pasting a column fills down from the focused cell. A reading like “2 42” is
-          rejected and never stored. The median shows <em>Not done</em> until a column has data, and P/F waits for the
-          whole column.
+          arrows move between cells; pasting a column fills down from the focused cell, and values past the last row
+          are listed under the grid, never dropped silently. A reading like “2 42” is rejected and never stored. The
+          median shows <em>Not done</em> until a column has data, and P/F waits for the whole column.
         </>
       }
       source="app-specific (BUILD_SPEC 6.1 dimensions, 6.2, 8)"

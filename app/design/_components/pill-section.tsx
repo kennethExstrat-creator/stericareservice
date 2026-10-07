@@ -16,7 +16,7 @@ export function PillSection() {
     <DesignSection
       id="pills"
       title="Results and saving"
-      description="StatusPill for results, ResultChip where space is tight (module tabs), SaveStatus in the capture header. Saving is never shown in status colours except Offline, which needs attention."
+      description="StatusPill for results, ResultChip where space is tight (module tabs), SaveStatus in the capture header. Saving is never shown in status colours except Offline (amber), which will sync by itself, and Not saved (red), which needs the inspector."
       source="app-specific (BUILD_SPEC 4.2 rule 7, 8)"
     >
       <div className="grid gap-4 lg:grid-cols-2">
@@ -64,9 +64,13 @@ export function PillSection() {
             <SaveStatus state="offline" />
             <SaveStatus state="offline" pendingUploads={3} />
             <SaveStatus state="saved" pendingUploads={1} />
+            <SaveStatus state="error" />
+            <SaveStatus state="error" pendingUploads={1} />
           </div>
           <p className="mt-4 text-sm text-muted-foreground">
-            The count is photos still in the upload queue; submit stays blocked until it reaches zero.
+            The count is photos still in the upload queue; submit stays blocked until it reaches zero. Not saved
+            means saving needs the inspector (a change made on another device, a refused save, no copy kept on this
+            device): the notice under the header says what happened and what to do.
           </p>
         </Specimen>
       </div>

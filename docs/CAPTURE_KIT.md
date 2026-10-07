@@ -2,6 +2,14 @@
 
 Shared building blocks for every module's `Capture.tsx` (`docs/MODULES.md` section 10), so all sixteen modules look and behave the same and the look is tuned in one place. Capture renders the module body only; the screen wraps it in `ModuleCard`. Import components from `@/components/qc` and text helpers from `@/lib/format`. Check here before writing a control of your own.
 
+## Changed on 7 October 2026 (hand-offs between the packages)
+
+Nothing breaks, and no Capture has to change. You get:
+
+1. **A paste that does not fit says so on screen.** The values past the last cell or field of the run (and, for a one-column `group`, the values from other spreadsheet columns) are listed as pasted, with their count, in amber, until the inspector dismisses the notice (the focus goes back where the paste was made) or pastes again. `MeasurementGrid` shows it across its foot; `NumberField` under the field pasted into; a `NumberField` cell in a table hands it to its `EnterGroup`, which shows it across the group's foot (after your table, inside your frame). The live region still says it in short. A value your module keeps past the grid's last row (force at break keeps readings past the gloves tested, and reports them itself) is not listed: the grid compares the overflow with the `values` you hand it. Modules that handle a paste of their own can show the same notice with `PasteNotice`.
+2. **`PhotoTile` has a `failed` state**: "Upload stopped" in fail red, no progress bar. Its image stays 4:3 for a portrait photo too.
+3. **`PhotoTags.level`**: labelling's packaging level in the template's words ("Carton Box"); `tagLine` puts it after the box and before the item, as the capture screen's tag line has them.
+
 ## Changed on 7 October 2026 (review fixes)
 
 Nothing breaks. If your Capture shows a lab report or certificate, or words one class's limit apart, change these:
@@ -232,7 +240,7 @@ One `CounterTable` per class, each in a `ModuleSection` titled with the class ("
 ```
 
 - `BoxPicker` offers `context.cartons[size]` ascending, with search (type the digits and Enter on desktop, tap on iPad), marks boxes picked in other rows (still pickable: one carton holds many inner boxes), and shows a stored box that is not in the list as an error until replaced. With no carton list yet it takes a typed box number and does not flag it (MODULES.md section 7). Store the number, never an index.
-- `group="layering"` makes Enter walk down that column and a pasted column fill down it. A named group is one column: a block copied from a spreadsheet fills it from its first column, and the field says the other columns were left out. Without `group`, fields in one `EnterGroup` form one run in reading order, and a block fills it row by row.
+- `group="layering"` makes Enter walk down that column and a pasted column fill down it. A named group is one column: a block copied from a spreadsheet fills it from its first column, and the field says the other columns were left out. Without `group`, fields in one `EnterGroup` form one run in reading order, and a block fills it row by row. Values past the run's last field are listed on screen as not stored, across the foot of the `EnterGroup` for cells, under the field for fields.
 - A paste is one change: each field judges its own value (its `min`, `max`, `integer`), rejected text stays on screen with its reason, and `update` hands the module one `onChange` with every value.
 - `label` may be an element; plain text is better in a table cell (it becomes the cell's name directly).
 
@@ -271,6 +279,7 @@ One `CounterTable` per class, each in a `ModuleSection` titled with the class ("
 - The label column is as wide as the longest footer caption ("Passed / Failed" stays on one line), up to 16 rem.
 - Read-only, the readings stay readonly inputs on grey: Tab, the arrows and Enter move through them, issue links land on them, typing and pastes are refused without a word.
 - A reading with no cell (past the plan's n) has its message marked with `issueNoticeProps(issue.path)`, so the issue link lands on the message, beside the button that removes those readings.
+- A paste longer than the grid lists, under it, the values that did not fit and were not stored. Readings you keep past the last row (handed back in `values`, as force at break keeps a paste's overflow) are yours to report: the grid leaves them out of its list.
 - `onCellFocus({ row, measure })` reports the cell that took the focus. Photo tags need only the size: tag it when the focus enters the grid, not on every move between its cells.
 
 ## Single values
@@ -317,7 +326,7 @@ It runs once for each new `focusPath` array, so pass the prop straight through. 
 
 ## Photo tags (`onFocusChange`)
 
-Report what is in focus whenever it changes: the size from `SizeTabs`, the hand from `HandToggle`, `{ size, hand, defect }` from `CounterTable`'s `onCellFocus`, `{ size, box }` from `BoxPicker`'s `onFocus` (it also fires when the box list opens: Safari never focuses a tapped button), and the size from `NumberField`'s `onFocus` and MeasurementGrid's `onCellFocus`. `PhotoTags.item` and `tagLine` carry an entry of a module's own list (a document, a loading stage) once the framework's `CaptureFocus` has it.
+Report what is in focus whenever it changes: the size from `SizeTabs`, the hand from `HandToggle`, `{ size, hand, defect }` from `CounterTable`'s `onCellFocus`, `{ size, box }` from `BoxPicker`'s `onFocus` (it also fires when the box list opens: Safari never focuses a tapped button), and the size from `NumberField`'s `onFocus` and MeasurementGrid's `onCellFocus`. `CaptureFocus.level` is labelling's packaging level (`"inner"` or `"carton"`) and `item` an entry of a module's own list (a document, a loading stage); the photos taken then carry them, and the screen words them in the template's words in `PhotoTags.level`, `item` and `tagLine`. A module whose focus is a choice of its own (loading's stage picker, documents' rows) says once, beside the choice, what new photos are tagged with, never inside a row that would grow under the finger.
 
 ## Text: `lib/format`
 
@@ -344,8 +353,8 @@ Show computed numbers with `Figure` (tabular figures, unit in secondary text, a 
 | `HandToggle` | Arrow keys (radio group) | Tap | `handsOf(view)` gives the hands to show |
 | `CounterTable` | Stepper keys: arrows, Page, Home, End | Tap and hold to repeat; a finger that slides away (a swipe) counts nothing | Live total and chip; each tap is spoken with the new total and the chip's verdict; sticky header and totals; taking a one-off row off keeps the focus in the table |
 | `BoxPicker` | Type digits, arrows, Enter, Escape | Tap a box; keyboard stays down | List capped to the space on screen; opening it reports focus |
-| `NumberField` | Enter, Shift+Enter, Escape restores | Decimal keypad | Paste a column to fill down the group, as one change |
-| `MeasurementGrid` | Enter down the column, then the next; arrows; Escape restores | Decimal keypad; swipe turns the size while the grid fits | Paste a column or block from the focused cell, as one `onCellsChange`; read-only keeps the keys and refuses edits |
+| `NumberField` | Enter, Shift+Enter, Escape restores | Decimal keypad | Paste a column to fill down the group, as one change; what did not fit is listed under the field (or the group's table) until Dismiss |
+| `MeasurementGrid` | Enter down the column, then the next; arrows; Escape restores | Decimal keypad; swipe turns the size while the grid fits | Paste a column or block from the focused cell, as one `onCellsChange`; what did not fit is listed under the grid until Dismiss; read-only keeps the keys and refuses edits |
 | `ColumnSwitcher` | Previous and Next stay focusable at the ends (aria-disabled) | 44 px buttons | Says "Box 253 · 2 / 5" as it changes; hidden from 1280 px |
 | `CountField` | Stepper keys; start and clear hand focus to each other | Tap and hold to repeat | Not entered until the start button is pressed |
 
