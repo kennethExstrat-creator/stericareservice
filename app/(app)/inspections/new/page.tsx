@@ -11,7 +11,7 @@ import { NewInspectionForm } from "./_components/new-inspection-form";
 import { loadNewInspectionOptions } from "./_lib/options";
 
 export const metadata: Metadata = {
-  title: "New inspection",
+  title: "New Inspection",
 };
 
 /**
@@ -28,7 +28,7 @@ export default async function NewInspectionPage() {
     <div className="flex w-full flex-1 flex-col gap-6">
       <PageHeader
         eyebrow="Inspections"
-        title="New inspection"
+        title="New Inspection"
       />
       {options ? (
         <NewInspectionForm
@@ -54,7 +54,7 @@ function LoadFailed() {
           <TriangleAlertIcon aria-hidden />
         </EmptyMedia>
         <EmptyTitle>
-          <h2 className="text-lg font-bold text-foreground">The lists could not be loaded</h2>
+          <h2 className="text-lg font-bold text-foreground">The Lists Could Not Be Loaded</h2>
         </EmptyTitle>
         <EmptyDescription className="text-base text-muted-foreground fine:text-sm">
           Clients, manufacturers and templates did not load. Check the connection and try again.
@@ -62,7 +62,7 @@ function LoadFailed() {
       </EmptyHeader>
       <EmptyContent>
         <Button asChild>
-          <Link href={`${INSPECTIONS_PATH}/new`}>Try again</Link>
+          <Link href={`${INSPECTIONS_PATH}/new`}>Try Again</Link>
         </Button>
       </EmptyContent>
     </Empty>

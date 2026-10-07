@@ -142,7 +142,7 @@ function Chosen({
           {template.sections.length > 0 && (
             <details className="text-sm touch:text-base">
               <summary className="w-fit cursor-pointer rounded-md py-1 font-medium text-brand-600 focus-ring-inset touch:py-2.5">
-                Show the sections
+                Show the Sections
               </summary>
               <ol className="mt-2 list-decimal space-y-1 pl-5 text-foreground marker:text-muted-foreground">
                 {template.sections.map((title, index) => (
@@ -196,7 +196,7 @@ function OverridePicker({
   const automatic = choice?.ok && choice.specificity !== "override" ? choice.template : null;
   return (
     <div className="flex flex-col gap-1.5 border-t border-border pt-4">
-      <FieldLabel htmlFor={`${id}-template`}>Use another template</FieldLabel>
+      <FieldLabel htmlFor={`${id}-template`}>Use Another Template</FieldLabel>
       <Select
         value={overrideId || AUTOMATIC}
         onValueChange={(value) => onOverrideChange?.(value === AUTOMATIC ? "" : value)}

@@ -13,6 +13,7 @@ vi.mock("./_lib/options", async (importOriginal) => ({
 vi.mock("./actions", () => ({ createInspection: vi.fn() }));
 
 import { requireUser } from "@/lib/auth/session";
+import { PRODUCT_TYPE_LABEL } from "@/lib/inspections/create";
 import { createClient } from "@/lib/supabase/server";
 import { loadNewInspectionOptions } from "./_lib/options";
 import type { NewInspectionOptions } from "./_lib/types";
@@ -60,22 +61,25 @@ describe("/inspections/new", () => {
   });
 
   it("is titled for every signed-in user", () => {
-    expect(metadata).toEqual({ title: "New inspection" });
+    expect(metadata).toEqual({ title: "New Inspection" });
   });
 
   it("shows the form: the picks, start from previous and the template", async () => {
     const html = await render();
     expect(html).toContain("<h1");
-    expect(html).toContain("New inspection");
+    expect(html).toContain("New Inspection");
     expect(html).toContain('data-testid="new-inspection-form"');
-    expect(html).toContain("What you are inspecting");
+    expect(html).toContain("What You Are Inspecting");
     expect(html).toContain("Choose the client");
     expect(html).toContain("Choose the manufacturer");
-    expect(html).toContain("Examination gloves");
-    expect(html).toContain("Surgical gloves");
-    expect(html).toContain("Start from previous");
+    expect(html).toContain(">Product Type</legend>");
+    expect(html).toContain(PRODUCT_TYPE_LABEL.examination);
+    expect(html).toContain(PRODUCT_TYPE_LABEL.surgical);
+    expect(html).toContain('Product Name <span class="font-normal text-muted-foreground">(Optional)</span>');
+    expect(html).toContain("Start From Previous");
     expect(html).toContain("The template follows from the client, manufacturer and product type.");
-    expect(html).toContain("Create inspection");
+    expect(html).toContain("Product Type<span class=\"sr-only\">: not chosen yet</span>");
+    expect(html).toContain("Create Inspection");
     // Inspectors never post a template of their own choosing.
     expect(html).not.toContain('name="templateId"');
   });
@@ -129,7 +133,8 @@ describe("/inspections/new", () => {
     vi.mocked(loadNewInspectionOptions).mockResolvedValue(null);
     const html = await render();
     expect(html).toContain('data-testid="load-failed"');
-    expect(html).toContain("The lists could not be loaded");
+    expect(html).toContain("The Lists Could Not Be Loaded");
+    expect(html).toContain(">Try Again</a>");
     expect(html).toContain('href="/inspections/new"');
     expect(html).not.toContain('data-testid="new-inspection-form"');
   });

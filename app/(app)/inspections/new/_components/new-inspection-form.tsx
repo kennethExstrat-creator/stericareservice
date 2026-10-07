@@ -258,13 +258,13 @@ function ChoicesForm({ storageKey, initial, role, clients, manufacturers, templa
   return (
     <form onSubmit={submit} noValidate aria-busy={pending || undefined} data-testid="new-inspection-form">
       <fieldset disabled={pending} className="relative m-0 min-w-0 border-0 p-0">
-        <legend className="sr-only">New inspection</legend>
+        <legend className="sr-only">New Inspection</legend>
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,26rem)] lg:items-start">
           <div className="flex min-w-0 flex-col gap-6">
             <Panel
               headingId={`${id}-order-heading`}
               icon={ClipboardListIcon}
-              title="What you are inspecting"
+              title="What You Are Inspecting"
               description="The client and manufacturer as on the order, and the type of glove."
             >
               <div className="grid gap-5 md:grid-cols-2">
@@ -292,7 +292,7 @@ function ChoicesForm({ storageKey, initial, role, clients, manufacturers, templa
                         </SelectItem>
                       ))}
                       {clients.length > 0 && <SelectSeparator />}
-                      <SelectItem value={NO_CLIENT}>No client</SelectItem>
+                      <SelectItem value={NO_CLIENT}>No Client</SelectItem>
                     </SelectContent>
                   </Select>
                   {errors.clientId ? (
@@ -351,7 +351,7 @@ function ChoicesForm({ storageKey, initial, role, clients, manufacturers, templa
                     mb-3 keeps the 12 px a Field has between label and control, and leading-snug the
                     FieldLabel's line, so the cards sit as far below it as the pickers below theirs. */}
                 <FieldLegend variant="label" className={errors.productType ? "leading-snug text-destructive" : "leading-snug"}>
-                  Product type
+                  Product Type
                 </FieldLegend>
                 <RadioGroup
                   value={productType ?? ""}
@@ -380,7 +380,7 @@ function ChoicesForm({ storageKey, initial, role, clients, manufacturers, templa
 
               <Field data-invalid={errors.productName ? true : undefined}>
                 <FieldLabel htmlFor={`${id}-product`}>
-                  Product name <span className="font-normal text-muted-foreground">(optional)</span>
+                  Product Name <span className="font-normal text-muted-foreground">(Optional)</span>
                 </FieldLabel>
                 <Input
                   id={`${id}-product`}
@@ -421,7 +421,7 @@ function ChoicesForm({ storageKey, initial, role, clients, manufacturers, templa
               value={fromPrevious?.inspectionId ?? START_BLANK}
               onValueChange={(value) => {
                 const product = products.find((entry) => entry.inspectionId === value) ?? null;
-                // A named product fills in its name; Start blank or an unnamed one gives back what was typed.
+                // A named product fills in its name; Start Blank or an unnamed one gives back what was typed.
                 update({ previous: product?.inspectionId ?? "", nameFromPrevious: Boolean(product?.productName) });
                 changed("previousId");
               }}
@@ -437,7 +437,7 @@ function ChoicesForm({ storageKey, initial, role, clients, manufacturers, templa
               picks={[
                 { label: "Client", done: client !== undefined },
                 { label: "Manufacturer", done: manufacturerId !== "" },
-                { label: "Product type", done: productType !== null },
+                { label: "Product Type", done: productType !== null },
               ]}
               productType={productType}
               names={names}
@@ -468,7 +468,7 @@ function ChoicesForm({ storageKey, initial, role, clients, manufacturers, templa
               </Button>
               <Button type="submit" className="min-w-44">
                 {pending ? <Spinner aria-hidden /> : <PlusIcon aria-hidden />}
-                {pending ? "Creating…" : "Create inspection"}
+                {pending ? "Creating…" : "Create Inspection"}
               </Button>
             </div>
           </div>
