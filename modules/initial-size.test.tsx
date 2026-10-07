@@ -5,7 +5,7 @@
 // 10.1, BUILD_SPEC 8.1).
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { MODULE_KEYS } from "@/lib/schemas/module-result";
 import { evaluateInspection, type AnyModuleDefinition, type CaptureFocus } from "@/modules/_framework";
 import { makeTestContext, makeTestTemplate } from "@/modules/_framework/testing";
@@ -45,6 +45,12 @@ async function selectedTab(definition: AnyModuleDefinition, focus: CaptureFocus 
 }
 
 describe("per-size captures open on the size in focus", () => {
+  // Each Capture's code (with the kit) is loaded once, here, with time to spare: the first
+  // import inside a case could take longer than a case may while the whole suite runs.
+  beforeAll(async () => {
+    await Promise.all(PER_SIZE.map((key) => MODULE_REGISTRY[key].loadCapture?.()));
+  }, 60_000);
+
   it("covers every per-size module with a Capture", () => {
     expect(PER_SIZE.length).toBeGreaterThan(8);
   });
