@@ -5,6 +5,9 @@ import {
   isNavigationSignal,
   loadPhotoQueue,
   reasonsBeforeSignOut,
+  sendSignOut,
+  SIGN_OUT_SLOW,
+  SIGN_OUT_SLOW_DETAIL,
   UPLOADS_UNCHECKED,
   UPLOADS_WAITING,
   uploadsOnDevice,
@@ -96,15 +99,89 @@ describe("reasonsBeforeSignOut", () => {
   });
 });
 
+/** The error a Server Action's client call rejects with after the action redirected to /login. */
+function redirectToLogin(): unknown {
+  try {
+    redirect("/login");
+  } catch (error) {
+    return error;
+  }
+}
+
+/** A Server Action call the test answers by hand. */
+function pendingCall() {
+  let answer!: { resolve: () => void; reject: (error: unknown) => void };
+  const promise = new Promise<void>((resolve, reject) => {
+    answer = { resolve, reject };
+  });
+  return { action: () => promise, ...answer };
+}
+
+describe("sendSignOut", () => {
+  it("signs out on the redirect to /login, and lets the uploads go first", async () => {
+    const order: string[] = [];
+    const outcome = await sendSignOut(() => Promise.reject(redirectToLogin()), {
+      onSignedOut: () => order.push("uploads stopped"),
+    }).then((result) => {
+      order.push(result);
+      return result;
+    });
+    expect(outcome).toBe("signed-out");
+    expect(order).toEqual(["uploads stopped", "signed-out"]);
+  });
+
+  it("counts an action that returns without a redirect as signed out too", async () => {
+    const onSignedOut = vi.fn();
+    expect(await sendSignOut(async () => undefined, { onSignedOut })).toBe("signed-out");
+    expect(onSignedOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails, keeping the session and the uploads, when the request does not reach the server", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const onSignedOut = vi.fn();
+    expect(await sendSignOut(() => Promise.reject(new TypeError("Failed to fetch")), { onSignedOut })).toBe("failed");
+    expect(
+      await sendSignOut(
+        () => {
+          throw new Error("No router yet");
+        },
+        { onSignedOut },
+      ),
+    ).toBe("failed");
+    expect(onSignedOut).not.toHaveBeenCalled();
+    expect(error).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives the page back when the server does not answer in time", async () => {
+    const onSignedOut = vi.fn();
+    const started = Date.now();
+    expect(await sendSignOut(() => new Promise<void>(() => undefined), { timeoutMs: 20, onSignedOut })).toBe("no-answer");
+    expect(Date.now() - started).toBeLessThan(1000);
+    expect(onSignedOut).not.toHaveBeenCalled();
+    // Not "still signed in": the request may yet go through.
+    expect(`${SIGN_OUT_SLOW}. ${SIGN_OUT_SLOW_DETAIL}`).not.toMatch(/still signed in/i);
+  });
+
+  it("still lets the uploads go when a late answer signs out; a late failure changes nothing", async () => {
+    const late = pendingCall();
+    const onSignedOut = vi.fn();
+    expect(await sendSignOut(late.action, { timeoutMs: 20, onSignedOut })).toBe("no-answer");
+    late.reject(redirectToLogin());
+    await vi.waitFor(() => expect(onSignedOut).toHaveBeenCalledTimes(1));
+
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const failing = pendingCall();
+    const notCalled = vi.fn();
+    expect(await sendSignOut(failing.action, { timeoutMs: 20, onSignedOut: notCalled })).toBe("no-answer");
+    failing.reject(new TypeError("Failed to fetch"));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(notCalled).not.toHaveBeenCalled();
+  });
+});
+
 describe("isNavigationSignal", () => {
-  it("knows the Server Action's redirect to /login: signed out, to be rethrown", () => {
-    let thrown: unknown;
-    try {
-      redirect("/login");
-    } catch (error) {
-      thrown = error;
-    }
-    expect(isNavigationSignal(thrown)).toBe(true);
+  it("knows the Server Action's redirect to /login: signed out", () => {
+    expect(isNavigationSignal(redirectToLogin())).toBe(true);
   });
 
   it("treats anything else as a failed sign-out", () => {

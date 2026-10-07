@@ -3,6 +3,8 @@
 // background and only for the user who took them) and any page's unsaved
 // work (./leave-guard.ts). Nothing found: Sign out goes ahead at once.
 // Anything found, or a check that cannot answer: the user is asked first.
+// Then the sign-out itself (sendSignOut), which never holds the page for
+// longer than SIGN_OUT_TIMEOUT_MS.
 //
 // Pure apart from loadPhotoQueue(), which loads the photo queue's sign-out
 // API on demand, so its code stays out of the shell on every other page.
@@ -12,10 +14,23 @@ import type { LeaveGuards } from "./leave-guard";
 export const SIGN_OUT_FAILED = "You are still signed in";
 export const SIGN_OUT_FAILED_DETAIL = "Signing out did not reach the server. Check the connection and try again.";
 
+/** No answer in time: the sign-out may still go through, so this does not say "still signed in". */
+export const SIGN_OUT_SLOW = "Signing out is taking too long";
+export const SIGN_OUT_SLOW_DETAIL = "The server has not answered yet. Check the connection and try again.";
+
+/**
+ * How long Sign out waits for the server before it gives the page back. A
+ * connection that is up but goes nowhere (factory Wi-Fi without internet)
+ * stalls a request rather than failing it, for a minute or more on iPad Safari.
+ */
+export const SIGN_OUT_TIMEOUT_MS = 15_000;
+
 /**
  * True for Next.js's own control flow, such as the Server Action's redirect
- * to /login once it has signed out: it must be rethrown, and it means the
- * sign-out happened. Anything else is a failure: the user is still signed in.
+ * to /login once it has signed out. That means the sign-out happened: the
+ * router follows the redirect by itself (the error comes marked as handled),
+ * so it goes no further. Anything else is a failure: the user is still
+ * signed in.
  */
 export function isNavigationSignal(error: unknown): boolean {
   try {
@@ -109,4 +124,43 @@ export async function reasonsBeforeSignOut({
   const [onDevice, work] = await Promise.all([uploads(), guards.check("sign-out")]);
   const upload = onDevice === "waiting" ? [UPLOADS_WAITING] : onDevice === "unknown" ? [UPLOADS_UNCHECKED] : [];
   return [...upload, ...work];
+}
+
+/**
+ * How a sign-out went:
+ * - "signed-out": the session ended. The Server Action redirects to /login,
+ *   and Next.js follows that redirect by itself.
+ * - "failed": it did not reach the server, or the server could not sign
+ *   out. The user is still signed in.
+ * - "no-answer": nothing came back within the time limit.
+ */
+export type SignOutOutcome = "signed-out" | "failed" | "no-answer";
+
+/**
+ * Calls the sign-out Server Action and says how it went within `timeoutMs`,
+ * so a stalled request never holds the page. A Server Action cannot be called
+ * off: one that answers after the time limit can still sign out, so
+ * `onSignedOut` runs whenever the session ends, early or late. It runs before
+ * the outcome is returned.
+ */
+export async function sendSignOut(
+  action: () => Promise<unknown>,
+  { timeoutMs = SIGN_OUT_TIMEOUT_MS, onSignedOut }: { timeoutMs?: number; onSignedOut?: () => void } = {},
+): Promise<SignOutOutcome> {
+  const answer = Promise.resolve()
+    .then(action)
+    .then(
+      (): SignOutOutcome => "signed-out",
+      (error: unknown): SignOutOutcome => {
+        // The redirect to /login: Next.js has already taken it, nobody else needs it.
+        if (isNavigationSignal(error)) return "signed-out";
+        console.error("Sign out failed", error);
+        return "failed";
+      },
+    );
+  void answer.then((outcome) => {
+    if (outcome === "signed-out") onSignedOut?.();
+  });
+  const outcome = await within(answer, timeoutMs);
+  return outcome === TIMED_OUT ? "no-answer" : outcome;
 }

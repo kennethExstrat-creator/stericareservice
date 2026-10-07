@@ -5,7 +5,8 @@
 // files still waiting on this device. Each reason is one plain sentence.
 // Staying is the default (it has the focus); going on is the second choice,
 // in the destructive style. While going on runs (signing out), nothing
-// closes the dialog.
+// closes the dialog. Sign out's request has a time limit (use-sign-out.ts);
+// when it fails or runs out of time, the dialog stays with both choices.
 import { TriangleAlertIcon } from "lucide-react";
 import {
   AlertDialog,

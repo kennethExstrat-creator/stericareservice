@@ -8,7 +8,9 @@
 // this device, or a page's unsaved work, and the user is asked in a dialog
 // (Stay signed in / Sign out anyway). With nothing waiting it signs out at
 // once. The menu stays open while it checks and signs out, so the pending
-// state shows; the redirect to /login closes everything.
+// state shows. Both steps have a time limit: the check at most 20 s, the
+// request 15 s. The redirect to /login closes everything; a sign-out that
+// fails or gets no answer in time gives the menu back, with a toast.
 import { ChevronDownIcon, ChevronsUpDownIcon, LogOutIcon } from "lucide-react";
 import { useRef, useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
