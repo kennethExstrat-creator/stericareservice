@@ -42,28 +42,10 @@ const LeadChoiceSchema = z.preprocess(
   z.uuid({ error: TEAM_MESSAGES.leadGone }).toLowerCase().optional(),
 );
 
-export const InviteUserSchema = z.object({
-  email: z
-    .string({ error: "Enter their email address." })
-    .trim()
-    .toLowerCase()
-    .min(1, "Enter their email address.")
-    .max(254, "That email address is too long.")
-    .pipe(z.email({ error: "Enter a valid email address, like name@example.com." })),
-  fullName: z
-    .string({ error: "Enter their full name." })
-    .trim()
-    .min(1, "Enter their full name.")
-    .max(120, "Keep the name under 120 characters."),
-  role: RoleChoiceSchema,
-  leadId: LeadChoiceSchema,
-});
-export type InviteUserInput = z.infer<typeof InviteUserSchema>;
-
-/** Fields a user form can mark: the invite's, the role and lead in every dialog, and Change Name's. */
-export type UserField = "email" | "fullName" | "role" | "leadId";
-
-/** The longest name Change Name saves. */
+/**
+ * The longest name the app saves for someone, from an invite or Change Name.
+ * Declared above the schemas: they read it while this module loads.
+ */
 export const NAME_MAX_LENGTH = 100;
 
 /** One line: any run of spaces, tabs or pasted line breaks becomes a single space (as lib/admin/reference.ts). */
@@ -72,19 +54,43 @@ function oneLine(value: string): string {
 }
 
 /**
- * Change Name: the name the app shows for someone everywhere
- * (profiles.full_name), on one line, 1 to 100 characters. Any other control
- * character (a pasted NUL or NEL, which no line break rule catches) is
- * refused rather than saved where nobody can see it.
+ * The name the app shows for someone everywhere (profiles.full_name), on one
+ * line, 1 to 100 characters. Any other control character (a pasted NUL or
+ * NEL, which no line break rule catches) is refused rather than saved where
+ * nobody can see it. The invite and Change Name share these rules: Change
+ * Name opens with the saved name, and Save takes any name the app saved,
+ * unedited.
  */
+function fullNameSchema(missing: string) {
+  return z
+    .string({ error: missing })
+    .overwrite(oneLine)
+    .min(1, missing)
+    .max(NAME_MAX_LENGTH, `Keep the name to ${NAME_MAX_LENGTH} characters or fewer.`)
+    .refine((name) => !/\p{Cc}/u.test(name), "The name holds a hidden control character. Type it again.");
+}
+
+export const InviteUserSchema = z.object({
+  email: z
+    .string({ error: "Enter their email address." })
+    .trim()
+    .toLowerCase()
+    .min(1, "Enter their email address.")
+    .max(254, "That email address is too long.")
+    .pipe(z.email({ error: "Enter a valid email address, like name@example.com." })),
+  fullName: fullNameSchema("Enter their full name."),
+  role: RoleChoiceSchema,
+  leadId: LeadChoiceSchema,
+});
+export type InviteUserInput = z.infer<typeof InviteUserSchema>;
+
+/** Fields a user form can mark: the invite's, the role and lead in every dialog, and Change Name's. */
+export type UserField = "email" | "fullName" | "role" | "leadId";
+
+/** Change Name: someone's name, by the invite's rules (fullNameSchema). */
 export const RenameUserSchema = z.object({
   userId: UserIdSchema,
-  fullName: z
-    .string({ error: "Enter their name." })
-    .overwrite(oneLine)
-    .min(1, "Enter their name.")
-    .max(NAME_MAX_LENGTH, `Keep the name to ${NAME_MAX_LENGTH} characters or fewer.`)
-    .refine((name) => !/\p{Cc}/u.test(name), "The name holds a hidden control character. Type it again."),
+  fullName: fullNameSchema("Enter their name."),
 });
 
 /** Change Role: inspector (in a lead's team), lead inspector or admin. */

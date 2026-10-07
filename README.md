@@ -148,7 +148,8 @@ Set up on `/admin/users`:
 - Accounts from before teams keep working with no lead; the screen lists them under
   **No Lead Inspector** until an admin chooses one.
 - **Change Name**, next to anyone's name (your own included, active or deactivated): the name the
-  app shows for them, 1 to 100 characters on one line. Every screen, the export and the AI
+  app shows for them, 1 to 100 characters on one line, the same rule as the invite's Full Name
+  (`fullNameSchema()` in `lib/auth/users.ts`). Every screen, the export and the AI
   hand-offs read it from their profile, so it changes everywhere at once, on their past
   inspections too (the list's Inspector in Charge, the capture header's "Inspected by", the review);
   only what already left the app keeps the old name (exported files, AI reports and the AI's

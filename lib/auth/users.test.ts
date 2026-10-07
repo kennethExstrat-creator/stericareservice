@@ -47,7 +47,8 @@ describe("InviteUserSchema", () => {
     [{ email: "", fullName: "Jane", role: "inspector" }, "email", "Enter their email address."],
     [{ email: "jane@", fullName: "Jane", role: "inspector" }, "email", "Enter a valid email address, like name@example.com."],
     [{ email: "jane@example.com", fullName: "   ", role: "inspector" }, "fullName", "Enter their full name."],
-    [{ email: "jane@example.com", fullName: "x".repeat(121), role: "inspector" }, "fullName", "Keep the name under 120 characters."],
+    [{ email: "jane@example.com", fullName: "x".repeat(101), role: "inspector" }, "fullName", "Keep the name to 100 characters or fewer."],
+    [{ email: "jane@example.com", fullName: "Jane\u0000Tan", role: "inspector" }, "fullName", "The name holds a hidden control character. Type it again."],
     [{ email: "jane@example.com", fullName: "Jane", role: "owner" }, "role", "Choose Inspector, Lead Inspector or Admin."],
     // A field missing from the form arrives as null.
     [{ email: null, fullName: null, role: null }, "email", "Enter their email address."],
@@ -55,6 +56,17 @@ describe("InviteUserSchema", () => {
     const result = InviteUserSchema.safeParse(input);
     expect(result.success).toBe(false);
     expect(firstFieldErrors(result.error!)).toMatchObject({ [field]: message });
+  });
+
+  it("takes the name by Change Name's rules, so Change Name can save any invited name unedited", () => {
+    const invited = (fullName: string) =>
+      InviteUserSchema.parse({ email: "jane@example.com", fullName, role: "inspector" }).fullName;
+    expect(invited("x".repeat(NAME_MAX_LENGTH))).toHaveLength(100);
+    expect(invited("  Ngan \t Boon\r\nKeat  ")).toBe("Ngan Boon Keat");
+    for (const fullName of ["x".repeat(NAME_MAX_LENGTH), "  Ngan \t Boon\r\nKeat  ", "Q"]) {
+      const name = invited(fullName);
+      expect(RenameUserSchema.parse({ userId: OTHER, fullName: name }).fullName).toBe(name);
+    }
   });
 
   it("reports one message per field", () => {
