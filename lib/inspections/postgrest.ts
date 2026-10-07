@@ -51,8 +51,10 @@ export function lotVariants(text: string): string[] {
 /**
  * The `.or()` filter for the list search (BUILD_SPEC 10): the ref or the PO
  * contains the text, or one of the inspection's lot numbers is exactly the
- * text. Carton numbers join the search in Phase 2, when they exist in module
- * data (carton_sampling); this filter is the place to add them.
+ * text, as typed or in capitals. The carton number and any-case lot
+ * conditions live in listSearchFilter() in lib/inspections/query.ts until
+ * migration 20261007191137, which adds the columns they read, is live; on a
+ * project without it the list searches with this filter alone.
  */
 export function inspectionSearchFilter(text: string): string {
   return [
