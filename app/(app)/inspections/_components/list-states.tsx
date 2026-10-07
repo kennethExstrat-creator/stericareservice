@@ -6,14 +6,13 @@ import { ClipboardListIcon, ListEndIcon, SearchXIcon, TriangleAlertIcon, type Lu
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import type { InspectionScope } from "@/lib/auth/org";
 import { INSPECTION_STATUS_LABEL } from "@/lib/inspections/format";
 import { buildInspectionsHref, INSPECTIONS_PATH, type InspectionListFilters } from "@/lib/inspections/search-params";
-import type { Database } from "@/lib/supabase/database.types";
 import { cn } from "@/lib/utils";
 import { RESULTS_FOCUS_TARGET } from "./list-focus-target";
 import { ListLink } from "./list-link";
 
-type UserRole = Database["public"]["Enums"]["user_role"];
 
 function ListState({
   icon: Icon,
@@ -57,15 +56,17 @@ function ListState({
   );
 }
 
+const WHO_SEES_WHAT: Readonly<Record<InspectionScope, string>> = {
+  all: "Inspections from every inspector will appear here, newest first, with who carried each one out. Inspectors see only their own.",
+  team: "Inspections you and your team start will appear here, newest first, with who carried each one out. Your team's open read-only.",
+  own: "Inspections you start will appear here, newest first. You see only your own; admins see everyone's.",
+};
+
 /** Nobody has inspections to show this user yet. Says who sees what. */
-export function NoInspectionsYet({ role }: { role: UserRole }) {
+export function NoInspectionsYet({ scope }: { scope: InspectionScope }) {
   return (
     <ListState icon={ClipboardListIcon} title="No inspections yet" state="empty">
-      <p>
-        {role === "admin"
-          ? "Inspections from every inspector will appear here, newest first, with who carried each one out. Inspectors see only their own."
-          : "Inspections you start will appear here, newest first. You see only your own; admins see everyone's."}
-      </p>
+      <p>{WHO_SEES_WHAT[scope]}</p>
       <p className="mt-2">Start one with New inspection.</p>
     </ListState>
   );

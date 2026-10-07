@@ -1,6 +1,4 @@
-import type { Database } from "@/lib/supabase/database.types";
-
-type UserRole = Database["public"]["Enums"]["user_role"];
+import { INSPECTOR_IN_CHARGE, seesTeamInspections, type UserRole } from "@/lib/auth/org";
 
 export type InspectionColumnKey =
   | "ref"
@@ -37,16 +35,17 @@ const COLUMNS: readonly InspectionColumn[] = [
   { key: "result", label: "Result" },
 ];
 
-const INSPECTOR_COLUMN: InspectionColumn = { key: "inspector", label: "Inspector" };
+/** Who carried each inspection out: for admins and lead inspectors, who see other people's. */
+const INSPECTOR_COLUMN: InspectionColumn = { key: "inspector", label: INSPECTOR_IN_CHARGE };
 
 /** Continue, Review or View, and Delete where it is allowed: always the last column. */
 const ACTIONS_COLUMN: InspectionColumn = { key: "actions", label: "Actions", srOnlyLabel: true };
 
 /**
  * The list's columns in order (BUILD_SPEC 10), the row actions last.
- * Inspectors only ever see their own inspections, so only admins get the
- * Inspector column.
+ * Inspectors only ever see their own inspections, so only admins and lead
+ * inspectors (who see their team's) get the Inspector in charge column.
  */
-export function inspectionListColumns(role: UserRole): readonly InspectionColumn[] {
-  return role === "admin" ? [...COLUMNS, INSPECTOR_COLUMN, ACTIONS_COLUMN] : [...COLUMNS, ACTIONS_COLUMN];
+export function inspectionListColumns(viewer: { role: UserRole; isLead?: boolean }): readonly InspectionColumn[] {
+  return seesTeamInspections(viewer) ? [...COLUMNS, INSPECTOR_COLUMN, ACTIONS_COLUMN] : [...COLUMNS, ACTIONS_COLUMN];
 }

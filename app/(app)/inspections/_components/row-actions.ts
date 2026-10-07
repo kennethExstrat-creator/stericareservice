@@ -8,7 +8,8 @@
 // - Review: a submitted inspection, for an admin, opens on the review, where
 //   admins approve or reopen it.
 // - View: everything else opens on the review, read-only: a submitted one
-//   for its inspector, an approved one, or one the viewer may not edit.
+//   for its inspector, an approved one, or one the viewer may not edit (a
+//   lead inspector's team member's, in any status).
 // Delete follows canDeleteInspection() (lib/inspections/delete.ts).
 //
 // The list only holds inspections the viewer may read (RLS), so these are
@@ -18,7 +19,8 @@ import { canDeleteInspection } from "@/lib/inspections/delete";
 import type { InspectionListRow } from "@/lib/inspections/query";
 import { INSPECTIONS_PATH } from "@/lib/inspections/search-params";
 
-export type ListViewer = { id: string; role: UserRole };
+/** `isLead`: a lead inspector, who also sees their team's inspections (read-only, so only View). */
+export type ListViewer = { id: string; role: UserRole; isLead?: boolean };
 
 export type PrimaryRowAction = {
   kind: "continue" | "review" | "view";

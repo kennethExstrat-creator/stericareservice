@@ -171,7 +171,7 @@ export function InspectionTable({
   viewer: ListViewer;
   caption: string;
 }) {
-  const columns = inspectionListColumns(viewer.role);
+  const columns = inspectionListColumns(viewer);
   const pad = "px-3 first:pl-4 last:pr-4 fine:px-2.5";
 
   return (

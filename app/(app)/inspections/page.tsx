@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/qc";
 import { Button } from "@/components/ui/button";
+import { inspectionScope, type InspectionScope } from "@/lib/auth/org";
 import { requireUser } from "@/lib/auth/session";
 import { listInspections, loadFilterOptions } from "@/lib/inspections/query";
 import {
@@ -28,9 +29,17 @@ export const metadata: Metadata = {
   title: "Inspections",
 };
 
+/** The eyebrow above the title and the table's caption, by whose inspections the user sees. */
+const HEADING: Readonly<Record<InspectionScope, { eyebrow: string; caption: string }>> = {
+  all: { eyebrow: "All inspectors", caption: "Inspections by every inspector, newest first" },
+  team: { eyebrow: "Your team", caption: "Your team's inspections and your own, newest first" },
+  own: { eyebrow: "Your inspections", caption: "Your inspections, newest first" },
+};
+
 /**
- * The inspections list (BUILD_SPEC 10): inspectors see their own, admins see
- * everyone's with an Inspector column. Row Level Security does the scoping;
+ * The inspections list (BUILD_SPEC 10): inspectors see their own, lead
+ * inspectors their own and their team's (read-only), admins everyone's; the
+ * last two with an Inspector in charge column. Row Level Security does the scoping;
  * this page only reads through the signed-in user's client. Filters live in
  * the URL (lib/inspections/search-params.ts), so a view can be shared. Each
  * row ends with its actions: Continue, Review or View, and Delete on a draft
@@ -46,12 +55,12 @@ export default async function InspectionsPage({ searchParams }: PageProps<"/insp
   // which needs the options, so in that rare case the list loads again.
   const [options, firstTry] = await Promise.all([
     loadFilterOptions(supabase),
-    listInspections(supabase, requested, user.role),
+    listInspections(supabase, requested, user),
   ]);
   const filters = options.ok ? dropUnknownReferences(requested, options) : requested;
-  const list = filters === requested ? firstTry : await listInspections(supabase, filters, user.role);
+  const list = filters === requested ? firstTry : await listInspections(supabase, filters, user);
 
-  const isAdmin = user.role === "admin";
+  const scope = inspectionScope(user);
   const filtered = hasActiveFilters(filters);
   const failed = !options.ok || list.kind === "error";
   const nothingYet = !failed && list.kind === "rows" && list.total === 0 && !filtered;
@@ -76,7 +85,7 @@ export default async function InspectionsPage({ searchParams }: PageProps<"/insp
   return (
     <div className="flex w-full flex-1 flex-col gap-6">
       <PageHeader
-        eyebrow={isAdmin ? "All inspectors" : "Your inspections"}
+        eyebrow={HEADING[scope].eyebrow}
         title="Inspections"
         actions={<NewInspectionButton />}
       />
@@ -103,15 +112,15 @@ export default async function InspectionsPage({ searchParams }: PageProps<"/insp
             filtered ? (
               <NoMatches filters={filters} names={selectedNames(filters, options.ok ? options : null)} />
             ) : (
-              <NoInspectionsYet role={user.role} />
+              <NoInspectionsYet scope={scope} />
             )
           ) : list.kind === "rows" ? (
             <>
               <ListSummary filters={filters} total={list.total} shown={list.rows.length} />
               <InspectionTable
                 rows={list.rows}
-                viewer={{ id: user.id, role: user.role }}
-                caption={isAdmin ? "Inspections by every inspector, newest first" : "Your inspections, newest first"}
+                viewer={{ id: user.id, role: user.role, isLead: user.isLead }}
+                caption={HEADING[scope].caption}
               />
               <ListPagination filters={filters} pageCount={pageCount(list.total)} />
             </>

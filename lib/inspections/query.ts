@@ -1,5 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { seesTeamInspections } from "@/lib/auth/org";
 import type { InspectionResult, InspectionStatus } from "@/lib/schemas/common";
 import type { Database } from "@/lib/supabase/database.types";
 import { manufacturerLabel, personLabel } from "./format";
@@ -9,11 +10,14 @@ import { PAGE_SIZE, type FilterOption, type InspectionListFilters } from "./sear
 /**
  * Reads for the inspections list. Always called with the signed-in user's
  * client (lib/supabase/server), never the admin client: Row Level Security
- * decides whose inspections come back (inspectors their own, admins all).
+ * decides whose inspections come back (inspectors their own, lead inspectors
+ * their own and their team's, admins all).
  */
 
 type Client = SupabaseClient<Database>;
 type UserRole = Database["public"]["Enums"]["user_role"];
+/** Who reads the list: only the shape of the rows depends on it. */
+type ListReader = { role: UserRole; isLead?: boolean };
 
 /**
  * The list's columns plus the client, manufacturer and inspector names, and
@@ -54,7 +58,7 @@ export type InspectionListRow = {
   result: InspectionResult | null;
   /** Whose inspection it is: the row actions compare it with the signed-in user. */
   inspectorId: string;
-  /** Admins only; null for inspectors, who only see their own. */
+  /** Who is in charge of it, for admins and lead inspectors; null for inspectors, who only see their own. */
   inspector: string | null;
 };
 
@@ -78,7 +82,7 @@ function filteredQuery(supabase: Client, filters: InspectionListFilters, head: b
   return query;
 }
 
-export function toListRow(row: ListQueryRow, role: UserRole): InspectionListRow {
+export function toListRow(row: ListQueryRow, reader: ListReader): InspectionListRow {
   return {
     id: row.id,
     refNo: row.ref_no,
@@ -90,18 +94,18 @@ export function toListRow(row: ListQueryRow, role: UserRole): InspectionListRow 
     status: row.status,
     result: row.result,
     inspectorId: row.inspector_id,
-    inspector: role === "admin" ? personLabel(row.inspector) : null,
+    inspector: seesTeamInspections(reader) ? personLabel(row.inspector) : null,
   };
 }
 
 /**
  * One page of inspections, newest first (inspection date, then creation), with
- * the total for the filters. `role` only shapes the rows; RLS does the scoping.
+ * the total for the filters. `reader` only shapes the rows; RLS does the scoping.
  */
 export async function listInspections(
   supabase: Client,
   filters: InspectionListFilters,
-  role: UserRole,
+  reader: ListReader,
 ): Promise<InspectionListResult> {
   const from = (filters.page - 1) * PAGE_SIZE;
   const { data, error, count } = await filteredQuery(supabase, filters, false)
@@ -120,7 +124,7 @@ export async function listInspections(
 
   const total = count ?? data.length;
   if (data.length === 0 && total > 0) return { kind: "out-of-range", total };
-  return { kind: "rows", rows: data.map((row) => toListRow(row, role)), total };
+  return { kind: "rows", rows: data.map((row) => toListRow(row, reader)), total };
 }
 
 /** A stale or hand-made link past the last page: count what there is instead. */
