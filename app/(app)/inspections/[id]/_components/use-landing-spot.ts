@@ -1,29 +1,40 @@
 "use client";
 
 // Lands the inspector where they stopped after the page loads again in place
-// (landing-spot.ts): the last field that stored a value is scrolled to the
-// middle of the screen and ringed for a moment. It is not focused: on a
-// touchscreen the keyboard would come up, and a number field selects its
-// value on focus, so the next key would replace what was just completed.
+// (landing-spot.ts): the last field that stored a value is brought into view
+// (scrolled to the middle unless it is already in view), ringed for a moment
+// and announced ("Back where you stopped: Glove colour"). It is not focused:
+// on a touchscreen the keyboard would come up, and a number field selects
+// its value on focus, so the next key would replace what was just completed.
 //
 // Which field: the one last focused or pressed in the open section, noted at
 // the press (Safari on the iPad does not focus a tapped button), and stored
 // once the section hands a change back (record). The size tabs, the photo
 // slot and links are not fields. After the reload the section's fields are
 // matched by issue path and label (a field's id is not the same from one
-// load to the next), and a per-size module is turned to the size first. The
-// autosave settles the local copy before that, and a press, key or scroll
-// by the inspector cancels it: the page never moves under their finger.
-import { useCallback, useEffect, useRef } from "react";
+// load to the next). One the module does not show (another size, hand or
+// box) is revealed through the module's own reveal, as an issue link does,
+// without focusing it (revealOnlyPath). The autosave settles the local copy
+// first.
+//
+// The page never moves under the inspector: a press, key, wheel or touch
+// from the moment this code loads (and, where the browser records it, a
+// press made before) cancels the landing, and so does a dialog that is open
+// when it would land.
+import { useCallback, useEffect, useEffectEvent, useRef } from "react";
 import { ISSUE_PATH_ATTRIBUTE } from "@/components/qc/issue-path";
+import { useAnnouncement } from "@/components/qc/use-announcement";
+import type { IssuePath } from "@/lib/validation";
 import {
   isReturnLoad,
   matchLandingField,
   nthOfSignature,
+  parsePathKey,
   readLandingSpot,
   writeLandingSpot,
   type DocumentLoad,
   type FieldSignature,
+  type LandingOwner,
   type LandingSpot,
 } from "./landing-spot";
 
@@ -47,23 +58,66 @@ const TOGGLE_GROUP = '[role="radiogroup"], [role="toolbar"], [role="group"]';
 // One landing per document load: a screen opened again inside the app starts at its section's top.
 let loadHandled = false;
 
+// The inspector pressed, typed, scrolled or touched since this code loaded:
+// no landing moves the page after that. Watched from the moment the module
+// loads, before the screen has hydrated or its autosave has started.
+let inspectorActed = false;
+const INPUT_EVENTS = ["pointerdown", "keydown", "wheel", "touchstart"] as const;
+if (typeof window !== "undefined") {
+  const acted = () => {
+    inspectorActed = true;
+    for (const type of INPUT_EVENTS) window.removeEventListener(type, acted, true);
+  };
+  for (const type of INPUT_EVENTS) window.addEventListener(type, acted, { capture: true, passive: true });
+}
+
+/** A press or key the browser saw before this code loaded (Event Timing's first input; Chromium only). */
+function actedBeforeLoad(): boolean {
+  try {
+    return (performance.getEntriesByType?.("first-input") ?? []).length > 0;
+  } catch {
+    return false;
+  }
+}
+
+function inspectorHasActed(): boolean {
+  return inspectorActed || actedBeforeLoad();
+}
+
+/** A dialog is open (the conflict question, the Pending panel): landing behind it would surprise. */
+function dialogOpen(): boolean {
+  return document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]') !== null;
+}
+
 export function useLandingSpot({
   inspectionId,
+  userId,
   panelId,
   sectionKey,
   ready,
+  reveal,
 }: {
   inspectionId: string;
+  /** The signed-in user: spots are kept per user, like the local copies. */
+  userId: string;
   /** The open section's element (SectionFrame's id). */
   panelId: string;
   /** The open section; null when there is none. */
   sectionKey: string | null;
   /** The autosave has settled the data to show (or does not run here). */
   ready: boolean;
-}): { record: () => void } {
+  /** Has the open section's module show `path` (its size, hand or box) without focusing anything: revealOnlyPath. */
+  reveal: (path: IssuePath) => void;
+}): {
+  record: () => void;
+  /** For a polite live region: "Back where you stopped: <field>". */
+  announcement: string;
+} {
   // The field last focused or pressed, described as it was then.
   const noted = useRef<{ field: HTMLElement; spot: LandingSpot } | null>(null);
   const lastWritten = useRef<string | null>(null);
+  const [announcement, announce] = useAnnouncement();
+  const revealPath = useEffectEvent((path: IssuePath) => reveal(path));
 
   useEffect(() => {
     if (sectionKey === null) return;
@@ -87,18 +141,17 @@ export function useLandingSpot({
     if (!current || !current.field.isConnected) return;
     const text = JSON.stringify(current.spot);
     if (text === lastWritten.current) return;
-    if (writeLandingSpot(sessionStorageOrNull(), inspectionId, current.spot)) lastWritten.current = text;
-  }, [inspectionId]);
+    if (writeLandingSpot(sessionStorageOrNull(), { userId, inspectionId }, current.spot)) lastWritten.current = text;
+  }, [inspectionId, userId]);
 
   useEffect(() => {
     if (!ready || loadHandled || sectionKey === null) return;
-    if (!isReturnLoad(documentLoad(), window.location.pathname)) {
-      loadHandled = true;
-      return;
-    }
-    const spot = readLandingSpot(sessionStorageOrNull(), inspectionId);
-    // Stopped in another section, then opened this one: its top is where they are.
-    if (!spot || spot.section !== sectionKey) {
+    const owner: LandingOwner = { userId, inspectionId };
+    const spot = isReturnLoad(documentLoad(), window.location.pathname)
+      ? readLandingSpot(sessionStorageOrNull(), owner)
+      : null;
+    // Opened afresh, the inspector already moving, or stopped in another section and then opened this one.
+    if (!spot || spot.section !== sectionKey || inspectorHasActed()) {
       loadHandled = true;
       return;
     }
@@ -106,17 +159,18 @@ export function useLandingSpot({
     const deadline = performance.now() + LANDING_WAIT_MS;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let tried = false;
-    let turnedSize = false;
-    const userEvents = ["pointerdown", "keydown", "wheel", "touchmove"] as const;
+    let revealed = false;
     const finish = () => {
       loadHandled = true;
       clearTimeout(timer);
-      for (const type of userEvents) window.removeEventListener(type, finish, true);
     };
-    for (const type of userEvents) window.addEventListener(type, finish, { capture: true, passive: true });
 
     const attempt = () => {
       tried = true;
+      if (inspectorHasActed() || dialogOpen()) {
+        finish();
+        return;
+      }
       const panel = document.getElementById(panelId);
       if (panel) {
         const fields = fieldsIn(panel);
@@ -126,14 +180,17 @@ export function useLandingSpot({
         );
         if (index >= 0) {
           finish();
-          land(fields[index]);
+          const field = fields[index];
+          land(field);
+          const name = accessibleName(field) ?? spot.name;
+          announce(name ? `Back where you stopped: ${name}` : "Back where you stopped.");
           return;
         }
-        // Under another size: turn to it once, as a tap on its tab would, then look again.
-        const tab = spot.size === null || turnedSize ? null : sizeTab(panel, spot.size);
-        if (tab) {
-          turnedSize = true;
-          if (tab.getAttribute("aria-selected") !== "true") tab.click();
+        // Not shown: under another size, hand or box. The module turns to it once, then look again.
+        const path = revealed ? null : parsePathKey(spot.path);
+        if (path) {
+          revealed = true;
+          revealPath(path);
         }
       }
       if (performance.now() >= deadline) finish();
@@ -143,13 +200,12 @@ export function useLandingSpot({
 
     return () => {
       clearTimeout(timer);
-      for (const type of userEvents) window.removeEventListener(type, finish, true);
       // React's development double run comes before any attempt; a screen gone after one is done with this load.
       if (tried) loadHandled = true;
     };
-  }, [ready, inspectionId, panelId, sectionKey]);
+  }, [ready, inspectionId, userId, panelId, sectionKey, announce]);
 
-  return { record };
+  return { record, announcement };
 }
 
 /* ------------------------------------------------------------------ *
@@ -190,7 +246,6 @@ function describe(field: HTMLElement, panel: HTMLElement, section: string): Land
     section,
     ...own,
     nth: index >= 0 ? nthOfSignature(signatures, index) : 0,
-    size: sizeOf(field, panel),
   };
 }
 
@@ -225,29 +280,24 @@ function clean(text: string | null | undefined): string | null {
   return trimmed ? trimmed : null;
 }
 
-/** The size whose tab panel holds the field. */
-function sizeOf(field: HTMLElement, panel: HTMLElement): string | null {
-  let tabPanel = field.closest("[role='tabpanel']");
-  while (tabPanel && tabPanel !== panel && panel.contains(tabPanel)) {
-    const tabId = tabPanel.getAttribute("aria-labelledby");
-    const size = tabId ? document.getElementById(tabId)?.getAttribute("data-size") : null;
-    if (size) return size;
-    tabPanel = tabPanel.parentElement?.closest("[role='tabpanel']") ?? null;
-  }
-  return null;
-}
-
-function sizeTab(panel: HTMLElement, size: string): HTMLElement | null {
-  const tabs = panel.querySelectorAll<HTMLElement>(`[role="tab"][data-size="${CSS.escape(size)}"]`);
-  return Array.from(tabs).find((tab) => tab.getClientRects().length > 0) ?? null;
-}
-
+/** To the middle of the screen, unless it is in view already below the sticky bars; then the ring. */
 function land(field: HTMLElement) {
-  field.scrollIntoView({ block: "center", inline: "nearest" });
+  if (!inView(field)) field.scrollIntoView({ block: "center", inline: "nearest" });
   ring(field);
 }
 
-/** A soft brand halo around the field that fades, added to the field's own shadow. */
+function inView(field: HTMLElement): boolean {
+  const screen = document.querySelector<HTMLElement>('[data-slot="capture-screen"]');
+  const offset = (name: string) => Number.parseFloat(screen?.style.getPropertyValue(name) ?? "") || 0;
+  const box = field.getBoundingClientRect();
+  return box.top >= offset("--capture-sticky-top") && box.bottom <= window.innerHeight - offset("--capture-sticky-bottom");
+}
+
+/**
+ * A brand-500 ring 2 px clear of the field, like the focus ring, added to the
+ * field's own shadow; it fades out, or with reduced motion stays still and
+ * then goes.
+ */
 function ring(field: HTMLElement) {
   field.setAttribute(LANDED_ATTRIBUTE, "");
   const clear = () => field.removeAttribute(LANDED_ATTRIBUTE);
@@ -255,14 +305,14 @@ function ring(field: HTMLElement) {
     setTimeout(clear, RING_MS);
     return;
   }
-  const color = getComputedStyle(field).getPropertyValue("--color-brand-300").trim() || "#9bc5f6";
-  const halo = (shade: string, offset?: number): Keyframe => ({ boxShadow: `0 0 0 4px ${shade}`, offset });
+  const style = getComputedStyle(field);
+  const brand = style.getPropertyValue("--color-brand-500").trim() || "#0074d6";
+  const gap = style.getPropertyValue("--color-card").trim() || "#ffffff";
+  const halo = (color: string, offset: number): Keyframe => ({ boxShadow: `0 0 0 2px ${gap}, 0 0 0 4px ${color}`, offset });
+  const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const frames = still ? [halo(brand, 0), halo(brand, 1)] : [halo(brand, 0), halo(brand, 0.5), halo("transparent", 1)];
   field
-    .animate([halo(color, 0), halo(color, 0.5), halo("transparent", 1)], {
-      duration: RING_MS,
-      easing: "ease-out",
-      composite: "add",
-    })
+    .animate(frames, { duration: RING_MS, easing: still ? "linear" : "ease-out", composite: "add" })
     .finished.then(clear, clear);
 }
 

@@ -13,6 +13,20 @@ PLAYWRIGHT_BASE_URL=http://localhost:3202 npx playwright test e2e/shell
 
 Specs need the test accounts (`npm run seed:dev-users -- --force`).
 
+## WebKit and the real iPad
+
+Chrome and Safari on the iPad run on WebKit, so the reload specs (`e2e/autosave`) also run in the
+`webkit-ipad-portrait` project (Playwright's WebKit, 820 × 1180, touch). Install it once with
+`npx playwright install webkit`. Playwright cannot drive the iPad's own scrolling, so two things
+are checked by hand on a real iPad after a change to the capture screen's reload handling:
+
+- Chrome for iPad: a swipe down at the top of the capture screen does not pull to refresh (the page
+  sets `overscroll-behavior-y: none`; the spec can only check that style). If it still refreshes,
+  the values come back and the screen lands on the last field.
+- A tab the iPad dropped in the background and loads again lands on the last field too. That needs
+  WebKit to report the load as a reload; if it does not, the screen opens at the section's top and
+  the values are still there.
+
 ## Signing in
 
 ```ts

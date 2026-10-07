@@ -25,7 +25,11 @@ const SEED = {
   hartalega: "10000000-0000-4000-8000-000000000001",
 } as const;
 
-/** header, glove_info, the custom "Site notes" (text, yes/no, number), order_lots, tensile (per size) and conclusion. */
+/**
+ * header, glove_info, the custom "Site notes" (text, yes/no, number),
+ * order_lots, tensile (per size), dispensing_safedon (per size, one box at a
+ * time on the iPad) and conclusion.
+ */
 function definition(): TemplateDefinition {
   return {
     code: AUTOSAVE_TEMPLATE_CODE,
@@ -38,6 +42,7 @@ function definition(): TemplateDefinition {
       { key: "glove_info", include: true },
       { key: "order_lots", include: true },
       { key: "tensile", include: true },
+      { key: "dispensing_safedon", include: true },
       { key: "conclusion", include: true },
     ],
     customModules: [
@@ -59,6 +64,8 @@ function definition(): TemplateDefinition {
 
 export type AutosaveFixture = {
   inspectionId: string;
+  /** The test inspector's id: the writer lock and the local copy are per user. */
+  inspectorId: string;
   refNo: string;
   /** Replaces modules' saved data, as another device's save would. */
   setModules: (modules: Record<string, unknown>) => Promise<void>;
@@ -154,6 +161,7 @@ async function insertFixtureRows(admin: AdminClient): Promise<AutosaveFixture> {
 
   return {
     inspectionId: inspection.id,
+    inspectorId: inspector.id,
     refNo: inspection.ref_no,
     stored,
     setModules: async (modules) => {

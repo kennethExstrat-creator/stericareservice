@@ -53,7 +53,7 @@ import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, FileSearchIcon, Image
 import { toast } from "sonner";
 import { useInspectionFiles } from "@/components/capture/files";
 import { PhotoSlot, photoUploadsSettled, useUploadsWaiting } from "@/components/capture/photos";
-import { ProgressTracker, useMediaQuery, WIDE_QUERY } from "@/components/qc";
+import { ProgressTracker, revealOnlyPath, useMediaQuery, WIDE_QUERY } from "@/components/qc";
 import { useLeaveGuard } from "@/components/shell/use-leave-guard";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -278,13 +278,18 @@ export function CaptureScreen({
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
 
   // Reloaded in place (a pull to refresh on the iPad): the last field that
-  // stored a value comes back into view (use-landing-spot.ts). A swipe down
-  // at the top is less likely to reload the page in the first place.
+  // stored a value comes back into view (use-landing-spot.ts), its size, hand
+  // or box revealed by the module without focusing anything. A swipe down at
+  // the top is less likely to reload the page in the first place.
   const landing = useLandingSpot({
     inspectionId,
+    userId: user.id,
     panelId,
     sectionKey: active?.key ?? null,
     ready: autosave.phase !== "starting",
+    reveal: (path) => {
+      if (active) setFocusRequest({ sectionKey: active.key, path: revealOnlyPath(path) });
+    },
   });
   useNoPullToRefresh();
 
@@ -682,6 +687,9 @@ export function CaptureScreen({
       />
 
       <CaptureNotices notices={notices} />
+      <p className="sr-only" aria-live="polite" data-slot="landing-announcement">
+        {landing.announcement}
+      </p>
 
       <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[16rem_minmax(0,1fr)] xl:items-start xl:gap-8">
         {/* From 1280 px: the sidebar. */}

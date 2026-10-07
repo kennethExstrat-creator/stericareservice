@@ -7,6 +7,7 @@ import {
   landingStorageKey,
   matchLandingField,
   nthOfSignature,
+  parsePathKey,
   readLandingSpot,
   writeLandingSpot,
   type FieldSignature,
@@ -14,6 +15,7 @@ import {
 } from "./landing-spot";
 
 const INSPECTION = "00000000-0000-4000-8000-0000000000aa";
+const OWNER = { userId: "00000000-0000-4000-8000-0000000000bb", inspectionId: INSPECTION };
 
 const SPOT: LandingSpot = {
   v: 1,
@@ -21,7 +23,6 @@ const SPOT: LandingSpot = {
   path: '["sizes","L","tensileStrength"]',
   name: "Tensile strength (MPa)",
   nth: 0,
-  size: "L",
 };
 
 function memoryStorage() {
@@ -34,28 +35,37 @@ function memoryStorage() {
 }
 
 describe("the stored spot", () => {
-  it("reads back what was written, per inspection", () => {
+  it("reads back what was written, per user and inspection", () => {
     const storage = memoryStorage();
-    expect(writeLandingSpot(storage, INSPECTION, SPOT)).toBe(true);
-    expect(readLandingSpot(storage, INSPECTION)).toEqual(SPOT);
-    expect(readLandingSpot(storage, "another-inspection")).toBeNull();
-    expect([...storage.items.keys()]).toEqual([landingStorageKey(INSPECTION)]);
+    expect(writeLandingSpot(storage, OWNER, SPOT)).toBe(true);
+    expect(readLandingSpot(storage, OWNER)).toEqual(SPOT);
+    expect(readLandingSpot(storage, { ...OWNER, inspectionId: "another-inspection" })).toBeNull();
+    // Another account signed in on the same tab (a shared iPad) never lands on it.
+    expect(readLandingSpot(storage, { ...OWNER, userId: "another-user" })).toBeNull();
+    expect([...storage.items.keys()]).toEqual([landingStorageKey(OWNER)]);
+    expect(landingStorageKey(OWNER)).toBe(`stericare:capture-landing:${OWNER.userId}:${INSPECTION}`);
+  });
+
+  it("reads a spot an earlier version stored with a size, without it", () => {
+    const storage = memoryStorage();
+    storage.items.set(landingStorageKey(OWNER), JSON.stringify({ ...SPOT, size: "L" }));
+    expect(readLandingSpot(storage, OWNER)).toEqual(SPOT);
   });
 
   it("is null when missing, unreadable or of another version", () => {
     const storage = memoryStorage();
-    expect(readLandingSpot(storage, INSPECTION)).toBeNull();
-    storage.items.set(landingStorageKey(INSPECTION), "{not json");
-    expect(readLandingSpot(storage, INSPECTION)).toBeNull();
-    storage.items.set(landingStorageKey(INSPECTION), JSON.stringify({ ...SPOT, v: 2 }));
-    expect(readLandingSpot(storage, INSPECTION)).toBeNull();
-    storage.items.set(landingStorageKey(INSPECTION), JSON.stringify({ ...SPOT, section: "" }));
-    expect(readLandingSpot(storage, INSPECTION)).toBeNull();
+    expect(readLandingSpot(storage, OWNER)).toBeNull();
+    storage.items.set(landingStorageKey(OWNER), "{not json");
+    expect(readLandingSpot(storage, OWNER)).toBeNull();
+    storage.items.set(landingStorageKey(OWNER), JSON.stringify({ ...SPOT, v: 2 }));
+    expect(readLandingSpot(storage, OWNER)).toBeNull();
+    storage.items.set(landingStorageKey(OWNER), JSON.stringify({ ...SPOT, section: "" }));
+    expect(readLandingSpot(storage, OWNER)).toBeNull();
   });
 
   it("does without storage, or storage that refuses (private mode, full)", () => {
-    expect(readLandingSpot(null, INSPECTION)).toBeNull();
-    expect(writeLandingSpot(null, INSPECTION, SPOT)).toBe(false);
+    expect(readLandingSpot(null, OWNER)).toBeNull();
+    expect(writeLandingSpot(null, OWNER, SPOT)).toBe(false);
     const refusing = {
       getItem: () => {
         throw new Error("SecurityError");
@@ -64,8 +74,8 @@ describe("the stored spot", () => {
         throw new Error("QuotaExceededError");
       },
     };
-    expect(readLandingSpot(refusing, INSPECTION)).toBeNull();
-    expect(writeLandingSpot(refusing, INSPECTION, SPOT)).toBe(false);
+    expect(readLandingSpot(refusing, OWNER)).toBeNull();
+    expect(writeLandingSpot(refusing, OWNER, SPOT)).toBe(false);
   });
 });
 
@@ -140,5 +150,20 @@ describe("the field on screen", () => {
     expect(matchLandingField([field('["a"]', "Weather"), field('["b"]', "Weather")], { path: null, name: "Weather", nth: 0 })).toBe(-1);
     expect(matchLandingField(fields, { path: null, name: null, nth: 0 })).toBe(-1);
     expect(matchLandingField([], SPOT)).toBe(-1);
+  });
+});
+
+describe("the path a module reveals", () => {
+  it("is the issue path the spot's key stands for", () => {
+    expect(parsePathKey('["sizes","S","boxes",2,"counts","no_cuff"]')).toEqual(["sizes", "S", "boxes", 2, "counts", "no_cuff"]);
+    expect(parsePathKey('["colour"]')).toEqual(["colour"]);
+  });
+
+  it("is none for no key, or one that is not a path", () => {
+    expect(parsePathKey(null)).toBeNull();
+    expect(parsePathKey("[]")).toBeNull();
+    expect(parsePathKey("{not json")).toBeNull();
+    expect(parsePathKey('{"sizes":1}')).toBeNull();
+    expect(parsePathKey('["sizes",null]')).toBeNull();
   });
 });

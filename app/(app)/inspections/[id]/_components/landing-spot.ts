@@ -1,12 +1,14 @@
 // Where the inspector stopped, for a page loaded again in place: a pull to
 // refresh on the iPad, a reload, a tab the system dropped. Every value is
 // kept already (autosave, the local copy), and ?module= reopens the section;
-// this remembers the last field that stored a value, per inspection, in the
-// tab's sessionStorage, so the screen can bring that field back into view.
+// this remembers the last field that stored a value, per user and
+// inspection (as the local copies are), in the tab's sessionStorage, so the
+// screen can bring that field back into view.
 // These are the parts without the DOM: the stored spot, whether this load
 // lands on it, and which field on screen it is. use-landing-spot.ts does the
 // DOM.
 import { z } from "zod";
+import type { IssuePath } from "@/lib/validation";
 
 const STORAGE_PREFIX = "stericare:capture-landing:";
 
@@ -20,8 +22,6 @@ const LandingSpotSchema = z.object({
   name: z.string().nullable(),
   /** Which of the fields with the same path and name it is, in reading order. */
   nth: z.number().int().min(0),
-  /** The size tab it was under, in a per-size module. */
-  size: z.string().nullable(),
 });
 
 export type LandingSpot = z.infer<typeof LandingSpotSchema>;
@@ -29,14 +29,17 @@ export type LandingSpot = z.infer<typeof LandingSpotSchema>;
 /** How a field on screen is told apart from the others in its section. */
 export type FieldSignature = { path: string | null; name: string | null };
 
-export function landingStorageKey(inspectionId: string): string {
-  return `${STORAGE_PREFIX}${inspectionId}`;
+/** Whose spot, in which inspection: another account signed in on the same tab never lands on it. */
+export type LandingOwner = { userId: string; inspectionId: string };
+
+export function landingStorageKey({ userId, inspectionId }: LandingOwner): string {
+  return `${STORAGE_PREFIX}${userId}:${inspectionId}`;
 }
 
-/** The spot stored for the inspection; null when none, or unreadable. Storage may be missing or refuse (private mode). */
-export function readLandingSpot(storage: Pick<Storage, "getItem"> | null, inspectionId: string): LandingSpot | null {
+/** The spot stored for the user and inspection; null when none, or unreadable. Storage may be missing or refuse (private mode). */
+export function readLandingSpot(storage: Pick<Storage, "getItem"> | null, owner: LandingOwner): LandingSpot | null {
   try {
-    const raw = storage?.getItem(landingStorageKey(inspectionId));
+    const raw = storage?.getItem(landingStorageKey(owner));
     if (!raw) return null;
     const parsed = LandingSpotSchema.safeParse(JSON.parse(raw));
     return parsed.success ? parsed.data : null;
@@ -46,10 +49,10 @@ export function readLandingSpot(storage: Pick<Storage, "getItem"> | null, inspec
 }
 
 /** Stores the spot; false when storage refused it. Nothing else depends on it: the values are saved anyway. */
-export function writeLandingSpot(storage: Pick<Storage, "setItem"> | null, inspectionId: string, spot: LandingSpot): boolean {
+export function writeLandingSpot(storage: Pick<Storage, "setItem"> | null, owner: LandingOwner, spot: LandingSpot): boolean {
   try {
     if (!storage) return false;
-    storage.setItem(landingStorageKey(inspectionId), JSON.stringify(spot));
+    storage.setItem(landingStorageKey(owner), JSON.stringify(spot));
     return true;
   } catch {
     return false;
@@ -114,4 +117,17 @@ export function matchLandingField(fields: readonly FieldSignature[], spot: Pick<
 
 function indicesWhere<T>(items: readonly T[], test: (item: T) => boolean): number[] {
   return items.flatMap((item, index) => (test(item) ? [index] : []));
+}
+
+/** The issue path a spot's path key stands for (issuePathKey's JSON), for the module to reveal; null when it is not one. */
+export function parsePathKey(key: string | null): IssuePath | null {
+  if (key === null) return null;
+  try {
+    const parsed: unknown = JSON.parse(key);
+    return Array.isArray(parsed) && parsed.length > 0 && parsed.every((part) => typeof part === "string" || typeof part === "number")
+      ? parsed
+      : null;
+  } catch {
+    return null;
+  }
 }

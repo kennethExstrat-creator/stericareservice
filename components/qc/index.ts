@@ -74,4 +74,4 @@ export {
   findIssue,
   type IssuePath,
 } from "./issue-path";
-export { useIssueFocus } from "./use-issue-focus";
+export { isRevealOnly, revealOnlyPath, useIssueFocus } from "./use-issue-focus";
