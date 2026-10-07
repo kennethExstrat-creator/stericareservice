@@ -138,7 +138,7 @@ export function calcDocuments({
   return { result: { status: "pass", summary }, computed, issues };
 }
 
-/** "4 Verified, 1 Not verified, 1 NA." in the template's wording. */
+/** "4 Verified, 1 Not Verified, 1 NA." in the template's wording. */
 function tally(counts: DocumentsComputed["counts"], labels: Labels): string {
   const parts = DOCUMENT_STATUSES.filter((status) => counts[status] > 0).map(
     (status) => `${counts[status]} ${labelFor(labels, "status", status)}`,

@@ -384,7 +384,7 @@ function zeroCounts(locations: readonly HoleLocation[]): Record<string, number> 
   return Object.fromEntries(locations.map((location) => [location.code, 0]));
 }
 
-/** "(Finger 1, Glove burst 1)": where the holes were, in the template's wording. */
+/** "(Finger 1, Glove Burst 1)": where the holes were, in the template's wording. */
 function foundList(computed: WatertightSizeComputed, locations: readonly HoleLocation[], descriptions: string[]): string {
   const parts: string[] = [];
   for (const [code, count] of Object.entries(computed.holes)) {

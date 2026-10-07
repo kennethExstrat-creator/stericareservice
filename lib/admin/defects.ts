@@ -1167,7 +1167,7 @@ const STOPWORDS: ReadonlySet<string> = new Set([
   "with",
 ]);
 
-/** Distinct words of three letters or more, without a plural s: "Defective beads" gives defective, bead. */
+/** Distinct words of three letters or more, without a plural s: "Defective Beads" gives defective, bead. */
 function wordsOf(text: string): Set<string> {
   const words = normaliseForSearch(text)
     .split(/[^a-z0-9]+/)
@@ -1481,7 +1481,7 @@ export function buildInspectionLabels(
   };
   const active = codes.filter((code) => code.active);
   const taken = new Set(codes.map((code) => code.code));
-  // Every label templates give each code, so "Oil stain" suggests stain, and where they list it.
+  // Every label templates give each code, so "Oil Stain" suggests stain, and where they list it.
   const wording = new Map<string, string[]>();
   const sections = new Map<string, Set<LabelSection>>();
   for (const template of templates) {

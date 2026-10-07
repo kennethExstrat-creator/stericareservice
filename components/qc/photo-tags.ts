@@ -19,7 +19,7 @@ const HAND: Readonly<Record<string, string>> = { R: "Right Hand", L: "Left Hand"
 
 /**
  * "Dimensions · Size M · Box 253", "Labelling · Size M · Lot no. · Box 253 ·
- * Carton Box", "Loading · Doors closed", for tiles and captions. The level and
+ * Carton Box", "Loading · Doors Closed", for tiles and captions. The level and
  * the item come last, as the capture screen's tag line has them.
  */
 export function tagLine({ module, size, hand, defect, box, level, item }: PhotoTags): string {

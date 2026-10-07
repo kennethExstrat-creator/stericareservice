@@ -41,7 +41,7 @@ export type DecisionModel = {
 export type PhotoEvidenceModel = {
   id: string;
   caption: string | null;
-  /** "Visual Inspection · Size M · Thin spot on glove body", from the photo's tags in the template's wording. */
+  /** "Visual Inspection · Size M · Thin Spot on Glove Body", from the photo's tags in the template's wording. */
   tags: string | null;
   /** Signed for an hour; null when it could not be signed or the photo has no thumbnail. */
   thumbUrl: string | null;

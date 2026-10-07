@@ -223,7 +223,7 @@ export interface PhotoTagOptions {
   sizes: readonly SizeOption[];
   /** Active defect codes, by name. */
   defects: readonly DefectOption[];
-  /** Defect wording per module from the template's labels: `{ visual: { thin_spot: "Thin spot on glove body" } }`. */
+  /** Defect wording per module from the template's labels: `{ visual: { thin_spot: "Thin Spot on Glove Body" } }`. */
   defectLabels: Readonly<Record<string, Readonly<Record<string, string>>>>;
   /** The packaging levels a module records, in its wording: `{ labeling: [inner "Dispenser Box", carton "Carton Box"] }`. */
   levels?: Readonly<Record<string, readonly ListChoice[]>>;

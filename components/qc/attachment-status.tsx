@@ -21,7 +21,7 @@ import { StatusPill } from "./status-pill";
 export type AttachmentState = "none" | "attached" | "missing";
 
 type AttachmentStatusProps = {
-  /** The file in the template's wording, e.g. "Lab report". */
+  /** The file in the template's wording, e.g. "Lab Report". */
   label: string;
   /** Until it is attached the section is not done: says so beside a Not Done pill. */
   required?: boolean;

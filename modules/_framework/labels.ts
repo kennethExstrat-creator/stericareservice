@@ -1,7 +1,7 @@
 // Labels in the template's wording (BUILD_SPEC 4.2 rules 3 and 4). A label
 // key is a canonical key ("indicativeWeight", "thin_spot") or a dotted path
 // for an entry that needs its own wording in one place, such as a defect in
-// one class: STD_EG has "Defective bead" under major and "Defective beads"
+// one class: STD_EG has "Defective Bead" under major and "Defective Beads"
 // under minor, `major.bead_defective` and `minor.bead_defective`.
 import type { ResolvedModule } from "@/lib/schemas/template";
 import type { ModuleDefinition } from "./contract";

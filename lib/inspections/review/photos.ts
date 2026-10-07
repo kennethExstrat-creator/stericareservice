@@ -50,7 +50,7 @@ export type SectionWording = {
   defectLabel(key: string | null, code: string): string | null;
   /** A packaging level ("carton") as the module words it: "Carton Box". */
   levelName(key: string | null, level: string): string;
-  /** An entry of the module's own list (a document, a loading stage) as the template words it: "Doors closed". */
+  /** An entry of the module's own list (a document, a loading stage) as the template words it: "Doors Closed". */
   itemName(key: string | null, item: string): string;
   /** The template's sizes, whose labels ("Medium") name a size. */
   sizes: readonly SizeOption[];

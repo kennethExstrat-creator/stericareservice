@@ -509,7 +509,7 @@ function zeroCounts(defects: readonly VisualDefect[]): Record<string, number> {
   return Object.fromEntries(defects.map((defect) => [defect.code, 0]));
 }
 
-/** "(Thin spot on glove body 5)": what was found, in the template's wording. */
+/** "(Thin Spot on Glove Body 5)": what was found, in the template's wording. */
 function foundList(counted: Pick<Counted, "counts" | "unmapped">, defects: readonly VisualDefect[]): string {
   const parts: string[] = [];
   for (const [code, count] of Object.entries(counted.counts)) {
