@@ -154,17 +154,17 @@ export function ApproveDescription({ finalResult, suggestedResult, errors }: App
         </p>{" "}
         <dl className="grid gap-2 rounded-lg border border-border bg-slate-50 px-4 py-3 text-sm">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <dt className="text-muted-foreground">Final result</dt>{" "}
+            <dt className="text-muted-foreground">Final Result</dt>{" "}
             <dd>
               {finalResult ? (
                 <StatusPill status={finalResult} variant="solid" size="sm" label={RESULT_LABEL[finalResult]} />
               ) : (
-                <StatusPill status="not_done" size="sm" label="Not chosen" />
+                <StatusPill status="not_done" size="sm" label="Not Chosen" />
               )}
             </dd>
           </div>{" "}
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <dt className="text-muted-foreground">Suggested result</dt>{" "}
+            <dt className="text-muted-foreground">Suggested Result</dt>{" "}
             <dd>
               {suggestedResult ? (
                 <StatusPill status={suggestedResult} size="sm" label={RESULT_LABEL[suggestedResult]} />
@@ -240,7 +240,7 @@ function ReopenDialog({ inspectionId, refNo, viewerId, onClose, returnFocusTo }:
         </AlertDialogHeader>
 
         <Field data-invalid={reasonError ? true : undefined}>
-          <FieldLabel htmlFor={`${id}-reason`}>What should the inspector change?</FieldLabel>
+          <FieldLabel htmlFor={`${id}-reason`}>What Should the Inspector Change?</FieldLabel>
           <Textarea
             ref={reasonRef}
             id={`${id}-reason`}

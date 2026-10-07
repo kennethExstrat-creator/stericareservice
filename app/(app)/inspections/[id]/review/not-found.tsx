@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { INSPECTIONS_PATH } from "@/lib/inspections/search-params";
 
 export const metadata: Metadata = {
-  title: "Inspection not found",
+  title: "Inspection Not Found",
 };
 
 /**
@@ -20,11 +20,11 @@ export default function ReviewNotFound() {
     <StatusScreen
       icon={SearchXIcon}
       eyebrow="Error 404"
-      title="Inspection not found"
+      title="Inspection Not Found"
       description="There is no inspection at this address that you can open. Check the link, or find it in the inspections list."
       actions={
         <Button asChild size="lg">
-          <Link href={INSPECTIONS_PATH}>Go to inspections</Link>
+          <Link href={INSPECTIONS_PATH}>Go to Inspections</Link>
         </Button>
       }
     />

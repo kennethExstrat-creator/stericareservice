@@ -19,7 +19,7 @@ import { ReviewPoller } from "./review-poller";
 
 export function AiReviewPanelView({ model, className }: { model: AiPanelModel; className?: string }) {
   const { review, current, attempt, viewer } = model;
-  const requestLabel = current || attempt ? "Request a new second opinion" : "Request AI second opinion";
+  const requestLabel = current || attempt ? "Request a New Second Opinion" : "Request AI Second Opinion";
 
   return (
     <section aria-labelledby="ai-panel-title" className={cn("@container/ai space-y-5", className)} data-testid="ai-panel">
@@ -33,7 +33,7 @@ export function AiReviewPanelView({ model, className }: { model: AiPanelModel; c
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 @2xl/ai:justify-end">
-          {review.mock && <StatusPill status="warn" label="Test data only" />}
+          {review.mock && <StatusPill status="warn" label="Test Data Only" />}
           {review.canRequest && <RequestReviewButton inspectionId={model.inspection.id} label={requestLabel} />}
         </div>
       </header>
@@ -41,7 +41,7 @@ export function AiReviewPanelView({ model, className }: { model: AiPanelModel; c
       {!review.connected && <NotConnected model={model} />}
 
       {review.connected && !current && !attempt && (
-        <Notice tone="neutral" title="No second opinion yet">
+        <Notice tone="neutral" title="No Second Opinion Yet">
           {viewer.isAdmin
             ? (review.blockedReason ?? "Request one to compare the AI's view with the computed results and the inspector's.")
             : "An admin can request one."}
@@ -100,7 +100,7 @@ export function AiPanelTitle() {
   return (
     <h2 id="ai-panel-title" className="flex items-center gap-2 text-2xl font-bold tracking-tight text-foreground">
       <SparklesIcon aria-hidden className="size-5 shrink-0 text-brand-600" />
-      AI second opinion
+      AI Second Opinion
     </h2>
   );
 }
@@ -135,7 +135,7 @@ function NotConnected({ model }: { model: AiPanelModel }) {
 }
 
 /**
- * The newest request when it has no opinion yet. "Request AI second opinion"
+ * The newest request when it has no opinion yet. "Request AI Second Opinion"
  * hands focus to it, and it hands focus on to the opinion when that lands.
  * The same focus target in every state, so a request that fails keeps focus.
  */
@@ -151,7 +151,7 @@ function AttemptNotice({ attempt, current }: { attempt: ReviewModel; current: Re
       >
         <Spinner aria-hidden className="mt-0.5 size-5 text-brand-600" />
         <div className="min-w-0 space-y-1">
-          <p className="font-semibold text-foreground">Writing the second opinion</p>
+          <p className="font-semibold text-foreground">Writing the Second Opinion</p>
           <p className="text-sm text-muted-foreground">
             Requested {attempt.requestedAt}. It can take a few minutes; this panel updates by itself.{earlier}
           </p>
@@ -225,7 +225,7 @@ function ReportSection({ model }: { model: AiPanelModel }) {
         <div className="min-w-0 space-y-1">
           <h3 id="ai-report-title" className="flex flex-wrap items-center gap-2 text-lg font-bold text-foreground">
             <FileTextIcon aria-hidden className="size-5 shrink-0 text-brand-600" />
-            AI report
+            AI Report
             {!report.connected && <StatusPill status="info" size="sm" label={report.label} />}
           </h3>
           <p className="text-sm text-muted-foreground">{description}</p>

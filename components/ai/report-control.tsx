@@ -11,7 +11,7 @@ import { focusIfLost } from "./focus-handoff";
 import { unreachable } from "./unreachable";
 
 /**
- * The AI report hand-off (BUILD_SPEC 9.1): "Send to AI report" for admins
+ * The AI report hand-off (BUILD_SPEC 9.1): "Send to AI Report" for admins
  * when a report service is connected, the link to the finished report once
  * there is one, and the export as a JSON download, which is the way out when
  * no report service is connected ("AI not connected").
@@ -50,7 +50,7 @@ export function ReportControl({
           <Button asChild variant="outline" className="relative">
             <a href={reportUrl} target="_blank" rel="noreferrer">
               <ExternalLinkIcon aria-hidden />
-              Open the report
+              Open the Report
               <span className="sr-only"> (opens in a new tab)</span>
             </a>
           </Button>
@@ -66,7 +66,7 @@ export function ReportControl({
             <input type="hidden" name="inspectionId" value={inspectionId} />
             <Button ref={sendRef} type="submit" disabled={pending}>
               {pending ? <Spinner aria-hidden /> : <SendIcon aria-hidden />}
-              {pending ? "Sending to the AI report" : reportUrl ? "Send to AI report again" : "Send to AI report"}
+              {pending ? "Sending to the AI Report" : reportUrl ? "Send to AI Report Again" : "Send to AI Report"}
             </Button>
           </form>
         )}

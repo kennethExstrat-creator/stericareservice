@@ -27,7 +27,7 @@ import { Verdict } from "./_components/verdict";
 
 /**
  * Server Actions on this page run as long as the page may: "Request AI
- * second opinion" writes the opinion in after() inside its action, and
+ * Second Opinion" writes the opinion in after() inside its action, and
  * Claude may take up to 10 minutes at AI_REVIEW_EFFORT high, the default
  * (claudeTimeoutMs in lib/ai/providers/claude.ts; page.test.ts keeps this
  * above it). 800 seconds is the most Vercel allows a function on Pro. At
@@ -102,7 +102,7 @@ export default async function InspectionReviewPage({ params }: PageProps<"/inspe
           </Link>
         </Button>
         <PageHeader
-          eyebrow="Inspection review"
+          eyebrow="Inspection Review"
           title={inspection.refNo}
           description={<HeaderLine inspection={inspection} />}
           actions={<HeaderActions review={review} />}
@@ -151,7 +151,7 @@ function HeaderActions({ review }: { review: ReviewData }) {
       <Button asChild>
         <Link href={href}>
           <PencilLineIcon aria-hidden />
-          {inspection.status === "reopened" ? "Make changes" : "Continue inspection"}
+          {inspection.status === "reopened" ? "Make Changes" : "Continue Inspection"}
         </Link>
       </Button>
     );
@@ -161,7 +161,7 @@ function HeaderActions({ review }: { review: ReviewData }) {
     <Button asChild variant="outline">
       <Link href={href}>
         <ClipboardListIcon aria-hidden />
-        Open inspection
+        Open Inspection
       </Link>
     </Button>
   );

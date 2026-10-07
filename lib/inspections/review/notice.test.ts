@@ -26,7 +26,7 @@ describe("statusNotice", () => {
   it("asks an admin to review a submitted inspection", () => {
     expect(statusNotice(inspection(), admin, [])).toEqual({
       status: "submitted",
-      title: "Waiting for your review",
+      title: "Waiting for Your Review",
       body: "Inspector A submitted it on 5 Oct 2026, 14:30. Check the results, then approve it or reopen it for changes.",
       reason: null,
     });
@@ -34,7 +34,7 @@ describe("statusNotice", () => {
 
   it("tells the inspector who submitted it what happens next", () => {
     expect(statusNotice(inspection(), inspector, [])).toMatchObject({
-      title: "Waiting for review",
+      title: "Waiting for Review",
       body: "You submitted it on 5 Oct 2026, 14:30. An admin checks it next. If something must change, ask an admin to reopen it.",
     });
   });
@@ -44,7 +44,7 @@ describe("statusNotice", () => {
     const lead = { id: "00000000-0000-4000-8000-000000000103", role: "inspector" } as const;
     expect(statusNotice(inspection(), lead, [])).toEqual({
       status: "submitted",
-      title: "Waiting for review",
+      title: "Waiting for Review",
       body: "Inspector A submitted it on 5 Oct 2026, 14:30. An admin checks it next, and only an admin can reopen it for changes.",
       reason: null,
     });
@@ -52,7 +52,7 @@ describe("statusNotice", () => {
       "Inspector A has not submitted it yet. The results below show what is saved so far.",
     );
     expect(statusNotice(inspection({ status: "reopened" }), lead, [reopen({ kind: "admin" }, "Retest size M.")])).toMatchObject({
-      title: "Reopened for changes",
+      title: "Reopened for Changes",
       body: "An admin reopened it on 6 Oct 2026, 10:00. Inspector A can change it and submit it again.",
       reason: { label: "Reason", text: "Retest size M." },
     });
@@ -67,9 +67,9 @@ describe("statusNotice", () => {
     const notice = statusNotice(inspection({ status: "reopened" }), inspector, [reopen({ kind: "admin" }, "Retest size M.")]);
     expect(notice).toEqual({
       status: "reopened",
-      title: "Reopened: changes needed",
+      title: "Reopened: Changes Needed",
       body: "An admin reopened it on 6 Oct 2026, 10:00. Make the changes, then submit it again.",
-      reason: { label: "What to change", text: "Retest size M." },
+      reason: { label: "What to Change", text: "Retest size M." },
     });
   });
 
@@ -78,7 +78,7 @@ describe("statusNotice", () => {
       reopen({ kind: "person", name: "Admin A" }, "Retest size M."),
     ]);
     expect(notice).toMatchObject({
-      title: "Reopened for changes",
+      title: "Reopened for Changes",
       body: "Admin A reopened it on 6 Oct 2026, 10:00. Inspector A can change it and submit it again.",
       reason: { label: "Reason", text: "Retest size M." },
     });
@@ -103,6 +103,7 @@ describe("statusNotice", () => {
 
   it("explains a draft to its inspector and to an admin", () => {
     const draft = inspection({ status: "draft", submittedAt: null });
+    expect(statusNotice(draft, inspector, []).title).toBe("Not Submitted Yet");
     expect(statusNotice(draft, inspector, []).body).toBe(
       "The results below show what you have saved so far. Submit it from the inspection once it is complete.",
     );

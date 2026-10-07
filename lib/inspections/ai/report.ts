@@ -14,7 +14,7 @@ import { logInspectionEvent } from "./audit";
 import { AI_STATUSES, NOT_REPORTABLE } from "./panel-model";
 
 /* ------------------------------------------------------------------ *
- * "Send to AI report" (BUILD_SPEC 9.1): the export of a submitted or
+ * "Send to AI Report" (BUILD_SPEC 9.1): the export of a submitted or
  * approved inspection goes to the report service, and the URL it answers
  * with is stored in inspections.report_url. Without a report service the
  * admin gets "AI not connected" and the JSON download instead.

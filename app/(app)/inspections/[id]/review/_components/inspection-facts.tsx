@@ -34,11 +34,11 @@ export function InspectionFacts({
         <Fact label="Manufacturer">{inspection.manufacturer ?? <Missing label="No manufacturer" />}</Fact>
         <Fact label="PO">{inspection.poNo ?? <Missing label="No PO yet" />}</Fact>
         <Fact label="Product">{inspection.productName ?? <Missing label="No product yet" />}</Fact>
-        <Fact label="Lot numbers">
+        <Fact label="Lot Numbers">
           {inspection.lotNumbers.length > 0 ? inspection.lotNumbers.join(", ") : <Missing label="No lot numbers yet" />}
         </Fact>
         <Fact label="Inspector">{inspection.inspector.name}</Fact>
-        <Fact label="Inspection date">
+        <Fact label="Inspection Date">
           <time dateTime={inspection.inspectionDate}>{formatInspectionDate(inspection.inspectionDate)}</time>
         </Fact>
         <Fact label="Submitted">

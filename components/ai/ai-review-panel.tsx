@@ -60,7 +60,7 @@ function NoResults({ className }: { className?: string }) {
       <div className="flex gap-3 rounded-xl border border-dashed border-not-done-border bg-card p-4 touch:p-5">
         <CircleDashedIcon aria-hidden className="mt-0.5 size-5 shrink-0 text-not-done" />
         <div className="min-w-0 space-y-1">
-          <p className="font-semibold text-foreground">Not available</p>
+          <p className="font-semibold text-foreground">Not Available</p>
           <p className="text-sm text-muted-foreground">
             The second opinion and the AI report need this inspection&apos;s results, which could not be worked out.
           </p>

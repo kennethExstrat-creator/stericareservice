@@ -97,23 +97,23 @@ describe("/inspections/[id]/review", () => {
     const html = await render(reviewData());
     expect(button(html, "Approve")).toBe(true);
     expect(button(html, "Reopen")).toBe(true);
-    expect(link(html, "Open inspection")).toBe(true);
-    expect(html).toContain("Waiting for your review");
+    expect(link(html, "Open Inspection")).toBe(true);
+    expect(html).toContain("Waiting for Your Review");
   });
 
   it.each(["approved", "reopened", "draft"] as const)("gives an admin no decision on a %s inspection", async (status) => {
     const html = await render(reviewData({ inspection: reviewInspection({ status }) }));
     expect(button(html, "Approve")).toBe(false);
     expect(button(html, "Reopen")).toBe(false);
-    expect(link(html, "Open inspection")).toBe(true);
+    expect(link(html, "Open Inspection")).toBe(true);
   });
 
   it("shows the inspector their submitted inspection read-only", async () => {
     const html = await render(reviewData({ viewer: { id: INSPECTOR_ID, name: "Inspector A", role: "inspector" } }));
     expect(button(html, "Approve")).toBe(false);
     expect(button(html, "Reopen")).toBe(false);
-    expect(link(html, "Open inspection")).toBe(true);
-    expect(html).toContain("Waiting for review");
+    expect(link(html, "Open Inspection")).toBe(true);
+    expect(html).toContain("Waiting for Review");
   });
 
   // Lead inspectors read their team's inspections (migration 20261007170000), read-only.
@@ -126,17 +126,17 @@ describe("/inspections/[id]/review", () => {
       const html = await render(reviewData({ viewer: lead, inspection: reviewInspection({ status }) }));
       expect(button(html, "Approve")).toBe(false);
       expect(button(html, "Reopen")).toBe(false);
-      expect(link(html, "Open inspection")).toBe(true);
-      expect(link(html, "Continue inspection")).toBe(false);
-      expect(link(html, "Make changes")).toBe(false);
+      expect(link(html, "Open Inspection")).toBe(true);
+      expect(link(html, "Continue Inspection")).toBe(false);
+      expect(link(html, "Make Changes")).toBe(false);
       expect(html).not.toContain('data-testid="ai-panel"');
       if (status === "submitted") expect(html).toContain("An admin checks it next, and only an admin can reopen it for changes.");
     },
   );
 
   it.each([
-    ["reopened", "Make changes"],
-    ["draft", "Continue inspection"],
+    ["reopened", "Make Changes"],
+    ["draft", "Continue Inspection"],
   ] as const)("sends the inspector on with their %s inspection", async (status, action) => {
     const html = await render(
       reviewData({
@@ -145,7 +145,7 @@ describe("/inspections/[id]/review", () => {
       }),
     );
     expect(html).toMatch(new RegExp(`<a[^>]*href="/inspections/${INSPECTION_ID}"[^>]*>(?:(?!</a>).)*${action}</a>`));
-    expect(link(html, "Open inspection")).toBe(false);
+    expect(link(html, "Open Inspection")).toBe(false);
   });
 
   it("keeps the status apart from the client and product when read out", async () => {
@@ -170,7 +170,7 @@ describe("/inspections/[id]/review", () => {
     const html = await render(reviewData());
     expect(loadAiPanel).toHaveBeenCalledWith(ADMIN_USER, INSPECTION_ID);
     expect(html).toContain('data-testid="ai-comparison"');
-    for (const column of ["System (computed)", "Inspector", "AI second opinion"]) expect(html).toContain(column);
+    for (const column of ["System (Computed)", "Inspector", "AI Second Opinion"]) expect(html).toContain(column);
     expect(html).toContain('data-testid="ai-report"');
     expect(link(html, "Download JSON")).toBe(true);
   });
@@ -199,8 +199,8 @@ describe("/inspections/[id]/review", () => {
     expect(start).toBeGreaterThan(html.indexOf('id="result"'));
     expect(start).toBeLessThan(html.indexOf('id="modules"'));
     const ai = html.slice(start, html.indexOf("</section>", start));
-    expect(ai).toContain("AI second opinion");
-    expect(ai).toContain("Not available");
+    expect(ai).toContain("AI Second Opinion");
+    expect(ai).toContain("Not Available");
     expect(ai).toContain("The second opinion and the AI report need this inspection&#x27;s results, which could not be worked out.");
     // Not-done slate, not fail red: the review's checks and module results give the cause, and only they do.
     expect(ai).not.toMatch(/fail/);
@@ -209,7 +209,7 @@ describe("/inspections/[id]/review", () => {
     expect(html.split(cause)).toHaveLength(3);
     // Nothing to request or download: the export needs the results too.
     expect(link(html, "Download JSON")).toBe(false);
-    expect(button(html, "Request AI second opinion")).toBe(false);
+    expect(button(html, "Request AI Second Opinion")).toBe(false);
   });
 
   it("runs its Server Actions longer than the AI hand-offs may take at the default effort", () => {

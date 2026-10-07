@@ -31,7 +31,7 @@ const TEXT = "text-base fine:text-sm";
 export function ModuleResults({ evaluation }: { evaluation: ReviewEvaluation }) {
   if (!evaluation.ok) {
     return (
-      <ReviewSection id="modules" title="Module results">
+      <ReviewSection id="modules" title="Module Results">
         <Panel className="flex gap-3 border-l-4 border-l-warn-border p-5">
           <TriangleAlertIcon aria-hidden className="mt-0.5 size-5 shrink-0 text-warn" />
           <p className={cn("text-foreground", TEXT)}>{evaluation.message}</p>
@@ -52,7 +52,7 @@ export function ModuleResults({ evaluation }: { evaluation: ReviewEvaluation }) 
   return (
     <ReviewSection
       id="modules"
-      title="Module results"
+      title="Module Results"
       description="In the template's order, worked out from the saved data with the template version this inspection uses."
     >
       <Panel className="overflow-hidden">
@@ -65,7 +65,7 @@ export function ModuleResults({ evaluation }: { evaluation: ReviewEvaluation }) 
         >
           <span>Module</span>
           <span>Result</span>
-          <span>Inspector&apos;s comment</span>
+          <span>Inspector&apos;s Comment</span>
         </div>
         <ol className="divide-y divide-border">
           {sections.map((section) => {
@@ -83,8 +83,8 @@ export function ModuleResults({ evaluation }: { evaluation: ReviewEvaluation }) 
         </ol>
         {elsewhere.length > 0 && (
           <div className="border-t border-border px-5 py-4">
-            <h3 className="mb-2 text-base font-bold text-foreground">Other issues</h3>
-            <IssueList title="Other issues" issues={elsewhere} />
+            <h3 className="mb-2 text-base font-bold text-foreground">Other Issues</h3>
+            <IssueList title="Other Issues" issues={elsewhere} />
           </div>
         )}
       </Panel>
@@ -118,7 +118,7 @@ function Row({
       <div className="relative min-w-0 space-y-1">
         {comment ? (
           <>
-            <p className="text-sm font-medium text-muted-foreground lg:sr-only">Inspector&apos;s comment</p>
+            <p className="text-sm font-medium text-muted-foreground lg:sr-only">Inspector&apos;s Comment</p>
             <blockquote
               className={cn("border-l-2 border-brand-300 pl-3 whitespace-pre-line text-foreground [overflow-wrap:anywhere]", TEXT)}
             >
@@ -129,7 +129,7 @@ function Row({
           <p className={cn("text-muted-foreground", TEXT)}>
             <span className="lg:hidden">No comment from the inspector</span>
             <span className="hidden lg:inline">
-              <span className="sr-only">Inspector&apos;s comment: </span>No comment
+              <span className="sr-only">Inspector&apos;s Comment: </span>No comment
             </span>
           </p>
         )}
@@ -192,7 +192,7 @@ function CustomRow({
       badge={
         // A pill's size, without a result's colour: extra fields have no verdict.
         <span className="inline-flex h-6 items-center rounded-full border border-slate-300 bg-card px-2 text-xs font-semibold text-slate-700 touch:h-8 touch:px-3 touch:text-base">
-          Extra fields
+          Extra Fields
         </span>
       }
       comment={entry.comment}
