@@ -15,7 +15,7 @@ import { RefusedEntryStoreContext, sameInvalidEntry, type RefusedEntryStore } fr
 import { SizeTabs } from "./size-tabs";
 
 const noop = () => {};
-const REFUSED: InvalidEntry = { raw: "2 42", error: "One number per cell, e.g. 2.42." };
+const REFUSED: InvalidEntry = { raw: "2 42", error: "One number per cell: remove the space (“2 42” → 242)." };
 
 function storeOf(entries: Readonly<Record<string, InvalidEntry>>): RefusedEntryStore {
   const kept = new Map(Object.entries(entries));
@@ -57,7 +57,7 @@ describe("MeasurementGrid with the screen's refused entries", () => {
     expect(cell).toContain('aria-invalid="true"');
     expect(cell).toMatch(/aria-describedby="[^"]+-error-length-2"/);
     expect(html).toContain("No. 3, Length");
-    expect(html).toContain("“2 42” is not stored. One number per cell, e.g. 2.42.");
+    expect(html).toContain("“2 42” is not stored. One number per cell: remove the space (“2 42” → 242).");
     // The other cells are untouched.
     expect(inputNamed(html, "Length, No. 2")).not.toContain('aria-invalid="true"');
   });
