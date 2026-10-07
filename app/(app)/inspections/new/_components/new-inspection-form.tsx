@@ -121,16 +121,39 @@ type NewInspectionFormProps = {
   previous: readonly PreviousProduct[];
 };
 
-export function NewInspectionForm({ userId, role, clients, manufacturers, templates, previous }: NewInspectionFormProps) {
-  const id = useId();
+/**
+ * The form, starting from the user's draft kept in the tab, as far as the page
+ * still offers its choices. A draft found after hydration starts the form
+ * again from it (the key), so the pickers mount with the choices rather than
+ * change to them: a Radix Select whose value changes before its options are
+ * in place reports itself cleared.
+ */
+export function NewInspectionForm({ userId, ...offered }: NewInspectionFormProps) {
   const storageKey = draftKey(userId);
   const draftStore = useMemo(() => foundDraftStore(() => readDraft(tabStorage(), storageKey)), [storageKey]);
   const found = useSyncExternalStore(draftStore.subscribe, draftStore.get, NO_DRAFT);
-  /** The choices as the user left them on this page; null until the first change. */
-  const [edited, setEdited] = useState<NewInspectionChoices | null>(null);
-  // Until then, the draft kept before the page loaded, as far as the page still offers its choices.
-  const choices =
-    edited ?? (found ? restoreChoices(found, { role, clients, manufacturers, templates, previous }) : NO_CHOICES);
+  return (
+    <ChoicesForm
+      key={`${storageKey}:${found ? "draft" : "new"}`}
+      {...offered}
+      storageKey={storageKey}
+      initial={found ? restoreChoices(found, offered) : NO_CHOICES}
+    />
+  );
+}
+
+type ChoicesFormProps = Omit<NewInspectionFormProps, "userId"> & {
+  /** Where the tab keeps the draft. */
+  storageKey: string;
+  /** The choices the form opens with. */
+  initial: NewInspectionChoices;
+};
+
+function ChoicesForm({ storageKey, initial, role, clients, manufacturers, templates, previous }: ChoicesFormProps) {
+  const id = useId();
+  const [choices, setChoices] = useState(initial);
+  /** The choices as last changed, ahead of the next render: two changes in one go both count. */
+  const latest = useRef(initial);
   const { clientId, manufacturerId, productType, templateId } = choices;
   /** The product name as the user typed it. */
   const typedName = choices.productName;
@@ -215,8 +238,9 @@ export function NewInspectionForm({ userId, role, clients, manufacturers, templa
 
   /** A change of choice or name, kept in the tab as it happens. */
   function update(change: Partial<NewInspectionChoices>) {
-    const next = { ...choices, ...change };
-    setEdited(next);
+    const next = { ...latest.current, ...change };
+    latest.current = next;
+    setChoices(next);
     writeDraft(tabStorage(), storageKey, next);
   }
 
