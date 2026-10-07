@@ -12,8 +12,9 @@
 // batchDataChanges, so a module that writes through useDataUpdater receives
 // one onChange with every value. What a paste leaves out (values past the
 // run's last field, other spreadsheet columns) shows on screen: under the
-// field pasted into, or for cells in a table, across the foot of their
-// EnterGroup. PercentField is the same with "%" and 0 to 100.
+// field pasted into, or for cells and named runs (a table's column or row),
+// across the foot of their EnterGroup. PercentField is the same with "%" and
+// 0 to 100.
 import {
   createContext,
   useContext,
@@ -115,7 +116,10 @@ export type NumberFieldProps = {
   warning?: string | readonly string[] | null;
   /** "field" has its label above; "cell" sits in a table cell (label for screen readers). */
   variant?: "field" | "cell";
-  /** Fields with the same name form a run inside the nearest EnterGroup, e.g. one table column. */
+  /**
+   * Fields with the same name form a run inside the nearest EnterGroup, e.g.
+   * one table column; what a paste leaves out then shows across the group's foot.
+   */
   group?: string;
   readOnly?: boolean;
   placeholder?: string;
@@ -260,7 +264,10 @@ export function NumberField({
     // On screen too, until dismissed or the next paste: a paste that fit takes an earlier notice away.
     const left: PasteLeftOut = { pastEnd: valuesPastEnd(plan.values, fields.length, start), otherColumns: plan.leftOut };
     const shown = leftOutAnything(left) ? left : null;
-    if (variant === "cell" && groupNotices) groupNotices(shown && { leftOut: shown, field: own });
+    // A cell, or a field in a named run (a table's column or row, as a custom
+    // table draws its cells), hands it to the group's foot: under a field in
+    // a table cell it would widen that cell's column.
+    if (groupNotices && (variant === "cell" || Boolean(group))) groupNotices(shown && { leftOut: shown, field: own });
     else setLeftOut(shown);
     return true;
   };
