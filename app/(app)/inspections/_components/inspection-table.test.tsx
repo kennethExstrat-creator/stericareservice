@@ -128,7 +128,7 @@ describe("InspectionTable", () => {
 
   it("says when a value is missing instead of leaving a blank", () => {
     const html = render([{ ...ROW, client: null, manufacturer: null, product: null, po: null }]);
-    for (const label of ["No client yet", "No manufacturer yet", "No product yet", "No PO yet"]) {
+    for (const label of ["No Client", "No manufacturer yet", "No product yet", "No PO yet"]) {
       expect(html).toContain(`<span class="sr-only">${label}</span>`);
     }
     expect(html).not.toContain(">PO <");

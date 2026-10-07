@@ -21,7 +21,7 @@ export function ChoiceCard({
   value: string;
   title: ReactNode;
   description?: ReactNode;
-  /** A stand-in title, such as "Product name not entered". */
+  /** A stand-in title, such as "Product Name Not Entered". */
   muted?: boolean;
   /** The group needs a choice: red edges, as a field with an error. */
   invalid?: boolean;

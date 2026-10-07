@@ -92,7 +92,7 @@ export function PreviousPicker({
                 key={product.inspectionId}
                 id={`${id}-previous-${product.inspectionId}`}
                 value={product.inspectionId}
-                title={product.productName ?? "Product name not entered"}
+                title={product.productName ?? "Product Name Not Entered"}
                 muted={product.productName === null}
                 description={
                   <span className="flex flex-wrap items-center gap-x-2 gap-y-1">

@@ -30,7 +30,7 @@ export function InspectionFacts({
   return (
     <Panel>
       <dl data-slot="inspection-facts" className="grid gap-x-8 gap-y-4 p-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        <Fact label="Client">{inspection.client ?? <Missing label="No client" />}</Fact>
+        <Fact label="Client">{inspection.client ?? <Missing label="No Client" />}</Fact>
         <Fact label="Manufacturer">{inspection.manufacturer ?? <Missing label="No manufacturer" />}</Fact>
         <Fact label="PO">{inspection.poNo ?? <Missing label="No PO yet" />}</Fact>
         <Fact label="Product">{inspection.productName ?? <Missing label="No product yet" />}</Fact>

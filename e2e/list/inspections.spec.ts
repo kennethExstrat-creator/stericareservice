@@ -319,8 +319,9 @@ test.describe("with inspections", () => {
     await expect(row(page, refs.A)).toContainText("Hartalega NGC", { useInnerText: true });
     await expect(row(page, refs.A)).toContainText("E2E-LIST-PO-100", { useInnerText: true });
     await expect(row(page, refs.A)).toContainText("1 Oct 2026", { useInnerText: true });
-    // A draft just started: a dash where nothing is chosen or typed yet, and the words for screen readers.
-    for (const missing of ["No client yet", "No manufacturer yet", "No product yet", "No PO yet"]) {
+    // A draft just started: a dash where nothing is chosen or typed yet, and the words for screen readers
+    // (No Client as New Inspection's choice names it).
+    for (const missing of ["No Client", "No manufacturer yet", "No product yet", "No PO yet"]) {
       await expect(row(page, refs.E).getByText(missing, { exact: true }), missing).toHaveClass(/\bsr-only\b/);
     }
 

@@ -3,7 +3,7 @@
 // go into the report, is the gallery's job: /inspections/[id]/photos.
 import Link from "next/link";
 import { ImagesIcon, TriangleAlertIcon } from "lucide-react";
-import { PhotoTile } from "@/components/qc";
+import { PhotoTile, tagLine } from "@/components/qc";
 import { Button } from "@/components/ui/button";
 import { plural } from "@/lib/inspections/review/format";
 import type { ReviewData } from "@/lib/inspections/review/load";
@@ -90,12 +90,15 @@ function ReportPhoto({ photo }: { photo: ReviewPhoto }) {
     />
   );
   if (!photo.fullUrl) return tile;
+  // Named by the words the tile shows, its caption and tag line, as the AI
+  // panel names a photo it cites (WCAG 2.5.3); where it goes is the detail after.
+  const shown = [photo.caption, tagLine(photo.tags)].filter(Boolean).join(", ");
   return (
     <a
       href={photo.fullUrl}
       target="_blank"
       rel="noopener noreferrer"
-      aria-label={`Open full size, in a new tab: ${photo.alt}`}
+      aria-label={`${shown} (opens full size in a new tab)`}
       className="block h-full rounded-lg focus-ring"
     >
       {tile}

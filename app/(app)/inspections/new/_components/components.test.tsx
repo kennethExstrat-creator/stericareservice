@@ -216,7 +216,7 @@ describe("start from previous", () => {
 
   it("marks a product without a name", () => {
     const html = picker({ products: [product(1, { productName: null })] });
-    expect(html).toContain("Product name not entered");
+    expect(html).toContain("Product Name Not Entered");
   });
 
   it("lists what the chosen inspection copies into this template, and what never", () => {

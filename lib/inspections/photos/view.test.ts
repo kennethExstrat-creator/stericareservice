@@ -269,16 +269,18 @@ describe("tag options from the template", () => {
 describe("names", () => {
   it("names modules by the template's title, else by their key", () => {
     expect(moduleTitle("visual", options)).toBe("Visual Inspection");
-    expect(moduleTitle("dye_leak", options)).toBe("Dye leak");
+    expect(moduleTitle("dye_leak", options)).toBe("Dye Leak");
     expect(moduleTitle(null, options)).toBe(UNTAGGED_TITLE);
-    expect(humanizeKey("dispensing_safedon")).toBe("Dispensing safedon");
+    expect(humanizeKey("dispensing_safedon")).toBe("Dispensing Safedon");
+    expect(humanizeKey("force_at_break")).toBe("Force at Break");
+    expect(humanizeKey("doorsClosed")).toBe("Doors Closed");
   });
 
   it("describes a module the template does not know as switched off, recording what its kind records", () => {
     expect(moduleOption("labeling", options)).toMatchObject({ included: false, title: "Labelling" });
     expect(moduleOption("dye_leak", options)).toEqual({
       key: "dye_leak",
-      title: "Dye leak",
+      title: "Dye Leak",
       targetKeys: ["size"],
       handSplit: false,
       included: false,
@@ -359,10 +361,10 @@ describe("displayTags", () => {
       module: "",
       item: "Doors shut",
     });
-    // A document the checklist leaves out, in the module's own words; an unknown one by its key in words.
+    // A document the checklist leaves out, in the module's own words; an unknown one by its key in words, in Title Case.
     expect(displayTags("documents", "item:declarationOfOrigin", options).item).toBe("Declaration of origin");
     expect(itemName("documents", "fdaCe", options)).toBe("FDA / CE certificates");
-    expect(itemName("documents", "millCertificate", options)).toBe("Mill certificate");
+    expect(itemName("documents", "millCertificate", options)).toBe("Mill Certificate");
     expect(levelName("dimensions", "inner", options)).toBe("Inner Unit");
     expect(levelName("labeling", "carton", EMPTY_TAG_OPTIONS)).toBe("Carton");
   });
@@ -425,8 +427,8 @@ describe("groupByModule", () => {
       ["dimensions", "Dimensions", true, ["5"]],
       ["visual", "Visual Inspection", true, ["2", "7"]],
       ["labeling", "Labelling", false, ["4"]],
-      ["alpha_extra", "Alpha extra", false, ["6"]],
-      ["zeta_extra", "Zeta extra", false, ["3"]],
+      ["alpha_extra", "Alpha Extra", false, ["6"]],
+      ["zeta_extra", "Zeta Extra", false, ["3"]],
       [null, UNTAGGED_TITLE, true, ["1"]],
     ]);
   });

@@ -81,7 +81,7 @@ function InspectionDate({ value }: { value: string }) {
 
 /** On touch as tall as the workflow badge, and 14 px like it: the two read as a pair. */
 function ResultPill({ result }: { result: InspectionListRow["result"] }) {
-  // The final result once the inspector sets it; until then Not done, never a pass.
+  // The final result once the inspector sets it; until then Not Done, never a pass.
   return (
     <StatusPill
       status={result ?? "not_done"}
@@ -143,7 +143,7 @@ function cell(key: InspectionColumnKey, row: InspectionListRow): ReactNode {
     case "date":
       return <InspectionDate value={row.inspectionDate} />;
     case "client":
-      return <Text value={row.client} missing="No client yet" />;
+      return <Text value={row.client} missing="No Client" />;
     case "manufacturer":
       return <Text value={row.manufacturer} missing="No manufacturer yet" />;
     case "product":

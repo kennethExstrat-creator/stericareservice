@@ -107,7 +107,7 @@ describe("ModuleResults", () => {
     expect(text(row(html, "module-weight"))).toContain("Warning: Average 2.8 g is 20% below the indicative 3.5 g.");
   });
 
-  it("does not repeat 'not done' as a warning under a module that says Not done", () => {
+  it("does not repeat 'not done' as a warning under a module that says Not Done", () => {
     const notDone = renderToStaticMarkup(
       <ModuleResults
         evaluation={evaluated({ data: { ...savedData(), modules: { ...savedData().modules, packing_config: {} } } })}
@@ -258,7 +258,9 @@ describe("Verdict", () => {
 
   it("says when no final result is chosen yet", () => {
     const html = text(renderToStaticMarkup(<Verdict inspection={reviewInspection({ result: null, remarks: null })} evaluation={evaluated()} />));
-    expect(html).toContain("Not Chosen Yet");
+    // As the Approve dialog and the AI panel word the same state.
+    expect(html).toContain("Final Result (Inspector) Not Chosen");
+    expect(html).not.toContain("Not Chosen Yet");
     expect(html).toContain("No remark");
   });
 
@@ -318,7 +320,7 @@ describe("InspectionFacts", () => {
         <InspectionFacts inspection={reviewInspection({ client: null, poNo: null, lotNumbers: [], submittedAt: null })} template={null} />,
       ),
     );
-    expect(html).toContain("Client — No client");
+    expect(html).toContain("Client — No Client");
     expect(html).toContain("PO — No PO yet");
     expect(html).toContain("Submitted — Not submitted yet");
     expect(html).toContain("Template — Template not readable");
@@ -360,7 +362,10 @@ describe("ReportPhotos", () => {
       <ReportPhotos inspectionId={INSPECTION_ID} photos={{ items: [photo], total: 4, failed: false }} canChoose />,
     );
     expect(text(html)).toMatch(/^Report Photos 1 of 4 photos marked for the report\./);
-    expect(html).toMatch(/<a href="https:\/\/storage.example.com\/full.jpg" target="_blank" rel="noopener noreferrer" aria-label="Open full size, in a new tab: Insect in the cuff/);
+    // Named by what the tile shows, its caption and tag line, first.
+    expect(html).toContain(
+      '<a href="https://storage.example.com/full.jpg" target="_blank" rel="noopener noreferrer" aria-label="Insect in the cuff, Visual Inspection · Size L (opens full size in a new tab)"',
+    );
     expect(html).toContain('src="https://storage.example.com/thumb.jpg"');
     expect(html).toMatch(new RegExp(`<a[^>]*href="/inspections/${INSPECTION_ID}/photos"[^>]*>.*All Photos \\(4\\)`));
   });

@@ -11,6 +11,7 @@ import { ResolvedTemplateSchema, type ResolvedModule } from "@/lib/schemas/templ
 import type { Tables } from "@/lib/supabase/database.types";
 import { applyModuleOverrides, parseModuleOverrides } from "@/lib/templates/overrides";
 import { templateSections } from "@/lib/templates/sections";
+import { humanize } from "@/lib/zod-form/labels";
 // The default wording of the three lists a photo's level or item comes from: config files only, no module code.
 import { DOCUMENT_ITEMS, DOCUMENTS_LABELS } from "@/modules/documents/config";
 import { LABELING_LABELS } from "@/modules/labeling/config";
@@ -341,16 +342,13 @@ function defectWording(labels: Readonly<Record<string, string>>, defects: readon
 }
 
 /**
- * "dispensing_packing" as "Dispensing packing", "doorsClosed" as "Doors
- * closed": the name of a module, document or stage the template does not know.
+ * "dispensing_packing" as "Dispensing Packing", "doorsClosed" as "Doors
+ * Closed": the name of a module, document or stage the template does not
+ * know, in Title Case as every label the app writes from a key
+ * (lib/zod-form humanize; docs/DESIGN.md, Capitalisation).
  */
 export function humanizeKey(key: string): string {
-  const words = key
-    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .replace(/[_-]+/g, " ")
-    .trim()
-    .toLowerCase();
-  return words ? words[0].toUpperCase() + words.slice(1) : key;
+  return humanize(key.trim()) || key;
 }
 
 export const UNTAGGED_TITLE = "Not Tagged";

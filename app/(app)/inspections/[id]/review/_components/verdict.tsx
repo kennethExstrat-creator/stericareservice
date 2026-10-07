@@ -1,7 +1,7 @@
 // The overall picture: what the app suggests from the module results, what
 // the inspector decided and why, and how many problems the checks found.
 // The suggestion never changes the final result (BUILD_SPEC 6.1 conclusion).
-// Its pill says the result (Passed, Failed, On hold) and the lines under it
+// Its pill says the result (Passed, Failed, On Hold) and the lines under it
 // say why, as the submit confirmation does: nothing for a clean pass.
 import type { ReactNode } from "react";
 import { CircleXIcon, InfoIcon, TriangleAlertIcon } from "lucide-react";
@@ -76,7 +76,7 @@ export function Verdict({ inspection, evaluation }: { inspection: ReviewInspecti
           {final ? (
             <StatusPill status={final} variant="solid" label={RESULT_LABEL[final]} className="touch:h-8 touch:text-base" />
           ) : (
-            <StatusPill status="not_done" label="Not Chosen Yet" className="touch:h-8 touch:text-base" />
+            <StatusPill status="not_done" label="Not Chosen" className="touch:h-8 touch:text-base" />
           )}
           <div>
             <p className="text-sm font-medium text-muted-foreground">Remark</p>
