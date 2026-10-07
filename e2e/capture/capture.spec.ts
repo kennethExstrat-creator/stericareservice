@@ -863,6 +863,42 @@ test("tensile counts its lab report once attached and not once it is deleted, an
   expect(hydration()).toEqual([]);
 });
 
+test("Pending lists what is open as calm tasks, with what submit needs first and tagged", async ({ page, context, baseURL }) => {
+  await signInAs(context, baseURL!, "inspector");
+  await page.goto(`/inspections/${fixture.inspectionId}`);
+  await expect(savePill(page)).toHaveAttribute("data-state", "saved");
+
+  await press(page.getByRole("button", { name: /^Pending\W+\d+ to do, \d+ needed before you submit$/ }));
+  const sheet = page.getByRole("dialog", { name: "Pending" });
+  await expect(sheet).toBeVisible();
+  await expect(sheet.locator('[data-slot="pending-summary"]')).toHaveText(/^\d+ to do · \d+ needed before you submit$/);
+  // A checklist, not warnings: no red or amber, no warning or error icons.
+  const alarming = await sheet.evaluate(
+    (element) =>
+      element.querySelectorAll('[class*="-fail"], [class*="-warn"], .lucide-triangle-alert, .lucide-circle-x').length,
+  );
+  expect(alarming).toBe(0);
+  // What submit needs comes first, together under its tag, each task with its section's name; the rest follow.
+  const neededGroup = sheet.locator('[data-slot="needed-tasks"]');
+  await expect(sheet.locator("section").first()).toHaveAttribute("data-slot", "needed-tasks");
+  await expect(neededGroup.getByRole("heading", { name: "Needed to submit" })).toBeVisible();
+  const neededCount = await neededGroup.locator("[data-issue]").count();
+  expect(neededCount).toBeGreaterThan(0);
+  await expect(sheet.locator("[data-issue][data-needed]")).toHaveCount(neededCount);
+  await expect(neededGroup.locator("[data-issue]:not([data-needed])")).toHaveCount(0);
+  await expect(neededGroup.getByRole("button", { name: /^Site notes: Container seal intact is required/ })).toBeVisible();
+  // Under its section's heading a task does not say the section's name again.
+  await expect(sheet).not.toContainText("is not done");
+  await expect(sheet).not.toContainText("must be complete before submit");
+  await expect(sheet.getByRole("button", { name: /^Conclusion: .*Needed before you submit\.$/ })).toBeVisible();
+  if (isTouch()) {
+    for (const task of await sheet.locator("button[data-issue]").all()) {
+      expect((await task.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    }
+  }
+  await viewportShot(page, "pending");
+});
+
 test("submit with errors is blocked, and each error links to its section", async ({ page, context, baseURL }) => {
   await signInAs(context, baseURL!, "inspector");
   await page.goto(`/inspections/${fixture.inspectionId}`);
@@ -871,8 +907,10 @@ test("submit with errors is blocked, and each error links to its section", async
   await press(page.getByRole("button", { name: "Submit", exact: true }));
   const sheet = page.getByRole("dialog", { name: "Before you submit" });
   await expect(sheet).toBeVisible();
-  await expect(sheet.getByRole("alert")).toContainText("before submitting");
-  const conclusion = sheet.getByRole("button", { name: /Conclusion must be complete before submit/ });
+  await expect(sheet.getByRole("alert")).toContainText("needed before you can submit");
+  // A task, read with its section and what submit needs; the section's heading is not repeated in its words.
+  const conclusion = sheet.getByRole("button", { name: /^Conclusion: .*Needed before you submit\.$/ });
+  await expect(conclusion).not.toContainText("must be complete before submit");
   await expect(conclusion).toBeVisible();
   await viewportShot(page, "submit-blocked");
 
