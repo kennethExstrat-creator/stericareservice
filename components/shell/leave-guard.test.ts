@@ -2,9 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CHECK_FAILED,
   createLeaveGuards,
+  createLeaveRequests,
   guardedDestination,
   leaveDestination,
   leaveGuards,
+  leaveRequests,
   STILL_SAVING,
   type LinkClick,
 } from "./leave-guard";
@@ -152,5 +154,81 @@ describe("guardedDestination", () => {
   it("leaves clicks that do not leave the page to the browser", () => {
     expect(guardedDestination({ ...link, modified: true }, HERE, active)).toBeNull();
     expect(guardedDestination({ ...link, href: "#main-content" }, HERE, active)).toBeNull();
+  });
+});
+
+describe("the shell's taps while the guards answer", () => {
+  /** Guards whose answer the test gives by hand. */
+  function handAnswered() {
+    let answer: (reasons: string[]) => void = () => undefined;
+    const check = vi.fn(
+      () =>
+        new Promise<string[]>((resolve) => {
+          answer = resolve;
+        }),
+    );
+    return { guards: { check }, check, answer: (reasons: string[]) => answer(reasons) };
+  }
+
+  it("asks the guards once, about navigating, and answers with the tap", async () => {
+    const { guards, check, answer } = handAnswered();
+    const requests = createLeaveRequests<string>(guards);
+    const asked = requests.ask({ to: "/admin", link: "Admin tab" });
+    await vi.waitFor(() => expect(check).toHaveBeenCalledWith("navigate"));
+    expect(requests.waiting()).toEqual({ to: "/admin", link: "Admin tab" });
+    answer([]);
+    expect(await asked).toEqual({ request: { to: "/admin", link: "Admin tab" }, reasons: [] });
+    expect(requests.waiting()).toBeNull();
+  });
+
+  it("goes where the last tap chose: a later tap joins the check and changes the destination", async () => {
+    const { guards, check, answer } = handAnswered();
+    const requests = createLeaveRequests<string>(guards);
+    const first = requests.ask({ to: "/admin/templates", link: "Templates" });
+    const second = requests.ask({ to: "/admin/users", link: "Users" });
+    const third = requests.ask({ to: "/inspections", link: "Inspections tab" });
+    expect(await second).toBeNull();
+    expect(await third).toBeNull();
+    expect(requests.waiting()).toEqual({ to: "/inspections", link: "Inspections tab" });
+    await vi.waitFor(() => expect(check).toHaveBeenCalled());
+    answer(["Your changes to INS-2026-0001 are not saved yet."]);
+    expect(await first).toEqual({
+      request: { to: "/inspections", link: "Inspections tab" },
+      reasons: ["Your changes to INS-2026-0001 are not saved yet."],
+    });
+    expect(check).toHaveBeenCalledTimes(1);
+  });
+
+  it("commits the page first, once per check, before the guards are asked", async () => {
+    const order: string[] = [];
+    const requests = createLeaveRequests<string>({
+      check: async () => {
+        order.push("guards asked");
+        return [];
+      },
+    });
+    const before = vi.fn(async () => {
+      order.push("field committed");
+    });
+    const asked = requests.ask({ to: "/admin", link: "Admin tab" }, before);
+    await requests.ask({ to: "/admin/users", link: "Users" }, before);
+    await asked;
+    expect(order).toEqual(["field committed", "guards asked"]);
+    expect(before).toHaveBeenCalledTimes(1);
+  });
+
+  it("starts a new check for a tap after the answer", async () => {
+    const check = vi.fn(async () => []);
+    const requests = createLeaveRequests<string>({ check });
+    expect(await requests.ask({ to: "/admin", link: "Admin tab" })).not.toBeNull();
+    expect(await requests.ask({ to: "/inspections", link: "Inspections tab" })).toEqual({
+      request: { to: "/inspections", link: "Inspections tab" },
+      reasons: [],
+    });
+    expect(check).toHaveBeenCalledTimes(2);
+  });
+
+  it("start with none waiting on the page", () => {
+    expect(leaveRequests.waiting()).toBeNull();
   });
 });

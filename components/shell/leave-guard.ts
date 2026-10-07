@@ -130,7 +130,9 @@ export function leaveDestination(click: LinkClick, here: string): string | null 
  * Where the shell must stop a click on one of its links and ask the guards
  * first, or null to let the link go as usual: nothing registered, a click
  * the page already handled (its default prevented), or one that does not
- * leave the page.
+ * leave the page. The shell sees a click after a page's own listeners on
+ * document or window (leave-guard-area.tsx), so a page that stops the click
+ * itself, as the template editor's guard does, keeps it.
  */
 export function guardedDestination(
   click: LinkClick & { defaultPrevented: boolean },
@@ -140,3 +142,43 @@ export function guardedDestination(
   if (click.defaultPrevented || !guards.active()) return null;
   return leaveDestination(click, here);
 }
+
+/* ---- One way out at a time ------------------------------------------------ */
+
+/** A tap on a shell link that leaves the page: where it goes, and the link (focus goes back to it if the user stays). */
+export type LeaveRequest<Link> = { to: string; link: Link };
+
+export type LeaveRequests<Link> = {
+  /** The tap waiting for the guards' answer, or null. */
+  waiting(): LeaveRequest<Link> | null;
+  /**
+   * Asks the guards about leaving. `before` runs first, once per check (it
+   * commits the field being typed in). A tap made while they answer, in any
+   * of the shell's bars, only changes where to go and resolves null. The
+   * first tap resolves with the last one and what the guards said, so the
+   * shell goes to, or asks about, the link the user chose last.
+   */
+  ask(request: LeaveRequest<Link>, before?: () => unknown): Promise<{ request: LeaveRequest<Link>; reasons: string[] } | null>;
+};
+
+export function createLeaveRequests<Link>(guards: Pick<LeaveGuards, "check">): LeaveRequests<Link> {
+  let latest: LeaveRequest<Link> | null = null;
+  return {
+    waiting: () => latest,
+    async ask(request, before) {
+      const answering = latest !== null;
+      latest = request;
+      if (answering) return null;
+      try {
+        await before?.();
+        const reasons = await guards.check("navigate");
+        return { request: latest ?? request, reasons };
+      } finally {
+        latest = null;
+      }
+    },
+  };
+}
+
+/** The page's taps on the shell's links, shared by the sidebar, the top bar and the admin row. */
+export const leaveRequests: LeaveRequests<HTMLAnchorElement> = createLeaveRequests(leaveGuards);
