@@ -143,7 +143,7 @@ export default function Capture({
           ))}
         </ul>
       </div>
-      <div className="space-y-2">
+      <div className="space-y-3">
         {/* The capture screen adds photos and files; the editor's preview offers neither. */}
         {canAttach && !readOnly && (
           <p data-slot="document-tags" className="text-sm text-muted-foreground touch:text-base">
