@@ -45,8 +45,10 @@ export type ModulePhotosProps = {
   /** Section heading in the gallery; "Photos" on the capture screen. */
   title?: string;
   headingLevel?: 2 | 3;
-  /** Notices about photos waiting on this device. The gallery shows them once, at the top. */
+  /** Notices about photos waiting on this device. The gallery shows them once, at the top; a capture page of two sections in its first slot. */
   showNotices?: boolean;
+  /** Read out after the heading ("Photos, Order"), where another slot on the page has the same heading. */
+  nameContext?: string;
   /** Under the heading, e.g. the hint for untagged photos. */
   description?: ReactNode;
   className?: string;
@@ -92,6 +94,7 @@ export function ModulePhotos({
   title,
   headingLevel = 3,
   showNotices = true,
+  nameContext,
   description,
   className,
 }: ModulePhotosProps) {
@@ -172,6 +175,7 @@ export function ModulePhotos({
           )}
         >
           {heading}
+          {nameContext && <span className="sr-only">, {nameContext}</span>}
         </Heading>
         <p aria-live="polite" className="text-sm text-muted-foreground tabular-nums">
           {countPhotos(photos.length)}

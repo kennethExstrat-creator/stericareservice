@@ -130,10 +130,17 @@ export function SectionComment({
   value,
   onChange,
   readOnly,
+  context,
 }: {
   value: string | null;
   onChange: (comment: string) => void;
   readOnly: boolean;
+  /**
+   * The section's title, read out after the label on a page of two sections
+   * ("Inspector Comment, Order"), so their comment fields have names of
+   * their own.
+   */
+  context?: string;
 }) {
   const id = useId();
   const [text, setText] = useState(value ?? "");
@@ -150,8 +157,9 @@ export function SectionComment({
     // second; the third holds the photo slot's caption only.
     <div className="grid gap-2 xl:row-span-3 xl:grid-rows-subgrid xl:gap-y-3">
       {/* Styled as the photo slot's heading, so the two read as one row. */}
-      <Label htmlFor={id} className="font-display text-base leading-snug font-semibold">
+      <Label htmlFor={id} className="relative font-display text-base leading-snug font-semibold">
         Inspector Comment
+        {context && <span className="sr-only">, {context}</span>}
       </Label>
       <Textarea
         id={id}

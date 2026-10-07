@@ -1128,7 +1128,7 @@ function ActivePage({
   }
 
   const several = page.sections.length > 1;
-  const parts = page.sections.map((section) => (
+  const parts = page.sections.map((section, index) => (
     <SectionPart
       key={section.key}
       {...shared}
@@ -1136,6 +1136,10 @@ function ActivePage({
       // A page of one section is that section's frame; on a page of several, each frame has an id of its own.
       frameId={several ? `${panelId}-${section.key}` : panelId}
       tabLabelledBy={several ? undefined : tabLabelledBy}
+      // On a page of several, each section's comment, photos and Switch Off are read out with its title.
+      nameContext={several ? section.title : undefined}
+      // The notices about photos waiting on this device are about the whole inspection: once a page.
+      showUploadNotices={index === 0}
       headingRef={titleRef(section.key)}
       focusPath={focusRequest?.sectionKey === section.key ? focusRequest.path : null}
       refusedEntries={refusedStores.get(section.key) ?? null}
@@ -1158,6 +1162,10 @@ type SectionPartProps = SharedSectionProps & {
   frameId: string;
   /** Below 1280 px, on a page of one section: the id of its tab, which names the frame (WAI-ARIA tabs). */
   tabLabelledBy?: string;
+  /** On a page of several sections, this one's title: read out with its comment, photos and Switch Off. */
+  nameContext?: string;
+  /** The first section on the page shows the notices about photos waiting on this device. */
+  showUploadNotices: boolean;
   headingRef: Ref<HTMLHeadingElement>;
   focusPath: IssuePath | null;
   /** Where the section's number fields keep what they refused, so it outlives them; null to keep their own. */
@@ -1172,6 +1180,8 @@ function SectionPart({
   section,
   frameId,
   tabLabelledBy,
+  nameContext,
+  showUploadNotices,
   headingRef,
   template,
   effective,
@@ -1219,6 +1229,7 @@ function SectionPart({
         value={comment}
         onChange={(text) => onCommentChange(namespace, section.key, text)}
         readOnly={readOnly}
+        context={nameContext}
       />
       {/* Side by side with the comment, its heading and its box take the footer's two rows. */}
       <PhotoSlot
@@ -1226,6 +1237,8 @@ function SectionPart({
         moduleKey={section.key}
         focus={photoFocus}
         readOnly={readOnly}
+        showNotices={showUploadNotices}
+        nameContext={nameContext}
         className="xl:row-span-3 xl:grid xl:grid-rows-subgrid"
       />
     </>
@@ -1283,6 +1296,7 @@ function SectionPart({
             inspectionId={inspectionId}
             moduleKey={section.key}
             title={section.title}
+            nameContext={nameContext}
             onChanged={onOverridesChange}
           />
         ) : undefined

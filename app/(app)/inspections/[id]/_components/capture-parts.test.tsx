@@ -27,7 +27,7 @@ import { formatOverrideTime, SwitchedOffPanel } from "./module-switch";
 import { CustomModuleForm, FallbackModuleForm } from "./plain-forms";
 import { SaveIndicator } from "./save-indicator";
 import { SectionErrorBoundary } from "./section-error-boundary";
-import { PagePanel, SectionFrame } from "./section-frame";
+import { PagePanel, SectionComment, SectionFrame } from "./section-frame";
 import { SectionList } from "./section-list";
 import { SubmitSummary } from "./submit-control";
 import { nextTabIndex, SectionTabs, tabId } from "./section-tabs";
@@ -566,6 +566,24 @@ describe("PagePanel (a page of two sections: packing configuration below the ord
     const panel = tagsWith(renderToStaticMarkup(<PagePanel id="panel">{frames}</PagePanel>), 'id="panel"')[0];
     expect(panel).not.toContain("role=");
     expect(panel).not.toContain("aria-labelledby");
+  });
+});
+
+describe("SectionComment", () => {
+  it("is read out with its section's title on a page of two, so the two comment fields are told apart", () => {
+    const html = renderToStaticMarkup(<SectionComment value={null} onChange={noop} readOnly={false} context={PACKING_TITLE} />);
+    const id = /<textarea[^>]*\bid="([^"]+)"/.exec(html)?.[1];
+    const label = /<label[^>]*>/.exec(html)?.[0];
+    expect(label).toContain(`for="${id}"`);
+    // Anchored, so the hidden title never escapes the footer (docs/DESIGN.md, Do / Don't).
+    expect(label).toMatch(/class="[^"]*\brelative\b/);
+    expect(html).toContain(`Inspector Comment<span class="sr-only">, ${PACKING_TITLE}</span></label>`);
+  });
+
+  it("is Inspector Comment alone on a page of one section", () => {
+    const html = renderToStaticMarkup(<SectionComment value="Checked" onChange={noop} readOnly={false} />);
+    expect(html).toContain(">Inspector Comment</label>");
+    expect(html).not.toContain("sr-only");
   });
 });
 

@@ -4,7 +4,14 @@
 // with, and nothing to add on a read-only screen.
 import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// The notices about photos waiting on this device have tests of their own
+// (status-ui.test.tsx); on the server they say nothing. Here: which slot shows them.
+vi.mock("./upload-notices", async () => {
+  const { createElement } = await import("react");
+  return { UploadNotices: () => createElement("div", { "data-slot": "upload-notices" }) };
+});
 import { EMPTY_TAG_OPTIONS, tagOptionsFromTemplate } from "@/lib/inspections/photos/view";
 import { FileSlot, useInspectionFiles } from "../files";
 import { useUploadsWaiting } from "./hooks";
@@ -75,6 +82,25 @@ describe("PhotoSlot", () => {
     const html = render(<PhotoSlot inspectionId={INSPECTION} moduleKey="dimensions" focus={{ size: "S" }} showAddControls={false} />);
     expect(html).not.toMatch(/Take photo/i);
     expect(html).toContain("New photos are tagged Size S.");
+  });
+
+  it("shows the notices about photos waiting on this device, unless another slot on the page does", () => {
+    expect(render(<PhotoSlot inspectionId={INSPECTION} moduleKey="order_lots" />)).toContain('data-slot="upload-notices"');
+    expect(render(<PhotoSlot inspectionId={INSPECTION} moduleKey="packing_config" showNotices={false} />)).not.toContain(
+      'data-slot="upload-notices"',
+    );
+  });
+
+  it("names its photos after its section on a page of two, and Photos alone otherwise", () => {
+    const title = "Packing configuration";
+    const html = render(<PhotoSlot inspectionId={INSPECTION} moduleKey="packing_config" nameContext={title} />);
+    // The region is named by its heading: two regions on one page never share a name.
+    const heading = /<section aria-labelledby="([^"]+)"/.exec(html)?.[1];
+    expect(html).toContain(`id="${heading}"`);
+    expect(html).toMatch(/<h3[^>]*>Photos<span class="sr-only">, [^<]+<\/span><\/h3>/);
+    expect(html).toContain(`<span class="sr-only">, ${title}</span></h3>`);
+    expect(unanchoredSrOnly(html)).toEqual([]);
+    expect(render(<PhotoSlot inspectionId={INSPECTION} moduleKey="order_lots" />)).toMatch(/<h3[^>]*>Photos<\/h3>/);
   });
 });
 
