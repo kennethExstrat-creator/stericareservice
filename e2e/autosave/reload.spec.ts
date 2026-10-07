@@ -247,7 +247,7 @@ test("a field out of view after the reload is scrolled to the middle of the scre
   // A short screen, so the section comment at the bottom of glove information is out of view at the top of the page.
   await page.setViewportSize({ width: page.viewportSize()!.width, height: 560 });
   await open(page, baseURL, "glove_info");
-  const comment = page.getByRole("textbox", { name: "Inspector comment" });
+  const comment = page.getByRole("textbox", { name: "Inspector Comment" });
   await comment.fill("Checked at the line");
   await comment.press("Tab");
   await page.evaluate(() => window.scrollTo(0, 0));
@@ -255,9 +255,9 @@ test("a field out of view after the reload is scrolled to the middle of the scre
     history.scrollRestoration = "manual";
   });
   await page.reload();
-  const again = page.getByRole("textbox", { name: "Inspector comment" });
+  const again = page.getByRole("textbox", { name: "Inspector Comment" });
   await expect(again).toHaveValue("Checked at the line");
-  await expectLandedOn(page, again, { middle: true, label: "Inspector comment" });
+  await expectLandedOn(page, again, { middle: true, label: "Inspector Comment" });
 });
 
 test("with reduced motion the ring stays still for its moment instead of fading", async ({ page, baseURL }) => {

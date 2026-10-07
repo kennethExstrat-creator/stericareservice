@@ -11,7 +11,7 @@ import { createFinalFixture, NOTES_SECTION, type FinalFixture } from "./final-fi
  *   (SAFEDON-1). iPad portrait and desktop.
  * - Offline, a section not opened before still shows its form, and one whose
  *   form could not download says so calmly and opens once the connection is
- *   back, by itself or with Try again (ACC-SGF-1). 12.9 inch iPad.
+ *   back, by itself or with Try Again (ACC-SGF-1). 12.9 inch iPad.
  * - In WebKit, the iPad's engine, a tap on + tags the next photo with its
  *   size and defect (F1). Both iPads.
  * - The submit confirmation names the result as every pill does, and says
@@ -291,7 +291,7 @@ test("offline, every section not opened yet still shows its form", async ({ page
   }
 });
 
-test("a form that could not download says so calmly, and opens once the connection is back, by itself or with Try again", async ({
+test("a form that could not download says so calmly, and opens once the connection is back, by itself or with Try Again", async ({
   page,
   context,
   baseURL,
@@ -314,7 +314,7 @@ test("a form that could not download says so calmly, and opens once the connecti
   const notice = page.locator('[data-slot="section-not-loaded"]');
   await expect(notice).toHaveAttribute("data-failure", "offline");
   await expect(notice).toContainText("This section opens once the connection is back. Nothing is lost.");
-  await expect(notice.getByRole("button", { name: "Try again" })).toBeVisible();
+  await expect(notice.getByRole("button", { name: "Try Again" })).toBeVisible();
   await expect(page.locator('[data-slot="section-crashed"]')).toHaveCount(0);
   await shot(page, "offline-not-loaded");
   await page.unroute(watertightCode);
@@ -322,7 +322,7 @@ test("a form that could not download says so calmly, and opens once the connecti
   await expect(notice).toHaveCount(0, { timeout: 30_000 });
   await expect(page.getByRole("button", { name: /^Increase .*Size/ }).first()).toBeVisible();
 
-  // Online, a download that fails: Try again (or Reload), and it opens.
+  // Online, a download that fails: Try Again (or Reload), and it opens.
   const safedon = OFFLINE_SECTIONS[4];
   await openSection(page, safedon);
   await expect(notice).toHaveAttribute("data-failure", "not_loaded");
@@ -330,10 +330,10 @@ test("a form that could not download says so calmly, and opens once the connecti
   await expect(notice.getByRole("button", { name: "Reload" })).toBeVisible();
   await shot(page, "online-not-loaded");
   // Asked again while the download still fails: the notice stays, the section works no less.
-  await press(notice.getByRole("button", { name: "Try again" }));
+  await press(notice.getByRole("button", { name: "Try Again" }));
   await expect(notice).toHaveAttribute("data-failure", "not_loaded");
   await page.unroute(safedonCode);
-  await press(notice.getByRole("button", { name: "Try again" }));
+  await press(notice.getByRole("button", { name: "Try Again" }));
   await expect(notice).toHaveCount(0, { timeout: 30_000 });
   await expect(page.locator('[data-slot="section-crashed"]')).toHaveCount(0);
   await expect(page.getByRole("heading", { level: 2, name: safedon.title, exact: true })).toBeVisible();
@@ -406,7 +406,7 @@ test("the submit confirmation names the result as every pill does, and a clean p
     await page.goto(`/inspections/${inspectionId}?module=conclusion`);
     await formReady(page);
     await press(page.getByRole("button", { name: "Submit", exact: true }));
-    const dialog = page.getByRole("alertdialog", { name: /^Submit INS-\d{4}-\d+ for review\?$/ });
+    const dialog = page.getByRole("alertdialog", { name: /^Submit INS-\d{4}-\d+ for Review\?$/ });
     await expect(dialog).toBeVisible();
     return dialog;
   };
@@ -445,7 +445,7 @@ test("read-only screens have no Pending list, and a lead is told whose submitted
   const submitted = page.locator('[data-notice="submitted"]');
   await expect(submitted).toContainText(`Submitted for review by ${fixture.member.name}: read-only.`);
   await expect(submitted).not.toContainText("back to you");
-  await expect(submitted.getByRole("link", { name: "Open the review" })).toBeVisible();
+  await expect(submitted.getByRole("link", { name: "Open the Review" })).toBeVisible();
   await expect(pending).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Submit", exact: true })).toHaveCount(0);
   await expect(page.locator('[data-slot="pending-dot"]')).toHaveCount(0);

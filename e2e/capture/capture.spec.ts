@@ -239,8 +239,8 @@ test("the inspector opens the inspection and moves between sections", async ({ p
   const slot = page.locator('[data-slot="module-photos"][data-module="glove_info"]');
   await expect(slot.getByRole("heading", { name: "Photos" })).toBeVisible();
   if (isTouch()) {
-    await expect(slot.getByRole("button", { name: "Take photo" })).toBeVisible();
-    await expect(slot.getByRole("button", { name: "Add from library" })).toBeVisible();
+    await expect(slot.getByRole("button", { name: "Take Photo" })).toBeVisible();
+    await expect(slot.getByRole("button", { name: "Add From Library" })).toBeVisible();
   } else {
     await expect(slot.getByText(/Drop photos here/)).toBeVisible();
   }
@@ -387,7 +387,7 @@ test("a number typed just before Photos is saved, though the tap leaves the focu
     .poll(async () => (await storedData(fixture.inspectionId)).data, { timeout: 15_000 })
     .toMatchObject({ modules: { glove_info: { indicativeWeight: 4.2 } } });
   // The gallery has arrived: the test does not close the page in the middle of its stream.
-  await expect(page.getByRole("heading", { level: 1, name: "Photos and files" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Photos and Files" })).toBeVisible();
 });
 
 test("a change made just before leaving the screen reaches the server", async ({ page, context, baseURL }) => {
@@ -693,10 +693,10 @@ test("an edit saved on another device meanwhile asks which version to keep", asy
 
   // This device changes it too: the save finds a version it never saw and stops to ask.
   await colour.fill("Purple");
-  const dialog = page.getByRole("alertdialog", { name: "This inspection was changed on another device" });
+  const dialog = page.getByRole("alertdialog", { name: "This Inspection Was Changed on Another Device" });
   await expect(dialog).toBeVisible({ timeout: 15_000 });
   await viewportShot(page, "conflict");
-  await press(dialog.getByRole("button", { name: "Keep the changes on this device" }));
+  await press(dialog.getByRole("button", { name: "Keep the Changes on This Device" }));
   await expect(dialog).toBeHidden();
   await expect
     .poll(async () => (await storedData(fixture.inspectionId)).data, { timeout: 15_000 })
@@ -715,7 +715,7 @@ test("a section switched off on another device leaves this screen at the next sa
   const colour = page.getByLabel("Glove colour");
   await expect(colour).toBeEditable();
   const sections = page.getByRole("navigation", { name: "Sections" });
-  await expect(sections).not.toContainText("Switched off");
+  await expect(sections).not.toContainText("Switched Off");
 
   // An admin switches packing off elsewhere: only the overrides column moves, the data stays.
   const admin = createTestAdminClient();
@@ -731,7 +731,7 @@ test("a section switched off on another device leaves this screen at the next sa
   try {
     // The next save lands on top of that change and brings it back.
     await colour.fill("Olive");
-    await expect(sections).toContainText("Switched off", { timeout: 15_000 });
+    await expect(sections).toContainText("Switched Off", { timeout: 15_000 });
     await expect(sections.getByRole("button", { name: /^Packing configuration\s*, switched off/ })).toBeVisible();
     await expect
       .poll(async () => (await storedData(fixture.inspectionId)).data, { timeout: 15_000 })
@@ -760,7 +760,7 @@ test("saved values a section no longer reads are listed, and removed in one conf
   // The form stays closed until someone decides: its first edit would drop the value unasked.
   await expect(page.getByLabel("Glove colour")).toHaveCount(0);
   // Read-only until autosave has started; the shot shows the screen once it can be changed.
-  const remove = panel.getByRole("button", { name: "Remove the values that cannot be read" });
+  const remove = panel.getByRole("button", { name: "Remove the Values That Cannot Be Read" });
   await expect(remove).toBeVisible();
   await shot(page, "unreadable-values");
 
@@ -771,7 +771,7 @@ test("saved values a section no longer reads are listed, and removed in one conf
     await page.keyboard.press("Enter");
   };
   await activate(remove);
-  const dialog = page.getByRole("alertdialog", { name: "Remove this value?" });
+  const dialog = page.getByRole("alertdialog", { name: "Remove This Value?" });
   await expect(dialog).toBeVisible();
   // Cancel goes back to the button, as any dialog does.
   await activate(dialog.getByRole("button", { name: "Cancel" }));
@@ -780,7 +780,7 @@ test("saved values a section no longer reads are listed, and removed in one conf
   await activate(remove);
   await expect(dialog).toBeVisible();
   await viewportShot(page, "unreadable-values-confirm");
-  await activate(dialog.getByRole("button", { name: "Remove it" }));
+  await activate(dialog.getByRole("button", { name: "Remove It" }));
 
   await expect(page.getByLabel("Glove colour")).toHaveValue("Sea green");
   await expect(page.getByLabel("Indicative weight (size M)")).toHaveValue("");
@@ -858,7 +858,7 @@ test("tensile counts its lab report once attached and not once it is deleted, an
   // Deleted in the slot: the module lets go of it, and tensile is not done again.
   await press(slot.getByRole("button", { name: /^Delete tensile-lab-report\.pdf/ }));
   const dialog = page.getByRole("alertdialog", { name: /^Delete tensile-lab-report\.pdf/ });
-  await press(dialog.getByRole("button", { name: "Delete file" }));
+  await press(dialog.getByRole("button", { name: "Delete File" }));
   await expect(slot.locator('[data-slot="file-row"]')).toHaveCount(0, { timeout: 15_000 });
   await expect(frame.locator('[data-slot="lab-report"]')).toContainText("Not attached");
   await expect(frame.locator("header")).toContainText("Not done");
@@ -894,7 +894,7 @@ test("Pending lists one short task per section, what submit needs first", async 
   // What submit needs comes first, under its tag; the rest follow.
   const neededGroup = sheet.locator('[data-slot="needed-tasks"]');
   await expect(sheet.locator("section").first()).toHaveAttribute("data-slot", "needed-tasks");
-  await expect(neededGroup.getByRole("heading", { name: "Needed to submit" })).toBeVisible();
+  await expect(neededGroup.getByRole("heading", { name: "Needed to Submit" })).toBeVisible();
   await expect(neededGroup.locator("[data-task]:not([data-needed])")).toHaveCount(0);
   await expect(neededGroup.getByRole("button", { name: /^Site notes: Container seal intact is required\. Needed before you submit\.$/ })).toBeVisible();
   await expect(neededGroup.getByRole("button", { name: "Conclusion: Final result and date. Needed before you submit." })).toBeVisible();
@@ -905,7 +905,7 @@ test("Pending lists one short task per section, what submit needs first", async 
   }
   await expect(sheet).not.toContainText("is not done");
   await expect(sheet).not.toContainText("must be complete before submit");
-  await expect(sheet).not.toContainText("Suggested result");
+  await expect(sheet).not.toContainText(/Suggested result/i);
   for (const row of await tasks.all()) {
     const box = (await row.locator('[data-slot="task-status"]').boundingBox())!;
     // One line of 14 px text (20 px) at most.
@@ -921,7 +921,7 @@ test("submit with errors is blocked, and each error links to its section", async
   await expect(savePill(page)).toHaveAttribute("data-state", "saved");
 
   await press(page.getByRole("button", { name: "Submit", exact: true }));
-  const sheet = page.getByRole("dialog", { name: "Before you submit" });
+  const sheet = page.getByRole("dialog", { name: "Before You Submit" });
   await expect(sheet).toBeVisible();
   await expect(sheet.getByRole("alert")).toContainText("needed before you can submit");
   // A task, read with its section and what submit needs; the section's heading is not repeated in its words.
@@ -950,18 +950,18 @@ test("an admin switches a section off for this inspection, and back on", async (
   await page.goto(`/inspections/${fixture.inspectionId}?module=packing_config`);
   await expect(page.getByRole("heading", { level: 2, name: "Packing configuration" })).toBeVisible();
 
-  await press(page.getByRole("button", { name: "Switch off" }));
-  const dialog = page.getByRole("dialog", { name: /Switch off Packing configuration/ });
+  await press(page.getByRole("button", { name: "Switch Off" }));
+  const dialog = page.getByRole("dialog", { name: /Switch Off Packing configuration/ });
   await expect(dialog).toBeVisible();
   // A reason is required.
-  await press(dialog.getByRole("button", { name: "Switch off" }));
+  await press(dialog.getByRole("button", { name: "Switch Off" }));
   await expect(dialog.getByText("Say why this section is switched off.")).toBeVisible();
   await dialog.getByLabel("Reason").fill("Not part of this order (e2e)");
   await viewportShot(page, "switch-off-dialog");
-  await press(dialog.getByRole("button", { name: "Switch off" }));
+  await press(dialog.getByRole("button", { name: "Switch Off" }));
   await expect(dialog).toBeHidden();
   await expect(page.getByText("Packing configuration is switched off for this inspection.").first()).toBeVisible();
-  // The Switch off button went with the section's controls: focus is on the section's title.
+  // The Switch Off button went with the section's controls: focus is on the section's title.
   await expect(page.getByRole("heading", { level: 2, name: "Packing configuration" })).toBeFocused();
   await expect(page.getByText("Not part of this order (e2e)")).toBeVisible();
   await expect
@@ -971,10 +971,10 @@ test("an admin switches a section off for this inspection, and back on", async (
 
   await page.reload();
   await expect(page.getByText("Not part of this order (e2e)")).toBeVisible();
-  if (isDesktop()) await expect(page.getByRole("navigation", { name: "Sections" })).toContainText("Switched off");
+  if (isDesktop()) await expect(page.getByRole("navigation", { name: "Sections" })).toContainText("Switched Off");
 
-  await press(page.getByRole("button", { name: "Switch back on" }));
-  await expect(page.getByRole("button", { name: "Switch off" })).toBeVisible();
+  await press(page.getByRole("button", { name: "Switch Back On" }));
+  await expect(page.getByRole("button", { name: "Switch Off" })).toBeVisible();
   await expect(page.getByRole("heading", { level: 2, name: "Packing configuration" })).toBeFocused();
   await expect.poll(async () => (await storedData(fixture.inspectionId)).module_overrides).toEqual({});
 
@@ -1033,16 +1033,16 @@ test("submit waits for a photo still on this device, then submits and opens the 
   await expect(page.locator('[data-slot="upload-badge"]:visible')).toHaveAttribute("data-count", "1", { timeout: 15_000 });
 
   await press(page.getByRole("button", { name: "Submit", exact: true }));
-  const dialog = page.getByRole("alertdialog", { name: `Submit ${fixture.refNo} for review?` });
+  const dialog = page.getByRole("alertdialog", { name: `Submit ${fixture.refNo} for Review?` });
   await expect(dialog).toBeVisible();
   await expect(dialog.locator('[data-slot="submit-uploads"]')).toContainText(/1 photo/);
-  await expect(dialog.getByRole("button", { name: "Submit for review" })).toBeDisabled();
+  await expect(dialog.getByRole("button", { name: "Submit for Review" })).toBeDisabled();
   const suggested = (await dialog.locator('[data-slot="status-pill"]').first().textContent())?.trim().toLowerCase();
   await viewportShot(page, "submit-waits-for-uploads");
 
   await held.release();
-  await expect(dialog.getByRole("button", { name: "Submit for review" })).toBeEnabled({ timeout: 30_000 });
-  await press(dialog.getByRole("button", { name: "Submit for review" }));
+  await expect(dialog.getByRole("button", { name: "Submit for Review" })).toBeEnabled({ timeout: 30_000 });
+  await press(dialog.getByRole("button", { name: "Submit for Review" }));
   await expect(page).toHaveURL(new RegExp(`/inspections/${fixture.inspectionId}/review$`), { timeout: 30_000 });
 
   const admin = createTestAdminClient();
@@ -1098,9 +1098,9 @@ test("submitted on another device: the next save is refused, with the review and
   await colour.fill("Teal");
   const notice = page.locator('[data-notice="save-error"]');
   await expect(notice).toContainText("Not saved.", { timeout: 15_000 });
-  await expect(notice.getByRole("link", { name: "Open the review" })).toBeVisible();
+  await expect(notice.getByRole("link", { name: "Open the Review" })).toBeVisible();
   await expect(notice.getByRole("button", { name: "Reload" })).toBeVisible();
-  await expect(notice.getByRole("button", { name: "Try again" })).toHaveCount(0);
+  await expect(notice.getByRole("button", { name: "Try Again" })).toHaveCount(0);
   await expect(colour).not.toBeEditable();
   // The header follows what the save found.
   await expect(page.getByRole("heading", { level: 1 }).locator('[data-status="submitted"]')).toBeVisible();
@@ -1121,7 +1121,7 @@ test("an inspection that cannot be opened is not found, inside the shell", async
   await signInAs(context, baseURL!, "inspector");
   await page.goto("/inspections/00000000-0000-4000-8000-000000000000");
   await expect(page.getByRole("heading", { level: 1, name: "Page not found" })).toBeVisible();
-  await expect(page).toHaveTitle(/Page not found/);
+  await expect(page).toHaveTitle(/Page Not Found/i);
   // One frame: the shell's, with its navigation. Not the standalone page's logo bar inside it.
   await expect(page.locator("main")).toHaveCount(1);
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
