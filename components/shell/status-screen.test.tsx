@@ -28,7 +28,7 @@ describe("NotFoundScreen", () => {
         <NotFoundScreen />
       </StandaloneFrame>,
     );
-    expect(html).toContain('aria-label="SteriCare home"');
+    expect(html).toContain('aria-label="SteriCare Home"');
     expect(html).toContain('<main id="main-content"');
   });
 });

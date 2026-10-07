@@ -183,7 +183,7 @@ describe("counter model", () => {
     expect(counterAnnouncement({ count: 3, column: "Size XS", total: 8, verdict: "Reject" })).toBe(
       "3. Size XS: total 8, Reject.",
     );
-    expect(counterAnnouncement({ count: 0, column: "box 253", total: 2, verdict: null })).toBe("0. box 253: total 2.");
+    expect(counterAnnouncement({ count: 0, column: "Box 253", total: 2, verdict: null })).toBe("0. Box 253: total 2.");
   });
 
   it("takes the verdict it says from the props after the tap, the same as the chip", () => {

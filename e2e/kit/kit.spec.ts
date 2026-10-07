@@ -256,12 +256,12 @@ test("the box list reports its box as it opens, so photos are tagged with it tho
   const frame = await openModule(page, "labeling");
   await showSizeM(frame);
   // Something else in focus first: a dispenser box check.
-  await frame.getByRole("spinbutton", { name: /Dispenser Box, size M$/ }).first().focus();
+  await frame.getByRole("spinbutton", { name: /Dispenser Box, Size M$/ }).first().focus();
   await expect(nextTags(frame)).toContainText("Dispenser Box");
   await expect(nextTags(frame)).not.toContainText("Box 253");
 
   // Safari never focuses a tapped button: open the list the same way, with a click that moves no focus.
-  const picker = frame.getByRole("combobox", { name: "Box # 1, Carton Box, size M" });
+  const picker = frame.getByRole("combobox", { name: "Box # 1, Carton Box, Size M" });
   await picker.evaluate((element) => (element as HTMLElement).click());
   await expect(page.getByRole("dialog", { name: /carton list for size M/ })).toBeVisible();
   await expect(picker).not.toBeFocused();

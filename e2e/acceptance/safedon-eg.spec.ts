@@ -505,7 +505,7 @@ test("Glove dispensing: rates per box from the counts (XS 0.008 and 0.016), tota
     await showSize(page, size);
     // Each box in turn: its defects over the 125 gloves of the pack, and the rate as the report writes it.
     for (const [index, box] of expected.boxes.entries()) {
-      await press(section.getByRole("button", { name: `Count column ${index + 1}`, exact: true }));
+      await press(section.getByRole("button", { name: `Count Column ${index + 1}`, exact: true }));
       await expect(section.getByText(`Box # ${box.box} · ${index + 1} / ${expected.boxes.length}`)).toBeVisible();
       await expect(row(section, `Total ${box.defects}`)).toBeVisible();
       await expect(row(section, `Defects / gloves per pack ${box.defects}/125`)).toBeVisible();
@@ -519,7 +519,7 @@ test("Glove dispensing: rates per box from the counts (XS 0.008 and 0.016), tota
     await expect(requirement).toContainText("Passed");
     await expect(requirement).toContainText(`Boxes tested: ${expected.boxes.length} / ${expected.boxes.length}`);
   }
-  await expectTouchTarget(section.getByRole("combobox", { name: "Box #, column 1", exact: true }));
+  await expectTouchTarget(section.getByRole("combobox", { name: "Box #, Column 1", exact: true }));
   await expectStoredModule(admin, inspectionId!, "dispensing_safedon", EXPECTED_DATA.dispensing_safedon);
 });
 
@@ -575,8 +575,8 @@ test("nothing typed is lost on a reload, and only the sampling warnings are pend
   await expect(dimensionCell(page, "Length", 3)).toHaveValue("242");
   await openSection(page, "dispensing_safedon");
   await showSize(page, "XS");
-  await press(frame(page).getByRole("button", { name: "Count column 5", exact: true }));
-  await expect(frame(page).getByRole("spinbutton", { name: "No cuff, box 33", exact: true })).toHaveAttribute("aria-valuenow", "2");
+  await press(frame(page).getByRole("button", { name: "Count Column 5", exact: true }));
+  await expect(frame(page).getByRole("spinbutton", { name: "No cuff, Box 33", exact: true })).toHaveAttribute("aria-valuenow", "2");
 
   // Every section of the report has its result; the two onsite-form extras stay empty.
   const results: Record<string, RegExp> = {

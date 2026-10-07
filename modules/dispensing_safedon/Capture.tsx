@@ -203,7 +203,7 @@ function SafedonSizePanel({ size, props, update, active, onActive, requested, on
               <button
                 type="button"
                 aria-pressed={index === counted}
-                aria-label={`Count column ${index + 1}`}
+                aria-label={`Count Column ${index + 1}`}
                 onClick={() => select(index)}
                 className="inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-md px-1 text-sm font-semibold text-muted-foreground tabular-nums outline-none hover:bg-accent focus-ring aria-pressed:bg-primary aria-pressed:text-primary-foreground touch:h-11 touch:min-w-11 touch:text-base"
               >
@@ -212,7 +212,7 @@ function SafedonSizePanel({ size, props, update, active, onActive, requested, on
               <BoxPicker
                 variant="cell"
                 className="min-w-0 flex-1"
-                label={`${boxLabel}, column ${index + 1}`}
+                label={`${boxLabel}, Column ${index + 1}`}
                 sizeLabel={pickerSize}
                 value={boxNoAt(index)}
                 cartons={cartons}
@@ -259,7 +259,7 @@ function SafedonSizePanel({ size, props, update, active, onActive, requested, on
             return {
               key: String(index),
               label: columnLabel(index),
-              name: boxNo === null ? `column ${index + 1}` : `box ${boxNo}`,
+              name: boxNo === null ? `Column ${index + 1}` : `Box ${boxNo}`,
             };
           })}
           activeColumn={String(counted)}

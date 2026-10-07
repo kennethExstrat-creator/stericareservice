@@ -197,6 +197,7 @@ export function CustomModuleForm({
                   record={asRecord(sizes[size])}
                   root={["sizes", size]}
                   size={size}
+                  sizeName={`Size ${sizeLabel(context, size)}`}
                   issues={issues}
                   readOnly={readOnly}
                   update={sizeScope(update, size)}
@@ -319,6 +320,7 @@ function Grid({
   record,
   root,
   size,
+  sizeName,
   issues,
   readOnly,
   update,
@@ -328,6 +330,8 @@ function Grid({
   record: Record_;
   root: IssuePath;
   size: string | undefined;
+  /** The size as its section heads it, "Size Medium", for the cells' names. */
+  sizeName?: string;
   issues: readonly ValidationIssue[];
   readOnly: boolean;
   update: Update;
@@ -349,7 +353,7 @@ function Grid({
         <table className="w-full border-collapse text-sm touch:text-base">
           <caption className="sr-only">
             {custom.title}
-            {size ? `, size ${size}` : ""}
+            {sizeName ? `, ${sizeName}` : ""}
           </caption>
           <thead className="bg-slate-50 text-left">
             <tr>
@@ -376,7 +380,7 @@ function Grid({
                     <td key={column} className="min-w-28 px-3 py-2">
                       <FieldControl
                         variant="cell"
-                        cellLabel={`${field.label}, ${columnLabel} ${column + 1}${size ? `, size ${size}` : ""}`}
+                        cellLabel={`${field.label}, ${columnLabel} ${column + 1}${sizeName ? `, ${sizeName}` : ""}`}
                         field={field}
                         value={cells(field)[column] ?? null}
                         onChange={(next) => update((current) => withGridCell(current, field.key, column, next))}

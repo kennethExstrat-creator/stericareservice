@@ -519,9 +519,9 @@ export async function enterDispensing(page: Page): Promise<void> {
     await showSize(page, size);
     const entry = REPORT.dispensingSafedon.perSize[size]!;
     for (const [index, boxNo] of entry.boxes.entries()) {
-      const picker = section.getByRole("combobox", { name: `Box #, column ${index + 1}`, exact: true });
+      const picker = section.getByRole("combobox", { name: `Box #, Column ${index + 1}`, exact: true });
       await press(picker);
-      const popup = page.getByRole("dialog", { name: `Box #, column ${index + 1}: carton list for size ${size}`, exact: true });
+      const popup = page.getByRole("dialog", { name: `Box #, Column ${index + 1}: carton list for size ${size}`, exact: true });
       const list = popup.getByRole("listbox", { name: `Cartons for size ${size}`, exact: true });
       await press(list.getByRole("option", { name: new RegExp(`^${boxNo}\\b`) }));
       await expect(popup).toHaveCount(0);
@@ -529,10 +529,10 @@ export async function enterDispensing(page: Page): Promise<void> {
       for (const code of SAFEDON_DEFECTS) {
         const count = entry.counts[code][index];
         for (let tap = 0; tap < count; tap++) {
-          await press(section.getByRole("button", { name: `Increase ${SAFEDON_LABEL[code]}, box ${boxNo}`, exact: true }));
+          await press(section.getByRole("button", { name: `Increase ${SAFEDON_LABEL[code]}, Box ${boxNo}`, exact: true }));
         }
         if (count > 0) {
-          await expect(section.getByRole("spinbutton", { name: `${SAFEDON_LABEL[code]}, box ${boxNo}`, exact: true })).toHaveAttribute(
+          await expect(section.getByRole("spinbutton", { name: `${SAFEDON_LABEL[code]}, Box ${boxNo}`, exact: true })).toHaveAttribute(
             "aria-valuenow",
             String(count),
           );
@@ -550,13 +550,13 @@ export async function enterLabeling(page: Page): Promise<void> {
     await showSize(page, size);
     const inner = REPORT.labeling.inner.perSize[size]!.inspected;
     const carton = REPORT.labeling.carton.perSize[size]!.inspected;
-    await press(section.getByRole("button", { name: `Record ${inner} boxes inspected: Inner Boxes/Packs, size ${size}`, exact: true }));
-    await press(section.getByRole("button", { name: `Record ${carton} box inspected: Carton Boxes, size ${size}`, exact: true }));
+    await press(section.getByRole("button", { name: `Record ${inner} boxes inspected: Inner Boxes/Packs, Size ${size}`, exact: true }));
+    await press(section.getByRole("button", { name: `Record ${carton} box inspected: Carton Boxes, Size ${size}`, exact: true }));
     await expect(
-      section.getByRole("spinbutton", { name: `No. of sampled boxes inspected, Inner Boxes/Packs, size ${size}`, exact: true }),
+      section.getByRole("spinbutton", { name: `No. of sampled boxes inspected, Inner Boxes/Packs, Size ${size}`, exact: true }),
     ).toHaveAttribute("aria-valuenow", String(inner));
     await expect(
-      section.getByRole("spinbutton", { name: `No. of sampled boxes inspected, Carton Boxes, size ${size}`, exact: true }),
+      section.getByRole("spinbutton", { name: `No. of sampled boxes inspected, Carton Boxes, Size ${size}`, exact: true }),
     ).toHaveAttribute("aria-valuenow", String(carton));
   }
 }

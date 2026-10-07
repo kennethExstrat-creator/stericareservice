@@ -123,7 +123,7 @@ const PLAN: readonly {
     input: "camera",
     files: [{ name: "carton-label-1324.jpg", width: 1024, height: 768, label: "Carton" }],
     focus: async (frame, page) => {
-      await frame.getByRole("combobox", { name: "Box # 1, Carton Box, size M", exact: true }).tap();
+      await frame.getByRole("combobox", { name: "Box # 1, Carton Box, Size M", exact: true }).tap();
       await page.keyboard.press("Escape");
     },
     tags: "Size M · Box 1324 · Carton Box",
@@ -388,7 +388,7 @@ test("photos from four modules on the iPad, the export and the AI second opinion
       await shot(screen, "4-desktop-gallery-inspector", false);
 
       // Full size, the arrow keys walking every module's photos in screen order.
-      await screen.locator(`[data-photo-id="${photos[0].id}"]`).getByRole("button", { name: /^Open photo/ }).click();
+      await screen.locator(`[data-photo-id="${photos[0].id}"]`).getByRole("button", { name: /^Open Photo/ }).click();
       const viewer = screen.locator('[data-slot="photo-viewer"]');
       for (const [index, photo] of photos.entries()) {
         await expect(viewer).toContainText(`Photo ${index + 1} of ${photos.length}`);

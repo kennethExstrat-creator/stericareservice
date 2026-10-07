@@ -79,7 +79,7 @@ export function DefectChip({
           type="button"
           disabled={disabled}
           onClick={decrement}
-          aria-label={`Remove one ${label}`}
+          aria-label={`Remove One ${label}`}
           className="inline-flex w-8 shrink-0 items-center justify-center rounded-full border-l border-brand-200 text-brand-700 outline-none hover:bg-brand-100 focus-ring-inset active:bg-brand-200 touch:w-11 [&_svg]:size-4"
         >
           <MinusIcon aria-hidden />

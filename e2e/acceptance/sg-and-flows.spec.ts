@@ -887,7 +887,7 @@ test("(c3) a section not opened before the signal dropped opens offline, and one
 
   // Back online, it opens by itself.
   await expect(notice).toHaveCount(0, { timeout: 30_000 });
-  await expect(panel(page).getByRole("button", { name: /^Record \d+ box(es)? inspected: .+, size M$/ }).first()).toBeVisible({
+  await expect(panel(page).getByRole("button", { name: /^Record \d+ box(es)? inspected: .+, Size M$/ }).first()).toBeVisible({
     timeout: 30_000,
   });
   await expect(panel(page).getByText(/could not be shown/)).toHaveCount(0);

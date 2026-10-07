@@ -81,17 +81,17 @@ describe("labeling capture", () => {
 
   it("offers the planned count in one tap until the boxes inspected are recorded", () => {
     const html = render({ sizes: {} });
-    expect(html).toContain('aria-label="Record 3 boxes inspected: Dispenser Box, size M"');
-    expect(html).toContain('aria-label="Record 1 box inspected: Carton Box, size M"');
+    expect(html).toContain('aria-label="Record 3 boxes inspected: Dispenser Box, Size M"');
+    expect(html).toContain('aria-label="Record 1 box inspected: Carton Box, Size M"');
     expect(html).not.toContain('aria-label="No. of sampled boxes inspected');
     // The defect counters are there from the start: a defect can be tapped before the count.
-    expect(html).toContain('aria-label="Wrong / No lot number, Dispenser Box, size M"');
+    expect(html).toContain('aria-label="Wrong / No lot number, Dispenser Box, Size M"');
   });
 
   it("counts the boxes inspected on a stepper once recorded", () => {
     const html = render(RECORDED);
     expect(html).not.toContain("Record 3");
-    expect(html).toMatch(/role="spinbutton"[^>]*aria-label="No. of sampled boxes inspected, Dispenser Box, size M"[^>]*aria-valuenow="3"/);
+    expect(html).toMatch(/role="spinbutton"[^>]*aria-label="No. of sampled boxes inspected, Dispenser Box, Size M"[^>]*aria-valuenow="3"/);
   });
 
   it("speaks the template's words: levels, checks, captions and the disposition line", () => {
@@ -161,10 +161,10 @@ describe("labeling capture", () => {
     const html = render(RECORDED);
     const pickers = tagsWith(html, 'role="combobox"');
     expect(pickers.map((picker) => /aria-label="([^"]+)"/.exec(picker)?.[1])).toEqual([
-      "Box # 1, Dispenser Box, size M",
-      "Box # 2, Dispenser Box, size M",
-      "Box # 3, Dispenser Box, size M",
-      "Box # 1, Carton Box, size M",
+      "Box # 1, Dispenser Box, Size M",
+      "Box # 2, Dispenser Box, Size M",
+      "Box # 3, Dispenser Box, Size M",
+      "Box # 1, Carton Box, Size M",
     ]);
     expect(pickers[1]).toContain('aria-invalid="true"');
     // The picker keeps its own description for screen readers; on screen the problem is listed under the row.
@@ -174,7 +174,7 @@ describe("labeling capture", () => {
 
   it("asks for the boxes inspected where the count is, when a defect fails the level first", () => {
     const html = render({ sizes: { M: { ...RECORDED.sizes.M, inner: { inspected: null, boxNos: [], defects: { lot_no: 1 } } } } });
-    expect(html).toContain('aria-label="Record 3 boxes inspected: Dispenser Box, size M"');
+    expect(html).toContain('aria-label="Record 3 boxes inspected: Dispenser Box, Size M"');
     expect(html).toMatch(
       /<p class="[^"]*text-warn[^"]*">Dispenser Box, size M: 1 defect found but the boxes inspected are not recorded\.<\/p>/,
     );

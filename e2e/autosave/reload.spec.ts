@@ -219,7 +219,7 @@ test("a value of one size lands on that size again", async ({ page, baseURL }) =
 test("a count in box 3 of a one-box-at-a-time module lands on box 3 again", async ({ page, baseURL }) => {
   await fixture.setModules({ order_lots: { sizes: { S: { qtyCases: 10 } } } });
   await open(page, baseURL, "dispensing_safedon");
-  const count = page.getByRole("button", { name: "Increase No cuff, column 3", exact: true });
+  const count = page.getByRole("button", { name: "Increase No cuff, Column 3", exact: true });
   // On the iPads one box shows at a time: step to the third. From 1280 px without a touchscreen every box is side by side.
   if (!isDesktop()) {
     await press(page.getByRole("button", { name: "Next Box" }));
@@ -229,8 +229,8 @@ test("a count in box 3 of a one-box-at-a-time module lands on box 3 again", asyn
   await page.reload();
 
   // The module turns back to box 3 itself (its reveal, as an issue link would), without focusing it.
-  const again = page.getByRole("button", { name: "Increase No cuff, column 3", exact: true });
-  await expectLandedOn(page, again, { label: "Increase No cuff, column 3" });
+  const again = page.getByRole("button", { name: "Increase No cuff, Column 3", exact: true });
+  await expectLandedOn(page, again, { label: "Increase No cuff, Column 3" });
   if (!isDesktop()) await expect(page.locator('[data-slot="section-frame"]')).toContainText(/· 3 \/ \d+/);
   await shot(page, "landed-safedon-box-3");
   await expect

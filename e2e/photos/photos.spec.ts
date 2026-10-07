@@ -239,7 +239,7 @@ test("the inspector adds photos and a lab report, then retags, captions, views a
   });
 
   await test.step("full size, stepping through every module's photos", async () => {
-    await press(group(page, "visual").locator(`[data-photo-id="${bigId}"]`).getByRole("button", { name: /^Open photo/ }));
+    await press(group(page, "visual").locator(`[data-photo-id="${bigId}"]`).getByRole("button", { name: /^Open Photo/ }));
     const viewer = page.locator('[data-slot="photo-viewer"]');
     await expect(viewer).toContainText("Photo 2 of 2");
     await expect(viewer.getByRole("heading")).toHaveText(`${TITLES.visual} · Size M · ${THIN_SPOT_LABEL}`);
@@ -332,7 +332,7 @@ test("offline, photos wait on the device and upload when the connection is back"
   const card = watertight.locator('[data-slot="photo-card"]');
   await test.step("full size, the original this browser cannot show reads 'No preview', not a broken image", async () => {
     await expect(card.and(page.locator("[data-pending-row]"))).toHaveCount(0);
-    await card.getByRole("button", { name: /^Open photo/ }).click();
+    await card.getByRole("button", { name: /^Open Photo/ }).click();
     const viewer = page.locator('[data-slot="photo-viewer"]');
     await expect(viewer.getByText("No preview", { exact: true })).toBeVisible();
     await expect(viewer.getByText(/This browser could not convert the photo/)).toBeVisible();
@@ -375,7 +375,7 @@ test("the admin chooses report photos", async ({ page, context, baseURL }) => {
   await shot(page, "10-admin");
 
   // The viewer carries the same switch, for choosing while looking.
-  await card.getByRole("button", { name: /^Open photo/ }).click();
+  await card.getByRole("button", { name: /^Open Photo/ }).click();
   const viewer = page.locator('[data-slot="photo-viewer"]');
   await expect(viewer.getByRole("switch", { name: "Include in Report" })).toBeChecked();
   await viewportShot(page, "11-admin-viewer");

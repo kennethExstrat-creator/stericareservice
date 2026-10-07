@@ -66,8 +66,8 @@ const selectedTab = (html: string) =>
 describe("labeling capture: focus", () => {
   it("reports the packaging level with the size and the check counted", () => {
     const { tables, reported } = render();
-    const inner = tables.find((table) => table.caption.endsWith("Dispenser Box, size M"));
-    const carton = tables.find((table) => table.caption.endsWith("Carton Box, size M"));
+    const inner = tables.find((table) => table.caption.endsWith("Dispenser Box, Size M"));
+    const carton = tables.find((table) => table.caption.endsWith("Carton Box, Size M"));
     inner?.onCellFocus?.({ row: "lot_no", column: "M" });
     carton?.onCellFocus?.({ row: "carton_no", column: "M" });
     expect(reported).toEqual([
@@ -78,8 +78,8 @@ describe("labeling capture: focus", () => {
 
   it("reports the level, and the box once one is picked, from the box pickers", () => {
     const { pickers, reported } = render();
-    const picked = pickers.find((picker) => picker.label === "Box # 1, Dispenser Box, size M");
-    const next = pickers.find((picker) => picker.label === "Box # 2, Dispenser Box, size M");
+    const picked = pickers.find((picker) => picker.label === "Box # 1, Dispenser Box, Size M");
+    const next = pickers.find((picker) => picker.label === "Box # 2, Dispenser Box, Size M");
     picked?.onFocus?.();
     next?.onFocus?.();
     expect(reported).toEqual([
@@ -91,7 +91,7 @@ describe("labeling capture: focus", () => {
   it("opens on the size the screen has in focus when it is ordered, else on the first one ordered", () => {
     const onL = render({ size: "L", level: "carton" });
     expect(selectedTab(onL.html)).toBe("L");
-    expect(onL.tables.map((table) => table.caption.split(": ")[1])).toEqual(["Dispenser Box, size L", "Carton Box, size L"]);
+    expect(onL.tables.map((table) => table.caption.split(": ")[1])).toEqual(["Dispenser Box, Size L", "Carton Box, Size L"]);
     expect(selectedTab(render({ size: "XL" }).html)).toBe("M");
     expect(selectedTab(render().html)).toBe("M");
   });

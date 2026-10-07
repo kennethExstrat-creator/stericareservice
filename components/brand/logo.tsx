@@ -49,7 +49,7 @@ export function Logo({ variant = "horizontal", className, sizes, href, loading }
   return (
     <Link
       href={href}
-      aria-label="SteriCare home"
+      aria-label="SteriCare Home"
       className={cn(
         classes,
         "rounded-md outline-none focus-ring",

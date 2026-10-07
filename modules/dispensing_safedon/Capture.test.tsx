@@ -106,7 +106,7 @@ describe("dispensing_safedon capture", () => {
 
   it("has a box picker per planned column, holding the box numbers picked from the carton list", () => {
     const html = render();
-    expect(count(html, 'aria-label="Box #, column ')).toBe(5);
+    expect(count(html, 'aria-label="Box #, Column ')).toBe(5);
     for (const box of EXAMPLE.perSize.XS!.boxes) expect(html).toContain(`>${box}</span>`);
     expect(html).toContain('data-issue-path="[&quot;sizes&quot;,&quot;XS&quot;,&quot;boxes&quot;,4,&quot;boxNo&quot;]"');
     // Each box as a whole too, for links to a box without a cell of their own.
@@ -118,7 +118,7 @@ describe("dispensing_safedon capture", () => {
     const stray = Math.max(...cartonList(SAFEDON_EG_EXAMPLE.cartons.XS!)) + 1;
     const boxes = data.sizes.XS.boxes.map((box, index) => (index === 1 ? { ...box, boxNo: stray } : box));
     const html = render({ data: { sizes: { ...data.sizes, XS: { boxes } } } });
-    const picker = (column: number) => new RegExp(`<button[^>]*aria-label="Box #, column ${column}"[^>]*>`).exec(html)?.[0];
+    const picker = (column: number) => new RegExp(`<button[^>]*aria-label="Box #, Column ${column}"[^>]*>`).exec(html)?.[0];
     expect(picker(2)).toContain('aria-invalid="true"');
     expect(picker(1)).not.toContain('aria-invalid="true"');
     // The picker names the size as the tabs and calc do.
@@ -128,7 +128,7 @@ describe("dispensing_safedon capture", () => {
     expect(list).toContain(`Box ${stray} (column 2) is not in the size XS carton list.`);
     expect(count(list, "<button")).toBe(1);
     expect(list).toContain("touch:min-h-11");
-    expect(html.indexOf('data-slot="box-issues"')).toBeGreaterThan(html.indexOf('aria-label="Box #, column 5"'));
+    expect(html.indexOf('data-slot="box-issues"')).toBeGreaterThan(html.indexOf('aria-label="Box #, Column 5"'));
     expect(html.indexOf('data-slot="box-issues"')).toBeLessThan(html.indexOf('data-slot="counter-table"'));
     // Its rate decides the size, as before: the stray box blocks submit, it does not fail the size.
     expect(html).toContain('data-outcome="pass"');
@@ -159,7 +159,7 @@ describe("dispensing_safedon capture", () => {
 
   it("keeps keyboard focus visible on the pressed column button", () => {
     const html = render();
-    const column = (index: number) => new RegExp(`<button[^>]*aria-label="Count column ${index}"[^>]*>`).exec(html)?.[0] ?? "";
+    const column = (index: number) => new RegExp(`<button[^>]*aria-label="Count Column ${index}"[^>]*>`).exec(html)?.[0] ?? "";
     expect(column(1)).toContain('aria-pressed="true"');
     expect(column(1)).toContain("aria-pressed:bg-primary");
     // Outset, as SizeTabs' filled tab: an inset brand-500 ring would vanish on the brand-500
@@ -177,7 +177,7 @@ describe("dispensing_safedon capture", () => {
       expect(html).toContain(defect.label);
       expect(html).toContain(defect.hint);
     }
-    expect(html).toContain('aria-label="Increase No cuff, box 33"');
+    expect(html).toContain('aria-label="Increase No cuff, Box 33"');
     expect(html).toContain(
       'data-issue-path="[&quot;sizes&quot;,&quot;XS&quot;,&quot;boxes&quot;,4,&quot;counts&quot;,&quot;no_cuff&quot;]"',
     );
@@ -212,12 +212,12 @@ describe("dispensing_safedon capture", () => {
     };
     const html = render({ labels, config });
     expect(html).toContain("Dispensing defects");
-    expect(html).toContain('aria-label="Pack No., column 1"');
+    expect(html).toContain('aria-label="Pack No., Column 1"');
     expect(html).toContain("Stuck in the pack");
     expect(html).not.toContain("No cuff");
   });
 
-  it("still renders, Not done, when the engine could not compute the module", () => {
+  it("still renders, Not Done, when the engine could not compute the module", () => {
     const html = render({ broken: true });
     expect(html).toContain('data-outcome="not_done"');
     expect(html).toContain("Sampling code letter —");

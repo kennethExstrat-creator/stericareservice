@@ -68,7 +68,7 @@ export type CounterColumn = {
    * `name` still name the column for screen readers.
    */
   heading?: ReactNode;
-  /** Accessible name in each stepper's label, e.g. "Size M" or "box 253". Defaults to the label. */
+  /** Accessible name in each stepper's label, e.g. "Size M" or "Box 253". Defaults to the label. */
   name?: string;
   /** Samples inspected (from the sampling plan). Undefined hides the row for every column. */
   n?: number | null;

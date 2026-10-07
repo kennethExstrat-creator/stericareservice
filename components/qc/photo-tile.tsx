@@ -106,7 +106,7 @@ export function PhotoTile({
             onClick={onOpen}
             className="absolute inset-0 outline-none focus-ring-inset focus-visible:inset-ring-4 focus-visible:inset-ring-white"
           >
-            <span className="sr-only">Open photo: {alt}</span>
+            <span className="sr-only">Open Photo: {alt}</span>
           </button>
         )}
 
@@ -115,7 +115,7 @@ export function PhotoTile({
             <Checkbox
               checked={selected}
               onCheckedChange={(checked) => onSelectedChange(checked === true)}
-              aria-label={`Select photo: ${alt}`}
+              aria-label={`Select Photo: ${alt}`}
             />
           </span>
         )}

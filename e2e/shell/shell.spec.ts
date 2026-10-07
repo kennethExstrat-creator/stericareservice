@@ -253,7 +253,7 @@ test.describe("signed out", () => {
     await expect(page).toHaveTitle(ERROR_TITLE);
     await expect(page.getByRole("button", { name: "Try Again" })).toBeVisible();
     await expect(page.getByText(/^Reference:/)).toBeVisible();
-    await expect(page.getByRole("link", { name: "SteriCare home" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "SteriCare Home" })).toBeVisible();
     await shot(page, "root-error");
   });
 });
@@ -277,7 +277,7 @@ test.describe("as the admin", () => {
     if (isDesktop(page)) {
       await expect(sidebar).toBeVisible();
       await expect(topBar).toBeHidden();
-      await expect(sidebar.getByRole("link", { name: "SteriCare home" })).toBeVisible();
+      await expect(sidebar.getByRole("link", { name: "SteriCare Home" })).toBeVisible();
       await expect(nav.getByText("Admin", { exact: true })).toBeVisible();
       // Every admin screen is a link; nothing is announced as coming.
       await expect(nav.getByRole("link")).toHaveText(["Inspections", ...ADMIN_PAGES]);
@@ -290,7 +290,7 @@ test.describe("as the admin", () => {
     } else {
       await expect(topBar).toBeVisible();
       await expect(sidebar).toBeHidden();
-      await expect(topBar.getByRole("link", { name: "SteriCare home" })).toBeVisible();
+      await expect(topBar.getByRole("link", { name: "SteriCare Home" })).toBeVisible();
       await expect(nav.getByRole("link")).toHaveText(["Inspections", "Admin"]);
       await expect(nav.getByRole("link", { name: "Admin" })).toHaveAttribute("aria-current", "page");
       await expect(nav.getByRole("link", { name: "Inspections" })).not.toHaveAttribute("aria-current", "page");
@@ -298,7 +298,7 @@ test.describe("as the admin", () => {
       for (const tab of await nav.getByRole("link").all()) {
         expect((await tab.boundingBox())?.height).toBeGreaterThanOrEqual(44);
       }
-      expect((await topBar.getByRole("link", { name: "SteriCare home" }).boundingBox())?.height).toBeGreaterThanOrEqual(44);
+      expect((await topBar.getByRole("link", { name: "SteriCare Home" }).boundingBox())?.height).toBeGreaterThanOrEqual(44);
       // No sidebar, so the admin pages are listed at the top of the page: every one a link.
       const section = page.getByRole("navigation", { name: "Admin" });
       await expect(section.getByRole("link")).toHaveText(ADMIN_PAGES);
@@ -348,7 +348,7 @@ test.describe("as the admin", () => {
       expect(bar!.x + bar!.width, `${width} px: account menu inside the window`).toBeLessThanOrEqual(width);
       expect(bar!.height).toBeGreaterThanOrEqual(44);
       // The home link (the mark below 640 px) stays a 44 px target.
-      const home = (await topBar.getByRole("link", { name: "SteriCare home" }).boundingBox())!;
+      const home = (await topBar.getByRole("link", { name: "SteriCare Home" }).boundingBox())!;
       expect(Math.min(home.width, home.height), `${width} px: home link`).toBeGreaterThanOrEqual(44);
       expect(await topBar.evaluate((element) => element.scrollWidth <= element.clientWidth), `${width} px`).toBe(true);
 

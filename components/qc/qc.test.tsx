@@ -294,11 +294,11 @@ describe("DefectChip", () => {
     const empty = renderToStaticMarkup(
       <DefectChip label="Oil stain" count={0} onIncrement={noop} onDecrement={noop} />,
     );
-    expect(empty).not.toContain("Remove one");
+    expect(empty).not.toContain("Remove One");
     const counted = renderToStaticMarkup(
       <DefectChip label="Oil stain" count={2} onIncrement={noop} onDecrement={noop} />,
     );
-    expect(counted).toContain('aria-label="Remove one Oil stain"');
+    expect(counted).toContain('aria-label="Remove One Oil stain"');
     expect(counted).toContain("data-active");
   });
 
@@ -376,7 +376,7 @@ describe("MeasurementGrid", () => {
     expect(render({}).match(/aria-live="polite"/g)).toHaveLength(1);
   });
 
-  it("says Not done until a column has data, and NA without a spec", () => {
+  it("says Not Done until a column has data, and NA without a spec", () => {
     const html = render({});
     // Three statistics, plus P/F for the two measures that have a spec.
     expect(html.match(/data-status="not_done"/g)).toHaveLength(5);
@@ -519,7 +519,7 @@ describe("PhotoTile", () => {
     );
     expect(admin).toContain("Include in Report");
     expect(admin).toContain("In Report");
-    expect(admin).toContain("Select photo: Glove");
+    expect(admin).toContain("Select Photo: Glove");
   });
 });
 

@@ -743,15 +743,15 @@ test("the STD_EG example entered on the iPad gives every expected result", async
   await test.step("Labelling: 3 dispenser boxes and 1 carton recorded in a tap each, no defects", async () => {
     const frame = await next(page, SECTION.labeling);
     await expectOnlySizeM(page, SECTION.labeling);
-    await frame.getByRole("button", { name: `Record ${INNER.inspected} boxes inspected: Dispenser Box, size M` }).tap();
-    await frame.getByRole("button", { name: `Record ${CARTON.inspected} box inspected: Carton Box, size M` }).tap();
+    await frame.getByRole("button", { name: `Record ${INNER.inspected} boxes inspected: Dispenser Box, Size M` }).tap();
+    await frame.getByRole("button", { name: `Record ${CARTON.inspected} box inspected: Carton Box, Size M` }).tap();
     const expected = EXPECT_LABELING;
     for (const [level, n, defects, result] of [
       ["Dispenser Box", expected.inner.n, expected.inner.defects, "Disposition - Inner Box (Passed / Failed)"],
       ["Carton Box", expected.carton.n, expected.carton.defects, "Disposition - Carton Box (Passed / Failed)"],
     ] as const) {
       const section = frame.getByRole("region", { name: level });
-      await check(section.getByRole("spinbutton", { name: `No. of sampled boxes inspected, ${level}, size M` }), expected.check).toHaveAttribute(
+      await check(section.getByRole("spinbutton", { name: `No. of sampled boxes inspected, ${level}, Size M` }), expected.check).toHaveAttribute(
         "aria-valuenow",
         String(n),
       );

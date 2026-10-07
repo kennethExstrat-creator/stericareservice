@@ -111,8 +111,9 @@ function LevelPanel({
   const entry = levelEntry(data, size, level);
   const computed = evaluation?.computed.sizes?.[size]?.[level];
   const name = levelLabel(labels, level);
+  // The box list's sentences say "for size M"; the names say "Size M", as the other modules' do.
   const sizeText = `size ${formatSize(size, { sizes: context.templateSizes })}`;
-  const where = `${name}, ${sizeText}`;
+  const where = `${name}, ${formatSize(size, { sizes: context.templateSizes, prefix: true })}`;
   const path = ["sizes", size, level];
   const issues = evaluation?.issues ?? [];
   const inspectedIssue = findIssue(issues, [...path, "inspected"]);
