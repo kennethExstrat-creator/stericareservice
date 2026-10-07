@@ -1156,6 +1156,8 @@ const visual = defineModule({
     {
       key: "accept",
       label: "Accept",
+      // The word before the number in the limit row: STD_EG prints the critical row Acc. = 0 / Rej. = 1.
+      groupLabels: { critical: { label: "Acc. =", labels: { SAFEDON_EG: "Accept" } } },
       type: "integer",
       per: ["size", "class"],
       entry: "computed",
@@ -1165,6 +1167,7 @@ const visual = defineModule({
     {
       key: "reject",
       label: "Reject",
+      groupLabels: { critical: { label: "Rej. =", labels: { SAFEDON_EG: "Reject" } } },
       type: "integer",
       per: ["size", "class"],
       entry: "computed",
@@ -1598,6 +1601,11 @@ const labeling = defineModule({
     {
       key: "accept",
       label: "Accept",
+      // The word before the number in each level's limit row: SAFEDON_EG prints Acc. = 0 / Rej. = 1.
+      groupLabels: {
+        inner: { label: "Accept", labels: { SAFEDON_EG: "Acc. =" } },
+        carton: { label: "Accept", labels: { SAFEDON_EG: "Acc. =" } },
+      },
       type: "integer",
       per: ["size", "level"],
       entry: "computed",
@@ -1607,6 +1615,10 @@ const labeling = defineModule({
     {
       key: "reject",
       label: "Reject",
+      groupLabels: {
+        inner: { label: "Reject", labels: { SAFEDON_EG: "Rej. =" } },
+        carton: { label: "Reject", labels: { SAFEDON_EG: "Rej. =" } },
+      },
       type: "integer",
       per: ["size", "level"],
       entry: "computed",

@@ -386,8 +386,8 @@ Report module. Captures: Per size (R and L when handSplit), per class: gloves in
 | `counts` | Defects | critical: Critical Defects<br>major: Major Defects (STD_SG: Major defect)<br>minor: Minor Defects (STD_SG: Minor defect) | count_map |  | size › hand › class | entered | 1 | Map keyed by defect code from config classes[class].defects. |
 | `unmapped` | Defect not in the list |  | label_counts |  | size › hand › class | entered |  | One-off labels (the onsite forms' handwritten rows) with their counts, saved unmapped and flagged for an admin. They count towards the class total. |
 | `codeLetter` | Sampling code letter |  | select |  | size › class | **computed** | 2, 8 | lib/aql planFromSampleSize(inspected, class AQL): codeLetter from n; an arrow moves the class's plan to its usedLetter (expected-results B: minor at N uses M), kept in computed with it. Values: A, B, C, D, E, F, G, H, J, K, L, M, N, P, Q, R. |
-| `accept` | Accept |  | integer |  | size › class | **computed** | 2, 8 | The class plan's ac at its usedLetter; always 0 for critical (AQL 0). |
-| `reject` | Reject |  | integer |  | size › class | **computed** | 2, 8 | The class plan's re (ac + 1); always 1 for critical. |
+| `accept` | Accept | critical: Acc. = (SAFEDON_EG: Accept) | integer |  | size › class | **computed** | 2, 8 | The class plan's ac at its usedLetter; always 0 for critical (AQL 0). |
+| `reject` | Reject | critical: Rej. = (SAFEDON_EG: Reject) | integer |  | size › class | **computed** | 2, 8 | The class plan's re (ac + 1); always 1 for critical. |
 | `total` | Total number of defects found | critical: Total number of "Critical Defects" found<br>major: Total number of "Major Defects" found (STD_SG: Total Major)<br>minor: Total number of "Minor Defects" found (STD_SG: Total Minor) | integer |  | size › class | **computed** | 2 | Sum of counts and unmapped counts of the class, both hands. Printed as &lt;total>/&lt;inspected>. |
 | `result` | Disposition (Passed / Failed) | critical: Disposition - Visual Critical (Passed / Failed)<br>major: Disposition - Visual Major (Passed / Failed)<br>minor: Disposition - Visual Minor (Passed / Failed) | select |  | size › class | **computed** | 2, 5 | total ≤ accept passes; ≥ reject fails. Both reports print the critical line as 'Visual Minor' [sic]. Values: pass, fail, not_done. |
 
@@ -477,8 +477,8 @@ Report module. Captures: Per size, per level (inner unit, carton): boxes inspect
 | `inspected` | No. of sampled boxes inspected |  | integer |  | size › level | entered | 1 | Counts boxes. Prefilled from config levels[level].n. |
 | `boxNos` | Box # |  | integer_list |  | size › level | entered | 7 | **Beyond BUILD_SPEC 6.1:** Rule 6.2.7 picks labelling boxes from the size's carton list; the reports print only how many were inspected. |
 | `defects` | Defects |  | count_map |  | size › level | entered | 1 | Map keyed by labelling check code from config levels[level].checks. |
-| `accept` | Accept |  | integer |  | size › level | **computed** | 2 | Always 0 (BUILD_SPEC 7: labelling is Accept 0 / Reject 1). |
-| `reject` | Reject |  | integer |  | size › level | **computed** | 2 | Always 1. |
+| `accept` | Accept | inner: Accept (SAFEDON_EG: Acc. =)<br>carton: Accept (SAFEDON_EG: Acc. =) | integer |  | size › level | **computed** | 2 | Always 0 (BUILD_SPEC 7: labelling is Accept 0 / Reject 1). |
+| `reject` | Reject | inner: Reject (SAFEDON_EG: Rej. =)<br>carton: Reject (SAFEDON_EG: Rej. =) | integer |  | size › level | **computed** | 2 | Always 1. |
 | `total` | Total number of defects found |  | integer |  | size › level | **computed** | 2 | Sum of defects. |
 | `result` | Disposition (Passed / Failed) | inner: Disposition - Inner Box (Passed / Failed)<br>carton: Disposition - Carton Box (Passed / Failed) | select |  | size › level | **computed** | 2, 5 | total ≥ 1 fails. STD_EG prints the carton line as 'Inner Box' [sic]. Values: pass, fail, not_done. |
 
@@ -708,8 +708,8 @@ Differences from `STD_EG`: its seed writes only these config values (`seedConfig
 - `weight` wording: `result` "A / Rej.", `info` "A", `pass` "A", `fail` "Rej.".
 - `weight` title: "Weight (g)".
 - `watertight` wording: `holes` "Holes", `heading` "Freedom from Holes by watertight test (Sampling code letter {codeLetters}; AQL={aql})".
-- `visual` wording: `heading` "Visual Inspection (Sampling code letter {codeLetters})", `criticalLimit` "Defect Limit".
-- `labeling` wording: `innerLevel` "Inner Boxes/Packs", `cartonLevel` "Carton Boxes", `defectLimit` "Limit : Accept / Reject".
+- `visual` wording: `criticalAccept` "Accept", `criticalReject` "Reject", `heading` "Visual Inspection (Sampling code letter {codeLetters})", `criticalLimit` "Defect Limit".
+- `labeling` wording: `innerAccept` "Acc. =", `cartonAccept` "Acc. =", `innerReject` "Rej. =", `cartonReject` "Rej. =", `innerLevel` "Inner Boxes/Packs", `cartonLevel` "Carton Boxes", `defectLimit` "Limit : Accept / Reject".
 
 To confirm:
 

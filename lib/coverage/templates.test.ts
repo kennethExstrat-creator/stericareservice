@@ -505,7 +505,13 @@ describe("sources and seeds", () => {
       innerLevel: "Inner Boxes/Packs",
       cartonLevel: "Carton Boxes",
       defectLimit: "Limit : Accept / Reject",
+      innerAccept: "Acc. =",
+      innerReject: "Rej. =",
+      cartonAccept: "Acc. =",
+      cartonReject: "Rej. =",
     });
+    // The critical limit row: STD_EG prints Acc. = 0 / Rej. = 1 (the default), SAFEDON_EG Accept 0 / Reject 1.
+    expect(labelOverrides("SAFEDON_EG", "visual")).toMatchObject({ criticalAccept: "Accept", criticalReject: "Reject" });
     expect(labelOverrides("STD_SG", "visual")).toMatchObject({ majorCounts: "Major defect", minorTotal: "Total Minor" });
   });
 

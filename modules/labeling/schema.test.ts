@@ -148,12 +148,17 @@ describe("labeling labels", () => {
     expect(LABELING_LABELS.cartonResult).toBe("Disposition - Carton Box (Passed / Failed)");
   });
 
-  it("cover every key a seed template relabels: SAFEDON_EG's level names and limit caption", () => {
+  it("cover every key a seed template relabels: SAFEDON_EG's level names, limit caption and limit words", () => {
     const overrides = labelOverrides("SAFEDON_EG", "labeling");
     expect(overrides).toEqual({
       innerLevel: "Inner Boxes/Packs",
       cartonLevel: "Carton Boxes",
       defectLimit: "Limit : Accept / Reject",
+      // SAFEDON_EG prints each level's limit Acc. = 0 / Rej. = 1; STD_EG Accept 0 / Reject 1.
+      innerAccept: "Acc. =",
+      innerReject: "Rej. =",
+      cartonAccept: "Acc. =",
+      cartonReject: "Rej. =",
     });
     for (const key of Object.keys(overrides)) expect(Object.keys(LABELING_LABELS)).toContain(key);
   });

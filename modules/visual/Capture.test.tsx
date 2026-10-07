@@ -89,8 +89,10 @@ describe("visual capture", () => {
 
   it("B. counts the STD_EG example with calc's limits, totals and chips: 0 / 1, 21 / 22, 21 / 22", () => {
     const html = stdEg();
-    // The limit row in the template's words (labels accept, reject), not the kit's Ac / Re.
-    expect(html).toContain("Accept 0 / Reject 1");
+    // The limit rows in the template's words, not the kit's Ac / Re: the critical row as
+    // STD_EG prints it (criticalAccept, criticalReject), the others with the shared words.
+    expect(html).toContain("Acc. = 0 / Rej. = 1");
+    expect(html).not.toContain("Accept 0 / Reject 1");
     expect(html.match(/Accept 21 \/ Reject 22/g)).toHaveLength(2);
     expect(totals(html)).toEqual([0, 8, 0]);
     expect(tagsWith(html, 'data-slot="status-pill"').map((pill) => /data-status="(\w+)"/.exec(pill)?.[1])).toEqual([
@@ -142,24 +144,34 @@ describe("visual capture", () => {
     expect(statuses(html)).toEqual(["pass", "not_done", "not_done"]);
   });
 
-  it("shows the critical limit Accept 0 / Reject 1 before the gloves inspected are entered, beside a critical defect's failure", () => {
+  it("shows the critical limit Acc. = 0 / Rej. = 1 before the gloves inspected are entered, beside a critical defect's failure", () => {
     const html = render({ sizes: { M: { critical: { counts: { embedded_metal: 1 } } } }, context: M_500() });
-    expect(html.match(/Accept 0 \/ Reject 1/g)).toHaveLength(1);
+    expect(html.match(/Acc\. = 0 \/ Rej\. = 1/g)).toHaveLength(1);
     expect(statuses(html)).toEqual(["fail", "not_done", "not_done"]);
     // Major and minor need n for their limits.
-    expect(render({ sizes: {}, context: M_500() }).match(/Accept \d+ \/ Reject \d+/g)).toEqual(["Accept 0 / Reject 1"]);
+    const empty = render({ sizes: {}, context: M_500() });
+    expect(empty.match(/(Accept|Acc\. =) \d+ \/ (Reject|Rej\. =) \d+/g)).toEqual(["Acc. = 0 / Rej. = 1"]);
+    // SAFEDON_EG prints its critical row Accept 0 / Reject 1.
+    const safedon = { ...VISUAL_LABELS, ...labelOverrides("SAFEDON_EG", "visual") };
+    expect(render({ sizes: {}, context: M_500(), labels: safedon })).toContain("Accept 0 / Reject 1");
   });
 
   it("words one class's limit apart where the template does (STD_EG prints Acc. = 0 / Rej. = 1 for critical)", () => {
-    // Keyed class first, as the dictionary keys class wording (criticalTotal).
-    const html = render({
+    // Keyed class first, as the dictionary keys class wording (criticalTotal): STD_EG's by default.
+    expect(render({ sizes: {}, context: M_500() })).toContain("Acc. = 0 / Rej. = 1");
+    const worded = render({
       sizes: {},
       context: M_500(),
-      labels: { ...VISUAL_LABELS, criticalAccept: "Acc. =", criticalReject: "Rej. =" },
+      labels: { ...VISUAL_LABELS, criticalAccept: "Accept", criticalReject: "Reject" },
     });
-    expect(html).toContain("Acc. = 0 / Rej. = 1");
-    // A dotted key added in the editor works too; the class-first key wins over it.
-    const dotted = { ...VISUAL_LABELS, "critical.accept": "Acc. =", "critical.reject": "Rej. =" };
+    expect(worded).toContain("Accept 0 / Reject 1");
+    // A dotted key added in the editor works too, in a template resolved before the dictionary
+    // keyed the class's words; the class-first key wins over it.
+    const older = Object.fromEntries(
+      Object.entries(VISUAL_LABELS).filter(([key]) => key !== "criticalAccept" && key !== "criticalReject"),
+    );
+    expect(render({ sizes: {}, context: M_500(), labels: older })).toContain("Accept 0 / Reject 1");
+    const dotted = { ...older, "critical.accept": "Acc. =", "critical.reject": "Rej. =" };
     expect(render({ sizes: {}, context: M_500(), labels: dotted })).toContain("Acc. = 0 / Rej. = 1");
     const both = { ...dotted, criticalAccept: "Ac =", criticalReject: "Re =" };
     expect(render({ sizes: {}, context: M_500(), labels: both })).toContain("Ac = 0 / Re = 1");

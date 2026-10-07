@@ -115,14 +115,25 @@ describe("labeling capture", () => {
     const html = render(RECORDED);
     expect(html).toContain("Accept 0 / Reject 1");
     expect(html).not.toContain("Ac 0 / Re 1");
-    // A template that words them its own way: for both levels, or one level apart, keyed level
-    // first as the dictionary keys level wording (cartonReject), or dotted from the editor.
-    const worded = render(RECORDED, { labels: { ...LABELING_LABELS, accept: "Acc. =", cartonReject: "Rej. =" } });
+    // A template that words them its own way, keyed level first as the dictionary keys level
+    // wording: SAFEDON_EG prints both levels Acc. = 0 / Rej. = 1; one level may differ.
+    const safedon = render(RECORDED, { labels: SAFEDON_LABELS });
+    expect(safedon.match(/Acc\. = 0 \/ Rej\. = 1/g)).toHaveLength(2);
+    expect(safedon).not.toContain("Accept 0 / Reject 1");
+    const worded = render(RECORDED, { labels: { ...LABELING_LABELS, innerAccept: "Acc. =", cartonReject: "Rej. =" } });
     expect(worded).toContain("Acc. = 0 / Reject 1");
-    expect(worded).toContain("Acc. = 0 / Rej. = 1");
-    const dotted = render(RECORDED, { labels: { ...LABELING_LABELS, "inner.accept": "A =" } });
+    expect(worded).toContain("Accept 0 / Rej. = 1");
+    // A template resolved before the dictionary keyed the level words: the words both levels
+    // share, or a dotted key added in the editor; a blank level word falls back the same way.
+    const older = Object.fromEntries(Object.entries(LABELING_LABELS).filter(([key]) => !/^(inner|carton)(Accept|Reject)$/.test(key)));
+    const shared = render(RECORDED, { labels: { ...older, accept: "Acc. =" } });
+    expect(shared.match(/Acc\. = 0 \/ Reject 1/g)).toHaveLength(2);
+    const dotted = render(RECORDED, { labels: { ...older, "inner.accept": "A =" } });
     expect(dotted).toContain("A = 0 / Reject 1");
     expect(dotted).toContain("Accept 0 / Reject 1");
+    const blank = render(RECORDED, { labels: { ...LABELING_LABELS, innerAccept: " ", accept: "Acc. =" } });
+    expect(blank).toContain("Acc. = 0 / Reject 1");
+    expect(blank).toContain("Accept 0 / Reject 1");
     const results = tagsWith(html, 'data-slot="status-pill"').map((pill) => /data-status="([a-z_]+)"/.exec(pill)?.[1]);
     expect(results).toEqual(["fail", "pass"]);
   });
