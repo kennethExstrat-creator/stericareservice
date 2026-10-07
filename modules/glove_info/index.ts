@@ -26,6 +26,7 @@ export const definition = defineModule<GloveInfoData, GloveInfoConfig, GloveInfo
   ],
   calc: calcGloveInfo,
   contribute: contributeGloveInfo,
+  loadCapture: () => import("./Capture"),
 });
 
 export type { GloveInfoData } from "./schema";

@@ -79,7 +79,7 @@ and returns `CalcOutput`: `result` (`ModuleResult`: `status`, `summary`, `perSiz
 
 ## 4. Worked example: `glove_info`
 
-Glove Information (BUILD_SPEC 6.1): surface texture, indicative weight (size M, g), colour and length, on page 1 of both reports. Result `info`. Read the four files in `modules/glove_info/`; the essentials:
+Glove Information (BUILD_SPEC 6.1): surface texture, indicative weight (size M, g), colour and length, on page 1 of both reports. Result `info`. Read the files in `modules/glove_info/`; the essentials of the four pure ones (its `Capture.tsx`, with `edit.ts`, is the smallest capture body: three text fields and a NumberField in one Enter run):
 
 **`schema.ts`**: every value may be missing while the inspection is a draft. Cells come from the framework, so a number is a number and blank is `null`:
 
@@ -160,11 +160,11 @@ export const definition = defineModule<GloveInfoData, GloveInfoConfig, GloveInfo
   ],
   calc: calcGloveInfo,
   contribute: contributeGloveInfo,
-  // loadCapture: () => import("./Capture"),   once Capture.tsx exists
+  loadCapture: () => import("./Capture"),
 });
 ```
 
-**Tests**: `schema.test.ts` (draft parsing, numbers never text, strict keys, config defaults, JSON Schema for the editor) and `calc.test.ts` (the contract check, info, not done with the template's wording, fields switched off, the error, the contribution, and one run through the engine).
+**Tests**: `schema.test.ts` (draft parsing, numbers never text, strict keys, config defaults, JSON Schema for the editor), `calc.test.ts` (the contract check, info, not done with the template's wording, fields switched off, the error, the contribution, and one run through the engine), `edit.test.ts` (the writes through the kit's updater) and `Capture.test.tsx` (the server-rendered body: wording, fields switched off, calc's error, read-only, issue paths).
 
 ## 5. Data
 
@@ -455,7 +455,7 @@ const saved = parseModuleData(definition, readModuleEntry(data, "modules", key))
 | Module | perSize | Notes for the builder |
 |---|---|---|
 | `header` | no | Always on. Contributes `header`; use its keys (`client`, `manufacturer`, `poNo`, `productName`, `productCode`, `inspectionDate`, `mfgDate`, `expiryDate`) as your data keys. Inspector from `context.inspection`, never typed. Warn if expiry is not after mfg date. Canonical paths for the text fields. |
-| `glove_info` | no | Done: the worked example. |
+| `glove_info` | no | Done: the worked example, its capture body included. |
 | `order_lots` | no | The source of sizes, so not per size itself, and the framework's per-size checks do not cover its data: reject a size entered twice yourself. Contributes `sizes` (sizes with a quantity) and `order`. Totals in `computed`, gloves from `context.packing`. Offer only `context.templateSizes`. |
 | `packing_config` | no | Contributes `packing`. Warn if gloves per case is not inner x per case. Inner unit name from config. |
 | `sampling_plan` | yes | Contributes `sampling` (the `SamplingValues` keys) and `aql.inspectionLevel` from config. Warn when below the AQL plan (`lib/aql`, `lotSizeGloves`). |
