@@ -352,4 +352,21 @@ describe("a UID for every new profile", { timeout: 30_000 }, () => {
     const next = await createAuthUser(db, { email: "ten-thousand-and-one@test.local" });
     expect(await uidOf(db, next)).toBe("SC-10001");
   });
+
+  it("draws a number for an insert ... on conflict too, even one that ends as an update (docs/DATABASE.md)", async () => {
+    const id = await createAuthUser(db, { email: "upsert@test.local" });
+    const before = await uidOf(db, id);
+    const kept = await asService(db, (tx) =>
+      column<string>(
+        tx,
+        `insert into public.profiles (id, email) values ($1, 'upsert@test.local')
+           on conflict (id) do update set full_name = 'Una Upsert' returning uid`,
+        [id],
+      ),
+    );
+    // The profile keeps its UID; the number the insert drew before the conflict is gone.
+    expect(kept).toEqual([before]);
+    const next = await createAuthUser(db, { email: "after-upsert@test.local" });
+    expect(Number((await uidOf(db, next)).slice(3))).toBe(Number(before.slice(3)) + 2);
+  });
 });
