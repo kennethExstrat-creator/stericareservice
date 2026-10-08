@@ -27,6 +27,7 @@ Supabase Postgres 17 with Auth, Storage and row level security (BUILD_SPEC 3, 4.
 | `20261007190000_inspector_writes_through_the_app.sql` | Inspectors write through the app (final audit SEC-02, SEC-03 and M3; see [Inspectors write through the app](#inspectors-write-through-the-app)): `inspections_insert` and the check of `inspections_update` become admin-only, `inspections_guard()` restated with a last rule that refuses a signed-in non-admin's insert or update (`42501`), the service-role-only functions `create_inspection()`, `save_inspection()` and `submit_inspection()` the Server Actions call with the secret key, and `log_inspection_event()` restated so an inspector records only `photo.deleted`, `file.deleted` and `started_from_previous`, on their own draft or reopened inspection, with at most 8 kB of changes. Idempotent. Apply it together with the app that calls the functions (`lib/inspections/writes.ts`). Applied live on 7 October 2026 |
 | `20261007191137_inspection_search_columns.sql` | The list's search by carton number and by lot number in any case (BUILD_SPEC 10; see [Search columns](#search-columns)): the columns `inspections.carton_numbers` and `inspections.lot_numbers_upper` with GIN indexes, the helpers `inspection_carton_numbers(jsonb)` and `upper_lot_numbers(text[])`, and the trigger `search_columns` that sets both from the row on every insert and every update of the data or the lots. The inspections already there get their values without a save (`updated_at` stays). Idempotent. Until a project has it, the list searches refs, POs, and lots as typed or in capitals (`lib/inspections/query.ts`). Applied live on 7 October 2026 |
 | `20261007193000_admins_delete_drafts_only.sql` | Admins delete drafts only, in the database too (final audit, data D1; see [Who can do what](#who-can-do-what)): drops the policy `inspections_delete`, so no signed-in user deletes an inspection directly (a delete through the Data API matches no row, without an error) and `delete_draft_inspection()` is their only delete. The service role keeps its maintenance deletes, and end-to-end teardown `delete_test_inspection()`. Idempotent. The app never deletes an inspection directly, so it can be applied at any time. Applied live on 7 October 2026 |
+| `20261008140000_profile_uid.sql` | A UID for every user (see [User UIDs](#user-uids)): `profiles.uid` (`SC-0001`; not null, unique index `profiles_uid_key`, check `profiles_uid_format`), the sequence `profile_uid_seq`, which no API role may use, the formatter `profile_uid(seq)`, the trigger `set_uid` (`profiles_assign_uid()`) that gives every new profile the next number whatever the inserter sends, and `profiles_guard()` restated with a first rule that refuses any change of a uid from every API role, the service role included (`42501`). The profiles already there are numbered oldest first without a save (`updated_at` stays). Idempotent. Until a project has it, the Users screen works without UIDs (`lib/auth/users.ts`). Not yet applied to the live project |
 
 Applied migrations never change: `supabase db push` skips every migration a project has already run, so a change to the schema goes in a new file. Every statement in 700 is idempotent, and 700 gives the same schema whichever text of 100 to 500 a project ran. It re-adds three check constraints (signature paths, audit rows without an inspection, the `ref_no` format), so it stops, changing nothing, if an existing row breaks one of them.
 
@@ -36,7 +37,7 @@ Every table has `created_at` and `updated_at`. One trigger, `set_updated_at()`, 
 
 | Table | Notes |
 |---|---|
-| `profiles` | One per auth user (`id` = `auth.users.id`), created by a trigger as an inactive inspector (see [New accounts](#new-accounts)). **Addition to BUILD_SPEC 5: `email`**, copied from `auth.users` and kept in sync by trigger, so admin lists need no Auth API call. `full_name` comes from the invite metadata; empty names are stored as null. `signature_path` must be inside the user's own folder (`<user_id>/...`). **Additions for lead inspectors: `is_lead`** (a lead inspector, `false` by default) **and `lead_id`** (the lead inspector who manages this inspector, null by default; restricted on delete), see [Lead inspectors and teams](#lead-inspectors-and-teams). |
+| `profiles` | One per auth user (`id` = `auth.users.id`), created by a trigger as an inactive inspector (see [New accounts](#new-accounts)). **Addition to BUILD_SPEC 5: `email`**, copied from `auth.users` and kept in sync by trigger, so admin lists need no Auth API call. `full_name` comes from the invite metadata; empty names are stored as null. `signature_path` must be inside the user's own folder (`<user_id>/...`). **Additions for lead inspectors: `is_lead`** (a lead inspector, `false` by default) **and `lead_id`** (the lead inspector who manages this inspector, null by default; restricted on delete), see [Lead inspectors and teams](#lead-inspectors-and-teams). **Addition: `uid`**, the user's UID (`SC-0001`), given by the database when the profile is created, in order; it never changes and is never given again, see [User UIDs](#user-uids). |
 | `manufacturers` | One row per factory: unique on name plus factory name, ignoring case. |
 | `clients` | Unique name, ignoring case. `logo_path` points into `client-logos`. |
 | `defect_codes` | Canonical codes (`^[a-z][a-z0-9_]*$`). A code never changes once created (templates and inspection data refer to it by value); deactivate instead. Severity lives in the template. |
@@ -75,6 +76,7 @@ Rules RLS cannot express are enforced by triggers, for every role:
 - The id of a deleted inspection is never used again (`23505`): Storage may still hold files in its folders, and the storage policies trust the folder id.
 - `inspections.carton_numbers` and `lot_numbers_upper` always match the row's data and lots: the trigger `search_columns` sets them whenever either is written and replaces whatever a caller sends ([Search columns](#search-columns)).
 - `profiles.email` only changes through Supabase Auth; the sync trigger copies it. Only admins change `role`, `active`, `is_lead` and `lead_id`; only the user changes their signature.
+- Every new profile gets the next UID, whatever the insert sends, and no API role changes a `profiles.uid`, the service role included (`42501`); only the database owner can renumber ([User UIDs](#user-uids)).
 - The last active admin cannot be demoted, deactivated or deleted, whoever asks (the SQL editor included).
 - The team rules in [Lead inspectors and teams](#lead-inspectors-and-teams).
 - `submitted_at`, `approved_by` and `approved_at` are set by the database, never by callers.
@@ -164,6 +166,22 @@ Server actions record everything else with `log_inspection_event(inspection_id, 
 
 `ref_no` is `INS-<year>-<number>`: the creation year in Malaysia (Asia/Kuala_Lumpur), then a sequence number padded to four digits that keeps growing past 9999 (`INS-2027-10000`). The insert guard draws the number from the sequence. The column default `''` is only a placeholder that lets callers leave `ref_no` out: an insert that supplies any other value is rejected, the service role included. A number freed by a deletion or a rollback is never handed out again. A check constraint keeps the format even when the guard is switched off for a repair.
 
+### User UIDs
+
+Kenneth, 8 October 2026: "can u give UID to each user?" Every profile has a UID, `profiles.uid` (migration `20261008140000`): `SC-` and a number, padded to four digits and never cut short, `SC-0001` … `SC-9999`, then `SC-10000` (`profile_uid(seq)`, as `inspection_ref()` writes reference numbers). The database gives it when the profile is created, in order. Only the Users screen shows it (a UID column, the user dialogs, the search); inspections, reports and sign-in do not use it.
+
+| Rule | Where | Who it binds |
+|---|---|---|
+| Every new profile draws the next number from `profile_uid_seq`, whatever the inserter sends: the auth trigger `handle_new_auth_user()` (every account, whoever creates it), the service role, the SQL editor | trigger `set_uid` (`profiles_assign_uid()`) | Everyone |
+| A number is handed out once, and never again, also after its profile is deleted or its insert rolled back | the sequence: no API role holds any privilege on it, so nobody can draw, skip or reset a number; `set_uid` draws as the owner (security definer) | Everyone |
+| Nobody changes a uid (`42501`, "a user's UID never changes") | trigger `guard` (`profiles_guard()`, its first rule) | Every API role, the service role included. Only the database owner can renumber, deliberately |
+| One profile per number, in one spelling | unique index `profiles_uid_key`, check `profiles_uid_format` | Everyone, the owner and repairs with the triggers off included |
+
+- `set_uid` fires after `guard` and `org_guard` (BEFORE triggers fire in name order), so an insert they refuse draws no number. A number drawn for an insert that fails later, or is rolled back, leaves a gap.
+- The profiles that existed when the migration ran were numbered once, oldest first (`created_at`, then `id` for two created at the same instant), by one UPDATE with `set_updated_at` switched off for it, inside one DO block that keeps the table locked: `updated_at` stays, so an account waiting for activation still reads as untouched (Pending Activation) and an invite's compare-and-set on `updated_at` still holds. The [search columns](#search-columns)' way, generated columns that the table rewrite fills, does not apply: a generated column sees only its own row. Profiles have no audit trail, so no audit row is written.
+- Who reads it: users and admins read `uid` wherever they read the profile (their own, a lead their team's, an admin everyone's); row level security is unchanged. Nothing new writes it.
+- The app: `getUserDirectory()` (`lib/auth/users.ts`) reads it for the Users screen. On a project without the migration, PostgREST answers `42703` ("column profiles.uid does not exist"), and the list is read again without the column: no UID column, and the search covers names and emails.
+
 ### Search columns
 
 The inspections list searches by ref, PO, lot or carton number (BUILD_SPEC 10; `listSearchFilter()` in `lib/inspections/query.ts`). Migration `20261007191137` adds two columns the database keeps from the row itself, so that the list finds a carton number, and a lot in any case:
@@ -220,6 +238,22 @@ An account created before the migrations ran gets the same inactive profile from
 
 `seed.sql` creates no users, so it is safe for production. The local test users of BUILD_SPEC 11 (`inspector@test.local`, `admin@test.local`) and the lead inspector `lead@test.local` (Ngan Boon Keat) are created later by a script (`npm run seed:dev-users`) through the Auth admin API, which fires the same profile trigger; the script then sets each role, name and team and activates all three, the lead first, so that `inspector@test.local` can join the lead's team (rule 4 in [Lead inspectors and teams](#lead-inspectors-and-teams)).
 
+### Go-live clean slate
+
+Before real use the test data goes: the test inspections and their history, then every test account. Once every test account is deleted, the [UID](#user-uids) sequence can be restarted together with the inspection numbers, so real users and real inspections are numbered from the start. As the database owner, in the SQL editor:
+
+```sql
+-- UIDs: the next account gets the number after the highest UID still in use.
+-- The accounts that stay (your own admin account) keep theirs: a UID never changes.
+select setval('public.profile_uid_seq',
+  coalesce((select max(substr(uid, 4)::bigint) from public.profiles), 0) + 1, false);
+
+-- Inspection numbers, once no inspection is left: the next one is INS-<year>-0001.
+select setval('public.inspection_ref_seq', 1, false);
+```
+
+This is the one time numbers are handed out again: the deleted test accounts' UIDs and the test inspections' numbers. Do it before anyone writes a UID or a reference number down, and never while a test account or a test inspection is still there.
+
 ## Regenerating types
 
 ```sh
@@ -247,7 +281,8 @@ How they work:
 - `tests/db/supabase-shim.sql` first recreates what the migrations use from a hosted project, with Supabase's definitions: the `anon`, `authenticated` and `service_role` roles (not superusers; `service_role` has BYPASSRLS), `auth.users`, `auth.uid()`, `auth.role()`, `auth.jwt()` and `auth.email()` reading the request claims, `storage.buckets` and `storage.objects` with RLS on, `storage.foldername()`, `filename()` and `extension()`, and Supabase's default privileges on schema `public`.
 - The migrations and the seed then run as `supabase_migrations`, a stand-in for Supabase's `postgres` role: not a superuser, BYPASSRLS, full access to `auth.users`, allowed to create policies on `storage.objects`. A migration that only works as a superuser fails here.
 - `tests/db/harness.ts` runs SQL as a user, as `anon`, as `service_role` or as the owner, each in its own transaction, by setting `role` and `request.jwt.claims` the way PostgREST and the Storage API do at the start of every request. Auth users are inserted the way Supabase Auth inserts them, so the profile trigger fires as it would in production.
-- `schema.test.ts` fails when a table lacks RLS or a policy, when `anon` can reach anything, when a foreign key lacks an index, when running 700 a second time on a project that has run up to it, or 151500, 170000, 190000 or 193000 a second time on top of all of them, would change any definition, when a policy lets a signed-in user delete an inspection, or when anyone but the service role can call the write functions. `shim.test.ts` pins the shim's own behaviour.
+- `schema.test.ts` fails when a table lacks RLS or a policy, when `anon` can reach anything, when a foreign key lacks an index, when running 700 or 170000 a second time on a project that has run up to it (later migrations restate some of their functions: 190000 the inspections guard, 20261008140000 the profiles guard), or 151500, 190000, 193000 or 20261008140000 a second time on top of all of them, would change any definition, when a policy lets a signed-in user delete an inspection, or when anyone but the service role can call the write functions. `shim.test.ts` pins the shim's own behaviour.
+- `profile-uid.test.ts` covers [User UIDs](#user-uids): the profiles of a project that has not had the migration, numbered oldest first without a save or an audit row; the next number for every new profile, whatever the inserter sends; numbers never handed out again after a deletion, a rollback or a refused insert; the refusal of any change for an admin, an inspector and the service role; one spelling per number and `SC-10000`; who reads a UID; no API role on the sequence; and running the migration again.
 - `inspector-writes.test.ts` covers [Inspectors write through the app](#inspectors-write-through-the-app) and what an inspector may record with `log_inspection_event()`. The other suites create, save and submit an inspector's inspection the way the app does (`createInspection()`, `saveInspection()`, `submitInspection()` and `setStatus()` in `fixtures.ts`).
 - `delete-draft-inspection.test.ts` covers the list's Delete, the only delete a signed-in user has; `rls-admin.test.ts` shows an admin's own delete removing nothing and the service role's maintenance delete.
 - The [search columns](#search-columns) are tested the same way, with the conditions `listSearchFilter()` adds, in `lib/inspections/search-migration.test.ts`.
@@ -272,6 +307,7 @@ What the shim cannot prove:
 - Delete an inspection as the signed-in user with `supabase.rpc("delete_draft_inspection", { inspection_id })` (`deleteDraftInspection()` in `lib/inspections/delete.ts`). `.from("inspections").delete()` with a user's own session matches no row, for admins too, and answers no error.
 - Deleting an inspection deletes its photo and file rows but not the objects in Storage. `delete_draft_inspection()` answers their names, and the list's Delete removes them through the Storage API once the row is gone; teardown with the secret key removes them first. Leftovers stay out of every user's reach, because the id is never reused.
 - Never send an inspection `id` in an update: it cannot change (`42501`).
+- Never send `profiles.uid`: an insert's value is replaced with the next number, and an update that changes it is refused (`42501`), the secret key included.
 - Deactivate users rather than delete them. Deleting an auth user who appears in any record (an inspection, a photo or file, an approval, an audit row, an AI decision, a template's coverage check) fails by design.
 - To activate a new template version, retire the active one first: one active version per code.
 - Inspectors cannot write `ai_reviews`. A review triggered by an inspector's submit is stored by server code with the service role.

@@ -156,11 +156,25 @@ Set up on `/admin/users`:
   earlier answers). Supabase Auth's copy (`user_metadata.full_name`,
   which the Supabase dashboard shows) follows when the server has the secret key. An account
   waiting for activation is activated first: any change to it would make it look deactivated.
+- **UIDs.** Every account has a UID, `SC-` and a number: `SC-0001`, `SC-0002` … `SC-9999`, then
+  `SC-10000`. The database gives it when the account is created, in order (the accounts from
+  before UIDs were numbered oldest first). It never changes, not even for an admin or the secret
+  key, and is never given to anyone else, also after an account is deleted. The list shows it in
+  its first column, and every dialog beside the person's name. It is not used for signing in, on
+  inspections or in reports. Details: [docs/DATABASE.md](docs/DATABASE.md#user-uids).
+- **Search**, above the list beside the Team picker: finds people by name, email or UID as you
+  type, any part of each word, in any order and any case (`SC-0042`, `sc42`, `boon keat`,
+  `@stericare`). It searches the team the Team picker shows and stays when you pick another;
+  the links that open a team (a lead's name, **Show Them**, **Show Their Team**) show it
+  whole. The address keeps it (`?q=`), so a reload or a shared link does too. When nobody
+  matches, the list says so, with **Clear Search**; Escape clears it too.
 
 The rules live in `lib/auth/org.ts` and, enforced for every request, in
 `supabase/migrations/20261007170000_lead_inspectors.sql` (details:
 [docs/DATABASE.md](docs/DATABASE.md#lead-inspectors-and-teams)). Until a project has run that
-migration, the Users screen works with roles only and says what is needed.
+migration, the Users screen works with roles only and says what is needed. Until it has run
+`supabase/migrations/20261008140000_profile_uid.sql`, the list has no UID column and the search
+covers names and emails.
 
 ## AI models
 

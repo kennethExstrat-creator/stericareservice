@@ -135,6 +135,37 @@ describe("profiles made before the migration", { timeout: 30_000 }, () => {
   });
 });
 
+describe("the go-live clean slate (docs/DATABASE.md)", { timeout: 30_000 }, () => {
+  let db: Db;
+
+  beforeAll(async () => {
+    db = await createTestDb({ seed: false });
+  }, 120_000);
+
+  afterAll(async () => {
+    await db?.close();
+  });
+
+  it("restarts the numbers after the highest UID still in use, once the test accounts are gone", async () => {
+    const kenneth = await createAuthUser(db, { email: "kenneth@example.com" });
+    const tests = [await createAuthUser(db, { email: "a@test.local" }), await createAuthUser(db, { email: "b@test.local" })];
+    expect(await uidOf(db, tests[1])).toBe("SC-0003");
+    await asOwner(db, (tx) => tx.query("delete from auth.users where id = any($1::uuid[])", [tests]));
+
+    // The statement in docs/DATABASE.md, Go-live clean slate.
+    await asOwner(db, (tx) =>
+      tx.query(
+        `select setval('public.profile_uid_seq',
+           coalesce((select max(substr(uid, 4)::bigint) from public.profiles), 0) + 1, false)`,
+      ),
+    );
+
+    expect(await uidOf(db, kenneth)).toBe("SC-0001");
+    const firstRealUser = await createAuthUser(db, { email: "first@example.com" });
+    expect(await uidOf(db, firstRealUser)).toBe("SC-0002");
+  });
+});
+
 describe("a UID for every new profile", { timeout: 30_000 }, () => {
   let db: Db;
   let people: People;
