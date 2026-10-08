@@ -44,9 +44,14 @@ export function TeamCell({ user }: { user: UserListItem }) {
   }
   if (user.roleChoice === "lead") {
     const size = user.team.length;
-    if (size === 0) return <span className="text-muted-foreground">No team yet</span>;
+    // Short and fixed, so on one line: a row stays one line high on desktop beside the UID column.
+    if (size === 0) return <span className="whitespace-nowrap text-muted-foreground">No team yet</span>;
     return (
-      <Link href={teamHref(user.id)} className={LINK} aria-label={`Leads ${inspectorsText(size)}: show the team`}>
+      <Link
+        href={teamHref(user.id)}
+        className={cn(LINK, "whitespace-nowrap")}
+        aria-label={`Leads ${inspectorsText(size)}: show the team`}
+      >
         Leads {inspectorsText(size)}
       </Link>
     );

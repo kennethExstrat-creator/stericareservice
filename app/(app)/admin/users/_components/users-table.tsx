@@ -73,7 +73,8 @@ export function UsersTable({
             {uids && <TableHead className={cn("pl-4", HEAD)}>UID</TableHead>}
             <TableHead className={cn(!uids && "pl-4", HEAD)}>Name</TableHead>
             <TableHead className={cn("hidden xl:table-cell", HEAD)}>Email</TableHead>
-            <TableHead className={HEAD}>Role</TableHead>
+            {/* Below 1024 px the lead sits under the role: room for "Lead:" and a name on one line beside the UID column. */}
+            <TableHead className={cn(teams && "max-lg:min-w-44", HEAD)}>Role</TableHead>
             {teams && <TableHead className={cn("hidden lg:table-cell", HEAD)}>Lead Inspector</TableHead>}
             <TableHead className={HEAD}>Status</TableHead>
             {showSignIns && <TableHead className={HEAD}>Last Signed In</TableHead>}

@@ -230,6 +230,12 @@ describe("UsersTable: lead inspectors and their teams", () => {
     expect(html).toMatch(/<th[^>]*class="[^"]*hidden lg:table-cell[^"]*"[^>]*>Lead Inspector<\/th>/);
     expect(olga).toMatch(/data-slot="team-under-role">Lead: <a/);
     expect(admin).not.toContain('data-slot="team-under-role"');
+    // Room for "Lead:" and a name on one line there, beside the UID column.
+    expect(html).toMatch(/<th[^>]*class="[^"]*\bmax-lg:min-w-44\b[^"]*"[^>]*>Role<\/th>/);
+  });
+
+  it("keeps a lead's team size on one line, so their row stays one line high on desktop", () => {
+    expect(lina).toMatch(/<a[^>]*class="[^"]*\bwhitespace-nowrap\b[^"]*"[^>]*>Leads 2 inspectors<\/a>/);
   });
 
   it("has no team column on a project without lead inspectors", () => {
