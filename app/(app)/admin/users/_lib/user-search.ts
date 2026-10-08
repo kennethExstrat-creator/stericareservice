@@ -42,6 +42,17 @@ export function isSearching(query: string): boolean {
   return normaliseForSearch(query) !== "";
 }
 
+/**
+ * The search once the list shows another view, from the search in the box
+ * and the ?q= of the address the server drew the new view for. The Team
+ * picker brings the search along in the address, so it stays, as typed
+ * since; a link to a team (a lead's name, Show Them, Show Their Team) comes
+ * without one, so the search goes and the team shows whole.
+ */
+export function queryAfterViewChange(current: string, addressQuery: string): string {
+  return addressQuery.trim() ? current : "";
+}
+
 /** The ids of the people a search leaves showing, or null without one: everyone. */
 export function matchingIds(entries: readonly SearchEntry[], query: string): Set<string> | null {
   if (!isSearching(query)) return null;

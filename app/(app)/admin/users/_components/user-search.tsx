@@ -14,7 +14,14 @@ import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "
 import { Label } from "@/components/ui/label";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { SEARCH_PARAM, type TeamFilter } from "../_lib/team-filter";
-import { listSummary, matchingIds, MAX_SEARCH_LENGTH, noMatchMessage, type SearchEntry } from "../_lib/user-search";
+import {
+  listSummary,
+  matchingIds,
+  MAX_SEARCH_LENGTH,
+  noMatchMessage,
+  queryAfterViewChange,
+  type SearchEntry,
+} from "../_lib/user-search";
 
 type UserSearchState = {
   query: string;
@@ -67,10 +74,9 @@ export function UserSearch({
   const [query, setQuery] = useState(initialQuery);
   const [shownView, setShownView] = useState(view);
   if (view !== shownView) {
-    // Another view. The Team picker brings the search along in the address;
-    // a link to a team comes without one, so the team shows whole.
+    // Another view: the Team picker's keeps the search, a team link's shows the team whole.
     setShownView(view);
-    if (!initialQuery.trim()) setQuery("");
+    setQuery(queryAfterViewChange(query, initialQuery));
   }
   const matched = useMemo(() => matchingIds(entries, query), [entries, query]);
 

@@ -6,6 +6,7 @@ import {
   matchingIds,
   MAX_SEARCH_LENGTH,
   noMatchMessage,
+  queryAfterViewChange,
   readSearch,
   uidSpellings,
   userSearchText,
@@ -80,6 +81,21 @@ describe("the search on /admin/users", () => {
     expect(readSearch(["olga", "ivan"])).toBe("olga");
     expect(readSearch(undefined)).toBe("");
     expect(readSearch("x".repeat(500))).toHaveLength(MAX_SEARCH_LENGTH);
+  });
+});
+
+describe("queryAfterViewChange", () => {
+  it("keeps the search the Team picker brought along in the address, as typed since", () => {
+    expect(queryAfterViewChange("olga", "olga")).toBe("olga");
+    // Typed on while the picked team loaded: the box keeps what is in it now.
+    expect(queryAfterViewChange("olga ot", "olga")).toBe("olga ot");
+    expect(queryAfterViewChange(" SC-0042 ", "SC-0042")).toBe(" SC-0042 ");
+  });
+
+  it("drops it for a link to a team (a lead's name, Show Them, Show Their Team), so the team shows whole", () => {
+    expect(queryAfterViewChange("olga", "")).toBe("");
+    expect(queryAfterViewChange("olga", "   ")).toBe("");
+    expect(queryAfterViewChange("", "")).toBe("");
   });
 });
 
