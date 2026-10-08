@@ -2,13 +2,15 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { createTestAdminClient } from "../support/admin";
 import { expectNoPageScroll } from "../support/layout";
 import { sessionCookies, TEST_ACCOUNTS, type SessionCookie } from "../support/session";
-import { rowFor, shot, teamsReady, uidsReady } from "./support";
+import { createThrowaway, deleteAccount, rowFor, shot, statusOf, sweepThrowaways, teamsReady, uidsReady } from "./support";
 
 /**
  * UIDs on /admin/users (Kenneth, 8 October 2026; migration 20261008140000):
- * the UID column and the dialogs, and the search by UID, name and email, on
- * its own and inside a lead's team. Read-only: it types, opens a dialog and
- * cancels, and changes no account. Signs the admin in once.
+ * the UID column and the dialogs, the search by UID, name and email, on its
+ * own and inside a lead's team, and rows that stay compact beside the UID
+ * column. It types, follows links, opens a dialog and cancels, and changes
+ * no account; the desktop row check adds one throwaway account, waiting for
+ * activation, and deletes it. Signs the admin in once.
  *
  * Until the project in .env.local has run the migration, the screen has no
  * UID column and searches names and emails only: the UID checks are then
@@ -32,22 +34,36 @@ test.beforeAll(async () => {
   cookies = await sessionCookies(TEST_ACCOUNTS.admin);
 });
 
+test.afterAll(async () => {
+  await sweepThrowaways();
+});
+
 test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies(cookies.map((cookie) => ({ ...cookie, url: baseURL! })));
 });
 
-/** A test account as the database holds it (read with the secret key, never to assert what a user sees). */
+/**
+ * A test account as the database holds it (read with the secret key, never
+ * to assert what a user sees). Its lead and UID only where the project has
+ * those columns (migrations 20261007170000 and 20261008140000).
+ */
 async function account(email: string): Promise<Account> {
   const admin = createTestAdminClient();
-  const { data, error } = await admin.from("profiles").select("id, email, full_name, lead_id").eq("email", email).single();
+  const { data, error } = await admin.from("profiles").select("id, email, full_name").eq("email", email).single();
   if (error) throw new Error(`Could not read ${email}: ${error.message}`);
+  let leadId: string | null = null;
+  if (teams) {
+    const found = await admin.from("profiles").select("lead_id").eq("id", data.id).single();
+    if (found.error) throw new Error(`Could not read the lead inspector of ${email}: ${found.error.message}`);
+    leadId = found.data.lead_id;
+  }
   let uid: string | null = null;
   if (uids) {
     const found = await admin.from("profiles").select("uid").eq("id", data.id).single();
     if (found.error) throw new Error(`Could not read the UID of ${email}: ${found.error.message}`);
     uid = found.data.uid;
   }
-  return { id: data.id, email, name: data.full_name?.trim() || email, uid, leadId: data.lead_id };
+  return { id: data.id, email, name: data.full_name?.trim() || email, uid, leadId };
 }
 
 function isTouch(): boolean {
@@ -76,6 +92,36 @@ function watchHydration(page: Page): () => string[] {
   });
   page.on("pageerror", (error) => errors.push(error.message));
   return () => errors.filter((text) => /hydrat|did not match|server rendered/i.test(text));
+}
+
+/**
+ * Where the row's text wraps inside a word, as "Subramania|m": any line
+ * break that is not at a space or after an @, a hyphen or a slash. An
+ * address's two halves around its <wbr> are text apart, free to wrap
+ * between them. Read from where each character lands on the screen.
+ */
+async function wordsBrokenIn(row: Locator): Promise<string[]> {
+  return row.evaluate((element) => {
+    const broken: string[] = [];
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode() as Text | null; node; node = walker.nextNode() as Text | null) {
+      let lineTop: number | null = null;
+      for (let i = 0; i < node.data.length; i++) {
+        const range = document.createRange();
+        range.setStart(node, i);
+        range.setEnd(node, i + 1);
+        const box = range.getClientRects()[0];
+        // Hidden at this size, or a space at the end of a line.
+        if (!box || box.width === 0) continue;
+        const top = Math.round(box.top);
+        if (lineTop !== null && top > lineTop + 1 && !/[\s@/-]/.test(node.data[i - 1]) && !/\s/.test(node.data[i])) {
+          broken.push(`${node.data.slice(0, i)}|${node.data.slice(i)}`);
+        }
+        lineTop = top;
+      }
+    }
+    return broken;
+  });
 }
 
 test("the UID column, and the search by UID, name and email", async ({ page }) => {
@@ -206,6 +252,30 @@ test("the UID column, and the search by UID, name and email", async ({ page }) =
     await expect(summary(page)).toHaveText(new RegExp(`^${escape(lead.name)}'s team: \\d+ inspectors?\\.$`));
   });
 
+  await test.step("a link to a team shows it whole: the search leaves the box and the address", async () => {
+    if (!teams) return;
+    await page.goto("/admin/users");
+    // The inspector's row links to their lead's team, the lead's row to the team they lead.
+    const fromInspector = inspector.leadId === lead.id;
+    const from = fromInspector ? inspector : lead;
+    await searchBox(page).fill(from.email);
+    await expect(rowFor(page, from.email)).toBeVisible();
+    await expect(page).toHaveURL(/[?&]q=/);
+    const link = rowFor(page, from.email).getByRole("link", {
+      name: fromInspector ? new RegExp(`^${escape(lead.name)}: show their team$`) : /^Leads \d+ inspectors?: show the team$/,
+    });
+    if ((await link.count()) === 0) {
+      test.info().annotations.push({ type: "skipped", description: `A link to a team: ${LEAD} leads nobody` });
+      return;
+    }
+    await link.click();
+    await expect(page).toHaveURL(new RegExp(`[?&]team=${lead.id}(&|$)`));
+    await expect(searchBox(page)).toHaveValue("");
+    await expect(page).not.toHaveURL(/[?&]q=/);
+    await expect(summary(page)).toHaveText(new RegExp(`^${escape(lead.name)}'s team: \\d+ inspectors?\\.$`));
+    await expect(bodyRows(page).first()).toContainText(lead.email);
+  });
+
   await test.step("the dialogs show the UID beside the name and keep their names", async () => {
     await page.goto("/admin/users");
     await rowFor(page, admin.email).getByRole("button", { name: /^Actions for / }).click();
@@ -249,4 +319,33 @@ test("the search and the Team picker fit every size, at a finger's reach", async
   await expect(rowFor(page, TEST_ACCOUNTS.inspector)).toBeVisible();
   await expectNoPageScroll(page);
   await shot(page, "uid-toolbar");
+});
+
+test("names and addresses wrap between words at every size, never inside one", async ({ page }) => {
+  // Beside the UID column at 820 px an address broke as "inspector@test.lo|cal" before it wrapped after its @.
+  await page.goto("/admin/users");
+  for (const email of [TEST_ACCOUNTS.admin, TEST_ACCOUNTS.inspector, LEAD]) {
+    await expect(rowFor(page, email)).toBeVisible();
+    expect(await wordsBrokenIn(rowFor(page, email)), email).toEqual([]);
+  }
+});
+
+test("rows stay compact on desktop beside the UID column, a long name waiting for activation included", async ({ page }) => {
+  test.skip(test.info().project.name !== "desktop", "Desktop rows: compact, two lines at most (docs/DESIGN.md, Density)");
+  // Pending Activation widens the Status column, and the long name needs room beside the UID column.
+  const pending = await createThrowaway("Muhammad Hafiz bin Abdul Rahman", { activate: false });
+  try {
+    await page.goto("/admin/users");
+    await expect(statusOf(rowFor(page, pending.email))).toContainText("Pending Activation");
+    if (!uids) noUids("The rows beside the UID column (checked without it)");
+    for (const email of [TEST_ACCOUNTS.admin, TEST_ACCOUNTS.inspector, LEAD, pending.email]) {
+      const row = rowFor(page, email);
+      // One line is 35 px around the menu button; two lines of a name, 47 px.
+      expect((await row.boundingBox())?.height ?? Infinity, `${email}: two lines at most`).toBeLessThanOrEqual(48);
+      expect(await wordsBrokenIn(row), email).toEqual([]);
+    }
+    await shot(page, "uid-rows");
+  } finally {
+    await deleteAccount(pending.id);
+  }
 });
