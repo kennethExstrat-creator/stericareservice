@@ -279,16 +279,23 @@ describe("lead inspectors: the rules on profiles", { timeout: 30_000 }, () => {
     });
   });
 
+  // Where it stands: 20261008140000 restates the profiles guard, so running
+  // this one again on top of it would bring back the guard without the UID rule.
   it("applies again without changing the schema", async () => {
-    const before = await schemaSnapshot(db);
-    const migration = (await readMigrations()).find((file) => file.name === MIGRATION);
-    expect(migration).toBeDefined();
-    await applyAsOwner(db, migration!);
-    expect(await schemaSnapshot(db)).toEqual(before);
-    expect(
-      await asOwner(db, (tx) =>
-        column<string>(tx, "select column_name::text from information_schema.columns where table_name = 'profiles' and column_name in ('is_lead', 'lead_id') order by 1"),
-      ),
-    ).toEqual(["is_lead", "lead_id"]);
+    const upToIt = await createTestDb({ seed: false, until: MIGRATION });
+    try {
+      const before = await schemaSnapshot(upToIt);
+      const migration = (await readMigrations()).find((file) => file.name === MIGRATION);
+      expect(migration).toBeDefined();
+      await applyAsOwner(upToIt, migration!);
+      expect(await schemaSnapshot(upToIt)).toEqual(before);
+      expect(
+        await asOwner(upToIt, (tx) =>
+          column<string>(tx, "select column_name::text from information_schema.columns where table_name = 'profiles' and column_name in ('is_lead', 'lead_id') order by 1"),
+        ),
+      ).toEqual(["is_lead", "lead_id"]);
+    } finally {
+      await upToIt.close();
+    }
   });
 });

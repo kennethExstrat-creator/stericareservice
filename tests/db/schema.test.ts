@@ -110,31 +110,34 @@ describe("schema guards", { timeout: 30_000 }, () => {
     expect(result.rows).toEqual([]);
   });
 
-  // 20261006000700 restates rules that a project may already have, so running
-  // it again must change nothing. Later migrations restate some of its
-  // functions (20261007190000: the inspections guard, log_inspection_event()),
-  // so it is run again where it stands: on a project that has run up to it.
-  it("applies the review fixes again without changing the schema", async () => {
-    const name = "20261006000700_review_fixes.sql";
-    const upToFixes = await createTestDb({ seed: false, until: name });
-    try {
-      const before = await schemaSnapshot(upToFixes);
-      const fixes = (await readMigrations()).find((file) => file.name === name);
-      expect(fixes).toBeDefined();
-      await applyAsOwner(upToFixes, fixes!);
-      expect(await schemaSnapshot(upToFixes)).toEqual(before);
-    } finally {
-      await upToFixes.close();
-    }
-  });
+  // Migrations whose functions a later one restates are run again where they
+  // stand: on a project that has run up to them. 20261006000700 restates
+  // rules that a project may already have, and 20261007190000 restates its
+  // inspections guard and log_inspection_event(); 20261008140000 restates the
+  // profiles guard of 20261007170000.
+  it.each(["20261006000700_review_fixes.sql", "20261007170000_lead_inspectors.sql"])(
+    "applies %s again where it stands without changing the schema",
+    async (name) => {
+      const upToIt = await createTestDb({ seed: false, until: name });
+      try {
+        const before = await schemaSnapshot(upToIt);
+        const migration = (await readMigrations()).find((file) => file.name === name);
+        expect(migration).toBeDefined();
+        await applyAsOwner(upToIt, migration!);
+        expect(await schemaSnapshot(upToIt)).toEqual(before);
+      } finally {
+        await upToIt.close();
+      }
+    },
+  );
 
   // The migrations that say "Idempotent: running it again changes nothing",
   // run again on top of all of them.
   it.each([
     "20261007151500_delete_draft_inspection.sql",
-    "20261007170000_lead_inspectors.sql",
     "20261007190000_inspector_writes_through_the_app.sql",
     "20261007193000_admins_delete_drafts_only.sql",
+    "20261008140000_profile_uid.sql",
   ])("applies %s again without changing the schema", async (name) => {
     const before = await schemaSnapshot(db);
     const migration = (await readMigrations()).find((file) => file.name === name);
