@@ -69,11 +69,15 @@ describe("profiles made before the migration", { timeout: 30_000 }, () => {
     ids.dee = await createAuthUser(db, { email: "dee@test.local", fullName: "Dee", active: false });
     ids.eve = await createAuthUser(db, { email: "eve@test.local", fullName: "Eve" });
     // When each was created, in another order than they were inserted, two of them at the same instant.
+    // Each update writes the row anew at the end of the table, so the tied pair is written larger id
+    // first: read in table order, it comes first, and only the tie-break by id numbers it second.
+    const [, larger] = [ids.cid, ids.dee].sort();
+    const smaller = larger === ids.cid ? ids.dee : ids.cid;
     const created: [string, string][] = [
       [ids.eve, "2026-10-01 08:00:00+00"],
       [ids.bea, "2026-10-02 08:00:00+00"],
-      [ids.cid, "2026-10-03 08:00:00+00"],
-      [ids.dee, "2026-10-03 08:00:00+00"],
+      [larger, "2026-10-03 08:00:00+00"],
+      [smaller, "2026-10-03 08:00:00+00"],
       [ids.ada, "2026-10-04 08:00:00+00"],
     ];
     await asOwner(db, async (tx) => {
@@ -114,6 +118,24 @@ describe("profiles made before the migration", { timeout: 30_000 }, () => {
     const dee = before.find((row) => row.id === ids.dee)!;
     expect(dee.updated_at).toBe(dee.created_at);
     expect(await audit()).toEqual(auditBefore);
+
+    // Every profile has a number from here on, and set_updated_at, off for the numbering, is on again.
+    const state = await asOwner(db, (tx) =>
+      tx.query<{ not_null: boolean; trigger: string }>(
+        `select a.attnotnull as not_null,
+                (select t.tgenabled::text from pg_trigger t
+                  where t.tgrelid = 'public.profiles'::regclass and t.tgname = 'set_updated_at') as trigger
+           from pg_attribute a
+          where a.attrelid = 'public.profiles'::regclass and a.attname = 'uid'`,
+      ),
+    );
+    expect(state.rows).toEqual([{ not_null: true, trigger: "O" }]);
+    const eve = before.find((row) => row.id === ids.eve)!;
+    const renamed = await asOwner(db, (tx) =>
+      column<string>(tx, "update public.profiles set full_name = 'Eve E.' where id = $1 returning updated_at::text", [ids.eve]),
+    );
+    expect(renamed).toHaveLength(1);
+    expect(renamed[0]).not.toBe(eve.updated_at);
   });
 
   it("gives the next profile the number after the last one", async () => {
@@ -265,6 +287,9 @@ describe("a UID for every new profile", { timeout: 30_000 }, () => {
   it("keeps one profile per number, in one spelling, even for the owner", async () => {
     const taken = await pgError(asOwner(db, (tx) => tx.query("update public.profiles set uid = 'SC-0001' where id = $1", [people.inspector])));
     expect(taken.code).toBe("23505");
+    // Never none: the format check lets a null through, and the unique index takes any number of them.
+    const none = await pgError(asOwner(db, (tx) => tx.query("update public.profiles set uid = null where id = $1", [people.inspector])));
+    expect(none.code).toBe("23502");
     for (const uid of ["SC-42", "SC-00042", "SC-0000", "SC-012345", "sc-0042", "SC0042", "INS-0042", " SC-0042"]) {
       const refused = await pgError(asOwner(db, (tx) => tx.query("update public.profiles set uid = $2 where id = $1", [people.inspector, uid])));
       expect(refused.code, uid).toBe("23514");
