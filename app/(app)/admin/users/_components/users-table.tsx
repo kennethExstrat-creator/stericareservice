@@ -23,6 +23,25 @@ function DateText({ iso, empty }: { iso: string | null; empty: string }) {
   return <time dateTime={iso}>{DATE.format(new Date(iso))}</time>;
 }
 
+/**
+ * An email address that wraps after its @ where its column is too narrow for
+ * it ("hafiz.abdulrahman@" over "stericare.com.my"), rather than inside a
+ * word. On desktop the Email column gives up width this way, so the Name
+ * column beside the UID keeps its own. Under the name on iPad, a part wider
+ * than the column still breaks where it must.
+ */
+export function EmailText({ email }: { email: string }) {
+  const at = email.lastIndexOf("@");
+  if (at <= 0) return email;
+  return (
+    <>
+      {email.slice(0, at + 1)}
+      <wbr />
+      {email.slice(at + 1)}
+    </>
+  );
+}
+
 // Compact rows with a mouse or trackpad (docs/DESIGN.md, Density): a 36 px
 // header and rows of about 35 px around the 32 px menu button. Touch keeps
 // the table's own 44 px sizes.
@@ -34,10 +53,11 @@ const EVERYONE: TeamFilter = { kind: "everyone" };
 /**
  * Everyone with an account. Each row starts with the person's UID, on one
  * line in tabular figures. Desktop (1280 px and wider) gets one compact line
- * per person; on iPad the email and the date added sit under the name, the
- * lead inspector under the role below 1024 px, and the least needed columns
- * drop out, so the row keeps 44 px controls without scrolling sideways. The
- * rows are drawn here; the search (user-search.tsx) chooses which show.
+ * per person, the email wrapping after its @ when long names need the room;
+ * on iPad the email and the date added sit under the name, the lead
+ * inspector under the role below 1024 px, and the least needed columns drop
+ * out, so the row keeps 44 px controls without scrolling sideways. The rows
+ * are drawn here; the search (user-search.tsx) chooses which show.
  */
 export function UsersTable({
   users,
@@ -73,8 +93,9 @@ export function UsersTable({
             {uids && <TableHead className={cn("pl-4", HEAD)}>UID</TableHead>}
             <TableHead className={cn(!uids && "pl-4", HEAD)}>Name</TableHead>
             <TableHead className={cn("hidden xl:table-cell", HEAD)}>Email</TableHead>
-            {/* Below 1024 px the lead sits under the role: room for "Lead:" and a name on one line beside the UID column. */}
-            <TableHead className={cn(teams && "max-lg:min-w-44", HEAD)}>Role</TableHead>
+            {/* Below 1024 px the lead sits under the role: 176 px holds "Lead:" and a name on one line, and the
+                name beside the UID keeps the rest (more only when a cell needs it, as a No Lead Inspector badge may). */}
+            <TableHead className={cn(teams && "max-lg:w-44", HEAD)}>Role</TableHead>
             {teams && <TableHead className={cn("hidden lg:table-cell", HEAD)}>Lead Inspector</TableHead>}
             <TableHead className={HEAD}>Status</TableHead>
             {showSignIns && <TableHead className={HEAD}>Last Signed In</TableHead>}
@@ -114,7 +135,8 @@ function UserRow({
   leads: readonly LeadOption[];
 }) {
   const name = displayName(user.fullName, user.email);
-  const showEmailUnderName = Boolean(user.fullName?.trim()) && user.email !== "";
+  const named = Boolean(user.fullName?.trim());
+  const showEmailUnderName = named && user.email !== "";
   return (
     <TableRow data-status={user.status} data-role={user.roleChoice}>
       {uids && (
@@ -125,11 +147,14 @@ function UserRow({
       <TableCell className={cn(!uids && "pl-4", "whitespace-normal", CELL)}>
         <div className="flex min-w-0 flex-col gap-0.5 py-0.5">
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium text-foreground">
-            <span className="[overflow-wrap:anywhere]">{name}</span>
+            {/* Someone invited without a name goes by their email, which wraps after its @. */}
+            <span className="[overflow-wrap:anywhere]">{named ? name : <EmailText email={name} />}</span>
             {user.isSelf && <Badge variant="secondary">You</Badge>}
           </span>
           {showEmailUnderName && (
-            <span className="text-muted-foreground [overflow-wrap:anywhere] xl:hidden">{user.email}</span>
+            <span className="text-muted-foreground [overflow-wrap:anywhere] xl:hidden">
+              <EmailText email={user.email} />
+            </span>
           )}
           {/* The Added column starts at 1024 px; below that the date sits here. */}
           <span className="text-muted-foreground lg:hidden">
@@ -137,7 +162,10 @@ function UserRow({
           </span>
         </div>
       </TableCell>
-      <TableCell className={cn("hidden text-muted-foreground xl:table-cell", CELL)}>{user.email}</TableCell>
+      {/* Wraps after the @ rather than squeezing the name beside the UID (docs/DESIGN.md, Density). */}
+      <TableCell className={cn("hidden whitespace-normal text-muted-foreground xl:table-cell", CELL)}>
+        <EmailText email={user.email} />
+      </TableCell>
       <TableCell className={cn("whitespace-normal", CELL)}>
         <div className="flex flex-col items-start gap-1">
           <RoleLabel role={user.roleChoice} />

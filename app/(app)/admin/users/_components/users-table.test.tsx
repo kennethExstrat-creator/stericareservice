@@ -14,7 +14,7 @@ vi.mock("../actions", () => ({
   inviteUser: vi.fn(),
 }));
 
-import { UsersTable } from "./users-table";
+import { EmailText, UsersTable } from "./users-table";
 
 const LEAD_ID = "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d";
 
@@ -176,8 +176,26 @@ describe("UsersTable", () => {
 
   it("names a person without a full name by their email, without repeating it under the name", () => {
     // Text nodes only (attributes like the menu's aria-label are not counted).
-    expect(pending.match(/>new@test\.local</g)).toHaveLength(2); // the name cell and the email column
-    expect(olga.match(/>olga@test\.local</g)).toHaveLength(2); // under the name (below 1280 px) and the email column
+    expect(pending.match(/>new@<wbr\/>test\.local</g)).toHaveLength(2); // the name cell and the email column
+    expect(olga.match(/>olga@<wbr\/>test\.local</g)).toHaveLength(2); // under the name (below 1280 px) and the email column
+  });
+
+  it("lets an address wrap after its @ rather than squeeze the name beside the UID", () => {
+    // Desktop: the Email column wraps, so it gives up width instead of the Name column.
+    const emailCell = olga.match(/<td[^>]*\bxl:table-cell\b[^>]*>olga@<wbr\/>test\.local<\/td>/)?.[0] ?? "";
+    expect(emailCell).toMatch(/class="[^"]*\bwhitespace-normal\b/);
+    expect(emailCell).not.toMatch(/\bwhitespace-nowrap\b/);
+    // Under the name below 1280 px, and as the name of someone invited without one.
+    expect(olga).toContain('xl:hidden">olga@<wbr/>test.local</span>');
+    expect(pending).toContain('<span class="[overflow-wrap:anywhere]">new@<wbr/>test.local</span>');
+    // A name is never split.
+    expect(olga).toContain('<span class="[overflow-wrap:anywhere]">Olga Other</span>');
+  });
+
+  it("offers the break after an @ with something before it, and writes anything else as it is", () => {
+    expect(renderToStaticMarkup(<EmailText email="olga@test.local" />)).toBe("olga@<wbr/>test.local");
+    expect(renderToStaticMarkup(<EmailText email="This user" />)).toBe("This user");
+    expect(renderToStaticMarkup(<EmailText email="@test.local" />)).toBe("@test.local");
   });
 
   it("gives every row a named actions menu", () => {
@@ -230,8 +248,9 @@ describe("UsersTable: lead inspectors and their teams", () => {
     expect(html).toMatch(/<th[^>]*class="[^"]*hidden lg:table-cell[^"]*"[^>]*>Lead Inspector<\/th>/);
     expect(olga).toMatch(/data-slot="team-under-role">Lead: <a/);
     expect(admin).not.toContain('data-slot="team-under-role"');
-    // Room for "Lead:" and a name on one line there, beside the UID column.
-    expect(html).toMatch(/<th[^>]*class="[^"]*\bmax-lg:min-w-44\b[^"]*"[^>]*>Role<\/th>/);
+    // Room for "Lead:" and a name on one line there, and no more: the name beside the UID column keeps the rest.
+    expect(html).toMatch(/<th[^>]*class="[^"]*\bmax-lg:w-44\b[^"]*"[^>]*>Role<\/th>/);
+    expect(html).not.toMatch(/<th[^>]*\bmax-lg:min-w-44\b[^>]*>Role<\/th>/);
   });
 
   it("keeps a lead's team size on one line, so their row stays one line high on desktop", () => {
