@@ -99,6 +99,9 @@ than from a full-page image.
   inspectors only), then delete templates and throwaway accounts.
 - Inspection inserts never send `id` or `ref_no`: the database draws the ref number. Every
   insert uses a number from the live sequence, so keep e2e runs few.
+- Every throwaway account draws a UID from the live sequence too, once the project has migration
+  `20261008140000`, and a UID is never given again, so each one leaves a gap between the real
+  users' numbers (`docs/DATABASE.md`, User UIDs). Never send `uid`: the database gives it.
 - A throwaway account that deletes an inspection itself (the list's Delete,
   `delete_draft_inspection()`) is named as the actor of the deletion record, which nothing removes:
   that account can then only be deactivated, not deleted. Let `inspector@test.local` make those
@@ -118,8 +121,9 @@ than from a full-page image.
 The specs from the final pass enter the example reports through the real screens and probe access,
 data and design. They are skipped unless `ACCEPTANCE=1` is set, and they run against a production
 build (`npm run build && npx next start -p 3900`, with `AI_REVIEW_PROVIDER=mock ENABLE_MOCK_AI=true`
-for the AI steps). They write to the live project: every run draws inspection numbers and leaves
-deletion records, so run them before a release, not routinely.
+for the AI steps). They write to the live project: every run draws inspection numbers and a UID for
+every test account it creates, and leaves deletion records, so run them before a release, not
+routinely.
 
 ```bash
 ACCEPTANCE=1 PLAYWRIGHT_BASE_URL=http://localhost:3900 npx playwright test e2e/acceptance/std-eg.spec.ts --project=ipad-pro-landscape

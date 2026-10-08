@@ -159,9 +159,10 @@ Set up on `/admin/users`:
 - **UIDs.** Every account has a UID, `SC-` and a number: `SC-0001`, `SC-0002` … `SC-9999`, then
   `SC-10000`. The database gives it when the account is created, in order (the accounts from
   before UIDs were numbered oldest first). It never changes, not even for an admin or the secret
-  key, and is never given to anyone else, also after an account is deleted. The list shows it in
-  its first column, and every dialog beside the person's name. It is not used for signing in, on
-  inspections or in reports. Details: [docs/DATABASE.md](docs/DATABASE.md#user-uids).
+  key, and is never given to anyone else, also after an account is deleted: the numbers can skip
+  (a deleted account's, a test account's), and a gap never means a missing user. The list shows
+  it in its first column, and every dialog beside the person's name. It is not used for signing
+  in, on inspections or in reports. Details: [docs/DATABASE.md](docs/DATABASE.md#user-uids).
 - **Search**, above the list beside the Team picker: finds people by name, email or UID as you
   type, any part of each word, in any order and any case (`SC-0042`, `sc42`, `boon keat`,
   `@stericare`). It searches the team the Team picker shows and stays when you pick another;
