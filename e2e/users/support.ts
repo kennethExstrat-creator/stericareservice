@@ -183,6 +183,18 @@ export async function teamsReady(): Promise<boolean> {
   throw new Error(`Could not tell whether the project has lead inspectors: ${error.message}`);
 }
 
+/**
+ * True when the project has UIDs (migration 20261008140000). Until it has,
+ * the Users screen has no UID column and searches names and emails only, and
+ * the specs check that instead.
+ */
+export async function uidsReady(): Promise<boolean> {
+  const { error } = await createTestAdminClient().from("profiles").select("uid").limit(1);
+  if (!error) return true;
+  if (error.code === "42703") return false;
+  throw new Error(`Could not tell whether the project has UIDs: ${error.message}`);
+}
+
 /** Picks a role in a role dialog: Inspector, Lead Inspector or Admin. */
 export async function pickRole(dialog: Locator, role: "Inspector" | "Lead Inspector" | "Admin"): Promise<void> {
   await dialog.getByRole("radio", { name: new RegExp(`^${role}\\b`) }).click();
