@@ -21,6 +21,7 @@ import { submitAction } from "@/lib/admin/submit";
 import { cn } from "@/lib/utils";
 import { renameUser, type ActionResult } from "../actions";
 import { SCROLLING_DIALOG } from "./role-fields";
+import { TitleWithUid } from "./uid-badge";
 import { unreachable } from "./unreachable";
 import { DIALOG_TITLE, type UserActionsTarget } from "./user-menu";
 
@@ -29,7 +30,8 @@ const IDLE: ActionResult = { status: "idle" };
 /**
  * Change Name: one field, the name the app shows for this person everywhere,
  * filled with their name as saved (empty when they have none, never their
- * email) and selected, so typing replaces it and an arrow key edits it.
+ * email) and selected, so typing replaces it and an arrow key edits it. Their
+ * UID stays beside the title: it never changes with the name.
  * Submitted by hand (submitAction), like the screen's other dialogs: a
  * refused name stays in the field, next to the reason.
  */
@@ -38,7 +40,7 @@ export function RenameDialog({
   onClose,
   returnFocusTo,
 }: {
-  user: Pick<UserActionsTarget, "id" | "name" | "fullName">;
+  user: Pick<UserActionsTarget, "id" | "uid" | "name" | "fullName">;
   onClose: () => void;
   returnFocusTo: RefObject<HTMLButtonElement | null>;
 }) {
@@ -92,7 +94,9 @@ export function RenameDialog({
       >
         <form onSubmit={submitAction(formAction, pending)} noValidate className="grid gap-6" data-testid="rename-form">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold">{DIALOG_TITLE["change-name"](user.name)}</DialogTitle>
+            <TitleWithUid uid={user.uid}>
+              <DialogTitle className="text-lg font-bold">{DIALOG_TITLE["change-name"](user.name)}</DialogTitle>
+            </TitleWithUid>
             <DialogDescription>The app shows the new name wherever it names them, their inspections included.</DialogDescription>
           </DialogHeader>
 

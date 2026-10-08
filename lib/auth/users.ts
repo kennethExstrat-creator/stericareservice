@@ -199,6 +199,12 @@ export function accountStatus(profile: ProfileState, bannedUntil?: string | null
 /** What the page shows for one person. Only display fields: this reaches the browser. */
 export type UserListItem = {
   id: string;
+  /**
+   * Their UID, SC- and a number (SC-0042), which the database gives when the
+   * account is created and never changes. Null until the project has run
+   * migration 20261008140000.
+   */
+  uid: string | null;
   email: string;
   fullName: string | null;
   role: UserRole;
@@ -246,6 +252,11 @@ export type UserDirectory = {
    * then works as it did before lead inspectors and says what is needed.
    */
   teams: boolean;
+  /**
+   * False until the project has run migration 20261008140000: the screen
+   * then has no UID column and searches names and emails only.
+   */
+  uids: boolean;
   /** Active lead inspectors by name: who an inspector can work under. */
   leads: LeadOption[];
 };
@@ -260,20 +271,51 @@ const byName = new Intl.Collator("en-GB", { sensitivity: "base", numeric: true }
 type DirectoryRow = Pick<Profile, "id" | "email" | "full_name" | "role" | "active" | "created_at" | "updated_at"> & {
   is_lead?: boolean | null;
   lead_id?: string | null;
+  uid?: string | null;
 };
 
-/** Everyone's profile, with their place in the teams when the database has them. */
-async function readProfiles(supabase: ServerClient): Promise<{ rows: DirectoryRow[]; teams: boolean }> {
+/**
+ * The database has no UIDs yet (migration 20261008140000). PostgREST answers
+ * 42703 for an unknown column in a select or filter ("column profiles.uid
+ * does not exist"), PGRST204 for one in a write ("Could not find the 'uid'
+ * column of 'profiles' in the schema cache").
+ */
+export function isMissingUidColumn(error: ErrorLike | null | undefined): boolean {
+  if (!error) return false;
+  return (error.code === "42703" || error.code === "PGRST204") && /(?:^|[\s.'"])uid(?:[\s'"]|$)/.test(error.message ?? "");
+}
+
+function listError(error: ErrorLike): Error {
+  return new Error(`Could not load the user list: ${error.message}`);
+}
+
+/**
+ * Everyone's profile, with their place in the teams and their UID when the
+ * database has them. A project that has not run migration 20261008140000
+ * (UIDs), or 20261007170000 (lead inspectors), answers 42703 for the missing
+ * column: the list is read again without it, so the screen works as before.
+ * The migrations run in order, so a project without lead inspectors has no
+ * UIDs either.
+ */
+async function readProfiles(supabase: ServerClient): Promise<{ rows: DirectoryRow[]; teams: boolean; uids: boolean }> {
   const full = await supabase
     .from("profiles")
-    .select("id, email, full_name, role, active, created_at, updated_at, is_lead, lead_id");
-  if (!isMissingTeamColumn(full.error)) {
-    if (full.error) throw new Error(`Could not load the user list: ${full.error.message}`);
-    return { rows: full.data ?? [], teams: true };
+    .select("id, email, full_name, role, active, created_at, updated_at, is_lead, lead_id, uid");
+  if (!full.error) return { rows: full.data ?? [], teams: true, uids: true };
+
+  if (isMissingUidColumn(full.error)) {
+    const withoutUid = await supabase
+      .from("profiles")
+      .select("id, email, full_name, role, active, created_at, updated_at, is_lead, lead_id");
+    if (!withoutUid.error) return { rows: withoutUid.data ?? [], teams: true, uids: false };
+    if (!isMissingTeamColumn(withoutUid.error)) throw listError(withoutUid.error);
+  } else if (!isMissingTeamColumn(full.error)) {
+    throw listError(full.error);
   }
+
   const legacy = await supabase.from("profiles").select("id, email, full_name, role, active, created_at, updated_at");
-  if (legacy.error) throw new Error(`Could not load the user list: ${legacy.error.message}`);
-  return { rows: legacy.data ?? [], teams: false };
+  if (legacy.error) throw listError(legacy.error);
+  return { rows: legacy.data ?? [], teams: false, uids: false };
 }
 
 /**
@@ -285,7 +327,7 @@ async function readProfiles(supabase: ServerClient): Promise<{ rows: DirectoryRo
  */
 export async function getUserDirectory(viewerId: string): Promise<UserDirectory> {
   const supabase = await createClient();
-  const { rows, teams } = await readProfiles(supabase);
+  const { rows, teams, uids } = await readProfiles(supabase);
 
   let adminApi: AdminApiState = "missing-key";
   let signIns: Map<string, SignInDetails> | null = null;
@@ -318,6 +360,7 @@ export async function getUserDirectory(viewerId: string): Promise<UserDirectory>
     const lead = leadId ? byId.get(leadId) : undefined;
     return {
       id: profile.id,
+      uid: profile.uid ?? null,
       email: profile.email ?? "",
       fullName: profile.full_name,
       role: profile.role,
@@ -345,7 +388,7 @@ export async function getUserDirectory(viewerId: string): Promise<UserDirectory>
         .sort((a, b) => byName.compare(a.name, b.name))
     : [];
 
-  return { users, adminApi, teams, leads };
+  return { users, adminApi, teams, uids, leads };
 }
 
 const PAGE_SIZE = 1000;

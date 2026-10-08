@@ -29,6 +29,7 @@ const USERS: UserListItem[] = [
   {
     ...base,
     id: "7c2d4e1a-0b3f-4a5c-9d8e-1f2a3b4c5d6e",
+    uid: "SC-0001",
     email: "admin@test.local",
     fullName: "Test Admin",
     role: "admin",
@@ -43,6 +44,7 @@ const USERS: UserListItem[] = [
   {
     ...base,
     id: "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+    uid: "SC-0002",
     email: "olga@test.local",
     fullName: "Olga Other",
     role: "inspector",
@@ -56,6 +58,7 @@ const USERS: UserListItem[] = [
   {
     ...base,
     id: "5f6e7d8c-9b0a-4c1d-8e2f-3a4b5c6d7e8f",
+    uid: "SC-0003",
     email: "new@test.local",
     fullName: null,
     role: "inspector",
@@ -71,6 +74,7 @@ const LEADS: UserListItem[] = [
   {
     ...base,
     id: LEAD_ID,
+    uid: "SC-0004",
     email: "lina@test.local",
     fullName: "Lina Lead",
     role: "inspector",
@@ -88,6 +92,7 @@ const LEADS: UserListItem[] = [
   {
     ...base,
     id: "2c3d4e5f-6071-4b8c-9d0e-1f2a3b4c5d6e",
+    uid: "SC-10000",
     email: "gail@test.local",
     fullName: "Gail Grandfathered",
     role: "inspector",
@@ -109,11 +114,38 @@ describe("UsersTable", () => {
   const [admin, olga, pending] = rows(html);
 
   it("names its columns in Title Case, with an accessible caption", () => {
-    expect(html).toContain('<caption class="sr-only">Users, their roles, lead inspectors and access</caption>');
-    for (const header of ["Name", "Email", "Role", "Lead Inspector", "Status", "Last Signed In", "Added"]) {
+    expect(html).toContain('<caption class="sr-only">Users, their UIDs, roles, lead inspectors and access</caption>');
+    for (const header of ["UID", "Name", "Email", "Role", "Lead Inspector", "Status", "Last Signed In", "Added"]) {
       expect(html).toContain(`>${header}</th>`);
     }
     expect(html).toContain('<span class="sr-only">Actions</span>');
+  });
+
+  it("starts every row with the UID, in tabular figures and on one line, at every width", () => {
+    const headers = [...html.matchAll(/<th\s[^>]*>([^<]*)</g)].map((match) => match[1]);
+    expect(headers[0]).toBe("UID");
+    const header = html.match(/<th[^>]*>UID<\/th>/)![0];
+    expect(header).not.toMatch(/hidden/);
+    for (const [row, uid] of [
+      [admin, "SC-0001"],
+      [olga, "SC-0002"],
+      [pending, "SC-0003"],
+    ] as const) {
+      const cell = row.match(/<td[^>]*data-slot="uid"[^>]*>([^<]*)<\/td>/);
+      expect(cell?.[1]).toBe(uid);
+      // The first cell of the row, never hidden or wrapped.
+      expect(row.indexOf('data-slot="uid"')).toBeLessThan(row.indexOf("<td", row.indexOf("<td") + 1));
+      expect(cell?.[0]).toMatch(/class="[^"]*\bwhitespace-nowrap\b[^"]*\btabular-nums\b/);
+      expect(cell?.[0]).not.toMatch(/hidden/);
+    }
+  });
+
+  it("has no UID column on a project without UIDs, and starts with the name", () => {
+    const withoutUids = renderToStaticMarkup(<UsersTable users={USERS.map((user) => ({ ...user, uid: null }))} showSignIns uids={false} />);
+    expect(withoutUids).not.toContain(">UID</th>");
+    expect(withoutUids).not.toContain('data-slot="uid"');
+    expect(withoutUids).toContain('<caption class="sr-only">Users, their roles, lead inspectors and access</caption>');
+    expect(withoutUids).toMatch(/<th[^>]*class="[^"]*\bpl-4\b[^"]*"[^>]*>Name<\/th>/);
   });
 
   it("marks the viewer as You", () => {
@@ -206,8 +238,10 @@ describe("UsersTable: lead inspectors and their teams", () => {
     expect(withoutTeams).not.toContain("team-under-role");
   });
 
-  it("says so when a filter leaves nobody", () => {
+  it("says so when a filter leaves nobody, across every column", () => {
     const empty = renderToStaticMarkup(<UsersTable users={[]} showSignIns emptyMessage="Every active inspector has a lead inspector." />);
-    expect(empty).toMatch(/<td[^>]*colSpan="8"[^>]*>Every active inspector has a lead inspector\.<\/td>/);
+    expect(empty).toMatch(/<td[^>]*colSpan="9"[^>]*>Every active inspector has a lead inspector\.<\/td>/);
+    const withoutUids = renderToStaticMarkup(<UsersTable users={[]} showSignIns uids={false} emptyMessage="Nobody here yet." />);
+    expect(withoutUids).toMatch(/<td[^>]*colSpan="8"[^>]*>Nobody here yet\.<\/td>/);
   });
 });

@@ -5,6 +5,8 @@ import type { UserListItem } from "@/lib/auth/users";
 
 export const USERS_PATH = "/admin/users";
 export const TEAM_PARAM = "team";
+/** ?q=: the search by name, email or UID (user-search.ts), kept when the Team picker changes the view. */
+export const SEARCH_PARAM = "q";
 /** ?team=none: active inspectors who have no lead inspector yet. */
 export const NO_LEAD = "none";
 /** The picker's value for no filter (Radix Select needs a non-empty value). */
@@ -17,10 +19,16 @@ export type TeamFilter =
 
 const EVERYONE_FILTER: TeamFilter = { kind: "everyone" };
 
-/** The page for a filter value: a lead's id, NO_LEAD, or null (and EVERYONE) for everyone. */
-export function teamHref(value: string | null): string {
-  if (!value || value === EVERYONE) return USERS_PATH;
-  return `${USERS_PATH}?${new URLSearchParams({ [TEAM_PARAM]: value })}`;
+/**
+ * The page for a filter value: a lead's id, NO_LEAD, or null (and EVERYONE)
+ * for everyone; with the search, when there is one.
+ */
+export function teamHref(value: string | null, search = ""): string {
+  const params = new URLSearchParams();
+  if (value && value !== EVERYONE) params.set(TEAM_PARAM, value);
+  if (search.trim()) params.set(SEARCH_PARAM, search.trim());
+  const query = params.toString();
+  return query ? `${USERS_PATH}?${query}` : USERS_PATH;
 }
 
 /** The picker's value for a filter. */

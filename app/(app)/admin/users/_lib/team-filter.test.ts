@@ -7,6 +7,7 @@ const LEAD = "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d";
 function user(id: string, overrides: Partial<UserListItem> = {}): UserListItem {
   return {
     id,
+    uid: null,
     email: `${id}@test.local`,
     fullName: null,
     role: "inspector",
@@ -56,6 +57,13 @@ describe("team filter", () => {
     expect(teamHref(null)).toBe("/admin/users");
     expect(filterValue({ kind: "team", leadId: LEAD, leadName: "Lina Lead" })).toBe(LEAD);
     expect(filterValue({ kind: "everyone" })).toBe(EVERYONE);
+  });
+
+  it("carries a search into the view picked, trimmed, and leaves out an empty one", () => {
+    expect(teamHref(LEAD, " SC-0042 ")).toBe(`/admin/users?team=${LEAD}&q=SC-0042`);
+    expect(teamHref(EVERYONE, "olga other")).toBe("/admin/users?q=olga+other");
+    expect(teamHref(NO_LEAD, "   ")).toBe("/admin/users?team=none");
+    expect(teamHref(null, "")).toBe("/admin/users");
   });
 
   it("offers everyone, the inspectors in no team when there are any, then each lead's team", () => {

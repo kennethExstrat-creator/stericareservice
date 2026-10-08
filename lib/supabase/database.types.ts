@@ -505,6 +505,7 @@ export type Database = {
           lead_id: string | null
           role: Database["public"]["Enums"]["user_role"]
           signature_path: string | null
+          uid: string
           updated_at: string
         }
         Insert: {
@@ -517,6 +518,7 @@ export type Database = {
           lead_id?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           signature_path?: string | null
+          uid?: string
           updated_at?: string
         }
         Update: {
@@ -529,6 +531,7 @@ export type Database = {
           lead_id?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           signature_path?: string | null
+          uid?: string
           updated_at?: string
         }
         Relationships: [
@@ -670,6 +673,7 @@ export type Database = {
         }[]
       }
       my_team: { Args: Record<PropertyKey, never>; Returns: string[] }
+      profile_uid: { Args: { seq: number }; Returns: string }
       save_inspection: {
         Args: {
           actor_id: string

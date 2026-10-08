@@ -1,6 +1,8 @@
-// /admin/users as the admin sees it, from the directory and the ?team= value:
-// the header with Invite User, what needs attention, the Team picker and the
-// list. Rendered on the server; page.tsx checks the admin and loads the data.
+// /admin/users as the admin sees it, from the directory and the ?team= and
+// ?q= values: the header with Invite User, what needs attention, the search
+// and the Team picker, and the list. Rendered on the server; page.tsx checks
+// the admin and loads the data. The search filters the rows drawn here, in
+// the browser (user-search.tsx).
 import Link from "next/link";
 import { TriangleAlertIcon, UsersIcon } from "lucide-react";
 import { PageHeader } from "@/components/qc";
@@ -17,8 +19,10 @@ import {
   teamHref,
   type TeamFilter as TeamFilterState,
 } from "../_lib/team-filter";
+import { readSearch, userSearchText } from "../_lib/user-search";
 import { InviteUserDialog } from "./invite-user-dialog";
 import { TeamFilter } from "./team-filter";
+import { UserSearch, UserSearchBox, UserSearchSummary } from "./user-search";
 import { UsersTable } from "./users-table";
 
 /** How many names an alert lists before "and N more". */
@@ -28,26 +32,6 @@ const NAMES_SHOWN = 5;
 const ALERT_LINK =
   "rounded-sm font-semibold text-warn underline underline-offset-4 focus-ring touch:inline-flex touch:min-h-11 touch:items-center";
 
-function people(count: number): string {
-  return count === 1 ? "1 person" : `${count} people`;
-}
-
-function inspectors(count: number): string {
-  return count === 1 ? "1 inspector" : `${count} inspectors`;
-}
-
-/** What the list shows, in words, beside the Team picker. */
-function summary(filter: TeamFilterState, shown: number, total: number): string {
-  switch (filter.kind) {
-    case "everyone":
-      return `${people(total)}.`;
-    case "no-lead":
-      return shown === 0 ? "Every active inspector has a lead inspector." : `${inspectors(shown)} in no team.`;
-    case "team":
-      return `${filter.leadName}'s team: ${inspectors(Math.max(shown - 1, 0))}.`;
-  }
-}
-
 function emptyMessage(filter: TeamFilterState): string {
   return filter.kind === "no-lead" ? "Every active inspector has a lead inspector." : "Nobody here yet.";
 }
@@ -55,12 +39,15 @@ function emptyMessage(filter: TeamFilterState): string {
 export function UsersScreen({
   directory,
   team,
+  search,
 }: {
   directory: UserDirectory;
   /** The ?team= value: a lead inspector's id, "none", or nothing for everyone. */
   team: string | string[] | undefined;
+  /** The ?q= value: a name, email or UID to find. */
+  search?: string | string[] | undefined;
 }) {
-  const { users, adminApi, teams, leads } = directory;
+  const { users, adminApi, teams, uids, leads } = directory;
   const canInvite = adminApi !== "missing-key";
   const onlyYou = users.every((user) => user.isSelf);
   const filter: TeamFilterState = teams ? readTeamFilter(team, users) : { kind: "everyone" };
@@ -68,84 +55,92 @@ export function UsersScreen({
   const missingLead = users.filter((user) => user.missingLead);
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* No subtitle under the title (Kenneth, 7 October 2026: page headers without subtitles). */}
-      <PageHeader
-        eyebrow="Admin"
-        title="Users"
-        actions={<InviteUserDialog disabled={!canInvite} teams={teams} leads={leads} />}
-      />
+    <UserSearch
+      entries={shown.map((user) => ({ id: user.id, text: userSearchText(user) }))}
+      initialQuery={readSearch(search)}
+      view={filterValue(filter)}
+    >
+      <div className="flex flex-col gap-6">
+        {/* No subtitle under the title (Kenneth, 7 October 2026: page headers without subtitles). */}
+        <PageHeader
+          eyebrow="Admin"
+          title="Users"
+          actions={<InviteUserDialog disabled={!canInvite} teams={teams} leads={leads} />}
+        />
 
-      {adminApi === "missing-key" && (
-        <Alert className="border-warn-border bg-warn-tint text-warn">
-          <TriangleAlertIcon aria-hidden />
-          <AlertTitle>Invites Are Switched Off</AlertTitle>
-          <AlertDescription className="text-warn">
-            The server needs SUPABASE_SECRET_KEY to send invites, show who has signed in and stop deactivated users
-            signing in. Add it to the environment (.env.local, or the Vercel project settings) and restart the app.
-            Roles and deactivation still work.
-          </AlertDescription>
-        </Alert>
-      )}
-      {adminApi === "failed" && (
-        <Alert className="border-warn-border bg-warn-tint text-warn">
-          <TriangleAlertIcon aria-hidden />
-          <AlertTitle>Sign-In Details Are Unavailable</AlertTitle>
-          <AlertDescription className="text-warn">
-            Supabase Auth did not answer, so this list cannot show who has signed in or which accounts are waiting for
-            activation. Check that SUPABASE_SECRET_KEY is the secret key of this project, then reload.
-          </AlertDescription>
-        </Alert>
-      )}
-      {!teams && (
-        <Alert className="border-warn-border bg-warn-tint text-warn" data-testid="teams-missing">
-          <TriangleAlertIcon aria-hidden />
-          <AlertTitle>Lead Inspectors Are Not Set Up Yet</AlertTitle>
-          <AlertDescription className="text-warn">
-            {TEAM_MESSAGES.teamsMissing} Until then this page sets roles only.
-          </AlertDescription>
-        </Alert>
-      )}
-      {missingLead.length > 0 && filter.kind !== "no-lead" && <NoLeadAlert people={missingLead} />}
+        {adminApi === "missing-key" && (
+          <Alert className="border-warn-border bg-warn-tint text-warn">
+            <TriangleAlertIcon aria-hidden />
+            <AlertTitle>Invites Are Switched Off</AlertTitle>
+            <AlertDescription className="text-warn">
+              The server needs SUPABASE_SECRET_KEY to send invites, show who has signed in and stop deactivated users
+              signing in. Add it to the environment (.env.local, or the Vercel project settings) and restart the app.
+              Roles and deactivation still work.
+            </AlertDescription>
+          </Alert>
+        )}
+        {adminApi === "failed" && (
+          <Alert className="border-warn-border bg-warn-tint text-warn">
+            <TriangleAlertIcon aria-hidden />
+            <AlertTitle>Sign-In Details Are Unavailable</AlertTitle>
+            <AlertDescription className="text-warn">
+              Supabase Auth did not answer, so this list cannot show who has signed in or which accounts are waiting for
+              activation. Check that SUPABASE_SECRET_KEY is the secret key of this project, then reload.
+            </AlertDescription>
+          </Alert>
+        )}
+        {!teams && (
+          <Alert className="border-warn-border bg-warn-tint text-warn" data-testid="teams-missing">
+            <TriangleAlertIcon aria-hidden />
+            <AlertTitle>Lead Inspectors Are Not Set Up Yet</AlertTitle>
+            <AlertDescription className="text-warn">
+              {TEAM_MESSAGES.teamsMissing} Until then this page sets roles only.
+            </AlertDescription>
+          </Alert>
+        )}
+        {missingLead.length > 0 && filter.kind !== "no-lead" && <NoLeadAlert people={missingLead} />}
 
-      {teams && (
-        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <TeamFilter value={filterValue(filter)} options={filterOptions(users)} />
-          <p className="text-sm text-muted-foreground" role="status">
-            {summary(filter, shown.length, users.length)}
-          </p>
+        {/* The search and the Team picker side by side from 768 px, the count beside them from 1024 px. */}
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:gap-x-6">
+            <UserSearchBox placeholder={uids ? "Name, email or UID" : "Name or email"} />
+            {teams && <TeamFilter value={filterValue(filter)} options={filterOptions(users)} />}
+          </div>
+          <UserSearchSummary filter={filter} shown={shown.length} total={users.length} />
         </div>
-      )}
 
-      <UsersTable
-        users={shown}
-        showSignIns={adminApi === "ok"}
-        teams={teams}
-        leads={leads}
-        emptyMessage={emptyMessage(filter)}
-      />
+        <UsersTable
+          users={shown}
+          showSignIns={adminApi === "ok"}
+          teams={teams}
+          uids={uids}
+          leads={leads}
+          emptyMessage={emptyMessage(filter)}
+          filter={filter}
+        />
 
-      {onlyYou && filter.kind === "everyone" && (
-        <Empty className="border border-dashed border-border bg-card">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <UsersIcon aria-hidden />
-            </EmptyMedia>
-            <EmptyTitle>Only You So Far</EmptyTitle>
-            <EmptyDescription>
-              {teams
-                ? "Invite your lead inspectors first, then their inspectors. Each one gets an email with a link to choose a password."
-                : "Invite your inspectors. Each one gets an email with a link to choose a password."}
-            </EmptyDescription>
-          </EmptyHeader>
-          {canInvite && (
-            <EmptyContent>
-              <InviteUserDialog label="Invite Your First User" teams={teams} leads={leads} />
-            </EmptyContent>
-          )}
-        </Empty>
-      )}
-    </div>
+        {onlyYou && filter.kind === "everyone" && (
+          <Empty className="border border-dashed border-border bg-card">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <UsersIcon aria-hidden />
+              </EmptyMedia>
+              <EmptyTitle>Only You So Far</EmptyTitle>
+              <EmptyDescription>
+                {teams
+                  ? "Invite your lead inspectors first, then their inspectors. Each one gets an email with a link to choose a password."
+                  : "Invite your inspectors. Each one gets an email with a link to choose a password."}
+              </EmptyDescription>
+            </EmptyHeader>
+            {canInvite && (
+              <EmptyContent>
+                <InviteUserDialog label="Invite Your First User" teams={teams} leads={leads} />
+              </EmptyContent>
+            )}
+          </Empty>
+        )}
+      </div>
+    </UserSearch>
   );
 }
 

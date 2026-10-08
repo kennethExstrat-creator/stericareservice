@@ -4,6 +4,8 @@ import type { AccountStatus, LeadOption } from "@/lib/auth/users";
 /** What a row's menu needs to know about a person. */
 export type UserActionsTarget = {
   id: string;
+  /** Their UID (SC-0042), shown beside their name in every dialog; null before migration 20261008140000. */
+  uid: string | null;
   /** How the app names them: their full name, else their email. */
   name: string;
   /** Their full name as saved, null when they have none: Change Name starts from it. */

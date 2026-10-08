@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/auth/session";
 import { getUserDirectory } from "@/lib/auth/users";
-import { TEAM_PARAM } from "./_lib/team-filter";
+import { SEARCH_PARAM, TEAM_PARAM } from "./_lib/team-filter";
 import { UsersScreen } from "./_components/users-screen";
 
 /**
@@ -17,15 +17,16 @@ export async function generateMetadata(): Promise<Metadata> {
 
 /**
  * /admin/users (BUILD_SPEC 3 and 10): everyone with an account, invites,
- * roles, lead inspectors and their teams, deactivation. Inspectors get a 404
- * from requireAdmin(); the layout above is not a security boundary, so this
- * page checks for itself. ?team= shows one lead inspector's team, or the
- * inspectors in no team (_lib/team-filter.ts).
+ * roles, lead inspectors and their teams, deactivation, and each person's UID.
+ * Inspectors get a 404 from requireAdmin(); the layout above is not a
+ * security boundary, so this page checks for itself. ?team= shows one lead
+ * inspector's team, or the inspectors in no team (_lib/team-filter.ts); ?q=
+ * finds people in it by name, email or UID (_lib/user-search.ts).
  *
  * No outer padding or width: the app shell's main area provides both.
  */
 export default async function UsersPage({ searchParams }: PageProps<"/admin/users">) {
   const viewer = await requireAdmin();
   const [directory, query] = await Promise.all([getUserDirectory(viewer.id), searchParams]);
-  return <UsersScreen directory={directory} team={query[TEAM_PARAM]} />;
+  return <UsersScreen directory={directory} team={query[TEAM_PARAM]} search={query[SEARCH_PARAM]} />;
 }

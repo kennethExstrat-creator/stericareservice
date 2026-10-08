@@ -26,9 +26,9 @@ import { RenameDialog } from "./rename-dialog";
 /** What React draws for `<form action={fn}>` on the server: such a form is reset after every action. */
 const FUNCTION_ACTION = "React form unexpectedly submitted";
 
-const OLGA = { id: "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d", name: "Olga Other", fullName: "Olga Other" };
+const OLGA = { id: "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d", uid: "SC-0042", name: "Olga Other", fullName: "Olga Other" };
 
-function draw(user: typeof OLGA | { id: string; name: string; fullName: string | null } = OLGA): string {
+function draw(user: { id: string; uid: string | null; name: string; fullName: string | null } = OLGA): string {
   return renderToStaticMarkup(<RenameDialog user={user} onClose={() => {}} returnFocusTo={{ current: null }} />);
 }
 
@@ -60,9 +60,20 @@ describe("RenameDialog", () => {
   });
 
   it("starts empty for someone with no name yet: never their email", () => {
-    const html = draw({ id: OLGA.id, name: "olga@test.local", fullName: null });
+    const html = draw({ id: OLGA.id, uid: OLGA.uid, name: "olga@test.local", fullName: null });
     expect(nameField(html).input).toContain('value=""');
     expect(html).toContain(">Change olga@test.local&#x27;s Name</div>");
+  });
+
+  it("shows the UID beside the title, outside it, so the dialog keeps its name", () => {
+    const html = draw();
+    expect(html).toMatch(
+      /data-slot="title-with-uid"><div>Change Olga Other&#x27;s Name<\/div><span data-slot="uid"[^>]*><span class="sr-only">UID <\/span>SC-0042<\/span><\/div>/,
+    );
+    // Before migration 20261008140000 there is none to show.
+    const without = draw({ ...OLGA, uid: null });
+    expect(without).not.toContain('data-slot="uid"');
+    expect(without).toContain(">Change Olga Other&#x27;s Name</div>");
   });
 
   it("offers Save and Cancel, and submits by hand, so a refused name stays in the field", () => {

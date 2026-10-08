@@ -61,6 +61,7 @@ import { teamHref } from "../_lib/team-filter";
 import { cn } from "@/lib/utils";
 import { RenameDialog } from "./rename-dialog";
 import { focusRole, LeadField, RoleField, roleChoicesFor, SCROLLING_DIALOG } from "./role-fields";
+import { TitleWithUid } from "./uid-badge";
 import { unreachable } from "./unreachable";
 import {
   activationNeedsPlacement,
@@ -86,8 +87,10 @@ const MENU_ICON: Record<Kind, LucideIcon> = {
   activate: UserCheckIcon,
 };
 
-type Confirmation = {
+export type Confirmation = {
   title: string;
+  /** The person's UID, beside the title. */
+  uid: string | null;
   description: ReactNode;
   confirm: string;
   pending: string;
@@ -96,14 +99,19 @@ type Confirmation = {
   fields: Record<string, string>;
 };
 
-function confirmation(kind: "send-link" | "unblock" | "deactivate" | "reactivate" | "activate", user: UserActionsTarget): Confirmation {
+export function confirmation(
+  kind: "send-link" | "unblock" | "deactivate" | "reactivate" | "activate",
+  user: UserActionsTarget,
+): Confirmation {
   const title = DIALOG_TITLE[kind](user.name);
+  const uid = user.uid;
   const target = { userId: user.id };
   const team = user.lead ? ` They are back in ${user.lead.name}'s team.` : "";
   switch (kind) {
     case "send-link":
       return {
         title,
+        uid,
         description: (
           <>
             We email <span className="font-medium text-foreground">{user.email}</span> a link to choose a new password.
@@ -118,6 +126,7 @@ function confirmation(kind: "send-link" | "unblock" | "deactivate" | "reactivate
     case "unblock":
       return {
         title,
+        uid,
         description:
           "Their account is active, but Supabase still blocks their sign-in, for example after a deactivation and a reactivation at the same moment. This lifts the block.",
         confirm: "Lift Block",
@@ -128,6 +137,7 @@ function confirmation(kind: "send-link" | "unblock" | "deactivate" | "reactivate
     case "deactivate":
       return {
         title,
+        uid,
         description:
           "They lose access straight away: they are signed out on their next page load and cannot sign in or see any data until an admin reactivates them. Their inspections stay as they are.",
         confirm: "Deactivate",
@@ -139,6 +149,7 @@ function confirmation(kind: "send-link" | "unblock" | "deactivate" | "reactivate
     case "reactivate":
       return {
         title,
+        uid,
         description: `They can sign in again with their current password and pick up where they left off.${team}`,
         confirm: "Reactivate",
         pending: "Reactivating…",
@@ -148,6 +159,7 @@ function confirmation(kind: "send-link" | "unblock" | "deactivate" | "reactivate
     case "activate":
       return {
         title,
+        uid,
         description: `This account has never been active. Once activated they can sign in with their password, or choose one from a password link.${team}`,
         confirm: "Activate",
         pending: "Activating…",
@@ -324,7 +336,7 @@ function announce(result: ActionResult, onClose: () => void) {
  * show its pending state. It holds no Radix control, so the form's own
  * action (and React's reset after it) is fine here.
  */
-function ConfirmDialog({
+export function ConfirmDialog({
   confirmation,
   onClose,
   returnFocusTo,
@@ -357,7 +369,9 @@ function ConfirmDialog({
       >
         <form action={formAction} className="grid gap-6">
           <AlertDialogHeader>
-            <AlertDialogTitle>{confirmation.title}</AlertDialogTitle>
+            <TitleWithUid uid={confirmation.uid}>
+              <AlertDialogTitle>{confirmation.title}</AlertDialogTitle>
+            </TitleWithUid>
             <AlertDialogDescription>{confirmation.description}</AlertDialogDescription>
           </AlertDialogHeader>
 
@@ -412,7 +426,7 @@ function TeamNote({ user }: { user: UserActionsTarget }) {
  * and Select, so it submits by hand (submitAction): a refused change leaves
  * every choice where the admin put it, next to the reason.
  */
-function PlacementDialog({
+export function PlacementDialog({
   user,
   title,
   description,
@@ -487,7 +501,9 @@ function PlacementDialog({
       >
         <form onSubmit={submitAction(formAction, pending)} noValidate className="grid gap-6" data-testid="placement-form">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold">{title}</DialogTitle>
+            <TitleWithUid uid={user.uid}>
+              <DialogTitle className="text-lg font-bold">{title}</DialogTitle>
+            </TitleWithUid>
             <DialogDescription>{description}</DialogDescription>
           </DialogHeader>
 
@@ -542,7 +558,7 @@ function PlacementDialog({
 }
 
 /** Deactivate on someone who leads a team: what to do first, and the way to their team. */
-function LeadsTeamDialog({
+export function LeadsTeamDialog({
   user,
   onClose,
   returnFocusTo,
@@ -565,7 +581,9 @@ function LeadsTeamDialog({
         }}
       >
         <AlertDialogHeader>
-          <AlertDialogTitle>{DIALOG_TITLE["leads-team"](user.name)}</AlertDialogTitle>
+          <TitleWithUid uid={user.uid}>
+            <AlertDialogTitle>{DIALOG_TITLE["leads-team"](user.name)}</AlertDialogTitle>
+          </TitleWithUid>
           <AlertDialogDescription>{TEAM_MESSAGES.leadsTeam(user.name, user.team)}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

@@ -33,6 +33,7 @@ const LEAD = "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d";
 
 const me: UserListItem = {
   id: ME,
+  uid: "SC-0001",
   email: "admin@test.local",
   fullName: "Test Admin",
   role: "admin",
@@ -49,6 +50,7 @@ const me: UserListItem = {
 const lina: UserListItem = {
   ...me,
   id: LEAD,
+  uid: "SC-0003",
   email: "lina@test.local",
   fullName: "Lina Lead",
   role: "inspector",
@@ -59,6 +61,7 @@ const lina: UserListItem = {
 const olga: UserListItem = {
   ...me,
   id: "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+  uid: "SC-0002",
   email: "olga@test.local",
   fullName: "Olga Other",
   role: "inspector",
@@ -69,6 +72,7 @@ const olga: UserListItem = {
 const gail: UserListItem = {
   ...olga,
   id: "2c3d4e5f-6071-4b8c-9d0e-1f2a3b4c5d6e",
+  uid: "SC-0004",
   email: "gail@test.local",
   fullName: "Gail Grandfathered",
   lead: null,
@@ -79,6 +83,7 @@ const directory = (overrides: Partial<UserDirectory>): UserDirectory => ({
   users: [me, olga],
   adminApi: "ok",
   teams: true,
+  uids: true,
   leads: [{ id: LEAD, name: "Lina Lead", teamSize: 1 }],
   ...overrides,
 });
@@ -207,6 +212,17 @@ describe("/admin/users: lead inspectors and teams", () => {
     expect(fixed).toContain("Every active inspector has a lead inspector.");
   });
 
+  it("keeps the search in the team picked, and says how many of the team it leaves", async () => {
+    const html = await render(directory({ users: [me, lina, olga, gail] }), { team: LEAD, q: "olga" });
+    const rows = bodyRows(html);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toContain("Olga Other");
+    expect(html).toContain('role="status">Lina Lead&#x27;s team: 1 of 2 people.</p>');
+
+    const nobody = await render(directory({ users: [me, lina, olga, gail] }), { team: LEAD, q: "gail" });
+    expect(nobody).toContain("Nobody in Lina Lead&#x27;s team matches “gail”.");
+  });
+
   it("works with roles only, and says what is needed, on a project without lead inspectors", async () => {
     const html = await render(directory({ teams: false, leads: [] }), { team: LEAD });
     expect(html).toContain('data-testid="teams-missing"');
@@ -216,5 +232,66 @@ describe("/admin/users: lead inspectors and teams", () => {
     expect(html).not.toContain(">Team</label>");
     // The filter is ignored: everyone is listed.
     expect(bodyRows(html)).toHaveLength(2);
+  });
+});
+
+describe("/admin/users: UIDs and the search", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(requireAdmin).mockResolvedValue({ id: ME, email: "admin@test.local", fullName: "Test Admin", role: "admin" });
+  });
+
+  /** The search box: its label and its input. */
+  function searchBox(html: string) {
+    const input = html.match(/<input[^>]*type="search"[^>]*>/)?.[0] ?? "";
+    const id = input.match(/\sid="([^"]+)"/)?.[1];
+    const label = id ? html.match(new RegExp(`<label[^>]*for="${id}"[^>]*>([^<]*)</label>`))?.[1] : undefined;
+    return { input, label };
+  }
+
+  it("starts the list with each person's UID, and searches by name, email or UID", async () => {
+    const html = await render(directory({ users: [me, lina, olga] }));
+    expect(html).toMatch(/<thead[^>]*><tr[^>]*><th[^>]*>UID<\/th>/);
+    expect(bodyRows(html).map((row) => row.match(/data-slot="uid"[^>]*>([^<]*)</)?.[1])).toEqual(["SC-0001", "SC-0003", "SC-0002"]);
+
+    const { input, label } = searchBox(html);
+    expect(label).toBe("Search");
+    expect(input).toContain('placeholder="Name, email or UID"');
+    expect(input).toContain('value=""');
+    // Nothing to clear yet.
+    expect(html).not.toContain('aria-label="Clear Search"');
+    expect(html).toContain('role="status">3 people.</p>');
+  });
+
+  it("opens with the search in the address, and shows only who it finds, by UID, name or email", async () => {
+    for (const q of ["SC-0002", "sc-0002", "olga", "OLGA@test"]) {
+      const html = await render(directory({ users: [me, lina, olga] }), { q });
+      const rows = bodyRows(html);
+      expect(rows, q).toHaveLength(1);
+      expect(rows[0], q).toContain("Olga Other");
+      expect(html, q).toContain('role="status">1 of 3 people.</p>');
+      expect(searchBox(html).input, q).toContain(`value="${q}"`);
+      expect(html, q).toContain('aria-label="Clear Search"');
+    }
+  });
+
+  it("says when the search finds nobody, with Clear Search", async () => {
+    const html = await render(directory({ users: [me, lina, olga] }), { q: "SC-9999" });
+    const rows = bodyRows(html);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toContain('data-slot="no-match"');
+    expect(rows[0]).toMatch(/colSpan="9"/);
+    expect(rows[0]).toContain("Nobody matches “SC-9999”.");
+    expect(rows[0]).toMatch(/<button[^>]*type="button"[^>]*>Clear Search<\/button>/);
+    expect(html).toContain('role="status">0 of 3 people.</p>');
+  });
+
+  it("has no UID column before the UID migration, and searches names and emails", async () => {
+    const before = [me, lina, olga].map((user) => ({ ...user, uid: null }));
+    const html = await render(directory({ users: before, uids: false }), { q: "lina" });
+    expect(html).not.toContain(">UID</th>");
+    expect(html).not.toContain('data-slot="uid"');
+    expect(searchBox(html).input).toContain('placeholder="Name or email"');
+    expect(bodyRows(html)).toHaveLength(1);
   });
 });

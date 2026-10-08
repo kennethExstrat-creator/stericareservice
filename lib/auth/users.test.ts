@@ -26,6 +26,7 @@ import {
   isBanned,
   isEmailRejected,
   isEmailTaken,
+  isMissingUidColumn,
   isUntouched,
 } from "./users";
 
@@ -572,9 +573,105 @@ describe("getUserDirectory with lead inspectors", () => {
     // Nobody is flagged for a team the project does not have yet.
     expect(users.every((user) => !user.missingLead && user.lead === null && user.roleChoice !== "lead")).toBe(true);
     expect(calls.filter(([method]) => method === "select").map(([, args]) => args[0])).toEqual([
-      "id, email, full_name, role, active, created_at, updated_at, is_lead, lead_id",
+      "id, email, full_name, role, active, created_at, updated_at, is_lead, lead_id, uid",
       "id, email, full_name, role, active, created_at, updated_at",
     ]);
+  });
+});
+
+describe("getUserDirectory with UIDs", () => {
+  const FULL = "id, email, full_name, role, active, created_at, updated_at, is_lead, lead_id, uid";
+  const WITHOUT_UID = "id, email, full_name, role, active, created_at, updated_at, is_lead, lead_id";
+  const LEGACY = "id, email, full_name, role, active, created_at, updated_at";
+  const MISSING_UID = { code: "42703", message: "column profiles.uid does not exist" };
+  const MISSING_TEAMS = { code: "42703", message: "column profiles.is_lead does not exist" };
+  const withTeams = PROFILES.map((profile) => ({ ...profile, is_lead: false, lead_id: null }));
+
+  /** A fake client whose reads answer `results` in turn, recording each select. */
+  function client(results: Result[], selects: string[]) {
+    let read = 0;
+    return {
+      from: vi.fn(() => {
+        const calls: Array<[string, unknown[]]> = [];
+        const builder = query(results[Math.min(read, results.length - 1)], calls);
+        read += 1;
+        const select = builder.select as (...args: unknown[]) => unknown;
+        builder.select = (...args: unknown[]) => {
+          selects.push(String(args[0]));
+          return select(...args);
+        };
+        return builder;
+      }),
+    } as never;
+  }
+
+  beforeEach(() => vi.mocked(isAdminClientConfigured).mockReturnValue(false));
+  afterEach(() => vi.resetAllMocks());
+
+  it("gives each person their UID", async () => {
+    const selects: string[] = [];
+    const uids = ["SC-0001", "SC-0002", "SC-10000"];
+    vi.mocked(createClient).mockResolvedValue(
+      client([{ data: withTeams.map((profile, index) => ({ ...profile, uid: uids[index] })), error: null }], selects),
+    );
+
+    const directory = await getUserDirectory(VIEWER);
+
+    expect(directory).toMatchObject({ uids: true, teams: true });
+    expect(Object.fromEntries(directory.users.map((user) => [user.email, user.uid]))).toEqual({
+      "admin@test.local": "SC-0001",
+      "olga@test.local": "SC-0002",
+      "new@test.local": "SC-10000",
+    });
+    expect(selects).toEqual([FULL]);
+  });
+
+  it("reads the list again without UIDs on a project that has not run their migration", async () => {
+    const selects: string[] = [];
+    vi.mocked(createClient).mockResolvedValue(client([{ data: null, error: MISSING_UID }, { data: withTeams, error: null }], selects));
+
+    const directory = await getUserDirectory(VIEWER);
+
+    expect(directory).toMatchObject({ uids: false, teams: true });
+    expect(directory.users).toHaveLength(3);
+    expect(directory.users.every((user) => user.uid === null)).toBe(true);
+    expect(selects).toEqual([FULL, WITHOUT_UID]);
+  });
+
+  it("reads the list with roles only on a project without either, whichever column is reported first", async () => {
+    for (const first of [MISSING_UID, MISSING_TEAMS]) {
+      const selects: string[] = [];
+      const results = first === MISSING_UID ? [{ data: null, error: first }, { data: null, error: MISSING_TEAMS }] : [{ data: null, error: first }];
+      vi.mocked(createClient).mockResolvedValue(client([...results, { data: PROFILES, error: null }], selects));
+
+      const directory = await getUserDirectory(VIEWER);
+
+      expect(directory, first.message).toMatchObject({ uids: false, teams: false });
+      expect(directory.users.map((user) => user.uid), first.message).toEqual([null, null, null]);
+      expect(selects, first.message).toEqual(first === MISSING_UID ? [FULL, WITHOUT_UID, LEGACY] : [FULL, LEGACY]);
+    }
+  });
+
+  it("throws any other error, for the error page", async () => {
+    for (const results of [
+      [{ data: null, error: { code: "57014", message: "canceling statement due to statement timeout" } }],
+      [{ data: null, error: MISSING_UID }, { data: null, error: { code: "08006", message: "connection failure" } }],
+    ]) {
+      vi.mocked(createClient).mockResolvedValue(client(results, []));
+      await expect(getUserDirectory(VIEWER)).rejects.toThrow(/^Could not load the user list: /);
+    }
+  });
+});
+
+describe("isMissingUidColumn", () => {
+  it("recognises the answers for a project without UIDs, and nothing else", () => {
+    expect(isMissingUidColumn({ code: "42703", message: "column profiles.uid does not exist" })).toBe(true);
+    expect(isMissingUidColumn({ code: "PGRST204", message: "Could not find the 'uid' column of 'profiles' in the schema cache" })).toBe(true);
+    expect(isMissingUidColumn({ code: "42703", message: "column profiles.is_lead does not exist" })).toBe(false);
+    expect(isMissingUidColumn({ code: "42703", message: "column profiles.uuid does not exist" })).toBe(false);
+    expect(isMissingUidColumn({ code: "42883", message: "function auth.uid() does not exist" })).toBe(false);
+    expect(isMissingUidColumn({ code: "42501", message: "a user's UID never changes" })).toBe(false);
+    expect(isMissingUidColumn(null)).toBe(false);
   });
 });
 

@@ -12,6 +12,7 @@ const LEAD = { id: "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d", name: "Lina Lead" };
 
 const person = (overrides: Partial<UserActionsTarget> = {}): UserActionsTarget => ({
   id: "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+  uid: "SC-0042",
   name: "Olga Other",
   fullName: "Olga Other",
   email: "olga@test.local",
