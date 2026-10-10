@@ -58,6 +58,36 @@ Server code calls `requestAiReview(exportDoc)` and `requestAiReport(exportDoc)` 
 | `timeout` | No complete answer within the time limit. |
 | `error` | HTTP or network error, rate limit, outage, or an export that failed validation. |
 
+## AI Settings
+
+Admin > AI Settings (`/admin/ai`, `app/(app)/admin/ai/`) holds the Anthropic API key and the Claude model for each AI job, so they can be changed without touching the server's variables:
+
+- **API key**: write-only. It is encrypted before it is stored (`ai_settings`, migration `20261009120000`; AES-256-GCM keyed from `SUPABASE_SECRET_KEY`, `lib/ai/secret-box.ts`), and the screen only ever shows its last four characters. Rotating the Supabase secret key makes a saved key unreadable: the screen says so and asks for it again. Remove Saved Key goes back to `ANTHROPIC_API_KEY`, if set.
+- **Models**: Reading Documents (default `claude-opus-5-5`) and Second Opinion (default `claude-opus-5-5`), from a list of current Claude models or any other Claude model id.
+- **Test Connection** asks Anthropic whether the key works and may use both models (`GET /v1/models/{id}`, no tokens billed); it tests a key typed in the form before it is saved.
+
+The saved values lie over the variables (`loadAiEnv` in `lib/ai/settings.ts`): a saved key wins over `ANTHROPIC_API_KEY`, and the saved models over `AI_REVIEW_MODEL` and `AI_DOCUMENT_MODEL`. The status cards, the review panel and the second opinion all read through it. The review's effort, photos and provider stay variables.
+
+## Reading order documents
+
+On `/inspections/new`, **Fill From a Document** replaces the template card until the client, manufacturer and product type are picked. The inspector uploads a PO, packing list, inspection request or a photo of one, in any layout (PDF up to 4 MB; photos are made 2048 px JPEG in the browser). The Server Action `readDocument` (`app/(app)/inspections/new/actions.ts`) sends it to Claude (`lib/ai/document-reader.ts`) with the client and manufacturer lists the user can pick from; Claude reads the file itself (no separate OCR) and answers in a JSON schema (`DocumentReadingSchema`, `lib/schemas/document-fill.ts`), at low effort so the inspector waits seconds, not minutes.
+
+- `checkReading` (`lib/inspections/document-fill.ts`) keeps only ids from the lists, real dates and known sizes, and adds up the lines of one size.
+- The client, manufacturer, product type and product name fill the form at once; a company that is not in the lists is named so an admin can add it.
+- The PO, product code, factory glove code, manufacturing and expiry dates, and per size the cases and lot numbers, go in with Create (`applyDocumentFill`): only fields the template shows, only sizes it offers, never over a value already set (for example by Start From Previous).
+- The file is not stored. The new inspection's audit log records `filled_from_document` with the file name, the fields filled and who uploaded it.
+- Everything stays editable: the AI suggests, the inspector checks.
+
+
+## Source Documents
+
+The first step of every inspection, before its modules (`SOURCE_DOCUMENTS_KEY`, `lib/inspections/source-documents.ts`; the capture screen opens on it unless `?module=` names another page). The inspector uploads every file about the inspection: the handwritten inspection form, the PO, packing lists, lab reports, photos of labels and cartons. They are `inspection_files` rows with `module_key` `source_documents`, uploaded through the page's queue like any file; photos are made 2048 px JPEG first. The order document read on New Inspection is kept here too, already read.
+
+- Each uploaded file is read once, one at a time (`use-source-documents.ts`, Server Action `readSourceFile` in `app/(app)/inspections/[id]/source-actions.ts`, `lib/ai/source-reader.ts`). Claude gets the file, the inspection's included modules with each module's data JSON Schema, settings and sizes (cached for the next file), and the data entered so far, and answers values for the empty fields it can read, as JSON (no structured output: per-size records do not fit a strict schema).
+- The capture screen fills the answer in through its own autosave (`applyProposals`): only modules the inspection includes, never the conclusion (the inspector's result, remark and signature), only fields still empty, only values each module's schema accepts, size by size. Totals and results are still calculated by the app.
+- The reading is kept on the file row (`ai_status` `read` or `failed`, `ai_read_at`, `ai_summary`; migration `20261009150000`), so a file is read once whichever device uploaded it. A read file shows **AI Verified** with a green tick and what it filled; the step's tick turns green once every file is verified. A file the AI could not read says why and offers Read Again. Not connected or a model error leaves the file unread, to be read once the AI works.
+- The audit log records `source_document_read` (file, modules proposed, who, model). Inspection data goes to Anthropic as in "Data handling" below.
+
 ## Webhook contract
 
 For services that write the report or the second opinion (n8n, Make, a Python or Node service, an agent platform).

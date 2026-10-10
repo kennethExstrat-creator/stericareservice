@@ -45,6 +45,7 @@ describe("navForRole", () => {
       ["clients", "link"],
       ["defects", "link"],
       ["templates", "link"],
+      ["ai", "link"],
     ]);
   });
 
@@ -65,6 +66,7 @@ describe("navForRole", () => {
       ["Clients", "/admin/clients", "prefix"],
       ["Defects", "/admin/defects", "prefix"],
       ["Templates", "/admin/templates", "prefix"],
+      ["AI Settings", "/admin/ai", "prefix"],
     ]);
   });
 

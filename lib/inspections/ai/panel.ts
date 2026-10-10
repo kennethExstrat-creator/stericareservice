@@ -1,5 +1,6 @@
 import "server-only";
 import { getAiStatus } from "@/lib/ai";
+import { loadAiEnv } from "@/lib/ai/settings";
 import type { SessionUser } from "@/lib/auth/session";
 import {
   canExportInspection,
@@ -112,7 +113,7 @@ export async function loadAiPanel(
       decisions,
       photoLinks,
       defectNames,
-      aiStatus: getAiStatus(),
+      aiStatus: getAiStatus(await loadAiEnv()),
       viewerId: user.id,
       isAdmin,
       now: options.now ?? Date.now(),

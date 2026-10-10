@@ -24,7 +24,8 @@ export type NavIconName =
   | "manufacturers"
   | "clients"
   | "defects"
-  | "templates";
+  | "templates"
+  | "ai";
 
 export type NavLinkEntry = {
   kind: "link";
@@ -74,6 +75,8 @@ export const ADMIN_CLIENTS_PATH = "/admin/clients";
 export const ADMIN_DEFECTS_PATH = "/admin/defects";
 /** TEMPLATES_PATH in lib/admin/templates.ts: the list, with each version and its editor below. */
 export const ADMIN_TEMPLATES_PATH = "/admin/templates";
+/** The Anthropic API key and the Claude models (docs/AI.md, "AI Settings"). */
+export const ADMIN_AI_PATH = "/admin/ai";
 
 export const NAV: readonly NavSection[] = [
   {
@@ -108,6 +111,7 @@ export const NAV: readonly NavSection[] = [
       { kind: "link", key: "clients", label: "Clients", href: ADMIN_CLIENTS_PATH, match: "prefix", icon: "clients", roles: ADMINS },
       { kind: "link", key: "defects", label: "Defects", href: ADMIN_DEFECTS_PATH, match: "prefix", icon: "defects", roles: ADMINS },
       { kind: "link", key: "templates", label: "Templates", href: ADMIN_TEMPLATES_PATH, match: "prefix", icon: "templates", roles: ADMINS },
+      { kind: "link", key: "ai", label: "AI Settings", href: ADMIN_AI_PATH, match: "prefix", icon: "ai", roles: ADMINS },
     ],
   },
 ];

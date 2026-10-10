@@ -5,9 +5,9 @@
 // inspection-files bucket with a row in inspection_files, through the same
 // background queue as photos. A certificate must stay the document the lab
 // issued, so files are never converted.
-import { useCallback, useId, useMemo, useRef } from "react";
+import { useCallback, useId, useMemo, useRef, type ReactNode } from "react";
 import { useInspectionMedia, usePhotoQueue, useStartPhotoQueue, type PhotoFocus } from "@/components/capture/photos/hooks";
-import { slotFiles } from "@/components/capture/photos/photo-model";
+import { slotFiles, type SlotFile } from "@/components/capture/photos/photo-model";
 import { moduleSlotKey, NOTHING_PREPARING } from "@/components/capture/photos/queue-state";
 import { photoQueueStore } from "@/components/capture/photos/queue-store";
 import { EMPTY_TAG_OPTIONS, countFiles } from "@/lib/inspections/photos/view";
@@ -47,6 +47,10 @@ export type FileSlotProps = {
   onAdded?: (file: AddedFile) => void;
   /** A file of the list was deleted, or taken off this device before it uploaded: its id. */
   onRemoved?: (fileId: string) => void;
+  /** Turns chosen files into what is uploaded (Source Documents: photos made JPEG for the AI). */
+  prepare?: (files: File[]) => Promise<File[]>;
+  /** More about a file, under its name in the list. */
+  fileExtra?: (file: SlotFile) => ReactNode;
   className?: string;
 };
 
@@ -75,6 +79,8 @@ export function FileSlot({
   headingLevel = 3,
   onAdded,
   onRemoved,
+  prepare,
+  fileExtra,
   className,
 }: FileSlotProps) {
   useStartPhotoQueue();
@@ -122,6 +128,7 @@ export function FileSlot({
           options={media.media?.options ?? EMPTY_TAG_OPTIONS}
           focusFallback={focusHeading}
           onRemoved={onRemoved}
+          fileExtra={fileExtra}
         />
       ) : preparing.files === 0 ? (
         <p className="text-sm text-muted-foreground">No {PLURAL[kind].toLowerCase()} yet.</p>
@@ -136,12 +143,12 @@ export function FileSlot({
       {canAdd && (
         <FileAddControls
           label={label}
-          onFiles={(chosen) =>
+          onFiles={async (chosen) =>
             photoQueueStore.addFiles({
               inspectionId,
               moduleKey,
               kind,
-              files: chosen,
+              files: prepare ? await prepare(chosen) : chosen,
               onQueued: ({ id, name }) => onAdded?.({ id, name, kind, moduleKey, focus }),
             })
           }

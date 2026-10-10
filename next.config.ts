@@ -8,6 +8,13 @@ const nextConfig: NextConfig = {
   // Do not announce the framework (X-Powered-By). The other security headers
   // come from proxy.ts (lib/auth/security-headers.ts).
   poweredByHeader: false,
+  experimental: {
+    serverActions: {
+      // "Fill From a Document" posts the order document (up to 4 MB,
+      // DOCUMENT_MAX_BYTES) to a Server Action; the default limit is 1 MB.
+      bodySizeLimit: "5mb",
+    },
+  },
 };
 
 export default nextConfig;

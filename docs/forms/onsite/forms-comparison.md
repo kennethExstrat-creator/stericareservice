@@ -1,6 +1,6 @@
 # SteriCare QC: Onsite Inspection Forms (reference)
 
-Source files: "Onsite inspection format - SG.docx", "- EG.docx", "- Safedon EG.docx" (author KK Ngan). Raw files are kept in `~/Documents/SteriCare Files/Raw/QC/Templates/`.
+Source files: "Onsite inspection format - SG.docx", "- EG.docx", "- Safedon EG.docx" (author KK Ngan). Raw files are kept in `~/Local Work/SteriCare Files/Raw/QC/Templates/`.
 
 ## Common to all three
 - PO / Shipment info: Manufacturer, PO/SO No., Product, Lot No., Mfg/Exp, Glove Type, Packing Mode

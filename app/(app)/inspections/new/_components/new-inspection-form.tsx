@@ -6,8 +6,9 @@
 // product. Create checks the form here first, then the Server Action decides
 // everything again and opens the new inspection.
 //
-// iPad: one column, 44 px targets, 16 px text. From 1024 px the template and
-// the Create button sit in a column on the right that stays in view.
+// iPad: one column, 44 px targets, 16 px text. From 1024 px "Fill From a
+// Document", the template and the Create button sit in a column on the right
+// that stays in view. The template shows once the three picks are made.
 //
 // Create runs from onSubmit, not from the form's action prop: React resets a
 // form after every action, and the pickers (Radix Select and RadioGroup) go
@@ -69,6 +70,7 @@ import {
 import { templateInSentence } from "../_lib/text";
 import type { Option, PreviousProduct, TemplateOption } from "../_lib/types";
 import { ChoiceCard } from "./choice-card";
+import { DocumentPanel, type DocumentRead } from "./document-panel";
 import { Panel } from "./panel";
 import { PreviousPicker, START_BLANK } from "./previous-picker";
 import { TemplatePanel } from "./template-panel";
@@ -162,6 +164,10 @@ function ChoicesForm({ storageKey, initial, role, clients, manufacturers, templa
   const nameFrom = choices.nameFromPrevious ? choices.previous : null;
   const [errors, setErrors] = useState<FieldErrors>({});
   const [message, setMessage] = useState<string | null>(null);
+  /** The order document last read: its header and order values go in with Create. */
+  const [documentRead, setDocumentRead] = useState<DocumentRead | null>(null);
+  /** The file it was read from: kept with the new inspection as its first Source Document. */
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
   const alertRef = useRef<HTMLDivElement>(null);
 
   // The picks the template rule needs. The client is a deliberate choice: "" is not chosen yet.
@@ -219,6 +225,7 @@ function ChoicesForm({ storageKey, initial, role, clients, manufacturers, templa
     event.preventDefault();
     if (pending) return;
     const formData = new FormData(event.currentTarget);
+    if (documentRead && documentFile) formData.set("documentFile", documentFile);
     startTransition(() => formAction(formData));
   }
 
@@ -242,6 +249,27 @@ function ChoicesForm({ storageKey, initial, role, clients, manufacturers, templa
   function changed(field: NewInspectionField) {
     setMessage(null);
     if (errors[field]) setErrors((current) => ({ ...current, [field]: undefined }));
+  }
+
+  /** What the document matched fills the pickers and the product name at once. */
+  function applyDocument(read: DocumentRead, file: File) {
+    const { form } = read;
+    const change: Partial<NewInspectionChoices> = {};
+    if (form.clientId) change.clientId = form.clientId;
+    if (form.manufacturerId) change.manufacturerId = form.manufacturerId;
+    if (form.productType) change.productType = form.productType;
+    if (form.productName) Object.assign(change, { productName: form.productName, nameFromPrevious: false });
+    update(change);
+    setMessage(null);
+    setErrors((current) => ({
+      ...current,
+      ...(change.clientId ? { clientId: undefined } : {}),
+      ...(change.manufacturerId ? { manufacturerId: undefined } : {}),
+      ...(change.productType ? { productType: undefined } : {}),
+      ...(change.productName ? { productName: undefined } : {}),
+    }));
+    setDocumentRead(read);
+    setDocumentFile(file);
   }
 
   /** Cancel drops the draft; a click that opens the list in another tab keeps it. */
@@ -431,27 +459,41 @@ function ChoicesForm({ storageKey, initial, role, clients, manufacturers, templa
           </div>
 
           <div className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-[calc(var(--shell-top)+1.5rem)]">
-            <TemplatePanel
+            <DocumentPanel
               id={id}
-              role={role}
-              picks={[
-                { label: "Client", done: client !== undefined },
-                { label: "Manufacturer", done: manufacturerId !== "" },
-                { label: "Product Type", done: productType !== null },
-              ]}
-              productType={productType}
-              names={names}
-              choice={choice}
-              chosen={chosen}
-              overrides={templates}
-              overrideId={overrideId}
-              onOverrideChange={(value) => {
-                update({ templateId: value });
-                changed("templateId");
+              clients={clients}
+              manufacturers={manufacturers}
+              read={documentRead}
+              onRead={applyDocument}
+              onClear={() => {
+                setDocumentRead(null);
+                setDocumentFile(null);
               }}
-              overrideError={errors.templateId}
-              disabled={pending}
             />
+
+            {picks !== null && (
+              <TemplatePanel
+                id={id}
+                role={role}
+                picks={[
+                  { label: "Client", done: client !== undefined },
+                  { label: "Manufacturer", done: manufacturerId !== "" },
+                  { label: "Product Type", done: productType !== null },
+                ]}
+                productType={productType}
+                names={names}
+                choice={choice}
+                chosen={chosen}
+                overrides={templates}
+                overrideId={overrideId}
+                onOverrideChange={(value) => {
+                  update({ templateId: value });
+                  changed("templateId");
+                }}
+                overrideError={errors.templateId}
+                disabled={pending}
+              />
+            )}
 
             {message && (
               <Alert ref={alertRef} tabIndex={-1} variant="destructive" className="outline-none" data-testid="form-error">
@@ -479,6 +521,7 @@ function ChoicesForm({ storageKey, initial, role, clients, manufacturers, templa
       <input type="hidden" name="manufacturerId" value={manufacturerId} />
       <input type="hidden" name="productType" value={productType ?? ""} />
       <input type="hidden" name="previousId" value={fromPrevious?.inspectionId ?? ""} />
+      <input type="hidden" name="documentFill" value={documentRead ? JSON.stringify(documentRead.fill) : ""} />
       {role === "admin" && <input type="hidden" name="templateId" value={overrideId} />}
     </form>
   );

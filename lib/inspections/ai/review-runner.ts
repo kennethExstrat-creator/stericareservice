@@ -1,6 +1,7 @@
 import "server-only";
 import { after } from "next/server";
 import { getAiStatus, requestAiReview, reviewNotConnectedMessage, type AiReviewOutcome } from "@/lib/ai";
+import { loadAiEnv } from "@/lib/ai/settings";
 import {
   canExportInspection,
   evaluateRecord,
@@ -66,7 +67,8 @@ export async function startAiReview(input: StartAiReviewInput): Promise<StartAiR
   const { client, inspectionId, trigger, viewer } = input;
   const now = input.now?.() ?? Date.now();
 
-  const status = getAiStatus().review;
+  // The key and model saved in Admin > AI Settings lie over the variables.
+  const status = getAiStatus(await loadAiEnv()).review;
   if (!status.connected) {
     return { ok: false, reason: "not_connected", message: reviewNotConnectedMessage(status) };
   }
@@ -153,7 +155,7 @@ export async function completeAiReview(input: CompleteAiReviewInput): Promise<"d
   const { reviewId, inspectionId, exportDoc, writer } = input;
   let outcome: AiReviewOutcome;
   try {
-    outcome = await (input.review ?? requestAiReview)(exportDoc);
+    outcome = input.review ? await input.review(exportDoc) : await requestAiReview(exportDoc, { env: await loadAiEnv() });
   } catch (error) {
     console.error("[ai review] the reviewer threw", error);
     outcome = { ok: false, reason: "error", message: "Unexpected error while requesting the AI review." };
@@ -213,7 +215,7 @@ export async function completeAiReview(input: CompleteAiReviewInput): Promise<"d
  * when no reviewer is connected.
  */
 export async function scheduleAiReviewOnSubmit(inspectionId: string): Promise<StartAiReviewResult> {
-  if (!getAiStatus().review.connected) {
+  if (!getAiStatus(await loadAiEnv()).review.connected) {
     return { ok: false, reason: "not_connected", message: "AI second opinion not connected." };
   }
   if (!isAdminClientConfigured()) {

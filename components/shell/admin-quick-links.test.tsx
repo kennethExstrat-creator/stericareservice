@@ -42,6 +42,7 @@ describe("AdminScreenLinks", () => {
       "/admin/defects",
       "/admin/defects/unmapped",
       "/admin/templates",
+      "/admin/ai",
     ]);
     expect(links(html).map(([, name]) => name.split(" ")[0])).toEqual([
       "Users",
@@ -50,6 +51,7 @@ describe("AdminScreenLinks", () => {
       "Defect",
       "Unmapped",
       "Templates",
+      "AI",
     ]);
   });
 
@@ -76,6 +78,7 @@ describe("AdminScreenLinks", () => {
       "Defect Codes",
       "Unmapped Labels",
       "Templates",
+      "AI Settings",
       "Awaiting Approval",
       "All Inspections",
     ]);

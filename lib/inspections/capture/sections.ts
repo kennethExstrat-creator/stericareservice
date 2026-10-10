@@ -163,9 +163,22 @@ export type CapturePage =
       status: Status;
       progress: SectionProgress;
     }
-  | { kind: "excluded"; key: ModuleKey; title: string; section: ExcludedSection };
+  | { kind: "excluded"; key: ModuleKey; title: string; section: ExcludedSection }
+  /**
+   * Source Documents, before every module: the files the inspection starts
+   * from, which the AI reads to fill the pages after it (docs/AI.md). Its
+   * result is "pass" once every file is AI Verified.
+   */
+  | { kind: "documents"; key: string; title: string; status: Status; progress: SectionProgress };
 
 export type IncludedPage = Extract<CapturePage, { kind: "included" }>;
+export type DocumentsPage = Extract<CapturePage, { kind: "documents" }>;
+/** A page the steps, the tabs and Previous / Next go to: every page but a switched-off one. */
+export type StepPage = IncludedPage | DocumentsPage;
+
+export function isStepPage(page: CapturePage): page is StepPage {
+  return page.kind !== "excluded";
+}
 
 /** The sections in pages, in screen order: a guest joins its host's page (captureSections puts it right after). */
 export function capturePages(sections: readonly CaptureSection[]): CapturePage[] {
@@ -248,21 +261,21 @@ export function pageProgress(sections: readonly IncludedSection[]): SectionProgr
 export function neighbours(
   pages: readonly CapturePage[],
   key: string,
-): { previous: IncludedPage | null; next: IncludedPage | null } {
+): { previous: StepPage | null; next: StepPage | null } {
   const index = pages.findIndex((page) => pageSectionKeys(page).includes(key));
-  if (index === -1) return { previous: null, next: pages.find(isIncludedPage) ?? null };
-  let previous: IncludedPage | null = null;
+  if (index === -1) return { previous: null, next: pages.find(isStepPage) ?? null };
+  let previous: StepPage | null = null;
   for (let before = index - 1; before >= 0 && previous === null; before -= 1) {
     const page = pages[before];
-    if (isIncludedPage(page)) previous = page;
+    if (isStepPage(page)) previous = page;
   }
-  const next = pages.slice(index + 1).find(isIncludedPage) ?? null;
+  const next = pages.slice(index + 1).find(isStepPage) ?? null;
   return { previous, next };
 }
 
-/** The included pages as ProgressTracker steps, each with its result. */
+/** The pages a step stands for (Source Documents and the included pages) as ProgressTracker steps, each with its result. */
 export function progressSteps(pages: readonly CapturePage[]): SectionStep[] {
-  return pages.filter(isIncludedPage).map((page) => ({
+  return pages.filter(isStepPage).map((page) => ({
     key: page.key,
     label: page.title,
     state: page.progress,

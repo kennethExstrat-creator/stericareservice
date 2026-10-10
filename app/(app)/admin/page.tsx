@@ -10,6 +10,7 @@ import {
   type DatabaseSummary,
 } from "@/components/shell/admin-status-cards";
 import { getAiStatus } from "@/lib/ai";
+import { loadAiEnv } from "@/lib/ai/settings";
 import { requireAdmin } from "@/lib/auth/session";
 import { getSiteUrl, getSupabasePublicEnv } from "@/lib/env";
 import { isAdminClientConfigured } from "@/lib/supabase/admin";
@@ -41,7 +42,8 @@ export default async function AdminOverviewPage() {
   const secretKeySet = isAdminClientConfigured();
   const supabase = await createClient();
   const [database, awaitingApproval] = await Promise.all([readDatabaseSummary(supabase), countAwaitingApproval(supabase)]);
-  const ai = getAiStatus();
+  // The settings saved in Admin > AI Settings lie over the variables.
+  const ai = getAiStatus(await loadAiEnv());
   // A production build without NEXT_PUBLIC_SITE_URL only knows getSiteUrl()'s
   // localhost fallback, so the email card asks for the variable instead of
   // showing a wrong address. Read with a literal expression (see lib/env.ts).

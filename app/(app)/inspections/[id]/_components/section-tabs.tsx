@@ -11,7 +11,7 @@
 import { useEffect, useRef, type KeyboardEvent } from "react";
 import { CircleOffIcon } from "lucide-react";
 import { ResultChip } from "@/components/qc";
-import { isIncludedPage, pageSectionKeys, type CapturePage } from "@/lib/inspections/capture/sections";
+import { isStepPage, pageSectionKeys, type CapturePage } from "@/lib/inspections/capture/sections";
 import { cn } from "@/lib/utils";
 
 type SectionTabsProps = {
@@ -48,7 +48,7 @@ export function nextTabIndex(key: string, index: number, count: number): number 
 }
 
 export function SectionTabs({ pages, activeKey, onSelect, panelId, idPrefix, className }: SectionTabsProps) {
-  const ordered = [...pages.filter(isIncludedPage), ...pages.filter((page) => !isIncludedPage(page))];
+  const ordered = [...pages.filter(isStepPage), ...pages.filter((page) => !isStepPage(page))];
   // A section switched off moves to the end of the bar: its tab must stay in view there too.
   const order = ordered.map((page) => page.key).join(" ");
   const scroller = useRef<HTMLDivElement>(null);
@@ -76,7 +76,7 @@ export function SectionTabs({ pages, activeKey, onSelect, panelId, idPrefix, cla
     if (key !== activeKey) onSelect(key);
   };
 
-  const firstExcluded = ordered.findIndex((page) => !isIncludedPage(page));
+  const firstExcluded = ordered.findIndex((page) => !isStepPage(page));
 
   return (
     <div
@@ -87,7 +87,7 @@ export function SectionTabs({ pages, activeKey, onSelect, panelId, idPrefix, cla
       <div role="tablist" aria-label="Sections" aria-orientation="horizontal" className="flex w-max items-stretch">
         {ordered.map((page, index) => {
           const selected = page.key === activeKey;
-          const excluded = !isIncludedPage(page);
+          const excluded = !isStepPage(page);
           return (
             <button
               key={page.key}
@@ -118,7 +118,9 @@ export function SectionTabs({ pages, activeKey, onSelect, panelId, idPrefix, cla
             >
               {excluded && <CircleOffIcon aria-hidden className="size-4 shrink-0 text-slate-500" />}
               <span className="max-w-56 truncate">{page.title}</span>
-              {isIncludedPage(page) ? (
+              {page.kind === "documents" ? (
+                <ResultChip status={page.status} label={page.status === "pass" ? "AI Verified" : "Not read yet"} />
+              ) : isStepPage(page) ? (
                 <ResultChip status={page.status} />
               ) : (
                 <span className="sr-only">, switched off for this inspection</span>

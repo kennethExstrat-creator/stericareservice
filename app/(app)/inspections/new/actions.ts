@@ -1,6 +1,9 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { redirect, unstable_rethrow } from "next/navigation";
+import { readOrderDocument } from "@/lib/ai/document-reader";
+import { loadAiEnv } from "@/lib/ai/settings";
 import { authorizeAction } from "@/lib/auth/session";
 import { evaluateCapture } from "@/lib/inspections/capture/evaluate";
 import { mirroredColumns } from "@/lib/inspections/capture/mirror";
@@ -16,11 +19,22 @@ import {
   type NewInspectionField,
   type NewInspectionInput,
 } from "@/lib/inspections/create";
+import { applyDocumentFill, checkReading } from "@/lib/inspections/document-fill";
 import { personLabel } from "@/lib/inspections/format";
+import { SOURCE_DOCUMENTS_KEY } from "@/lib/inspections/source-documents";
+import { FILE_BUCKET, filePath } from "@/lib/photos/paths";
 import { INSPECTIONS_PATH } from "@/lib/inspections/search-params";
 import { createInspectionRow, serverWriter } from "@/lib/inspections/writes";
+import {
+  DOCUMENT_MAX_BYTES,
+  DOCUMENT_MEDIA_TYPES,
+  DocumentFillSchema,
+  type DocumentFill,
+  type DocumentReadResult,
+} from "@/lib/schemas/document-fill";
 import { ResolvedTemplateSchema } from "@/lib/schemas/template";
 import type { Json } from "@/lib/supabase/database.types";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { templateCandidateFromRow, type TemplateCandidate } from "@/lib/templates/select";
 import { MODULE_REGISTRY } from "@/modules";
@@ -77,6 +91,7 @@ async function create(formData: FormData): Promise<Outcome> {
   const parsed = NewInspectionInputSchema.safeParse(readNewInspectionForm(formData));
   if (!parsed.success) return fail("Check the highlighted fields.", fieldErrorsOf(parsed.error));
   const input = parsed.data;
+  const documentFill = readDocumentFill(formData);
   if (input.templateId && user.role !== "admin") {
     const message = "Only an admin can choose the template.";
     return fail(message, { templateId: message });
@@ -144,7 +159,7 @@ async function create(formData: FormData): Promise<Outcome> {
   }
 
   const inspectionDate = todayInMalaysia();
-  const { data, copied } = newInspectionData({
+  const started = newInspectionData({
     template: resolved.data,
     registry: MODULE_REGISTRY,
     inspectionDate,
@@ -152,6 +167,10 @@ async function create(formData: FormData): Promise<Outcome> {
     factoryAddress: manufacturer.data.address,
     previous: previousData,
   });
+  const { copied } = started;
+  // The order document's header values and order lines, where nothing is set yet.
+  const fromDocument = documentFill ? applyDocumentFill(started.data, documentFill, resolved.data) : null;
+  const data = fromDocument?.data ?? started.data;
 
   // The columns the list shows and searches (PO, product, lots, date, results) repeat the
   // data (BUILD_SPEC 6.2 rule 10): written exactly as the capture screen's save writes
@@ -183,8 +202,13 @@ async function create(formData: FormData): Promise<Outcome> {
     return fail(describeCreateError(inserted.error));
   }
 
+  // The order document it was filled from becomes its first Source Document, already read.
+  const documentFile = formData.get("documentFile");
+  if (documentFill && documentFile instanceof File) await keepDocument(inserted.id, documentFile, user.id);
+
   await recordHowItStarted(supabase, inserted.id, {
     previous: previous?.data ? { id: previous.data.id, refNo: previous.data.ref_no, copied } : null,
+    document: documentFill && fromDocument ? { fileName: documentFill.fileName, filled: fromDocument.filled, by: user.id } : null,
     override:
       choice.specificity === "override"
         ? { chosen: choice.template, automatic: automaticChoice(candidates, input, user.role) }
@@ -215,6 +239,7 @@ async function recordHowItStarted(
   inspectionId: string,
   how: {
     previous: { id: string; refNo: string; copied: string[] } | null;
+    document: { fileName: string; filled: string[]; by: string } | null;
     override: { chosen: TemplateCandidate; automatic: TemplateCandidate | null } | null;
   },
 ): Promise<void> {
@@ -234,5 +259,125 @@ async function recordHowItStarted(
   for (const event of events) {
     const { error } = await supabase.rpc("log_inspection_event", { inspection_id: inspectionId, ...event });
     if (error) console.error(`[inspections/new] could not record ${event.action}`, error.code, error.message);
+  }
+  // An inspector records only a few events themselves (log_inspection_event), so the
+  // service role writes this one, naming who uploaded the document.
+  if (how.document) {
+    try {
+      const { error } = await createAdminClient().rpc("log_inspection_event", {
+        inspection_id: inspectionId,
+        action: "filled_from_document",
+        changes: { file: how.document.fileName, filled: how.document.filled, by: how.document.by },
+      });
+      if (error) console.error("[inspections/new] could not record filled_from_document", error.code, error.message);
+    } catch (error) {
+      console.error("[inspections/new] could not record filled_from_document", error);
+    }
+  }
+}
+
+/** The order document's values the form posts with Create; anything that does not check out is ignored. */
+function readDocumentFill(formData: FormData): DocumentFill | null {
+  const raw = formData.get("documentFill");
+  if (typeof raw !== "string" || raw === "") return null;
+  try {
+    const parsed = DocumentFillSchema.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
+const READ_FAILED = "The document could not be read. Try again.";
+
+/**
+ * Reads an uploaded order document with the AI (docs/AI.md, "Reading order
+ * documents") and answers what the form can fill in. Anyone who can start
+ * an inspection may use it. The file is passed to the AI and not stored;
+ * the lists are read through the caller's client, so the AI matches only
+ * clients and manufacturers the caller can pick.
+ */
+export async function readDocument(formData: FormData): Promise<DocumentReadResult> {
+  try {
+    const auth = await authorizeAction();
+    if (!auth.ok) return { status: "error", message: auth.error };
+
+    const file = formData.get("document");
+    if (!(file instanceof File) || file.size === 0) return { status: "error", message: "Choose a file to read." };
+    if (file.size > DOCUMENT_MAX_BYTES) {
+      return { status: "error", message: "The file is larger than 4 MB. Upload just the pages with the order details." };
+    }
+    const mediaType = DOCUMENT_MEDIA_TYPES.find((type) => type === file.type);
+    const bytes = Buffer.from(await file.arrayBuffer());
+    if (!mediaType || (mediaType === "application/pdf" && bytes.subarray(0, 5).toString("latin1") !== "%PDF-")) {
+      return { status: "error", message: "Upload a PDF or a photo of the document." };
+    }
+
+    const supabase = await createClient();
+    const [clients, manufacturers] = await Promise.all([
+      supabase.from("clients").select("id, name"),
+      supabase.from("manufacturers").select("id, name, factory_name"),
+    ]);
+    if (clients.error || manufacturers.error) {
+      console.error("[inspections/new] reading the lists failed", clients.error?.message ?? manufacturers.error?.message);
+      return { status: "error", message: READ_FAILED };
+    }
+    const lists = {
+      clients: clients.data,
+      manufacturers: manufacturers.data.map((entry) => ({
+        id: entry.id,
+        name: entry.factory_name ? `${entry.name} (${entry.factory_name})` : entry.name,
+      })),
+    };
+
+    const outcome = await readOrderDocument(
+      { mediaType, base64: bytes.toString("base64"), name: file.name },
+      lists,
+      await loadAiEnv(),
+    );
+    if (!outcome.ok) return { status: "error", message: outcome.message };
+    return { status: "read", fileName: file.name, ...checkReading(outcome.reading, lists, file.name) };
+  } catch (error) {
+    unstable_rethrow(error);
+    console.error("[inspections/new] readDocument failed", error);
+    return { status: "error", message: READ_FAILED };
+  }
+}
+
+/**
+ * Keeps the order document with the new inspection as a Source Document
+ * (docs/AI.md), marked as read: the form was filled from it. Written with
+ * the secret key; a failure is logged, never shown: the inspection exists.
+ */
+async function keepDocument(inspectionId: string, file: File, userId: string): Promise<void> {
+  const extension = file.type === "application/pdf" ? "pdf" : file.type === "image/jpeg" ? "jpg" : null;
+  if (!extension || file.size === 0 || file.size > DOCUMENT_MAX_BYTES) return;
+  try {
+    const admin = createAdminClient();
+    const id = randomUUID();
+    const path = filePath(inspectionId, id, extension);
+    const upload = await admin.storage.from(FILE_BUCKET).upload(path, file, { contentType: file.type, upsert: false });
+    if (upload.error) {
+      console.error("[inspections/new] keeping the order document failed", upload.error.message);
+      return;
+    }
+    const { error } = await admin.from("inspection_files").insert({
+      id,
+      inspection_id: inspectionId,
+      module_key: SOURCE_DOCUMENTS_KEY,
+      kind: "other",
+      storage_path: path,
+      name: file.name.slice(0, 200) || `Order Document.${extension}`,
+      created_by: userId,
+      ai_status: "read",
+      ai_read_at: new Date().toISOString(),
+      ai_summary: "Read on New Inspection: it filled in the order details.",
+    });
+    if (error) {
+      console.error("[inspections/new] recording the order document failed", error.code, error.message);
+      await admin.storage.from(FILE_BUCKET).remove([path]);
+    }
+  } catch (error) {
+    console.error("[inspections/new] keeping the order document failed", error);
   }
 }

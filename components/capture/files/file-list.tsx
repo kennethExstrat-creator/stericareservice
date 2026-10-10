@@ -2,7 +2,7 @@
 
 // Lab reports and certificates as rows: name, kind, upload state, and Open
 // (a signed URL in a new tab), Try Again or Delete where they apply.
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { ExternalLinkIcon, FileTextIcon, RotateCwIcon, Trash2Icon, TriangleAlertIcon } from "lucide-react";
 import type { SlotFile } from "@/components/capture/photos/photo-model";
 import { photoQueueStore } from "@/components/capture/photos/queue-store";
@@ -34,6 +34,7 @@ export function FileList({
   showModule = false,
   focusFallback,
   onRemoved,
+  fileExtra,
   className,
 }: {
   inspectionId: string;
@@ -47,6 +48,8 @@ export function FileList({
   focusFallback?: () => void;
   /** A file was deleted, or taken off this device: its id, for a module that keeps it. */
   onRemoved?: (fileId: string) => void;
+  /** More about a file, under its name (Source Documents: what the AI read). */
+  fileExtra?: (file: SlotFile) => ReactNode;
   className?: string;
 }) {
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -76,6 +79,7 @@ export function FileList({
                   {file.kind ? FILE_KIND_LABEL[file.kind] : "File"}
                   {showModule ? ` · ${moduleTitle(file.moduleKey, options)}` : ""} · {stateText(file)}
                 </p>
+                {fileExtra?.(file)}
                 {file.state === "failed" && file.error && (
                   <p className="mt-1 flex items-start gap-1.5 text-sm text-fail">
                     <TriangleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0" />

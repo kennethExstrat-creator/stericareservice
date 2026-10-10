@@ -8,7 +8,7 @@
 // in their own group, marked off.
 import { CircleOffIcon } from "lucide-react";
 import { ProgressTracker } from "@/components/qc";
-import { isIncludedPage, progressSteps, type CapturePage } from "@/lib/inspections/capture/sections";
+import { progressSteps, type CapturePage } from "@/lib/inspections/capture/sections";
 import { cn } from "@/lib/utils";
 
 type SectionListProps = {
@@ -20,7 +20,7 @@ type SectionListProps = {
 };
 
 export function SectionList({ pages, activeKey, onSelect, className }: SectionListProps) {
-  const excluded = pages.filter((page) => !isIncludedPage(page));
+  const excluded = pages.filter((page) => page.kind === "excluded");
   return (
     <nav aria-label="Sections" data-slot="section-list" className={cn("space-y-5", className)}>
       <ProgressTracker

@@ -5,9 +5,13 @@ import { asOwner, asService, asUser, column, createAuthUser, type Db, type Tx } 
 export type TableName = keyof Database["public"]["Tables"];
 
 // A Record, so the compiler flags a table added to the schema but not here.
-const tableSet: Record<TableName, true> = {
+// false: no signed-in user may read the table at all (ai_settings: the service
+// role only), so the per-role read checks leave it out; rls-admin.test.ts
+// checks that even an admin is refused.
+const tableSet: Record<TableName, boolean> = {
   ai_review_actions: true,
   ai_reviews: true,
+  ai_settings: false,
   audit_log: true,
   clients: true,
   defect_codes: true,
@@ -20,7 +24,7 @@ const tableSet: Record<TableName, true> = {
 };
 
 /** Every public table, from the generated types. */
-export const TABLES = Object.keys(tableSet) as TableName[];
+export const TABLES = (Object.keys(tableSet) as TableName[]).filter((table) => tableSet[table]);
 
 /** Rows of a table the current session can see. */
 export async function visibleRows(tx: Tx, table: TableName): Promise<number> {

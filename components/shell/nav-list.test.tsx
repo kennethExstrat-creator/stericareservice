@@ -29,6 +29,7 @@ const ADMIN_PAGES = [
   "/admin/clients",
   "/admin/defects",
   "/admin/templates",
+  "/admin/ai",
 ];
 
 /** A section with a screen still to come, as Kenneth might add one: the nav shows it, never links it. */

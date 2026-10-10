@@ -5,6 +5,7 @@ import {
   LayoutDashboardIcon,
   LayoutTemplateIcon,
   SettingsIcon,
+  SparklesIcon,
   TagsIcon,
   UsersIcon,
   type LucideIcon,
@@ -20,6 +21,7 @@ const ICONS: Readonly<Record<NavIconName, LucideIcon>> = {
   clients: Building2Icon,
   defects: TagsIcon,
   templates: LayoutTemplateIcon,
+  ai: SparklesIcon,
 };
 
 /** A nav entry's icon. Decorative: the label next to it names the entry. */

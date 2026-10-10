@@ -113,6 +113,10 @@ describe("RLS: admin", { timeout: 30_000 }, () => {
     expect(empty).toEqual([]);
   });
 
+  it("is refused the AI settings, which only the service role reads", async () => {
+    await expect(asUser(db, people.admin, (tx) => visibleRows(tx, "ai_settings"))).rejects.toThrow(/permission denied/);
+  });
+
   it("manages reference data", async () => {
     const result = await asUser(db, people.admin, async (tx) => {
       const made = await tx.query<{ id: string }>(

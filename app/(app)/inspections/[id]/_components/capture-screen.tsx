@@ -131,6 +131,8 @@ import {
   type DataNamespace,
   type InspectionData,
 } from "@/modules/_framework";
+import { MODULE_REGISTRY } from "@/modules";
+import { applyProposals, SOURCE_DOCUMENTS_KEY, SOURCE_DOCUMENTS_TITLE } from "@/lib/inspections/source-documents";
 import type { CaptureServerState } from "../actions";
 import { CaptureHeader, type CaptureHeading } from "./capture-header";
 import { captureNotices, CaptureNotices } from "./capture-notices";
@@ -141,6 +143,8 @@ import { SwitchedOffPanel, SwitchOffDialog } from "./module-switch";
 import { SaveIndicator } from "./save-indicator";
 import { CustomBody, ModuleBody, preloadCaptures } from "./section-body";
 import { PagePanel, SectionComment, SectionFrame } from "./section-frame";
+import { SourceDocumentsPage } from "./source-documents-page";
+import { useSourceDocuments } from "./use-source-documents";
 import { SectionList } from "./section-list";
 import { SectionTabs, tabId } from "./section-tabs";
 import { SubmitControl, type SubmitBlocked, type SubmitPreparation } from "./submit-control";
@@ -363,11 +367,38 @@ export function CaptureScreen({
     () => captureSections(evaluation.template, report, deferredData),
     [evaluation.template, report, deferredData],
   );
-  // What a tab, a sidebar row, a progress step and Previous or Next open: a section, or a module with those shown on its page.
-  const pages = useMemo(() => capturePages(sections), [sections]);
+  // Source Documents, the first page: each file the AI reads fills empty fields through the same autosave as typing.
+  const sourceDocuments = useSourceDocuments({
+    inspectionId,
+    canRead: !readOnly,
+    onProposals: (proposals) => {
+      const included = new Set(evaluation.template.modules.filter((entry) => entry.include).map((entry) => entry.key));
+      const result = applyProposals(dataRef.current, proposals, MODULE_REGISTRY, included);
+      if (result.filled > 0) commit(result.data);
+      return result.filled;
+    },
+  });
+  // What a tab, a sidebar row, a progress step and Previous or Next open: Source Documents first, then a section,
+  // or a module with those shown on its page.
+  const pages = useMemo(
+    (): CapturePage[] => [
+      {
+        kind: "documents",
+        key: SOURCE_DOCUMENTS_KEY,
+        title: SOURCE_DOCUMENTS_TITLE,
+        status: sourceDocuments.status,
+        progress: sourceDocuments.progress,
+      },
+      ...capturePages(sections),
+    ],
+    [sections, sourceDocuments.status, sourceDocuments.progress],
+  );
 
   // The section asked for (?module=, an issue link, a switch) or the page chosen: the screen shows the page it is on.
-  const [activeKey, setActiveKey] = useState(() => initialSectionKey(sections, initialSection));
+  // Without one, Source Documents, the first step.
+  const [activeKey, setActiveKey] = useState(() =>
+    initialSection === null || initialSection === SOURCE_DOCUMENTS_KEY ? SOURCE_DOCUMENTS_KEY : initialSectionKey(sections, initialSection),
+  );
   const activePage: CapturePage | undefined = findPage(pages, activeKey) ?? pages.find(isIncludedPage) ?? pages[0];
   const activeSectionKeys = activePage ? pageSectionKeys(activePage) : [];
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
@@ -954,7 +985,17 @@ export function CaptureScreen({
             label="Progress"
           />
 
-          {activePage && (
+          {activePage?.kind === "documents" ? (
+            <SourceDocumentsPage
+              key={activePage.key}
+              panelId={panelId}
+              tabLabelledBy={wide ? undefined : tabId(idPrefix, activePage.key)}
+              titleRef={titleRef}
+              inspectionId={inspectionId}
+              readOnly={readOnly}
+              documents={sourceDocuments}
+            />
+          ) : activePage && (
             <ActivePage
               key={activePage.key}
               page={activePage}
@@ -1081,7 +1122,7 @@ type SharedSectionProps = {
 };
 
 type ActivePageProps = SharedSectionProps & {
-  page: CapturePage;
+  page: Exclude<CapturePage, { kind: "documents" }>;
   panelId: string;
   /** The callback ref of each section's title, by section key: the screen focuses titles. */
   titleRef: (sectionKey: string) => Ref<HTMLHeadingElement>;

@@ -77,8 +77,9 @@ describe("/inspections/new", () => {
     expect(html).toContain(PRODUCT_TYPE_LABEL.surgical);
     expect(html).toContain('Product Name <span class="font-normal text-muted-foreground">(Optional)</span>');
     expect(html).toContain("Start From Previous");
-    expect(html).toContain("The template follows from the client, manufacturer and product type.");
-    expect(html).toContain("Product Type<span class=\"sr-only\">: not chosen yet</span>");
+    // The template shows once the three picks are made; until then, the document upload.
+    expect(html).toContain("Fill From a Document");
+    expect(html).not.toContain('data-testid="template-panel"');
     expect(html).toContain("Create Inspection");
     // Inspectors never post a template of their own choosing.
     expect(html).not.toContain('name="templateId"');

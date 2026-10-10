@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/server", () => ({ after: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn(), isAdminClientConfigured: vi.fn(() => false) }));
+// The settings saved in Admin > AI Settings are not under test here: the variables apply.
+vi.mock("@/lib/ai/settings", () => ({ loadAiEnv: async (env = process.env) => env }));
 vi.mock("@/modules/registry", async () => {
   const { TEST_REGISTRY } = await import("@/modules/_framework/__fixtures__/test-registry");
   return { MODULE_REGISTRY: TEST_REGISTRY, getModuleDefinition: (key: keyof typeof TEST_REGISTRY) => TEST_REGISTRY[key] };

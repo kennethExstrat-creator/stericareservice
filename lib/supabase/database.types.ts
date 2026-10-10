@@ -122,6 +122,47 @@ export type Database = {
           },
         ]
       }
+      ai_settings: {
+        Row: {
+          anthropic_api_key_encrypted: string | null
+          anthropic_api_key_hint: string | null
+          created_at: string
+          document_model: string | null
+          id: boolean
+          review_model: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          anthropic_api_key_encrypted?: string | null
+          anthropic_api_key_hint?: string | null
+          created_at?: string
+          document_model?: string | null
+          id?: boolean
+          review_model?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          anthropic_api_key_encrypted?: string | null
+          anthropic_api_key_hint?: string | null
+          created_at?: string
+          document_model?: string | null
+          id?: boolean
+          review_model?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_log: {
         Row: {
           action: string
@@ -226,6 +267,9 @@ export type Database = {
       }
       inspection_files: {
         Row: {
+          ai_read_at: string | null
+          ai_status: string | null
+          ai_summary: string | null
           created_at: string
           created_by: string
           id: string
@@ -237,6 +281,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_read_at?: string | null
+          ai_status?: string | null
+          ai_summary?: string | null
           created_at?: string
           created_by?: string
           id?: string
@@ -248,6 +295,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_read_at?: string | null
+          ai_status?: string | null
+          ai_summary?: string | null
           created_at?: string
           created_by?: string
           id?: string

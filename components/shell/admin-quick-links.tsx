@@ -12,6 +12,7 @@ import {
   FlagIcon,
   LayoutTemplateIcon,
   SendIcon,
+  SparklesIcon,
   TagsIcon,
   UsersIcon,
   type LucideIcon,
@@ -23,6 +24,7 @@ import {
   ADMIN_CLIENTS_PATH,
   ADMIN_DEFECTS_PATH,
   ADMIN_MANUFACTURERS_PATH,
+  ADMIN_AI_PATH,
   ADMIN_TEMPLATES_PATH,
   ADMIN_USERS_PATH,
 } from "./nav";
@@ -106,6 +108,12 @@ export function AdminScreenLinks() {
           icon: LayoutTemplateIcon,
           title: "Templates",
           description: "Each template's versions, the editor, activating and retiring.",
+        },
+        {
+          href: ADMIN_AI_PATH,
+          icon: SparklesIcon,
+          title: "AI Settings",
+          description: "The Anthropic API key and the Claude models the app uses.",
         },
       ]}
       className="md:grid-cols-2 xl:grid-cols-3"
