@@ -92,8 +92,10 @@ export function removalFocus(index: number, rowCount: number, hasOpener: boolean
 }
 
 /**
- * CounterTable's widths in CSS px, as its classes set them: the label column
- * (w-64) and each value column (w-32, touch:w-40), plus the frame's borders.
+ * CounterTable's widths in CSS px, as its classes set them where columns sit
+ * side by side: the label column's minimum from 1280 px (xl:min-w-64; it
+ * takes whatever the table's frame has left) and each value column (w-32,
+ * touch:w-40), plus the frame's borders.
  */
 export const COUNTER_WIDTHS = { label: 256, value: 128, valueTouch: 160, frame: 2 } as const;
 

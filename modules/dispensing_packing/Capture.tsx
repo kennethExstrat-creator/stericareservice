@@ -49,7 +49,9 @@ type Props = CaptureProps<DispensingPackingData, DispensingPackingConfig, Dispen
 type Update = (change: DataChange<DispensingPackingData>) => void;
 type PercentKey = "layeringPct" | "dispensingPct";
 
-const HEAD = "border-b border-border bg-slate-50 px-2 py-2 text-left align-bottom font-semibold text-foreground";
+// A heading on one line, padded as its cells' contents are (px-2.5), so it lines up with them.
+const HEAD =
+  "border-b border-border bg-slate-50 px-2.5 py-2 text-left align-bottom font-semibold whitespace-nowrap text-foreground";
 const CELL = "border-b border-l border-border p-0 align-middle";
 
 export default function Capture({
@@ -173,17 +175,20 @@ function PackingSizePanel({ size, props, update, requested, onRequest, rejected,
       )}
       <EnterGroup className="relative overflow-clip rounded-lg border border-border bg-card">
         <table
-          // The heading row's height, measured: the template's wording can wrap it to two lines or more.
+          // The heading row's height, measured, for the scroll margin below it.
           style={headHeight === null ? undefined : ({ "--packing-head": `${headHeight}px` } as CSSProperties)}
-          className="w-full table-fixed border-separate border-spacing-0 text-sm touch:text-base"
+          className="w-full border-separate border-spacing-0 text-sm touch:text-base"
         >
           <caption className="sr-only">{`${title}, ${sizeName}`}</caption>
+          {/* The item and the box as wide as their contents. The two percentages and the
+              stickiness code an equal share of the table, never narrower than their headings on
+              one line (table auto layout); the notes what is left, about a third to two fifths. */}
           <colgroup>
             <col className="w-12 touch:w-14" />
-            <col className="w-28 touch:w-32" />
-            <col className="w-24 touch:w-28" />
-            <col className="w-24 touch:w-28" />
-            <col className="w-20 touch:w-24" />
+            <col className="w-[6.5rem] touch:w-28" />
+            <col className="w-[15%]" />
+            <col className="w-[15%]" />
+            <col className="w-[15%]" />
             <col />
           </colgroup>
           {/* The column headings stay below the size bar while the 13 rows scroll

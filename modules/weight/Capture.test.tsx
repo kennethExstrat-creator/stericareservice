@@ -48,6 +48,12 @@ function render(
 const tags = (html: string, pattern: string): string[] =>
   Array.from(html.matchAll(new RegExp(`<[^>]*${pattern}[^>]*>`, "g")), (match) => match[0]);
 
+/** The flowed grid's footer, a table of its own after the groups, up to the deviation note. */
+const footerOf = (html: string): string => {
+  const start = html.indexOf('<div role="table"');
+  return start < 0 ? "" : html.slice(start, html.indexOf('data-slot="weight-deviation"', start));
+};
+
 describe("weight capture, 13 gloves per size (STD_EG)", () => {
   const data = weightData(STD_EG_EXAMPLE.weight);
   const html = render("STD_EG", data, exampleContext(STD_EG_EXAMPLE));
@@ -63,23 +69,32 @@ describe("weight capture, 13 gloves per size (STD_EG)", () => {
 
   it("heads the size's grid with the template's label and the size, Title Case as a heading is", () => {
     expect(html).toMatch(/<h3[^>]*>Weight \(g\), Size M<\/h3>/);
-    // The grid is named as its heading reads.
-    expect(html).toContain('<caption class="sr-only">Weight (g), Size M</caption>');
+    // The grid is named as its heading reads: its groups of weights, and its footer.
+    expect(html).toContain('role="group" aria-label="Weight (g), Size M"');
+    expect(html).toContain('role="table" aria-label="Weight (g), Size M"');
   });
 
   it("puts the template's Remark beside the size's result, not on the grid's spec verdict", () => {
-    const footer = /<tfoot[\s\S]*<\/tfoot>/.exec(html)?.[0] ?? "";
+    const footer = footerOf(html);
     expect(footer).toContain(">P/F<");
     expect(footer).not.toContain("Remark");
     const header = /<header[\s\S]*?<\/header>/.exec(html)?.[0] ?? "";
     expect(header).toMatch(/>Remark<\/span><span data-slot="status-pill" data-status="warn"/);
   });
 
-  it("keeps the one column of weights beside its glove numbers", () => {
+  it("flows the 13 weights into three groups side by side, in order, the footer across the foot", () => {
     const grid = tags(html, 'data-slot="measurement-grid"')[0];
-    // Narrow, and without the table's 36rem floor, so it cannot scroll sideways.
-    expect(grid).toContain("max-w-md");
-    expect(grid).toContain("[&amp;_table]:min-w-0");
+    expect(grid).toContain('data-flow=""');
+    expect(Array.from(html.matchAll(/<table aria-label="([^"]*)"/g), (match) => match[1])).toEqual([
+      "No. 1 to 5",
+      "No. 6 to 10",
+      "No. 11 to 13",
+    ]);
+    // Tab and the screen reader go 1, 2, 3 ... 13; so do Enter and a paste (the grid's own keys).
+    const names = tags(html, 'data-slot="numeric-cell"').map((cell) => /aria-label="([^"]*)"/.exec(cell)?.[1]);
+    expect(names).toEqual(Array.from({ length: 13 }, (_, row) => `Weight (g), No. ${row + 1}`));
+    // The glove numbers' column is narrow: the footer's captions are not in it.
+    expect(html).toContain('<col class="w-12 touch:w-14"/>');
   });
 
   it("shows the deviation from the indicative weight as a warning", () => {
@@ -108,7 +123,7 @@ describe("weight capture, 13 gloves per size (STD_EG)", () => {
   });
 
   it("shows calc's average in the footer and judges only the spec there", () => {
-    const footer = /<tfoot[\s\S]*<\/tfoot>/.exec(html)?.[0] ?? "";
+    const footer = footerOf(html);
     expect(footer).toContain(">2.90<");
     // STD_EG sets no weight spec: NA, never the size's warning.
     expect(footer).toContain(">NA<");

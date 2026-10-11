@@ -3,6 +3,7 @@ import {
   applyPaste,
   caretOf,
   cellKey,
+  flowGroups,
   judgeOverflow,
   labelColumnWidth,
   overflowNotStored,
@@ -296,5 +297,22 @@ describe("labelColumnWidth", () => {
   it("keeps the glove numbers' width for short captions, and wraps only past 16 rem", () => {
     expect(labelColumnWidth(["No.", "P/F"])).toBe("clamp(3.5rem, calc(3ch + 2rem), 16rem)");
     expect(labelColumnWidth([])).toBe("clamp(3.5rem, calc(0ch + 2rem), 16rem)");
+  });
+});
+
+describe("flowGroups", () => {
+  it("splits a column into up to three groups in order, the last one shorter: 13 gloves give 1-5, 6-10, 11-13", () => {
+    expect(flowGroups(13)).toEqual([
+      { from: 0, to: 5 },
+      { from: 5, to: 10 },
+      { from: 10, to: 13 },
+    ]);
+    expect(flowGroups(20).map(({ from, to }) => to - from)).toEqual([7, 7, 6]);
+    expect(flowGroups(4)).toEqual([
+      { from: 0, to: 2 },
+      { from: 2, to: 4 },
+    ]);
+    expect(flowGroups(1)).toEqual([{ from: 0, to: 1 }]);
+    expect(flowGroups(0)).toEqual([]);
   });
 });

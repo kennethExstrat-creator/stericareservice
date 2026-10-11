@@ -350,10 +350,31 @@ describe("CounterTable", () => {
     expect(html.match(/aria-live="polite"/g)).toHaveLength(1);
   });
 
-  it("keeps labels next to their steppers: a fixed label column, a table only as wide as its columns", () => {
+  it("fills its frame: the label column takes what fixed value columns leave, as wide as a one-line limit where one column shows", () => {
+    const classesOf = (tag: string) => (/class="([^"]*)"/.exec(tag)?.[1] ?? "").split(" ");
+    // A count's cell, the only one marked when it counts something.
+    const valueCells = (html: string) => tagsWith(html, "data-nonzero:bg-brand-50");
     const html = render();
-    expect(tagsWith(html, 'scope="row"')[0]).toContain("w-64");
-    expect(html).toContain("w-fit max-w-full");
+    expect(/<table[^>]*>/.exec(html)?.[0]).toContain("w-full");
+    expect(tagsWith(html, "scroll-pl-64")[0]).not.toContain("w-fit");
+    // The label column has no width of its own: it takes the rest.
+    expect(classesOf(tagsWith(html, 'scope="row"')[0])).not.toContain("w-64");
+    // Columns side by side: a stepper's width, the same in every table, so stacked tables line up.
+    const many = valueCells(html);
+    expect(many.length).toBeGreaterThan(0);
+    for (const cell of many) expect(classesOf(cell)).toEqual(expect.arrayContaining(["w-32", "touch:w-40"]));
+    // One column on screen: room for "Accept 21 / Reject 22" on one line, unless the frame is narrow.
+    for (const cell of valueCells(render({ columns: [columns[0]] }))) {
+      expect(classesOf(cell)).toEqual(expect.arrayContaining(["w-44", "touch:w-52", "@max-md:w-32"]));
+    }
+    // A size at a time below 1280 px, every size side by side from 1280 px.
+    for (const cell of valueCells(render({ activeColumn: "M" }))) {
+      expect(classesOf(cell)).toEqual(expect.arrayContaining(["w-44", "touch:w-52", "xl:w-32"]));
+    }
+    // A hand split shows two value columns of one size: a stepper's width each.
+    for (const cell of valueCells(render({ columns: [columns[0]], hands: ["R", "L"] }))) {
+      expect(classesOf(cell)).toEqual(expect.arrayContaining(["w-32", "touch:w-40"]));
+    }
   });
 
   it("keeps the label column at 14rem, 16rem from 1280 px, so a wide table scrolls instead of squeezing it", () => {
@@ -363,7 +384,7 @@ describe("CounterTable", () => {
     const cells = labelCells(render());
     expect(cells).toHaveLength(rows.length + 5); // the heading, n, limit, rows, total and result
     for (const cell of cells) {
-      expect(classesOf(cell)).toEqual(expect.arrayContaining(["w-64", "min-w-56", "xl:min-w-64", "[overflow-wrap:anywhere]"]));
+      expect(classesOf(cell)).toEqual(expect.arrayContaining(["min-w-56", "xl:min-w-64", "[overflow-wrap:anywhere]"]));
     }
     // One value column has nothing to scroll to: from 1280 px its labels wrap to fit.
     for (const cell of labelCells(render({ columns: [columns[0]] }))) {

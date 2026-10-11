@@ -224,3 +224,19 @@ export function labelColumnWidth(captions: readonly string[]): string {
   const longest = Math.max(0, ...captions.map((caption) => caption.trim().length));
   return `clamp(3.5rem, calc(${longest}ch + 2rem), 16rem)`;
 }
+
+/** Rows `from` up to, not including, `to` (0-based): one group of a flowed grid. */
+export type RowGroup = { readonly from: number; readonly to: number };
+
+/**
+ * A flowed grid's rows in groups that sit side by side, in order: at most
+ * `most`, of the same length but the last, which may be shorter. 13 gloves
+ * give rows 1 to 5, 6 to 10 and 11 to 13; 4 give 1 to 2 and 3 to 4.
+ */
+export function flowGroups(rows: number, most = 3): RowGroup[] {
+  if (rows <= 0) return [];
+  const per = Math.ceil(rows / Math.max(1, most));
+  const groups: RowGroup[] = [];
+  for (let from = 0; from < rows; from += per) groups.push({ from, to: Math.min(from + per, rows) });
+  return groups;
+}

@@ -11,9 +11,12 @@
 // every size side by side from 1280 px when SizeTabs has room for this table
 // (it reports the width it needs). Its header rows stick below the size bar and
 // its totals to the bottom of the screen while the table is in view. The
-// label column has a fixed width, so a label sits next to its steppers and
-// stacked tables (defect classes) line up, and a minimum, so a table wider
-// than its frame scrolls sideways instead of squeezing the labels.
+// table fills its frame: the label column takes the width the value columns
+// leave, so a label stays on one line where it fits, and each value column
+// has a fixed width, so stacked tables (defect classes) line up. One value
+// column on screen is as wide as an Accept / Reject limit on one line. The
+// label column keeps a minimum, so a table wider than its frame scrolls
+// sideways instead of squeezing the labels.
 import { useContext, useEffect, useId, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
 import { FlagIcon, PlusIcon, XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -165,20 +168,31 @@ const HEAD = "border-b border-border bg-slate-50 px-3 py-2 text-center align-bot
 const INFO =
   "border-b border-border bg-slate-50 px-3 py-1 text-center text-sm font-medium text-muted-foreground tabular-nums touch:text-base";
 const FOOT = "border-b border-border bg-slate-50 px-3 py-1.5 text-center tabular-nums touch:py-2";
-// The label column has a fixed width (COUNTER_WIDTHS.label), so labels sit
-// next to their steppers and stacked tables line up, and a minimum of 14rem,
-// 16rem from 1280 px (a cell's width is no minimum in table auto layout; its
-// min-width is): a table wider than its frame (Safedon's boxes side by side)
-// scrolls sideways with its labels readable, never one letter a line. A word
-// too long for it (a one-off label typed as one word) breaks rather than
-// widen it. It sticks while a wide table scrolls sideways; its edge is a
-// shadow, so it draws over the first value column's border instead of
-// doubling it.
+// The label column takes the width the value columns leave (the table fills
+// its frame), with a minimum of 14rem, 16rem from 1280 px (COUNTER_WIDTHS.label;
+// a cell's width is no minimum in table auto layout, its min-width is): a
+// table wider than its frame (Safedon's boxes side by side) scrolls sideways
+// with its labels readable, never one letter a line. A word too long for it
+// (a one-off label typed as one word) breaks rather than widen it. It sticks
+// while a wide table scrolls sideways; its edge is a shadow, so it draws over
+// the first value column's border instead of doubling it.
 const LABEL_COLUMN =
-  "sticky left-0 w-64 min-w-56 xl:min-w-64 text-left [overflow-wrap:anywhere] shadow-[1px_0_0_var(--border)]";
+  "sticky left-0 min-w-56 xl:min-w-64 text-left [overflow-wrap:anywhere] shadow-[1px_0_0_var(--border)]";
 // One value column has nothing to scroll to: from 1280 px its labels wrap to
 // fit instead (labelling sets two levels' tables side by side there).
 const ONE_COLUMN_LABEL = "xl:min-w-0";
+// A value column's width, the same in every table, so stacked tables line up:
+// a stepper's (COUNTER_WIDTHS.value) where columns sit side by side, and an
+// Accept / Reject limit's on one line ("Accept 21 / Reject 22") where one
+// column is on screen, a size at a time, unless the table's frame is narrow
+// (under 28rem: labelling's two levels side by side), where the labels need
+// the room more. Following the tabs side by side, that is one column below
+// 1280 px and every column from 1280 px.
+const VALUE_WIDTH = {
+  one: "w-44 touch:w-52 @max-md:w-32",
+  oneBelowXl: "w-44 touch:w-52 @max-md:w-32 xl:w-32",
+  many: "w-32 touch:w-40",
+} as const;
 const ROW_HEAD = "z-[1] border-b border-border bg-card px-3 align-middle font-normal text-foreground";
 
 export function CounterTable({
@@ -216,6 +230,15 @@ export function CounterTable({
   const active = activeColumn === undefined ? undefined : activeColumnKey(columns, activeColumn, sizeTabs?.size);
   const following = active !== undefined && sizeTabs !== null;
   const sideBySide = sizeTabs ? sizeTabs.sideBySide : true;
+  // One value column on screen at every width, one below 1280 px only (the others join it there), or several.
+  const valueWidth =
+    span > 1
+      ? VALUE_WIDTH.many
+      : columns.length === 1 || (active !== undefined && !sideBySide)
+        ? VALUE_WIDTH.one
+        : active !== undefined
+          ? VALUE_WIDTH.oneBelowXl
+          : VALUE_WIDTH.many;
 
   // Tell SizeTabs how wide every column side by side would be, so it keeps
   // its tabs from 1280 px when they would not fit (a hand split, many sizes).
@@ -296,7 +319,8 @@ export function CounterTable({
   };
 
   return (
-    <div data-slot="counter-table" className={cn("min-w-0 space-y-3", className)}>
+    // @container: a value column's width follows the table's frame (VALUE_WIDTH).
+    <div data-slot="counter-table" className={cn("@container min-w-0 space-y-3", className)}>
       {/* Following SizeTabs the table never scrolls sideways (it shows every
           size only where they fit), so its header and totals can stick to the
           screen. Elsewhere a wide table (many boxes) scrolls inside, and its
@@ -304,13 +328,13 @@ export function CounterTable({
           (LABEL_COLUMN's 16rem). */}
       <div
         className={cn(
-          "relative w-fit max-w-full scroll-pl-64 rounded-lg border border-border bg-card",
+          "relative scroll-pl-64 rounded-lg border border-border bg-card",
           following ? "overflow-clip" : active !== undefined ? "overflow-clip xl:overflow-x-auto" : "overflow-x-auto",
         )}
       >
         <table
           ref={table}
-          className="border-separate border-spacing-0 text-sm outline-none focus-ring-inset touch:text-base"
+          className="w-full border-separate border-spacing-0 text-sm outline-none focus-ring-inset touch:text-base"
         >
           <caption className="sr-only">{caption}</caption>
           <thead
@@ -459,8 +483,9 @@ export function CounterTable({
                         {...cellFocusProps(onCellFocus, cell)}
                         {...issuePathProps(cellIssuePath?.(cell))}
                         className={cn(
-                          // A fixed width (COUNTER_WIDTHS.value), so stacked tables line up.
-                          "w-32 border-b border-border px-2 py-px text-center align-middle data-nonzero:bg-brand-50 touch:w-40 touch:py-1.5",
+                          // A fixed width (VALUE_WIDTH), so stacked tables line up.
+                          "border-b border-border px-2 py-px text-center align-middle data-nonzero:bg-brand-50 touch:py-1.5",
+                          valueWidth,
                           index === 0 ? "border-l" : "border-l border-l-slate-100",
                           hidden(column),
                         )}

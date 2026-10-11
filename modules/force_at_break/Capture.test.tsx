@@ -53,6 +53,10 @@ function render(overrides: Partial<Props> = {}): string {
   );
 }
 
+/** The captions of the grid's footer rows, as a screen reader reads them. */
+const rowHeaders = (html: string): string[] =>
+  Array.from(html.matchAll(/<[^>]*role="rowheader"[^>]*>([^<]*)</g), (match) => match[1].replaceAll("&amp;", "&"));
+
 const tags = (html: string, pattern: string): string[] =>
   Array.from(html.matchAll(new RegExp(`<[^>]*${pattern}[^>]*>`, "g")), (match) => match[0]);
 
@@ -89,13 +93,15 @@ describe("force_at_break capture", () => {
 
   it("lays the size's readings out in the grid, one cell per glove tested, with the template's wording", () => {
     const html = render();
-    expect(html).toContain(`<caption class="sr-only">${FORCE_AT_BREAK_TITLE}, size M</caption>`);
+    // The readings in groups side by side, the footer named as the grid is.
+    expect(html).toContain(`role="group" aria-label="${FORCE_AT_BREAK_TITLE}, size M"`);
+    expect(html).toContain(`role="table" aria-label="${FORCE_AT_BREAK_TITLE}, size M"`);
     const cells = tags(html, 'data-slot="numeric-cell"');
     expect(cells).toHaveLength(13);
     expect(cells[0]).toContain('aria-label="Force at Break (N), No. 1"');
     expect(cells[0]).toContain('inputMode="decimal"');
     expect(cells[0]).toContain('value="6.470"');
-    for (const label of ["Median", "Spec.", "Passed / Failed"]) expect(html).toContain(`>${label}</th>`);
+    for (const label of ["Median", "Spec.", "Passed / Failed"]) expect(rowHeaders(html)).toContain(label);
     // The median is computed in the footer, never typed (6.2 rule 2).
     expect(html).toContain(">6.537<");
     expect(html).toContain("13 gloves tested, from the sampling plan.");
@@ -112,8 +118,7 @@ describe("force_at_break capture", () => {
     const labels = { ...FORCE_AT_BREAK_LABELS, values: "FAB (N)", median: "Median value", labReport: "Test report" };
     const html = render({ labels, config: { ...FORCE_AT_BREAK_DEFAULT_CONFIG, standardLabel: "EN 455" } });
     expect(html).toContain('aria-label="FAB (N), No. 1"');
-    expect(html).toContain(">Median value</th>");
-    expect(html).toContain(">Spec. (EN 455)</th>");
+    expect(rowHeaders(html)).toEqual(expect.arrayContaining(["Median value", "Spec. (EN 455)"]));
     expect(html).toContain(">Test report</span>");
   });
 
@@ -266,19 +271,21 @@ describe("force_at_break capture", () => {
     expect(unanchoredSrOnly(render({ readOnly: true }))).toEqual([]);
   });
 
-  it("puts the notes beside the readings only where the module itself is wide enough, never by the screen's width alone", () => {
+  it("flows the readings across the module's width in groups, as weight's grid does, the notes under them", () => {
     const data = { sizes: { M: { values: [...READINGS, 6.1, 6.3] } }, labReport: null };
     const html = render({ data });
-    // The capture screen's section list takes a share of a desktop screen: at 1280 px the module
-    // is about 616 px wide, so the panel asks the module (@container), not the viewport.
-    const [root] = tags(html, 'data-slot="force-at-break"');
-    expect(root).toMatch(/class="@container /);
+    // One column of 13 readings: 1 to 5, 6 to 10 and 11 to 13 side by side, in order.
+    expect(tags(html, 'data-slot="measurement-grid"')[0]).toContain('data-flow=""');
+    expect(Array.from(html.matchAll(/<table aria-label="([^"]*)"/g), (match) => match[1])).toEqual([
+      "No. 1 to 5",
+      "No. 6 to 10",
+      "No. 11 to 13",
+    ]);
+    // The notes go under the readings at every width: the panel is one column.
     const [panel] = tags(html, "data-panel-size");
     const classes = /class="([^"]*)"/.exec(panel)?.[1].split(" ") ?? [];
-    expect(classes).toContain("xl:@min-[44rem]:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]");
-    expect(classes.filter((name) => /^(lg|xl|2xl):grid-cols-/.test(name))).toEqual([]);
-    // From 1280 px one column of readings stays near its glove numbers, as weight's grid does.
-    expect(tags(html, 'data-slot="measurement-grid"')[0]).toContain("xl:max-w-md xl:[&amp;_table]:min-w-0");
+    expect(classes.filter((name) => name.includes("grid-cols-"))).toEqual([]);
+    expect(html.indexOf("13 gloves tested, from the sampling plan.")).toBeGreaterThan(html.indexOf('role="table"'));
     // The button that clears readings wraps rather than runs out of a narrow column.
     expect(html).toMatch(/<button[^>]*whitespace-normal[^>]*>Clear the 2 Extra Readings<\/button>/);
   });

@@ -54,11 +54,6 @@ type Props = CaptureProps<WeightData, WeightConfig, WeightComputed>;
 /** Applies a change to the latest data (useDataUpdater). */
 type Update = (change: DataChange<WeightData>) => void;
 
-// MeasurementGrid's table is at least 36rem wide, room for five measures. One
-// column of weights needs far less: without that floor the grid stays beside
-// its glove numbers instead of spreading across a desktop screen.
-const ONE_COLUMN_GRID = "max-w-md [&_table]:min-w-0";
-
 const HEAD = "border-b border-border bg-slate-50 px-3 py-2 font-semibold text-foreground";
 const CELL = "border-b border-border px-3 py-1.5 align-middle touch:py-2";
 
@@ -311,7 +306,8 @@ function SizeGrid({
           }}
           readOnly={readOnly}
           cellIssuePath={({ row }) => ["sizes", size, "values", row]}
-          className={ONE_COLUMN_GRID}
+          // One column of 13 weights: in groups side by side across the width, 1 to 5, 6 to 10, 11 to 13.
+          flow
         />
       </div>
       <DeviationNote size={size} config={config} labels={labels} context={context} evaluation={evaluation} />

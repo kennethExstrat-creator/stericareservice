@@ -27,6 +27,10 @@ import type { SamplingPlanComputed } from "./calc";
 import { columnGroups, shownColumns, type SamplingColumn, type SamplingPlanConfig } from "./config";
 import { withCount, type SamplingPlanData } from "./schema";
 
+const COUNT_FRAME = "relative min-w-0 overflow-clip rounded-lg border border-border bg-card";
+// The frame draws the last row's edge.
+const COUNT_TABLE = "w-full border-separate border-spacing-0 text-sm touch:text-base [&>tbody>tr:last-child>*]:border-b-0";
+
 export default function Capture({
   data,
   config,
@@ -149,29 +153,44 @@ export default function Capture({
         },
       );
     }
+    const both = groups.quantity.length > 0 && groups.tests.length > 0;
     return (
-      // As wide as its labels need, so each count sits next to its label on a wide screen.
-      <div className="max-w-xl space-y-3">
+      // The panel's own width decides the layout (a size alone, or beside the others from 1280 px).
+      <div className="@container space-y-3">
         <FactList facts={facts} />
-        <div className="relative overflow-clip rounded-lg border border-border bg-card">
-          <table className="w-full border-separate border-spacing-0 text-sm touch:text-base">
-            <caption className="sr-only">{`${title}, ${sizeName(size)}`}</caption>
-            {groups.quantity.length > 0 && (
-              <tbody>
-                <tr>
-                  <th
-                    scope="rowgroup"
-                    colSpan={2}
-                    className="border-b border-border bg-slate-50 px-3 py-2 text-left font-semibold text-foreground"
-                  >
-                    {label("samplingQuantity")}
-                  </th>
-                </tr>
-                {countRows(size, groups.quantity, true)}
-              </tbody>
-            )}
-            <tbody>{countRows(size, groups.tests, false)}</tbody>
-          </table>
+        {/* The Sampling Quantity group and the counts after it side by side where the panel has room,
+            each count near its label, row against row (the group's heading is a row's height). In
+            reading order, as Enter and a paste go: the group first. */}
+        <div className={cn("grid items-start gap-3", both && "@2xl:grid-cols-2")}>
+          {groups.quantity.length > 0 && (
+            <div className={COUNT_FRAME}>
+              <table className={COUNT_TABLE}>
+                <caption className="sr-only">
+                  {both ? `${title}, ${sizeName(size)}: ${label("samplingQuantity")}` : `${title}, ${sizeName(size)}`}
+                </caption>
+                <tbody>
+                  <tr>
+                    <th
+                      scope="rowgroup"
+                      colSpan={2}
+                      className="border-b border-border bg-slate-50 px-3 py-1.5 text-left font-semibold text-foreground touch:py-2.5"
+                    >
+                      {label("samplingQuantity")}
+                    </th>
+                  </tr>
+                  {countRows(size, groups.quantity, true)}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {groups.tests.length > 0 && (
+            <div className={COUNT_FRAME}>
+              <table className={COUNT_TABLE}>
+                <caption className="sr-only">{`${title}, ${sizeName(size)}`}</caption>
+                <tbody>{countRows(size, groups.tests, false)}</tbody>
+              </table>
+            </div>
+          )}
         </div>
         <EntryProblems problems={problemsOf(size)} />
         {result && (
@@ -227,12 +246,15 @@ type RejectedEntry = EntryProblem & { size: string; column: SamplingColumn };
 
 type Fact = { key: string; label: string; value: ReactNode };
 
-/** Read-only values beside the counts: computed or entered elsewhere, never typed here (6.2 rules 2 and 10). */
+/**
+ * Read-only values beside the counts: computed or entered elsewhere, never typed here (6.2 rules 2
+ * and 10). Spread over the box's width, each label on one line: as many on a row as fit.
+ */
 function FactList({ facts }: { facts: readonly Fact[] }) {
   return (
     <dl className="relative flex flex-wrap gap-x-6 gap-y-2 rounded-lg bg-muted px-3 py-2 text-sm touch:text-base">
       {facts.map((fact) => (
-        <div key={fact.key} className="min-w-0">
+        <div key={fact.key} className="min-w-0 flex-auto">
           <dt className="text-muted-foreground">{fact.label}</dt>
           <dd className="font-semibold text-foreground tabular-nums">{fact.value}</dd>
         </div>

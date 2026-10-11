@@ -145,12 +145,14 @@ function LevelPanel({
   });
 
   return (
-    <ModuleSection title={name} issuePath={path} className="xl:border-t-0 xl:pt-0">
+    // @container: the count row measures the frame its counter table does.
+    <ModuleSection title={name} issuePath={path} className="@container xl:border-t-0 xl:pt-0">
       <div className="space-y-1.5">
         <div
           ref={countRow}
-          // The label over the counter table's label column and the count over its count column, side by side.
-          className="grid grid-cols-[minmax(0,16rem)_8rem] items-center touch:grid-cols-[minmax(0,16rem)_10rem]"
+          // The label over the counter table's label column and the count over its one count column
+          // (CounterTable's VALUE_WIDTH.one: narrower in a frame under 28rem), side by side.
+          className="grid grid-cols-[minmax(0,1fr)_11rem] items-center touch:grid-cols-[minmax(0,1fr)_13rem] @max-md:grid-cols-[minmax(0,1fr)_8rem]"
           onFocus={() => onFocusChange?.({ size, level })}
           {...issuePathProps([...path, "inspected"])}
         >

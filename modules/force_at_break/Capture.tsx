@@ -51,11 +51,6 @@ type Props = CaptureProps<ForceAtBreakData, ForceAtBreakConfig, ForceAtBreakComp
 /** The grid's one measure: the readings. */
 const READINGS = "values";
 
-// MeasurementGrid's table is at least 36rem wide, room for five measures. From 1280 px the
-// one column of readings stays close to its glove numbers instead, as weight's grid does,
-// and leaves the notes room beside it.
-const DESKTOP_ONE_COLUMN_GRID = "xl:max-w-md xl:[&_table]:min-w-0";
-
 export default function Capture({
   data,
   config,
@@ -91,8 +86,7 @@ export default function Capture({
 
   return (
     // relative: screen-reader text inside never lays out against the page (docs/DESIGN.md).
-    // @container: the size panel lays out by the module's own width (SizePanel).
-    <div ref={root} data-slot="force-at-break" className="@container relative space-y-4">
+    <div ref={root} data-slot="force-at-break" className="relative space-y-4">
       <section
         data-slot="lab-report"
         aria-label={reportLabel}
@@ -207,14 +201,8 @@ function SizePanel({ size, data, config, title, labels, context, evaluation, rea
   };
 
   return (
-    <div
-      data-panel-size={size}
-      {...issuePathProps(["sizes", size])}
-      // From 1280 px the notes sit beside the readings, but only where the module itself is
-      // wide enough for both (the capture screen's section list takes its share of the
-      // screen): 44rem leaves them at least 14.5rem. Narrower, they go under the readings.
-      className="grid gap-3 xl:@min-[44rem]:grid-cols-[minmax(0,28rem)_minmax(0,1fr)] xl:@min-[44rem]:items-start xl:@min-[44rem]:gap-6"
-    >
+    // The readings across the width (the grid's groups side by side), the notes under them.
+    <div data-panel-size={size} {...issuePathProps(["sizes", size])} className="space-y-3">
       <div
         className="min-w-0"
         // MeasurementGrid takes a pasted column only as far as its last row.
@@ -260,7 +248,8 @@ function SizePanel({ size, data, config, title, labels, context, evaluation, rea
           }}
           cellIssuePath={({ row }) => ["sizes", size, READINGS, row]}
           readOnly={readOnly}
-          className={DESKTOP_ONE_COLUMN_GRID}
+          // One column of readings: in groups side by side across the width, as weight's.
+          flow
         />
       </div>
       <div className="min-w-0 space-y-3 text-sm text-muted-foreground touch:text-base">
