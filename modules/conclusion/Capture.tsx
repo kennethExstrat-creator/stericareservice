@@ -1,17 +1,27 @@
 "use client";
 
-// The conclusion on the capture screen: the suggested result (computed from
-// every module, read-only), its pill saying Passed, Failed or On Hold as every
-// result pill does, with why under it as the submit confirmation and the
-// review say it; next to it the inspector's final result, chosen in the
-// template's words (PASSED, FAILED, HOLD; docs/DESIGN.md), and a warning when
-// the two differ; the remark, who inspected and the date (both automatic;
-// the date can be changed with the picker), and the signature drawn on the
-// pad. Every edit goes through useDataUpdater (docs/CAPTURE_KIT.md), built
-// from the latest data. The pad lives here too: module folders keep React
-// in Capture.tsx (modules/_framework/architecture.test.ts).
+// The conclusion on the capture screen, in two blocks with no boxes:
+// - Decision: the inspector's final result, one grey track of the template's
+//   words (PASSED, FAILED, HOLD; docs/DESIGN.md) where the chosen one is the
+//   only solid colour on the card; under it, on one muted line, the suggested
+//   result (computed from every module, read-only), its pill saying Passed,
+//   Failed or On Hold as every result pill does, and why: a reason with one
+//   section names it, one with two or more counts them, their names behind
+//   Show All (view state, never saved). Then the remark, with a note under it
+//   when the final result differs from the suggestion, asking why while the
+//   remark is blank (amber edge).
+// - Sign-off: who inspected and the date (both automatic; the date can be
+//   changed with the picker), and the signature drawn on the pad.
+// The layout follows the card's body, not the window (a container query on
+// the root): narrower than 1024 px, one column at most 768 px wide, every
+// edge aligned, a hairline above the sign-off; from 1024 px (the iPads in
+// landscape), the two blocks side by side, the step whole on a 13-inch iPad.
+// The DOM order, so Tab and reading order, is the same in both. Every edit
+// goes through useDataUpdater (docs/CAPTURE_KIT.md), built from the latest
+// data. The pad lives here too: module folders keep React in Capture.tsx
+// (modules/_framework/architecture.test.ts).
 import { useId, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { EraserIcon, Redo2Icon, TriangleAlertIcon, Undo2Icon } from "lucide-react";
+import { EraserIcon, Redo2Icon, Undo2Icon } from "lucide-react";
 import { RadioGroup as RadioGroupPrimitive } from "radix-ui";
 import { cn } from "@/lib/utils";
 import type { Status } from "@/lib/design/status";
@@ -20,10 +30,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { findIssue, issuePathProps, StatusIcon, StatusPill, useDataUpdater, useIssueFocus } from "@/components/qc";
-import { fieldIssues, labelFor, moduleTitle, suggestionReasons, type CaptureProps } from "@/modules/_framework";
+import { DateField, findIssue, issuePathProps, StatusIcon, StatusPill, useDataUpdater, useIssueFocus } from "@/components/qc";
+import { fieldIssues, labelFor, moduleTitle, type CaptureProps } from "@/modules/_framework";
 import type { ConclusionComputed, ConclusionConfig, ConclusionData } from ".";
-import { resultWord } from "./calc";
+import { conclusionReasons, resultWord } from "./calc";
 import { isoDateOf, withDate, withFinalResult, withRemark, withSignature } from "./edit";
 import {
   addStroke,
@@ -52,14 +62,26 @@ const CHOSEN: Readonly<Record<InspectionResult, string>> = {
   hold: "data-[state=checked]:border-hold-solid data-[state=checked]:bg-hold-solid data-[state=checked]:text-hold-solid-foreground",
 };
 
-/** The suggested result's pill at 16 px on iPad (docs/DESIGN.md). */
-const PILL_TOUCH = "touch:h-9 touch:px-3.5 touch:text-base touch:[&>svg]:size-5";
+/**
+ * A segment of the track: grey words on the grey track (slate-700 on
+ * slate-100), white under the pointer while it can still be chosen, the
+ * chosen one solid in its status colour; read-only, the chosen one keeps its
+ * fill. The track's 6 px padding and gaps keep the outer focus ring (2 px
+ * clear, 2 px wide) inside the track and off the next segment: a ring inset
+ * on solid green would vanish.
+ */
+const SEGMENT = cn(
+  "inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md border border-transparent px-3 text-sm font-semibold tracking-wide text-slate-700 outline-none transition-colors focus-ring",
+  "enabled:data-[state=unchecked]:hover:bg-card enabled:data-[state=unchecked]:hover:text-foreground disabled:cursor-not-allowed data-[state=checked]:shadow-sm",
+  "touch:h-12 touch:gap-2 touch:text-base [&>svg]:size-4 [&>svg]:shrink-0 touch:[&>svg]:size-5",
+);
 
 /** Matches the data schema's limit (TextCellSchema). */
 const MAX_REMARK = 2000;
 
 export default function Capture({
   data,
+  title,
   labels,
   context,
   evaluation,
@@ -72,156 +94,184 @@ export default function Capture({
   const update = useDataUpdater(data, onChange);
   const root = useRef<HTMLDivElement>(null);
   useIssueFocus(focusPath, { root });
+  // The names behind a counted reason: view state only, never saved; folded whenever the step opens.
+  const [showAll, setShowAll] = useState(false);
 
   const computed = evaluation?.computed;
   const suggested = computed?.suggestedResult ?? null;
   const issues = evaluation?.issues ?? [];
   // The not-done error links to these fields too; beside them, only their own issues.
-  const differs = findIssue(fieldIssues(issues), ["finalResult"]);
   const dateIssue = findIssue(fieldIssues(issues), ["date"]);
   const inspector = context.inspection.inspector;
   const today = () => isoDateOf(new Date());
   const ids = {
-    suggested: `${baseId}-suggested`,
     final: `${baseId}-final`,
-    differs: `${baseId}-differs`,
+    suggested: `${baseId}-suggested`,
+    reasons: `${baseId}-reasons`,
     remark: `${baseId}-remark`,
+    differs: `${baseId}-differs`,
     inspector: `${baseId}-inspector`,
     date: `${baseId}-date`,
-    dateIssue: `${baseId}-date-issue`,
   };
 
-  // Why, a line each, the other modules by their titles in the template's
-  // wording (6.2 rule 11); none until the suggestion is calculated.
+  // The choice's label says what the card's title says in every seed template
+  // ("Conclusion"): then only a screen reader hears it, as the choice's name.
+  const finalLabel = labelFor(labels, "finalResult");
+  const labelHidden = finalLabel.trim().toLowerCase() === title.trim().toLowerCase();
+
+  // Why, the other modules by their titles in the template's wording (6.2
+  // rule 11): one section named, two or more counted, their names under Show
+  // All. None until the suggestion is calculated, none for a clean pass.
   const reasons =
     computed && suggested
-      ? suggestionReasons(
+      ? conclusionReasons(
           { result: suggested, failed: computed.failed, notDone: computed.notDone, warned: computed.warned },
           (key) => moduleTitle(context, key),
         )
       : [];
+  const counted = reasons.filter((reason) => reason.counted);
+
+  // calc's warning when the final result differs from the suggestion points at
+  // the remark: a short note under it (the pill above gives the suggestion),
+  // asking why while the remark is blank and can still be written. The screen
+  // evaluates a copy a render behind the choice (useDeferredValue), so the
+  // note also weighs the choice shown against the suggestion shown: just
+  // after FAILED replaces PASSED it never says FAILED differs from Failed.
+  const final = data.finalResult;
+  const differs =
+    final !== null &&
+    suggested !== null &&
+    final !== suggested &&
+    findIssue(fieldIssues(issues), ["remark"])?.code === "final_result_differs";
+  const asking = differs && !readOnly && (data.remark === null || data.remark.trim() === "");
+  const differsText =
+    differs && final !== null ? `${resultWord(labels, final)} differs from the suggestion.${asking ? " Explain why." : ""}` : null;
 
   return (
-    <div ref={root} className="min-w-0 space-y-6" onFocusCapture={() => onFocusChange?.({})}>
-      <div className="grid min-w-0 gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-        <section aria-labelledby={ids.suggested} className="min-w-0 space-y-2 rounded-lg border border-border bg-muted px-4 py-3">
-          <h3 id={ids.suggested} className="text-sm font-medium text-foreground touch:text-base">
-            {labelFor(labels, "suggestedResult")}
-          </h3>
-          {suggested ? (
-            <StatusPill status={STATUS_OF[suggested]} className={PILL_TOUCH} />
-          ) : (
-            <StatusPill status="not_done" label="Not Calculated Yet" className={PILL_TOUCH} />
-          )}
-          {reasons.length > 0 && (
-            <ul className="space-y-0.5 text-sm text-muted-foreground touch:text-base">
-              {reasons.map((reason) => (
-                <li key={reason}>{reason}</li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        <div className="min-w-0 space-y-2">
-          <span id={ids.final} className="block text-sm font-medium text-foreground touch:text-base">
-            {labelFor(labels, "finalResult")}
-          </span>
-          <RadioGroupPrimitive.Root
-            aria-labelledby={ids.final}
-            aria-describedby={differs ? ids.differs : undefined}
-            value={data.finalResult ?? ""}
-            onValueChange={(next) => {
-              if (isResult(next)) update((current) => withFinalResult(current, next, today()));
-            }}
-            disabled={readOnly}
-            orientation="horizontal"
-            className="grid grid-cols-3 gap-2"
-            {...issuePathProps(["finalResult"])}
-          >
-            {RESULTS.map((result) => (
-              <RadioGroupPrimitive.Item
-                key={result}
-                value={result}
-                className={cn(
-                  "inline-flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-lg border border-input bg-card px-2 text-sm font-bold text-foreground outline-none transition-colors focus-ring hover:border-primary hover:bg-accent touch:h-14 touch:text-base",
-                  "disabled:cursor-not-allowed disabled:hover:border-input disabled:hover:bg-card data-[state=checked]:shadow-sm",
-                  "[&>svg]:size-4 [&>svg]:shrink-0 touch:[&>svg]:size-5",
-                  CHOSEN[result],
-                )}
-              >
-                <StatusIcon status={STATUS_OF[result]} />
-                <span className="truncate">{resultWord(labels, result)}</span>
-              </RadioGroupPrimitive.Item>
-            ))}
-          </RadioGroupPrimitive.Root>
-          {differs && (
-            <p
-              id={ids.differs}
-              className="flex items-start gap-2 rounded-md border border-warn-border bg-warn-tint px-3 py-2 text-sm text-warn touch:text-base"
+    <div ref={root} className="relative min-w-0 @container" onFocusCapture={() => onFocusChange?.({})}>
+      <div className="grid max-w-3xl gap-6 @5xl:max-w-none @5xl:grid-cols-2 @5xl:gap-x-10">
+        {/* Decision: the choice, the suggestion under it, the remark. */}
+        <div className="min-w-0 space-y-6">
+          <div className="space-y-2">
+            <span
+              id={ids.final}
+              className={cn("block text-sm font-medium text-foreground touch:text-base", labelHidden && "sr-only")}
             >
-              <TriangleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
-              {differs.message}
-            </p>
-          )}
-        </div>
-      </div>
+              {finalLabel}
+            </span>
+            <RadioGroupPrimitive.Root
+              aria-labelledby={ids.final}
+              aria-describedby={differsText ? ids.differs : undefined}
+              value={final ?? ""}
+              onValueChange={(next) => {
+                if (isResult(next)) update((current) => withFinalResult(current, next, today()));
+              }}
+              disabled={readOnly}
+              orientation="horizontal"
+              className="grid w-full max-w-md grid-cols-3 gap-1.5 rounded-lg bg-muted p-1.5"
+              {...issuePathProps(["finalResult"])}
+            >
+              {RESULTS.map((result) => (
+                <RadioGroupPrimitive.Item key={result} value={result} className={cn(SEGMENT, CHOSEN[result])}>
+                  <StatusIcon status={STATUS_OF[result]} />
+                  <span className="truncate">{resultWord(labels, result)}</span>
+                </RadioGroupPrimitive.Item>
+              ))}
+            </RadioGroupPrimitive.Root>
+            {/* The line and its button stay put: the names open below them. */}
+            <section
+              aria-labelledby={ids.suggested}
+              className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground touch:text-base"
+            >
+              <h3 id={ids.suggested} className="font-sans font-medium">
+                {labelFor(labels, "suggestedResult")}
+              </h3>
+              {suggested ? (
+                <StatusPill size="sm" status={STATUS_OF[suggested]} />
+              ) : (
+                <StatusPill size="sm" status="not_done" label="Not Calculated Yet" />
+              )}
+              {reasons.length > 0 && <p className="min-w-0">{reasons.map((reason) => reason.brief).join(" ")}</p>}
+              {counted.length > 0 && (
+                <>
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    aria-expanded={showAll}
+                    aria-controls={ids.reasons}
+                    onClick={() => setShowAll((open) => !open)}
+                    className="h-8 px-1.5 touch:h-11 touch:px-2 touch:text-base"
+                  >
+                    {showAll ? "Show Less" : "Show All"}
+                  </Button>
+                  <ul id={ids.reasons} hidden={!showAll} className="basis-full space-y-0.5">
+                    {counted.map((reason) => (
+                      <li key={reason.full}>{reason.full}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </section>
+          </div>
 
-      <div className="space-y-2">
-        <Label htmlFor={ids.remark} className="touch:text-base">
-          {labelFor(labels, "remark")}
-        </Label>
-        <Textarea
-          id={ids.remark}
-          value={data.remark ?? ""}
-          maxLength={MAX_REMARK}
-          readOnly={readOnly}
-          onChange={(event) => {
-            const remark = event.target.value;
-            update((current) => withRemark(current, remark));
-          }}
-          {...issuePathProps(["remark"])}
-        />
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor={ids.inspector} className="touch:text-base">
-            {labelFor(labels, "inspector")}
-          </Label>
-          <Input id={ids.inspector} readOnly value={inspector?.name ?? "Not recorded"} />
+          <div className="space-y-1.5">
+            <Label htmlFor={ids.remark} className="leading-snug touch:text-base">
+              {labelFor(labels, "remark")}
+            </Label>
+            <Textarea
+              id={ids.remark}
+              value={data.remark ?? ""}
+              maxLength={MAX_REMARK}
+              readOnly={readOnly}
+              aria-describedby={differsText ? ids.differs : undefined}
+              className={cn("min-h-24 touch:min-h-32", asking && "border-warn-solid")}
+              onChange={(event) => {
+                const remark = event.target.value;
+                update((current) => withRemark(current, remark));
+              }}
+              {...issuePathProps(["remark"])}
+            />
+            {differsText && (
+              <p id={ids.differs} className="flex items-start gap-1.5 text-sm text-warn touch:text-base">
+                <StatusIcon status="warn" className="mt-0.5 size-4 shrink-0 touch:mt-1" />
+                <span>{differsText}</span>
+              </p>
+            )}
+          </div>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor={ids.date} className="touch:text-base">
-            {labelFor(labels, "date")}
-          </Label>
-          <Input
-            id={ids.date}
-            type="date"
-            value={data.date ?? ""}
+
+        {/* Sign-off: who and when, then the signature. A hairline above it in one column. */}
+        <div className="min-w-0 space-y-6 border-t border-border pt-6 @5xl:border-t-0 @5xl:pt-0">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="min-w-0 space-y-1.5">
+              <Label htmlFor={ids.inspector} className="leading-snug touch:text-base">
+                {labelFor(labels, "inspector")}
+              </Label>
+              <Input id={ids.inspector} readOnly value={inspector?.name ?? "Not recorded"} />
+            </div>
+            <DateField
+              id={ids.date}
+              label={labelFor(labels, "date")}
+              value={data.date}
+              onValueChange={(value) => update((current) => withDate(current, value ?? ""))}
+              error={dateIssue?.level === "error" ? dateIssue.message : null}
+              warning={dateIssue?.level === "warning" ? dateIssue.message : null}
+              issuePath={["date"]}
+              readOnly={readOnly}
+            />
+          </div>
+
+          <SignaturePad
+            value={data.signature}
+            onChange={(change) => update((current) => withSignature(current, change(current.signature), today()))}
+            label={labelFor(labels, "signature")}
+            signer={inspector?.name}
             readOnly={readOnly}
-            aria-describedby={dateIssue ? ids.dateIssue : undefined}
-            onChange={(event) => {
-              const value = event.target.value;
-              update((current) => withDate(current, value));
-            }}
-            {...issuePathProps(["date"])}
+            {...issuePathProps(["signature"])}
           />
-          {dateIssue && (
-            <p id={ids.dateIssue} className="text-sm text-warn touch:text-base">
-              {dateIssue.message}
-            </p>
-          )}
         </div>
       </div>
-
-      <SignaturePad
-        value={data.signature}
-        onChange={(change) => update((current) => withSignature(current, change(current.signature), today()))}
-        label={labelFor(labels, "signature")}
-        signer={inspector?.name}
-        readOnly={readOnly}
-        {...issuePathProps(["signature"])}
-      />
     </div>
   );
 }
@@ -230,12 +280,13 @@ export default function Capture({
 const STROKE_WIDTH = 2.5;
 
 /**
- * Undo, Redo and Clear: 16 px text on iPad (the small button stays at 14 px).
- * With nothing to take back they grey out but stay focusable (aria-disabled),
- * as the kit's Stepper does, so keyboard focus is never dropped (docs/DESIGN.md).
+ * Undo, Redo and Clear: quiet ghost buttons, 32 px with a mouse and 44 px on
+ * touch, with 16 px text on iPad (the small button stays at 14 px). With
+ * nothing to take back they grey out but stay focusable (aria-disabled), as
+ * the kit's Stepper does, so keyboard focus is never dropped (docs/DESIGN.md).
  */
 const PAD_ACTION =
-  "touch:text-base aria-disabled:cursor-not-allowed aria-disabled:text-slate-400 aria-disabled:hover:border-input aria-disabled:hover:bg-card aria-disabled:hover:text-slate-400";
+  "touch:text-base aria-disabled:cursor-not-allowed aria-disabled:text-slate-400 aria-disabled:hover:bg-transparent aria-disabled:hover:text-slate-400";
 
 /** A stroke taken back with Undo, with the box it was drawn in. */
 type UndoneStroke = { readonly stroke: number[]; readonly box: SignatureBox };
@@ -354,25 +405,23 @@ export function SignaturePad({ value, onChange, label, signer, readOnly = false,
     setAnnouncement(`${label} cleared.`);
   };
 
-  const status = value
-    ? signer
-      ? `Signed by ${signer}.`
-      : "Signed."
-    : readOnly
-      ? "Not signed."
-      : "Sign in the box with a finger, a pen or the mouse.";
+  // Signed: who signed is for screen readers only, since Inspected By shows the
+  // name just above. Unsigned: how to sign, or that nobody did.
+  const signed = value ? (signer ? `Signed by ${signer}.` : "Signed.") : null;
+  const hint = value ? null : readOnly ? "Not signed." : "Sign with a finger, a pen or the mouse.";
+  const boxFull = full && !readOnly ? "The box is full: clear it to sign again." : null;
 
   return (
     <div role="group" aria-labelledby={labelId} data-slot="signature-pad" className={cn("relative space-y-2", className)} {...rest}>
-      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <span id={labelId} className="text-sm font-medium text-foreground touch:text-base">
           {label}
         </span>
         {!readOnly && (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1">
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               size="sm"
               className={PAD_ACTION}
               onClick={undo}
@@ -383,7 +432,7 @@ export function SignaturePad({ value, onChange, label, signer, readOnly = false,
             </Button>
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               size="sm"
               className={PAD_ACTION}
               onClick={redo}
@@ -394,7 +443,7 @@ export function SignaturePad({ value, onChange, label, signer, readOnly = false,
             </Button>
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               size="sm"
               className={PAD_ACTION}
               onClick={clear}
@@ -422,7 +471,7 @@ export function SignaturePad({ value, onChange, label, signer, readOnly = false,
         onLostPointerCapture={(event) => endStroke(event, true)}
         style={{ aspectRatio: `${box.width} / ${box.height}` }}
         className={cn(
-          "block w-full max-w-2xl rounded-lg border border-input bg-card text-foreground select-none [-webkit-touch-callout:none]",
+          "block w-full rounded-lg border border-input bg-card text-foreground select-none [-webkit-touch-callout:none]",
           readOnly ? "bg-muted" : "cursor-crosshair touch-none",
         )}
       >
@@ -443,9 +492,14 @@ export function SignaturePad({ value, onChange, label, signer, readOnly = false,
           <path ref={live} d="" />
         </g>
       </svg>
-      <p id={statusId} className="text-sm text-muted-foreground touch:text-base">
-        {status}
-        {full && !readOnly ? " The box is full: clear it to sign again." : ""}
+      {/* Nothing visible left (signed, room to spare): the whole line is for screen readers, so no empty gap remains. */}
+      <p
+        id={statusId}
+        className={cn("text-sm text-muted-foreground touch:text-base", hint === null && boxFull === null && "sr-only")}
+      >
+        {signed !== null && <span className="sr-only">{signed}</span>}
+        {hint}
+        {boxFull !== null && ` ${boxFull}`}
       </p>
       <p className="sr-only" aria-live="polite">
         {announcement}

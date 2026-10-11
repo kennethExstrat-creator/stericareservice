@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest";
 import { TEMPLATES, type TemplateCode } from "@/lib/coverage";
 import type { ModuleKey, ModuleResult, ModuleStatus } from "@/lib/schemas";
 import { MODULE_REGISTRY } from "@/modules/registry";
-import { buildInspectionContext, evaluateInspection, worstStatus, type CalcInput, type InspectionContext } from "@/modules/_framework";
+import {
+  buildInspectionContext,
+  evaluateInspection,
+  suggestionReasons,
+  worstStatus,
+  type CalcInput,
+  type InspectionContext,
+} from "@/modules/_framework";
 import { checkModuleContract, makeTestContext, makeTestTemplate, TEST_INSPECTOR } from "@/modules/_framework/testing";
 import {
   SAFEDON_EG_EXAMPLE,
@@ -11,7 +18,7 @@ import {
   STD_EG_EXPECTED,
   type ExampleReport,
 } from "@/tests/fixtures/examples";
-import { calcConclusion, moduleName } from "./calc";
+import { calcConclusion, conclusionReasons, moduleName } from "./calc";
 import { CONCLUSION_DEFAULT_CONFIG, CONCLUSION_LABELS } from "./config";
 import { definition } from "./index";
 import { emptyConclusion, type ConclusionData } from "./schema";
@@ -141,7 +148,8 @@ describe("conclusion", () => {
           level: "warning",
           code: "final_result_differs",
           message: "Conclusion PASSED differs from the suggestion, FAILED (failed: Carton sampling). Explain why under Remark.",
-          path: ["finalResult"],
+          // Its link lands in the remark, where the reason goes.
+          path: ["remark"],
         },
       ]);
     });
@@ -284,7 +292,7 @@ describe("conclusion", () => {
       const output = calcConclusion(
         input({ ...FILLED, finalResult, remark: "Agreed with the factory." }, { moduleResults: results(statuses) }),
       );
-      expect(output.issues).toEqual([{ level: "warning", code: "final_result_differs", message, path: ["finalResult"] }]);
+      expect(output.issues).toEqual([{ level: "warning", code: "final_result_differs", message, path: ["remark"] }]);
     });
 
     it("asks for the reason under the remark while the remark is blank", () => {
@@ -394,5 +402,52 @@ describe("conclusion", () => {
       const evaluation = evaluate({ labeling: labeling(), conclusion: { ...FILLED, inspector: "Someone else" } });
       expect(conclusionOfEvaluation(evaluation).issues.map((issue) => issue.code)).toContain("invalid_data");
     });
+  });
+});
+
+describe("conclusionReasons (the Conclusion section's line under its suggestion)", () => {
+  const TITLES: Partial<Record<ModuleKey, string>> = {
+    visual: "Visual Inspection",
+    labeling: "Packaging Labeling Inspection",
+    weight: "Weight (g) - Average of 13 Gloves per Size",
+    sampling_plan: "Sampling Plan",
+    dimensions: "Dimension",
+    // A colon in a title: the count keeps the reason's own words before it.
+    watertight: "Freedom From Holes: Watertight Test",
+  };
+  const titleOf = (key: ModuleKey) => TITLES[key] ?? key;
+  const MIXED: Parameters<typeof conclusionReasons>[0] = {
+    result: "fail",
+    failed: ["visual", "labeling"],
+    notDone: ["weight"],
+    warned: ["sampling_plan", "watertight", "dimensions"],
+  };
+
+  it("names a reason's one section", () => {
+    expect(conclusionReasons({ result: "fail", failed: ["labeling"], notDone: [], warned: [] }, titleOf)).toEqual([
+      { full: "Failed: Packaging Labeling Inspection.", brief: "Failed: Packaging Labeling Inspection.", counted: false },
+    ]);
+  });
+
+  it("counts two or more sections, a reason at a time", () => {
+    const reasons = conclusionReasons(MIXED, titleOf);
+    expect(reasons.map((reason) => reason.brief)).toEqual([
+      "Failed: 2 sections.",
+      "Not done: Weight (g) - Average of 13 Gloves per Size.",
+      "Warnings: 3 sections.",
+    ]);
+    expect(reasons.map((reason) => reason.counted)).toEqual([true, false, true]);
+  });
+
+  it("keeps every full line word for word as suggestionReasons, which the submit dialog and the review show", () => {
+    expect(conclusionReasons(MIXED, titleOf).map((reason) => reason.full)).toEqual(suggestionReasons(MIXED, titleOf));
+    expect(conclusionReasons(MIXED, titleOf)[2].full).toBe("Warnings: Sampling Plan, Freedom From Holes: Watertight Test, Dimension.");
+  });
+
+  it("gives nothing for a clean pass, and never counts that nothing has a result yet", () => {
+    expect(conclusionReasons({ result: "pass", failed: [], notDone: [], warned: [] }, titleOf)).toEqual([]);
+    expect(conclusionReasons({ result: "hold", failed: [], notDone: [], warned: [] }, titleOf)).toEqual([
+      { full: "No module has a result yet.", brief: "No module has a result yet.", counted: false },
+    ]);
   });
 });

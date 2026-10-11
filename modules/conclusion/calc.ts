@@ -5,13 +5,15 @@
 // final result and the date are there; the conclusion is required for
 // submit, so that blocks it, and the blocking issue links to what is
 // missing. A final result that differs from the suggestion is a warning for
-// the reviewer, never an error: the inspector decides. Other modules are
+// the reviewer, never an error: the inspector decides. It points at the
+// remark, where the reason goes, so its link lands there. Other modules are
 // named by their titles in the template's wording (context.modules).
 import type { InspectionResult, ModuleKey, ModuleResult, ModuleStatus } from "@/lib/schemas";
 import {
   labelFor,
   moduleTitle,
   notDone,
+  suggestionReasons,
   suggestResult,
   warningIssue,
   type CalcInput,
@@ -66,7 +68,7 @@ export function calcConclusion({
       warningIssue(
         "final_result_differs",
         `${labelFor(labels, "finalResult")} ${resultWord(labels, final)} differs from the suggestion, ${resultWord(labels, suggestion.result)}${reasonOf(suggestion, false, name)}.${explain}`,
-        { path: ["finalResult"] },
+        { path: ["remark"] },
       ),
     );
   }
@@ -110,6 +112,35 @@ export function calcConclusion({
 /** The template's word for a result: PASSED, FAILED, HOLD. */
 export function resultWord(labels: Labels, result: InspectionResult): string {
   return labelFor(labels, result);
+}
+
+/**
+ * One reason for the suggestion (suggestionReasons): `full` names every
+ * section, as the submit confirmation and the review say it; `brief` is what
+ * the Conclusion section shows on its one line: the same when the reason has
+ * one section, else counted ("Not done: 9 sections."), `counted` true, with
+ * `full` behind Show All.
+ */
+export type ConclusionReason = { full: string; brief: string; counted: boolean };
+
+/**
+ * Why the suggestion is what it is, for the Conclusion section: each of
+ * suggestionReasons' lines, word for word, with a brief form that counts
+ * the sections of a reason that has two or more. "No module has a result
+ * yet." names none, so it is never counted; a clean pass has no reasons.
+ */
+export function conclusionReasons(
+  suggested: Pick<SuggestedResult, "result" | "failed" | "notDone" | "warned">,
+  titleOf: (key: ModuleKey) => string,
+): ConclusionReason[] {
+  // suggestionReasons: failed, then not done, then warnings (the non-empty ones), or "No module has a result yet."
+  const groups = [suggested.failed, suggested.notDone, suggested.warned].filter((keys) => keys.length > 0);
+  return suggestionReasons(suggested, titleOf).map((full, index) => {
+    const count = groups[index]?.length ?? 0;
+    return count < 2
+      ? { full, brief: full, counted: false }
+      : { full, brief: `${full.slice(0, full.indexOf(":"))}: ${count} sections.`, counted: true };
+  });
 }
 
 /**

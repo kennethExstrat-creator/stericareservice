@@ -807,11 +807,11 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await frame.getByRole("radiogroup", { name: "Conclusion" }).getByRole("radio", { name: "PASSED" }).tap();
     await frame.getByRole("textbox", { name: "Date", exact: true }).fill(REPORT.conclusion.date.iso);
     const suggested = frame.getByRole("region", { name: "Suggested Result" });
-    // Failed on the pill, as on every result pill; the template's FAILED stays with the choice and its warning.
+    // Failed on the pill, as on every result pill; the template's PASSED stays with the choice and the note under the Remark.
     await check(suggested.locator('[data-slot="status-pill"]'), EXPECTED.conclusion.check).toHaveText("Failed");
     await check(suggested).toContainText(`Failed: ${SECTION.cartons}.`, ANY_CASE);
     await check(suggested).toContainText(`Warnings: ${SECTION.weight}.`, ANY_CASE);
-    await check(frame.getByText(`Conclusion PASSED differs from the suggestion, FAILED (failed: ${SECTION.cartons}). Explain why under Remark.`)).toBeVisible();
+    await check(frame.getByText("PASSED differs from the suggestion. Explain why.")).toBeVisible();
     await check(frame.getByRole("textbox", { name: named("Inspected By") }), EXPECTED.inspector.check).toHaveValue(inspectorName);
     // The report is signed: the inspector signs on the pad with a finger (touch events, as on the iPad).
     if (REPORT.conclusion.signed) {
