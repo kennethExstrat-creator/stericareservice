@@ -14,7 +14,6 @@ import {
   MEDIA_CATEGORIES,
   MEDIA_CATEGORY_KEYS,
   mediaCategory,
-  mediaCounts,
   mediaKind,
   SOURCE_DOCUMENTS_KEY,
   SOURCE_MEDIA_KEY,
@@ -54,35 +53,6 @@ describe("Media's categories", () => {
       expect(mediaCategory(key), String(key)).toBeNull();
       expect(isMediaCategoryKey(key), String(key)).toBe(false);
     }
-  });
-});
-
-describe("mediaCounts", () => {
-  it("counts each category's photos and videos, and puts the rest of the photos and the first tab's videos under Other", () => {
-    const photos = [
-      { moduleKey: "media_warehouse" },
-      { moduleKey: "media_warehouse" },
-      { moduleKey: "media_defects" },
-      // Other: untagged, and a step's photo from before the categories.
-      { moduleKey: null },
-      { moduleKey: "visual" },
-    ];
-    const files = [
-      { moduleKey: "media_proof" },
-      { moduleKey: SOURCE_MEDIA_KEY },
-      // Not media: Source Documents' papers and a step's lab report.
-      { moduleKey: SOURCE_DOCUMENTS_KEY },
-      { moduleKey: "tensile" },
-    ];
-    const counts = mediaCounts(photos, files);
-    expect(counts.categories.map(({ category, photos: shown, videos }) => [category.key, shown, videos])).toEqual([
-      ["media_warehouse", 2, 0],
-      ["media_samples", 0, 0],
-      ["media_proof", 0, 1],
-      ["media_defects", 1, 0],
-    ]);
-    expect(counts.other).toEqual({ photos: 2, videos: 1 });
-    expect(mediaCounts([], []).other).toEqual({ photos: 0, videos: 0 });
   });
 });
 

@@ -59,29 +59,6 @@ export function isMediaCategoryKey(key: string | null | undefined): key is Media
   return mediaCategory(key) !== null;
 }
 
-export type MediaCount = { photos: number; videos: number };
-
-/**
- * What Media holds: each category's photos and videos, and Other, the photos
- * in none of them (untagged, or a step's from before the steps lost their
- * photo box) and the videos of the first Media tab (SOURCE_MEDIA_KEY). Files
- * of other keys (Source Documents' own, a step's lab report) are not media.
- */
-export function mediaCounts(
-  photos: readonly { readonly moduleKey: string | null }[],
-  files: readonly { readonly moduleKey: string | null }[],
-): { categories: (MediaCount & { category: MediaCategory })[]; other: MediaCount } {
-  const tagged = (items: readonly { readonly moduleKey: string | null }[], key: string) =>
-    items.filter((item) => item.moduleKey === key).length;
-  return {
-    categories: MEDIA_CATEGORIES.map((category) => ({ category, photos: tagged(photos, category.key), videos: tagged(files, category.key) })),
-    other: {
-      photos: photos.filter((photo) => !isMediaCategoryKey(photo.moduleKey)).length,
-      videos: tagged(files, SOURCE_MEDIA_KEY),
-    },
-  };
-}
-
 /**
  * What a file dropped on a Media category is: a photo, a video, or neither
  * (a PDF belongs under Files). By its type, else by its name: some browsers

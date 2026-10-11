@@ -109,9 +109,7 @@ describe("documents capture: files", () => {
     const slots: FileSlotRequest[] = [];
     const html = render(emptyDocuments(), { slots });
     expect(html).toContain('<span data-test="screen-slot"></span>');
-    expect(html).toContain(
-      "Choose a document above first: its photos are then tagged with it, and its file filed under it.",
-    );
+    expect(html).toContain("Choose a document above to link its file.");
     // Nothing chosen yet: nothing to file a new file under, but the files listed can still be deleted.
     expect(slots).toEqual([
       expect.objectContaining({
@@ -133,7 +131,7 @@ describe("documents capture: files", () => {
     const changes: DocumentsData[] = [];
     const data = emptyDocuments();
     const html = render(data, { slots, changes, focus: { item: "labTestReports" } });
-    expect(html).toContain("New photos are tagged “Lab Test Reports”, and new files are filed under it.");
+    expect(html).toContain("File for “Lab Test Reports”.");
     expect(slots[0]).toMatchObject({ kind: "lab_report", focus: { item: "labTestReports" }, readOnly: false, addable: true });
     slots[0].onAdded({ id: FILE, name: "Lab test report.pdf", kind: "lab_report" });
     expect(changes).toEqual([{ ...data, items: { ...data.items, labTestReports: { ...data.items.labTestReports, file: FILE } } }]);
@@ -308,15 +306,13 @@ describe("documents capture", () => {
     expect(row(true).replace(' data-active="true"', "")).toBe(row(false));
   });
 
-  it("says once, under the list, which document new photos and files go under", () => {
+  it("says once, under the list, which document the file is linked to", () => {
     // Inside no row: the line never moves a row while it is pressed.
     const chosen = render(withIso({ status: "verified" }), { slots: [], focus: { item: "iso13485" } });
-    expect(chosen.match(/are tagged/g)).toHaveLength(1);
-    expect(chosen).toMatch(/<\/ul><\/div><div[^>]*><p data-slot="document-tags"[^>]*>New photos are tagged “ISO 13485/);
-    expect(documentTagLine("Lab Test Reports")).toBe("New photos are tagged “Lab Test Reports”, and new files are filed under it.");
-    expect(documentTagLine(null)).toBe(
-      "Choose a document above first: its photos are then tagged with it, and its file filed under it.",
-    );
+    expect(chosen.match(/File for “/g)).toHaveLength(1);
+    expect(chosen).toMatch(/<\/ul><\/div><div[^>]*><p data-slot="document-tags"[^>]*>File for “ISO 13485/);
+    expect(documentTagLine("Lab Test Reports")).toBe("File for “Lab Test Reports”.");
+    expect(documentTagLine(null)).toBe("Choose a document above to link its file.");
   });
 
   it("shows calc's result for each item, in the template's words, and its own word while calc catches up", () => {
@@ -350,7 +346,7 @@ describe("documents capture", () => {
     expect(html).not.toContain('data-slot="toggle-group-item"');
     expect(html).toMatch(/<p class="[^"]*">Verified<\/p>/);
     expect(html).toContain("No value");
-    expect(html).not.toContain("are tagged");
+    expect(html).not.toContain('data-slot="document-tags"');
   });
 
   it("still renders when calc could not run", () => {

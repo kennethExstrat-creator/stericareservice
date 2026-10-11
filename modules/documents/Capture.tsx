@@ -4,13 +4,12 @@
 // template switches on, in its order. Verified, not verified or NA is a tap;
 // the reference no. is typed; the expiry date comes from the date picker
 // (6.2 rule 3). The row being worked on is reported as the focus
-// (CaptureFocus.item), so photos added now are tagged with it (BUILD_SPEC
-// 8.1), and a file added through the module's file slot below the list is
-// filed under it: the row keeps the file's id and says it is attached. One
-// line under the list says which document that is, never a line inside a
-// row (a row that grew mid-press would move the control under the finger).
-// Until a row is chosen nothing can be added there, but
-// the files listed can still be deleted. Each row's chip, and the colour of
+// (CaptureFocus.item), and the file linked through the module's file slot
+// below the list (a Source Document, 12 October 2026) is that row's: the row
+// keeps the file's id and says it is attached. One line under the list says
+// which document that is, never a line inside a row (a row that grew
+// mid-press would move the control under the finger). Until a row is chosen
+// nothing can be linked there, but a linked file can still be unlinked. Each row's chip, and the colour of
 // its selected status, is calc's result for the item; every change goes
 // through useDataUpdater, built from the latest data (edit.ts). A row that
 // keeps a file says so with the kit's attachment line.
@@ -144,7 +143,7 @@ export default function Capture({
         </ul>
       </div>
       <div className="space-y-3">
-        {/* The capture screen adds photos and files; the editor's preview offers neither. */}
+        {/* The capture screen links files; the editor's preview does not. */}
         {canAttach && !readOnly && (
           <p data-slot="document-tags" className="text-sm text-muted-foreground touch:text-base">
             {documentTagLine(filing === null ? null : labelFor(labels, filing))}
@@ -327,14 +326,11 @@ export function DocumentRow({
 }
 
 /**
- * The tag line under the checklist (BUILD_SPEC 8.1): the document new photos
- * are tagged with and new files filed under, in the template's words, or
- * what to do first. Exported for its test.
+ * The line under the checklist: the document the file below is linked to, in
+ * the template's words, or what to do first. Exported for its test.
  */
 export function documentTagLine(document: string | null): string {
-  return document === null
-    ? "Choose a document above first: its photos are then tagged with it, and its file filed under it."
-    : `New photos are tagged “${document}”, and new files are filed under it.`;
+  return document === null ? "Choose a document above to link its file." : `File for “${document}”.`;
 }
 
 /** The document the screen has in focus (CaptureProps.focus), when it is on the checklist. */
