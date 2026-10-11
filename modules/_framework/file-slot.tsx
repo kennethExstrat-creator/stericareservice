@@ -2,12 +2,13 @@
 
 // Where a module's Capture attaches lab reports and certificates (BUILD_SPEC
 // 8.1). Modules stay decoupled from storage: a Capture renders
-// <ModuleFileSlot> and keeps the id of each file it is handed (files.ts);
-// the capture screen wraps the modules in <FileSlotProvider> with a renderer
-// for its upload slot (components/capture/files FileSlot), which owns the
-// file list, the upload queue and the inspection id. Without a provider (the
-// template editor's preview, a test) the slot says where files are attached
-// instead, and the module still shows what it keeps.
+// <ModuleFileSlot> with the id it keeps (`fileId`) and keeps the id of each
+// file it is handed (files.ts); the capture screen wraps the modules in
+// <FileSlotProvider> with a renderer that links one of the inspection's
+// Source Documents (section-body.tsx, source-file-link.tsx): files are
+// uploaded once, on the first step, never on a module page. Without a
+// provider (the template editor's preview, a test) the slot says where files
+// are attached instead, and the module still shows what it keeps.
 import { createContext, useContext, type ReactNode } from "react";
 import { PaperclipIcon } from "lucide-react";
 import type { ModuleKey } from "@/lib/schemas/module-result";
@@ -25,17 +26,22 @@ export type FileSlotRequest = {
   readonly title?: string;
   /** What is in focus when a file is added: the size a report is for, the document on the checklist. */
   readonly focus: CaptureFocus | null;
-  /** Nothing can be added or deleted here: approved, or not the user's. */
+  /**
+   * The id the module keeps for this slot now (tensile's labReport, the
+   * chosen document's file), null for none: the slot shows that file. Absent
+   * when the module does not say.
+   */
+  readonly fileId?: string | null;
+  /** Nothing can be linked or unlinked here: approved, or not the user's. */
   readonly readOnly: boolean;
   /**
-   * New files can be added now. False while the module has nothing to file a
-   * new file under (documents before a document is chosen): hide the add
-   * controls only, and keep the list's own, Delete included.
+   * A file can be linked now. False while the module has nothing to file it
+   * under (documents before a document is chosen).
    */
   readonly addable: boolean;
-  /** A file was handed to the upload queue: its future inspection_files id. */
+  /** A file was chosen for the module (one of Source Documents', or one added here before): its inspection_files id. */
   onAdded(file: AttachedFile): void;
-  /** A file of the module was deleted or taken off the queue. */
+  /** The file was unlinked here (never deleted), or deleted: drop its id. */
   onRemoved(fileId: string): void;
 };
 
@@ -46,7 +52,7 @@ const FileSlotContext = createContext<FileSlotRenderer | null>(null);
 
 /**
  * Given by the capture screen around the modules it renders, with a renderer
- * for its upload slot; docs/MODULES.md 10.1 shows the renderer.
+ * for its file slot; docs/MODULES.md 10.1 shows the renderer.
  */
 export function FileSlotProvider({ render, children }: { render: FileSlotRenderer; children?: ReactNode }) {
   return <FileSlotContext.Provider value={render}>{children}</FileSlotContext.Provider>;
@@ -62,8 +68,10 @@ export type ModuleFileSlotProps = {
   kind: FileKind;
   title?: string;
   focus?: CaptureFocus | null;
+  /** The id the module keeps for this slot (null for none): the screen shows that file, with Unlink. */
+  fileId?: string | null;
   readOnly: boolean;
-  /** False while there is nothing to file a new file under: no adding, deleting still allowed. */
+  /** False while there is nothing to file a new file under: no linking, unlinking still allowed. */
   addable?: boolean;
   /** Keep the file's id in the module's data, through useDataUpdater. */
   onAdded: (file: AttachedFile) => void;
@@ -73,7 +81,7 @@ export type ModuleFileSlotProps = {
 };
 
 /**
- * The slot where a module attaches its files: the screen's upload slot, or,
+ * The slot where a module attaches its files: the screen's file slot, or,
  * where there is none, a note that files are attached on the inspection
  * screen.
  */
@@ -82,6 +90,7 @@ export function ModuleFileSlot({
   kind,
   title,
   focus = null,
+  fileId,
   readOnly,
   addable = true,
   onAdded,
@@ -97,6 +106,7 @@ export function ModuleFileSlot({
           kind,
           ...(title === undefined ? {} : { title }),
           focus,
+          ...(fileId === undefined ? {} : { fileId }),
           readOnly,
           addable: !readOnly && addable,
           onAdded,

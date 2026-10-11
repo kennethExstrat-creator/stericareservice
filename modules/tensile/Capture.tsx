@@ -83,6 +83,7 @@ export default function Capture({
           moduleKey="tensile"
           kind="lab_report"
           focus={size === "" ? null : { size }}
+          fileId={data.labReport}
           readOnly={readOnly}
           onAdded={(file) => update((current) => withLabReport(current, file.id))}
           onRemoved={(fileId) => update((current) => withoutLabReport(current, fileId))}
