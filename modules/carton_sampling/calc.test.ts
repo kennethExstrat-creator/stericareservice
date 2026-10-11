@@ -9,7 +9,7 @@ import {
   STD_EG_EXPECTED,
   type ExampleReport,
 } from "@/tests/fixtures/examples";
-import { calcCartonSampling, contributeCartonSampling, gridCell, type CartonSamplingComputed } from "./calc";
+import { calcCartonSampling, contributeCartonSampling, cartonEntry, type CartonSamplingComputed } from "./calc";
 import { CARTON_SAMPLING_DEFAULT_CONFIG, CARTON_SAMPLING_LABELS, type CartonSamplingConfig } from "./config";
 import { definition } from "./index";
 import { emptyCartonSampling, type CartonSamplingData } from "./schema";
@@ -95,14 +95,14 @@ describe("carton_sampling", () => {
     const output = calcCartonSampling(input({ M: [32, 578, 578, 1186, 2389] }));
     expect(output.result).toEqual({
       status: "fail",
-      summary: "Size M: Carton 578 is entered twice (row 1 column 2, row 1 column 3).",
-      perSize: { M: { status: "fail", summary: "Carton 578 is entered twice (row 1 column 2, row 1 column 3)." } },
+      summary: "Size M: Carton 578 is entered twice (No. 2, No. 3).",
+      perSize: { M: { status: "fail", summary: "Carton 578 is entered twice (No. 2, No. 3)." } },
     });
     expect(output.issues).toEqual([
       {
         level: "error",
         code: "carton_duplicate",
-        message: "Size M: Carton 578 is entered twice (row 1 column 2, row 1 column 3).",
+        message: "Size M: Carton 578 is entered twice (No. 2, No. 3).",
         size: "M",
         path: ["sizes", "M", "cartonNumbers", 2],
       },
@@ -110,26 +110,26 @@ describe("carton_sampling", () => {
     expect(output.computed.sizes.M).toMatchObject({ samplingQuantity: 5, unique: 4 });
     const thrice = calcCartonSampling(input({ M: [578, 32, 578, 1186, 578] }));
     expect(thrice.issues.map((issue) => issue.message)).toEqual([
-      "Size M: Carton 578 is entered 3 times (row 1 column 1, row 1 column 3, row 1 column 5).",
+      "Size M: Carton 578 is entered 3 times (No. 1, No. 3, No. 5).",
     ]);
   });
 
   it("fails on a carton above the order quantity, in grid order, with a link to its cell", () => {
     const output = calcCartonSampling(input({ M: [32, 2901, 578, 1186, 9999] }));
     expect(output.result.status).toBe("fail");
-    expect(output.result.perSize?.M?.summary).toBe("Carton 2901 is not between 1 and 2,900, the order quantity (row 1 column 2); 1 more.");
+    expect(output.result.perSize?.M?.summary).toBe("Carton 2901 is not between 1 and 2,900, the order quantity (No. 2); 1 more.");
     expect(output.issues).toEqual([
       {
         level: "error",
         code: "carton_out_of_range",
-        message: "Size M: Carton 2901 is not between 1 and 2,900, the order quantity (row 1 column 2).",
+        message: "Size M: Carton 2901 is not between 1 and 2,900, the order quantity (No. 2).",
         size: "M",
         path: ["sizes", "M", "cartonNumbers", 1],
       },
       {
         level: "error",
         code: "carton_out_of_range",
-        message: "Size M: Carton 9999 is not between 1 and 2,900, the order quantity (row 1 column 5).",
+        message: "Size M: Carton 9999 is not between 1 and 2,900, the order quantity (No. 5).",
         size: "M",
         path: ["sizes", "M", "cartonNumbers", 4],
       },
@@ -170,10 +170,10 @@ describe("carton_sampling", () => {
     const output = calcCartonSampling(input({ XS: [1, 1], S: [51, 88], M: [51, 600] }, context));
     expect(output.result).toEqual({
       status: "fail",
-      summary: "Size M: Carton 600 is not between 1 and 560, the order quantity (row 1 column 2).",
+      summary: "Size M: Carton 600 is not between 1 and 560, the order quantity (No. 2).",
       perSize: {
         S: { status: "pass", summary: "2 carton numbers, unique and between 1 and 850." },
-        M: { status: "fail", summary: "Carton 600 is not between 1 and 560, the order quantity (row 1 column 2)." },
+        M: { status: "fail", summary: "Carton 600 is not between 1 and 560, the order quantity (No. 2)." },
       },
     });
     expect(Object.keys(output.computed.sizes)).toEqual(["S", "M"]);
@@ -204,15 +204,15 @@ describe("carton_sampling", () => {
     );
   });
 
-  it("names grid cells as the report prints them: 10 to a row", () => {
-    expect([0, 9, 10, 19, 20, 49, 50].map(gridCell)).toEqual([
-      "row 1 column 1",
-      "row 1 column 10",
-      "row 2 column 1",
-      "row 2 column 10",
-      "row 3 column 1",
-      "row 5 column 10",
-      "row 6 column 1",
+  it("names a carton by its No. in the capture table", () => {
+    expect([0, 9, 10, 19, 20, 49, 50].map(cartonEntry)).toEqual([
+      "No. 1",
+      "No. 10",
+      "No. 11",
+      "No. 20",
+      "No. 21",
+      "No. 50",
+      "No. 51",
     ]);
   });
 

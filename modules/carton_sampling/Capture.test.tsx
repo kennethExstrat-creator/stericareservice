@@ -140,7 +140,7 @@ describe("carton_sampling Capture", () => {
     expect(red).toHaveLength(1);
     expect(red[0]).toContain('data-carton="9999"');
     expect(red[0]).toContain(pathAttribute(["sizes", "M", "cartonNumbers", 1]));
-    expect(html).toContain("Size M: Carton 9999 is not between 1 and 2,900, the order quantity (row 1 column 2).");
+    expect(html).toContain("Size M: Carton 9999 is not between 1 and 2,900, the order quantity (No. 2).");
   });
 
   it("counts the list against the plan's cases, however many the plan has: 50 of 63, not done", () => {

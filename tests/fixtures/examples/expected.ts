@@ -726,7 +726,7 @@ export const STD_EG_EXPECTED = deepFreeze<StdEgExpected>({
       module: "carton_sampling",
       size: "M",
       code: "carton_duplicate",
-      message: "Carton 525 is entered twice (row 2 column 10, row 3 column 1).",
+      message: "Carton 525 is entered twice (No. 20, No. 21).",
     },
     {
       level: "error",

@@ -19,7 +19,7 @@ import {
   type ContributeInput,
   type InspectionContext,
 } from "@/modules/_framework";
-import { GRID_COLUMNS, type CartonSamplingConfig } from "./config";
+import type { CartonSamplingConfig } from "./config";
 import { enteredCartons, type CartonSamplingData } from "./schema";
 
 export type CartonSizeComputed = {
@@ -59,9 +59,9 @@ export function contributeCartonSampling({
   return { cartons: Object.fromEntries(Object.entries(data.sizes).map(([size, row]) => [size, enteredCartons(row)])) };
 }
 
-/** Where a carton sits in the report's grid: "row 2 column 10" for the 20th. */
-export function gridCell(index: number): string {
-  return `row ${Math.floor(index / GRID_COLUMNS) + 1} column ${(index % GRID_COLUMNS) + 1}`;
+/** Where a carton is in the capture table's No. column: "No. 20" for the 20th (12 October 2026: a table, not the report's grid). */
+export function cartonEntry(index: number): string {
+  return `No. ${index + 1}`;
 }
 
 type Problem = { issue: CalcIssue; brief: string };
@@ -92,14 +92,14 @@ function checkSize(
     if (orderQty !== null && carton > orderQty) {
       report(
         "carton_out_of_range",
-        `Carton ${carton} is not between 1 and ${formatCount(orderQty)}, the order quantity (${gridCell(index)})`,
+        `Carton ${carton} is not between 1 and ${formatCount(orderQty)}, the order quantity (${cartonEntry(index)})`,
         index,
       );
     }
     const at = positions.get(carton) ?? [];
     if (at.length > 1 && at[1] === index) {
       const times = at.length === 2 ? "twice" : `${at.length} times`;
-      report("carton_duplicate", `Carton ${carton} is entered ${times} (${at.map(gridCell).join(", ")})`, index);
+      report("carton_duplicate", `Carton ${carton} is entered ${times} (${at.map(cartonEntry).join(", ")})`, index);
     }
   });
   if (sampledCases !== null && count > sampledCases) {

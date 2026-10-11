@@ -166,7 +166,7 @@ entered them.
 
 | Where | The report | The app | Fixture |
 |---|---|---|---|
-| Carton list, size M | Carton 525 twice (row 2 column 10, row 3 column 1): 50 entries, 49 unique | Error, submit blocked | `cartons.M.rows` |
+| Carton list, size M | Carton 525 twice (row 2 column 10, row 3 column 1 on the report; No. 20 and No. 21 in the app): 50 entries, 49 unique | Error, submit blocked | `cartons.M.rows` |
 | Packing check item 12 | Box 2336, not in the carton list, accepted | Error, submit blocked | `dispensingPacking.perSize.M.boxes` |
 | Watertight | Limit 10 / 11; title says code letter K, L & M | n 500 is code N: 14 / 15 | `watertight.perSize.M.printedLimit` |
 | Visual major | Limit 14 / 15 | 21 / 22 | `visual.major.perSize.M.printedLimit` |
