@@ -124,7 +124,6 @@ import { cn } from "@/lib/utils";
 import {
   parseCanonicalPath,
   readModuleEntry,
-  writeModuleComment,
   writeModuleData,
   writePath,
   type CaptureFocus,
@@ -142,7 +141,7 @@ import { leaveAnswer } from "./leave-answer";
 import { SwitchedOffPanel, SwitchOffDialog } from "./module-switch";
 import { SaveIndicator } from "./save-indicator";
 import { CustomBody, ModuleBody, preloadCaptures } from "./section-body";
-import { PagePanel, SectionComment, SectionFrame } from "./section-frame";
+import { PagePanel, SectionFrame } from "./section-frame";
 import { SourceDocumentsPage } from "./source-documents-page";
 import { useSourceDocuments } from "./use-source-documents";
 import { SectionList } from "./section-list";
@@ -328,13 +327,6 @@ export function CaptureScreen({
         return;
       }
       commit(writeModuleData(dataRef.current, namespace, key, next as Record<string, unknown>));
-    },
-    [commit],
-  );
-
-  const writeComment = useCallback(
-    (namespace: DataNamespace, key: string, comment: string) => {
-      commit(writeModuleComment(dataRef.current, namespace, key, comment));
     },
     [commit],
   );
@@ -1033,10 +1025,6 @@ export function CaptureScreen({
                 writeMapped(mapsTo, value);
                 landing.record();
               }}
-              onCommentChange={(namespace, key, comment) => {
-                writeComment(namespace, key, comment);
-                landing.record();
-              }}
               onOverridesChange={onSwitched}
             />
           )}
@@ -1118,7 +1106,6 @@ type SharedSectionProps = {
   onModuleChange: (key: string, value: unknown) => void;
   onCustomChange: (key: string, value: unknown) => void;
   onMappedChange: (mapsTo: string, value: unknown) => void;
-  onCommentChange: (namespace: DataNamespace, key: string, comment: string) => void;
 };
 
 type ActivePageProps = SharedSectionProps & {
@@ -1239,7 +1226,6 @@ function SectionPart({
   onModuleChange,
   onCustomChange,
   onMappedChange,
-  onCommentChange,
   onOverridesChange,
 }: SectionPartProps) {
   // What the module reports in focus: the screen keeps the size for the next section.
@@ -1271,18 +1257,7 @@ function SectionPart({
 
   const namespace: DataNamespace = section.kind === "module" ? "modules" : "custom";
   const entry = data[namespace][section.key];
-  const comment = readModuleEntry(data, namespace, section.key).comment;
-  const footer = (
-    <>
-      <SectionComment
-        value={comment}
-        onChange={(text) => onCommentChange(namespace, section.key, text)}
-        readOnly={readOnly}
-        context={nameContext}
-      />
-    </>
-  );
-
+  // No comment box under the steps (Kenneth, 11 October 2026): the inspector writes on the conclusion's remark.
   if (section.kind === "custom") {
     const evaluation = report.custom.find((candidate) => candidate.custom.key === section.key);
     return (
@@ -1293,7 +1268,6 @@ function SectionPart({
         title={section.title}
         headingRef={headingRef}
         status={section.status}
-        footer={footer}
       >
         {evaluation && (
           <RefusedEntryStoreContext.Provider value={refusedEntries}>
@@ -1340,7 +1314,6 @@ function SectionPart({
           />
         ) : undefined
       }
-      footer={footer}
     >
       {resolved && (
         <RefusedEntryStoreContext.Provider value={refusedEntries}>
