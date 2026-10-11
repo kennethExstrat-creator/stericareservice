@@ -202,7 +202,7 @@ async function create(formData: FormData): Promise<Outcome> {
     return fail(describeCreateError(inserted.error));
   }
 
-  // The order document it was filled from becomes its first Source Document, already read.
+  // The order document it was filled from becomes its first Source Document, read in full on the capture screen.
   const documentFile = formData.get("documentFile");
   if (documentFill && documentFile instanceof File) await keepDocument(inserted.id, documentFile, user.id);
 
@@ -346,7 +346,8 @@ export async function readDocument(formData: FormData): Promise<DocumentReadResu
 
 /**
  * Keeps the order document with the new inspection as a Source Document
- * (docs/AI.md), marked as read: the form was filled from it. Written with
+ * (docs/AI.md), unread: the form only took the order details from it, so
+ * Source Documents reads it in full when the inspection opens. Written with
  * the secret key; a failure is logged, never shown: the inspection exists.
  */
 async function keepDocument(inspectionId: string, file: File, userId: string): Promise<void> {
@@ -369,9 +370,7 @@ async function keepDocument(inspectionId: string, file: File, userId: string): P
       storage_path: path,
       name: file.name.slice(0, 200) || `Order Document.${extension}`,
       created_by: userId,
-      ai_status: "read",
-      ai_read_at: new Date().toISOString(),
-      ai_summary: "Read on New Inspection: it filled in the order details.",
+      // Left unread: Source Documents reads it in full when the inspection opens (every module, every PO).
     });
     if (error) {
       console.error("[inspections/new] recording the order document failed", error.code, error.message);
