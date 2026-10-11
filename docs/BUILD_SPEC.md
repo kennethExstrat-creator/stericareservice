@@ -362,6 +362,8 @@ Speed:
 - **Lab reports and certificates** (`force_at_break`, `tensile`, `documents`): PDF or image upload to `inspection-files`.
 - **Storage:** private buckets `inspection-photos` (path `<inspection_id>/<uuid>.jpg`, plus a 400 px thumbnail) and `inspection-files`. Viewed through signed URLs.
 
+> **Since 11 and 12 October 2026 (Kenneth):** photos, videos and files are added on Source Documents, the first step, not on each module. Media lists photos and videos in four categories (Warehouse, Product and Package Samples, Inspection Proof, Product Defects) and Other, as rows like the documents' (Preview, Download, Delete); a row is dragged to another category or moved from its Move To menu. Auto-Sort, at the top, takes every photo and video at once and the AI files each into its category; what it cannot place stays in Other. Lab reports and certificates are uploaded on Files; a module that needs one (`force_at_break`, `tensile`, `documents`) links one of those files, and the AI links a lab report it recognises. Details in docs/AI.md.
+
 ---
 
 ## 9. AI hand-offs

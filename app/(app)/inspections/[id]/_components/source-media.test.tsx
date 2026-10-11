@@ -1,8 +1,8 @@
 // Source Documents' Media as the server draws it, with the inspection's
 // photos and files as the browser would have loaded them: Auto-Sort, then
 // the four categories in order, each one compact row until it holds
-// something and then its photos and videos as rows, and Other only while
-// photos or videos are in no category.
+// something and then its photos and videos as rows, and Other, always last,
+// for what the AI could not place.
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -111,11 +111,11 @@ afterEach(() => {
 });
 
 describe("SourceMedia", () => {
-  it("shows Auto-Sort, then the four categories in order, each one row: title, count, hint and Add", () => {
+  it("shows Auto-Sort, then the four categories and Other in order, each one row: title, count, hint and Add", () => {
     loaded.media = ready([], []);
     const html = render();
     const shown = sections(html);
-    expect(Object.keys(shown)).toEqual(MEDIA_CATEGORIES.map((category) => category.key));
+    expect(Object.keys(shown)).toEqual([...MEDIA_CATEGORIES.map((category) => category.key), "other"]);
     for (const { key, title, hint } of MEDIA_CATEGORIES) {
       const part = shown[key];
       expect(part, key).toMatch(new RegExp(`<h3[^>]*>${title}</h3>`));
@@ -131,8 +131,9 @@ describe("SourceMedia", () => {
     expect(html).toContain(">Drop all photos and videos here. AI sorts each into its category.<");
     expect(html).toContain("Add Photos and Videos");
     // The iPad's pickers: photos and videos together, several at once; one a category, and Auto-Sort's.
-    expect(html.match(/<input[^>]*type="file"[^>]*accept="image\/\*,video\/\*"[^>]*multiple=""/g)).toHaveLength(5);
-    expect(html).not.toContain(">Other</h3>");
+    expect(html.match(/<input[^>]*type="file"[^>]*accept="image\/\*,video\/\*"[^>]*multiple=""/g)).toHaveLength(6);
+    expect(sections(html).other).toMatch(/<h3[^>]*>Other<\/h3>/);
+    expect(sections(html).other).toContain(">Anything the AI could not place.<");
     expect(unanchoredSrOnly(html)).toEqual([]);
   });
 
@@ -168,7 +169,7 @@ describe("SourceMedia", () => {
     expect(unanchoredSrOnly(html)).toEqual([]);
   });
 
-  it("shows Other only while photos or videos are in no category: untagged, a step's, the first tab's videos", () => {
+  it("lists in Other what is in no category: untagged, a step's, the first tab's videos", () => {
     loaded.media = ready(
       [photo("p1", "media_proof"), photo("p2", null), photo("p3", "visual", "size:M")],
       [
@@ -182,19 +183,19 @@ describe("SourceMedia", () => {
     const other = sections(html).other;
     expect(other).toMatch(/<h3[^>]*>Other<\/h3>/);
     expect(other).toContain(">2 photos · 1 video<");
-    expect(other).toContain(">Not in a category yet.<");
+    expect(other).toContain(">Anything the AI could not place.<");
     expect(other).toContain(">Photo 2<");
     // A step's photo says which step it came from.
     expect(other).toContain(">Photo 3<");
     expect(other).toContain(">Visual · Size M<");
     expect(other).toContain(">Walkthrough.mp4<");
-    // Nothing is added to Other: photos and videos go in a category, or through Auto-Sort.
-    expect(other).not.toContain("Add<");
+    // Photos and videos can be added to Other too.
+    expect(other).toContain(" Photos and Videos to Other");
     expect(html).not.toContain("PO-0001.pdf");
     expect(html).not.toContain("Tensile.pdf");
 
     loaded.media = ready([photo("p1", "media_proof")], [file("v2", "media_samples", "Samples.mov")]);
-    expect(render()).not.toContain(">Other</h3>");
+    expect(sections(render()).other).toContain(">0 photos · 0 videos<");
   });
 
   it("on a read-only screen adds, moves and deletes nothing; Preview and Download stay", () => {
@@ -207,12 +208,12 @@ describe("SourceMedia", () => {
     expect(html).not.toContain("Delete ");
     expect(html).toContain("Preview Photo 1</span>");
     expect(html).toContain("Download Proof.mp4</span>");
-    expect(sections(html).other).toContain(">Not in a category.<");
+    expect(sections(html).other).toContain(">Anything the AI could not place.<");
   });
 
   it("says Loading… in each row until the photos are known, never 0", () => {
     const html = render();
-    expect(html.match(/>Loading…</g)).toHaveLength(MEDIA_CATEGORIES.length);
+    expect(html.match(/>Loading…</g)).toHaveLength(MEDIA_CATEGORIES.length + 1);
     expect(html).not.toContain("0 photos");
   });
 });

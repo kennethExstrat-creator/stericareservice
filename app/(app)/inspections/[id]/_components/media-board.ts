@@ -15,6 +15,8 @@ export type MediaKind = "photo" | "video";
 export type MediaSectionId = MediaCategoryKey | "other";
 
 export const OTHER_TITLE = "Other";
+/** Other's hint: always listed, last (Kenneth, 12 October 2026). */
+export const OTHER_HINT = "Anything the AI could not place.";
 
 /** Media's sections in order, as the page and the Move To menu list them. */
 export const MEDIA_SECTIONS: readonly { readonly id: MediaSectionId; readonly title: string }[] = [

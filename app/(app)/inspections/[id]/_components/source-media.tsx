@@ -8,9 +8,10 @@
 // row, its title and count over its hint, and Add. Files dropped on a
 // category go in by their type. A row's grip drags it into another category,
 // or opens its Move To menu (use-media-drag.ts); the row moves at once, and
-// goes back with a message if the move is refused. Other lists what is in no
-// category (untagged photos, a step's from before the categories, the first
-// Media tab's videos) while there is any, and while a row is dragged.
+// goes back with a message if the move is refused. Other, always listed last
+// (Kenneth, 12 October 2026), holds what the AI could not place and what is in
+// no category (untagged photos, a step's from before the categories, the
+// first Media tab's videos); photos and videos can be added there too.
 // Auto-Sort, at the top, uploads a heap of photos and videos into Other and
 // has the AI sort them (auto-sort.ts).
 import {
@@ -47,6 +48,7 @@ import {
   mediaItems,
   moduleKeyFor,
   NOT_MEDIA,
+  OTHER_HINT,
   OTHER_TITLE,
   placeItems,
   sectionTitle,
@@ -256,8 +258,6 @@ export function SourceMedia({ inspectionId, readOnly }: SourceMediaProps) {
           const preparing = category
             ? (queue.preparingByModule[moduleSlotKey(inspectionId, category.key)] ?? NOTHING_PREPARING)
             : otherPreparing;
-          // Other only while it holds something, or could take the row being dragged.
-          if (!category && listed.length === 0 && preparing.photos + preparing.files === 0 && !drag) return null;
           return (
             <MediaSection
               key={id}
@@ -318,7 +318,7 @@ function MediaSection({
 }: {
   inspectionId: string;
   id: MediaSectionId;
-  /** Null for Other, where nothing is added. */
+  /** Null for Other. */
   category: MediaCategory | null;
   headingId: string;
   items: readonly MediaItem[];
@@ -335,7 +335,6 @@ function MediaSection({
   const addPhotos = useAddPhotos({ inspectionId, moduleKey: category?.key ?? null, focus: null });
   const add = useCallback(
     (files: readonly File[]) => {
-      if (!category) return;
       const photos: File[] = [];
       const videos: File[] = [];
       for (const file of files) {
@@ -345,18 +344,19 @@ function MediaSection({
         else toast.error(`${file.name || "The file"} was not added`, { description: NOT_MEDIA });
       }
       if (photos.length > 0) addPhotos(photos);
-      if (videos.length > 0) void photoQueueStore.addFiles({ inspectionId, moduleKey: category.key, kind: "other", files: videos });
+      // Other's videos keep the first Media tab's key.
+      if (videos.length > 0) void photoQueueStore.addFiles({ inspectionId, moduleKey: category?.key ?? SOURCE_MEDIA_KEY, kind: "other", files: videos });
     },
     [addPhotos, category, inspectionId],
   );
-  const drop = useFileDrop(add, canAdd && category !== null);
+  const drop = useFileDrop(add, canAdd);
   const preparingCount = preparing.photos + preparing.files;
   const hint = drop.dragging ? (
     <span className="font-medium text-brand-700">Drop to add to {title}</span>
   ) : dropTarget ? (
     <span className="font-medium text-brand-700">Drop to move to {title}</span>
   ) : (
-    (category?.hint ?? (canAdd ? "Not in a category yet." : "Not in a category."))
+    (category?.hint ?? OTHER_HINT)
   );
   // Rows move between sections: a grip on each wherever anything can move, waiting on those that cannot yet.
   const movable = canAdd || canEditUploaded;
@@ -376,7 +376,7 @@ function MediaSection({
         hint={hint}
         count={loading && items.length === 0 ? "Loading…" : mediaCountLine(items)}
       >
-        {canAdd && category && <MediaAddButton title={title} onFiles={add} />}
+        {canAdd && <MediaAddButton title={title} onFiles={add} />}
       </SectionHeader>
       {items.length > 0 && (
         <ul className="divide-y divide-border overflow-hidden rounded-lg bg-card ring-1 ring-border">
