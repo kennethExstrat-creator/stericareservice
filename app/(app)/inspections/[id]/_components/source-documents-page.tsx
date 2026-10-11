@@ -91,75 +91,53 @@ export function SourceDocumentsPage({ panelId, tabLabelledBy, titleRef, inspecti
   );
 }
 
+/** Beside the file's name: what the AI has done with it. */
 function AiMark({ file, documents, readOnly }: { file: SlotFile; documents: SourceDocuments; readOnly: boolean }) {
   if (file.state !== "uploaded") return null;
   const reading = documents.statuses[file.id];
   if (!reading) {
     return readOnly ? null : (
-      <p className="mt-0.5 text-sm text-muted-foreground" data-testid="ai-waiting">
+      <span className="text-sm text-muted-foreground" data-testid="ai-waiting">
         Waiting for AI…
-      </p>
+      </span>
     );
   }
   if (reading.status === "reading") {
     return (
-      <p className="mt-0.5 flex items-center gap-1.5 text-sm text-brand-700" data-testid="ai-reading">
-        <Spinner aria-hidden className="size-4" />
+      <span className="inline-flex items-center gap-1.5 text-sm text-brand-700" data-testid="ai-reading">
+        <Spinner aria-hidden className="size-3.5" />
         AI is reading…
-      </p>
+      </span>
     );
   }
   if (reading.status === "read") {
-    const { headline, note, report, readAs } = splitReading(reading.summary);
-    const line =
-      headline ||
-      (reading.filled === undefined ? "" : reading.filled > 0 ? `${reading.filled} ${reading.filled === 1 ? "field" : "fields"} filled` : "Nothing new to fill");
-    const details = Boolean(note || report || readAs.length > 0);
+    const headline = splitReading(reading.summary).headline;
     return (
-      <div className="mt-1 flex flex-col gap-1" data-testid="ai-verified">
-        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-          <span className="inline-flex items-center gap-1 rounded-full bg-pass-tint px-2 py-0.5 font-semibold text-pass ring-1 ring-pass-border">
-            <BadgeCheckIcon aria-hidden className="size-3.5 shrink-0" />
-            AI Verified
-          </span>
-          {line && <span className="text-muted-foreground">{line}</span>}
-        </p>
-        {details && (
-          <details className="group text-sm">
-            <summary className="w-fit cursor-pointer rounded-md py-1 font-medium text-brand-600 focus-ring-inset touch:py-2.5">
-              Details
-            </summary>
-            <div className="mt-1 flex flex-col gap-2 text-muted-foreground">
-              {note && <p>{note}</p>}
-              {report && <p>{report}</p>}
-              {readAs.length > 0 && (
-                <div>
-                  <p className="font-medium text-foreground">How AI read the shortforms</p>
-                  <ul className="mt-1 list-disc space-y-0.5 pl-5">
-                    {readAs.map((entry) => (
-                      <li key={entry}>{entry}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          </details>
-        )}
-      </div>
+      <span
+        className="inline-flex shrink-0 items-center gap-1 rounded-full bg-pass-tint px-2 py-0.5 text-sm font-semibold text-pass ring-1 ring-pass-border"
+        title={headline || undefined}
+        data-testid="ai-verified"
+      >
+        <BadgeCheckIcon aria-hidden className="size-3.5 shrink-0" />
+        AI Verified
+      </span>
     );
   }
   return (
-    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1" data-testid="ai-failed">
-      <p className="flex items-start gap-1.5 text-sm text-warn">
-        <TriangleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
-        {splitReading(reading.summary).note || "The AI could not read this file."}
-      </p>
+    <span className="inline-flex flex-wrap items-center gap-2" data-testid="ai-failed">
+      <span
+        className="inline-flex shrink-0 items-center gap-1 rounded-full bg-warn-tint px-2 py-0.5 text-sm font-semibold text-warn ring-1 ring-warn-border"
+        title={splitReading(reading.summary).note || undefined}
+      >
+        <TriangleAlertIcon aria-hidden className="size-3.5 shrink-0" />
+        Not Read
+      </span>
       {!readOnly && (
-        <Button type="button" variant="ghost" size="sm" onClick={() => documents.retry(file.id)}>
+        <Button type="button" variant="ghost" size="xs" onClick={() => documents.retry(file.id)}>
           <RotateCcwIcon aria-hidden />
           Read Again<span className="sr-only">: {file.name}</span>
         </Button>
       )}
-    </div>
+    </span>
   );
 }

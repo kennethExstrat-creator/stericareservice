@@ -3,13 +3,14 @@
 // Lab reports and certificates as rows: name, kind, upload state, and Open
 // (a signed URL in a new tab), Try Again or Delete where they apply.
 import { useRef, useState, type ReactNode } from "react";
-import { ExternalLinkIcon, FileTextIcon, RotateCwIcon, Trash2Icon, TriangleAlertIcon } from "lucide-react";
+import { DownloadIcon, ExternalLinkIcon, EyeIcon, FileTextIcon, RotateCwIcon, Trash2Icon, TriangleAlertIcon } from "lucide-react";
 import type { SlotFile } from "@/components/capture/photos/photo-model";
 import { photoQueueStore } from "@/components/capture/photos/queue-store";
 import { Button } from "@/components/ui/button";
 import { FILE_KIND_LABEL, moduleTitle, type PhotoTagOptions } from "@/lib/inspections/photos/view";
 import { cn } from "@/lib/utils";
 import { FileDeleteDialog } from "./file-delete-dialog";
+import { downloadUrl, FilePreviewDialog } from "./file-preview-dialog";
 
 /** The file's upload state, in the photo tile's words. */
 function stateText(file: SlotFile): string {
@@ -51,13 +52,17 @@ export function FileList({
   onRemoved?: (fileId: string) => void;
   /** More about a file, under its name (Source Documents: what the AI read). */
   fileExtra?: (file: SlotFile) => ReactNode;
-  /** No kind and state line under an uploaded file's name (Source Documents: the AI's mark says it). */
+  /**
+   * Source Documents' rows: fileExtra beside the name, no kind and state line
+   * once uploaded, and Preview (on the page), Download and Delete as icons.
+   */
   compactRows?: boolean;
   className?: string;
 }) {
   const [deleting, setDeleting] = useState<string | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const deletingFile = files.find((file) => file.id === deleting) ?? null;
+  const [previewing, setPreviewing] = useState<{ name: string; url: string } | null>(null);
 
   return (
     <>
@@ -75,16 +80,19 @@ export function FileList({
             >
               <FileTextIcon aria-hidden className="size-5 shrink-0 text-brand-600" />
               <div className="min-w-0 flex-1">
-                <p className="truncate font-medium text-foreground" title={file.name}>
-                  {file.name}
-                </p>
+                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                  <p className="min-w-0 truncate font-medium text-foreground" title={file.name}>
+                    {file.name}
+                  </p>
+                  {compactRows && fileExtra?.(file)}
+                </div>
                 {!(compactRows && file.state === "uploaded") && (
                 <p className="text-sm text-muted-foreground">
                   {file.kind ? FILE_KIND_LABEL[file.kind] : "File"}
                   {showModule ? ` · ${moduleTitle(file.moduleKey, options)}` : ""} · {stateText(file)}
                 </p>
                 )}
-                {fileExtra?.(file)}
+                {!compactRows && fileExtra?.(file)}
                 {file.state === "failed" && file.error && (
                   <p className="mt-1 flex items-start gap-1.5 text-sm text-fail">
                     <TriangleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
@@ -93,7 +101,27 @@ export function FileList({
                 )}
               </div>
               <div className="flex flex-wrap items-center gap-1">
-                {file.state === "uploaded" && file.url && (
+                {compactRows && file.state === "uploaded" && file.url && (
+                  <>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      title="Preview"
+                      onClick={() => setPreviewing({ name: file.name, url: file.url! })}
+                    >
+                      <EyeIcon aria-hidden />
+                      <span className="sr-only">Preview {file.name}</span>
+                    </Button>
+                    <Button asChild variant="ghost" size="icon" title="Download">
+                      <a href={downloadUrl(file.url, file.name)} download={file.name}>
+                        <DownloadIcon aria-hidden />
+                        <span className="sr-only">Download {file.name}</span>
+                      </a>
+                    </Button>
+                  </>
+                )}
+                {!compactRows && file.state === "uploaded" && file.url && (
                   <Button asChild variant="ghost" size="sm">
                     <a href={file.url} target="_blank" rel="noopener noreferrer">
                       <ExternalLinkIcon aria-hidden />
@@ -107,7 +135,22 @@ export function FileList({
                     Try Again<span className="sr-only">: {file.name}</span>
                   </Button>
                 )}
-                {canDelete && (
+                {canDelete && compactRows && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    title={file.queued ? "Remove" : "Delete"}
+                    className="text-destructive hover:bg-fail-tint hover:text-destructive"
+                    onClick={() => setDeleting(file.id)}
+                  >
+                    <Trash2Icon aria-hidden />
+                    <span className="sr-only">
+                      {file.queued ? "Remove" : "Delete"} {file.name}
+                    </span>
+                  </Button>
+                )}
+                {canDelete && !compactRows && (
                   <Button
                     type="button"
                     variant="ghost"
@@ -125,6 +168,7 @@ export function FileList({
           );
         })}
       </ul>
+      {compactRows && <FilePreviewDialog file={previewing} onClose={() => setPreviewing(null)} />}
       {deletingFile && (
         <FileDeleteDialog
           inspectionId={inspectionId}
