@@ -407,7 +407,7 @@ export function humanizeKey(key: string): string {
 
 export const UNTAGGED_TITLE = "Not Tagged";
 
-/** The tag pickers' label (edit dialog, the gallery's Add Photos): a photo goes in a Media category or under a module. */
+/** The tag picker's label (the photo edit dialog): a photo goes in a Media category or under a module. */
 export const TAG_FIELD_LABEL = "Category or Module";
 
 /** The tag pickers' two lists, by these headings. */

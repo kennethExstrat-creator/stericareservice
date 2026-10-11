@@ -163,32 +163,31 @@ describe("/inspections/[id]/photos", () => {
     );
   });
 
-  it("shows the owner every photo by module in template order, untagged last, with the add controls", async () => {
+  it("shows the owner every photo by module in template order, untagged last, and nothing to add", async () => {
     const html = await render({ kind: "ok", media: media() });
     expect(html).toContain("Photos and Files");
     expect(html).toContain("Back to Inspection");
-    expect(html).toContain("Add Photos");
     expect(html).toContain("INS-2026-0042");
     expect(html).toContain(`href="/inspections/${INSPECTION}"`);
     expect([...html.matchAll(/data-group="([^"]+)"/g)].map(([, key]) => key)).toEqual(["dimensions", "visual", "untagged"]);
     expect(html).toContain("3 photos in 2 modules · 1 file");
-    // The iPad's two buttons and the desktop's drop zone; the camera input opens the rear camera.
-    expect(html).toContain("Take Photo");
-    expect(html).toContain("Add From Library");
-    expect(html).toContain("Drop photos here, several at once");
-    expect(html).toMatch(/<input[^>]*type="file"[^>]*accept="image\/\*"[^>]*capture="environment"/);
-    expect(html).toMatch(/<input[^>]*type="file"[^>]*accept="image\/\*"[^>]*multiple=""/);
+    // A viewer: photos, videos and files are added on Source Documents (12 October 2026).
+    expect(html).not.toContain('type="file"');
+    expect(html).not.toMatch(/Add Photos|Take Photo|Add From Library|Drop photos here|Choose Photos|Add Lab Report|Category or Module/);
+    expect(html).not.toContain("Go to Source Documents");
     // Tags in words, under the module's heading.
     expect(html).toContain("Size M · Thin spot");
     expect(html).toContain("Near the cuff");
     // The tile's badge (components/qc/photo-tile.tsx); never the admin's "Include in Report".
     expect(html).toContain(">In Report<");
     expect(html).toContain("Edit a photo to tag it with the category or module it belongs to.");
-    // Lab reports: the force at break slot, its file and its own picker.
-    expect(html).toContain("Lab Reports and Certificates");
-    expect(html).toContain("Force at break.pdf");
-    expect(html).toContain('accept="application/pdf,.pdf,image/*"');
-    expect(html).toContain("Add Lab Report");
+    // The files in one list, each with where it belongs, as on Source Documents: Preview, Download, Delete.
+    expect(html).toContain(">Files</h2>");
+    expect(html).toMatch(/data-slot="file-row"[\s\S]*?>Force at Break<\/span>/);
+    expect(html).toContain("Preview Force at break.pdf</span>");
+    expect(html).toContain("Download Force at break.pdf</span>");
+    expect(html).toContain('<span class="sr-only">Delete Force at break.pdf</span>');
+    expect(html).not.toContain("in a new tab");
     expect(unanchoredSrOnly(html)).toEqual([]);
   });
 
@@ -218,10 +217,9 @@ describe("/inspections/[id]/photos", () => {
     // The tile's text alternative names the category when the photo has no caption.
     expect(html).toContain('alt="Product Defects"');
     // A category's video, in the files' own list.
-    expect(html).toContain("Video · Warehouse · Uploaded");
+    expect(html).toMatch(/data-slot="file-row"[\s\S]*?>Warehouse<\/span>/);
     // The keys stay in the data attributes only.
     expect(html.replace(/data-(group|module)="[^"]*"/g, "")).not.toMatch(/media_|Media Warehouse|Media Defects/);
-    expect(html).toContain(">Category or Module</label>");
   });
 
   it("lets the inspector edit and delete, but not choose report photos", async () => {
@@ -242,7 +240,8 @@ describe("/inspections/[id]/photos", () => {
     expect(html).not.toMatch(/Edit tags and caption/i);
     expect(html).not.toMatch(/Delete photo/i);
     expect(html).not.toMatch(/Add lab report/i);
-    expect(html).toContain("Open<span");
+    expect(html).not.toContain("Go to Source Documents");
+    expect(html).toContain('title="Preview"');
   });
 
   it("lets an admin choose report photos on an approved inspection, and nothing else", async () => {
@@ -256,13 +255,19 @@ describe("/inspections/[id]/photos", () => {
     expect(html).not.toMatch(/Take photo/i);
   });
 
-  it("says what could not be loaded, and invites the first photo", async () => {
+  it("says what could not be loaded, and points once to Source Documents, where photos and files are added", async () => {
     const html = await render({
       kind: "ok",
       media: media({ photos: [], files: [], problems: ["Some photos could not be shown. Reload the page to try again."] }),
     });
     expect(html).toContain("Some photos could not be shown.");
     expect(html).toContain(">No Photos Yet</h2>");
-    expect(html).toContain("No lab reports yet.");
+    expect(html).toContain("No files yet.");
+    expect(html.match(/Go to Source Documents/g)).toHaveLength(1);
+    expect(html).toContain(`href="/inspections/${INSPECTION}?module=source_documents"`);
+    // With photos, the empty files list has the button.
+    const noFiles = await render({ kind: "ok", media: media({ files: [] }) });
+    expect(noFiles).toContain("No files yet.");
+    expect(noFiles.match(/Go to Source Documents/g)).toHaveLength(1);
   });
 });

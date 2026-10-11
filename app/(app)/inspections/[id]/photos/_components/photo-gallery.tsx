@@ -1,12 +1,15 @@
 "use client";
 
-// The gallery's body: notices, "Add Photos", a section per Media category
-// and per module that has photos (categories first, then template order,
-// untagged last), and the lab reports and certificates. One viewer spans
-// every section, so the arrow keys walk through all the inspection's photos.
+// The gallery's body, a viewer: every photo, video and file is added on
+// Source Documents, the inspection's first step (Kenneth, 12 October 2026),
+// never here. Notices, a section per Media category and per module that has
+// photos (categories first, then template order, untagged last), and the
+// inspection's files. One viewer spans every section, so the arrow keys
+// walk through all the inspection's photos.
+import Link from "next/link";
 import { useCallback, useMemo, useRef } from "react";
-import { CameraIcon, ImagesIcon, InfoIcon, TriangleAlertIcon } from "lucide-react";
-import { FileList, FileSlot } from "@/components/capture/files";
+import { FileSearchIcon, ImagesIcon, InfoIcon, TriangleAlertIcon } from "lucide-react";
+import { FileList } from "@/components/capture/files";
 import {
   ModulePhotos,
   PhotoUploadBadge,
@@ -20,26 +23,19 @@ import { PhotoViewer } from "@/components/capture/photos/photo-viewer";
 import { PhotoViewerContext, useViewerState } from "@/components/capture/photos/provider";
 import { ReportSwitch } from "@/components/capture/photos/report-choice";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Button } from "@/components/ui/button";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import {
   countFiles,
   countPhotos,
   EMPTY_TAG_OPTIONS,
   groupByModule,
   groupsLine,
+  moduleTitle,
   readOnlyReason,
   type ModuleGroup,
 } from "@/lib/inspections/photos/view";
-import { mediaCategory } from "@/lib/inspections/source-documents";
-import type { InspectionFileKind } from "@/lib/photos/files";
-import { AddPhotosCard } from "./add-photos-card";
-
-/** Modules that carry lab reports or certificates (BUILD_SPEC 8.1), and what a new file there is. */
-const FILE_MODULES: Readonly<Record<string, InspectionFileKind>> = {
-  force_at_break: "lab_report",
-  tensile: "lab_report",
-  documents: "certificate",
-};
+import { mediaCategory, SOURCE_DOCUMENTS_KEY } from "@/lib/inspections/source-documents";
 
 const SECTION = "rounded-xl bg-card p-5 shadow-sm ring-1 ring-border md:p-6";
 
@@ -53,12 +49,27 @@ function groupDescription(group: Pick<ModuleGroup<unknown>, "key" | "included">)
     : "This module is not part of the inspection now. Its photos stay until they are retagged or deleted.";
 }
 
+/** The capture screen on Source Documents, where photos and files are added. */
+function SourceDocumentsLink({ inspectionId, size }: { inspectionId: string; size?: "sm" }) {
+  return (
+    <Button asChild variant="outline" size={size}>
+      <Link href={`/inspections/${inspectionId}?module=${SOURCE_DOCUMENTS_KEY}`}>
+        <FileSearchIcon aria-hidden />
+        Go to Source Documents
+      </Link>
+    </Button>
+  );
+}
+
 export function PhotoGallery({ inspectionId }: { inspectionId: string }) {
   const state = useInspectionMedia(inspectionId);
   const queue = usePhotoQueue();
   // Where focus goes when a dialog closes on a section that is gone (its last photo deleted).
   const summary = useRef<HTMLParagraphElement>(null);
   const focusSummary = useCallback(() => summary.current?.focus(), []);
+  // And when the last file is deleted: the files' heading, which stays.
+  const filesHeading = useRef<HTMLHeadingElement>(null);
+  const focusFilesHeading = useCallback(() => filesHeading.current?.focus(), []);
   const [openId, setOpenId, viewer] = useViewerState(focusSummary);
 
   const media = state.media;
@@ -78,8 +89,6 @@ export function PhotoGallery({ inspectionId }: { inspectionId: string }) {
 
   if (!media) return null;
   const reason = readOnlyReason(media.inspection.status, access);
-  const fileModules = options.modules.filter((entry) => entry.included && FILE_MODULES[entry.key]);
-  const otherFiles = files.filter((file) => !fileModules.some((entry) => entry.key === file.moduleKey));
 
   return (
     <PhotoViewerContext.Provider value={viewer}>
@@ -113,22 +122,24 @@ export function PhotoGallery({ inspectionId }: { inspectionId: string }) {
         ))}
         <UploadNotices inspectionId={inspectionId} />
 
-        {access.canEdit && <AddPhotosCard inspectionId={inspectionId} options={options} className={SECTION} />}
-
         {groups.length === 0 ? (
           <Empty className="border border-dashed border-slate-300 bg-card px-6 py-12">
             <EmptyHeader className="max-w-md">
               <EmptyMedia variant="icon" className="size-12 rounded-xl bg-brand-50 text-brand-600">
-                {access.canEdit ? <CameraIcon aria-hidden /> : <ImagesIcon aria-hidden />}
+                <ImagesIcon aria-hidden />
               </EmptyMedia>
               <EmptyTitle>
                 <h2 className="text-lg font-bold text-foreground">No Photos Yet</h2>
               </EmptyTitle>
               <EmptyDescription className="text-base text-muted-foreground fine:text-sm">
                 Photos added under Media on Source Documents show here, by category.
-                {access.canEdit ? " You can also add them above." : ""}
               </EmptyDescription>
             </EmptyHeader>
+            {access.canEdit && (
+              <EmptyContent>
+                <SourceDocumentsLink inspectionId={inspectionId} />
+              </EmptyContent>
+            )}
           </Empty>
         ) : (
           groups.map((group) => (
@@ -140,6 +151,7 @@ export function PhotoGallery({ inspectionId }: { inspectionId: string }) {
                 headingLevel={2}
                 variant="gallery"
                 showNotices={false}
+                showAddControls={false}
                 readOnly={!access.canEdit}
                 description={groupDescription(group)}
               />
@@ -147,44 +159,42 @@ export function PhotoGallery({ inspectionId }: { inspectionId: string }) {
           ))
         )}
 
-        {(fileModules.length > 0 || files.length > 0) && (
-          <section aria-labelledby="files-heading" className={SECTION}>
-            <div className="flex flex-col gap-6">
-              <div className="space-y-1">
-                <h2 id="files-heading" className="text-lg leading-snug font-bold text-foreground">
-                  Lab Reports and Certificates
-                </h2>
-                <p className="text-sm text-muted-foreground">PDFs and images, kept as the lab issued them.</p>
-              </div>
-              {fileModules.map((entry) => (
-                <FileSlot
-                  key={entry.key}
-                  inspectionId={inspectionId}
-                  moduleKey={entry.key}
-                  kind={FILE_MODULES[entry.key]}
-                  title={entry.title}
-                  readOnly={!access.canEdit}
-                />
-              ))}
-              {otherFiles.length > 0 && (
-                <div className="flex flex-col gap-3">
-                  <h3 className="text-base leading-snug font-semibold text-foreground">
-                    {fileModules.length > 0 ? "Other Files" : "Files"}
-                  </h3>
-                  <FileList
-                    inspectionId={inspectionId}
-                    files={otherFiles}
-                    canEditUploaded={access.canEdit}
-                    canEditQueued={access.canEdit}
-                    options={options}
-                    showModule
-                    focusFallback={focusSummary}
-                  />
-                </div>
-              )}
+        <section aria-labelledby="files-heading" data-slot="gallery-files" className={SECTION}>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              {/* A focus target after the last file is deleted, not a control: no ring. */}
+              <h2
+                ref={filesHeading}
+                id="files-heading"
+                tabIndex={-1}
+                className="text-lg leading-snug font-bold text-foreground outline-none"
+              >
+                Files
+              </h2>
+              <p className="text-sm text-muted-foreground tabular-nums">{countFiles(files.length)}</p>
             </div>
-          </section>
-        )}
+            {files.length > 0 ? (
+              <FileList
+                inspectionId={inspectionId}
+                files={files}
+                canEditUploaded={access.canEdit}
+                canEditQueued={access.canEdit}
+                options={options}
+                showModule
+                focusFallback={focusFilesHeading}
+                // As on Source Documents: Preview in a pop-up, Download and Delete as icons; where the file belongs beside its name.
+                compactRows
+                fileExtra={(file) => <span className="text-sm text-muted-foreground">{moduleTitle(file.moduleKey, options)}</span>}
+              />
+            ) : (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <p className="text-sm text-muted-foreground">{access.canEdit ? "No files yet." : "No files."}</p>
+                {/* Without photos, the empty card above has it already. */}
+                {access.canEdit && groups.length > 0 && <SourceDocumentsLink inspectionId={inspectionId} size="sm" />}
+              </div>
+            )}
+          </div>
+        </section>
       </div>
 
       <PhotoViewer

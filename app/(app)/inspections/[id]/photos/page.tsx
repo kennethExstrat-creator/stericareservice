@@ -32,8 +32,9 @@ export async function generateMetadata({ params }: PageProps<"/inspections/[id]/
  * /inspections/[id]/photos (BUILD_SPEC 8.1): every photo of an inspection,
  * grouped by module in the template's order, full size with arrow keys,
  * retag, caption and delete while the user may change the inspection, the
- * admin's report choice, and the lab reports and certificates. The page
- * renders inside the app shell, so it sets no padding of its own.
+ * admin's report choice, and the inspection's files. Nothing is added here:
+ * photos, videos and files are added on Source Documents (12 October 2026).
+ * The page renders inside the app shell, so it sets no padding of its own.
  */
 export default async function InspectionPhotosPage({ params }: PageProps<"/inspections/[id]/photos">) {
   const user = await requireUser();
