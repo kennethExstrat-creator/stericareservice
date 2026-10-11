@@ -58,7 +58,7 @@ describe("sortMedia", () => {
 
   it("points to an admin and AI Settings when no key is set, without a request", async () => {
     const outcome = await sortMedia(previews, {});
-    expect(outcome).toEqual({ ok: false, reason: "not_connected", message: expect.stringContaining("Admin > AI Settings") });
+    expect(outcome).toEqual({ ok: false, reason: "not_connected", message: expect.stringContaining("Admin > Steri-AI Settings") });
     expect(createMessage).not.toHaveBeenCalled();
   });
 

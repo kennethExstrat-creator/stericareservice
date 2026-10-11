@@ -113,7 +113,7 @@ export async function readAiSettingsView(env: AiEnv = process.env): Promise<AiSe
 
 export type SaveResult = { ok: true } | { ok: false; message: string };
 
-const NO_STORAGE = "The server needs SUPABASE_SECRET_KEY to save AI settings.";
+const NO_STORAGE = "The server needs SUPABASE_SECRET_KEY to save Steri-AI settings.";
 const SAVE_FAILED = "The settings could not be saved. Try again.";
 
 async function writeRow(values: SettingsInsert): Promise<SaveResult> {

@@ -86,10 +86,10 @@ export async function readOrderDocument(
 ): Promise<ReadDocumentOutcome> {
   const apiKey = env.ANTHROPIC_API_KEY?.trim();
   if (!apiKey) {
-    return fail("not_connected", "AI is not connected yet. An admin can add the Anthropic API key under Admin > AI Settings.");
+    return fail("not_connected", "Steri-AI is not connected yet. An admin can add the Anthropic API key under Admin > Steri-AI Settings.");
   }
   const model = ClaudeModelIdSchema.safeParse(env.AI_DOCUMENT_MODEL?.trim() || DEFAULT_DOCUMENT_MODEL);
-  if (!model.success) return fail("misconfigured", "The model for reading documents is not a Claude model. Check Admin > AI Settings.");
+  if (!model.success) return fail("misconfigured", "The model for reading documents is not a Claude model. Check Admin > Steri-AI Settings.");
 
   const client = new Anthropic({ apiKey, maxRetries: 1, timeout: TIMEOUT_MS });
   const params: MessageCreateParamsNonStreaming = {
@@ -103,7 +103,7 @@ export async function readOrderDocument(
 
   try {
     const message = await createMessage(client, params);
-    if (message.stop_reason === "refusal") return fail("error", "The AI declined to read this document.");
+    if (message.stop_reason === "refusal") return fail("error", "Steri-AI declined to read this document.");
     if (message.stop_reason === "max_tokens") {
       return fail("error", "The document is too long to read in one go. Upload just the pages with the order details.");
     }
@@ -112,10 +112,10 @@ export async function readOrderDocument(
     try {
       json = JSON.parse(answer);
     } catch {
-      return fail("error", "The AI's answer could not be read. Try again.");
+      return fail("error", "Steri-AI's answer could not be read. Try again.");
     }
     const reading = DocumentReadingSchema.safeParse(json);
-    if (!reading.success) return fail("error", "The AI's answer could not be read. Try again.");
+    if (!reading.success) return fail("error", "Steri-AI's answer could not be read. Try again.");
     return { ok: true, reading: reading.data, model: message.model };
   } catch (error) {
     return describeReadError(error);
@@ -137,20 +137,20 @@ export async function createMessage(client: Anthropic, params: MessageCreatePara
 /** A failed request in words an inspector can act on. */
 export function describeReadError(error: unknown): ReadFailure {
   if (error instanceof Anthropic.APIConnectionTimeoutError) {
-    return fail("error", "The AI took too long to read the document. Try again, or upload fewer pages.");
+    return fail("error", "Steri-AI took too long to read the document. Try again, or upload fewer pages.");
   }
-  if (error instanceof Anthropic.APIConnectionError) return fail("error", "Could not reach the AI. Check the connection and try again.");
+  if (error instanceof Anthropic.APIConnectionError) return fail("error", "Could not reach Steri-AI. Check the connection and try again.");
   if (error instanceof Anthropic.AuthenticationError || error instanceof Anthropic.PermissionDeniedError) {
-    return fail("misconfigured", "The AI did not accept the API key. An admin needs to check Admin > AI Settings.");
+    return fail("misconfigured", "Steri-AI did not accept the API key. An admin needs to check Admin > Steri-AI Settings.");
   }
   if (error instanceof Anthropic.NotFoundError) {
-    return fail("misconfigured", "The AI model for reading documents is not available to this key. Check Admin > AI Settings.");
+    return fail("misconfigured", "The model for reading documents is not available to this key. Check Admin > Steri-AI Settings.");
   }
-  if (error instanceof Anthropic.RateLimitError) return fail("error", "The AI is busy. Wait a minute and try again.");
+  if (error instanceof Anthropic.RateLimitError) return fail("error", "Steri-AI is busy. Wait a minute and try again.");
   if (error instanceof Anthropic.BadRequestError) {
     console.error("[document reader] request refused", error.message);
-    return fail("error", "The AI could not open this file. Try a PDF, or a clear photo of the page.");
+    return fail("error", "Steri-AI could not open this file. Try a PDF, or a clear photo of the page.");
   }
   console.error("[document reader] failed", error);
-  return fail("error", "The AI could not read the document. Try again.");
+  return fail("error", "Steri-AI could not read the document. Try again.");
 }

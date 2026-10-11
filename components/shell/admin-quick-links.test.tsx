@@ -51,7 +51,7 @@ describe("AdminScreenLinks", () => {
       "Defect",
       "Unmapped",
       "Templates",
-      "AI",
+      "Steri-AI",
     ]);
   });
 
@@ -78,7 +78,7 @@ describe("AdminScreenLinks", () => {
       "Defect Codes",
       "Unmapped Labels",
       "Templates",
-      "AI Settings",
+      "Steri-AI Settings",
       "Awaiting Approval",
       "All Inspections",
     ]);

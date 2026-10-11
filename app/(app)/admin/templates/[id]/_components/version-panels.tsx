@@ -135,7 +135,7 @@ export function DetailsPanel({ view }: { view: DetailsView }) {
           </Row>
         )}
         {view.aiOnSubmit !== null && (
-          <Row term="AI Second Opinion">{view.aiOnSubmit ? "On submit, and when an admin asks" : "Only when an admin asks"}</Row>
+          <Row term="Steri-AI Second Opinion">{view.aiOnSubmit ? "On submit, and when an admin asks" : "Only when an admin asks"}</Row>
         )}
         <Row term="Used By">{usageText(detail.usage)}</Row>
         <Row term="Coverage">

@@ -112,7 +112,7 @@ export function AdminScreenLinks() {
         {
           href: ADMIN_AI_PATH,
           icon: SparklesIcon,
-          title: "AI Settings",
+          title: "Steri-AI Settings",
           description: "The Anthropic API key and the Claude models the app uses.",
         },
       ]}

@@ -119,7 +119,7 @@ export function SectionTabs({ pages, activeKey, onSelect, panelId, idPrefix, cla
               {excluded && <CircleOffIcon aria-hidden className="size-4 shrink-0 text-slate-500" />}
               <span className="max-w-56 truncate">{page.title}</span>
               {page.kind === "documents" ? (
-                <ResultChip status={page.status} label={page.status === "pass" ? "AI Verified" : "Not read yet"} />
+                <ResultChip status={page.status} label={page.status === "pass" ? "Steri-AI Verified" : "Not read yet"} />
               ) : isStepPage(page) ? (
                 <ResultChip status={page.status} />
               ) : (

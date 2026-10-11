@@ -54,7 +54,7 @@ describe("DetailsForm: AI second opinion on submit", () => {
     const { section, control } = render(definition("OWN_EG"));
     expect(control).toContain('role="switch"');
     expect(control).toContain('aria-checked="false"');
-    expect(section).toContain("AI Second Opinion on Submit");
+    expect(section).toContain("Steri-AI Second Opinion on Submit");
     expect(section).toContain("Off unless switched on here.");
     expect(section).not.toContain("Changed");
   });
@@ -73,7 +73,7 @@ describe("DetailsForm: AI second opinion on submit", () => {
     const { section, control } = render(child, { bases: [base] });
     expect(control).toContain('aria-checked="false"');
     expect(section).toContain("Changed");
-    expect(section).toContain("aria-label=\"Use BASE_EG&#x27;s: AI Second Opinion on Submit\"");
+    expect(section).toContain("aria-label=\"Use BASE_EG&#x27;s: Steri-AI Second Opinion on Submit\"");
     expect(section).toContain("BASE_EG has it on.");
   });
 

@@ -29,11 +29,11 @@ export const DetailsSchema = z.strictObject({
     pageHeader: TemplateReportSchema.shape.pageHeader.meta({ title: "Header on Later Pages" }),
   })
     .optional()
-    .meta({ title: "AI Report", description: "For the report the AI writes from the export. Inherited when not set." }),
+    .meta({ title: "Steri-AI Report", description: "For the report Steri-AI writes from the export. Inherited when not set." }),
 });
 
 /** The AI second opinion switch (BUILD_SPEC 9.2). */
-export const AI_ON_SUBMIT_LABEL = "AI Second Opinion on Submit";
+export const AI_ON_SUBMIT_LABEL = "Steri-AI Second Opinion on Submit";
 
 /** Where the template applies (BUILD_SPEC 4.4). */
 export const SCOPE_HEADING = "Where It Applies";

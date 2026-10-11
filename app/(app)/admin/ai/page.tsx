@@ -8,7 +8,7 @@ import { GlossaryForm } from "./_components/glossary-form";
 /** Checks the role too, so the title never names this page on an inspector's 404 (see /admin). */
 export async function generateMetadata(): Promise<Metadata> {
   await requireAdmin();
-  return { title: "AI Settings" };
+  return { title: "Steri-AI Settings" };
 }
 
 /**
@@ -25,7 +25,7 @@ export default async function AiSettingsPage() {
     <div className="flex w-full flex-1 flex-col gap-6">
       <PageHeader
         eyebrow="Admin"
-        title="AI Settings"
+        title="Steri-AI Settings"
         description="The API key and the Claude models the app uses to read order documents and to give second opinions."
       />
       <AiSettingsForm view={view} />

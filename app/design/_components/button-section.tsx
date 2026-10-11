@@ -85,7 +85,7 @@ export function ButtonSection() {
             <Button variant="outline" onClick={() => toast.error("Carton 253 is listed twice for size M")}>
               Error
             </Button>
-            <Button variant="outline" onClick={() => toast.info("AI second opinion not connected")}>
+            <Button variant="outline" onClick={() => toast.info("Steri-AI second opinion not connected")}>
               Info
             </Button>
           </div>

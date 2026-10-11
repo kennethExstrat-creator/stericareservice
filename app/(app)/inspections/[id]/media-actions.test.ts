@@ -208,7 +208,7 @@ describe("sortMediaWithAi", () => {
 
   it("passes on the AI's words when it cannot sort, and changes nothing", async () => {
     useDatabase(mediaRows([{ id: PHOTO, module_key: null, target: null }], []));
-    const message = "Auto-Sort needs the AI, which is not connected yet. Ask an admin to add the Anthropic API key under Admin > AI Settings.";
+    const message = "Auto-Sort needs Steri-AI, which is not connected yet. Ask an admin to add the Anthropic API key under Admin > Steri-AI Settings.";
     vi.mocked(sortMedia).mockResolvedValue({ ok: false, reason: "not_connected", message });
 
     expect(await sortMediaWithAi(INSPECTION, [item("photo", PHOTO)])).toEqual({ ok: false, error: message });

@@ -66,7 +66,7 @@ describe("navForRole", () => {
       ["Clients", "/admin/clients", "prefix"],
       ["Defects", "/admin/defects", "prefix"],
       ["Templates", "/admin/templates", "prefix"],
-      ["AI Settings", "/admin/ai", "prefix"],
+      ["Steri-AI Settings", "/admin/ai", "prefix"],
     ]);
   });
 

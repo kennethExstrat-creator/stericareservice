@@ -102,8 +102,8 @@ export function AiSettingsForm({ view }: { view: AiSettingsView }) {
           <TriangleAlertIcon aria-hidden />
           <AlertDescription className="text-destructive">
             {view.storage === "no_secret_key"
-              ? "The server needs SUPABASE_SECRET_KEY before AI settings can be saved here."
-              : "The saved AI settings could not be read. Reload the page to try again."}
+              ? "The server needs SUPABASE_SECRET_KEY before Steri-AI settings can be saved here."
+              : "The saved Steri-AI settings could not be read. Reload the page to try again."}
           </AlertDescription>
         </Alert>
       )}
@@ -160,7 +160,7 @@ export function AiSettingsForm({ view }: { view: AiSettingsView }) {
             id={`${id}-review-model`}
             name="reviewModel"
             label="Second Opinion"
-            hint="The AI review on an inspection's review screen."
+            hint="Steri-AI's review on an inspection's review screen."
             value={reviewModel}
             onChange={setReviewModel}
             error={errors.reviewModel}
@@ -223,7 +223,7 @@ function KeyStatus({ view }: { view: AiSettingsView }) {
         ? { ok: false, text: `The saved key (${keyLabel(key.hint)}) can no longer be read: the server's secret key changed. Enter it again.` }
         : key.source === "environment"
           ? { ok: true, text: "In use: the ANTHROPIC_API_KEY set on the server. A key saved here replaces it." }
-          : { ok: false, text: "No key yet: AI features are switched off until one is saved." };
+          : { ok: false, text: "No key yet: Steri-AI features are switched off until one is saved." };
   return (
     <p
       data-testid="ai-key-status"

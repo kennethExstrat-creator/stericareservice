@@ -205,7 +205,7 @@ export function AiReviewCard({ status }: { status: AiReviewStatus }) {
   return (
     <StatusCard
       icon={SparklesIcon}
-      title="AI Second Opinion"
+      title="Steri-AI Second Opinion"
       description="Reviews submitted inspections. It suggests; an admin decides."
       status={aiPill(status)}
     >
@@ -235,7 +235,7 @@ export function AiReportCard({ status }: { status: AiReportStatus }) {
   return (
     <StatusCard
       icon={FileTextIcon}
-      title="AI Report"
+      title="Steri-AI Report"
       description="Turns an approved inspection into the client report."
       status={aiPill(status)}
     >
@@ -243,7 +243,7 @@ export function AiReportCard({ status }: { status: AiReportStatus }) {
         <Row label="Provider" value={REPORT_PROVIDER_LABEL[status.provider]} />
       </Rows>
       <AiNote status={status}>
-        Not connected: &ldquo;Send to AI Report&rdquo; offers the JSON download instead. Set{" "}
+        Not connected: &ldquo;Send to Steri-AI Report&rdquo; offers the JSON download instead. Set{" "}
         <Variable>AI_REPORT_WEBHOOK_URL</Variable> to connect a report service.
       </AiNote>
     </StatusCard>

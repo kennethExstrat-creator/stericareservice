@@ -101,5 +101,5 @@ export async function saveGlossaryAction(entries: GlossaryEntry[]): Promise<Conn
   const result = await saveGlossary(parsed.data, auth.user.id);
   if (!result.ok) return { ok: false, message: result.message };
   revalidatePath("/admin/ai");
-  return { ok: true, message: "Shortforms saved. The AI uses them from the next document it reads." };
+  return { ok: true, message: "Shortforms saved. Steri-AI uses them from the next document it reads." };
 }

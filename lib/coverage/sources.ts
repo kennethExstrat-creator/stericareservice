@@ -97,7 +97,7 @@ function section(source: SourceId, name: string, rows: readonly Row[]): SourceFi
   return rows.map((row) => ({ id: `${source}:${slug(name)}:${slug(row.label)}`, source, section: name, ...row }));
 }
 
-const PAGE_NUMBER = layout("Page number: the AI report numbers its own pages.");
+const PAGE_NUMBER = layout("Page number: Steri-AI's report numbers its own pages.");
 
 /* ------------------------------------------------------------------ *
  * reports/STD_EG.md
@@ -113,7 +113,7 @@ const REPORT_STD_EG: SourceField[] = [
       input: "page",
       targets: [
         layout(
-          "Running header of pages 2 to 4, 'Pre-shipment Inspection : <PO> <product>': the AI report draws it from header.poNo and header.productName.",
+          "Running header of pages 2 to 4, 'Pre-shipment Inspection : <PO> <product>': Steri-AI's report draws it from header.poNo and header.productName.",
         ),
       ],
       notes: "BUILD_SPEC 4.3's report settings hold the title and the client logo only.",
@@ -553,7 +553,7 @@ const REPORT_SAFEDON_EG: SourceField[] = [
       input: "page",
       targets: [
         layout(
-          "Running header of pages 2 to 4, 'Preshipment Report (PO# <PO>: <product>)': the AI report draws it from header.poNo and header.productName.",
+          "Running header of pages 2 to 4, 'Preshipment Report (PO# <PO>: <product>)': Steri-AI's report draws it from header.poNo and header.productName.",
         ),
       ],
       notes: "BUILD_SPEC 4.3's report settings hold the title and the client logo only.",

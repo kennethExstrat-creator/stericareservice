@@ -128,12 +128,12 @@ export async function sortMedia(previews: readonly SortPreview[], env: AiEnv): P
   if (!apiKey) {
     return fail(
       "not_connected",
-      "Auto-Sort needs the AI, which is not connected yet. Ask an admin to add the Anthropic API key under Admin > AI Settings.",
+      "Auto-Sort needs Steri-AI, which is not connected yet. Ask an admin to add the Anthropic API key under Admin > Steri-AI Settings.",
     );
   }
   const model = ClaudeModelIdSchema.safeParse(env.AI_DOCUMENT_MODEL?.trim() || DEFAULT_DOCUMENT_MODEL);
   if (!model.success) {
-    return fail("misconfigured", "The AI model for reading documents is not a Claude model. Ask an admin to check Admin > AI Settings.");
+    return fail("misconfigured", "The model for reading documents is not a Claude model. Ask an admin to check Admin > Steri-AI Settings.");
   }
 
   const params: MessageCreateParamsNonStreaming = {
@@ -148,11 +148,11 @@ export async function sortMedia(previews: readonly SortPreview[], env: AiEnv): P
   try {
     const client = new Anthropic({ apiKey, maxRetries: 1, timeout: TIMEOUT_MS });
     const message = await createMessage(client, params);
-    if (message.stop_reason === "refusal") return fail("error", "The AI declined to sort these. Move them by hand.");
-    if (message.stop_reason === "max_tokens") return fail("error", "The AI's answer was cut off. Sort fewer at a time.");
+    if (message.stop_reason === "refusal") return fail("error", "Steri-AI declined to sort these. Move them by hand.");
+    if (message.stop_reason === "max_tokens") return fail("error", "Steri-AI's answer was cut off. Sort fewer at a time.");
     const text = message.content.filter((block) => block.type === "text").at(-1)?.text ?? "";
     const categories = parseSortAnswer(text, previews.length);
-    if (!categories) return fail("error", "The AI's answer could not be read. Try again, or move them by hand.");
+    if (!categories) return fail("error", "Steri-AI's answer could not be read. Try again, or move them by hand.");
     return { ok: true, categories, model: message.model };
   } catch (error) {
     return describeSortError(error);
@@ -162,20 +162,20 @@ export async function sortMedia(previews: readonly SortPreview[], env: AiEnv): P
 /** A failed request in words an inspector can act on (as describeReadError, for photos and videos). */
 function describeSortError(error: unknown): ReadFailure {
   if (error instanceof Anthropic.APIConnectionTimeoutError) {
-    return fail("error", "The AI took too long to sort the photos and videos. Try again with fewer at a time.");
+    return fail("error", "Steri-AI took too long to sort the photos and videos. Try again with fewer at a time.");
   }
-  if (error instanceof Anthropic.APIConnectionError) return fail("error", "Could not reach the AI. Check the connection and try again.");
+  if (error instanceof Anthropic.APIConnectionError) return fail("error", "Could not reach Steri-AI. Check the connection and try again.");
   if (error instanceof Anthropic.AuthenticationError || error instanceof Anthropic.PermissionDeniedError) {
-    return fail("misconfigured", "The AI did not accept the API key. Ask an admin to check Admin > AI Settings.");
+    return fail("misconfigured", "Steri-AI did not accept the API key. Ask an admin to check Admin > Steri-AI Settings.");
   }
   if (error instanceof Anthropic.NotFoundError) {
-    return fail("misconfigured", "The AI model for reading documents is not available to this key. Ask an admin to check Admin > AI Settings.");
+    return fail("misconfigured", "The model for reading documents is not available to this key. Ask an admin to check Admin > Steri-AI Settings.");
   }
-  if (error instanceof Anthropic.RateLimitError) return fail("error", "The AI is busy. Wait a minute and try again.");
+  if (error instanceof Anthropic.RateLimitError) return fail("error", "Steri-AI is busy. Wait a minute and try again.");
   if (error instanceof Anthropic.BadRequestError) {
     console.error("[media sorter] request refused", error.message);
-    return fail("error", "The AI could not open these previews. Try again, or move them by hand.");
+    return fail("error", "Steri-AI could not open these previews. Try again, or move them by hand.");
   }
   console.error("[media sorter] failed", error);
-  return fail("error", "The AI could not sort the photos and videos. Try again, or move them by hand.");
+  return fail("error", "Steri-AI could not sort the photos and videos. Try again, or move them by hand.");
 }

@@ -127,7 +127,7 @@ function AiFields({ api }: { api: EditorApi }) {
       data-testid="template-ai"
     >
       <h3 id="details-ai-heading" className="text-base font-bold text-foreground">
-        AI Second Opinion
+        Steri-AI Second Opinion
       </h3>
       <div className="flex items-start gap-3">
         <Switch
@@ -174,7 +174,7 @@ function AiFields({ api }: { api: EditorApi }) {
             )}
           </div>
           <p id={hintId} className="text-sm text-muted-foreground">
-            When an inspection from this template is submitted, an AI reviews it next to the inspector&apos;s results
+            When an inspection from this template is submitted, Steri-AI reviews it next to the inspector&apos;s results
             and suggests; it never changes a result. Admins can always ask for one from the review screen.
             {source && ` ${source}`}
           </p>

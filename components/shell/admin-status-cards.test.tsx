@@ -180,7 +180,7 @@ describe("AiReportCard", () => {
   it("offers the JSON download while not connected", () => {
     const { text } = render(<AiReportCard status={getAiStatus({}).report} />);
     expect(text).toContain("Not Connected");
-    expect(text).toContain("“Send to AI Report” offers the JSON download instead.");
+    expect(text).toContain("“Send to Steri-AI Report” offers the JSON download instead.");
     expect(text).toContain("Set AI_REPORT_WEBHOOK_URL to connect a report service.");
   });
 
@@ -215,7 +215,7 @@ describe("the cards' labels", () => {
     const titles = all(/<h3>([^<]+)<\/h3>/g);
     const rows = all(/<dt[^>]*>([^<]+)<\/dt>/g);
     const pills = all(/data-slot="status-pill"[^>]*>.*?<span>([^<]+)<\/span>/g);
-    expect(titles).toEqual(["Supabase", "Sign-In Emails", "AI Second Opinion", "AI Report"]);
+    expect(titles).toEqual(["Supabase", "Sign-In Emails", "Steri-AI Second Opinion", "Steri-AI Report"]);
     expect(rows).toEqual([
       "Project",
       "URL and Publishable Key",

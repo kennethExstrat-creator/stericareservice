@@ -63,7 +63,7 @@ export function GlossaryForm({ initial, disabled }: { initial: readonly Glossary
             Shortforms
           </h2>
           <p className="text-sm text-muted-foreground touch:text-base">
-            Examples of what inspectors write on their paper forms. They help the AI read other inspectors&apos; words too; it
+            Examples of what inspectors write on their paper forms. They help Steri-AI read other inspectors&apos; words too; it
             still records every defect in the template&apos;s standard list, or as a new label for an admin to map.
           </p>
         </div>

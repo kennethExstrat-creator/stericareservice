@@ -1018,8 +1018,8 @@ module field; `template` a template property; `layout` is drawn by the AI report
 
 | Section | Label (verbatim) | App wording | Input | Maps to | Notes |
 |---|---|---|---|---|---|
-| All pages | Page &lt;n> of 4 |  | page | layout: Page number: the AI report numbers its own pages. |  |
-| All pages | Pre-shipment Inspection : &lt;PO> &lt;product> |  | page | layout: Running header of pages 2 to 4, 'Pre-shipment Inspection : &lt;PO> &lt;product>': the AI report draws it from header.poNo and header.productName. | BUILD_SPEC 4.3's report settings hold the title and the client logo only. |
+| All pages | Page &lt;n> of 4 |  | page | layout: Page number: Steri-AI's report numbers its own pages. |  |
+| All pages | Pre-shipment Inspection : &lt;PO> &lt;product> |  | page | layout: Running header of pages 2 to 4, 'Pre-shipment Inspection : &lt;PO> &lt;product>': Steri-AI's report draws it from header.poNo and header.productName. | BUILD_SPEC 4.3's report settings hold the title and the client logo only. |
 | Page 1 > Title | Preshipment Inspection |  | heading | template `report.titleLines` |  |
 | Page 1 > Title | Nitrile Disposable Examination Gloves |  | heading | template `report.titleLines` |  |
 | Page 1 > Manufacturer Information | Manufacturer Information | Manufacturer Information | heading | title `header` |  |
@@ -1173,8 +1173,8 @@ module field; `template` a template property; `layout` is drawn by the AI report
 
 | Section | Label (verbatim) | App wording | Input | Maps to | Notes |
 |---|---|---|---|---|---|
-| All pages | Page &lt;n> of 4 |  | page | layout: Page number: the AI report numbers its own pages. |  |
-| All pages | Preshipment Report (PO# &lt;PO>: &lt;product>) |  | page | layout: Running header of pages 2 to 4, 'Preshipment Report (PO# &lt;PO>: &lt;product>)': the AI report draws it from header.poNo and header.productName. | BUILD_SPEC 4.3's report settings hold the title and the client logo only. |
+| All pages | Page &lt;n> of 4 |  | page | layout: Page number: Steri-AI's report numbers its own pages. |  |
+| All pages | Preshipment Report (PO# &lt;PO>: &lt;product>) |  | page | layout: Running header of pages 2 to 4, 'Preshipment Report (PO# &lt;PO>: &lt;product>)': Steri-AI's report draws it from header.poNo and header.productName. | BUILD_SPEC 4.3's report settings hold the title and the client logo only. |
 | Page 1 > Title | Preshipment Inspection |  | heading | template `report.titleLines` |  |
 | Page 1 > Title | Safedon Nitrile PF Exam Gloves |  | heading | template `report.titleLines` |  |
 | Page 1 > Title | (client logo) |  | image | template `report.showClientLogo` | Top left: the logo (clients.logo_path) of the inspection's client, in place of a Client Name row. The client is picked on /inspections/new and kept in inspections.client_id; the header's Client Name row is off. |

@@ -65,7 +65,7 @@ export function StatusSection() {
       <p className="max-w-3xl text-sm text-muted-foreground">
         Every result pill says {STATUS_LABEL.pass}, {STATUS_LABEL.fail} or {STATUS_LABEL.hold} (a module&apos;s own words
         for its checks aside, such as Accept and Reject on an AQL table), the inspection&apos;s overall result included,
-        suggested or final: on capture, the review, the inspections list and the AI panel. The
+        suggested or final: on capture, the review, the inspections list and Steri-AI&apos;s panel. The
         template&apos;s conclusion words ({CONCLUSION_LABELS.pass}, {CONCLUSION_LABELS.fail} and {CONCLUSION_LABELS.hold}{" "}
         unless the template words them otherwise) appear only where the inspector picks the conclusion, as on the paper
         report: the Conclusion section&apos;s choices and that section&apos;s own text, its summary line and its warning
