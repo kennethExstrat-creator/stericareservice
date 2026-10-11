@@ -321,7 +321,8 @@ describe("start from previous: what is copied", () => {
       productCode: "GN-0001",
       factoryGloveCode: "FGC-01",
     });
-    expectOnly(modules.glove_info, { surfaceTexture: "Finger-textured", indicativeWeight: 3.5, colour: "Blue", length: "240 mm min" });
+    // Saved before variants: copied as the first variant, covering every size.
+    expect(modules.glove_info).toEqual({ variants: [{ sizes: [], surfaceTexture: "Finger-textured", indicativeWeight: 3.5, colour: "Blue", length: "240 mm min" }] });
     expectOnly(modules.packing_config, { glovesPerInner: 100, innersPerCase: 10, glovesPerCase: 1000, packingMode: "10 boxes per carton" });
   });
 
@@ -352,11 +353,9 @@ describe("start from previous: what is copied", () => {
     const { modules } = copyFromPrevious(previous, STD_SG, MODULE_REGISTRY);
     expectOnly(modules.header, { productName: "Brand A nitrile, code GN-0001", productCode: "GN-0001" });
     const noColour = withConfig(STD_EG, "glove_info", { fields: { surfaceTexture: true, indicativeWeight: true, colour: false, length: true } });
-    expectOnly(copyFromPrevious(previous, noColour, MODULE_REGISTRY).modules.glove_info, {
-      surfaceTexture: "Finger-textured",
-      indicativeWeight: 3.5,
-      length: "240 mm min",
-    });
+    expect(copyFromPrevious(previous, noColour, MODULE_REGISTRY).modules.glove_info).toEqual(
+      { variants: [{ sizes: [], surfaceTexture: "Finger-textured", indicativeWeight: 3.5, colour: null, length: "240 mm min" }] },
+    );
   });
 
   it("keeps to each module's schema: a value it does not take is left out", () => {
@@ -485,7 +484,9 @@ describe("start from previous with the real modules, for every seed template", (
         const listed = PREVIOUS_COPY[key];
         const fields = (listed === "all" ? Object.keys(saved) : listed).filter((field) => templateShowsField(template, key, field));
         const expected = Object.fromEntries(fields.map((field) => [field, saved[field]]));
-        expectOnly(data.modules[key], key === "header" ? { ...expected, inspectionDate: "2026-10-06" } : expected);
+        // Glove information saved before variants is copied as its first variant.
+        if (key === "glove_info") expect(data.modules[key]).toEqual(MODULE_REGISTRY.glove_info.dataSchema.parse(expected));
+        else expectOnly(data.modules[key], key === "header" ? { ...expected, inspectionDate: "2026-10-06" } : expected);
       }
 
       // Nothing of the earlier shipment flows forward: no order, sizes, cartons, PO or dates, no result.

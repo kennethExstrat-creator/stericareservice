@@ -159,6 +159,12 @@ export type InspectionContext = {
   /** Sampled carton numbers per size, unique, in entry order: what box pickers offer (6.2 rule 7). */
   cartons: Readonly<Record<string, readonly number[]>>;
   indicativeWeight: IndicativeWeight | null;
+  /**
+   * Indicative weight in g by size, from the glove variants (glove_info): a
+   * variant of one size gives that size's; one of several sizes or every
+   * size gives the reference size's (M). Weight compares each size with its own.
+   */
+  indicativeWeights: Readonly<Record<string, number>>;
   aql: AqlSettings;
   /**
    * The modules the inspection includes, in template order, with their
@@ -186,6 +192,7 @@ export type ContextContribution = {
   sampling?: Readonly<Record<string, Partial<SamplingValues>>>;
   cartons?: Readonly<Record<string, readonly number[]>>;
   indicativeWeight?: IndicativeWeight | null;
+  indicativeWeights?: Readonly<Record<string, number>>;
   aql?: Partial<AqlSettings>;
 };
 
@@ -197,6 +204,7 @@ export type ContextContribution = {
 export const CONTEXT_SOURCES = {
   header: "header",
   indicativeWeight: "glove_info",
+  indicativeWeights: "glove_info",
   sizes: "order_lots",
   order: "order_lots",
   packing: "packing_config",
@@ -283,6 +291,7 @@ export function baseContext({ template, meta = {}, aqlDefaults = {} }: Omit<Buil
     sampling: {},
     cartons: {},
     indicativeWeight: null,
+    indicativeWeights: {},
     aql: checksRun(template, { ...AQL_DEFAULTS, ...withoutUndefined(aqlDefaults) }),
     modules: template.modules.filter((entry) => entry.include).map(({ key, title }) => ({ key, title })),
     files: meta.files ? meta.files.map((file) => ({ ...file })) : null,
@@ -415,6 +424,15 @@ export function applyContribution(context: InspectionContext, contribution: Cont
     const weight = contribution.indicativeWeight;
     const size = weight ? normaliseSize(weight.size) : null;
     next.indicativeWeight = weight && size && Number.isFinite(weight.grams) ? { grams: weight.grams, size } : null;
+  }
+  if (contribution.indicativeWeights !== undefined) {
+    const weights: Record<string, number> = {};
+    for (const [size, grams] of Object.entries(contribution.indicativeWeights)) {
+      const key = normaliseSize(size);
+      // The first variant to name a size gives its weight.
+      if (key && Number.isFinite(grams) && grams > 0 && !(key in weights)) weights[key] = grams;
+    }
+    next.indicativeWeights = weights;
   }
   if (contribution.aql) {
     next.aql = { ...context.aql, ...withoutUndefined(contribution.aql) };

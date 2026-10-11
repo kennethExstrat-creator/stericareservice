@@ -18,11 +18,12 @@ export const definition = defineModule<GloveInfoData, GloveInfoConfig, GloveInfo
   emptyData: emptyGloveInfo,
   configSchema: GloveInfoConfigSchema,
   defaultConfig: GLOVE_INFO_DEFAULT_CONFIG,
+  // The first variant's values: what a custom field (mapsTo) or the coverage matrix names.
   canonicalPaths: [
-    { path: "surfaceTexture", label: GLOVE_INFO_LABELS.surfaceTexture, type: "text" },
-    { path: "indicativeWeight", label: GLOVE_INFO_LABELS.indicativeWeight, type: "number", unit: "g" },
-    { path: "colour", label: GLOVE_INFO_LABELS.colour, type: "text" },
-    { path: "length", label: GLOVE_INFO_LABELS.length, type: "text" },
+    { path: "variants.0.surfaceTexture", label: GLOVE_INFO_LABELS.surfaceTexture, type: "text" },
+    { path: "variants.0.indicativeWeight", label: GLOVE_INFO_LABELS.indicativeWeight, type: "number", unit: "g" },
+    { path: "variants.0.colour", label: GLOVE_INFO_LABELS.colour, type: "text" },
+    { path: "variants.0.length", label: GLOVE_INFO_LABELS.length, type: "text" },
   ],
   calc: calcGloveInfo,
   contribute: contributeGloveInfo,

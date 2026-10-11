@@ -55,6 +55,7 @@ export function makeTestContext(overrides: Partial<InspectionContext> = {}): Ins
     sampling: {},
     cartons: {},
     indicativeWeight: null,
+    indicativeWeights: {},
     aql: { ...AQL_DEFAULTS },
     modules: [],
     files: null,

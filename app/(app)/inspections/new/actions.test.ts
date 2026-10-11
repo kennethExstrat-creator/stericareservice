@@ -459,7 +459,8 @@ describe("start from previous (BUILD_SPEC 8)", () => {
       inspectionDate: "2026-10-06",
       factoryAddress: ADDRESS,
     });
-    expectOnly(data.modules.glove_info, previous.data.modules.glove_info);
+    // Saved before variants: copied as the first variant, covering every size.
+    expect(data.modules.glove_info).toEqual({ variants: [{ sizes: [], ...previous.data.modules.glove_info }] });
     expectOnly(data.modules.packing_config, { glovesPerInner: 100 });
     expect(data.modules.sampling_plan).toEqual(MODULE_REGISTRY.sampling_plan.emptyData());
     expect(data.custom).toEqual({});

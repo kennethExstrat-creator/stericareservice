@@ -55,8 +55,14 @@ export function specFor(config: Pick<WeightConfig, "specs">, size: string): Spec
   return config.specs.find((row) => row.size === size)?.spec;
 }
 
-/** The indicative weight when it is given for this size, else null (only that size is compared). */
+/**
+ * The indicative weight for this size, else null: the glove variants' for
+ * the size (glove_info), else the one weight given for one size
+ * (indicativeWeight), compared for that size only.
+ */
 export function indicativeFor(context: InspectionContext, size: string): IndicativeWeight | null {
+  const grams = context.indicativeWeights?.[size];
+  if (grams !== undefined && grams > 0) return { grams, size };
   const indicative = context.indicativeWeight;
   return indicative && indicative.size === size && indicative.grams > 0 ? indicative : null;
 }

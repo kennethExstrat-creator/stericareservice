@@ -117,11 +117,17 @@ function headerData(): HeaderData {
 
 function gloveInfoData(): GloveInfoData {
   const { gloveInfo } = EXAMPLE;
+  // One variant, every size: the example report gives one set of values (indicative weight for size M).
   return {
-    surfaceTexture: gloveInfo.surfaceTexture,
-    indicativeWeight: gloveInfo.indicativeWeightG,
-    colour: gloveInfo.colour,
-    length: gloveInfo.length,
+    variants: [
+      {
+        sizes: [],
+        surfaceTexture: gloveInfo.surfaceTexture,
+        indicativeWeight: gloveInfo.indicativeWeightG,
+        colour: gloveInfo.colour,
+        length: gloveInfo.length,
+      },
+    ],
   };
 }
 

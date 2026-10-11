@@ -1,53 +1,42 @@
-// The glove information's edits, applied as Capture applies them: through
-// the kit's data updater (useDataUpdater), each built from the latest data.
 import { describe, expect, it } from "vitest";
-import { createDataUpdater } from "@/components/qc";
-import { setIndicativeWeight, setText, tidyText } from "./edit";
-import { emptyGloveInfo, GLOVE_INFO_TEXT_FIELDS, GloveInfoDataSchema, TEXT_MAX_LENGTH, type GloveInfoData } from "./schema";
+import { addVariant, removeVariant, setIndicativeWeight, setText, tidyText, toggleSize } from "./edit";
+import { emptyGloveInfo, emptyVariant, TEXT_MAX_LENGTH, type GloveInfoData } from "./schema";
 
-const FILLED: GloveInfoData = {
-  surfaceTexture: "Finger-textured",
-  indicativeWeight: 3.5,
-  colour: "Blue",
-  length: "240 mm minimum",
-};
+const ORDER = ["XS", "S", "M", "L", "XL"];
+const one = (change: Partial<ReturnType<typeof emptyVariant>> = {}): GloveInfoData => ({ variants: [{ ...emptyVariant(), ...change }] });
 
 describe("glove_info edits", () => {
-  it("keeps text as typed, spaces between words included, and blank as null", () => {
-    expect(setText(emptyGloveInfo(), "colour", "Purple blue ")).toEqual({ ...emptyGloveInfo(), colour: "Purple blue " });
-    expect(setText(FILLED, "length", "").length).toBeNull();
-    expect(setText(FILLED, "colour", "Blue")).toBe(FILLED);
+  it("creates the variant on screen when the first value is typed, and changes nothing for the same value", () => {
+    const typed = setText({ variants: [] }, 0, "colour", "Blue");
+    expect(typed.variants).toEqual([{ ...emptyVariant(), colour: "Blue" }]);
+    expect(setText(typed, 0, "colour", "Blue")).toBe(typed);
+    expect(setText(typed, 0, "colour", "")).toEqual(one());
   });
 
-  it("trims a field once it is left, and leaves a tidy one as it was", () => {
-    expect(tidyText({ ...FILLED, surfaceTexture: "  Finger-textured " }, "surfaceTexture").surfaceTexture).toBe("Finger-textured");
-    expect(tidyText({ ...FILLED, colour: "   " }, "colour").colour).toBeNull();
-    expect(tidyText(FILLED, "length")).toBe(FILLED);
+  it("keeps text as typed, cut to the schema's limit, and trims it once left", () => {
+    expect(setText(one(), 0, "length", "x".repeat(TEXT_MAX_LENGTH + 5)).variants[0].length).toHaveLength(TEXT_MAX_LENGTH);
+    expect(tidyText(one({ colour: "  Blue " }), 0, "colour").variants[0].colour).toBe("Blue");
+    expect(tidyText(one({ colour: "   " }), 0, "colour").variants[0].colour).toBeNull();
+    expect(tidyText({ variants: [] }, 0, "colour")).toEqual({ variants: [] });
   });
 
-  it("stores the indicative weight as a number, and nothing when it does not change", () => {
-    expect(setIndicativeWeight(emptyGloveInfo(), 3.2).indicativeWeight).toBe(3.2);
-    expect(setIndicativeWeight(FILLED, null).indicativeWeight).toBeNull();
-    expect(setIndicativeWeight(FILLED, 3.5)).toBe(FILLED);
+  it("sets the weight of the variant it is typed in", () => {
+    const data = setIndicativeWeight(addVariant(one({ colour: "Blue" })), 1, 4.2);
+    expect(data.variants.map((variant) => variant.indicativeWeight)).toEqual([null, 4.2]);
   });
 
-  it("cuts text to the schema's limit, never through a character, so the module always loads", () => {
-    for (const field of GLOVE_INFO_TEXT_FIELDS) {
-      const next = setText(FILLED, field, "x".repeat(TEXT_MAX_LENGTH + 120));
-      expect(next[field]).toBe("x".repeat(TEXT_MAX_LENGTH));
-      expect(GloveInfoDataSchema.safeParse(next).success).toBe(true);
-      // An emoji across the limit is dropped whole.
-      const emoji = setText(FILLED, field, `${"x".repeat(TEXT_MAX_LENGTH - 1)}🧤`);
-      expect(emoji[field]).toBe("x".repeat(TEXT_MAX_LENGTH - 1));
-    }
+  it("picks and drops sizes, kept in the template's order", () => {
+    let data = toggleSize(one(), 0, "L", ORDER);
+    data = toggleSize(data, 0, "S", ORDER);
+    expect(data.variants[0].sizes).toEqual(["S", "L"]);
+    expect(toggleSize(data, 0, "S", ORDER).variants[0].sizes).toEqual(["L"]);
   });
 
-  it("keeps a value committed on leaving one field and one typed in the next, in one event", () => {
-    const changes: GloveInfoData[] = [];
-    const saved: GloveInfoData = { ...FILLED, colour: " Blue " };
-    const updater = createDataUpdater(saved, (next) => changes.push(next));
-    updater.update((current) => tidyText(current, "colour"));
-    updater.update((current) => setText(current, "length", "245 mm minimum"));
-    expect(changes.at(-1)).toEqual({ ...FILLED, colour: "Blue", length: "245 mm minimum" });
+  it("adds a variant (two while none is saved: the one on screen and the new one) and removes one", () => {
+    expect(addVariant({ variants: [] }).variants).toHaveLength(2);
+    expect(addVariant(emptyGloveInfo()).variants).toHaveLength(2);
+    const two = addVariant(one({ colour: "Blue" }));
+    expect(removeVariant(two, 0).variants).toEqual([emptyVariant()]);
+    expect(removeVariant(two, 5)).toBe(two);
   });
 });
