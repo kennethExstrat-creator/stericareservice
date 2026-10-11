@@ -182,8 +182,8 @@ describe("documents capture: files", () => {
     expect(gone).toContain('data-file-state="missing"');
     expect(gone).toMatch(/>File<\/span><span[^>]*>Not Attached<\/span>/);
     // calc's warning, in the template's wording, replaces the line's own words.
-    expect(gone).toContain("ISO 13485: the file attached here is not among this inspection&#x27;s files. It may still be uploading from another device; if it was deleted, attach it again.");
-    expect(gone).not.toContain("The file attached here is not among");
+    expect(gone).toContain("ISO 13485: the file linked here is not among this inspection&#x27;s files. It may still be uploading from another device; if it was deleted, upload it again on Source Documents.");
+    expect(gone).not.toContain("The file linked here is not among");
   });
 
   it("gives the issue link to a missing file something to focus: the file line, which the row's status names", () => {

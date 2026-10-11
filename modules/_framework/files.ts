@@ -77,5 +77,5 @@ export function moduleFileState(
  * a document), `file` the word for the file.
  */
 export function missingFileMessage(name: string, file = "file"): string {
-  return `${name}: the ${file} attached here is not among this inspection's files. It may still be uploading from another device; if it was deleted, attach it again.`;
+  return `${name}: the ${file} linked here is not among this inspection's files. It may still be uploading from another device; if it was deleted, upload it again on Source Documents.`;
 }

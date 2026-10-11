@@ -66,7 +66,7 @@ const NOT_ATTACHED = "Not Attached";
 
 // The framework's missingFileMessage, less the name the line already shows.
 const MISSING =
-  "The file attached here is not among this inspection's files. It may still be uploading from another device; if it was deleted, attach it again.";
+  "The file linked here is not among this inspection's files. It may still be uploading from another device; if it was deleted, upload it again on Source Documents.";
 
 export function AttachmentStatus({
   label,

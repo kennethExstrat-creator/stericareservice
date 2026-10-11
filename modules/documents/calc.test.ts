@@ -78,7 +78,7 @@ describe("documents", () => {
       {
         level: "warning",
         code: "document_file_missing",
-        message: "ISO 13485: the file attached here is not among this inspection's files. It may still be uploading from another device; if it was deleted, attach it again.",
+        message: "ISO 13485: the file linked here is not among this inspection's files. It may still be uploading from another device; if it was deleted, upload it again on Source Documents.",
         path: ["items", "iso13485", "file"],
       },
       expect.objectContaining({ code: "document_file_missing", path: ["items", "fdaCe", "file"] }),

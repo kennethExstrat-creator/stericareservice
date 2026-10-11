@@ -136,7 +136,7 @@ describe("force_at_break capture", () => {
       context: makeTestContext({ ...CONTEXT, files: [] }),
     });
     expect(gone).toContain('data-state="missing"');
-    expect(gone).toContain("Lab Report: the file attached here is not among this inspection&#x27;s files. It may still be uploading from another device; if it was deleted, attach it again.");
+    expect(gone).toContain("Lab Report: the file linked here is not among this inspection&#x27;s files. It may still be uploading from another device; if it was deleted, upload it again on Source Documents.");
     // The issue link lands on the kit's attachment line, which takes the focus itself.
     expect(line(gone)).toContain('tabindex="-1"');
     expect(line(gone)).toContain('data-issue-path="[&quot;labReport&quot;]"');

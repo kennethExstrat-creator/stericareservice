@@ -52,8 +52,8 @@ describe("the file channel", () => {
 
   it("words a missing file for both reasons it can be missing", () => {
     expect(missingFileMessage("Lab report")).toBe(
-      "Lab report: the file attached here is not among this inspection's files. It may still be uploading from another device; if it was deleted, attach it again.",
+      "Lab report: the file linked here is not among this inspection's files. It may still be uploading from another device; if it was deleted, upload it again on Source Documents.",
     );
-    expect(missingFileMessage("ISO 13485", "certificate")).toMatch(/^ISO 13485: the certificate attached here /);
+    expect(missingFileMessage("ISO 13485", "certificate")).toMatch(/^ISO 13485: the certificate linked here /);
   });
 });

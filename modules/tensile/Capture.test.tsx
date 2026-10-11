@@ -182,7 +182,7 @@ describe("tensile capture", () => {
     const context = makeTestContext({ ...CONTEXT, files: [] });
     const html = render({ context });
     expect(html).toContain('data-state="missing"');
-    expect(html).toContain("Lab Report: the file attached here is not among this inspection&#x27;s files. It may still be uploading from another device; if it was deleted, attach it again.");
+    expect(html).toContain("Lab Report: the file linked here is not among this inspection&#x27;s files. It may still be uploading from another device; if it was deleted, upload it again on Source Documents.");
     // The issue link lands on the kit's attachment line, which takes the focus itself.
     const line = /<div[^>]*data-slot="attachment-status"[^>]*>/.exec(html)?.[0];
     expect(line).toContain('tabindex="-1"');

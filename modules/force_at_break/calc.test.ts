@@ -301,7 +301,7 @@ describe("force_at_break", () => {
       {
         level: "warning",
         code: "lab_report_missing",
-        message: "Lab Report: the file attached here is not among this inspection's files. It may still be uploading from another device; if it was deleted, attach it again.",
+        message: "Lab Report: the file linked here is not among this inspection's files. It may still be uploading from another device; if it was deleted, upload it again on Source Documents.",
         path: ["labReport"],
       },
     ]);
