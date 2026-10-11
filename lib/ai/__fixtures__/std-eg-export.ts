@@ -1,7 +1,7 @@
 import { assembleExport } from "@/lib/export/assemble";
 import { evaluateRecord } from "@/lib/export/evaluate";
 import { STD_EG_IDS, stdEgRecord } from "@/lib/export/__fixtures__/std-eg";
-import { ExportSchema, type InspectionExport } from "@/lib/schemas";
+import { ExportPartSchema, ExportSchema, type InspectionExport, type InspectionPartExport } from "@/lib/schemas";
 
 /* ------------------------------------------------------------------ *
  * STD_EG example as a submitted export (docs/examples/expected-results.md, B)
@@ -53,4 +53,26 @@ function build(): InspectionExport {
 export function makeStdEgExport(): InspectionExport {
   built ??= build();
   return structuredClone(built);
+}
+
+/**
+ * The STD_EG export as an inspection of several POs (PO parts,
+ * lib/inspections/parts.ts): the example as the first part, then `others`
+ * more parts in `parts`. A fresh copy on every call.
+ */
+export function makeStdEgPartsExport(others = 2): InspectionExport {
+  return { ...makeStdEgExport(), parts: Array.from({ length: others }, (_, index) => makeStdEgPartExport(index + 2)) };
+}
+
+/**
+ * Part `part` (2, 3, ...) of that inspection: the example under its own
+ * reference number (INS-2025-0002, ...) and PO. Its photo and file ids are
+ * the example's: ids are unique within a part's document, which is all the
+ * export checks.
+ */
+export function makeStdEgPartExport(part: number): InspectionPartExport {
+  const doc = makeStdEgExport();
+  const header = doc.modules.find((module) => module.key === "header");
+  if (header) header.data.poNo = `PO-${String(part).padStart(4, "0")}`;
+  return ExportPartSchema.parse({ ...doc, refNo: `INS-2025-${String(part).padStart(4, "0")}` });
 }
