@@ -1,17 +1,18 @@
 "use client";
 
 // The carton list (BUILD_SPEC 6.1 carton_sampling, 8 "Speed"): per ordered
-// size, the numbers of the cartons sampled, as chips in the order they were
-// entered, and one field on the numeric keypad for the next. Enter or Add
+// size, the numbers of the cartons sampled, as a table in the order they
+// were entered (15 rows a page), and one field on the numeric keypad for the
+// next. Enter or Add
 // puts the typed number in the list; a pasted list (numbers between spaces,
 // commas, semicolons or new lines) goes in at once. A number the size lists
 // already, or text that is no carton number, is refused at the field with a
 // short message and not added (edit.ts). A number above the order quantity
 // is added and turns red at once, with calc's problem below the list and a
-// link to its chip (6.2 rule 6). A list saved from the earlier grid shows its
+// link to its row (6.2 rule 6). A list saved from the earlier grid shows its
 // numbers only; the first edit stores it without the blanks.
 import { useRef, useState, type ClipboardEvent, type KeyboardEvent, type MouseEvent } from "react";
-import { PlusIcon, XIcon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import {
   Figure,
   focusIssuePath,
@@ -69,6 +70,9 @@ export default function Capture({
   const [active, setActive] = useState(() => initialSize(context, focus));
   // Every write starts from the latest data, so a pasted list keeps every number (docs/CAPTURE_KIT.md).
   const update = useDataUpdater(data, onChange);
+  // The page of each size's carton table: kept here, so an issue link can open the one its carton is on.
+  const [pages, setPages] = useState<Readonly<Record<string, number>>>({});
+  const setPage = (size: string, page: number) => setPages((current) => ({ ...current, [size]: page }));
 
   const label = (key: string) => labelFor(labels, key);
   const sizeName = (size: string) => formatSize(size, { sizes: context.templateSizes });
@@ -83,7 +87,12 @@ export default function Capture({
   useIssueFocus(focusPath, {
     root,
     reveal: (path) => {
-      if (path[0] === "sizes" && typeof path[1] === "string" && context.sizes.includes(path[1])) setActive(path[1]);
+      if (path[0] !== "sizes" || typeof path[1] !== "string" || !context.sizes.includes(path[1])) return;
+      setActive(path[1]);
+      if (path[2] === "cartonNumbers" && typeof path[3] === "number") {
+        const position = entriesOf(data.sizes[path[1]]?.cartonNumbers ?? []).findIndex((entry) => entry.index === path[3]);
+        if (position >= 0) setPage(path[1], pageOf(position));
+      }
     },
   });
 
@@ -124,8 +133,10 @@ export default function Capture({
           name={caption(size)}
           captionId={captionId}
           entries={entries}
-          problems={chipProblems(own, size, entries)}
+          problems={rowProblems(own, size, entries)}
           readOnly={readOnly}
+          page={pages[size] ?? 0}
+          onPageChange={(page) => setPage(size, page)}
           onAdd={(list) => add(size, list)}
           onRemove={(index, carton) => update((current) => removeCarton(current, size, index, carton))}
           onFocusChange={onFocusChange}
@@ -192,14 +203,21 @@ type FieldMessage = {
 /** A press that leaves the focus where it is: the keyboard stays up on the iPad while numbers go in. */
 const keepFocus = (event: MouseEvent) => event.preventDefault();
 
+/** Rows on one page of a size's carton table (Kenneth, 11 October 2026). */
+export const CARTONS_PER_PAGE = 15;
+
+/** The page of the table that shows the entry at `position` (its place on screen). */
+export function pageOf(position: number): number {
+  return Math.floor(Math.max(position, 0) / CARTONS_PER_PAGE);
+}
+
 /**
- * One size's carton numbers as chips, in the order entered, each with a
- * remove button, then the field that adds the next. Read-only, the chips
- * only. Each chip takes an issue link's focus itself (tabindex -1) and tags
- * the photos taken while it has the focus with its carton. The remove
- * buttons are one Tab stop, however long the list: the arrow keys, Home and
- * End move along it, and a chip in focus holds the stop, so Tab from a chip
- * an issue link landed on reaches its own remove button.
+ * One size's carton numbers as a table, in the order entered, 15 rows a
+ * page, each row with its delete button; then the field that adds the
+ * next. Read-only, the table only. Each row takes an issue link's focus
+ * itself (tabindex -1; the screen opens its page first) and tags the photos
+ * taken while it has the focus with its carton. Adding a number shows the
+ * last page, where it went.
  */
 function CartonList({
   size,
@@ -208,6 +226,8 @@ function CartonList({
   entries,
   problems,
   readOnly,
+  page,
+  onPageChange,
   onAdd,
   onRemove,
   onFocusChange,
@@ -217,12 +237,15 @@ function CartonList({
   name: string;
   captionId: string;
   entries: readonly CartonEntry[];
-  /** calc's message for each chip in trouble, by its place in the stored list. */
+  /** calc's message for each row in trouble, by its place in the stored list. */
   problems: ReadonlyMap<number, string>;
   readOnly: boolean;
+  /** The page shown, from 0 (the screen keeps it, so an issue link can open a page). */
+  page: number;
+  onPageChange: (page: number) => void;
   /** Adds the entries to the size; returns what it added and what it left out. */
   onAdd: (entries: readonly string[]) => AddedCartons;
-  /** The chip's place in the stored list and the carton it shows. */
+  /** The row's place in the stored list and the carton it shows. */
   onRemove: (index: number, carton: number) => void;
   onFocusChange?: (focus: CaptureFocus) => void;
 }) {
@@ -230,10 +253,11 @@ function CartonList({
   // The field's issue path: calc's count issue lands here, and so does the screen's list of entries to retype.
   const path = ["sizes", size, "cartonNumbers"] as const;
   const field = useRef<HTMLInputElement>(null);
-  const list = useRef<HTMLOListElement>(null);
-  // The chip whose remove button is the list's Tab stop.
-  const [stop, setStop] = useState(0);
-  const tabStop = Math.min(stop, entries.length - 1);
+  const body = useRef<HTMLTableSectionElement>(null);
+  const pages = Math.max(1, Math.ceil(entries.length / CARTONS_PER_PAGE));
+  const current = Math.min(Math.max(page, 0), pages - 1);
+  const first = current * CARTONS_PER_PAGE;
+  const shown = entries.slice(first, first + CARTONS_PER_PAGE);
   // Text refused here outlives the field, as a number field's does (docs/CAPTURE_KIT.md): another
   // size, another section or a reload brings it back with its message.
   const store = useRefusedEntryStore();
@@ -248,6 +272,10 @@ function CartonList({
 
   const keep = (raw: string, text: string) => store?.set(path, { raw, error: text }, name);
   const letGo = () => store?.set(path, null);
+  /** After an add: the last page, where the new numbers went. */
+  const showLast = (added: number) => {
+    if (added > 0) onPageChange(pageOf(entries.length + added - 1));
+  };
 
   /** The refusal under the field, the text left in it to correct. */
   const refuse = (raw: string, refusal: CartonRefusal) => {
@@ -280,6 +308,7 @@ function CartonList({
     setDraft("");
     setMessage(null);
     letGo();
+    showLast(outcome.added.length);
     announce(`Carton ${outcome.added[0]} added.`);
     return true;
   };
@@ -312,35 +341,21 @@ function CartonList({
     setDraft("");
     setMessage({ text, tone: outcome.refused.length > 0 ? "refused" : "done" });
     letGo();
+    showLast(outcome.added.length);
     announce(text);
   };
 
-  /** The remove button of the chip at `position` on screen. */
-  const removeButton = (position: number): HTMLButtonElement | undefined =>
-    position < 0 ? undefined : list.current?.querySelectorAll<HTMLButtonElement>(":scope > li > button")[position];
-
-  const remove = (entry: CartonEntry, position: number, event: MouseEvent<HTMLButtonElement>) => {
-    // A chip taken off from the keyboard hands its focus on: to the next chip's button, else the one before, else the field.
+  const remove = (entry: CartonEntry, row: number, event: MouseEvent<HTMLButtonElement>) => {
+    // A row deleted from the keyboard hands its focus on: to the next row's button, else the one before, else the field.
     const button = event.currentTarget;
     if (button.ownerDocument.activeElement === button) {
-      const after = removeButton(position + 1);
-      const before = removeButton(position - 1);
-      (after ?? before ?? field.current)?.focus();
-      // The chip that takes this one's place holds the Tab stop.
-      setStop(after ? position : Math.max(position - 1, 0));
+      const buttons = body.current?.querySelectorAll<HTMLButtonElement>("button[data-remove]") ?? [];
+      (buttons[row + 1] ?? buttons[row - 1] ?? field.current)?.focus();
     }
     onRemove(entry.index, entry.carton);
     announce(`Carton ${entry.carton} removed.`);
   };
 
-  const moveAlong = (event: KeyboardEvent<HTMLButtonElement>, position: number) => {
-    const next = stepAlong(event.key, position, entries.length);
-    if (next === null) return;
-    event.preventDefault();
-    removeButton(next)?.focus();
-  };
-
-  const keys = chipKeys(entries);
   const messageId = `${id}-message`;
   const hintId = `${id}-hint`;
   const hint = !readOnly && entries.length === 0 && message === null;
@@ -349,63 +364,126 @@ function CartonList({
   return (
     <div className="relative space-y-2">
       {entries.length > 0 ? (
-        <ol
-          ref={list}
-          aria-labelledby={captionId}
-          // Read-only there is no field: calc's count issue lands on the list.
-          {...(readOnly ? issueNoticeProps(path) : {})}
-          className="flex flex-wrap gap-1.5 rounded-lg outline-none focus-ring-inset touch:gap-2"
-        >
-          {entries.map((entry, position) => {
-            const problem = problems.get(entry.index);
-            const problemId = `${id}-${entry.index}-problem`;
-            return (
-              <li
-                key={keys[position]}
-                id={`${id}-${entry.index}`}
-                tabIndex={-1}
-                {...issuePathProps([...path, entry.index])}
-                data-carton={entry.carton}
-                aria-describedby={problem ? problemId : undefined}
-                // The chip itself or its button: it holds the Tab stop, and tags new photos with its carton.
-                onFocus={() => {
-                  setStop(position);
-                  onFocusChange?.({ size, box: entry.carton });
-                }}
-                className={cn(
-                  "relative inline-flex h-8 max-w-full items-center rounded-full border pl-3 text-sm tabular-nums outline-none focus-ring-inset touch:h-11 touch:pl-3.5 touch:text-base",
-                  problem ? "border-fail bg-fail-tint text-fail" : "border-border bg-secondary text-secondary-foreground",
-                  readOnly && "pr-3 touch:pr-3.5",
-                )}
-              >
-                {problem && <StatusIcon status="fail" className="mr-1 size-3.5 shrink-0 touch:size-4" />}
-                {entry.carton}
-                {problem && (
-                  <span id={problemId} className="sr-only">
-                    {problem}
-                  </span>
-                )}
-                {!readOnly && (
-                  <button
+        <div className="space-y-2">
+          <div
+            // Read-only there is no field: calc's count issue lands on the table.
+            {...(readOnly ? issueNoticeProps(path) : {})}
+            className="overflow-hidden rounded-lg bg-card ring-1 ring-border outline-none focus-ring-inset"
+          >
+            <table aria-labelledby={captionId} className="w-full text-sm tabular-nums touch:text-base">
+              <thead className="bg-muted/60 text-left text-muted-foreground">
+                <tr>
+                  <th scope="col" className="w-16 px-3 py-2 font-medium">
+                    No.
+                  </th>
+                  <th scope="col" className="px-3 py-2 font-medium">
+                    Carton Number
+                  </th>
+                  {!readOnly && (
+                    <th scope="col" className="w-14 px-2 py-2">
+                      <span className="sr-only">Delete</span>
+                    </th>
+                  )}
+                </tr>
+              </thead>
+              <tbody ref={body}>
+                {shown.map((entry, row) => {
+                  const problem = problems.get(entry.index);
+                  const problemId = `${id}-${entry.index}-problem`;
+                  return (
+                    <tr
+                      key={`${entry.index}-${entry.carton}`}
+                      id={`${id}-${entry.index}`}
+                      tabIndex={-1}
+                      {...issuePathProps([...path, entry.index])}
+                      data-carton={entry.carton}
+                      aria-describedby={problem ? problemId : undefined}
+                      // Tags new photos with its carton while it, or its button, has the focus.
+                      onFocus={() => onFocusChange?.({ size, box: entry.carton })}
+                      className={cn("border-t border-border outline-none focus-ring-inset", problem && "bg-fail-tint text-fail")}
+                    >
+                      <td className="px-3 py-1.5 text-muted-foreground touch:py-1">{first + row + 1}</td>
+                      <td className="px-3 py-1.5 font-medium touch:py-1">
+                        <span className="inline-flex items-center gap-1.5">
+                          {problem && <StatusIcon status="fail" className="size-3.5 shrink-0 touch:size-4" />}
+                          {entry.carton}
+                        </span>
+                        {problem && (
+                          <span id={problemId} className="block text-xs font-normal touch:text-sm">
+                            {problem}
+                          </span>
+                        )}
+                      </td>
+                      {!readOnly && (
+                        <td className="px-2 py-0.5 text-right">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            data-remove=""
+                            title="Delete"
+                            aria-label={`Delete Carton ${entry.carton}`}
+                            aria-describedby={problem ? problemId : undefined}
+                            onMouseDown={keepFocus}
+                            onClick={(event) => remove(entry, row, event)}
+                            className="text-destructive hover:bg-fail-tint hover:text-destructive"
+                          >
+                            <Trash2Icon aria-hidden />
+                          </Button>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {pages > 1 && (
+            <nav aria-label={`${name}: pages`} className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground touch:text-base">
+              <p className="tabular-nums">
+                {first + 1}–{first + shown.length} of {entries.length}
+              </p>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  title="Previous Page"
+                  aria-label="Previous Page"
+                  disabled={current === 0}
+                  onClick={() => onPageChange(current - 1)}
+                >
+                  <ChevronLeftIcon aria-hidden />
+                </Button>
+                {Array.from({ length: pages }, (_, number) => (
+                  <Button
+                    key={number}
                     type="button"
-                    aria-label={`Remove Carton ${entry.carton}`}
-                    aria-describedby={problem ? problemId : undefined}
-                    tabIndex={position === tabStop ? 0 : -1}
-                    onMouseDown={keepFocus}
-                    onClick={(event) => remove(entry, position, event)}
-                    onKeyDown={(event) => moveAlong(event, position)}
-                    className={cn(
-                      "ml-0.5 flex size-8 shrink-0 items-center justify-center rounded-full outline-none focus-ring-inset touch:size-11",
-                      problem ? "hover:bg-card" : "hover:bg-brand-200 active:bg-brand-300",
-                    )}
+                    variant={number === current ? "secondary" : "ghost"}
+                    size="icon-sm"
+                    aria-label={`Page ${number + 1}`}
+                    aria-current={number === current ? "page" : undefined}
+                    onClick={() => onPageChange(number)}
+                    className="tabular-nums"
                   >
-                    <XIcon aria-hidden className="size-3.5 touch:size-4" />
-                  </button>
-                )}
-              </li>
-            );
-          })}
-        </ol>
+                    {number + 1}
+                  </Button>
+                ))}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  title="Next Page"
+                  aria-label="Next Page"
+                  disabled={current === pages - 1}
+                  onClick={() => onPageChange(current + 1)}
+                >
+                  <ChevronRightIcon aria-hidden />
+                </Button>
+              </div>
+            </nav>
+          )}
+        </div>
       ) : (
         readOnly && (
           <p
@@ -494,31 +572,12 @@ function entriesOf(cells: readonly (number | null)[]): CartonEntry[] {
   return cells.flatMap((carton, index) => (carton === null ? [] : [{ carton, index }]));
 }
 
-/** Where the arrow keys, Home and End move along the chips (no wrapping); null for any other key. */
-function stepAlong(key: string, position: number, count: number): number | null {
-  if (key === "ArrowRight" || key === "ArrowDown") return Math.min(position + 1, count - 1);
-  if (key === "ArrowLeft" || key === "ArrowUp") return Math.max(position - 1, 0);
-  if (key === "Home") return 0;
-  if (key === "End") return count - 1;
-  return null;
-}
-
-/** A number and its occurrence: a chip keeps its element, and its focus, when one before it comes off. */
-function chipKeys(entries: readonly CartonEntry[]): string[] {
-  const seen = new Map<number, number>();
-  return entries.map(({ carton }) => {
-    const nth = seen.get(carton) ?? 0;
-    seen.set(carton, nth + 1);
-    return `${carton}-${nth}`;
-  });
-}
-
 /**
  * calc's message for each chip in trouble, by its place in the stored list:
  * its own (above the order quantity, the repeat of a number), else that of
  * the number it repeats, so every chip of a carton entered twice is red.
  */
-function chipProblems(own: readonly ValidationIssue[], size: string, entries: readonly CartonEntry[]): Map<number, string> {
+function rowProblems(own: readonly ValidationIssue[], size: string, entries: readonly CartonEntry[]): Map<number, string> {
   const at = (index: number) => ["sizes", size, "cartonNumbers", index];
   const places = new Map<number, number[]>();
   for (const { carton, index } of entries) places.set(carton, [...(places.get(carton) ?? []), index]);

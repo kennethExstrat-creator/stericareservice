@@ -16,7 +16,6 @@ import {
   cartonList,
   SAFEDON_EG_EXAMPLE,
   STD_EG_EXAMPLE,
-  STD_EG_EXPECTED,
   type ExampleReport,
 } from "@/tests/fixtures/examples";
 import type { CartonSamplingComputed } from "./calc";
@@ -57,16 +56,16 @@ const classesOf = (tag: string): string[] => /class="([^"]*)"/.exec(tag)?.[1].sp
 const pathAttribute = (path: readonly (string | number)[]) =>
   `data-issue-path="${JSON.stringify(path).replaceAll('"', "&quot;")}"`;
 
-/** The chips' opening tags, in the order on screen. */
+/** The rows' opening tags (one page: 15), in the order on screen. */
 const chipTags = (html: string): string[] => tagsWith(html, "data-carton=");
 
-/** The carton numbers on the chips, in the order on screen. */
+/** The carton numbers in the rows, in the order on screen. */
 const chips = (html: string): number[] => chipTags(html).map((tag) => Number(/data-carton="(\d+)"/.exec(tag)?.[1]));
 
-/** Chips calc marked with an error. */
+/** Rows calc marked with an error. */
 const redChips = (html: string): string[] => chipTags(html).filter((tag) => classesOf(tag).includes("bg-fail-tint"));
 
-const removeButtons = (html: string): string[] => tagsWith(html, 'aria-label="Remove Carton ');
+const removeButtons = (html: string): string[] => tagsWith(html, 'aria-label="Delete Carton ');
 
 /** The size's field that adds a carton number. */
 const field = (html: string, size: string): string | undefined => tagsWith(html, `id="carton-sampling-${size}-entry"`)[0];
@@ -74,25 +73,25 @@ const field = (html: string, size: string): string | undefined => tagsWith(html,
 const range = (from: number, to: number): number[] => Array.from({ length: to - from }, (_, offset) => from + offset);
 
 describe("carton_sampling Capture", () => {
-  it("lists the size's carton numbers as chips in the order entered, and a field on the numeric keypad for the next", () => {
+  it("lists the size's carton numbers in a table, 15 rows a page in the order entered, and a field on the numeric keypad for the next", () => {
     const html = render(props(STD_EG_EXAMPLE));
-    expect(html).not.toContain("<table");
-    expect(chips(html)).toEqual(cartonList(STD_EG_EXAMPLE.cartons.M!));
-    // Each chip points at its place in the stored list and takes an issue link's focus itself.
+    const list = cartonList(STD_EG_EXAMPLE.cartons.M!);
+    expect(html).toContain("<table");
+    expect(html).toMatch(/<th[^>]*>No\.<\/th>/);
+    expect(html).toMatch(/<th[^>]*>Carton Number<\/th>/);
+    expect(chips(html)).toEqual(list.slice(0, 15));
+    // Each row points at its place in the stored list and takes an issue link's focus itself.
     const tags = chipTags(html);
-    expect(tags[20]).toContain(pathAttribute(["sizes", "M", "cartonNumbers", 20]));
-    expect(tags[20]).toContain('id="carton-sampling-M-20"');
-    for (const tag of tags) {
-      expect(tag).toContain('tabindex="-1"');
-      expect(classesOf(tag)).toEqual(expect.arrayContaining(["h-8", "touch:h-11", "touch:text-base"]));
-    }
-    // Each with its remove button, 44 px on touch; one Tab stop for the whole list.
+    expect(tags[3]).toContain(pathAttribute(["sizes", "M", "cartonNumbers", 3]));
+    expect(tags[3]).toContain('id="carton-sampling-M-3"');
+    for (const tag of tags) expect(tag).toContain('tabindex="-1"');
+    // Each row with its delete button; the pages below: 1–15 of 50, four pages.
     const buttons = removeButtons(html);
-    expect(buttons).toHaveLength(50);
-    expect(buttons[0]).toContain(`aria-label="Remove Carton ${cartonList(STD_EG_EXAMPLE.cartons.M!)[0]}"`);
-    for (const button of buttons) expect(classesOf(button)).toEqual(expect.arrayContaining(["size-8", "touch:size-11"]));
-    expect(buttons.filter((button) => button.includes('tabindex="0"'))).toHaveLength(1);
-    expect(buttons[0]).toContain('tabindex="0"');
+    expect(buttons).toHaveLength(15);
+    expect(buttons[0]).toContain(`aria-label="Delete Carton ${list[0]}"`);
+    expect(html).toContain("1–15 of 50");
+    expect(tagsWith(html, 'aria-label="Page ')).toHaveLength(4);
+    expect(tagsWith(html, 'aria-current="page"')).toHaveLength(1);
 
     const entry = field(html, "M");
     expect(entry).toBeDefined();
@@ -121,21 +120,17 @@ describe("carton_sampling Capture", () => {
     expect(html).toMatch(/Sampling Quantity <span[^>]*>.*3.* \/ .*50/);
   });
 
-  it("marks both chips of the carton entered twice red, with the message linked below (expected result B)", () => {
-    const html = render(props(STD_EG_EXAMPLE));
-    const { duplicate } = STD_EG_EXPECTED.cartonList;
-    const [first, second] = duplicate.cells.map(({ row, column }) => (row - 1) * 10 + (column - 1));
+  it("marks both rows of a carton entered twice red, with the message linked below", () => {
+    const twice = exampleData(STD_EG_EXAMPLE, { carton_sampling: { sizes: { M: { cartonNumbers: [32, 578, 32] } } } });
+    const html = render(props(STD_EG_EXAMPLE, twice));
     const red = redChips(html);
     expect(red).toHaveLength(2);
-    expect(red[0]).toContain(pathAttribute(["sizes", "M", "cartonNumbers", first]));
-    expect(red[1]).toContain(pathAttribute(["sizes", "M", "cartonNumbers", second]));
-    for (const chip of red) expect(chip).toContain(`data-carton="${duplicate.carton}"`);
-    const message = `Size M: ${STD_EG_EXPECTED.errors[0].message}`;
-    // On each chip for a screen reader, and as a link under the list.
-    expect(red[0]).toContain(`aria-describedby="carton-sampling-M-${first}-problem"`);
-    expect(html).toContain(`<span id="carton-sampling-M-${second}-problem" class="sr-only">${message}</span>`);
-    expect(html).toMatch(new RegExp(`<button type="button" class="[^"]*text-fail[^"]*">.*?<span>${message.replace(/[().]/g, "\\$&")}</span></button>`));
-    expect(html).toMatch(/Sampling Quantity <span[^>]*>.*50.* \/ .*50/);
+    expect(red[0]).toContain(pathAttribute(["sizes", "M", "cartonNumbers", 0]));
+    expect(red[1]).toContain(pathAttribute(["sizes", "M", "cartonNumbers", 2]));
+    for (const row of red) expect(row).toContain('data-carton="32"');
+    // On each row, read out with its delete button too.
+    expect(red[0]).toContain('aria-describedby="carton-sampling-M-0-problem"');
+    expect(html).toContain('id="carton-sampling-M-2-problem"');
   });
 
   it("marks a carton above the order quantity red, with a link to its chip (6.2 rule 6)", () => {
@@ -156,11 +151,12 @@ describe("carton_sampling Capture", () => {
     const input = props(STD_EG_EXAMPLE, more);
     expect(input.evaluation.result.perSize?.M).toEqual({ status: "not_done", summary: "50 of 63 carton numbers." });
     const html = render(input);
-    expect(chips(html)).toEqual(range(1, 51));
+    expect(chips(html)).toEqual(range(1, 16));
+    expect(html).toContain("1–15 of 50");
     expect(html).toMatch(/Sampling Quantity <span[^>]*>.*50.* \/ .*63/);
     // Until the plan gives the cases, the count stands alone.
     const noPlan = render(props(STD_EG_EXAMPLE, exampleData(STD_EG_EXAMPLE, { sampling_plan: { sizes: {} } })));
-    expect(chips(noPlan)).toHaveLength(50);
+    expect(chips(noPlan)).toHaveLength(15);
     expect(noPlan).toMatch(/Sampling Quantity <span[^>]*>.*50.* \/ <span data-slot="figure" data-empty=""/);
   });
 
@@ -223,18 +219,16 @@ describe("carton_sampling Capture", () => {
     expect(asked).toContain('["sizes","M","cartonNumbers"]');
   });
 
-  it("is read-only for an approved inspection: chips without remove buttons and no field, issue links still landing", () => {
+  it("is read-only for an approved inspection: rows without delete buttons and no field, issue links still landing", () => {
     const html = render({ ...props(STD_EG_EXAMPLE), readOnly: true });
-    expect(chips(html)).toHaveLength(50);
+    expect(chips(html)).toHaveLength(15);
     expect(removeButtons(html)).toEqual([]);
     expect(field(html, "M")).toBeUndefined();
     expect(html).not.toContain("Add</button>");
-    // The chips still take an issue link's focus, the two red ones included; the count issue lands on the list.
+    // The rows still take an issue link's focus; the count issue lands on the table.
     for (const tag of chipTags(html)) expect(tag).toContain('tabindex="-1"');
-    expect(redChips(html)).toHaveLength(2);
-    const list = /<ol[^>]*>/.exec(html)?.[0];
-    expect(list).toContain(pathAttribute(["sizes", "M", "cartonNumbers"]));
-    expect(list).toContain('tabindex="-1"');
+    const table = (html.match(/<div[^>]*>/g) ?? []).find((tag) => tag.includes(pathAttribute(["sizes", "M", "cartonNumbers"])));
+    expect(table).toContain('tabindex="-1"');
     // Nothing entered: said so, and that is where the link lands.
     const empty = render({
       ...props(STD_EG_EXAMPLE, exampleData(STD_EG_EXAMPLE, { carton_sampling: { sizes: {} } })),
