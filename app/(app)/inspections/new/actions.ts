@@ -1,7 +1,6 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
-import { redirect, unstable_rethrow } from "next/navigation";
+import { unstable_rethrow } from "next/navigation";
 import { readOrderDocument } from "@/lib/ai/document-reader";
 import { loadAiEnv, loadGlossary } from "@/lib/ai/settings";
 import { authorizeAction } from "@/lib/auth/session";
@@ -21,9 +20,6 @@ import {
 } from "@/lib/inspections/create";
 import { applyDocumentFill, checkReading } from "@/lib/inspections/document-fill";
 import { personLabel } from "@/lib/inspections/format";
-import { SOURCE_DOCUMENTS_KEY } from "@/lib/inspections/source-documents";
-import { FILE_BUCKET, filePath } from "@/lib/photos/paths";
-import { INSPECTIONS_PATH } from "@/lib/inspections/search-params";
 import { createInspectionRow, serverWriter } from "@/lib/inspections/writes";
 import {
   DOCUMENT_MAX_BYTES,
@@ -51,14 +47,17 @@ import { InspectionDataSchema, type InspectionData } from "@/modules/_framework/
  * since only this action chooses the template and fills in the data, and
  * checks the caller again: an inspector starts their own draft from an
  * active template; an admin may choose any template that is not retired. On
- * success it goes straight to the capture screen.
+ * success it answers the new inspection's id: the form then hands the
+ * Source Documents it holds to the page's upload queue and to Auto-Sort, for
+ * the new inspection, and opens it on Source Documents. No file comes with
+ * the form: they upload in the background, so the 5 MB limit of a Server
+ * Action never applies to them.
  */
 
 export type CreateInspectionState =
   | { status: "idle" }
-  | { status: "error"; message: string; fieldErrors?: Partial<Record<NewInspectionField, string>> };
-
-type Outcome = CreateInspectionState | { status: "created"; id: string };
+  | { status: "error"; message: string; fieldErrors?: Partial<Record<NewInspectionField, string>> }
+  | { status: "created"; id: string };
 
 const fail = (message: string, fieldErrors?: Partial<Record<NewInspectionField, string>>): CreateInspectionState => ({
   status: "error",
@@ -70,20 +69,16 @@ const UNEXPECTED = "The inspection could not be created. Try again.";
 const RELOAD = "Something changed while the form was open. Reload the page and try again.";
 
 export async function createInspection(_previous: CreateInspectionState, formData: FormData): Promise<CreateInspectionState> {
-  let outcome: Outcome;
   try {
-    outcome = await create(formData);
+    return await create(formData);
   } catch (error) {
     unstable_rethrow(error);
     console.error("[inspections/new] createInspection failed", error);
-    outcome = fail(UNEXPECTED);
+    return fail(UNEXPECTED);
   }
-  // Outside the try: redirect() throws to navigate.
-  if (outcome.status === "created") redirect(`${INSPECTIONS_PATH}/${outcome.id}`);
-  return outcome;
 }
 
-async function create(formData: FormData): Promise<Outcome> {
+async function create(formData: FormData): Promise<CreateInspectionState> {
   const auth = await authorizeAction();
   if (!auth.ok) return fail(auth.error);
   const { user } = auth;
@@ -202,10 +197,8 @@ async function create(formData: FormData): Promise<Outcome> {
     return fail(describeCreateError(inserted.error));
   }
 
-  // The order document it was filled from becomes its first Source Document, read in full on the capture screen.
-  const documentFile = formData.get("documentFile");
-  if (documentFill && documentFile instanceof File) await keepDocument(inserted.id, documentFile, user.id);
-
+  // The documents it was filled from follow through the upload queue as its Source Documents,
+  // read in full on the capture screen: the record names them here.
   await recordHowItStarted(supabase, inserted.id, {
     previous: previous?.data ? { id: previous.data.id, refNo: previous.data.ref_no, copied } : null,
     document: documentFill && fromDocument ? { fileName: documentFill.fileName, filled: fromDocument.filled, by: user.id } : null,
@@ -276,7 +269,11 @@ async function recordHowItStarted(
   }
 }
 
-/** The order document's values the form posts with Create; anything that does not check out is ignored. */
+/**
+ * The documents' header values and order lines the form posts with Create,
+ * merged from every file read on the page (the first answer wins); anything
+ * that does not check out is ignored.
+ */
 function readDocumentFill(formData: FormData): DocumentFill | null {
   const raw = formData.get("documentFill");
   if (typeof raw !== "string" || raw === "") return null;
@@ -291,11 +288,12 @@ function readDocumentFill(formData: FormData): DocumentFill | null {
 const READ_FAILED = "The document could not be read. Try again.";
 
 /**
- * Reads an uploaded order document with the AI (docs/AI.md, "Reading order
- * documents") and answers what the form can fill in. Anyone who can start
- * an inspection may use it. The file is passed to the AI and not stored;
- * the lists are read through the caller's client, so the AI matches only
- * clients and manufacturers the caller can pick.
+ * Reads one of the Source Documents held on the form with the AI (docs/AI.md,
+ * "Reading order documents") and answers what the form can fill in. Anyone
+ * who can start an inspection may use it. The file is passed to the AI and
+ * not stored (it uploads after Create); the lists are read through the
+ * caller's client, so the AI matches only clients and manufacturers the
+ * caller can pick.
  */
 export async function readDocument(formData: FormData): Promise<DocumentReadResult> {
   try {
@@ -341,42 +339,5 @@ export async function readDocument(formData: FormData): Promise<DocumentReadResu
     unstable_rethrow(error);
     console.error("[inspections/new] readDocument failed", error);
     return { status: "error", message: READ_FAILED };
-  }
-}
-
-/**
- * Keeps the order document with the new inspection as a Source Document
- * (docs/AI.md), unread: the form only took the order details from it, so
- * Source Documents reads it in full when the inspection opens. Written with
- * the secret key; a failure is logged, never shown: the inspection exists.
- */
-async function keepDocument(inspectionId: string, file: File, userId: string): Promise<void> {
-  const extension = file.type === "application/pdf" ? "pdf" : file.type === "image/jpeg" ? "jpg" : null;
-  if (!extension || file.size === 0 || file.size > DOCUMENT_MAX_BYTES) return;
-  try {
-    const admin = createAdminClient();
-    const id = randomUUID();
-    const path = filePath(inspectionId, id, extension);
-    const upload = await admin.storage.from(FILE_BUCKET).upload(path, file, { contentType: file.type, upsert: false });
-    if (upload.error) {
-      console.error("[inspections/new] keeping the order document failed", upload.error.message);
-      return;
-    }
-    const { error } = await admin.from("inspection_files").insert({
-      id,
-      inspection_id: inspectionId,
-      module_key: SOURCE_DOCUMENTS_KEY,
-      kind: "other",
-      storage_path: path,
-      name: file.name.slice(0, 200) || `Order Document.${extension}`,
-      created_by: userId,
-      // Left unread: Source Documents reads it in full when the inspection opens (every module, every PO).
-    });
-    if (error) {
-      console.error("[inspections/new] recording the order document failed", error.code, error.message);
-      await admin.storage.from(FILE_BUCKET).remove([path]);
-    }
-  } catch (error) {
-    console.error("[inspections/new] keeping the order document failed", error);
   }
 }

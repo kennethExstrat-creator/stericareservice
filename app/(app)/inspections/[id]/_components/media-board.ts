@@ -1,7 +1,7 @@
 // Source Documents' Media as a board (Kenneth, 12 October 2026): the visit's
 // photos and videos listed by category, each row moved to another by
 // dragging its grip or with its Move To menu, and Auto-Sort, which uploads
-// a heap of them into Other for the AI to sort. Pure, so the rules are
+// a heap of them into Other for Steri-AI to sort. Pure, so the rules are
 // unit-tested without a browser: which list an item is in, where a drop
 // lands, how fast the page scrolls under a drag, what a sort reports.
 import type { PhotoUploadState, SlotFile, SlotPhoto } from "@/components/capture/photos/photo-model";
@@ -16,7 +16,7 @@ export type MediaSectionId = MediaCategoryKey | "other";
 
 export const OTHER_TITLE = "Other";
 /** Other's hint: always listed, last (Kenneth, 12 October 2026). */
-export const OTHER_HINT = "Anything the AI could not place.";
+export const OTHER_HINT = "Anything Steri-AI could not place.";
 
 /** Media's sections in order, as the page and the Move To menu list them. */
 export const MEDIA_SECTIONS: readonly { readonly id: MediaSectionId; readonly title: string }[] = [

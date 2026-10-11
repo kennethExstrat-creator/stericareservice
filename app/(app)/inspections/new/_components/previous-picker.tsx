@@ -57,8 +57,6 @@ export function PreviousPicker({
       headingId={`${id}-previous-heading`}
       icon={HistoryIcon}
       title="Start From Previous"
-      description="Optional. Copies the product's details from its last inspection for this client and manufacturer."
-      descriptionId={`${id}-previous-hint`}
       className="gap-4"
       data-testid="previous-picker"
     >
@@ -77,7 +75,7 @@ export function PreviousPicker({
             onValueChange={onValueChange}
             disabled={disabled}
             aria-labelledby={`${id}-previous-heading`}
-            aria-describedby={error ? `${id}-previous-error` : `${id}-previous-hint`}
+            aria-describedby={error ? `${id}-previous-error` : undefined}
             aria-invalid={error ? true : undefined}
             className="gap-2"
           >

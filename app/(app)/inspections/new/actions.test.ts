@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({
-  redirect: vi.fn((url: string) => {
-    throw Object.assign(new Error("NEXT_REDIRECT"), { url });
-  }),
   unstable_rethrow: vi.fn((error: unknown) => {
     if (error instanceof Error && error.message === "NEXT_REDIRECT") throw error;
   }),
@@ -13,7 +10,6 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 // Without the key (the default here) the user's own client inserts.
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn(), isAdminClientConfigured: vi.fn() }));
 
-import { redirect } from "next/navigation";
 import { authorizeAction } from "@/lib/auth/session";
 import { evaluateCapture } from "@/lib/inspections/capture/evaluate";
 import { mirroredColumns } from "@/lib/inspections/capture/mirror";
@@ -34,6 +30,8 @@ const NEW_ID = "5f6e7d8c-9b0a-4c1d-8e2f-3a4b5c6d7e8f";
 const PREVIOUS_ID = "6a7b8c9d-0e1f-4a2b-8c3d-4e5f6a7b8c9d";
 const ADDRESS = "Lot 1, Placeholder Industrial Park";
 const IDLE: CreateInspectionState = { status: "idle" };
+/** Created: the form hands over its Source Documents and opens the inspection itself. */
+const CREATED: CreateInspectionState = { status: "created", id: NEW_ID };
 
 const T = {
   STD_EG: "00000000-0000-4000-8000-0000000000e1",
@@ -153,14 +151,8 @@ function signedIn(role: "inspector" | "admin") {
   });
 }
 
-/** Runs the action; a redirect comes back as its target. */
-async function submit(data: FormData): Promise<CreateInspectionState | { redirectedTo: string }> {
-  try {
-    return await createInspection(IDLE, data);
-  } catch (error) {
-    if (error instanceof Error && error.message === "NEXT_REDIRECT") return { redirectedTo: (error as Error & { url: string }).url };
-    throw error;
-  }
+function submit(data: FormData): Promise<CreateInspectionState> {
+  return createInspection(IDLE, data);
 }
 
 /**
@@ -242,7 +234,7 @@ describe("writing the draft (migration 20261007190000)", () => {
     vi.mocked(isAdminClientConfigured).mockReturnValue(true);
     vi.mocked(createAdminClient).mockReturnValue(admin as never);
 
-    expect(await submit(order())).toEqual({ redirectedTo: `/inspections/${NEW_ID}` });
+    expect(await submit(order())).toEqual(CREATED);
     expect(inserted()).toBeUndefined();
     expect(calls).toHaveLength(1);
     const [name, args] = calls[0];
@@ -273,9 +265,8 @@ describe("writing the draft (migration 20261007190000)", () => {
 });
 
 describe("the template (BUILD_SPEC 4.4)", () => {
-  it("starts from the most specific active template and opens the new inspection", async () => {
-    expect(await submit(order())).toEqual({ redirectedTo: `/inspections/${NEW_ID}` });
-    expect(redirect).toHaveBeenCalledWith(`/inspections/${NEW_ID}`);
+  it("starts from the most specific active template and answers the new inspection's id", async () => {
+    expect(await submit(order())).toEqual(CREATED);
     const payload = inserted()!;
     expect(payload).toMatchObject({
       template_id: T.SAFEDON_EG,
@@ -344,7 +335,7 @@ describe("the template (BUILD_SPEC 4.4)", () => {
         ],
       }),
     );
-    expect(await submit(order({ templateId: T.DRAFT_EG }))).toEqual({ redirectedTo: `/inspections/${NEW_ID}` });
+    expect(await submit(order({ templateId: T.DRAFT_EG }))).toEqual(CREATED);
     expect(inserted()).toMatchObject({ template_id: T.DRAFT_EG });
     expect(db.queries.some((query) => query.table === "templates" && has(query, "neq", "status", "retired"))).toBe(true);
     expect(db.rpcs).toEqual([
@@ -448,9 +439,7 @@ describe("start from previous (BUILD_SPEC 8)", () => {
 
   it("copies the product's details, nothing else, and records where they came from", async () => {
     use(world({ previous }));
-    expect(await submit(order({ previousId: PREVIOUS_ID, productName: "Nitrile blue" }))).toEqual({
-      redirectedTo: `/inspections/${NEW_ID}`,
-    });
+    expect(await submit(order({ previousId: PREVIOUS_ID, productName: "Nitrile blue" }))).toEqual(CREATED);
     const data = inserted()!.data as { modules: Record<string, unknown>; custom: Record<string, unknown> };
     // No address last time: the manufacturer's fills it.
     expectOnly(data.modules.header, {
@@ -502,6 +491,31 @@ describe("start from previous (BUILD_SPEC 8)", () => {
   });
 });
 
+describe("Source Documents read on the form (docs/AI.md)", () => {
+  it("fills the header from what they read and records the files by name; the files themselves come later, through the queue", async () => {
+    const rpc = vi.fn(() => Promise.resolve({ data: 1, error: null }));
+    vi.mocked(createAdminClient).mockReturnValue({ rpc } as never);
+    const fill = {
+      fileName: "PO 0001.pdf, Inspection Form.jpg",
+      header: { poNo: "PO-0001", productCode: null, factoryGloveCode: null, inspectionDate: null, mfgDate: null, expiryDate: null },
+      sizes: {},
+    };
+    const data = order({ documentFill: JSON.stringify(fill) });
+    // What an older form posted along: nothing reads it now.
+    data.set("documentFile", new File(["%PDF-1.7"], "PO 0001.pdf", { type: "application/pdf" }));
+    expect(await submit(data)).toEqual(CREATED);
+    const modules = (inserted()!.data as { modules: Record<string, Record<string, unknown>> }).modules;
+    expect(modules.header.poNo).toBe("PO-0001");
+    // The audit names the files and what they filled; nothing is uploaded here.
+    expect(rpc.mock.calls).toEqual([
+      [
+        "log_inspection_event",
+        { inspection_id: NEW_ID, action: "filled_from_document", changes: { file: fill.fileName, filled: ["header.poNo"], by: INSPECTOR } },
+      ],
+    ]);
+  });
+});
+
 describe("when something fails", () => {
   it("puts a database refusal in words", async () => {
     use(world({ insert: { data: null, error: { code: "23514", message: "inspections start from an active template" } } }));
@@ -509,7 +523,6 @@ describe("when something fails", () => {
       status: "error",
       message: "That template is no longer active. Reload the page to see the current one.",
     });
-    expect(redirect).not.toHaveBeenCalled();
   });
 
   it("turns an unexpected failure into a message on the form", async () => {
@@ -527,6 +540,6 @@ describe("when something fails", () => {
       data: { modules: {}, custom: {} },
     } }));
     db.client.rpc.mockResolvedValue({ data: null, error: { code: "42501", message: "nope" } } as never);
-    expect(await submit(order({ previousId: PREVIOUS_ID }))).toEqual({ redirectedTo: `/inspections/${NEW_ID}` });
+    expect(await submit(order({ previousId: PREVIOUS_ID }))).toEqual(CREATED);
   });
 });

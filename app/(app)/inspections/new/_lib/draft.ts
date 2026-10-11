@@ -4,7 +4,9 @@
 // sessionStorage on every change, so a reload, a pull to refresh or a tab
 // the iPad dropped and loaded again loses nothing, and removed once the
 // inspection is created or the form is cancelled. Per user: another account
-// signed in on the same tab never sees it.
+// signed in on the same tab never sees it. The Source Documents held on the
+// form are not part of it: files cannot be kept there, and leaving the page
+// drops them.
 //
 // The server and hydration see no draft; the first render after hydration
 // brings it back (useSyncExternalStore), so nothing differs between server
@@ -12,7 +14,6 @@
 // earlier inspection that left the list) is left out. The draft is a
 // convenience, never the record: storage can be blocked (private browsing),
 // full or wiped, and every access here is allowed to fail.
-import { unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 import { NO_CLIENT, previousFor } from "@/lib/inspections/create";
 import { ProductTypeSchema, type ProductType } from "@/lib/schemas/common";
@@ -104,21 +105,6 @@ export function removeDraft(storage: DraftStorage | null, key: string): void {
     storage?.removeItem(key);
   } catch {
     // Nothing to do: the tab's storage goes with the tab.
-  }
-}
-
-/**
- * For an error Create caught. The Server Action opens the new inspection by
- * throwing a redirect: the inspection exists, so the draft goes and the
- * redirect is thrown on for Next.js to follow. Any other error (the server
- * not reached) returns, and the draft stays for another try.
- */
-export function rethrowNavigation(error: unknown, storage: DraftStorage | null, key: string): void {
-  try {
-    unstable_rethrow(error);
-  } catch (navigation) {
-    removeDraft(storage, key);
-    throw navigation;
   }
 }
 

@@ -10,11 +10,12 @@
 // category go in by their type. A row's grip drags it into another category,
 // or opens its Move To menu (use-media-drag.ts); the row moves at once, and
 // goes back with a message if the move is refused. Other, always listed last
-// (Kenneth, 12 October 2026), holds what the AI could not place and what is in
+// (Kenneth, 12 October 2026), holds what Steri-AI could not place and what is in
 // no category (untagged photos, a step's from before the categories, the
 // first Media tab's videos); photos and videos can be added there too.
 // Auto-Sort, at the top, uploads a heap of photos and videos into Other and
-// has the AI sort them (auto-sort.ts).
+// has Steri-AI sort them (auto-sort.ts). Files dropped on a section come in
+// through useFileDrop (../../_components/use-file-drop.ts).
 import {
   useCallback,
   useEffect,
@@ -23,7 +24,6 @@ import {
   useRef,
   useState,
   type ChangeEvent,
-  type DragEvent,
   type ReactNode,
   type RefObject,
 } from "react";
@@ -43,6 +43,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { countPhotos, countVideos, EMPTY_TAG_OPTIONS } from "@/lib/inspections/photos/view";
 import { MEDIA_CATEGORIES, mediaKind, SOURCE_MEDIA_KEY, type MediaCategory } from "@/lib/inspections/source-documents";
 import { cn } from "@/lib/utils";
+import { useFileDrop } from "../../_components/use-file-drop";
 import { moveMedia, type MoveMediaResult } from "../media-actions";
 import { autoSort, isSorting, moveByHand, useAutoSort, type AutoSortView } from "./auto-sort";
 import {
@@ -504,7 +505,7 @@ function MediaAddButton({ title, onFiles }: { title: string; onFiles: (files: re
 
 /**
  * Auto-Sort, at the top of Media: photos and videos dropped here (or
- * chosen) upload into Other, and the AI sorts each into its category.
+ * chosen) upload into Other, and Steri-AI sorts each into its category.
  */
 function AutoSortBox({ inspectionId }: { inspectionId: string }) {
   const titleId = useId();
@@ -545,7 +546,7 @@ function AutoSortBox({ inspectionId }: { inspectionId: string }) {
               {drop.dragging ? (
                 <span className="font-medium text-brand-700">Drop to sort</span>
               ) : (
-                "Drop all photos and videos here. AI sorts each into its category."
+                "Drop all photos and videos here. Steri-AI sorts each into its category."
               )}
             </p>
           </div>
@@ -588,43 +589,4 @@ function AutoSortStatus({ view }: { view: AutoSortView }) {
       )}
     </div>
   );
-}
-
-function carriesFiles(event: DragEvent): boolean {
-  return Array.from(event.dataTransfer?.types ?? []).includes("Files");
-}
-
-/** Files dragged in from the desktop or another app onto a section; links, text and the board's own rows are ignored. */
-function useFileDrop(onFiles: (files: readonly File[]) => void, enabled: boolean) {
-  const [dragging, setDragging] = useState(false);
-  const depth = useRef(0);
-  if (!enabled) return { dragging: false, handlers: {} };
-  return {
-    dragging,
-    handlers: {
-      onDragEnter: (event: DragEvent) => {
-        if (!carriesFiles(event)) return;
-        event.preventDefault();
-        depth.current += 1;
-        setDragging(true);
-      },
-      onDragOver: (event: DragEvent) => {
-        if (!carriesFiles(event)) return;
-        event.preventDefault();
-        event.dataTransfer.dropEffect = "copy";
-      },
-      onDragLeave: () => {
-        depth.current = Math.max(0, depth.current - 1);
-        if (depth.current === 0) setDragging(false);
-      },
-      onDrop: (event: DragEvent) => {
-        if (!carriesFiles(event)) return;
-        event.preventDefault();
-        depth.current = 0;
-        setDragging(false);
-        const files = Array.from(event.dataTransfer.files);
-        if (files.length > 0) onFiles(files);
-      },
-    },
-  };
 }

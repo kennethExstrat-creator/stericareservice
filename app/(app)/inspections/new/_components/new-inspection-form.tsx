@@ -4,11 +4,21 @@
 // product type; the template follows live from lib/templates' rule (an admin
 // can choose another); optionally start from the last inspection of the same
 // product. Create checks the form here first, then the Server Action decides
-// everything again and opens the new inspection.
+// everything again and answers the new inspection's id; the form then hands
+// the Source Documents it holds to the upload queue and Auto-Sort for it, and
+// opens it on Source Documents, where the uploads and the sort carry on.
 //
-// iPad: one column, 44 px targets, 16 px text. From 1024 px "Fill From a
-// Document", the template and the Create button sit in a column on the right
+// Source Documents (source-documents-panel.tsx, use-held-sources.ts): the
+// capture screen's first step, here so every file can come in at once. They
+// stay in the browser until Create. Steri-AI reads the documents one at a
+// time until the client, manufacturer, product type and product name are
+// filled; a reading fills only what is still empty, and the PO, codes, dates
+// and order lines it read go in with Create (documentFill).
+//
+// iPad: one column, 44 px targets, 16 px text. From 1024 px Source
+// Documents, the template and the Create button sit in a column on the right
 // that stays in view. The template shows once the three picks are made.
+// Cards have their title and no line under it (Kenneth, 12 October 2026).
 //
 // Create runs from onSubmit, not from the form's action prop: React resets a
 // form after every action, and the pickers (Radix Select and RadioGroup) go
@@ -17,9 +27,11 @@
 //
 // Every change is kept in the tab as it happens (../_lib/draft.ts), so a
 // reload or a tab the iPad dropped brings the choices and the typed name
-// back. Create and Cancel remove them.
+// back. Create and Cancel remove them. The files held are not kept: leaving
+// the page drops them.
 import { ClipboardListIcon, OctagonXIcon, PlusIcon } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   startTransition,
   useActionState,
@@ -62,18 +74,19 @@ import {
   readDraft,
   removeDraft,
   restoreChoices,
-  rethrowNavigation,
   tabStorage,
   writeDraft,
   type NewInspectionChoices,
 } from "../_lib/draft";
+import { formFill, type DocumentRead } from "../_lib/sources";
 import { templateInSentence } from "../_lib/text";
 import type { Option, PreviousProduct, TemplateOption } from "../_lib/types";
 import { ChoiceCard } from "./choice-card";
-import { DocumentPanel, type DocumentRead } from "./document-panel";
 import { Panel } from "./panel";
 import { PreviousPicker, START_BLANK } from "./previous-picker";
+import { SourceDocumentsPanel, type SummaryLine } from "./source-documents-panel";
 import { TemplatePanel } from "./template-panel";
+import { useHeldSources, type HeldSources } from "./use-held-sources";
 
 type FieldErrors = Partial<Record<NewInspectionField, string>>;
 
@@ -138,21 +151,23 @@ export function NewInspectionForm({ userId, ...offered }: NewInspectionFormProps
     <ChoicesForm
       key={`${storageKey}:${found ? "draft" : "new"}`}
       {...offered}
+      userId={userId}
       storageKey={storageKey}
       initial={found ? restoreChoices(found, offered) : NO_CHOICES}
     />
   );
 }
 
-type ChoicesFormProps = Omit<NewInspectionFormProps, "userId"> & {
+type ChoicesFormProps = NewInspectionFormProps & {
   /** Where the tab keeps the draft. */
   storageKey: string;
   /** The choices the form opens with. */
   initial: NewInspectionChoices;
 };
 
-function ChoicesForm({ storageKey, initial, role, clients, manufacturers, templates, previous }: ChoicesFormProps) {
+function ChoicesForm({ userId, storageKey, initial, role, clients, manufacturers, templates, previous }: ChoicesFormProps) {
   const id = useId();
+  const router = useRouter();
   const [choices, setChoices] = useState(initial);
   /** The choices as last changed, ahead of the next render: two changes in one go both count. */
   const latest = useRef(initial);
@@ -164,11 +179,11 @@ function ChoicesForm({ storageKey, initial, role, clients, manufacturers, templa
   const nameFrom = choices.nameFromPrevious ? choices.previous : null;
   const [errors, setErrors] = useState<FieldErrors>({});
   const [message, setMessage] = useState<string | null>(null);
-  /** The order document last read: its header and order values go in with Create. */
-  const [documentRead, setDocumentRead] = useState<DocumentRead | null>(null);
-  /** The file it was read from: kept with the new inspection as its first Source Document. */
-  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  /** What Steri-AI filled in above, as it filled it: the card names what still stands. */
+  const [aiFilled, setAiFilled] = useState<Partial<NewInspectionChoices>>({});
   const alertRef = useRef<HTMLDivElement>(null);
+  /** Hands the Source Documents held to the new inspection (use-held-sources.ts). */
+  const handOver = useRef<HeldSources["handOver"] | null>(null);
 
   // The picks the template rule needs. The client is a deliberate choice: "" is not chosen yet.
   const client = clientId === "" ? undefined : clientId === NO_CLIENT ? null : clientId;
@@ -209,24 +224,34 @@ function ChoicesForm({ storageKey, initial, role, clients, manufacturers, templa
       if (option && !option.ready) {
         return settle({ status: "error", message: `${templateInSentence(option)} cannot be used yet: an admin needs to save it again.` });
       }
+      let result: CreateInspectionState;
       try {
-        return settle(await createInspection(current, formData));
+        result = await createInspection(current, formData);
       } catch (error) {
-        // A redirect is the inspection created: the draft goes, and Next.js follows it.
-        rethrowNavigation(error, tabStorage(), storageKey);
         console.error(error);
         return settle({ status: "error", message: UNREACHABLE });
       }
+      if (result.status === "created") {
+        // It exists: the draft goes, the files held follow it, and it opens on Source Documents.
+        removeDraft(tabStorage(), storageKey);
+        try {
+          await handOver.current?.(result.id, userId);
+        } catch (error) {
+          console.error("[inspections/new] handing over the Source Documents failed", error);
+        }
+        router.push(`${INSPECTIONS_PATH}/${result.id}`);
+      }
+      return settle(result);
     },
     IDLE,
   );
+  /** Create is under way, or done and the inspection opening: the form stays as it is. */
+  const creating = pending || state.status === "created";
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (pending) return;
-    const formData = new FormData(event.currentTarget);
-    if (documentRead && documentFile) formData.set("documentFile", documentFile);
-    startTransition(() => formAction(formData));
+    if (creating) return;
+    startTransition(() => formAction(new FormData(event.currentTarget)));
   }
 
   // After a failed attempt: focus the first field that needs attention, else the message.
@@ -251,14 +276,10 @@ function ChoicesForm({ storageKey, initial, role, clients, manufacturers, templa
     if (errors[field]) setErrors((current) => ({ ...current, [field]: undefined }));
   }
 
-  /** What the document matched fills the pickers and the product name at once. */
-  function applyDocument(read: DocumentRead, file: File) {
-    const { form } = read;
-    const change: Partial<NewInspectionChoices> = {};
-    if (form.clientId) change.clientId = form.clientId;
-    if (form.manufacturerId) change.manufacturerId = form.manufacturerId;
-    if (form.productType) change.productType = form.productType;
-    if (form.productName) Object.assign(change, { productName: form.productName, nameFromPrevious: false });
+  /** A document read fills the pickers and the product name where nothing is chosen or typed yet: the first answer wins. */
+  function applyRead(read: DocumentRead) {
+    const change = formFill(latest.current, read.form, previous);
+    if (Object.keys(change).length === 0) return;
     update(change);
     setMessage(null);
     setErrors((current) => ({
@@ -268,9 +289,18 @@ function ChoicesForm({ storageKey, initial, role, clients, manufacturers, templa
       ...(change.productType ? { productType: undefined } : {}),
       ...(change.productName ? { productName: undefined } : {}),
     }));
-    setDocumentRead(read);
-    setDocumentFile(file);
+    setAiFilled((current) => ({ ...current, ...change }));
   }
+
+  // Documents are read until the form has its client, manufacturer, product type and product name.
+  const sources = useHeldSources({
+    needsValues: picks === null || (!nameOff && productName.trim() === ""),
+    paused: creating,
+    onRead: applyRead,
+  });
+  useEffect(() => {
+    handOver.current = sources.handOver;
+  }, [sources.handOver]);
 
   /** Cancel drops the draft; a click that opens the list in another tab keeps it. */
   function cancel(event: MouseEvent<HTMLAnchorElement>) {
@@ -283,9 +313,27 @@ function ChoicesForm({ storageKey, initial, role, clients, manufacturers, templa
     manufacturer: manufacturers.find((entry) => entry.id === manufacturerId)?.label ?? null,
   };
 
+  // What Steri-AI filled in above, where it still stands; and the companies it read that neither list has.
+  const filled: SummaryLine[] = [];
+  if (aiFilled.clientId && aiFilled.clientId === clientId && names.client) filled.push({ label: "Client", value: names.client });
+  if (aiFilled.manufacturerId && aiFilled.manufacturerId === manufacturerId && names.manufacturer) {
+    filled.push({ label: "Manufacturer", value: names.manufacturer });
+  }
+  if (aiFilled.productType && aiFilled.productType === productType) {
+    filled.push({ label: "Product Type", value: PRODUCT_TYPE_LABEL[aiFilled.productType] });
+  }
+  if (aiFilled.productName && aiFilled.productName === productName && !nameOff) filled.push({ label: "Product Name", value: productName });
+  const readForms = sources.documents.flatMap((document) => (document.state.step === "read" ? [document.state.read.form] : []));
+  const unlisted: SummaryLine[] = [];
+  const clientRead = client === undefined ? readForms.find((form) => !form.clientId && form.clientName)?.clientName : null;
+  if (clientRead) unlisted.push({ label: "Client", value: `“${clientRead}” is not in the client list` });
+  const manufacturerRead =
+    manufacturerId === "" ? readForms.find((form) => !form.manufacturerId && form.manufacturerName)?.manufacturerName : null;
+  if (manufacturerRead) unlisted.push({ label: "Manufacturer", value: `“${manufacturerRead}” is not in the manufacturer list` });
+
   return (
-    <form onSubmit={submit} noValidate aria-busy={pending || undefined} data-testid="new-inspection-form">
-      <fieldset disabled={pending} className="relative m-0 min-w-0 border-0 p-0">
+    <form onSubmit={submit} noValidate aria-busy={creating || undefined} data-testid="new-inspection-form">
+      <fieldset disabled={creating} className="relative m-0 min-w-0 border-0 p-0">
         <legend className="sr-only">New Inspection</legend>
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,26rem)] lg:items-start">
           <div className="flex min-w-0 flex-col gap-6">
@@ -293,7 +341,6 @@ function ChoicesForm({ storageKey, initial, role, clients, manufacturers, templa
               headingId={`${id}-order-heading`}
               icon={ClipboardListIcon}
               title="What You Are Inspecting"
-              description="The client and manufacturer as on the order, and the type of glove."
             >
               <div className="grid gap-5 md:grid-cols-2">
                 <Field data-invalid={errors.clientId ? true : undefined}>
@@ -459,17 +506,7 @@ function ChoicesForm({ storageKey, initial, role, clients, manufacturers, templa
           </div>
 
           <div className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-[calc(var(--shell-top)+1.5rem)]">
-            <DocumentPanel
-              id={id}
-              clients={clients}
-              manufacturers={manufacturers}
-              read={documentRead}
-              onRead={applyDocument}
-              onClear={() => {
-                setDocumentRead(null);
-                setDocumentFile(null);
-              }}
-            />
+            <SourceDocumentsPanel id={id} sources={sources} disabled={creating} filled={filled} unlisted={unlisted} />
 
             {picks !== null && (
               <TemplatePanel
@@ -491,7 +528,7 @@ function ChoicesForm({ storageKey, initial, role, clients, manufacturers, templa
                   changed("templateId");
                 }}
                 overrideError={errors.templateId}
-                disabled={pending}
+                disabled={creating}
               />
             )}
 
@@ -509,8 +546,8 @@ function ChoicesForm({ storageKey, initial, role, clients, manufacturers, templa
                 </Link>
               </Button>
               <Button type="submit" className="min-w-44">
-                {pending ? <Spinner aria-hidden /> : <PlusIcon aria-hidden />}
-                {pending ? "Creating…" : "Create Inspection"}
+                {creating ? <Spinner aria-hidden /> : <PlusIcon aria-hidden />}
+                {creating ? "Creating…" : "Create Inspection"}
               </Button>
             </div>
           </div>
@@ -521,7 +558,7 @@ function ChoicesForm({ storageKey, initial, role, clients, manufacturers, templa
       <input type="hidden" name="manufacturerId" value={manufacturerId} />
       <input type="hidden" name="productType" value={productType ?? ""} />
       <input type="hidden" name="previousId" value={fromPrevious?.inspectionId ?? ""} />
-      <input type="hidden" name="documentFill" value={documentRead ? JSON.stringify(documentRead.fill) : ""} />
+      <input type="hidden" name="documentFill" value={sources.fill ? JSON.stringify(sources.fill) : ""} />
       {role === "admin" && <input type="hidden" name="templateId" value={overrideId} />}
     </form>
   );

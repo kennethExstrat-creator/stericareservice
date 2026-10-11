@@ -2,7 +2,7 @@
 // photos and files as the browser would have loaded them: Auto-Sort, then
 // the four categories in order, each one compact row until it holds
 // something and then its photos and videos as rows, and Other, always last,
-// for what the AI could not place.
+// for what Steri-AI could not place.
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -130,7 +130,7 @@ describe("SourceMedia", () => {
     // Auto-Sort first, with its own picker.
     expect(html.indexOf('data-slot="auto-sort"')).toBeLessThan(html.indexOf('data-slot="media-category"'));
     expect(html).toMatch(/<h3[^>]*>Auto-Sort<\/h3>/);
-    expect(html).toContain(">Drop all photos and videos here. AI sorts each into its category.<");
+    expect(html).toContain(">Drop all photos and videos here. Steri-AI sorts each into its category.<");
     expect(html).toContain("Add Photos and Videos");
     // The iPad's pickers: photos and videos together, several at once; one a category, and Auto-Sort's.
     expect(html.match(/<input[^>]*type="file"[^>]*accept="image\/\*,video\/\*"[^>]*multiple=""/g)).toHaveLength(6);
@@ -186,7 +186,7 @@ describe("SourceMedia", () => {
     expect(other).toMatch(/<h3[^>]*>Other<\/h3>/);
     expect(other).toContain(">2 photos · 1 video<");
     expect(other).toContain("About Other</span>");
-    expect(other).not.toContain("Anything the AI could not place.");
+    expect(other).not.toContain("Anything Steri-AI could not place.");
     expect(other).toContain(">Photo 2<");
     // A step's photo says which step it came from.
     expect(other).toContain(">Photo 3<");

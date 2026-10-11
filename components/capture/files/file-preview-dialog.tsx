@@ -2,7 +2,8 @@
 
 // A file shown on the page instead of in a new tab (Source Documents): a
 // PDF in the browser's own viewer, a photo as an image, anything else with
-// a Download button. The URL is the file's signed link (24 hours).
+// a Download button. The URL is the file's signed link (24 hours), or a
+// blob: link to a file New Inspection holds before Create.
 import { DownloadIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -16,8 +17,14 @@ export function previewKind(name: string): PreviewKind {
   return "other";
 }
 
-/** The signed link, asking the browser to save the file under its name instead of showing it. */
+/**
+ * The signed link, asking the browser to save the file under its name
+ * instead of showing it. A file still in this browser (a blob: link, New
+ * Inspection's Source Documents) is saved as it is: such a link takes no
+ * query, and the anchor's download attribute names it.
+ */
 export function downloadUrl(url: string, name: string): string {
+  if (url.startsWith("blob:")) return url;
   return `${url}${url.includes("?") ? "&" : "?"}download=${encodeURIComponent(name)}`;
 }
 

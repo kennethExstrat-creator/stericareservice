@@ -4,6 +4,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// The form opens the new inspection itself; no App Router here.
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  useRouter: () => ({ push: vi.fn() }),
+}));
 vi.mock("@/lib/auth/session", () => ({ requireUser: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("./_lib/options", async (importOriginal) => ({
@@ -64,7 +69,7 @@ describe("/inspections/new", () => {
     expect(metadata).toEqual({ title: "New Inspection" });
   });
 
-  it("shows the form: the picks, start from previous and the template", async () => {
+  it("shows the form: the picks, start from previous, Source Documents and the template", async () => {
     const html = await render();
     expect(html).toContain("<h1");
     expect(html).toContain("New Inspection");
@@ -77,9 +82,16 @@ describe("/inspections/new", () => {
     expect(html).toContain(PRODUCT_TYPE_LABEL.surgical);
     expect(html).toContain('Product Name <span class="font-normal text-muted-foreground">(Optional)</span>');
     expect(html).toContain("Start From Previous");
-    // The template shows once the three picks are made; until then, the document upload.
-    expect(html).toContain("Fill From a Document");
+    // Source Documents as on the capture screen: its title and the Files / Media switch.
+    expect(html).toContain('data-testid="source-documents"');
+    expect(html).toContain(">Source Documents</h2>");
+    expect(html).toContain('data-testid="source-tabs"');
+    expect(html).toContain("Add Document");
+    // The template shows once the three picks are made.
     expect(html).not.toContain('data-testid="template-panel"');
+    // Cards have their title and no line under it (Kenneth, 12 October 2026).
+    expect(html).not.toContain("as on the order, and the type of glove");
+    expect(html).not.toContain("Copies the product's details");
     expect(html).toContain("Create Inspection");
     // Inspectors never post a template of their own choosing.
     expect(html).not.toContain('name="templateId"');

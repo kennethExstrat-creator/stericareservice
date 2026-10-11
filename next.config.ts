@@ -10,8 +10,9 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   experimental: {
     serverActions: {
-      // "Fill From a Document" posts the order document (up to 4 MB,
-      // DOCUMENT_MAX_BYTES) to a Server Action; the default limit is 1 MB.
+      // New Inspection's Source Documents send each file to be read (up to
+      // 4 MB, DOCUMENT_MAX_BYTES) to a Server Action, and Auto-Sort its
+      // previews; the default limit is 1 MB.
       bodySizeLimit: "5mb",
     },
   },
