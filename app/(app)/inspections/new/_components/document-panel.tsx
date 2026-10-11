@@ -234,6 +234,7 @@ function Summary({ read, clients, manufacturers }: { read: DocumentRead; clients
   if (header.poNo) later.push({ label: HEADER_LABELS.poNo, value: header.poNo, ok: true });
   if (header.productCode) later.push({ label: HEADER_LABELS.productCode, value: header.productCode, ok: true });
   if (header.factoryGloveCode) later.push({ label: HEADER_LABELS.factoryGloveCode, value: header.factoryGloveCode, ok: true });
+  if (header.inspectionDate) later.push({ label: HEADER_LABELS.inspectionDate, value: day(header.inspectionDate), ok: true });
   if (header.mfgDate) later.push({ label: HEADER_LABELS.mfgDate, value: day(header.mfgDate), ok: true });
   if (header.expiryDate) later.push({ label: HEADER_LABELS.expiryDate, value: day(header.expiryDate), ok: true });
   for (const [size, line] of Object.entries(fill.sizes)) {

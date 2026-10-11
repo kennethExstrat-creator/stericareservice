@@ -20,6 +20,7 @@ const reading: DocumentReading = {
   productCode: "CODE-001",
   factoryGloveCode: null,
   poNo: "PO-0001 (SO-0001)",
+  inspectionDate: "2026-10-09",
   mfgDate: "2026-02-01",
   expiryDate: "01/02/2029",
   sizes: [
@@ -52,6 +53,7 @@ describe("checkReading", () => {
       poNo: "PO-0001 (SO-0001)",
       productCode: "CODE-001",
       factoryGloveCode: null,
+      inspectionDate: "2026-10-09",
       mfgDate: "2026-02-01",
       expiryDate: null,
     });
@@ -67,7 +69,8 @@ describe("applyDocumentFill", () => {
     const { fill } = checkReading(reading, lists, "po.pdf");
     const data = {
       modules: {
-        header: { ...emptyHeader(), productCode: "KEPT", comment: "note" },
+        // The inspection date starts as the day it is created; the form's date replaces it.
+        header: { ...emptyHeader(), productCode: "KEPT", inspectionDate: "2026-10-11", comment: "note" },
         order_lots: { sizes: { L: { qtyCases: 7, lotNumbers: [], packingSite: null } } },
       },
       custom: {},
@@ -76,6 +79,7 @@ describe("applyDocumentFill", () => {
     expect(result.data.modules.header).toMatchObject({
       poNo: "PO-0001 (SO-0001)",
       productCode: "KEPT",
+      inspectionDate: "2026-10-09",
       mfgDate: "2026-02-01",
       comment: "note",
     });
@@ -85,7 +89,7 @@ describe("applyDocumentFill", () => {
         L: { qtyCases: 7, lotNumbers: [], packingSite: null },
       },
     });
-    expect(result.filled).toEqual(["header.poNo", "header.mfgDate", "order_lots.M"]);
+    expect(result.filled).toEqual(["header.poNo", "header.inspectionDate", "header.mfgDate", "order_lots.M"]);
   });
 });
 

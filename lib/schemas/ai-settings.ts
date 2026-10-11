@@ -74,7 +74,7 @@ export const DEFAULT_GLOSSARY: readonly GlossaryEntry[] = [
   { short: "FM", meaning: "Flow Mark (written as Flow Mark when the template has no such defect)", confirmed: true },
   { short: "FS", meaning: "Seen on a watertight row: probably SF (Side Finger) written the other way round", confirmed: false },
   { short: "Stain", meaning: "Written in full in the visual part (template: Oil Stain when major, Small Dirt / Stain when minor)", confirmed: false },
-  { short: "TG32", meaning: "Manufacturer shortform: probably Top Glove factory 32 (Terang Nusa Sdn. Bhd.)", confirmed: false },
+  { short: "TG32", meaning: "A manufacturer's factory code as written (TG and a factory number, 32): match it only to a manufacturer whose factory number is 32", confirmed: false },
   { short: "BK", meaning: "The inspector's initials (Ngan Boon Keat); the app records the inspector itself", confirmed: false },
   { short: "WTT", meaning: "Watertight test", confirmed: true },
   { short: "FAB", meaning: "Force at break", confirmed: true },

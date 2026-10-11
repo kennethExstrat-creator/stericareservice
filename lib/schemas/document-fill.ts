@@ -27,6 +27,7 @@ export const DocumentReadingSchema = z.object({
   productCode: text("The product, item or article code on its own."),
   factoryGloveCode: text("The factory's own glove code, when printed separately from the product code."),
   poNo: text("The purchase order number; with the sales order or client reference in brackets when both are printed: PO-0001 (SO-0001)."),
+  inspectionDate: text("The inspection (visit) date written on an inspection form, as YYYY-MM-DD; forms write it day/month/year. Null on an order document."),
   mfgDate: text("Manufacturing date as YYYY-MM-DD; the first of the month when only month and year are printed."),
   expiryDate: text("Expiry date as YYYY-MM-DD; the first of the month when only month and year are printed."),
   sizes: z
@@ -54,6 +55,8 @@ export const DocumentFillSchema = z.object({
     poNo: HeaderTextSchema,
     productCode: HeaderTextSchema,
     factoryGloveCode: HeaderTextSchema,
+    /** The visit's date from an inspection form: inspectors work on paper and create the inspection afterwards. */
+    inspectionDate: IsoDateSchema.nullable().default(null),
     mfgDate: IsoDateSchema.nullable(),
     expiryDate: IsoDateSchema.nullable(),
   }),

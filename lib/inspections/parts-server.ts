@@ -66,7 +66,7 @@ export async function createPart(
 ): Promise<CreatePartResult> {
   const own = await client
     .from("inspections")
-    .select("id, group_id, status, inspector_id, template_id, client_id, manufacturer_id")
+    .select("id, group_id, status, inspector_id, template_id, client_id, manufacturer_id, inspection_date")
     .eq("id", inspectionId)
     .maybeSingle();
   if (own.error || !own.data) return { ok: false, message: "That inspection is not available." };
@@ -85,7 +85,8 @@ export async function createPart(
   const resolved = ResolvedTemplateSchema.safeParse(template.data?.resolved);
   if (!resolved.success || !manufacturer.data) return { ok: false, message: "This inspection's template cannot be read." };
 
-  const inspectionDate = todayInMalaysia();
+  // The same visit: a new PO takes the inspection's date (on paper, the visit comes before the inspection is created).
+  const inspectionDate = row.inspection_date ?? todayInMalaysia();
   let { data } = newInspectionData({
     template: resolved.data,
     registry: MODULE_REGISTRY,

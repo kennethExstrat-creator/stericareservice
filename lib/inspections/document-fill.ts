@@ -64,6 +64,7 @@ export function checkReading(
         poNo: clean(reading.poNo, 2000),
         productCode: clean(reading.productCode, 2000),
         factoryGloveCode: clean(reading.factoryGloveCode, 2000),
+        inspectionDate: date(reading.inspectionDate),
         mfgDate: date(reading.mfgDate),
         expiryDate: date(reading.expiryDate),
       },
@@ -73,7 +74,14 @@ export function checkReading(
   };
 }
 
-const HEADER_FIELDS = ["poNo", "productCode", "factoryGloveCode", "mfgDate", "expiryDate"] as const satisfies readonly DocumentHeaderField[];
+const HEADER_FIELDS = ["poNo", "productCode", "factoryGloveCode", "inspectionDate", "mfgDate", "expiryDate"] as const satisfies readonly DocumentHeaderField[];
+
+/**
+ * Filled even though set: the inspection date starts as the day the
+ * inspection is created, but on paper the visit comes first, so the form's
+ * date is the real one. Nothing has been typed into it yet at creation.
+ */
+const REPLACES_PREFILL: ReadonlySet<DocumentHeaderField> = new Set(["inspectionDate"]);
 
 function isEmpty(value: unknown): boolean {
   return value === null || value === undefined || (typeof value === "string" && value.trim() === "");
@@ -98,7 +106,8 @@ export function applyDocumentFill(
     const values = { ...headerData.data };
     for (const field of HEADER_FIELDS) {
       const value = fill.header[field];
-      if (value === null || !isEmpty(values[field]) || !templateShowsField(template, "header", field)) continue;
+      if (value === null || (!isEmpty(values[field]) && !REPLACES_PREFILL.has(field)) || !templateShowsField(template, "header", field)) continue;
+      if (values[field] === value) continue;
       values[field] = value;
       filled.push(`header.${field}`);
     }
