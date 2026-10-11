@@ -174,9 +174,13 @@ describe("the search columns", { timeout: 30_000 }, () => {
     }
   });
 
-  /** The conditions listSearchFilter() adds to the ref, PO and lot search, as SQL (PostgREST: ov is &&, cs is @>). */
+  /**
+   * The conditions listSearchFilter() adds to the ref, PO and lot search of a
+   * first part, as SQL (PostgREST: ov is &&, cs is @>). Every part's:
+   * list-parts-migration.test.ts.
+   */
   function addedConditions(text: string): { sql: string; value: string }[] {
-    const added = listSearchFilter(text).slice(inspectionSearchFilter(text).length + 1);
+    const added = listSearchFilter(text, "search").slice(inspectionSearchFilter(text).length + 1);
     return added.split(",").map((condition) => {
       const parts = /^(lot_numbers_upper|carton_numbers)\.(ov|cs)\."(.*)"$/.exec(condition);
       if (!parts) throw new Error(`unexpected condition ${condition}`);
