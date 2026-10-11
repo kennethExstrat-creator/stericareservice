@@ -1,8 +1,11 @@
 // What the photo and file screens show (BUILD_SPEC 8.1): rows of
 // inspection_photos and inspection_files with their signed URLs, the tag
 // options of the inspection's template, and how photos group by module.
-// Pure, and free of server-only imports: the gallery renders it on the
-// server and the capture screen's photo slot on the iPad.
+// Source Documents' Media categories (lib/inspections/source-documents.ts)
+// are tags too, named by their titles wherever a tag is named. Pure, and
+// free of server-only imports: the gallery renders it on the server and the
+// capture screen's photo slot on the iPad.
+import { isMediaCategoryKey, MEDIA_CATEGORIES, mediaCategory } from "@/lib/inspections/source-documents";
 import type { InspectionFileKind } from "@/lib/photos/files";
 import { MODULE_TARGET_KEYS, parseTarget, type PhotoTarget, type TargetKey } from "@/lib/photos/target";
 import type { InspectionStatus } from "@/lib/schemas/common";
@@ -236,11 +239,27 @@ export const EMPTY_TAG_OPTIONS: PhotoTagOptions = { modules: [], sizes: [], defe
 /** Custom modules repeat per size at most (BUILD_SPEC 4.3, grid.repeatPer). */
 const CUSTOM_TARGET_KEYS: readonly TargetKey[] = ["size"];
 
-/** The target keys a photo in this module records. Untagged photos record none. */
+/**
+ * The target keys a photo in this module records. Untagged photos record
+ * none, and neither do Media's categories: the category says what the photo
+ * is, its caption the rest.
+ */
 export function targetKeysFor(moduleKey: string | null): readonly TargetKey[] {
-  if (moduleKey === null) return [];
+  if (moduleKey === null || isMediaCategoryKey(moduleKey)) return [];
   return isModuleKey(moduleKey) ? MODULE_TARGET_KEYS[moduleKey] : CUSTOM_TARGET_KEYS;
 }
+
+/**
+ * Source Documents' Media categories as tags, in their order: offered
+ * whatever the template, before its modules (photos are added on Media).
+ */
+export const MEDIA_CATEGORY_OPTIONS: readonly ModuleOption[] = MEDIA_CATEGORIES.map(({ key, title }) => ({
+  key,
+  title,
+  targetKeys: [],
+  handSplit: false,
+  included: true,
+}));
 
 /**
  * Tag options from the inspection's resolved template (templates.resolved)
@@ -388,14 +407,24 @@ export function humanizeKey(key: string): string {
 
 export const UNTAGGED_TITLE = "Not Tagged";
 
+/** The tag pickers' label (edit dialog, the gallery's Add Photos): a photo goes in a Media category or under a module. */
+export const TAG_FIELD_LABEL = "Category or Module";
+
+/** The tag pickers' two lists, by these headings. */
+export const TAG_GROUP_LABEL = { categories: "Media Categories", modules: "Modules" } as const;
+
+/** A tag in words: a Media category by its title, a module by the template's, else its key in words. */
 export function moduleTitle(moduleKey: string | null, options: PhotoTagOptions): string {
   if (moduleKey === null) return UNTAGGED_TITLE;
-  return options.modules.find((entry) => entry.key === moduleKey)?.title ?? humanizeKey(moduleKey);
+  return (
+    mediaCategory(moduleKey)?.title ?? options.modules.find((entry) => entry.key === moduleKey)?.title ?? humanizeKey(moduleKey)
+  );
 }
 
 export function moduleOption(moduleKey: string | null, options: PhotoTagOptions): ModuleOption | null {
   if (moduleKey === null) return null;
   return (
+    MEDIA_CATEGORY_OPTIONS.find((entry) => entry.key === moduleKey) ??
     options.modules.find((entry) => entry.key === moduleKey) ?? {
       key: moduleKey,
       title: humanizeKey(moduleKey),
@@ -540,7 +569,7 @@ export function targetForModule(moduleKey: string | null, target: PhotoTarget): 
  * ------------------------------------------------------------------ */
 
 export interface ModuleGroup<T> {
-  /** Module or custom module key; null for photos not tagged yet. */
+  /** Media category, module or custom module key; null for photos not tagged yet. */
   key: string | null;
   title: string;
   /** False for a module switched off, or one the template does not know. */
@@ -549,9 +578,10 @@ export interface ModuleGroup<T> {
 }
 
 /**
- * Items by module, in the template's screen order: included modules, then
- * switched-off ones, then keys the template does not know (by name), then
- * the photos not tagged yet. Only groups that hold something.
+ * Items by tag in screen order: Media's categories first (Source Documents
+ * is the first step), then the template's included modules, switched-off
+ * ones, keys the template does not know (by name), and last the photos not
+ * tagged yet. Only groups that hold something.
  */
 export function groupByModule<T extends { moduleKey: string | null }>(
   items: readonly T[],
@@ -561,7 +591,7 @@ export function groupByModule<T extends { moduleKey: string | null }>(
   for (const item of items) byKey.set(item.moduleKey, [...(byKey.get(item.moduleKey) ?? []), item]);
 
   const groups: ModuleGroup<T>[] = [];
-  for (const entry of options.modules) {
+  for (const entry of [...MEDIA_CATEGORY_OPTIONS, ...options.modules]) {
     const found = byKey.get(entry.key);
     if (!found) continue;
     groups.push({ key: entry.key, title: entry.title, included: entry.included, items: found });
@@ -577,6 +607,18 @@ export function groupByModule<T extends { moduleKey: string | null }>(
   return groups;
 }
 
+/** Where the photos are, for the gallery's summary: " in 2 categories and 3 modules"; empty while none is tagged. */
+export function groupsLine(groups: readonly Pick<ModuleGroup<unknown>, "key">[]): string {
+  const tagged = groups.filter((group) => group.key !== null);
+  const categories = tagged.filter((group) => isMediaCategoryKey(group.key)).length;
+  const modules = tagged.length - categories;
+  const parts = [
+    categories > 0 ? `${categories} ${categories === 1 ? "category" : "categories"}` : null,
+    modules > 0 ? `${modules} ${modules === 1 ? "module" : "modules"}` : null,
+  ].filter((part): part is string => part !== null);
+  return parts.length > 0 ? ` in ${parts.join(" and ")}` : "";
+}
+
 /* ------------------------------------------------------------------ *
  * Words
  * ------------------------------------------------------------------ */
@@ -587,6 +629,12 @@ export const FILE_KIND_LABEL: Readonly<Record<InspectionFileKind, string>> = {
   other: "Document",
 };
 
+/** What a file is, in a list's words: its kind, or Video for one of Media's videos (kept as kind other). */
+export function fileKindLabel(file: { kind: InspectionFileKind | null; name: string }): string {
+  if (file.kind === "other" && /\.(mp4|m4v|mov|webm)$/i.test(file.name.trim())) return "Video";
+  return file.kind ? FILE_KIND_LABEL[file.kind] : "File";
+}
+
 /** "1 photo", "3 photos". */
 export function countPhotos(count: number): string {
   return `${count} ${count === 1 ? "photo" : "photos"}`;
@@ -595,4 +643,9 @@ export function countPhotos(count: number): string {
 /** "1 file", "2 files". */
 export function countFiles(count: number): string {
   return `${count} ${count === 1 ? "file" : "files"}`;
+}
+
+/** "1 video", "2 videos". */
+export function countVideos(count: number): string {
+  return `${count} ${count === 1 ? "video" : "videos"}`;
 }

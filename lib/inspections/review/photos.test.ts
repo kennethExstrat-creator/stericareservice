@@ -84,6 +84,15 @@ describe("describePhoto", () => {
   it("ignores a target it cannot read rather than failing the page", () => {
     expect(describePhoto(photo({ target: "garbage" }), wording).tags).toEqual({ module: "Visual Inspection (AQL)" });
   });
+
+  it("names a photo in one of Media's categories by the category's title, as the gallery does", () => {
+    expect(describePhoto(photo({ module_key: "media_defects", target: null, caption: "Torn cuff" }), wording)).toMatchObject({
+      tags: { module: "Product Defects" },
+      alt: "Torn cuff (Product Defects)",
+    });
+    // Without the evaluation's titles too (results that cannot be worked out).
+    expect(photoWording(null).title("media_proof")).toBe("Inspection Proof");
+  });
 });
 
 describe("describePhoto: packaging levels and list entries, as the gallery words them", () => {

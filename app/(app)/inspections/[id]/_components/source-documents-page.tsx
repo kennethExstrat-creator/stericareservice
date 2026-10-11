@@ -1,23 +1,25 @@
 "use client";
 
 // Source Documents: the capture screen's first page, before every module
-// (docs/AI.md, "Source Documents"). Every file about the inspection goes
-// here: the handwritten inspection form, the PO, packing lists, photos of
-// labels and cartons. The AI reads each one and fills the empty fields of
+// (docs/AI.md, "Source Documents"). Files holds every paper about the
+// inspection: the handwritten inspection form, the PO, packing lists, photos
+// of labels and cartons. The AI reads each one and fills the empty fields of
 // the pages after it; a file it has read is AI Verified. Photos are made
 // 2048 px JPEG first, as every photo is (lib/photos), so the AI can read them.
+// Media holds the visit's photos and videos, in categories (source-media.tsx).
 import { BadgeCheckIcon, FileTextIcon, ImagesIcon, RotateCcwIcon, TriangleAlertIcon } from "lucide-react";
 import { useState, type Ref } from "react";
 import { FileSlot } from "@/components/capture/files";
-import { ModulePhotos } from "@/components/capture/photos";
 import type { SlotFile } from "@/components/capture/photos/photo-model";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { SOURCE_DOCUMENTS_KEY, SOURCE_DOCUMENTS_TITLE, SOURCE_MEDIA_KEY } from "@/lib/inspections/source-documents";
+import { SOURCE_DOCUMENTS_KEY, SOURCE_DOCUMENTS_TITLE } from "@/lib/inspections/source-documents";
 import { browserCodec } from "@/lib/photos/browser-codec";
+import { FILE_SIZE_LIMIT } from "@/lib/photos/paths";
 import { processPhoto } from "@/lib/photos/process";
 import { SectionFrame } from "./section-frame";
+import { SourceMedia } from "./source-media";
 import type { SourceDocuments } from "./use-source-documents";
 
 type SourceDocumentsPageProps = {
@@ -58,9 +60,16 @@ export function SourceDocumentsPage({ panelId, tabLabelledBy, titleRef, inspecti
       title={SOURCE_DOCUMENTS_TITLE}
       headingRef={titleRef(SOURCE_DOCUMENTS_KEY)}
       summary={
-        tab === "files"
-          ? "Inspection forms and PO papers for this PO. AI fills in the steps."
-          : "The inspection's photos and videos."
+        tab === "files" ? (
+          "Inspection forms and PO papers for this PO. AI fills in the steps."
+        ) : (
+          <>
+            Photos and videos from the visit, by category.
+            {!readOnly && ` Videos can be up to ${Math.round(FILE_SIZE_LIMIT / (1024 * 1024))} MB each.`}
+            {/* A desktop drops files; the iPad's buttons open its picker. */}
+            {!readOnly && <span className="hidden fine:inline"> Drop files on a category to add them.</span>}
+          </>
+        )
       }
       actions={
         // A pill switch: a soft capsule, the chosen side a white pill on it.
@@ -96,22 +105,7 @@ export function SourceDocumentsPage({ panelId, tabLabelledBy, titleRef, inspecti
           compactRows
         />
       ) : (
-        <>
-          {/* Every photo of the inspection; new ones come in untagged (tag them in the gallery). */}
-          <ModulePhotos inspectionId={inspectionId} moduleKey={null} listAll readOnly={readOnly} title="Photos" />
-          <FileSlot
-            inspectionId={inspectionId}
-            moduleKey={SOURCE_MEDIA_KEY}
-            kind="other"
-            title="Videos"
-            readOnly={readOnly}
-            addLabel="Add Video"
-            accept="video/*"
-            hint="Drop videos here (up to 50 MB each), or"
-            noun={["video", "videos"]}
-            compactRows
-          />
-        </>
+        <SourceMedia inspectionId={inspectionId} readOnly={readOnly} />
       )}
     </SectionFrame>
   );

@@ -25,11 +25,10 @@ const FILE_NOT_FOUND = "This file could not be found.";
 export const PhotoIdSchema = z.string({ error: PHOTO_NOT_FOUND }).regex(UUID_PATTERN, { error: PHOTO_NOT_FOUND });
 export const FileIdSchema = z.string({ error: FILE_NOT_FOUND }).regex(UUID_PATTERN, { error: FILE_NOT_FOUND });
 
-export const ModuleTagSchema = z
-  .string()
-  .trim()
-  .max(64, { error: "Choose a module from the list." })
-  .regex(MODULE_TAG_PATTERN, { error: "Choose a module from the list." });
+/** Under the tag picker, which offers Media's categories and the modules. */
+const CHOOSE_TAG = "Choose a category or module from the list.";
+
+export const ModuleTagSchema = z.string().trim().max(64, { error: CHOOSE_TAG }).regex(MODULE_TAG_PATTERN, { error: CHOOSE_TAG });
 
 export const CaptionSchema = z.preprocess(
   blankToNull,

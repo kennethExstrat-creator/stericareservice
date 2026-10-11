@@ -24,7 +24,23 @@ vi.mock("@/components/ui/dialog", () => {
   };
 });
 
-import { captionDraft, captionDraftKey, PhotoEditDialog } from "./photo-edit-dialog";
+// The lists' choices drawn in place too (a closed Select draws none), each with its value.
+vi.mock("@/components/ui/select", () => {
+  const Part = ({ children }: { children?: ReactNode }) => <div>{children}</div>;
+  return {
+    Select: Part,
+    SelectContent: Part,
+    SelectGroup: Part,
+    SelectItem: ({ value, children }: { value: string; children?: ReactNode }) => <div data-choice={value}>{children}</div>,
+    SelectLabel: ({ children }: { children?: ReactNode }) => <div data-choice-group="">{children}</div>,
+    SelectSeparator: () => <hr />,
+    SelectTrigger: Part,
+    SelectValue: () => null,
+  };
+});
+
+import { moduleTitle } from "@/lib/inspections/photos/view";
+import { captionDraft, captionDraftKey, moduleChoices, PhotoEditDialog } from "./photo-edit-dialog";
 import type { SlotPhoto } from "./photo-model";
 
 const USER = "00000000-0000-4000-8000-000000000101";
@@ -131,5 +147,56 @@ describe("PhotoEditDialog", () => {
     // A template's caption, not the app's own label: it stays as printed (the loading form reads the same).
     const html = draw({ moduleKey: "loading", target: "item:sealed" });
     expect(html).toContain(`>${defaultLabels("loading").loadingStage}</label>`);
+  });
+
+  /** The tag picker's choices, in order: their values and their words. */
+  const tagChoices = (html: string) => {
+    const picker = html.slice(html.indexOf(">Category or Module</label>"), html.indexOf(">Size</label>"));
+    return [...picker.matchAll(/data-choice(?:-group)?="([^"]*)">([^<]*)</g)].map(([, value, words]) => [value, words]);
+  };
+
+  it("offers Media's four categories by title, then the modules, as the Category or Module", () => {
+    const html = draw({});
+    expect(tagChoices(html)).toEqual([
+      ["__none__", "Not Tagged"],
+      ["", "Media Categories"],
+      ["media_warehouse", "Warehouse"],
+      ["media_samples", "Product and Package Samples"],
+      ["media_proof", "Inspection Proof"],
+      ["media_defects", "Product Defects"],
+      ["", "Modules"],
+      ["visual", "Visual Inspection"],
+      ["labeling", "Labelling"],
+      ["loading", "Loading"],
+    ]);
+  });
+
+  it("asks nothing but the caption besides the category of a photo in one", () => {
+    const html = draw({ moduleKey: "media_defects", target: null });
+    expect(html).toContain(">Category or Module</label>");
+    expect(html).not.toMatch(/>(Size|Hand|Defect|Level)<\/(label|legend)>/);
+    expect(html).toContain(">Caption</label>");
+    // Read out with the category's title, never its key.
+    const named = renderToStaticMarkup(
+      <PhotoEditDialog
+        inspectionId={INSPECTION}
+        photo={{ ...photo, moduleKey: "media_defects", target: null }}
+        options={options}
+        alt={moduleTitle("media_defects", options)}
+        onClose={() => {}}
+      />,
+    );
+    expect(named).toContain('Edit Photo<span class="sr-only">: Product Defects</span>');
+  });
+
+  it("keeps a photo's own module choosable, never a category among the modules", () => {
+    expect(moduleChoices("dye_leak", options).map((entry) => [entry.key, entry.title, entry.included])).toEqual([
+      ["visual", "Visual Inspection", true],
+      ["labeling", "Labelling", true],
+      ["loading", "Loading", true],
+      ["dye_leak", "Dye Leak", false],
+    ]);
+    expect(moduleChoices("media_proof", options).map((entry) => entry.key)).toEqual(["visual", "labeling", "loading"]);
+    expect(moduleChoices(null, options)).toHaveLength(3);
   });
 });

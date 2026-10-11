@@ -7,6 +7,7 @@
 import type { PhotoTags } from "@/components/qc/photo-tags";
 import { formatHand, formatSize, type SizeOption } from "@/lib/format";
 import { EMPTY_TAG_OPTIONS, itemName, levelName, tagOptionsFromTemplate, UNTAGGED_TITLE } from "@/lib/inspections/photos/view";
+import { mediaCategory } from "@/lib/inspections/source-documents";
 import { parseTarget, type PhotoTarget } from "@/lib/photos/target";
 import { isModuleKey } from "@/lib/schemas/module-result";
 import type { ResolvedTemplate } from "@/lib/schemas/template";
@@ -85,7 +86,8 @@ export function photoWording(source: WordingSource | null): SectionWording {
   return {
     title: (key) => {
       if (key === null || key.trim() === "") return UNTAGGED;
-      return titles.get(key) ?? (isModuleKey(key) ? MODULE_REGISTRY[key].title : key);
+      // A Media category by its title, as the gallery names it (moduleTitle), never its key.
+      return mediaCategory(key)?.title ?? titles.get(key) ?? (isModuleKey(key) ? MODULE_REGISTRY[key].title : key);
     },
     defectLabel: (key, code) => {
       const moduleLabels = key ? labels.get(key) : undefined;

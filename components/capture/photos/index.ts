@@ -11,7 +11,7 @@
 //   if (!(await photoUploadsSettled())) warn; stopPhotoQueue();   // on sign-out
 //   await refreshInspectionMedia(id);         // after this screen submitted, reopened or approved it
 export { PhotoSlot, type PhotoSlotProps } from "./photo-slot";
-export { ModulePhotos, type ModulePhotosProps } from "./module-photos";
+export { MediaLoadFailure, ModulePhotos, type ModulePhotosProps } from "./module-photos";
 export { PhotoQueueProvider, InspectionMediaProvider } from "./provider";
 export { PhotoUploadBadge } from "./upload-badge";
 export { UploadNotices } from "./upload-notices";

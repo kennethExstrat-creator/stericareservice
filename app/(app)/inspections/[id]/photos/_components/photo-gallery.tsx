@@ -1,9 +1,9 @@
 "use client";
 
-// The gallery's body: notices, "Add Photos", a section per module that has
-// photos (template order, untagged last), and the lab reports and
-// certificates. One viewer spans every section, so the arrow keys walk
-// through all the inspection's photos.
+// The gallery's body: notices, "Add Photos", a section per Media category
+// and per module that has photos (categories first, then template order,
+// untagged last), and the lab reports and certificates. One viewer spans
+// every section, so the arrow keys walk through all the inspection's photos.
 import { useCallback, useMemo, useRef } from "react";
 import { CameraIcon, ImagesIcon, InfoIcon, TriangleAlertIcon } from "lucide-react";
 import { FileList, FileSlot } from "@/components/capture/files";
@@ -26,8 +26,11 @@ import {
   countPhotos,
   EMPTY_TAG_OPTIONS,
   groupByModule,
+  groupsLine,
   readOnlyReason,
+  type ModuleGroup,
 } from "@/lib/inspections/photos/view";
+import { mediaCategory } from "@/lib/inspections/source-documents";
 import type { InspectionFileKind } from "@/lib/photos/files";
 import { AddPhotosCard } from "./add-photos-card";
 
@@ -39,6 +42,16 @@ const FILE_MODULES: Readonly<Record<string, InspectionFileKind>> = {
 };
 
 const SECTION = "rounded-xl bg-card p-5 shadow-sm ring-1 ring-border md:p-6";
+
+/** The line under a section's heading: what goes in a category, how to tag an untagged photo, why a module is set apart. */
+function groupDescription(group: Pick<ModuleGroup<unknown>, "key" | "included">): string | undefined {
+  if (group.key === null) return "Edit a photo to tag it with the category or module it belongs to.";
+  const category = mediaCategory(group.key);
+  if (category) return category.hint;
+  return group.included
+    ? undefined
+    : "This module is not part of the inspection now. Its photos stay until they are retagged or deleted.";
+}
 
 export function PhotoGallery({ inspectionId }: { inspectionId: string }) {
   const state = useInspectionMedia(inspectionId);
@@ -67,7 +80,6 @@ export function PhotoGallery({ inspectionId }: { inspectionId: string }) {
   const reason = readOnlyReason(media.inspection.status, access);
   const fileModules = options.modules.filter((entry) => entry.included && FILE_MODULES[entry.key]);
   const otherFiles = files.filter((file) => !fileModules.some((entry) => entry.key === file.moduleKey));
-  const moduleCount = groups.filter((group) => group.key !== null).length;
 
   return (
     <PhotoViewerContext.Provider value={viewer}>
@@ -82,8 +94,7 @@ export function PhotoGallery({ inspectionId }: { inspectionId: string }) {
             aria-live="polite"
           >
             {countPhotos(photos.length)}
-            {moduleCount > 0 ? ` in ${moduleCount} ${moduleCount === 1 ? "module" : "modules"}` : ""} ·{" "}
-            {countFiles(files.length)}
+            {groupsLine(groups)} · {countFiles(files.length)}
           </p>
           <PhotoUploadBadge inspectionId={inspectionId} />
         </div>
@@ -114,7 +125,7 @@ export function PhotoGallery({ inspectionId }: { inspectionId: string }) {
                 <h2 className="text-lg font-bold text-foreground">No Photos Yet</h2>
               </EmptyTitle>
               <EmptyDescription className="text-base text-muted-foreground fine:text-sm">
-                Photos taken in a module on the capture screen show here, grouped by module.
+                Photos added under Media on Source Documents show here, by category.
                 {access.canEdit ? " You can also add them above." : ""}
               </EmptyDescription>
             </EmptyHeader>
@@ -130,13 +141,7 @@ export function PhotoGallery({ inspectionId }: { inspectionId: string }) {
                 variant="gallery"
                 showNotices={false}
                 readOnly={!access.canEdit}
-                description={
-                  group.key === null
-                    ? "Edit a photo to tag it with the module it belongs to."
-                    : group.included
-                      ? undefined
-                      : "This module is not part of the inspection now. Its photos stay until they are retagged or deleted."
-                }
+                description={groupDescription(group)}
               />
             </div>
           ))
