@@ -237,6 +237,19 @@ describe("pages", () => {
     ]);
   });
 
+  it("never gives Glove Type a page of its own: on Glove Information's page, else on the header's (11 October 2026)", () => {
+    const gloveType: CustomModule = { ...SITE_NOTES, key: "glove_type", title: "Glove Type", after: "header" };
+    const withInfo = makeTestTemplate(TEST_REGISTRY, ["glove_info", "order_lots"], { customModules: [gloveType] });
+    expect(pagesFor(filledData(), {}, withInfo).map((page) => pageSectionKeys(page))).toEqual([
+      ["header"],
+      ["glove_info", "glove_type"],
+      ["order_lots"],
+      ["conclusion"],
+    ]);
+    const withoutInfo = makeTestTemplate(TEST_REGISTRY, ["order_lots"], { customModules: [gloveType] });
+    expect(pagesFor(filledData(), {}, withoutInfo).map((page) => pageSectionKeys(page))[0]).toEqual(["header", "glove_type"]);
+  });
+
   it("takes the worst result of the page's modules, On Hold between a warning and not done, and is done once every module is", () => {
     const page = (data = filledData()) => findPage(pagesFor(data), "order_lots");
     // The order filled in, packing not started: not done yet, in progress.

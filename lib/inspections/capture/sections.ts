@@ -36,6 +36,16 @@ import { readModuleEntry, type InspectionData } from "@/modules/_framework";
  */
 export const SHOWN_WITH: Readonly<Partial<Record<ModuleKey, ModuleKey>>> = { packing_config: "order_lots" };
 
+/**
+ * Custom modules shown on a module's page, never a page of their own, on
+ * the first of these the template includes (Kenneth, 11 October 2026: Glove
+ * Type is not a page of its own). Glove Type joins Glove Information, as it
+ * does in templates since STD_EG version 3 (a field of each variant); on a
+ * template without it (STD_SG), the header's page: the onsite forms write it
+ * under Purchase Order / Shipment Information.
+ */
+export const CUSTOM_SHOWN_WITH: Readonly<Record<string, readonly ModuleKey[]>> = { glove_type: ["glove_info", "header"] };
+
 /** ProgressTracker's step states (components/qc/progress-tracker.tsx). */
 export type SectionProgress = "done" | "in_progress" | "not_started";
 
@@ -70,6 +80,8 @@ export type CaptureSection =
       summary: string;
       progress: SectionProgress;
       custom: CustomModule;
+      /** Shown on this module's page, right below it (CUSTOM_SHOWN_WITH). */
+      shownWith?: ModuleKey;
     } & Counts)
   | {
       kind: "excluded";
@@ -91,12 +103,17 @@ export function captureSections(
   data: InspectionData,
 ): CaptureSection[] {
   const counts = countIssues(report.issues);
+  const included = new Set(template.modules.filter((entry) => entry.include).map((entry) => entry.key));
+  // A custom module on a module's page (CUSTOM_SHOWN_WITH) follows that module; the rest follow their `after`.
+  const hostOf = new Map<string, ModuleKey>();
   const customAfter = new Map<string, CustomModule[]>();
   for (const custom of template.customModules) {
-    customAfter.set(custom.after, [...(customAfter.get(custom.after) ?? []), custom]);
+    const host = CUSTOM_SHOWN_WITH[custom.key]?.find((key) => included.has(key));
+    if (host) hostOf.set(custom.key, host);
+    const after = host ?? custom.after;
+    customAfter.set(after, [...(customAfter.get(after) ?? []), custom]);
   }
   // Each host's guests, in template order, while both are included.
-  const included = new Set(template.modules.filter((entry) => entry.include).map((entry) => entry.key));
   const guestsOf = new Map<ModuleKey, ResolvedModule[]>();
   for (const entry of template.modules) {
     const host = SHOWN_WITH[entry.key];
@@ -106,7 +123,7 @@ export function captureSections(
 
   const sections: CaptureSection[] = [];
   const addCustomAfter = (key: string) => {
-    for (const custom of customAfter.get(key) ?? []) sections.push(customSection(custom, report, data, counts));
+    for (const custom of customAfter.get(key) ?? []) sections.push(customSection(custom, report, data, counts, hostOf.get(custom.key)));
     customAfter.delete(key);
   };
   for (const entry of template.modules) {
@@ -189,7 +206,7 @@ export function capturePages(sections: readonly CaptureSection[]): CapturePage[]
       groups.push({ excluded: section });
       continue;
     }
-    const host = section.kind === "module" && section.shownWith !== undefined ? byHost.get(section.shownWith) : undefined;
+    const host = section.shownWith !== undefined ? byHost.get(section.shownWith) : undefined;
     if (host) {
       host.push(section);
       continue;
@@ -343,6 +360,7 @@ function customSection(
   report: Pick<ValidationReport, "custom">,
   data: InspectionData,
   counts: Map<string, Counts>,
+  shownWith?: ModuleKey,
 ): CaptureSection {
   const own = counts.get(custom.key) ?? NO_ISSUES;
   const hasData = readModuleEntry(data, "custom", custom.key).hasData || hasMappedValues(custom, report);
@@ -355,6 +373,7 @@ function customSection(
     summary: "",
     progress: progressOf(status, hasData),
     custom,
+    ...(shownWith ? { shownWith } : {}),
     ...own,
   };
 }
