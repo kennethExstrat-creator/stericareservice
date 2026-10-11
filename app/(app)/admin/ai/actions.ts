@@ -1,13 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { loadAiEnv, removeSavedApiKey, saveAiSettings, testClaudeConnection } from "@/lib/ai/settings";
+import { loadAiEnv, removeSavedApiKey, saveAiSettings, saveGlossary, testClaudeConnection } from "@/lib/ai/settings";
 import { authorizeAction } from "@/lib/auth/session";
 import {
   AiSettingsInputSchema,
   AnthropicApiKeySchema,
   ClaudeModelIdSchema,
+  GlossarySchema,
   type AiSettingsField,
+  type GlossaryEntry,
 } from "@/lib/schemas/ai-settings";
 
 /*
@@ -81,4 +83,23 @@ export async function testAiConnectionAction(formData: FormData): Promise<Connec
   }
   if (!apiKey) return { ok: false, message: "Paste an API key first." };
   return testClaudeConnection(apiKey, models);
+}
+
+/** Saves the shortforms list (Admin > AI Settings, Shortforms) as it is on screen. */
+export async function saveGlossaryAction(entries: GlossaryEntry[]): Promise<ConnectionTest> {
+  const auth = await authorizeAction("admin");
+  if (!auth.ok) return { ok: false, message: auth.error };
+  const parsed = GlossarySchema.safeParse(entries);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    const row = typeof issue?.path[0] === "number" ? ` (row ${issue.path[0] + 1})` : "";
+    return { ok: false, message: `${issue?.message ?? "Check the shortforms."}${row}` };
+  }
+  const shorts = parsed.data.map((entry) => entry.short.toLowerCase());
+  const twice = shorts.find((short, index) => shorts.indexOf(short) !== index);
+  if (twice) return { ok: false, message: `"${twice.toUpperCase()}" is in the list twice.` };
+  const result = await saveGlossary(parsed.data, auth.user.id);
+  if (!result.ok) return { ok: false, message: result.message };
+  revalidatePath("/admin/ai");
+  return { ok: true, message: "Shortforms saved. The AI uses them from the next document it reads." };
 }

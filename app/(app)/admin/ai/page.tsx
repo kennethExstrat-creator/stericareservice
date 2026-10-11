@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/qc";
 import { readAiSettingsView } from "@/lib/ai/settings";
 import { requireAdmin } from "@/lib/auth/session";
 import { AiSettingsForm } from "./_components/ai-settings-form";
+import { GlossaryForm } from "./_components/glossary-form";
 
 /** Checks the role too, so the title never names this page on an inspector's 404 (see /admin). */
 export async function generateMetadata(): Promise<Metadata> {
@@ -28,6 +29,9 @@ export default async function AiSettingsPage() {
         description="The API key and the Claude models the app uses to read order documents and to give second opinions."
       />
       <AiSettingsForm view={view} />
+      <div className="max-w-3xl">
+        <GlossaryForm initial={view.glossary} disabled={view.storage !== "ready"} />
+      </div>
     </div>
   );
 }

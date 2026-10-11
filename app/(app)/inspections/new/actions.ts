@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { readOrderDocument } from "@/lib/ai/document-reader";
-import { loadAiEnv } from "@/lib/ai/settings";
+import { loadAiEnv, loadGlossary } from "@/lib/ai/settings";
 import { authorizeAction } from "@/lib/auth/session";
 import { evaluateCapture } from "@/lib/inspections/capture/evaluate";
 import { mirroredColumns } from "@/lib/inspections/capture/mirror";
@@ -332,7 +332,7 @@ export async function readDocument(formData: FormData): Promise<DocumentReadResu
 
     const outcome = await readOrderDocument(
       { mediaType, base64: bytes.toString("base64"), name: file.name },
-      lists,
+      { ...lists, glossary: await loadGlossary() },
       await loadAiEnv(),
     );
     if (!outcome.ok) return { status: "error", message: outcome.message };

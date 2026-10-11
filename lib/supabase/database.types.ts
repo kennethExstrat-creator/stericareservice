@@ -128,6 +128,7 @@ export type Database = {
           anthropic_api_key_hint: string | null
           created_at: string
           document_model: string | null
+          glossary: Json | null
           id: boolean
           review_model: string | null
           updated_at: string
@@ -138,6 +139,7 @@ export type Database = {
           anthropic_api_key_hint?: string | null
           created_at?: string
           document_model?: string | null
+          glossary?: Json | null
           id?: boolean
           review_model?: string | null
           updated_at?: string
@@ -148,6 +150,7 @@ export type Database = {
           anthropic_api_key_hint?: string | null
           created_at?: string
           document_model?: string | null
+          glossary?: Json | null
           id?: boolean
           review_model?: string | null
           updated_at?: string
@@ -401,6 +404,7 @@ export type Database = {
           client_id: string | null
           created_at: string
           data: NonNullable<Json>
+          group_id: string | null
           id: string
           inspection_date: string
           inspector_id: string
@@ -427,6 +431,7 @@ export type Database = {
           client_id?: string | null
           created_at?: string
           data?: NonNullable<Json>
+          group_id?: string | null
           id?: string
           inspection_date?: string
           inspector_id?: string
@@ -453,6 +458,7 @@ export type Database = {
           client_id?: string | null
           created_at?: string
           data?: NonNullable<Json>
+          group_id?: string | null
           id?: string
           inspection_date?: string
           inspector_id?: string
@@ -474,6 +480,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "inspections_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "inspections"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "inspections_approved_by_fkey"
             columns: ["approved_by"]

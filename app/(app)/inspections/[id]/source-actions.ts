@@ -3,7 +3,7 @@
 import { unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 import { readSourceDocument, type SourceModule } from "@/lib/ai/source-reader";
-import { loadAiEnv } from "@/lib/ai/settings";
+import { loadAiEnv, loadGlossary } from "@/lib/ai/settings";
 import { authorizeAction } from "@/lib/auth/session";
 import {
   NOT_FILLED_BY_AI,
@@ -123,7 +123,10 @@ export async function readSourceFile(inspectionId: string, fileId: string): Prom
     const data = InspectionDataSchema.safeParse(row.data);
     if (!template.success || !data.success) return { status: "error", message: "This inspection's template or data cannot be read." };
 
-    const download = await supabase.storage.from("inspection-files").download(file.data.storage_path);
+    const [download, library] = await Promise.all([
+      supabase.storage.from("inspection-files").download(file.data.storage_path),
+      supabase.from("defect_codes").select("code, name").eq("active", true).order("name"),
+    ]);
     if (download.error || !download.data) {
       console.error("[source documents] downloading the file failed", download.error?.message);
       return { status: "error", message: READ_FAILED };
@@ -160,6 +163,8 @@ export async function readSourceFile(inspectionId: string, fileId: string): Prom
         sizes: template.data.sizes,
         unit: template.data.unit,
         current,
+        defectLibrary: library.data ?? [],
+        glossary: await loadGlossary(),
       },
       await loadAiEnv(),
     );
@@ -171,9 +176,11 @@ export async function readSourceFile(inspectionId: string, fileId: string): Prom
 
     const allowed = new Set(modules.map((module) => module.key));
     const proposals = Object.fromEntries(Object.entries(outcome.proposals).filter(([key]) => allowed.has(key as ModuleKey)));
-    await record("read", outcome.summary || "Read.");
+    // Kept with the file: what it is, then how each shortform was read and recorded, for the admin to check.
+    const readAs = outcome.mappings.length > 0 ? ` Read as: ${outcome.mappings.join("; ")}.` : "";
+    await record("read", `${outcome.summary || "Read."}${readAs}`);
     await logReading(inspectionId, { file: file.data.name, modules: Object.keys(proposals), by: user.id, model: outcome.model });
-    return { status: "read", summary: outcome.summary, proposals };
+    return { status: "read", summary: `${outcome.summary}${readAs}`.trim(), proposals };
   } catch (error) {
     unstable_rethrow(error);
     console.error("[source documents] readSourceFile failed", error);

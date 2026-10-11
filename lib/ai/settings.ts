@@ -1,7 +1,15 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { personLabel } from "@/lib/inspections/format";
-import { DEFAULT_DOCUMENT_MODEL, type AiKeyState, type AiSettingsInput, type AiSettingsView } from "@/lib/schemas/ai-settings";
+import {
+  DEFAULT_DOCUMENT_MODEL,
+  DEFAULT_GLOSSARY,
+  GlossarySchema,
+  type AiKeyState,
+  type AiSettingsInput,
+  type AiSettingsView,
+  type GlossaryEntry,
+} from "@/lib/schemas/ai-settings";
 import { createAdminClient, isAdminClientConfigured } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 import { DEFAULT_REVIEW_MODEL, type AiEnv } from "./config";
@@ -59,6 +67,18 @@ export async function loadAiEnv(env: AiEnv = process.env): Promise<AiEnv> {
   return merged;
 }
 
+/** The saved shortforms, else the starting list. */
+function glossaryOf(row: SettingsRow | null): GlossaryEntry[] {
+  const saved = GlossarySchema.safeParse(row?.glossary);
+  return row?.glossary != null && saved.success ? saved.data : [...DEFAULT_GLOSSARY];
+}
+
+/** The shortforms the AI is told about with every document. Never throws: the starting list stands in. */
+export async function loadGlossary(): Promise<GlossaryEntry[]> {
+  const read = await readRow();
+  return glossaryOf(read.ok ? read.row : null);
+}
+
 /** What Admin > AI Settings shows: where the key comes from, never the key. */
 export async function readAiSettingsView(env: AiEnv = process.env): Promise<AiSettingsView> {
   const canStore = isAdminClientConfigured() && boxSecret(env) !== null;
@@ -86,6 +106,7 @@ export async function readAiSettingsView(env: AiEnv = process.env): Promise<AiSe
     reviewModel: row?.review_model || env.AI_REVIEW_MODEL?.trim() || DEFAULT_REVIEW_MODEL,
     updatedAt: row?.updated_at ?? null,
     updatedBy,
+    glossary: glossaryOf(row),
     storage: !canStore ? "no_secret_key" : read.ok ? "ready" : "unavailable",
   };
 }
@@ -119,6 +140,12 @@ export async function saveAiSettings(input: AiSettingsInput, userId: string): Pr
     values.anthropic_api_key_hint = input.apiKey.slice(-4);
   }
   return writeRow(values);
+}
+
+/** Saves the shortforms list as it is on screen. */
+export async function saveGlossary(glossary: GlossaryEntry[], userId: string): Promise<SaveResult> {
+  if (!isAdminClientConfigured()) return { ok: false, message: NO_STORAGE };
+  return writeRow({ id: true, glossary, updated_by: userId });
 }
 
 /** Forgets the saved key: ANTHROPIC_API_KEY applies again, if set. */
