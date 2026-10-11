@@ -55,7 +55,14 @@ describe("primaryRowAction", () => {
 });
 
 describe("rowActions", () => {
-  const row = (status: InspectionStatus, inspectorId = OWNER) => ({ id: ID, refNo: "INS-2026-0001", status, inspectorId });
+  const part = (id: string, status: InspectionStatus) => ({ id, refNo: "", poNo: null, productName: null, status, result: null });
+  const row = (status: InspectionStatus, inspectorId = OWNER) => ({
+    id: ID,
+    refNo: "INS-2026-0001",
+    status,
+    inspectorId,
+    parts: [part(ID, status)],
+  });
 
   it("names the main action with the words on the button, then the ref", () => {
     expect(rowActions(row("draft"), INSPECTOR).primary.name).toBe("Continue INS-2026-0001");
@@ -70,5 +77,24 @@ describe("rowActions", () => {
     expect(deletable(INSPECTOR, OTHER)).toEqual([]);
     expect(deletable(ADMIN_VIEWER, OTHER)).toEqual(["draft"]);
     expect(rowActions(row("draft"), INSPECTOR).deleteName).toBe("Delete INS-2026-0001");
+  });
+
+  it("offers no Delete on an inspection of several POs, whose row deletes only its first part", () => {
+    const parts = [part(ID, "draft"), part("9b0b4c55-1b6e-4c50-9a39-0f6f1e1f0002", "draft")];
+    for (const viewer of [INSPECTOR, ADMIN_VIEWER]) {
+      expect(rowActions({ ...row("draft"), parts }, viewer).deleteName).toBeNull();
+    }
+  });
+
+  it("acts on the status the parts add up to, and opens the first part", () => {
+    // A reopened inspection with a PO added since: Draft, Mixed; still the inspector's to continue.
+    const parts = [part(ID, "reopened"), part("9b0b4c55-1b6e-4c50-9a39-0f6f1e1f0002", "draft")];
+    expect(rowActions({ ...row("draft"), parts }, INSPECTOR).primary).toMatchObject({ label: "Continue", href: CAPTURE });
+    // Submitted together: the admin reviews from the first part.
+    const submitted = [part(ID, "submitted"), part("9b0b4c55-1b6e-4c50-9a39-0f6f1e1f0002", "submitted")];
+    expect(rowActions({ ...row("submitted"), parts: submitted }, ADMIN_VIEWER).primary).toMatchObject({
+      label: "Review",
+      href: REVIEW,
+    });
   });
 });

@@ -1,12 +1,13 @@
 // Server-rendered markup of the list table: which columns each role gets, one
 // value per cell on one line, the sideways scroller with the ref and the
-// actions pinned, states spelled out in words, and each row's actions
-// (Continue, Review or View, and Delete on a draft).
+// actions pinned, states spelled out in words, each row's actions (Continue,
+// Review or View, and Delete on a draft), and an inspection of several POs
+// as one row.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { InspectionListRow } from "@/lib/inspections/query";
+import type { InspectionListPart, InspectionListRow } from "@/lib/inspections/query";
 import { InspectionStatusBadge } from "./inspection-status-badge";
-import { InspectionTable } from "./inspection-table";
+import { InspectionTable, PoPartsList } from "./inspection-table";
 import type { ListViewer } from "./row-actions";
 
 const INSPECTOR = "7c2d4e1a-0b3f-4a5c-9d8e-1f2a3b4c5d6e";
@@ -16,8 +17,17 @@ const AS_ADMIN: ListViewer = { id: ADMIN, role: "admin" };
 const LEAD = "5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b";
 const AS_LEAD: ListViewer = { id: LEAD, role: "inspector", isLead: true };
 
-const ROW: InspectionListRow = {
+const FIRST_PART: InspectionListPart = {
   id: "9b0b4c55-1b6e-4c50-9a39-0f6f1e1f0001",
+  refNo: "INS-2026-0001",
+  poNo: "PO-0001",
+  productName: "Nitrile examination gloves",
+  status: "submitted",
+  result: "fail",
+};
+
+const ROW: InspectionListRow = {
+  id: FIRST_PART.id,
   refNo: "INS-2026-0001",
   inspectionDate: "2026-10-06",
   client: "Client A",
@@ -25,9 +35,41 @@ const ROW: InspectionListRow = {
   product: "Nitrile examination gloves",
   po: "PO-0001",
   status: "submitted",
+  statusMixed: false,
   result: "fail",
+  resultMixed: false,
   inspectorId: INSPECTOR,
   inspector: "Test Inspector",
+  parts: [FIRST_PART],
+};
+
+/** An inspection of three POs, the last without its PO number yet, as listInspections() sums it. */
+const THREE_POS: InspectionListRow = {
+  ...ROW,
+  status: "draft",
+  statusMixed: true,
+  result: null,
+  resultMixed: true,
+  parts: [
+    { ...FIRST_PART, status: "reopened", result: "pass" },
+    {
+      ...FIRST_PART,
+      id: "9b0b4c55-1b6e-4c50-9a39-0f6f1e1f0002",
+      refNo: "INS-2026-0002",
+      poNo: "PO-0002",
+      status: "draft",
+      result: null,
+    },
+    {
+      ...FIRST_PART,
+      id: "9b0b4c55-1b6e-4c50-9a39-0f6f1e1f0003",
+      refNo: "INS-2026-0003",
+      poNo: null,
+      productName: null,
+      status: "draft",
+      result: null,
+    },
+  ],
 };
 
 function render(rows: InspectionListRow[], viewer: ListViewer = AS_INSPECTOR): string {
@@ -132,6 +174,89 @@ describe("InspectionTable", () => {
       expect(html).toContain(`<span class="sr-only">${label}</span>`);
     }
     expect(html).not.toContain(">PO <");
+  });
+});
+
+describe("an inspection of several POs", () => {
+  const text = (cellHtml: string) => cellHtml.replace(/<[^>]+>/g, "");
+
+  it("is one row, its first part's, with the first PO and +2 POs", () => {
+    const html = render([THREE_POS], AS_ADMIN);
+    expect(html.match(/<tr[^>]*data-id="[^"]+"/g)).toHaveLength(1);
+    expect(html).toContain(`data-id="${ROW.id}" data-ref="INS-2026-0001"`);
+    const [ref, , , , , , , po] = cells(html);
+    expect(text(ref)).toBe("INS-2026-0001");
+    // The first PO, its tooltip listing every PO, then the button; on one line like every cell.
+    expect(po).toContain('title="PO PO-0001, PO PO-0002, PO 3">PO-0001</span>');
+    expect(text(po)).toBe("PO-0001+2 POs in INS-2026-0001");
+  });
+
+  it("opens every PO from +2 POs: a real button, 24 px with a mouse and 44 px with 16 px text on touch", () => {
+    const [, , , , , , , po] = cells(render([THREE_POS]));
+    const button = /<button[^>]*>/.exec(po)?.[0] ?? "";
+    expect(button).toContain('type="button"');
+    expect(button).toContain('data-row-action="parts"');
+    expect(button).toContain('aria-haspopup="dialog"');
+    expect(button).toContain('aria-expanded="false"');
+    expect(button).toMatch(/class="[^"]*\bh-6\b/);
+    expect(button).toMatch(/class="[^"]*\btouch:h-11\b/);
+    expect(button).toMatch(/class="[^"]*\btouch:text-base\b/);
+    expect(button).toMatch(/class="[^"]*\bfocus-ring\b/);
+  });
+
+  it("says when the first part has no PO number yet, and still counts the others", () => {
+    const html = render([{ ...THREE_POS, po: null }]);
+    const [, , , , , , , po] = cells(html);
+    expect(po).toContain('<span class="sr-only">No PO yet</span>');
+    expect(text(po)).toContain("+2 POs");
+  });
+
+  it("says Mixed beside the status and the result when the POs differ, each PO's in the tooltip", () => {
+    const [, status, result] = cells(render([THREE_POS]));
+    expect(status).toContain('data-status="draft"');
+    expect(status).toMatch(/title="PO PO-0001: Reopened, PO PO-0002: Draft, PO 3: Draft"[^>]*>Mixed<\/span>/);
+    expect(result).toContain('data-status="not_done"');
+    expect(result).toMatch(/title="PO PO-0001: Passed, PO PO-0002: Not Done, PO 3: Not Done"[^>]*>Mixed<\/span>/);
+    // 14 px on touch, beside the 14 px pills; slate-600, the lightest secondary text allowed.
+    expect(status).toMatch(/data-slot="mixed"[^>]*class="[^"]*\btext-slate-600\b[^"]*\btouch:text-sm\b/);
+  });
+
+  it("says nothing more when the POs agree", () => {
+    const together: InspectionListRow = {
+      ...ROW,
+      parts: [FIRST_PART, { ...FIRST_PART, id: "9b0b4c55-1b6e-4c50-9a39-0f6f1e1f0002", poNo: "PO-0002" }],
+    };
+    const [, status, result, , , , , po] = cells(render([together]));
+    expect(status + result).not.toContain("Mixed");
+    expect(text(po)).toBe("PO-0001+1 PO in INS-2026-0001");
+  });
+
+  it("keeps an inspection of one PO as it was: no Mixed, no button", () => {
+    const html = render([ROW], AS_ADMIN);
+    expect(html).not.toContain("Mixed");
+    expect(html).not.toContain('data-row-action="parts"');
+    expect(cells(html)[7]).toContain('<span class="block max-w-96 truncate" title="PO-0001">PO-0001</span>');
+  });
+
+  it("offers no Delete on a draft of several POs", () => {
+    const parts = THREE_POS.parts.map((part) => ({ ...part, status: "draft" as const }));
+    for (const viewer of [AS_INSPECTOR, AS_ADMIN]) {
+      const actions = cells(render([{ ...THREE_POS, statusMixed: false, parts }], viewer)).at(-1) ?? "";
+      expect(actions).toContain(">Continue<");
+      expect(actions).not.toContain('data-row-action="delete"');
+    }
+  });
+
+  it("lists each PO with its product, status and result", () => {
+    const html = renderToStaticMarkup(<PoPartsList parts={THREE_POS.parts} />);
+    const items = [...html.matchAll(/<li\b[^>]*>(.*?)<\/li>/g)].map((match) => match[1]);
+    expect(items).toHaveLength(3);
+    expect(text(items[0])).toBe("PO PO-0001Nitrile examination glovesReopenedPassed");
+    expect(text(items[1])).toBe("PO PO-0002Nitrile examination glovesDraftNot Done");
+    // No PO number yet: named by its place (partLabel). No product yet: none shown.
+    expect(text(items[2])).toBe("PO 3DraftNot Done");
+    expect(items[0]).toContain('data-slot="inspection-status" data-status="reopened"');
+    expect(items[0]).toContain('data-slot="status-pill" data-status="pass"');
   });
 });
 

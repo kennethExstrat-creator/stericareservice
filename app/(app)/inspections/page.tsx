@@ -43,8 +43,9 @@ const HEADING: Readonly<Record<InspectionScope, { eyebrow: string; caption: stri
  * last two with an Inspector in Charge column. Row Level Security does the scoping;
  * this page only reads through the signed-in user's client. Filters live in
  * the URL (lib/inspections/search-params.ts), so a view can be shared. Each
- * row ends with its actions: Continue, Review or View, and Delete on a draft
- * (./actions.ts, which re-renders this page once the draft is gone).
+ * row is one inspection, with every PO of it (PO parts: lib/inspections/query.ts),
+ * and ends with its actions: Continue, Review or View, and Delete on a draft
+ * of one PO (./actions.ts, which re-renders this page once the draft is gone).
  */
 export default async function InspectionsPage({ searchParams }: PageProps<"/inspections">) {
   const user = await requireUser();
@@ -97,7 +98,9 @@ export default async function InspectionsPage({ searchParams }: PageProps<"/insp
         )}
 
         <InspectionResults
-          listKey={list.kind === "rows" ? list.rows.map((row) => `${row.id}:${row.status}`).join(" ") : view}
+          listKey={
+            list.kind === "rows" ? list.rows.map((row) => `${row.id}:${row.status}:${row.parts.length}`).join(" ") : view
+          }
           viewerId={user.id}
           className="flex flex-col gap-3 transition-opacity group-has-data-pending/list:opacity-60"
         >

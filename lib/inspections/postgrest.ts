@@ -48,6 +48,11 @@ export function lotVariants(text: string): string[] {
   return [...new Set([text, text.toUpperCase()])];
 }
 
+/** The columns inspectionSearchFilter() reads: an inspection row's own, or every part's (lib/inspections/query.ts). */
+export type SearchColumnNames = { ref: string; po: string; lots: string };
+
+const OWN_COLUMNS: SearchColumnNames = { ref: "ref_no", po: "po_no", lots: "lot_numbers" };
+
 /**
  * The `.or()` filter for the list search (BUILD_SPEC 10): the ref or the PO
  * contains the text, or one of the inspection's lot numbers is exactly the
@@ -56,10 +61,10 @@ export function lotVariants(text: string): string[] {
  * migration 20261007191137, which adds the columns they read, is live; on a
  * project without it the list searches with this filter alone.
  */
-export function inspectionSearchFilter(text: string): string {
+export function inspectionSearchFilter(text: string, columns: SearchColumnNames = OWN_COLUMNS): string {
   return [
-    containsFilter("ref_no", text),
-    containsFilter("po_no", text),
-    `lot_numbers.ov.${quoteFilterValue(arrayLiteral(lotVariants(text)))}`,
+    containsFilter(columns.ref, text),
+    containsFilter(columns.po, text),
+    `${columns.lots}.ov.${quoteFilterValue(arrayLiteral(lotVariants(text)))}`,
   ].join(",");
 }

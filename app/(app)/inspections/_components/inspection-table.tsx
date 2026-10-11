@@ -21,18 +21,29 @@
 // opens in a new tab, named "Continue INS-2026-0001"; while the inspection
 // opens, the list dims like it does for its own links (list-link.tsx).
 // Delete, where allowed, asks first (delete-inspection.tsx).
+//
+// An inspection of several POs (PO parts, lib/inspections/parts.ts) is one
+// row too, its first part's: the PO column shows the first PO and "+2 POs",
+// which opens every PO with its product, status and result (po-parts.tsx).
+// Status and Result sum the POs, with "Mixed" beside them when the POs
+// differ (lib/inspections/part-summary.ts). An inspection of one PO looks
+// as it always has.
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { StatusPill } from "@/components/qc";
 import { Button } from "@/components/ui/button";
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { STATUS_LABEL } from "@/lib/design/status";
 import { inspectionListColumns, type InspectionColumnKey } from "@/lib/inspections/columns";
-import { formatInspectionDate } from "@/lib/inspections/format";
-import type { InspectionListRow } from "@/lib/inspections/query";
+import { formatInspectionDate, INSPECTION_STATUS_LABEL } from "@/lib/inspections/format";
+import { morePosLabel } from "@/lib/inspections/part-summary";
+import { partLabel } from "@/lib/inspections/parts";
+import type { InspectionListPart, InspectionListRow } from "@/lib/inspections/query";
 import { cn } from "@/lib/utils";
 import { DeleteInspectionButton } from "./delete-inspection";
 import { InspectionStatusBadge } from "./inspection-status-badge";
 import { PendingMarker } from "./list-link";
+import { PoPartsButton } from "./po-parts";
 import { rowActions, type ListViewer } from "./row-actions";
 import { TableScroller } from "./table-scroller";
 
@@ -88,6 +99,70 @@ function ResultPill({ result }: { result: InspectionListRow["result"] }) {
       size="sm"
       className="touch:h-7 touch:gap-1.5 touch:px-2.5 touch:text-sm touch:[&>svg]:size-4"
     />
+  );
+}
+
+/** "PO 1001: Reopened, PO 1002: Draft": each PO's value, for a tooltip. */
+function eachPo(parts: readonly InspectionListPart[], value: (part: InspectionListPart) => string): string {
+  return parts.map((part, index) => `${partLabel(part, index)}: ${value(part)}`).join(", ");
+}
+
+/** The inspection's status or result, with "Mixed" beside it when its POs differ; the tooltip says each PO's. */
+function Summed({ mixed, detail, children }: { mixed: boolean; detail: string; children: ReactNode }) {
+  if (!mixed) return children;
+  return (
+    <span className="inline-flex items-center gap-1.5 touch:gap-2">
+      {children}
+      <span data-slot="mixed" title={detail} className="text-xs font-semibold text-slate-600 touch:text-sm">
+        Mixed
+      </span>
+    </span>
+  );
+}
+
+/** Every PO of an inspection, as "+2 POs" opens it: each with its product (once known), status and result. */
+export function PoPartsList({ parts }: { parts: readonly InspectionListPart[] }) {
+  return (
+    <ul className="flex flex-col divide-y divide-border">
+      {parts.map((part, index) => (
+        <li key={part.id} className="flex items-center justify-between gap-4 py-2 first:pt-0 last:pb-0">
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate font-medium tabular-nums">{partLabel(part, index)}</span>
+            {part.productName && <span className="truncate text-muted-foreground">{part.productName}</span>}
+          </span>
+          <span className="flex shrink-0 items-center gap-1.5">
+            <InspectionStatusBadge status={part.status} />
+            <ResultPill result={part.result} />
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * The first part's PO and, on an inspection of several, "+2 POs", which
+ * opens all of them; with a mouse the first PO's tooltip lists them too.
+ */
+function PoCell({ row }: { row: InspectionListRow }) {
+  if (row.parts.length === 1) return <Text value={row.po} missing="No PO yet" />;
+  return (
+    <span className="flex items-center gap-2">
+      {row.po ? (
+        <span className="block max-w-96 min-w-0 truncate" title={row.parts.map(partLabel).join(", ")}>
+          {row.po}
+        </span>
+      ) : (
+        <Missing label="No PO yet" />
+      )}
+      <PoPartsButton
+        label={morePosLabel(row.parts.length - 1)}
+        detail={` in ${row.refNo}`}
+        title={`${row.refNo}: ${row.parts.length} POs`}
+      >
+        <PoPartsList parts={row.parts} />
+      </PoPartsButton>
+    </span>
   );
 }
 
@@ -149,11 +224,19 @@ function cell(key: InspectionColumnKey, row: InspectionListRow): ReactNode {
     case "product":
       return <Text value={row.product} missing="No product yet" />;
     case "po":
-      return <Text value={row.po} missing="No PO yet" />;
+      return <PoCell row={row} />;
     case "status":
-      return <InspectionStatusBadge status={row.status} />;
+      return (
+        <Summed mixed={row.statusMixed} detail={eachPo(row.parts, (part) => INSPECTION_STATUS_LABEL[part.status])}>
+          <InspectionStatusBadge status={row.status} />
+        </Summed>
+      );
     case "result":
-      return <ResultPill result={row.result} />;
+      return (
+        <Summed mixed={row.resultMixed} detail={eachPo(row.parts, (part) => STATUS_LABEL[part.result ?? "not_done"])}>
+          <ResultPill result={row.result} />
+        </Summed>
+      );
     case "inspector":
       return <Text value={row.inspector} missing="Unknown inspector" />;
     case "actions":
