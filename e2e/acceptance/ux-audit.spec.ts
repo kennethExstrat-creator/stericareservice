@@ -1097,7 +1097,7 @@ test.describe("admin", () => {
     });
     await step(auditor, "review-ai-opinion", async () => {
       // "Request a New Second Opinion" once one exists (a kept set from an earlier run).
-      const request = page.getByRole("button", { name: /^Request (AI|a new) second opinion/ }).first();
+      const request = page.getByRole("button", { name: /^Request (Steri-AI|a New) Second Opinion/ }).first();
       await press(page, request);
       // The mock answers within seconds; the panel polls until the comparison shows (its description
       // says "for each finding" from the start, so text alone does not tell the opinion is there).
