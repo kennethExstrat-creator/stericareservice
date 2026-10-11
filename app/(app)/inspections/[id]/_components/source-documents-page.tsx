@@ -2,10 +2,14 @@
 
 // Source Documents: the capture screen's first page, before every module
 // (docs/AI.md, "Source Documents"). Every file about the inspection goes
-// here: the handwritten inspection form, the PO, packing lists, photos of
-// labels and cartons. The AI reads each one and fills the empty fields of
-// the pages after it; a file it has read is AI Verified. Photos are made
-// 2048 px JPEG first, as every photo is (lib/photos), so the AI can read them.
+// here: the handwritten inspection forms, the POs, packing lists, photos of
+// labels and cartons. One set of files serves every PO of the inspection:
+// they are kept on its first PO (use-source-documents.ts), so each PO's page
+// shows and adds to the same files. The AI reads each one once and fills the
+// empty fields of every PO from its own forms, adding a PO it finds that the
+// inspection has not got yet; a file it has read is AI Verified, with what
+// it did for each PO. Photos are made 2048 px JPEG first, as every photo is
+// (lib/photos), so the AI can read them.
 import { BadgeCheckIcon, RotateCcwIcon, TriangleAlertIcon } from "lucide-react";
 import type { Ref } from "react";
 import { FileSlot } from "@/components/capture/files";
@@ -41,6 +45,8 @@ async function readable(files: File[]): Promise<File[]> {
 }
 
 export function SourceDocumentsPage({ panelId, tabLabelledBy, titleRef, inspectionId, readOnly, documents }: SourceDocumentsPageProps) {
+  const { homeId, parts } = documents;
+  const extra = (file: SlotFile) => <AiMark file={file} documents={documents} readOnly={readOnly} />;
   return (
     <SectionFrame
       id={panelId}
@@ -52,15 +58,40 @@ export function SourceDocumentsPage({ panelId, tabLabelledBy, titleRef, inspecti
       headingRef={titleRef(SOURCE_DOCUMENTS_KEY)}
       summary="Upload every file about this inspection: the handwritten inspection form, the PO, packing lists, photos of labels and cartons. AI reads each one and fills the empty fields in the steps that follow."
     >
-      <FileSlot
-        inspectionId={inspectionId}
-        moduleKey={SOURCE_DOCUMENTS_KEY}
-        kind="other"
-        title="Files"
-        readOnly={readOnly}
-        prepare={readable}
-        fileExtra={(file) => <AiMark file={file} documents={documents} readOnly={readOnly} />}
-      />
+      {parts.length > 1 && (
+        <p className="text-sm text-muted-foreground touch:text-base" data-testid="source-shared">
+          These files are shared by the {parts.length} POs of this inspection. AI fills each PO from its own forms, and adds a PO for
+          a form whose PO is not here yet.
+        </p>
+      )}
+      {homeId === null ? (
+        <p role="status" className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <Spinner aria-hidden className="size-4" />
+          Loading files…
+        </p>
+      ) : (
+        <FileSlot
+          inspectionId={homeId}
+          moduleKey={SOURCE_DOCUMENTS_KEY}
+          kind="other"
+          title="Files"
+          readOnly={readOnly}
+          prepare={readable}
+          fileExtra={extra}
+        />
+      )}
+      {homeId !== null && homeId !== inspectionId && documents.ownFiles > 0 && (
+        // Kept on this PO before it shared the inspection's files (or added offline): still read, new files go above.
+        <FileSlot
+          inspectionId={inspectionId}
+          moduleKey={SOURCE_DOCUMENTS_KEY}
+          kind="other"
+          title="Files Kept on This PO"
+          readOnly={readOnly}
+          canAdd={false}
+          fileExtra={extra}
+        />
+      )}
       <p className="text-sm text-muted-foreground touch:text-base">
         Check the filled-in values in each step: AI fills only empty fields and never changes what is already entered or the
         result.
@@ -83,7 +114,7 @@ function AiMark({ file, documents, readOnly }: { file: SlotFile; documents: Sour
     return (
       <p className="mt-1 flex items-center gap-1.5 text-sm text-brand-700" data-testid="ai-reading">
         <Spinner aria-hidden className="size-4" />
-        AI is reading it…
+        {reading.elsewhere ? "AI is reading it on another screen…" : "AI is reading it…"}
       </p>
     );
   }
@@ -96,6 +127,7 @@ function AiMark({ file, documents, readOnly }: { file: SlotFile; documents: Sour
           {reading.filled !== undefined && (
             <span className="font-normal text-muted-foreground">
               · {reading.filled > 0 ? `${reading.filled} ${reading.filled === 1 ? "field" : "fields"} filled` : "nothing new to fill"}
+              {documents.parts.length > 1 && " in this PO"}
             </span>
           )}
         </p>
