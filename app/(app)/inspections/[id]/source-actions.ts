@@ -10,7 +10,7 @@ import { partLabel, type InspectionPart } from "@/lib/inspections/parts";
 import { createPart, loadParts } from "@/lib/inspections/parts-server";
 import { applyProposals, NOT_FILLED_BY_AI, SOURCE_DOCUMENTS_KEY, type SourceProposals } from "@/lib/inspections/source-documents";
 import { sourceHomeOf, sourceHomes } from "@/lib/inspections/source-group";
-import { describeOutcomes, partFacts, readingSummary, routeReading, type PartOutcome } from "@/lib/inspections/source-parts";
+import { describeOutcomes, partFacts, readingHeadline, readingSummary, routeReading, type PartOutcome } from "@/lib/inspections/source-parts";
 import {
   claimFile,
   fillPartOnServer,
@@ -294,7 +294,7 @@ export async function readSourceFile(inspectionId: string, fileId: string): Prom
       others.push(result);
     }
 
-    const summary = readingSummary(answer.summary, several ? describeOutcomes(all, route.dropped) : "", answer.mappings);
+    const summary = readingSummary(answer.summary, several ? describeOutcomes(all, route.dropped) : "", answer.mappings, several ? readingHeadline(all) : "");
     await recordReading(fileId, "read", summary);
     claimed = null;
     await logReading(inspectionId, {

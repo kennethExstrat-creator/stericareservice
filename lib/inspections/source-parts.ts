@@ -197,13 +197,38 @@ export function describeOutcomes(outcomes: readonly PartOutcome[], dropped = 0):
  * happened to each part, then how each shortform was read, for the admin
  * to check. Cut at SUMMARY_MAX, the parts' lines kept before the rest.
  */
-export function readingSummary(summary: string, report: string, mappings: readonly string[]): string {
+export function readingSummary(summary: string, report: string, mappings: readonly string[], headline = ""): string {
+  // Four lines (READING_LINES): headline, what the documents are, each PO, how shortforms were read.
   const readAs = mappings.length > 0 ? `Read as: ${mappings.join("; ")}.` : "";
-  const text = [summary.trim() || "Read.", report.trim(), readAs].filter(Boolean).join(" ");
+  const flat = (text: string) => text.replace(/\s+/g, " ").trim();
+  const text = [flat(headline), flat(summary) || "Read.", flat(report), readAs].join("\n");
   if (text.length <= SUMMARY_MAX) return text;
   let cut = text.slice(0, SUMMARY_MAX - 1).trimEnd();
   // Never half a character: Postgres refuses a lone surrogate.
   const last = cut.charCodeAt(cut.length - 1);
   if (last >= 0xd800 && last <= 0xdbff) cut = cut.slice(0, -1);
   return `${cut}…`;
+}
+
+/** "3 POs · 225 fields filled": the line beside AI Verified. */
+export function readingHeadline(outcomes: readonly PartOutcome[]): string {
+  const filled = outcomes.reduce((sum, outcome) => sum + ("filled" in outcome ? outcome.filled : 0), 0);
+  const pos = outcomes.filter((outcome) => outcome.kind === "filled" || outcome.kind === "added").length;
+  const count = filled > 0 ? `${filled} ${filled === 1 ? "field" : "fields"} filled` : "Nothing new to fill";
+  return pos > 1 ? `${pos} POs · ${count}` : count;
+}
+
+/** A kept reading split for the screen: the four lines of readingSummary, or an older reading as one note. */
+export function splitReading(text: string | null): { headline: string; note: string; report: string; readAs: string[] } {
+  const lines = (text ?? "").split("\n");
+  if (lines.length < 4) return { headline: "", note: (text ?? "").trim(), report: "", readAs: [] };
+  const [headline, note, report, ...rest] = lines;
+  const readAs = rest
+    .join(" ")
+    .replace(/^Read as:\s*/, "")
+    .replace(/\.$/, "")
+    .split("; ")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  return { headline: headline.trim(), note: note.trim(), report: report.trim(), readAs };
 }

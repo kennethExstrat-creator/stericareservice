@@ -129,7 +129,7 @@ describe("readSourceFile", () => {
     expect(result).toEqual({
       status: "read",
       summary:
-        "Four inspection forms. Filled 1 field in PO 2680276. Filled 1 field in PO 2680277. Skipped PO 2680279: it is submitted. Added PO 2680280 with 1 field.",
+        "3 POs · 3 fields filled\nFour inspection forms.\nFilled 1 field in PO 2680276. Filled 1 field in PO 2680277. Skipped PO 2680279: it is submitted. Added PO 2680280 with 1 field.\n",
       proposals: { glove_info: { colour: "Blue" } },
       others: "Filled 1 field in PO 2680277. Skipped PO 2680279: it is submitted. Added PO 2680280 with 1 field.",
       changedParts: [B, D],
@@ -164,7 +164,7 @@ describe("readSourceFile", () => {
 
     expect(result).toEqual({
       status: "read",
-      summary: "A PO. Read as: SKV → Skin Void.",
+      summary: "\nA PO.\n\nRead as: SKV → Skin Void.",
       proposals: { glove_info: { colour: "Blue" } },
       others: "",
       changedParts: [],

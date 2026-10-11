@@ -17,6 +17,7 @@ import type { SlotFile } from "@/components/capture/photos/photo-model";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { SOURCE_DOCUMENTS_KEY, SOURCE_DOCUMENTS_TITLE } from "@/lib/inspections/source-documents";
+import { splitReading } from "@/lib/inspections/source-parts";
 import { browserCodec } from "@/lib/photos/browser-codec";
 import { processPhoto } from "@/lib/photos/process";
 import { SectionFrame } from "./section-frame";
@@ -53,17 +54,9 @@ export function SourceDocumentsPage({ panelId, tabLabelledBy, titleRef, inspecti
       sectionKey={SOURCE_DOCUMENTS_KEY}
       tabLabelledBy={tabLabelledBy}
       title={SOURCE_DOCUMENTS_TITLE}
-      status={documents.status === "pass" ? "pass" : undefined}
-      statusLabel="AI Verified"
       headingRef={titleRef(SOURCE_DOCUMENTS_KEY)}
-      summary="Upload every file about this inspection: the handwritten inspection form, the PO, packing lists, photos of labels and cartons. AI reads each one and fills the empty fields in the steps that follow."
+      summary={parts.length > 1 ? `Forms, POs and photos for all ${parts.length} POs. AI fills in the steps.` : "Forms, POs and photos. AI fills in the steps."}
     >
-      {parts.length > 1 && (
-        <p className="text-sm text-muted-foreground touch:text-base" data-testid="source-shared">
-          These files are shared by the {parts.length} POs of this inspection. AI fills each PO from its own forms, and adds a PO for
-          a form whose PO is not here yet.
-        </p>
-      )}
       {homeId === null ? (
         <p role="status" className="flex items-center gap-1.5 text-sm text-muted-foreground">
           <Spinner aria-hidden className="size-4" />
@@ -78,6 +71,7 @@ export function SourceDocumentsPage({ panelId, tabLabelledBy, titleRef, inspecti
           readOnly={readOnly}
           prepare={readable}
           fileExtra={extra}
+          compactRows
         />
       )}
       {homeId !== null && homeId !== inspectionId && documents.ownFiles > 0 && (
@@ -90,12 +84,9 @@ export function SourceDocumentsPage({ panelId, tabLabelledBy, titleRef, inspecti
           readOnly={readOnly}
           canAdd={false}
           fileExtra={extra}
+          compactRows
         />
       )}
-      <p className="text-sm text-muted-foreground touch:text-base">
-        Check the filled-in values in each step: AI fills only empty fields and never changes what is already entered or the
-        result.
-      </p>
     </SectionFrame>
   );
 }
@@ -105,33 +96,55 @@ function AiMark({ file, documents, readOnly }: { file: SlotFile; documents: Sour
   const reading = documents.statuses[file.id];
   if (!reading) {
     return readOnly ? null : (
-      <p className="mt-1 text-sm text-muted-foreground" data-testid="ai-waiting">
+      <p className="mt-0.5 text-sm text-muted-foreground" data-testid="ai-waiting">
         Waiting for AI…
       </p>
     );
   }
   if (reading.status === "reading") {
     return (
-      <p className="mt-1 flex items-center gap-1.5 text-sm text-brand-700" data-testid="ai-reading">
+      <p className="mt-0.5 flex items-center gap-1.5 text-sm text-brand-700" data-testid="ai-reading">
         <Spinner aria-hidden className="size-4" />
-        {reading.elsewhere ? "AI is reading it on another screen…" : "AI is reading it…"}
+        AI is reading…
       </p>
     );
   }
   if (reading.status === "read") {
+    const { headline, note, report, readAs } = splitReading(reading.summary);
+    const line =
+      headline ||
+      (reading.filled === undefined ? "" : reading.filled > 0 ? `${reading.filled} ${reading.filled === 1 ? "field" : "fields"} filled` : "Nothing new to fill");
+    const details = Boolean(note || report || readAs.length > 0);
     return (
-      <div className="mt-1 flex flex-col gap-0.5" data-testid="ai-verified">
-        <p className="flex items-center gap-1.5 text-sm font-semibold text-pass">
-          <BadgeCheckIcon aria-hidden className="size-4 shrink-0" />
-          AI Verified
-          {reading.filled !== undefined && (
-            <span className="font-normal text-muted-foreground">
-              · {reading.filled > 0 ? `${reading.filled} ${reading.filled === 1 ? "field" : "fields"} filled` : "nothing new to fill"}
-              {documents.parts.length > 1 && " in this PO"}
-            </span>
-          )}
+      <div className="mt-1 flex flex-col gap-1" data-testid="ai-verified">
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+          <span className="inline-flex items-center gap-1 rounded-full bg-pass-tint px-2 py-0.5 font-semibold text-pass ring-1 ring-pass-border">
+            <BadgeCheckIcon aria-hidden className="size-3.5 shrink-0" />
+            AI Verified
+          </span>
+          {line && <span className="text-muted-foreground">{line}</span>}
         </p>
-        {reading.summary && <p className="text-sm text-muted-foreground">{reading.summary}</p>}
+        {details && (
+          <details className="group text-sm">
+            <summary className="w-fit cursor-pointer rounded-md py-1 font-medium text-brand-600 focus-ring-inset touch:py-2.5">
+              Details
+            </summary>
+            <div className="mt-1 flex flex-col gap-2 text-muted-foreground">
+              {note && <p>{note}</p>}
+              {report && <p>{report}</p>}
+              {readAs.length > 0 && (
+                <div>
+                  <p className="font-medium text-foreground">How AI read the shortforms</p>
+                  <ul className="mt-1 list-disc space-y-0.5 pl-5">
+                    {readAs.map((entry) => (
+                      <li key={entry}>{entry}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </details>
+        )}
       </div>
     );
   }
@@ -139,7 +152,7 @@ function AiMark({ file, documents, readOnly }: { file: SlotFile; documents: Sour
     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1" data-testid="ai-failed">
       <p className="flex items-start gap-1.5 text-sm text-warn">
         <TriangleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
-        {reading.summary ?? "The AI could not read this file."}
+        {splitReading(reading.summary).note || "The AI could not read this file."}
       </p>
       {!readOnly && (
         <Button type="button" variant="ghost" size="sm" onClick={() => documents.retry(file.id)}>

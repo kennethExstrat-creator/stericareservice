@@ -35,6 +35,7 @@ export function FileList({
   focusFallback,
   onRemoved,
   fileExtra,
+  compactRows = false,
   className,
 }: {
   inspectionId: string;
@@ -50,6 +51,8 @@ export function FileList({
   onRemoved?: (fileId: string) => void;
   /** More about a file, under its name (Source Documents: what the AI read). */
   fileExtra?: (file: SlotFile) => ReactNode;
+  /** No kind and state line under an uploaded file's name (Source Documents: the AI's mark says it). */
+  compactRows?: boolean;
   className?: string;
 }) {
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -75,10 +78,12 @@ export function FileList({
                 <p className="truncate font-medium text-foreground" title={file.name}>
                   {file.name}
                 </p>
+                {!(compactRows && file.state === "uploaded") && (
                 <p className="text-sm text-muted-foreground">
                   {file.kind ? FILE_KIND_LABEL[file.kind] : "File"}
                   {showModule ? ` · ${moduleTitle(file.moduleKey, options)}` : ""} · {stateText(file)}
                 </p>
+                )}
                 {fileExtra?.(file)}
                 {file.state === "failed" && file.error && (
                   <p className="mt-1 flex items-start gap-1.5 text-sm text-fail">

@@ -4,8 +4,10 @@ import {
   mergeProposals,
   partFacts,
   poKey,
+  readingHeadline,
   readingSummary,
   routeReading,
+  splitReading,
   SUMMARY_MAX,
   type RoutingPart,
 } from "./source-parts";
@@ -191,11 +193,29 @@ describe("describeOutcomes", () => {
 });
 
 describe("readingSummary", () => {
-  it("keeps what the file is, then the parts, then the shortforms", () => {
-    expect(readingSummary("Two inspection forms.", "Filled 3 fields in PO 0001.", ["SKV → Skin Void"])).toBe(
-      "Two inspection forms. Filled 3 fields in PO 0001. Read as: SKV → Skin Void.",
-    );
-    expect(readingSummary("", "", [])).toBe("Read.");
+  it("keeps four lines: the headline, what the file is, the parts, then the shortforms", () => {
+    const kept = readingSummary("Two inspection forms.", "Filled 3 fields in PO 0001.", ["SKV → Skin Void", "BF → Between Fingers"], "2 POs · 3 fields filled");
+    expect(kept).toBe("2 POs · 3 fields filled\nTwo inspection forms.\nFilled 3 fields in PO 0001.\nRead as: SKV → Skin Void; BF → Between Fingers.");
+    expect(splitReading(kept)).toEqual({
+      headline: "2 POs · 3 fields filled",
+      note: "Two inspection forms.",
+      report: "Filled 3 fields in PO 0001.",
+      readAs: ["SKV → Skin Void", "BF → Between Fingers"],
+    });
+    expect(readingSummary("", "", [])).toBe("\nRead.\n\n");
+    // An older one-line reading: all of it is the note.
+    expect(splitReading("A PO. Read as: SKV → Skin Void.")).toEqual({ headline: "", note: "A PO. Read as: SKV → Skin Void.", report: "", readAs: [] });
+  });
+
+  it("heads the reading with the POs and fields it filled", () => {
+    expect(
+      readingHeadline([
+        { kind: "filled", label: "PO 1", filled: 70 },
+        { kind: "added", label: "PO 2", filled: 79 },
+        { kind: "skipped", label: "PO 3", reason: "it is submitted" },
+      ]),
+    ).toBe("2 POs · 149 fields filled");
+    expect(readingHeadline([{ kind: "filled", label: "PO 1", filled: 0 }])).toBe("Nothing new to fill");
   });
 
   it("stays within the column, cutting the end, never half a character", () => {
