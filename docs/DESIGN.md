@@ -59,7 +59,7 @@ Every result pill says these labels, Passed, Failed or On Hold (a module's own w
 - `touch:` = `(any-pointer: coarse)`: any touchscreen, an iPad also with a keyboard and trackpad attached. `fine:` = no touchscreen (mouse or trackpad only). Layout switches at 1280 px on devices with no touchscreen (`xl`, redefined in app/globals.css): below it, and on every touch screen whatever its width, a top tab bar and full-width grid; from 1280 px without a touchscreen a left sidebar, wider grid, photos alongside. Check 820×1180, 1180×820, 1366×1024 (touch: 12.9 and 13 inch iPads) and 1440×900.
 - iPad: every control at least 44×44 px (buttons, steppers, chips, tabs, menu items, grid rows, the grid's error list; checkbox, radio and switch grow to 24–28 px with a 44 px hit area). Field text 16 px so iOS never zooms on focus (Input and Textarea are 14 px only under `fine:`).
 - A hit area drawn as an invisible `::after` is placed from inside the control's border, so count the border: a 24 px checkbox with a 1 px edge needs `touch:after:-inset-[11px]` (22 + 2 × 11), not `-inset-2.5` (42 px). Checkbox and radio 24 px, switch 48 × 28 px (`-inset-y-[9px]`), a field's button 36 px (`-inset-[5px]`); `components/ui/touch-hit-areas.test.tsx` works each one out.
-- Desktop: compact controls (32–36 px) and 32–36 px table rows.
+- Desktop: compact controls (28–36 px; a counter stepper is 30 px with 28 px buttons) and table rows of about 36–44 px, with room around a stepper (12 October 2026).
 - To resize a control, override both: `h-12 touch:h-14`.
 
 ## Motion

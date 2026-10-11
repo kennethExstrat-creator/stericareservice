@@ -501,7 +501,6 @@ export function CaptureScreen({
     [leaveActiveField, syncUrl, titleFor],
   );
   // A module page's file slot links a Source Document: with none yet, its button opens that step.
-  const openSourceDocuments = useCallback(() => selectSection(SOURCE_DOCUMENTS_KEY, { focusHeading: true }), [selectSection]);
 
   /* -------------------------------------------------------------- *
    * Issues and submit
@@ -1021,7 +1020,6 @@ export function CaptureScreen({
               defectUsage={defectUsage}
               refusedStores={refusedStores}
               onFocusReported={keepSize}
-              onOpenSourceDocuments={openSourceDocuments}
               onUnreadableRemoved={focusTitleAfterRemoval}
               // Each change from the form also marks its field as where the inspector stopped.
               onModuleChange={(key, value) => {
@@ -1114,8 +1112,6 @@ type SharedSectionProps = {
   defectUsage: DefectUsage;
   /** Every focus a section's module or form reports, so its size is kept for the next section. */
   onFocusReported: (focus: CaptureFocus) => void;
-  /** Opens Source Documents, where a module's lab report or certificate is uploaded. */
-  onOpenSourceDocuments: () => void;
   onModuleChange: (key: string, value: unknown) => void;
   onCustomChange: (key: string, value: unknown) => void;
   onMappedChange: (mapsTo: string, value: unknown) => void;
@@ -1235,7 +1231,6 @@ function SectionPart({
   defectUsage,
   refusedEntries,
   onFocusReported,
-  onOpenSourceDocuments,
   onUnreadableRemoved,
   onModuleChange,
   onCustomChange,
@@ -1343,7 +1338,6 @@ function SectionPart({
             onChange={(next) => onModuleChange(section.key, next)}
             onFocusChange={onFocusChange}
             onUnreadableRemoved={onUnreadableRemoved}
-            onOpenSourceDocuments={onOpenSourceDocuments}
             nameContext={nameContext}
           />
         </RefusedEntryStoreContext.Provider>

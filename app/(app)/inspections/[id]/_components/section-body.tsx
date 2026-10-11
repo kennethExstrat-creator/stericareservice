@@ -103,11 +103,6 @@ type ModuleBodyProps = {
   /** Saved values that could not be read were removed: the form replaces their list, its button with it. */
   onUnreadableRemoved?: () => void;
   /**
-   * @deprecated Not used since a module page links nothing by hand (12 October 2026): Steri-AI links the
-   * files it reads on Source Documents. The capture screen still passes it.
-   */
-  onOpenSourceDocuments?: () => void;
-  /**
    * On a page of two sections, this one's title: the buttons of a form that
    * did not show and of values that cannot be read are read out with it.
    */
