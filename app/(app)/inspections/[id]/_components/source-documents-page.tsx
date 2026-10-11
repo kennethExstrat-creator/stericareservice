@@ -44,6 +44,10 @@ async function readable(files: File[]): Promise<File[]> {
 
 type SourceTab = "files" | "media";
 
+/** One side of the Files / Media pill switch. */
+const PILL =
+  "h-8 gap-1.5 rounded-full px-4 font-semibold text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground touch:h-11 touch:px-5 data-[state=on]:bg-card data-[state=on]:text-brand-700 data-[state=on]:shadow-sm data-[state=on]:ring-1 data-[state=on]:ring-border";
+
 export function SourceDocumentsPage({ panelId, tabLabelledBy, titleRef, inspectionId, readOnly, documents }: SourceDocumentsPageProps) {
   const [tab, setTab] = useState<SourceTab>("files");
   return (
@@ -59,20 +63,21 @@ export function SourceDocumentsPage({ panelId, tabLabelledBy, titleRef, inspecti
           : "The inspection's photos and videos."
       }
       actions={
+        // A pill switch: a soft capsule, the chosen side a white pill on it.
         <ToggleGroup
           type="single"
-          variant="outline"
-          spacing={0}
+          spacing={1}
           value={tab}
           onValueChange={(value) => value && setTab(value as SourceTab)}
           aria-label="Show"
+          className="rounded-full bg-muted p-1 ring-1 ring-border/60"
           data-testid="source-tabs"
         >
-          <ToggleGroupItem value="files" className="gap-1.5 px-3">
+          <ToggleGroupItem value="files" className={PILL}>
             <FileTextIcon aria-hidden />
             Files
           </ToggleGroupItem>
-          <ToggleGroupItem value="media" className="gap-1.5 px-3">
+          <ToggleGroupItem value="media" className={PILL}>
             <ImagesIcon aria-hidden />
             Media
           </ToggleGroupItem>
