@@ -155,12 +155,20 @@ export default function Capture({
           kind={DOCUMENT_FILE_KIND[filing ?? items[0].key]}
           title={title}
           focus={filing === null ? null : { item: filing }}
+          fileId={filing === null ? null : data.items[filing].file}
           readOnly={readOnly}
           addable={filing !== null}
           onAdded={(file) => {
             if (filing !== null) update((current) => withItemValues(current, filing, { file: file.id }));
           }}
-          onRemoved={(fileId) => update((current) => withoutFile(current, fileId))}
+          // Unlinked on the chosen document: that row lets go; a file gone, every row that kept it.
+          onRemoved={(fileId) =>
+            update((current) =>
+              filing !== null && current.items[filing].file === fileId
+                ? withItemValues(current, filing, { file: null })
+                : withoutFile(current, fileId),
+            )
+          }
         />
       </div>
     </div>

@@ -320,7 +320,7 @@ Follow `docs/DESIGN.md`: counts by tapping (steppers, defect chips), measurement
 
 ### 10.1 Files: lab reports and certificates
 
-A module never touches storage. Its Capture renders the framework's file slot and keeps the id of each file it is handed; the capture screen owns the upload (BUILD_SPEC 8.1: PDF or image to `inspection-files`, an `inspection_files` row with the module key and kind, through the page's upload queue).
+A module never touches storage. Its Capture renders the framework's file slot and keeps the id of each file it is handed. Files are uploaded once, on Source Documents (docs/AI.md: an `inspection_files` row with `module_key` `source_documents`, through the page's upload queue); the capture screen's slot only links one of them, and the AI links a lab report it reads there by itself.
 
 ```tsx
 import { ModuleFileSlot } from "@/modules/_framework/file-slot";
@@ -329,6 +329,7 @@ import { ModuleFileSlot } from "@/modules/_framework/file-slot";
   moduleKey="tensile"
   kind="lab_report"                                   // inspection_files.kind: lab_report, certificate, other
   focus={{ size }}                                    // reported with each file added
+  fileId={data.labReport}                             // the id kept now: the slot shows that file
   readOnly={readOnly}
   onAdded={(file) => update((current) => withLabReport(current, file.id))}
   onRemoved={(fileId) => update((current) => withoutLabReport(current, fileId))}
@@ -337,26 +338,20 @@ import { ModuleFileSlot } from "@/modules/_framework/file-slot";
 
 - **Keep the id** with `FileIdCellSchema` (section 5). The latest file added is the one the module relies on; `onRemoved` clears the id when that file goes. calc reads it, so "the lab report is attached" is computed, the same everywhere. A module that needs one file of a kind (tensile's lab report) reads `moduleFileState(context, { moduleKey, kind, fileId: data.labReport })`: `attached` when the kept file is among the inspection's files, or when any file of the module and kind is (one added in the gallery keeps no id; another may remain after the kept one was deleted); `missing` when the files are known and neither is; `none` otherwise. A file kept per entry (a document) is that entry's only by its id: `heldFileState(context, id)`. While the inspection's files are not known, as in calc tests, a kept id counts as attached. Raise a warning with a path for `missing`, worded by `missingFileMessage(name)`: a file can be missing because it was deleted, or because it is still uploading from another device. A module that requires the file (tensile) is not done without it and links its not-done issue there (`notDonePath`).
 - **Where files cannot be attached** (no provider: the template editor's preview, a test) the slot says "Attach files on the inspection screen." and the module still shows what it keeps.
-- **Per item**: inspection_files has no item, so a module with several files of its own (documents) renders one slot and files each new file under the entry being worked on, keeping the id in that entry (`documents.items.<item>.file`). Until an entry is chosen it passes `addable={false}`: nothing can be added, and the files listed can still be deleted.
+- **Per item**: inspection_files has no item, so a module with several files of its own (documents) renders one slot and files each new file under the entry being worked on, keeping the id in that entry (`documents.items.<item>.file`). It passes the chosen entry's id as `fileId`; until an entry is chosen, `addable={false}`: nothing can be linked.
 
-**How the capture screen provides it** (`app/(app)/inspections/[id]/_components/section-body.tsx`): the module bodies sit in `FileSlotProvider` with a renderer for `FileSlot` (`components/capture/files`), and each Capture gets the size kept from the sections before as its `focus`:
+**How the capture screen provides it** (`app/(app)/inspections/[id]/_components/section-body.tsx`): the module bodies sit in `FileSlotProvider` with a renderer for `SourceFileLink` (`source-file-link.tsx`), and each Capture gets the size kept from the sections before as its `focus`:
 
 ```tsx
-import { FileSlot } from "@/components/capture/files";
 import { FileSlotProvider } from "@/modules/_framework/file-slot";
 
 <FileSlotProvider
   render={(slot) => (
-    <FileSlot
+    <SourceFileLink
       inspectionId={inspectionId}
-      moduleKey={slot.moduleKey}
-      kind={slot.kind}
-      title={slot.title}
-      focus={slot.focus}
+      slot={slot}                                     // the file kept (slot.fileId) in one line, else Choose File
       readOnly={slot.readOnly || readOnly}
-      canAdd={slot.addable}                           // false hides the add controls only; the list can still delete
-      onAdded={slot.onAdded}
-      onRemoved={slot.onRemoved}                      // called when the list deletes a file or takes it off this device
+      onOpenSourceDocuments={onOpenSourceDocuments}   // its button while there is no file to choose
     />
   )}
 >
@@ -364,10 +359,10 @@ import { FileSlotProvider } from "@/modules/_framework/file-slot";
 </FileSlotProvider>
 ```
 
-- `FileSlot`'s `onAdded` gives `{ id, name, kind, moduleKey, focus }`, which `slot.onAdded` takes as it is. Do not also render a `FileSlot` of your own for force at break, tensile or documents: the module renders its slot.
-- **`meta.files` is required** on every path that evaluates the inspection: the capture screen (`useInspectionFiles(id)` from `components/capture/files`: uploaded rows plus this device's queued files; `null` only while they load, never `[]` for "not loaded"), the save, submit and override actions (`loadCaptureInspection(client, id, { files: true })`), the review and the export (`inspection_files` rows as `{ id, moduleKey, kind }`). Without it a lab report deleted in the gallery still counts, one added in the gallery counts for nothing, and the capture screen and submit can disagree about tensile. `slot.onRemoved` keeps the module's own data exact when the slot itself deletes a file; it does not replace `meta.files`.
+- `SourceFileLink` lists the Source Documents' files, then those uploaded on the module's page before (its `module_key`: they still count), calls `slot.onAdded` with the one chosen (`{ id, name, kind }`) and `slot.onRemoved` on Unlink, which never deletes the file. Do not render an upload slot of your own for force at break, tensile or documents: the module renders its slot.
+- **`meta.files` is required** on every path that evaluates the inspection: the capture screen (`useInspectionFiles(id)` from `components/capture/files`: uploaded rows plus this device's queued files; `null` only while they load, never `[]` for "not loaded"), the save, submit and override actions (`loadCaptureInspection(client, id, { files: true })`), the review and the export (`inspection_files` rows as `{ id, moduleKey, kind }`). Without it a lab report deleted in the gallery still counts, one added in the gallery counts for nothing, and the capture screen and submit can disagree about tensile. `slot.onRemoved` keeps the module's own data exact when the slot unlinks a file; it does not replace `meta.files`.
 - **The server's files lag behind a device's queue.** The module's data, with the new id, autosaves within a second; the upload creates the row when it finishes, which can take minutes on a factory network. Until then the file is missing everywhere but on the device that queued it (another iPad, the review); the warning says it may still be uploading. Submit on that device waits for its queue, so the server holds the file by then.
-- **The gallery** ("Photos and Files") renders `FileSlot` for these modules without `onAdded`. With `meta.files` passed, a lab report added there attaches force at break or tensile (`moduleFileState`); a certificate added there shows in the documents slot's list, filed under no document.
+- **The gallery** ("Photos and Files") renders `FileSlot` for these modules without `onAdded`. With `meta.files` passed, a lab report added there attaches force at break or tensile (`moduleFileState`); a certificate added there is offered in the documents slot's Choose File menu, filed under no document until it is chosen.
 - **The size stays across sections; photo tags do not.** The screen keeps the last size any module reported (`keptFocus`, `{ size }` only) and passes it as `focus`, so the next module that opens on it (`initialSize`) shows the size chosen before, whichever way the section was opened (a tab, Previous or Next, an issue link). A section's photos are tagged only with what its own module reported through `onFocusChange`: the tags start empty in every section, so a kept size never tags the photos of a section that does not show it (a custom section without sizes). Every per-size module opens on the kept size and reports the size on screen as it mounts and whenever it changes (`useReportShownSize`, section 10), so a photo taken straight after a section opens carries the size it shows. It reports in a layout effect: an issue link that turns to another size focuses its field a frame later, and that field's own report (its box, its defect) follows the size's instead of being replaced by it. While every size sits side by side (a desktop, `wide="all"`) no size is reported, and a photo carries what a focused field reports; tensile is the exception, and tags the size whose value was last in focus.
 
 ## 11. Testing
@@ -478,7 +473,7 @@ const saved = parseModuleData(definition, readModuleEntry(data, "modules", key))
 | `dispensing_packing`, `dispensing_safedon`, `labeling` | yes | Box numbers from `context.cartons[size]` (rule 7). Labelling is Accept 0 / Reject 1; its checks are canonical keys (`lot_no`, `mfg_date`, `expiry_date`, `artwork`, `carton_no`), labelled per level with a dotted key where the wording differs (`carton.lot_no`), and it reports the `level` in focus. Safedon's dispensing defects are defect codes (`no_cuff`, `finger_out`, ...). Labelling's limit words are keyed per level, as visual's critical row is per class (`innerAccept` to `cartonReject`; SAFEDON_EG prints "Acc. = 0 / Rej. = 1"): read the level's key first, else the word both levels share. |
 | `conclusion` | no | Always on. Keep `dependsOn: "all"` and `requiredForSubmit: true` (the registry test checks it). Compute the suggestion with `suggestResult` over `input.results` and put it in `computed.suggestedResult`; the final result is the inspector's. Other modules are named by their titles (`moduleTitle(context, key)`). Not done until the final result is chosen (and the signature, if Kenneth confirms it is required): that blocks submit, and the blocking issue links to the choice (`notDonePath`). Status from the final result: pass is `pass`, fail is `fail`, hold is `warn`, since a module status has no hold. |
 | `dye_leak` | yes | Optional module (Phase 3). |
-| `documents` | no | Optional module. Each item keeps its file's id (`file`) through one file slot, filed under the item being worked on, nothing added until one is chosen (section 10.1); `item` in the focus, and it opens on the `item` the screen has in focus. One row of four columns per item from 1280 px where the module is at least 48rem wide (`xl:@3xl:`), the stacked rows otherwise (below). |
+| `documents` | no | Optional module. Each item keeps its file's id (`file`) through one file slot, filed under the item being worked on, nothing linked until one is chosen (section 10.1); `item` in the focus, and it opens on the `item` the screen has in focus. One row of four columns per item from 1280 px where the module is at least 48rem wide (`xl:@3xl:`), the stacked rows otherwise (below). |
 | `loading` | no | Optional module; `item` in the focus for a loading stage. |
 
 **How wide a Capture is.** The capture screen's section list and the app's sidebar take their share of a desktop screen: the module body is about 616 px wide at 1280 px, 702 px at 1366 px, 776 px at 1440 px and at most 952 px; on the iPads it is 732 px (portrait) and 1092 px (landscape). A layout that puts parts side by side from 1280 px asks the module, not the screen: `@container` on the Capture's root and `xl:@min-[…]:` (or a named size such as `xl:@3xl:`) on the layout, so a narrow module keeps the stacked layout the iPad has (force at break, documents). Check it at 1280 and 1440 px in the capture screen itself, where the section list is.

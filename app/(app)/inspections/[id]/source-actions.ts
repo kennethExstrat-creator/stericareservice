@@ -6,6 +6,7 @@ import { readSourceDocument, type SourceModule } from "@/lib/ai/source-reader";
 import { loadAiEnv, loadGlossary } from "@/lib/ai/settings";
 import { authorizeAction } from "@/lib/auth/session";
 import {
+  linkSourceFile,
   NOT_FILLED_BY_AI,
   SOURCE_DOCUMENTS_KEY,
   type SourceFileStatus,
@@ -18,13 +19,17 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { MODULE_REGISTRY } from "@/modules";
 import { InspectionDataSchema, readModuleEntry } from "@/modules/_framework/data";
+import type { FileKind } from "@/modules/_framework/files";
 
 /*
  * Source Documents (docs/AI.md, "Source Documents"). Server Actions are
  * public endpoints: each checks the caller and reads through the caller's
  * client, so Row Level Security decides what they see. The reading is
  * recorded on the file row with the secret key, once the caller is known to
- * be allowed to edit the inspection.
+ * be allowed to edit the inspection: with the file's kind when the AI read
+ * it as a lab report or certificate, which the steps then link
+ * (linkSourceFile: tensile's or force at break's labReport, a documents
+ * row's file, only where none is kept yet).
  */
 
 export type SourceReadResult =
@@ -133,7 +138,8 @@ export async function readSourceFile(inspectionId: string, fileId: string): Prom
     }
     const bytes = Buffer.from(await download.data.arrayBuffer());
     const mediaType = mediaTypeOf(bytes);
-    const record = (status: "read" | "failed", summary: string) => recordReading(fileId, status, summary);
+    const record = (status: "read" | "failed", summary: string, kind: FileKind | null = null) =>
+      recordReading(fileId, status, summary, kind);
     if (!mediaType) {
       const message = "The AI reads PDFs and photos (JPEG or PNG). Save this file as a PDF and upload it again.";
       await record("failed", message);
@@ -175,11 +181,20 @@ export async function readSourceFile(inspectionId: string, fileId: string): Prom
     }
 
     const allowed = new Set(modules.map((module) => module.key));
-    const proposals = Object.fromEntries(Object.entries(outcome.proposals).filter(([key]) => allowed.has(key as ModuleKey)));
+    const read = Object.fromEntries(Object.entries(outcome.proposals).filter(([key]) => allowed.has(key as ModuleKey)));
+    // The file itself as a step's lab report or a documents row's certificate: its id where none is kept yet.
+    const { proposals, linked, kind } = linkSourceFile({
+      proposals: read,
+      attachTo: outcome.attachTo,
+      fileId,
+      data: data.data,
+      registry: MODULE_REGISTRY,
+      modules,
+    });
     // Kept with the file: what it is, then how each shortform was read and recorded, for the admin to check.
     const readAs = outcome.mappings.length > 0 ? ` Read as: ${outcome.mappings.join("; ")}.` : "";
-    await record("read", `${outcome.summary || "Read."}${readAs}`);
-    await logReading(inspectionId, { file: file.data.name, modules: Object.keys(proposals), by: user.id, model: outcome.model });
+    await record("read", `${outcome.summary || "Read."}${readAs}`, kind);
+    await logReading(inspectionId, { file: file.data.name, modules: Object.keys(proposals), linked, by: user.id, model: outcome.model });
     return { status: "read", summary: `${outcome.summary}${readAs}`.trim(), proposals };
   } catch (error) {
     unstable_rethrow(error);
@@ -188,17 +203,26 @@ export async function readSourceFile(inspectionId: string, fileId: string): Prom
   }
 }
 
-/** Marks the file read or not; a failure here is logged, the reading still counts. */
-async function recordReading(fileId: string, status: "read" | "failed", summary: string): Promise<void> {
+/**
+ * Marks the file read or not, and what it is when the AI read it as a lab
+ * report or certificate; a failure here is logged, the reading still counts.
+ */
+async function recordReading(fileId: string, status: "read" | "failed", summary: string, kind: FileKind | null): Promise<void> {
   const { error } = await createAdminClient()
     .from("inspection_files")
-    .update({ ai_status: status, ai_read_at: new Date().toISOString(), ai_summary: summary.slice(0, 1000) })
+    .update({ ai_status: status, ai_read_at: new Date().toISOString(), ai_summary: summary.slice(0, 1000), ...(kind ? { kind } : {}) })
     .eq("id", fileId);
   if (error) console.error("[source documents] recording the reading failed", error.code, error.message);
 }
 
-/** The inspection's audit log, written by the service role (inspectors record only a few events themselves). */
-async function logReading(inspectionId: string, changes: { file: string; modules: string[]; by: string; model: string }): Promise<void> {
+/**
+ * The inspection's audit log, written by the service role (inspectors record
+ * only a few events themselves): `linked`, where the file itself was linked.
+ */
+async function logReading(
+  inspectionId: string,
+  changes: { file: string; modules: string[]; linked: string[]; by: string; model: string },
+): Promise<void> {
   const { error } = await createAdminClient().rpc("log_inspection_event", {
     inspection_id: inspectionId,
     action: "source_document_read",

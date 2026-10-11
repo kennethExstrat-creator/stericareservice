@@ -1,11 +1,16 @@
 // Source Documents (docs/AI.md, "Source Documents"): the first step of every
 // inspection. The inspector uploads every file about it; the AI reads each
-// one and proposes values for the modules after it. Pure and client-safe:
-// the capture screen lays the proposals over its own data, so they go
-// through the same autosave as typing, and only into fields still empty.
+// one and proposes values for the modules after it, and says when the file
+// itself is a step's lab report or a documents row's certificate, which the
+// step then links (linkSourceFile): module pages never upload. Pure and
+// client-safe: the capture screen lays the proposals over its own data, so
+// they go through the same autosave as typing, and only into fields still
+// empty.
 import type { ModuleKey } from "@/lib/schemas/module-result";
 import type { ModuleRegistry } from "@/modules/_framework/contract";
 import { readModuleEntry, writeModuleData, type InspectionData } from "@/modules/_framework/data";
+import type { FileKind } from "@/modules/_framework/files";
+import { checklist, DOCUMENT_FILE_KIND, DOCUMENT_ITEMS, DocumentsConfigSchema } from "@/modules/documents/config";
 
 /** The page's key on the capture screen (?module=source_documents) and the files' module_key. */
 export const SOURCE_DOCUMENTS_KEY = "source_documents";
@@ -203,4 +208,103 @@ export function applyProposals(
     modules.push(key);
   }
   return { data: next, filled, modules };
+}
+
+/* ------------------------------------------------------------------ *
+ * The file itself as a step's lab report or certificate
+ * ------------------------------------------------------------------ */
+
+/** The steps that keep a lab report's id (docs/MODULES.md 10.1). */
+const LAB_REPORT_STEPS: readonly string[] = ["tensile", "force_at_break"];
+
+/** What a file is, the strongest first: a lab report, a certificate, anything else. */
+const KIND_RANK: Readonly<Record<FileKind, number>> = { lab_report: 2, certificate: 1, other: 0 };
+
+/**
+ * Where the AI says a Source Document belongs as a whole (its answer's
+ * `attachTo`, lib/ai/source-reader.ts): "tensile" or "force_at_break" for
+ * the step's lab report, "documents.<item>" for a documents row. What that
+ * writes, and what the file then is; null for anything else.
+ */
+export function fileLinkTarget(link: string, fileId: string): { key: ModuleKey; proposal: Record<string, unknown>; kind: FileKind } | null {
+  if (LAB_REPORT_STEPS.includes(link)) return { key: link as ModuleKey, proposal: { labReport: fileId }, kind: "lab_report" };
+  const item = DOCUMENT_ITEMS.find((candidate) => link === `documents.${candidate}`);
+  if (item) return { key: "documents", proposal: { items: { [item]: { file: fileId } } }, kind: DOCUMENT_FILE_KIND[item] };
+  return null;
+}
+
+function omit(record: Record<string, unknown>, key: string): Record<string, unknown> {
+  const rest = { ...record };
+  delete rest[key];
+  return rest;
+}
+
+/** `extra` laid over `base`, record by record: its values win. */
+function overlay(base: unknown, extra: Record<string, unknown>): Record<string, unknown> {
+  const next: Record<string, unknown> = isRecord(base) ? { ...base } : {};
+  for (const [key, value] of Object.entries(extra)) next[key] = isRecord(value) ? overlay(next[key], value) : value;
+  return next;
+}
+
+/** The proposals without a file id the AI wrote itself: it knows only the file it reads, which a link names. */
+function withoutFileIds(proposals: SourceProposals): SourceProposals {
+  const next: SourceProposals = { ...proposals };
+  for (const key of LAB_REPORT_STEPS) if (isRecord(next[key])) next[key] = omit(next[key], "labReport");
+  const documents = next.documents;
+  if (isRecord(documents) && isRecord(documents.items)) {
+    const items = Object.entries(documents.items).map(([item, entry]) => [item, isRecord(entry) ? omit(entry, "file") : entry]);
+    next.documents = { ...documents, items: Object.fromEntries(items) };
+  }
+  return next;
+}
+
+export type SourceFileLinks = {
+  /** The reading's proposals, with the file's id where a link puts it. */
+  proposals: SourceProposals;
+  /** The links that put it somewhere: where nothing was kept yet. */
+  linked: string[];
+  /** What the links say the file is, a lab report before a certificate; null when they say nothing. */
+  kind: FileKind | null;
+};
+
+/**
+ * The file a reading was of, linked where the AI says it belongs: its id as
+ * tensile's or force at break's lab report, or as a documents row's file.
+ * Only for the modules the reading may fill (`modules`, the template's
+ * included ones) and rows on the documents checklist, and only where
+ * nothing is kept yet; the capture screen then fills it in as any proposal
+ * (applyProposals), so a file linked there meanwhile stays.
+ */
+export function linkSourceFile({
+  proposals,
+  attachTo,
+  fileId,
+  data,
+  registry,
+  modules,
+}: {
+  proposals: SourceProposals;
+  /** The AI's `attachTo`. */
+  attachTo: readonly string[];
+  fileId: string;
+  data: InspectionData;
+  registry: ModuleRegistry;
+  /** The modules the reading may fill, with their settings. */
+  modules: readonly { key: string; config: unknown }[];
+}): SourceFileLinks {
+  const included = new Set(modules.map((module) => module.key));
+  const documents = DocumentsConfigSchema.safeParse(modules.find((module) => module.key === "documents")?.config);
+  const rows = new Set<string>(documents.success ? checklist(documents.data).map((item) => `documents.${item.key}`) : []);
+  const next = withoutFileIds(proposals);
+  const linked: string[] = [];
+  let kind: FileKind | null = null;
+  for (const link of new Set(attachTo)) {
+    const target = fileLinkTarget(link, fileId);
+    if (!target || !included.has(target.key) || (target.key === "documents" && !rows.has(link))) continue;
+    if (kind === null || KIND_RANK[target.kind] > KIND_RANK[kind]) kind = target.kind;
+    if (applyProposals(data, { [target.key]: target.proposal }, registry, included).filled === 0) continue;
+    next[target.key] = overlay(next[target.key], target.proposal);
+    linked.push(link);
+  }
+  return { proposals: next, linked, kind };
 }

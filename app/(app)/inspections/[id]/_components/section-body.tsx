@@ -4,11 +4,13 @@
 // (modules/<key>/Capture.tsx, loaded on demand through the registry) with
 // the props of the contract (docs/MODULES.md 10), inside the file slot
 // provider that lets force at break, tensile and documents attach their
-// files (10.1); a module without one shows a simplified form of its
-// canonical paths, a placeholder module says it is not built yet, and a
-// custom module gets the screen's own form. A module whose settings cannot
-// be read says so; saved values that no longer read are listed, with one
-// confirmed way to remove them (unreadable-data.tsx).
+// files (10.1): never an upload here, only a link to one of the files
+// uploaded on Source Documents (source-file-link.tsx). A module without a
+// Capture shows a simplified form of its canonical paths, a placeholder
+// module says it is not built yet, and a custom module gets the screen's
+// own form. A module whose settings cannot be read says so; saved values
+// that no longer read are listed, with one confirmed way to remove them
+// (unreadable-data.tsx).
 //
 // Offline (docs/OFFLINE.md: editing continues on a page already open): the
 // screen downloads every section's form soon after it opens
@@ -18,7 +20,6 @@
 // download, rendered by a new boundary (a failed lazy component stays
 // failed, and the boundary's own children would still hold it).
 import { lazy, Suspense, useCallback, useMemo, useState, type LazyExoticComponent, type ReactNode } from "react";
-import { FileSlot } from "@/components/capture/files";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MODULE_KEYS, type ModuleKey } from "@/lib/schemas/module-result";
 import type { ResolvedModule } from "@/lib/schemas/template";
@@ -37,6 +38,7 @@ import {
 import { FileSlotProvider, type FileSlotRequest } from "@/modules/_framework/file-slot";
 import { CustomModuleForm, FallbackModuleForm } from "./plain-forms";
 import { SectionErrorBoundary } from "./section-error-boundary";
+import { SourceFileLink } from "./source-file-link";
 import { UnreadableData } from "./unreadable-data";
 
 type LazyCapture = LazyExoticComponent<CaptureComponent>;
@@ -100,6 +102,8 @@ type ModuleBodyProps = {
   onFocusChange: (focus: CaptureFocus) => void;
   /** Saved values that could not be read were removed: the form replaces their list, its button with it. */
   onUnreadableRemoved?: () => void;
+  /** Opens the Source Documents step, where a module's lab report or certificate is uploaded. */
+  onOpenSourceDocuments?: () => void;
   /**
    * On a page of two sections, this one's title: the buttons of a form that
    * did not show and of values that cannot be read are read out with it.
@@ -121,6 +125,7 @@ export function ModuleBody({
   onChange,
   onFocusChange,
   onUnreadableRemoved,
+  onOpenSourceDocuments,
   nameContext,
 }: ModuleBodyProps) {
   const definition = MODULE_REGISTRY[moduleKey];
@@ -138,22 +143,18 @@ export function ModuleBody({
   );
   // Every saved size, also those no longer ordered: Capture hands them back unchanged (docs/MODULES.md 10).
   const saved = useMemo(() => parseModuleData(definition, moduleEntry), [definition, moduleEntry]);
-  // The screen's upload slot for a module's lab reports and certificates (docs/MODULES.md 10.1).
+  // The screen's file slot for a module's lab report or certificate: a link to one of the
+  // Source Documents, uploaded on that step (docs/MODULES.md 10.1).
   const renderFileSlot = useCallback(
     (slot: FileSlotRequest) => (
-      <FileSlot
+      <SourceFileLink
         inspectionId={inspectionId}
-        moduleKey={slot.moduleKey}
-        kind={slot.kind}
-        title={slot.title}
-        focus={slot.focus}
+        slot={slot}
         readOnly={slot.readOnly || readOnly}
-        canAdd={slot.addable}
-        onAdded={slot.onAdded}
-        onRemoved={slot.onRemoved}
+        onOpenSourceDocuments={onOpenSourceDocuments}
       />
     ),
-    [inspectionId, readOnly],
+    [inspectionId, readOnly, onOpenSourceDocuments],
   );
 
   if (definition.stub) {

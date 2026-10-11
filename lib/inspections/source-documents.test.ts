@@ -3,12 +3,14 @@ import { z } from "zod";
 import { lowerCaseWords } from "@/lib/design/capitalisation";
 import { ModuleTagSchema } from "@/lib/inspections/photos/schemas";
 import { MODULE_KEYS } from "@/lib/schemas/module-result";
+import { MODULE_REGISTRY } from "@/modules";
 import type { ModuleRegistry } from "@/modules/_framework/contract";
 import {
   applyProposals,
   countFilled,
   fillEmpty,
   isMediaCategoryKey,
+  linkSourceFile,
   MEDIA_CATEGORIES,
   MEDIA_CATEGORY_KEYS,
   mediaCategory,
@@ -138,5 +140,57 @@ describe("applyProposals", () => {
     expect(result.data.modules.conclusion).toEqual({ finalResult: null });
     expect(result.filled).toBe(3);
     expect(result.modules).toEqual(["header", "order_lots"]);
+  });
+});
+
+describe("linkSourceFile", () => {
+  const FILE = "00000000-0000-4000-8000-000000000501";
+  const KEPT = "00000000-0000-4000-8000-000000000502";
+  const modules = [
+    { key: "tensile", config: {} },
+    { key: "force_at_break", config: {} },
+    {
+      key: "documents",
+      config: {
+        items: [
+          { key: "labTestReports", include: true, required: false },
+          { key: "iso13485", include: false, required: false },
+        ],
+      },
+    },
+  ];
+
+  it("keeps the file's id where the AI says it belongs and nothing is kept yet, never an id the AI wrote", () => {
+    const result = linkSourceFile({
+      proposals: {
+        tensile: { labReport: KEPT, sizes: {} },
+        documents: { items: { labTestReports: { referenceNo: "LAB-0001", file: KEPT } } },
+      },
+      attachTo: ["tensile", "force_at_break", "documents.labTestReports", "documents.iso13485", "visual", "tensile"],
+      fileId: FILE,
+      // Force at break keeps another report already; iso13485 is off the checklist; visual keeps no file.
+      data: { modules: { force_at_break: { labReport: KEPT } }, custom: {} },
+      registry: MODULE_REGISTRY,
+      modules,
+    });
+    expect(result.linked).toEqual(["tensile", "documents.labTestReports"]);
+    expect(result.proposals.tensile).toEqual({ sizes: {}, labReport: FILE });
+    expect(result.proposals.documents).toEqual({ items: { labTestReports: { referenceNo: "LAB-0001", file: FILE } } });
+    expect(result.proposals).not.toHaveProperty("force_at_break");
+    expect(result.kind).toBe("lab_report");
+  });
+
+  it("links nothing without attachTo, or for a module the reading may not fill", () => {
+    const result = linkSourceFile({
+      proposals: { force_at_break: { labReport: KEPT } },
+      attachTo: ["force_at_break"],
+      fileId: FILE,
+      data: { modules: {}, custom: {} },
+      registry: MODULE_REGISTRY,
+      modules: [{ key: "tensile", config: {} }],
+    });
+    expect(result).toEqual({ proposals: { force_at_break: {} }, linked: [], kind: null });
+    expect(linkSourceFile({ proposals: {}, attachTo: [], fileId: FILE, data: { modules: {}, custom: {} }, registry: MODULE_REGISTRY, modules }))
+      .toEqual({ proposals: {}, linked: [], kind: null });
   });
 });
