@@ -1,20 +1,29 @@
-// Server-rendered markup of the carton grid: one cell per case sampled, 10 to
-// a row, then a shaded spare row; the template's caption, duplicates and
-// out-of-range numbers red in their cells with links, read-only. Keys, paste
-// and swipes are the kit's (components/qc), checked in a browser by the
-// integrator; a paste's run over the cells uses the kit's own functions here.
+// Server-rendered markup of the carton list: each size's numbers as chips in
+// the order entered, each with a remove button, and one field on the numeric
+// keypad for the next; the template's caption; duplicates and numbers above
+// the order quantity red with links; a list saved from the grid shown by its
+// numbers; read-only. Typing, Enter and paste run in a browser; the rules they
+// follow are edit.ts's (edit.test.ts), and the writes below go through the
+// kit's updater as the screen's do.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { batchDataChanges, createDataUpdater } from "@/components/qc/data-updater";
-import { fillRun, planFieldPaste, type PasteResult } from "@/components/qc/field-navigation";
+import { RefusedEntryStoreContext, type RefusedEntryStore } from "@/components/qc";
+import { createDataUpdater } from "@/components/qc/data-updater";
 import { buildInspectionContext, evaluateInspection, type InspectionData } from "@/modules/_framework";
 import { makeTestContext, makeTestTemplate, TEST_INSPECTOR } from "@/modules/_framework/testing";
 import { ENGINE_REGISTRY, exampleData, samplingPlanData } from "@/modules/sampling_plan/__fixtures__/examples";
-import { SAFEDON_EG_EXAMPLE, STD_EG_EXAMPLE, type ExampleReport } from "@/tests/fixtures/examples";
+import {
+  cartonList,
+  SAFEDON_EG_EXAMPLE,
+  STD_EG_EXAMPLE,
+  STD_EG_EXPECTED,
+  type ExampleReport,
+} from "@/tests/fixtures/examples";
 import type { CartonSamplingComputed } from "./calc";
 import Capture from "./Capture";
 import { CARTON_SAMPLING_DEFAULT_CONFIG, CARTON_SAMPLING_LABELS } from "./config";
-import { emptyCartonSampling, withCartonNumber, type CartonSamplingData } from "./schema";
+import { addCartons, pastedCartons, readTypedCarton, refusalMessage, removeCarton, type AddedCartons } from "./edit";
+import { emptyCartonSampling, type CartonSamplingData } from "./schema";
 
 const noop = () => {};
 
@@ -43,80 +52,126 @@ const render = (input: Parameters<typeof Capture>[0]) => renderToStaticMarkup(<C
 const tagsWith = (html: string, attribute: string): string[] =>
   Array.from(html.matchAll(new RegExp(`<[^>]*${attribute}[^>]*>`, "g")), (match) => match[0]);
 
+const classesOf = (tag: string): string[] => /class="([^"]*)"/.exec(tag)?.[1].split(/\s+/) ?? [];
+
 const pathAttribute = (path: readonly (string | number)[]) =>
   `data-issue-path="${JSON.stringify(path).replaceAll('"', "&quot;")}"`;
 
-/** Cells calc marked with an error: `ring-fail` as a class of its own, not the `aria-invalid:` variant every cell has. */
-const redCells = (html: string): string[] =>
-  tagsWith(html, "data-enter-field").filter((tag) => /class="([^"]*)"/.exec(tag)?.[1].split(/\s+/).includes("ring-fail"));
+/** The chips' opening tags, in the order on screen. */
+const chipTags = (html: string): string[] => tagsWith(html, "data-carton=");
 
-/** The grid positions of the shaded (spare) cells: the cell's <td> carries `bg-slate-50`. */
-const spareCells = (html: string): number[] =>
-  Array.from(html.matchAll(/<td class="([^"]*)"><div data-slot="number-field"/g), (match) => match[1])
-    .map((classes, index) => (classes.split(/\s+/).includes("bg-slate-50") ? index : -1))
-    .filter((index) => index >= 0);
+/** The carton numbers on the chips, in the order on screen. */
+const chips = (html: string): number[] => chipTags(html).map((tag) => Number(/data-carton="(\d+)"/.exec(tag)?.[1]));
+
+/** Chips calc marked with an error. */
+const redChips = (html: string): string[] => chipTags(html).filter((tag) => classesOf(tag).includes("bg-fail-tint"));
+
+const removeButtons = (html: string): string[] => tagsWith(html, 'aria-label="Remove Carton ');
+
+/** The size's field that adds a carton number. */
+const field = (html: string, size: string): string | undefined => tagsWith(html, `id="carton-sampling-${size}-entry"`)[0];
 
 const range = (from: number, to: number): number[] => Array.from({ length: to - from }, (_, offset) => from + offset);
 
 describe("carton_sampling Capture", () => {
-  it("offers one cell per case sampled, 10 to a row, then a shaded spare row, named by row and column as on the report", () => {
+  it("lists the size's carton numbers as chips in the order entered, and a field on the numeric keypad for the next", () => {
     const html = render(props(STD_EG_EXAMPLE));
-    const cells = tagsWith(html, "data-enter-field");
-    expect(cells).toHaveLength(60);
-    expect(cells[0]).toContain('aria-label="M (Carton #), row 1 column 1"');
-    expect(cells[20]).toContain('aria-label="M (Carton #), row 3 column 1"');
-    expect(cells[49]).toContain('aria-label="M (Carton #), row 5 column 10"');
-    expect(cells[50]).toContain('aria-label="M (Carton #), row 6 column 1, beyond the 50 cases sampled"');
-    expect(spareCells(html)).toEqual(range(50, 60));
-    for (const cell of cells) expect(cell).toContain('inputMode="decimal"');
-    expect(html).toContain(pathAttribute(["sizes", "M", "cartonNumbers", 20]));
-    expect(html).toContain(pathAttribute(["sizes", "M", "cartonNumbers", 59]));
-    expect(html).toContain(pathAttribute(["sizes", "M", "cartonNumbers"]));
+    expect(html).not.toContain("<table");
+    expect(chips(html)).toEqual(cartonList(STD_EG_EXAMPLE.cartons.M!));
+    // Each chip points at its place in the stored list and takes an issue link's focus itself.
+    const tags = chipTags(html);
+    expect(tags[20]).toContain(pathAttribute(["sizes", "M", "cartonNumbers", 20]));
+    expect(tags[20]).toContain('id="carton-sampling-M-20"');
+    for (const tag of tags) {
+      expect(tag).toContain('tabindex="-1"');
+      expect(classesOf(tag)).toEqual(expect.arrayContaining(["h-8", "touch:h-11", "touch:text-base"]));
+    }
+    // Each with its remove button, 44 px on touch; one Tab stop for the whole list.
+    const buttons = removeButtons(html);
+    expect(buttons).toHaveLength(50);
+    expect(buttons[0]).toContain(`aria-label="Remove Carton ${cartonList(STD_EG_EXAMPLE.cartons.M!)[0]}"`);
+    for (const button of buttons) expect(classesOf(button)).toEqual(expect.arrayContaining(["size-8", "touch:size-11"]));
+    expect(buttons.filter((button) => button.includes('tabindex="0"'))).toHaveLength(1);
+    expect(buttons[0]).toContain('tabindex="0"');
+
+    const entry = field(html, "M");
+    expect(entry).toBeDefined();
+    expect(entry).toContain('inputMode="numeric"');
+    expect(entry).toContain('aria-label="M (Carton #): add"');
+    expect(entry).toContain('placeholder="Carton number"');
+    // Calc's count issue lands on the field.
+    expect(entry).toContain(pathAttribute(["sizes", "M", "cartonNumbers"]));
+    // The kit's field: 44 px and 16 px text on touch.
+    expect(classesOf(entry!)).toEqual(expect.arrayContaining(["touch:h-11", "text-base"]));
+    expect(html).toMatch(/<button[^>]*data-slot="button"[^>]*>.*?Add<\/button>/);
+    expect(html).toMatch(/Sampling Quantity <span[^>]*>.*50.* \/ .*50/);
   });
 
-  it("offers the report's 50 cells and a spare row until the sampling plan gives the cases, then the plan's rows and a spare row", () => {
-    const noPlan = exampleData(STD_EG_EXAMPLE, {
-      sampling_plan: { sizes: {} },
-      carton_sampling: { sizes: { M: { cartonNumbers: [32, 578] } } },
+  it("shows a list saved from the grid by its numbers only, each chip pointing at its place in the saved list", () => {
+    const grid = exampleData(STD_EG_EXAMPLE, {
+      carton_sampling: { sizes: { M: { cartonNumbers: [32, null, 578, null, null, 1186] } } },
     });
-    const unplanned = render(props(STD_EG_EXAMPLE, noPlan));
-    expect(tagsWith(unplanned, "data-enter-field")).toHaveLength(60);
-    // No plan, nothing to be beyond.
-    expect(spareCells(unplanned)).toEqual([]);
-    expect(unplanned).not.toContain("beyond the");
+    const html = render(props(STD_EG_EXAMPLE, grid));
+    expect(chips(html)).toEqual([32, 578, 1186]);
+    expect(chipTags(html).map((tag) => /data-issue-path="([^"]*)"/.exec(tag)?.[1].replaceAll("&quot;", '"'))).toEqual([
+      '["sizes","M","cartonNumbers",0]',
+      '["sizes","M","cartonNumbers",2]',
+      '["sizes","M","cartonNumbers",5]',
+    ]);
+    expect(html).toMatch(/Sampling Quantity <span[^>]*>.*3.* \/ .*50/);
+  });
 
+  it("marks both chips of the carton entered twice red, with the message linked below (expected result B)", () => {
+    const html = render(props(STD_EG_EXAMPLE));
+    const { duplicate } = STD_EG_EXPECTED.cartonList;
+    const [first, second] = duplicate.cells.map(({ row, column }) => (row - 1) * 10 + (column - 1));
+    const red = redChips(html);
+    expect(red).toHaveLength(2);
+    expect(red[0]).toContain(pathAttribute(["sizes", "M", "cartonNumbers", first]));
+    expect(red[1]).toContain(pathAttribute(["sizes", "M", "cartonNumbers", second]));
+    for (const chip of red) expect(chip).toContain(`data-carton="${duplicate.carton}"`);
+    const message = `Size M: ${STD_EG_EXPECTED.errors[0].message}`;
+    // On each chip for a screen reader, and as a link under the list.
+    expect(red[0]).toContain(`aria-describedby="carton-sampling-M-${first}-problem"`);
+    expect(html).toContain(`<span id="carton-sampling-M-${second}-problem" class="sr-only">${message}</span>`);
+    expect(html).toMatch(new RegExp(`<button type="button" class="[^"]*text-fail[^"]*">.*?<span>${message.replace(/[().]/g, "\\$&")}</span></button>`));
+    expect(html).toMatch(/Sampling Quantity <span[^>]*>.*50.* \/ .*50/);
+  });
+
+  it("marks a carton above the order quantity red, with a link to its chip (6.2 rule 6)", () => {
+    const data = exampleData(STD_EG_EXAMPLE, { carton_sampling: { sizes: { M: { cartonNumbers: [32, 9999, 578] } } } });
+    const html = render(props(STD_EG_EXAMPLE, data));
+    const red = redChips(html);
+    expect(red).toHaveLength(1);
+    expect(red[0]).toContain('data-carton="9999"');
+    expect(red[0]).toContain(pathAttribute(["sizes", "M", "cartonNumbers", 1]));
+    expect(html).toContain("Size M: Carton 9999 is not between 1 and 2,900, the order quantity (row 1 column 2).");
+  });
+
+  it("counts the list against the plan's cases, however many the plan has: 50 of 63, not done", () => {
     const more = exampleData(STD_EG_EXAMPLE, {
       sampling_plan: { sizes: { M: { ...samplingPlanData(STD_EG_EXAMPLE).sizes.M, cases: 63 } } },
+      carton_sampling: { sizes: { M: { cartonNumbers: range(1, 51) } } },
     });
-    const html = render(props(STD_EG_EXAMPLE, more));
-    const cells = tagsWith(html, "data-enter-field");
-    expect(cells).toHaveLength(80);
-    expect(cells[62]).toContain('aria-label="M (Carton #), row 7 column 3"');
-    expect(cells[63]).toContain('aria-label="M (Carton #), row 7 column 4, beyond the 63 cases sampled"');
-    expect(spareCells(html)).toEqual(range(63, 80));
+    const input = props(STD_EG_EXAMPLE, more);
+    expect(input.evaluation.result.perSize?.M).toEqual({ status: "not_done", summary: "50 of 63 carton numbers." });
+    const html = render(input);
+    expect(chips(html)).toEqual(range(1, 51));
     expect(html).toMatch(/Sampling Quantity <span[^>]*>.*50.* \/ .*63/);
-
-    // A list longer than the plan keeps its numbers in view, with a spare row after them.
-    const longer = exampleData(SAFEDON_EG_EXAMPLE, {
-      carton_sampling: { sizes: { XS: { cartonNumbers: range(1, 24) } } },
-    });
-    expect(tagsWith(render(props(SAFEDON_EG_EXAMPLE, longer)), "data-enter-field")).toHaveLength(40);
-    // No case sampled: the spare row only.
-    const none = exampleData(STD_EG_EXAMPLE, {
-      sampling_plan: { sizes: { M: { ...samplingPlanData(STD_EG_EXAMPLE).sizes.M, cases: 0 } } },
-      carton_sampling: { sizes: {} },
-    });
-    expect(spareCells(render(props(STD_EG_EXAMPLE, none)))).toEqual(range(0, 10));
+    // Until the plan gives the cases, the count stands alone.
+    const noPlan = render(props(STD_EG_EXAMPLE, exampleData(STD_EG_EXAMPLE, { sampling_plan: { sizes: {} } })));
+    expect(chips(noPlan)).toHaveLength(50);
+    expect(noPlan).toMatch(/Sampling Quantity <span[^>]*>.*50.* \/ <span data-slot="figure" data-empty=""/);
   });
 
-  it("shows only the ordered sizes and their sampled cases: SAFEDON_EG XS has 5 cells and the spare ones", () => {
+  it("shows only the ordered sizes and the list of the size on screen: SAFEDON_EG XS", () => {
     const html = render(props(SAFEDON_EG_EXAMPLE));
     expect(tagsWith(html, 'role="tab"').map((tab) => /data-size="([^"]+)"/.exec(tab)?.[1])).toEqual(["XS", "S", "M", "L"]);
-    // Tabs: the first size's panel only. 5 cases: the rest of row 1 and row 2 are spare.
-    expect(tagsWith(html, "data-enter-field")).toHaveLength(20);
-    expect(spareCells(html)).toEqual(range(5, 20));
-    expect(html).toContain('aria-label="XS (Carton #), row 1 column 6, beyond the 5 cases sampled"');
+    // Tabs: the first size's panel only.
+    expect(chips(html)).toEqual(cartonList(SAFEDON_EG_EXAMPLE.cartons.XS!));
     expect(html).toContain("XS (Carton #)");
+    expect(field(html, "XS")).toBeDefined();
+    expect(field(html, "S")).toBeUndefined();
   });
 
   it("shows each size's result at the kit's touch size: 16 px text on iPad", () => {
@@ -127,34 +182,66 @@ describe("carton_sampling Capture", () => {
     }
   });
 
-  it("marks both cells of the carton entered twice red, with the message linked below (expected result B)", () => {
-    const html = render(props(STD_EG_EXAMPLE));
-    const red = redCells(html);
-    expect(red).toHaveLength(2);
-    expect(red[0]).toContain('aria-label="M (Carton #), row 2 column 10"');
-    expect(red[1]).toContain('aria-label="M (Carton #), row 3 column 1"');
-    expect(html).toContain("Size M: Carton 525 is entered twice (row 2 column 10, row 3 column 1).");
-    expect(html).toMatch(/Sampling Quantity <span[^>]*>.*50.* \/ .*50/);
-  });
-
-  it("puts the template's wording in the caption and fills in the size", () => {
+  it("puts the template's wording in the caption and the field's name, and fills in the size", () => {
     const labels = { ...CARTON_SAMPLING_LABELS, sizeCaption: "Carton # {size}", samplingQuantity: "Qty sampled" };
     const html = render(props(STD_EG_EXAMPLE, exampleData(STD_EG_EXAMPLE), labels));
     expect(html).toContain("Carton # M");
-    expect(html).toContain('aria-label="Carton # M, row 1 column 1"');
+    expect(field(html, "M")).toContain('aria-label="Carton # M: add"');
     expect(html).toContain("Qty sampled");
     expect(html).not.toContain("M (Carton #)");
   });
 
-  it("is read-only for an approved inspection, without the spare row: there is nothing to enter", () => {
+  it("explains the field while the size has no carton numbers yet", () => {
+    const html = render(props(STD_EG_EXAMPLE, exampleData(STD_EG_EXAMPLE, { carton_sampling: { sizes: {} } })));
+    expect(chips(html)).toEqual([]);
+    expect(html).not.toContain("<ol");
+    expect(html).toContain("Type a carton number and press Enter, or paste a list to add several at once.");
+    expect(field(html, "M")).toContain('aria-describedby="carton-sampling-M-hint"');
+    expect(html).toMatch(/Sampling Quantity <span[^>]*>.*0.* \/ .*50/);
+  });
+
+  it("brings back text the field refused, with its message, after a size switch or a reload (the screen's store)", () => {
+    const kept = { raw: "52.5", error: refusalMessage({ reason: "not_a_carton", raw: "52.5" }) };
+    const asked: string[] = [];
+    const store: RefusedEntryStore = {
+      get: (path) => {
+        asked.push(JSON.stringify(path));
+        return JSON.stringify(path) === '["sizes","M","cartonNumbers"]' ? kept : undefined;
+      },
+      set: noop,
+    };
+    const html = renderToStaticMarkup(
+      <RefusedEntryStoreContext.Provider value={store}>
+        <Capture {...props(STD_EG_EXAMPLE)} />
+      </RefusedEntryStoreContext.Provider>,
+    );
+    const entry = field(html, "M");
+    expect(entry).toContain('value="52.5"');
+    expect(entry).toContain('aria-invalid="true"');
+    expect(entry).toContain('aria-describedby="carton-sampling-M-message"');
+    expect(html).toContain("“52.5” is not a carton number: whole numbers from 1 only.");
+    expect(asked).toContain('["sizes","M","cartonNumbers"]');
+  });
+
+  it("is read-only for an approved inspection: chips without remove buttons and no field, issue links still landing", () => {
     const html = render({ ...props(STD_EG_EXAMPLE), readOnly: true });
-    const cells = tagsWith(html, "data-enter-field");
-    expect(cells).toHaveLength(50);
-    for (const cell of cells) expect(cell).toContain("readOnly");
-    // A plan that does not fill its last row keeps the rest of it shaded.
-    const partial = render({ ...props(SAFEDON_EG_EXAMPLE), readOnly: true });
-    expect(tagsWith(partial, "data-enter-field")).toHaveLength(10);
-    expect(spareCells(partial)).toEqual(range(5, 10));
+    expect(chips(html)).toHaveLength(50);
+    expect(removeButtons(html)).toEqual([]);
+    expect(field(html, "M")).toBeUndefined();
+    expect(html).not.toContain("Add</button>");
+    // The chips still take an issue link's focus, the two red ones included; the count issue lands on the list.
+    for (const tag of chipTags(html)) expect(tag).toContain('tabindex="-1"');
+    expect(redChips(html)).toHaveLength(2);
+    const list = /<ol[^>]*>/.exec(html)?.[0];
+    expect(list).toContain(pathAttribute(["sizes", "M", "cartonNumbers"]));
+    expect(list).toContain('tabindex="-1"');
+    // Nothing entered: said so, and that is where the link lands.
+    const empty = render({
+      ...props(STD_EG_EXAMPLE, exampleData(STD_EG_EXAMPLE, { carton_sampling: { sizes: {} } })),
+      readOnly: true,
+    });
+    expect(empty).toMatch(/<p [^>]*tabindex="-1"[^>]*>No carton numbers entered\.<\/p>/);
+    expect(empty).not.toContain("Type a carton number");
   });
 
   it("says so while no size is ordered", () => {
@@ -166,8 +253,8 @@ describe("carton_sampling Capture", () => {
 describe("carton_sampling Capture writes (useDataUpdater, docs/CAPTURE_KIT.md)", () => {
   /**
    * The capture screen under the kit's updater: onChange replaces the data,
-   * and every cell's handler is the one made at the last render, as the
-   * Capture's setCarton is.
+   * and every handler is the one made at the last render, as the Capture's
+   * add and remove are.
    */
   function screen(start: CartonSamplingData = emptyCartonSampling()) {
     let data = start;
@@ -176,46 +263,64 @@ describe("carton_sampling Capture writes (useDataUpdater, docs/CAPTURE_KIT.md)",
       changes.push(next);
       data = next;
     });
-    const setCarton = (size: string, index: number, value: number | null) =>
-      updater.update((current) => withCartonNumber(current, size, index, value));
-    return { setCarton, changes, data: () => data };
+    // As Capture's add: update runs the change at once, so what it left out is known on return.
+    const add = (size: string, entries: readonly string[]): AddedCartons => {
+      let outcome: AddedCartons = { data, added: [], refused: [] };
+      updater.update((current) => {
+        outcome = addCartons(current, size, entries);
+        return outcome.data;
+      });
+      return outcome;
+    };
+    const remove = (size: string, index: number, carton: number) =>
+      updater.update((current) => removeCarton(current, size, index, carton));
+    return { add, remove, changes, data: () => data };
   }
 
-  it("keeps both of two numbers entered in one event, before the screen renders again", () => {
-    const { setCarton, changes, data } = screen();
-    setCarton("M", 0, 32);
-    setCarton("M", 1, 578);
+  /** What Enter does with the typed text. */
+  const typed = (text: string): string[] => {
+    const entry = readTypedCarton(text);
+    if (entry.kind !== "entry") throw new Error(`“${text}” is not one entry`);
+    return [entry.raw];
+  };
+
+  it("keeps both of two numbers added in one event, before the screen renders again", () => {
+    const { add, changes, data } = screen();
+    add("M", typed("32"));
+    add("M", typed("578"));
     expect(changes).toHaveLength(2);
     expect(data().sizes.M.cartonNumbers).toEqual([32, 578]);
   });
 
-  it("hands a pasted column to onChange once, every number in its cell", () => {
-    const { setCarton, changes, data } = screen(withCartonNumber(emptyCartonSampling(), "XS", 0, 7));
-    const pasted = [1186, 2389, 2865, 32, 578];
-    // Pasted into row 1 column 3: NumberField fills the cells after it inside batchDataChanges.
-    batchDataChanges(() => pasted.forEach((carton, offset) => setCarton("M", 2 + offset, carton)));
+  it("refuses a number the size already lists, saving nothing, and adds it to another size", () => {
+    const { add, changes, data } = screen({ sizes: { M: { cartonNumbers: [32, 525] } } });
+    expect(add("M", typed("525")).refused).toEqual([{ reason: "listed", raw: "525", carton: 525 }]);
+    expect(changes).toEqual([]);
+    expect(add("S", typed("525")).added).toEqual([525]);
+    expect(data().sizes).toEqual({ M: { cartonNumbers: [32, 525] }, S: { cartonNumbers: [525] } });
+  });
+
+  it("hands a pasted list to onChange once, leaving out what is listed already or no carton number", () => {
+    const { add, changes, data } = screen({ sizes: { XS: { cartonNumbers: [7] }, M: { cartonNumbers: [32] } } });
+    const pasted = pastedCartons("578\n1186, 32; abc 2389\t578");
+    if (!pasted) throw new Error("Not read as a list");
+    const { added, refused } = add("M", pasted);
     expect(changes).toHaveLength(1);
-    expect(data().sizes.M.cartonNumbers).toEqual([null, null, ...pasted]);
+    expect(added).toEqual([578, 1186, 2389]);
+    expect(refused.map(({ reason, raw }) => [reason, raw])).toEqual([
+      ["listed", "32"],
+      ["not_a_carton", "abc"],
+      ["listed", "578"],
+    ]);
+    expect(data().sizes.M.cartonNumbers).toEqual([32, 578, 1186, 2389]);
     expect(data().sizes.XS.cartonNumbers).toEqual([7]);
   });
 
-  it("stores a pasted list longer than the cases sampled, in the spare cells, and the size fails (6.2 rule 6)", () => {
+  it("stores a pasted list longer than the cases sampled, and the size fails on the count, its link on the field (6.2 rule 6)", () => {
     // SAFEDON_EG XS: 5 cases sampled, no carton numbers yet.
-    const start = exampleData(SAFEDON_EG_EXAMPLE, { carton_sampling: { sizes: {} } });
-    const cells = tagsWith(render(props(SAFEDON_EG_EXAMPLE, start)), "data-enter-field").map((_, index) => index);
-    const { setCarton, changes, data } = screen();
+    const { add, changes, data } = screen();
     const pasted = [1, 12, 18, 25, 33, 41, 47, 52];
-    // Pasted into row 1 column 1, as NumberField does it: one value per cell on screen, while there is one.
-    const plan = planFieldPaste(pasted.join("\n"), { column: false });
-    if (!plan) throw new Error("Not read as a paste of several values");
-    let result: PasteResult | null = null;
-    batchDataChanges(() => {
-      result = fillRun(plan.values, cells, 0, (index, raw) => {
-        setCarton("XS", index, Number(raw));
-        return true;
-      });
-    });
-    expect(result).toEqual({ filled: 8, rejected: 0, skipped: 0 });
+    add("XS", pastedCartons(pasted.join("\n")) ?? []);
     expect(changes).toHaveLength(1);
     expect(data().sizes.XS.cartonNumbers).toEqual(pasted);
 
@@ -224,10 +329,24 @@ describe("carton_sampling Capture writes (useDataUpdater, docs/CAPTURE_KIT.md)",
       status: "fail",
       summary: "8 carton numbers, but the sampling plan has 5 cases.",
     });
-    expect(after.evaluation.issues.map(({ code, size }) => [code, size])).toEqual([["carton_count_above_cases", "XS"]]);
+    expect(after.evaluation.issues.map(({ code, size, path }) => [code, size, path])).toEqual([
+      ["carton_count_above_cases", "XS", ["sizes", "XS", "cartonNumbers"]],
+    ]);
     const html = render(after);
     expect(html).toContain("Size XS: 8 carton numbers, but the sampling plan has 5 cases.");
     expect(html).toMatch(/Sampling Quantity <span[^>]*>.*8.* \/ .*5/);
-    expect(spareCells(html)).toEqual(range(5, 20));
+    expect(chips(html)).toEqual(pasted);
+    expect(field(html, "XS")).toContain(pathAttribute(["sizes", "XS", "cartonNumbers"]));
+  });
+
+  it("takes a chip's carton off, and stores a list saved from the grid without its blanks", () => {
+    const { remove, add, changes, data } = screen({ sizes: { M: { cartonNumbers: [32, null, 578, null, 1186] } } });
+    remove("M", 2, 578);
+    expect(data().sizes.M.cartonNumbers).toEqual([32, 1186]);
+    // Taken off twice from a screen not yet rendered again: once only.
+    remove("M", 2, 578);
+    expect(changes).toHaveLength(1);
+    add("M", typed("578"));
+    expect(data().sizes.M.cartonNumbers).toEqual([32, 1186, 578]);
   });
 });

@@ -1,36 +1,56 @@
 "use client";
 
-// The carton grid (BUILD_SPEC 6.1 carton_sampling, 8 "Speed"): per ordered
-// size, one cell per case sampled, 10 to a row as on the report, then a
-// shaded spare row. Carton numbers go in on the numeric keypad; Enter moves
-// along the row and on to the next, and a pasted column or row of numbers
-// fills the cells after the one in focus. A number entered twice or above the
-// order quantity turns red at once, with the problem below the grid and a
-// link back to the cell.
-import { useRef, useState } from "react";
+// The carton list (BUILD_SPEC 6.1 carton_sampling, 8 "Speed"): per ordered
+// size, the numbers of the cartons sampled, as chips in the order they were
+// entered, and one field on the numeric keypad for the next. Enter or Add
+// puts the typed number in the list; a pasted list (numbers between spaces,
+// commas, semicolons or new lines) goes in at once. A number the size lists
+// already, or text that is no carton number, is refused at the field with a
+// short message and not added (edit.ts). A number above the order quantity
+// is added and turns red at once, with calc's problem below the list and a
+// link to its chip (6.2 rule 6). A list saved from the earlier grid shows its
+// numbers only; the first edit stores it without the blanks.
+import { useRef, useState, type ClipboardEvent, type KeyboardEvent, type MouseEvent } from "react";
+import { PlusIcon, XIcon } from "lucide-react";
 import {
-  EnterGroup,
-  EntryProblems,
   Figure,
   focusIssuePath,
+  issueNoticeProps,
   issuePathProps,
-  NumberField,
   SizeTabs,
   StatusIcon,
   StatusPill,
   useDataUpdater,
   useIssueFocus,
-  type EntryProblem,
+  useRefusedEntryStore,
 } from "@/components/qc";
-import { formatCount, formatSize } from "@/lib/format";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { formatSize } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { initialSize, labelFor, samplingFor, type CaptureProps, type ValidationIssue } from "@/modules/_framework";
+import {
+  initialSize,
+  labelFor,
+  samplingFor,
+  type CaptureFocus,
+  type CaptureProps,
+  type ValidationIssue,
+} from "@/modules/_framework";
 import { useReportShownSize } from "@/modules/_framework/shown-size";
-import { gridCell, type CartonSamplingComputed } from "./calc";
-import { GRID_COLUMNS, REPORT_GRID_CELLS, type CartonSamplingConfig } from "./config";
-import { MAX_CARTONS_PER_SIZE, withCartonNumber, type CartonSamplingData } from "./schema";
-
-const COLUMN_NUMBERS = Array.from({ length: GRID_COLUMNS }, (_, column) => column);
+import type { CartonSamplingComputed } from "./calc";
+import type { CartonSamplingConfig } from "./config";
+import {
+  addCartons,
+  pastedCartons,
+  pasteMessage,
+  readTypedCarton,
+  refusalMessage,
+  removeCarton,
+  splitCartonText,
+  type AddedCartons,
+  type CartonRefusal,
+} from "./edit";
+import type { CartonSamplingData } from "./schema";
 
 export default function Capture({
   data,
@@ -47,8 +67,7 @@ export default function Capture({
   const root = useRef<HTMLDivElement>(null);
   // Opens on the size chosen in the last module (CaptureProps.focus).
   const [active, setActive] = useState(() => initialSize(context, focus));
-  const [rejected, setRejected] = useState<Readonly<Record<string, RejectedEntry>>>({});
-  // Every write starts from the latest data, so a pasted run of numbers keeps every value (docs/CAPTURE_KIT.md).
+  // Every write starts from the latest data, so a pasted list keeps every number (docs/CAPTURE_KIT.md).
   const update = useDataUpdater(data, onChange);
 
   const label = (key: string) => labelFor(labels, key);
@@ -60,64 +79,39 @@ export default function Capture({
   const shown = context.sizes.includes(active) ? active : context.sizes[0];
   // The size on the tabs tags the photos taken now (BUILD_SPEC 8.1), from the moment the section opens.
   useReportShownSize(shown ?? null, onFocusChange);
-  // The panel of the size left behind unmounts, and with it any rejected text.
-  const show = (size: string) => {
-    if (size !== shown) setRejected({});
-    setActive(size);
-  };
 
   useIssueFocus(focusPath, {
     root,
     reveal: (path) => {
-      if (path[0] === "sizes" && typeof path[1] === "string" && context.sizes.includes(path[1])) show(path[1]);
+      if (path[0] === "sizes" && typeof path[1] === "string" && context.sizes.includes(path[1])) setActive(path[1]);
     },
   });
 
-  const setCarton = (size: string, index: number, value: number | null) =>
-    update((current) => withCartonNumber(current, size, index, value));
-
-  const setRejectedEntry = (size: string, index: number, name: string, entry: EntryProblem["entry"] | null) =>
-    setRejected((current) => {
-      const id = cellId(size, index);
-      const next = { ...current };
-      delete next[id];
-      if (entry !== null) next[id] = { key: id, label: name, entry, inputId: id, size, index };
-      return next;
+  const add = (size: string, entries: readonly string[]): AddedCartons => {
+    // update runs the change at once, so what it added and left out is known on return.
+    let outcome: AddedCartons = { data, added: [], refused: [] };
+    update((current) => {
+      outcome = addCartons(current, size, entries);
+      return outcome.data;
     });
+    return outcome;
+  };
 
   const renderSize = (size: string) => {
-    const cells = data.sizes[size]?.cartonNumbers ?? [];
+    const entries = entriesOf(data.sizes[size]?.cartonNumbers ?? []);
     const cases = samplingFor(context, size).cases;
     const facts = evaluation?.computed.sizes?.[size];
     const result = evaluation?.result.perSize?.[size];
     const own = issues.filter((issue) => issue.path[0] === "sizes" && issue.path[1] === size);
-    const count = facts?.samplingQuantity ?? cells.filter((carton) => carton !== null).length;
-    // The spare row takes a list longer than the plan; a read-only grid takes nothing.
-    const rows = Array.from({ length: gridRows(cases, cells.length, !readOnly) }, (_, row) => row);
-    // Cells past the plan's cases: shaded, and named so for screen readers.
-    const spare = (index: number) => cases !== null && index >= cases;
-    const beyond = cases === null ? "" : `, beyond the ${formatCount(cases)} ${cases === 1 ? "case" : "cases"} sampled`;
-    const positions = positionsOf(cells);
-    const cellPath = (index: number) => ["sizes", size, "cartonNumbers", index] as const;
-    // Text that was not stored, listed with a link while its cell is still empty.
-    const problems = Object.values(rejected).filter(
-      (problem) => problem.size === size && (cells[problem.index] ?? null) === null,
-    );
-
-    // The cell's own problem, else the problem of a number it shares with another cell.
-    const problemAt = (index: number): ValidationIssue | undefined => {
-      const exact = own.find((issue) => issue.level === "error" && samePath(issue.path, cellPath(index)));
-      if (exact) return exact;
-      const carton = cells[index];
-      const at = carton === null || carton === undefined ? undefined : positions.get(carton);
-      if (!at || at.length < 2) return undefined;
-      return own.find((issue) => issue.code === "carton_duplicate" && samePath(issue.path, cellPath(at[1])));
-    };
+    const count = facts?.samplingQuantity ?? entries.length;
+    const captionId = `${idFor(size)}-caption`;
 
     return (
       <div className="space-y-3">
         <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-          <h3 className="text-base font-semibold text-foreground">{caption(size)}</h3>
+          <h3 id={captionId} className="text-base font-semibold text-foreground">
+            {caption(size)}
+          </h3>
           <p className="relative text-sm text-muted-foreground touch:text-base">
             {label("samplingQuantity")}{" "}
             <span className="font-semibold text-foreground tabular-nums">
@@ -125,70 +119,17 @@ export default function Capture({
             </span>
           </p>
         </div>
-        {rows.length > 0 && (
-          <EnterGroup
-            {...issuePathProps(["sizes", size, "cartonNumbers"])}
-            className="relative overflow-clip rounded-lg border border-border bg-card"
-          >
-            <table className="w-full table-fixed border-separate border-spacing-0 text-sm touch:text-base">
-              <caption className="sr-only">{`${title}, ${caption(size)}`}</caption>
-              <thead>
-                <tr>
-                  <td className="w-8 border-b border-border bg-slate-50 touch:w-10" />
-                  {COLUMN_NUMBERS.map((column) => (
-                    <th
-                      key={column}
-                      scope="col"
-                      className="border-b border-l border-border bg-slate-50 px-1 py-1 text-center text-sm font-semibold text-muted-foreground tabular-nums touch:text-base"
-                    >
-                      {column + 1}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={row} className="[&:last-child>*]:border-b-0">
-                    <th
-                      scope="row"
-                      className="border-b border-border bg-slate-50 text-center text-sm font-semibold text-muted-foreground tabular-nums touch:text-base"
-                    >
-                      {row + 1}
-                    </th>
-                    {COLUMN_NUMBERS.map((column) => {
-                      const index = row * GRID_COLUMNS + column;
-                      const id = cellId(size, index);
-                      const name = `${caption(size)}, ${gridCell(index)}${spare(index) ? beyond : ""}`;
-                      const value = cells[index] ?? null;
-                      return (
-                        <td
-                          key={column}
-                          className={cn("border-b border-l border-border p-0", spare(index) && "bg-slate-50")}
-                        >
-                          <NumberField
-                            variant="cell"
-                            id={id}
-                            label={name}
-                            value={value}
-                            onValueChange={(next) => setCarton(size, index, next)}
-                            integer
-                            min={1}
-                            error={problemAt(index)?.message ?? null}
-                            issuePath={cellPath(index)}
-                            onFocus={() => onFocusChange?.(value === null ? { size } : { size, box: value })}
-                            onInvalidChange={(entry) => setRejectedEntry(size, index, name, entry)}
-                            readOnly={readOnly}
-                          />
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </EnterGroup>
-        )}
-        <EntryProblems problems={problems} />
+        <CartonList
+          size={size}
+          name={caption(size)}
+          captionId={captionId}
+          entries={entries}
+          problems={chipProblems(own, size, entries)}
+          readOnly={readOnly}
+          onAdd={(list) => add(size, list)}
+          onRemove={(index, carton) => update((current) => removeCarton(current, size, index, carton))}
+          onFocusChange={onFocusChange}
+        />
         {own.length > 0 && (
           <ul className="space-y-1">
             {own.map((issue) => (
@@ -225,7 +166,7 @@ export default function Capture({
         templateSizes={context.templateSizes}
         value={active}
         onValueChange={(size) => {
-          show(size);
+          setActive(size);
           onFocusChange?.({ size });
         }}
         results={evaluation?.result.perSize}
@@ -237,38 +178,367 @@ export default function Capture({
   );
 }
 
-type RejectedEntry = EntryProblem & { size: string; index: number };
+/** A carton number on screen and its place in the stored list, where calc's issue paths point. */
+type CartonEntry = { readonly carton: number; readonly index: number };
 
-/** Whole rows the data can hold. */
-const MAX_ROWS = Math.floor(MAX_CARTONS_PER_SIZE / GRID_COLUMNS);
+/** The line under the field: a refusal (red), or what a paste added. */
+type FieldMessage = {
+  readonly text: string;
+  readonly tone: "refused" | "done";
+  /** The refused text, left in the field to correct. */
+  readonly raw?: string;
+};
+
+/** A press that leaves the focus where it is: the keyboard stays up on the iPad while numbers go in. */
+const keepFocus = (event: MouseEvent) => event.preventDefault();
 
 /**
- * Rows of a size's grid: room for the plan's cases (the report's 50 until
- * the plan gives them) or for the numbers stored, if more, then the spare
- * row. A paste fills only the cells there are: the spare row keeps a list
- * longer than the plan from being cut down to the plan and passing. What is
- * past the plan is stored, and the size fails (6.2 rule 6). Never more rows
- * than the data can hold.
+ * One size's carton numbers as chips, in the order entered, each with a
+ * remove button, then the field that adds the next. Read-only, the chips
+ * only. Each chip takes an issue link's focus itself (tabindex -1) and tags
+ * the photos taken while it has the focus with its carton. The remove
+ * buttons are one Tab stop, however long the list: the arrow keys, Home and
+ * End move along it, and a chip in focus holds the stop, so Tab from a chip
+ * an issue link landed on reaches its own remove button.
  */
-function gridRows(cases: number | null, stored: number, spare: boolean): number {
-  const needed = Math.ceil(Math.max(cases ?? REPORT_GRID_CELLS, stored) / GRID_COLUMNS);
-  return Math.min(MAX_ROWS, needed + (spare ? 1 : 0));
-}
-
-/** The cells each carton number sits in, in grid order. */
-function positionsOf(cells: readonly (number | null)[]): Map<number, number[]> {
-  const positions = new Map<number, number[]>();
-  cells.forEach((carton, index) => {
-    if (carton !== null) positions.set(carton, [...(positions.get(carton) ?? []), index]);
+function CartonList({
+  size,
+  name,
+  captionId,
+  entries,
+  problems,
+  readOnly,
+  onAdd,
+  onRemove,
+  onFocusChange,
+}: {
+  size: string;
+  /** The size's caption in the template's words: "M (Carton #)". */
+  name: string;
+  captionId: string;
+  entries: readonly CartonEntry[];
+  /** calc's message for each chip in trouble, by its place in the stored list. */
+  problems: ReadonlyMap<number, string>;
+  readOnly: boolean;
+  /** Adds the entries to the size; returns what it added and what it left out. */
+  onAdd: (entries: readonly string[]) => AddedCartons;
+  /** The chip's place in the stored list and the carton it shows. */
+  onRemove: (index: number, carton: number) => void;
+  onFocusChange?: (focus: CaptureFocus) => void;
+}) {
+  const id = idFor(size);
+  // The field's issue path: calc's count issue lands here, and so does the screen's list of entries to retype.
+  const path = ["sizes", size, "cartonNumbers"] as const;
+  const field = useRef<HTMLInputElement>(null);
+  const list = useRef<HTMLOListElement>(null);
+  // The chip whose remove button is the list's Tab stop.
+  const [stop, setStop] = useState(0);
+  const tabStop = Math.min(stop, entries.length - 1);
+  // Text refused here outlives the field, as a number field's does (docs/CAPTURE_KIT.md): another
+  // size, another section or a reload brings it back with its message.
+  const store = useRefusedEntryStore();
+  const [draft, setDraft] = useState(() => (readOnly ? "" : (store?.get(path)?.raw ?? "")));
+  const [message, setMessage] = useState<FieldMessage | null>(() => {
+    const kept = readOnly ? undefined : store?.get(path);
+    return kept ? { text: kept.error, tone: "refused", raw: kept.raw } : null;
   });
-  return positions;
+  // A polite live region; a repeat alternates a trailing no-break space, so it is said again.
+  const [spoken, setSpoken] = useState("");
+  const announce = (text: string) => setSpoken((current) => (current === text ? `${text}\u00a0` : text));
+
+  const keep = (raw: string, text: string) => store?.set(path, { raw, error: text }, name);
+  const letGo = () => store?.set(path, null);
+
+  /** The refusal under the field, the text left in it to correct. */
+  const refuse = (raw: string, refusal: CartonRefusal) => {
+    const text = refusalMessage(refusal);
+    setMessage({ text, tone: "refused", raw });
+    announce(text);
+    // Only text that is no number is kept to retype: a number already listed loses nothing.
+    if (refusal.reason === "not_a_carton" || refusal.reason === "several") keep(raw, text);
+    else letGo();
+  };
+
+  /** Enter, Add or leaving the field: adds the typed number. False when it was refused. */
+  const commit = (text: string): boolean => {
+    const typed = readTypedCarton(text);
+    if (typed.kind === "empty") {
+      if (text !== "") setDraft("");
+      letGo();
+      return true;
+    }
+    if (typed.kind === "refused") {
+      refuse(text, typed.refusal);
+      return false;
+    }
+    const outcome = onAdd([typed.raw]);
+    const [refusal] = outcome.refused;
+    if (refusal) {
+      refuse(text, refusal);
+      return false;
+    }
+    setDraft("");
+    setMessage(null);
+    letGo();
+    announce(`Carton ${outcome.added[0]} added.`);
+    return true;
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.nativeEvent.isComposing) return;
+    if (event.key === "Enter") {
+      event.preventDefault();
+      // Refused: the text stays, selected, so typing replaces it.
+      if (!commit(event.currentTarget.value)) event.currentTarget.select();
+    } else if (event.key === "Escape" && draft !== "") {
+      // Escape drops what was typed; with nothing typed it is left alone (it may close a dialog).
+      event.preventDefault();
+      setDraft("");
+      setMessage(null);
+      letGo();
+    }
+  };
+
+  const onPaste = (event: ClipboardEvent<HTMLInputElement>) => {
+    const pasted = pastedCartons(event.clipboardData.getData("text"));
+    // One number (or none) is pasted into the field as typed text, to add with Enter.
+    if (!pasted) return;
+    event.preventDefault();
+    const input = event.currentTarget;
+    // A list pasted over all of the field's text replaces it; else what was typed goes in first.
+    const replaces = input.selectionStart === 0 && input.selectionEnd === input.value.length;
+    const outcome = onAdd(replaces ? pasted : [...splitCartonText(input.value), ...pasted]);
+    const text = pasteMessage(outcome.added.length, outcome.refused);
+    setDraft("");
+    setMessage({ text, tone: outcome.refused.length > 0 ? "refused" : "done" });
+    letGo();
+    announce(text);
+  };
+
+  /** The remove button of the chip at `position` on screen. */
+  const removeButton = (position: number): HTMLButtonElement | undefined =>
+    position < 0 ? undefined : list.current?.querySelectorAll<HTMLButtonElement>(":scope > li > button")[position];
+
+  const remove = (entry: CartonEntry, position: number, event: MouseEvent<HTMLButtonElement>) => {
+    // A chip taken off from the keyboard hands its focus on: to the next chip's button, else the one before, else the field.
+    const button = event.currentTarget;
+    if (button.ownerDocument.activeElement === button) {
+      const after = removeButton(position + 1);
+      const before = removeButton(position - 1);
+      (after ?? before ?? field.current)?.focus();
+      // The chip that takes this one's place holds the Tab stop.
+      setStop(after ? position : Math.max(position - 1, 0));
+    }
+    onRemove(entry.index, entry.carton);
+    announce(`Carton ${entry.carton} removed.`);
+  };
+
+  const moveAlong = (event: KeyboardEvent<HTMLButtonElement>, position: number) => {
+    const next = stepAlong(event.key, position, entries.length);
+    if (next === null) return;
+    event.preventDefault();
+    removeButton(next)?.focus();
+  };
+
+  const keys = chipKeys(entries);
+  const messageId = `${id}-message`;
+  const hintId = `${id}-hint`;
+  const hint = !readOnly && entries.length === 0 && message === null;
+  const describedBy = [message ? messageId : null, hint ? hintId : null].filter(Boolean).join(" ");
+
+  return (
+    <div className="relative space-y-2">
+      {entries.length > 0 ? (
+        <ol
+          ref={list}
+          aria-labelledby={captionId}
+          // Read-only there is no field: calc's count issue lands on the list.
+          {...(readOnly ? issueNoticeProps(path) : {})}
+          className="flex flex-wrap gap-1.5 rounded-lg outline-none focus-ring-inset touch:gap-2"
+        >
+          {entries.map((entry, position) => {
+            const problem = problems.get(entry.index);
+            const problemId = `${id}-${entry.index}-problem`;
+            return (
+              <li
+                key={keys[position]}
+                id={`${id}-${entry.index}`}
+                tabIndex={-1}
+                {...issuePathProps([...path, entry.index])}
+                data-carton={entry.carton}
+                aria-describedby={problem ? problemId : undefined}
+                // The chip itself or its button: it holds the Tab stop, and tags new photos with its carton.
+                onFocus={() => {
+                  setStop(position);
+                  onFocusChange?.({ size, box: entry.carton });
+                }}
+                className={cn(
+                  "relative inline-flex h-8 max-w-full items-center rounded-full border pl-3 text-sm tabular-nums outline-none focus-ring-inset touch:h-11 touch:pl-3.5 touch:text-base",
+                  problem ? "border-fail bg-fail-tint text-fail" : "border-border bg-secondary text-secondary-foreground",
+                  readOnly && "pr-3 touch:pr-3.5",
+                )}
+              >
+                {problem && <StatusIcon status="fail" className="mr-1 size-3.5 shrink-0 touch:size-4" />}
+                {entry.carton}
+                {problem && (
+                  <span id={problemId} className="sr-only">
+                    {problem}
+                  </span>
+                )}
+                {!readOnly && (
+                  <button
+                    type="button"
+                    aria-label={`Remove Carton ${entry.carton}`}
+                    aria-describedby={problem ? problemId : undefined}
+                    tabIndex={position === tabStop ? 0 : -1}
+                    onMouseDown={keepFocus}
+                    onClick={(event) => remove(entry, position, event)}
+                    onKeyDown={(event) => moveAlong(event, position)}
+                    className={cn(
+                      "ml-0.5 flex size-8 shrink-0 items-center justify-center rounded-full outline-none focus-ring-inset touch:size-11",
+                      problem ? "hover:bg-card" : "hover:bg-brand-200 active:bg-brand-300",
+                    )}
+                  >
+                    <XIcon aria-hidden className="size-3.5 touch:size-4" />
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      ) : (
+        readOnly && (
+          <p
+            {...issueNoticeProps(path)}
+            className="rounded-sm text-sm text-muted-foreground outline-none focus-ring-inset touch:text-base"
+          >
+            No carton numbers entered.
+          </p>
+        )
+      )}
+      {!readOnly && (
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <Input
+              ref={field}
+              id={`${id}-entry`}
+              type="text"
+              inputMode="numeric"
+              enterKeyHint="enter"
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
+              placeholder="Carton number"
+              aria-label={`${name}: add`}
+              aria-invalid={message?.raw !== undefined || undefined}
+              aria-describedby={describedBy || undefined}
+              {...issuePathProps(path)}
+              value={draft}
+              onChange={(event) => {
+                setDraft(event.target.value);
+                // What the message said was about the text before.
+                setMessage(null);
+              }}
+              onKeyDown={onKeyDown}
+              onPaste={onPaste}
+              // Leaving the field adds what was typed, as a number field stores it (before a size
+              // switch too); text refused and left as it was is not refused again.
+              onBlur={(event) => {
+                if (message?.raw !== event.currentTarget.value) commit(event.currentTarget.value);
+              }}
+              onFocus={() => onFocusChange?.({ size })}
+              className="w-40 tabular-nums touch:w-48"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onMouseDown={keepFocus}
+              onClick={() => {
+                const added = commit(draft);
+                field.current?.focus();
+                if (!added) field.current?.select();
+              }}
+            >
+              <PlusIcon aria-hidden data-icon="inline-start" />
+              Add
+            </Button>
+          </div>
+          {message && (
+            <p
+              id={messageId}
+              className={cn(
+                "flex items-start gap-1.5 text-sm touch:text-base",
+                message.tone === "refused" ? "text-fail" : "text-muted-foreground",
+              )}
+            >
+              {message.tone === "refused" && <StatusIcon status="fail" className="mt-0.5 size-4 shrink-0 touch:mt-1" />}
+              <span>{message.text}</span>
+            </p>
+          )}
+          {hint && (
+            <p id={hintId} className="text-sm text-muted-foreground touch:text-base">
+              Type a carton number and press Enter, or paste a list to add several at once.
+            </p>
+          )}
+        </div>
+      )}
+      <span className="sr-only" aria-live="polite">
+        {spoken}
+      </span>
+    </div>
+  );
 }
 
-function cellId(size: string, index: number): string {
-  return `carton-sampling-${size}-${index}`;
+/** The carton numbers with their place in the stored list, blanks (from the earlier grid) left out. */
+function entriesOf(cells: readonly (number | null)[]): CartonEntry[] {
+  return cells.flatMap((carton, index) => (carton === null ? [] : [{ carton, index }]));
+}
+
+/** Where the arrow keys, Home and End move along the chips (no wrapping); null for any other key. */
+function stepAlong(key: string, position: number, count: number): number | null {
+  if (key === "ArrowRight" || key === "ArrowDown") return Math.min(position + 1, count - 1);
+  if (key === "ArrowLeft" || key === "ArrowUp") return Math.max(position - 1, 0);
+  if (key === "Home") return 0;
+  if (key === "End") return count - 1;
+  return null;
+}
+
+/** A number and its occurrence: a chip keeps its element, and its focus, when one before it comes off. */
+function chipKeys(entries: readonly CartonEntry[]): string[] {
+  const seen = new Map<number, number>();
+  return entries.map(({ carton }) => {
+    const nth = seen.get(carton) ?? 0;
+    seen.set(carton, nth + 1);
+    return `${carton}-${nth}`;
+  });
+}
+
+/**
+ * calc's message for each chip in trouble, by its place in the stored list:
+ * its own (above the order quantity, the repeat of a number), else that of
+ * the number it repeats, so every chip of a carton entered twice is red.
+ */
+function chipProblems(own: readonly ValidationIssue[], size: string, entries: readonly CartonEntry[]): Map<number, string> {
+  const at = (index: number) => ["sizes", size, "cartonNumbers", index];
+  const places = new Map<number, number[]>();
+  for (const { carton, index } of entries) places.set(carton, [...(places.get(carton) ?? []), index]);
+  const problems = new Map<number, string>();
+  for (const { carton, index } of entries) {
+    const repeats = places.get(carton) ?? [];
+    const issue =
+      own.find((candidate) => candidate.level === "error" && samePath(candidate.path, at(index))) ??
+      (repeats.length > 1
+        ? own.find((candidate) => candidate.code === "carton_duplicate" && samePath(candidate.path, at(repeats[1])))
+        : undefined);
+    if (issue) problems.set(index, issue.message);
+  }
+  return problems;
+}
+
+function idFor(size: string): string {
+  return `carton-sampling-${size}`;
 }
 
 function samePath(path: readonly (string | number)[], target: readonly (string | number)[]): boolean {
   return path.length === target.length && path.every((segment, index) => segment === target[index]);
 }
-

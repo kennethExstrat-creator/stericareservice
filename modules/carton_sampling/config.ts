@@ -8,15 +8,16 @@ export const CARTON_SAMPLING_TITLE = "Finished Goods Sampling Information (Carto
 export const CARTON_SAMPLING_LABELS = {
   cartonNumbers: "(Carton #)",
   samplingQuantity: "Sampling Quantity",
-  /** Caption of each size's grid; the screen fills in {size}. */
+  /** Caption of each size's list; the screen fills in {size}. */
   sizeCaption: "{size} (Carton #)",
 } as const satisfies Readonly<Record<string, string>>;
 
-/** The report's grid: 10 carton numbers to a row (5 rows print 50). Issue messages name cells by row and column. */
+/**
+ * The report's grid: 10 carton numbers to a row (5 rows print 50). The
+ * capture screen lists them; calc's issue messages name each number by its
+ * row and column on the report.
+ */
 export const GRID_COLUMNS = 10;
-
-/** Cells the capture grid makes room for while the sampling plan has no cases for the size: the report's 10 x 5. */
-export const REPORT_GRID_CELLS = 50;
 
 export const CartonSamplingConfigSchema = z
   .strictObject({})
