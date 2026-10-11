@@ -158,7 +158,7 @@ export async function completeAiReview(input: CompleteAiReviewInput): Promise<"d
     outcome = input.review ? await input.review(exportDoc) : await requestAiReview(exportDoc, { env: await loadAiEnv() });
   } catch (error) {
     console.error("[ai review] the reviewer threw", error);
-    outcome = { ok: false, reason: "error", message: "Unexpected error while requesting the AI review." };
+    outcome = { ok: false, reason: "error", message: "Unexpected error while requesting Steri-AI's review." };
   }
 
   const update: TablesUpdate<"ai_reviews"> = outcome.ok
@@ -216,7 +216,7 @@ export async function completeAiReview(input: CompleteAiReviewInput): Promise<"d
  */
 export async function scheduleAiReviewOnSubmit(inspectionId: string): Promise<StartAiReviewResult> {
   if (!getAiStatus(await loadAiEnv()).review.connected) {
-    return { ok: false, reason: "not_connected", message: "AI second opinion not connected." };
+    return { ok: false, reason: "not_connected", message: "Steri-AI second opinion not connected." };
   }
   if (!isAdminClientConfigured()) {
     return { ok: false, reason: "database_error", message: "The server needs SUPABASE_SECRET_KEY to start a review on submit." };

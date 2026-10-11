@@ -348,13 +348,13 @@ describe("reviewWithClaude: outcomes", () => {
     const deadline = AbortSignal.abort(new DOMException("deadline", "TimeoutError"));
     expect(await review(aborted, { signal: deadline })).toMatchObject({
       reason: "timeout",
-      message: "The AI review ran out of time.",
+      message: "Steri-AI's review ran out of time.",
     });
 
     const cancelled = fakeClient(() => {
       throw new Anthropic.APIUserAbortError();
     }, message());
-    expect(await review(cancelled)).toMatchObject({ reason: "error", message: "The AI review was cancelled." });
+    expect(await review(cancelled)).toMatchObject({ reason: "error", message: "Steri-AI's review was cancelled." });
     expect(cancelled.stream).toHaveBeenCalledOnce();
   });
 

@@ -31,7 +31,7 @@ export async function requestAiReport(
     return await sendReport(exportDoc, options);
   } catch (error) {
     console.error("[ai] Unexpected error while requesting an AI report", error);
-    return { ok: false, reason: "error", message: "Unexpected error while requesting the AI report." };
+    return { ok: false, reason: "error", message: "Unexpected error while requesting Steri-AI's report." };
   }
 }
 

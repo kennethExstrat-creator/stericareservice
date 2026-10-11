@@ -96,8 +96,8 @@ describe("AiReviewPanelView for an admin", () => {
   it("puts the system, the inspector and the AI side by side, overall result first", () => {
     const html = render();
     const content = text(html);
-    expect(content).toContain("AI Second Opinion");
-    for (const column of ["System (Computed)", "Inspector", "AI Second Opinion"]) expect(content).toContain(column);
+    expect(content).toContain("Steri-AI Second Opinion");
+    for (const column of ["System (Computed)", "Inspector", "Steri-AI Second Opinion"]) expect(content).toContain(column);
     expect(content).toMatch(/Overall Result .*Suggested Result .*Failed.* Final Result .*On Hold.*Inspector A/);
     expect(content).toContain("Weight below the indicative value; waiting for the spec sheet.");
     expect(content).toContain("Confidence 85%");
@@ -238,21 +238,21 @@ describe("AiReviewPanelView for an admin", () => {
   it("offers the JSON download and says the report service is not connected", () => {
     const html = render();
     const content = text(html);
-    expect(content).toContain("AI Report");
+    expect(content).toContain("Steri-AI Report");
     // The pill in Title Case; the line under the heading is a sentence.
-    expect(content).toContain("AI Not Connected");
-    expect(content).toContain("AI not connected. Download the export (JSON)");
+    expect(content).toContain("Steri-AI Not Connected");
+    expect(content).toContain("Steri-AI not connected. Download the export (JSON)");
     expect(html).toContain(`href="/api/inspections/${IDS.inspection}/export"`);
     expect(html).toMatch(/<a[^>]*download=""[^>]*>|<a[^>]*download[^>]*>/);
-    expect(content).not.toContain("Send to AI Report");
+    expect(content).not.toContain("Send to Steri-AI Report");
   });
 
   it("sends to the AI report when a report service is connected", () => {
     const content = text(
-      render({ aiStatus: { ...MOCK_STATUS, report: { connected: true, provider: "webhook", label: "AI Report Connected (Webhook)" } } }),
+      render({ aiStatus: { ...MOCK_STATUS, report: { connected: true, provider: "webhook", label: "Steri-AI Report Connected (Webhook)" } } }),
     );
-    expect(content).toContain("Send to AI Report");
-    expect(content).not.toMatch(/AI not connected/i);
+    expect(content).toContain("Send to Steri-AI Report");
+    expect(content).not.toMatch(/Steri-AI not connected/i);
   });
 
   it("keeps screen-reader text inside its component", () => {
@@ -300,8 +300,8 @@ describe("AiReviewPanelView for the inspector", () => {
     expect(content).toContain("Finding F1");
     expect(content).toContain("An admin decides on each finding.");
     expect(content).not.toContain("Save Decision");
-    expect(content).not.toMatch(/Request (AI|a New) Second Opinion/);
-    expect(content).not.toContain("Send to AI Report");
+    expect(content).not.toMatch(/Request (Steri-AI|a New) Second Opinion/);
+    expect(content).not.toContain("Send to Steri-AI Report");
     expect(html).not.toContain("Change your decision");
     expect(html).toContain(`href="/api/inspections/${IDS.inspection}/export"`);
   });
@@ -310,18 +310,18 @@ describe("AiReviewPanelView for the inspector", () => {
 describe("AiReviewPanelView states", () => {
   it("says the second opinion is not connected, and what to set up", () => {
     const content = text(render({ aiStatus: OFF_STATUS, reviews: [], decisions: [] }));
-    expect(content).toContain("AI Second Opinion Not Connected");
+    expect(content).toContain("Steri-AI Second Opinion Not Connected");
     expect(content).toContain("To connect it, set ANTHROPIC_API_KEY or AI_REVIEW_WEBHOOK_URL on the server.");
     // Nothing is switched off: the hint does not send the admin looking for AI_REVIEW_PROVIDER.
     expect(content).not.toContain("AI_REVIEW_PROVIDER");
     expect(content).not.toContain("System (Computed)");
-    expect(content).not.toMatch(/Request (AI|a New) Second Opinion/);
+    expect(content).not.toMatch(/Request (Steri-AI|a New) Second Opinion/);
   });
 
   it("says when the second opinion is switched off on purpose, and how to switch it on", () => {
     const switchedOff = { ...OFF_STATUS, review: { ...OFF_STATUS.review, switchedOff: true as const } };
     const content = text(render({ aiStatus: switchedOff, reviews: [], decisions: [] }));
-    expect(content).toContain("AI Second Opinion Not Connected");
+    expect(content).toContain("Steri-AI Second Opinion Not Connected");
     expect(content).toContain("It is switched off on the server: AI_REVIEW_PROVIDER is set to off. To connect it, set it to auto");
     // Inspectors are told who can change it, not how.
     const inspector = text(render({ aiStatus: switchedOff, reviews: [], decisions: [], isAdmin: false }));
@@ -331,7 +331,7 @@ describe("AiReviewPanelView states", () => {
 
   it("keeps earlier opinions readable after the reviewer is disconnected", () => {
     const content = text(render({ aiStatus: OFF_STATUS }));
-    expect(content).toContain("AI Second Opinion Not Connected");
+    expect(content).toContain("Steri-AI Second Opinion Not Connected");
     expect(content).toContain("Earlier second opinions are kept below.");
     expect(content).toContain("Finding F1");
   });
@@ -339,7 +339,7 @@ describe("AiReviewPanelView states", () => {
   it("invites the first request", () => {
     const content = text(render({ reviews: [], decisions: [] }));
     expect(content).toContain("No Second Opinion Yet");
-    expect(content).toContain("Request AI Second Opinion");
+    expect(content).toContain("Request Steri-AI Second Opinion");
   });
 
   it("shows a review being written, and no second request for the same version", () => {
@@ -353,7 +353,7 @@ describe("AiReviewPanelView states", () => {
     const content = text(render({ reviews: [running], decisions: [] }));
     expect(content).toContain("Writing the Second Opinion");
     expect(content).toContain("this panel updates by itself");
-    expect(content).not.toMatch(/Request (AI|a New) Second Opinion/);
+    expect(content).not.toMatch(/Request (Steri-AI|a New) Second Opinion/);
   });
 
   it("warns when the inspection was saved after an opinion stored without a fingerprint", () => {

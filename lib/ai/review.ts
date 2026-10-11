@@ -39,7 +39,7 @@ export async function requestAiReview(
     return await dispatch(exportDoc, options);
   } catch (error) {
     console.error("[ai] Unexpected error while requesting an AI review", error);
-    return { ok: false, reason: "error", message: "Unexpected error while requesting the AI review." };
+    return { ok: false, reason: "error", message: "Unexpected error while requesting Steri-AI's review." };
   }
 }
 

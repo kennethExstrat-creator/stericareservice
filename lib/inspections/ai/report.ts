@@ -65,7 +65,7 @@ export async function sendInspectionToAiReport(input: SendReportInput): Promise<
       reason: outcome.reason,
       inspectionUpdatedAt: record.updatedAt,
     });
-    return { ok: false, reason: "report_failed", message: `The AI report was not made. ${outcome.message}` };
+    return { ok: false, reason: "report_failed", message: `Steri-AI's report was not made. ${outcome.message}` };
   }
 
   // Admins may set report_url on an approved inspection too (the inspection guard allows it).

@@ -119,7 +119,7 @@ test("the AI second opinion words its evidence: photos in the template's words, 
   await as.signIn(context, baseURL!, "admin");
   await page.goto(reviewPath(fixture.inspectionId));
   const panel = page.getByTestId("ai-panel");
-  await press(panel.getByRole("button", { name: "Request AI Second Opinion" }));
+  await press(panel.getByRole("button", { name: "Request Steri-AI Second Opinion" }));
   const comparison = panel.getByTestId("ai-comparison");
   await expect(comparison).toBeVisible({ timeout: 90_000 });
 

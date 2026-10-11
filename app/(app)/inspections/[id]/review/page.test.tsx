@@ -170,17 +170,17 @@ describe("/inspections/[id]/review", () => {
     const html = await render(reviewData());
     expect(loadAiPanel).toHaveBeenCalledWith(ADMIN_USER, INSPECTION_ID);
     expect(html).toContain('data-testid="ai-comparison"');
-    for (const column of ["System (Computed)", "Inspector", "AI Second Opinion"]) expect(html).toContain(column);
+    for (const column of ["System (Computed)", "Inspector", "Steri-AI Second Opinion"]) expect(html).toContain(column);
     expect(html).toContain('data-testid="ai-report"');
     expect(link(html, "Download JSON")).toBe(true);
   });
 
   it("says when the AI panel could not be loaded, and leaves the rest of the review in place", async () => {
-    vi.mocked(loadAiPanel).mockResolvedValue({ ok: false, reason: "unavailable", message: "Could not read the AI reviews. Try again." });
+    vi.mocked(loadAiPanel).mockResolvedValue({ ok: false, reason: "unavailable", message: "Could not read Steri-AI's reviews. Try again." });
     const html = await render(reviewData());
     expect(html).toContain('data-testid="ai-panel-unavailable"');
-    expect(html).toContain("The AI Panel Could Not Be Loaded");
-    expect(html).toContain("Could not read the AI reviews. Try again.");
+    expect(html).toContain("Steri-AI Panel Could Not Be Loaded");
+    expect(html).toContain("Could not read Steri-AI&#x27;s reviews. Try again.");
     expect(html).toContain('id="modules"');
   });
 
@@ -199,17 +199,17 @@ describe("/inspections/[id]/review", () => {
     expect(start).toBeGreaterThan(html.indexOf('id="result"'));
     expect(start).toBeLessThan(html.indexOf('id="modules"'));
     const ai = html.slice(start, html.indexOf("</section>", start));
-    expect(ai).toContain("AI Second Opinion");
+    expect(ai).toContain("Steri-AI Second Opinion");
     expect(ai).toContain("Not Available");
-    expect(ai).toContain("The second opinion and the AI report need this inspection&#x27;s results, which could not be worked out.");
+    expect(ai).toContain("Steri-AI&#x27;s second opinion and report need this inspection&#x27;s results, which could not be worked out.");
     // Not-done slate, not fail red: the review's checks and module results give the cause, and only they do.
     expect(ai).not.toMatch(/fail/);
-    expect(html).not.toContain("The AI Panel Could Not Be Loaded");
+    expect(html).not.toContain("Steri-AI Panel Could Not Be Loaded");
     expect(html).not.toContain("which could not be read.");
     expect(html.split(cause)).toHaveLength(3);
     // Nothing to request or download: the export needs the results too.
     expect(link(html, "Download JSON")).toBe(false);
-    expect(button(html, "Request AI Second Opinion")).toBe(false);
+    expect(button(html, "Request Steri-AI Second Opinion")).toBe(false);
   });
 
   it("runs its Server Actions longer than the AI hand-offs may take at the default effort", () => {

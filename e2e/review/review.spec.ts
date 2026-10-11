@@ -122,7 +122,7 @@ test.describe("reviewing inspections", () => {
     // The AI second opinion between the result and the module results, with the AI report's JSON download
     // (what it offers beyond that depends on the server's AI set-up: e2e/export covers it).
     const ai = page.getByTestId("ai-panel");
-    await expect(ai.getByRole("heading", { level: 2, name: "AI Second Opinion" })).toBeVisible();
+    await expect(ai.getByRole("heading", { level: 2, name: "Steri-AI Second Opinion" })).toBeVisible();
     await expect(ai.getByTestId("ai-report").getByRole("link", { name: "Download JSON" })).toHaveAttribute(
       "href",
       `/api/inspections/${fixture.A.id}/export`,
@@ -350,7 +350,7 @@ test.describe("reviewing inspections", () => {
 
     // The AI hand-offs need the results: a quiet note in the panel's place, not an error. The checks above say why.
     const ai = page.getByTestId("ai-panel-no-results");
-    await expect(ai.getByRole("heading", { level: 2, name: "AI Second Opinion" })).toBeVisible();
+    await expect(ai.getByRole("heading", { level: 2, name: "Steri-AI Second Opinion" })).toBeVisible();
     await expect(ai.getByText("Not Available", { exact: true })).toBeVisible();
     await expect(page.getByTestId("ai-panel-unavailable")).toHaveCount(0);
 

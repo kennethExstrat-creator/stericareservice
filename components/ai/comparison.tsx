@@ -17,7 +17,7 @@ const COLUMNS = "@4xl/ai:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)]
 export const COLUMN_TITLES = {
   system: "System (Computed)",
   inspector: "Inspector",
-  ai: "AI Second Opinion",
+  ai: "Steri-AI Second Opinion",
 } as const;
 
 export function Comparison({ model, review }: { model: AiPanelModel; review: ReviewModel }) {

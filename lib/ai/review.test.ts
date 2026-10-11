@@ -66,7 +66,7 @@ describe("requestAiReview", () => {
     expect(await requestAiReview(makeStdEgExport(), { env: {} })).toEqual({
       ok: false,
       reason: "not_connected",
-      message: "AI second opinion not connected.",
+      message: "Steri-AI second opinion not connected.",
     });
   });
 
@@ -209,7 +209,7 @@ describe("requestAiReview", () => {
     expect(outcome).toEqual({
       ok: false,
       reason: "error",
-      message: "Unexpected error while requesting the AI review.",
+      message: "Unexpected error while requesting Steri-AI's review.",
     });
     expect(log).toHaveBeenCalledOnce();
   });

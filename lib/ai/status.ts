@@ -7,15 +7,15 @@ import { readAiConfig, type AiEnv, type ReportTarget, type ReviewTarget } from "
  * ------------------------------------------------------------------ */
 
 /** The not-connected states as a sentence starts them: "AI not connected." (the hand-offs' messages). */
-export const AI_REVIEW_NOT_CONNECTED = "AI second opinion not connected";
-export const AI_REPORT_NOT_CONNECTED = "AI not connected";
+export const AI_REVIEW_NOT_CONNECTED = "Steri-AI second opinion not connected";
+export const AI_REPORT_NOT_CONNECTED = "Steri-AI not connected";
 
 /**
  * The same states as labels (Title Case, docs/DESIGN.md Capitalisation): the
  * AI panel's title for the second opinion and the AI Report's pill.
  */
-export const AI_REVIEW_NOT_CONNECTED_LABEL = "AI Second Opinion Not Connected";
-export const AI_REPORT_NOT_CONNECTED_LABEL = "AI Not Connected";
+export const AI_REVIEW_NOT_CONNECTED_LABEL = "Steri-AI Second Opinion Not Connected";
+export const AI_REPORT_NOT_CONNECTED_LABEL = "Steri-AI Not Connected";
 const CONFIGURATION_ERROR_LABEL = "Configuration Error";
 
 export interface AiReviewStatus {
@@ -53,16 +53,16 @@ export function getAiStatus(env: AiEnv = process.env): AiStatus {
 function reviewStatus(target: ReviewTarget): AiReviewStatus {
   switch (target.provider) {
     case "webhook":
-      return { connected: true, provider: "webhook", label: "AI Second Opinion Connected (Webhook)" };
+      return { connected: true, provider: "webhook", label: "Steri-AI Second Opinion Connected (Webhook)" };
     case "claude":
       return {
         connected: true,
         provider: "claude",
         model: target.claude.model,
-        label: `AI Second Opinion Connected (Claude, ${target.claude.model})`,
+        label: `Steri-AI Second Opinion Connected (Claude, ${target.claude.model})`,
       };
     case "mock":
-      return { connected: true, provider: "mock", label: "AI Second Opinion: Mock Reviewer (Test Data Only)" };
+      return { connected: true, provider: "mock", label: "Steri-AI Second Opinion: Mock Reviewer (Test Data Only)" };
     case "off":
       return {
         connected: false,
@@ -83,7 +83,7 @@ function reviewStatus(target: ReviewTarget): AiReviewStatus {
 function reportStatus(target: ReportTarget): AiReportStatus {
   switch (target.provider) {
     case "webhook":
-      return { connected: true, provider: "webhook", label: "AI Report Connected (Webhook)" };
+      return { connected: true, provider: "webhook", label: "Steri-AI Report Connected (Webhook)" };
     case "off":
       return { connected: false, provider: "off", label: AI_REPORT_NOT_CONNECTED_LABEL };
     case "misconfigured":

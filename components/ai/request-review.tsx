@@ -15,7 +15,7 @@ import { unreachable } from "./unreachable";
 /** "Request AI Second Opinion" (admins): a pending review of the current version, written in the background. */
 export function RequestReviewButton({
   inspectionId,
-  label = "Request AI Second Opinion",
+  label = "Request Steri-AI Second Opinion",
   variant = "default",
   className,
 }: {

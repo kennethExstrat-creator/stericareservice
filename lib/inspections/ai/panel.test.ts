@@ -172,7 +172,7 @@ describe("loadAiPanel", () => {
     expect(await loadAiPanel(ADMIN, IDS.inspection, { client: db.client, now: NOW })).toEqual({
       ok: false,
       reason: "unavailable",
-      message: "Could not read the AI reviews. Try again.",
+      message: "Could not read Steri-AI's reviews. Try again.",
     });
   });
 

@@ -93,7 +93,7 @@ export async function loadAiPanel(
   // against, and trying again changes nothing.
   const evaluation = evaluateRecord(record);
   if (!evaluation.ok) return { ok: false, reason: "unreadable", message: evaluation.message };
-  if (reviewRows.error) return unavailable("the AI reviews", reviewRows.error);
+  if (reviewRows.error) return unavailable("Steri-AI's reviews", reviewRows.error);
 
   const rows = reviewRows.data as unknown as (AiReviewRow & { decisions?: DecisionRow[] })[];
   const reviews = rows.map(parseStoredReview);
