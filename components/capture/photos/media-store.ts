@@ -174,6 +174,27 @@ export class InspectionMediaStore {
     }
   }
 
+  /**
+   * A photo or file moved to another Media category (Source Documents): its
+   * new module_key. A photo's old target goes, as moveMedia clears it.
+   */
+  applyModuleKey(kind: MediaKind, id: string, moduleKey: string | null): void {
+    const media = this.state.media;
+    if (media && kind === "photo" && media.photos.some((photo) => photo.id === id)) {
+      const photos = media.photos.map((photo) => (photo.id === id ? { ...photo, moduleKey, target: null } : photo));
+      this.setState({ ...this.state, media: { ...media, photos } });
+      return;
+    }
+    if (media && kind === "file" && media.files.some((file) => file.id === id)) {
+      const files = media.files.map((file) => (file.id === id ? { ...file, moduleKey } : file));
+      this.setState({ ...this.state, media: { ...media, files } });
+      return;
+    }
+    // A finished upload whose row is not read yet: read it (again), after the move.
+    this.askToRead(id, kind);
+    void this.readUnread();
+  }
+
   removePhoto(id: string): void {
     this.forget(id);
     const media = this.state.media;

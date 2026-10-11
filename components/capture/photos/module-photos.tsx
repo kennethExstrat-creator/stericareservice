@@ -1,10 +1,9 @@
 "use client";
 
 // The photos of one module (or the untagged ones) with their actions: the
-// heart of PhotoSlot on the capture screen, of each module section in the
-// gallery and of each category on Source Documents' Media. Uploaded photos
-// and photos still on this device show together; new photos are tagged with
-// the module and what is in focus.
+// heart of PhotoSlot on the capture screen and of each module section in the
+// gallery. Uploaded photos and photos still on this device show together;
+// new photos are tagged with the module and what is in focus.
 import { useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { CircleAlertIcon, LoaderCircleIcon, RotateCwIcon } from "lucide-react";
 import { tagLine } from "@/components/qc";
@@ -24,7 +23,7 @@ import { PhotoAddControls } from "./photo-add-controls";
 import { PhotoCard } from "./photo-card";
 import { PhotoDeleteDialog } from "./photo-delete-dialog";
 import { PhotoEditDialog } from "./photo-edit-dialog";
-import { slotPhotos, type ModuleFilter, type SlotPhoto } from "./photo-model";
+import { slotPhotos, type SlotPhoto } from "./photo-model";
 import { PhotoViewer, type ViewerPhoto } from "./photo-viewer";
 import { PhotoViewerContext } from "./provider";
 import { moduleSlotKey, NOTHING_PREPARING } from "./queue-state";
@@ -35,15 +34,6 @@ export type ModulePhotosProps = {
   inspectionId: string;
   /** Module or custom module key; null for the photos not tagged yet. New photos get this tag. */
   moduleKey: string | null;
-  /** Every photo of the inspection, whatever its tag; new ones still get moduleKey. */
-  listAll?: boolean;
-  /**
-   * Every photo except those tagged with one of these keys, untagged ones
-   * included (Source Documents' Other: the photos in none of Media's
-   * categories); new ones still get moduleKey. A constant: the list is
-   * worked out again when the array changes.
-   */
-  listExcept?: readonly string[];
   /** The size, hand, defect or box in focus: new photos are tagged with it. */
   focus?: PhotoFocus | null;
   /** The screen's own read-only state (approved, not the user's): no adding, editing or deleting. */
@@ -67,18 +57,6 @@ export type ModulePhotosProps = {
   nameContext?: string;
   /** Under the heading, e.g. the hint for untagged photos. */
   description?: ReactNode;
-  /**
-   * The photos alone, for a block whose own header names them, counts them
-   * and adds them (Source Documents' Media categories): no heading row, and
-   * no line for "loading" or "none".
-   */
-  bare?: boolean;
-  /**
-   * Where keyboard focus goes when the control that opened a dialog is gone
-   * (a deleted or moved photo) and this block has no heading to take it:
-   * bare, or gone with its last photo.
-   */
-  focusFallback?: () => void;
   className?: string;
 };
 
@@ -143,10 +121,6 @@ export function ModulePhotos({
   showNotices = true,
   nameContext,
   description,
-  listAll = false,
-  listExcept,
-  bare = false,
-  focusFallback,
   className,
 }: ModulePhotosProps) {
   useStartPhotoQueue();
@@ -163,12 +137,10 @@ export function ModulePhotos({
 
   const options = media.media?.options ?? EMPTY_TAG_OPTIONS;
   const access = media.media?.access ?? null;
-  const photos = useMemo(() => {
-    const filter: ModuleFilter = listExcept ? { except: listExcept } : listAll ? undefined : moduleKey;
-    return slotPhotos({ media: media.media, queue, inspectionId, moduleKey: filter });
-  }, [media.media, queue, inspectionId, moduleKey, listAll, listExcept]);
-  // Photos of several modules side by side: each tile names its own.
-  const mixed = listAll || listExcept !== undefined;
+  const photos = useMemo(
+    () => slotPhotos({ media: media.media, queue, inspectionId, moduleKey }),
+    [media.media, queue, inspectionId, moduleKey],
+  );
 
   // Photos kept from an earlier page have no preview in memory yet: read it from the device.
   useEffect(() => {
@@ -198,11 +170,11 @@ export function ModulePhotos({
     const target = returnFocus.current;
     returnFocus.current = null;
     // The control that opened the dialog may be gone (a deleted photo): fall back to the heading,
-    // and where there is none (bare, or the whole block gone with its last photo) to the page's own.
+    // and where there is none (the whole block gone with its last photo) to the page's own.
     if (target && target.isConnected) return target.focus();
     const heading = document.getElementById(headingId);
     if (heading) heading.focus();
-    else (focusFallback ?? galleryViewer?.focusFallback)?.();
+    else galleryViewer?.focusFallback?.();
   };
 
   const open = (id: string) => {
@@ -210,35 +182,31 @@ export function ModulePhotos({
     else setViewing(id);
   };
 
-  // Bare: a part of a block named by its own heading, so no region of its own.
-  const Root = bare ? "div" : "section";
   return (
-    <Root
-      aria-labelledby={bare ? undefined : headingId}
+    <section
+      aria-labelledby={headingId}
       data-slot="module-photos"
       data-variant={variant}
       data-module={moduleKey ?? ""}
       className={cn("relative flex min-w-0 flex-col gap-3", className)}
     >
-      {!bare && (
-        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-          <Heading
-            id={headingId}
-            tabIndex={-1}
-            className={cn(
-              "font-bold text-foreground outline-none",
-              variant === "gallery" ? "text-lg leading-snug" : "text-base leading-snug font-semibold",
-            )}
-          >
-            {heading}
-            {nameContext && <span className="sr-only">, {nameContext}</span>}
-          </Heading>
-          <p aria-live="polite" className="text-sm text-muted-foreground tabular-nums">
-            {countPhotos(photos.length)}
-            {queuedCount > 0 ? `, ${queuedCount} not uploaded yet` : ""}
-          </p>
-        </div>
-      )}
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <Heading
+          id={headingId}
+          tabIndex={-1}
+          className={cn(
+            "font-bold text-foreground outline-none",
+            variant === "gallery" ? "text-lg leading-snug" : "text-base leading-snug font-semibold",
+          )}
+        >
+          {heading}
+          {nameContext && <span className="sr-only">, {nameContext}</span>}
+        </Heading>
+        <p aria-live="polite" className="text-sm text-muted-foreground tabular-nums">
+          {countPhotos(photos.length)}
+          {queuedCount > 0 ? `, ${queuedCount} not uploaded yet` : ""}
+        </p>
+      </div>
 
       {/* Everything under the heading in one block: beside the inspector comment (SectionFrame's
           footer), the heading row and this block are the rows the comment's label and box share.
@@ -267,7 +235,7 @@ export function ModulePhotos({
                 key={photo.id}
                 inspectionId={inspectionId}
                 photo={photo}
-                tags={displayTags(photo.moduleKey, photo.target, options, { withModule: mixed })}
+                tags={displayTags(photo.moduleKey, photo.target, options, { withModule: false })}
                 alt={alt}
                 canEdit={editable}
                 canChooseReport={canChooseReport}
@@ -285,7 +253,7 @@ export function ModulePhotos({
             );
           })}
         </ul>
-      ) : bare ? null : media.status === "loading" || media.status === "idle" ? (
+      ) : media.status === "loading" || media.status === "idle" ? (
         // Not known yet (idle: the first render, before the browser loads them): never "No photos". The line
         // then gives way to the photos or to nothing, moving what is below: the capture screen waits for it
         // to go before it brings a section below this one into view (capture-screen.tsx, use-landing-spot.ts).
@@ -355,6 +323,6 @@ export function ModulePhotos({
           New photos are tagged {nextTags}.
         </p>
       )}
-    </Root>
+    </section>
   );
 }
