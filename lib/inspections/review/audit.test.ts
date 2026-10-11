@@ -114,9 +114,9 @@ describe("buildAuditTrail", () => {
     );
     expect(trail.map(({ title, detail }) => ({ title, detail }))).toEqual([
       { title: "Module Settings Changed for This Inspection", detail: "Scale broken." },
-      { title: "AI Second Opinion Requested", detail: null },
-      { title: "Sent to the AI Report", detail: "Sent twice." },
-      { title: "AI Review Failed", detail: null },
+      { title: "Steri-AI Second Opinion Requested", detail: null },
+      { title: "Sent to Steri-AI Report", detail: "Sent twice." },
+      { title: "Steri-AI Review Failed", detail: null },
     ]);
   });
 
@@ -129,7 +129,7 @@ describe("buildAuditTrail", () => {
 
 describe("humanise", () => {
   it.each([
-    ["ai_review.failed", "AI Review Failed"],
+    ["ai_review.failed", "Steri-AI Review Failed"],
     ["module_override", "Module Override"],
     ["export", "Export"],
     ["", "Event"],

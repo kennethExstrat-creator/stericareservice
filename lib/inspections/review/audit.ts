@@ -44,8 +44,8 @@ export type AuditEntry = {
  */
 const EVENT_TITLES: Readonly<Record<string, string>> = {
   module_override: "Module Settings Changed for This Inspection",
-  "ai_report.sent": "Sent to the AI Report",
-  "ai_review.requested": "AI Second Opinion Requested",
+  "ai_report.sent": "Sent to Steri-AI Report",
+  "ai_review.requested": "Steri-AI Second Opinion Requested",
   [REOPEN_EVENT]: "Reason for Reopening",
 };
 
@@ -126,7 +126,7 @@ export function humanise(action: string): string {
   if (words.length === 0) return "Event";
   return words
     .map((word, index) => {
-      if (word.toLowerCase() === "ai") return "AI";
+      if (word.toLowerCase() === "ai") return "Steri-AI";
       if (staysLowerCase(word, index, words.length)) return word.toLowerCase();
       // Each part of a hyphenated word: "Follow-Up".
       return word

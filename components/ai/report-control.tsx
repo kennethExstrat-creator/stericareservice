@@ -66,7 +66,7 @@ export function ReportControl({
             <input type="hidden" name="inspectionId" value={inspectionId} />
             <Button ref={sendRef} type="submit" disabled={pending}>
               {pending ? <Spinner aria-hidden /> : <SendIcon aria-hidden />}
-              {pending ? "Sending to the AI Report" : reportUrl ? "Send to AI Report Again" : "Send to AI Report"}
+              {pending ? "Sending to Steri-AI Report" : reportUrl ? "Send to Steri-AI Report Again" : "Send to Steri-AI Report"}
             </Button>
           </form>
         )}

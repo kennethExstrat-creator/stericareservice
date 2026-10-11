@@ -130,7 +130,7 @@ describe("sendToAiReport", () => {
   it("offers the JSON download when no report service is connected", async () => {
     expect(await sendToAiReport(AI_ACTION_IDLE, form({ inspectionId: IDS.inspection }))).toEqual({
       status: "not_connected",
-      message: "AI not connected.",
+      message: "Steri-AI not connected.",
       downloadHref: `/api/inspections/${IDS.inspection}/export`,
     });
     expect(refresh).not.toHaveBeenCalled();

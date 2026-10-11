@@ -49,15 +49,15 @@ test("an admin sees that neither hand-off is connected, and can still download t
   await page.goto(panelPath(fixture.inspectionId));
   const panel = page.getByTestId("ai-panel");
 
-  await expect(panel.getByTestId("ai-review-not-connected")).toContainText("AI Second Opinion Not Connected");
+  await expect(panel.getByTestId("ai-review-not-connected")).toContainText("Steri-AI Second Opinion Not Connected");
   // This dev server runs AI_REVIEW_PROVIDER=off: the hint says it is switched off, and how to switch it on.
   await expect(panel.getByTestId("ai-review-not-connected")).toContainText(
     "It is switched off on the server: AI_REVIEW_PROVIDER is set to off.",
   );
   await expect(panel.getByRole("button", { name: /Second Opinion/ })).toHaveCount(0);
   const report = panel.getByTestId("ai-report");
-  await expect(report).toContainText("AI Not Connected");
-  await expect(report.getByRole("button", { name: /Send to AI Report/ })).toHaveCount(0);
+  await expect(report).toContainText("Steri-AI Not Connected");
+  await expect(report.getByRole("button", { name: /Send to Steri-AI Report/ })).toHaveCount(0);
   await expect(report.getByRole("link", { name: "Download JSON" })).toHaveAttribute(
     "href",
     `/api/inspections/${fixture.inspectionId}/export`,

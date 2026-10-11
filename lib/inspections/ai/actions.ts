@@ -79,7 +79,7 @@ export async function sendToAiReport(_previous: AiActionState, formData: FormDat
     });
     if (sent.ok) {
       refresh();
-      return { status: "success", message: "The AI report is ready.", reportUrl: sent.reportUrl };
+      return { status: "success", message: "Steri-AI's report is ready.", reportUrl: sent.reportUrl };
     }
     if (sent.reason === "not_connected") {
       return { status: "not_connected", message: sent.message, downloadHref: sent.downloadHref };

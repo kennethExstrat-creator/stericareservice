@@ -27,7 +27,7 @@ describe("requestAiReport", () => {
     expect(await requestAiReport(makeStdEgExport(), { env: {} })).toEqual({
       ok: false,
       reason: "not_connected",
-      message: "AI not connected.",
+      message: "Steri-AI not connected.",
     });
   });
 
@@ -98,7 +98,7 @@ describe("requestAiReport", () => {
     expect(await requestAiReport(makeStdEgExport(), { env: brokenEnv })).toEqual({
       ok: false,
       reason: "error",
-      message: "Unexpected error while requesting the AI report.",
+      message: "Unexpected error while requesting Steri-AI's report.",
     });
     expect(log).toHaveBeenCalledOnce();
     log.mockRestore();

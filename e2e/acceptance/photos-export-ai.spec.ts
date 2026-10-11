@@ -530,15 +530,15 @@ test("photos from four modules on the iPad, the export and the AI second opinion
       const exported = doc;
       await screen.goto(`${capturePath}/review`);
       const panel = screen.getByTestId("ai-panel");
-      await expect(panel.getByRole("heading", { level: 2, name: "AI Second Opinion" })).toBeVisible();
+      await expect(panel.getByRole("heading", { level: 2, name: "Steri-AI Second Opinion" })).toBeVisible();
       await expect(panel.getByTestId("ai-review-not-connected"), "the server runs the mock reviewer").toHaveCount(0);
-      await press(panel.getByRole("button", { name: "Request AI Second Opinion" }), false);
+      await press(panel.getByRole("button", { name: "Request Steri-AI Second Opinion" }), false);
       const comparison = panel.getByTestId("ai-comparison");
       await expect(comparison).toBeVisible({ timeout: 90_000 });
       await expect(panel.getByTestId("ai-review-meta")).toContainText("Mock reviewer (test data only)");
 
       // The three columns of BUILD_SPEC 9.2, under one heading row at this width.
-      for (const title of ["System (Computed)", "Inspector", "AI Second Opinion"]) {
+      for (const title of ["System (Computed)", "Inspector", "Steri-AI Second Opinion"]) {
         await expect(comparison.getByText(title, { exact: true }).first()).toBeVisible();
       }
 

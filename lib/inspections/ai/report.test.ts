@@ -36,13 +36,13 @@ afterEach(() => {
 });
 
 describe("sendInspectionToAiReport", () => {
-  it("says 'AI not connected' and offers the JSON download when no report service is set", async () => {
+  it("says 'Steri-AI not connected' and offers the JSON download when no report service is set", async () => {
     vi.stubEnv("AI_REPORT_WEBHOOK_URL", "");
     const db = fake();
     expect(await sendInspectionToAiReport({ client: db.client, inspectionId: IDS.inspection, viewer: ADMIN })).toEqual({
       ok: false,
       reason: "not_connected",
-      message: "AI not connected.",
+      message: "Steri-AI not connected.",
       downloadHref: `/api/inspections/${IDS.inspection}/export`,
     });
     expect(db.queries).toEqual([]);
@@ -94,7 +94,7 @@ describe("sendInspectionToAiReport", () => {
     expect(result).toEqual({
       ok: false,
       reason: "report_failed",
-      message: "The AI report was not made. The report service did not answer within 180 seconds.",
+      message: "Steri-AI's report was not made. The report service did not answer within 180 seconds.",
     });
     expect(db.tables.inspections[0].report_url).toBeNull();
     expect(db.rpcCalls[0]).toMatchObject({ args: { action: "ai_report.failed", changes: { reason: "timeout" } } });

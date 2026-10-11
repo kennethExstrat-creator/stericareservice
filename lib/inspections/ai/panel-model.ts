@@ -45,7 +45,7 @@ import type {
 export const AI_STATUSES: readonly InspectionStatus[] = ["submitted", "approved"];
 
 export const NOT_REVIEWABLE = "Second opinions are for submitted or approved inspections.";
-export const NOT_REPORTABLE = "Only submitted or approved inspections go to the AI report.";
+export const NOT_REPORTABLE = "Only submitted or approved inspections go to Steri-AI Report.";
 export const ALREADY_PENDING = "A second opinion of this version is being written.";
 
 /** One recorded decision on a finding (ai_review_actions), with the admin's name. */

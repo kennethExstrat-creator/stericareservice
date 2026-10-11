@@ -232,8 +232,8 @@ function describeError(error: unknown, deadline: Deadline, callerSignal?: AbortS
   }
   if (error instanceof Anthropic.APIUserAbortError) {
     return isTimeoutReason(callerSignal?.reason)
-      ? failure("timeout", "The AI review ran out of time.")
-      : failure("error", "The AI review was cancelled.");
+      ? failure("timeout", "Steri-AI's review ran out of time.")
+      : failure("error", "Steri-AI's review was cancelled.");
   }
   if (error instanceof Anthropic.APIConnectionError) {
     return failure("error", "Could not reach the Claude API.");

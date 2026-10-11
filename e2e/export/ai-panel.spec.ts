@@ -89,7 +89,7 @@ function currentFindings(page: Page) {
 
 async function openPanel(page: Page) {
   await page.goto(panelPath(fixture.inspectionId));
-  await expect(panel(page).getByRole("heading", { level: 2, name: "AI Second Opinion" })).toBeVisible();
+  await expect(panel(page).getByRole("heading", { level: 2, name: "Steri-AI Second Opinion" })).toBeVisible();
 }
 
 async function decide(finding: Locator, choice: "Agree" | "Disagree" | "Fixed", note?: string) {
@@ -113,7 +113,7 @@ test("an admin requests a second opinion and compares it with the system and the
   await expectNoPageScroll(page);
   await shot(page, "admin-before-review");
 
-  const request = panel(page).getByRole("button", { name: "Request AI Second Opinion" });
+  const request = panel(page).getByRole("button", { name: "Request Steri-AI Second Opinion" });
   await expectTouchTarget(request);
   await press(request);
   // The button gives way to the notice, which takes focus while the opinion is written.
@@ -327,7 +327,7 @@ test("the inspector sees the second opinion read-only", async ({ page, context, 
   await expect(panel(page).getByRole("button", { name: "Save Decision" })).toHaveCount(0);
   await expect(panel(page).getByRole("button", { name: /Change your decision/ })).toHaveCount(0);
   await expect(panel(page).getByRole("button", { name: /Second Opinion/ })).toHaveCount(0);
-  await expect(panel(page).getByRole("button", { name: /Send to AI Report/ })).toHaveCount(0);
+  await expect(panel(page).getByRole("button", { name: /Send to Steri-AI Report/ })).toHaveCount(0);
   // Decisions are for admins only (RLS): the inspector does not see them.
   await expect(panel(page).locator('[data-testid^="decision-"]')).toHaveCount(0);
   await expect(panel(page).getByRole("link", { name: "Download JSON" })).toBeVisible();
@@ -406,10 +406,10 @@ test("the AI report hand-off: sends to the report service, or offers the JSON wh
   await as.signIn(context, baseURL!, "admin");
   await openPanel(page);
   const report = panel(page).getByTestId("ai-report");
-  const send = report.getByRole("button", { name: /Send to AI Report/ });
+  const send = report.getByRole("button", { name: /Send to Steri-AI Report/ });
 
   if ((await send.count()) === 0) {
-    await expect(report).toContainText("AI Not Connected");
+    await expect(report).toContainText("Steri-AI Not Connected");
     await expect(report.getByRole("link", { name: "Download JSON" })).toBeVisible();
     await shot(page, "admin-report-not-connected");
     return;

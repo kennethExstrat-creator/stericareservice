@@ -19,7 +19,7 @@ import { ReviewPoller } from "./review-poller";
 
 export function AiReviewPanelView({ model, className }: { model: AiPanelModel; className?: string }) {
   const { review, current, attempt, viewer } = model;
-  const requestLabel = current || attempt ? "Request a New Second Opinion" : "Request AI Second Opinion";
+  const requestLabel = current || attempt ? "Request a New Second Opinion" : "Request Steri-AI Second Opinion";
 
   return (
     <section aria-labelledby="ai-panel-title" className={cn("@container/ai space-y-5", className)} data-testid="ai-panel">
@@ -28,8 +28,8 @@ export function AiReviewPanelView({ model, className }: { model: AiPanelModel; c
           <AiPanelTitle />
           <p className="text-sm text-muted-foreground">
             {viewer.isAdmin
-              ? "The AI suggests and never changes a result. Record Agree, Disagree or Fixed for each finding."
-              : "The AI suggests and never changes a result. An admin decides on each finding."}
+              ? "Steri-AI suggests and never changes a result. Record Agree, Disagree or Fixed for each finding."
+              : "Steri-AI suggests and never changes a result. An admin decides on each finding."}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 @2xl/ai:justify-end">
@@ -43,7 +43,7 @@ export function AiReviewPanelView({ model, className }: { model: AiPanelModel; c
       {review.connected && !current && !attempt && (
         <Notice tone="neutral" title="No Second Opinion Yet">
           {viewer.isAdmin
-            ? (review.blockedReason ?? "Request one to compare the AI's view with the computed results and the inspector's.")
+            ? (review.blockedReason ?? "Request one to compare Steri-AI's view with the computed results and the inspector's.")
             : "An admin can request one."}
         </Notice>
       )}
@@ -100,7 +100,7 @@ export function AiPanelTitle() {
   return (
     <h2 id="ai-panel-title" className="flex items-center gap-2 text-2xl font-bold tracking-tight text-foreground">
       <SparklesIcon aria-hidden className="size-5 shrink-0 text-brand-600" />
-      AI Second Opinion
+      Steri-AI Second Opinion
     </h2>
   );
 }
@@ -209,7 +209,7 @@ function NoticeText({ tone, title, children }: { tone: NoticeTone; title: string
 function ReportSection({ model }: { model: AiPanelModel }) {
   const { report, viewer, inspection } = model;
   const description = !report.connected
-    ? "AI not connected. Download the export (JSON) to pass it on to whoever writes the report."
+    ? "Steri-AI not connected. Download the export (JSON) to pass it on to whoever writes the report."
     : report.canSend || !viewer.isAdmin
       ? "The report service writes the client report from the export of this inspection."
       : (report.blockedReason ?? "The report service writes the client report from the export.");
@@ -225,7 +225,7 @@ function ReportSection({ model }: { model: AiPanelModel }) {
         <div className="min-w-0 space-y-1">
           <h3 id="ai-report-title" className="flex flex-wrap items-center gap-2 text-lg font-bold text-foreground">
             <FileTextIcon aria-hidden className="size-5 shrink-0 text-brand-600" />
-            AI Report
+            Steri-AI Report
             {!report.connected && <StatusPill status="info" size="sm" label={report.label} />}
           </h3>
           <p className="text-sm text-muted-foreground">{description}</p>

@@ -16,21 +16,21 @@ const SECRET = "whsec_test_0123456789abcdef";
 describe("getAiStatus", () => {
   it("says not connected when nothing is configured", () => {
     expect(getAiStatus({})).toEqual({
-      review: { connected: false, provider: "off", label: "AI Second Opinion Not Connected" },
-      report: { connected: false, provider: "off", label: "AI Not Connected" },
+      review: { connected: false, provider: "off", label: "Steri-AI Second Opinion Not Connected" },
+      report: { connected: false, provider: "off", label: "Steri-AI Not Connected" },
     });
     // The labels (the panel's title, the report's pill) in Title Case; messages start with the sentence words.
-    expect(AI_REVIEW_NOT_CONNECTED_LABEL).toBe("AI Second Opinion Not Connected");
-    expect(AI_REPORT_NOT_CONNECTED_LABEL).toBe("AI Not Connected");
-    expect(AI_REVIEW_NOT_CONNECTED).toBe("AI second opinion not connected");
-    expect(AI_REPORT_NOT_CONNECTED).toBe("AI not connected");
+    expect(AI_REVIEW_NOT_CONNECTED_LABEL).toBe("Steri-AI Second Opinion Not Connected");
+    expect(AI_REPORT_NOT_CONNECTED_LABEL).toBe("Steri-AI Not Connected");
+    expect(AI_REVIEW_NOT_CONNECTED).toBe("Steri-AI second opinion not connected");
+    expect(AI_REPORT_NOT_CONNECTED).toBe("Steri-AI not connected");
   });
 
   it("tells AI_REVIEW_PROVIDER=off apart from nothing set up", () => {
     expect(getAiStatus({ AI_REVIEW_PROVIDER: "off", ANTHROPIC_API_KEY: API_KEY }).review).toEqual({
       connected: false,
       provider: "off",
-      label: "AI Second Opinion Not Connected",
+      label: "Steri-AI Second Opinion Not Connected",
       switchedOff: true,
     });
     expect(getAiStatus({ AI_REVIEW_PROVIDER: "auto" }).review).not.toHaveProperty("switchedOff");
@@ -42,7 +42,7 @@ describe("getAiStatus", () => {
       connected: true,
       provider: "claude",
       model: "claude-opus-5",
-      label: "AI Second Opinion Connected (Claude, claude-opus-5)",
+      label: "Steri-AI Second Opinion Connected (Claude, claude-opus-5)",
     });
   });
 
@@ -56,7 +56,7 @@ describe("getAiStatus", () => {
     expect(getAiStatus({ AI_REVIEW_PROVIDER: "mock" }).review).toMatchObject({
       connected: true,
       provider: "mock",
-      label: "AI Second Opinion: Mock Reviewer (Test Data Only)",
+      label: "Steri-AI Second Opinion: Mock Reviewer (Test Data Only)",
     });
   });
 
@@ -70,13 +70,13 @@ describe("getAiStatus", () => {
     expect(status.review).toMatchObject({
       connected: false,
       provider: "misconfigured",
-      label: "AI Second Opinion Not Connected: Configuration Error",
+      label: "Steri-AI Second Opinion Not Connected: Configuration Error",
       detail: expect.stringContaining("AI_REVIEW_WEBHOOK_URL"),
     });
     expect(status.report).toMatchObject({
       connected: false,
       provider: "misconfigured",
-      label: "AI Not Connected: Configuration Error",
+      label: "Steri-AI Not Connected: Configuration Error",
       detail: expect.stringContaining("AI_WEBHOOK_SECRET"),
     });
 
@@ -136,24 +136,24 @@ describe("the labels and the messages", () => {
       getAiStatus({ AI_REVIEW_PROVIDER: "webhook", AI_REPORT_WEBHOOK_URL: "not a url" }).report.label,
     ];
     expect(labels).toEqual([
-      "AI Second Opinion Not Connected",
-      "AI Not Connected",
-      "AI Second Opinion Connected (Webhook)",
-      "AI Report Connected (Webhook)",
-      "AI Second Opinion: Mock Reviewer (Test Data Only)",
-      "AI Second Opinion Not Connected: Configuration Error",
-      "AI Not Connected: Configuration Error",
+      "Steri-AI Second Opinion Not Connected",
+      "Steri-AI Not Connected",
+      "Steri-AI Second Opinion Connected (Webhook)",
+      "Steri-AI Report Connected (Webhook)",
+      "Steri-AI Second Opinion: Mock Reviewer (Test Data Only)",
+      "Steri-AI Second Opinion Not Connected: Configuration Error",
+      "Steri-AI Not Connected: Configuration Error",
     ]);
     for (const label of labels) expect(lowerCaseWords(label)).toEqual([]);
   });
 
   it("words a message as a sentence, with what to fix after it", () => {
-    expect(reviewNotConnectedMessage(getAiStatus({}).review)).toBe("AI second opinion not connected.");
-    expect(reportNotConnectedMessage(getAiStatus({}).report)).toBe("AI not connected.");
+    expect(reviewNotConnectedMessage(getAiStatus({}).review)).toBe("Steri-AI second opinion not connected.");
+    expect(reportNotConnectedMessage(getAiStatus({}).report)).toBe("Steri-AI not connected.");
     const misconfigured = getAiStatus({ AI_REVIEW_PROVIDER: "webhook", AI_REPORT_WEBHOOK_URL: "not a url" });
     expect(reviewNotConnectedMessage(misconfigured.review)).toMatch(
-      /^AI second opinion not connected: configuration error\. .*AI_REVIEW_WEBHOOK_URL/,
+      /^Steri-AI second opinion not connected: configuration error\. .*AI_REVIEW_WEBHOOK_URL/,
     );
-    expect(reportNotConnectedMessage(misconfigured.report)).toMatch(/^AI not connected: configuration error\. .*AI_REPORT_WEBHOOK_URL/);
+    expect(reportNotConnectedMessage(misconfigured.report)).toMatch(/^Steri-AI not connected: configuration error\. .*AI_REPORT_WEBHOOK_URL/);
   });
 });

@@ -1115,7 +1115,7 @@ test("SEC-03: an inspector cannot add an admin's or the system's events to the a
   await page.goto(`/inspections/${i.mApproved.id}/review`);
   await expect(page.getByRole("heading", { name: "History", exact: true })).toBeVisible();
   await expect(page.locator("li[data-kind]").first()).toBeVisible();
-  for (const text of ["Sent to the AI Report", "Reason for Reopening", "Module Settings Changed for This Inspection", "Approved by phone"]) {
+  for (const text of ["Sent to Steri-AI Report", "Reason for Reopening", "Module Settings Changed for This Inspection", "Approved by phone"]) {
     await expect(page.getByText(text), text).toHaveCount(0);
   }
   await page.screenshot({ path: `${SHOTS}/sec-03-history-without-forged-events.png`, fullPage: true });

@@ -134,7 +134,7 @@ describe("startAiReview", () => {
     expect(await startAiReview({ client: db.client, inspectionId: IDS.inspection, trigger: "admin", viewer: ADMIN })).toEqual({
       ok: false,
       reason: "not_connected",
-      message: "AI second opinion not connected.",
+      message: "Steri-AI second opinion not connected.",
     });
     expect(db.queries).toEqual([]);
   });
@@ -329,7 +329,7 @@ describe("completeAiReview", () => {
       },
     });
     expect(outcome).toBe("failed");
-    expect(reviews(db)[0]).toMatchObject({ status: "failed", summary: "Unexpected error while requesting the AI review." });
+    expect(reviews(db)[0]).toMatchObject({ status: "failed", summary: "Unexpected error while requesting Steri-AI's review." });
   });
 
   it("never overwrites a review that is no longer pending", async () => {
