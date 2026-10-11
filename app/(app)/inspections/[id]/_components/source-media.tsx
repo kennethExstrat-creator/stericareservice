@@ -5,7 +5,8 @@
 // in lib/inspections/source-documents.ts) and Other. A category lists its
 // photos and videos as rows, as the Files side lists documents
 // (media-rows.tsx): Preview, Download and Delete; with nothing yet it is one
-// row, its title and count over its hint, and Add. Files dropped on a
+// row: its title, an "i" that shows what goes there (Kenneth, 12 October
+// 2026: no explanation line), its count, and Add. Files dropped on a
 // category go in by their type. A row's grip drags it into another category,
 // or opens its Move To menu (use-media-drag.ts); the row moves at once, and
 // goes back with a message if the move is refused. Other, always listed last
@@ -26,7 +27,7 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import { ImagePlusIcon, LoaderCircleIcon, PlusIcon, SparklesIcon, TriangleAlertIcon } from "lucide-react";
+import { ImagePlusIcon, InfoIcon, LoaderCircleIcon, PlusIcon, SparklesIcon, TriangleAlertIcon } from "lucide-react";
 import { toast } from "sonner";
 import { FileDeleteDialog } from "@/components/capture/files/file-delete-dialog";
 import { FilePreviewDialog } from "@/components/capture/files/file-preview-dialog";
@@ -37,6 +38,7 @@ import { slotFiles, slotPhotos } from "@/components/capture/photos/photo-model";
 import { moduleSlotKey, NOTHING_PREPARING, type PreparingCount } from "@/components/capture/photos/queue-state";
 import { photoQueueStore } from "@/components/capture/photos/queue-store";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
 import { countPhotos, countVideos, EMPTY_TAG_OPTIONS } from "@/lib/inspections/photos/view";
 import { MEDIA_CATEGORIES, mediaKind, SOURCE_MEDIA_KEY, type MediaCategory } from "@/lib/inspections/source-documents";
@@ -351,13 +353,8 @@ function MediaSection({
   );
   const drop = useFileDrop(add, canAdd);
   const preparingCount = preparing.photos + preparing.files;
-  const hint = drop.dragging ? (
-    <span className="font-medium text-brand-700">Drop to add to {title}</span>
-  ) : dropTarget ? (
-    <span className="font-medium text-brand-700">Drop to move to {title}</span>
-  ) : (
-    (category?.hint ?? OTHER_HINT)
-  );
+  // While something is dragged over: where it goes, in the count's place, so the section keeps its height.
+  const notice = drop.dragging ? `Drop to add to ${title}` : dropTarget ? `Drop to move to ${title}` : null;
   // Rows move between sections: a grip on each wherever anything can move, waiting on those that cannot yet.
   const movable = canAdd || canEditUploaded;
 
@@ -373,7 +370,8 @@ function MediaSection({
       <SectionHeader
         id={headingId}
         title={title}
-        hint={hint}
+        info={category?.hint ?? OTHER_HINT}
+        notice={notice}
         count={loading && items.length === 0 ? "Loading…" : mediaCountLine(items)}
       >
         {canAdd && <MediaAddButton title={title} onFiles={add} />}
@@ -406,35 +404,51 @@ function MediaSection({
 }
 
 /**
- * A section's one row: the title with its count over the hint, and Add
- * beside them (below them where the row is too narrow).
+ * A section's one row: the title and its "i" (what goes there, in a popover
+ * a tap opens on the iPad as well as a click); at the end, the count then
+ * Add, so every section's count lines up (Kenneth, 12 October 2026).
  */
 function SectionHeader({
   id,
   title,
-  hint,
+  info,
+  notice,
   count,
   children,
 }: {
   id: string;
   title: string;
-  hint: ReactNode;
+  info: string;
+  /** Shown in the count's place while something is dragged over. */
+  notice: string | null;
   count: string;
   children?: ReactNode;
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-baseline gap-x-3">
-          {/* A focus target after a deleted row, not a control: no ring. */}
-          <h3 id={id} tabIndex={-1} className="text-base leading-snug font-semibold text-foreground outline-none">
-            {title}
-          </h3>
-          <p className="text-sm text-muted-foreground tabular-nums">{count}</p>
-        </div>
-        <p className="text-sm text-muted-foreground">{hint}</p>
+      <div className="flex min-w-0 items-center gap-x-1">
+        {/* A focus target after a deleted row, not a control: no ring. */}
+        <h3 id={id} tabIndex={-1} className="text-base leading-snug font-semibold text-foreground outline-none">
+          {title}
+        </h3>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button type="button" variant="ghost" size="icon-sm" className="relative text-muted-foreground hover:text-foreground">
+              <InfoIcon aria-hidden />
+              <span className="sr-only">About {title}</span>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-auto max-w-72 text-sm touch:text-base">
+            {info}
+          </PopoverContent>
+        </Popover>
       </div>
-      {children}
+      <div className="ml-auto flex items-center gap-3">
+        <p className={cn("text-sm whitespace-nowrap tabular-nums", notice ? "font-medium text-brand-700" : "text-muted-foreground")}>
+          {notice ?? count}
+        </p>
+        {children}
+      </div>
     </div>
   );
 }

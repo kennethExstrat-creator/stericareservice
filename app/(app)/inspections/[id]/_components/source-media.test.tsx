@@ -120,7 +120,9 @@ describe("SourceMedia", () => {
       const part = shown[key];
       expect(part, key).toMatch(new RegExp(`<h3[^>]*>${title}</h3>`));
       expect(part, key).toContain(">0 photos · 0 videos<");
-      expect(part, key).toContain(`>${hint}<`);
+      // What goes there is behind the title's "i", not a line of its own.
+      expect(part, key).toContain(`About ${title}</span>`);
+      expect(part, key).not.toContain(hint);
       // Read out with where it goes: four sections share the button's word.
       expect(part, key).toContain(`Add<span class="sr-only"> Photos and Videos to ${title}</span>`);
       expect(part, key).not.toContain('data-slot="media-row"');
@@ -133,7 +135,7 @@ describe("SourceMedia", () => {
     // The iPad's pickers: photos and videos together, several at once; one a category, and Auto-Sort's.
     expect(html.match(/<input[^>]*type="file"[^>]*accept="image\/\*,video\/\*"[^>]*multiple=""/g)).toHaveLength(6);
     expect(sections(html).other).toMatch(/<h3[^>]*>Other<\/h3>/);
-    expect(sections(html).other).toContain(">Anything the AI could not place.<");
+    expect(sections(html).other).toContain("About Other</span>");
     expect(unanchoredSrOnly(html)).toEqual([]);
   });
 
@@ -183,7 +185,8 @@ describe("SourceMedia", () => {
     const other = sections(html).other;
     expect(other).toMatch(/<h3[^>]*>Other<\/h3>/);
     expect(other).toContain(">2 photos · 1 video<");
-    expect(other).toContain(">Anything the AI could not place.<");
+    expect(other).toContain("About Other</span>");
+    expect(other).not.toContain("Anything the AI could not place.");
     expect(other).toContain(">Photo 2<");
     // A step's photo says which step it came from.
     expect(other).toContain(">Photo 3<");
@@ -208,7 +211,7 @@ describe("SourceMedia", () => {
     expect(html).not.toContain("Delete ");
     expect(html).toContain("Preview Photo 1</span>");
     expect(html).toContain("Download Proof.mp4</span>");
-    expect(sections(html).other).toContain(">Anything the AI could not place.<");
+    expect(sections(html).other).toContain("About Other</span>");
   });
 
   it("says Loading… in each row until the photos are known, never 0", () => {
