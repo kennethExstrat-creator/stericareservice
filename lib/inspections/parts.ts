@@ -24,10 +24,11 @@ export function groupIdOf(row: { id: string; group_id: string | null }): string 
   return row.group_id ?? row.id;
 }
 
-/** "PO 2680276 (5400053153)", or "PO 2" while the part has no PO number yet. */
+/** "PO 2680276 (5400053153)", "PO-0001 (SO-0001)" as typed, or "PO 2" while the part has no PO number yet. */
 export function partLabel(part: Pick<InspectionPart, "poNo">, index: number): string {
   const po = part.poNo?.trim();
-  return po ? `PO ${po}` : `PO ${index + 1}`;
+  if (!po) return `PO ${index + 1}`;
+  return /^P\.?O\b/i.test(po) ? po : `PO ${po}`;
 }
 
 /** The inspection's reference number: the first part's. */

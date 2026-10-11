@@ -850,6 +850,8 @@ export function CaptureScreen({
         // Submitted: what was refused on the way is done with.
         onSubmitted={clearRefused}
         uploadsWaiting={uploadsWaiting}
+        // Every PO of the inspection: Submit sends them all, and checks this device's uploads for each.
+        parts={heading.parts?.list}
         disabled={readOnly}
         className={className}
       />

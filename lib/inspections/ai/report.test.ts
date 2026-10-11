@@ -195,7 +195,7 @@ describe("sendInspectionToAiReport for an inspection of several POs", () => {
     expect(result).toEqual({
       ok: false,
       reason: "not_reportable",
-      message: "The AI report covers every PO of this inspection, and PO PO-0003 is not submitted or approved.",
+      message: "The AI report covers every PO of this inspection, and PO-0003 is not submitted or approved.",
     });
     expect(send).not.toHaveBeenCalled();
   });

@@ -187,7 +187,7 @@ describe("an inspection of several POs", () => {
     const [ref, , , , , , , po] = cells(html);
     expect(text(ref)).toBe("INS-2026-0001");
     // The first PO, its tooltip listing every PO, then the button; on one line like every cell.
-    expect(po).toContain('title="PO PO-0001, PO PO-0002, PO 3">PO-0001</span>');
+    expect(po).toContain('title="PO-0001, PO-0002, PO 3">PO-0001</span>');
     expect(text(po)).toBe("PO-0001+2 POs in INS-2026-0001");
   });
 
@@ -214,9 +214,9 @@ describe("an inspection of several POs", () => {
   it("says Mixed beside the status and the result when the POs differ, each PO's in the tooltip", () => {
     const [, status, result] = cells(render([THREE_POS]));
     expect(status).toContain('data-status="draft"');
-    expect(status).toMatch(/title="PO PO-0001: Reopened, PO PO-0002: Draft, PO 3: Draft"[^>]*>Mixed<\/span>/);
+    expect(status).toMatch(/title="PO-0001: Reopened, PO-0002: Draft, PO 3: Draft"[^>]*>Mixed<\/span>/);
     expect(result).toContain('data-status="not_done"');
-    expect(result).toMatch(/title="PO PO-0001: Passed, PO PO-0002: Not Done, PO 3: Not Done"[^>]*>Mixed<\/span>/);
+    expect(result).toMatch(/title="PO-0001: Passed, PO-0002: Not Done, PO 3: Not Done"[^>]*>Mixed<\/span>/);
     // 14 px on touch, beside the 14 px pills; slate-600, the lightest secondary text allowed.
     expect(status).toMatch(/data-slot="mixed"[^>]*class="[^"]*\btext-slate-600\b[^"]*\btouch:text-sm\b/);
   });
@@ -251,8 +251,8 @@ describe("an inspection of several POs", () => {
     const html = renderToStaticMarkup(<PoPartsList parts={THREE_POS.parts} />);
     const items = [...html.matchAll(/<li\b[^>]*>(.*?)<\/li>/g)].map((match) => match[1]);
     expect(items).toHaveLength(3);
-    expect(text(items[0])).toBe("PO PO-0001Nitrile examination glovesReopenedPassed");
-    expect(text(items[1])).toBe("PO PO-0002Nitrile examination glovesDraftNot Done");
+    expect(text(items[0])).toBe("PO-0001Nitrile examination glovesReopenedPassed");
+    expect(text(items[1])).toBe("PO-0002Nitrile examination glovesDraftNot Done");
     // No PO number yet: named by its place (partLabel). No product yet: none shown.
     expect(text(items[2])).toBe("PO 3DraftNot Done");
     expect(items[0]).toContain('data-slot="inspection-status" data-status="reopened"');
