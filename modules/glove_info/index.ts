@@ -20,7 +20,7 @@ export const definition = defineModule<GloveInfoData, GloveInfoConfig, GloveInfo
   defaultConfig: GLOVE_INFO_DEFAULT_CONFIG,
   // The first variant's values: what a custom field (mapsTo) or the coverage matrix names.
   canonicalPaths: [
-    { path: "variants.0.gloveType", label: GLOVE_INFO_LABELS.gloveType, type: "text" },
+    { path: "gloveType", label: GLOVE_INFO_LABELS.gloveType, type: "text" },
     { path: "variants.0.surfaceTexture", label: GLOVE_INFO_LABELS.surfaceTexture, type: "text" },
     { path: "variants.0.indicativeWeight", label: GLOVE_INFO_LABELS.indicativeWeight, type: "number", unit: "g" },
     { path: "variants.0.colour", label: GLOVE_INFO_LABELS.colour, type: "text" },

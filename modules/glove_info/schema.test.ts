@@ -4,23 +4,32 @@ import { emptyGloveInfo, GloveInfoDataSchema, MAX_VARIANTS } from "./schema";
 describe("glove_info data", () => {
   it("starts with one blank variant, and reads nothing saved as no variants", () => {
     expect(emptyGloveInfo()).toEqual({
-      variants: [{ sizes: [], gloveType: null, surfaceTexture: null, indicativeWeight: null, colour: null, length: null }],
+      gloveType: null,
+      variants: [{ sizes: [], surfaceTexture: null, indicativeWeight: null, colour: null, length: null }],
     });
-    expect(GloveInfoDataSchema.parse({})).toEqual({ variants: [] });
+    expect(GloveInfoDataSchema.parse({})).toEqual({ gloveType: null, variants: [] });
   });
 
   it("reads one set of values saved before variants as a first variant covering every size", () => {
     expect(GloveInfoDataSchema.parse({ surfaceTexture: "Finger-textured", indicativeWeight: 3.5, colour: "Blue", length: null })).toEqual({
-      variants: [{ sizes: [], gloveType: null, surfaceTexture: "Finger-textured", indicativeWeight: 3.5, colour: "Blue", length: null }],
+      gloveType: null,
+      variants: [{ sizes: [], surfaceTexture: "Finger-textured", indicativeWeight: 3.5, colour: "Blue", length: null }],
     });
+  });
+
+  it("takes a variant's Glove Type (11 October 2026) as the module's, where the module has none", () => {
+    const lifted = GloveInfoDataSchema.parse({ variants: [{ gloveType: null, colour: "Blue" }, { gloveType: "Nitrile, powder free" }] });
+    expect(lifted.gloveType).toBe("Nitrile, powder free");
+    expect(lifted.variants.every((variant) => !("gloveType" in variant))).toBe(true);
+    expect(GloveInfoDataSchema.parse({ gloveType: "Latex", variants: [{ gloveType: "Nitrile" }] }).gloveType).toBe("Latex");
   });
 
   it("fills a value written straight onto the module into the first variant where it is empty", () => {
     const parsed = GloveInfoDataSchema.parse({
       colour: "White",
-      variants: [{ sizes: ["M"], gloveType: null, surfaceTexture: "Smooth", indicativeWeight: null, colour: null, length: null }],
+      variants: [{ sizes: ["M"], surfaceTexture: "Smooth", indicativeWeight: null, colour: null, length: null }],
     });
-    expect(parsed.variants[0]).toMatchObject({ sizes: ["M"], gloveType: null, surfaceTexture: "Smooth", colour: "White" });
+    expect(parsed.variants[0]).toMatchObject({ sizes: ["M"], surfaceTexture: "Smooth", colour: "White" });
   });
 
   it("reads a glove length saved as printed text as its number in mm", () => {

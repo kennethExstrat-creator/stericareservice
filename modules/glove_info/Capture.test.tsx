@@ -17,9 +17,10 @@ import { emptyGloveInfo, type GloveInfoData } from "./schema";
 type Props = CaptureProps<GloveInfoData, GloveInfoConfig, GloveInfoComputed>;
 
 const TWO: GloveInfoData = {
+  gloveType: "Nitrile, powder free",
   variants: [
-    { sizes: ["S"], gloveType: null, surfaceTexture: "Finger-textured", indicativeWeight: 3.1, colour: "Blue", length: 240 },
-    { sizes: ["M", "L"], gloveType: null, surfaceTexture: "Smooth", indicativeWeight: 4.2, colour: "White", length: 300 },
+    { sizes: ["S"], surfaceTexture: "Finger-textured", indicativeWeight: 3.1, colour: "Blue", length: 240 },
+    { sizes: ["M", "L"], surfaceTexture: "Smooth", indicativeWeight: 4.2, colour: "White", length: 300 },
   ],
 };
 
@@ -54,6 +55,16 @@ function render(overrides: Partial<Props> = {}): string {
 describe("glove_info capture", () => {
   it("is the module's capture screen, loaded on demand", async () => {
     expect((await definition.loadCapture?.())?.default).toBe(Capture);
+  });
+
+  it("asks the Glove Type once, before the variants, and in no variant", () => {
+    const html = render();
+    expect(html.match(/>Glove Type</g)).toHaveLength(1);
+    expect(html.indexOf(">Glove Type<")).toBeLessThan(html.indexOf("Variant 1"));
+    expect(html).toContain('value="Nitrile, powder free"');
+    expect(html).not.toContain("(Optional)");
+    const off = { ...GLOVE_INFO_DEFAULT_CONFIG, fields: { ...GLOVE_INFO_DEFAULT_CONFIG.fields, gloveType: false } };
+    expect(render({ config: off })).not.toContain(">Glove Type<");
   });
 
   it("shows a card per variant with its sizes picked and the fields in the template's wording", () => {

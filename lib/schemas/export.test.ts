@@ -256,7 +256,7 @@ describe("the STD_EG export of the real modules", () => {
     ]);
     expect(doc.custom).toEqual([]);
     const gloveInfo = doc.modules.find((module) => module.key === "glove_info");
-    expect(gloveInfo?.data).toMatchObject({ variants: [{ gloveType: "Nitrile, powder free" }] });
+    expect(gloveInfo?.data).toMatchObject({ gloveType: "Nitrile, powder free" });
   });
 
   it("reproduces expected results B: every module passes or informs, weight warns", () => {

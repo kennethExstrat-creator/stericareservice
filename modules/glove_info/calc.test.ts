@@ -7,7 +7,7 @@ import { GLOVE_INFO_DEFAULT_CONFIG, GLOVE_INFO_LABELS, type GloveInfoConfig } fr
 import { definition } from "./index";
 import { emptyVariant, type GloveInfoData, type GloveVariant } from "./schema";
 
-const BLUE: GloveVariant = { sizes: [], gloveType: null, surfaceTexture: "Finger-textured", indicativeWeight: 3.5, colour: "Blue", length: 240 };
+const BLUE: GloveVariant = { sizes: [], surfaceTexture: "Finger-textured", indicativeWeight: 3.5, colour: "Blue", length: 240 };
 
 function input(data: GloveInfoData, config: GloveInfoConfig = GLOVE_INFO_DEFAULT_CONFIG): CalcInput<GloveInfoData, GloveInfoConfig> {
   return {
@@ -27,22 +27,29 @@ describe("glove_info calc", () => {
   });
 
   it("is info once every variant has every field the template shows", () => {
-    const out = calcGloveInfo(input({ variants: [BLUE, { ...BLUE, sizes: ["L"], colour: "White", indicativeWeight: 4.2 }] }));
+    const out = calcGloveInfo(input({ gloveType: null, variants: [BLUE, { ...BLUE, sizes: ["L"], colour: "White", indicativeWeight: 4.2 }] }));
     expect(out.result.status).toBe("info");
     expect(out.result.summary).toBe(
       "Finger-textured, Blue, 240 mm; indicative weight 3.5 g (size M). Finger-textured, White, 240 mm (L); indicative weight 4.2 g (size L).",
     );
   });
 
+  it("puts the Glove Type first in the summary, and never waits for it", () => {
+    expect(calcGloveInfo(input({ gloveType: "Nitrile, powder free", variants: [BLUE] })).result.summary).toBe(
+      "Nitrile, powder free. Finger-textured, Blue, 240 mm; indicative weight 3.5 g (size M).",
+    );
+    expect(calcGloveInfo(input({ gloveType: null, variants: [BLUE] })).result.status).toBe("info");
+  });
+
   it("is not done without a variant, or while a field is empty, naming the variant when there are several (6.2 rule 5)", () => {
-    expect(calcGloveInfo(input({ variants: [] })).result).toMatchObject({ status: "not_done" });
-    expect(calcGloveInfo(input({ variants: [{ ...BLUE, colour: null }] })).result.summary).toBe("Missing: Glove Colour.");
-    const two = calcGloveInfo(input({ variants: [BLUE, { ...emptyVariant(), colour: "White" }] }));
+    expect(calcGloveInfo(input({ gloveType: null, variants: [] })).result).toMatchObject({ status: "not_done" });
+    expect(calcGloveInfo(input({ gloveType: null, variants: [{ ...BLUE, colour: null }] })).result.summary).toBe("Missing: Glove Colour.");
+    const two = calcGloveInfo(input({ gloveType: null, variants: [BLUE, { ...emptyVariant(), colour: "White" }] }));
     expect(two.result.summary).toBe("Missing: Variant 2 Glove Surface Texture, Variant 2 Indicative Weight, Variant 2 Glove Length.");
   });
 
   it("refuses a weight of zero or less with a link to it, and warns of a size in two variants", () => {
-    const out = calcGloveInfo(input({ variants: [{ ...BLUE, sizes: ["M"] }, { ...BLUE, sizes: ["M"], indicativeWeight: 0 }] }));
+    const out = calcGloveInfo(input({ gloveType: null, variants: [{ ...BLUE, sizes: ["M"] }, { ...BLUE, sizes: ["M"], indicativeWeight: 0 }] }));
     expect(out.issues.map((issue) => [issue.code, issue.path])).toEqual([
       ["indicative_weight_not_positive", ["variants", 1, "indicativeWeight"]],
       ["size_in_two_variants", ["variants", 1, "sizes"]],
@@ -55,7 +62,7 @@ describe("glove_info calc", () => {
     expect(weightSizeOf({ sizes: ["S", "M"] }, "M")).toBe("M");
     expect(weightSizeOf({ sizes: ["S", "L"] }, "M")).toBeNull();
     const contribution = contributeGloveInfo({
-      data: { variants: [{ ...BLUE, sizes: ["S"], indicativeWeight: 3.1 }, BLUE, { ...BLUE, sizes: ["M"], indicativeWeight: 9 }] },
+      data: { gloveType: null, variants: [{ ...BLUE, sizes: ["S"], indicativeWeight: 3.1 }, BLUE, { ...BLUE, sizes: ["M"], indicativeWeight: 9 }] },
       config: GLOVE_INFO_DEFAULT_CONFIG,
     } as Parameters<typeof contributeGloveInfo>[0]);
     expect(contribution).toEqual({ indicativeWeights: { S: 3.1, M: 3.5 }, indicativeWeight: { grams: 3.5, size: "M" } });

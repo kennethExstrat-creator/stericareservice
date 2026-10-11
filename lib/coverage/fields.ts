@@ -213,7 +213,7 @@ const gloveInfo = defineModule({
   alwaysOn: false,
   title: "Glove Information",
   captures:
-    "The glove's variants (Kenneth, 11 October 2026: one PO can hold several): each a combination of glove type, surface texture, indicative weight (g), colour and length, for the sizes it covers (none picked: every size).",
+    "The glove's Glove Type, once per inspection, then its variants (Kenneth, 11 October 2026: one PO can hold several): each a combination of surface texture, indicative weight (g), colour and length, for the sizes it covers (none picked: every size).",
   result: "info.",
   rules: [1, 9],
   data: [
@@ -223,7 +223,8 @@ const gloveInfo = defineModule({
       type: "text",
       per: [],
       entry: "entered",
-      notes: "Per variant (variants[].gloveType). The onsite forms' Glove Type; a custom module of its own until 11 October 2026.",
+      notes:
+        "Once per inspection, first on the page (12 October 2026). The onsite forms' Glove Type; a custom module of its own until 11 October 2026, kept on templates saved before (no gloveType switch: off).",
     },
     { key: "surfaceTexture", label: "Glove Surface Texture", type: "text", per: [], entry: "entered", notes: "Per variant." },
     {

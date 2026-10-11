@@ -26,6 +26,19 @@ function withVariant(data: GloveInfoData, index: number, change: (variant: Glove
   return { ...data, variants };
 }
 
+/** The Glove Type as typed (the module's own, once per inspection); blank is null. */
+export function setGloveType(data: GloveInfoData, value: string): GloveInfoData {
+  const next = value === "" ? null : clampText(value, TEXT_MAX_LENGTH);
+  return data.gloveType === next ? data : { ...data, gloveType: next };
+}
+
+/** Trims the Glove Type once it is left; nothing but spaces is blank. */
+export function tidyGloveType(data: GloveInfoData): GloveInfoData {
+  const value = data.gloveType;
+  if (value === null || value === value.trim()) return data;
+  return { ...data, gloveType: value.trim() === "" ? null : value.trim() };
+}
+
 /** Text as typed, spaces between words included, cut to what the schema keeps; blank is null. */
 export function setText(data: GloveInfoData, index: number, field: GloveInfoTextField, value: string): GloveInfoData {
   const next = value === "" ? null : clampText(value, TEXT_MAX_LENGTH);

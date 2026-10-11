@@ -5,16 +5,18 @@ import { CanonicalSizeSchema } from "@/lib/sizes";
 
 export const GLOVE_INFO_TITLE = "Glove Information";
 
-/** A variant's fields in screen order: the onsite forms' Glove Type first (it was a custom module of its own until 11 October 2026). */
+/**
+ * The fields in screen order: the onsite forms' Glove Type once per inspection
+ * first (Kenneth, 12 October 2026), then each variant's. Glove Type is
+ * recorded when known, never waited for: the reports do not print it
+ * (BUILD_SPEC 6.2 rule 5 counts only the reports' fields).
+ */
 export const GLOVE_INFO_FIELDS = ["gloveType", "surfaceTexture", "indicativeWeight", "colour", "length"] as const;
 export type GloveInfoField = (typeof GLOVE_INFO_FIELDS)[number];
 
-/**
- * Recorded when known, never waited for: the reports do not print Glove
- * Type, and it was an optional field of its own before (BUILD_SPEC 6.2 rule 5
- * counts only the reports' fields).
- */
-export const OPTIONAL_GLOVE_INFO_FIELDS: ReadonlySet<GloveInfoField> = new Set(["gloveType"]);
+/** A variant's fields in screen order: the step waits for each the template shows. */
+export const VARIANT_FIELDS = ["surfaceTexture", "indicativeWeight", "colour", "length"] as const;
+export type VariantField = (typeof VARIANT_FIELDS)[number];
 
 export const GLOVE_INFO_LABELS: Readonly<Record<GloveInfoField, string>> = {
   gloveType: "Glove Type",
@@ -27,8 +29,8 @@ export const GLOVE_INFO_LABELS: Readonly<Record<GloveInfoField, string>> = {
 export const GloveInfoConfigSchema = z.strictObject({
   fields: z
     .strictObject({
-      // On unless a template says otherwise: templates saved before it came here have no switch for it.
-      gloveType: z.boolean().default(true),
+      // Off where a template has no switch: those saved before 11 October 2026 keep Glove Type as the custom module glove_type.
+      gloveType: z.boolean().default(false),
       surfaceTexture: z.boolean(),
       indicativeWeight: z.boolean(),
       colour: z.boolean(),

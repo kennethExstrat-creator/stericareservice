@@ -1,8 +1,8 @@
-// Glove Information (BUILD_SPEC 6.1 glove_info): the glove's variants. A
-// variant is one combination of surface texture, indicative weight, colour
-// and length (Kenneth, 11 October 2026: one PO can hold several), for the
-// sizes it covers. Every value may be missing while the inspection is a
-// draft.
+// Glove Information (BUILD_SPEC 6.1 glove_info): the Glove Type, once per
+// inspection, and the glove's variants. A variant is one combination of
+// surface texture, indicative weight, colour and length (Kenneth, 11 October
+// 2026: one PO can hold several), for the sizes it covers. Every value may be
+// missing while the inspection is a draft.
 import { z } from "zod";
 import { CanonicalSizeSchema } from "@/lib/sizes";
 import { DecimalCellSchema, TextCellSchema } from "@/modules/_framework";
@@ -17,7 +17,8 @@ export const TEXT_MAX_LENGTH = 2000;
 /** More variants than any PO holds: a list that grows without end is a mistake. */
 export const MAX_VARIANTS = 20;
 
-export const GLOVE_INFO_TEXT_FIELDS = ["gloveType", "surfaceTexture", "colour"] as const;
+/** A variant's text fields (Glove Type is the module's own, once per inspection). */
+export const GLOVE_INFO_TEXT_FIELDS = ["surfaceTexture", "colour"] as const;
 export type GloveInfoTextField = (typeof GLOVE_INFO_TEXT_FIELDS)[number];
 
 /**
@@ -33,8 +34,6 @@ const LengthCellSchema = z.preprocess((value) => {
 export const GloveVariantSchema = z.strictObject({
   /** The sizes this variant covers, canonical; none picked: every size of the order. */
   sizes: z.array(CanonicalSizeSchema).default(() => []),
-  /** As on the onsite form: "Nitrile, powder free". */
-  gloveType: TextCellSchema,
   /** "Finger-textured". */
   surfaceTexture: TextCellSchema,
   /** Grams. Weight compares each size it covers with it (rule 9). */
@@ -45,7 +44,7 @@ export const GloveVariantSchema = z.strictObject({
 });
 export type GloveVariant = z.infer<typeof GloveVariantSchema>;
 
-const VARIANT_FIELDS = ["gloveType", "surfaceTexture", "indicativeWeight", "colour", "length"] as const;
+const VARIANT_FIELDS = ["surfaceTexture", "indicativeWeight", "colour", "length"] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -56,8 +55,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * first variant, covering every size; a value written straight onto the
  * module (a custom field's mapsTo) fills the first variant where it is empty.
  */
-function withVariants(value: unknown): unknown {
-  if (!isRecord(value)) return value;
+function withVariants(raw: unknown): unknown {
+  if (!isRecord(raw)) return raw;
+  const value = liftGloveType(raw);
   const loose = VARIANT_FIELDS.filter((field) => field in value);
   if (loose.length === 0) return value;
   const rest: Record<string, unknown> = { ...value };
@@ -69,9 +69,28 @@ function withVariants(value: unknown): unknown {
   return { ...rest, variants };
 }
 
+/**
+ * A variant's Glove Type (kept per variant for a day, 11 October 2026) is the
+ * module's: the first one given, where the module has none.
+ */
+function liftGloveType(value: Record<string, unknown>): Record<string, unknown> {
+  if (!Array.isArray(value.variants) || !value.variants.some((variant) => isRecord(variant) && "gloveType" in variant)) return value;
+  const given = value.variants.find((variant) => isRecord(variant) && typeof variant.gloveType === "string" && variant.gloveType.trim() !== "");
+  const variants = value.variants.map((variant) => {
+    if (!isRecord(variant) || !("gloveType" in variant)) return variant;
+    const rest = { ...variant };
+    delete rest.gloveType;
+    return rest;
+  });
+  const gloveType = value.gloveType ?? (isRecord(given) ? given.gloveType : undefined);
+  return { ...value, variants, ...(gloveType === undefined ? {} : { gloveType }) };
+}
+
 export const GloveInfoDataSchema = z.preprocess(
   withVariants,
   z.strictObject({
+    /** As on the onsite form: "Nitrile, powder free". Once per inspection, first on the page (Kenneth, 12 October 2026). */
+    gloveType: TextCellSchema,
     variants: z.array(GloveVariantSchema).max(MAX_VARIANTS).default(() => []),
   }),
 );
@@ -79,7 +98,7 @@ export type GloveInfoData = z.infer<typeof GloveInfoDataSchema>;
 
 /** A new inspection's: one blank variant, as the screen shows it. */
 export function emptyGloveInfo(): GloveInfoData {
-  return { variants: [emptyVariant()] };
+  return { gloveType: null, variants: [emptyVariant()] };
 }
 
 export function emptyVariant(): GloveVariant {

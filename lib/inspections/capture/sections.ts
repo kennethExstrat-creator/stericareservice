@@ -39,12 +39,15 @@ export const SHOWN_WITH: Readonly<Partial<Record<ModuleKey, ModuleKey>>> = { pac
 /**
  * Custom modules shown on a module's page, never a page of their own, on
  * the first of these the template includes (Kenneth, 11 October 2026: Glove
- * Type is not a page of its own). Glove Type joins Glove Information, as it
- * does in templates since STD_EG version 3 (a field of each variant); on a
- * template without it (STD_SG), the header's page: the onsite forms write it
- * under Purchase Order / Shipment Information.
+ * Type is not a page of its own); `first` puts it before the module. Glove
+ * Type leads Glove Information's page, as Glove Information's own Glove Type
+ * does since STD_EG version 3 (Kenneth, 12 October 2026); on a template
+ * without it (STD_SG), it follows the header: the onsite forms write it under
+ * Purchase Order / Shipment Information.
  */
-export const CUSTOM_SHOWN_WITH: Readonly<Record<string, readonly ModuleKey[]>> = { glove_type: ["glove_info", "header"] };
+export const CUSTOM_SHOWN_WITH: Readonly<Record<string, readonly { host: ModuleKey; first?: true }[]>> = {
+  glove_type: [{ host: "glove_info", first: true }, { host: "header" }],
+};
 
 /** ProgressTracker's step states (components/qc/progress-tracker.tsx). */
 export type SectionProgress = "done" | "in_progress" | "not_started";
@@ -104,14 +107,16 @@ export function captureSections(
 ): CaptureSection[] {
   const counts = countIssues(report.issues);
   const included = new Set(template.modules.filter((entry) => entry.include).map((entry) => entry.key));
-  // A custom module on a module's page (CUSTOM_SHOWN_WITH) follows that module; the rest follow their `after`.
+  // A custom module on a module's page (CUSTOM_SHOWN_WITH) leads or follows that module; the rest follow their `after`.
   const hostOf = new Map<string, ModuleKey>();
+  const customBefore = new Map<string, CustomModule[]>();
   const customAfter = new Map<string, CustomModule[]>();
   for (const custom of template.customModules) {
-    const host = CUSTOM_SHOWN_WITH[custom.key]?.find((key) => included.has(key));
-    if (host) hostOf.set(custom.key, host);
-    const after = host ?? custom.after;
-    customAfter.set(after, [...(customAfter.get(after) ?? []), custom]);
+    const place = CUSTOM_SHOWN_WITH[custom.key]?.find((entry) => included.has(entry.host));
+    if (place) hostOf.set(custom.key, place.host);
+    const into = place?.first ? customBefore : customAfter;
+    const key = place?.host ?? custom.after;
+    into.set(key, [...(into.get(key) ?? []), custom]);
   }
   // Each host's guests, in template order, while both are included.
   const guestsOf = new Map<ModuleKey, ResolvedModule[]>();
@@ -130,6 +135,8 @@ export function captureSections(
     // On its host's page, the custom modules after it with it.
     if (guests.has(entry.key)) continue;
     if (entry.include) {
+      for (const custom of customBefore.get(entry.key) ?? []) sections.push(customSection(custom, report, data, counts, entry.key));
+      customBefore.delete(entry.key);
       sections.push(moduleSection(entry, report, counts));
       const own = guestsOf.get(entry.key) ?? [];
       for (const guest of own) sections.push(moduleSection(guest, report, counts, entry.key));
@@ -141,7 +148,7 @@ export function captureSections(
     }
   }
   // A custom module whose module is missing from the template goes last (lib/templates sections).
-  for (const orphans of customAfter.values()) {
+  for (const orphans of [...customBefore.values(), ...customAfter.values()]) {
     for (const custom of orphans) sections.push(customSection(custom, report, data, counts));
   }
   return sections;
@@ -197,34 +204,43 @@ export function isStepPage(page: CapturePage): page is StepPage {
   return page.kind !== "excluded";
 }
 
-/** The sections in pages, in screen order: a guest joins its host's page (captureSections puts it right after). */
+/**
+ * The sections in pages, in screen order: a guest joins its host's page
+ * (captureSections puts it right after, or right before when it leads), and
+ * the page takes the host's key and title.
+ */
 export function capturePages(sections: readonly CaptureSection[]): CapturePage[] {
   const groups: ({ excluded: ExcludedSection } | { included: IncludedSection[] })[] = [];
   const byHost = new Map<string, IncludedSection[]>();
+  // Guests that lead their host's page, until the host comes.
+  const leading = new Map<string, IncludedSection[]>();
   for (const section of sections) {
     if (section.kind === "excluded") {
       groups.push({ excluded: section });
       continue;
     }
-    const host = section.shownWith !== undefined ? byHost.get(section.shownWith) : undefined;
-    if (host) {
-      host.push(section);
+    if (section.shownWith !== undefined) {
+      const host = byHost.get(section.shownWith);
+      if (host) host.push(section);
+      else leading.set(section.shownWith, [...(leading.get(section.shownWith) ?? []), section]);
       continue;
     }
-    const own = [section];
+    const own = [...(leading.get(section.key) ?? []), section];
+    leading.delete(section.key);
     byHost.set(section.key, own);
     groups.push({ included: own });
   }
+  for (const left of leading.values()) for (const section of left) groups.push({ included: [section] });
   return groups.map((group): CapturePage => {
     if ("excluded" in group) {
       const { excluded } = group;
       return { kind: "excluded", key: excluded.key, title: excluded.title, section: excluded };
     }
-    const [first] = group.included;
+    const own = group.included.find((section) => section.shownWith === undefined) ?? group.included[0];
     return {
       kind: "included",
-      key: first.key,
-      title: first.title,
+      key: own.key,
+      title: own.title,
       sections: group.included,
       status: pageStatus(group.included),
       progress: pageProgress(group.included),
@@ -242,7 +258,7 @@ export function findPage(pages: readonly CapturePage[], key: string | null): Cap
   return pages.find((page) => page.key === key) ?? pages.find((page) => pageSectionKeys(page).includes(key));
 }
 
-/** The keys of the sections on a page, in screen order: the page's own key first. */
+/** The keys of the sections on a page, in screen order (a leading guest before the page's own). */
 export function pageSectionKeys(page: CapturePage): string[] {
   return page.kind === "included" ? page.sections.map((section) => section.key) : [page.key];
 }

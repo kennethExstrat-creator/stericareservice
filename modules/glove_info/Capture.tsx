@@ -1,6 +1,7 @@
 "use client";
 
-// Glove Information (BUILD_SPEC 6.1 glove_info): the glove's variants. A
+// Glove Information (BUILD_SPEC 6.1 glove_info): the Glove Type first, once
+// per inspection (Kenneth, 12 October 2026), then the glove's variants. A
 // variant is one combination of surface texture, indicative weight, colour
 // and length, for the sizes it covers (Kenneth, 11 October 2026: one PO can
 // hold several); none picked covers every size. Each shows the fields the
@@ -19,8 +20,18 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { fieldIssues, labelFor, type CaptureProps } from "@/modules/_framework";
 import { variantName, weightLabel, weightSizeOf, type GloveInfoComputed } from "./calc";
-import { GLOVE_INFO_FIELDS, OPTIONAL_GLOVE_INFO_FIELDS, type GloveInfoConfig } from "./config";
-import { addVariant, removeVariant, setIndicativeWeight, setLength, setText, tidyText, toggleSize } from "./edit";
+import { VARIANT_FIELDS, type GloveInfoConfig } from "./config";
+import {
+  addVariant,
+  removeVariant,
+  setGloveType,
+  setIndicativeWeight,
+  setLength,
+  setText,
+  tidyGloveType,
+  tidyText,
+  toggleSize,
+} from "./edit";
 import { emptyVariant, MAX_VARIANTS, TEXT_MAX_LENGTH, type GloveInfoData, type GloveInfoTextField } from "./schema";
 
 export default function Capture({
@@ -39,7 +50,7 @@ export default function Capture({
   const id = useId();
   const update = useDataUpdater(data, onChange);
   const issues = fieldIssues(evaluation?.issues);
-  const shown = GLOVE_INFO_FIELDS.filter((field) => config.fields[field]);
+  const shown = VARIANT_FIELDS.filter((field) => config.fields[field]);
   const sizes = context.templateSizes;
   const sizeOrder = sizes.map((size) => size.value);
   // One blank variant on screen while none is saved: typing into it saves it.
@@ -50,19 +61,40 @@ export default function Capture({
     if (!event.currentTarget.contains(event.relatedTarget as Node | null)) onFocusChange?.({});
   };
 
-  if (shown.length === 0) {
+  if (shown.length === 0 && !config.fields.gloveType) {
     return <p className="text-sm text-muted-foreground touch:text-base">No fields are switched on for this template.</p>;
   }
 
   return (
     <div ref={root} data-slot="glove-info" className="relative flex flex-col gap-4" onFocus={clearFocus}>
-      {variants.map((variant, index) => {
+      {config.fields.gloveType && (
+        <div className="grid gap-x-6 sm:grid-cols-2">
+          <div className="min-w-0 space-y-1.5" {...issuePathProps(["gloveType"])}>
+            <Label htmlFor={`${id}-gloveType`} className="leading-snug touch:text-base">
+              {labelFor(labels, "gloveType")}
+            </Label>
+            <Input
+              id={`${id}-gloveType`}
+              value={data.gloveType ?? ""}
+              onChange={(event) => {
+                const value = event.target.value;
+                update((current) => setGloveType(current, value));
+              }}
+              onBlur={() => update(tidyGloveType)}
+              autoComplete="off"
+              maxLength={TEXT_MAX_LENGTH}
+              readOnly={readOnly}
+            />
+          </div>
+        </div>
+      )}
+
+      {shown.length > 0 && variants.map((variant, index) => {
         const headingId = `${id}-variant-${index}`;
         const textField = (field: GloveInfoTextField) => (
           <div key={field} className="min-w-0 space-y-1.5" {...issuePathProps(["variants", index, field])}>
             <Label htmlFor={`${id}-${index}-${field}`} className="leading-snug touch:text-base">
               {labelFor(labels, field)}
-              {OPTIONAL_GLOVE_INFO_FIELDS.has(field) && <span className="font-normal text-muted-foreground"> (Optional)</span>}
             </Label>
             <Input
               id={`${id}-${index}-${field}`}
@@ -187,7 +219,7 @@ export default function Capture({
         );
       })}
 
-      {!readOnly && variants.length < MAX_VARIANTS && (
+      {shown.length > 0 && !readOnly && variants.length < MAX_VARIANTS && (
         <Button type="button" variant="outline" className="self-start" onClick={() => update(addVariant)}>
           <PlusIcon aria-hidden />
           Add Variant

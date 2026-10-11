@@ -119,11 +119,11 @@ function gloveInfoData(): GloveInfoData {
   const { gloveInfo } = EXAMPLE;
   // One variant, every size: the example report gives one set of values (indicative weight for size M).
   return {
+    // From the onsite form (the report prints no glove type): Glove Information's own since 11 October 2026.
+    gloveType: STD_EG_GLOVE_TYPE,
     variants: [
       {
         sizes: [],
-        // From the onsite form (the report prints no glove type): a field of the variant since 11 October 2026.
-        gloveType: STD_EG_GLOVE_TYPE,
         surfaceTexture: gloveInfo.surfaceTexture,
         indicativeWeight: gloveInfo.indicativeWeightG,
         colour: gloveInfo.colour,

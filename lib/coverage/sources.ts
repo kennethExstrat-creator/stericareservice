@@ -934,9 +934,9 @@ const REPORT_SAFEDON_EG: SourceField[] = [
  * ------------------------------------------------------------------ */
 
 /**
- * The onsite forms' first block. Glove Type goes to each glove variant
- * (glove_info) where the template has Glove Information (EG and Safedon,
- * since 11 October 2026), else to the custom module glove_type (SG).
+ * The onsite forms' first block. Glove Type goes to Glove Information's own,
+ * once per inspection, where the template has Glove Information (EG and
+ * Safedon, since 11 October 2026), else to the custom module glove_type (SG).
  */
 function shipmentRows(heading: string, gloveType: "glove_info" | "custom" = "glove_info"): Row[] {
   return [
@@ -963,7 +963,7 @@ function shipmentRows(heading: string, gloveType: "glove_info" | "custom" = "glo
       targets: gloveType === "glove_info" ? [f("glove_info", "gloveType")] : [custom("glove_type", "gloveType")],
       notes:
         gloveType === "glove_info"
-          ? "Each glove variant's Glove Type (glove_info; a custom module of its own until 11 October 2026)."
+          ? "Glove Information's Glove Type, once per inspection, first on its page (a custom module of its own until 11 October 2026)."
           : "No Glove Information on this template: custom module glove_type.",
     },
     {

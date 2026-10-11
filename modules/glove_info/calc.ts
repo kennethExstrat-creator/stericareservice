@@ -16,7 +16,7 @@ import {
   type ContributeInput,
   type Labels,
 } from "@/modules/_framework";
-import { GLOVE_INFO_FIELDS, OPTIONAL_GLOVE_INFO_FIELDS, type GloveInfoConfig, type GloveInfoField } from "./config";
+import { VARIANT_FIELDS, type GloveInfoConfig, type VariantField } from "./config";
 import type { GloveInfoData, GloveVariant } from "./schema";
 
 /** Nothing is computed: every value is entered. */
@@ -36,7 +36,7 @@ export function weightLabel(labels: Labels): string {
   return labelFor(labels, "indicativeWeight").replace(/\s*\(size [^)]*\)\s*$/i, "");
 }
 
-function fieldLabel(labels: Labels, field: GloveInfoField): string {
+function fieldLabel(labels: Labels, field: VariantField): string {
   return field === "indicativeWeight" ? weightLabel(labels) : labelFor(labels, field);
 }
 
@@ -45,9 +45,8 @@ export function calcGloveInfo({
   config,
   labels,
 }: CalcInput<GloveInfoData, GloveInfoConfig>): CalcOutput<GloveInfoComputed> {
-  const shown = GLOVE_INFO_FIELDS.filter((field) => config.fields[field]);
-  // What the step waits for: the shown fields but the optional ones.
-  const needed = shown.filter((field) => !OPTIONAL_GLOVE_INFO_FIELDS.has(field));
+  // What the step waits for: each variant's shown fields (Glove Type is recorded when known, never waited for).
+  const needed = VARIANT_FIELDS.filter((field) => config.fields[field]);
   const issues: CalcIssue[] = [];
 
   data.variants.forEach((variant, index) => {
@@ -90,7 +89,8 @@ export function calcGloveInfo({
       .map((field) => (several ? `${variantName(index)} ${fieldLabel(labels, field)}` : fieldLabel(labels, field))),
   );
   if (missing.length > 0) return { result: notDone(`Missing: ${missing.join(", ")}.`), computed: {}, issues };
-  return { result: { status: "info", summary: summarise(data, config) }, computed: {}, issues };
+  const lead = config.fields.gloveType && data.gloveType?.trim() ? `${data.gloveType.trim()}. ` : "";
+  return { result: { status: "info", summary: `${lead}${summarise(data, config)}` }, computed: {}, issues };
 }
 
 /**
@@ -123,7 +123,7 @@ export function contributeGloveInfo({
   };
 }
 
-function isFilled(variant: GloveVariant, field: GloveInfoField): boolean {
+function isFilled(variant: GloveVariant, field: VariantField): boolean {
   if (field === "indicativeWeight") return variant.indicativeWeight !== null && variant.indicativeWeight > 0;
   if (field === "length") return variant.length !== null && variant.length > 0;
   return !isBlank(variant[field]);
@@ -136,7 +136,7 @@ function isFilled(variant: GloveVariant, field: GloveInfoField): boolean {
 function summarise(data: GloveInfoData, config: GloveInfoConfig): string {
   return data.variants
     .map((variant) => {
-      const words = (["gloveType", "surfaceTexture", "colour"] as const)
+      const words = (["surfaceTexture", "colour"] as const)
         .filter((field) => config.fields[field])
         .map((field) => variant[field]?.trim() ?? "")
         .filter((word) => word !== "");

@@ -150,11 +150,11 @@ Note: The onsite forms' 'Lot Number' goes to order_lots, 'Packing Mode' to packi
 
 ### `glove_info`: Glove Information
 
-Report module. Captures: The glove's variants (Kenneth, 11 October 2026: one PO can hold several): each a combination of glove type, surface texture, indicative weight (g), colour and length, for the sizes it covers (none picked: every size). Result: info. Rules (6.2): 1, 9.
+Report module. Captures: The glove's Glove Type, once per inspection, then its variants (Kenneth, 11 October 2026: one PO can hold several): each a combination of surface texture, indicative weight (g), colour and length, for the sizes it covers (none picked: every size). Result: info. Rules (6.2): 1, 9.
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `gloveType` | Glove Type |  | text |  | inspection | entered |  | Per variant (variants[].gloveType). The onsite forms' Glove Type; a custom module of its own until 11 October 2026. |
+| `gloveType` | Glove Type |  | text |  | inspection | entered |  | Once per inspection, first on the page (12 October 2026). The onsite forms' Glove Type; a custom module of its own until 11 October 2026, kept on templates saved before (no gloveType switch: off). |
 | `surfaceTexture` | Glove Surface Texture |  | text |  | inspection | entered |  | Per variant. |
 | `indicativeWeight` | Indicative Weight (Size M) |  | decimal | g | inspection | entered | 1, 9 | Weight of one glove of the size in config indicativeWeightSize ('(Size M)' in the label). The weight module compares that size's average with it (rule 9). |
 | `colour` | Glove Colour |  | text |  | inspection | entered |  |  |
@@ -1342,7 +1342,7 @@ module field; `template` a template property; `layout` is drawn by the AI report
 | 1. Purchase Order / Shipment Information | Product Name | Product Name (Brand, Code & Description) | text | `header.productName` |  |
 | 1. Purchase Order / Shipment Information | Lot Number | Lot Number | text | `order_lots.lotNumbers` | Double-height box for several lots, not split by size; the app records the lots per size. |
 | 1. Purchase Order / Shipment Information | Mfg / Exp Date | Manufacturing Date; Expiry Date | text | `header.mfgDate`<br>`header.expiryDate` | One box for both dates; the app splits it into two date pickers (rule 3). |
-| 1. Purchase Order / Shipment Information | Glove Type | Glove Type | text | `glove_info.gloveType` | Each glove variant's Glove Type (glove_info; a custom module of its own until 11 October 2026). |
+| 1. Purchase Order / Shipment Information | Glove Type | Glove Type | text | `glove_info.gloveType` | Glove Information's Glove Type, once per inspection, first on its page (a custom module of its own until 11 October 2026). |
 | 1. Purchase Order / Shipment Information | Packing Mode | Packing Mode | text | `packing_config.packingMode`<br>config `packing_config.fields` |  |
 | 2. Inspected by | Inspected by | Inspected By | heading | `header.inspector` |  |
 | 2. Inspected by | Name | Inspected By | text | `header.inspector` | The logged-in inspector, recorded by the app. |
@@ -1437,7 +1437,7 @@ module field; `template` a template property; `layout` is drawn by the AI report
 | 1. Purchase Order / Shipment Information | Product Name | Product Name (Brand & Code) | text | `header.productName` |  |
 | 1. Purchase Order / Shipment Information | Lot Number | Lot Number | text | `order_lots.lotNumbers` | Double-height box for several lots, not split by size; the app records the lots per size. |
 | 1. Purchase Order / Shipment Information | Mfg / Exp Date | Manufacturing Date; Expiry Date | text | `header.mfgDate`<br>`header.expiryDate` | One box for both dates; the app splits it into two date pickers (rule 3). |
-| 1. Purchase Order / Shipment Information | Glove Type | Glove Type | text | `glove_info.gloveType` | Each glove variant's Glove Type (glove_info; a custom module of its own until 11 October 2026). |
+| 1. Purchase Order / Shipment Information | Glove Type | Glove Type | text | `glove_info.gloveType` | Glove Information's Glove Type, once per inspection, first on its page (a custom module of its own until 11 October 2026). |
 | 1. Purchase Order / Shipment Information | Packing Mode | Packing Mode | text | `packing_config.packingMode`<br>config `packing_config.fields` |  |
 | 2. Inspected by | Inspected by | Inspected By | heading | `header.inspector` |  |
 | 2. Inspected by | Name | Inspected By | text | `header.inspector` | The logged-in inspector, recorded by the app. |

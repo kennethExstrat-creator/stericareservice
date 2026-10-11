@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { addVariant, removeVariant, setIndicativeWeight, setLength, setText, tidyText, toggleSize } from "./edit";
+import { addVariant, removeVariant, setGloveType, setIndicativeWeight, setLength, setText, tidyGloveType, tidyText, toggleSize } from "./edit";
 import { emptyGloveInfo, emptyVariant, TEXT_MAX_LENGTH, type GloveInfoData } from "./schema";
 
 const ORDER = ["XS", "S", "M", "L", "XL"];
-const one = (change: Partial<ReturnType<typeof emptyVariant>> = {}): GloveInfoData => ({ variants: [{ ...emptyVariant(), ...change }] });
+const one = (change: Partial<ReturnType<typeof emptyVariant>> = {}): GloveInfoData => ({ gloveType: null, variants: [{ ...emptyVariant(), ...change }] });
 
 describe("glove_info edits", () => {
   it("creates the variant on screen when the first value is typed, and changes nothing for the same value", () => {
-    const typed = setText({ variants: [] }, 0, "colour", "Blue");
+    const typed = setText({ gloveType: null, variants: [] }, 0, "colour", "Blue");
     expect(typed.variants).toEqual([{ ...emptyVariant(), colour: "Blue" }]);
     expect(setText(typed, 0, "colour", "Blue")).toBe(typed);
     expect(setText(typed, 0, "colour", "")).toEqual(one());
@@ -17,7 +17,16 @@ describe("glove_info edits", () => {
     expect(setText(one(), 0, "colour", "x".repeat(TEXT_MAX_LENGTH + 5)).variants[0].colour).toHaveLength(TEXT_MAX_LENGTH);
     expect(tidyText(one({ colour: "  Blue " }), 0, "colour").variants[0].colour).toBe("Blue");
     expect(tidyText(one({ colour: "   " }), 0, "colour").variants[0].colour).toBeNull();
-    expect(tidyText({ variants: [] }, 0, "colour")).toEqual({ variants: [] });
+    expect(tidyText({ gloveType: null, variants: [] }, 0, "colour")).toEqual({ gloveType: null, variants: [] });
+  });
+
+  it("keeps the Glove Type once for the inspection, trimmed once left", () => {
+    const typed = setGloveType(one(), "Nitrile, powder free ");
+    expect(typed.gloveType).toBe("Nitrile, powder free ");
+    expect(setGloveType(typed, "Nitrile, powder free ")).toBe(typed);
+    expect(tidyGloveType(typed).gloveType).toBe("Nitrile, powder free");
+    expect(tidyGloveType(setGloveType(one(), "  ")).gloveType).toBeNull();
+    expect(setGloveType(typed, "").gloveType).toBeNull();
   });
 
   it("sets the weight of the variant it is typed in", () => {
@@ -38,7 +47,7 @@ describe("glove_info edits", () => {
   });
 
   it("adds a variant (two while none is saved: the one on screen and the new one) and removes one", () => {
-    expect(addVariant({ variants: [] }).variants).toHaveLength(2);
+    expect(addVariant({ gloveType: null, variants: [] }).variants).toHaveLength(2);
     expect(addVariant(emptyGloveInfo()).variants).toHaveLength(2);
     const two = addVariant(one({ colour: "Blue" }));
     expect(removeVariant(two, 0).variants).toEqual([emptyVariant()]);

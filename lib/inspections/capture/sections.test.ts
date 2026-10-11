@@ -237,15 +237,13 @@ describe("pages", () => {
     ]);
   });
 
-  it("never gives Glove Type a page of its own: on Glove Information's page, else on the header's (11 October 2026)", () => {
+  it("never gives Glove Type a page of its own: first on Glove Information's page, else after the header (11 and 12 October 2026)", () => {
     const gloveType: CustomModule = { ...SITE_NOTES, key: "glove_type", title: "Glove Type", after: "header" };
     const withInfo = makeTestTemplate(TEST_REGISTRY, ["glove_info", "order_lots"], { customModules: [gloveType] });
-    expect(pagesFor(filledData(), {}, withInfo).map((page) => pageSectionKeys(page))).toEqual([
-      ["header"],
-      ["glove_info", "glove_type"],
-      ["order_lots"],
-      ["conclusion"],
-    ]);
+    const pages = pagesFor(filledData(), {}, withInfo);
+    expect(pages.map((page) => pageSectionKeys(page))).toEqual([["header"], ["glove_type", "glove_info"], ["order_lots"], ["conclusion"]]);
+    // The page is Glove Information's.
+    expect(pages[1].key).toBe("glove_info");
     const withoutInfo = makeTestTemplate(TEST_REGISTRY, ["order_lots"], { customModules: [gloveType] });
     expect(pagesFor(filledData(), {}, withoutInfo).map((page) => pageSectionKeys(page))[0]).toEqual(["header", "glove_type"]);
   });
