@@ -2,14 +2,10 @@
 
 // Source Documents: the capture screen's first page, before every module
 // (docs/AI.md, "Source Documents"). Every file about the inspection goes
-// here: the handwritten inspection forms, the POs, packing lists, photos of
-// labels and cartons. One set of files serves every PO of the inspection:
-// they are kept on its first PO (use-source-documents.ts), so each PO's page
-// shows and adds to the same files. The AI reads each one once and fills the
-// empty fields of every PO from its own forms, adding a PO it finds that the
-// inspection has not got yet; a file it has read is AI Verified, with what
-// it did for each PO. Photos are made 2048 px JPEG first, as every photo is
-// (lib/photos), so the AI can read them.
+// here: the handwritten inspection form, the PO, packing lists, photos of
+// labels and cartons. The AI reads each one and fills the empty fields of
+// the pages after it; a file it has read is AI Verified. Photos are made
+// 2048 px JPEG first, as every photo is (lib/photos), so the AI can read them.
 import { BadgeCheckIcon, RotateCcwIcon, TriangleAlertIcon } from "lucide-react";
 import type { Ref } from "react";
 import { FileSlot } from "@/components/capture/files";
@@ -17,7 +13,6 @@ import type { SlotFile } from "@/components/capture/photos/photo-model";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { SOURCE_DOCUMENTS_KEY, SOURCE_DOCUMENTS_TITLE } from "@/lib/inspections/source-documents";
-import { splitReading } from "@/lib/inspections/source-parts";
 import { browserCodec } from "@/lib/photos/browser-codec";
 import { processPhoto } from "@/lib/photos/process";
 import { SectionFrame } from "./section-frame";
@@ -46,8 +41,6 @@ async function readable(files: File[]): Promise<File[]> {
 }
 
 export function SourceDocumentsPage({ panelId, tabLabelledBy, titleRef, inspectionId, readOnly, documents }: SourceDocumentsPageProps) {
-  const { homeId, parts } = documents;
-  const extra = (file: SlotFile) => <AiMark file={file} documents={documents} readOnly={readOnly} />;
   return (
     <SectionFrame
       id={panelId}
@@ -55,40 +48,25 @@ export function SourceDocumentsPage({ panelId, tabLabelledBy, titleRef, inspecti
       tabLabelledBy={tabLabelledBy}
       title={SOURCE_DOCUMENTS_TITLE}
       headingRef={titleRef(SOURCE_DOCUMENTS_KEY)}
-      summary={parts.length > 1 ? `Forms, POs and photos for all ${parts.length} POs. AI fills in the steps.` : "Forms, POs and photos. AI fills in the steps."}
+      summary="Inspection forms, PO papers and photos for this PO. AI fills in the steps."
     >
-      {homeId === null ? (
-        <p role="status" className="flex items-center gap-1.5 text-sm text-muted-foreground">
-          <Spinner aria-hidden className="size-4" />
-          Loading files…
-        </p>
-      ) : (
-        <FileSlot
-          inspectionId={homeId}
-          moduleKey={SOURCE_DOCUMENTS_KEY}
-          kind="other"
-          title="Files"
-          readOnly={readOnly}
-          prepare={readable}
-          fileExtra={extra}
-          compactRows
-        />
-      )}
-      {homeId !== null && homeId !== inspectionId && documents.ownFiles > 0 && (
-        // Kept on this PO before it shared the inspection's files (or added offline): still read, new files go above.
-        <FileSlot
-          inspectionId={inspectionId}
-          moduleKey={SOURCE_DOCUMENTS_KEY}
-          kind="other"
-          title="Files Kept on This PO"
-          readOnly={readOnly}
-          canAdd={false}
-          fileExtra={extra}
-          compactRows
-        />
-      )}
+      <FileSlot
+        inspectionId={inspectionId}
+        moduleKey={SOURCE_DOCUMENTS_KEY}
+        kind="other"
+        title="Files"
+        readOnly={readOnly}
+        prepare={readable}
+        fileExtra={(file) => <AiMark file={file} documents={documents} readOnly={readOnly} />}
+        compactRows
+      />
     </SectionFrame>
   );
+}
+
+/** The AI's short sentence about the file, without how it read the shortforms. */
+function readingNote(summary: string | null): string {
+  return (summary ?? "").split(" Read as: ")[0].trim();
 }
 
 /** Beside the file's name: what the AI has done with it. */
@@ -111,11 +89,10 @@ function AiMark({ file, documents, readOnly }: { file: SlotFile; documents: Sour
     );
   }
   if (reading.status === "read") {
-    const headline = splitReading(reading.summary).headline;
     return (
       <span
         className="inline-flex shrink-0 items-center gap-1 rounded-full bg-pass-tint px-2 py-0.5 text-sm font-semibold text-pass ring-1 ring-pass-border"
-        title={headline || undefined}
+        title={readingNote(reading.summary) || undefined}
         data-testid="ai-verified"
       >
         <BadgeCheckIcon aria-hidden className="size-3.5 shrink-0" />
@@ -127,7 +104,7 @@ function AiMark({ file, documents, readOnly }: { file: SlotFile; documents: Sour
     <span className="inline-flex flex-wrap items-center gap-2" data-testid="ai-failed">
       <span
         className="inline-flex shrink-0 items-center gap-1 rounded-full bg-warn-tint px-2 py-0.5 text-sm font-semibold text-warn ring-1 ring-warn-border"
-        title={splitReading(reading.summary).note || undefined}
+        title={readingNote(reading.summary) || undefined}
       >
         <TriangleAlertIcon aria-hidden className="size-3.5 shrink-0" />
         Not Read

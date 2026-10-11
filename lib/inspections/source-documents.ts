@@ -3,8 +3,6 @@
 // one and proposes values for the modules after it. Pure and client-safe:
 // the capture screen lays the proposals over its own data, so they go
 // through the same autosave as typing, and only into fields still empty.
-// The inspection's other PO parts are filled the same way on the server
-// (source-parts-server.ts).
 import type { ModuleKey } from "@/lib/schemas/module-result";
 import type { ModuleRegistry } from "@/modules/_framework/contract";
 import { readModuleEntry, writeModuleData, type InspectionData } from "@/modules/_framework/data";
@@ -22,14 +20,7 @@ export const NOT_FILLED_BY_AI: readonly ModuleKey[] = ["conclusion"];
 /** What a reading proposes: partial data per module key, in each module's own shape. */
 export type SourceProposals = Record<string, Record<string, unknown>>;
 
-export type SourceFileStatus = {
-  status: "reading" | "read" | "failed";
-  summary: string | null;
-  /** Values this screen filled from it, once it has read it here. */
-  filled?: number;
-  /** Being read by another screen or device: this one waits for that reading, which counts for every PO. */
-  elsewhere?: boolean;
-};
+export type SourceFileStatus = { status: "reading" | "read" | "failed"; summary: string | null; filled?: number };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

@@ -13,7 +13,7 @@ export const PAPER_FORM_GUIDE = `How SteriCare inspectors fill in their paper in
 - Every inspector writes defects their own way: shortforms, misspellings, local words. Work out what each entry means from its wording, the part of the form it is in (watertight: where the hole is; visual: what the defect is; the Major or Minor part: its class) and glove QC knowledge. The shortforms listed below are what some inspectors write: a help, not a rule.
 - Then record each in the standard list: under the template's own defect or hole location code (the lists in the module settings) when one means the same thing. When none does, put it under "unmapped" with a short standard English name (the SteriCare defect library's name when it has one), never the raw shortform, so an admin can map it. Never count it under a code that means something else.
 - Leave out the inspector's initials and signature: the app records the inspector.
-- Forms photographed or scanned together are separate forms, one per PO and lot, all from the same inspection visit: one inspection can cover several POs, each sampled and tested on its own. Keep each form's values with its own PO, and never add up or merge the results of forms with different POs or lots, even for the same size.`;
+- Forms photographed together are separate forms, one per PO and lot: never add up or merge the results of forms with different POs or lots, even for the same size.`;
 
 /** The shortforms as the AI reads them; unconfirmed ones are marked as guesses. */
 export function glossaryText(glossary: readonly GlossaryEntry[]): string {
