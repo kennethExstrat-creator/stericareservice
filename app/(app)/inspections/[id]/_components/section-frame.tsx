@@ -2,10 +2,10 @@
 
 // The frame around one section of the capture screen: ModuleCard's look
 // (docs/DESIGN.md: white card, title in the template's wording, result pill,
-// body, inspector comment) with the photo slot in the footer where
-// ModuleCard has its own two photo buttons (components/capture/photos
-// PhotoSlot: the buttons and the section's photos). The body is the
-// module's Capture, a plain form, or a notice. The open page's frames are in
+// body), with no summary line, photo slot or comment box since 11 and 12
+// October 2026 (photos and files are added on Source Documents, comments go
+// in the conclusion's remark). The body is the module's Capture, a plain
+// form, or a notice. The open page's frames are in
 // a PagePanel: a frame for each section on a page of two
 // (lib/inspections/capture/sections.ts SHOWN_WITH: packing configuration
 // below the order).
