@@ -3,21 +3,16 @@ import { z } from "zod";
 import { defaultConfig, defaultLabels, labelOverrides, moduleConfig, TEMPLATE_CODES, templateModuleKeys } from "@/lib/coverage";
 import { resolveSeed } from "@/modules/sampling_plan/__fixtures__/seeds";
 import { CARTON_SAMPLING_DEFAULT_CONFIG, CARTON_SAMPLING_LABELS, CARTON_SAMPLING_TITLE, CartonSamplingConfigSchema } from "./config";
-import {
-  CartonSamplingDataSchema,
-  emptyCartonSampling,
-  enteredCartons,
-  MAX_CARTONS_PER_SIZE,
-  withCartonNumber,
-} from "./schema";
+import { CartonSamplingDataSchema, emptyCartonSampling, enteredCartons, MAX_CARTONS_PER_SIZE } from "./schema";
 
 describe("carton_sampling data", () => {
-  it("starts empty and keeps a draft grid with its blank cells in place", () => {
+  it("starts empty and still reads a list saved from the earlier grid, its blank cells included", () => {
     expect(emptyCartonSampling()).toEqual({ sizes: {} });
     expect(CartonSamplingDataSchema.parse({ sizes: { M: {} } })).toEqual({ sizes: { M: { cartonNumbers: [] } } });
-    const draft = CartonSamplingDataSchema.parse({ sizes: { M: { cartonNumbers: [2834, null, 299] } } });
-    expect(draft.sizes.M.cartonNumbers).toEqual([2834, null, 299]);
-    expect(enteredCartons(draft.sizes.M)).toEqual([2834, 299]);
+    const saved = CartonSamplingDataSchema.parse({ sizes: { M: { cartonNumbers: [2834, null, 299] } } });
+    expect(saved.sizes.M.cartonNumbers).toEqual([2834, null, 299]);
+    // The blanks are no cartons: the list, calc and the box pickers see the numbers only.
+    expect(enteredCartons(saved.sizes.M)).toEqual([2834, 299]);
     expect(enteredCartons(undefined)).toEqual([]);
   });
 
@@ -31,28 +26,6 @@ describe("carton_sampling data", () => {
     expect(CartonSamplingDataSchema.parse({ sizes: { M: { cartonNumbers: [525, 525] } } }).sizes.M.cartonNumbers).toEqual([525, 525]);
     const many = Array.from({ length: MAX_CARTONS_PER_SIZE + 1 }, (_, index) => index + 1);
     expect(CartonSamplingDataSchema.safeParse({ sizes: { M: { cartonNumbers: many } } }).success).toBe(false);
-  });
-
-  it("sets one grid cell: blanks before it keep the numbers' places, blanks at the end are dropped", () => {
-    const third = withCartonNumber(emptyCartonSampling(), "M", 2, 578);
-    expect(third.sizes.M.cartonNumbers).toEqual([null, null, 578]);
-    const first = withCartonNumber(third, "M", 0, 32);
-    expect(first.sizes.M.cartonNumbers).toEqual([32, null, 578]);
-    expect(withCartonNumber(first, "M", 2, null).sizes.M.cartonNumbers).toEqual([32]);
-    expect(withCartonNumber(first, "M", 0, null).sizes.M.cartonNumbers).toEqual([null, null, 578]);
-    expect(CartonSamplingDataSchema.parse(first)).toEqual(first);
-    // The earlier data is left as it was.
-    expect(third.sizes.M.cartonNumbers).toEqual([null, null, 578]);
-  });
-
-  it("keeps every other size when a cell changes, one no longer ordered included (6.2 rule 4)", () => {
-    const saved = withCartonNumber(emptyCartonSampling(), "XS", 0, 7);
-    const next = withCartonNumber(saved, "M", 0, 32);
-    expect(next.sizes).toEqual({ XS: { cartonNumbers: [7] }, M: { cartonNumbers: [32] } });
-    // Nothing to change: the same data, so the screen saves nothing.
-    expect(withCartonNumber(next, "M", 0, 32)).toBe(next);
-    expect(withCartonNumber(next, "M", 5, null)).toBe(next);
-    expect(withCartonNumber(next, "L", 0, null)).toBe(next);
   });
 
   it("keeps the count out of the data: it is computed (6.2 rule 2); rejects unknown keys and the reserved comment", () => {
