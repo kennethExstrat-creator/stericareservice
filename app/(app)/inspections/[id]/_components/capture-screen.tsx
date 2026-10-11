@@ -1248,7 +1248,6 @@ function SectionPart({
         tabLabelledBy={tabLabelledBy}
         title={section.title}
         headingRef={headingRef}
-        summary="Switched off for this inspection"
       >
         <SwitchedOffPanel
           inspectionId={inspectionId}
@@ -1308,9 +1307,8 @@ function SectionPart({
       tabLabelledBy={tabLabelledBy}
       title={section.title}
       headingRef={headingRef}
+      // No summary line under the title (Kenneth, 12 October 2026: redundant beside the status and the form).
       status={section.status}
-      // A placeholder's summary ("Not built yet") repeats the notice in its body.
-      summary={section.stub ? undefined : section.summary || undefined}
       actions={
         switchable ? (
           <SwitchOffDialog

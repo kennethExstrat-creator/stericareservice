@@ -6,8 +6,8 @@
 // and length, for the sizes it covers (Kenneth, 11 October 2026: one PO can
 // hold several); none picked covers every size. Each shows the fields the
 // template shows, in its wording (6.2 rule 11). The weight is a number on
-// the decimal keypad, more than 0 g (rule 1); the rest is text as printed
-// ("240 mm minimum"). Enter moves on through a variant's fields and
+// the decimal keypad, more than 0 g (rule 1), and so is the length in mm;
+// the rest is text as printed. Enter moves on through a variant's fields and
 // Shift+Enter back. Every change goes through useDataUpdater, built from the
 // latest data (docs/CAPTURE_KIT.md). Each variant's weight flows forward to
 // the weight check through the context, for its sizes (rule 9).
@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { fieldIssues, labelFor, type CaptureProps } from "@/modules/_framework";
-import { variantName, weightLabel, weightSizeOf, type GloveInfoComputed } from "./calc";
+import { variantName, weightLabel, type GloveInfoComputed } from "./calc";
 import { VARIANT_FIELDS, type GloveInfoConfig } from "./config";
 import {
   addVariant,
@@ -208,7 +208,6 @@ export default function Capture({
                     error={findIssue(issues, ["variants", index, field])?.message ?? null}
                     issuePath={["variants", index, field]}
                     readOnly={readOnly}
-                    hint={weightHint(weightSizeOf(variant, config.indicativeWeightSize))}
                   />
                 ) : (
                   textField(field)
@@ -227,11 +226,6 @@ export default function Capture({
       )}
     </div>
   );
-}
-
-/** Under the weight: which size's weighed gloves it is compared with. */
-function weightHint(size: string | null): string {
-  return size ? `Compared with size ${size}'s weighed gloves.` : "Pick one size to compare it with the weighed gloves.";
 }
 
 /**

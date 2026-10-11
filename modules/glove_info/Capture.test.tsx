@@ -1,6 +1,6 @@
 // Server-rendered markup of the glove information's capture body: a card
 // per variant with its sizes and the template's fields, the weight on the
-// decimal keypad with the size it is compared with, Add Variant, read-only
+// decimal keypad, Add Variant, read-only
 // mode. Typing and Enter are the kit's and the browser's; the edits are pure
 // (edit.test.ts).
 import { renderToStaticMarkup } from "react-dom/server";
@@ -74,8 +74,7 @@ describe("glove_info capture", () => {
     expect(html).toContain(">Glove Surface Texture</label>");
     expect(html).toContain("Indicative Weight");
     expect(html).not.toContain("Indicative Weight (Size M)");
-    expect(html).toContain("Compared with size S&#x27;s weighed gloves.");
-    expect(html).toContain("Compared with size M&#x27;s weighed gloves.");
+    expect(html).not.toContain("weighed gloves");
     expect(html).toContain("Add Variant");
   });
 
