@@ -21,7 +21,7 @@ export {
 export { ModuleCard, type PhotoSource } from "./module-card";
 export { PhotoTile, type PhotoState } from "./photo-tile";
 export { tagLine, type PhotoTags } from "./photo-tags";
-export { ProgressTracker, type ProgressStep, type StepState } from "./progress-tracker";
+export { ProgressTracker, type ProgressGroup, type ProgressStep, type StepState } from "./progress-tracker";
 export { PageHeader } from "./page-header";
 
 // Capture kit: shared building blocks for module Capture screens (docs/CAPTURE_KIT.md).

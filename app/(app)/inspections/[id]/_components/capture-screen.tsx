@@ -943,7 +943,13 @@ export function CaptureScreen({
               activeKey={activePage?.key}
               label="Progress"
             />
-            <SectionList pages={pages} activeKey={activePage?.key ?? ""} onSelect={(key) => selectSection(key)} />
+            <SectionList
+              pages={pages}
+              activeKey={activePage?.key ?? ""}
+              onSelect={(key) => selectSection(key)}
+              // The steps between Source Documents and the Conclusion collapse; each user's last choice is kept on the device.
+              viewerId={user.id}
+            />
             {(showPending || access.editable) && (
               <div className="flex flex-col gap-2 border-t border-border px-1 pt-3">
                 {issuesButton("w-full justify-between")}

@@ -13,7 +13,8 @@ vi.mock("../actions", () => ({
 
 import { SITE_NOTES, SIZE_TABLE, TEST_ADMIN_ID } from "@/lib/inspections/capture/__fixtures__/capture";
 import { captureAccess } from "@/lib/inspections/capture/access";
-import { capturePages, type CaptureSection } from "@/lib/inspections/capture/sections";
+import { capturePages, type CapturePage, type CaptureSection } from "@/lib/inspections/capture/sections";
+import { SOURCE_DOCUMENTS_KEY, SOURCE_DOCUMENTS_TITLE } from "@/lib/inspections/source-documents";
 import type { ValidationIssue } from "@/lib/validation";
 import { TEST_REGISTRY } from "@/modules/_framework/__fixtures__/test-registry";
 import { makeTestContext } from "@/modules/_framework/testing";
@@ -28,10 +29,11 @@ import { CustomModuleForm, FallbackModuleForm } from "./plain-forms";
 import { SaveIndicator } from "./save-indicator";
 import { SectionErrorBoundary } from "./section-error-boundary";
 import { PagePanel, SectionFrame } from "./section-frame";
-import { SectionList } from "./section-list";
+import { SectionList, STEP_GROUP_LABEL } from "./section-list";
 import { SubmitSummary } from "./submit-control";
 import { nextTabIndex, SectionTabs, tabId } from "./section-tabs";
 import { UnreadableData } from "./unreadable-data";
+import { followStepGroup, initialStepGroup, stepGroupStorageKey } from "./use-step-group";
 
 const noop = () => {};
 
@@ -459,11 +461,17 @@ describe("SectionList (the desktop sidebar)", () => {
     { kind: "excluded", key: "labeling", title: "Packaging Labeling Inspection", override: { reason: "Not ordered.", by: TEST_ADMIN_ID, at: "2026-10-06T08:00:00.000Z" } },
   ];
   const html = renderToStaticMarkup(<SectionList pages={capturePages(long)} activeKey="onsite" onSelect={noop} />);
+  /** The rows' titles, the Inspection Steps header (no title) left out. */
+  const rowTitles = (markup: string) =>
+    tagsWith(markup, `type="button"`)
+      .filter((button) => !button.includes("aria-expanded"))
+      .map((button) => /title="([^"]*)"/.exec(button)?.[1]);
 
   it("wraps a long title to two lines instead of cutting it to one, and names it in full on hover", () => {
     const buttons = tagsWith(html, `type="button"`);
-    expect(buttons).toHaveLength(3);
-    expect(buttons.map((button) => /title="([^"]*)"/.exec(button)?.[1])).toEqual([
+    // The two steps' group header, its two rows and the switched-off row.
+    expect(buttons).toHaveLength(4);
+    expect(rowTitles(html)).toEqual([
       "Glove Dispensing Inspection",
       "Glove Dispensing Inspection: onsite notes",
       "Packaging Labeling Inspection",
@@ -480,10 +488,90 @@ describe("SectionList (the desktop sidebar)", () => {
 
   it("lists the order's page once, under the order's title, with the worst result of the two", () => {
     const order = renderToStaticMarkup(<SectionList pages={capturePages(ORDER_PAGE)} activeKey="order_lots" onSelect={noop} />);
-    const titles = tagsWith(order, `type="button"`).map((button) => /title="([^"]*)"/.exec(button)?.[1]);
-    expect(titles).toEqual(["Manufacturer Information", "Order", "Conclusion"]);
+    expect(rowTitles(order)).toEqual(["Manufacturer Information", "Order", "Conclusion"]);
     expect(order).toMatch(/title="Order"(?:(?!<\/button>).)*data-status="warn"/);
     expect(order).not.toContain(PACKING_TITLE);
+  });
+
+  describe("Inspection Steps: the steps between Source Documents and the Conclusion, in a group that collapses", () => {
+    const documents: CapturePage = {
+      kind: "documents",
+      key: SOURCE_DOCUMENTS_KEY,
+      title: SOURCE_DOCUMENTS_TITLE,
+      status: "pass",
+      progress: "done",
+    };
+    const pages = [documents, ...capturePages(ORDER_PAGE)];
+    const list = (activeKey: string) =>
+      renderToStaticMarkup(<SectionList pages={pages} activeKey={activeKey} onSelect={noop} viewerId={TEST_ADMIN_ID} />);
+    /** The group's header and the list of its steps it controls. */
+    const group = (markup: string) => {
+      const header = tagsWith(markup, "aria-expanded")[0] ?? "";
+      const id = (/aria-controls="([^"]+)"/.exec(header)?.[1] ?? "missing").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const steps = new RegExp(`<ol id="${id}"[^>]*>[\\s\\S]*?</ol>`).exec(markup)?.[0] ?? "";
+      return { header, steps, button: /<button[^>]*aria-expanded[\s\S]*?<\/button>/.exec(markup)?.[0] ?? "" };
+    };
+
+    it("is collapsed by default, on Source Documents and on the Conclusion, which show either side of it", () => {
+      for (const activeKey of [SOURCE_DOCUMENTS_KEY, "conclusion"]) {
+        const markup = list(activeKey);
+        const { header, steps, button } = group(markup);
+        expect(header).toContain('aria-expanded="false"');
+        expect(steps).toMatch(/^<ol [^>]*hidden=""/);
+        expect(steps).toContain('title="Manufacturer Information"');
+        expect(steps).toContain('title="Order"');
+        expect(steps).not.toContain(SOURCE_DOCUMENTS_TITLE);
+        expect(steps).not.toContain('title="Conclusion"');
+        expect(rowTitles(markup)).toEqual([SOURCE_DOCUMENTS_TITLE, "Manufacturer Information", "Order", "Conclusion"]);
+        // Its title, how many of its steps are done and the worst of their results (the order's warning).
+        expect(button).toContain(`>${STEP_GROUP_LABEL}<`);
+        expect(button).toContain("2 of 2 done");
+        expect(button).toContain('data-status="warn"');
+      }
+    });
+
+    it("opens when the page in view is one of its steps", () => {
+      const { header, steps } = group(list("order_lots"));
+      expect(header).toContain('aria-expanded="true"');
+      expect(steps).not.toMatch(/^<ol [^>]*hidden/);
+      expect(steps).toMatch(/<li aria-current="step"><button[^>]*title="Order"/);
+    });
+
+    it("follows the open page: a step of it opening opens it, Source Documents or the Conclusion leave it as it is", () => {
+      const collapsed = initialStepGroup(SOURCE_DOCUMENTS_KEY, false);
+      expect(collapsed.open).toBe(false);
+      // Next from Source Documents (or an issue link, the iPad's swipe) lands on a step: it opens.
+      const landed = followStepGroup(collapsed, "header", true, null);
+      expect(landed.open).toBe(true);
+      // On to the Conclusion: nothing moves under the pointer.
+      expect(followStepGroup(landed, "conclusion", false, null).open).toBe(true);
+      // Collapsed by choice on a step, then the next step: it opens again on it.
+      expect(followStepGroup({ ...landed, open: false }, "order_lots", true, null).open).toBe(true);
+      // Nothing changed: the same state.
+      expect(followStepGroup(landed, "header", true, null)).toBe(landed);
+    });
+
+    it("starts from the viewer's last choice, kept per user, unless the page in view is one of its steps", () => {
+      expect(stepGroupStorageKey(TEST_ADMIN_ID)).toBe(`stericare:capture-steps:${TEST_ADMIN_ID}`);
+      // The stored choice arrives after hydration.
+      expect(followStepGroup(initialStepGroup(SOURCE_DOCUMENTS_KEY, false), SOURCE_DOCUMENTS_KEY, false, "open").open).toBe(true);
+      expect(followStepGroup(initialStepGroup("conclusion", false), "conclusion", false, "closed").open).toBe(false);
+      // ?module=visual with the group last collapsed: the step in view stays on the list.
+      expect(followStepGroup(initialStepGroup("visual", true), "visual", true, "closed").open).toBe(true);
+    });
+
+    it("reads the stored choice once, where the screen starts: another tab's later choice never moves it", () => {
+      // Hydration: not read yet, so nothing changes.
+      const hydrating = initialStepGroup(SOURCE_DOCUMENTS_KEY, false);
+      expect(followStepGroup(hydrating, SOURCE_DOCUMENTS_KEY, false, undefined)).toBe(hydrating);
+      // Read after hydration: nothing kept, collapsed.
+      const started = followStepGroup(hydrating, SOURCE_DOCUMENTS_KEY, false, null);
+      expect(started.open).toBe(false);
+      // Another tab opens its group: this one stays as it is at its next render.
+      expect(followStepGroup(started, SOURCE_DOCUMENTS_KEY, false, "open").open).toBe(false);
+      // The inspector's own toggle has set it before the choice comes back from storage.
+      expect(followStepGroup({ ...started, open: true }, SOURCE_DOCUMENTS_KEY, false, "open").open).toBe(true);
+    });
   });
 });
 

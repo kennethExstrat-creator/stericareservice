@@ -253,15 +253,26 @@ async function closeDetails(page: Page): Promise<void> {
  * The capture screen
  * ------------------------------------------------------------------ */
 
-/** The sections in order: the sidebar's list from 1280 px, the tab bar below that. */
+/**
+ * The sections in order: the sidebar's rows from 1280 px (those in its
+ * Inspection Steps group too, open or not; not the group's header), the tab
+ * bar below that.
+ */
 function captureSections(page: Page): Locator {
   return isDesktop()
-    ? page.getByRole("list", { name: "Sections, with progress and result" }).getByRole("listitem")
+    ? page.getByRole("list", { name: "Sections, with progress and result" }).locator("li > button[title]")
     : page.getByRole("tablist", { name: "Sections" }).getByRole("tab");
+}
+
+/** From 1280 px the steps between Source Documents and the Conclusion sit in the sidebar's Inspection Steps group, collapsed on those two: opens it. */
+async function showSidebarSteps(page: Page): Promise<void> {
+  const group = page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: /^Inspection Steps\b/, expanded: false });
+  if (await group.isVisible()) await press(group);
 }
 
 async function openSection(page: Page, title: string): Promise<Locator> {
   const name = new RegExp(`^${escapeRegExp(title)}`);
+  if (isDesktop()) await showSidebarSteps(page);
   const target = isDesktop()
     ? page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name })
     : page.getByRole("tab", { name });

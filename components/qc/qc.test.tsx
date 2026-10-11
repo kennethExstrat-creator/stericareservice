@@ -98,6 +98,20 @@ describe("screen-reader text stays inside its component (D1)", () => {
         onStepSelect={noop}
       />,
     ],
+    [
+      "ProgressTracker list with a group",
+      <ProgressTracker
+        key="group"
+        variant="list"
+        steps={[
+          { key: "a", label: "Header", state: "done", result: "pass" },
+          { key: "b", label: "Visual Inspection", state: "not_started", result: "not_done" },
+        ]}
+        activeKey="b"
+        onStepSelect={noop}
+        group={{ label: "Inspection Steps", keys: ["a", "b"], result: "not_done", open: false, onOpenChange: noop }}
+      />,
+    ],
   ];
 
   it.each(components)("%s anchors its sr-only text", (_, element) => {
@@ -228,6 +242,20 @@ describe("Stepper", () => {
     const html = renderToStaticMarkup(<Stepper label="Count" value={0} onValueChange={noop} />);
     expect(html).toMatch(/aria-disabled="true"[^>]*aria-label="Decrease Count"|aria-label="Decrease Count"[^>]*aria-disabled="true"/);
     expect(html).not.toMatch(/<button[^>]*disabled=""/);
+  });
+
+  it("is a slim pill: each button the whole target, 28 px and 44 px on touch, its fill a circle inside", () => {
+    const html = renderToStaticMarkup(<Stepper label="Count" value={1} onValueChange={noop} />);
+    const classesOf = (tag: string) => (/class="([^"]*)"/.exec(tag)?.[1] ?? "").split(" ");
+    const buttons = html.match(/<button[^>]*>/g) ?? [];
+    expect(buttons).toHaveLength(2);
+    for (const button of buttons) {
+      expect(classesOf(button)).toEqual(expect.arrayContaining(["size-7", "p-0.5", "bg-clip-content", "touch:size-11", "touch:p-1"]));
+    }
+    // The pill adds no padding of its own: 30 px tall, 46 px on touch.
+    const pill = classesOf(/<div[^>]*data-slot="stepper"[^>]*>/.exec(html)?.[0] ?? "");
+    expect(pill).toContain("border");
+    expect(pill.some((name) => /^(touch:)?p[xy]?-/.test(name))).toBe(false);
   });
 });
 
@@ -541,5 +569,66 @@ describe("ProgressTracker", () => {
     const html = renderToStaticMarkup(<ProgressTracker variant="list" steps={steps} activeKey="header" />);
     expect(html).toContain(", In progress");
     expect(html).toContain(", Not started");
+  });
+
+  describe("a group in the list", () => {
+    const listed = [
+      { key: "documents", label: "Source Documents", state: "done" as const, result: "pass" as const },
+      ...steps.map((step) => ({ ...step, result: "not_done" as const })),
+      { key: "conclusion", label: "Conclusion", state: "not_started" as const, result: "not_done" as const },
+    ];
+    const render = (open: boolean, activeKey = "dimensions") =>
+      renderToStaticMarkup(
+        <ProgressTracker
+          variant="list"
+          steps={listed}
+          activeKey={activeKey}
+          onStepSelect={noop}
+          group={{
+            label: "Inspection Steps",
+            keys: steps.map((step) => step.key),
+            result: "not_done",
+            open,
+            onOpenChange: noop,
+          }}
+        />,
+      );
+    /** The list the header controls, by the id it names. */
+    const controlled = (html: string) => {
+      const id = /aria-controls="([^"]+)"/.exec(html)?.[1] ?? "missing";
+      return new RegExp(`<ol id="${id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"[^>]*>[\\s\\S]*?</ol>`).exec(html)?.[0] ?? "";
+    };
+
+    it("is a disclosure: a header button that reads the group and controls the list of its steps, hidden while collapsed", () => {
+      const html = render(false);
+      expect(html).toMatch(/<button type="button" aria-expanded="false" aria-controls="[^"]+"/);
+      const list = controlled(html);
+      expect(list).toMatch(/^<ol [^>]*hidden=""/);
+      for (const step of steps) expect(list).toContain(`title="${step.label}"`);
+      // The steps either side stay in the outer list, in their place.
+      expect(list).not.toContain("Source Documents");
+      expect(list).not.toContain("Conclusion");
+      expect(html.indexOf('title="Source Documents"')).toBeLessThan(html.indexOf("aria-expanded"));
+      expect(html.indexOf('title="Conclusion"')).toBeGreaterThan(html.indexOf(list));
+      // Its title, how many are done and the worst result, read out in that order.
+      const header = /<button[^>]*aria-expanded[\s\S]*?<\/button>/.exec(html)?.[0] ?? "";
+      expect(header).toContain(">Inspection Steps<");
+      expect(header).toContain("1 of 3 done");
+      expect(header).toContain('data-status="not_done"');
+    });
+
+    it("stands in for the module in view while collapsed over it, and hands that back once open", () => {
+      const collapsed = render(false);
+      expect(collapsed).toMatch(/<li data-slot="progress-group" aria-current="step">/);
+      expect(collapsed).toMatch(/aria-expanded="false"[^>]*class="[^"]*\sbg-accent\s/);
+
+      const open = render(true);
+      expect(open).toContain('aria-expanded="true"');
+      expect(controlled(open)).not.toMatch(/^<ol [^>]*hidden/);
+      expect(open).toMatch(/<li data-slot="progress-group">/);
+      expect(open).toMatch(/<li aria-current="step"><button[^>]*title="Dimension"/);
+      // Collapsed over another step, it is not the current one.
+      expect(render(false, "documents")).toMatch(/<li data-slot="progress-group">/);
+    });
   });
 });

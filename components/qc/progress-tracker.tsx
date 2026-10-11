@@ -1,9 +1,11 @@
 // Progress across an inspection's modules (BUILD_SPEC 8). "bar" is a
 // segmented strip for the iPad top bar; "list" suits the desktop sidebar and
-// can show each module's result. Progress uses the brand, results use status
-// colours; the module in view carries the signature gradient.
-import type { ReactNode } from "react";
-import { CircleCheckIcon, CircleDotIcon, CircleIcon } from "lucide-react";
+// can show each module's result, and can hold a run of its steps in a group
+// that collapses under a header (the capture screen's Inspection Steps).
+// Progress uses the brand, results use status colours; the module in view
+// carries the signature gradient.
+import { useId, type ReactNode } from "react";
+import { ChevronRightIcon, CircleCheckIcon, CircleDotIcon, CircleIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Status } from "@/lib/design/status";
 import { ResultChip } from "./result-chip";
@@ -18,6 +20,22 @@ export type ProgressStep = {
   result?: Status;
 };
 
+/**
+ * A run of the list's steps under a header that opens and closes it (a
+ * disclosure: the header is a button with aria-expanded). Controlled: the
+ * caller keeps `open`.
+ */
+export type ProgressGroup = {
+  /** The header's title, in Title Case. */
+  label: string;
+  /** The steps it holds, listed under the header in the order of `steps`, at the first one's place. */
+  keys: readonly string[];
+  /** The worst result among them, as the header's chip. */
+  result?: Status;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+};
+
 type ProgressTrackerProps = {
   steps: readonly ProgressStep[];
   /** The module in view. */
@@ -25,6 +43,8 @@ type ProgressTrackerProps = {
   /** Makes each step a button. */
   onStepSelect?: (key: string) => void;
   variant?: "bar" | "list";
+  /** List variant: steps listed together under a header that collapses them. */
+  group?: ProgressGroup;
   label?: string;
   className?: string;
 };
@@ -47,11 +67,19 @@ const ICON = {
   not_started: { Icon: CircleIcon, className: "text-slate-400" },
 } as const;
 
+/** A list row, and a group's header: 36 px, 44 px on touch, growing with a second line. */
+const LIST_ROW =
+  "relative flex min-h-9 w-full items-center gap-2.5 rounded-md py-1.5 pr-2 pl-3.5 text-sm text-foreground touch:min-h-11";
+/** The bar at a row's left edge: the module in view carries the gradient. */
+const ROW_MARK = "absolute inset-y-1.5 left-0 w-1 rounded-full";
+const ROW_MARK_ACTIVE = "bg-linear-to-b from-brand-500 to-accent-600";
+
 export function ProgressTracker({
   steps,
   activeKey,
   onStepSelect,
   variant = "bar",
+  group,
   label = "Inspection progress",
   className,
 }: ProgressTrackerProps) {
@@ -80,42 +108,54 @@ export function ProgressTracker({
     );
 
   if (variant === "list") {
+    // A step in a group sits a little in from its header's edge; the row's hover, its fill and the bar stay full width.
+    const listItem = (step: ProgressStep, nested = false) => {
+      const isActive = step.key === activeKey;
+      const { Icon, className: iconClass } = ICON[step.state];
+      return (
+        <li key={step.key} aria-current={isActive ? "step" : undefined}>
+          {item(
+            step,
+            <>
+              <span aria-hidden className={cn(ROW_MARK, isActive && ROW_MARK_ACTIVE)} />
+              <Icon aria-hidden className={cn("size-4 shrink-0", iconClass)} />
+              {/* Two lines before it is cut, so titles that start alike ("Glove Dispensing
+                  Inspection" and its "onsite notes") are told apart in a 16 rem sidebar. */}
+              <span className="line-clamp-2 min-w-0 flex-1 text-left leading-snug [overflow-wrap:anywhere]">
+                {step.label}
+              </span>
+              <span className="sr-only">, {STATE_LABEL[step.state]}</span>
+              {step.result && <ResultChip status={step.result} />}
+            </>,
+            cn(
+              LIST_ROW,
+              nested && "pl-6",
+              onStepSelect && "hover:bg-muted",
+              isActive && "bg-accent font-semibold text-accent-foreground hover:bg-accent",
+            ),
+            step.label,
+          )}
+        </li>
+      );
+    };
+
+    const groupKeys = new Set(group?.keys);
+    const grouped = steps.filter((step) => groupKeys.has(step.key));
+    const items: ReactNode[] = [];
+    for (const step of steps) {
+      if (!group || !groupKeys.has(step.key)) items.push(listItem(step));
+      else if (step === grouped[0]) {
+        items.push(
+          <ProgressGroupItem key="progress-group" group={group} steps={grouped} activeKey={activeKey}>
+            {grouped.map((member) => listItem(member, true))}
+          </ProgressGroupItem>,
+        );
+      }
+    }
+
     return (
       <ol aria-label={label} data-slot="progress-tracker" className={cn("space-y-0.5", className)}>
-        {steps.map((step) => {
-          const isActive = step.key === activeKey;
-          const { Icon, className: iconClass } = ICON[step.state];
-          return (
-            <li key={step.key} aria-current={isActive ? "step" : undefined}>
-              {item(
-                step,
-                <>
-                  <span
-                    aria-hidden
-                    className={cn(
-                      "absolute inset-y-1.5 left-0 w-1 rounded-full",
-                      isActive && "bg-linear-to-b from-brand-500 to-accent-600",
-                    )}
-                  />
-                  <Icon aria-hidden className={cn("size-4 shrink-0", iconClass)} />
-                  {/* Two lines before it is cut, so titles that start alike ("Glove Dispensing
-                      Inspection" and its "onsite notes") are told apart in a 16 rem sidebar. */}
-                  <span className="line-clamp-2 min-w-0 flex-1 text-left leading-snug [overflow-wrap:anywhere]">
-                    {step.label}
-                  </span>
-                  <span className="sr-only">, {STATE_LABEL[step.state]}</span>
-                  {step.result && <ResultChip status={step.result} />}
-                </>,
-                cn(
-                  "relative flex min-h-9 w-full items-center gap-2.5 rounded-md py-1.5 pr-2 pl-3.5 text-sm text-foreground touch:min-h-11",
-                  onStepSelect && "hover:bg-muted",
-                  isActive && "bg-accent font-semibold text-accent-foreground hover:bg-accent",
-                ),
-                step.label,
-              )}
-            </li>
-          );
-        })}
+        {items}
       </ol>
     );
   }
@@ -156,5 +196,62 @@ export function ProgressTracker({
         })}
       </ol>
     </div>
+  );
+}
+
+/**
+ * A group in the list: its header (a button with aria-expanded, which
+ * controls the list of its steps) reads its title, how many of its steps are
+ * done and the worst of their results; its steps follow in a list of their
+ * own, hidden while it is collapsed. Collapsed over the module in view, the
+ * header stands in for that step's row: it is the current item and carries
+ * the gradient.
+ */
+function ProgressGroupItem({
+  group,
+  steps,
+  activeKey,
+  children,
+}: {
+  group: ProgressGroup;
+  steps: readonly ProgressStep[];
+  activeKey?: string;
+  children: ReactNode;
+}) {
+  const listId = useId();
+  const done = steps.filter((step) => step.state === "done").length;
+  const current = !group.open && steps.some((step) => step.key === activeKey);
+  return (
+    <li data-slot="progress-group" aria-current={current ? "step" : undefined}>
+      <button
+        type="button"
+        aria-expanded={group.open}
+        aria-controls={listId}
+        onClick={() => group.onOpenChange(!group.open)}
+        className={cn(
+          LIST_ROW,
+          "outline-none focus-ring-inset hover:bg-muted",
+          current && "bg-accent text-accent-foreground hover:bg-accent",
+        )}
+      >
+        <span aria-hidden className={cn(ROW_MARK, current && ROW_MARK_ACTIVE)} />
+        <ChevronRightIcon
+          aria-hidden
+          className={cn("size-4 shrink-0 text-muted-foreground transition-transform", group.open && "rotate-90")}
+        />
+        <span className="min-w-0 flex-1 text-left leading-snug">
+          <span className="block font-medium">{group.label}</span>
+          <span className="block text-xs text-muted-foreground tabular-nums">
+            <span className="sr-only">, </span>
+            {done} of {steps.length} done
+            {group.result && <span className="sr-only">, </span>}
+          </span>
+        </span>
+        {group.result && <ResultChip status={group.result} />}
+      </button>
+      <ol id={listId} hidden={!group.open} className="mt-0.5 space-y-0.5">
+        {children}
+      </ol>
+    </li>
   );
 }

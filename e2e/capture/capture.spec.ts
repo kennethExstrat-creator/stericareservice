@@ -154,9 +154,16 @@ function escapeRegExp(text: string) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** From 1280 px the steps between Source Documents and the Conclusion sit in the sidebar's Inspection Steps group, collapsed on those two: opens it. */
+async function showSidebarSteps(page: Page) {
+  const group = page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: /^Inspection Steps\b/, expanded: false });
+  if (await group.isVisible()) await press(group);
+}
+
 /** Opens a section from the tab bar (iPad) or the sidebar (desktop). */
 async function openSection(page: Page, title: string) {
   const name = new RegExp(`^${escapeRegExp(title)}`);
+  if (isDesktop()) await showSidebarSteps(page);
   const target = isDesktop()
     ? page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name })
     : page.getByRole("tab", { name });

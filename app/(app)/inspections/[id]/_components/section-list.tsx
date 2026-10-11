@@ -4,23 +4,72 @@
 // 8: on desktop, modules show in a left sidebar). The included pages
 // (lib/inspections/capture/sections.ts capturePages: packing configuration
 // on the order's) are the ProgressTracker's list, each with its progress and
-// result chip; the sections an admin switched off for this inspection follow
-// in their own group, marked off.
+// result chip. Source Documents, first, and the Conclusion, last, always
+// show; the steps between them sit in one group, Inspection Steps, whose
+// header reads how many are done and the worst of their results, and which
+// collapses (Kenneth, 12 October 2026: "make these section collapsable,
+// leaving source document and conclusion visible by default"). Collapsed at
+// first, open whenever the page in view is one of its steps, and as the
+// inspector last left it otherwise (use-step-group.ts). The sections an
+// admin switched off for this inspection follow in their own group, marked
+// off.
 import { CircleOffIcon } from "lucide-react";
-import { ProgressTracker } from "@/components/qc";
-import { progressSteps, type CapturePage } from "@/lib/inspections/capture/sections";
+import { ProgressTracker, type ProgressGroup } from "@/components/qc";
+import { pageStatus, progressSteps, type CapturePage, type IncludedPage } from "@/lib/inspections/capture/sections";
+import type { ModuleKey } from "@/lib/schemas/module-result";
 import { cn } from "@/lib/utils";
+import { useStepGroup } from "./use-step-group";
+
+/** The group's header. */
+export const STEP_GROUP_LABEL = "Inspection Steps";
+
+const CONCLUSION_KEY: ModuleKey = "conclusion";
+
+/**
+ * The pages the group holds: the steps after Source Documents and before the
+ * Conclusion, in screen order (a step after the Conclusion stays after it).
+ * Switched-off pages are not steps: they have a list of their own.
+ */
+export function groupedPages(pages: readonly CapturePage[]): IncludedPage[] {
+  const grouped: IncludedPage[] = [];
+  for (const page of pages) {
+    if (page.kind !== "included") continue;
+    if (page.key === CONCLUSION_KEY) break;
+    grouped.push(page);
+  }
+  return grouped;
+}
 
 type SectionListProps = {
   pages: readonly CapturePage[];
   /** The open page's key. */
   activeKey: string;
   onSelect: (key: string) => void;
+  /** Whose choice to open or collapse the steps is kept on this device: the signed-in user. None, nothing is kept. */
+  viewerId?: string;
   className?: string;
 };
 
-export function SectionList({ pages, activeKey, onSelect, className }: SectionListProps) {
+export function SectionList({ pages, activeKey, onSelect, viewerId, className }: SectionListProps) {
   const excluded = pages.filter((page) => page.kind === "excluded");
+  const grouped = groupedPages(pages);
+  // A header over a single step would only add a row.
+  const grouping = grouped.length > 1;
+  const [open, setOpen] = useStepGroup(
+    viewerId ?? null,
+    activeKey,
+    grouping && grouped.some((page) => page.key === activeKey),
+  );
+  const group: ProgressGroup | undefined = grouping
+    ? {
+        label: STEP_GROUP_LABEL,
+        keys: grouped.map((page) => page.key),
+        // The worst of their results, as a page of two modules takes the worse of its two.
+        result: pageStatus(grouped.flatMap((page) => page.sections)),
+        open,
+        onOpenChange: setOpen,
+      }
+    : undefined;
   return (
     <nav aria-label="Sections" data-slot="section-list" className={cn("space-y-5", className)}>
       <ProgressTracker
@@ -29,6 +78,7 @@ export function SectionList({ pages, activeKey, onSelect, className }: SectionLi
         steps={progressSteps(pages)}
         activeKey={activeKey}
         onStepSelect={onSelect}
+        group={group}
       />
       {excluded.length > 0 && (
         <div className="space-y-1.5">
