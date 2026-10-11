@@ -14,10 +14,8 @@ import { loadCaptureInspection, loadOverrideAuthors } from "@/lib/inspections/ca
 import { loadReopenNote } from "@/lib/inspections/capture/reopen";
 import { readSectionParam } from "@/lib/inspections/capture/schemas";
 import { personLabel } from "@/lib/inspections/format";
-import { loadParts } from "@/lib/inspections/parts-server";
 import { createClient } from "@/lib/supabase/server";
 import { CaptureScreen } from "./_components/capture-screen";
-import { partTitle } from "./_components/part-nav";
 
 /**
  * Server Actions on this page run as long as the page may: submit starts
@@ -36,35 +34,24 @@ const DEFECT_MODULES = ["watertight", "visual"];
 const loadInspection = cache(async (id: string) => loadCaptureInspection(await createClient(), id));
 
 /**
- * The inspection's PO parts (lib/inspections/parts.ts), first part first, read
- * once per request for the title and the page through the user's own client;
- * null when they cannot be read.
- */
-const loadInspectionParts = cache(async (id: string) => loadParts(await createClient(), id));
-
-/**
- * The title is the reference number; for an inspection of several POs, the
- * inspection's with the part's PO, so two parts' tabs differ. The session is
- * checked first, and an inspection this user cannot see is a 404 here too,
- * so the title never names it.
+ * The title is the reference number. The session is checked first, and an
+ * inspection this user cannot see is a 404 here too, so the title never
+ * names it.
  */
 export async function generateMetadata({ params }: PageProps<"/inspections/[id]">): Promise<Metadata> {
   await requireUser();
   const { id } = await params;
   const loaded = await loadInspection(id);
   if (loaded.kind === "not_found") notFound();
-  if (loaded.kind !== "found") return { title: loaded.refNo };
-  const { inspection } = loaded;
-  return { title: partTitle(inspection.refNo, await loadInspectionParts(inspection.id), inspection.id) };
+  return { title: loaded.kind === "found" ? loaded.inspection.refNo : loaded.refNo };
 }
 
 /**
  * The capture screen (BUILD_SPEC 8 and 10): the inspection, the exact
  * template version it started with (templates.resolved) and its module
  * overrides, read on the server through the user's own client. With them:
- * why it was reopened, when it was, how often each defect was counted
- * before, so the defect lists open on the most-used ones, and the
- * inspection's PO parts, for the header's parts bar.
+ * why it was reopened, when it was, and how often each defect was counted
+ * before, so the defect lists open on the most-used ones.
  */
 export default async function CapturePage({ params, searchParams }: PageProps<"/inspections/[id]">) {
   const user = await requireUser();
@@ -94,7 +81,7 @@ export default async function CapturePage({ params, searchParams }: PageProps<"/
   const supabase = await createClient();
   const inspectorName = inspection.meta.inspector?.name ?? "Inspector";
   const countsDefects = inspection.template.resolved.modules.some((entry) => entry.include && DEFECT_MODULES.includes(entry.key));
-  const [authors, query, reopen, defectUsage, parts] = await Promise.all([
+  const [authors, query, reopen, defectUsage] = await Promise.all([
     loadOverrideAuthors(supabase, inspection.overrides),
     searchParams,
     loadReopenNote(
@@ -115,7 +102,6 @@ export default async function CapturePage({ params, searchParams }: PageProps<"/
           manufacturerId: inspection.meta.manufacturer?.id ?? null,
         })
       : Promise.resolve<DefectUsage>({}),
-    loadInspectionParts(inspection.id),
   ]);
   const access = captureAccess({
     status: inspection.status,
@@ -139,8 +125,6 @@ export default async function CapturePage({ params, searchParams }: PageProps<"/
           manufacturerName: inspection.meta.manufacturer?.name ?? null,
           inspectionDate: inspection.inspectionDate,
           inspectorName,
-          // Add PO where this screen edits the inspection: draft or reopened, theirs or an admin's.
-          parts: parts && { list: parts, currentId: inspection.id, canAdd: access.editable },
         }}
         template={inspection.template.resolved}
         meta={inspection.meta}

@@ -10,15 +10,7 @@
 // - View: everything else opens on the review, read-only: a submitted one
 //   for its inspector, an approved one, or one the viewer may not edit (a
 //   lead inspector's team member's, in any status).
-// Delete follows canDeleteInspection() (lib/inspections/delete.ts), on an
-// inspection of one PO only. A row of several POs (PO parts,
-// lib/inspections/parts.ts) stands for its first part, and
-// public.delete_draft_inspection() deletes one row: the other parts would
-// lose their group_id (on delete set null) and turn up as inspections of
-// their own.
-//
-// A row of several POs takes its status from all of them (the least
-// advanced, lib/inspections/part-summary.ts) and opens on its first part.
+// Delete follows canDeleteInspection() (lib/inspections/delete.ts).
 //
 // The list only holds inspections the viewer may read (RLS), so these are
 // the only cases. Server-side only: the delete rule lives with the deletion.
@@ -36,9 +28,9 @@ export type PrimaryRowAction = {
   href: string;
 };
 
-type ActionRow = Pick<InspectionListRow, "id" | "refNo" | "status" | "inspectorId" | "parts">;
+type ActionRow = Pick<InspectionListRow, "id" | "refNo" | "status" | "inspectorId">;
 
-export function primaryRowAction(row: Pick<ActionRow, "id" | "status" | "inspectorId">, viewer: ListViewer): PrimaryRowAction {
+export function primaryRowAction(row: Omit<ActionRow, "refNo">, viewer: ListViewer): PrimaryRowAction {
   const capture = `${INSPECTIONS_PATH}/${row.id}`;
   const review = `${capture}/review`;
   const { editable } = captureAccess({
@@ -57,15 +49,14 @@ export type RowActions = {
     /** "Continue INS-2026-0001": the words on the button first, then the ref, for screen readers. */
     name: string;
   };
-  /** "Delete INS-2026-0001", or null where deleting is not allowed or the inspection has several POs. */
+  /** "Delete INS-2026-0001", or null where deleting is not allowed. */
   deleteName: string | null;
 };
 
 export function rowActions(row: ActionRow, viewer: ListViewer): RowActions {
   const primary = primaryRowAction(row, viewer);
-  const deletable = row.parts.length === 1 && canDeleteInspection(row, viewer);
   return {
     primary: { ...primary, name: `${primary.label} ${row.refNo}` },
-    deleteName: deletable ? `Delete ${row.refNo}` : null,
+    deleteName: canDeleteInspection(row, viewer) ? `Delete ${row.refNo}` : null,
   };
 }

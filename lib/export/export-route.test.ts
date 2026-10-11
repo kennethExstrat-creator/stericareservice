@@ -11,14 +11,7 @@ vi.mock("@/modules/registry", async () => {
 import type { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { createFakeSupabase, type FakeSupabaseOptions } from "@/lib/export/__fixtures__/fake-supabase";
-import {
-  IDS,
-  makeInspectionRow,
-  makeObjects,
-  makePartObjects,
-  makePartTables,
-  makeTables,
-} from "@/lib/export/__fixtures__/inspection";
+import { IDS, makeInspectionRow, makeObjects, makeTables } from "@/lib/export/__fixtures__/inspection";
 import { ExportSchema } from "@/lib/schemas/export";
 import { createClient } from "@/lib/supabase/server";
 import { GET } from "@/app/api/inspections/[id]/export/route";
@@ -37,12 +30,6 @@ const OTHER_INSPECTOR: Session = {
   status: "active",
   user: { id: IDS.otherInspector, email: "other@test.local", fullName: "Inspector B", role: "inspector" },
 };
-/** The inspector's lead: Row Level Security lets them read the team's inspections, not export them. */
-const LEAD: Session = {
-  status: "active",
-  user: { id: IDS.otherInspector, email: "lead@test.local", fullName: "Lead A", role: "inspector", isLead: true },
-};
-const WITH_PARTS: FakeSupabaseOptions = { tables: makePartTables(), objects: makePartObjects() };
 
 function signedInAs(session: Session, options: FakeSupabaseOptions = {}) {
   vi.mocked(getSession).mockResolvedValue(session);
@@ -90,26 +77,6 @@ describe("GET /api/inspections/[id]/export", () => {
     const response = await get();
     expect(response.status).toBe(404);
     expect(await response.json()).toEqual({ error: "not_found", message: "Inspection not found." });
-  });
-
-  it("gives any PO part's id the whole inspection's export, named after the first part", async () => {
-    signedInAs(INSPECTOR, WITH_PARTS);
-    for (const id of [IDS.inspection, IDS.part2, IDS.part3]) {
-      const response = await get(id);
-      expect(response.status).toBe(200);
-      expect(response.headers.get("content-disposition")).toBe('attachment; filename="INS-2026-0042-export.json"');
-      const body = await response.json();
-      expect(ExportSchema.safeParse(body).success).toBe(true);
-      expect(body.refNo).toBe("INS-2026-0042");
-      expect(body.parts.map((part: { refNo: string }) => part.refNo)).toEqual(["INS-2026-0043", "INS-2026-0044"]);
-    }
-  });
-
-  it("answers 404 for every part to another inspector, and to the inspector's lead, as today", async () => {
-    for (const session of [OTHER_INSPECTOR, LEAD]) {
-      signedInAs(session, WITH_PARTS);
-      for (const id of [IDS.inspection, IDS.part2, IDS.part3]) expect((await get(id)).status).toBe(404);
-    }
   });
 
   it("answers 404 for an id that is not a UUID or does not exist", async () => {

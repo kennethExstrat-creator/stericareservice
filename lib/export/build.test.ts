@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ExportPartSchema, ExportSchema, type InspectionExport } from "@/lib/schemas/export";
+import { ExportSchema, type InspectionExport } from "@/lib/schemas/export";
 import { TEST_REGISTRY } from "@/modules/_framework/__fixtures__/test-registry";
 import { createFakeSupabase, type FakeSupabaseOptions } from "./__fixtures__/fake-supabase";
 import {
@@ -7,18 +7,12 @@ import {
   makeInspectionData,
   makeInspectionRow,
   makeObjects,
-  makePartObjects,
-  makePartRow,
-  makePartTables,
   makeResolvedTemplate,
   makeTables,
-  PART_PATHS,
   PATHS,
   UPDATED_AT,
 } from "./__fixtures__/inspection";
-import { buildInspectionExport, exportFromEvaluation, type BuildExportOptions } from "./build";
-import { evaluateRecord } from "./evaluate";
-import { loadInspectionRecord } from "./record";
+import { buildInspectionExport, type BuildExportOptions } from "./build";
 import { EXPORT_URL_TTL_SECONDS } from "./sign";
 
 const EXPORTED_AT = "2026-10-06T02:00:00.000Z";
@@ -28,8 +22,8 @@ function setup(options: FakeSupabaseOptions = {}) {
   return createFakeSupabase({ tables: makeTables(), objects: makeObjects(), ...options });
 }
 
-async function build(fake = setup(), options: BuildExportOptions = {}, id: string = IDS.inspection) {
-  return buildInspectionExport(fake.client, id, {
+async function build(fake = setup(), options: BuildExportOptions = {}) {
+  return buildInspectionExport(fake.client, IDS.inspection, {
     registry: TEST_REGISTRY,
     now: () => new Date(EXPORTED_AT),
     viewer: ADMIN,
@@ -320,149 +314,5 @@ describe("buildInspectionExport", () => {
     const result = await build(setup({ tables }));
     expect(result).toMatchObject({ ok: false, reason: "invalid_export", message: expect.stringContaining("photos.") });
     expect(error).toHaveBeenCalled();
-  });
-});
-
-/* PO parts (lib/inspections/parts.ts): the fixture's inspection with two more POs. */
-describe("buildInspectionExport for an inspection of several POs", () => {
-  const INSPECTOR = { id: IDS.inspector, role: "inspector" } as const;
-
-  function setupParts(options: FakeSupabaseOptions = {}) {
-    return setup({ tables: makePartTables(), objects: makePartObjects(), ...options });
-  }
-
-  /** The export asked for by one part's id. */
-  function buildFrom(id: string, fake = setupParts(), options: BuildExportOptions = {}) {
-    return build(fake, options, id);
-  }
-
-  function partsOf(doc: InspectionExport) {
-    if (!doc.parts) throw new Error("the export has no parts");
-    return doc.parts;
-  }
-
-  it("is one document: the first part's export, with the other parts' exports in part order", async () => {
-    const doc = await exportOf(setupParts());
-    expect(ExportSchema.safeParse(doc).success).toBe(true);
-    // The first part stands for the inspection: its fields are as for an inspection of one PO.
-    expect(doc).toMatchObject({ refNo: "INS-2026-0042", status: "submitted" });
-    expect(moduleOf(doc, "header").data).toMatchObject({ poNo: "PO-0001" });
-    expect(doc.photos.map((photo) => photo.id)).toEqual([IDS.photoWeight, IDS.photoVisual, IDS.photoUntagged, IDS.photoHeic]);
-    expect(doc.conclusion).toMatchObject({ finalResult: "hold" });
-
-    // Stored part 3 first: the parts come in the order they were added.
-    const [second, third] = partsOf(doc);
-    expect(partsOf(doc).map((part) => part.refNo)).toEqual(["INS-2026-0043", "INS-2026-0044"]);
-    // Each keeps its own PO, lots, photos, files and conclusion.
-    expect(moduleOf(second, "header").data).toMatchObject({ poNo: "PO-0002" });
-    expect(moduleOf(third, "order_lots").data).toEqual({ lots: [{ size: "M", qtyCases: 3000, lotNumbers: ["LOT-M-0003"] }] });
-    expect(second.photos).toEqual([
-      expect.objectContaining({ id: IDS.photoPart2, url: expect.stringContaining(PART_PATHS.photoPart2) }),
-    ]);
-    expect([third.photos, second.files, third.files]).toEqual([[], [], []]);
-    expect(second.conclusion).toMatchObject({ finalResult: "pass", remark: "Remark for PO-0002." });
-    // One export time for all; no part holds parts.
-    for (const part of [second, third]) {
-      expect(part.timestamps.exportedAt).toBe(EXPORTED_AT);
-      expect(part).not.toHaveProperty("parts");
-    }
-  });
-
-  it("is the same document from any part's id", async () => {
-    const fromFirst = await exportOf(setupParts());
-    for (const id of [IDS.part2, IDS.part3]) {
-      const result = await buildFrom(id);
-      expect(result.ok && result.export).toEqual(fromFirst);
-    }
-  });
-
-  it("has no parts for an inspection of one PO", async () => {
-    expect(await exportOf()).not.toHaveProperty("parts");
-  });
-
-  it("is for the parts' inspector or an admin only, from any part", async () => {
-    for (const id of [IDS.inspection, IDS.part2, IDS.part3]) {
-      expect((await buildFrom(id, setupParts(), { viewer: INSPECTOR })).ok).toBe(true);
-      expect(await buildFrom(id, setupParts(), { viewer: { id: IDS.otherInspector, role: "inspector" } })).toEqual({
-        ok: false,
-        reason: "not_found",
-        message: "Inspection not found.",
-      });
-    }
-  });
-
-  it("refuses the whole inspection when one part is not the viewer's to export", async () => {
-    // The parts share their inspector; only broken data has a part of someone else's.
-    const tables = makePartTables();
-    tables.inspections = tables.inspections.map((row) =>
-      row.id === IDS.part3 ? makePartRow(3, { inspector_id: IDS.otherInspector }) : row,
-    );
-    expect(await build(setupParts({ tables }), { viewer: INSPECTOR })).toEqual({
-      ok: false,
-      reason: "not_found",
-      message: "Inspection not found.",
-    });
-    expect((await build(setupParts({ tables }))).ok).toBe(true);
-  });
-
-  it("answers not found when the first part cannot be read, so a part never stands in for the inspection", async () => {
-    const tables = makePartTables();
-    tables.inspections = tables.inspections.filter((row) => row.id !== IDS.inspection);
-    expect(await buildFrom(IDS.part2, setupParts({ tables }))).toEqual({
-      ok: false,
-      reason: "not_found",
-      message: "Inspection not found.",
-    });
-  });
-
-  it("fails as a whole when a part cannot be evaluated, naming that part", async () => {
-    const tables = makePartTables();
-    const broken = makePartRow(3);
-    broken.template = { ...(broken.template as object), resolved: null };
-    tables.inspections = tables.inspections.map((row) => (row.id === IDS.part3 ? broken : row));
-    expect(await build(setupParts({ tables }))).toMatchObject({
-      ok: false,
-      reason: "unreadable_template",
-      message: expect.stringContaining("INS-2026-0044"),
-    });
-  });
-
-  it("lists what every part left out of Storage", async () => {
-    vi.spyOn(console, "warn").mockImplementation(() => {});
-    const objects = makePartObjects();
-    objects["inspection-photos"] = objects["inspection-photos"].filter((path) => path !== PART_PATHS.photoPart2);
-    const result = await build(setupParts({ objects }));
-    if (!result.ok) throw new Error(result.message);
-    expect(partsOf(result.export)[0].photos).toEqual([]);
-    expect(result.skipped).toEqual([
-      { bucket: "inspection-photos", path: PATHS.photoMissing, id: IDS.photoMissing },
-      { bucket: "inspection-photos", path: PART_PATHS.photoPart2, id: IDS.photoPart2 },
-    ]);
-  });
-
-  it("reports a failed read of the parts as a database error", async () => {
-    const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    const fake = setupParts({
-      failQuery: (query) => (query.filters.some((filter) => filter.op === "or") ? { code: "XX000", message: "secret detail" } : null),
-    });
-    expect(await build(fake)).toEqual({
-      ok: false,
-      reason: "database_error",
-      message: "Could not read the inspection's POs. Try again.",
-    });
-    expect(error).toHaveBeenCalled();
-  });
-
-  it("keeps a part's own export to that part: the second opinion's document never holds parts", async () => {
-    const fake = setupParts();
-    const loaded = await loadInspectionRecord(fake.client, IDS.part2);
-    if (!loaded.ok) throw new Error(loaded.message);
-    const evaluation = evaluateRecord(loaded.record, TEST_REGISTRY);
-    if (!evaluation.ok) throw new Error(evaluation.message);
-    const result = await exportFromEvaluation(fake.client, loaded.record, evaluation.evaluated);
-    if (!result.ok) throw new Error(result.message);
-    expect(result.export).not.toHaveProperty("parts");
-    expect(result.export).toMatchObject({ refNo: "INS-2026-0043", photos: [expect.objectContaining({ id: IDS.photoPart2 })] });
-    expect(ExportPartSchema.safeParse(result.export).success).toBe(true);
   });
 });

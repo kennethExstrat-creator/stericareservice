@@ -31,10 +31,6 @@ export const IDS = {
   photoHeic: "66666666-6666-4666-8666-000000000004",
   photoMissing: "66666666-6666-4666-8666-000000000005",
   fileLab: "77777777-7777-4777-8777-000000000001",
-  /** The other PO parts of the inspection (makePartTables); IDS.inspection is the first. */
-  part2: "88888888-8888-4888-8888-000000000002",
-  part3: "88888888-8888-4888-8888-000000000003",
-  photoPart2: "66666666-6666-4666-8666-000000000021",
 } as const;
 
 export const UPDATED_AT = "2026-10-05T09:30:00.654321+00:00";
@@ -115,18 +111,11 @@ export function makeInspectionData() {
 
 type Row = Record<string, unknown>;
 
-/**
- * The inspection row with its embeds joined, as INSPECTION_RECORD_SELECT
- * returns it, with the columns loadParts reads (group_id null: the
- * inspection's only part, or its first).
- */
+/** The inspection row with its embeds joined, as INSPECTION_RECORD_SELECT returns it. */
 export function makeInspectionRow(overrides: Row = {}, template: Row = {}): Row {
   return {
     id: IDS.inspection,
-    group_id: null,
     ref_no: "INS-2026-0042",
-    po_no: "PO-0001",
-    product_name: "Brand X Nitrile Examination Glove",
     status: "submitted",
     inspection_date: "2026-10-05",
     inspector_id: IDS.inspector,
@@ -236,59 +225,4 @@ export function makeTables(): Record<string, Row[]> {
     inspection_photos: makePhotoRows(),
     inspection_files: makeFileRows(),
   };
-}
-
-/* ------------------------------------------------------------------ *
- * The same inspection covering three purchase orders (PO parts,
- * lib/inspections/parts.ts): IDS.inspection is the first part, IDS.part2
- * and IDS.part3 name it in group_id. Each part has its own PO, reference
- * number and results; part 2 has a photo of its own, part 3 none. Part 3
- * is stored before part 2, so only created_at gives the part order.
- * ------------------------------------------------------------------ */
-
-export const PART_PATHS = { photoPart2: `${IDS.part2}/${IDS.photoPart2}.jpg` } as const;
-
-/** Another PO part: its own PO and lot (size M), saved after the first part. */
-export function makePartRow(part: 2 | 3, overrides: Row = {}): Row {
-  const id = part === 2 ? IDS.part2 : IDS.part3;
-  const po = `PO-000${part}`;
-  const data = makeInspectionData();
-  data.modules.header = { ...data.modules.header, poNo: po };
-  data.modules.order_lots = { lots: [{ size: "M", qtyCases: 1000 * part, lotNumbers: [`LOT-M-000${part}`] }] };
-  data.modules.conclusion = { finalResult: "pass", remark: `Remark for ${po}.` };
-  return makeInspectionRow({
-    id,
-    group_id: IDS.inspection,
-    ref_no: `INS-2026-004${part + 1}`,
-    po_no: po,
-    data,
-    result: "pass",
-    remarks: null,
-    created_at: `2026-10-05T01:${part}0:00+00:00`,
-    ...overrides,
-  });
-}
-
-export function makePartTables(): Record<string, Row[]> {
-  const tables = makeTables();
-  return {
-    inspections: [makePartRow(3), ...tables.inspections, makePartRow(2)],
-    inspection_photos: [
-      ...tables.inspection_photos,
-      photo(IDS.photoPart2, {
-        inspection_id: IDS.part2,
-        module_key: "visual",
-        storage_path: PART_PATHS.photoPart2,
-        thumb_path: null,
-        caption: "Thin spot, PO-0002",
-        taken_at: "2026-10-05T06:30:00+00:00",
-      }),
-    ],
-    inspection_files: tables.inspection_files,
-  };
-}
-
-export function makePartObjects(): Record<string, string[]> {
-  const objects = makeObjects();
-  return { ...objects, "inspection-photos": [...objects["inspection-photos"], PART_PATHS.photoPart2] };
 }

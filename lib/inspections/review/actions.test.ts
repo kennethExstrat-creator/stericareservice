@@ -3,16 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("next/cache", () => ({ refresh: vi.fn() }));
 vi.mock("@/lib/auth/session", () => ({ authorizeAction: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
-// One part unless a test says otherwise: the inspection alone (lib/inspections/parts.ts).
-vi.mock("@/lib/inspections/parts-server", () => ({ loadParts: vi.fn() }));
-vi.mock("@/lib/inspections/part-moves-server", () => ({ readPartStates: vi.fn() }));
 
 import { refresh } from "next/cache";
 import { authorizeAction } from "@/lib/auth/session";
-import { PART_VERSION_FIELD, type PartState } from "@/lib/inspections/part-moves";
-import { readPartStates } from "@/lib/inspections/part-moves-server";
-import { partLabel } from "@/lib/inspections/parts";
-import { loadParts } from "@/lib/inspections/parts-server";
 import { createClient } from "@/lib/supabase/server";
 import { approveInspection, reopenInspection, type ReviewActionResult } from "./actions";
 import { REOPEN_REASON_MAX, REVIEW_MESSAGES } from "./schemas";
@@ -75,9 +68,6 @@ const missThen = (row: unknown) => (query: Query) => (isUpdate(query) ? { data: 
 
 beforeEach(() => {
   vi.mocked(authorizeAction).mockResolvedValue({ ok: true, user: ADMIN });
-  vi.mocked(loadParts).mockImplementation(async (_client, id) => [
-    { id, refNo: "INS-2026-0001", poNo: null, productName: null, status: "submitted", primary: true },
-  ]);
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -265,152 +255,6 @@ describe("reopenInspection", () => {
     expect(await reopenInspection(IDLE, reopenForm())).toEqual({
       status: "error",
       message: "You do not have permission to reopen inspections.",
-    });
-  });
-});
-
-describe("an inspection of several PO parts", () => {
-  const P2 = "4a1d3b2f-6c7e-4f80-9b1c-2d3e4f5a6b7c";
-  const P3 = "5b2e4c3a-7d8f-4091-8c2d-3e4f5a6b7c8d";
-  const PARTS = [
-    { id: ID, refNo: "INS-2026-0001", poNo: "2680276", primary: true },
-    { id: P2, refNo: "INS-2026-0002", poNo: "2680277", primary: false },
-    { id: P3, refNo: "INS-2026-0003", poNo: null, primary: false },
-  ].map((part) => ({ ...part, productName: null, status: "submitted" as const }));
-
-  /** The parts as the database has them now: submitted at VERSION, each with `changes[id]`. */
-  function useParts(changes: Record<string, Partial<PartState>> = {}) {
-    vi.mocked(loadParts).mockResolvedValue(PARTS);
-    vi.mocked(readPartStates).mockResolvedValue(
-      PARTS.map((part, index) => ({
-        id: part.id,
-        label: partLabel(part, index),
-        refNo: part.refNo,
-        status: "submitted",
-        version: VERSION,
-        primary: part.primary,
-        result: "pass",
-        suggestedResult: "pass",
-        ...changes[part.id],
-      })),
-    );
-  }
-
-  /** The approve form as the page renders it: every part it showed, with the version it showed. */
-  function partsForm(ids = PARTS.map((part) => part.id)) {
-    const data = approveForm();
-    for (const id of ids) data.append(PART_VERSION_FIELD, `${id}@${VERSION}`);
-    return data;
-  }
-
-  const updated = (queries: Query[]) => queries.filter(isUpdate).map((query) => calls(query, "eq")[0][1]);
-
-  describe("approveInspection", () => {
-    it("approves every part, each at the version the page showed, then refreshes the page", async () => {
-      const { queries } = useClient(() => ({ data: { ref_no: "INS-2026-0001" }, error: null }));
-      useParts();
-      expect(await approveInspection(IDLE, partsForm())).toEqual({
-        status: "success",
-        message: "INS-2026-0001 is approved with all 3 POs: PO 2680276, PO 2680277 and PO 3. It is final and can no longer be changed.",
-      });
-      expect(queries.filter(isUpdate).map((query) => calls(query, "eq"))).toEqual(
-        [ID, P2, P3].map((id) => [
-          ["id", id],
-          ["status", "submitted"],
-          ["updated_at", VERSION],
-        ]),
-      );
-      expect(refresh).toHaveBeenCalledOnce();
-    });
-
-    it.each([
-      ["a part is a draft", { [P2]: { status: "draft" as const } }, undefined, "PO 2680277 is a draft now, so nothing was approved. The page shows the current state."],
-      [
-        "a part changed after the page showed it",
-        { [P3]: { version: NEWER } },
-        undefined,
-        "PO 3 changed after you opened it, so nothing was approved. The page now shows the latest version: check it, then approve it.",
-      ],
-      [
-        "the page showed other parts",
-        {},
-        [ID, P2],
-        "The POs of INS-2026-0001 changed after you opened it, so nothing was approved. The page now shows them: check them, then approve.",
-      ],
-    ])("approves none when %s, and shows the page as it is now", async (_, changes, shown, message) => {
-      const { queries } = useClient(() => ({ data: { ref_no: "INS-2026-0001" }, error: null }));
-      useParts(changes);
-      expect(await approveInspection(IDLE, partsForm(shown))).toEqual({ status: "warning", message });
-      expect(queries.filter(isUpdate)).toHaveLength(0);
-      expect(refresh).toHaveBeenCalledOnce();
-    });
-
-    it("leaves a part approved already as it is", async () => {
-      const { queries } = useClient(() => ({ data: { ref_no: "INS-2026-0002" }, error: null }));
-      useParts({ [ID]: { status: "approved" } });
-      expect(await approveInspection(IDLE, partsForm())).toEqual({
-        status: "success",
-        message: "PO 2680277 and PO 3 are approved, and PO 2680276 was approved already. INS-2026-0001 is final and can no longer be changed.",
-      });
-      expect(updated(queries)).toEqual([P2, P3]);
-    });
-
-    it("says which parts were approved when a later one changed in between", async () => {
-      useClient((query) =>
-        isUpdate(query) && calls(query, "eq")[0][1] === P3 ? { data: null, error: null } : { data: { ref_no: "x" }, error: null },
-      );
-      useParts();
-      expect(await approveInspection(IDLE, partsForm())).toEqual({
-        status: "warning",
-        message:
-          "PO 2680276 and PO 2680277 are approved, but PO 3 changed in between, so it was not approved. The page now shows the latest version: check it, then approve it.",
-      });
-    });
-
-    it("says when the inspection is gone before its parts could be read", async () => {
-      vi.mocked(loadParts).mockResolvedValue(null);
-      useClient(() => ({ data: null, error: null }));
-      expect(await approveInspection(IDLE, partsForm())).toEqual({ status: "error", message: REVIEW_MESSAGES.notFound });
-    });
-  });
-
-  describe("reopenInspection", () => {
-    it("reopens every submitted part, with the reason in each part's own log", async () => {
-      const { client, queries } = useClient(() => ({ data: { ref_no: "x" }, error: null }));
-      useParts();
-      expect(await reopenInspection(IDLE, reopenForm())).toEqual({
-        status: "success",
-        message: "INS-2026-0001 is reopened with all 3 POs. The inspector can change them and submit them again.",
-      });
-      expect(updated(queries)).toEqual([ID, P2, P3]);
-      expect(client.rpc.mock.calls).toEqual(
-        [ID, P2, P3].map((id) => [
-          "log_inspection_event",
-          { inspection_id: id, action: "review.reopened", changes: { reason: "Retest size M with new samples." } },
-        ]),
-      );
-    });
-
-    it("reopens none while a part is approved", async () => {
-      const { client, queries } = useClient(() => ({ data: { ref_no: "x" }, error: null }));
-      useParts({ [P2]: { status: "approved" } });
-      expect(await reopenInspection(IDLE, reopenForm())).toEqual({
-        status: "warning",
-        message: "PO 2680277 is approved now, so nothing was reopened. The page shows the current state.",
-      });
-      expect(queries.filter(isUpdate)).toHaveLength(0);
-      expect(client.rpc).not.toHaveBeenCalled();
-    });
-
-    it("leaves a part that is with the inspector already as it is", async () => {
-      const { queries } = useClient(() => ({ data: { ref_no: "x" }, error: null }));
-      useParts({ [P3]: { status: "reopened" } });
-      expect(await reopenInspection(IDLE, reopenForm())).toEqual({
-        status: "success",
-        message:
-          "PO 2680276 and PO 2680277 are reopened, and PO 3 was with the inspector already. The inspector can change them and submit them again.",
-      });
-      expect(updated(queries)).toEqual([ID, P2]);
     });
   });
 });

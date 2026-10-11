@@ -488,8 +488,6 @@ export function stdEgTables(record: InspectionRecord = stdEgRecord()): Record<st
     inspections: [
       {
         id: record.id,
-        // The inspection's only PO part (loadParts, lib/inspections/parts-server.ts).
-        group_id: null,
         ref_no: record.refNo,
         status: record.status,
         inspection_date: record.inspectionDate,

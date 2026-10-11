@@ -9,8 +9,6 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/inspections/review/load", () => ({ loadReview: vi.fn() }));
 vi.mock("@/lib/inspections/review/actions", () => ({ approveInspection: vi.fn(), reopenInspection: vi.fn() }));
 vi.mock("@/lib/inspections/ai", () => ({ loadAiPanel: vi.fn() }));
-// No parts of its own unless a test says so: the inspection alone (lib/inspections/parts.ts).
-vi.mock("@/lib/inspections/part-moves-server", () => ({ loadPartStates: vi.fn() }));
 vi.mock("@/lib/inspections/ai/actions", () => ({
   requestAiSecondOpinion: vi.fn(),
   recordAiFindingDecision: vi.fn(),
@@ -25,7 +23,6 @@ import { REPORT_WEBHOOK_TIMEOUT_MS } from "@/lib/ai/report";
 import { loadAiPanel, type AiPanelLoad } from "@/lib/inspections/ai";
 import { loadFixture, MOCK_STATUS, NOW, reviewHistory } from "@/lib/inspections/ai/__fixtures__/panel";
 import { buildAiPanelModel } from "@/lib/inspections/ai/panel-model";
-import { loadPartStates } from "@/lib/inspections/part-moves-server";
 import { ADMIN_ID, INSPECTION_ID, INSPECTOR_ID, reviewData, reviewInspection } from "@/lib/inspections/review/__fixtures__/review";
 import { loadReview, type ReviewData } from "@/lib/inspections/review/load";
 import { createClient } from "@/lib/supabase/server";
@@ -102,34 +99,6 @@ describe("/inspections/[id]/review", () => {
     expect(button(html, "Reopen")).toBe(true);
     expect(link(html, "Open Inspection")).toBe(true);
     expect(html).toContain("Waiting for Your Review");
-  });
-
-  it("gives an admin one Approve and one Reopen for every PO part of the inspection", async () => {
-    const part = (id: string, label: string, primary = false) => ({
-      id,
-      label,
-      refNo: primary ? "INS-2026-0001" : "INS-2026-0002",
-      status: "submitted" as const,
-      version: "2026-10-06T06:05:03.123456+00:00",
-      primary,
-      result: "pass" as const,
-      suggestedResult: "pass" as const,
-    });
-    vi.mocked(loadPartStates).mockResolvedValueOnce([
-      part(INSPECTION_ID, "PO 2680276", true),
-      part("44444444-4444-4444-8444-444444444444", "PO 2680277"),
-      part("55555555-5555-4555-8555-555555555555", "PO 3"),
-    ]);
-    const html = await render(reviewData());
-    expect(loadPartStates).toHaveBeenCalledWith({}, INSPECTION_ID);
-    expect(button(html, "Approve All 3 POs")).toBe(true);
-    expect(button(html, "Reopen All 3 POs")).toBe(true);
-
-    // Only admins decide, so only they need the parts.
-    vi.mocked(loadPartStates).mockClear();
-    vi.mocked(requireUser).mockResolvedValue(INSPECTOR_USER);
-    await render(reviewData({ viewer: { id: INSPECTOR_ID, name: "Inspector A", role: "inspector" } }));
-    expect(loadPartStates).not.toHaveBeenCalled();
   });
 
   it.each(["approved", "reopened", "draft"] as const)("gives an admin no decision on a %s inspection", async (status) => {

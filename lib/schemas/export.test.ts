@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  FIXTURE_IDS,
-  makeStdEgExport,
-  makeStdEgPartExport,
-  makeStdEgPartsExport,
-} from "@/lib/ai/__fixtures__/std-eg-export";
-import { ExportPartSchema, ExportSchema, type InspectionExport, type InspectionPartExport } from "./export";
+import { FIXTURE_IDS, makeStdEgExport } from "@/lib/ai/__fixtures__/std-eg-export";
+import { ExportSchema, type InspectionExport } from "./export";
 
 function parse(doc: unknown) {
   return ExportSchema.safeParse(doc);
@@ -20,11 +15,6 @@ function moduleOf(doc: InspectionExport, key: string) {
   const found = doc.modules.find((candidate) => candidate.key === key);
   if (!found) throw new Error(`Fixture has no ${key} module`);
   return found;
-}
-
-function partsOf(doc: InspectionExport): InspectionPartExport[] {
-  if (!doc.parts) throw new Error("The document has no parts");
-  return doc.parts;
 }
 
 describe("ExportSchema", () => {
@@ -236,53 +226,6 @@ describe("ExportSchema", () => {
     const header = makeStdEgExport();
     header.template.pageHeader = "";
     expect(issuePaths(header)).toContain("template.pageHeader");
-  });
-});
-
-describe("ExportSchema for an inspection of several POs", () => {
-  it("takes the first part's export with the other parts' exports in parts, and survives a JSON round trip unchanged", () => {
-    const doc = makeStdEgPartsExport();
-    expect(partsOf(doc).map((part) => part.refNo)).toEqual(["INS-2025-0002", "INS-2025-0003"]);
-    expect(moduleOf(partsOf(doc)[0], "header").data.poNo).toBe("PO-0002");
-    expect(parse(doc).success).toBe(true);
-    expect(ExportSchema.parse(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
-  });
-
-  it("has no parts for an inspection of one PO, as in documents written before parts existed", () => {
-    const doc = makeStdEgExport();
-    expect(doc).not.toHaveProperty("parts");
-    expect(ExportSchema.parse(doc)).not.toHaveProperty("parts");
-  });
-
-  it("checks every part as a whole export", () => {
-    const doc = makeStdEgPartsExport();
-    partsOf(doc)[1].photos[0].url = "javascript:alert(1)";
-    partsOf(doc)[0].modules.push(structuredClone(moduleOf(partsOf(doc)[0], "weight")));
-    Reflect.deleteProperty(partsOf(doc)[1], "conclusion");
-    expect(issuePaths(doc)).toEqual(
-      expect.arrayContaining(["parts.0.modules", "parts.1.photos.0.url", "parts.1.conclusion"]),
-    );
-  });
-
-  it("refuses a part that holds parts of its own instead of dropping them", () => {
-    const doc = makeStdEgPartsExport(1);
-    Object.assign(partsOf(doc)[0], { parts: [makeStdEgPartExport(3)] });
-    expect(parse(doc).error?.issues).toEqual([
-      expect.objectContaining({ path: ["parts", 0, "parts"], message: "A part cannot hold parts of its own." }),
-    ]);
-    // A part's document alone, as the second opinion reviews it, holds no parts either.
-    expect(ExportPartSchema.safeParse(makeStdEgPartExport(2)).success).toBe(true);
-    expect(ExportPartSchema.safeParse(makeStdEgPartsExport()).success).toBe(false);
-  });
-
-  it("names each part once: a part repeats neither the inspection's reference number nor another part's", () => {
-    const twice = makeStdEgPartsExport();
-    partsOf(twice)[1].refNo = partsOf(twice)[0].refNo;
-    expect(issuePaths(twice)).toEqual(["parts"]);
-
-    const first = makeStdEgPartsExport(1);
-    partsOf(first)[0].refNo = first.refNo;
-    expect(issuePaths(first)).toEqual(["parts"]);
   });
 });
 

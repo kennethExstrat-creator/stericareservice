@@ -11,8 +11,6 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 // Without the key (the default here) the user's own client writes; withSecretKey() switches it on.
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn(), isAdminClientConfigured: vi.fn() }));
 vi.mock("@/lib/inspections/ai", () => ({ scheduleAiReviewOnSubmit: vi.fn() }));
-// One part unless a test says otherwise: the inspection alone (lib/inspections/parts.ts).
-vi.mock("@/lib/inspections/parts-server", () => ({ loadParts: vi.fn() }));
 vi.mock("next/navigation", () => ({
   redirect: vi.fn((path: string) => {
     throw new Error(`REDIRECT ${path}`);
@@ -25,9 +23,7 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { authorizeAction } from "@/lib/auth/session";
 import { scheduleAiReviewOnSubmit } from "@/lib/inspections/ai";
-import { loadParts } from "@/lib/inspections/parts-server";
 import { contentHash } from "@/lib/offline/stable-json";
-import type { InspectionStatus } from "@/lib/schemas/common";
 import type { ResolvedTemplate } from "@/lib/schemas/template";
 import { createAdminClient, isAdminClientConfigured } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -169,9 +165,6 @@ function signedInAs(role: "inspector" | "admin", id = role === "admin" ? ADMIN :
 beforeEach(() => {
   signedInAs("inspector");
   fileRows = { data: [], error: null };
-  vi.mocked(loadParts).mockImplementation(async (_client, id) => [
-    { id, refNo: "INS-2026-0001", poNo: "PO-0001", productName: null, status: "draft", primary: true },
-  ]);
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -495,104 +488,6 @@ describe("submitInspection", () => {
     );
     await expect(submit()).resolves.toMatchObject({ status: "error", message: expect.stringMatching(/current status/) });
   });
-});
-
-describe("submitInspection with several PO parts", () => {
-  const PART_2 = "8d3e5f2b-1c4a-4b6d-8e9f-2a3b4c5d6e7f";
-  const PART_3 = "9e4f6a3c-2d5b-4c7e-9fa0-3b4c5d6e7f80";
-  const ALL = [INSPECTION, PART_2, PART_3];
-  const INCOMPLETE: InspectionData = {
-    modules: { ...COMPLETE.modules, conclusion: { finalResult: null, remark: null } },
-    custom: {},
-  };
-
-  /** The three parts as loadParts and the capture select read them, each with `rows[id]` over a complete draft. */
-  function useParts(rows: Record<string, Record<string, unknown>> = {}) {
-    vi.mocked(loadParts).mockResolvedValue(
-      [
-        { id: INSPECTION, refNo: "INS-2026-0001", poNo: "2680276", primary: true },
-        { id: PART_2, refNo: "INS-2026-0002", poNo: "2680277", primary: false },
-        { id: PART_3, refNo: "INS-2026-0003", poNo: null, primary: false },
-      ].map((part) => ({ ...part, productName: null, status: (rows[part.id]?.status ?? "draft") as InspectionStatus })),
-    );
-    useClient((query) => {
-      const id = query.calls.find(([name, args]) => name === "eq" && args[0] === "id")?.[1][1];
-      return { data: row({ id, data: COMPLETE, ...rows[id as string] }), error: null };
-    });
-  }
-
-  const submitAll = (partIds: string[] = ALL, data: InspectionData = COMPLETE) =>
-    submitInspection({ inspectionId: INSPECTION, dataHash: contentHash(data), partIds });
-  const submittedIds = (admin: ReturnType<typeof withSecretKey>) =>
-    admin.rpcCalls.map(([, args]) => (args as { inspection_id: string }).inspection_id);
-
-  it("submits every part, the others first and this one last, each with its own second opinion, then opens this part's review", async () => {
-    vi.mocked(scheduleAiReviewOnSubmit).mockResolvedValue({ ok: true, reviewId: "r1", inspectionUpdatedAt: NEXT_VERSION });
-    const asking = { template: { id: "t1", code: "TEST_EG", version: 1, resolved: { ...template(), ai: { reviewOnSubmit: true } } } };
-    useParts({ [INSPECTION]: asking, [PART_2]: asking, [PART_3]: asking });
-    const admin = withSecretKey(() => ({ data: NEXT_VERSION, error: null }));
-
-    await expect(submitAll()).rejects.toThrow(`REDIRECT /inspections/${INSPECTION}/review`);
-    expect(submittedIds(admin)).toEqual([PART_2, PART_3, INSPECTION]);
-    expect(admin.rpcCalls.every(([name, args]) => name === "submit_inspection" && (args as { actor_id: string }).actor_id === INSPECTOR)).toBe(
-      true,
-    );
-    expect(vi.mocked(scheduleAiReviewOnSubmit).mock.calls.map(([id]) => id)).toEqual([PART_2, PART_3, INSPECTION]);
-    // One wait for all of them.
-    expect(after).toHaveBeenCalledTimes(1);
-  });
-
-  it("submits none while another part has errors, and names that PO with its id to open it", async () => {
-    useParts({ [PART_2]: { data: INCOMPLETE } });
-    const admin = withSecretKey(() => ({ data: NEXT_VERSION, error: null }));
-    await expect(submitAll()).resolves.toEqual({
-      status: "error",
-      message: "Nothing was submitted: PO 2680277 is not ready yet.",
-      parts: [{ id: PART_2, label: "PO 2680277", message: "1 item is needed in PO 2680277 before you can submit." }],
-    });
-    expect(admin.rpcCalls).toHaveLength(0);
-  });
-
-  it("stays blocked on this part's own errors, and says which other parts need work too", async () => {
-    useParts({ [INSPECTION]: { data: INCOMPLETE }, [PART_3]: { data: INCOMPLETE } });
-    const result = await submitAll(ALL, INCOMPLETE);
-    expect(result).toMatchObject({ status: "blocked", message: "1 item is needed before you can submit. PO 3 needs work too." });
-    expect(client.queries.filter(isUpdate)).toHaveLength(0);
-  });
-
-  it("leaves a part submitted or approved already as it is, also for a request that names no parts", async () => {
-    useParts({ [PART_2]: { status: "submitted" }, [PART_3]: { status: "approved" } });
-    const admin = withSecretKey(() => ({ data: NEXT_VERSION, error: null }));
-    await expect(submit()).rejects.toThrow(`REDIRECT /inspections/${INSPECTION}/review`);
-    expect(submittedIds(admin)).toEqual([INSPECTION]);
-  });
-
-  it("submits none when the parts are no longer the ones the confirmation named", async () => {
-    useParts();
-    const admin = withSecretKey(() => ({ data: NEXT_VERSION, error: null }));
-    await expect(submitAll([INSPECTION, PART_2])).resolves.toEqual({
-      status: "error",
-      message: "The POs of this inspection changed on another device. Reload the page to see them, then submit.",
-    });
-    expect(admin.rpcCalls).toHaveLength(0);
-  });
-
-  it("says which parts went when a later one changed in between, with this part still open to submit again", async () => {
-    useParts();
-    const admin = withSecretKey((_name, args) => ({
-      data: (args as { inspection_id: string }).inspection_id === PART_3 ? null : NEXT_VERSION,
-      error: null,
-    }));
-    await expect(submitAll()).resolves.toEqual({
-      status: "error",
-      message: "PO 2680277 is submitted. PO 3 changed while it was being submitted. Reload the page, then submit again.",
-    });
-    expect(submittedIds(admin)).toEqual([PART_2, PART_3]);
-  });
-
-  function submit() {
-    return submitInspection({ inspectionId: INSPECTION, dataHash: contentHash(COMPLETE) });
-  }
 });
 
 /* ------------------------------------------------------------------ *

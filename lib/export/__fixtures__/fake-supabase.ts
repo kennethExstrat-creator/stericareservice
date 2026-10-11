@@ -3,19 +3,14 @@ import type { ExportClient } from "../record";
 /* ------------------------------------------------------------------ *
  * An in-memory stand-in for the parts of supabase-js the export and the
  * AI actions use: from(table) with select / insert / update, eq / in /
- * or (`column.eq.value` conditions, as loadParts asks for an inspection's
- * PO parts) / order (several: the first decides) / limit, maybeSingle /
- * single; rpc(); and storage signed URLs. Rows are plain objects. A
- * select returns the stored rows as they are, so a test stores an
- * inspection row with its embeds already joined, the way PostgREST
- * answers INSPECTION_RECORD_SELECT.
+ * order / limit, maybeSingle / single; rpc(); and storage signed URLs.
+ * Rows are plain objects. A select returns the stored rows as they are,
+ * so a test stores an inspection row with its embeds already joined, the
+ * way PostgREST answers INSPECTION_RECORD_SELECT.
  * ------------------------------------------------------------------ */
 
 type Row = Record<string, unknown>;
-type Filter =
-  | { column: string; op: "eq" | "in"; value: unknown }
-  /** Any of the conditions: PostgREST's or=(a.eq.1,b.eq.2). */
-  | { op: "or"; conditions: { column: string; value: string }[] };
+type Filter = { column: string; op: "eq" | "in"; value: unknown };
 type QueryError = { code?: string; message: string };
 
 export type RecordedQuery = {
@@ -68,16 +63,11 @@ export function createFakeSupabase(options: FakeSupabaseOptions = {}): FakeSupab
     if (failure) return { data: null, error: failure };
     const table = (tables[query.table] ??= []);
     const matches = (row: Row) =>
-      query.filters.every((filter) => {
-        switch (filter.op) {
-          case "eq":
-            return row[filter.column] === filter.value;
-          case "in":
-            return (filter.value as unknown[]).includes(row[filter.column]);
-          case "or":
-            return filter.conditions.some((condition) => row[condition.column] === condition.value);
-        }
-      });
+      query.filters.every((filter) =>
+        filter.op === "eq"
+          ? row[filter.column] === filter.value
+          : (filter.value as unknown[]).includes(row[filter.column]),
+      );
 
     let rows: Row[];
     switch (query.operation) {
@@ -103,29 +93,23 @@ export function createFakeSupabase(options: FakeSupabaseOptions = {}): FakeSupab
       default:
         rows = table.filter(matches);
     }
-    if (modifiers.order.length > 0) {
-      const compare = (a: Row, b: Row, { column, ascending }: Modifiers["order"][number]) => {
+    if (modifiers.order) {
+      const { column, ascending } = modifiers.order;
+      rows = [...rows].sort((a, b) => {
         const left = String(a[column] ?? "");
         const right = String(b[column] ?? "");
         return ascending ? left.localeCompare(right) : right.localeCompare(left);
-      };
-      rows = [...rows].sort((a, b) => {
-        for (const order of modifiers.order) {
-          const result = compare(a, b, order);
-          if (result !== 0) return result;
-        }
-        return 0;
       });
     }
     if (modifiers.limit !== undefined) rows = rows.slice(0, modifiers.limit);
     return { data: rows.map((row) => ({ ...row })), error: null };
   };
 
-  type Modifiers = { order: { column: string; ascending: boolean }[]; limit?: number };
+  type Modifiers = { order?: { column: string; ascending: boolean }; limit?: number };
 
   const from = (table: string) => {
     const query: RecordedQuery = { table, operation: "select", filters: [] };
-    const modifiers: Modifiers = { order: [] };
+    const modifiers: Modifiers = {};
     const builder = {
       select: () => builder,
       insert: (payload: unknown) => {
@@ -150,12 +134,8 @@ export function createFakeSupabase(options: FakeSupabaseOptions = {}): FakeSupab
         query.filters.push({ column, op: "in", value });
         return builder;
       },
-      or: (expression: string) => {
-        query.filters.push({ op: "or", conditions: expression.split(",").map(orCondition) });
-        return builder;
-      },
       order: (column: string, { ascending = true }: { ascending?: boolean } = {}) => {
-        modifiers.order.push({ column, ascending });
+        modifiers.order = { column, ascending };
         return builder;
       },
       limit: (count: number) => {
@@ -207,11 +187,4 @@ export function createFakeSupabase(options: FakeSupabaseOptions = {}): FakeSupab
   };
 
   return { client: { from, storage, rpc } as unknown as ExportClient, tables, queries, rpcCalls, signed };
-}
-
-/** `group_id.eq.<uuid>`; any other operator fails the test loudly instead of matching wrongly. */
-function orCondition(text: string): { column: string; value: string } {
-  const match = /^([a-z_]+)\.eq\.(.+)$/.exec(text.trim());
-  if (!match) throw new Error(`The fake Supabase client only reads or() conditions like column.eq.value, not "${text}".`);
-  return { column: match[1], value: match[2] };
 }

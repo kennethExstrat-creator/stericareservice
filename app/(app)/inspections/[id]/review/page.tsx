@@ -9,8 +9,6 @@ import { PageHeader } from "@/components/qc";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth/session";
 import { loadAiPanel, type AiPanelLoad } from "@/lib/inspections/ai";
-import type { PartState } from "@/lib/inspections/part-moves";
-import { loadPartStates } from "@/lib/inspections/part-moves-server";
 import { approvalChecks } from "@/lib/inspections/review/approval";
 import { loadReview, type ReviewData, type ReviewInspection } from "@/lib/inspections/review/load";
 import { statusNotice } from "@/lib/inspections/review/notice";
@@ -69,18 +67,6 @@ async function getAiPanel(id: string): Promise<AiPanelLoad> {
   return loadAiPanel(await requireUser(), id);
 }
 
-/**
- * The inspection's PO parts with their states, for an admin's Approve and
- * Reopen, which cover every part (lib/inspections/part-moves.ts). Null for
- * anyone else, and when the parts cannot be read: the actions read them
- * again either way.
- */
-async function getPartStates(id: string): Promise<PartState[] | null> {
-  const user = await requireUser();
-  if (user.role !== "admin" || !IdSchema.safeParse(id).success) return null;
-  return loadPartStates(await createClient(), id);
-}
-
 export async function generateMetadata({ params }: PageProps<"/inspections/[id]/review">): Promise<Metadata> {
   const { id } = await params;
   const { inspection } = await getReview(id);
@@ -102,7 +88,7 @@ export async function generateMetadata({ params }: PageProps<"/inspections/[id]/
  */
 export default async function InspectionReviewPage({ params }: PageProps<"/inspections/[id]/review">) {
   const { id } = await params;
-  const [review, aiPanel, parts] = await Promise.all([getReview(id), getAiPanel(id), getPartStates(id)]);
+  const [review, aiPanel] = await Promise.all([getReview(id), getAiPanel(id)]);
   const { viewer, inspection, template, evaluation, overrides, photos, history } = review;
   const isAdmin = viewer.role === "admin";
 
@@ -119,7 +105,7 @@ export default async function InspectionReviewPage({ params }: PageProps<"/inspe
           eyebrow="Inspection Review"
           title={inspection.refNo}
           description={<HeaderLine inspection={inspection} />}
-          actions={<HeaderActions review={review} parts={parts} />}
+          actions={<HeaderActions review={review} />}
         />
       </div>
 
@@ -151,11 +137,10 @@ function HeaderLine({ inspection }: { inspection: ReviewInspection }) {
 }
 
 /**
- * Admins approve or reopen a submitted inspection, every PO part of it at
- * once. Whoever owns a draft or a reopened inspection goes on with it;
- * everyone else can open it.
+ * Admins approve or reopen a submitted inspection. Whoever owns a draft or a
+ * reopened inspection goes on with it; everyone else can open it.
  */
-function HeaderActions({ review, parts }: { review: ReviewData; parts: PartState[] | null }) {
+function HeaderActions({ review }: { review: ReviewData }) {
   const { viewer, inspection, evaluation } = review;
   const href = `${INSPECTIONS_PATH}/${inspection.id}`;
   const owner = viewer.id === inspection.inspector.id;
@@ -193,8 +178,6 @@ function HeaderActions({ review, parts }: { review: ReviewData; parts: PartState
         finalResult={inspection.result}
         // No suggestion and no error count when the results could not be worked out: the dialog says so.
         {...approvalChecks(evaluation)}
-        // Several PO parts: Approve and Reopen cover them all, and name them.
-        parts={parts && parts.length > 1 ? parts : undefined}
       />
     </>
   );

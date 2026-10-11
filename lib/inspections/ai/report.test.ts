@@ -8,16 +8,7 @@ vi.mock("@/modules/registry", async () => {
 import { POST as mockReportReceiver } from "@/app/api/dev/mock-ai-report/route";
 import { requestAiReport } from "@/lib/ai";
 import { createFakeSupabase } from "@/lib/export/__fixtures__/fake-supabase";
-import {
-  IDS,
-  makeInspectionRow,
-  makeObjects,
-  makePartObjects,
-  makePartRow,
-  makePartTables,
-  makeTables,
-} from "@/lib/export/__fixtures__/inspection";
-import { ExportSchema } from "@/lib/schemas/export";
+import { IDS, makeInspectionRow, makeObjects, makeTables } from "@/lib/export/__fixtures__/inspection";
 import { NOT_REPORTABLE } from "./panel-model";
 import { sendInspectionToAiReport } from "./report";
 
@@ -139,90 +130,6 @@ describe("sendInspectionToAiReport", () => {
       send,
     });
     expect(result).toMatchObject({ ok: false, reason: "not_found" });
-    expect(send).not.toHaveBeenCalled();
-  });
-});
-
-/* PO parts (lib/inspections/parts.ts): one report for all POs (Kenneth, 11 October 2026). */
-describe("sendInspectionToAiReport for an inspection of several POs", () => {
-  const FIRST_REPORT = "http://localhost:3000/api/dev/mock-ai-report?ref=INS-2026-0042";
-  const PART_IDS = [IDS.inspection, IDS.part2, IDS.part3];
-
-  function withParts(tables = makePartTables()) {
-    return createFakeSupabase({ tables, objects: makePartObjects() });
-  }
-
-  function loggedOn(db: ReturnType<typeof withParts>) {
-    return db.rpcCalls.map((call) => (call.args as { inspection_id: string; action: string }).inspection_id).sort();
-  }
-
-  it("posts the whole export, every PO in it, from any part, and stores the one report's link on every part", async () => {
-    const db = withParts();
-    const posted: unknown[] = [];
-    const toReceiver: typeof fetch = async (input, init) => {
-      posted.push(JSON.parse(String(init?.body)));
-      return toMockReceiver(input, init);
-    };
-    const result = await sendInspectionToAiReport({
-      client: db.client,
-      inspectionId: IDS.part3,
-      viewer: ADMIN,
-      send: (doc) => requestAiReport(doc, { env: REPORT_ENV, fetch: toReceiver }),
-    });
-    expect(result).toEqual({ ok: true, reportUrl: FIRST_REPORT });
-
-    // One request: the first part's export with the other parts in part order, as the receiver validated it.
-    expect(posted).toHaveLength(1);
-    const doc = ExportSchema.parse(posted[0]);
-    expect(doc.refNo).toBe("INS-2026-0042");
-    expect(doc.parts?.map((part) => part.refNo)).toEqual(["INS-2026-0043", "INS-2026-0044"]);
-
-    expect(db.tables.inspections.map((row) => row.report_url)).toEqual([FIRST_REPORT, FIRST_REPORT, FIRST_REPORT]);
-    expect(loggedOn(db)).toEqual([...PART_IDS].sort());
-    expect(db.rpcCalls[0]).toMatchObject({
-      args: {
-        action: "ai_report.sent",
-        changes: { reportUrl: FIRST_REPORT, parts: ["INS-2026-0042", "INS-2026-0043", "INS-2026-0044"] },
-      },
-    });
-  });
-
-  it("waits until every part is submitted or approved, naming the part that is not", async () => {
-    const tables = makePartTables();
-    tables.inspections = tables.inspections.map((row) => (row.id === IDS.part3 ? makePartRow(3, { status: "reopened" }) : row));
-    const send = vi.fn();
-    const result = await sendInspectionToAiReport({ client: withParts(tables).client, inspectionId: IDS.inspection, viewer: ADMIN, send });
-    expect(result).toEqual({
-      ok: false,
-      reason: "not_reportable",
-      message: "The AI report covers every PO of this inspection, and PO-0003 is not submitted or approved.",
-    });
-    expect(send).not.toHaveBeenCalled();
-  });
-
-  it("logs a failed report on every part and stores nothing", async () => {
-    const db = withParts();
-    const result = await sendInspectionToAiReport({
-      client: db.client,
-      inspectionId: IDS.inspection,
-      viewer: ADMIN,
-      send: async () => ({ ok: false, reason: "error", message: "The webhook answered HTTP 502." }),
-    });
-    expect(result).toMatchObject({ ok: false, reason: "report_failed" });
-    expect(db.tables.inspections.map((row) => row.report_url)).toEqual([null, null, null]);
-    expect(loggedOn(db)).toEqual([...PART_IDS].sort());
-    expect(db.rpcCalls.every((call) => (call.args as { action: string }).action === "ai_report.failed")).toBe(true);
-  });
-
-  it("answers not found to someone who may not export it, from any part", async () => {
-    const send = vi.fn();
-    for (const inspectionId of PART_IDS) {
-      const viewer = { id: IDS.otherInspector, role: "inspector" } as const;
-      expect(await sendInspectionToAiReport({ client: withParts().client, inspectionId, viewer, send })).toMatchObject({
-        ok: false,
-        reason: "not_found",
-      });
-    }
     expect(send).not.toHaveBeenCalled();
   });
 });

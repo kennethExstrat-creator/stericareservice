@@ -850,8 +850,6 @@ export function CaptureScreen({
         // Submitted: what was refused on the way is done with.
         onSubmitted={clearRefused}
         uploadsWaiting={uploadsWaiting}
-        // Every PO of the inspection: Submit sends them all, and checks this device's uploads for each.
-        parts={heading.parts?.list}
         disabled={readOnly}
         className={className}
       />
@@ -888,9 +886,6 @@ export function CaptureScreen({
     >
       <CaptureHeader
         heading={shownHeading}
-        // The PO parts bar's links, and a PO just added, leave as Photos and Review do: saved first.
-        onLeave={leaveTo}
-        leavingTo={leavingTo}
         actions={
           <>
             <LeaveLink
