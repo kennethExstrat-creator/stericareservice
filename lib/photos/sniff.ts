@@ -12,12 +12,17 @@ export type SniffedType =
   | "image/avif"
   | "image/bmp"
   | "image/tiff"
-  | "application/pdf";
+  | "application/pdf"
+  | "video/mp4"
+  | "video/quicktime"
+  | "video/webm";
 
 /** Major or compatible brands of HEVC-coded HEIF images. */
 const HEIC_BRANDS: ReadonlySet<string> = new Set(["heic", "heix", "heim", "heis", "hevc", "hevx", "hevm", "hevs"]);
 const AVIF_BRANDS: ReadonlySet<string> = new Set(["avif", "avis"]);
 const HEIF_BRANDS: ReadonlySet<string> = new Set(["mif1", "msf1", "heif"]);
+/** Brands of MP4 video (phones and cameras): checked after the image brands. */
+const MP4_BRANDS: ReadonlySet<string> = new Set(["isom", "iso2", "iso4", "iso5", "iso6", "mp41", "mp42", "avc1", "M4V ", "M4VH", "dash", "3gp4", "3gp5", "MSNV"]);
 
 export function sniffType(head: Uint8Array): SniffedType | null {
   const text = (from: number, to: number) => latin1(head, from, to);
@@ -29,6 +34,7 @@ export function sniffType(head: Uint8Array): SniffedType | null {
   if (text(0, 4) === "II*\0" || text(0, 4) === "MM\0*") return "image/tiff";
   if (text(0, 2) === "BM" && head.length >= 14) return "image/bmp";
   if (text(4, 8) === "ftyp") return isoBrand(head);
+  if (head[0] === 0x1a && head[1] === 0x45 && head[2] === 0xdf && head[3] === 0xa3) return "video/webm";
   return null;
 }
 
@@ -42,7 +48,10 @@ function isoBrand(head: Uint8Array): SniffedType | null {
     if (AVIF_BRANDS.has(brand)) return "image/avif";
     if (HEIC_BRANDS.has(brand)) return "image/heic";
   }
-  return brands.some((brand) => HEIF_BRANDS.has(brand)) ? "image/heif" : null;
+  if (brands.some((brand) => HEIF_BRANDS.has(brand))) return "image/heif";
+  // Videos (Source Documents, Media): an iPhone's QuickTime movie, or MP4.
+  if (brands[0] === "qt  ") return "video/quicktime";
+  return brands.some((brand) => MP4_BRANDS.has(brand)) ? "video/mp4" : null;
 }
 
 const EXTENSION_TYPES: Readonly<Record<string, SniffedType>> = {
@@ -58,6 +67,10 @@ const EXTENSION_TYPES: Readonly<Record<string, SniffedType>> = {
   tif: "image/tiff",
   tiff: "image/tiff",
   pdf: "application/pdf",
+  mp4: "video/mp4",
+  m4v: "video/mp4",
+  mov: "video/quicktime",
+  webm: "video/webm",
 };
 
 /**

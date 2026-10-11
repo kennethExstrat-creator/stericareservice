@@ -16,8 +16,10 @@ export const FILE_SIZE_LIMIT = 50 * 1024 * 1024;
 
 /** Types the photo bucket accepts: JPEG from processing, and originals the browser could not convert. */
 export const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"] as const;
-/** Types the file bucket accepts: lab reports and certificates. */
-export const FILE_TYPES = ["application/pdf", ...PHOTO_TYPES] as const;
+/** Videos from a phone (Source Documents, Media): MP4, an iPhone's QuickTime movie, WebM. */
+export const VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm"] as const;
+/** Types the file bucket accepts: lab reports, certificates, Source Documents and their videos. */
+export const FILE_TYPES = ["application/pdf", ...PHOTO_TYPES, ...VIDEO_TYPES] as const;
 
 const EXTENSIONS: Readonly<Record<string, string>> = {
   "image/jpeg": "jpg",
@@ -26,6 +28,9 @@ const EXTENSIONS: Readonly<Record<string, string>> = {
   "image/heic": "heic",
   "image/heif": "heif",
   "application/pdf": "pdf",
+  "video/mp4": "mp4",
+  "video/quicktime": "mov",
+  "video/webm": "webm",
 };
 
 /** File extension for a type either bucket accepts; null for any other type. */

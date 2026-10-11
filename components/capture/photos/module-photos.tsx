@@ -32,8 +32,10 @@ import { UploadNotices } from "./upload-notices";
 
 export type ModulePhotosProps = {
   inspectionId: string;
-  /** Module or custom module key; null for the photos not tagged yet. */
+  /** Module or custom module key; null for the photos not tagged yet. New photos get this tag. */
   moduleKey: string | null;
+  /** Every photo of the inspection, whatever its tag (Source Documents, Media); new ones still get moduleKey. */
+  listAll?: boolean;
   /** The size, hand, defect or box in focus: new photos are tagged with it. */
   focus?: PhotoFocus | null;
   /** The screen's own read-only state (approved, not the user's): no adding, editing or deleting. */
@@ -102,6 +104,7 @@ export function ModulePhotos({
   showNotices = true,
   nameContext,
   description,
+  listAll = false,
   className,
 }: ModulePhotosProps) {
   useStartPhotoQueue();
@@ -119,8 +122,8 @@ export function ModulePhotos({
   const options = media.media?.options ?? EMPTY_TAG_OPTIONS;
   const access = media.media?.access ?? null;
   const photos = useMemo(
-    () => slotPhotos({ media: media.media, queue, inspectionId, moduleKey }),
-    [media.media, queue, inspectionId, moduleKey],
+    () => slotPhotos({ media: media.media, queue, inspectionId, moduleKey: listAll ? undefined : moduleKey }),
+    [media.media, queue, inspectionId, moduleKey, listAll],
   );
 
   // Photos kept from an earlier page have no preview in memory yet: read it from the device.

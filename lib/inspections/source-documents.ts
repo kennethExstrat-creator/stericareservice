@@ -10,6 +10,8 @@ import { readModuleEntry, writeModuleData, type InspectionData } from "@/modules
 /** The page's key on the capture screen (?module=source_documents) and the files' module_key. */
 export const SOURCE_DOCUMENTS_KEY = "source_documents";
 export const SOURCE_DOCUMENTS_TITLE = "Source Documents";
+/** The module_key of the inspection's videos, on Source Documents' Media tab (its photos are untagged inspection_photos). */
+export const SOURCE_MEDIA_KEY = "source_media";
 
 /**
  * Modules the AI never fills: the conclusion holds the inspector's own

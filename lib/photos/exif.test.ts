@@ -194,7 +194,10 @@ describe("sniffType", () => {
     expect(sniffType(ftyp("mif1", "mif1", "heic"))).toBe("image/heic");
     expect(sniffType(ftyp("mif1", "mif1", "miaf"))).toBe("image/heif");
     expect(sniffType(ftyp("avif", "mif1", "miaf"))).toBe("image/avif");
-    expect(sniffType(ftyp("isom", "isom", "mp41"))).toBeNull();
+    // Phone videos for Source Documents' Media tab: MP4, and an iPhone's QuickTime movie.
+    expect(sniffType(ftyp("isom", "isom", "mp41"))).toBe("video/mp4");
+    expect(sniffType(ftyp("qt  ", "qt  ", "qt  "))).toBe("video/quicktime");
+    expect(sniffType(ftyp("crx ", "crx ", "crx "))).toBeNull();
   });
 
   it("falls back to the declared type, then the extension", () => {

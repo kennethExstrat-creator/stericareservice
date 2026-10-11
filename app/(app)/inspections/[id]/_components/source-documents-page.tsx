@@ -6,13 +6,15 @@
 // labels and cartons. The AI reads each one and fills the empty fields of
 // the pages after it; a file it has read is AI Verified. Photos are made
 // 2048 px JPEG first, as every photo is (lib/photos), so the AI can read them.
-import { BadgeCheckIcon, RotateCcwIcon, TriangleAlertIcon } from "lucide-react";
-import type { Ref } from "react";
+import { BadgeCheckIcon, FileTextIcon, ImagesIcon, RotateCcwIcon, TriangleAlertIcon } from "lucide-react";
+import { useState, type Ref } from "react";
 import { FileSlot } from "@/components/capture/files";
+import { ModulePhotos } from "@/components/capture/photos";
 import type { SlotFile } from "@/components/capture/photos/photo-model";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { SOURCE_DOCUMENTS_KEY, SOURCE_DOCUMENTS_TITLE } from "@/lib/inspections/source-documents";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { SOURCE_DOCUMENTS_KEY, SOURCE_DOCUMENTS_TITLE, SOURCE_MEDIA_KEY } from "@/lib/inspections/source-documents";
 import { browserCodec } from "@/lib/photos/browser-codec";
 import { processPhoto } from "@/lib/photos/process";
 import { SectionFrame } from "./section-frame";
@@ -40,7 +42,10 @@ async function readable(files: File[]): Promise<File[]> {
   );
 }
 
+type SourceTab = "files" | "media";
+
 export function SourceDocumentsPage({ panelId, tabLabelledBy, titleRef, inspectionId, readOnly, documents }: SourceDocumentsPageProps) {
+  const [tab, setTab] = useState<SourceTab>("files");
   return (
     <SectionFrame
       id={panelId}
@@ -48,18 +53,61 @@ export function SourceDocumentsPage({ panelId, tabLabelledBy, titleRef, inspecti
       tabLabelledBy={tabLabelledBy}
       title={SOURCE_DOCUMENTS_TITLE}
       headingRef={titleRef(SOURCE_DOCUMENTS_KEY)}
-      summary="Inspection forms, PO papers and photos for this PO. AI fills in the steps."
+      summary={
+        tab === "files"
+          ? "Inspection forms and PO papers for this PO. AI fills in the steps."
+          : "The inspection's photos and videos."
+      }
+      actions={
+        <ToggleGroup
+          type="single"
+          variant="outline"
+          spacing={0}
+          value={tab}
+          onValueChange={(value) => value && setTab(value as SourceTab)}
+          aria-label="Show"
+          data-testid="source-tabs"
+        >
+          <ToggleGroupItem value="files" className="gap-1.5 px-3">
+            <FileTextIcon aria-hidden />
+            Files
+          </ToggleGroupItem>
+          <ToggleGroupItem value="media" className="gap-1.5 px-3">
+            <ImagesIcon aria-hidden />
+            Media
+          </ToggleGroupItem>
+        </ToggleGroup>
+      }
     >
-      <FileSlot
-        inspectionId={inspectionId}
-        moduleKey={SOURCE_DOCUMENTS_KEY}
-        kind="other"
-        title="Files"
-        readOnly={readOnly}
-        prepare={readable}
-        fileExtra={(file) => <AiMark file={file} documents={documents} readOnly={readOnly} />}
-        compactRows
-      />
+      {tab === "files" ? (
+        <FileSlot
+          inspectionId={inspectionId}
+          moduleKey={SOURCE_DOCUMENTS_KEY}
+          kind="other"
+          title="Files"
+          readOnly={readOnly}
+          prepare={readable}
+          fileExtra={(file) => <AiMark file={file} documents={documents} readOnly={readOnly} />}
+          compactRows
+        />
+      ) : (
+        <>
+          {/* Every photo of the inspection; new ones come in untagged (tag them in the gallery). */}
+          <ModulePhotos inspectionId={inspectionId} moduleKey={null} listAll readOnly={readOnly} title="Photos" />
+          <FileSlot
+            inspectionId={inspectionId}
+            moduleKey={SOURCE_MEDIA_KEY}
+            kind="other"
+            title="Videos"
+            readOnly={readOnly}
+            addLabel="Add Video"
+            accept="video/*"
+            hint="Drop videos here (up to 50 MB each), or"
+            noun={["video", "videos"]}
+            compactRows
+          />
+        </>
+      )}
     </SectionFrame>
   );
 }

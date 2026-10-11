@@ -73,7 +73,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, FileSearchIcon, ImagesIcon, ListChecksIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useInspectionFiles } from "@/components/capture/files";
-import { PhotoSlot, photoUploadsSettled, useUploadsWaiting } from "@/components/capture/photos";
+import { photoUploadsSettled, useUploadsWaiting } from "@/components/capture/photos";
 import {
   ProgressTracker,
   RefusedEntryStoreContext,
@@ -1165,7 +1165,7 @@ function ActivePage({
   const several = sections.length > 1;
   return (
     <PagePanel id={panelId} tabLabelledBy={tabLabelledBy} single={!several}>
-      {sections.map((section, index) => (
+      {sections.map((section) => (
         <SectionPart
           key={section.key}
           {...shared}
@@ -1175,8 +1175,6 @@ function ActivePage({
           tabLabelledBy={several ? undefined : tabLabelledBy}
           // On a page of several, each section's comment, photos, Switch Off and its form's own buttons are read out with its title.
           nameContext={several ? section.title : undefined}
-          // The notices about the inspection's photos are about the whole inspection: once a page.
-          showPhotoNotices={index === 0}
           headingRef={titleRef(section.key)}
           focusPath={focusRequest?.sectionKey === section.key ? focusRequest.path : null}
           refusedEntries={refusedStores.get(section.key) ?? null}
@@ -1200,12 +1198,6 @@ type SectionPartProps = SharedSectionProps & {
    * where its form is in trouble.
    */
   nameContext?: string;
-  /**
-   * The first section on the page shows the notices about the inspection's
-   * photos: those waiting on this device, and the uploaded ones that could
-   * not be loaded.
-   */
-  showPhotoNotices: boolean;
   headingRef: Ref<HTMLHeadingElement>;
   focusPath: IssuePath | null;
   /** Where the section's number fields keep what they refused, so it outlives them; null to keep their own. */
@@ -1225,7 +1217,6 @@ function SectionPart({
   frameId,
   tabLabelledBy,
   nameContext,
-  showPhotoNotices,
   headingRef,
   template,
   effective,
@@ -1251,20 +1242,9 @@ function SectionPart({
   onCommentChange,
   onOverridesChange,
 }: SectionPartProps) {
-  // What this section's module or form reported in focus, and only that,
-  // tags its photos (BUILD_SPEC 8.1). Every section starts with nothing (the
-  // page keys each SectionPart by its section, the screen keys the page),
-  // so the size kept from another section tags a photo here only once the
-  // module here shows it and says so, as tensile does for the size it opens
-  // on; on the order's page the order's sizes never tag packing's photos.
-  const [photoFocus, setPhotoFocus] = useState<CaptureFocus>(NO_FOCUS);
-  const onFocusChange = useCallback(
-    (focus: CaptureFocus) => {
-      setPhotoFocus((current) => (sameFocus(current, focus) ? current : focus));
-      onFocusReported(focus);
-    },
-    [onFocusReported],
-  );
+  // What the module reports in focus: the screen keeps the size for the next section.
+  // (Photos are added on Source Documents' Media tab, untagged, since 11 October 2026.)
+  const onFocusChange = useCallback((focus: CaptureFocus) => onFocusReported(focus), [onFocusReported]);
 
   if (section.kind === "excluded") {
     return (
@@ -1299,16 +1279,6 @@ function SectionPart({
         onChange={(text) => onCommentChange(namespace, section.key, text)}
         readOnly={readOnly}
         context={nameContext}
-      />
-      {/* Side by side with the comment, its heading and its box take the footer's two rows. */}
-      <PhotoSlot
-        inspectionId={inspectionId}
-        moduleKey={section.key}
-        focus={photoFocus}
-        readOnly={readOnly}
-        showNotices={showPhotoNotices}
-        nameContext={nameContext}
-        className="xl:row-span-3 xl:grid xl:grid-rows-subgrid"
       />
     </>
   );
@@ -1399,13 +1369,6 @@ function SectionPart({
 /* ------------------------------------------------------------------ *
  * Pieces
  * ------------------------------------------------------------------ */
-
-/** The same things in focus: a module reporting again what it reported changes nothing on screen. */
-function sameFocus(a: CaptureFocus, b: CaptureFocus): boolean {
-  const keys = new Set([...Object.keys(a), ...Object.keys(b)] as (keyof CaptureFocus)[]);
-  for (const key of keys) if (a[key] !== b[key]) return false;
-  return true;
-}
 
 /** Space between the sticky bars and a section title scrolled up to them. */
 const TITLE_GAP_PX = 16;

@@ -53,6 +53,12 @@ export type FileSlotProps = {
   fileExtra?: (file: SlotFile) => ReactNode;
   /** Uploaded files without their kind and state line (the list's compactRows). */
   compactRows?: boolean;
+  /** The add button, the picker's types and the drop hint, when not the kind's (Source Documents' videos). */
+  addLabel?: string;
+  accept?: string;
+  hint?: string;
+  /** What the files are called in the count and the empty line, when not files of the kind: ["video", "videos"]. */
+  noun?: readonly [one: string, many: string];
   className?: string;
 };
 
@@ -84,6 +90,10 @@ export function FileSlot({
   prepare,
   fileExtra,
   compactRows,
+  addLabel,
+  accept,
+  hint,
+  noun,
   className,
 }: FileSlotProps) {
   useStartPhotoQueue();
@@ -101,7 +111,7 @@ export function FileSlot({
   const canEditUploaded = !readOnly && access?.canEdit === true;
   const preparing = queue.preparingByModule[moduleSlotKey(inspectionId, moduleKey)] ?? NOTHING_PREPARING;
   const Heading = headingLevel === 2 ? "h2" : "h3";
-  const label = ADD_LABEL[kind];
+  const label = addLabel ?? ADD_LABEL[kind];
   const heading = useRef<HTMLHeadingElement>(null);
   const focusHeading = useCallback(() => heading.current?.focus(), []);
 
@@ -118,7 +128,7 @@ export function FileSlot({
           {title ?? PLURAL[kind]}
         </Heading>
         <p aria-live="polite" className="text-sm text-muted-foreground tabular-nums">
-          {countFiles(files.length)}
+          {noun ? `${files.length} ${files.length === 1 ? noun[0] : noun[1]}` : countFiles(files.length)}
         </p>
       </div>
 
@@ -135,7 +145,7 @@ export function FileSlot({
           compactRows={compactRows}
         />
       ) : preparing.files === 0 ? (
-        <p className="text-sm text-muted-foreground">No {PLURAL[kind].toLowerCase()} yet.</p>
+        <p className="text-sm text-muted-foreground">No {noun ? noun[1] : PLURAL[kind].toLowerCase()} yet.</p>
       ) : null}
 
       {preparing.files > 0 && (
@@ -147,6 +157,8 @@ export function FileSlot({
       {canAdd && (
         <FileAddControls
           label={label}
+          accept={accept}
+          hint={hint}
           onFiles={async (chosen) =>
             photoQueueStore.addFiles({
               inspectionId,

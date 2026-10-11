@@ -7,11 +7,12 @@ import { DownloadIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-type PreviewKind = "pdf" | "image" | "other";
+type PreviewKind = "pdf" | "image" | "video" | "other";
 
 export function previewKind(name: string): PreviewKind {
   if (/\.pdf$/i.test(name)) return "pdf";
   if (/\.(jpe?g|png|webp|gif)$/i.test(name)) return "image";
+  if (/\.(mp4|m4v|mov|webm)$/i.test(name)) return "video";
   return "other";
 }
 
@@ -48,6 +49,11 @@ export function FilePreviewDialog({
           {file && kind === "image" && (
             // eslint-disable-next-line @next/next/no-img-element -- a signed link to a private file: not for next/image
             <img src={file.url} alt={file.name} className="size-full object-contain" />
+          )}
+          {file && kind === "video" && (
+            <video src={file.url} controls playsInline className="size-full bg-black object-contain">
+              <track kind="captions" />
+            </video>
           )}
           {file && kind === "other" && (
             <p className="flex size-full items-center justify-center p-6 text-center text-muted-foreground">

@@ -157,7 +157,7 @@ describe("storage paths", () => {
   });
 
   it("has an extension for every type the buckets accept, and none for others", () => {
-    expect(FILE_TYPES.map(extensionFor)).toEqual(["pdf", "jpg", "png", "webp", "heic", "heif"]);
+    expect(FILE_TYPES.map(extensionFor)).toEqual(["pdf", "jpg", "png", "webp", "heic", "heif", "mp4", "mov", "webm"]);
     expect(PHOTO_TYPES.every((type) => extensionFor(type) !== null)).toBe(true);
     expect(extensionFor("image/gif")).toBeNull();
   });

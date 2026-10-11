@@ -15,6 +15,10 @@ type FileAddControlsProps = {
   onFiles: (files: File[]) => void;
   /** "Add Lab Report". */
   label: string;
+  /** What the picker offers; PDFs and images by default. */
+  accept?: string;
+  /** Beside the button on a desktop: "Drop PDFs or images here, or". */
+  hint?: string;
   disabled?: boolean;
   className?: string;
 };
@@ -23,7 +27,14 @@ function carriesFiles(event: DragEvent): boolean {
   return Array.from(event.dataTransfer?.types ?? []).includes("Files");
 }
 
-export function FileAddControls({ onFiles, label, disabled = false, className }: FileAddControlsProps) {
+export function FileAddControls({
+  onFiles,
+  label,
+  accept = FILE_ACCEPT,
+  hint = "Drop PDFs or images here, or",
+  disabled = false,
+  className,
+}: FileAddControlsProps) {
   const input = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const depth = useRef(0);
@@ -79,7 +90,7 @@ export function FileAddControls({ onFiles, label, disabled = false, className }:
       >
         <UploadIcon aria-hidden className="size-4 shrink-0 text-brand-600" />
         <p className="min-w-0 flex-1">
-          {dragging ? <span className="font-medium text-brand-700">Drop to add</span> : "Drop PDFs or images here, or"}
+          {dragging ? <span className="font-medium text-brand-700">Drop to add</span> : hint}
         </p>
         <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => input.current?.click()}>
           {label}
@@ -88,7 +99,7 @@ export function FileAddControls({ onFiles, label, disabled = false, className }:
       <input
         ref={input}
         type="file"
-        accept={FILE_ACCEPT}
+        accept={accept}
         multiple
         tabIndex={-1}
         aria-hidden

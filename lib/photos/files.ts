@@ -30,7 +30,7 @@ export async function prepareFile(file: Blob & { readonly name?: string }): Prom
   const type = detectType(head, file.type, file.name);
   const extension = type && (FILE_TYPES as readonly string[]).includes(type) ? extensionFor(type) : null;
   if (!type || !extension) {
-    return { ok: false, reason: "unsupported", message: "Lab reports and certificates must be PDF, JPEG, PNG, WebP or HEIC." };
+    return { ok: false, reason: "unsupported", message: "Files must be PDF, JPEG, PNG, WebP or HEIC; videos MP4, MOV or WebM." };
   }
   if (file.size > FILE_SIZE_LIMIT) {
     return { ok: false, reason: "too_large", message: "The file is larger than 50 MB." };
