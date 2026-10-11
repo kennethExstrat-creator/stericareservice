@@ -18,8 +18,8 @@ type Props = CaptureProps<GloveInfoData, GloveInfoConfig, GloveInfoComputed>;
 
 const TWO: GloveInfoData = {
   variants: [
-    { sizes: ["S"], surfaceTexture: "Finger-textured", indicativeWeight: 3.1, colour: "Blue", length: "240 mm minimum" },
-    { sizes: ["M", "L"], surfaceTexture: "Smooth", indicativeWeight: 4.2, colour: "White", length: "300 mm minimum" },
+    { sizes: ["S"], gloveType: null, surfaceTexture: "Finger-textured", indicativeWeight: 3.1, colour: "Blue", length: "240 mm minimum" },
+    { sizes: ["M", "L"], gloveType: null, surfaceTexture: "Smooth", indicativeWeight: 4.2, colour: "White", length: "300 mm minimum" },
   ],
 };
 

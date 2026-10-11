@@ -19,7 +19,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { fieldIssues, labelFor, type CaptureProps } from "@/modules/_framework";
 import { variantName, weightLabel, weightSizeOf, type GloveInfoComputed } from "./calc";
-import { GLOVE_INFO_FIELDS, type GloveInfoConfig } from "./config";
+import { GLOVE_INFO_FIELDS, OPTIONAL_GLOVE_INFO_FIELDS, type GloveInfoConfig } from "./config";
 import { addVariant, removeVariant, setIndicativeWeight, setText, tidyText, toggleSize } from "./edit";
 import { emptyVariant, MAX_VARIANTS, TEXT_MAX_LENGTH, type GloveInfoData, type GloveInfoTextField } from "./schema";
 
@@ -62,6 +62,7 @@ export default function Capture({
           <div key={field} className="min-w-0 space-y-1.5" {...issuePathProps(["variants", index, field])}>
             <Label htmlFor={`${id}-${index}-${field}`} className="leading-snug touch:text-base">
               {labelFor(labels, field)}
+              {OPTIONAL_GLOVE_INFO_FIELDS.has(field) && <span className="font-normal text-muted-foreground"> (Optional)</span>}
             </Label>
             <Input
               id={`${id}-${index}-${field}`}

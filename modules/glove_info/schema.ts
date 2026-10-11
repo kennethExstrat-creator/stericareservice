@@ -17,12 +17,14 @@ export const TEXT_MAX_LENGTH = 2000;
 /** More variants than any PO holds: a list that grows without end is a mistake. */
 export const MAX_VARIANTS = 20;
 
-export const GLOVE_INFO_TEXT_FIELDS = ["surfaceTexture", "colour", "length"] as const;
+export const GLOVE_INFO_TEXT_FIELDS = ["gloveType", "surfaceTexture", "colour", "length"] as const;
 export type GloveInfoTextField = (typeof GLOVE_INFO_TEXT_FIELDS)[number];
 
 export const GloveVariantSchema = z.strictObject({
   /** The sizes this variant covers, canonical; none picked: every size of the order. */
   sizes: z.array(CanonicalSizeSchema).default(() => []),
+  /** As on the onsite form: "Nitrile, powder free". */
+  gloveType: TextCellSchema,
   /** "Finger-textured". */
   surfaceTexture: TextCellSchema,
   /** Grams. Weight compares each size it covers with it (rule 9). */
@@ -33,7 +35,7 @@ export const GloveVariantSchema = z.strictObject({
 });
 export type GloveVariant = z.infer<typeof GloveVariantSchema>;
 
-const VARIANT_FIELDS = ["surfaceTexture", "indicativeWeight", "colour", "length"] as const;
+const VARIANT_FIELDS = ["gloveType", "surfaceTexture", "indicativeWeight", "colour", "length"] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

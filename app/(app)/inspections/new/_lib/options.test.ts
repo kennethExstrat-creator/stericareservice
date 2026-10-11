@@ -42,9 +42,9 @@ describe("a template as the form shows it", () => {
       unit: "pcs",
       sizes: ["XS", "S", "M", "L", "XL"],
     });
-    // Modules and custom modules in screen order: Glove Type follows the header.
-    expect(option.sections.slice(0, 3)).toEqual(["Manufacturer Information", "Glove Type", "Glove Information"]);
-    expect(option.sections).toHaveLength(15);
+    // Modules and custom modules in screen order: Glove Type is part of Glove Information (11 October 2026).
+    expect(option.sections.slice(0, 3)).toEqual(["Manufacturer Information", "Glove Information", "Order"]);
+    expect(option.sections).toHaveLength(14);
     expect(option.titles.header).toBe("Manufacturer Information");
     expect(Object.keys(option.titles)).not.toContain("tensile");
     expect(option.fieldsOff).toEqual({});

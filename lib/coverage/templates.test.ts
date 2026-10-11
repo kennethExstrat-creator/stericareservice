@@ -415,11 +415,16 @@ describe("what the reports fix", () => {
 });
 
 describe("custom modules", () => {
-  it("holds the onsite forms' Glove Type in every template, after the header", () => {
+  it("holds the onsite forms' Glove Type in Glove Information, or after the header where a template has none (STD_SG)", () => {
     for (const code of TEMPLATE_CODES) {
-      const [gloveType] = TEMPLATES[code].customModules;
-      expect(gloveType).toMatchObject({ key: "glove_type", after: "header", layout: "fields" });
-      expect(gloveType.fields.map((field) => [field.key, field.label, field.type])).toEqual([["gloveType", "Glove Type", "text"]]);
+      const custom = TEMPLATES[code].customModules.find((module) => module.key === "glove_type");
+      if (code === "STD_SG") {
+        expect(custom).toMatchObject({ key: "glove_type", after: "header", layout: "fields" });
+        expect(custom?.fields.map((field) => [field.key, field.label, field.type])).toEqual([["gloveType", "Glove Type", "text"]]);
+      } else {
+        // Combined into Glove Information (Kenneth, 11 October 2026): a field of each glove variant.
+        expect(custom).toBeUndefined();
+      }
     }
   });
 
@@ -430,7 +435,7 @@ describe("custom modules", () => {
       ["specRequirement", "Specification / Requirement", "text"],
       ["conclusion", "Conclusion", "text"],
     ]);
-    expect(TEMPLATES.STD_EG.customModules.map((module) => module.key)).toEqual(["glove_type"]);
+    expect(TEMPLATES.STD_EG.customModules.map((module) => module.key)).toEqual([]);
     expect(TEMPLATES.STD_SG.customModules.map((module) => module.key)).toEqual(["glove_type"]);
   });
 

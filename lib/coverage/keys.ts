@@ -34,7 +34,7 @@ export const HEADER_FIELDS = [
 ] as const;
 export type HeaderField = (typeof HEADER_FIELDS)[number];
 
-export const GLOVE_INFO_FIELDS = ["surfaceTexture", "indicativeWeight", "colour", "length"] as const;
+export const GLOVE_INFO_FIELDS = ["gloveType", "surfaceTexture", "indicativeWeight", "colour", "length"] as const;
 export type GloveInfoField = (typeof GLOVE_INFO_FIELDS)[number];
 
 export const LOADING_FIELDS = ["containerNo", "sealNo", "cartonsLoaded", "cartonCondition"] as const;

@@ -933,7 +933,12 @@ const REPORT_SAFEDON_EG: SourceField[] = [
  * Onsite forms: sections shared by EG, SG and Safedon EG
  * ------------------------------------------------------------------ */
 
-function shipmentRows(heading: string): Row[] {
+/**
+ * The onsite forms' first block. Glove Type goes to each glove variant
+ * (glove_info) where the template has Glove Information (EG and Safedon,
+ * since 11 October 2026), else to the custom module glove_type (SG).
+ */
+function shipmentRows(heading: string, gloveType: "glove_info" | "custom" = "glove_info"): Row[] {
   return [
     { label: heading, input: "heading", targets: [l("header", "title")] },
     { label: "Manufacturer Name", input: "text", targets: [f("header", "manufacturer")] },
@@ -955,8 +960,11 @@ function shipmentRows(heading: string): Row[] {
     {
       label: "Glove Type",
       input: "text",
-      targets: [custom("glove_type", "gloveType")],
-      notes: "No module holds it (BUILD_SPEC 6.1): custom module glove_type.",
+      targets: gloveType === "glove_info" ? [f("glove_info", "gloveType")] : [custom("glove_type", "gloveType")],
+      notes:
+        gloveType === "glove_info"
+          ? "Each glove variant's Glove Type (glove_info; a custom module of its own until 11 October 2026)."
+          : "No Glove Information on this template: custom module glove_type.",
     },
     {
       label: "Packing Mode",
@@ -1107,7 +1115,7 @@ function sgVisualRows(cls: "major" | "minor", heading: string, total: string, bl
 }
 
 const ONSITE_SG: SourceField[] = [
-  ...section("onsite_SG", "1. Purchase Order / Shipment Information", shipmentRows("Purchase Order / Shipment Information")),
+  ...section("onsite_SG", "1. Purchase Order / Shipment Information", shipmentRows("Purchase Order / Shipment Information", "custom")),
   ...section("onsite_SG", "2. Inspected by", INSPECTED_BY_ROWS),
   ...section("onsite_SG", "3. PO Info / Sampling Plan", [
     { label: "PO Info", input: "label", targets: [l("order_lots", "title")] },

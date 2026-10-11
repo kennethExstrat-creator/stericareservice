@@ -157,14 +157,13 @@ describe("every source field has a target (rule 4.2.2: nothing lost)", () => {
     }
   });
 
-  it("holds what no module holds in a custom module: Glove Type, and the Safedon sheet's free text", () => {
+  it("holds what no module holds in a custom module: the SG form's Glove Type, and the Safedon sheet's free text", () => {
     const customs = SOURCE_FIELDS.flatMap((field) =>
       field.targets.filter(isCustomTarget).map((target) => `${field.source}: ${field.label} -> ${target.custom}.${target.field}`),
     );
     expect(customs).toEqual([
-      "onsite_EG: Glove Type -> glove_type.gloveType",
+      // EG and Safedon hold Glove Type in each glove variant (glove_info) since 11 October 2026.
       "onsite_SG: Glove Type -> glove_type.gloveType",
-      "onsite_SAFEDON_EG: Glove Type -> glove_type.gloveType",
       "onsite_SAFEDON_EG: Specification / Requirement -> safedon_dispensing_notes.specRequirement",
       "onsite_SAFEDON_EG: Conclusion -> safedon_dispensing_notes.conclusion",
     ]);

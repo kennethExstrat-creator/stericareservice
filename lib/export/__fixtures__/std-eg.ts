@@ -122,6 +122,8 @@ function gloveInfoData(): GloveInfoData {
     variants: [
       {
         sizes: [],
+        // From the onsite form (the report prints no glove type): a field of the variant since 11 October 2026.
+        gloveType: STD_EG_GLOVE_TYPE,
         surfaceTexture: gloveInfo.surfaceTexture,
         indicativeWeight: gloveInfo.indicativeWeightG,
         colour: gloveInfo.colour,
@@ -452,7 +454,7 @@ export function stdEgRecord(overrides: Partial<InspectionRecord> = {}): Inspecti
     refNo: STD_EG_REF_NO,
     status: "submitted",
     inspectionDate: EXAMPLE.header.inspectionDate.iso,
-    data: { ...data, custom: { glove_type: { gloveType: STD_EG_GLOVE_TYPE } } },
+    data,
     moduleOverrides: {},
     result: "pass",
     suggestedResult: "pass",

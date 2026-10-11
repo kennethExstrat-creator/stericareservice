@@ -59,6 +59,7 @@
             "title": "Glove Information",
             "config": {
               "fields": {
+                "gloveType": true,
                 "surfaceTexture": true,
                 "indicativeWeight": true,
                 "colour": true,
@@ -496,22 +497,6 @@
             "title": "Conclusion"
           }
         ],
-        "customModules": [
-          {
-            "key": "glove_type",
-            "title": "Glove Type",
-            "after": "header",
-            "layout": "fields",
-            "fields": [
-              {
-                "key": "gloveType",
-                "label": "Glove Type",
-                "type": "text",
-                "hint": "As on the onsite form's Purchase Order / Shipment Information."
-              }
-            ]
-          }
-        ],
         "report": {
           "title": "Preshipment Inspection: Nitrile Disposable Examination Gloves",
           "showClientLogo": false
@@ -592,6 +577,7 @@
             "include": true,
             "title": "Glove Information",
             "labels": {
+              "gloveType": "Glove Type",
               "surfaceTexture": "Glove Surface Texture",
               "indicativeWeight": "Indicative Weight (Size M)",
               "colour": "Glove Colour",
@@ -599,6 +585,7 @@
             },
             "config": {
               "fields": {
+                "gloveType": true,
                 "surfaceTexture": true,
                 "indicativeWeight": true,
                 "colour": true,
@@ -1197,22 +1184,7 @@
             "config": {}
           }
         ],
-        "customModules": [
-          {
-            "key": "glove_type",
-            "title": "Glove Type",
-            "after": "header",
-            "layout": "fields",
-            "fields": [
-              {
-                "key": "gloveType",
-                "label": "Glove Type",
-                "type": "text",
-                "hint": "As on the onsite form's Purchase Order / Shipment Information."
-              }
-            ]
-          }
-        ],
+        "customModules": [],
         "report": {
           "title": "Preshipment Inspection: Nitrile Disposable Examination Gloves",
           "showClientLogo": false
@@ -1797,6 +1769,7 @@
             "include": true,
             "title": "Glove Information",
             "labels": {
+              "gloveType": "Glove Type",
               "surfaceTexture": "Glove Surface Texture",
               "indicativeWeight": "Indicative Weight (Size M)",
               "colour": "Glove Colour",
@@ -1804,6 +1777,7 @@
             },
             "config": {
               "fields": {
+                "gloveType": true,
                 "surfaceTexture": true,
                 "indicativeWeight": true,
                 "colour": true,
@@ -2496,20 +2470,6 @@
           }
         ],
         "customModules": [
-          {
-            "key": "glove_type",
-            "title": "Glove Type",
-            "after": "header",
-            "layout": "fields",
-            "fields": [
-              {
-                "key": "gloveType",
-                "label": "Glove Type",
-                "type": "text",
-                "hint": "As on the onsite form's Purchase Order / Shipment Information."
-              }
-            ]
-          },
           {
             "key": "safedon_dispensing_notes",
             "title": "Glove Dispensing Inspection: Onsite Notes",

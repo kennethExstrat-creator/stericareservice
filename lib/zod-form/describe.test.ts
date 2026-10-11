@@ -33,7 +33,8 @@ describe("describeSchema", () => {
     ]);
     const fields = asObject(property(node, "fields"));
     expect(fields.description).toBe("Fields shown on this template");
-    expect(fields.properties.map((entry) => entry.node.kind)).toEqual(["boolean", "boolean", "boolean", "boolean"]);
+    // Glove Type's switch first (in Glove Information since 11 October 2026), then the reports' four.
+    expect(fields.properties.map((entry) => entry.node.kind)).toEqual(["boolean", "boolean", "boolean", "boolean", "boolean"]);
     // CanonicalSizeSchema.describe(...) is a copy of the schema: still recognised as a size.
     expect(property(node, "indicativeWeightSize")).toMatchObject({ kind: "string", marker: "size" });
   });

@@ -16,7 +16,7 @@ import {
   type ContributeInput,
   type Labels,
 } from "@/modules/_framework";
-import { GLOVE_INFO_FIELDS, type GloveInfoConfig, type GloveInfoField } from "./config";
+import { GLOVE_INFO_FIELDS, OPTIONAL_GLOVE_INFO_FIELDS, type GloveInfoConfig, type GloveInfoField } from "./config";
 import type { GloveInfoData, GloveVariant } from "./schema";
 
 /** Nothing is computed: every value is entered. */
@@ -46,6 +46,8 @@ export function calcGloveInfo({
   labels,
 }: CalcInput<GloveInfoData, GloveInfoConfig>): CalcOutput<GloveInfoComputed> {
   const shown = GLOVE_INFO_FIELDS.filter((field) => config.fields[field]);
+  // What the step waits for: the shown fields but the optional ones.
+  const needed = shown.filter((field) => !OPTIONAL_GLOVE_INFO_FIELDS.has(field));
   const issues: CalcIssue[] = [];
 
   data.variants.forEach((variant, index) => {
@@ -75,15 +77,15 @@ export function calcGloveInfo({
     }
   });
 
-  if (shown.length === 0) {
+  if (needed.length === 0) {
     return { result: { status: "info", summary: "No fields are switched on." }, computed: {}, issues };
   }
   if (data.variants.length === 0) {
-    return { result: notDone(`Missing: ${shown.map((field) => fieldLabel(labels, field)).join(", ")}.`), computed: {}, issues };
+    return { result: notDone(`Missing: ${needed.map((field) => fieldLabel(labels, field)).join(", ")}.`), computed: {}, issues };
   }
   const several = data.variants.length > 1;
   const missing = data.variants.flatMap((variant, index) =>
-    shown
+    needed
       .filter((field) => !isFilled(variant, field))
       .map((field) => (several ? `${variantName(index)} ${fieldLabel(labels, field)}` : fieldLabel(labels, field))),
   );
@@ -133,7 +135,7 @@ function isFilled(variant: GloveVariant, field: GloveInfoField): boolean {
 function summarise(data: GloveInfoData, config: GloveInfoConfig): string {
   return data.variants
     .map((variant) => {
-      const words = (["surfaceTexture", "colour", "length"] as const)
+      const words = (["gloveType", "surfaceTexture", "colour", "length"] as const)
         .filter((field) => config.fields[field])
         .map((field) => variant[field]?.trim() ?? "")
         .filter((word) => word !== "");

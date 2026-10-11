@@ -94,16 +94,16 @@ describe("ExportSchema", () => {
       values: {},
     });
     const clash = makeStdEgExport();
-    // STD_EG has a custom module of its own (glove_type): the clash comes after it.
-    expect(clash.custom.map((module) => module.key)).toEqual(["glove_type"]);
+    // STD_EG has no custom module of its own (Glove Type is in Glove Information since 11 October 2026).
+    expect(clash.custom).toEqual([]);
     clash.custom.push(customModule("weight"));
-    expect(issuePaths(clash)).toEqual(["custom.1.key"]);
+    expect(issuePaths(clash)).toEqual(["custom.0.key"]);
 
     // Reserved even when the template leaves that module out, so a later template version can add it.
     const reserved = makeStdEgExport();
     expect(reserved.modules.some((module) => module.key === "documents")).toBe(false);
     reserved.custom.push(customModule("documents"));
-    expect(issuePaths(reserved)).toEqual(["custom.1.key"]);
+    expect(issuePaths(reserved)).toEqual(["custom.0.key"]);
   });
 
   it("rejects duplicate photo and file ids", () => {
@@ -237,7 +237,7 @@ describe("ExportSchema", () => {
 describe("the STD_EG export of the real modules", () => {
   const doc = makeStdEgExport();
 
-  it("lists STD_EG's modules in template order, with its custom Glove Type", () => {
+  it("lists STD_EG's modules in template order, its Glove Type in Glove Information", () => {
     expect(doc.modules.map((module) => module.key)).toEqual([
       "header",
       "glove_info",
@@ -254,9 +254,9 @@ describe("the STD_EG export of the real modules", () => {
       "labeling",
       "conclusion",
     ]);
-    expect(doc.custom).toEqual([
-      expect.objectContaining({ key: "glove_type", after: "header", values: { gloveType: "Nitrile, powder free" } }),
-    ]);
+    expect(doc.custom).toEqual([]);
+    const gloveInfo = doc.modules.find((module) => module.key === "glove_info");
+    expect(gloveInfo?.data).toMatchObject({ variants: [{ gloveType: "Nitrile, powder free" }] });
   });
 
   it("reproduces expected results B: every module passes or informs, weight warns", () => {

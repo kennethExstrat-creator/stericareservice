@@ -295,6 +295,7 @@ const STD_EG_SAMPLING_COLUMNS: Readonly<Record<SamplingColumn, boolean>> = {
   pouchesDyeLeak: false,
 };
 
+/** The onsite SG form's Glove Type: STD_SG has no Glove Information to hold it (EG and Safedon hold it there). */
 const GLOVE_TYPE: CustomModuleSpec = {
   key: "glove_type",
   title: "Glove Type",
@@ -407,7 +408,7 @@ const STD_EG: TemplateSpec = {
     },
     { key: "conclusion", config: {} },
   ],
-  customModules: [GLOVE_TYPE],
+  customModules: [],
   toConfirm: [
     {
       path: "header.fields",
@@ -535,7 +536,7 @@ const SAFEDON_EG: TemplateSpec = {
     },
     { key: "conclusion", config: {} },
   ],
-  customModules: [GLOVE_TYPE, SAFEDON_DISPENSING_NOTES],
+  customModules: [SAFEDON_DISPENSING_NOTES],
   toConfirm: [
     {
       path: "scope.clientScoped",

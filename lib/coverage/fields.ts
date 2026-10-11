@@ -212,11 +212,20 @@ const gloveInfo = defineModule({
   kind: "report",
   alwaysOn: false,
   title: "Glove Information",
-  captures: "Surface texture, indicative weight (size M, g), colour and length, as the reports print them.",
+  captures:
+    "The glove's variants (Kenneth, 11 October 2026: one PO can hold several): each a combination of glove type, surface texture, indicative weight (g), colour and length, for the sizes it covers (none picked: every size).",
   result: "info.",
   rules: [1, 9],
   data: [
-    { key: "surfaceTexture", label: "Glove Surface Texture", type: "text", per: [], entry: "entered" },
+    {
+      key: "gloveType",
+      label: "Glove Type",
+      type: "text",
+      per: [],
+      entry: "entered",
+      notes: "Per variant (variants[].gloveType). The onsite forms' Glove Type; a custom module of its own until 11 October 2026.",
+    },
+    { key: "surfaceTexture", label: "Glove Surface Texture", type: "text", per: [], entry: "entered", notes: "Per variant." },
     {
       key: "indicativeWeight",
       label: "Indicative Weight (Size M)",

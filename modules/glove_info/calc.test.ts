@@ -7,7 +7,7 @@ import { GLOVE_INFO_DEFAULT_CONFIG, GLOVE_INFO_LABELS, type GloveInfoConfig } fr
 import { definition } from "./index";
 import { emptyVariant, type GloveInfoData, type GloveVariant } from "./schema";
 
-const BLUE: GloveVariant = { sizes: [], surfaceTexture: "Finger-textured", indicativeWeight: 3.5, colour: "Blue", length: "240 mm minimum" };
+const BLUE: GloveVariant = { sizes: [], gloveType: null, surfaceTexture: "Finger-textured", indicativeWeight: 3.5, colour: "Blue", length: "240 mm minimum" };
 
 function input(data: GloveInfoData, config: GloveInfoConfig = GLOVE_INFO_DEFAULT_CONFIG): CalcInput<GloveInfoData, GloveInfoConfig> {
   return {

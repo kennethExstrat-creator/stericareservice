@@ -860,9 +860,11 @@ describe("coverage checklist", () => {
     expect(has(titleOf("force_at_break"), "Settings › Gloves Tested")).toBe(true);
     expect(has(titleOf("visual"), "Settings › Classes › Major")).toBe(true);
     expect(has(titleOf("dimensions"), "Settings › Specs")).toBe(true);
-    // A custom module, the report's own layout and a section's heading.
-    const [glove] = template.customModules;
-    expect(targets.some((target) => target.place === `Custom Module ${glove.title}`)).toBe(true);
+    // A custom module (STD_SG's Glove Type: EG holds it in Glove Information), the report's own layout and a section's heading.
+    const sg = resolve(seedDefinition("STD_SG"));
+    const [glove] = sg.customModules;
+    const sgTargets = rows(coverageChecklist(sg)).flatMap((row) => row.targets);
+    expect(sgTargets.some((target) => target.place === `Custom Module ${glove.title}`)).toBe(true);
     expect(has("Report Layout", /./)).toBe(true);
     expect(has(null, /^Section Title “.+”$/)).toBe(true);
     expect(targets.some((target) => target.place?.endsWith(" settings"))).toBe(false);
@@ -942,9 +944,12 @@ describe("coverage checklist", () => {
   });
 
   it("needs the custom modules the inventory names, and the form's sizes", () => {
-    const definition = seedDefinition("STD_EG");
-    const withoutCustom = resolve({ ...definition, customModules: [] });
+    // STD_SG keeps Glove Type in a custom module (EG and Safedon hold it in Glove Information).
+    const sg = seedDefinition("STD_SG");
+    const withoutCustom = resolve({ ...sg, customModules: [] });
     expect(missingRows(coverageChecklist(withoutCustom)).map((row) => row.label)).toEqual(["Glove Type"]);
+
+    const definition = seedDefinition("STD_EG");
 
     const fewerSizes = resolve({ ...definition, sizes: [{ value: "S" }, { value: "M" }, { value: "L" }] });
     const sizeReasons = missingRows(coverageChecklist(fewerSizes)).flatMap((row) => row.targets.map((target) => target.reason));
