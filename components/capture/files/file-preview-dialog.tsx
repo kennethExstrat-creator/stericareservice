@@ -7,7 +7,7 @@ import { DownloadIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-type PreviewKind = "pdf" | "image" | "video" | "other";
+export type PreviewKind = "pdf" | "image" | "video" | "other";
 
 export function previewKind(name: string): PreviewKind {
   if (/\.pdf$/i.test(name)) return "pdf";
@@ -25,10 +25,16 @@ export function FilePreviewDialog({
   file,
   onClose,
 }: {
-  file: { name: string; url: string } | null;
+  /**
+   * kind: what it is, where its name does not say (Media's "Photo 3");
+   * by its name otherwise. downloadName: the name it is saved under, when
+   * not its name.
+   */
+  file: { name: string; url: string; kind?: PreviewKind; downloadName?: string } | null;
   onClose: () => void;
 }) {
-  const kind = file ? previewKind(file.name) : "other";
+  const kind = file ? (file.kind ?? previewKind(file.name)) : "other";
+  const saveAs = file ? (file.downloadName ?? file.name) : "";
   return (
     <Dialog open={file !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="flex h-[min(90dvh,60rem)] w-full flex-col gap-4 p-4 sm:max-w-5xl touch:p-5" data-testid="file-preview">
@@ -37,7 +43,7 @@ export function FilePreviewDialog({
           <DialogDescription className="sr-only">A preview of the file.</DialogDescription>
           {file && (
             <Button asChild variant="outline" size="sm">
-              <a href={downloadUrl(file.url, file.name)} download={file.name}>
+              <a href={downloadUrl(file.url, saveAs)} download={saveAs}>
                 <DownloadIcon aria-hidden />
                 Download
               </a>

@@ -1,7 +1,8 @@
 // Source Documents' Media as the server draws it, with the inspection's
-// photos and files as the browser would have loaded them: the four
-// categories in order, each one compact row until it holds something, and
-// Other only while photos or videos are in no category.
+// photos and files as the browser would have loaded them: Auto-Sort, then
+// the four categories in order, each one compact row until it holds
+// something and then its photos and videos as rows, and Other only while
+// photos or videos are in no category.
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -110,7 +111,7 @@ afterEach(() => {
 });
 
 describe("SourceMedia", () => {
-  it("shows the four categories in order, each one row: title, count, hint, Add Photos and Add Videos", () => {
+  it("shows Auto-Sort, then the four categories in order, each one row: title, count, hint and Add", () => {
     loaded.media = ready([], []);
     const html = render();
     const shown = sections(html);
@@ -120,38 +121,51 @@ describe("SourceMedia", () => {
       expect(part, key).toMatch(new RegExp(`<h3[^>]*>${title}</h3>`));
       expect(part, key).toContain(">0 photos · 0 videos<");
       expect(part, key).toContain(`>${hint}<`);
-      // Read out with where they go: four sections share the buttons' words.
-      expect(part, key).toContain(`Add Photos<span class="sr-only"> to ${title}</span>`);
-      expect(part, key).toContain(`Add Videos<span class="sr-only"> to ${title}</span>`);
-      // Nothing listed yet: no photo or video block under the row.
-      expect(part, key).not.toContain('data-slot="module-photos"');
-      expect(part, key).not.toContain('data-slot="file-slot"');
+      // Read out with where it goes: four sections share the button's word.
+      expect(part, key).toContain(`Add<span class="sr-only"> Photos and Videos to ${title}</span>`);
+      expect(part, key).not.toContain('data-slot="media-row"');
     }
-    // The iPad's pickers: photos and videos, several at once.
-    expect(html.match(/<input[^>]*type="file"[^>]*accept="image\/\*"[^>]*multiple=""/g)).toHaveLength(4);
-    expect(html.match(/<input[^>]*type="file"[^>]*accept="video\/\*"[^>]*multiple=""/g)).toHaveLength(4);
+    // Auto-Sort first, with its own picker.
+    expect(html.indexOf('data-slot="auto-sort"')).toBeLessThan(html.indexOf('data-slot="media-category"'));
+    expect(html).toMatch(/<h3[^>]*>Auto-Sort<\/h3>/);
+    expect(html).toContain(">Drop all photos and videos here. AI sorts each into its category.<");
+    expect(html).toContain("Add Photos and Videos");
+    // The iPad's pickers: photos and videos together, several at once; one a category, and Auto-Sort's.
+    expect(html.match(/<input[^>]*type="file"[^>]*accept="image\/\*,video\/\*"[^>]*multiple=""/g)).toHaveLength(5);
     expect(html).not.toContain(">Other</h3>");
     expect(unanchoredSrOnly(html)).toEqual([]);
   });
 
-  it("lists a category's photos and videos under its row, and only its own", () => {
+  it("lists a category's photos and videos as rows, with a grip, Preview, Download and Delete", () => {
     loaded.media = ready(
       [photo("p1", "media_warehouse"), photo("p2", "media_warehouse"), photo("p3", "media_defects")],
       [file("v1", "media_warehouse", "IMG_0001.MOV")],
     );
-    const shown = sections(render());
+    const html = render();
+    const shown = sections(html);
     expect(shown.media_warehouse).toContain(">2 photos · 1 video<");
-    expect(shown.media_warehouse).toContain('data-slot="module-photos" data-variant="capture" data-module="media_warehouse"');
-    expect(shown.media_warehouse.match(/data-slot="photo-card"/g)).toHaveLength(2);
-    expect(shown.media_warehouse).toContain('data-slot="file-slot" data-module="media_warehouse"');
-    expect(shown.media_warehouse).toContain("IMG_0001.MOV");
-    // The tile names the category by its title, never its key.
-    expect(shown.media_warehouse).toContain('alt="Warehouse"');
+    expect(shown.media_warehouse.match(/data-slot="media-row"/g)).toHaveLength(3);
+    // A photo has no stored name: numbered in upload order across Media. A video keeps its file name.
+    expect(shown.media_warehouse).toContain(">Photo 1<");
+    expect(shown.media_warehouse).toContain(">Photo 2<");
+    expect(shown.media_warehouse).toContain(">IMG_0001.MOV<");
+    expect(shown.media_warehouse).toContain('src="https://storage.example/thumb/p1"');
+    for (const name of ["Photo 1", "IMG_0001.MOV"]) {
+      expect(shown.media_warehouse).toContain(`Move ${name}</span>`);
+      expect(shown.media_warehouse).toContain(`Preview ${name}</span>`);
+      expect(shown.media_warehouse).toContain(`Download ${name}</span>`);
+      expect(shown.media_warehouse).toContain(`Delete ${name}</span>`);
+    }
+    // Saved under its name, with the stored photo's type.
+    expect(shown.media_warehouse).toContain('href="https://storage.example/full/p1?download=Photo%201.jpg"');
+    expect(shown.media_warehouse).toContain('href="https://storage.example/file/v1?download=IMG_0001.MOV"');
+    // The grip drags; on a touch screen a finger on it does not scroll the page.
+    expect(html).toMatch(/<button[^>]*class="[^"]*touch-none[^"]*"[^>]*data-media-grip=""/);
     expect(shown.media_defects).toContain(">1 photo · 0 videos<");
+    expect(shown.media_defects).toContain(">Photo 3<");
     expect(shown.media_defects).not.toContain("IMG_0001.MOV");
     expect(shown.media_samples).toContain(">0 photos · 0 videos<");
-    // Compact rows for a list of photos: no heading of their own, no "loading" or "none" line.
-    expect(shown.media_warehouse).not.toMatch(/<h3[^>]*>Photos<\/h3>|<h3[^>]*>Videos<\/h3>|No videos yet|Loading photos/);
+    expect(unanchoredSrOnly(html)).toEqual([]);
   });
 
   it("shows Other only while photos or videos are in no category: untagged, a step's, the first tab's videos", () => {
@@ -168,13 +182,14 @@ describe("SourceMedia", () => {
     const other = sections(html).other;
     expect(other).toMatch(/<h3[^>]*>Other<\/h3>/);
     expect(other).toContain(">2 photos · 1 video<");
-    expect(other).toContain(">Not in a category yet. Edit a photo to move it into one.<");
-    // Each tile names its own tag: the list mixes them.
-    expect(other).toContain(">Not Tagged<");
+    expect(other).toContain(">Not in a category yet.<");
+    expect(other).toContain(">Photo 2<");
+    // A step's photo says which step it came from.
+    expect(other).toContain(">Photo 3<");
     expect(other).toContain(">Visual · Size M<");
-    expect(other).toContain("Walkthrough.mp4");
-    // Nothing is added to Other: photos and videos go in a category.
-    expect(other).not.toContain("Add Photos");
+    expect(other).toContain(">Walkthrough.mp4<");
+    // Nothing is added to Other: photos and videos go in a category, or through Auto-Sort.
+    expect(other).not.toContain("Add<");
     expect(html).not.toContain("PO-0001.pdf");
     expect(html).not.toContain("Tensile.pdf");
 
@@ -182,11 +197,16 @@ describe("SourceMedia", () => {
     expect(render()).not.toContain(">Other</h3>");
   });
 
-  it("adds nothing on a read-only screen", () => {
-    loaded.media = ready([photo("p2", null)], [], false);
+  it("on a read-only screen adds, moves and deletes nothing; Preview and Download stay", () => {
+    loaded.media = ready([photo("p2", null)], [file("v1", "media_proof", "Proof.mp4")], false);
     const html = render(true);
-    expect(html).not.toContain("Add Photos");
+    expect(html).not.toContain('data-slot="auto-sort"');
+    expect(html).not.toContain(" Photos and Videos to ");
     expect(html).not.toContain('type="file"');
+    expect(html).not.toContain("data-media-grip");
+    expect(html).not.toContain("Delete ");
+    expect(html).toContain("Preview Photo 1</span>");
+    expect(html).toContain("Download Proof.mp4</span>");
     expect(sections(html).other).toContain(">Not in a category.<");
   });
 

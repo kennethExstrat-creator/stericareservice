@@ -1,9 +1,9 @@
 "use client";
 
 // Lab reports and certificates of one module (BUILD_SPEC 8.1: force at
-// break, tensile, documents), and Source Documents' files and videos: PDF,
-// images or videos, uploaded as they are to the inspection-files bucket with
-// a row in inspection_files, through the same background queue as photos. A
+// break, tensile, documents), and Source Documents' files: PDF or images,
+// uploaded as they are to the inspection-files bucket with a row in
+// inspection_files, through the same background queue as photos. A
 // certificate must stay the document the lab issued, so files are never
 // converted.
 import { useCallback, useId, useMemo, useRef, type ReactNode } from "react";
@@ -54,20 +54,6 @@ export type FileSlotProps = {
   fileExtra?: (file: SlotFile) => ReactNode;
   /** Uploaded files without their kind and state line (the list's compactRows). */
   compactRows?: boolean;
-  /** The add button, the picker's types and the drop hint, when not the kind's (Source Documents' videos). */
-  addLabel?: string;
-  accept?: string;
-  hint?: string;
-  /** What the files are called in the count and the empty line, when not files of the kind: ["video", "videos"]. */
-  noun?: readonly [one: string, many: string];
-  /**
-   * The list alone, for a block whose own header names the files, counts
-   * them and adds them (Source Documents' Media categories): no heading row,
-   * and no line while there are none.
-   */
-  bare?: boolean;
-  /** Where keyboard focus goes when the list is gone after a delete, instead of the slot's heading (bare has none). */
-  focusFallback?: () => void;
   className?: string;
 };
 
@@ -99,12 +85,6 @@ export function FileSlot({
   prepare,
   fileExtra,
   compactRows,
-  addLabel,
-  accept,
-  hint,
-  noun,
-  bare = false,
-  focusFallback,
   className,
 }: FileSlotProps) {
   useStartPhotoQueue();
@@ -122,31 +102,26 @@ export function FileSlot({
   const canEditUploaded = !readOnly && access?.canEdit === true;
   const preparing = queue.preparingByModule[moduleSlotKey(inspectionId, moduleKey)] ?? NOTHING_PREPARING;
   const Heading = headingLevel === 2 ? "h2" : "h3";
-  const label = addLabel ?? ADD_LABEL[kind];
+  const label = ADD_LABEL[kind];
   const heading = useRef<HTMLHeadingElement>(null);
   const focusHeading = useCallback(() => heading.current?.focus(), []);
-  const count = (n: number) => (noun ? `${n} ${n === 1 ? noun[0] : noun[1]}` : countFiles(n));
 
-  // Bare: a part of a block named by its own heading, so no region of its own.
-  const Root = bare ? "div" : "section";
   return (
-    <Root
-      aria-labelledby={bare ? undefined : headingId}
+    <section
+      aria-labelledby={headingId}
       data-slot="file-slot"
       data-module={moduleKey}
       className={cn("relative flex min-w-0 flex-col gap-3", className)}
     >
-      {!bare && (
-        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-          {/* A focus target after the last file is deleted, not a control: no ring. */}
-          <Heading ref={heading} id={headingId} tabIndex={-1} className="text-base leading-snug font-semibold text-foreground outline-none">
-            {title ?? PLURAL[kind]}
-          </Heading>
-          <p aria-live="polite" className="text-sm text-muted-foreground tabular-nums">
-            {count(files.length)}
-          </p>
-        </div>
-      )}
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        {/* A focus target after the last file is deleted, not a control: no ring. */}
+        <Heading ref={heading} id={headingId} tabIndex={-1} className="text-base leading-snug font-semibold text-foreground outline-none">
+          {title ?? PLURAL[kind]}
+        </Heading>
+        <p aria-live="polite" className="text-sm text-muted-foreground tabular-nums">
+          {countFiles(files.length)}
+        </p>
+      </div>
 
       {files.length > 0 ? (
         <FileList
@@ -155,26 +130,24 @@ export function FileSlot({
           canEditUploaded={canEditUploaded}
           canEditQueued={canQueue}
           options={media.media?.options ?? EMPTY_TAG_OPTIONS}
-          focusFallback={focusFallback ?? focusHeading}
+          focusFallback={focusHeading}
           onRemoved={onRemoved}
           fileExtra={fileExtra}
           compactRows={compactRows}
         />
-      ) : preparing.files === 0 && !bare ? (
-        <p className="text-sm text-muted-foreground">No {noun ? noun[1] : PLURAL[kind].toLowerCase()} yet.</p>
+      ) : preparing.files === 0 ? (
+        <p className="text-sm text-muted-foreground">No {PLURAL[kind].toLowerCase()} yet.</p>
       ) : null}
 
       {preparing.files > 0 && (
         <p role="status" className="text-sm text-brand-700">
-          Preparing {count(preparing.files)}…
+          Preparing {countFiles(preparing.files)}…
         </p>
       )}
 
       {canAdd && (
         <FileAddControls
           label={label}
-          accept={accept}
-          hint={hint}
           onFiles={async (chosen) =>
             photoQueueStore.addFiles({
               inspectionId,
@@ -186,6 +159,6 @@ export function FileSlot({
           }
         />
       )}
-    </Root>
+    </section>
   );
 }

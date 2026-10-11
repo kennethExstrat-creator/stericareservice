@@ -48,6 +48,8 @@ export interface AddPhotosInput {
   inspectionId: string;
   files: readonly File[];
   tag: PhotoTag;
+  /** Called with each photo's future inspection_photos id once it is kept on this device. */
+  onQueued?: (photo: { id: string; name: string }) => void;
 }
 
 export interface AddFilesInput {
@@ -193,19 +195,24 @@ export class PhotoQueueStore {
     this.stopCurrent();
   }
 
-  /** Processes and queues photos, one at a time. Returns at once: capture never waits. */
-  addPhotos({ inspectionId, files, tag }: AddPhotosInput): void {
-    if (typeof window === "undefined" || files.length === 0) return;
+  /**
+   * Processes and queues photos, one at a time. Returns at once: capture
+   * never waits. The promise settles once each is queued or refused, for a
+   * caller that follows them (Media's Auto-Sort).
+   */
+  addPhotos({ inspectionId, files, tag, onQueued }: AddPhotosInput): Promise<void> {
+    if (typeof window === "undefined" || files.length === 0) return Promise.resolve();
     const slot = moduleSlotKey(inspectionId, tag.moduleKey);
     this.bumpPreparing(inspectionId, slot, "photos", files.length);
     for (const file of files) {
-      this.chain = this.chain.then(() => this.queuePhoto(inspectionId, slot, file, tag)).catch(() => undefined);
+      this.chain = this.chain.then(() => this.queuePhoto(inspectionId, slot, file, tag, onQueued)).catch(() => undefined);
     }
+    return this.chain;
   }
 
-  /** Checks and queues lab reports and certificates. Returns at once. */
-  addFiles({ inspectionId, moduleKey, kind, files, onQueued }: AddFilesInput): void {
-    if (typeof window === "undefined" || files.length === 0) return;
+  /** Checks and queues lab reports and certificates. Returns at once; the promise settles as addPhotos's does. */
+  addFiles({ inspectionId, moduleKey, kind, files, onQueued }: AddFilesInput): Promise<void> {
+    if (typeof window === "undefined" || files.length === 0) return Promise.resolve();
     const slot = moduleSlotKey(inspectionId, moduleKey);
     this.bumpPreparing(inspectionId, slot, "files", files.length);
     for (const file of files) {
@@ -213,6 +220,7 @@ export class PhotoQueueStore {
         .then(() => this.queueFile(inspectionId, slot, moduleKey, kind, file, onQueued))
         .catch(() => undefined);
     }
+    return this.chain;
   }
 
   async retag(id: string, change: { tag?: PhotoTag; caption?: string | null }): Promise<boolean> {
@@ -304,7 +312,13 @@ export class PhotoQueueStore {
 
   /* ---------------------------------------------------------------- */
 
-  private async queuePhoto(inspectionId: string, slot: string, file: File, tag: PhotoTag): Promise<void> {
+  private async queuePhoto(
+    inspectionId: string,
+    slot: string,
+    file: File,
+    tag: PhotoTag,
+    onQueued: AddPhotosInput["onQueued"],
+  ): Promise<void> {
     const name = file.name || "The photo";
     try {
       const queue = await this.whenStarted();
@@ -320,13 +334,15 @@ export class PhotoQueueStore {
       const { photo } = result;
       const preview = photo.thumbBlob ?? (SHOWABLE_TYPES.has(photo.mimeType) ? photo.blob : null);
       const url = preview ? URL.createObjectURL(preview) : null;
+      let id: string;
       try {
-        const id = await queue.enqueuePhoto({ inspectionId, photo, tag });
+        id = await queue.enqueuePhoto({ inspectionId, photo, tag });
         this.setPreview(id, url, { replace: true });
       } catch (error) {
         if (url) URL.revokeObjectURL(url);
         throw error;
       }
+      onQueued?.({ id, name: file.name });
     } catch (error) {
       console.error("Photo upload queue: a photo could not be queued", error);
       toast.error(`${name} was not added`, { description: "This device could not keep it. Try again." });

@@ -21,6 +21,12 @@ export function browserCodec(): ImageCodec {
   return { decode, draw, encodeJpeg };
 }
 
+/** Anything a canvas draws, such as a video's current frame, as an image the codec's draw() takes. */
+export function drawableImage(source: CanvasImageSource, width: number, height: number): DecodedImage {
+  const image: BrowserImage = { width, height, source, close: () => undefined };
+  return image;
+}
+
 /**
  * createImageBitmap applies the Exif orientation ("from-image") and skips
  * the DOM; an <img> is the fallback for browsers that reject the file or
