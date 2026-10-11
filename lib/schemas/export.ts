@@ -22,6 +22,12 @@ import { TemplateUnitSchema } from "./template";
  * One JSON document per inspection: the input of the AI report and of
  * the AI second opinion. It holds everything needed to write the report
  * without opening the app. Bump EXPORT_SCHEMA_VERSION on breaking changes.
+ *
+ * An inspection that covers several purchase orders (PO parts,
+ * lib/inspections/parts.ts) is still one document: the first part's
+ * export, which stands for the inspection, with every other part's export
+ * in `parts`. The second opinion reviews one part at a time, so its
+ * document is a part's export alone (ExportPartSchema).
  * ------------------------------------------------------------------ */
 
 export const EXPORT_SCHEMA_VERSION = "1";
@@ -164,67 +170,104 @@ export const ExportConclusionSchema = z.object({
 });
 export type ExportConclusion = z.infer<typeof ExportConclusionSchema>;
 
+/** What every export holds, a part's and the inspection's alike: the inspection row's own content. */
+const EXPORT_FIELDS = {
+  schemaVersion: z.literal(EXPORT_SCHEMA_VERSION),
+  refNo: z.string().min(1),
+  status: InspectionStatusSchema,
+  timestamps: z.object({
+    createdAt: IsoDateTimeSchema,
+    /** Identifies the inspection version an AI review belongs to. */
+    updatedAt: IsoDateTimeSchema,
+    submittedAt: IsoDateTimeSchema.nullable(),
+    approvedAt: IsoDateTimeSchema.nullable(),
+    exportedAt: IsoDateTimeSchema,
+  }),
+  inspector: z.object({
+    id: z.uuid(),
+    name: z.string().min(1),
+    email: z.email().optional(),
+  }),
+  template: ExportTemplateSchema,
+  /** Included modules in template order. */
+  modules: z.array(ExportModuleSchema),
+  excludedModules: z.array(ExportExcludedModuleSchema),
+  custom: z.array(ExportCustomModuleSchema),
+  photos: z.array(ExportPhotoSchema),
+  files: z.array(ExportFileSchema),
+  conclusion: ExportConclusionSchema,
+};
+
+/**
+ * One PO part's export: its own reference number, status, header (with its
+ * PO), lots, modules, results, photos, files and conclusion. This is what
+ * the AI second opinion reviews, and what `parts` lists. A part never holds
+ * parts of its own: the key is refused, not dropped, so a nested document
+ * cannot pass as a valid one with its parts gone.
+ */
+export const ExportPartSchema = z
+  .object({
+    ...EXPORT_FIELDS,
+    parts: z.never({ error: "A part cannot hold parts of its own." }).optional(),
+  })
+  .superRefine(checkDocument);
+
+export type InspectionPartExport = z.infer<typeof ExportPartSchema>;
+
 export const ExportSchema = z
   .object({
-    schemaVersion: z.literal(EXPORT_SCHEMA_VERSION),
-    refNo: z.string().min(1),
-    status: InspectionStatusSchema,
-    timestamps: z.object({
-      createdAt: IsoDateTimeSchema,
-      /** Identifies the inspection version an AI review belongs to. */
-      updatedAt: IsoDateTimeSchema,
-      submittedAt: IsoDateTimeSchema.nullable(),
-      approvedAt: IsoDateTimeSchema.nullable(),
-      exportedAt: IsoDateTimeSchema,
-    }),
-    inspector: z.object({
-      id: z.uuid(),
-      name: z.string().min(1),
-      email: z.email().optional(),
-    }),
-    template: ExportTemplateSchema,
-    /** Included modules in template order. */
-    modules: z.array(ExportModuleSchema),
-    excludedModules: z.array(ExportExcludedModuleSchema),
-    custom: z.array(ExportCustomModuleSchema),
-    photos: z.array(ExportPhotoSchema),
-    files: z.array(ExportFileSchema),
-    conclusion: ExportConclusionSchema,
+    ...EXPORT_FIELDS,
+    /**
+     * The inspection's other PO parts, in part order, each a whole export
+     * without parts of its own. Left out when the inspection covers one PO;
+     * the fields above are then the inspection's alone, exactly as in
+     * documents written before parts existed, which still validate.
+     */
+    parts: z.array(ExportPartSchema).optional(),
   })
   .superRefine((doc, ctx) => {
-    const moduleKeys = [...doc.modules, ...doc.excludedModules].map((module) => module.key);
-    reportDuplicates(ctx, moduleKeys, ["modules"], "Module");
-    reportDuplicates(
-      ctx,
-      doc.custom.map((module) => module.key),
-      ["custom"],
-      "Custom module",
-    );
-    // Library keys are reserved, so a key in a finding, a question or a photo tag names one section.
-    doc.custom.forEach((module, index) => {
-      if (isModuleKey(module.key)) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["custom", index, "key"],
-          message: `Custom module key "${module.key}" is a library module key; give the custom module its own key.`,
-        });
-      }
-    });
-    reportDuplicates(
-      ctx,
-      doc.photos.map((photo) => photo.id),
-      ["photos"],
-      "Photo",
-    );
-    reportDuplicates(
-      ctx,
-      doc.files.map((file) => file.id),
-      ["files"],
-      "File",
-    );
+    checkDocument(doc, ctx);
+    // A reference number names one part, so a receiver can tell the reports' sections apart.
+    if (doc.parts) {
+      reportDuplicates(ctx, [doc.refNo, ...doc.parts.map((part) => part.refNo)], ["parts"], "Part");
+    }
   });
 
 export type InspectionExport = z.infer<typeof ExportSchema>;
+
+/** The rules inside one part's document. */
+function checkDocument(doc: z.infer<z.ZodObject<typeof EXPORT_FIELDS>>, ctx: z.RefinementCtx): void {
+  const moduleKeys = [...doc.modules, ...doc.excludedModules].map((module) => module.key);
+  reportDuplicates(ctx, moduleKeys, ["modules"], "Module");
+  reportDuplicates(
+    ctx,
+    doc.custom.map((module) => module.key),
+    ["custom"],
+    "Custom module",
+  );
+  // Library keys are reserved, so a key in a finding, a question or a photo tag names one section.
+  doc.custom.forEach((module, index) => {
+    if (isModuleKey(module.key)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["custom", index, "key"],
+        message: `Custom module key "${module.key}" is a library module key; give the custom module its own key.`,
+      });
+    }
+  });
+  reportDuplicates(
+    ctx,
+    doc.photos.map((photo) => photo.id),
+    ["photos"],
+    "Photo",
+  );
+  reportDuplicates(
+    ctx,
+    doc.files.map((file) => file.id),
+    ["files"],
+    "File",
+  );
+}
 
 function reportDuplicates(
   ctx: z.RefinementCtx,

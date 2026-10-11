@@ -5,18 +5,22 @@ import { createClient } from "@/lib/supabase/server";
 
 /*
  * GET /api/inspections/[id]/export (BUILD_SPEC 9.1): the inspection export as
- * a JSON download, for its inspector or an admin.
+ * a JSON download, for its inspector or an admin. For an inspection of
+ * several POs, any part's id gives the whole inspection's export: the first
+ * part's, with the other parts in `parts`, named after the first part's
+ * reference number.
  *
  *   401  not signed in
  *   403  signed in, but the account is not active
- *   404  no such inspection, or not one this account may export (the two look
- *        the same, so the route never reveals that someone else's exists)
+ *   404  no such inspection, or not one this account may export, part by part
+ *        (the two look the same, so the route never reveals that someone
+ *        else's exists)
  *   500  the inspection could not be turned into a valid export
  *   503  Supabase not configured, or the database or storage did not answer
  *
  * proxy.ts lets /api through without redirecting; this handler checks the
  * session itself, reads through the signed-in user's client (Row Level
- * Security) and checks owner-or-admin again on the record.
+ * Security) and checks owner-or-admin again on every part's record.
  */
 
 const NO_STORE = { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" } as const;
