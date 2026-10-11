@@ -11,8 +11,9 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), warning: vi.fn() } }));
 import { toast } from "sonner";
 import { refreshInspectionMedia } from "@/components/capture/photos";
 import { AlertDialog } from "@/components/ui/alert-dialog";
+import type { PartState } from "@/lib/inspections/part-moves";
 import type { ApprovalFacts } from "@/lib/inspections/review/approval";
-import { ApproveDescription, settle } from "./review-actions";
+import { ApproveDescription, PartsApproveDescription, settle } from "./review-actions";
 
 const INSPECTION_ID = "11111111-1111-4111-8111-111111111111";
 
@@ -93,5 +94,43 @@ describe("ApproveDescription", () => {
 
   it("lists no cautions when there is nothing to weigh", () => {
     expect(render({ finalResult: "pass", suggestedResult: "pass", errors: 0 })).not.toContain("<ul");
+  });
+});
+
+describe("PartsApproveDescription", () => {
+  const state = (id: string, label: string, overrides: Partial<PartState> = {}): PartState => ({
+    id,
+    label,
+    refNo: "INS-2026-0001",
+    status: "submitted",
+    version: "2026-10-06T06:05:03.123456+00:00",
+    primary: false,
+    result: "pass",
+    suggestedResult: "pass",
+    ...overrides,
+  });
+  const OTHER = "22222222-2222-4222-8222-222222222222";
+  const THIRD = "33333333-3333-4333-8333-333333333333";
+
+  it("shows each PO's results, this page's part as it is checked here, and every caution naming its PO, what keeps it back first", () => {
+    const parts = [
+      state(INSPECTION_ID, "PO 2680276", { primary: true, result: "fail" }),
+      state(OTHER, "PO 2680277", { status: "draft", result: null }),
+      state(THIRD, "PO 3", { result: "fail" }),
+    ];
+    const html = renderToStaticMarkup(
+      <AlertDialog open>
+        <PartsApproveDescription parts={parts} currentId={INSPECTION_ID} finalResult="pass" suggestedResult="pass" errors={1} />
+      </AlertDialog>,
+    );
+    expect(html.match(/data-slot="alert-dialog-description"/g)).toHaveLength(1);
+    const text = plain(html);
+    expect(text).toContain("PO Final Result Suggested Result PO 2680276 Passed Passed PO 2680277 Draft Not Chosen Passed PO 3 Failed Passed");
+    expect(text).toContain(
+      "PO 2680277 is a draft: every PO must be submitted before the inspection can be approved. " +
+        "The checks found 1 error in PO 2680276. Reopen it instead if the inspector should fix it first. " +
+        "The inspector has not chosen a final result for PO 2680277. " +
+        "The final result of PO 3 differs from its suggested result.",
+    );
   });
 });

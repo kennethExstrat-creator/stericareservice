@@ -10,10 +10,18 @@
 // the review. The suggested result is a pill in DESIGN.md's words (Passed,
 // Failed, On Hold), with the reasons under it only when there are any
 // (suggestion.ts): a clean pass says nothing twice.
-import { useActionState, useState } from "react";
+//
+// An inspection of several PO parts (lib/inspections/parts.ts) is submitted
+// as a whole: the button says so ("Submit All 3 POs"), confirming also
+// checks what this device holds of the other parts (other-parts.ts), and
+// the server submits every part or none. When another part keeps it back,
+// the confirmation names that PO with a link to it.
+import { useActionState, useContext, useState } from "react";
+import Link from "next/link";
 import { unstable_rethrow } from "next/navigation";
 import { CloudUploadIcon, OctagonXIcon, SendIcon } from "lucide-react";
 import { refreshInspectionMedia } from "@/components/capture/photos";
+import { PhotoUserContext } from "@/components/capture/photos/hooks";
 import { StatusPill } from "@/components/qc";
 import {
   AlertDialog,
@@ -27,11 +35,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { blockedSubmitMessage } from "@/lib/inspections/capture/issues";
+import { allPartsLabel, joinWords, type SubmitPartProblem } from "@/lib/inspections/part-moves";
+import { groupRefNo, partLabel, type InspectionPart } from "@/lib/inspections/parts";
+import { INSPECTIONS_PATH } from "@/lib/inspections/search-params";
 import type { InspectionResult } from "@/lib/schemas/common";
 import type { ModuleOverrides } from "@/lib/schemas/template";
 import type { ValidationIssue } from "@/lib/validation";
 import { cn } from "@/lib/utils";
 import { submitInspection, type SubmitResult } from "../actions";
+import { otherPartsHeldUp } from "./other-parts";
 import { unreachable } from "./unreachable";
 
 const IDLE: SubmitResult = { status: "idle" };
@@ -51,6 +63,12 @@ export type SubmitBlocked = {
 type SubmitControlProps = {
   inspectionId: string;
   refNo: string;
+  /**
+   * The inspection's PO parts, first part first, this one among them
+   * (loadParts): with several, Submit covers them all. Left out, or one
+   * part: the inspection alone.
+   */
+  parts?: readonly InspectionPart[];
   /** Errors on screen: the button opens the issues panel instead of submitting. */
   errorCount: number;
   warningCount: number;
@@ -71,6 +89,7 @@ type SubmitControlProps = {
 export function SubmitControl({
   inspectionId,
   refNo,
+  parts,
   errorCount,
   warningCount,
   suggested,
@@ -82,11 +101,27 @@ export function SubmitControl({
   className,
 }: SubmitControlProps) {
   const [open, setOpen] = useState(false);
+  // The user the capture page names for its photo queue: their local copies of the other parts.
+  const userId = useContext(PhotoUserContext);
+  const several = parts !== undefined && parts.length > 1 ? parts : null;
+  const scope = several ? submitScope(several, inspectionId, refNo) : null;
 
   const [state, formAction, pending] = useActionState(async (): Promise<SubmitResult> => {
     const prepared = await prepare();
     if (!prepared.ok) return { status: "error", message: prepared.message };
-    const result = await submitInspection({ inspectionId, dataHash: prepared.dataHash }).catch((error: unknown) => {
+    if (several) {
+      const held = await otherPartsHeldUp(several, inspectionId, userId).catch((error: unknown) => {
+        console.error("[capture] the other POs could not be checked", error);
+        return { message: "Could not check this device's photo uploads for the other POs. Try again.", parts: [] };
+      });
+      if (held) return { status: "error", message: held.message, parts: held.parts };
+    }
+    const result = await submitInspection({
+      inspectionId,
+      dataHash: prepared.dataHash,
+      // The POs the confirmation named: the server submits them only while they are the inspection's.
+      ...(several ? { partIds: several.map((part) => part.id) } : {}),
+    }).catch((error: unknown) => {
       try {
         unstable_rethrow(error);
       } catch (signal) {
@@ -127,7 +162,7 @@ export function SubmitControl({
         aria-haspopup="dialog"
       >
         {pending ? <Spinner aria-hidden /> : <SendIcon aria-hidden />}
-        {pending ? "Submitting…" : "Submit"}
+        {pending ? "Submitting…" : (scope?.action ?? "Submit")}
       </Button>
       <AlertDialog
         open={open}
@@ -139,12 +174,14 @@ export function SubmitControl({
         <AlertDialogContent>
           <form action={formAction} className="grid gap-6">
             <AlertDialogHeader>
-              <AlertDialogTitle className="text-lg font-bold">Submit {refNo} for Review?</AlertDialogTitle>
+              <AlertDialogTitle className="text-lg font-bold">{scope?.title ?? `Submit ${refNo} for Review?`}</AlertDialogTitle>
               <AlertDialogDescription>
-                Once it is submitted it can no longer be changed here. An admin reviews it and can send it back.
+                {scope
+                  ? `${scope.list} go together. Once they are submitted they can no longer be changed here. An admin reviews them and can send them back.`
+                  : "Once it is submitted it can no longer be changed here. An admin reviews it and can send it back."}
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <SubmitSummary suggested={suggested} warningCount={warningCount} />
+            <SubmitSummary suggested={suggested} warningCount={warningCount} poLabel={scope?.current} />
             {uploadsWaiting && !pending && (
               <p
                 role="status"
@@ -155,12 +192,7 @@ export function SubmitControl({
                 <span>{uploadsWaiting}</span>
               </p>
             )}
-            {state.status === "error" && (
-              <p role="alert" className="flex items-start gap-2 text-sm font-medium text-fail touch:text-base">
-                <OctagonXIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
-                {state.message}
-              </p>
-            )}
+            {state.status === "error" && <SubmitError message={state.message} parts={state.parts} />}
             <AlertDialogFooter>
               <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
               <Button
@@ -169,7 +201,7 @@ export function SubmitControl({
                 className={cn(pending && "cursor-progress")}
               >
                 {pending ? <Spinner aria-hidden /> : <SendIcon aria-hidden />}
-                {pending ? "Submitting…" : "Submit for Review"}
+                {pending ? "Submitting…" : (scope?.action ?? "Submit for Review")}
               </Button>
             </AlertDialogFooter>
           </form>
@@ -180,22 +212,79 @@ export function SubmitControl({
 }
 
 /**
+ * The words of a submit that covers several parts: the action ("Submit All
+ * 3 POs"), the dialog's title under the inspection's reference number (the
+ * first part's), the POs it names, and this part's PO, whose suggestion the
+ * summary shows.
+ */
+export function submitScope(parts: readonly InspectionPart[], currentId: string, refNo: string) {
+  const labels = parts.map((part, index) => partLabel(part, index));
+  const index = parts.findIndex((part) => part.id === currentId);
+  const action = `Submit ${allPartsLabel(parts.length)}`;
+  return {
+    action,
+    title: `${action} of ${groupRefNo(parts) ?? refNo} for Review?`,
+    list: joinWords(labels),
+    current: index >= 0 ? labels[index] : undefined,
+  };
+}
+
+/**
+ * Why the submit did not go, read out as it appears. When other parts keep
+ * the inspection back, each with what it needs and a link to open it.
+ */
+export function SubmitError({ message, parts }: { message: string; parts?: readonly SubmitPartProblem[] }) {
+  const line = (
+    <>
+      <OctagonXIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
+      {message}
+    </>
+  );
+  if (!parts || parts.length === 0) {
+    return (
+      <p role="alert" className="flex items-start gap-2 text-sm font-medium text-fail touch:text-base">
+        {line}
+      </p>
+    );
+  }
+  return (
+    <div role="alert" data-slot="submit-parts" className="grid gap-2 text-sm touch:text-base">
+      <p className="flex items-start gap-2 font-medium text-fail">{line}</p>
+      <ul className="grid gap-1 pl-6">
+        {parts.map((part) => (
+          <li key={part.id} className="flex flex-wrap items-center gap-x-3">
+            <span className="text-foreground">{part.message}</span>
+            <Button asChild variant="link" className="h-auto px-0 py-1 touch:h-11 touch:px-0">
+              <Link href={`${INSPECTIONS_PATH}/${part.id}`}>Open {part.label}</Link>
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
  * The confirmation's summary: the suggested result as a pill in DESIGN.md's
  * words (Passed, Failed, On Hold, as every pill outside the Conclusion
  * section), why in a line each only when there is something to say (none for
  * a clean pass: the pill says it), and how many warnings go into the report.
+ * Of several parts, the summary is this part's, and says which PO it is.
  */
 export function SubmitSummary({
   suggested,
   warningCount,
+  poLabel,
 }: {
   suggested: SubmitControlProps["suggested"];
   warningCount: number;
+  /** "PO 2680276": the part this screen shows, when the submit covers several. */
+  poLabel?: string;
 }) {
   return (
     <dl className="grid gap-3 text-sm touch:text-base">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <dt className="text-muted-foreground">Suggested Result</dt>
+        <dt className="text-muted-foreground">{poLabel ? `Suggested Result for ${poLabel}` : "Suggested Result"}</dt>
         <dd>
           <StatusPill status={suggested.result} />
         </dd>
