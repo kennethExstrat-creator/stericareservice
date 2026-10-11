@@ -377,6 +377,13 @@ describe("CounterTable", () => {
     }
   });
 
+  it("gives each stepper room above and below, so a column of steppers never touches itself", () => {
+    const classesOf = (tag: string) => (/class="([^"]*)"/.exec(tag)?.[1] ?? "").split(" ");
+    const cells = tagsWith(render(), "data-nonzero:bg-brand-50");
+    expect(cells.length).toBeGreaterThan(0);
+    for (const cell of cells) expect(classesOf(cell)).toEqual(expect.arrayContaining(["py-1.5", "touch:py-2"]));
+  });
+
   it("keeps the label column at 14rem, 16rem from 1280 px, so a wide table scrolls instead of squeezing it", () => {
     // A cell's width is no minimum in table auto layout; its min-width is.
     const classesOf = (tag: string) => (/class="([^"]*)"/.exec(tag)?.[1] ?? "").split(" ");

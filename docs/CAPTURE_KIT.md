@@ -2,6 +2,13 @@
 
 Shared building blocks for every module's `Capture.tsx` (`docs/MODULES.md` section 10), so all sixteen modules look and behave the same and the look is tuned in one place. Capture renders the module body only; the screen wraps it in `ModuleCard`. Import components from `@/components/qc` and text helpers from `@/lib/format`. Check here before writing a control of your own.
 
+## Changed on 12 October 2026 (steppers with room)
+
+Nothing breaks, and no Capture has to change (Kenneth: the number adding buttons "feel very crowded"). You get:
+
+1. **A slimmer Stepper.** Each − and + is the whole target, 28 px (44 px on touch), its fill a 24 px circle inside it (36 px on touch), and the pill adds no padding of its own: 30 px tall and 94 px wide on desktop, 46 px and 130 px on touch (38 × 110 and 50 × 138 before). Every Stepper has this size, CountField's and labelling's No. inspected included, so a stepper set over a count column matches the ones in it. Keys, hold to repeat, a swipe that counts nothing and what is spoken work as before.
+2. **CounterTable gives each stepper room**: 6 px above and below on desktop, 8 px on touch, so the steppers of a column no longer touch each other or the row lines. Rows are 43 px on desktop (41 before) and stay 63 px on touch. The count columns keep their widths, so stacked tables (Critical, Major, Minor) still line up, and the header and totals still stick.
+
 ## Changed on 12 October 2026 (tables that use the width)
 
 Nothing breaks, and no Capture has to change (Kenneth: tables "leaving a lot of space", titles "displaced"). You get:

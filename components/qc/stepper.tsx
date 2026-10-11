@@ -39,10 +39,15 @@ type StepperProps = {
   className?: string;
 };
 
-// At a limit a button greys its icon and drops its fill instead of fading as
-// a whole: opacity would fade the focus ring with it.
+// A button is the whole target, 28 px (44 px on touch), and its fill a circle
+// inside its padding (bg-clip-content), 24 px (36 px on touch): the pill has no
+// padding of its own, so it is 30 px tall (46 px on touch) and a column of
+// steppers in a CounterTable has room between its rows. The inset focus ring
+// sits in that padding, around the circle. At a limit a button greys its icon
+// and drops its fill instead of fading as a whole: opacity would fade the
+// focus ring with it.
 const BUTTON =
-  "inline-flex size-8 shrink-0 items-center justify-center rounded-full outline-none transition-colors focus-ring-inset aria-disabled:cursor-not-allowed aria-disabled:bg-transparent aria-disabled:text-slate-400 touch:size-11 [&_svg]:size-4 touch:[&_svg]:size-5";
+  "inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-clip-content p-0.5 outline-none transition-colors focus-ring-inset aria-disabled:cursor-not-allowed aria-disabled:bg-transparent aria-disabled:text-slate-400 touch:size-11 touch:p-1 [&_svg]:size-4 touch:[&_svg]:size-5";
 
 export function Stepper({
   value,
@@ -157,7 +162,8 @@ export function Stepper({
       data-disabled={disabled || undefined}
       onKeyDown={onKeyDown}
       className={cn(
-        "relative inline-flex items-center gap-1 rounded-full border border-input bg-card p-0.5 shadow-xs select-none [-webkit-touch-callout:none] data-disabled:opacity-50",
+        // gap-0.5: the value's focus ring, 2 px clear of it, ends where a button's circle starts.
+        "relative inline-flex items-center gap-0.5 rounded-full border border-input bg-card shadow-xs select-none [-webkit-touch-callout:none] data-disabled:opacity-50",
         className,
       )}
     >
@@ -185,7 +191,8 @@ export function Stepper({
         aria-valuemin={min}
         aria-valuemax={max}
         aria-disabled={disabled || undefined}
-        className="min-w-[3ch] rounded-sm px-1 text-center text-base font-semibold tabular-nums outline-none focus-ring touch:text-lg"
+        // leading-5: one line, so its focus ring stays inside the 30 px pill.
+        className="min-w-[3ch] rounded-sm px-1 text-center text-base leading-5 font-semibold tabular-nums outline-none focus-ring touch:text-lg"
       >
         {value}
       </span>

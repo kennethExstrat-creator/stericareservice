@@ -483,8 +483,10 @@ export function CounterTable({
                         {...cellFocusProps(onCellFocus, cell)}
                         {...issuePathProps(cellIssuePath?.(cell))}
                         className={cn(
-                          // A fixed width (VALUE_WIDTH), so stacked tables line up.
-                          "border-b border-border px-2 py-px text-center align-middle data-nonzero:bg-brand-50 touch:py-1.5",
+                          // A fixed width (VALUE_WIDTH), so stacked tables line up, and room above and
+                          // below the stepper (6 px, 8 px on touch), so the steppers of a column never
+                          // touch each other or the row lines: rows of 43 px, 63 px on touch.
+                          "border-b border-border px-2 py-1.5 text-center align-middle data-nonzero:bg-brand-50 touch:py-2",
                           valueWidth,
                           index === 0 ? "border-l" : "border-l border-l-slate-100",
                           hidden(column),
