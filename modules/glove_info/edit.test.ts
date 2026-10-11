@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addVariant, removeVariant, setIndicativeWeight, setText, tidyText, toggleSize } from "./edit";
+import { addVariant, removeVariant, setIndicativeWeight, setLength, setText, tidyText, toggleSize } from "./edit";
 import { emptyGloveInfo, emptyVariant, TEXT_MAX_LENGTH, type GloveInfoData } from "./schema";
 
 const ORDER = ["XS", "S", "M", "L", "XL"];
@@ -14,7 +14,7 @@ describe("glove_info edits", () => {
   });
 
   it("keeps text as typed, cut to the schema's limit, and trims it once left", () => {
-    expect(setText(one(), 0, "length", "x".repeat(TEXT_MAX_LENGTH + 5)).variants[0].length).toHaveLength(TEXT_MAX_LENGTH);
+    expect(setText(one(), 0, "colour", "x".repeat(TEXT_MAX_LENGTH + 5)).variants[0].colour).toHaveLength(TEXT_MAX_LENGTH);
     expect(tidyText(one({ colour: "  Blue " }), 0, "colour").variants[0].colour).toBe("Blue");
     expect(tidyText(one({ colour: "   " }), 0, "colour").variants[0].colour).toBeNull();
     expect(tidyText({ variants: [] }, 0, "colour")).toEqual({ variants: [] });
@@ -23,6 +23,11 @@ describe("glove_info edits", () => {
   it("sets the weight of the variant it is typed in", () => {
     const data = setIndicativeWeight(addVariant(one({ colour: "Blue" })), 1, 4.2);
     expect(data.variants.map((variant) => variant.indicativeWeight)).toEqual([null, 4.2]);
+  });
+
+  it("sets the length in mm, and reads a length saved as printed text as its number", () => {
+    expect(setLength(one(), 0, 240).variants[0].length).toBe(240);
+    expect(setLength(one({ length: 240 }), 0, null).variants[0].length).toBeNull();
   });
 
   it("picks and drops sizes, kept in the template's order", () => {

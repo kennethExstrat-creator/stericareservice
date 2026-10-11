@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 import { fieldIssues, labelFor, type CaptureProps } from "@/modules/_framework";
 import { variantName, weightLabel, weightSizeOf, type GloveInfoComputed } from "./calc";
 import { GLOVE_INFO_FIELDS, OPTIONAL_GLOVE_INFO_FIELDS, type GloveInfoConfig } from "./config";
-import { addVariant, removeVariant, setIndicativeWeight, setText, tidyText, toggleSize } from "./edit";
+import { addVariant, removeVariant, setIndicativeWeight, setLength, setText, tidyText, toggleSize } from "./edit";
 import { emptyVariant, MAX_VARIANTS, TEXT_MAX_LENGTH, type GloveInfoData, type GloveInfoTextField } from "./schema";
 
 export default function Capture({
@@ -148,7 +148,21 @@ export default function Capture({
 
             <EnterGroup className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
               {shown.map((field) =>
-                field === "indicativeWeight" ? (
+                field === "length" ? (
+                  <NumberField
+                    key={field}
+                    id={`${id}-${index}-${field}`}
+                    label={labelFor(labels, field)}
+                    unit="mm"
+                    min={0}
+                    minExclusive
+                    value={variant.length}
+                    onValueChange={(mm) => update((current) => setLength(current, index, mm))}
+                    error={findIssue(issues, ["variants", index, field])?.message ?? null}
+                    issuePath={["variants", index, field]}
+                    readOnly={readOnly}
+                  />
+                ) : field === "indicativeWeight" ? (
                   <NumberField
                     key={field}
                     id={`${id}-${index}-${field}`}

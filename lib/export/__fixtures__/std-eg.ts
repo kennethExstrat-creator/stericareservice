@@ -127,7 +127,8 @@ function gloveInfoData(): GloveInfoData {
         surfaceTexture: gloveInfo.surfaceTexture,
         indicativeWeight: gloveInfo.indicativeWeightG,
         colour: gloveInfo.colour,
-        length: gloveInfo.length,
+        // In mm since 11 October 2026: the report's "240 mm minimum" as its number.
+        length: Number(/\d+(?:\.\d+)?/.exec(gloveInfo.length)?.[0] ?? Number.NaN),
       },
     ],
   };

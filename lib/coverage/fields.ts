@@ -238,14 +238,7 @@ const gloveInfo = defineModule({
         "Weight of one glove of the size in config indicativeWeightSize ('(Size M)' in the label). The weight module compares that size's average with it (rule 9).",
     },
     { key: "colour", label: "Glove Colour", type: "text", per: [], entry: "entered" },
-    {
-      key: "length",
-      label: "Glove Length",
-      type: "text",
-      per: [],
-      entry: "entered",
-      notes: "Free text as printed (a minimum length in mm). The measured length and its spec are in dimensions.",
-    },
+    { key: "length", label: "Glove Length", type: "decimal", unit: "mm", per: [], entry: "entered", notes: "Per variant, in mm (Kenneth, 11 October 2026). Saved text (\"240 mm minimum\") reads as its number." },
   ],
   config: [
     {

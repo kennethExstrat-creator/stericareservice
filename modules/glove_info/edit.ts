@@ -48,6 +48,11 @@ export function setIndicativeWeight(data: GloveInfoData, index: number, grams: n
   return withVariant(data, index, (variant) => (variant.indicativeWeight === grams ? variant : { ...variant, indicativeWeight: grams }));
 }
 
+/** The glove length in mm, or null when cleared. */
+export function setLength(data: GloveInfoData, index: number, mm: number | null): GloveInfoData {
+  return withVariant(data, index, (variant) => (variant.length === mm ? variant : { ...variant, length: mm }));
+}
+
 /** Picks a size for the variant, or drops it; the sizes stay in the template's order. */
 export function toggleSize(data: GloveInfoData, index: number, size: string, order: readonly string[]): GloveInfoData {
   return withVariant(data, index, (variant) => {

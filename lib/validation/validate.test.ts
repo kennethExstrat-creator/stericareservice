@@ -128,7 +128,7 @@ describe("validateInspection with the app's modules", () => {
       ["glove_info", "info"],
       ["conclusion", "not_done"],
     ]);
-    expect(report.modules[1].result.summary).toBe("Finger-textured, 240 mm minimum; indicative weight 3.5 g (size M).");
+    expect(report.modules[1].result.summary).toBe("Finger-textured, 240 mm; indicative weight 3.5 g (size M).");
     // An unfinished conclusion blocks submit, whatever it lists as missing.
     expect(report.errors.map((issue) => [issue.moduleKey, issue.code])).toEqual([["conclusion", "module_not_done"]]);
     expect(report.canSubmit).toBe(false);

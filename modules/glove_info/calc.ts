@@ -125,20 +125,22 @@ export function contributeGloveInfo({
 
 function isFilled(variant: GloveVariant, field: GloveInfoField): boolean {
   if (field === "indicativeWeight") return variant.indicativeWeight !== null && variant.indicativeWeight > 0;
+  if (field === "length") return variant.length !== null && variant.length > 0;
   return !isBlank(variant[field]);
 }
 
 /**
- * "Finger-textured, Blue, 240 mm minimum; indicative weight 3.5 g (size M).",
+ * "Finger-textured, Blue, 240 mm; indicative weight 3.5 g (size M).",
  * a sentence per variant, its sizes after its words when it has some picked.
  */
 function summarise(data: GloveInfoData, config: GloveInfoConfig): string {
   return data.variants
     .map((variant) => {
-      const words = (["gloveType", "surfaceTexture", "colour", "length"] as const)
+      const words = (["gloveType", "surfaceTexture", "colour"] as const)
         .filter((field) => config.fields[field])
         .map((field) => variant[field]?.trim() ?? "")
         .filter((word) => word !== "");
+      if (config.fields.length && variant.length !== null) words.push(`${formatDecimal(variant.length)} mm`);
       const sizes = variant.sizes.length > 0 ? ` (${variant.sizes.join(", ")})` : "";
       const parts = [`${words.join(", ")}${sizes}`];
       const weightSize = weightSizeOf(variant, config.indicativeWeightSize);

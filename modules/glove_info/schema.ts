@@ -17,8 +17,18 @@ export const TEXT_MAX_LENGTH = 2000;
 /** More variants than any PO holds: a list that grows without end is a mistake. */
 export const MAX_VARIANTS = 20;
 
-export const GLOVE_INFO_TEXT_FIELDS = ["gloveType", "surfaceTexture", "colour", "length"] as const;
+export const GLOVE_INFO_TEXT_FIELDS = ["gloveType", "surfaceTexture", "colour"] as const;
 export type GloveInfoTextField = (typeof GLOVE_INFO_TEXT_FIELDS)[number];
+
+/**
+ * Glove length in mm (Kenneth, 11 October 2026: show the unit). A length
+ * saved before as printed text ("240 mm minimum") reads as its number.
+ */
+const LengthCellSchema = z.preprocess((value) => {
+  if (typeof value !== "string") return value;
+  const number = value.replace(",", ".").match(/\d+(?:\.\d+)?/);
+  return number ? Number(number[0]) : null;
+}, DecimalCellSchema);
 
 export const GloveVariantSchema = z.strictObject({
   /** The sizes this variant covers, canonical; none picked: every size of the order. */
@@ -30,8 +40,8 @@ export const GloveVariantSchema = z.strictObject({
   /** Grams. Weight compares each size it covers with it (rule 9). */
   indicativeWeight: DecimalCellSchema,
   colour: TextCellSchema,
-  /** As printed: "240 mm minimum". Text, not a measurement: dimensions measures length. */
-  length: TextCellSchema,
+  /** In mm, as on the order or the form (240). The dimensions module measures the gloves' length. */
+  length: LengthCellSchema,
 });
 export type GloveVariant = z.infer<typeof GloveVariantSchema>;
 

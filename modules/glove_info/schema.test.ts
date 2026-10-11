@@ -23,6 +23,11 @@ describe("glove_info data", () => {
     expect(parsed.variants[0]).toMatchObject({ sizes: ["M"], gloveType: null, surfaceTexture: "Smooth", colour: "White" });
   });
 
+  it("reads a glove length saved as printed text as its number in mm", () => {
+    const parsed = GloveInfoDataSchema.parse({ variants: [{ length: "240 mm minimum" }, { length: "n/a" }, { length: 300 }] });
+    expect(parsed.variants.map((variant) => variant.length)).toEqual([240, null, 300]);
+  });
+
   it("refuses sizes the app does not know, unknown keys and too many variants", () => {
     expect(GloveInfoDataSchema.safeParse({ variants: [{ sizes: ["XXXL"] }] }).success).toBe(false);
     expect(GloveInfoDataSchema.safeParse({ variants: [{ shade: "Blue" }] }).success).toBe(false);

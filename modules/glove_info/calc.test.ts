@@ -7,7 +7,7 @@ import { GLOVE_INFO_DEFAULT_CONFIG, GLOVE_INFO_LABELS, type GloveInfoConfig } fr
 import { definition } from "./index";
 import { emptyVariant, type GloveInfoData, type GloveVariant } from "./schema";
 
-const BLUE: GloveVariant = { sizes: [], gloveType: null, surfaceTexture: "Finger-textured", indicativeWeight: 3.5, colour: "Blue", length: "240 mm minimum" };
+const BLUE: GloveVariant = { sizes: [], gloveType: null, surfaceTexture: "Finger-textured", indicativeWeight: 3.5, colour: "Blue", length: 240 };
 
 function input(data: GloveInfoData, config: GloveInfoConfig = GLOVE_INFO_DEFAULT_CONFIG): CalcInput<GloveInfoData, GloveInfoConfig> {
   return {
@@ -30,7 +30,7 @@ describe("glove_info calc", () => {
     const out = calcGloveInfo(input({ variants: [BLUE, { ...BLUE, sizes: ["L"], colour: "White", indicativeWeight: 4.2 }] }));
     expect(out.result.status).toBe("info");
     expect(out.result.summary).toBe(
-      "Finger-textured, Blue, 240 mm minimum; indicative weight 3.5 g (size M). Finger-textured, White, 240 mm minimum (L); indicative weight 4.2 g (size L).",
+      "Finger-textured, Blue, 240 mm; indicative weight 3.5 g (size M). Finger-textured, White, 240 mm (L); indicative weight 4.2 g (size L).",
     );
   });
 

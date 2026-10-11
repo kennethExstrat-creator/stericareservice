@@ -158,7 +158,7 @@ Report module. Captures: The glove's variants (Kenneth, 11 October 2026: one PO 
 | `surfaceTexture` | Glove Surface Texture |  | text |  | inspection | entered |  | Per variant. |
 | `indicativeWeight` | Indicative Weight (Size M) |  | decimal | g | inspection | entered | 1, 9 | Weight of one glove of the size in config indicativeWeightSize ('(Size M)' in the label). The weight module compares that size's average with it (rule 9). |
 | `colour` | Glove Colour |  | text |  | inspection | entered |  |  |
-| `length` | Glove Length |  | text |  | inspection | entered |  | Free text as printed (a minimum length in mm). The measured length and its spec are in dimensions. |
+| `length` | Glove Length |  | decimal | mm | inspection | entered |  | Per variant, in mm (Kenneth, 11 October 2026). Saved text ("240 mm minimum") reads as its number. |
 
 | Config key | Type | Default | Meaning |
 |---|---|---|---|

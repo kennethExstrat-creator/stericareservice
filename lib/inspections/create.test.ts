@@ -322,7 +322,7 @@ describe("start from previous: what is copied", () => {
       factoryGloveCode: "FGC-01",
     });
     // Saved before variants: copied as the first variant, covering every size.
-    expect(modules.glove_info).toEqual({ variants: [{ sizes: [], gloveType: null, surfaceTexture: "Finger-textured", indicativeWeight: 3.5, colour: "Blue", length: "240 mm min" }] });
+    expect(modules.glove_info).toEqual({ variants: [{ sizes: [], gloveType: null, surfaceTexture: "Finger-textured", indicativeWeight: 3.5, colour: "Blue", length: 240 }] });
     expectOnly(modules.packing_config, { glovesPerInner: 100, innersPerCase: 10, glovesPerCase: 1000, packingMode: "10 boxes per carton" });
   });
 
@@ -354,7 +354,7 @@ describe("start from previous: what is copied", () => {
     expectOnly(modules.header, { productName: "Brand A nitrile, code GN-0001", productCode: "GN-0001" });
     const noColour = withConfig(STD_EG, "glove_info", { fields: { surfaceTexture: true, indicativeWeight: true, colour: false, length: true } });
     expect(copyFromPrevious(previous, noColour, MODULE_REGISTRY).modules.glove_info).toEqual(
-      { variants: [{ sizes: [], gloveType: null, surfaceTexture: "Finger-textured", indicativeWeight: 3.5, colour: null, length: "240 mm min" }] },
+      { variants: [{ sizes: [], gloveType: null, surfaceTexture: "Finger-textured", indicativeWeight: 3.5, colour: null, length: 240 }] },
     );
   });
 
