@@ -886,6 +886,9 @@ export function CaptureScreen({
     >
       <CaptureHeader
         heading={shownHeading}
+        // The PO parts bar's links, and a PO just added, leave as Photos and Review do: saved first.
+        onLeave={leaveTo}
+        leavingTo={leavingTo}
         actions={
           <>
             <LeaveLink
