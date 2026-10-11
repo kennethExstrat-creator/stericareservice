@@ -1,8 +1,9 @@
 // Server-rendered markup of the capture body: the template's wording, only
 // the ordered sizes, the two averages per size with their specs and live
-// verdicts, read-only fields, the required lab report and calc's errors.
-// Key, paste and focus handling are the kit's (components/qc), tested there;
-// the edits are pure (edit.test.ts).
+// verdicts, read-only fields, the required lab report in one line with the
+// screen's file slot (what Steri-AI linked or found) and calc's errors. Key,
+// paste and focus handling are the kit's (components/qc), tested there; the
+// edits are pure (edit.test.ts).
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { evaluateInspection, type CaptureProps, type InspectionContext, type ModuleEvaluation } from "@/modules/_framework";
@@ -40,10 +41,11 @@ function evaluationOf(data: TensileData, context: InspectionContext) {
   return (evaluation ?? null) as ModuleEvaluation<TensileComputed> | null;
 }
 
-function render(overrides: Partial<Props> = {}): string {
+/** The body with the example's data, evaluated as the screen would. */
+function Body(overrides: Partial<Props>) {
   const data = overrides.data ?? EXAMPLE;
   const context = overrides.context ?? CONTEXT;
-  return renderToStaticMarkup(
+  return (
     <Capture
       data={data}
       config={TENSILE_DEFAULT_CONFIG}
@@ -55,8 +57,29 @@ function render(overrides: Partial<Props> = {}): string {
       readOnly={false}
       onChange={() => {}}
       {...overrides}
-    />,
+    />
   );
+}
+
+/** Where the screen gives no file slot: the template editor's preview. */
+function render(overrides: Partial<Props> = {}): string {
+  return renderToStaticMarkup(<Body {...overrides} />);
+}
+
+/** Inside a screen's file slot, collecting its requests. */
+function renderInSlot(overrides: Partial<Props> = {}): { html: string; requests: FileSlotRequest[] } {
+  const requests: FileSlotRequest[] = [];
+  const html = renderToStaticMarkup(
+    <FileSlotProvider
+      render={(request) => {
+        requests.push(request);
+        return <span data-test="screen-slot" />;
+      }}
+    >
+      <Body {...overrides} />
+    </FileSlotProvider>,
+  );
+  return { html, requests };
 }
 
 const tags = (html: string, pattern: string): string[] =>
@@ -115,19 +138,29 @@ describe("tensile capture", () => {
 
   it("sizes its pills for touch as the kit's own small pills: 16 px on iPad (docs/DESIGN.md)", () => {
     const pills = tags(render({ data: { ...EXAMPLE, labReport: null } }), 'data-slot="status-pill"');
-    // Eight verdicts and the lab report's "Not Attached".
-    expect(pills).toHaveLength(9);
+    // Eight verdicts: the lab report's line shows the file slot, never a pill of its own.
+    expect(pills).toHaveLength(8);
     expect(pills.filter((pill) => !pill.includes("touch:text-base"))).toEqual([]);
   });
 
-  it("says the lab report is required until it is attached", () => {
-    const html = render({ data: { ...EXAMPLE, labReport: null } });
-    expect(html).toContain(">Lab Report</span>");
-    expect(html).toContain("Not Attached");
-    expect(html).toContain("Required before this section is done.");
-    const attached = render();
-    expect(attached).toContain(">Attached</span>");
-    expect(attached).not.toContain("Required before this section is done.");
+  it("shows the lab report in one line: the screen's slot in place of the line's words, calc's state on the line", () => {
+    const missing = renderInSlot({ data: { ...EXAMPLE, labReport: null } });
+    const line = (html: string) => /<div[^>]*data-slot="attachment-status"[^>]*>/.exec(html)?.[0] ?? "";
+    expect(missing.html).toContain(">Lab Report</span>");
+    expect(line(missing.html)).toContain('data-state="none"');
+    expect(missing.html).toMatch(/data-slot="attachment-file"[^>]*><div data-slot="module-file-slot"[^>]*><span data-test="screen-slot">/);
+    // No picker and no words of its own: the slot says what Steri-AI found.
+    expect(missing.html).not.toContain("Not Attached");
+    expect(missing.html).not.toContain("Required before this section is done.");
+    expect(missing.requests).toEqual([
+      expect.objectContaining({ moduleKey: "tensile", kind: "lab_report", fileId: null, state: "none", countsModuleFiles: true }),
+    ]);
+    // Required all the same: without it calc keeps the module not done.
+    expect(evaluationOf({ ...EXAMPLE, labReport: null }, CONTEXT)?.result.status).toBe("not_done");
+    const attached = renderInSlot();
+    expect(line(attached.html)).toContain('data-state="attached"');
+    expect(attached.requests[0]).toMatchObject({ fileId: LAB_REPORT_ID, state: "attached" });
+    expect(evaluationOf(EXAMPLE, CONTEXT)?.result.status).toBe("pass");
   });
 
   it("says where the lab report is attached when the screen gives no file slot (preview, review)", () => {
@@ -136,34 +169,12 @@ describe("tensile capture", () => {
     expect(html).toContain("Attach files on the inspection screen.");
   });
 
-  it("puts the screen's file slot for lab reports in the lab report's block", () => {
-    const requests: FileSlotRequest[] = [];
-    const html = renderToStaticMarkup(
-      <FileSlotProvider
-        render={(request) => {
-          requests.push(request);
-          return <span data-test="screen-slot" />;
-        }}
-      >
-        <Capture
-          data={EXAMPLE}
-          config={TENSILE_DEFAULT_CONFIG}
-          title={TENSILE_TITLE}
-          labels={TENSILE_LABELS}
-          context={CONTEXT}
-          evaluation={evaluationOf(EXAMPLE, CONTEXT)}
-          focusPath={null}
-          readOnly
-          focus={{ size: "M" }}
-          onChange={() => {}}
-        />
-      </FileSlotProvider>,
-    );
+  it("puts the screen's file slot for lab reports in the lab report's block, read-only where the form is", () => {
+    const { html, requests } = renderInSlot({ readOnly: true, focus: { size: "M" } });
     const block = html.slice(html.indexOf('data-slot="lab-report"'), html.indexOf("</section>"));
     expect(block).toContain('<span data-test="screen-slot"></span>');
-    // It opens on the size chosen in the last module, and tags new files with it.
     expect(requests).toEqual([
-      expect.objectContaining({ moduleKey: "tensile", kind: "lab_report", focus: { size: "M" }, readOnly: true }),
+      expect.objectContaining({ moduleKey: "tensile", kind: "lab_report", fileId: LAB_REPORT_ID, readOnly: true }),
     ]);
   });
 
@@ -178,11 +189,12 @@ describe("tensile capture", () => {
     expect(line).toContain('data-issue-path="[&quot;labReport&quot;]"');
   });
 
-  it("shows a lab report added in the gallery as attached, though the module keeps no id", () => {
+  it("shows a lab report uploaded on the step before as attached, though the module keeps no id", () => {
     const context = makeTestContext({ ...CONTEXT, files: [{ id: LAB_REPORT_ID, moduleKey: "tensile", kind: "lab_report" }] });
-    const html = render({ data: { ...EXAMPLE, labReport: null }, context });
+    const { html, requests } = renderInSlot({ data: { ...EXAMPLE, labReport: null }, context });
     expect(html).toContain('data-state="attached"');
-    expect(html).toContain(">Attached</span>");
+    // The screen shows the step's own file: any of its lab reports counts (moduleFileState).
+    expect(requests[0]).toMatchObject({ fileId: null, state: "attached", countsModuleFiles: true });
   });
 
   it("keeps the module's not-done warning, which links to the first empty field, out of that field", () => {

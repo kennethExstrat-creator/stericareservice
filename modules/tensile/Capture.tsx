@@ -5,11 +5,12 @@
 // across sizes on desktop; a pasted block of averages fills the fields in
 // reading order), each with its spec and live verdict; sizes as SizeTabs on
 // iPad (swipe, arrow keys) and side by side on desktop; and the lab report,
-// which this module requires: whether it is attached, and the screen's file
-// slot to attach it (the framework's file channel, BUILD_SPEC 8.1). Wording
-// is the template's (6.2 rule 11); verdicts are computed, never typed. Every
-// write goes through useDataUpdater, from the latest data, so a pasted block
-// lands whole in one change (docs/CAPTURE_KIT.md).
+// which this module requires, in one line: the file Steri-AI linked from
+// Source Documents with Preview and Unlink, or what Steri-AI found (the
+// framework's file slot, BUILD_SPEC 8.1; no picker, Kenneth, 12 October
+// 2026). Wording is the template's (6.2 rule 11); verdicts are computed,
+// never typed. Every write goes through useDataUpdater, from the latest
+// data, so a pasted block lands whole in one change (docs/CAPTURE_KIT.md).
 import { useId, useRef, useState } from "react";
 import {
   AttachmentStatus,
@@ -26,7 +27,7 @@ import { ModuleFileSlot } from "@/modules/_framework/file-slot";
 import { useReportShownSize } from "@/modules/_framework/shown-size";
 import { formatMinimum, judgeAverage, labReportState, MEASURE_RULES, specCaption, type TensileOutcome } from "./calc";
 import { TENSILE_MEASURES } from "./config";
-import { withAverage, withLabReport, withoutLabReport } from "./edit";
+import { withAverage, withoutLabReport } from "./edit";
 import type { TensileComputed, TensileConfig, TensileData } from ".";
 
 export default function Capture({
@@ -62,6 +63,7 @@ export default function Capture({
 
   const caption = specCaption(labelFor(labels, "specRow"), config.standardLabel);
   const reportLabel = labelFor(labels, "labReport");
+  const reportState = labReportState(context, data.labReport);
 
   return (
     // relative: screen-reader text inside never lays out against the page (docs/DESIGN.md).
@@ -69,25 +71,27 @@ export default function Capture({
       <section
         data-slot="lab-report"
         aria-label={reportLabel}
-        className="relative space-y-3 rounded-lg border border-border bg-card px-3 py-2.5"
+        className="relative rounded-lg border border-border bg-card px-3 py-2"
       >
-        {/* Required: until it is attached the module is not done, and its not-done link lands on this line. */}
+        {/* Required: until it is attached the module is not done, and its not-done link lands on this line.
+            calc's warning sits under it when the kept file is gone. */}
         <AttachmentStatus
           label={reportLabel}
-          state={labReportState(context, data.labReport)}
+          state={reportState}
           required
           warning={evaluation?.issues.find((issue) => issue.code === "lab_report_missing")?.message ?? null}
           issuePath={["labReport"]}
-        />
-        <ModuleFileSlot
-          moduleKey="tensile"
-          kind="lab_report"
-          focus={size === "" ? null : { size }}
-          fileId={data.labReport}
-          readOnly={readOnly}
-          onAdded={(file) => update((current) => withLabReport(current, file.id))}
-          onRemoved={(fileId) => update((current) => withoutLabReport(current, fileId))}
-        />
+        >
+          <ModuleFileSlot
+            moduleKey="tensile"
+            kind="lab_report"
+            fileId={data.labReport}
+            state={reportState}
+            countsModuleFiles
+            readOnly={readOnly}
+            onRemoved={(fileId) => update((current) => withoutLabReport(current, fileId))}
+          />
+        </AttachmentStatus>
       </section>
       {/* One run for Enter and paste: one size's two fields on iPad, every size in reading order on desktop. */}
       <EnterGroup>

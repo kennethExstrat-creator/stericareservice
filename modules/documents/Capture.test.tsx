@@ -1,14 +1,16 @@
 // Server-rendered markup of the documents capture: the template's items in
 // its order and wording, status by tapping, expiry dates from a date picker,
 // calc's result per item (chip and selected colour) and its warnings beside
-// the field, rows that keep their size when focus moves, and read-only.
+// the field, rows that keep their size when focus moves, read-only, and the
+// files Steri-AI linked: on each row's attachment line, or one line under the
+// list while no row keeps one.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { CaptureFocus, CaptureProps, InspectionContext, ModuleEvaluation } from "@/modules/_framework";
 import { FileSlotProvider, type FileSlotRequest } from "@/modules/_framework/file-slot";
 import { makeTestContext } from "@/modules/_framework/testing";
 import { calcDocuments, type DocumentsComputed } from "./calc";
-import Capture, { DocumentRow, documentTagLine } from "./Capture";
+import Capture, { DocumentRow } from "./Capture";
 import { DOCUMENTS_DEFAULT_CONFIG, DOCUMENTS_LABELS, DOCUMENTS_TITLE, type DocumentsConfig } from "./config";
 import { emptyDocuments, type DocumentsData } from "./schema";
 
@@ -105,55 +107,67 @@ describe("documents capture: files", () => {
     expect(html).not.toContain('data-slot="document-tags"');
   });
 
-  it("offers the screen's file slot, adding only once a document is chosen, deleting always", () => {
+  it("asks the screen for one line under the list while no row keeps a file: what Steri-AI found, never a picker", () => {
     const slots: FileSlotRequest[] = [];
     const html = render(emptyDocuments(), { slots });
-    expect(html).toContain('<span data-test="screen-slot"></span>');
-    expect(html).toContain("Choose a document above to link its file.");
-    // Nothing chosen yet: nothing to file a new file under, but the files listed can still be deleted.
+    // After the list, inside no row: a row never grows under the finger.
+    expect(html).toMatch(/<\/ul><\/div><div data-slot="module-file-slot"[^>]*><span data-test="screen-slot"><\/span><\/div><\/div>$/);
+    expect(html).not.toContain("Choose a document");
     expect(slots).toEqual([
-      expect.objectContaining({
+      {
         moduleKey: "documents",
         kind: "certificate",
-        title: DOCUMENTS_TITLE,
-        focus: null,
+        fileId: null,
+        state: "none",
+        countsModuleFiles: false,
+        notFoundText: "No documents detected by Steri-AI.",
         readOnly: false,
-        addable: false,
-      }),
+        onRemoved: expect.any(Function),
+      },
     ]);
     const approved: FileSlotRequest[] = [];
     render(emptyDocuments(), { slots: approved, readOnly: true });
-    expect(approved[0]).toMatchObject({ readOnly: true, addable: false });
+    expect(approved).toEqual([expect.objectContaining({ fileId: null, readOnly: true })]);
   });
 
-  it("files a new file under the document in focus, for that document's kind", () => {
-    const slots: FileSlotRequest[] = [];
-    const changes: DocumentsData[] = [];
+  it("shows a row's file on its attachment line through the screen's slot, for that row's kind, and no line under the list", () => {
     const data = emptyDocuments();
-    const html = render(data, { slots, changes, focus: { item: "labTestReports" } });
-    expect(html).toContain("File for “Lab Test Reports”.");
-    expect(slots[0]).toMatchObject({ kind: "lab_report", focus: { item: "labTestReports" }, readOnly: false, addable: true });
-    slots[0].onAdded({ id: FILE, name: "Lab test report.pdf", kind: "lab_report" });
-    expect(changes).toEqual([{ ...data, items: { ...data.items, labTestReports: { ...data.items.labTestReports, file: FILE } } }]);
-  });
-
-  it("opens on no document when the one in focus is not on the checklist", () => {
+    data.items.labTestReports = { ...data.items.labTestReports, file: FILE };
     const slots: FileSlotRequest[] = [];
-    const changes: DocumentsData[] = [];
-    render(emptyDocuments(), { slots, changes, focus: { item: "sterilisation" }, config: REQUIRED_ISO });
-    expect(slots[0]).toMatchObject({ focus: null, addable: false });
-    slots[0].onAdded({ id: FILE, name: "Certificate.pdf", kind: "certificate" });
-    expect(changes).toEqual([]);
+    const html = render(data, { slots });
+    expect(slots).toEqual([
+      expect.objectContaining({ moduleKey: "documents", kind: "lab_report", fileId: FILE, state: "attached", countsModuleFiles: false }),
+    ]);
+    // The row's line: the file in the template's wording, then the slot in place of "Attached".
+    expect(html).toMatch(/>File<\/span><div data-slot="attachment-file"[^>]*><div data-slot="module-file-slot"[^>]*><span data-test="screen-slot">/);
+    expect(html).not.toContain(">Attached<");
   });
 
-  it("lets go of a deleted file wherever an item kept it", () => {
+  it("lets only the row unlinked go of its file", () => {
     const data = emptyDocuments();
     data.items.iso13485 = { ...data.items.iso13485, status: "verified", file: FILE };
+    data.items.fdaCe = { ...data.items.fdaCe, file: FILE };
     const slots: FileSlotRequest[] = [];
     const changes: DocumentsData[] = [];
     render(data, { slots, changes });
+    // In the checklist's order: ISO 13485, then FDA / CE.
+    expect(slots.map((slot) => slot.fileId)).toEqual([FILE, FILE]);
     slots[0].onRemoved(FILE);
     expect(changes.at(-1)?.items.iso13485).toEqual({ ...data.items.iso13485, file: null });
+    expect(changes.at(-1)?.items.fdaCe.file).toBe(FILE);
+  });
+
+  it("drops a row's file line in the render that unlinks it, while calc still sees the file", () => {
+    const linked = emptyDocuments();
+    linked.items.iso13485 = { ...linked.items.iso13485, status: "verified", file: FILE };
+    const unlinked = emptyDocuments();
+    unlinked.items.iso13485 = { ...unlinked.items.iso13485, status: "verified" };
+    const slots: FileSlotRequest[] = [];
+    const html = render(unlinked, { evaluated: linked, slots });
+    // Never the line's own "Attached" for a render: Unlink's focus moves on to the row's controls.
+    expect(html).not.toContain("data-file-state");
+    expect(html).not.toContain(">Attached<");
+    expect(slots).toEqual([expect.objectContaining({ fileId: null, notFoundText: "No documents detected by Steri-AI." })]);
   });
 
   it("says on the row that its file is attached, or missing", () => {
@@ -304,15 +318,6 @@ describe("documents capture", () => {
       );
     expect(row(true)).toContain('data-active="true"');
     expect(row(true).replace(' data-active="true"', "")).toBe(row(false));
-  });
-
-  it("says once, under the list, which document the file is linked to", () => {
-    // Inside no row: the line never moves a row while it is pressed.
-    const chosen = render(withIso({ status: "verified" }), { slots: [], focus: { item: "iso13485" } });
-    expect(chosen.match(/File for “/g)).toHaveLength(1);
-    expect(chosen).toMatch(/<\/ul><\/div><div[^>]*><p data-slot="document-tags"[^>]*>File for “ISO 13485/);
-    expect(documentTagLine("Lab Test Reports")).toBe("File for “Lab Test Reports”.");
-    expect(documentTagLine(null)).toBe("Choose a document above to link its file.");
   });
 
   it("shows calc's result for each item, in the template's words, and its own word while calc catches up", () => {

@@ -1,7 +1,8 @@
 // Server-rendered markup of the capture body: the template's wording, only
 // the ordered sizes, the grid with its computed footer, read-only text, the
-// lab report state and the notices. Key, paste and focus handling are the
-// kit's (components/qc), tested there; the edits are pure (edit.test.ts).
+// lab report's line with the screen's file slot (what Steri-AI linked or
+// found) and the notices. Key, paste and focus handling are the kit's
+// (components/qc), tested there; the edits are pure (edit.test.ts).
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { evaluateInspection, type CaptureProps, type InspectionContext, type ModuleEvaluation } from "@/modules/_framework";
@@ -122,11 +123,14 @@ describe("force_at_break capture", () => {
     expect(html).toContain(">Test report</span>");
   });
 
-  it("says whether the lab report is attached", () => {
-    expect(render()).toMatch(/>Lab Report<\/span><span class="text-muted-foreground">Not Attached</);
+  it("says whether the lab report is attached: calc's state on the line, the screen's slot in it", () => {
+    const line = (html: string) => /<div[^>]*data-slot="attachment-status"[^>]*>/.exec(html)?.[0] ?? "";
+    expect(line(render())).toContain('data-state="none"');
     const attached = render({ data: { sizes: { M: { values: READINGS } }, labReport: LAB_REPORT_ID } });
     expect(attached).toContain('data-attached="true"');
-    expect(attached).toContain(">Attached</span>");
+    // Optional: the readings decide the result whether a lab report is linked or not.
+    const unlinked = evaluationOf({ sizes: { M: { values: READINGS } }, labReport: null }, CONTEXT, FORCE_AT_BREAK_DEFAULT_CONFIG);
+    expect(unlinked?.result.perSize?.M?.status).toBe("pass");
     const gone = render({
       data: { sizes: { M: { values: READINGS } }, labReport: LAB_REPORT_ID },
       context: makeTestContext({ ...CONTEXT, files: [] }),
@@ -134,16 +138,15 @@ describe("force_at_break capture", () => {
     expect(gone).toContain('data-state="missing"');
     expect(gone).toContain("Lab Report: the file attached here is not among this inspection&#x27;s files. It may still be uploading from another device; if it was deleted, attach it again.");
     // The issue link lands on the kit's attachment line, which takes the focus itself.
-    const line = /<div[^>]*data-slot="attachment-status"[^>]*>/.exec(gone)?.[0];
-    expect(line).toContain('tabindex="-1"');
-    expect(line).toContain('data-issue-path="[&quot;labReport&quot;]"');
+    expect(line(gone)).toContain('tabindex="-1"');
+    expect(line(gone)).toContain('data-issue-path="[&quot;labReport&quot;]"');
   });
 
   it("says where the lab report is attached when the screen gives no file slot (preview, review)", () => {
     expect(render()).toContain("Attach files on the inspection screen.");
   });
 
-  it("puts the screen's file slot for lab reports in the lab report's block, tagged with the size on screen", () => {
+  it("puts the screen's file slot for lab reports in the lab report's line, with the kept file and calc's state", () => {
     const requests: FileSlotRequest[] = [];
     const data: ForceAtBreakData = { sizes: { M: { values: READINGS } }, labReport: null };
     const html = renderToStaticMarkup(
@@ -168,9 +171,18 @@ describe("force_at_break capture", () => {
       </FileSlotProvider>,
     );
     const block = html.slice(html.indexOf('data-slot="lab-report"'), html.indexOf("</section>"));
-    expect(block).toContain('<span data-test="screen-slot"></span>');
+    expect(block).toMatch(/data-slot="attachment-file"[^>]*><div data-slot="module-file-slot"[^>]*><span data-test="screen-slot"><\/span>/);
+    // No picker and no words of its own beside the slot.
+    expect(block).not.toContain("Not Attached");
     expect(requests).toEqual([
-      expect.objectContaining({ moduleKey: "force_at_break", kind: "lab_report", focus: { size: "L" }, readOnly: false }),
+      expect.objectContaining({
+        moduleKey: "force_at_break",
+        kind: "lab_report",
+        fileId: null,
+        state: "none",
+        countsModuleFiles: true,
+        readOnly: false,
+      }),
     ]);
   });
 

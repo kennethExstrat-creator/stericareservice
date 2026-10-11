@@ -4,11 +4,12 @@
 // SizeTabs (swipe on iPad, arrow keys on desktop), the readings of the
 // gloves tested in a MeasurementGrid (decimal keypad, Enter goes down, a
 // pasted column fills down) with calc's median and verdict in its footer,
-// and the lab report: whether it is attached, and the screen's file slot to
-// attach it (the framework's file channel, BUILD_SPEC 8.1). Wording is the
-// template's (6.2 rule 11); the median and the verdict are computed, never
-// typed (6.2 rule 2). Read-only, the readings stay focusable on grey. Every
-// write goes through useDataUpdater, from the latest data
+// and the lab report in one line: the file Steri-AI linked from Source
+// Documents with Preview and Unlink, or what Steri-AI found (the framework's
+// file slot, BUILD_SPEC 8.1; no picker, Kenneth, 12 October 2026). Wording
+// is the template's (6.2 rule 11); the median and the verdict are computed,
+// never typed (6.2 rule 2). Read-only, the readings stay focusable on grey.
+// Every write goes through useDataUpdater, from the latest data
 // (docs/CAPTURE_KIT.md). A pasted column that runs past the gloves tested
 // keeps the rest as readings past them, which calc reports, instead of
 // losing them at the grid's end.
@@ -38,7 +39,6 @@ import { MAX_READINGS } from "./config";
 import {
   pastedPastGrid,
   readingsBeyond,
-  withLabReport,
   withoutLabReport,
   withoutReadingsBeyond,
   withReadingChanges,
@@ -83,6 +83,7 @@ export default function Capture({
   });
 
   const reportLabel = labelFor(labels, "labReport");
+  const reportState = labReportState(context, data.labReport);
 
   return (
     // relative: screen-reader text inside never lays out against the page (docs/DESIGN.md).
@@ -90,24 +91,25 @@ export default function Capture({
       <section
         data-slot="lab-report"
         aria-label={reportLabel}
-        className="relative space-y-3 rounded-lg border border-border bg-card px-3 py-2.5"
+        className="relative rounded-lg border border-border bg-card px-3 py-2"
       >
         {/* calc's state of the kept file, and its warning when the file is missing; an issue link lands here. */}
         <AttachmentStatus
           label={reportLabel}
-          state={labReportState(context, data.labReport)}
+          state={reportState}
           warning={evaluation?.issues.find((issue) => issue.code === "lab_report_missing")?.message ?? null}
           issuePath={["labReport"]}
-        />
-        <ModuleFileSlot
-          moduleKey="force_at_break"
-          kind="lab_report"
-          focus={size === "" ? null : { size }}
-          fileId={data.labReport}
-          readOnly={readOnly}
-          onAdded={(file) => update((current) => withLabReport(current, file.id))}
-          onRemoved={(fileId) => update((current) => withoutLabReport(current, fileId))}
-        />
+        >
+          <ModuleFileSlot
+            moduleKey="force_at_break"
+            kind="lab_report"
+            fileId={data.labReport}
+            state={reportState}
+            countsModuleFiles
+            readOnly={readOnly}
+            onRemoved={(fileId) => update((current) => withoutLabReport(current, fileId))}
+          />
+        </AttachmentStatus>
       </section>
       <SizeTabs
         sizes={context.sizes}

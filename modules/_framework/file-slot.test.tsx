@@ -1,88 +1,86 @@
+import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { FileSlotProvider, ModuleFileSlot, type FileSlotRequest } from "./file-slot";
 
 const REPORT = "00000000-0000-4000-8000-000000000402";
 
+/** Renders the slot inside a screen's provider, collecting its requests. */
+function requestsOf(slot: ReactNode): FileSlotRequest[] {
+  const requests: FileSlotRequest[] = [];
+  renderToStaticMarkup(
+    <FileSlotProvider
+      render={(request) => {
+        requests.push(request);
+        return <span data-test="screen-slot">{request.kind}</span>;
+      }}
+    >
+      {slot}
+    </FileSlotProvider>,
+  );
+  return requests;
+}
+
 describe("ModuleFileSlot", () => {
   it("says where files are attached when the screen gives no file slot (preview, review)", () => {
     const html = renderToStaticMarkup(
-      <ModuleFileSlot moduleKey="tensile" kind="lab_report" title="Lab report" readOnly={false} onAdded={() => {}} />,
+      <ModuleFileSlot moduleKey="tensile" kind="lab_report" fileId={null} state="none" readOnly={false} onRemoved={() => {}} />,
     );
     expect(html).toContain('data-slot="module-file-slot"');
     expect(html).toContain("data-unavailable");
-    expect(html).toContain("Lab report: </span>Attach files on the inspection screen.");
+    expect(html).toContain(">Attach files on the inspection screen.</p>");
   });
 
-  it("renders the screen's slot with the module's request, and passes files back", () => {
-    const requests: FileSlotRequest[] = [];
-    const added: string[] = [];
+  it("renders the screen's slot with the module's request: the kept file, calc's state of it, and Unlink", () => {
     const removed: string[] = [];
     const html = renderToStaticMarkup(
-      <FileSlotProvider
-        render={(request) => {
-          requests.push(request);
-          return <span data-test="screen-slot">{request.kind}</span>;
-        }}
-      >
-        <ModuleFileSlot
-          moduleKey="tensile"
-          kind="lab_report"
-          title="Lab report"
-          focus={{ size: "M" }}
-          readOnly={false}
-          onAdded={(file) => added.push(file.id)}
-          onRemoved={(id) => removed.push(id)}
-        />
+      <FileSlotProvider render={(request) => <span data-test="screen-slot">{request.kind}</span>}>
+        <ModuleFileSlot moduleKey="tensile" kind="lab_report" fileId={REPORT} state="attached" readOnly={false} onRemoved={() => {}} />
       </FileSlotProvider>,
     );
     expect(html).toContain('<span data-test="screen-slot">lab_report</span>');
     expect(html).not.toContain("data-unavailable");
-    expect(requests).toHaveLength(1);
-    const [request] = requests;
-    expect(request).toMatchObject({
+    const [request] = requestsOf(
+      <ModuleFileSlot
+        moduleKey="tensile"
+        kind="lab_report"
+        fileId={REPORT}
+        state="attached"
+        countsModuleFiles
+        readOnly={false}
+        onRemoved={(id) => removed.push(id)}
+      />,
+    );
+    expect(request).toEqual({
       moduleKey: "tensile",
       kind: "lab_report",
-      title: "Lab report",
-      focus: { size: "M" },
+      fileId: REPORT,
+      state: "attached",
+      countsModuleFiles: true,
       readOnly: false,
-      addable: true,
+      onRemoved: expect.any(Function),
     });
-    request.onAdded({ id: REPORT, name: "report.pdf", kind: "lab_report" });
     request.onRemoved(REPORT);
-    expect(added).toEqual([REPORT]);
     expect(removed).toEqual([REPORT]);
   });
 
-  it("asks for no title and no focus when the module gives none, and ignores a removal it cannot handle", () => {
-    const requests: FileSlotRequest[] = [];
-    renderToStaticMarkup(
-      <FileSlotProvider
-        render={(request) => {
-          requests.push(request);
-          return null;
-        }}
-      >
-        <ModuleFileSlot moduleKey="force_at_break" kind="lab_report" readOnly onAdded={() => {}} />
-      </FileSlotProvider>,
+  it("counts by the kept id only unless the module says otherwise, and passes its own words for nothing found", () => {
+    const [row] = requestsOf(
+      <ModuleFileSlot moduleKey="documents" kind="certificate" fileId={null} state="none" readOnly onRemoved={() => {}} />,
     );
-    expect(requests[0]).not.toHaveProperty("title");
-    expect(requests[0]).toMatchObject({ focus: null, readOnly: true, addable: false });
-    expect(() => requests[0].onRemoved(REPORT)).not.toThrow();
-  });
-
-  it("asks for a slot that deletes but does not add while the module has nothing to file a new file under", () => {
-    const requests: FileSlotRequest[] = [];
-    renderToStaticMarkup(
-      <FileSlotProvider
-        render={(request) => {
-          requests.push(request);
-          return null;
-        }}
-      >
-        <ModuleFileSlot moduleKey="documents" kind="certificate" readOnly={false} addable={false} onAdded={() => {}} />
-      </FileSlotProvider>,
+    expect(row).toMatchObject({ countsModuleFiles: false, readOnly: true });
+    expect(row).not.toHaveProperty("notFoundText");
+    const [list] = requestsOf(
+      <ModuleFileSlot
+        moduleKey="documents"
+        kind="certificate"
+        fileId={null}
+        state="none"
+        notFoundText="No documents detected by Steri-AI."
+        readOnly={false}
+        onRemoved={() => {}}
+      />,
     );
-    expect(requests[0]).toMatchObject({ readOnly: false, addable: false });
+    expect(list.notFoundText).toBe("No documents detected by Steri-AI.");
   });
 });

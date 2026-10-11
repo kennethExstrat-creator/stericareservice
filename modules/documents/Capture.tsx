@@ -4,16 +4,16 @@
 // template switches on, in its order. Verified, not verified or NA is a tap;
 // the reference no. is typed; the expiry date comes from the date picker
 // (6.2 rule 3). The row being worked on is reported as the focus
-// (CaptureFocus.item), and the file linked through the module's file slot
-// below the list (a Source Document, 12 October 2026) is that row's: the row
-// keeps the file's id and says it is attached. One line under the list says
-// which document that is, never a line inside a row (a row that grew
-// mid-press would move the control under the finger). Until a row is chosen
-// nothing can be linked there, but a linked file can still be unlinked. Each row's chip, and the colour of
-// its selected status, is calc's result for the item; every change goes
-// through useDataUpdater, built from the latest data (edit.ts). A row that
-// keeps a file says so with the kit's attachment line.
-import { useId, useRef, useState } from "react";
+// (CaptureFocus.item). Files are linked by Steri-AI, never here: each
+// certificate or report it reads on Source Documents goes to its row, where
+// nothing is kept yet (readSourceFile; Kenneth, 12 October 2026). A row that
+// keeps a file says so on the kit's attachment line, with the screen's file
+// slot in it: the file's name, Preview and Unlink. While no row keeps one,
+// one line under the list says what Steri-AI is doing ("No documents
+// detected by Steri-AI."). Each row's chip, and the colour of its selected
+// status, is calc's result for the item; every change goes through
+// useDataUpdater, built from the latest data (edit.ts).
+import { useId, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import type { Status } from "@/lib/design/status";
 import { Badge } from "@/components/ui/badge";
@@ -53,7 +53,7 @@ import {
   type DocumentsConfig,
   type DocumentStatus,
 } from "./config";
-import { withItemValues, withoutFile } from "./edit";
+import { withItemValues } from "./edit";
 import type { DocumentEntry, DocumentsData } from "./schema";
 
 /**
@@ -87,7 +87,8 @@ export default function Capture({
   const root = useRef<HTMLDivElement>(null);
   // Opens on the document the screen has in focus, when it is on the checklist.
   const [active, setActive] = useState<DocumentItem | null>(() => focusedItem(items, focus));
-  const canAttach = useFileSlotRenderer() !== null;
+  // The capture screen shows a kept file by name; the editor's preview has none to show.
+  const showsFiles = useFileSlotRenderer() !== null;
   // An issue link lands on the field, or on a missing file's message, which takes the focus itself.
   useIssueFocus(focusPath, { root });
 
@@ -102,8 +103,8 @@ export default function Capture({
     return <p className="text-sm text-muted-foreground touch:text-base">No documents are switched on for this template.</p>;
   }
 
-  // New files go under the row being worked on; one switched off since is not offered.
-  const filing = active !== null && items.some((item) => item.key === active) ? active : null;
+  // Steri-AI links files to rows; until one is linked, the line under the list says what it found.
+  const anyFile = items.some((item) => data.items[item.key].file !== null);
 
   return (
     // @container: the checklist lays out by the module's own width, not the screen's.
@@ -124,52 +125,59 @@ export default function Capture({
           <span>{labelFor(labels, "expiryDate")}</span>
         </div>
         <ul className="divide-y divide-border xl:@3xl:col-span-full xl:@3xl:grid xl:@3xl:grid-cols-subgrid">
-          {items.map((item) => (
-            <DocumentRow
-              key={item.key}
-              item={item}
-              entry={data.items[item.key]}
-              status={computed?.itemStatus?.[item.key] ?? "not_done"}
-              expired={computed?.expired?.[item.key] ?? null}
-              fileState={computed?.fileState?.[item.key] ?? heldFileState(context, data.items[item.key].file)}
-              labels={labels}
-              issues={evaluation?.issues}
-              active={active === item.key}
-              readOnly={readOnly}
-              onFocusItem={() => focusItem(item.key)}
-              onUpdate={(values) => update((current) => withItemValues(current, item.key, values))}
-            />
-          ))}
+          {items.map((item) => {
+            const entry = data.items[item.key];
+            // calc's state of the row's file, but none as soon as it is unlinked: calc runs a render behind
+            // the data, and meanwhile the line would say "Attached" and could take Unlink's focus, then go.
+            const fileState = entry.file === null ? "none" : (computed?.fileState?.[item.key] ?? heldFileState(context, entry.file));
+            return (
+              <DocumentRow
+                key={item.key}
+                item={item}
+                entry={entry}
+                status={computed?.itemStatus?.[item.key] ?? "not_done"}
+                expired={computed?.expired?.[item.key] ?? null}
+                fileState={fileState}
+                fileSlot={
+                  showsFiles && entry.file !== null ? (
+                    <ModuleFileSlot
+                      moduleKey="documents"
+                      kind={DOCUMENT_FILE_KIND[item.key]}
+                      fileId={entry.file}
+                      state={fileState}
+                      readOnly={readOnly}
+                      // Unlink lets this row go of the file; the file stays on Source Documents.
+                      onRemoved={(fileId) =>
+                        update((current) =>
+                          current.items[item.key].file === fileId ? withItemValues(current, item.key, { file: null }) : current,
+                        )
+                      }
+                    />
+                  ) : undefined
+                }
+                labels={labels}
+                issues={evaluation?.issues}
+                active={active === item.key}
+                readOnly={readOnly}
+                onFocusItem={() => focusItem(item.key)}
+                onUpdate={(values) => update((current) => withItemValues(current, item.key, values))}
+              />
+            );
+          })}
         </ul>
       </div>
-      <div className="space-y-3">
-        {/* The capture screen links files; the editor's preview does not. */}
-        {canAttach && !readOnly && (
-          <p data-slot="document-tags" className="text-sm text-muted-foreground touch:text-base">
-            {documentTagLine(filing === null ? null : labelFor(labels, filing))}
-          </p>
-        )}
+      {!anyFile && (
         <ModuleFileSlot
           moduleKey="documents"
-          kind={DOCUMENT_FILE_KIND[filing ?? items[0].key]}
-          title={title}
-          focus={filing === null ? null : { item: filing }}
-          fileId={filing === null ? null : data.items[filing].file}
+          kind="certificate"
+          fileId={null}
+          state="none"
+          notFoundText="No documents detected by Steri-AI."
           readOnly={readOnly}
-          addable={filing !== null}
-          onAdded={(file) => {
-            if (filing !== null) update((current) => withItemValues(current, filing, { file: file.id }));
-          }}
-          // Unlinked on the chosen document: that row lets go; a file gone, every row that kept it.
-          onRemoved={(fileId) =>
-            update((current) =>
-              filing !== null && current.items[filing].file === fileId
-                ? withItemValues(current, filing, { file: null })
-                : withoutFile(current, fileId),
-            )
-          }
+          onRemoved={() => {}}
+          className="text-sm touch:text-base"
         />
-      </div>
+      )}
     </div>
   );
 }
@@ -186,6 +194,7 @@ export function DocumentRow({
   status,
   expired,
   fileState = "none",
+  fileSlot,
   labels,
   issues,
   active,
@@ -200,6 +209,8 @@ export function DocumentRow({
   expired: boolean | null;
   /** The item's file: none kept, attached, or deleted since. */
   fileState?: HeldFileState;
+  /** The screen's file slot for the kept file (its name, Preview and Unlink), in place of the line's own words. */
+  fileSlot?: ReactNode;
   labels: Labels;
   issues: readonly ValidationIssue[] | undefined;
   active: boolean;
@@ -242,7 +253,9 @@ export function DocumentRow({
                 state={fileState}
                 warning={fileIssue?.message ?? null}
                 issuePath={path("file")}
-              />
+              >
+                {fileSlot}
+              </AttachmentStatus>
             </div>
           )}
         </div>
@@ -323,14 +336,6 @@ export function DocumentRow({
       </div>
     </li>
   );
-}
-
-/**
- * The line under the checklist: the document the file below is linked to, in
- * the template's words, or what to do first. Exported for its test.
- */
-export function documentTagLine(document: string | null): string {
-  return document === null ? "Choose a document above to link its file." : `File for “${document}”.`;
 }
 
 /** The document the screen has in focus (CaptureProps.focus), when it is on the checklist. */

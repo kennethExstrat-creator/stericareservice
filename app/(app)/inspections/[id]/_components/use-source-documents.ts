@@ -1,10 +1,11 @@
 "use client";
 
 // Source Documents on the capture screen (docs/AI.md, "Source Documents"):
-// each uploaded file is read once by the AI, one at a time, and the screen
+// each uploaded file is read once by Steri-AI, one at a time, and the screen
 // fills the proposals into empty fields. The readings are kept on the file
-// rows, so a file is read once, whichever device uploaded it; one the AI
-// could not read waits for Read Again.
+// rows, so a file is read once, whichever device uploaded it; one it could
+// not read waits for Read Again. Files uploaded together (New Inspection
+// hands its documents over at once) are each read in turn.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useInspectionMedia } from "@/components/capture/photos/hooks";
@@ -12,13 +13,14 @@ import type { Status } from "@/lib/design/status";
 import type { SectionProgress } from "@/lib/inspections/capture/sections";
 import { SOURCE_DOCUMENTS_KEY, type SourceFileStatus, type SourceProposals } from "@/lib/inspections/source-documents";
 import { getSourceDocumentStatuses, readSourceFile } from "../source-actions";
+import { useShareSourceReading } from "./source-file-link";
 
 const UNREACHABLE = "Could not reach the server. Check the connection, then try again.";
 
 export type SourceDocuments = {
   /** By file id; a file without one is not read yet. */
   statuses: Readonly<Record<string, SourceFileStatus>>;
-  /** The step's result: "pass" once every uploaded file is AI Verified. */
+  /** The step's result: "pass" once every uploaded file is Steri-AI Verified. */
   status: Status;
   progress: SectionProgress;
   retry: (fileId: string) => void;
@@ -58,8 +60,10 @@ export function useSourceDocuments({
     };
   }, [inspectionId]);
 
-  // The next file not read yet, once the readings so far are known.
-  const next = canRead && statuses !== null ? (uploaded.find((file) => !statuses[file.id]) ?? null) : null;
+  // The next file not read yet, once the readings so far are known and none is being read: that
+  // read settling makes the next one new, so files uploaded together are each read in turn.
+  const busy = statuses !== null && Object.values(statuses).some((status) => status.status === "reading");
+  const next = canRead && statuses !== null && !busy ? (uploaded.find((file) => !statuses[file.id]) ?? null) : null;
   useEffect(() => {
     if (!next || reading.current !== null) return;
     const file = next;
@@ -75,8 +79,8 @@ export function useSourceDocuments({
         const filled = apply.current(result.proposals);
         toast.success(
           filled > 0
-            ? `AI filled ${filled} ${filled === 1 ? "field" : "fields"} from ${file.name}.`
-            : `AI read ${file.name}: nothing new to fill.`,
+            ? `Steri-AI filled ${filled} ${filled === 1 ? "field" : "fields"} from ${file.name}.`
+            : `Steri-AI read ${file.name}: nothing new to fill.`,
         );
         settle({ status: "read", summary: result.summary, filled });
       },
@@ -92,6 +96,9 @@ export function useSourceDocuments({
       return rest;
     });
   }, []);
+
+  // The steps' lab report lines say "Steri-AI is reading…" until the last file is read (source-file-link.tsx).
+  useShareSourceReading(inspectionId, canRead, statuses);
 
   const known = statuses ?? {};
   const verified = uploaded.filter((file) => known[file.id]?.status === "read").length;

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { parseSourceAnswer } from "./source-reader";
+import { fileLinkTarget } from "@/lib/inspections/source-documents";
+import { DOCUMENTS_DEFAULT_CONFIG } from "@/modules/documents/config";
+import { attachTargets, attachToText, parseSourceAnswer } from "./source-reader";
 
 describe("parseSourceAnswer", () => {
   const answer = (extra: Record<string, unknown>) =>
@@ -15,5 +17,57 @@ describe("parseSourceAnswer", () => {
     expect(answer({})?.attachTo).toEqual([]);
     expect(answer({ attachTo: "tensile" })?.attachTo).toEqual([]);
     expect(answer({ attachTo: null })?.summary).toBe("Lab test report.");
+  });
+});
+
+describe("attachTargets", () => {
+  it("names where a document itself is filed in the template's words: each step's lab report, each row on the checklist", () => {
+    const targets = attachTargets([
+      { key: "header", title: "Manufacturer Information", config: {} },
+      { key: "force_at_break", title: "Force at Break in Newton (Refer to Attached Where Applicable)", config: {} },
+      { key: "tensile", title: "Physical Properties Average", config: {} },
+      {
+        key: "documents",
+        title: "Supporting Documents",
+        config: {
+          items: [
+            { key: "certificateOfAnalysis", include: true, required: true },
+            { key: "labTestReports", include: true, required: false },
+            { key: "iso13485", include: false, required: false },
+          ],
+        },
+        labels: { certificateOfAnalysis: "COA" },
+      },
+    ]);
+    expect(targets).toEqual([
+      {
+        link: "force_at_break",
+        what: 'the lab report of "Force at Break in Newton (Refer to Attached Where Applicable)": a laboratory test report with force at break results',
+      },
+      {
+        link: "tensile",
+        what: 'the lab report of "Physical Properties Average": a laboratory test report with tensile strength or elongation at break results',
+      },
+      { link: "documents.certificateOfAnalysis", what: '"COA" on "Supporting Documents": the certificate or record itself' },
+      { link: "documents.labTestReports", what: '"Lab Test Reports" on "Supporting Documents": the laboratory test report itself' },
+    ]);
+  });
+
+  it("names only places the file can be linked to (linkSourceFile)", () => {
+    const targets = attachTargets([
+      { key: "tensile", title: "Tensile", config: {} },
+      { key: "force_at_break", title: "Force at Break", config: {} },
+      { key: "documents", title: "Documents", config: DOCUMENTS_DEFAULT_CONFIG },
+    ]);
+    expect(targets).toHaveLength(8);
+    for (const target of targets) expect(fileLinkTarget(target.link, "00000000-0000-4000-8000-000000000701"), target.link).not.toBeNull();
+  });
+
+  it("lists no row for documents settings that do not read, and says when there is nowhere to file a document", () => {
+    expect(attachTargets([{ key: "documents", title: "Documents", config: { items: "all" } }])).toEqual([]);
+    expect(attachToText([])).toBe('This inspection files no document itself: leave "attachTo" out.');
+    expect(attachToText([{ link: "tensile", what: "the lab report" }])).toBe(
+      'Where this inspection files a document itself (the answer\'s "attachTo"):\n- "tensile": the lab report.',
+    );
   });
 });

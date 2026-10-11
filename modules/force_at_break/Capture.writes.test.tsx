@@ -78,18 +78,18 @@ const SAVED: ForceAtBreakData = {
 };
 
 describe("force_at_break capture writes", () => {
-  it("keeps the lab report the file slot attaches, over the latest readings, and drops it when that file goes", () => {
+  it("drops the lab report Steri-AI linked when it is unlinked, over the latest readings", () => {
     const REPORT = "00000000-0000-4000-8000-000000000409";
-    const { grid, slots, changes } = renderGrid(SAVED);
+    const { grid, slots, changes } = renderGrid({ ...SAVED, labReport: REPORT });
+    expect(slots).toEqual([
+      expect.objectContaining({ moduleKey: "force_at_break", kind: "lab_report", fileId: REPORT, countsModuleFiles: true }),
+    ]);
     grid.onCellsChange(cells({ 3: 6.537 }));
-    slots[0].onAdded({ id: REPORT, name: "FAB report.pdf", kind: "lab_report" });
+    slots[0].onRemoved(REPORT);
     expect(changes.at(-1)).toEqual({
       sizes: { M: { values: [6.47, 6.884, 6.301, 6.537] }, XL: { values: [6.9] } },
-      labReport: REPORT,
+      labReport: null,
     });
-    slots[0].onRemoved(REPORT);
-    expect(changes.at(-1)?.labReport).toBeNull();
-    expect(changes.at(-1)?.sizes.M?.values).toEqual([6.47, 6.884, 6.301, 6.537]);
   });
 
   it("builds each grid edit on the latest data: two edits before the screen renders again both land", () => {

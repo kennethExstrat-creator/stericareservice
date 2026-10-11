@@ -2,7 +2,7 @@
 
 import { unstable_rethrow } from "next/navigation";
 import { z } from "zod";
-import { readSourceDocument, type SourceModule } from "@/lib/ai/source-reader";
+import { attachTargets, readSourceDocument, type SourceModule } from "@/lib/ai/source-reader";
 import { loadAiEnv, loadGlossary } from "@/lib/ai/settings";
 import { authorizeAction } from "@/lib/auth/session";
 import {
@@ -27,9 +27,13 @@ import type { FileKind } from "@/modules/_framework/files";
  * client, so Row Level Security decides what they see. The reading is
  * recorded on the file row with the secret key, once the caller is known to
  * be allowed to edit the inspection: with the file's kind when the AI read
- * it as a lab report or certificate, which the steps then link
- * (linkSourceFile: tensile's or force at break's labReport, a documents
- * row's file, only where none is kept yet).
+ * it as a lab report or certificate. The AI is told where this inspection
+ * files a document itself, in the template's words (attachTargets), and the
+ * file is linked there (linkSourceFile: tensile's or force at break's
+ * labReport, a documents row's file, only where nothing is linked yet, never
+ * over an earlier link), beside the values it read from it: module pages
+ * link nothing by hand, and messages call the AI Steri-AI (Kenneth, 12
+ * October 2026).
  */
 
 export type SourceReadResult =
@@ -87,7 +91,8 @@ function dataJsonSchema(key: ModuleKey): unknown {
 
 /**
  * Reads one Source Document with the AI and answers what it proposes for
- * the inspection's modules. The capture screen fills the proposals into
+ * the inspection's modules, the file itself as a step's lab report or a
+ * documents row's file included. The capture screen fills the proposals into
  * empty fields only. A file the AI could not read is marked so, with why.
  */
 export async function readSourceFile(inspectionId: string, fileId: string): Promise<SourceReadResult> {
@@ -141,12 +146,12 @@ export async function readSourceFile(inspectionId: string, fileId: string): Prom
     const record = (status: "read" | "failed", summary: string, kind: FileKind | null = null) =>
       recordReading(fileId, status, summary, kind);
     if (!mediaType) {
-      const message = "The AI reads PDFs and photos (JPEG or PNG). Save this file as a PDF and upload it again.";
+      const message = "Steri-AI reads PDFs and photos (JPEG or PNG). Save this file as a PDF and upload it again.";
       await record("failed", message);
       return { status: "error", message };
     }
     if (bytes.length > (mediaType === "application/pdf" ? MAX_PDF_BYTES : MAX_IMAGE_BYTES)) {
-      const message = "The file is too large for the AI to read. Upload it in parts, a few pages at a time.";
+      const message = "The file is too large for Steri-AI to read. Upload it in parts, a few pages at a time.";
       await record("failed", message);
       return { status: "error", message };
     }
@@ -161,6 +166,7 @@ export async function readSourceFile(inspectionId: string, fileId: string): Prom
       modules.push({ key: entry.key, title: entry.title, config: entry.config, schema });
       current[entry.key] = readModuleEntry(data.data, "modules", entry.key).value ?? null;
     }
+    const allowed = new Set<string>(modules.map((module) => module.key));
 
     const outcome = await readSourceDocument(
       {
@@ -171,6 +177,8 @@ export async function readSourceFile(inspectionId: string, fileId: string): Prom
         current,
         defectLibrary: library.data ?? [],
         glossary: await loadGlossary(),
+        // Where the file itself can go: the steps' lab reports and the checklist's rows, in the template's words.
+        attachTargets: attachTargets(template.data.modules.filter((entry) => allowed.has(entry.key))),
       },
       await loadAiEnv(),
     );
@@ -180,8 +188,7 @@ export async function readSourceFile(inspectionId: string, fileId: string): Prom
       return { status: "error", message: outcome.message };
     }
 
-    const allowed = new Set(modules.map((module) => module.key));
-    const read = Object.fromEntries(Object.entries(outcome.proposals).filter(([key]) => allowed.has(key as ModuleKey)));
+    const read = Object.fromEntries(Object.entries(outcome.proposals).filter(([key]) => allowed.has(key)));
     // The file itself as a step's lab report or a documents row's certificate: its id where none is kept yet.
     const { proposals, linked, kind } = linkSourceFile({
       proposals: read,

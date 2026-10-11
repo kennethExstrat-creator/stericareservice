@@ -88,17 +88,18 @@ describe("tensile capture writes", () => {
     ]);
   });
 
-  it("keeps the lab report the file slot attaches, and drops it when that file is deleted", () => {
-    const REPORT = "00000000-0000-4000-8000-000000000409";
-    const { slots, changes } = renderFields({ sizes: { XS: { tensileStrength: 34.18, elongationAtBreak: null } }, labReport: null });
-    expect(slots).toEqual([expect.objectContaining({ moduleKey: "tensile", kind: "lab_report", focus: { size: "XS" } })]);
-    slots[0].onAdded({ id: REPORT, name: "Tensile report.pdf", kind: "lab_report" });
-    expect(changes.at(-1)).toEqual({ sizes: { XS: { tensileStrength: 34.18, elongationAtBreak: null } }, labReport: REPORT });
-    // Another of the module's files goes: the lab report stays.
+  it("drops the lab report Steri-AI linked when it is unlinked, and only that one", () => {
+    const OTHER = "00000000-0000-4000-8000-000000000409";
+    const sizes = { XS: { tensileStrength: 34.18, elongationAtBreak: null } };
+    const { slots, changes } = renderFields({ sizes, labReport: LAB_REPORT_ID });
+    expect(slots).toEqual([
+      expect.objectContaining({ moduleKey: "tensile", kind: "lab_report", fileId: LAB_REPORT_ID, countsModuleFiles: true }),
+    ]);
+    // Another file's id: the lab report stays.
+    slots[0].onRemoved(OTHER);
+    expect(changes).toEqual([]);
     slots[0].onRemoved(LAB_REPORT_ID);
-    expect(changes).toHaveLength(1);
-    slots[0].onRemoved(REPORT);
-    expect(changes.at(-1)?.labReport).toBeNull();
+    expect(changes).toEqual([{ sizes, labReport: null }]);
   });
 
   it("keeps two fields' changes made before the screen renders again, and every saved size", () => {

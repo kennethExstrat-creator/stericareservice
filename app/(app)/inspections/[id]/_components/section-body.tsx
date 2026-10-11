@@ -3,14 +3,14 @@
 // The body of the open section. A module renders its own Capture
 // (modules/<key>/Capture.tsx, loaded on demand through the registry) with
 // the props of the contract (docs/MODULES.md 10), inside the file slot
-// provider that lets force at break, tensile and documents attach their
-// files (10.1): never an upload here, only a link to one of the files
-// uploaded on Source Documents (source-file-link.tsx). A module without a
-// Capture shows a simplified form of its canonical paths, a placeholder
-// module says it is not built yet, and a custom module gets the screen's
-// own form. A module whose settings cannot be read says so; saved values
-// that no longer read are listed, with one confirmed way to remove them
-// (unreadable-data.tsx).
+// provider that shows force at break's, tensile's and documents' files
+// (10.1): never an upload or a picker here, only the file Steri-AI linked
+// from Source Documents, or what it found (source-file-link.tsx). A module
+// without a Capture shows a simplified form of its canonical paths, a
+// placeholder module says it is not built yet, and a custom module gets the
+// screen's own form. A module whose settings cannot be read says so; saved
+// values that no longer read are listed, with one confirmed way to remove
+// them (unreadable-data.tsx).
 //
 // Offline (docs/OFFLINE.md: editing continues on a page already open): the
 // screen downloads every section's form soon after it opens
@@ -102,7 +102,10 @@ type ModuleBodyProps = {
   onFocusChange: (focus: CaptureFocus) => void;
   /** Saved values that could not be read were removed: the form replaces their list, its button with it. */
   onUnreadableRemoved?: () => void;
-  /** Opens the Source Documents step, where a module's lab report or certificate is uploaded. */
+  /**
+   * @deprecated Not used since a module page links nothing by hand (12 October 2026): Steri-AI links the
+   * files it reads on Source Documents. The capture screen still passes it.
+   */
   onOpenSourceDocuments?: () => void;
   /**
    * On a page of two sections, this one's title: the buttons of a form that
@@ -125,7 +128,6 @@ export function ModuleBody({
   onChange,
   onFocusChange,
   onUnreadableRemoved,
-  onOpenSourceDocuments,
   nameContext,
 }: ModuleBodyProps) {
   const definition = MODULE_REGISTRY[moduleKey];
@@ -143,18 +145,11 @@ export function ModuleBody({
   );
   // Every saved size, also those no longer ordered: Capture hands them back unchanged (docs/MODULES.md 10).
   const saved = useMemo(() => parseModuleData(definition, moduleEntry), [definition, moduleEntry]);
-  // The screen's file slot for a module's lab report or certificate: a link to one of the
-  // Source Documents, uploaded on that step (docs/MODULES.md 10.1).
+  // The screen's file slot for a module's lab report or certificate: the Source Document
+  // Steri-AI linked, with Preview and Unlink, or what Steri-AI found (docs/MODULES.md 10.1).
   const renderFileSlot = useCallback(
-    (slot: FileSlotRequest) => (
-      <SourceFileLink
-        inspectionId={inspectionId}
-        slot={slot}
-        readOnly={slot.readOnly || readOnly}
-        onOpenSourceDocuments={onOpenSourceDocuments}
-      />
-    ),
-    [inspectionId, readOnly, onOpenSourceDocuments],
+    (slot: FileSlotRequest) => <SourceFileLink inspectionId={inspectionId} slot={slot} readOnly={slot.readOnly || readOnly} />,
+    [inspectionId, readOnly],
   );
 
   if (definition.stub) {
