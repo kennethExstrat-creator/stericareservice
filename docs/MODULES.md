@@ -320,49 +320,43 @@ Follow `docs/DESIGN.md`: counts by tapping (steppers, defect chips), measurement
 
 ### 10.1 Files: lab reports and certificates
 
-A module never touches storage. Its Capture renders the framework's file slot and keeps the id of each file it is handed. Files are uploaded once, on Source Documents (docs/AI.md: an `inspection_files` row with `module_key` `source_documents`, through the page's upload queue); the capture screen's slot only links one of them, and the AI links a lab report it reads there by itself.
+A module never touches storage, and since 12 October 2026 it links nothing by hand either. Every file is uploaded once, on Source Documents (docs/AI.md: an `inspection_files` row with `module_key` `source_documents`, through the page's upload queue), and Steri-AI links each lab report or certificate it reads there to its step (`readSourceFile`: fill-only-empty, never over an earlier link). The module's Capture renders the framework's file slot with the id it keeps and calc's state of it; the screen shows the file, or what Steri-AI found.
 
 ```tsx
 import { ModuleFileSlot } from "@/modules/_framework/file-slot";
 
-<ModuleFileSlot
-  moduleKey="tensile"
-  kind="lab_report"                                   // inspection_files.kind: lab_report, certificate, other
-  focus={{ size }}                                    // reported with each file added
-  fileId={data.labReport}                             // the id kept now: the slot shows that file
-  readOnly={readOnly}
-  onAdded={(file) => update((current) => withLabReport(current, file.id))}
-  onRemoved={(fileId) => update((current) => withoutLabReport(current, fileId))}
-/>
+<AttachmentStatus label={labelFor(labels, "labReport")} state={reportState} required warning={missingWarning} issuePath={["labReport"]}>
+  <ModuleFileSlot
+    moduleKey="tensile"
+    kind="lab_report"                                 // inspection_files.kind: lab_report, certificate, other
+    fileId={data.labReport}                           // the id kept now: the slot shows that file
+    state={reportState}                               // calc's HeldFileState of it: attached, missing or none
+    countsModuleFiles                                 // one uploaded on the step before 12 October counts (moduleFileState)
+    readOnly={readOnly}
+    onRemoved={(fileId) => update((current) => withoutLabReport(current, fileId))}
+  />
+</AttachmentStatus>
 ```
 
-- **Keep the id** with `FileIdCellSchema` (section 5). The latest file added is the one the module relies on; `onRemoved` clears the id when that file goes. calc reads it, so "the lab report is attached" is computed, the same everywhere. A module that needs one file of a kind (tensile's lab report) reads `moduleFileState(context, { moduleKey, kind, fileId: data.labReport })`: `attached` when the kept file is among the inspection's files, or when any file of the module and kind is (one added in the gallery keeps no id; another may remain after the kept one was deleted); `missing` when the files are known and neither is; `none` otherwise. A file kept per entry (a document) is that entry's only by its id: `heldFileState(context, id)`. While the inspection's files are not known, as in calc tests, a kept id counts as attached. Raise a warning with a path for `missing`, worded by `missingFileMessage(name)`: a file can be missing because it was deleted, or because it is still uploading from another device. A module that requires the file (tensile) is not done without it and links its not-done issue there (`notDonePath`).
-- **Where files cannot be attached** (no provider: the template editor's preview, a test) the slot says "Attach files on the inspection screen." and the module still shows what it keeps.
-- **Per item**: inspection_files has no item, so a module with several files of its own (documents) renders one slot and files each new file under the entry being worked on, keeping the id in that entry (`documents.items.<item>.file`). It passes the chosen entry's id as `fileId`; until an entry is chosen, `addable={false}`: nothing can be linked.
+- **Keep the id** with `FileIdCellSchema` (section 5); Steri-AI's link writes it through the reading's proposals, and `onRemoved` (Unlink, which never deletes the file) clears it. calc reads it, so "the lab report is attached" is computed, the same everywhere. A module that needs one file of a kind (tensile's lab report) reads `moduleFileState(context, { moduleKey, kind, fileId: data.labReport })`: `attached` when the kept file is among the inspection's files, or when any file of the module and kind is (one uploaded on the step before keeps no id); `missing` when the files are known and neither is; `none` otherwise. A file kept per entry (a document) is that entry's only by its id: `heldFileState(context, id)`. While the inspection's files are not known, as in calc tests, a kept id counts as attached. Raise a warning with a path for `missing`, worded by `missingFileMessage(name)`: a file can be missing because it was deleted, or because it is still uploading from another device. A module that requires the file (tensile) is not done without it and links its not-done issue there (`notDonePath`).
+- **What the slot says**: the linked file (name, a sparkle when Steri-AI linked a Source Document, Preview, Unlink); "Steri-AI is reading the Source Documents…" while any is unread or being read; otherwise "No lab report detected by Steri-AI." (or the request's `notFoundText`). Read-only: the same without Unlink.
+- **Where there is no provider** (the template editor's preview, a test) the slot says "Attach files on the inspection screen." and the module still shows what it keeps.
+- **Per item**: inspection_files has no item, so a module with several files of its own (documents) renders a slot on each entry that keeps a file (`documents.items.<item>.file`), and one line under the list while none does ("No documents detected by Steri-AI.").
 
-**How the capture screen provides it** (`app/(app)/inspections/[id]/_components/section-body.tsx`): the module bodies sit in `FileSlotProvider` with a renderer for `SourceFileLink` (`source-file-link.tsx`), and each Capture gets the size kept from the sections before as its `focus`:
+**How the capture screen provides it** (`app/(app)/inspections/[id]/_components/section-body.tsx`): the module bodies sit in `FileSlotProvider` with a renderer for `SourceFileLink` (`source-file-link.tsx`), which reads the Source Documents' reading state that `useSourceDocuments` shares (`useShareSourceReading`):
 
 ```tsx
 import { FileSlotProvider } from "@/modules/_framework/file-slot";
 
-<FileSlotProvider
-  render={(slot) => (
-    <SourceFileLink
-      inspectionId={inspectionId}
-      slot={slot}                                     // the file kept (slot.fileId) in one line, else Choose File
-      readOnly={slot.readOnly || readOnly}
-      onOpenSourceDocuments={onOpenSourceDocuments}   // its button while there is no file to choose
-    />
-  )}
->
+<FileSlotProvider render={(slot) => <SourceFileLink inspectionId={inspectionId} slot={slot} readOnly={slot.readOnly || readOnly} />}>
   <Capture ... focus={keptFocus} defectUsage={defectUsage} />
 </FileSlotProvider>
 ```
 
-- `SourceFileLink` lists the Source Documents' files, then those uploaded on the module's page before (its `module_key`: they still count), calls `slot.onAdded` with the one chosen (`{ id, name, kind }`) and `slot.onRemoved` on Unlink, which never deletes the file. Do not render an upload slot of your own for force at break, tensile or documents: the module renders its slot.
+- Do not render an upload or a picker of your own for force at break, tensile or documents: files come from Source Documents, and the module renders its slot.
 - **`meta.files` is required** on every path that evaluates the inspection: the capture screen (`useInspectionFiles(id)` from `components/capture/files`: uploaded rows plus this device's queued files; `null` only while they load, never `[]` for "not loaded"), the save, submit and override actions (`loadCaptureInspection(client, id, { files: true })`), the review and the export (`inspection_files` rows as `{ id, moduleKey, kind }`). Without it a lab report deleted in the gallery still counts, one added in the gallery counts for nothing, and the capture screen and submit can disagree about tensile. `slot.onRemoved` keeps the module's own data exact when the slot unlinks a file; it does not replace `meta.files`.
 - **The server's files lag behind a device's queue.** The module's data, with the new id, autosaves within a second; the upload creates the row when it finishes, which can take minutes on a factory network. Until then the file is missing everywhere but on the device that queued it (another iPad, the review); the warning says it may still be uploading. Submit on that device waits for its queue, so the server holds the file by then.
-- **The gallery** ("Photos and Files") adds nothing since 12 October 2026: it lists every file of the inspection, with Open and Delete. Files added there before still count as added on the module's page (`moduleFileState`, Choose File's Uploaded Here).
+- **The gallery** ("Photos and Files") adds nothing since 12 October 2026: it lists every file of the inspection, with Preview, Download and Delete. Files added there before still count as added on the module's page (`moduleFileState`).
 - **The size stays across sections; photo tags do not.** The screen keeps the last size any module reported (`keptFocus`, `{ size }` only) and passes it as `focus`, so the next module that opens on it (`initialSize`) shows the size chosen before, whichever way the section was opened (a tab, Previous or Next, an issue link). A section's photos are tagged only with what its own module reported through `onFocusChange`: the tags start empty in every section, so a kept size never tags the photos of a section that does not show it (a custom section without sizes). Every per-size module opens on the kept size and reports the size on screen as it mounts and whenever it changes (`useReportShownSize`, section 10), so a photo taken straight after a section opens carries the size it shows. It reports in a layout effect: an issue link that turns to another size focuses its field a frame later, and that field's own report (its box, its defect) follows the size's instead of being replaced by it. While every size sits side by side (a desktop, `wide="all"`) no size is reported, and a photo carries what a focused field reports; tensile is the exception, and tags the size whose value was last in focus.
 
 ## 11. Testing
@@ -487,5 +481,5 @@ const saved = parseModuleData(definition, readModuleEntry(data, "modules", key))
 - [ ] calc: not done until complete; per-size results for every ordered size; computed values in `computed`; wrong data raises issues with paths.
 - [ ] Source modules: `contribute` returns only your parts of the context, tested on filled data too.
 - [ ] `checkModuleContract(definition)` is `[]`; every rule in your brief has a test; expected results reproduced with placeholders.
-- [ ] `Capture.tsx` uses `components/qc`, reads labels from props with `labelFor`, shows only `context.sizes`, writes through `useDataUpdater`, reports focus for photo tags (the size on screen from the moment it mounts), lists calc's issues where a control cannot show them, attaches files through `ModuleFileSlot`; `loadCapture` set.
+- [ ] `Capture.tsx` uses `components/qc`, reads labels from props with `labelFor`, shows only `context.sizes`, writes through `useDataUpdater`, reports focus for photo tags (the size on screen from the moment it mounts), lists calc's issues where a control cannot show them, shows a kept file through `ModuleFileSlot` (Steri-AI links it from Source Documents); `loadCapture` set.
 - [ ] `npm run check` passes.
