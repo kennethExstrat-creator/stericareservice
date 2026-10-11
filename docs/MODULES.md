@@ -79,6 +79,8 @@ and returns `CalcOutput`: `result` (`ModuleResult`: `status`, `summary`, `perSiz
 
 ## 4. Worked example: `glove_info`
 
+> **Since 11 October 2026 (Kenneth):** Glove Information holds the glove's **variants**: `{ variants: [{ sizes, gloveType, surfaceTexture, indicativeWeight, colour, length }] }`. A variant is one combination of those values for the sizes it covers (none picked: every size); Glove Type (optional, once the custom module `glove_type`, which STD_SG still has) and Glove Length (in mm) joined it. The data schema reads a module saved before as its first variant. Each variant's indicative weight goes to the context by size (`indicativeWeights`): a variant of one size gives that size's, one of several sizes or every size gives the reference size's (`indicativeWeightSize`, M). The walk-through below shows the single-set version it grew from; the shape of `calc`, `contribute`, `edit` and `Capture` is the same.
+
 Glove Information (BUILD_SPEC 6.1): surface texture, indicative weight (size M, g), colour and length, on page 1 of both reports. Result `info`. Read the files in `modules/glove_info/`; the essentials of the four pure ones (its `Capture.tsx`, with `edit.ts`, is the smallest capture body: three text fields and a NumberField in one Enter run):
 
 **`schema.ts`**: every value may be missing while the inspection is a draft. Cells come from the framework, so a number is a number and blank is `null`:
@@ -206,7 +208,8 @@ Values entered once and read by every module that needs them (BUILD_SPEC 8, 6.2 
 | `packing` | `innerUnit`, `glovesPerInner`, `innersPerCase`, `glovesPerCase` | `packing_config` |
 | `sampling[size]` | `cases`, `innerUnits`, `gloves`, `watertightVisual`, `dimensions`, `physical`, `packagingDispensing`, `pouches`, `pouchesDyeLeak`: n for the modules that follow | `sampling_plan` |
 | `cartons[size]` | Sampled carton numbers, unique: what box pickers offer (rule 7) | `carton_sampling` |
-| `indicativeWeight` | `{ grams, size }` (rule 9) | `glove_info` |
+| `indicativeWeight` | `{ grams, size }` (rule 9): the reference size's | `glove_info` |
+| `indicativeWeights` | grams by size, from the glove variants (rule 9) | `glove_info` |
 | `aql` | `watertight`, `critical`, `major`, `minor` (`null` for a check the inspection does not run), `inspectionLevel` | defaults, per client, then the template's config one setting at a time (`AQL_SOURCES`: watertight, visual, the sampling plan) |
 | `template` | `code`, `name`, `productType`, `standard`, `unit` (`pcs` or `pairs`) | the template |
 | `templateSizes` | Sizes the template offers, `{ value, label }` | the template |
