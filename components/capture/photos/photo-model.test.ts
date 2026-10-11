@@ -157,6 +157,37 @@ describe("slotPhotos", () => {
     expect(slotPhotos({ ...input, moduleKey: undefined }).map((photo) => photo.id)).toEqual(["a", "b", "c"]);
   });
 
+  it("lists every photo tagged with none of some keys, untagged ones included (Source Documents' Other)", () => {
+    const except = { except: ["media_warehouse", "media_proof"] };
+    const photos = slotPhotos({
+      media: media([
+        uploaded("a", { moduleKey: "media_warehouse" }),
+        uploaded("b", { moduleKey: null }),
+        uploaded("c", { moduleKey: "visual" }),
+        // Moved into a category on this device: it leaves Other now, before its row says so.
+        uploaded("d", { moduleKey: null }),
+      ]),
+      queue: state({
+        items: [queued("d", { moduleKey: "media_proof" }), queued("e", { moduleKey: null }), queued("f", { moduleKey: "media_warehouse" })],
+        settled: { g: queued("g", { moduleKey: "dimensions" }), h: queued("h", { moduleKey: "media_proof" }) },
+      }),
+      inspectionId: INSPECTION,
+      moduleKey: except,
+    });
+    expect(photos.map((photo) => photo.id)).toEqual(["b", "c", "g", "e"]);
+    // The same rule for files: the first Media tab's videos stay listed, a category's do not.
+    const files = slotFiles({
+      files: [
+        { id: "v1", inspectionId: INSPECTION, moduleKey: "media_proof", kind: "other", name: "a.mov", createdBy: "i", createdAt: "2026-10-11T01:00:00Z", storagePath: `${INSPECTION}/v1.mov`, url: null },
+        { id: "v2", inspectionId: INSPECTION, moduleKey: "source_media", kind: "other", name: "b.mov", createdBy: "i", createdAt: "2026-10-11T01:00:00Z", storagePath: `${INSPECTION}/v2.mov`, url: null },
+      ],
+      queue: state({}),
+      inspectionId: INSPECTION,
+      moduleKey: except,
+    });
+    expect(files.map((file) => file.id)).toEqual(["v2"]);
+  });
+
   it("says why an upload stopped in words the inspector can act on, never the database's", () => {
     const rls = { reason: "forbidden" as const, message: "new row violates row-level security policy" };
     const [photo] = slotPhotos({

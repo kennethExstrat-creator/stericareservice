@@ -80,7 +80,7 @@ describe("parsePhotoTagForm", () => {
     expect(parsed).toEqual({
       ok: false,
       fieldErrors: {
-        moduleKey: "Choose a module from the list.",
+        moduleKey: "Choose a category or module from the list.",
         hand: "Choose the right or the left hand.",
         box: "Enter the box number in digits.",
         caption: `Keep the caption under ${CAPTION_MAX_LENGTH} characters.`,

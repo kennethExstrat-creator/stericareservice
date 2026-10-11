@@ -183,13 +183,45 @@ describe("/inspections/[id]/photos", () => {
     expect(html).toContain("Near the cuff");
     // The tile's badge (components/qc/photo-tile.tsx); never the admin's "Include in Report".
     expect(html).toContain(">In Report<");
-    expect(html).toContain("Edit a photo to tag it with the module it belongs to.");
+    expect(html).toContain("Edit a photo to tag it with the category or module it belongs to.");
     // Lab reports: the force at break slot, its file and its own picker.
     expect(html).toContain("Lab Reports and Certificates");
     expect(html).toContain("Force at break.pdf");
     expect(html).toContain('accept="application/pdf,.pdf,image/*"');
     expect(html).toContain("Add Lab Report");
     expect(unanchoredSrOnly(html)).toEqual([]);
+  });
+
+  it("shows Source Documents' Media categories first, by their titles and hints, never their keys", async () => {
+    const html = await render({
+      kind: "ok",
+      media: media({
+        photos: [
+          ...media().photos,
+          photo("d", { moduleKey: "media_defects", target: null }),
+          photo("e", { moduleKey: "media_warehouse", target: null, caption: "Pallets by the door" }),
+        ],
+        files: [labReport, { ...labReport, id: "f2", moduleKey: "media_warehouse", kind: "other", name: "IMG_0005.MOV" }],
+      }),
+    });
+    expect([...html.matchAll(/data-group="([^"]+)"/g)].map(([, key]) => key)).toEqual([
+      "media_warehouse",
+      "media_defects",
+      "dimensions",
+      "visual",
+      "untagged",
+    ]);
+    expect(html).toContain("5 photos in 2 categories and 2 modules · 2 files");
+    expect(html).toContain(">Warehouse<");
+    expect(html).toContain(">Product Defects<");
+    expect(html).toContain("Stored cartons, pallets and storage conditions.");
+    // The tile's text alternative names the category when the photo has no caption.
+    expect(html).toContain('alt="Product Defects"');
+    // A category's video, in the files' own list.
+    expect(html).toContain("Video · Warehouse · Uploaded");
+    // The keys stay in the data attributes only.
+    expect(html.replace(/data-(group|module)="[^"]*"/g, "")).not.toMatch(/media_|Media Warehouse|Media Defects/);
+    expect(html).toContain(">Category or Module</label>");
   });
 
   it("lets the inspector edit and delete, but not choose report photos", async () => {

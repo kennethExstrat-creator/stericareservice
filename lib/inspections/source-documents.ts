@@ -10,8 +10,86 @@ import { readModuleEntry, writeModuleData, type InspectionData } from "@/modules
 /** The page's key on the capture screen (?module=source_documents) and the files' module_key. */
 export const SOURCE_DOCUMENTS_KEY = "source_documents";
 export const SOURCE_DOCUMENTS_TITLE = "Source Documents";
-/** The module_key of the inspection's videos, on Source Documents' Media tab (its photos are untagged inspection_photos). */
+/**
+ * The module_key of the videos uploaded on Media before it had categories
+ * (11 October 2026): they show under Media's Other. New videos take their
+ * category's key.
+ */
 export const SOURCE_MEDIA_KEY = "source_media";
+
+/** One of Media's categories: what a photo or video from the visit shows. */
+export type MediaCategory = {
+  /** The module_key of its photos (inspection_photos) and videos (inspection_files). */
+  readonly key: string;
+  readonly title: string;
+  /** One line under the title: what goes in it. */
+  readonly hint: string;
+};
+
+/**
+ * Source Documents' Media in categories (Kenneth, 11 October 2026), in the
+ * order the tab shows them. The photos and videos the inspector took on the
+ * visit are tagged with the category's key (module_key is free text, so no
+ * migration). Photos and videos in none of them (untagged, a step's, the
+ * SOURCE_MEDIA_KEY videos) show under Other until they are moved.
+ */
+export const MEDIA_CATEGORIES = [
+  { key: "media_warehouse", title: "Warehouse", hint: "Stored cartons, pallets and storage conditions." },
+  { key: "media_samples", title: "Product and Package Samples", hint: "The sampled gloves, inner boxes and cartons." },
+  { key: "media_proof", title: "Inspection Proof", hint: "Photos of the inspection under way, as proof it was done." },
+  { key: "media_defects", title: "Product Defects", hint: "Defects found on the gloves or their packaging." },
+] as const satisfies readonly MediaCategory[];
+
+export type MediaCategoryKey = (typeof MEDIA_CATEGORIES)[number]["key"];
+
+/** The categories' keys, in order: Media's Other lists every photo tagged with none of them. */
+export const MEDIA_CATEGORY_KEYS: readonly MediaCategoryKey[] = MEDIA_CATEGORIES.map((category) => category.key);
+
+/** The category a photo or video is tagged with; null for a module's key, any other key, or none. */
+export function mediaCategory(key: string | null | undefined): MediaCategory | null {
+  return MEDIA_CATEGORIES.find((category) => category.key === key) ?? null;
+}
+
+export function isMediaCategoryKey(key: string | null | undefined): key is MediaCategoryKey {
+  return mediaCategory(key) !== null;
+}
+
+export type MediaCount = { photos: number; videos: number };
+
+/**
+ * What Media holds: each category's photos and videos, and Other, the photos
+ * in none of them (untagged, or a step's from before the steps lost their
+ * photo box) and the videos of the first Media tab (SOURCE_MEDIA_KEY). Files
+ * of other keys (Source Documents' own, a step's lab report) are not media.
+ */
+export function mediaCounts(
+  photos: readonly { readonly moduleKey: string | null }[],
+  files: readonly { readonly moduleKey: string | null }[],
+): { categories: (MediaCount & { category: MediaCategory })[]; other: MediaCount } {
+  const tagged = (items: readonly { readonly moduleKey: string | null }[], key: string) =>
+    items.filter((item) => item.moduleKey === key).length;
+  return {
+    categories: MEDIA_CATEGORIES.map((category) => ({ category, photos: tagged(photos, category.key), videos: tagged(files, category.key) })),
+    other: {
+      photos: photos.filter((photo) => !isMediaCategoryKey(photo.moduleKey)).length,
+      videos: tagged(files, SOURCE_MEDIA_KEY),
+    },
+  };
+}
+
+/**
+ * What a file dropped on a Media category is: a photo, a video, or neither
+ * (a PDF belongs under Files). By its type, else by its name: some browsers
+ * give a HEIC photo or a QuickTime movie no type.
+ */
+export function mediaKind(file: { readonly type: string; readonly name: string }): "photo" | "video" | null {
+  const type = file.type.toLowerCase();
+  if (type.startsWith("image/")) return "photo";
+  if (type.startsWith("video/")) return "video";
+  if (/\.(jpe?g|png|webp|heic|heif)$/i.test(file.name)) return "photo";
+  if (/\.(mp4|m4v|mov|webm)$/i.test(file.name)) return "video";
+  return null;
+}
 
 /**
  * Modules the AI never fills: the conclusion holds the inspector's own

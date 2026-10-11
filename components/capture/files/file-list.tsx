@@ -7,7 +7,7 @@ import { DownloadIcon, ExternalLinkIcon, EyeIcon, FileTextIcon, RotateCwIcon, Tr
 import type { SlotFile } from "@/components/capture/photos/photo-model";
 import { photoQueueStore } from "@/components/capture/photos/queue-store";
 import { Button } from "@/components/ui/button";
-import { FILE_KIND_LABEL, moduleTitle, type PhotoTagOptions } from "@/lib/inspections/photos/view";
+import { fileKindLabel, moduleTitle, type PhotoTagOptions } from "@/lib/inspections/photos/view";
 import { cn } from "@/lib/utils";
 import { FileDeleteDialog } from "./file-delete-dialog";
 import { downloadUrl, FilePreviewDialog } from "./file-preview-dialog";
@@ -88,7 +88,7 @@ export function FileList({
                 </div>
                 {!(compactRows && file.state === "uploaded") && (
                 <p className="text-sm text-muted-foreground">
-                  {file.kind ? FILE_KIND_LABEL[file.kind] : "File"}
+                  {fileKindLabel(file)}
                   {showModule ? ` · ${moduleTitle(file.moduleKey, options)}` : ""} · {stateText(file)}
                 </p>
                 )}

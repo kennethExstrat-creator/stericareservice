@@ -3,12 +3,16 @@ import { ResolvedTemplateSchema } from "@/lib/schemas/template";
 import {
   countFiles,
   countPhotos,
+  countVideos,
   defectChoices,
   defectName,
   displayTags,
   EMPTY_TAG_OPTIONS,
+  fileKindLabel,
   groupByModule,
+  groupsLine,
   humanizeKey,
+  MEDIA_CATEGORY_OPTIONS,
   itemName,
   levelName,
   moduleOption,
@@ -323,6 +327,44 @@ describe("names", () => {
   it("counts photos and files in words", () => {
     expect([countPhotos(0), countPhotos(1), countPhotos(3)]).toEqual(["0 photos", "1 photo", "3 photos"]);
     expect([countFiles(1), countFiles(2)]).toEqual(["1 file", "2 files"]);
+    expect([countVideos(0), countVideos(1)]).toEqual(["0 videos", "1 video"]);
+  });
+
+  it("says Video for one of Media's videos, else the file's kind", () => {
+    expect(fileKindLabel({ kind: "other", name: "IMG_0004.MOV" })).toBe("Video");
+    expect(fileKindLabel({ kind: "other", name: "PO-0001.pdf" })).toBe("Document");
+    expect(fileKindLabel({ kind: "lab_report", name: "Tensile.pdf" })).toBe("Lab Report");
+    expect(fileKindLabel({ kind: null, name: "clip.mp4" })).toBe("File");
+  });
+});
+
+describe("Media's categories as tags", () => {
+  it("names a category by its title, never its key, with the template's options or without", () => {
+    for (const tagOptions of [options, EMPTY_TAG_OPTIONS]) {
+      expect(moduleTitle("media_warehouse", tagOptions)).toBe("Warehouse");
+      expect(moduleTitle("media_samples", tagOptions)).toBe("Product and Package Samples");
+      expect(displayTags("media_proof", null, tagOptions)).toEqual(expect.objectContaining({ module: "Inspection Proof" }));
+      // Alone on the tile under its own heading too, as a module with nothing else tagged.
+      expect(displayTags("media_defects", null, tagOptions, { withModule: false }).module).toBe("Product Defects");
+    }
+  });
+
+  it("records nothing besides the category: a moved photo leaves its size, hand and defect behind", () => {
+    expect(moduleOption("media_defects", options)).toEqual({
+      key: "media_defects",
+      title: "Product Defects",
+      targetKeys: [],
+      handSplit: false,
+      included: true,
+    });
+    expect(targetKeysFor("media_warehouse")).toEqual([]);
+    expect(targetForModule("media_defects", { size: "M", hand: "R", defect: "stain", box: 3 })).toEqual({});
+    expect(MEDIA_CATEGORY_OPTIONS.map((entry) => entry.title)).toEqual([
+      "Warehouse",
+      "Product and Package Samples",
+      "Inspection Proof",
+      "Product Defects",
+    ]);
   });
 });
 
@@ -457,6 +499,28 @@ describe("groupByModule", () => {
       ["zeta_extra", "Zeta Extra", false, ["3"]],
       [null, UNTAGGED_TITLE, true, ["1"]],
     ]);
+  });
+
+  it("puts Media's categories first, in their order and by their titles, whatever the template", () => {
+    const items = [item("1", "visual"), item("2", "media_defects"), item("3", null), item("4", "media_warehouse"), item("5", "media_defects")];
+    for (const tagOptions of [options, EMPTY_TAG_OPTIONS]) {
+      expect(groupByModule(items, tagOptions).map(({ key, title, included, items: inGroup }) => [key, title, included, inGroup.map((entry) => entry.id)]))
+        .toEqual([
+          ["media_warehouse", "Warehouse", true, ["4"]],
+          ["media_defects", "Product Defects", true, ["2", "5"]],
+          ["visual", tagOptions === options ? "Visual Inspection" : "Visual", tagOptions === options, ["1"]],
+          [null, UNTAGGED_TITLE, true, ["3"]],
+        ]);
+    }
+  });
+
+  it("says where the photos are for the summary: categories and modules apart, untagged ones in neither", () => {
+    expect(groupsLine([{ key: "media_warehouse" }, { key: "media_proof" }, { key: "visual" }, { key: null }])).toBe(
+      " in 2 categories and 1 module",
+    );
+    expect(groupsLine([{ key: "dimensions" }, { key: "visual" }])).toBe(" in 2 modules");
+    expect(groupsLine([{ key: "media_samples" }])).toBe(" in 1 category");
+    expect(groupsLine([{ key: null }])).toBe("");
   });
 
   it("shows no empty groups", () => {

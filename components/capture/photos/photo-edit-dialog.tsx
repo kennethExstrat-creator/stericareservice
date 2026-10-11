@@ -1,8 +1,9 @@
 "use client";
 
-// Retag and caption one photo (BUILD_SPEC 8.1): the module it belongs to and
-// the size, hand, defect, box, packaging level or list entry (a document, a
-// loading stage) it shows, in the inspection's own wording.
+// Retag and caption one photo (BUILD_SPEC 8.1): the Media category or the
+// module it belongs to and the size, hand, defect, box, packaging level or
+// list entry (a document, a loading stage) it shows, in the inspection's own
+// wording.
 // A photo still on this device is retagged in the upload queue (works
 // offline); an uploaded one through the updatePhotoTags action. A refused
 // save (a field error, no connection) keeps everything chosen and typed:
@@ -48,11 +49,17 @@ import {
   defectChoices,
   itemName,
   levelName,
+  MEDIA_CATEGORY_OPTIONS,
   moduleOption,
   moduleTitle,
+  TAG_FIELD_LABEL,
+  TAG_GROUP_LABEL,
+  UNTAGGED_TITLE,
   type ListChoice,
+  type ModuleOption,
   type PhotoTagOptions,
 } from "@/lib/inspections/photos/view";
+import { isMediaCategoryKey } from "@/lib/inspections/source-documents";
 import { parseTarget, type PhotoTarget } from "@/lib/photos/target";
 // The loading module's own caption for its stage picker: its config only, no module code.
 import { LOADING_LABELS } from "@/modules/loading/config";
@@ -78,6 +85,22 @@ const NOT_RECORDED = "Not Recorded";
 
 /** After a module switched off for this inspection, in the module list. */
 const SWITCHED_OFF_NOTE = "(Switched Off)";
+
+/**
+ * The modules a photo can be moved to: those the inspection includes, and
+ * its own module when it is no longer one of them (switched off, or a key
+ * the template does not know), so it keeps a name. Media's categories have
+ * a list of their own.
+ */
+export function moduleChoices(photoModuleKey: string | null, options: PhotoTagOptions): ModuleOption[] {
+  const choices = options.modules.filter(
+    (entry) => !isMediaCategoryKey(entry.key) && (entry.included || entry.key === photoModuleKey),
+  );
+  if (photoModuleKey && !isMediaCategoryKey(photoModuleKey) && !choices.some((entry) => entry.key === photoModuleKey)) {
+    choices.push({ key: photoModuleKey, title: moduleTitle(photoModuleKey, options), targetKeys: [], handSplit: false, included: false });
+  }
+  return choices;
+}
 
 type PhotoEditDialogProps = {
   inspectionId: string;
@@ -228,10 +251,7 @@ function EditForm({
   const records = new Set(chosen?.targetKeys ?? []);
   const showHand = records.has("hand") && (chosen?.handSplit === true || hand !== "");
 
-  const moduleItems = options.modules.filter((entry) => entry.included || entry.key === photo.moduleKey);
-  if (photo.moduleKey && !moduleItems.some((entry) => entry.key === photo.moduleKey)) {
-    moduleItems.push({ key: photo.moduleKey, title: moduleTitle(photo.moduleKey, options), targetKeys: [], handSplit: false, included: false });
-  }
+  const moduleItems = moduleChoices(photo.moduleKey, options);
   const sizeItems = [...options.sizes];
   if (size && !sizeItems.some((entry) => entry.value === size)) sizeItems.push({ value: size, label: size });
   const defects = defectChoices(moduleKey, defect, options);
@@ -279,7 +299,7 @@ function EditForm({
 
       <FieldGroup className="gap-5">
         <Field data-invalid={errors.moduleKey ? true : undefined}>
-          <FieldLabel htmlFor={`${id}-module`}>Module</FieldLabel>
+          <FieldLabel htmlFor={`${id}-module`}>{TAG_FIELD_LABEL}</FieldLabel>
           <Select value={moduleKey ?? NONE} onValueChange={(value) => setModuleKey(value === NONE ? null : value)}>
             <SelectTrigger
               id={`${id}-module`}
@@ -290,14 +310,31 @@ function EditForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent position="popper">
-              <SelectItem value={NONE}>Not Tagged</SelectItem>
-              {moduleItems.length > 0 && <SelectSeparator />}
-              {moduleItems.map((entry) => (
-                <SelectItem key={entry.key} value={entry.key}>
-                  {entry.title}
-                  {entry.included ? null : ` ${SWITCHED_OFF_NOTE}`}
-                </SelectItem>
-              ))}
+              <SelectItem value={NONE}>{UNTAGGED_TITLE}</SelectItem>
+              {/* Media's categories first: photos are added there (Source Documents). */}
+              <SelectSeparator />
+              <SelectGroup>
+                <SelectLabel>{TAG_GROUP_LABEL.categories}</SelectLabel>
+                {MEDIA_CATEGORY_OPTIONS.map((entry) => (
+                  <SelectItem key={entry.key} value={entry.key}>
+                    {entry.title}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+              {moduleItems.length > 0 && (
+                <>
+                  <SelectSeparator />
+                  <SelectGroup>
+                    <SelectLabel>{TAG_GROUP_LABEL.modules}</SelectLabel>
+                    {moduleItems.map((entry) => (
+                      <SelectItem key={entry.key} value={entry.key}>
+                        {entry.title}
+                        {entry.included ? null : ` ${SWITCHED_OFF_NOTE}`}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </>
+              )}
             </SelectContent>
           </Select>
           {errors.moduleKey && <FieldError id={`${id}-module-error`}>{errors.moduleKey}</FieldError>}

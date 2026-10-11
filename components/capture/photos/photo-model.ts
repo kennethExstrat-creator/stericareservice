@@ -43,10 +43,19 @@ export interface SlotPhoto {
   pendingRow: boolean;
 }
 
-/** Which photos a slot shows: one module's, the untagged ones (null), or all of them (undefined). */
-export type ModuleFilter = string | null | undefined;
+/**
+ * Which photos a slot shows: one module's, the untagged ones (null), all of
+ * them (undefined), or all but those tagged with one of `except` (Source
+ * Documents' Other: every photo in none of Media's categories, untagged ones
+ * included).
+ */
+export type ModuleFilter = string | null | undefined | { readonly except: readonly string[] };
 
-const matches = (filter: ModuleFilter, moduleKey: string | null) => filter === undefined || filter === moduleKey;
+function matches(filter: ModuleFilter, moduleKey: string | null): boolean {
+  if (filter === undefined) return true;
+  if (filter !== null && typeof filter === "object") return moduleKey === null || !filter.except.includes(moduleKey);
+  return filter === moduleKey;
+}
 
 function queueState(item: UploadItem): PhotoUploadState {
   return item.state;
