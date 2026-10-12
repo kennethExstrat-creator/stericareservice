@@ -9,6 +9,7 @@ import type {
   ContributeInput,
   JsonObject,
   ModuleDefinition,
+  TitleInput,
 } from "./contract";
 import type { ContextContribution } from "./context";
 
@@ -37,6 +38,8 @@ export type ModuleSpec<TData, TConfig, TComputed extends JsonObject> = {
   canonicalPaths?: readonly CanonicalPath[];
   calc: (input: CalcInput<NoInfer<TData>, NoInfer<TConfig>>) => CalcOutput<TComputed>;
   contribute?: (input: ContributeInput<NoInfer<TData>, NoInfer<TConfig>>) => ContextContribution;
+  /** Default none: the template's title as stored. */
+  shownTitle?: (input: TitleInput<NoInfer<TConfig>>) => string;
   loadCapture?: () => Promise<{ default: CaptureComponent<NoInfer<TData>, NoInfer<TConfig>, NoInfer<TComputed>> }>;
 };
 

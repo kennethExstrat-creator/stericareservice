@@ -132,7 +132,9 @@ export function ModuleBody({
     CAPTURES[moduleKey] = lazyCapture(moduleKey);
     setAttempt((count) => count + 1);
   }, [moduleKey]);
-  const labels = useMemo(() => effectiveLabels(definition, resolved), [definition, resolved]);
+  // By the labels, not the entry: an entry whose title the inspection fills in (withShownTitles) is a new object per evaluation.
+  const savedLabels = resolved.labels;
+  const labels = useMemo(() => effectiveLabels(definition, { labels: savedLabels }), [definition, savedLabels]);
   const config = useMemo(() => definition.configSchema.safeParse(resolved.config), [definition, resolved.config]);
   const moduleEntry = useMemo(
     () => readModuleEntry({ modules: { [moduleKey]: entry }, custom: {} }, "modules", moduleKey),

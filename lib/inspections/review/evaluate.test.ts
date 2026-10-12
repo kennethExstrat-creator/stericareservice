@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { lookupFrom } from "@/lib/templates";
 import { resolveTemplate } from "@/modules";
-import { TEST_REGISTRY } from "@/modules/_framework/__fixtures__/test-registry";
-import { ADMIN_ID, evaluated, savedData, storedInspection } from "./__fixtures__/review";
+import { fillGloveCount } from "@/modules/_framework";
+import { registryWith, TEST_REGISTRY } from "@/modules/_framework/__fixtures__/test-registry";
+import { ADMIN_ID, evaluated, reviewTemplate, savedData, storedInspection } from "./__fixtures__/review";
 import { evaluateStoredInspection, inspectorDecision, isListedIssue, summariseIssues } from "./evaluate";
 
 function ok(result: ReturnType<typeof evaluated>) {
@@ -69,6 +70,21 @@ describe("evaluateStoredInspection", () => {
     expect(result.report.modules.map((entry) => entry.key)).toContain("order_lots");
     expect(result.report.excluded).toEqual([{ key: "weight", title: "Weight (g)", reason: "Scale out of calibration." }]);
     expect(result.template.modules.find((entry) => entry.key === "weight")?.override?.by).toBe(ADMIN_ID);
+  });
+
+  it("names a module as the inspection shows it: a count in its title follows the inspection", () => {
+    // Weight names how many sizes are ordered (two), standing in for the gloves it weighs.
+    const counting = registryWith({
+      weight: { ...TEST_REGISTRY.weight, shownTitle: ({ title, context }) => fillGloveCount(title, [context.sizes.length]) },
+    });
+    const template = reviewTemplate();
+    const resolved = {
+      ...template,
+      modules: template.modules.map((entry) => (entry.key === "weight" ? { ...entry, title: "Weight of 13 gloves" } : entry)),
+    };
+    const result = ok(evaluateStoredInspection(storedInspection({ resolved }), counting));
+    expect(result.template.modules.find((entry) => entry.key === "weight")?.title).toBe("Weight of 2 gloves");
+    expect(result.report.modules.find((entry) => entry.key === "weight")?.title).toBe("Weight of 2 gloves");
   });
 
   it("says so when the template version cannot be read", () => {

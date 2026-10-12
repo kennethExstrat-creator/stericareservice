@@ -6,8 +6,13 @@
 // the per-size results, the computed values, the corrected values, the two
 // validation errors the original report missed, and the suggested result.
 import { describe, expect, it } from "vitest";
+import { assembleExport } from "@/lib/export/assemble";
+import { evaluateRecord } from "@/lib/export/evaluate";
+import { stdEgRecord } from "@/lib/export/__fixtures__/std-eg";
+import { captureSections, findSection } from "@/lib/inspections/capture/sections";
 import { applyModuleOverrides } from "@/lib/templates";
-import { labelFor } from "@/modules/_framework";
+import { labelFor, moduleTitle, suggestionReasons } from "@/modules/_framework";
+import type { SamplingPlanData } from "@/modules/sampling_plan/schema";
 import { STD_EG_EXAMPLE as REPORT, STD_EG_EXPECTED as EXPECTED, type VisualClass } from "@/tests/fixtures/examples";
 import { FIXTURE_MEASURE } from "@/modules/dimensions/__fixtures__/examples";
 import { computedAt, evaluate, evaluateStdEg, inspectionMeta, seedTemplate, stdEgData } from "./examples";
@@ -301,5 +306,53 @@ describe("STD_EG example as a whole inspection (expected results B)", () => {
       { key: "dispensing_packing", title: original.module("dispensing_packing").title, reason: "Dispensing check done at the warehouse" },
     ]);
     expect(switchedOff.report.errors.map((issue) => issue.code)).toEqual(["carton_duplicate"]);
+  });
+});
+
+describe("a count in a title follows the inspection: 12 gloves for dimension (Kenneth, 12 October 2026)", () => {
+  // The corrected example with the sampling plan's # Gloves for Dimension at 12 for size M, and 11 gloves weighed.
+  const STORED = "Weight (g) - Average of 13 Gloves per Size";
+  const SHOWN = "Weight (g) - Average of 12 Gloves per Size";
+  const fixed = stdEgData({ corrected: true });
+  const plan = fixed.modules.sampling_plan as SamplingPlanData;
+  const data = {
+    ...fixed,
+    modules: {
+      ...fixed.modules,
+      sampling_plan: { ...plan, sizes: { ...plan.sizes, M: { ...plan.sizes.M!, glovesDimensions: 12 } } },
+      weight: { sizes: { M: { values: Array.from({ length: 11 }, () => REPORT.weight.M!.averageG) } } },
+    },
+  };
+  const twelve = evaluate(seedTemplate("STD_EG"), data, inspectionMeta(REPORT));
+
+  it("weighs the plan's 12 gloves and names weight by them, its section too; the seed's wording stays 13", () => {
+    expect(seedTemplate("STD_EG").modules.find((entry) => entry.key === "weight")?.title).toBe(STORED);
+    const weight = twelve.module("weight");
+    expect(weight.title).toBe(SHOWN);
+    expect(computedAt(weight, "n")).toEqual({ M: 12 });
+    expect(weight.result.perSize?.M).toEqual({ status: "not_done", summary: "Weight (g): 11 of 12 gloves." });
+    expect(findSection(captureSections(twelve.template, twelve.report, data), "weight")?.title).toBe(SHOWN);
+  });
+
+  it("names it so in the not-done warning and in the Conclusion's reasons", () => {
+    expect(twelve.report.warnings).toContainEqual(
+      expect.objectContaining({ moduleKey: "weight", code: "module_not_done", message: `${SHOWN} is not done: Not done for size M.` }),
+    );
+    expect(twelve.report.suggested).toMatchObject({ result: "hold", notDone: ["weight"] });
+    // As the Conclusion lists them: moduleTitle reads the context's modules.
+    expect(suggestionReasons(twelve.report.suggested, (key) => moduleTitle(twelve.context, key))).toContain(`Not done: ${SHOWN}.`);
+    expect(twelve.module("conclusion").result.summary).toContain(`(not done: ${SHOWN})`);
+  });
+
+  it("exports the title as shown and the gloves weighed per size", () => {
+    const record = stdEgRecord({ data });
+    const result = evaluateRecord(record);
+    if (!result.ok) throw new Error(result.message);
+    const links = { photos: new Map(), files: new Map(), clientLogo: null, sourceFile: null };
+    const doc = assembleExport({ record, evaluated: result.evaluated, links, exportedAt: "2025-04-12T09:15:00.000Z" });
+    const weight = doc.modules.find((entry) => entry.key === "weight");
+    expect(weight?.title).toBe(SHOWN);
+    expect(weight?.computed.n).toEqual({ M: 12 });
+    expect(weight?.config).toMatchObject({ n: 13 });
   });
 });

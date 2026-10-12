@@ -6,7 +6,7 @@ import { authorizeAction } from "@/lib/auth/session";
 import { scheduleAiReviewOnSubmit } from "@/lib/inspections/ai";
 import { captureAccess, isEditableStatus } from "@/lib/inspections/capture/access";
 import { changedEntryProblems, describeProblems } from "@/lib/inspections/capture/changes";
-import { evaluateCapture } from "@/lib/inspections/capture/evaluate";
+import { evaluateCapture, storedTemplateWithShownTitles } from "@/lib/inspections/capture/evaluate";
 import { blockedSubmitMessage, neededSectionCount } from "@/lib/inspections/capture/issues";
 import { loadCaptureInspection, type CaptureInspection } from "@/lib/inspections/capture/load";
 import { mirroredColumns } from "@/lib/inspections/capture/mirror";
@@ -26,7 +26,7 @@ import { serverWriter, submitInspectionRow } from "@/lib/inspections/writes";
 import { FAILURE_MESSAGES, saveInspectionData, type SaveOutcome } from "@/lib/offline";
 import { contentHash } from "@/lib/offline/stable-json";
 import type { InspectionStatus } from "@/lib/schemas/common";
-import type { ModuleOverrides } from "@/lib/schemas/template";
+import type { ModuleOverrides, ResolvedTemplate } from "@/lib/schemas/template";
 import { createClient } from "@/lib/supabase/server";
 import type { Json } from "@/lib/supabase/database.types";
 import type { ValidationIssue } from "@/lib/validation";
@@ -110,7 +110,8 @@ export async function saveCaptureData(input: unknown): Promise<CaptureSaveOutcom
       return { ok: false, reason: "conflict", server: { data: row.data, updatedAt: row.updatedAt }, state: stateOf(row) };
     }
 
-    const problems = changedEntryProblems(row.data, request.data, row.template.resolved);
+    // Named as the screen names them: a count in a title as the stored data has it.
+    const problems = changedEntryProblems(row.data, request.data, shownTemplate(row));
     if (problems.length > 0) return { ok: false, reason: "invalid", message: describeProblems(problems) };
 
     const evaluation = evaluateCapture({
@@ -303,12 +304,13 @@ export async function switchModuleOff(_previous: OverrideResult, formData: FormD
 
     const supabase = await createClient();
     return updateOverrides(supabase, inspectionId, (row) => {
-      const problem = switchOffProblem(row.template.resolved, row.overrides, moduleKey);
+      const template = shownTemplate(row);
+      const problem = switchOffProblem(template, row.overrides, moduleKey);
       if (problem) return { problem };
       return {
         next: withOverride(row.overrides, moduleKey, { reason, by: auth.user.id, at: new Date().toISOString() }),
         event: { module: moduleKey, include: false, reason },
-        message: `${titleOf(row, moduleKey)} is switched off for this inspection.`,
+        message: `${titleOf(template, moduleKey)} is switched off for this inspection.`,
       };
     });
   });
@@ -331,12 +333,13 @@ export async function switchModuleOn(_previous: OverrideResult, formData: FormDa
 
     const supabase = await createClient();
     return updateOverrides(supabase, inspectionId, (row) => {
-      const problem = switchOnProblem(row.template.resolved, row.overrides, moduleKey);
+      const template = shownTemplate(row);
+      const problem = switchOnProblem(template, row.overrides, moduleKey);
       if (problem) return { problem };
       return {
         next: withoutOverride(row.overrides, moduleKey),
         event: { module: moduleKey, include: true, previousReason: row.overrides[moduleKey]?.reason ?? null },
-        message: `${titleOf(row, moduleKey)} is switched back on.`,
+        message: `${titleOf(template, moduleKey)} is switched back on.`,
       };
     });
   });
@@ -420,8 +423,22 @@ async function guardedOverride(name: string, run: () => Promise<OverrideResult>)
  * Helpers
  * ------------------------------------------------------------------ */
 
-function titleOf(row: CaptureInspection, key: string): string {
-  return row.template.resolved.modules.find((entry) => entry.key === key)?.title ?? key;
+/**
+ * The template version as stored, with the titles this inspection shows (a
+ * count in a title follows the inspection), so a message names a section as
+ * the screen does.
+ */
+function shownTemplate(row: CaptureInspection): ResolvedTemplate {
+  return storedTemplateWithShownTitles({
+    template: row.template.resolved,
+    overrides: row.overrides,
+    data: row.data,
+    meta: row.meta,
+  });
+}
+
+function titleOf(template: ResolvedTemplate, key: string): string {
+  return template.modules.find((entry) => entry.key === key)?.title ?? key;
 }
 
 function readOnlyMessage(row: Pick<CaptureInspection, "status">): string {

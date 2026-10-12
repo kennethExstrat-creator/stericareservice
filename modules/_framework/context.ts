@@ -168,9 +168,11 @@ export type InspectionContext = {
   aql: AqlSettings;
   /**
    * The modules the inspection includes, in template order, with their
-   * titles in the template's wording (6.2 rule 11): how a module names
-   * another, e.g. the conclusion's "not done: Glove Packing Check". Read it
-   * with `moduleTitle`; optional only for contexts built before it existed.
+   * titles in the template's wording (6.2 rule 11), any count in one as the
+   * inspection has it once withShownTitles has run (buildInspectionView):
+   * how a module names another, e.g. the conclusion's "not done: Glove
+   * Packing Check". Read it with `moduleTitle`; optional only for contexts
+   * built before it existed.
    */
   modules?: readonly IncludedModule[];
   /**

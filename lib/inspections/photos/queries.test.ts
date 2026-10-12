@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { stdEgTemplate } from "@/lib/export/__fixtures__/std-eg";
 import { loadFiles, loadInspectionMedia, loadPhotos, MEDIA_MESSAGES, signPaths } from "./queries";
 import type { FileRow, PhotoRow } from "./view";
 
@@ -151,6 +152,24 @@ describe("loadInspectionMedia", () => {
       levels: {},
       items: {},
     });
+  });
+
+  it("names the modules as the inspection shows them: weight by the sampling plan's gloves for dimension", async () => {
+    const order = { sizes: { M: { qtyCases: 100, lotNumbers: ["LOT-1"] } } };
+    const plan = { sizes: { M: { glovesDimensions: 12 } } };
+    tables.inspections = {
+      data: {
+        ...(tables.inspections.data as object),
+        template: { resolved: stdEgTemplate() },
+        data: { modules: { order_lots: order, sampling_plan: plan }, custom: {} },
+      },
+      error: null,
+    };
+    const result = await loadInspectionMedia(fakeClient(), INSPECTION);
+    if (result.kind !== "ok") throw new Error(result.kind);
+    expect(result.media.options.modules.find((entry) => entry.key === "weight")?.title).toBe(
+      "Weight (g) - Average of 12 Gloves per Size",
+    );
   });
 
   it("reads oldest first, for this inspection only", async () => {

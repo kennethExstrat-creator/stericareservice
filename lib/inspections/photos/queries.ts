@@ -7,7 +7,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { UUID_PATTERN } from "@/lib/offline/id";
 import { FILE_BUCKET, PHOTO_BUCKET, type MediaBucket } from "@/lib/photos/paths";
 import type { InspectionStatus } from "@/lib/schemas/common";
+import { ResolvedTemplateSchema } from "@/lib/schemas/template";
 import type { Database } from "@/lib/supabase/database.types";
+import { parseModuleOverrides } from "@/lib/templates/overrides";
+import { InspectionDataSchema } from "@/modules/_framework/data";
 import { isNoConnection } from "./messages";
 import {
   FILE_COLUMNS,
@@ -77,7 +80,7 @@ export async function loadInspectionMedia(
 
   const found = await client
     .from("inspections")
-    .select("id, ref_no, status, inspector_id, module_overrides, template:templates(resolved)")
+    .select("id, ref_no, status, inspector_id, module_overrides, data, template:templates(resolved)")
     .eq("id", inspectionId)
     .maybeSingle();
   if (found.error) {
@@ -135,11 +138,45 @@ export async function loadInspectionMedia(
       },
       photos: photoRows.map((row) => toMediaPhoto(row, photoUrls.urls)),
       files: fileRows.map((row) => toMediaFile(row, fileUrls.urls)),
-      options: tagOptionsFromTemplate(template?.resolved ?? null, inspection.module_overrides, defects.error ? [] : defects.data),
+      options: tagOptionsFromTemplate(
+        await templateAsShown(template?.resolved ?? null, inspection.module_overrides, inspection.data),
+        inspection.module_overrides,
+        defects.error ? [] : defects.data,
+      ),
       signedAt,
       problems,
     },
   };
+}
+
+/**
+ * The stored template with the titles the inspection shows (a count in a
+ * title follows it, as on the capture screen), so the gallery's groups and
+ * the photo dialog's modules match the screen. As stored when the template
+ * or the data cannot be read, or the module engine cannot be loaded.
+ *
+ * The engine (the module registry and validation) is loaded on demand, never
+ * imported here: this file is part of the photo queue, which the gallery, the
+ * review's actions and the account menu's sign-out check (on every page) load,
+ * and none of them needs the engine otherwise. The capture screen has it already.
+ */
+async function templateAsShown(resolved: unknown, moduleOverrides: unknown, data: unknown): Promise<unknown> {
+  const template = ResolvedTemplateSchema.safeParse(resolved);
+  const saved = typeof data === "object" && data !== null && !Array.isArray(data) ? data : {};
+  const parsed = InspectionDataSchema.safeParse({ modules: {}, custom: {}, ...saved });
+  if (!template.success || !parsed.success) return resolved;
+  try {
+    const { storedTemplateWithShownTitles } = await import("@/lib/inspections/capture/evaluate");
+    return storedTemplateWithShownTitles({
+      template: template.data,
+      overrides: parseModuleOverrides(moduleOverrides),
+      data: parsed.data,
+    });
+  } catch (error) {
+    // Offline before the engine's code arrived, or a stale page after a deploy: the template's own titles.
+    logFailure("the titles as shown", { message: error instanceof Error ? error.message : String(error) });
+    return resolved;
+  }
 }
 
 /**

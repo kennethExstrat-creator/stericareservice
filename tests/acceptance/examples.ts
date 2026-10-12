@@ -8,7 +8,8 @@
 // data.modules; then the inspection is evaluated exactly as the capture
 // screen, submit, the review and the export do (docs/MODULES.md section 13):
 // the template as seeded (seed-bundle.json, which scripts/seed-templates.mts
-// writes to the live database), buildInspectionContext, validateInspection.
+// writes to the live database), buildInspectionView (the context, and the
+// titles as the inspection shows them), validateInspection.
 //
 // What the reports do not print is entered the way docs/FIXTURES.md ("How
 // the acceptance tests use them") says: 13 force readings whose median is
@@ -20,7 +21,7 @@ import { ResolvedTemplateSchema, type ResolvedTemplate } from "@/lib/schemas/tem
 import { roundTo } from "@/lib/stats";
 import { validateInspection, type ValidationReport } from "@/lib/validation";
 import {
-  buildInspectionContext,
+  buildInspectionView,
   type InspectionContext,
   type InspectionData,
   type InspectionMeta,
@@ -306,6 +307,7 @@ export function safedonEgFiles(labReport = true): NonNullable<InspectionMeta["fi
  * ------------------------------------------------------------------ */
 
 export type Evaluated = {
+  /** As evaluated: titles as the inspection shows them. */
   template: ResolvedTemplate;
   context: InspectionContext;
   report: ValidationReport;
@@ -314,8 +316,8 @@ export type Evaluated = {
 };
 
 /** The inspection evaluated as the capture screen, submit, the review and the export do. */
-export function evaluate(template: ResolvedTemplate, data: InspectionData, meta: InspectionMeta): Evaluated {
-  const context = buildInspectionContext({ template, data, meta }, MODULE_REGISTRY);
+export function evaluate(seeded: ResolvedTemplate, data: InspectionData, meta: InspectionMeta): Evaluated {
+  const { template, context } = buildInspectionView({ template: seeded, data, meta }, MODULE_REGISTRY);
   const report = validateInspection(data, template, context, MODULE_REGISTRY);
   return {
     template,

@@ -5,17 +5,17 @@
 // test modules; this one checks what the real modules put in.
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-// The framework as it is, with a spy on the context builder: what the export passes it.
+// The framework as it is, with a spy on the context builder (with the titles shown): what the export passes it.
 vi.mock("@/modules/_framework", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/modules/_framework")>();
-  return { ...actual, buildInspectionContext: vi.fn(actual.buildInspectionContext) };
+  return { ...actual, buildInspectionView: vi.fn(actual.buildInspectionView) };
 });
 
 import { ExportSchema, type InspectionExport } from "@/lib/schemas/export";
 import { lookupFrom } from "@/lib/templates";
 import { STD_EG_SEED } from "@/lib/templates/definitions";
 import { resolveTemplate } from "@/modules";
-import { buildInspectionContext } from "@/modules/_framework";
+import { buildInspectionView } from "@/modules/_framework";
 import { createFakeSupabase } from "./__fixtures__/fake-supabase";
 import {
   STD_EG_IDS,
@@ -177,10 +177,10 @@ describe("inspectionMeta", () => {
   });
 
   it("is what the export builds the context with", () => {
-    vi.mocked(buildInspectionContext).mockClear();
+    vi.mocked(buildInspectionView).mockClear();
     const record = stdEgRecord();
     expect(evaluateRecord(record).ok).toBe(true);
-    expect(buildInspectionContext).toHaveBeenCalledWith(
+    expect(buildInspectionView).toHaveBeenCalledWith(
       expect.objectContaining({
         meta: expect.objectContaining({
           refNo: STD_EG_REF_NO,

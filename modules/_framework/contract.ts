@@ -52,6 +52,16 @@ export interface ContributeInput<TData, TConfig> {
   readonly config: TConfig;
 }
 
+/** What `shownTitle` gets: the stored title, the module's config and the complete context. */
+export interface TitleInput<TConfig> {
+  /** The template's title, as stored with the version (`templates.resolved`). */
+  readonly title: string;
+  /** Effective config, parsed by your schema. */
+  readonly config: TConfig;
+  /** The complete context, every contribution in (buildInspectionContext). */
+  readonly context: InspectionContext;
+}
+
 /** An entered value a custom field may map to (Field.mapsTo): `modules.<key>.<path>`. */
 export interface CanonicalPath {
   /** Dot path inside the module's data, e.g. "indicativeWeight". */
@@ -173,6 +183,16 @@ export interface ModuleDefinition<TData = unknown, TConfig = unknown, TComputed 
    * (CONTEXT_SOURCES), and of the AQL settings only its own (AQL_SOURCES).
    */
   contribute?(input: ContributeInput<TData, TConfig>): ContextContribution;
+  /**
+   * Pure: the title this inspection shows, from the template's title as
+   * stored with the version, for a count in it that follows the inspection
+   * (weight's gloves weighed). Return `title` unchanged when nothing applies.
+   * The stored wording never changes: the framework applies this once per
+   * evaluation (withShownTitles), so the step list, every message, the
+   * review and the export name the module alike. A hook that throws, or
+   * answers blank, keeps the stored title.
+   */
+  shownTitle?(input: TitleInput<TConfig>): string;
   /** The capture UI, loaded on demand: `loadCapture: () => import("./Capture")`. */
   loadCapture?(): Promise<{ default: CaptureComponent<TData, TConfig, TComputed> }>;
 }

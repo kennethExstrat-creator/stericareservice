@@ -283,6 +283,8 @@ const REPORT_STD_EG: SourceField[] = [
       label: "Weight (g) - average of 13 gloves per size",
       input: "heading",
       targets: [l("weight", "title"), c("weight", "n")],
+      notes:
+        "The app fills in the count of gloves weighed (the sampling plan's gloves for dimension, else config n), so the heading names the gloves really weighed.",
     },
     { label: "Size", input: "size", targets: [tpl("sizes")] },
     {

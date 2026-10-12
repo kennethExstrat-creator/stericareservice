@@ -10,7 +10,7 @@ import { ResolvedTemplateSchema, type ResolvedTemplate } from "@/lib/schemas/tem
 import { applyModuleOverrides, parseModuleOverrides } from "@/lib/templates";
 import { validateInspection, type ValidationIssue, type ValidationReport } from "@/lib/validation";
 import {
-  buildInspectionContext,
+  buildInspectionView,
   InspectionDataSchema,
   type InspectionContext,
   type InspectionData,
@@ -44,7 +44,7 @@ export type StoredInspection = {
 export type ReviewEvaluation =
   | {
       ok: true;
-      /** The inspection's copy of the template: overrides applied. */
+      /** The inspection's copy of the template: overrides applied, titles as shown (withShownTitles). */
       template: ResolvedTemplate;
       context: InspectionContext;
       report: ValidationReport;
@@ -102,7 +102,7 @@ export function evaluateStoredInspection(
     };
   }
 
-  const template = applyModuleOverrides(resolved.data, parseModuleOverrides(stored.moduleOverrides));
+  const effective = applyModuleOverrides(resolved.data, parseModuleOverrides(stored.moduleOverrides));
   const meta = inspectionMeta(
     {
       refNo: stored.refNo,
@@ -113,7 +113,7 @@ export function evaluateStoredInspection(
     },
     stored.files ?? null,
   );
-  const context = buildInspectionContext({ template, data, meta }, registry);
+  const { template, context } = buildInspectionView({ template: effective, data, meta }, registry);
   const report = validateInspection(data, template, context, registry);
   return { ok: true, template, context, report, summary: summariseIssues(report) };
 }

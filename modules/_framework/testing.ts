@@ -171,13 +171,15 @@ export function checkModuleContract(definition: AnyModuleDefinition): string[] {
   }
 
   if (config.success && data.success) {
+    let context: InspectionContext | null = null;
     try {
+      context = contractContext(definition, data.data, config.data, add);
       const output = definition.calc({
         data: data.data,
         config: config.data,
         title: definition.title,
         labels: definition.labels,
-        context: contractContext(definition, data.data, config.data, add),
+        context,
         results: {},
         hasData: false,
       });
@@ -190,6 +192,14 @@ export function checkModuleContract(definition: AnyModuleDefinition): string[] {
       if (!CalcIssuesSchema.safeParse(output.issues).success) add("calc returns malformed issues");
     } catch (error) {
       add(`calc or contribute throws on empty data: ${messageOf(error)}`);
+    }
+    if (definition.shownTitle && context) {
+      try {
+        const shown: unknown = definition.shownTitle({ title: definition.title, config: config.data, context });
+        if (typeof shown !== "string" || shown.trim() === "") add("shownTitle gives no title for the default title");
+      } catch (error) {
+        add(`shownTitle throws on the default title: ${messageOf(error)}`);
+      }
     }
   }
   return problems;

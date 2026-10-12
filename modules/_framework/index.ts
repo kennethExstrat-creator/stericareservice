@@ -15,6 +15,7 @@ export type {
   AnyModuleDefinition,
   ModuleRegistry,
   PackagingLevel,
+  TitleInput,
 } from "./contract";
 export { PACKAGING_LEVELS } from "./contract";
 export { defineModule, stubModule, NOT_BUILT_SUMMARY, type ModuleSpec, type StubSpec } from "./define";
@@ -70,6 +71,7 @@ export {
   type InspectionFileRef,
 } from "./files";
 export { salvageData, type SalvagedData } from "./salvage";
+export { buildInspectionView, fillGloveCount, withShownTitles, type InspectionView } from "./titles";
 export {
   COMMENT_KEY,
   InspectionDataSchema,

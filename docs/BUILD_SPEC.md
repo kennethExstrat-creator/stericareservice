@@ -259,7 +259,7 @@ Each module lives in `modules/<key>/` with `schema.ts` (data), `config.ts` (conf
 | `sampling_plan` | Per size: sampled cases, inner units, gloves; gloves for watertight and visual; gloves for dimensions; gloves for physical test; inner units for packaging and dispensing; pouches (surgical) | columns on/off, inspection level | warn when below the AQL plan (section 7) | both reports, onsite |
 | `carton_sampling` | Per size: sampled carton numbers | none | fail on validation errors (6.2) | both reports |
 | `dimensions` | Per size, per glove (default 13): chosen measures from length, width, finger, palm and cuff thickness | measures on/off; statistic `average` or `median`; spec per size per measure (min, max, nominal ± tolerance, or NA); decimals | pass/fail per measure on the statistic; fail if any fails | both reports |
-| `weight` | Per size: gloves weighed (1 or 13), values, average; compared with indicative weight | n; optional spec; warn threshold (default 10%) | pass/fail if spec set; warn on deviation | both reports |
+| `weight` | Per size: gloves weighed (one value, or one per glove of the sampling plan's dimension sample; template n, default 13, until the plan gives one), values, average; compared with indicative weight | n; optional spec; warn threshold (default 10%) | pass/fail if spec set; warn on deviation | both reports |
 | `force_at_break` | Per size, per glove (default 13): force (N); median; lab report file | n, spec minimum (default 6 N), standard label | pass/fail per size | STD_EG |
 | `tensile` | Per size: tensile strength average (MPa), elongation at break average (%); lab report file required | specs (default ≥ 14 MPa, ≥ 500%), standard label | pass/fail per size | SAFEDON_EG |
 | `watertight` | Per size (R/L optional): n tested, holes by location | AQL (default 1.5), locations and labels (between fingers/crotch, palm, finger, cuff, glove burst, other), `handSplit` | accept/reject per size from the AQL engine | both reports, onsite |
@@ -293,7 +293,7 @@ Learned from checking the two example reports (`docs/examples/expected-results.m
 8. The sample size sets the code letter and limits (section 7). A plan that does not match the sample size cannot be saved.
 9. Measured weight more than the threshold away from the indicative weight raises a warning.
 10. Client, product code and PO are entered once in `header` and reused everywhere, including the export.
-11. The inspector is always recorded. Section and result labels come from the template and cannot be edited on the capture screen.
+11. The inspector is always recorded. Section and result labels come from the template and cannot be edited on the capture screen. A count in a title follows the inspection: weight's names the gloves weighed (Kenneth, 12 October 2026: "its not right to hardcode to 13").
 
 Errors block submit and list each problem with a link. Warnings are allowed but go into the export.
 
@@ -344,7 +344,7 @@ Speed:
 - Counts by tapping: +/- steppers and tap-to-add defect chips. No typing for counts.
 - Measurements use the numeric keypad (`inputmode="decimal"`). Enter moves to the next cell. Pasting a column of values (from a caliper app or spreadsheet) fills down.
 - Size tabs (swipe on iPad, arrow keys on desktop). Sticky size and hand headers.
-- Numbers flow forward: sampling sets n in later modules; the carton list feeds box pickers.
+- Numbers flow forward: sampling sets n in later modules (weight weighs the gloves for dimension); the carton list feeds box pickers.
 - Live totals and green/red accept chips update as you tap.
 - Autosave on every change (debounced about 800 ms) to Supabase, with a local IndexedDB copy. Status pill: Saved, Saving, or Offline (Will Sync). A dropped signal never loses data.
 - "Start From Previous": prefill header, glove info, packing, specs and AQL from the last inspection for the same client, manufacturer and product.
@@ -417,7 +417,7 @@ Build every seed template field for field from `docs/forms/reports/` first, then
 
 | Template | Scope | Built from | Modules on (in order) |
 |---|---|---|---|
-| `STD_EG` | examination, EN 455 | `reports/STD_EG.md`, `onsite/EG.md` | header (+ client, factory glove code), glove_info, order_lots, packing_config (inner box), sampling_plan, carton_sampling, dimensions (median; length, width, finger, palm, cuff), force_at_break (≥ 6 N), weight (13 gloves), watertight, visual (critical, major, minor), dispensing_packing, labeling (dispenser box: lot, mfg, artwork; carton: + carton no.), conclusion |
+| `STD_EG` | examination, EN 455 | `reports/STD_EG.md`, `onsite/EG.md` | header (+ client, factory glove code), glove_info, order_lots, packing_config (inner box), sampling_plan, carton_sampling, dimensions (median; length, width, finger, palm, cuff), force_at_break (≥ 6 N), weight (the gloves for dimension, 13 by default), watertight, visual (critical, major, minor), dispensing_packing, labeling (dispenser box: lot, mfg, artwork; carton: + carton no.), conclusion |
 | `SAFEDON_EG` | examination, ASTM D6319, client scoped; extends `STD_EG` | `reports/SAFEDON_EG.md`, `onsite/SAFEDON_EG.md` | as STD_EG, with: header + inspected by and client logo; order_lots + packing site; inner unit "plastic pack"; dimensions average (length, width, finger, palm, no cuff); weight 1 value; tensile instead of force_at_break; watertight + glove burst; dispensing_safedon instead of dispensing_packing (125 per pack, ≤ 5%); labeling + expiry date at both levels |
 | `STD_SG` | surgical | `onsite/SG.md` | header, order_lots, packing_config (pouch), sampling_plan (+ pouches), watertight (handSplit), visual (handSplit), dimensions, dye_leak, conclusion. No filled SG report yet: specs to confirm |
 

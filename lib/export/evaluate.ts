@@ -4,7 +4,7 @@ import { applyModuleOverrides, parseModuleOverrides } from "@/lib/templates";
 import { validateInspection, type ValidationReport } from "@/lib/validation";
 import { manufacturerLabel, personLabel } from "@/lib/inspections/format";
 import {
-  buildInspectionContext,
+  buildInspectionView,
   InspectionDataSchema,
   type InspectionContext,
   type InspectionData,
@@ -18,13 +18,17 @@ import type { InspectionRecord } from "./record";
 /* ------------------------------------------------------------------ *
  * The inspection run through the module framework, as the capture
  * screen and submit see it (docs/MODULES.md section 13): the template
- * version with this inspection's overrides applied, the context, and
- * every module's result, computed values, issues and comment. Pure: the
- * registry is passed in, so tests can use the framework's test modules.
+ * version with this inspection's overrides applied and its titles as
+ * the inspection shows them, the context, and every module's result,
+ * computed values, issues and comment. Pure: the registry is passed
+ * in, so tests can use the framework's test modules.
  * ------------------------------------------------------------------ */
 
 export type EvaluatedInspection = {
-  /** The inspection's copy of its template version: modules switched off for it are excluded. */
+  /**
+   * The inspection's copy of its template version: modules switched off for
+   * it are excluded, and a count in a title is the inspection's (withShownTitles).
+   */
   template: ResolvedTemplate;
   data: InspectionData;
   context: InspectionContext;
@@ -53,14 +57,14 @@ export function evaluateRecord(record: InspectionRecord, registry: ModuleRegistr
     return { ok: false, reason: "unreadable_data", message: `The saved data of inspection ${record.refNo} could not be read.` };
   }
 
-  const template = applyModuleOverrides(resolved.data, parseModuleOverrides(record.moduleOverrides));
+  const effective = applyModuleOverrides(resolved.data, parseModuleOverrides(record.moduleOverrides));
   const inspector = inspectorRef(record);
   const client = record.client ? { id: record.client.id, name: record.client.name } : null;
   const manufacturer = record.manufacturer
     ? { id: record.manufacturer.id, name: manufacturerLabel({ name: record.manufacturer.name, factory_name: record.manufacturer.factoryName }) }
     : null;
   const meta = inspectionMeta({ refNo: record.refNo, inspectionDate: record.inspectionDate, inspector, client, manufacturer }, record.files);
-  const context = buildInspectionContext({ template, data: data.data, meta }, registry);
+  const { template, context } = buildInspectionView({ template: effective, data: data.data, meta }, registry);
   const report = validateInspection(data.data, template, context, registry);
   return { ok: true, evaluated: { template, data: data.data, context, report, inspector, client, manufacturer } };
 }

@@ -1076,7 +1076,7 @@ module field; `template` a template property; `layout` is drawn by the AI report
 | Page 2 > Force At Break in Newton | Median | Median | computed | `force_at_break.median`<br>`force_at_break.values`<br>config `force_at_break.n` | Only the median is printed; the app keeps the n readings and computes it (rule 2). |
 | Page 2 > Force At Break in Newton | Spec. | Spec. | fixed | caption `force_at_break.specRow`<br>config `force_at_break.specMin` | ≥ 6 N (left blank for XS). |
 | Page 2 > Force At Break in Newton | Passed / Failed | Passed / Failed | computed | `force_at_break.result` |  |
-| Page 2 > Weight (g) - average of 13 gloves per size | Weight (g) - average of 13 gloves per size | Weight (g) - Average of 13 Gloves per Size | heading | title `weight`<br>config `weight.n` |  |
+| Page 2 > Weight (g) - average of 13 gloves per size | Weight (g) - average of 13 gloves per size | Weight (g) - Average of 13 Gloves per Size | heading | title `weight`<br>config `weight.n` | The app fills in the count of gloves weighed (the sampling plan's gloves for dimension, else config n), so the heading names the gloves really weighed. |
 | Page 2 > Weight (g) - average of 13 gloves per size | Size |  | size | template `sizes` |  |
 | Page 2 > Weight (g) - average of 13 gloves per size | Average | Average | computed | `weight.average`<br>`weight.values`<br>config `weight.decimals` | The 13 weighings are not printed; the app keeps them and computes the average. |
 | Page 2 > Weight (g) - average of 13 gloves per size | Remark | Remark | computed | `weight.result`<br>caption `weight.info`<br>config `weight.specs` | Printed 'Info': no weight spec. |

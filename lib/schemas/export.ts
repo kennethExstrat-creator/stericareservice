@@ -62,7 +62,7 @@ export type ExportTemplate = z.infer<typeof ExportTemplateSchema>;
 
 export const ExportModuleSchema = z.object({
   key: ModuleKeySchema,
-  /** Heading as on the source form. */
+  /** Heading as on the source form, any count in it as this inspection has it (shownTitle: weight's gloves weighed). */
   title: z.string().min(1),
   /** Field labels as on the source form, keyed by canonical field key. */
   labels: z.record(z.string(), z.string()),
