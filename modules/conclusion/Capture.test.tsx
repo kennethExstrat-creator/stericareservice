@@ -10,6 +10,7 @@ import { evaluateInspection, type InspectionContext, type ModuleEvaluation } fro
 import { makeTestContext, makeTestTemplate, TEST_INSPECTOR } from "@/modules/_framework/testing";
 import { SAFEDON_EG_EXAMPLE } from "@/tests/fixtures/examples";
 import { richTextExample } from "@/lib/rich-text/__fixtures__/example";
+import { SummaryAssistProvider, type SummaryAssist } from "@/modules/_framework/summary-assist";
 import Capture, { SignaturePad } from "./Capture";
 import type { ConclusionComputed } from "./calc";
 import { CONCLUSION_DEFAULT_CONFIG, CONCLUSION_LABELS } from "./config";
@@ -36,6 +37,17 @@ type Options = {
    * shown (the capture screen evaluates a deferred copy: useDeferredValue).
    */
   evaluated?: Partial<ConclusionData>;
+  /** The screen's Steri-AI Summary slot; left out, as in the template editor's preview. */
+  assist?: SummaryAssist | null;
+};
+
+/** The capture screen's slot, never called on the server. */
+const ASSIST: SummaryAssist = {
+  menu: { length: "standard", paragraphs: "auto", format: "paragraphs", language: "en-GB", languagesOffered: ["en-GB"], inspectorsCanAdjust: true },
+  draft: async () => ({ ok: false, reason: "error", message: "Not called on the server." }),
+  basisNow: () => "0000000000000000",
+  inspectionId: "00000000-0000-4000-8000-000000000001",
+  userId: "00000000-0000-4000-8000-000000000002",
 };
 
 function render(
@@ -49,6 +61,7 @@ function render(
     context = makeTestContext({ sizes: ["M"] }),
     readOnly = false,
     evaluated,
+    assist,
   }: Options = {},
 ): string {
   const conclusion = { ...emptyConclusion(), ...data };
@@ -65,7 +78,7 @@ function render(
     { template, data: { modules, custom: {} }, context },
     MODULE_REGISTRY,
   ).modules.find((entry) => entry.key === "conclusion") as ModuleEvaluation<ConclusionComputed>;
-  return renderToStaticMarkup(
+  const capture = (
     <Capture
       data={conclusion}
       config={CONCLUSION_DEFAULT_CONFIG}
@@ -76,8 +89,9 @@ function render(
       focusPath={null}
       readOnly={readOnly}
       onChange={noop}
-    />,
+    />
   );
+  return renderToStaticMarkup(assist === undefined ? capture : <SummaryAssistProvider value={assist}>{capture}</SummaryAssistProvider>);
 }
 
 function renderPad(props: Partial<Parameters<typeof SignaturePad>[0]> = {}) {
@@ -318,6 +332,36 @@ describe("conclusion capture", () => {
   it("keeps the summary's heading row a button tall, with room at its right end", () => {
     const row = /<div data-slot="summary-heading" class="([^"]*)"><h3 [^>]*>Inspection Summary<\/h3><\/div>/.exec(render({}))?.[1].split(" ");
     expect(row).toEqual(expect.arrayContaining(["flex", "min-h-8", "touch:min-h-11", "items-center", "justify-between"]));
+  });
+
+  it("puts the Steri-AI Summary button at the heading row's right end, and its line under the editor, where the screen gives the slot", () => {
+    const html = render({ finalResult: "pass" }, { assist: ASSIST });
+    const row = /<div data-slot="summary-heading" class="[^"]*">([\s\S]*?)<\/div><div data-slot="rich-text-editor"/.exec(html)?.[1] ?? "";
+    expect(row).toMatch(/^<h3 [^>]*>Inspection Summary<\/h3><div role="group" aria-label="Steri-AI Summary" data-slot="steri-ai-summary"/);
+    const main = /<button[^>]*data-action="steri-ai-summary"[^>]*>/.exec(html)?.[0] ?? "";
+    expect(main).not.toMatch(/\saria-disabled="true"/);
+    // The line under the editor, before the sign-off; a live region from the start.
+    const at = (marker: string) => html.indexOf(marker);
+    expect(at('data-slot="rich-text-editor"')).toBeLessThan(at('data-slot="steri-ai-summary-status"'));
+    expect(at('data-slot="steri-ai-summary-status"')).toBeLessThan(at(">Inspected By</label>"));
+    expect(html).toContain('aria-live="polite" data-slot="steri-ai-summary-announcement"');
+  });
+
+  it("greys Steri-AI Summary out until the conclusion is chosen, still focusable", () => {
+    const main = /<button[^>]*data-action="steri-ai-summary"[^>]*>/.exec(render({}, { assist: ASSIST }))?.[0] ?? "";
+    expect(main).toMatch(/\saria-disabled="true"/);
+    expect(main).not.toMatch(/\sdisabled=""/);
+  });
+
+  it("shows no Steri-AI Summary read-only, or where the screen gives no slot", () => {
+    for (const html of [
+      render({ finalResult: "pass" }, { assist: ASSIST, readOnly: true }),
+      render({ finalResult: "pass" }, { assist: null }),
+      render({ finalResult: "pass" }),
+    ]) {
+      expect(html).not.toContain("steri-ai-summary");
+      expect(html).not.toContain("Steri-AI");
+    }
   });
 
   it("shows the saved summary formatted, in a white frame with its toolbar", () => {

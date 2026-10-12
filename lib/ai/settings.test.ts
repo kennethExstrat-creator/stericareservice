@@ -45,6 +45,8 @@ function row(values: Partial<Row>): Row {
     review_max_photos: null,
     prices: null,
     glossary: null,
+    summary_model: null,
+    summary_style: null,
     created_at: "2026-10-12T00:00:00Z",
     updated_at: "2026-10-12T06:05:00Z",
     updated_by: null,

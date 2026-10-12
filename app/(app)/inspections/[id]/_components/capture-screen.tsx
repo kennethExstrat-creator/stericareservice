@@ -10,7 +10,9 @@
 // Next go by page; ?module=, issue links and the switches name a section,
 // and open its page with that section's title in view. A module's file slot
 // links a file uploaded on Source Documents, and opens that page while it
-// has none (section-body.tsx).
+// has none (section-body.tsx). The conclusion's Steri-AI Summary asks the
+// screen for a draft (summaryAssist): what is waiting is saved first, as for
+// submit, and the draft comes back as text for the editor, never as data.
 //
 // Layout: below 1280 px (the iPad) a section tab bar sticks under the shell's
 // top bar with the save pill, and the form runs full width; from 1280 px a
@@ -117,9 +119,11 @@ import {
   type CaptureSection,
 } from "@/lib/inspections/capture/sections";
 import { suggestionReasons } from "@/lib/inspections/capture/suggestion";
+import { summaryBasisHash } from "@/lib/inspections/capture/summary-basis";
 import type { StartResult } from "@/lib/offline";
 import { contentHash } from "@/lib/offline/stable-json";
 import { isModuleKey } from "@/lib/schemas/module-result";
+import { SUMMARY_MESSAGES, type SummaryMenu } from "@/lib/schemas/summary-style";
 import type { ModuleOverrides, ResolvedTemplate } from "@/lib/schemas/template";
 import type { IssuePath, ValidationIssue } from "@/lib/validation";
 import { cn } from "@/lib/utils";
@@ -133,8 +137,10 @@ import {
   type InspectionData,
 } from "@/modules/_framework";
 import { MODULE_REGISTRY } from "@/modules";
+import type { SummaryAssist } from "@/modules/_framework/summary-assist";
 import { applyProposals, SOURCE_DOCUMENTS_KEY, SOURCE_DOCUMENTS_TITLE } from "@/lib/inspections/source-documents";
 import type { CaptureServerState } from "../actions";
+import { draftInspectionSummary } from "../summary-actions";
 import { CaptureHeader, type CaptureHeading } from "./capture-header";
 import { captureNotices, CaptureNotices } from "./capture-notices";
 import { ConflictDialog } from "./conflict-dialog";
@@ -154,6 +160,7 @@ import { inspectorHasActed, landingExpected, STILL_LOADING, useLandingSpot } fro
 import { useNoPullToRefresh } from "./use-no-pull-to-refresh";
 import { useRefusedEntries } from "./use-refused-entries";
 import { useStickyOffsets } from "./use-sticky-offsets";
+import { unreachable } from "./unreachable";
 
 export type CaptureScreenProps = {
   inspectionId: string;
@@ -175,6 +182,11 @@ export type CaptureScreenProps = {
   reopenNote?: ReopenNote | null;
   /** Defects counted in earlier inspections, by code: the defect lists open on the most-used ones. */
   defectUsage?: DefectUsage;
+  /**
+   * The Steri-AI Summary's menu (loadSummaryMenu) where the inspection can be
+   * changed here; null (or left out) shows no Steri-AI Summary button.
+   */
+  summaryMenu?: SummaryMenu | null;
 };
 
 type FocusRequest = { sectionKey: string; path: IssuePath };
@@ -197,6 +209,7 @@ export function CaptureScreen({
   initialSection,
   reopenNote = null,
   defectUsage = NO_USAGE,
+  summaryMenu = null,
 }: CaptureScreenProps) {
   const idPrefix = useId();
   const panelId = `${idPrefix}-section`;
@@ -631,6 +644,28 @@ export function CaptureScreen({
     return { ok: true, dataHash: contentHash(dataRef.current) };
   }, [autosave, inspectionId]);
 
+  // The Steri-AI Summary slot (modules/_framework/summary-assist.tsx): as submit does, what is
+  // waiting is saved first, so Steri-AI reads what the inspector sees, and the server checks the
+  // saved data's hash. The draft only comes back: the conclusion's Capture puts it in through the
+  // editor and autosave. Only where the inspection can be changed here (page.tsx gives the menu then).
+  const flushNow = autosave.flush;
+  const summaryAssist = useMemo<SummaryAssist | null>(() => {
+    if (!summaryMenu) return null;
+    return {
+      menu: summaryMenu,
+      inspectionId,
+      userId: user.id,
+      basisNow: () => summaryBasisHash(dataRef.current),
+      draft: async (options) => {
+        const flushed = await flushNow();
+        if (!flushed.ok) return { ok: false, reason: "error", message: `${SUMMARY_MESSAGES.notSavedPrefix}${flushed.message}` };
+        return draftInspectionSummary({ inspectionId, dataHash: contentHash(dataRef.current), options }).catch(
+          (error: unknown) => ({ ok: false, reason: "error", message: unreachable(error).message }) as const,
+        );
+      },
+    };
+  }, [summaryMenu, inspectionId, user.id, flushNow]);
+
   // After a refused submit, empty required fields say so where they are, too.
   const [submitTried, setSubmitTried] = useState(false);
   const onBlocked = useCallback(
@@ -1019,6 +1054,7 @@ export function CaptureScreen({
               inspectionId={inspectionId}
               keptFocus={keptFocus}
               defectUsage={defectUsage}
+              summaryAssist={summaryAssist}
               refusedStores={refusedStores}
               onFocusReported={keepSize}
               onUnreadableRemoved={focusTitleAfterRemoval}
@@ -1116,6 +1152,8 @@ type SharedSectionProps = {
   /** The size kept from the sections before: the module opens on it (CaptureProps.focus). Never a photo tag. */
   keptFocus: CaptureFocus;
   defectUsage: DefectUsage;
+  /** The Steri-AI Summary slot for the conclusion's Capture; null where the inspection cannot be changed here. */
+  summaryAssist: SummaryAssist | null;
   /** Every focus a section's module or form reports, so its size is kept for the next section. */
   onFocusReported: (focus: CaptureFocus) => void;
   onModuleChange: (key: string, value: unknown) => void;
@@ -1236,6 +1274,7 @@ function SectionPart({
   inspectionId,
   keptFocus,
   defectUsage,
+  summaryAssist,
   refusedEntries,
   onFocusReported,
   onUnreadableRemoved,
@@ -1347,6 +1386,7 @@ function SectionPart({
             onFocusChange={onFocusChange}
             onUnreadableRemoved={onUnreadableRemoved}
             nameContext={nameContext}
+            summaryAssist={summaryAssist}
           />
         </RefusedEntryStoreContext.Provider>
       )}

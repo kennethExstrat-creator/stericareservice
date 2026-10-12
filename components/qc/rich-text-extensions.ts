@@ -6,11 +6,15 @@
 // (rich-text-classes.ts), never inline styles, and parse back from those
 // data attributes only: what another program pasted (11pt, #000000,
 // windowtext) makes no mark, while a copy and paste inside the editor keeps
-// it. No React, so the test reads the schema in Node. Imported only by the
-// editor and its test, so Tiptap stays in the editor's chunk.
+// it. Also how a document from outside (Steri-AI's draft) goes in as one undo
+// step (insertRichTextDocument, the editor's ref). No React, so the tests run
+// the schema and a headless editor in Node. Imported only by the editor and
+// its tests (others take the handle's types from the editor), so Tiptap stays
+// in the editor's chunk.
 import { Extension, type Editor } from "@tiptap/core";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
-import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
+import { closeHistory } from "@tiptap/pm/history";
+import { Plugin, PluginKey, Selection } from "@tiptap/pm/state";
+import { Fragment, type Node as ProseMirrorNode } from "@tiptap/pm/model";
 import type { EditorView } from "@tiptap/pm/view";
 import { StarterKit } from "@tiptap/starter-kit";
 import { ListItem, OrderedList } from "@tiptap/extension-list";
@@ -18,6 +22,7 @@ import { Color, FontSize, TextStyle } from "@tiptap/extension-text-style";
 import { Highlight } from "@tiptap/extension-highlight";
 import { TextAlign } from "@tiptap/extension-text-align";
 import { CharacterCount } from "@tiptap/extensions";
+import { toRichTextDoc } from "@/lib/rich-text";
 import {
   RICH_TEXT_ALIGNS,
   RICH_TEXT_COLOURS,
@@ -25,9 +30,15 @@ import {
   RICH_TEXT_MAX_CHARACTERS,
   RICH_TEXT_MAX_PARAGRAPHS,
   RICH_TEXT_SIZES,
+  richTextLength,
+  richTextParagraphs,
   type RichTextAlign,
+  type RichTextBlock,
   type RichTextColour,
+  type RichTextDoc,
   type RichTextHighlight,
+  type RichTextInline,
+  type RichTextParagraph,
   type RichTextSize,
 } from "@/lib/schemas/rich-text";
 import { RICH_TEXT_ALIGN_CLASS, RICH_TEXT_COLOUR_CLASS, RICH_TEXT_HIGHLIGHT_CLASS, RICH_TEXT_SIZE_CLASS } from "./rich-text-classes";
@@ -293,3 +304,180 @@ export const RICH_TEXT_EXTENSIONS = [
   CharacterCount.configure({ limit: RICH_TEXT_MAX_CHARACTERS, autoTrim: false }),
   RichTextBehaviour,
 ];
+
+/* ------------------------------------------------------------------ *
+ * A document put in from outside, as one undo step (Steri-AI's draft
+ * of the Inspection Summary; 12 October 2026). Writing the data instead
+ * would replace the text off the undo history (the editor follows data
+ * replaced from outside that way), so the toolbar's Undo could not take
+ * the draft back.
+ * ------------------------------------------------------------------ */
+
+/**
+ * Replace: in place of the whole text. Below: after the text, with a blank
+ * line between (paragraphs have no margins here), taking over the empty
+ * paragraphs that end it; into an empty field it is the same as replace.
+ */
+export type RichTextInsertMode = "replace" | "below";
+
+export type RichTextInsertResult =
+  | { applied: false }
+  | {
+      applied: true;
+      /** The end did not fit in the room left (5,000 characters, 500 paragraphs) and was cut off, as a paste's is. */
+      cut: boolean;
+      /** The field just before the change, canonical (null: empty): what an Undo of your own puts back with replace. */
+      before: RichTextDoc | null;
+      /** The field after it, the document onChange was given (null: empty). */
+      after: RichTextDoc | null;
+    };
+
+/** What RichTextEditor's `ref` holds. */
+export type RichTextEditorHandle = {
+  /**
+   * Puts a stored document into the text as one step of the editor's own
+   * history: the toolbar's Undo (and ⌘/Ctrl+Z) takes it back, Redo puts it
+   * back, and typing just before or after it stays a step of its own. It
+   * fires onChange as typing does, so autosave runs. It never focuses the
+   * text or scrolls the page, so the iPad keyboard stays as it was. It works
+   * while the editor is busy. Applied: false, with nothing changed, while
+   * there is no editor (read-only, or the first moment before it starts), and
+   * for below when there is nothing to add or no room left. Replace with null
+   * clears the field. Applied with before equal to after: the field held it
+   * already, and nothing was recorded.
+   */
+  insertDocument: (doc: RichTextDoc | null, mode: RichTextInsertMode) => RichTextInsertResult;
+};
+
+const isEmptyParagraph = (node: ProseMirrorNode) => node.type.name === "paragraph" && node.childCount === 0;
+
+/** Where the text ends: after its last block that is not an empty paragraph (the stored text drops those). */
+function endOfText(doc: ProseMirrorNode): number {
+  let end = 0;
+  doc.forEach((node, offset) => {
+    if (!isEmptyParagraph(node)) end = offset + node.nodeSize;
+  });
+  return end;
+}
+
+type Room = { characters: number; paragraphs: number };
+
+/** Over the field's limits as given, so the normaliser cuts its end; false for a document it cannot count. */
+function overLimits(doc: RichTextDoc): boolean {
+  try {
+    return richTextLength(doc) > RICH_TEXT_MAX_CHARACTERS || richTextParagraphs(doc).length > RICH_TEXT_MAX_PARAGRAPHS;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The blocks that fit in the room, in order. Where either runs out, the rest
+ * goes and a text is cut there, never in half an emoji. So the end of what
+ * goes in is cut and the text already there stays whole: a paste's rule
+ * (CharacterCount cuts the end of what was pasted), counted in characters as
+ * the normaliser cuts (lib/rich-text), so it always fits.
+ */
+function fitBlocks(blocks: readonly RichTextBlock[], room: Room): { blocks: RichTextBlock[]; cut: boolean } {
+  let { characters, paragraphs } = room;
+  let cut = false;
+  const fit = (paragraph: RichTextParagraph): RichTextParagraph | null => {
+    if (characters <= 0 || paragraphs <= 0) {
+      cut = true;
+      return null;
+    }
+    paragraphs -= 1;
+    const content: RichTextInline[] = [];
+    for (const inline of paragraph.content ?? []) {
+      if (characters <= 0) {
+        cut = true;
+        break;
+      }
+      if (inline.type === "hardBreak") {
+        content.push(inline);
+        characters -= 1;
+        continue;
+      }
+      let text = inline.text.slice(0, characters);
+      if (text.length < inline.text.length) {
+        cut = true;
+        if (/[\ud800-\udbff]$/.test(text)) text = text.slice(0, -1);
+        characters = 0;
+      } else {
+        characters -= text.length;
+      }
+      if (text !== "") content.push({ ...inline, text });
+    }
+    const fitted: RichTextParagraph = { type: "paragraph" };
+    if (paragraph.attrs) fitted.attrs = paragraph.attrs;
+    if (content.length > 0) fitted.content = content;
+    return fitted;
+  };
+  const kept: RichTextBlock[] = [];
+  for (const block of blocks) {
+    if (block.type === "paragraph") {
+      const paragraph = fit(block);
+      if (paragraph) kept.push(paragraph);
+      continue;
+    }
+    const items = block.content.flatMap((item) => {
+      const paragraph = fit(item.content[0]);
+      return paragraph ? [{ type: "listItem" as const, content: [paragraph] as [RichTextParagraph] }] : [];
+    });
+    if (items.length > 0) kept.push({ ...block, content: items });
+  }
+  return { blocks: kept, cut };
+}
+
+/**
+ * insertDocument on a live editor (RichTextEditorHandle). The document is
+ * normalised first (toRichTextDoc: anything off the allow-list goes) and cut
+ * to the room the kept text leaves, then goes in as one transaction with
+ * ProseMirror's history closed before it and after it, so it never merges
+ * with typing inside the 500 ms the history groups by. The caret ends after
+ * what went in, as after a paste; the transaction never scrolls, and nothing
+ * here focuses the text. The editor must be live (richTextEditorHandle checks).
+ */
+export function insertRichTextDocument(editor: Editor, doc: RichTextDoc | null, mode: RichTextInsertMode): RichTextInsertResult {
+  const { state } = editor;
+  const before = toRichTextDoc(state.doc.toJSON());
+  const from = mode === "below" ? endOfText(state.doc) : 0;
+  const blankLine = from > 0;
+  // As CharacterCount counts: text plus 1 per line break.
+  const room: Room = {
+    characters: RICH_TEXT_MAX_CHARACTERS - state.doc.textBetween(0, from, undefined, " ").length,
+    paragraphs: RICH_TEXT_MAX_PARAGRAPHS - paragraphCount(state.doc.cut(0, from)) - (blankLine ? 1 : 0),
+  };
+  const fitted = fitBlocks(toRichTextDoc(doc)?.content ?? [], room);
+  if (mode === "below" && toRichTextDoc({ type: "doc", content: fitted.blocks }) === null) return { applied: false };
+  const cut = fitted.cut || (doc !== null && overLimits(doc));
+
+  const { schema } = state;
+  const nodes = fitted.blocks.map((block) => schema.nodeFromJSON(block));
+  if (blankLine) nodes.unshift(schema.nodes.paragraph.create());
+  if (nodes.length === 0) nodes.push(schema.nodes.paragraph.create());
+  const tr = state.tr.replaceWith(from, state.doc.content.size, Fragment.from(nodes));
+  if (JSON.stringify(toRichTextDoc(tr.doc.toJSON())) === JSON.stringify(before)) {
+    return { applied: true, cut, before, after: before };
+  }
+  tr.setSelection(Selection.atEnd(tr.doc));
+  editor.view.dispatch(closeHistory(tr));
+  // Refused by a filter (the limits): nothing changed.
+  if (editor.state.doc === state.doc) return { applied: false };
+  editor.view.dispatch(closeHistory(editor.state.tr));
+  return { applied: true, cut, before, after: toRichTextDoc(editor.state.doc.toJSON()) };
+}
+
+/**
+ * The handle over whichever editor is live. With none (read-only, not started
+ * yet) or a destroyed one (between Tiptap replacing an editor and the screen
+ * catching up), nothing is applied.
+ */
+export function richTextEditorHandle(liveEditor: () => Editor | null): RichTextEditorHandle {
+  return {
+    insertDocument: (doc, mode) => {
+      const editor = liveEditor();
+      return editor && !editor.isDestroyed ? insertRichTextDocument(editor, doc, mode) : { applied: false };
+    },
+  };
+}

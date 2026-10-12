@@ -13,7 +13,9 @@ import { asAnon, asOwner, asService, asUser, createAuthUser, createTestDb, pgErr
 // Migration 20261013120000 (docs/DATABASE.md; docs/AI.md, "Steri-AI Cost"):
 // one ai_usage row per Claude call, written by the app with the secret key,
 // read by admins only, never changed or removed; and the three functions
-// the Steri-AI Cost view reads.
+// the Steri-AI Cost view reads. Migration 20261013130000 (12 October 2026):
+// the Steri-AI Summary's job, inspection_summary, and its model and house
+// style in ai_settings.
 
 const INSERT = "insert into public.ai_usage (feature, model, duration_ms, outcome";
 
@@ -52,9 +54,49 @@ describe("Steri-AI usage: the rules", { timeout: 30_000 }, () => {
     ["prices that are not an object", "insert into public.ai_settings (id, prices) values (true, '[]')"],
     ["an effort the settings do not offer", "insert into public.ai_settings (id, review_effort) values (true, 'xhigh')"],
     ["more than 20 photos per review", "insert into public.ai_settings (id, review_max_photos) values (true, 21)"],
+    ["a summary style that is not an object", "insert into public.ai_settings (id, summary_style) values (true, '[\"standard\"]')"],
+    [
+      "a summary style over 16 kB",
+      `insert into public.ai_settings (id, summary_style) values (true, '{"customInstruction": "${"x".repeat(16_400)}"}')`,
+    ],
+    ["a summary model that is not a Claude model id", "insert into public.ai_settings (id, summary_model) values (true, 'gpt-5')"],
+    ["a summary model id over 100 characters", `insert into public.ai_settings (id, summary_model) values (true, 'claude-${"a".repeat(100)}')`],
   ])("refuses %s", async (_label, sql) => {
     const error = await pgError(asService(db, (tx) => tx.query(sql)));
     expect(error.code).toBe("23514");
+  });
+
+  it("records the Steri-AI Summary's calls as inspection_summary", async () => {
+    const added = await asService(db, (tx) =>
+      tx.query<{ feature: string; item_count: number }>(
+        `insert into public.ai_usage (feature, model, inspection_id, actor_id, item_count, duration_ms, outcome)
+         values ('inspection_summary', 'claude-sonnet-5-5', $1, $2, 1, 5600, 'ok'),
+                ('inspection_summary', 'claude-sonnet-5-5', $1, $2, 0, 4100, 'ok')
+         returning feature, item_count`,
+        [inspection.id, people.inspector],
+      ),
+    );
+    expect(added.rows).toEqual([
+      { feature: "inspection_summary", item_count: 1 },
+      { feature: "inspection_summary", item_count: 0 },
+    ]);
+  });
+
+  it("keeps the summary model and house style in the settings row, null for the app's defaults", async () => {
+    const saved = await asService(db, (tx) =>
+      tx.query<{ summary_model: string | null; summary_style: unknown }>(
+        `insert into public.ai_settings (id, summary_model, summary_style)
+         values (true, 'claude-opus-5-5', '{"length": "brief", "tone": "formal"}')
+         on conflict (id) do update set summary_model = excluded.summary_model, summary_style = excluded.summary_style
+         returning summary_model, summary_style`,
+      ),
+    );
+    expect(saved.rows).toEqual([{ summary_model: "claude-opus-5-5", summary_style: { length: "brief", tone: "formal" } }]);
+
+    const reset = await asService(db, (tx) =>
+      tx.query("update public.ai_settings set summary_model = null, summary_style = null returning summary_model, summary_style"),
+    );
+    expect(reset.rows).toEqual([{ summary_model: null, summary_style: null }]);
   });
 
   it("keeps the price list, the effort and the photos in the settings row", async () => {

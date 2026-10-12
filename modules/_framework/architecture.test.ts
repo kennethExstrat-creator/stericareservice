@@ -49,10 +49,14 @@ function offenders(imports: Import[], forbidden: (specifier: string) => boolean)
 
 /**
  * The framework's React parts, for Capture.tsx only: imported by their own
- * path (`@/modules/_framework/file-slot`, `@/modules/_framework/shown-size`),
- * never through the framework's index.
+ * path (`@/modules/_framework/file-slot`, `@/modules/_framework/shown-size`,
+ * `@/modules/_framework/summary-assist`), never through the framework's index.
  */
-const FRAMEWORK_CLIENT_FILES = ["modules/_framework/file-slot.tsx", "modules/_framework/shown-size.ts"];
+const FRAMEWORK_CLIENT_FILES = [
+  "modules/_framework/file-slot.tsx",
+  "modules/_framework/shown-size.ts",
+  "modules/_framework/summary-assist.tsx",
+];
 
 const REGISTRY = (specifier: string) =>
   specifier === "@/modules" || specifier === "@/modules/registry" || specifier === "@/modules/index";
@@ -103,11 +107,29 @@ describe("module layering", () => {
       "./file-slot",
       "@/modules/_framework/shown-size",
       "./shown-size",
+      "@/modules/_framework/summary-assist",
+      "./summary-assist",
     ]);
     expect(offenders(imports, (specifier) => specifiers.includes(specifier))).toEqual([]);
     for (const file of FRAMEWORK_CLIENT_FILES) {
       expect(readFileSync(join(ROOT, file), "utf8").startsWith('"use client";'), file).toBe(true);
     }
+  });
+
+  it("lets only the conclusion's Capture ask for a Steri-AI Summary", () => {
+    // The slot drafts the Inspection Summary (docs/AI.md, "Steri-AI Summary"): no other module has one.
+    const users = moduleFolders
+      .flatMap(sourceFiles)
+      .filter((file) => !isTest(file))
+      .flatMap(importsOf)
+      .filter((entry) => entry.specifier === "@/modules/_framework/summary-assist")
+      .map((entry) => entry.file);
+    expect(users).toEqual(["modules/conclusion/Capture.tsx"]);
+    // Its types come from a client-safe leaf, so the slot pulls in nothing but React.
+    expect(importsOf("modules/_framework/summary-assist.tsx").map((entry) => entry.specifier)).toEqual([
+      "react",
+      "@/lib/schemas/summary-style",
+    ]);
   });
 
   it("lets only lib/validation/validate.ts load the registry from lib", () => {

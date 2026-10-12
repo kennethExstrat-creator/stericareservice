@@ -4,7 +4,7 @@ import type {
   BetaJSONOutputFormat,
   BetaMessageStreamParams,
 } from "@anthropic-ai/sdk/resources/beta/messages/messages";
-import type { ExportPhoto, InspectionExport } from "@/lib/schemas";
+import type { ExportModule, ExportPhoto, InspectionExport } from "@/lib/schemas";
 import type { AiReviewEffort } from "../config";
 import { REVIEW_SYSTEM_PROMPT } from "../prompts/review-system";
 import { aiReviewOutputFormat } from "./claude-format";
@@ -73,7 +73,9 @@ export function selectReviewPhotos(photos: readonly ExportPhoto[], max: number):
 /**
  * The export as Claude sees it. Signed URLs are left out (they are bearer
  * links to private storage, and the attached images carry their own), as is
- * the inspector's email.
+ * the inspector's email. The Inspection Summary goes as its plain text only
+ * (12 October 2026): the editor's document leaves the conclusion's data, and
+ * its HTML the conclusion block.
  */
 export function toModelView(doc: InspectionExport) {
   const { template, conclusion } = doc;
@@ -92,7 +94,7 @@ export function toModelView(doc: InspectionExport) {
       manufacturer: template.manufacturer?.name ?? null,
       reportTitle: template.reportTitle,
     },
-    modules: doc.modules,
+    modules: doc.modules.map(withoutSummaryDocument),
     excludedModules: doc.excludedModules,
     custom: doc.custom,
     photos: doc.photos.map(({ id, moduleKey, target, caption, takenAt, includeInReport, flagged }) => ({
@@ -105,8 +107,20 @@ export function toModelView(doc: InspectionExport) {
       flagged,
     })),
     files: doc.files.map(({ id, moduleKey, kind, name }) => ({ id, moduleKey, kind, name })),
-    conclusion: { ...conclusion, inspector: conclusion.inspector?.name ?? null },
+    conclusion: {
+      ...conclusion,
+      inspector: conclusion.inspector?.name ?? null,
+      inspectionSummary: conclusion.inspectionSummary?.text ?? null,
+    },
   };
+}
+
+/** The conclusion's data without the Inspection Summary's document: the reviewer reads its plain text in `conclusion`. */
+function withoutSummaryDocument(module: ExportModule): ExportModule {
+  if (module.key !== "conclusion" || !("inspectionSummary" in module.data)) return module;
+  const data = { ...module.data };
+  delete data.inspectionSummary;
+  return { ...module, data };
 }
 
 function userContent(doc: InspectionExport, photos: readonly ExportPhoto[]): BetaContentBlockParam[] {

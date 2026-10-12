@@ -5,7 +5,10 @@
 // the props of the contract (docs/MODULES.md 10), inside the file slot
 // provider that shows force at break's, tensile's and documents' files
 // (10.1): never an upload or a picker here, only the file Steri-AI linked
-// from Source Documents, or what it found (source-file-link.tsx). A module
+// from Source Documents, or what it found (source-file-link.tsx); and inside
+// the Steri-AI Summary slot (modules/_framework/summary-assist.tsx), which
+// the conclusion's Capture asks for a draft of its Inspection Summary
+// (capture-screen.tsx builds it). A module
 // without a Capture shows a simplified form of its canonical paths, a
 // placeholder module says it is not built yet, and a custom module gets the
 // screen's own form. A module whose settings cannot be read says so; saved
@@ -37,6 +40,7 @@ import {
   type ModuleEvaluation,
 } from "@/modules/_framework";
 import { FileSlotProvider, type FileSlotRequest } from "@/modules/_framework/file-slot";
+import { SummaryAssistProvider, type SummaryAssist } from "@/modules/_framework/summary-assist";
 import { CustomModuleForm, FallbackModuleForm } from "./plain-forms";
 import { SectionErrorBoundary } from "./section-error-boundary";
 import { SourceFileLink } from "./source-file-link";
@@ -108,6 +112,8 @@ type ModuleBodyProps = {
    * that did not show and of values that cannot be read are read out with it.
    */
   nameContext?: string;
+  /** The Steri-AI Summary slot (modules/_framework/summary-assist.tsx); null where the inspection cannot be changed here. */
+  summaryAssist?: SummaryAssist | null;
 };
 
 export function ModuleBody({
@@ -125,6 +131,7 @@ export function ModuleBody({
   onFocusChange,
   onUnreadableRemoved,
   nameContext,
+  summaryAssist = null,
 }: ModuleBodyProps) {
   const definition = MODULE_REGISTRY[moduleKey];
   // A form that failed to show is asked for afresh: a new lazy component, under a new boundary.
@@ -203,20 +210,22 @@ export function ModuleBody({
     <SectionErrorBoundary key={attempt} title={shortTitleFor(moduleKey, resolved.title)} onRetry={retry} nameContext={nameContext}>
       <Suspense fallback={<BodySkeleton />}>
         <FileSlotProvider render={renderFileSlot}>
-          <Capture
-            data={saved.data}
-            config={config.data}
-            title={resolved.title}
-            labels={labels}
-            context={context}
-            evaluation={evaluation}
-            focusPath={focusPath}
-            focus={focus}
-            defectUsage={defectUsage}
-            readOnly={readOnly}
-            onChange={onChange}
-            onFocusChange={onFocusChange}
-          />
+          <SummaryAssistProvider value={summaryAssist}>
+            <Capture
+              data={saved.data}
+              config={config.data}
+              title={resolved.title}
+              labels={labels}
+              context={context}
+              evaluation={evaluation}
+              focusPath={focusPath}
+              focus={focus}
+              defectUsage={defectUsage}
+              readOnly={readOnly}
+              onChange={onChange}
+              onFocusChange={onFocusChange}
+            />
+          </SummaryAssistProvider>
         </FileSlotProvider>
       </Suspense>
     </SectionErrorBoundary>

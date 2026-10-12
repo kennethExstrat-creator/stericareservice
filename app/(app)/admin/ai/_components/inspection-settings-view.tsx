@@ -5,7 +5,9 @@
 // the two settings that most change what a review costs. The form sends no
 // API key, so saving keeps the key in use. Save runs from onSubmit, not the
 // form's action prop: React resets a form after every action, and the
-// pickers (Radix Select) would go back to empty.
+// pickers (Radix Select) would go back to empty. Under the form, the
+// Inspection Summary card (summary-settings-card.tsx, 12 October 2026) with
+// its own form and Save.
 import { BookAIcon, InfoIcon, SaveIcon, ScanTextIcon, SparklesIcon } from "lucide-react";
 import Link from "next/link";
 import { startTransition, useActionState, useId, useState, type FormEvent } from "react";
@@ -14,6 +16,8 @@ import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
+import type { SummarySettingsView } from "@/lib/ai/settings";
+import type { SummaryPreviewTarget } from "@/lib/inspections/ai/summary-runner";
 import type { AiPriceList } from "@/lib/schemas/ai-prices";
 import {
   MAX_REVIEW_PHOTOS,
@@ -26,6 +30,7 @@ import { saveInspectionSettingsAction, type InspectionSettingsState } from "../a
 import { ResultAlert, StorageAlert, UNREACHABLE } from "./alerts";
 import { ModelField } from "./model-field";
 import { SectionCard } from "./section-card";
+import { SummarySettingsCard } from "./summary-settings-card";
 
 /** SHORTFORMS_PATH in lib/admin/defects.ts (server code, so not imported here): what inspectors write on paper. */
 const SHORTFORMS_PATH = "/admin/defects/shortforms";
@@ -51,7 +56,19 @@ function effortValue(effort: AiSettingsView["reviewEffort"]): string {
   return effort === "xhigh" || effort === "max" ? SERVER_REVIEW_EFFORT : effort;
 }
 
-export function InspectionSettingsView({ view, prices }: { view: AiSettingsView; prices: AiPriceList }) {
+export function InspectionSettingsView({
+  view,
+  prices,
+  summary,
+  targets,
+}: {
+  view: AiSettingsView;
+  prices: AiPriceList;
+  /** The Inspection Summary card's settings (readSummarySettingsView). */
+  summary: SummarySettingsView;
+  /** The inspections Try It can run on (loadSummaryPreviewTargets). */
+  targets: SummaryPreviewTarget[];
+}) {
   const id = useId();
   const [documentModel, setDocumentModel] = useState(view.documentModel);
   const [reviewModel, setReviewModel] = useState(view.reviewModel);
@@ -80,7 +97,8 @@ export function InspectionSettingsView({ view, prices }: { view: AiSettingsView;
 
   return (
     <div className="flex flex-col gap-6" data-testid="ai-inspection-settings">
-      <StorageAlert storage={view.storage} />
+      {/* One notice for both forms: they save to the same settings row. */}
+      <StorageAlert storage={view.storage === "ready" ? summary.storage : view.storage} />
       <form onSubmit={save} noValidate aria-busy={saving || undefined} className="flex flex-col gap-6">
         <div className="grid gap-6 lg:grid-cols-2">
           <SectionCard icon={ScanTextIcon} title="Reading Documents">
@@ -197,6 +215,7 @@ export function InspectionSettingsView({ view, prices }: { view: AiSettingsView;
           </Button>
         </div>
       </form>
+      <SummarySettingsCard view={summary} targets={targets} prices={prices} />
     </div>
   );
 }

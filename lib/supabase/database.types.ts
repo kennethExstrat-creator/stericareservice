@@ -134,6 +134,8 @@ export type Database = {
           review_effort: string | null
           review_max_photos: number | null
           review_model: string | null
+          summary_model: string | null
+          summary_style: Json | null
           updated_at: string
           updated_by: string | null
         }
@@ -148,6 +150,8 @@ export type Database = {
           review_effort?: string | null
           review_max_photos?: number | null
           review_model?: string | null
+          summary_model?: string | null
+          summary_style?: Json | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -162,6 +166,8 @@ export type Database = {
           review_effort?: string | null
           review_max_photos?: number | null
           review_model?: string | null
+          summary_model?: string | null
+          summary_style?: Json | null
           updated_at?: string
           updated_by?: string | null
         }

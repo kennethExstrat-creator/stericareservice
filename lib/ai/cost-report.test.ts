@@ -114,6 +114,7 @@ describe("buildAiCostReport", () => {
       ["second_opinion", 0.4, 2, 2, 0.2],
       ["new_inspection_read", 0.1, 2, 2, 0.05],
       ["media_sort", 0, 0, 0, null],
+      ["inspection_summary", 0, 0, 0, null],
     ]);
     expect(report.byJob[0].failed).toBe(1);
     expect(report.byJob[0].share).toBeCloseTo(0.6 / 1.1);
@@ -249,7 +250,13 @@ describe("buildAiCostReport", () => {
       perMonthUsd: null,
       daysCounted: 0,
     });
-    expect(report.byJob.map((job) => job.feature)).toEqual(["source_document_read", "second_opinion", "media_sort", "new_inspection_read"]);
+    expect(report.byJob.map((job) => job.feature)).toEqual([
+      "source_document_read",
+      "second_opinion",
+      "media_sort",
+      "new_inspection_read",
+      "inspection_summary",
+    ]);
   });
 });
 

@@ -61,6 +61,8 @@ describe("the price list", () => {
     // The review's fallback models have built-in prices; a saved entry for one wins.
     expect(priceFor(DEFAULT_AI_PRICES, "claude-opus-4-8", 10)).toEqual({ input: 5, output: 25, cacheWrite5m: 6.25, cacheWrite1h: 10, cacheRead: 0.5 });
     expect(priceFor(DEFAULT_AI_PRICES, "claude-opus-5-20260601", 10)?.output).toBe(25);
+    // The Steri-AI Summary's Sonnet 5.5 falls back to Sonnet 5 (12 October 2026).
+    expect(priceFor(DEFAULT_AI_PRICES, "claude-sonnet-5", 10)).toEqual({ input: 2, output: 10, cacheWrite5m: 2.5, cacheWrite1h: 4, cacheRead: 0.2 });
     expect(priceFor({ ...DEFAULT_AI_PRICES, models: [...DEFAULT_AI_PRICES.models, { ...extra, model: "claude-opus-5", input: 7 }] }, "claude-opus-5", 10)?.input).toBe(7);
   });
 });

@@ -4,8 +4,18 @@
 // ai_usage (lib/ai/usage.ts); lib/ai/cost-report.ts builds the report.
 import type { InspectionStatus } from "./common";
 
-/** The jobs that call Claude, as ai_usage.feature stores them. */
-export const AI_USAGE_FEATURES = ["source_document_read", "second_opinion", "media_sort", "new_inspection_read"] as const;
+/**
+ * The jobs that call Claude, as ai_usage.feature stores them (its check
+ * constraint lists the same, migration 20261013130000 adding the Steri-AI
+ * Summary's inspection_summary on 12 October 2026).
+ */
+export const AI_USAGE_FEATURES = [
+  "source_document_read",
+  "second_opinion",
+  "media_sort",
+  "new_inspection_read",
+  "inspection_summary",
+] as const;
 export type AiUsageFeature = (typeof AI_USAGE_FEATURES)[number];
 
 /** ok: an answer. refused or cut_off: an answer that was billed but not usable. failed: no answer came back. */
@@ -18,6 +28,8 @@ export const AI_JOB: Readonly<Record<AiUsageFeature, { label: string; unit: stri
   second_opinion: { label: "Second Opinion", unit: "review", units: "reviews" },
   media_sort: { label: "Auto-Sort", unit: "photo or video", units: "photos and videos" },
   new_inspection_read: { label: "New Inspection", unit: "document", units: "documents" },
+  // item_count is 1 for a draft and 0 for its check retry, so "per summary" divides by summaries, not calls.
+  inspection_summary: { label: "Inspection Summary", unit: "summary", units: "summaries" },
 };
 
 /** The cost view's periods: the last 7, 30 or 90 Malaysia days, today included, or all time. */
@@ -109,7 +121,7 @@ export type AiCostReport = {
   /** The first call ever recorded (ISO); null before any. */
   trackingSince: string | null;
   totals: CostTotals;
-  /** All four jobs, costliest first, jobs with no calls last. */
+  /** Every job, costliest first, jobs with no calls last. */
   byJob: JobCost[];
   /** Costliest first. */
   byModel: ModelCost[];

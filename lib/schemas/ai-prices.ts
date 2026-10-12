@@ -88,15 +88,17 @@ export const DEFAULT_AI_PRICES: AiPriceList = {
 };
 
 /**
- * The second opinion's server-side refusal fallbacks (fallbacks: "default"): a turn Opus 5.5 declines
- * may be served by one of these and is billed at its prices (Anthropic's pricing page, 12 October
- * 2026). priceFor uses them when the saved list lacks the model, so those calls are priced from the
- * start: a call recorded unpriced never gets a price later. Not shown in the price list; an admin who
- * adds the model there overrides them.
+ * The server-side refusal fallbacks (fallbacks: "default"): a turn Opus 5.5 declines (the second
+ * opinion) may be served by Opus 5 or Opus 4.8, and one Sonnet 5.5 declines (the Steri-AI Summary's
+ * default model; cyber and frontier_llm declines) by Sonnet 5, each billed at its own prices
+ * (Anthropic's pricing page, 12 October 2026). priceFor uses them when the saved list lacks the
+ * model, so those calls are priced from the start: a call recorded unpriced never gets a price
+ * later. Not shown in the price list; an admin who adds the model there overrides them.
  */
 export const FALLBACK_MODEL_PRICES: readonly ModelPrice[] = [
   { model: "claude-opus-5", input: 5, output: 25, cacheWrite5m: 6.25, cacheWrite1h: 10, cacheRead: 0.5, longPrompt: null },
   { model: "claude-opus-4-8", input: 5, output: 25, cacheWrite5m: 6.25, cacheWrite1h: 10, cacheRead: 0.5, longPrompt: null },
+  { model: "claude-sonnet-5", input: 2, output: 10, cacheWrite5m: 2.5, cacheWrite1h: 4, cacheRead: 0.2, longPrompt: null },
 ];
 
 /** The entry for a model: its own, else the longest listed id it is a dated snapshot of. */
@@ -136,7 +138,7 @@ const SNAPSHOT_SUFFIX = /^-\d{8}$/;
  * when the model has no price.
  */
 export function priceFor(list: AiPriceList, model: string, promptTokens: number): TokenRates | null {
-  // The admin's list first; then the review's fallback models, which Anthropic may serve but no admin picks.
+  // The admin's list first; then the refusal fallbacks' models, which Anthropic may serve but no admin picks.
   const entry = listedEntry(list.models, model) ?? listedEntry(FALLBACK_MODEL_PRICES, model);
   if (!entry) return null;
   const rates = entry.longPrompt && promptTokens > entry.longPrompt.aboveTokens ? entry.longPrompt : entry;

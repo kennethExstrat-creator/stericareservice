@@ -20,12 +20,29 @@
 //   says something new: opening a draft never saves it. Data replaced from
 //   outside (a merge) replaces the text, off the undo history; the editor's
 //   own changes coming back, however late, never do.
+// - A document meant to be undoable (Steri-AI's draft; 12 October 2026) goes
+//   in through the ref instead (RichTextEditorHandle.insertDocument): one
+//   step of the editor's own history, onChange as for typing, no focus.
+// - Busy (Steri-AI writing): the editor stays, with its history, but nothing
+//   can change the text and the toolbar is unavailable. readOnly would take
+//   the editor away, and its history with it.
 // - The toolbar is one Tab stop (arrow keys inside, Radix Toolbar), its
 //   groups split by short hairlines, in one row where it fits. Its buttons
 //   keep the text's selection and the iPad keyboard (no focus on press); its
 //   menus are popovers that leave the focus in the text when a finger opens
 //   them. 32 px controls with a mouse, 44 px on any touchscreen.
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type Ref,
+} from "react";
 import { EditorContent, useEditor, useEditorState, type ChainedCommands, type Editor } from "@tiptap/react";
 import { Toolbar as ToolbarPrimitive, ToggleGroup as ToggleGroupPrimitive } from "radix-ui";
 import {
@@ -89,9 +106,13 @@ import {
   RICH_TEXT_EXTENSIONS,
   RICH_TEXT_FRAME_SLOT,
   RICH_TEXT_TOOLBAR_SLOT,
+  richTextEditorHandle,
   sizeToken,
+  type RichTextEditorHandle,
 } from "./rich-text-extensions";
 import { RichTextView } from "./rich-text-view";
+
+export type { RichTextEditorHandle, RichTextInsertMode, RichTextInsertResult } from "./rich-text-extensions";
 
 export type RichTextEditorProps = {
   /** The stored document; null when nothing is written. */
@@ -101,10 +122,20 @@ export type RichTextEditorProps = {
   /** The id of the field's label. */
   labelledBy?: string;
   readOnly?: boolean;
+  /**
+   * Something is writing into the field (Steri-AI drafting the summary): the
+   * text stays on screen but cannot be changed, the toolbar is unavailable and
+   * the text is aria-busy, while the editor and its undo history stay, so the
+   * result goes in through the ref as one undo step. Use it rather than
+   * readOnly, which swaps the editor for the grey box and drops its history.
+   */
+  busy?: boolean;
   /** Marks the text for issue links (useIssueFocus). */
   issuePath?: IssuePath | null;
   /** On the outer element: the frame, or the read-only box. */
   className?: string;
+  /** insertDocument: a document put in from outside as one undo step (RichTextEditorHandle). */
+  ref?: Ref<RichTextEditorHandle>;
 };
 
 /** The counter shows from here on. */
@@ -206,11 +237,17 @@ function readToolbarState(editor: Editor): ToolbarState {
   };
 }
 
-export function RichTextEditor({ readOnly = false, ...props }: RichTextEditorProps) {
-  return readOnly ? <ReadOnlyRichText {...props} /> : <EditableRichText {...props} />;
+export function RichTextEditor({ readOnly = false, busy = false, ref, ...props }: RichTextEditorProps) {
+  // The editor while one is live, for the handle: none while read-only, or before it starts.
+  const live = useRef<Editor | null>(null);
+  useImperativeHandle(ref, () => richTextEditorHandle(() => live.current), []);
+  const onEditor = useCallback((editor: Editor | null) => {
+    live.current = editor;
+  }, []);
+  return readOnly ? <ReadOnlyRichText {...props} /> : <EditableRichText {...props} busy={busy} onEditor={onEditor} />;
 }
 
-function ReadOnlyRichText({ value, labelledBy, issuePath, className }: Omit<RichTextEditorProps, "readOnly" | "onChange">) {
+function ReadOnlyRichText({ value, labelledBy, issuePath, className }: Omit<RichTextEditorProps, "readOnly" | "busy" | "onChange" | "ref">) {
   return (
     <div
       role="textbox"
@@ -227,7 +264,19 @@ function ReadOnlyRichText({ value, labelledBy, issuePath, className }: Omit<Rich
   );
 }
 
-function EditableRichText({ value, onChange, labelledBy, issuePath, className }: Omit<RichTextEditorProps, "readOnly">) {
+function EditableRichText({
+  value,
+  onChange,
+  labelledBy,
+  busy,
+  issuePath,
+  className,
+  onEditor,
+}: Omit<RichTextEditorProps, "readOnly" | "busy" | "ref"> & {
+  busy: boolean;
+  /** Told the live editor, and null when it goes, for RichTextEditor's handle. */
+  onEditor: (editor: Editor | null) => void;
+}) {
   const baseId = useId();
   const editorId = `${baseId}-text`;
   const counterId = `${baseId}-count`;
@@ -250,17 +299,21 @@ function EditableRichText({ value, onChange, labelledBy, issuePath, className }:
         ...(labelledBy ? { "aria-labelledby": labelledBy } : {}),
         // The counter, empty and hidden until 4,500 characters.
         "aria-describedby": counterId,
+        // Busy: being written, so it cannot be changed meanwhile.
+        ...(busy ? { "aria-busy": "true", "aria-readonly": "true" } : {}),
         // Issue links and Tab land on the text itself.
         tabindex: "0",
         class: TEXT_AREA_CLASS,
       },
     }),
-    [editorId, labelledBy, counterId],
+    [editorId, labelledBy, counterId, busy],
   );
 
   const editor = useEditor({
     extensions: RICH_TEXT_EXTENSIONS,
     content: opened.content ?? undefined,
+    // At creation only; the effect below follows busy after that.
+    editable: !busy,
     immediatelyRender: false,
     shouldRerenderOnTransaction: false,
     injectCSS: false,
@@ -294,6 +347,21 @@ function EditableRichText({ value, onChange, labelledBy, issuePath, className }:
     editor.chain().setMeta("addToHistory", false).setContent(value ?? EMPTY_DOC, { emitUpdate: false }).run();
   }, [editor, value]);
 
+  // The live editor, for RichTextEditor's handle.
+  useLayoutEffect(() => {
+    onEditor(editor);
+    return () => onEditor(null);
+  }, [editor, onEditor]);
+
+  // Busy: nothing can change the text, and the editor keeps its history. A focus still in the
+  // text leaves it first, so the iPad keyboard goes down once and nothing brings it back when the
+  // text opens again; opening it focuses nothing.
+  useLayoutEffect(() => {
+    if (!editor || editor.isDestroyed) return;
+    if (busy && editor.view.hasFocus()) editor.view.dom.blur();
+    editor.setEditable(!busy, false);
+  }, [editor, busy]);
+
   const state = useEditorState({ editor, selector: ({ editor: current }) => (current ? readToolbarState(current) : IDLE) }) ?? IDLE;
   const characters = state.characters ?? richTextLength(value ?? { content: [] });
   const showCounter = characters >= COUNTER_FROM;
@@ -303,7 +371,7 @@ function EditableRichText({ value, onChange, labelledBy, issuePath, className }:
   return (
     <div data-slot={RICH_TEXT_FRAME_SLOT} className={cn("flex min-w-0 flex-col gap-1.5", className)}>
       <div className="flex flex-1 flex-col rounded-md border border-input bg-card shadow-xs">
-        <FormattingToolbar editor={editor} state={state} controls={editorId} />
+        <FormattingToolbar editor={editor} state={state} controls={editorId} busy={busy} />
         <div className="flex flex-1 flex-col" {...issuePathProps(issuePath)}>
           {editor ? (
             <EditorContent editor={editor} className="flex flex-1 flex-col" />
@@ -403,7 +471,8 @@ type MenuOption = {
  * finger or a pen it leaves the focus in the text; by a mouse or the keyboard
  * it focuses the checked option (arrow keys between them). A choice runs at
  * once, closes the menu and hands the focus back to the text; Escape hands it
- * back to the button.
+ * back to the button. Unavailable (busy), it greys out but stays focusable
+ * (aria-disabled) and does not open.
  */
 function ToolbarMenu({
   name,
@@ -412,6 +481,7 @@ function ToolbarMenu({
   options,
   current,
   editor,
+  disabled = false,
   onChoose,
 }: {
   name: string;
@@ -420,6 +490,7 @@ function ToolbarMenu({
   options: readonly MenuOption[];
   current: string;
   editor: Editor | null;
+  disabled?: boolean;
   onChoose: (value: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -428,12 +499,13 @@ function ToolbarMenu({
   const content = useRef<HTMLDivElement>(null);
 
   return (
-    <Popover open={open} onOpenChange={setOpen} modal={false}>
+    <Popover open={open && !disabled} onOpenChange={(next) => setOpen(next && !disabled)} modal={false}>
       <Hint name={name} shortcut={shortcut}>
         <PopoverTrigger asChild>
           <ToolbarPrimitive.Button
             type="button"
             aria-label={name}
+            aria-disabled={disabled || undefined}
             className={cn(BUTTON, "gap-0.5")}
             onMouseDown={keepFocus}
             onPointerDown={(event) => {
@@ -557,10 +629,21 @@ function ToolGroup({ children }: { children: ReactNode }) {
   );
 }
 
-function FormattingToolbar({ editor, state, controls }: { editor: Editor | null; state: ToolbarState; controls: string }) {
+function FormattingToolbar({
+  editor,
+  state,
+  controls,
+  busy,
+}: {
+  editor: Editor | null;
+  state: ToolbarState;
+  controls: string;
+  /** Every control unavailable: commands would still change a text that is not editable. */
+  busy: boolean;
+}) {
   // Commands run in the tap handler with the focus first, so iOS keeps the keyboard up.
   const run = (command: (chain: ChainedCommands) => ChainedCommands) => {
-    if (editor) command(editor.chain().focus()).run();
+    if (editor && !busy) command(editor.chain().focus()).run();
   };
   const AlignIcon = ALIGN_ICON[state.align ?? "left"];
 
@@ -575,18 +658,25 @@ function FormattingToolbar({ editor, state, controls }: { editor: Editor | null;
         {/* 16 px to the left, under the clipping padding: the line before a group that starts a row is cut off (ToolGroup). */}
         <div className="-ms-4 flex flex-wrap gap-y-1">
           <ToolGroup>
-            <ToolButton name="Undo" icon={Undo2Icon} shortcut={{ key: "Z" }} disabled={!state.canUndo} onPress={() => run((chain) => chain.undo())} />
+            <ToolButton
+              name="Undo"
+              icon={Undo2Icon}
+              shortcut={{ key: "Z" }}
+              disabled={busy || !state.canUndo}
+              onPress={() => run((chain) => chain.undo())}
+            />
             <ToolButton
               name="Redo"
               icon={Redo2Icon}
               shortcut={{ shift: true, key: "Z" }}
-              disabled={!state.canRedo}
+              disabled={busy || !state.canRedo}
               onPress={() => run((chain) => chain.redo())}
             />
           </ToolGroup>
           <ToolGroup>
             <ToolbarMenu
               name="Font Size"
+              disabled={busy}
               editor={editor}
               trigger={<ALargeSmallIcon aria-hidden />}
               current={state.fontSize ?? "normal"}
@@ -598,9 +688,17 @@ function FormattingToolbar({ editor, state, controls }: { editor: Editor | null;
             />
           </ToolGroup>
           <ToolGroup>
-            <ToolButton name="Bold" icon={BoldIcon} shortcut={{ key: "B" }} pressed={state.bold} onPress={() => run((chain) => chain.toggleBold())} />
+            <ToolButton
+              name="Bold"
+              icon={BoldIcon}
+              shortcut={{ key: "B" }}
+              pressed={state.bold}
+              disabled={busy}
+              onPress={() => run((chain) => chain.toggleBold())}
+            />
             <ToolButton
               name="Italic"
+              disabled={busy}
               icon={ItalicIcon}
               shortcut={{ key: "I" }}
               pressed={state.italic}
@@ -608,6 +706,7 @@ function FormattingToolbar({ editor, state, controls }: { editor: Editor | null;
             />
             <ToolButton
               name="Underline"
+              disabled={busy}
               icon={UnderlineIcon}
               shortcut={{ key: "U" }}
               pressed={state.underline}
@@ -615,6 +714,7 @@ function FormattingToolbar({ editor, state, controls }: { editor: Editor | null;
             />
             <ToolButton
               name="Strikethrough"
+              disabled={busy}
               icon={StrikethroughIcon}
               shortcut={{ shift: true, key: "S" }}
               pressed={state.strike}
@@ -624,6 +724,7 @@ function FormattingToolbar({ editor, state, controls }: { editor: Editor | null;
           <ToolGroup>
             <ToolbarMenu
               name="Font Colour"
+              disabled={busy}
               editor={editor}
               trigger={
                 <span className="flex flex-col items-center gap-px">
@@ -640,6 +741,7 @@ function FormattingToolbar({ editor, state, controls }: { editor: Editor | null;
             />
             <ToolbarMenu
               name="Highlight"
+              disabled={busy}
               shortcut={{ shift: true, key: "H" }}
               editor={editor}
               trigger={
@@ -659,6 +761,7 @@ function FormattingToolbar({ editor, state, controls }: { editor: Editor | null;
           <ToolGroup>
             <ToolButton
               name="Bulleted List"
+              disabled={busy}
               icon={ListIcon}
               shortcut={{ shift: true, key: "8" }}
               pressed={state.bulletList}
@@ -666,6 +769,7 @@ function FormattingToolbar({ editor, state, controls }: { editor: Editor | null;
             />
             <ToolButton
               name="Numbered List"
+              disabled={busy}
               icon={ListOrderedIcon}
               shortcut={{ shift: true, key: "7" }}
               pressed={state.orderedList}
@@ -675,6 +779,7 @@ function FormattingToolbar({ editor, state, controls }: { editor: Editor | null;
           <ToolGroup>
             <ToolbarMenu
               name="Align"
+              disabled={busy}
               editor={editor}
               trigger={<AlignIcon aria-hidden />}
               current={state.align ?? "left"}
@@ -688,6 +793,7 @@ function FormattingToolbar({ editor, state, controls }: { editor: Editor | null;
           <ToolGroup>
             <ToolButton
               name="Clear Formatting"
+              disabled={busy}
               icon={RemoveFormattingIcon}
               shortcut={{ key: "\\" }}
               onPress={() => {

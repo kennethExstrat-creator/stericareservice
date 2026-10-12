@@ -6,6 +6,7 @@ import { FileWarningIcon } from "lucide-react";
 import { PhotoQueueProvider } from "@/components/capture/photos";
 import { StatusScreen } from "@/components/shell/status-screen";
 import { Button } from "@/components/ui/button";
+import { loadSummaryMenu } from "@/lib/ai/settings";
 import { HOME_PATH } from "@/lib/auth/routes";
 import { requireUser } from "@/lib/auth/session";
 import { captureAccess } from "@/lib/inspections/capture/access";
@@ -50,8 +51,10 @@ export async function generateMetadata({ params }: PageProps<"/inspections/[id]"
  * The capture screen (BUILD_SPEC 8 and 10): the inspection, the exact
  * template version it started with (templates.resolved) and its module
  * overrides, read on the server through the user's own client. With them:
- * why it was reopened, when it was, and how often each defect was counted
- * before, so the defect lists open on the most-used ones.
+ * why it was reopened, when it was, how often each defect was counted
+ * before, so the defect lists open on the most-used ones, and, where the
+ * inspection can be changed here, the Steri-AI Summary's menu from the house
+ * style (docs/AI.md, "Steri-AI Summary").
  */
 export default async function CapturePage({ params, searchParams }: PageProps<"/inspections/[id]">) {
   const user = await requireUser();
@@ -81,7 +84,13 @@ export default async function CapturePage({ params, searchParams }: PageProps<"/
   const supabase = await createClient();
   const inspectorName = inspection.meta.inspector?.name ?? "Inspector";
   const countsDefects = inspection.template.resolved.modules.some((entry) => entry.include && DEFECT_MODULES.includes(entry.key));
-  const [authors, query, reopen, defectUsage] = await Promise.all([
+  const access = captureAccess({
+    status: inspection.status,
+    role: user.role,
+    userId: user.id,
+    inspectorId: inspection.inspectorId,
+  });
+  const [authors, query, reopen, defectUsage, summaryMenu] = await Promise.all([
     loadOverrideAuthors(supabase, inspection.overrides),
     searchParams,
     loadReopenNote(
@@ -102,13 +111,9 @@ export default async function CapturePage({ params, searchParams }: PageProps<"/
           manufacturerId: inspection.meta.manufacturer?.id ?? null,
         })
       : Promise.resolve<DefectUsage>({}),
+    // Only where the button can show; never throws (the house style's defaults stand in).
+    access.editable ? loadSummaryMenu() : Promise.resolve(null),
   ]);
-  const access = captureAccess({
-    status: inspection.status,
-    role: user.role,
-    userId: user.id,
-    inspectorId: inspection.inspectorId,
-  });
 
   return (
     // The page's upload queue starts for this user at once, offline too (components/capture/photos).
@@ -137,6 +142,7 @@ export default async function CapturePage({ params, searchParams }: PageProps<"/
         initialSection={readSectionParam(query.module)}
         reopenNote={reopen}
         defectUsage={defectUsage}
+        summaryMenu={summaryMenu}
       />
     </PhotoQueueProvider>
   );

@@ -1,7 +1,8 @@
 // Formatted text in the kit: the editor's schema held to the stored
 // allow-list, the class maps held to the palette, and the server-rendered
 // markup of RichTextView and RichTextEditor (the editor itself starts in the
-// browser; until then the text area shows the document read-only).
+// browser; until then the text area shows the document read-only). A
+// document put in through the editor's ref: rich-text-insert.test.ts.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { getSchema } from "@tiptap/core";
@@ -209,6 +210,19 @@ describe("RichTextEditor", () => {
     expect(full).toMatch(/<p id="[^"]+" class="[^"]*text-warn[^"]*"><svg [^>]*aria-hidden="true"[^>]*>.*<\/svg>5,000 of 5,000 characters<\/p>/);
     // Below the limit, words only.
     expect(/<p id="[^"]+"[^>]*>(?:(?!<\/p>)[^])*<\/p>/.exec(counted)?.[0]).not.toContain("<svg");
+  });
+
+  it("keeps the editor while busy, every toolbar control greyed out but focusable", () => {
+    const html = renderToStaticMarkup(<RichTextEditor value={richTextExample()} onChange={noop} busy labelledBy="summary-label" />);
+    // The white frame and its toolbar, not the read-only grey box: the editor, and its undo history, stay.
+    expect(html).toContain('data-slot="rich-text-editor"');
+    expect(html).not.toContain('data-slot="rich-text-read-only"');
+    const all = controls(html);
+    expect(all).toHaveLength(13);
+    for (const control of all) expect(control, control.name).toMatchObject({ unavailable: true });
+    // aria-disabled only, so the toolbar keeps its Tab stop and the focus is never dropped.
+    expect(html).not.toMatch(/<button[^>]* disabled=""/);
+    expect(html).not.toContain('role="radio"');
   });
 
   it("is a grey read-only box without a toolbar or anything editable", () => {

@@ -134,13 +134,16 @@ describe("schema guards", { timeout: 30_000 }, () => {
   );
 
   // The migrations that say "Idempotent: running it again changes nothing",
-  // run again on top of all of them.
+  // run again on top of all of them. 20261013120000 still changes nothing
+  // after 20261013130000 widened ai_usage's feature check: its
+  // `create table if not exists` leaves the table, and the check, as they are.
   it.each([
     "20261007151500_delete_draft_inspection.sql",
     "20261007190000_inspector_writes_through_the_app.sql",
     "20261007193000_admins_delete_drafts_only.sql",
     "20261008140000_profile_uid.sql",
     "20261013120000_ai_usage.sql",
+    "20261013130000_steri_ai_summary.sql",
   ])("applies %s again without changing the schema", async (name) => {
     const before = await schemaSnapshot(db);
     const migration = (await readMigrations()).find((file) => file.name === name);

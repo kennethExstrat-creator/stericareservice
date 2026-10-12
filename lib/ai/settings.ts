@@ -14,6 +14,15 @@ import {
   type GlossaryStorage,
   type ReviewProvider,
 } from "@/lib/schemas/ai-settings";
+import {
+  DEFAULT_SUMMARY_MODEL,
+  DEFAULT_SUMMARY_STYLE,
+  summaryMenuOf,
+  SummaryStyleSchema,
+  type SummaryMenu,
+  type SummarySettingsInput,
+  type SummaryStyle,
+} from "@/lib/schemas/summary-style";
 import { createAdminClient, isAdminClientConfigured } from "@/lib/supabase/admin";
 import type { Database, Json } from "@/lib/supabase/database.types";
 import {
@@ -325,4 +334,106 @@ export async function testClaudeConnection(apiKey: string, models: readonly stri
     return { ok: false, message: `The key works, but it cannot use ${missing.join(" or ")}. Choose another model.` };
   }
   return { ok: true, message: `Connected. The key can use ${found.join(" and ")}.` };
+}
+
+/* ------------------------------------------------------------------ *
+ * The Steri-AI Summary (docs/AI.md, "Steri-AI Summary"; 12 October 2026):
+ * its own model (ai_settings.summary_model over AI_SUMMARY_MODEL, else
+ * DEFAULT_SUMMARY_MODEL) and the house style (summary_style, null for
+ * DEFAULT_SUMMARY_STYLE), migration 20261013130000. Its card on Inspection
+ * Settings saves only these two.
+ * ------------------------------------------------------------------ */
+
+/**
+ * The house style as saved, else the app's. A style this build cannot read
+ * is logged and the app's stands in, as for the prices. Never throws.
+ */
+function summaryStyleOf(row: SettingsRow | null): SummaryStyle {
+  if (row?.summary_style == null) return DEFAULT_SUMMARY_STYLE;
+  const saved = SummaryStyleSchema.safeParse(row.summary_style);
+  if (!saved.success) {
+    console.error("[ai settings] the saved summary style could not be read; the app's stands in", saved.error.issues[0]?.message);
+    return DEFAULT_SUMMARY_STYLE;
+  }
+  return saved.data;
+}
+
+/** loadAiEnv's environment, with the summary's saved model over AI_SUMMARY_MODEL. */
+function summaryEnv(row: SettingsRow | null, env: AiEnv): AiEnv {
+  const merged = row ? settingsEnv(row, env) : env;
+  return row?.summary_model ? { ...merged, AI_SUMMARY_MODEL: row.summary_model } : merged;
+}
+
+/** What the summary writer reads: the environment (key and model) and the house style. */
+export type SummarySetup = { env: AiEnv; style: SummaryStyle };
+
+/**
+ * The summary writer's settings from one read of the row: the saved key and
+ * summary model laid over the variables, and the house style. Never throws:
+ * without a readable row the variables and the app's style apply.
+ */
+export async function loadSummarySetup(env: AiEnv = process.env): Promise<SummarySetup> {
+  const read = await readRow();
+  const row = read.ok ? read.row : null;
+  return { env: summaryEnv(row, env), style: summaryStyleOf(row) };
+}
+
+/** The menu beside the Steri-AI Summary button, from the house style: for the capture page while the inspection is editable. */
+export async function loadSummaryMenu(): Promise<SummaryMenu> {
+  const read = await readRow();
+  return summaryMenuOf(summaryStyleOf(read.ok ? read.row : null));
+}
+
+/** What the Inspection Summary card shows. */
+export type SummarySettingsView = {
+  /** The model in use: saved, else AI_SUMMARY_MODEL, else DEFAULT_SUMMARY_MODEL. */
+  model: string;
+  style: SummaryStyle;
+  /** "ready", or why nothing can be saved: no SUPABASE_SECRET_KEY, or the row could not be read. */
+  storage: "ready" | "no_secret_key" | "unavailable";
+  /** Last saved and by whom, shared by every Steri-AI setting; null before the first save. */
+  updatedAt: string | null;
+  updatedBy: string | null;
+};
+
+/** The Inspection Summary card's settings in force, after the page's admin check. Never throws. */
+export async function readSummarySettingsView(env: AiEnv = process.env): Promise<SummarySettingsView> {
+  const fallbackModel = env.AI_SUMMARY_MODEL?.trim() || DEFAULT_SUMMARY_MODEL;
+  if (!isAdminClientConfigured()) {
+    return { model: fallbackModel, style: DEFAULT_SUMMARY_STYLE, storage: "no_secret_key", updatedAt: null, updatedBy: null };
+  }
+  const read = await readRow();
+  const row = read.ok ? read.row : null;
+  return {
+    model: row?.summary_model || fallbackModel,
+    style: summaryStyleOf(row),
+    storage: read.ok ? "ready" : "unavailable",
+    updatedAt: row?.updated_at ?? null,
+    updatedBy: await savedByName(row),
+  };
+}
+
+/** Who last saved the row, by name, else email. */
+async function savedByName(row: SettingsRow | null): Promise<string | null> {
+  if (!row?.updated_by) return null;
+  try {
+    const { data } = await createAdminClient().from("profiles").select("full_name, email").eq("id", row.updated_by).maybeSingle();
+    return data ? personLabel(data) : null;
+  } catch (error) {
+    console.error("[ai settings] reading who saved the settings failed", error);
+    return null;
+  }
+}
+
+/**
+ * Saves the Inspection Summary card (validated by the caller): the model as
+ * chosen, as document_model is, and the house style, stored as null when it
+ * is the app's own, so a later change to DEFAULT_SUMMARY_STYLE reaches a
+ * project that never edited it, as the prices are. Only the last save is
+ * kept (Kenneth, 12 October 2026), with who saved it and when.
+ */
+export async function saveSummarySettings(input: SummarySettingsInput, userId: string): Promise<SaveResult> {
+  if (!isAdminClientConfigured()) return { ok: false, message: NO_STORAGE };
+  const style: Json | null = isDeepStrictEqual(input.style, DEFAULT_SUMMARY_STYLE) ? null : input.style;
+  return writeRow({ id: true, summary_model: input.model, summary_style: style, updated_by: userId });
 }

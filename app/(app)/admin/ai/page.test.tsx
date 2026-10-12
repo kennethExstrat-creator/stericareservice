@@ -1,5 +1,6 @@
 // /admin/ai as the server renders it: the role check before anything, the
-// view the address names (?view=, unknown → General), and each view's cards.
+// view the address names (?view=, unknown → General), and each view's cards
+// (Inspection Settings with the Inspection Summary card and Try It's list).
 // Steri-AI Cost loads its own data (an async server component), so it is
 // rendered with prerender, which waits for it.
 import { renderToStaticMarkup } from "react-dom/server";
@@ -7,15 +8,18 @@ import { prerender } from "react-dom/static";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_AI_PRICES } from "@/lib/schemas/ai-prices";
 import type { AiSettingsView } from "@/lib/schemas/ai-settings";
+import { DEFAULT_SUMMARY_STYLE } from "@/lib/schemas/summary-style";
 
 vi.mock("@/lib/auth/session", () => ({ requireAdmin: vi.fn() }));
-vi.mock("@/lib/ai/settings", () => ({ readAiSettingsView: vi.fn(), loadAiPrices: vi.fn() }));
+vi.mock("@/lib/ai/settings", () => ({ readAiSettingsView: vi.fn(), loadAiPrices: vi.fn(), readSummarySettingsView: vi.fn() }));
+vi.mock("@/lib/inspections/ai/summary-runner", () => ({ loadSummaryPreviewTargets: vi.fn() }));
 vi.mock("@/lib/ai/cost-report", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/ai/cost-report")>()),
   loadAiCostReport: vi.fn(),
 }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn(async () => ({})) }));
 vi.mock("@/lib/supabase/admin", () => ({ isAdminClientConfigured: () => true }));
+vi.mock("./summary-actions", () => ({ saveSummarySettingsAction: vi.fn(), previewSummaryAction: vi.fn() }));
 vi.mock("./actions", () => ({
   saveApiKeyAction: vi.fn(),
   removeAiKeyAction: vi.fn(),
@@ -29,8 +33,9 @@ vi.mock("next/navigation", async (importOriginal) => ({
 }));
 
 import { buildAiCostReport, loadAiCostReport } from "@/lib/ai/cost-report";
-import { loadAiPrices, readAiSettingsView } from "@/lib/ai/settings";
+import { loadAiPrices, readAiSettingsView, readSummarySettingsView, type SummarySettingsView } from "@/lib/ai/settings";
 import { requireAdmin } from "@/lib/auth/session";
+import { loadSummaryPreviewTargets } from "@/lib/inspections/ai/summary-runner";
 import { aiViewHref, parseAiViewState } from "./_components/view-state";
 import AiSettingsPage, { generateMetadata } from "./page";
 
@@ -47,6 +52,23 @@ const VIEW = {
   updatedBy: "Test Admin",
   storage: "ready",
 } as AiSettingsView;
+
+/** The Inspection Summary card's settings: the app's own, saved once. */
+const SUMMARY: SummarySettingsView = {
+  model: "claude-sonnet-5-5",
+  style: DEFAULT_SUMMARY_STYLE,
+  storage: "ready",
+  updatedAt: "2026-10-12T06:05:00Z",
+  updatedBy: "Test Admin",
+};
+
+const TARGET = {
+  id: "00000000-0000-4000-8000-000000000001",
+  refNo: "INS-2026-0001",
+  status: "draft" as const,
+  result: "pass" as const,
+  label: "INS-2026-0001 · Draft · PASSED",
+};
 
 const notFound = Object.assign(new Error("NEXT_HTTP_ERROR_FALLBACK;404"), { digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
 
@@ -114,6 +136,8 @@ beforeEach(() => {
   vi.mocked(requireAdmin).mockResolvedValue(ADMIN);
   vi.mocked(readAiSettingsView).mockResolvedValue(VIEW);
   vi.mocked(loadAiPrices).mockResolvedValue(DEFAULT_AI_PRICES);
+  vi.mocked(readSummarySettingsView).mockResolvedValue(SUMMARY);
+  vi.mocked(loadSummaryPreviewTargets).mockResolvedValue([TARGET]);
   vi.mocked(loadAiCostReport).mockResolvedValue({ ok: true, report: REPORT });
 });
 
@@ -129,6 +153,8 @@ describe("the role check", () => {
     await expect(render(searchParams)).rejects.toBe(notFound);
     expect(readAiSettingsView).not.toHaveBeenCalled();
     expect(loadAiPrices).not.toHaveBeenCalled();
+    expect(readSummarySettingsView).not.toHaveBeenCalled();
+    expect(loadSummaryPreviewTargets).not.toHaveBeenCalled();
     expect(loadAiCostReport).not.toHaveBeenCalled();
   });
 
@@ -180,6 +206,8 @@ describe("the views", () => {
     expect(html).not.toContain('name="reviewModel"');
     expect(html).not.toContain("max-w-3xl");
     expect(loadAiPrices).not.toHaveBeenCalled();
+    expect(readSummarySettingsView).not.toHaveBeenCalled();
+    expect(loadSummaryPreviewTargets).not.toHaveBeenCalled();
   });
 
   it("opens General for a view it does not know", async () => {
@@ -217,6 +245,30 @@ describe("the views", () => {
     expect(html).not.toContain("No price for this model yet");
   });
 
+  it("puts the Inspection Summary card under the model form, with its own Save and Try It on the admin's recent inspections", async () => {
+    const html = await render({ view: "inspection" });
+    expect(html).toContain('data-testid="ai-summary-settings"');
+    expect(html.indexOf(">Second Opinion</h2>")).toBeLessThan(html.indexOf(">Inspection Summary</h2>"));
+    expect(html).toContain("For the Steri-AI Summary button on the Conclusion. Fast and capable, lower cost.");
+    expect(html).toContain("INS-2026-0001 · Draft · PASSED");
+    expect(html).toContain("Settings last saved 12 October 2026, 14:05 by Test Admin.");
+    expect(html).toContain("Save Summary Settings");
+    // Try It lists inspections through the admin's own client.
+    expect(vi.mocked(loadSummaryPreviewTargets).mock.calls[0]?.[0]).toEqual({});
+  });
+
+  it("still opens when Try It's inspections cannot be read", async () => {
+    vi.mocked(loadSummaryPreviewTargets).mockRejectedValue(new Error("offline"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const html = await render({ view: "inspection" });
+      expect(html).toContain("Try It needs an inspection with a conclusion: there is none yet.");
+      expect(logged).toHaveBeenCalledOnce();
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
   it("says which chosen model has no price, linking to the price list", async () => {
     vi.mocked(readAiSettingsView).mockResolvedValue({ ...VIEW, reviewModel: "claude-sonnet-4-9" });
     const html = await render({ view: "inspection" });
@@ -239,9 +291,11 @@ describe("the views", () => {
 
   it("says why nothing can be saved without the server's secret key", async () => {
     vi.mocked(readAiSettingsView).mockResolvedValue({ ...VIEW, storage: "no_secret_key" });
+    vi.mocked(readSummarySettingsView).mockResolvedValue({ ...SUMMARY, storage: "no_secret_key" });
     const html = await render({ view: "inspection" });
-    expect(html).toContain("The server needs SUPABASE_SECRET_KEY before Steri-AI settings can be saved here.");
-    expect(html).toContain('type="submit" disabled=""');
+    // Once, for both forms: they save to the same row.
+    expect(html.match(/The server needs SUPABASE_SECRET_KEY before Steri-AI settings can be saved here\./g)).toHaveLength(1);
+    expect(html.match(/type="submit" disabled=""/g)).toHaveLength(2);
   });
 
   it("shows Steri-AI Cost with the address's filters, reading none of the settings", async () => {
@@ -251,6 +305,7 @@ describe("the views", () => {
     expect(html).toMatch(/data-testid="ai-cost" data-period="90" data-currency="myr"/);
     expect(vi.mocked(loadAiCostReport).mock.calls[0]?.[1]).toBe("90");
     expect(readAiSettingsView).not.toHaveBeenCalled();
+    expect(readSummarySettingsView).not.toHaveBeenCalled();
     for (const part of ["cost-filters", "cost-kpis", "cost-trend", "cost-by-job", "cost-by-model", "cost-by-inspection", "price-list"]) {
       expect(html).toContain(`data-testid="${part}"`);
     }

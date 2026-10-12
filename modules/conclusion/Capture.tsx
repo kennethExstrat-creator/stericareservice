@@ -15,8 +15,13 @@
 //   for it, and the differs note still asks for the remark. It goes into the
 //   report, so it has room to be read (Kenneth, the same day): the card's
 //   whole width at every width, under a hairline, its label a heading whose
-//   row is a button tall (room for a Steri-AI Summary button at its right
-//   end), and the editor's tall writing area under it.
+//   row is a button tall, and the editor's tall writing area under it. At
+//   that row's right end, where the screen gives the Steri-AI Summary slot
+//   (modules/_framework/summary-assist.tsx) and the inspection can be
+//   changed, the Steri-AI Summary button (components/ai/steri-ai-summary.tsx;
+//   docs/AI.md): Steri-AI drafts the summary, which goes in through the
+//   editor's handle as one undo step and autosaves like typing; the line
+//   under the editor says how it went. It writes text only, never a result.
 // - Sign-off: who inspected and the date (both automatic; the date can be
 //   changed with the picker), and the signature drawn on the pad, under a
 //   hairline.
@@ -30,7 +35,7 @@
 // useDataUpdater (docs/CAPTURE_KIT.md), built from the latest data. The pad
 // lives here too: module folders keep React in Capture.tsx
 // (modules/_framework/architecture.test.ts).
-import { useId, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useId, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { EraserIcon, Redo2Icon, Undo2Icon } from "lucide-react";
 import { RadioGroup as RadioGroupPrimitive } from "radix-ui";
 import { cn } from "@/lib/utils";
@@ -41,9 +46,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DateField, findIssue, issuePathProps, StatusIcon, StatusPill, useDataUpdater, useIssueFocus } from "@/components/qc";
-// By its path, never the kit's index: the editor (Tiptap) stays in this Capture's chunk.
-import { RichTextEditor } from "@/components/qc/rich-text-editor";
+// By their paths, never the indexes: the editor (Tiptap) stays in this Capture's chunk, and
+// components/ai's index holds a server component.
+import { RichTextEditor, type RichTextEditorHandle } from "@/components/qc/rich-text-editor";
+import {
+  SteriAiSummaryButton,
+  SteriAiSummaryDialog,
+  SteriAiSummaryStatus,
+  useSteriAiSummary,
+} from "@/components/ai/steri-ai-summary";
 import { fieldIssues, labelFor, moduleTitle, type CaptureProps } from "@/modules/_framework";
+import { useSummaryAssist } from "@/modules/_framework/summary-assist";
 import type { ConclusionComputed, ConclusionConfig, ConclusionData } from ".";
 import { conclusionReasons, resultWord } from "./calc";
 import { isoDateOf, withDate, withFinalResult, withInspectionSummary, withRemark, withSignature } from "./edit";
@@ -160,6 +173,24 @@ export default function Capture({
   const differsText =
     differs && final !== null ? `${resultWord(labels, final)} differs from the suggestion.${asking ? " Explain why." : ""}` : null;
 
+  // Steri-AI Summary: shown where the screen gives the slot and the inspection can be changed here.
+  // Its draft goes in through the editor's handle (one undo step); while it writes, the editor is
+  // busy, not read-only, so its undo history stays.
+  const summaryEditor = useRef<RichTextEditorHandle>(null);
+  const summaryAssist = useSummaryAssist();
+  const conclusionWords = useMemo(
+    () => ({ pass: resultWord(labels, "pass"), fail: resultWord(labels, "fail"), hold: resultWord(labels, "hold") }),
+    [labels],
+  );
+  const steriAi = useSteriAiSummary({
+    assist: summaryAssist,
+    words: conclusionWords,
+    finalResult: final,
+    value: data.inspectionSummary,
+    readOnly,
+    editor: summaryEditor,
+  });
+
   return (
     <div ref={root} className="relative min-w-0 @container" onFocusCapture={() => onFocusChange?.({})}>
       <div className="grid gap-6">
@@ -256,19 +287,29 @@ export default function Capture({
 
         {/* Summary: the card's whole width at every width, under a hairline, headed by its label. */}
         <div role="group" aria-labelledby={ids.summary} className="min-w-0 space-y-2 border-t border-border pt-6">
-          {/* A button tall, so a button at its right end (Steri-AI Summary, to come) moves nothing. */}
+          {/* A button tall, so the Steri-AI Summary button at its right end moves nothing as it comes and goes;
+              in a narrow column it wraps under the label. */}
           <div data-slot="summary-heading" className="flex min-h-8 flex-wrap items-center justify-between gap-x-4 gap-y-2 touch:min-h-11">
             <h3 id={ids.summary} className="min-w-0 text-base font-semibold text-foreground touch:text-lg">
               {labelFor(labels, "inspectionSummary")}
             </h3>
+            {steriAi.shown && <SteriAiSummaryButton summary={steriAi} />}
           </div>
           <RichTextEditor
+            ref={summaryEditor}
             value={data.inspectionSummary}
             readOnly={readOnly}
+            busy={steriAi.writing}
             labelledBy={ids.summary}
             issuePath={["inspectionSummary"]}
             onChange={(doc) => update((current) => withInspectionSummary(current, doc))}
           />
+          {steriAi.shown && (
+            <>
+              <SteriAiSummaryStatus summary={steriAi} />
+              <SteriAiSummaryDialog summary={steriAi} />
+            </>
+          )}
         </div>
 
         {/* Sign-off: who and when, then the signature, under a hairline; side by side from 896 px. */}
