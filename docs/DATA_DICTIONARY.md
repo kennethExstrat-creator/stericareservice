@@ -215,7 +215,7 @@ Report module. Captures: Per size: sampled cases, inner units and gloves; gloves
 | `innerUnits` | Inner Box | SAFEDON_EG: Inner Pack | integer |  | size | entered | 1 | Counts inner units. |
 | `gloves` | Gloves |  | integer | pcs | size | entered | 1 |  |
 | `glovesWatertightVisual` | # Gloves for Watertight & Visual | STD_SG: # Gloves | integer | pcs | size | entered | 1, 8 | Flows forward as n in watertight and visual (BUILD_SPEC 8). SG prints it under 'Sampling Quantity (WTT & Visual)'. |
-| `glovesDimensions` | # Gloves for Dimension | STD_SG: # Gloves Dimension | integer | pcs | size | entered | 1 | Flows forward as the dimension rows. |
+| `glovesDimensions` | # Gloves for Dimension | STD_SG: # Gloves Dimension | integer | pcs | size | entered | 1 | Flows forward as the dimension rows and the gloves weighed. |
 | `glovesPhysical` | # Gloves for FAB | SAFEDON_EG: # Gloves for Tensile<br>STD_SG: # Gloves (FAB) | integer | pcs | size | entered | 1 | Gloves for the physical test: force at break (EN 455) or tensile (ASTM D6319). |
 | `innerUnitsDispensing` | # Inner Box for Packaging & Dispensing Inspection | SAFEDON_EG: # Inner Packs for Packaging & Dispensing Inspection | integer |  | size | entered | 1 | Counts inner units. Printed 'packaing' [sic]. Flows forward as the box rows of dispensing_packing or dispensing_safedon. |
 | `pouches` | Pouches |  | integer |  | size | entered | 1 | Counts pouches. Surgical: sampled pouches (SG onsite). |
@@ -284,18 +284,18 @@ Report module. Captures: Per size, per glove (default 13): the measures on, from
 
 ### `weight`: Weight (g) - Average of 13 Gloves per Size
 
-Report module. Captures: Per size: the gloves weighed (1 or 13 values) and their average, compared with the indicative weight. Result: Per size: pass or fail against a spec when one is set; warn when the size of the indicative weight deviates by more than the threshold; info otherwise. not_done until n values are entered. Rules (6.2): 1, 2, 4, 5, 9. Title in other templates: SAFEDON_EG: Weight (g).
+Report module. Captures: Per size: the gloves weighed (one value, or one per glove of the sampling plan's dimension sample: config n until the plan gives one) and their average, compared with the indicative weight. Result: Per size: pass or fail against a spec when one is set; warn when the size of the indicative weight deviates by more than the threshold; info otherwise. not_done until every glove weighed has its value, and when the sampling plan has no gloves for dimension. Rules (6.2): 1, 2, 4, 5, 9. Title in other templates: SAFEDON_EG: Weight (g).
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `values` | Weight (g) |  | decimal_list | g | size | entered | 1 | config n values per size: 13 gloves weighed one by one (STD_EG) or one value per size (SAFEDON_EG, printed as a merged column of the dimension table). |
+| `values` | Weight (g) |  | decimal_list | g | size | entered | 1 | One value per glove weighed: the sampling plan's gloves for dimension (sampling_plan.glovesDimensions), else config n (13 on STD_EG), weighed one by one; or one value per size when config n is 1 (SAFEDON_EG, printed as a merged column of the dimension table). |
 | `average` | Average |  | decimal | g | size | **computed** | 2 | Mean of values (the value itself when n is 1), shown at config decimals. |
 | `deviationPct` | Deviation From Indicative Weight |  | decimal | % | size | **computed** | 2, 9 | (average − glove_info.indicativeWeight) / glove_info.indicativeWeight × 100, for the size in glove_info config indicativeWeightSize only. |
 | `result` | Remark | SAFEDON_EG: A / Rej. | select |  | size | **computed** | 2, 5, 9 | Against the size's row of config specs when there is one; warn when \|deviationPct\| > config warnThresholdPct; info otherwise. Values: pass, fail, warn, info, not_done. |
 
 | Config key | Type | Default | Meaning |
 |---|---|---|---|
-| `n` | number | `13` | Gloves weighed per size: 13 one by one, or 1 value. |
+| `n` | number | `13` | Gloves weighed per size when sampling_plan.glovesDimensions gives no number, one by one; 1 weighs one value per size, whatever the plan says. |
 | `specs` | { size: string; spec: Spec }[] | `[]` | Optional spec per size (BUILD_SPEC: optional spec), one row per size; a list, so a child template replaces it whole. A size with no row has no spec row and its result is info. |
 | `warnThresholdPct` | number | `10` | Deviation from the indicative weight, in %, above which the module warns (rule 9). |
 | `decimals` | number | `2` | Decimals the average is shown with (both reports print 2). |

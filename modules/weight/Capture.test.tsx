@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import type { TemplateCode } from "@/lib/coverage";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import { evaluateInspection, type InspectionContext, type ModuleEvaluation } from "@/modules/_framework";
-import { makeTestContext, makeTestTemplate } from "@/modules/_framework/testing";
+import { makeSampling, makeTestContext, makeTestTemplate } from "@/modules/_framework/testing";
 import { SAFEDON_EG_EXAMPLE, STD_EG_EXAMPLE } from "@/tests/fixtures/examples";
 import { exampleContext, templateConfig, templateLabels, templateTitle, weightData } from "./__fixtures__/examples";
 import type { WeightComputed } from "./calc";
@@ -134,6 +134,20 @@ describe("weight capture, 13 gloves per size (STD_EG)", () => {
     const note = tags(html, 'data-slot="weight-deviation"')[0];
     expect(note).toContain('tabindex="-1"');
     expect(note).toContain(`data-issue-path="${JSON.stringify(["sizes", "M", "values"]).replaceAll('"', "&quot;")}"`);
+  });
+
+  it("weighs the sampling plan's 12 gloves for dimension: 12 rows, the 13th weight offered for removal", () => {
+    const context = exampleContext(STD_EG_EXAMPLE, { sampling: { M: makeSampling({ dimensions: 12 }) } });
+    const planned = render("STD_EG", data, context);
+    expect(planned).toContain(">Average of 12 gloves<");
+    expect(tags(planned, 'data-slot="numeric-cell"')).toHaveLength(12);
+    expect(Array.from(planned.matchAll(/<table aria-label="([^"]*)"/g), (match) => match[1])).toEqual([
+      "No. 1 to 4",
+      "No. 5 to 8",
+      "No. 9 to 12",
+    ]);
+    expect(planned).toContain("Size M: values for No. 13 are not counted; the sampling plan has 12 gloves for dimension.");
+    expect(planned).toContain(">Remove the Values That Are Not Counted</button>");
   });
 });
 

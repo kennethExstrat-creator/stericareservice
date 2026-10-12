@@ -469,7 +469,7 @@ const samplingPlan = defineModule({
       per: ["size"],
       entry: "entered",
       rules: [1],
-      notes: "Flows forward as the dimension rows.",
+      notes: "Flows forward as the dimension rows and the gloves weighed.",
     },
     {
       key: "glovesPhysical",
@@ -746,9 +746,10 @@ const weight = defineModule({
   alwaysOn: false,
   title: "Weight (g) - Average of 13 Gloves per Size",
   titles: { SAFEDON_EG: "Weight (g)" },
-  captures: "Per size: the gloves weighed (1 or 13 values) and their average, compared with the indicative weight.",
+  captures:
+    "Per size: the gloves weighed (one value, or one per glove of the sampling plan's dimension sample: config n until the plan gives one) and their average, compared with the indicative weight.",
   result:
-    "Per size: pass or fail against a spec when one is set; warn when the size of the indicative weight deviates by more than the threshold; info otherwise. not_done until n values are entered.",
+    "Per size: pass or fail against a spec when one is set; warn when the size of the indicative weight deviates by more than the threshold; info otherwise. not_done until every glove weighed has its value, and when the sampling plan has no gloves for dimension.",
   rules: [1, 2, 4, 5, 9],
   data: [
     {
@@ -760,7 +761,7 @@ const weight = defineModule({
       entry: "entered",
       rules: [1],
       notes:
-        "config n values per size: 13 gloves weighed one by one (STD_EG) or one value per size (SAFEDON_EG, printed as a merged column of the dimension table).",
+        "One value per glove weighed: the sampling plan's gloves for dimension (sampling_plan.glovesDimensions), else config n (13 on STD_EG), weighed one by one; or one value per size when config n is 1 (SAFEDON_EG, printed as a merged column of the dimension table).",
     },
     {
       key: "average",
@@ -797,7 +798,13 @@ const weight = defineModule({
     },
   ],
   config: [
-    { key: "n", type: "number", default: 13, meaning: "Gloves weighed per size: 13 one by one, or 1 value." },
+    {
+      key: "n",
+      type: "number",
+      default: 13,
+      meaning:
+        "Gloves weighed per size when sampling_plan.glovesDimensions gives no number, one by one; 1 weighs one value per size, whatever the plan says.",
+    },
     {
       key: "specs",
       type: "{ size: string; spec: Spec }[]",

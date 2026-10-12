@@ -2,10 +2,11 @@
 // decimals. With a spec the printed average passes or fails; without one it
 // is a record (info). The size the indicative weight is given for (glove_info,
 // through the context) is compared with it, and a deviation beyond the
-// threshold is a warning (BUILD_SPEC 6.2 rule 9). Not done until all n
-// gloves are weighed (rule 5). A weight of 0 g or less is an error that blocks
-// submit; it still counts, as MeasurementGrid's live average counts it, so
-// the screen never shows two answers for one size.
+// threshold is a warning (BUILD_SPEC 6.2 rule 9). The gloves weighed are the
+// sampling plan's gloves for dimension, else the template's n (glovesFor);
+// not done until every glove counted is weighed (rule 5). A weight of 0 g or
+// less is an error that blocks submit; it still counts, as MeasurementGrid's
+// live average counts it, so the screen never shows two answers for one size.
 import type { ModuleStatus } from "@/lib/schemas";
 import { checkSpec, formatDecimal, formatSpec, mean, roundTo, type Spec } from "@/lib/stats";
 import {
@@ -13,6 +14,7 @@ import {
   labelFor,
   perSizeResults,
   resultFromSizes,
+  samplingFor,
   sizeLabel,
   warningIssue,
   type CalcInput,
@@ -22,14 +24,14 @@ import {
   type InspectionContext,
   type Labels,
 } from "@/modules/_framework";
-import type { WeightConfig } from "./config";
+import { MAX_N, type WeightConfig } from "./config";
 import type { WeightData } from "./schema";
 
 type BySize<T> = { [size: string]: T };
 
 export type WeightComputed = {
-  /** Gloves weighed per size. */
-  n: number;
+  /** Gloves weighed per ordered size (glovesFor): the sampling plan's gloves for dimension, else the template's n. */
+  n: BySize<number>;
   /** Values counted per size: those entered among the first n. */
   count: BySize<number>;
   /** Mean of the values counted, unrounded; null until there is one. */
@@ -49,6 +51,29 @@ export type WeightComputed = {
   /** pass, fail, warn, info or not_done per size, as in the result. */
   result: BySize<ModuleStatus>;
 };
+
+/** Where a size's number of gloves weighed comes from. */
+export type GlovesSource = "sampling" | "template";
+
+/**
+ * Gloves to weigh for a size. The gloves measured are the gloves weighed:
+ * STD_EG prints the weight beside the 13-glove dimension table, SAFEDON_EG
+ * inside it. So a size weighs the sampling plan's gloves for dimension when
+ * the plan holds a count (BUILD_SPEC 8: numbers flow forward), else the
+ * template's n, as dimensions measures them (rowsFor). n 1 is one value per
+ * size (SAFEDON_EG) whatever the plan says. Capped at MAX_N, so a mistyped
+ * plan cannot stall the screen.
+ */
+export function glovesFor(
+  context: InspectionContext,
+  size: string,
+  config: Pick<WeightConfig, "n">,
+): { n: number; source: GlovesSource } {
+  if (config.n === 1) return { n: 1, source: "template" };
+  const planned = samplingFor(context, size).dimensions;
+  if (planned === null || !Number.isInteger(planned) || planned < 0) return { n: config.n, source: "template" };
+  return { n: Math.min(planned, MAX_N), source: "sampling" };
+}
 
 /** The template's spec for one size; undefined when it has none. */
 export function specFor(config: Pick<WeightConfig, "specs">, size: string): Spec | undefined {
@@ -74,6 +99,8 @@ export function deviationPct(average: number, indicativeGrams: number): number {
 
 type SizeOutcome = {
   size: string;
+  /** Gloves weighed for the size (glovesFor). */
+  n: number;
   count: number;
   shown: number | null;
   spec: Spec | undefined;
@@ -89,7 +116,7 @@ export function calcWeight({
 }: CalcInput<WeightData, WeightConfig>): CalcOutput<WeightComputed> {
   const issues: CalcIssue[] = [];
   const computed: WeightComputed = {
-    n: config.n,
+    n: {},
     count: {},
     average: {},
     shown: {},
@@ -102,21 +129,24 @@ export function calcWeight({
   const outcomes: SizeOutcome[] = [];
 
   const perSize = perSizeResults(context.sizes, (size) => {
+    const { n, source } = glovesFor(context, size, config);
     const values = data.sizes[size]?.values ?? [];
-    issues.push(...valueIssues(size, values, config.n, labels, context));
-    const counted = Array.from({ length: config.n }, (_, index) => values[index] ?? null).filter(
+    issues.push(...valueIssues(size, values, { n, source, oneValue: config.n === 1 }, labels, context));
+    const counted = Array.from({ length: n }, (_, index) => values[index] ?? null).filter(
       (value): value is number => value !== null,
     );
     const average = mean(counted);
     const shown = average === null ? null : roundTo(average, config.decimals);
     const spec = specFor(config, size);
+    computed.n[size] = n;
     computed.count[size] = counted.length;
     computed.average[size] = average;
     computed.shown[size] = shown;
     computed.spec[size] = spec ?? null;
 
-    const outcome: SizeOutcome = { size, count: counted.length, shown, spec, deviation: null, status: "not_done" };
-    if (counted.length === config.n && shown !== null) {
+    // A plan of 0 gloves has nothing to weigh: not done, as dimensions says (shown stays null).
+    const outcome: SizeOutcome = { size, n, count: counted.length, shown, spec, deviation: null, status: "not_done" };
+    if (n > 0 && counted.length === n && shown !== null) {
       const judged = spec ? checkSpec(shown, spec) : "na";
       outcome.status = judged === "na" ? "info" : judged;
       const indicative = indicativeFor(context, size);
@@ -143,10 +173,13 @@ export function calcWeight({
   return { result: resultFromSizes(perSize, moduleSummary(outcomes, config, labels, context)), computed, issues };
 }
 
+/** The size's gloves weighed and where that number comes from; `oneValue`: the template weighs one value per size (config n 1). */
+type Weighed = { n: number; source: GlovesSource; oneValue: boolean };
+
 function valueIssues(
   size: string,
   values: readonly (number | null)[],
-  n: number,
+  { n, source, oneValue }: Weighed,
   labels: Labels,
   context: InspectionContext,
 ): CalcIssue[] {
@@ -161,7 +194,8 @@ function valueIssues(
       return;
     }
     if (value <= 0) {
-      const cell = n === 1 ? labelFor(labels, "values") : `${labelFor(labels, "values")} ${rowNo} ${index + 1}`;
+      // Named as the screen shows it: a cell of the sizes' table, or glove No. x of the size's grid.
+      const cell = oneValue ? labelFor(labels, "values") : `${labelFor(labels, "values")} ${rowNo} ${index + 1}`;
       issues.push(
         errorIssue("weight_not_positive", `Size ${name}, ${cell}: must be more than 0 g.`, {
           size,
@@ -173,14 +207,20 @@ function valueIssues(
   if (beyond.length > 0) {
     const which = beyond.length === 1 ? `${beyond[0]}` : `${beyond[0]} to ${beyond.at(-1)}`;
     issues.push(
-      warningIssue(
-        "weight_beyond_n",
-        `Size ${name}: values for ${rowNo} ${which} are not counted; the template weighs ${n} ${n === 1 ? "glove" : "gloves"} per size.`,
-        { size, path: ["sizes", size, "values", n] },
-      ),
+      warningIssue("weight_beyond_n", `Size ${name}: values for ${rowNo} ${which} are not counted; ${weighedText(n, source)}.`, {
+        size,
+        path: ["sizes", size, "values", n],
+      }),
     );
   }
   return issues;
+}
+
+/** "the sampling plan has 12 gloves for dimension" or "the template weighs 13 gloves per size". */
+function weighedText(n: number, source: GlovesSource): string {
+  const gloves = `${n} ${n === 1 ? "glove" : "gloves"}`;
+  if (source === "template") return `the template weighs ${gloves} per size`;
+  return n === 0 ? "the sampling plan has no gloves for dimension" : `the sampling plan has ${gloves} for dimension`;
 }
 
 /** "17.1% below the indicative 3.5 g". */
@@ -199,9 +239,10 @@ function averageText(outcome: SizeOutcome, config: WeightConfig, labels: Labels,
   return `${value} ${word} (${formatSpec(outcome.spec)})`;
 }
 
-/** "Average 2.90 g; 17.1% below the indicative 3.5 g." or "Weight (g): 3 of 13 gloves." */
+/** "Average 2.90 g; 17.1% below the indicative 3.5 g." or "Weight (g): 3 of 12 gloves." */
 function sizeSummary(outcome: SizeOutcome, config: WeightConfig, labels: Labels, context: InspectionContext): string {
-  if (outcome.status === "not_done") return `${labelFor(labels, "values")}: ${outcome.count} of ${config.n} gloves.`;
+  if (outcome.n === 0) return "The sampling plan has no gloves for dimension.";
+  if (outcome.status === "not_done") return `${labelFor(labels, "values")}: ${outcome.count} of ${outcome.n} gloves.`;
   const indicative = indicativeFor(context, outcome.size);
   const deviation =
     indicative && outcome.deviation !== null ? `; ${deviationText(outcome.deviation, indicative)}` : "";

@@ -7,7 +7,7 @@ import {
   type CalcInput,
   type InspectionContext,
 } from "@/modules/_framework";
-import { checkModuleContract, makeTestContext, makeTestTemplate } from "@/modules/_framework/testing";
+import { checkModuleContract, makeSampling, makeTestContext, makeTestTemplate } from "@/modules/_framework/testing";
 import { SAFEDON_EG_EXAMPLE, STD_EG_EXAMPLE, STD_EG_EXPECTED } from "@/tests/fixtures/examples";
 import { exampleContext, templateConfig, templateLabels, weightData } from "./__fixtures__/examples";
 import { calcWeight, deviationPct } from "./calc";
@@ -169,6 +169,60 @@ describe("weight", () => {
       const context = makeTestContext({ sizes: ["M"] });
       expect(calcWeight(input(sizeM([2.996]), min, context)).result.status).toBe("pass");
       expect(calcWeight(input(sizeM([2.994]), min, context)).result.status).toBe("fail");
+    });
+  });
+
+  describe("the gloves weighed: the sampling plan's gloves for dimension (BUILD_SPEC 8)", () => {
+    const planned = (dimensions: number | null) =>
+      makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ dimensions }) } });
+    const weights = (count: number) => sizeM(Array.from({ length: count }, () => 2.9));
+
+    it("weighs the plan's 12 gloves: 12 weights complete the size", () => {
+      const output = calcWeight(input(weights(12), STD_EG, planned(12)));
+      expect(output.computed.n).toEqual({ M: 12 });
+      expect(output.computed.count).toEqual({ M: 12 });
+      expect(output.result.status).toBe("info");
+      expect(output.issues).toEqual([]);
+    });
+
+    it("does not count a 13th weight, and says the sampling plan has 12", () => {
+      const output = calcWeight(input(weights(13), STD_EG, planned(12)));
+      expect(output.computed.count).toEqual({ M: 12 });
+      expect(output.result.status).toBe("info");
+      expect(output.issues).toEqual([
+        {
+          level: "warning",
+          code: "weight_beyond_n",
+          message: "Size M: values for No. 13 are not counted; the sampling plan has 12 gloves for dimension.",
+          size: "M",
+          path: ["sizes", "M", "values", 12],
+        },
+      ]);
+    });
+
+    it("is not done at 11 of the plan's 12", () => {
+      const output = calcWeight(input(weights(11), STD_EG, planned(12)));
+      expect(output.result.status).toBe("not_done");
+      expect(output.result.perSize?.M?.summary).toBe("Weight (g): 11 of 12 gloves.");
+    });
+
+    it("is not done when the plan has no gloves for dimension", () => {
+      const output = calcWeight(input(weights(13), STD_EG, planned(0)));
+      expect(output.computed.n).toEqual({ M: 0 });
+      expect(output.result.perSize?.M).toEqual({ status: "not_done", summary: "The sampling plan has no gloves for dimension." });
+      expect(output.issues.map((issue) => issue.message)).toEqual([
+        "Size M: values for No. 1 to 13 are not counted; the sampling plan has no gloves for dimension.",
+      ]);
+    });
+
+    it("weighs the template's n while the plan gives no number for dimension", () => {
+      expect(calcWeight(input(weights(13), STD_EG, planned(null))).computed.n).toEqual({ M: 13 });
+    });
+
+    it("keeps one value per size (n 1) whatever the plan says", () => {
+      const output = calcWeight(input(sizeM([3.4]), ONE_VALUE, planned(13)));
+      expect(output.computed.n).toEqual({ M: 1 });
+      expect(output.result.status).toBe("info");
     });
   });
 

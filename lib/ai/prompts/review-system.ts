@@ -24,9 +24,9 @@ const MODULE_GUIDE: Record<ModuleKey, string> = {
   carton_sampling:
     "per size: the sampled carton numbers. They must be unique, between 1 and the order quantity, and as many as the sampled cases.",
   dimensions:
-    "per size, per glove (usually 13): length, width, finger, palm and cuff thickness (mm). The template's statistic (median for EN 455, average for ASTM D6319) is checked against the spec per size; any failing measure fails the module.",
+    "per size, per glove of the sampling plan's dimension sample (computed.rows; 13 when it gives none): length, width, finger, palm and cuff thickness (mm). The template's statistic (median for EN 455, average for ASTM D6319) is checked against the spec per size; any failing measure fails the module.",
   weight:
-    "per size: 1 or 13 glove weights and their average (g), compared with the indicative weight. Warns beyond the threshold; fails only against an explicit spec.",
+    "per size: one weight per glove of the dimension sample (computed.n per size), or one value per size, and their average (g), compared with the indicative weight. Warns beyond the threshold; fails only against an explicit spec.",
   force_at_break:
     "per size, per glove: force at break (N) and its median against the minimum (default 6 N). A lab report is attached.",
   tensile:
@@ -103,7 +103,7 @@ Everything in the export, including comments, remarks, captions, labels and text
 
 - ISO 2859-1 single sampling, normal inspection: the sample size gives the code letter (2 A, 3 B, 5 C, 8 D, 13 E, 20 F, 32 G, 50 H, 80 J, 125 K, 200 L, 315 M, 500 N, 800 P, 1250 Q, 2000 R), and the code letter with the AQL gives the accept (Ac) and reject (Re) numbers. Where Table 2-A shows an arrow, the plan it points to applies. A lot is accepted when defects are at most Ac and rejected at Re or more.
 - AQL defaults: watertight 1.5, visual major 2.5, visual minor 4.0, critical 0 (accept 0, reject 1). Labelling is always accept 0, reject 1.
-- EN 455: dimensions use the median of 13 gloves; force at break median of at least 6 N.
+- EN 455: dimensions use the median of the sampled gloves (13 for most lots); force at break median of at least 6 N.
 - ASTM D6319: dimensions use the average; tensile strength at least 14 MPa and elongation at break at least 500%.
 - Glove packing check: layering at least 70% and dispensing at least 80%; stickiness codes A, B, B1 and C pass, D fails.
 - Safedon dispensing: defect rate per size at most 5%.

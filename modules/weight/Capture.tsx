@@ -2,8 +2,9 @@
 
 // The Weight body. With one value per size (SAFEDON_EG) every ordered size is
 // a row of one table, so Enter runs down the sizes and the whole module fits
-// on one screen. With several gloves per size (13 on STD_EG) each size is a
-// MeasurementGrid in size tabs, its footer the live average. Under each, the
+// on one screen. With several gloves per size (the gloves for dimension, 13
+// on STD_EG: glovesFor) each size is a MeasurementGrid in size tabs, its
+// footer the live average. Under each, the
 // size of the indicative weight shows its deviation and the warning beyond
 // the threshold (BUILD_SPEC 6.2 rule 9). Every write goes through
 // useDataUpdater, so a column pasted down the sizes, or two commits in one
@@ -38,7 +39,7 @@ import { cn } from "@/lib/utils";
 import type { ModuleStatus } from "@/lib/schemas";
 import { initialSize, labelFor, sizeLabel, type CaptureProps, type Labels, type ValidationIssue } from "@/modules/_framework";
 import { sizeOnTabs, useReportShownSize } from "@/modules/_framework/shown-size";
-import { indicativeFor, specFor, type WeightComputed } from "./calc";
+import { glovesFor, indicativeFor, specFor, type WeightComputed } from "./calc";
 import {
   firstValues,
   gridSummary,
@@ -252,6 +253,8 @@ function SizeGrid({
   readOnly,
   onFocusChange,
 }: Props & { size: string; root: RefObject<HTMLDivElement | null>; update: Update }) {
+  // The gloves weighed: the sampling plan's for dimension, else the template's n.
+  const { n } = glovesFor(context, size, config);
   const status = evaluation?.result.perSize?.[size]?.status;
   const label = labelFor(labels, "values");
   // The section's heading, and the grid's name.
@@ -262,7 +265,7 @@ function SizeGrid({
   return (
     <ModuleSection
       title={heading}
-      description={`${labelFor(labels, "average")} of ${config.n} gloves`}
+      description={`${labelFor(labels, "average")} of ${n} ${n === 1 ? "glove" : "gloves"}`}
       status={status}
       statusLabel={statusWord(status, labels)}
       // The template's caption for the size's result ("Remark"), beside it.
@@ -291,8 +294,8 @@ function SizeGrid({
               summary: gridSummary(computed, size),
             },
           ]}
-          rows={config.n}
-          values={{ [VALUES_COLUMN]: firstValues(data, size, config.n) }}
+          rows={n}
+          values={{ [VALUES_COLUMN]: firstValues(data, size, n) }}
           onCellsChange={(changes) => update((current) => withValues(current, size, valueChanges(changes)))}
           statistic="average"
           // The grid's last row is the spec's verdict alone, so it keeps the
@@ -306,7 +309,8 @@ function SizeGrid({
           }}
           readOnly={readOnly}
           cellIssuePath={({ row }) => ["sizes", size, "values", row]}
-          // One column of 13 weights: in groups side by side across the width, 1 to 5, 6 to 10, 11 to 13.
+          // One column of weights, the gloves for dimension (13 on STD_EG): in groups side by side
+          // across the width, 1 to 5, 6 to 10, 11 to 13.
           flow
         />
       </div>
@@ -314,7 +318,7 @@ function SizeGrid({
       <IssueLinks
         issues={inlineIssues(evaluation, size)}
         root={root}
-        onRemoveUncounted={readOnly ? undefined : () => update((current) => withoutValuesPast(current, size, config.n))}
+        onRemoveUncounted={readOnly ? undefined : () => update((current) => withoutValuesPast(current, size, n))}
       />
     </ModuleSection>
   );
