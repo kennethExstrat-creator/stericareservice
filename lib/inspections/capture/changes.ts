@@ -12,6 +12,7 @@
 import { contentHash } from "@/lib/offline/stable-json";
 import { isModuleKey } from "@/lib/schemas/module-result";
 import type { ResolvedTemplate } from "@/lib/schemas/template";
+import { customShortTitle, shortTitleFor } from "@/lib/templates";
 import { customValuesSchema } from "@/lib/validation";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import {
@@ -29,7 +30,7 @@ export const COMMENT_MAX = 4000;
 export type DataProblem = {
   namespace: DataNamespace;
   key: string;
-  /** In the template's wording, or the key when the template has no such section. */
+  /** The section's short name (lib/templates/short-titles.ts), or the key when the template has no such section. */
   title: string;
   message: string;
 };
@@ -85,9 +86,10 @@ function entryProblems(
     const resolved = isModuleKey(key) ? template.modules.find((entry) => entry.key === key) : undefined;
     if (!resolved || !isModuleKey(key)) return [problem(key, "is not a section of this inspection's template.")];
     const parsed = parseModuleData(registry[key], readModuleEntry(data, "modules", key));
+    const title = shortTitleFor(key, resolved.title);
     return [
-      ...(commentProblem ? [problem(resolved.title, commentProblem)] : []),
-      ...(parsed.success ? [] : [problem(resolved.title, describeZodIssue(parsed.error.issues[0]))]),
+      ...(commentProblem ? [problem(title, commentProblem)] : []),
+      ...(parsed.success ? [] : [problem(title, describeZodIssue(parsed.error.issues[0]))]),
     ];
   }
 
@@ -95,9 +97,10 @@ function entryProblems(
   if (!custom) return [problem(key, "is not a section of this inspection's template.")];
   const entry = readModuleEntry(data, "custom", key);
   const parsed = customValuesSchema(custom).safeParse(entry.value ?? {});
+  const title = customShortTitle(custom);
   return [
-    ...(commentProblem ? [problem(custom.title, commentProblem)] : []),
-    ...(parsed.success ? [] : [problem(custom.title, describeZodIssue(parsed.error.issues[0]))]),
+    ...(commentProblem ? [problem(title, commentProblem)] : []),
+    ...(parsed.success ? [] : [problem(title, describeZodIssue(parsed.error.issues[0]))]),
   ];
 }
 

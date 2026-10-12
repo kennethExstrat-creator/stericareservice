@@ -2,7 +2,9 @@
 // inspection_photos and inspection_files with their signed URLs, the tag
 // options of the inspection's template, and how photos group by module.
 // Source Documents' Media categories (lib/inspections/source-documents.ts)
-// are tags too, named by their titles wherever a tag is named. Pure, and
+// are tags too, named by their titles wherever a tag is named; a module is
+// named by its short name, as the capture screen's menus name it
+// (lib/templates/short-titles.ts; docs/DESIGN.md, Step Names). Pure, and
 // free of server-only imports: the gallery renders it on the server and the
 // capture screen's photo slot on the iPad.
 import { isMediaCategoryKey, MEDIA_CATEGORIES, mediaCategory } from "@/lib/inspections/source-documents";
@@ -14,6 +16,7 @@ import { ResolvedTemplateSchema, type ResolvedModule } from "@/lib/schemas/templ
 import type { Tables } from "@/lib/supabase/database.types";
 import { applyModuleOverrides, parseModuleOverrides } from "@/lib/templates/overrides";
 import { templateSections } from "@/lib/templates/sections";
+import { customShortTitle, shortTitleFor } from "@/lib/templates/short-titles";
 import { humanize } from "@/lib/zod-form/labels";
 // The default wording of the three lists a photo's level or item comes from: config files only, no module code.
 import { DOCUMENT_ITEMS, DOCUMENTS_LABELS } from "@/modules/documents/config";
@@ -196,6 +199,8 @@ export interface ModuleOption {
   key: string;
   /** In the template's wording. */
   title: string;
+  /** How the photo screens name it: the step's short name (lib/templates/short-titles.ts); a Media category's title. */
+  shortTitle: string;
   /** What a photo in this module records besides the module (lib/photos MODULE_TARGET_KEYS). */
   targetKeys: readonly TargetKey[];
   /** Right and left hands recorded apart (watertight and visual with handSplit). */
@@ -256,6 +261,7 @@ export function targetKeysFor(moduleKey: string | null): readonly TargetKey[] {
 export const MEDIA_CATEGORY_OPTIONS: readonly ModuleOption[] = MEDIA_CATEGORIES.map(({ key, title }) => ({
   key,
   title,
+  shortTitle: title,
   targetKeys: [],
   handSplit: false,
   included: true,
@@ -289,6 +295,7 @@ export function tagOptionsFromTemplate(
       modules.push({
         key: section.key,
         title: section.module.title,
+        shortTitle: shortTitleFor(section.key, section.module.title),
         targetKeys: targetKeysFor(section.key),
         handSplit: section.module.config.handSplit === true,
         included: true,
@@ -296,7 +303,14 @@ export function tagOptionsFromTemplate(
       defectLabels[section.key] = defectWording(section.module, defects);
       addLists(section.module);
     } else {
-      modules.push({ key: section.key, title: section.custom.title, targetKeys: CUSTOM_TARGET_KEYS, handSplit: false, included: true });
+      modules.push({
+        key: section.key,
+        title: section.custom.title,
+        shortTitle: customShortTitle(section.custom),
+        targetKeys: CUSTOM_TARGET_KEYS,
+        handSplit: false,
+        included: true,
+      });
     }
   }
   for (const entry of template.modules) {
@@ -304,6 +318,7 @@ export function tagOptionsFromTemplate(
     modules.push({
       key: entry.key,
       title: entry.title,
+      shortTitle: shortTitleFor(entry.key, entry.title),
       targetKeys: targetKeysFor(entry.key),
       handSplit: entry.config.handSplit === true,
       included: false,
@@ -413,11 +428,13 @@ export const TAG_FIELD_LABEL = "Category or Module";
 /** The tag pickers' two lists, by these headings. */
 export const TAG_GROUP_LABEL = { categories: "Media Categories", modules: "Modules" } as const;
 
-/** A tag in words: a Media category by its title, a module by the template's, else its key in words. */
+/** A tag in words: a Media category by its title, a module by its short name, else its key in words. */
 export function moduleTitle(moduleKey: string | null, options: PhotoTagOptions): string {
   if (moduleKey === null) return UNTAGGED_TITLE;
   return (
-    mediaCategory(moduleKey)?.title ?? options.modules.find((entry) => entry.key === moduleKey)?.title ?? humanizeKey(moduleKey)
+    mediaCategory(moduleKey)?.title ??
+    options.modules.find((entry) => entry.key === moduleKey)?.shortTitle ??
+    humanizeKey(moduleKey)
   );
 }
 
@@ -428,6 +445,7 @@ export function moduleOption(moduleKey: string | null, options: PhotoTagOptions)
     options.modules.find((entry) => entry.key === moduleKey) ?? {
       key: moduleKey,
       title: humanizeKey(moduleKey),
+      shortTitle: humanizeKey(moduleKey),
       targetKeys: targetKeysFor(moduleKey),
       handSplit: false,
       included: false,
@@ -511,7 +529,7 @@ export function defectChoices(moduleKey: string | null, current: string, options
 /**
  * The tags a tile shows (components/qc PhotoTags). `item` carries the words
  * for the packaging level and the list entry, which the kit's tag line puts
- * last: "Labelling · Size M · Lot no. · Box 253 · Carton Box".
+ * last: "Labeling · Size M · Lot no. · Box 253 · Carton Box".
  */
 export interface DisplayTags {
   module: string;
@@ -571,6 +589,7 @@ export function targetForModule(moduleKey: string | null, target: PhotoTarget): 
 export interface ModuleGroup<T> {
   /** Media category, module or custom module key; null for photos not tagged yet. */
   key: string | null;
+  /** A module's short name, a Media category's title. */
   title: string;
   /** False for a module switched off, or one the template does not know. */
   included: boolean;
@@ -594,7 +613,7 @@ export function groupByModule<T extends { moduleKey: string | null }>(
   for (const entry of [...MEDIA_CATEGORY_OPTIONS, ...options.modules]) {
     const found = byKey.get(entry.key);
     if (!found) continue;
-    groups.push({ key: entry.key, title: entry.title, included: entry.included, items: found });
+    groups.push({ key: entry.key, title: entry.shortTitle, included: entry.included, items: found });
     byKey.delete(entry.key);
   }
   const unknown = [...byKey.keys()]

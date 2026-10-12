@@ -14,10 +14,17 @@
 // Pending row; the page takes its host's title, the worst of their results
 // and their progress together. Screen order is template order with a guest
 // moved up to its host; the review and the export keep template order.
+//
+// Names: every section and page carries its title, the template's wording
+// (with a count filled in, shownTitle), for its card heading, and its short
+// name (lib/templates/short-titles.ts), for the tabs, the sidebar, the
+// progress bar, Previous / Next, Pending and the messages that name it
+// (docs/DESIGN.md, Step Names).
 import type { Status } from "@/lib/design/status";
 import { shownStatus } from "@/lib/inspections/review/results";
 import type { ModuleKey } from "@/lib/schemas/module-result";
 import type { CustomModule, ModuleOverride, ResolvedModule, ResolvedTemplate } from "@/lib/schemas/template";
+import { customShortTitle, shortTitleFor } from "@/lib/templates/short-titles";
 import { STATUS_SEVERITY, type ValidationReport } from "@/lib/validation";
 import { readModuleEntry, type InspectionData } from "@/modules/_framework";
 
@@ -52,8 +59,8 @@ export const CUSTOM_SHOWN_WITH: Readonly<Record<string, readonly { host: ModuleK
 /** ProgressTracker's step states (components/qc/progress-tracker.tsx). */
 export type SectionProgress = "done" | "in_progress" | "not_started";
 
-/** A ProgressTracker step with the page's result. */
-export type SectionStep = { key: string; label: string; state: SectionProgress; result: Status };
+/** A ProgressTracker step with the page's result: `label` its short name, `title` its full title (shown on hover). */
+export type SectionStep = { key: string; label: string; title: string; state: SectionProgress; result: Status };
 
 type Counts = { errors: number; warnings: number };
 
@@ -61,7 +68,10 @@ export type CaptureSection =
   | ({
       kind: "module";
       key: ModuleKey;
+      /** In the template's wording: the section's card heading. */
       title: string;
+      /** Its name in the menus, Pending and messages (lib/templates/short-titles.ts). */
+      shortTitle: string;
       /**
        * The result as shown: the module's status, except the conclusion's
        * HOLD, which its status records as warn (shownStatus). The
@@ -79,6 +89,7 @@ export type CaptureSection =
       kind: "custom";
       key: string;
       title: string;
+      shortTitle: string;
       status: Status;
       summary: string;
       progress: SectionProgress;
@@ -90,6 +101,7 @@ export type CaptureSection =
       kind: "excluded";
       key: ModuleKey;
       title: string;
+      shortTitle: string;
       override: ModuleOverride;
     };
 
@@ -143,7 +155,15 @@ export function captureSections(
       addCustomAfter(entry.key);
       for (const guest of own) addCustomAfter(guest.key);
     } else {
-      if (entry.override) sections.push({ kind: "excluded", key: entry.key, title: entry.title, override: entry.override });
+      if (entry.override) {
+        sections.push({
+          kind: "excluded",
+          key: entry.key,
+          title: entry.title,
+          shortTitle: shortTitleFor(entry.key, entry.title),
+          override: entry.override,
+        });
+      }
       addCustomAfter(entry.key);
     }
   }
@@ -174,26 +194,28 @@ export function initialSectionKey(sections: readonly CaptureSection[], requested
 /**
  * What a tab, a sidebar row, a progress step and Previous or Next open: one
  * section, or a module with the modules shown on its page (SHOWN_WITH),
- * keyed and named by the first. Its result is the worst of its sections'
- * (pageStatus) and its progress theirs together (pageProgress). A module
- * switched off is a page of its own, wherever its host is.
+ * keyed and named by the first (its title and its short name). Its result is
+ * the worst of its sections' (pageStatus) and its progress theirs together
+ * (pageProgress). A module switched off is a page of its own, wherever its
+ * host is.
  */
 export type CapturePage =
   | {
       kind: "included";
       key: string;
       title: string;
+      shortTitle: string;
       sections: readonly IncludedSection[];
       status: Status;
       progress: SectionProgress;
     }
-  | { kind: "excluded"; key: ModuleKey; title: string; section: ExcludedSection }
+  | { kind: "excluded"; key: ModuleKey; title: string; shortTitle: string; section: ExcludedSection }
   /**
    * Source Documents, before every module: the files the inspection starts
    * from, which the AI reads to fill the pages after it (docs/AI.md). Its
    * result is "pass" once every file is AI Verified.
    */
-  | { kind: "documents"; key: string; title: string; status: Status; progress: SectionProgress };
+  | { kind: "documents"; key: string; title: string; shortTitle: string; status: Status; progress: SectionProgress };
 
 export type IncludedPage = Extract<CapturePage, { kind: "included" }>;
 export type DocumentsPage = Extract<CapturePage, { kind: "documents" }>;
@@ -207,7 +229,7 @@ export function isStepPage(page: CapturePage): page is StepPage {
 /**
  * The sections in pages, in screen order: a guest joins its host's page
  * (captureSections puts it right after, or right before when it leads), and
- * the page takes the host's key and title.
+ * the page takes the host's key, title and short name.
  */
 export function capturePages(sections: readonly CaptureSection[]): CapturePage[] {
   const groups: ({ excluded: ExcludedSection } | { included: IncludedSection[] })[] = [];
@@ -234,13 +256,14 @@ export function capturePages(sections: readonly CaptureSection[]): CapturePage[]
   return groups.map((group): CapturePage => {
     if ("excluded" in group) {
       const { excluded } = group;
-      return { kind: "excluded", key: excluded.key, title: excluded.title, section: excluded };
+      return { kind: "excluded", key: excluded.key, title: excluded.title, shortTitle: excluded.shortTitle, section: excluded };
     }
     const own = group.included.find((section) => section.shownWith === undefined) ?? group.included[0];
     return {
       kind: "included",
       key: own.key,
       title: own.title,
+      shortTitle: own.shortTitle,
       sections: group.included,
       status: pageStatus(group.included),
       progress: pageProgress(group.included),
@@ -306,11 +329,16 @@ export function neighbours(
   return { previous, next };
 }
 
-/** The pages a step stands for (Source Documents and the included pages) as ProgressTracker steps, each with its result. */
+/**
+ * The pages a step stands for (Source Documents and the included pages) as
+ * ProgressTracker steps, each with its result, named by its short name, with
+ * its full title for the hover.
+ */
 export function progressSteps(pages: readonly CapturePage[]): SectionStep[] {
   return pages.filter(isStepPage).map((page) => ({
     key: page.key,
-    label: page.title,
+    label: page.shortTitle,
+    title: page.title,
     state: page.progress,
     result: page.status,
   }));
@@ -357,6 +385,7 @@ function moduleSection(
     kind: "module",
     key: entry.key,
     title: entry.title,
+    shortTitle: shortTitleFor(entry.key, entry.title),
     status,
     summary: evaluation?.result.summary ?? "",
     progress: progressOf(status, evaluation?.hasData ?? false),
@@ -385,6 +414,7 @@ function customSection(
     kind: "custom",
     key: custom.key,
     title: custom.title,
+    shortTitle: customShortTitle(custom),
     status,
     summary: "",
     progress: progressOf(status, hasData),

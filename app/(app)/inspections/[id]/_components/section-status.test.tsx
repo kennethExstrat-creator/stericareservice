@@ -76,3 +76,34 @@ describe("the conclusion's HOLD on the capture screen", () => {
     expect(bar).toContain(`${done} of ${steps.length} done`);
   });
 });
+
+describe("step names on the capture screen (docs/DESIGN.md, Step Names)", () => {
+  // The test registry's titles: "Manufacturer Information", "Packing configuration" (on the order's page), "Weight (g)".
+  const filled = filledData();
+  const { template, report } = evaluateCapture({ template: testTemplate(), overrides: {}, data: filled, meta: TEST_META }, TEST_REGISTRY);
+  const pages = capturePages(captureSections(template, report, filled));
+
+  it("names each tab by its short name, with the template's title on hover", () => {
+    const html = renderToStaticMarkup(<SectionTabs pages={pages} activeKey="weight" onSelect={noop} panelId="panel" idPrefix="cap" />);
+    const header = element(html, "button", 'data-section="header"');
+    expect(header).toContain('title="Manufacturer Information"');
+    expect(header).toContain(">Manufacturer</span>");
+    const weight = element(html, "button", 'data-section="weight"');
+    expect(weight).toContain('title="Weight (g)"');
+    expect(weight).toContain(">Weight</span>");
+  });
+
+  it("names each sidebar row by its short name, with the template's title on hover and its key for specs", () => {
+    const html = renderToStaticMarkup(<SectionList pages={pages} activeKey="weight" onSelect={noop} />);
+    const header = element(html, "button", 'data-step="header"');
+    expect(header).toContain('title="Manufacturer Information"');
+    expect(header).toContain(">Manufacturer</span>");
+    expect(element(html, "button", 'data-step="weight"')).toContain(">Weight</span>");
+  });
+
+  it("names the step in view above the progress bar by its short name, with its title on hover", () => {
+    const html = renderToStaticMarkup(<ProgressTracker steps={progressSteps(pages)} activeKey="weight" />);
+    expect(html).toMatch(/title="Weight \(g\)">Weight<\/span>/);
+    expect(html).toContain("Manufacturer: Done");
+  });
+});

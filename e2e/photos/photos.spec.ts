@@ -29,7 +29,7 @@ import {
   watchConsole,
   withGpsExif,
 } from "./support";
-import { THIN_SPOT_LABEL, TITLES } from "./template";
+import { NAMES, THIN_SPOT_LABEL } from "./template";
 
 /**
  * Photos and Files (BUILD_SPEC 8.1) against the live project, at the three
@@ -118,14 +118,14 @@ test("the inspector adds photos and a lab report, then retags, captions, views a
   const dimensions = group(page, "dimensions");
 
   await test.step("two photos wait on the device, with a badge, then upload", async () => {
-    await chooseOption(page, addCard(page).getByRole("combobox", { name: "Module" }), TITLES.dimensions);
+    await chooseOption(page, addCard(page).getByRole("combobox", { name: "Module" }), NAMES.dimensions);
     const held = await holdUploads(page, "inspection-photos");
     // A camera JPEG still carrying its GPS position, and a PNG from the library.
     await addCard(page)
       .locator('input[data-photo-input="library"]')
       .setInputFiles([{ ...jpeg, buffer: withGpsExif(jpeg.buffer) }, png]);
 
-    await expect(dimensions.getByRole("heading", { name: TITLES.dimensions })).toBeVisible();
+    await expect(dimensions.getByRole("heading", { name: NAMES.dimensions })).toBeVisible();
     await expect(dimensions.locator('[data-slot="photo-card"]')).toHaveCount(2);
     await expect(page.locator('[data-slot="upload-badge"]')).toHaveAttribute("data-count", "2");
     // The tile's words (components/qc/photo-tile.tsx).
@@ -179,7 +179,7 @@ test("the inspector adds photos and a lab report, then retags, captions, views a
 
   await test.step("a lab report goes up as it is", async () => {
     const slot = page.locator('[data-slot="file-slot"][data-module="force_at_break"]');
-    await expect(slot.getByRole("heading", { name: TITLES.force_at_break })).toBeVisible();
+    await expect(slot.getByRole("heading", { name: NAMES.force_at_break })).toBeVisible();
     await slot.locator("input[data-file-input]").setInputFiles({
       name: "force-at-break-report.pdf",
       mimeType: "application/pdf",
@@ -207,7 +207,7 @@ test("the inspector adds photos and a lab report, then retags, captions, views a
     await expect(dialog).toBeVisible();
 
     // A refused save keeps what was typed, and focus goes to the field to fix.
-    await chooseOption(page, dialog.getByRole("combobox", { name: "Module" }), TITLES.dispensing_packing);
+    await chooseOption(page, dialog.getByRole("combobox", { name: "Module" }), NAMES.dispensing_packing);
     const caption = dialog.getByRole("textbox", { name: "Caption" });
     const box = dialog.getByRole("textbox", { name: "Box (Carton Number)" });
     await caption.fill("Typed caption that must survive");
@@ -219,7 +219,7 @@ test("the inspector adds photos and a lab report, then retags, captions, views a
     await expect(box).toBeFocused();
     await viewportShot(page, "4-edit-field-error");
 
-    await chooseOption(page, dialog.getByRole("combobox", { name: "Module" }), TITLES.visual);
+    await chooseOption(page, dialog.getByRole("combobox", { name: "Module" }), NAMES.visual);
     await chooseOption(page, dialog.getByRole("combobox", { name: "Size" }), "M");
     await chooseOption(page, dialog.getByRole("combobox", { name: "Defect" }), THIN_SPOT_LABEL);
     await dialog.getByRole("textbox", { name: "Caption" }).fill("Thin spot near the palm, second glove");
@@ -242,7 +242,7 @@ test("the inspector adds photos and a lab report, then retags, captions, views a
     await press(group(page, "visual").locator(`[data-photo-id="${bigId}"]`).getByRole("button", { name: /^Open Photo/ }));
     const viewer = page.locator('[data-slot="photo-viewer"]');
     await expect(viewer).toContainText("Photo 2 of 2");
-    await expect(viewer.getByRole("heading")).toHaveText(`${TITLES.visual} · Size M · ${THIN_SPOT_LABEL}`);
+    await expect(viewer.getByRole("heading")).toHaveText(`${NAMES.visual} · Size M · ${THIN_SPOT_LABEL}`);
     const full = await loadedSize(page, viewer.locator("img"));
     expect(full.width).toBe(2048);
     await viewportShot(page, "5-viewer");
@@ -253,7 +253,7 @@ test("the inspector adds photos and a lab report, then retags, captions, views a
       await page.keyboard.press("ArrowRight");
     }
     await expect(viewer).toContainText("Photo 1 of 2");
-    await expect(viewer.getByRole("heading")).toHaveText(TITLES.dimensions);
+    await expect(viewer.getByRole("heading")).toHaveText(NAMES.dimensions);
     if (!isTouch()) {
       await page.keyboard.press("ArrowLeft");
       await expect(viewer).toContainText("Photo 2 of 2");
@@ -307,7 +307,7 @@ test("offline, photos wait on the device and upload when the connection is back"
   await signIn(context, baseURL!, TEST_ACCOUNTS.inspector);
   await page.goto(galleryPath());
   await expect(page.getByRole("heading", { level: 1, name: "Photos and Files" })).toBeVisible();
-  await chooseOption(page, addCard(page).getByRole("combobox", { name: "Module" }), TITLES.watertight);
+  await chooseOption(page, addCard(page).getByRole("combobox", { name: "Module" }), NAMES.watertight);
 
   await context.setOffline(true);
   // An HEIC this browser cannot decode: kept as the original and flagged.
@@ -388,7 +388,7 @@ test("once submitted, the inspector sees the photos read-only", async ({ page, c
   await page.goto(galleryPath());
 
   await test.step("a photo still waiting when the inspection is submitted stops, and says what to do", async () => {
-    await chooseOption(page, addCard(page).getByRole("combobox", { name: "Module" }), TITLES.dimensions);
+    await chooseOption(page, addCard(page).getByRole("combobox", { name: "Module" }), NAMES.dimensions);
     const late = await drawImage(page, { name: "late.jpg", type: "image/jpeg", width: 1200, height: 900, label: "Late" });
     const held = await holdUploads(page, "inspection-photos");
     await addCard(page).locator('input[data-photo-input="library"]').setInputFiles(late);

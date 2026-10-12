@@ -2,12 +2,14 @@
 // warnings are allowed, each listed with a link to its problem. Issues arrive
 // in screen order (lib/validation sortIssues: template order, errors first
 // within a section); here they are grouped under their section's title. The
-// screen shows them as tasks ("Pending"), one short row per section
-// (pendingTasks): errors are needed before submit, warnings are the rest to do.
+// screen shows them as tasks ("Pending"), one short row per section, named by
+// its short name (pendingTasks; docs/DESIGN.md, Step Names): errors are
+// needed before submit, warnings are the rest to do.
 // Entries a field refused (refused.ts) join their section's row first: the
 // row names the field and links to it. A section here is one module (or
 // custom module), also where a page shows two (sections.ts SHOWN_WITH): each
 // keeps its own row, and its link opens the page it is on.
+import { withoutNote } from "@/lib/templates/short-titles";
 import { FRAMEWORK_ISSUE_CODES, type IssuePath, type ValidationIssue } from "@/lib/validation";
 import { REFUSED_ENTRY_CODE, refusedEntriesStatus } from "./refused";
 import { findPage, type CapturePage, type CaptureSection } from "./sections";
@@ -60,7 +62,7 @@ export function countIssues(issues: readonly Pick<ValidationIssue, "level">[]): 
  */
 export type PendingTask = {
   key: string;
-  /** The section's title, without a trailing note in brackets ("(Refer to Attached Lab. Reports)"). */
+  /** The section's short name (lib/templates/short-titles.ts); for a section not on screen, its title without a trailing note in brackets. */
   title: string;
   /** False when the section is not on screen (switched off or unknown): the row has no link. */
   linkable: boolean;
@@ -113,7 +115,16 @@ export function pendingTasks(
       notStarted: section !== undefined && section.kind !== "excluded" && section.progress === "not_started",
       sizesNotDone: Object.entries(perSize).flatMap(([size, result]) => (result.status === "not_done" ? [size] : [])),
     });
-    return [{ key: group.key, title: shortTitle(group.title), linkable: group.linkable, needed: group.errors.length > 0, first, ...summary }];
+    return [
+      {
+        key: group.key,
+        title: section?.shortTitle ?? withoutNote(group.title),
+        linkable: group.linkable,
+        needed: group.errors.length > 0,
+        first,
+        ...summary,
+      },
+    ];
   });
   return [...tasks.filter((task) => task.needed), ...tasks.filter((task) => !task.needed)];
 }
@@ -121,12 +132,6 @@ export function pendingTasks(
 /** An entry a field refused, listed with the section's issues (refused.ts). */
 export function isRefusedEntry(issue: Pick<ValidationIssue, "code">): boolean {
   return issue.code === REFUSED_ENTRY_CODE;
-}
-
-/** "Physical Properties Average (Refer to Attached Lab. Reports)" as "Physical Properties Average"; a title that is only brackets stays. */
-export function shortTitle(title: string): string {
-  const match = /^(.{8,}?)\s*\([^()]*\)$/.exec(title.trim());
-  return match ? match[1] : title.trim();
 }
 
 /** How many sections are open, and how many of them submit needs. */
@@ -154,7 +159,7 @@ export function blockedSubmitMessage(needed: number): string {
   return needed === 1 ? "1 item is needed before you can submit." : `${needed} items are needed before you can submit.`;
 }
 
-/** A task's name for screen readers: "Weight (g): 4 sizes not done: XS, S, M and L. Needed before you submit." */
+/** A task's name for screen readers: "Weight: 4 sizes not done: XS, S, M and L. Needed before you submit." */
 export function taskName(task: Pick<PendingTask, "title" | "status" | "sizes" | "more" | "needed">): string {
   const sizes = task.sizes.length > 0 ? `: ${joinWords(task.sizes)}` : "";
   const more = task.more > 0 ? `, and ${task.more} more` : "";

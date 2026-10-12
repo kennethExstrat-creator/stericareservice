@@ -9,6 +9,7 @@ import {
   initialSize,
   inspectionRowValues,
   lotSizeGloves,
+  moduleShortTitle,
   moduleTitle,
   samplingFor,
   sizeLabel,
@@ -160,6 +161,22 @@ describe("buildInspectionContext: numbers flow forward", () => {
     expect(moduleTitle(context, "dispensing_packing")).toBe("Dispensing packing");
     // A context built before the list existed has none.
     expect(includedModules({})).toEqual([]);
+  });
+
+  it("names a module by its short name, as the capture screen's menus do, whatever its title (lib/templates/short-titles.ts)", () => {
+    const template = makeTestTemplate(TEST_REGISTRY, [
+      { key: "order_lots", title: "PO Info" },
+      { key: "weight", include: false },
+      "carton_sampling",
+    ]);
+    const context = build(exampleData(), template);
+    expect(moduleShortTitle(context, "header")).toBe("Manufacturer");
+    expect(moduleShortTitle(context, "carton_sampling")).toBe("Carton Numbers");
+    // A template's own words stay (STD_SG).
+    expect(moduleShortTitle(context, "order_lots")).toBe("PO Info");
+    // A module the context does not list: its own short name, never its key.
+    expect(moduleShortTitle(context, "dispensing_packing")).toBe("Packing Check");
+    expect(moduleShortTitle({}, "weight")).toBe("Weight");
   });
 
   it("carries the inspection's files when the caller knows them, else null", () => {

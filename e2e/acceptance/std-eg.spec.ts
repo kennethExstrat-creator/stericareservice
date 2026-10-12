@@ -71,6 +71,30 @@ const SECTION = {
   conclusion: "Conclusion",
 } as const;
 
+type Step = keyof typeof SECTION;
+
+/**
+ * The same steps by their short names (docs/DESIGN.md, Step Names): what the
+ * tabs, Previous / Next and Pending read. Frames keep SECTION's titles.
+ */
+const NAME: Readonly<Record<Step, string>> = {
+  header: "Manufacturer",
+  gloveType: "Glove Type",
+  gloveInfo: "Glove Information",
+  order: "Order",
+  packing: "Packing Configuration",
+  sampling: "Sampling Plan",
+  cartons: "Carton Numbers",
+  dimensions: "Dimension",
+  force: "Force at Break",
+  weight: "Weight",
+  watertight: "Watertight Test",
+  visual: "Visual Inspection",
+  packingCheck: "Packing Check",
+  labeling: "Labeling",
+  conclusion: "Conclusion",
+};
+
 /** The dimension measures as the template words them (the fixture's columns: length, width, finger, palm, cuff). */
 const MEASURE_LABEL = {
   length: "Length",
@@ -120,13 +144,13 @@ const WEIGHT_WARNING = must(EXPECTED.warnings.find((issue) => issue.module === "
 const { duplicateCarton: FIX_CARTON, strayBox: FIX_BOX } = EXPECTED.corrections;
 
 /**
- * The Pending panel's rows for the two errors and the warning: one row per section, its title
- * (a closing bracket left out) over a few words and the size, named in full for screen readers.
+ * The Pending panel's rows for the two errors and the warning: one row per section, its short
+ * name over a few words and the size, named in full for screen readers.
  */
 const PENDING_ROW = {
-  cartons: "Finished Goods Sampling Information: Carton entered twice: M. Needed before you submit.",
-  box: `${SECTION.packingCheck}: Box not in the carton list: M. Needed before you submit.`,
-  weight: `${SECTION.weight}: Weight differs from indicative: M.`,
+  cartons: `${NAME.cartons}: Carton entered twice: M. Needed before you submit.`,
+  box: `${NAME.packingCheck}: Box not in the carton list: M. Needed before you submit.`,
+  weight: `${NAME.weight}: Weight differs from indicative: M.`,
 } as const;
 
 /** The carton numbers as entered, row by row, the duplicate kept. */
@@ -227,19 +251,19 @@ async function sectionReady(page: Page, title: string) {
   return frame;
 }
 
-/** Opens a section from the tab bar, as an inspector who jumps there. */
-async function openTab(page: Page, title: string) {
+/** Opens a section from the tab bar, as an inspector who jumps there: by its short name, as the tab reads. */
+async function openTab(page: Page, step: Step) {
   await page
     .getByRole("tablist", { name: "Sections" })
-    .getByRole("tab", { name: new RegExp(`^${escapeRegExp(title)}`, "i") })
+    .getByRole("tab", { name: new RegExp(`^${escapeRegExp(NAME[step])}`) })
     .tap();
-  return sectionReady(page, title);
+  return sectionReady(page, SECTION[step]);
 }
 
-/** The next section, with the button at the foot of the screen, as an inspector going through the report. */
-async function next(page: Page, title: string) {
-  await page.getByRole("navigation", { name: "Previous and next section" }).getByRole("button", { name: `Next: ${title}` }).tap();
-  return sectionReady(page, title);
+/** The next section, with the button at the foot of the screen, as an inspector going through the report: "Next: Weight". */
+async function next(page: Page, step: Step) {
+  await page.getByRole("navigation", { name: "Previous and next section" }).getByRole("button", { name: `Next: ${NAME[step]}` }).tap();
+  return sectionReady(page, SECTION[step]);
 }
 
 /**
@@ -427,11 +451,11 @@ test("the STD_EG example entered on the iPad gives every expected result", async
   });
 
   await test.step("Glove Type: not on the STD_EG report, left blank", async () => {
-    await next(page, SECTION.gloveType);
+    await next(page, "gloveType");
   });
 
   await test.step("Glove Information", async () => {
-    const frame = await next(page, SECTION.gloveInfo);
+    const frame = await next(page, "gloveInfo");
     const info = REPORT.gloveInfo;
     await frame.getByLabel(named("Glove Surface Texture")).tap();
     await frame.getByLabel(named("Glove Surface Texture")).fill(info.surfaceTexture);
@@ -446,7 +470,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
   });
 
   await test.step("Order: size M only, 2,900 cases, one lot", async () => {
-    const frame = await next(page, SECTION.order);
+    const frame = await next(page, "order");
     await typeNumber(page, frame.getByRole("textbox", { name: named("Qty (Cases), Size M") }), ORDER.qtyCases);
     for (const lot of ORDER.lots) {
       await frame.getByRole("textbox", { name: "Lot Number, Size M: add" }).tap();
@@ -474,7 +498,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
 
   await test.step("Sampling Plan: the seven counts in one run, Enter moving on; level I gives code N, 500", async () => {
     // Next from the order's page, packing configuration and all.
-    const frame = await next(page, SECTION.sampling);
+    const frame = await next(page, "sampling");
     await expectOnlySizeM(page, SECTION.sampling);
     await frame.getByRole("textbox", { name: "Case, Size M", exact: true }).tap();
     for (const value of [
@@ -509,7 +533,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
   });
 
   await test.step("Order totals: 2,900 cartons, 5,800,000 gloves", async () => {
-    const frame = await openTab(page, SECTION.order);
+    const frame = await openTab(page, "order");
     const totals = frame.locator("dl").filter({ hasText: "Total # Carton" });
     await check(totals, EXPECTED.totals.check).toContainText(`Total # Carton${grouped(EXPECTED.totals.cartons)}`, ANY_CASE);
     await check(totals, EXPECTED.totals.check).toContainText(`Total # Gloves${grouped(EXPECTED.totals.gloves)}`, ANY_CASE);
@@ -524,7 +548,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
   });
 
   await test.step("Glove Packing Check, typed from the paper before the carton list: box numbers not checked yet", async () => {
-    const frame = await openTab(page, SECTION.packingCheck);
+    const frame = await openTab(page, "packingCheck");
     await expectOnlySizeM(page, SECTION.packingCheck);
     for (const [index, box] of PACKING_BOXES.entries()) {
       await frame.getByRole("combobox", { name: `Box #, Item ${index + 1}`, exact: true }).tap();
@@ -571,7 +595,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
   });
 
   await test.step("Carton list: 50 cartons typed cell by cell, Enter moving along, then a reload; 525 twice is an error", async () => {
-    const frame = await openTab(page, SECTION.cartons);
+    const frame = await openTab(page, "cartons");
     await expectOnlySizeM(page, SECTION.cartons);
     await check(frame.getByText("Sampling Quantity 0 / 50")).toBeVisible();
     await frame.getByRole("textbox", { name: "M (Carton #), row 1 column 1", exact: true }).tap();
@@ -607,7 +631,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
   });
 
   await test.step("Dimension: five columns pasted from the caliper; medians 245, 95, 0.09, 0.05, 0.04", async () => {
-    const frame = await next(page, SECTION.dimensions);
+    const frame = await next(page, "dimensions");
     await expectOnlySizeM(page, SECTION.dimensions);
     const columns = REPORT.dimensions.columns;
     for (const [index, measure] of columns.entries()) {
@@ -638,7 +662,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
   });
 
   await test.step("Force at break: the lab report's 13 readings pasted; median 6.537 N against 6 N", async () => {
-    const frame = await next(page, SECTION.force);
+    const frame = await next(page, "force");
     await expectOnlySizeM(page, SECTION.force);
     const first = frame.getByRole("textbox", { name: named("Force at Break (N), No. 1") });
     await first.tap();
@@ -653,7 +677,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
   });
 
   await test.step("Weight: 13 gloves typed down the column; average 2.90 g is a warning, 17.1% below 3.5 g", async () => {
-    const frame = await next(page, SECTION.weight);
+    const frame = await next(page, "weight");
     await expectOnlySizeM(page, SECTION.weight);
     await frame.getByRole("textbox", { name: "Weight (g), No. 1", exact: true }).tap();
     for (let glove = 0; glove < WEIGHT.gloves; glove++) {
@@ -678,7 +702,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
   });
 
   await test.step("Watertight: 500 from the sampling plan in one tap, one hole at the finger; code N, 14 / 15", async () => {
-    const frame = await next(page, SECTION.watertight);
+    const frame = await next(page, "watertight");
     await expectOnlySizeM(page, SECTION.watertight);
     await frame.getByRole("button", { name: `Use ${WATERTIGHT.tested} for size M` }).tap();
     await check(frame.getByRole("textbox", { name: /^No\. of Sample Tested/i })).toHaveValue(String(WATERTIGHT.tested));
@@ -720,7 +744,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
   });
 
   await test.step("Visual: 500 for every class in one tap, 8 major defects tapped; 0 / 1, 21 / 22, 21 / 22", async () => {
-    const frame = await next(page, SECTION.visual);
+    const frame = await next(page, "visual");
     await expectOnlySizeM(page, SECTION.visual);
     await frame.getByRole("button", { name: `Use ${REPORT.visual.major.perSize.M?.inspected} for Every Class of size M` }).tap();
     for (const cls of ["critical", "major", "minor"] as const) {
@@ -760,7 +784,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
   });
 
   await test.step("Glove Packing Check once the cartons are in: box 2336 is not in the carton list", async () => {
-    const frame = await next(page, SECTION.packingCheck);
+    const frame = await next(page, "packingCheck");
     const { dispensingBox } = EXPECTED;
     const stray = frame.getByRole("combobox", { name: `Box #, Item ${dispensingBox.item}`, exact: true });
     await check(stray, dispensingBox.check).toHaveText(String(dispensingBox.box));
@@ -776,7 +800,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
   });
 
   await test.step("Labelling: 3 dispenser boxes and 1 carton recorded in a tap each, no defects", async () => {
-    const frame = await next(page, SECTION.labeling);
+    const frame = await next(page, "labeling");
     await expectOnlySizeM(page, SECTION.labeling);
     await frame.getByRole("button", { name: `Record ${INNER.inspected} boxes inspected: Dispenser Box, Size M` }).tap();
     await frame.getByRole("button", { name: `Record ${CARTON.inspected} box inspected: Carton Box, Size M` }).tap();
@@ -803,7 +827,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
   });
 
   await test.step("Conclusion: PASSED as on the report, while the app suggests FAILED for the carton list", async () => {
-    const frame = await next(page, SECTION.conclusion);
+    const frame = await next(page, "conclusion");
     await frame.getByRole("radiogroup", { name: "Conclusion" }).getByRole("radio", { name: "PASSED" }).tap();
     await frame.getByRole("textbox", { name: "Date", exact: true }).fill(REPORT.conclusion.date.iso);
     const suggested = frame.getByRole("region", { name: "Suggested Result" });
@@ -910,7 +934,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
   });
 
   await test.step("Correction 2: box 2336 cannot be picked from the list; 2236 is, and the error goes", async () => {
-    const frame = await openTab(page, SECTION.packingCheck);
+    const frame = await openTab(page, "packingCheck");
     const { dispensingBox } = EXPECTED;
     await frame.getByRole("combobox", { name: `Box #, Item ${dispensingBox.item}`, exact: true }).tap();
     const list = page.getByRole("dialog", { name: new RegExp(`^Box #, Item ${dispensingBox.item}: carton list for size M`) });
@@ -933,7 +957,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
   });
 
   await test.step("Conclusion once corrected: the app suggests PASSED, with the weight warning", async () => {
-    const frame = await openTab(page, SECTION.conclusion);
+    const frame = await openTab(page, "conclusion");
     const suggested = frame.getByRole("region", { name: "Suggested Result" });
     await check(suggested.locator('[data-slot="status-pill"]'), EXPECTED.conclusion.check).toHaveText("Passed");
     await check(suggested).toContainText(`Warnings: ${SECTION.weight}.`, ANY_CASE);

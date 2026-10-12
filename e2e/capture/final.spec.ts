@@ -18,7 +18,8 @@ import { createFinalFixture, NOTES_SECTION, type FinalFixture } from "./final-fi
  *   nothing twice for a clean pass (STDEG-6, ACC-SGF-8).
  * - Read-only screens have no Pending list, and a lead is told whose
  *   submitted inspection it is (UX-05, UX-06). 12.9 inch iPad and desktop.
- * - The desktop sidebar shows long section titles on two lines (UX-11).
+ * - The desktop sidebar names each step by its short name on one line, a
+ *   long custom title on two, each named in full on hover (UX-11).
  *
  * One sign-in per account and project (the sign-in limit, e2e/README.md).
  * Screenshots go to screenshots/capture/final-*.
@@ -102,12 +103,15 @@ async function showSidebarSteps(page: Page) {
   if (await group.isVisible()) await press(group);
 }
 
-/** Opens a section from the tab bar (iPad) or the sidebar (desktop), inside the page. */
+/**
+ * Opens a section from the tab bar (iPad) or the sidebar (desktop), inside the page, by its key: both name
+ * it by its short name (docs/DESIGN.md, Step Names); its frame's heading keeps the template's title.
+ */
 async function openSection(page: Page, section: { key: string; title: string }) {
   if (!hasTabs()) await showSidebarSteps(page);
   const target = hasTabs()
     ? page.locator(`[role="tab"][data-section="${section.key}"]`)
-    : page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: new RegExp(`^${escapeRegExp(section.title)}\\s*,`) });
+    : page.getByRole("navigation", { name: "Sections" }).locator(`[data-step="${section.key}"]`);
   await press(target);
   await expect(page.getByRole("heading", { level: 2, name: section.title, exact: true })).toBeVisible();
 }
@@ -266,12 +270,15 @@ test("a refused value in a custom section's number field comes back after a relo
  * ACC-SGF-1: sections opened offline
  * ------------------------------------------------------------------ */
 
+/** Safedon's dispensing: its heading, and its short name, which the form-failure notice uses. */
+const SAFEDON = { key: "dispensing_safedon", title: "Glove Dispensing Inspection", name: "Dispensing" };
+
 const OFFLINE_SECTIONS = [
   { key: "order_lots", title: "Order" },
   DIMENSION,
   VISUAL,
   { key: "watertight", title: "Freedom From Holes by Watertight Test" },
-  { key: "dispensing_safedon", title: "Glove Dispensing Inspection" },
+  SAFEDON,
   NOTES_SECTION,
   { key: "conclusion", title: "Conclusion" },
 ];
@@ -337,10 +344,10 @@ test("a form that could not download says so calmly, and opens once the connecti
   await expect(page.getByRole("button", { name: /^Increase .*Size/ }).first()).toBeVisible();
 
   // Online, a download that fails: Try Again (or Reload), and it opens.
-  const safedon = OFFLINE_SECTIONS[4];
+  const safedon = SAFEDON;
   await openSection(page, safedon);
   await expect(notice).toHaveAttribute("data-failure", "not_loaded");
-  await expect(notice).toContainText(`The form for ${safedon.title} did not load.`);
+  await expect(notice).toContainText(`The form for ${safedon.name} did not load.`);
   await expect(notice.getByRole("button", { name: "Reload" })).toBeVisible();
   await shot(page, "online-not-loaded");
   // Asked again while the download still fails: the notice stays, the section works no less.
@@ -489,24 +496,31 @@ test("read-only screens have no Pending list, and a lead is told whose submitted
  * UX-11: the desktop sidebar
  * ------------------------------------------------------------------ */
 
-test("the desktop sidebar shows long section titles on two lines, each named in full", async ({ page, context, baseURL }) => {
+test("the desktop sidebar names each step by its short name on one line, a long custom title on two, each in full on hover", async ({
+  page,
+  context,
+  baseURL,
+}) => {
   test.skip(project() !== "desktop", "The sidebar is the desktop's.");
   await signInAs(context, baseURL!, INSPECTOR);
   await page.goto(`/inspections/${fixture.inspectionId}?module=${NOTES_SECTION.key}`);
   await formReady(page);
   const sidebar = page.getByRole("navigation", { name: "Sections" });
+  // Kenneth (12 October 2026): "this menu is crowded, simplify the section name" (docs/DESIGN.md, Step Names).
   const rows = [
-    { title: "Dimension", lines: 1 },
-    { title: "Manufacturer Information", lines: 2 },
-    { title: "Freedom From Holes by Watertight Test", lines: 2 },
-    { title: "Glove Dispensing Inspection", lines: 2 },
-    { title: NOTES_SECTION.title, lines: 2 },
+    { key: "dimensions", name: "Dimension", title: "Dimension", lines: 1 },
+    { key: "header", name: "Manufacturer", title: "Manufacturer Information", lines: 1 },
+    { key: "watertight", name: "Watertight Test", title: "Freedom From Holes by Watertight Test", lines: 1 },
+    { key: SAFEDON.key, name: SAFEDON.name, title: SAFEDON.title, lines: 1 },
+    // A custom step with no short name of its own: its whole title, on two lines.
+    { key: NOTES_SECTION.key, name: NOTES_SECTION.title, title: NOTES_SECTION.title, lines: 2 },
   ];
-  for (const { title, lines } of rows) {
-    const button = sidebar.getByRole("button", { name: new RegExp(`^${escapeRegExp(title)}\\s*,`) });
-    // Named in full on hover, however it is cut.
+  for (const { key, name, title, lines } of rows) {
+    const button = sidebar.locator(`[data-step="${key}"]`);
+    await expect(button).toHaveAccessibleName(new RegExp(`^${escapeRegExp(name)}\\s*,`));
+    // Named in full on hover.
     await expect(button).toHaveAttribute("title", title);
-    // A long title wraps to a second line (the row grows) instead of being cut short on one.
+    // A short name takes one line; a long title wraps to a second (the row grows) instead of being cut short.
     const label = button.locator(".line-clamp-2");
     const shown = await label.evaluate((element) =>
       Math.round(element.clientHeight / Number.parseFloat(getComputedStyle(element).lineHeight)),

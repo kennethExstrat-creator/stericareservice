@@ -139,12 +139,16 @@ export type FlowsFixture = {
   /** The template as resolved: titles of the modules, in screen order. */
   titles: Record<string, string>;
   /**
-   * The pages capture lists, in screen order, by title: a tab, a sidebar row
-   * and a progress step each. Included modules and custom modules, packing
-   * configuration on the order's page (lib/inspections/capture/sections.ts
-   * capturePages).
+   * The pages capture lists after Source Documents, in screen order, by
+   * title: a tab, a sidebar row and a progress step each. Included modules
+   * and custom modules, packing configuration on the order's page
+   * (lib/inspections/capture/sections.ts capturePages). Their frames' headings.
    */
   pageTitles: string[];
+  /** The same pages by key (a tab's data-section). */
+  pageKeys: string[];
+  /** The same pages by short name: what their tabs and sidebar rows read (docs/DESIGN.md, Step Names). */
+  pageNames: string[];
 };
 
 /**
@@ -219,8 +223,16 @@ export async function createFlowsFixture(admin: AdminClient): Promise<FlowsFixtu
     data,
     meta: { refNo: inspection.ref_no, inspectionDate: null, inspector: null, client: null, manufacturer: null },
   });
-  const pageTitles = capturePages(captureSections(evaluation.template, evaluation.report, data)).map((page) => page.title);
-  return { templateId: template.id, inspectionId: inspection.id, refNo: inspection.ref_no, titles, pageTitles };
+  const pages = capturePages(captureSections(evaluation.template, evaluation.report, data));
+  return {
+    templateId: template.id,
+    inspectionId: inspection.id,
+    refNo: inspection.ref_no,
+    titles,
+    pageTitles: pages.map((page) => page.title),
+    pageKeys: pages.map((page) => page.key),
+    pageNames: pages.map((page) => page.shortTitle),
+  };
 }
 
 /** Today in Malaysia (the inspection date's time zone), as a date input takes it. */

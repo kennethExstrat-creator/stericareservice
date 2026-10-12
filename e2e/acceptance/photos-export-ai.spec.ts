@@ -74,6 +74,18 @@ const TITLES = {
   force_at_break: "Force at Break in Newton (Refer to Attached Where Applicable)",
 } as const;
 
+/**
+ * The same steps by their short names (docs/DESIGN.md, Step Names): the capture screen's tabs and the photo
+ * screens' groups, tags and viewer name them so. Their frames' headings, the review and the export keep TITLES.
+ */
+const NAMES: Readonly<Record<keyof typeof TITLES, string>> = {
+  weight: "Weight",
+  visual: "Visual Inspection",
+  dispensing_packing: "Packing Check",
+  labeling: "Labeling",
+  force_at_break: "Force at Break",
+};
+
 type PhotoModule = "weight" | "visual" | "dispensing_packing" | "labeling";
 
 /** The photos, module by module, in screen order: how each is taken, and the tags it must carry. */
@@ -167,10 +179,6 @@ test.afterAll(async () => {
   expect(left).toEqual({ objectsLeft: [], inspectionLeft: false, templateLeft: false });
 });
 
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 function sectionFrame(page: Page): Locator {
   return page.locator('[data-slot="section-frame"]');
 }
@@ -179,10 +187,10 @@ async function formLoaded(page: Page): Promise<void> {
   await expect(sectionFrame(page).getByText("Loading the form…")).toHaveCount(0);
 }
 
-/** A section from the iPad's tab bar. */
-async function openSection(page: Page, title: string): Promise<Locator> {
-  await press(page.getByRole("tablist", { name: "Sections" }).getByRole("tab", { name: new RegExp(`^${escapeRegExp(title)}`) }), true);
-  await expect(page.getByRole("heading", { level: 2, name: title, exact: true })).toBeVisible();
+/** A section from the iPad's tab bar, by its key (the tab reads its short name); its frame is headed by its title. */
+async function openSection(page: Page, key: keyof typeof TITLES): Promise<Locator> {
+  await press(page.getByRole("tablist", { name: "Sections" }).locator(`[role="tab"][data-section="${key}"]`), true);
+  await expect(page.getByRole("heading", { level: 2, name: TITLES[key], exact: true })).toBeVisible();
   await formLoaded(page);
   return sectionFrame(page);
 }
@@ -278,7 +286,7 @@ test("photos from four modules on the iPad, the export and the AI second opinion
     await expect(page.getByRole("heading", { level: 1 })).toContainText(fixture.refNo);
     await formLoaded(page);
     for (const [index, plan] of PLAN.entries()) {
-      const frame = index === 0 ? sectionFrame(page) : await openSection(page, TITLES[plan.module]);
+      const frame = index === 0 ? sectionFrame(page) : await openSection(page, plan.module);
       await expect(page.getByRole("heading", { level: 2, name: TITLES[plan.module], exact: true })).toBeVisible();
       const slot = frame.locator(`[data-slot="module-photos"][data-module="${plan.module}"]`);
       // The iPad's two buttons (BUILD_SPEC 8.1).
@@ -302,7 +310,7 @@ test("photos from four modules on the iPad, the export and the AI second opinion
   });
 
   await test.step("iPad: the lab report attached in force at break, kept by the module", async () => {
-    const frame = await openSection(page, TITLES.force_at_break);
+    const frame = await openSection(page, "force_at_break");
     await expect(frame.locator('[data-slot="lab-report"]')).toContainText("Not Attached");
     const slot = frame.locator('[data-slot="file-slot"][data-module="force_at_break"]');
     await slot.locator("input[data-file-input]").setInputFiles(LAB_REPORT);
@@ -355,7 +363,7 @@ test("photos from four modules on the iPad, the export and the AI second opinion
 
   const photos = (await photosInOrder(fixture.inspectionId)).map((row) => {
     const plan = PLAN.find((entry) => entry.module === row.module_key)!;
-    return { id: row.id, module: plan.module, title: TITLES[plan.module], tags: plan.tags };
+    return { id: row.id, module: plan.module, title: TITLES[plan.module], name: NAMES[plan.module], tags: plan.tags };
   });
 
   const desktop: BrowserContext = await browser.newContext({ ...DESKTOP, baseURL });
@@ -371,7 +379,8 @@ test("photos from four modules on the iPad, the export and the AI second opinion
       await expect(screen.getByRole("heading", { name: "Add Photos", exact: true })).toHaveCount(0);
       for (const key of ["weight", "visual", "dispensing_packing", "labeling"] as const) {
         const group = screen.locator(`[data-group="${key}"]`);
-        await expect(group.getByRole("heading", { name: TITLES[key], exact: true })).toBeVisible();
+        // Each group by its module's short name.
+        await expect(group.getByRole("heading", { name: NAMES[key], exact: true })).toBeVisible();
         await expect(group.locator('[data-slot="photo-card"]')).toHaveCount(photos.filter((photo) => photo.module === key).length);
       }
       for (const photo of photos) {
@@ -392,7 +401,7 @@ test("photos from four modules on the iPad, the export and the AI second opinion
       const viewer = screen.locator('[data-slot="photo-viewer"]');
       for (const [index, photo] of photos.entries()) {
         await expect(viewer).toContainText(`Photo ${index + 1} of ${photos.length}`);
-        await expect(viewer.getByRole("heading")).toHaveText(`${photo.title} · ${photo.tags}`);
+        await expect(viewer.getByRole("heading")).toHaveText(`${photo.name} · ${photo.tags}`);
         if (index === 0) {
           expect((await naturalSize(viewer.locator("img"))).width).toBe(2048);
           await view(screen, "5-desktop-viewer");

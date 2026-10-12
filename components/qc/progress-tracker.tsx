@@ -3,7 +3,9 @@
 // can show each module's result, and can hold a run of its steps in a group
 // that collapses under a header (the capture screen's Inspection Steps).
 // Progress uses the brand, results use status colours; the module in view
-// carries the signature gradient.
+// carries the signature gradient. A step's label may be a short name (the
+// capture screen's, docs/DESIGN.md Step Names): its `title` then names it in
+// full on hover, on a list row and on the bar's name.
 import { useId, type ReactNode } from "react";
 import { ChevronRightIcon, CircleCheckIcon, CircleDotIcon, CircleIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -15,6 +17,8 @@ export type StepState = "done" | "in_progress" | "not_started";
 export type ProgressStep = {
   key: string;
   label: string;
+  /** The step's full name, shown on hover when `label` is a short one. Without it, the label. */
+  title?: string;
   state: StepState;
   /** The module's result, shown in the list variant. */
   result?: Status;
@@ -90,19 +94,22 @@ export function ProgressTracker({
   // scroll or clip) take it inside.
   const focusClass = variant === "list" ? "focus-ring-inset" : "focus-ring";
 
-  // A list row's title shows its whole name on hover (title), however it is cut.
+  // A list row's title shows the step's full name on hover (title), however it is cut or shortened.
+  // A list row carries its step's key (data-step), so a spec finds it whatever its name; the bar's segments do not.
+  const rowKey = (step: ProgressStep) => (variant === "list" ? step.key : undefined);
   const item = (step: ProgressStep, content: ReactNode, itemClass: string, title?: string) =>
     onStepSelect ? (
       <button
         type="button"
         title={title}
+        data-step={rowKey(step)}
         onClick={() => onStepSelect(step.key)}
         className={cn(itemClass, "outline-none", focusClass)}
       >
         {content}
       </button>
     ) : (
-      <div title={title} className={itemClass}>
+      <div title={title} data-step={rowKey(step)} className={itemClass}>
         {content}
       </div>
     );
@@ -119,8 +126,8 @@ export function ProgressTracker({
             <>
               <span aria-hidden className={cn(ROW_MARK, isActive && ROW_MARK_ACTIVE)} />
               <Icon aria-hidden className={cn("size-4 shrink-0", iconClass)} />
-              {/* Two lines before it is cut, so titles that start alike ("Glove Dispensing
-                  Inspection" and its "onsite notes") are told apart in a 16 rem sidebar. */}
+              {/* Two lines before it is cut: a short name fits one line in a 16 rem sidebar,
+                  and a long label (a custom step's own title) is still told apart. */}
               <span className="line-clamp-2 min-w-0 flex-1 text-left leading-snug [overflow-wrap:anywhere]">
                 {step.label}
               </span>
@@ -133,7 +140,7 @@ export function ProgressTracker({
               onStepSelect && "hover:bg-muted",
               isActive && "bg-accent font-semibold text-accent-foreground hover:bg-accent",
             ),
-            step.label,
+            step.title ?? step.label,
           )}
         </li>
       );
@@ -163,7 +170,7 @@ export function ProgressTracker({
   return (
     <div data-slot="progress-tracker" className={cn("space-y-2", className)}>
       <div className="flex items-baseline justify-between gap-3 text-sm">
-        <span className="truncate font-medium text-foreground" title={active?.label}>
+        <span className="truncate font-medium text-foreground" title={active?.title ?? active?.label}>
           {active?.label}
         </span>
         <span className="shrink-0 text-muted-foreground tabular-nums">

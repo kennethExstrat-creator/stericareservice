@@ -23,6 +23,7 @@ import { lazy, Suspense, useCallback, useMemo, useState, type LazyExoticComponen
 import { Skeleton } from "@/components/ui/skeleton";
 import { MODULE_KEYS, type ModuleKey } from "@/lib/schemas/module-result";
 import type { ResolvedModule } from "@/lib/schemas/template";
+import { shortTitleFor } from "@/lib/templates/short-titles";
 import type { IssuePath, ValidationIssue } from "@/lib/validation";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import {
@@ -103,8 +104,8 @@ type ModuleBodyProps = {
   /** Saved values that could not be read were removed: the form replaces their list, its button with it. */
   onUnreadableRemoved?: () => void;
   /**
-   * On a page of two sections, this one's title: the buttons of a form that
-   * did not show and of values that cannot be read are read out with it.
+   * On a page of two sections, this one's short name: the buttons of a form
+   * that did not show and of values that cannot be read are read out with it.
    */
   nameContext?: string;
 };
@@ -198,7 +199,8 @@ export function ModuleBody({
     );
   }
   return (
-    <SectionErrorBoundary key={attempt} title={resolved.title} onRetry={retry} nameContext={nameContext}>
+    // A notice names the module by its short name; its Capture keeps the template's title (labels compare with it).
+    <SectionErrorBoundary key={attempt} title={shortTitleFor(moduleKey, resolved.title)} onRetry={retry} nameContext={nameContext}>
       <Suspense fallback={<BodySkeleton />}>
         <FileSlotProvider render={renderFileSlot}>
           <Capture

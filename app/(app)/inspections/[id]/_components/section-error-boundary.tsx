@@ -8,19 +8,21 @@
 // back, and it tries again by itself when the browser is online again. A
 // form that crashed says so in red. "Try Again" asks the screen for the form
 // afresh (onRetry: a new download, rendered by a new boundary); on a page of
-// two sections it is read out with its section's title.
+// two sections it is read out with its section's short name.
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { CloudOffIcon, OctagonXIcon, RefreshCwIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { sectionFailure } from "./load-failure";
 
 type Props = {
+  /** The module's short name, in the notice: "The form for Weight did not load." */
   title: string;
   /** Shows the form afresh: a new download of its code, under a new boundary. Without it the boundary renders its children again. */
   onRetry?: () => void;
   /**
-   * The section's title, read out after Try Again on a page of two sections
-   * ("Try Again, Order"), where the other section's form may not show either.
+   * The section's short name, read out after Try Again on a page of two
+   * sections ("Try Again, Order"), where the other section's form may not
+   * show either.
    */
   nameContext?: string;
   children: ReactNode;

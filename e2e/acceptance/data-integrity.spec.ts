@@ -789,9 +789,14 @@ test("a lead inspector reads a team draft and writes nothing: no autosave, no lo
     await expect(page.getByRole("button", { name: "Submit", exact: true })).toHaveCount(0);
     await expect(savePill(page)).toHaveCount(0);
     await expect(page.locator('input[type="file"]')).toHaveCount(0);
-    for (const section of ["Manufacturer Information", "Order", "Conclusion"]) {
-      await page.getByRole("tab", { name: new RegExp(`^${section}`) }).tap();
-      await expect(page.getByRole("heading", { level: 2, name: section, exact: true })).toBeVisible();
+    // Each tab found by its key: it reads the step's short name ("Manufacturer"), its frame the template's title.
+    for (const { key, title } of [
+      { key: "header", title: "Manufacturer Information" },
+      { key: "order_lots", title: "Order" },
+      { key: "conclusion", title: "Conclusion" },
+    ]) {
+      await page.locator(`[role="tab"][data-section="${key}"]`).tap();
+      await expect(page.getByRole("heading", { level: 2, name: title, exact: true })).toBeVisible();
     }
     await expect(page.getByRole("radiogroup", { name: "Conclusion" }).getByRole("radio").first()).toBeDisabled();
     await shot(page, "lead-team-draft-read-only");

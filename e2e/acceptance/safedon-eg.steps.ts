@@ -114,9 +114,10 @@ export async function openSection(page: Page, key: string): Promise<void> {
 }
 
 /**
- * The tab of the page a section is on, as the section bar names it: the
- * page's title and result. Packing configuration's is the order's
- * ([data-sections] lists every section on a page).
+ * The tab of the page a section is on, found by the section's key: the tab
+ * reads the page's short name (docs/DESIGN.md, Step Names) and result.
+ * Packing configuration's is the order's ([data-sections] lists every
+ * section on a page).
  */
 export function sectionTab(page: Page, key: string): Locator {
   return page.getByRole("tablist", { name: "Sections" }).locator(`[role="tab"][data-sections~="${key}"]`);

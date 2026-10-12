@@ -159,8 +159,9 @@ describe("refused entries in the Pending panel", () => {
     const weightBefore = before.find((task) => task.key === "weight");
     expect(weight?.more).toBe((weightBefore?.more ?? -1) + 1);
     expect(weight?.needed).toBe(weightBefore?.needed);
+    // The row names the section by its short name (the template's "Weight (g)" is "Weight").
     expect(taskName(weight!)).toBe(
-      `Weight (g): Weight, No. 3: “2 42” to retype: M, and ${weight!.more} more.${weight!.needed ? " Needed before you submit." : ""}`,
+      `Weight: Weight, No. 3: “2 42” to retype: M, and ${weight!.more} more.${weight!.needed ? " Needed before you submit." : ""}`,
     );
     // The same rows otherwise, in the same order.
     expect(tasks.map((task) => task.key)).toEqual(before.map((task) => task.key));

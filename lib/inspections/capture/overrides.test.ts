@@ -12,9 +12,10 @@ describe("switchOffProblem", () => {
     expect(canBeSwitchedOff(template, {}, "weight")).toBe(true);
   });
 
-  it("explains, in the template's wording, why a module stays on", () => {
+  it("explains why a module stays on, naming it by its short name (docs/DESIGN.md, Step Names)", () => {
+    // The template's "Manufacturer Information".
     expect(switchOffProblem(template, {}, "header")).toBe(
-      "Manufacturer Information is always on. Its fields are switched on and off in the template.",
+      "Manufacturer is always on. Its fields are switched on and off in the template.",
     );
     expect(switchOffProblem(template, {}, "conclusion")).toMatch(/^Conclusion is always on/);
     expect(switchOffProblem(template, {}, "order_lots")).toBe(
@@ -30,13 +31,14 @@ describe("switchOffProblem", () => {
 
   it("says when it is off already", () => {
     expect(switchOffProblem(template, { packing_config: OVERRIDE }, "packing_config")).toBe(
-      "Packing configuration is already switched off for this inspection.",
+      "Packing Configuration is already switched off for this inspection.",
     );
     const offInTemplate = {
       ...template,
       modules: template.modules.map((entry) => (entry.key === "weight" ? { ...entry, include: false } : entry)),
     };
-    expect(switchOffProblem(offInTemplate, {}, "weight")).toBe("Weight (g) is already off in the template.");
+    // The template's "Weight (g)".
+    expect(switchOffProblem(offInTemplate, {}, "weight")).toBe("Weight is already off in the template.");
   });
 });
 
@@ -44,7 +46,7 @@ describe("switchOnProblem and the overrides value", () => {
   it("switches back on only what is off", () => {
     expect(switchOnProblem(template, { packing_config: OVERRIDE }, "packing_config")).toBeNull();
     expect(switchOnProblem(template, {}, "packing_config")).toBe(
-      "Packing configuration is not switched off for this inspection.",
+      "Packing Configuration is not switched off for this inspection.",
     );
   });
 

@@ -1,5 +1,6 @@
 // Templates (BUILD_SPEC 4): resolution down the extends chain, selection for
-// a new inspection, per-inspection overrides, screen order and versions.
+// a new inspection, per-inspection overrides, screen order, step short names
+// and versions.
 // Pure functions; the registry is passed in (`@/modules` binds the app's).
 export {
   resolveTemplate,
@@ -35,6 +36,15 @@ export {
   excludedForInspection,
 } from "./overrides";
 export { templateSections, sectionOrder, type TemplateSection } from "./sections";
+export {
+  CUSTOM_SHORT_TITLES,
+  MODULE_SHORT_TITLES,
+  SHORT_TITLE_MAX,
+  WORDING_SHORT_TITLES,
+  customShortTitle,
+  shortTitleFor,
+  withoutNote,
+} from "./short-titles";
 export {
   nextVersion,
   planTemplateEdit,

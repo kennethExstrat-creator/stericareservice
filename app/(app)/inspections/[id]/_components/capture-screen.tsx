@@ -380,6 +380,7 @@ export function CaptureScreen({
         kind: "documents",
         key: SOURCE_DOCUMENTS_KEY,
         title: SOURCE_DOCUMENTS_TITLE,
+        shortTitle: SOURCE_DOCUMENTS_TITLE,
         status: sourceDocuments.status,
         progress: sourceDocuments.progress,
       },
@@ -1041,18 +1042,23 @@ export function CaptureScreen({
           {(previous || next) && (
             <nav aria-label="Previous and next section" className="flex flex-wrap items-center justify-between gap-3">
               {previous ? (
-                <Button type="button" variant="outline" onClick={() => selectSection(previous.key, { focusHeading: true })}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  title={previous.title}
+                  onClick={() => selectSection(previous.key, { focusHeading: true })}
+                >
                   <ChevronLeftIcon aria-hidden />
                   <span className="sr-only">Previous: </span>
-                  <span className="max-w-60 truncate">{previous.title}</span>
+                  <span className="max-w-60 truncate">{previous.shortTitle}</span>
                 </Button>
               ) : (
                 <span />
               )}
               {next && (
-                <Button type="button" onClick={() => selectSection(next.key, { focusHeading: true })}>
+                <Button type="button" title={next.title} onClick={() => selectSection(next.key, { focusHeading: true })}>
                   <span className="sr-only">Next: </span>
-                  <span className="max-w-60 truncate">{next.title}</span>
+                  <span className="max-w-60 truncate">{next.shortTitle}</span>
                   <ChevronRightIcon aria-hidden />
                 </Button>
               )}
@@ -1169,8 +1175,9 @@ function ActivePage({
           // A page of one section is that section's frame; on a page of several, each frame has an id of its own.
           frameId={several ? `${panelId}-${section.key}` : panelId}
           tabLabelledBy={several ? undefined : tabLabelledBy}
-          // On a page of several, each section's comment, photos, Switch Off and its form's own buttons are read out with its title.
-          nameContext={several ? section.title : undefined}
+          // On a page of several, each section's comment, photos, Switch Off and its form's own buttons are read out with its
+          // short name (docs/DESIGN.md, Step Names).
+          nameContext={several ? section.shortTitle : undefined}
           headingRef={titleRef(section.key)}
           focusPath={focusRequest?.sectionKey === section.key ? focusRequest.path : null}
           refusedEntries={refusedStores.get(section.key) ?? null}
@@ -1189,7 +1196,7 @@ type SectionPartProps = SharedSectionProps & {
   /** Below 1280 px, on a page of one section: the id of its tab, which names the frame (WAI-ARIA tabs). */
   tabLabelledBy?: string;
   /**
-   * On a page of several sections, this one's title: read out with its
+   * On a page of several sections, this one's short name: read out with its
    * comment, photos and Switch Off, and with Try Again or Clear This Section
    * where its form is in trouble.
    */
@@ -1253,7 +1260,8 @@ function SectionPart({
         <SwitchedOffPanel
           inspectionId={inspectionId}
           moduleKey={section.key}
-          title={section.title}
+          // Named by its short name; the frame's heading above keeps the template's title.
+          title={section.shortTitle}
           override={section.override}
           author={section.override.by === userId ? "you" : (overrideAuthors[section.override.by] ?? null)}
           canSwitch={access.canSwitchModules}
@@ -1315,7 +1323,7 @@ function SectionPart({
           <SwitchOffDialog
             inspectionId={inspectionId}
             moduleKey={section.key}
-            title={section.title}
+            title={section.shortTitle}
             nameContext={nameContext}
             onChanged={onOverridesChange}
           />

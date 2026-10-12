@@ -45,9 +45,9 @@ type UnreadableDataProps = {
    */
   onRemoved?: () => void;
   /**
-   * The section's title, read out after the button's words on a page of two
-   * sections ("Clear This Section, Order"), where the other section may have
-   * values it cannot read too.
+   * The section's short name (docs/DESIGN.md, Step Names), read out after
+   * the button's words on a page of two sections ("Clear This Section,
+   * Order"), where the other section may have values it cannot read too.
    */
   nameContext?: string;
 };

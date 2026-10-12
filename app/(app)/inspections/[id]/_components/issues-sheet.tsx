@@ -42,7 +42,7 @@ type IssuesSheetProps = {
 /** Size chips shown on a row; more read as "+2". */
 const MAX_CHIPS = 5;
 
-/** After the title of a section that is switched off: "Weight (g) (Switched Off)". */
+/** After the short name of a section that is switched off: "Weight (Switched Off)". */
 const SWITCHED_OFF_NOTE = "(Switched Off)";
 
 export function IssuesSheet({
@@ -165,10 +165,11 @@ function TaskList({ tasks, onGo }: { tasks: readonly PendingTask[]; onGo: (issue
 }
 
 /**
- * One section's row: its title, and one muted line with its status, the
- * sizes as chips and "· 1 more" for other kinds of open items. Named for
- * screen readers in full (taskName): "Weight (g): 4 sizes not done: XS, S, M
- * and L.", and "Needed before you submit." for what submit needs.
+ * One section's row: its short name (docs/DESIGN.md, Step Names), and one
+ * muted line with its status, the sizes as chips and "· 1 more" for other
+ * kinds of open items. Named for screen readers in full (taskName): "Weight:
+ * 4 sizes not done: XS, S, M and L.", and "Needed before you submit." for
+ * what submit needs.
  */
 export function TaskItem({ task, onGo }: { task: PendingTask; onGo: () => void }) {
   const chips = task.sizes.slice(0, MAX_CHIPS);

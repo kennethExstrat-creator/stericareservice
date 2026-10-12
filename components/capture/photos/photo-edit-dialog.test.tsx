@@ -90,9 +90,10 @@ describe("PhotoEditDialog", () => {
   };
   const options: PhotoTagOptions = {
     modules: [
-      { key: "visual", title: "Visual Inspection", targetKeys: ["size", "hand", "defect"], handSplit: true, included: true },
-      { key: "labeling", title: "Labelling", targetKeys: ["size", "box", "defect", "level"], handSplit: false, included: true },
-      { key: "loading", title: "Loading", targetKeys: ["item"], handSplit: false, included: true },
+      { key: "visual", title: "Visual Inspection", shortTitle: "Visual Inspection", targetKeys: ["size", "hand", "defect"], handSplit: true, included: true },
+      // The template's title and the module's short name (lib/templates/short-titles.ts).
+      { key: "labeling", title: "Labelling", shortTitle: "Labeling", targetKeys: ["size", "box", "defect", "level"], handSplit: false, included: true },
+      { key: "loading", title: "Loading", shortTitle: "Loading", targetKeys: ["item"], handSplit: false, included: true },
     ],
     sizes: [{ value: "M", label: "M" }],
     defects: [],
@@ -155,7 +156,7 @@ describe("PhotoEditDialog", () => {
     return [...picker.matchAll(/data-choice(?:-group)?="([^"]*)">([^<]*)</g)].map(([, value, words]) => [value, words]);
   };
 
-  it("offers Media's four categories by title, then the modules, as the Category or Module", () => {
+  it("offers Media's four categories by title, then the modules by their short names, as the Category or Module", () => {
     const html = draw({});
     expect(tagChoices(html)).toEqual([
       ["__none__", "Not Tagged"],
@@ -166,7 +167,7 @@ describe("PhotoEditDialog", () => {
       ["media_defects", "Product Defects"],
       ["", "Modules"],
       ["visual", "Visual Inspection"],
-      ["labeling", "Labelling"],
+      ["labeling", "Labeling"],
       ["loading", "Loading"],
     ]);
   });
@@ -190,9 +191,9 @@ describe("PhotoEditDialog", () => {
   });
 
   it("keeps a photo's own module choosable, never a category among the modules", () => {
-    expect(moduleChoices("dye_leak", options).map((entry) => [entry.key, entry.title, entry.included])).toEqual([
+    expect(moduleChoices("dye_leak", options).map((entry) => [entry.key, entry.shortTitle, entry.included])).toEqual([
       ["visual", "Visual Inspection", true],
-      ["labeling", "Labelling", true],
+      ["labeling", "Labeling", true],
       ["loading", "Loading", true],
       ["dye_leak", "Dye Leak", false],
     ]);

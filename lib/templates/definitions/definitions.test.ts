@@ -13,7 +13,16 @@ import {
   type TemplateCode,
 } from "@/lib/coverage";
 import { ResolvedTemplateSchema, TemplateDefinitionSchema, type ResolvedTemplate } from "@/lib/schemas/template";
-import { lookupFrom, resolveTemplate, selectTemplate, type TemplateCandidate } from "@/lib/templates";
+import {
+  customShortTitle,
+  lookupFrom,
+  resolveTemplate,
+  selectTemplate,
+  SHORT_TITLE_MAX,
+  shortTitleFor,
+  templateSections,
+  type TemplateCandidate,
+} from "@/lib/templates";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import {
   definitionFromCoverage,
@@ -266,5 +275,71 @@ describe("choosing among the seeds (BUILD_SPEC 4.4)", () => {
       const selection = selectTemplate(candidates(), { productType });
       expect(selection.ok && selection.ties).toEqual([]);
     }
+  });
+});
+
+describe("the seeds' step names (docs/DESIGN.md, Step Names)", () => {
+  /** Each section of the resolved seed by the name the capture screen's menus, Pending and photo tags give it. */
+  const shortNames = (code: TemplateCode) =>
+    templateSections(resolved(code)).map((section) =>
+      section.kind === "module" ? shortTitleFor(section.key, section.module.title) : customShortTitle(section.custom),
+    );
+
+  it("names STD_EG's steps in a word or three", () => {
+    expect(shortNames("STD_EG")).toEqual([
+      "Manufacturer",
+      "Glove Information",
+      "Order",
+      "Packing Configuration",
+      "Sampling Plan",
+      "Carton Numbers",
+      "Dimension",
+      "Force at Break",
+      "Weight",
+      "Watertight Test",
+      "Visual Inspection",
+      "Packing Check",
+      "Labeling",
+      "Conclusion",
+    ]);
+  });
+
+  it("names SAFEDON_EG's, with Physical Properties, Dispensing and Dispensing Notes", () => {
+    expect(shortNames("SAFEDON_EG")).toEqual([
+      "Manufacturer",
+      "Glove Information",
+      "Order",
+      "Packing Configuration",
+      "Sampling Plan",
+      "Carton Numbers",
+      "Dimension",
+      "Physical Properties",
+      "Weight",
+      "Watertight Test",
+      "Visual Inspection",
+      "Dispensing",
+      "Dispensing Notes",
+      "Labeling",
+      "Conclusion",
+    ]);
+  });
+
+  it("keeps STD_SG's own words: Shipment, PO Info and Packing Mode", () => {
+    expect(shortNames("STD_SG")).toEqual([
+      "Shipment",
+      "Glove Type",
+      "PO Info",
+      "Packing Mode",
+      "Sampling Plan",
+      "Watertight Test",
+      "Visual Inspection",
+      "Dimension",
+      "Dye Leak Test",
+      "Conclusion",
+    ]);
+  });
+
+  it.each(TEMPLATE_CODES)("keeps every step of %s to one sidebar line", (code) => {
+    for (const name of shortNames(code)) expect(name.length, name).toBeLessThanOrEqual(SHORT_TITLE_MAX);
   });
 });

@@ -232,6 +232,21 @@ describe("tag options from the template", () => {
     expect(options.items?.visual).toBeUndefined();
   });
 
+  it("keeps each module's title and gives it its short name, a custom module its own title (docs/DESIGN.md, Step Names)", () => {
+    expect(options.modules.map(({ key, title, shortTitle }) => [key, title, shortTitle])).toEqual([
+      ["header", "Preshipment Inspection", "Manufacturer"],
+      ["dimensions", "Dimensions", "Dimension"],
+      ["pallet_check", "Pallet check", "Pallet check"],
+      ["watertight", "Watertight Test", "Watertight Test"],
+      ["visual", "Visual Inspection", "Visual Inspection"],
+      ["dispensing_packing", "Glove Dispensing & Packing", "Packing Check"],
+      ["documents", "Documents", "Documents"],
+      ["loading", "Loading", "Loading"],
+      ["conclusion", "Conclusion", "Conclusion"],
+      ["labeling", "Labelling", "Labeling"],
+    ]);
+  });
+
   it("knows what each module records, and where hands are split", () => {
     const byKey = Object.fromEntries(options.modules.map((entry) => [entry.key, entry]));
     expect(byKey.header.targetKeys).toEqual([]);
@@ -271,8 +286,13 @@ describe("tag options from the template", () => {
 });
 
 describe("names", () => {
-  it("names modules by the template's title, else by their key", () => {
+  it("names modules by their short names, else by their key", () => {
     expect(moduleTitle("visual", options)).toBe("Visual Inspection");
+    // The template's "Glove Dispensing & Packing", "Dimensions" and "Labelling" (switched off).
+    expect(moduleTitle("dispensing_packing", options)).toBe("Packing Check");
+    expect(moduleTitle("dimensions", options)).toBe("Dimension");
+    expect(moduleTitle("labeling", options)).toBe("Labeling");
+    expect(moduleTitle("pallet_check", options)).toBe("Pallet check");
     expect(moduleTitle("dye_leak", options)).toBe("Dye Leak");
     expect(moduleTitle(null, options)).toBe(UNTAGGED_TITLE);
     expect(humanizeKey("dispensing_safedon")).toBe("Dispensing Safedon");
@@ -281,10 +301,11 @@ describe("names", () => {
   });
 
   it("describes a module the template does not know as switched off, recording what its kind records", () => {
-    expect(moduleOption("labeling", options)).toMatchObject({ included: false, title: "Labelling" });
+    expect(moduleOption("labeling", options)).toMatchObject({ included: false, title: "Labelling", shortTitle: "Labeling" });
     expect(moduleOption("dye_leak", options)).toEqual({
       key: "dye_leak",
       title: "Dye Leak",
+      shortTitle: "Dye Leak",
       targetKeys: ["size"],
       handSplit: false,
       included: false,
@@ -353,6 +374,7 @@ describe("Media's categories as tags", () => {
     expect(moduleOption("media_defects", options)).toEqual({
       key: "media_defects",
       title: "Product Defects",
+      shortTitle: "Product Defects",
       targetKeys: [],
       handSplit: false,
       included: true,
@@ -419,8 +441,9 @@ describe("displayTags", () => {
   });
 
   it("words the packaging level and the item last, in the template's words", () => {
+    // The module by its short name (the template's "Labelling").
     expect(displayTags("labeling", "size:M/defect:lot_no/box:253/level:inner", options)).toMatchObject({
-      module: "Labelling",
+      module: "Labeling",
       size: "M",
       box: "253",
       item: "Plastic pack",
@@ -492,9 +515,10 @@ describe("groupByModule", () => {
       options,
     );
     expect(groups.map(({ key, title, included, items }) => [key, title, included, items.map((entry) => entry.id)])).toEqual([
-      ["dimensions", "Dimensions", true, ["5"]],
+      // Modules by their short names (the template's "Dimensions" and "Labelling").
+      ["dimensions", "Dimension", true, ["5"]],
       ["visual", "Visual Inspection", true, ["2", "7"]],
-      ["labeling", "Labelling", false, ["4"]],
+      ["labeling", "Labeling", false, ["4"]],
       ["alpha_extra", "Alpha Extra", false, ["6"]],
       ["zeta_extra", "Zeta Extra", false, ["3"]],
       [null, UNTAGGED_TITLE, true, ["1"]],

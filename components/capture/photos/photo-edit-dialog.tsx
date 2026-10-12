@@ -97,7 +97,8 @@ export function moduleChoices(photoModuleKey: string | null, options: PhotoTagOp
     (entry) => !isMediaCategoryKey(entry.key) && (entry.included || entry.key === photoModuleKey),
   );
   if (photoModuleKey && !isMediaCategoryKey(photoModuleKey) && !choices.some((entry) => entry.key === photoModuleKey)) {
-    choices.push({ key: photoModuleKey, title: moduleTitle(photoModuleKey, options), targetKeys: [], handSplit: false, included: false });
+    const title = moduleTitle(photoModuleKey, options);
+    choices.push({ key: photoModuleKey, title, shortTitle: title, targetKeys: [], handSplit: false, included: false });
   }
   return choices;
 }
@@ -328,7 +329,7 @@ function EditForm({
                     <SelectLabel>{TAG_GROUP_LABEL.modules}</SelectLabel>
                     {moduleItems.map((entry) => (
                       <SelectItem key={entry.key} value={entry.key}>
-                        {entry.title}
+                        {entry.shortTitle}
                         {entry.included ? null : ` ${SWITCHED_OFF_NOTE}`}
                       </SelectItem>
                     ))}
@@ -418,7 +419,7 @@ function EditForm({
                     <SelectSeparator />
                     <SelectGroup>
                       {defects.groups.length > 1 && (
-                        <SelectLabel>{group.key === "module" ? (chosen?.title ?? "This Module") : "Other Defects"}</SelectLabel>
+                        <SelectLabel>{group.key === "module" ? (chosen?.shortTitle ?? "This Module") : "Other Defects"}</SelectLabel>
                       )}
                       {group.items.map((entry) => (
                         <SelectItem key={entry.value} value={entry.value}>

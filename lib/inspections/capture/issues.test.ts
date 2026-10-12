@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { ModuleOverrides } from "@/lib/schemas/template";
+import { MODULE_SHORT_TITLES, SHORT_TITLE_MAX } from "@/lib/templates";
 import type { ValidationIssue } from "@/lib/validation";
-import { filledData, TEST_ADMIN_ID, TEST_META, TEST_REGISTRY, testTemplate } from "./__fixtures__/capture";
+import { emptyData, filledData, TEST_ADMIN_ID, TEST_META, TEST_REGISTRY, testTemplate } from "./__fixtures__/capture";
 import { evaluateCapture } from "./evaluate";
 import { issueCorpus } from "./__fixtures__/issue-corpus";
 import {
@@ -14,7 +15,6 @@ import {
   neededSectionCount,
   pendingCounts,
   pendingTasks,
-  shortTitle,
   summariseIssues,
   taskName,
   unseenIssues,
@@ -189,8 +189,20 @@ describe("pendingTasks on real inspections (the seed templates, empty to full)",
     }
   });
 
-  it("keeps the titles short: no trailing note in brackets (a unit such as Weight (g) stays)", () => {
-    for (const { task } of tasks) expect(task.title, task.key).not.toMatch(/^.{8,}\s\([^()]*\)$/);
+  it("names each row by its section's short name: one line, no trailing note in brackets", () => {
+    for (const { entry, task } of tasks) {
+      const where = `${entry.name}: ${task.key} "${task.title}"`;
+      expect(task.title, where).not.toMatch(/\([^()]*\)$/);
+      expect(task.title.length, where).toBeLessThanOrEqual(SHORT_TITLE_MAX);
+    }
+    // STD_EG's and SAFEDON_EG's modules by their short names (STD_SG keeps its own words: lib/templates/short-titles.ts).
+    const egTitles = new Map(
+      tasks.filter(({ entry }) => !entry.name.startsWith("STD_SG")).map(({ task }) => [task.key, task.title] as const),
+    );
+    expect(egTitles.get("weight")).toBe(MODULE_SHORT_TITLES.weight);
+    expect(egTitles.get("carton_sampling")).toBe("Carton Numbers");
+    expect(egTitles.get("tensile")).toBe("Physical Properties");
+    expect(egTitles.get("watertight")).toBe("Watertight Test");
   });
 
   it("lists what submit needs first, then the rest in capture order, one row per section", () => {
@@ -306,16 +318,33 @@ describe("summariseIssues", () => {
 });
 
 describe("the panel's words", () => {
-  it("shortens a title with a trailing note in brackets, keeps others", () => {
-    expect(shortTitle("Physical Properties average (Refer to attached lab. reports)")).toBe("Physical Properties average");
-    expect(shortTitle("Finished Goods Sampling Information (carton number)")).toBe("Finished Goods Sampling Information");
-    expect(shortTitle("Weight (g) - average of 13 gloves per size")).toBe("Weight (g) - average of 13 gloves per size");
-    expect(shortTitle("Weight (g)")).toBe("Weight (g)");
+  it("names each row by its section's short name, a switched-off one too (docs/DESIGN.md, Step Names)", () => {
+    const titles = (overrides: ModuleOverrides, data = emptyData()) => {
+      const { report, sections } = evaluated(overrides, data);
+      const stray: ValidationIssue = { level: "warning", moduleKey: "packing_config", code: "x", message: "Old.", path: [] };
+      const issues = overrides.packing_config ? [...report.issues, stray] : report.issues;
+      return new Map(pendingTasks(groupIssues(issues, sections), sections, report.modules).map((task) => [task.key, task.title]));
+    };
+    const empty = titles({});
+    // The test registry's titles: "Manufacturer Information", "Weight (g)", "Packing configuration".
+    expect(empty.get("header")).toBe("Manufacturer");
+    expect(empty.get("weight")).toBe("Weight");
+    expect(empty.get("packing_config")).toBe("Packing Configuration");
+    expect(empty.get("conclusion")).toBe("Conclusion");
+    expect(empty.get("site_notes")).toBe("Site notes");
+    expect(titles(OFF).get("packing_config")).toBe("Packing Configuration");
+  });
+
+  it("names a section that is not on screen by its title without a trailing note in brackets", () => {
+    const { report, sections } = evaluated();
+    const issue: ValidationIssue = { level: "error", moduleKey: "old_notes", code: "y", message: "Lost.", path: [] };
+    const group = { key: "old_notes", title: "Old Notes (Optional)", linkable: false, errors: [issue], warnings: [] };
+    expect(pendingTasks([group], sections, report.modules).map((task) => task.title)).toEqual(["Old Notes"]);
   });
 
   it("names a task for screen readers with its section, status, sizes and what submit needs", () => {
-    expect(taskName({ title: "Weight (g)", status: "4 sizes not done", sizes: ["XS", "S", "M", "L"], more: 0, needed: false })).toBe(
-      "Weight (g): 4 sizes not done: XS, S, M and L.",
+    expect(taskName({ title: "Weight", status: "4 sizes not done", sizes: ["XS", "S", "M", "L"], more: 0, needed: false })).toBe(
+      "Weight: 4 sizes not done: XS, S, M and L.",
     );
     expect(taskName({ title: "Conclusion", status: "Final result and date", sizes: [], more: 1, needed: true })).toBe(
       "Conclusion: Final result and date, and 1 more. Needed before you submit.",

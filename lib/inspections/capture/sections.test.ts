@@ -91,6 +91,7 @@ describe("captureSections", () => {
       kind: "excluded",
       key: "packing_config",
       title: titleOf(sectionsFor(), "packing_config"),
+      shortTitle: "Packing Configuration",
       override: OFF.packing_config,
     });
     expect(sections.map((section) => section.key)).toContain("weight");
@@ -115,7 +116,13 @@ describe("captureSections", () => {
     // The pill and the chip say On Hold, as the review and the final result do.
     expect(findSection(sections, "conclusion")).toMatchObject({ status: "hold", progress: "done" });
     const pages = capturePages(sections);
-    expect(progressSteps(pages).at(-1)).toEqual({ key: "conclusion", label: "Conclusion", state: "done", result: "hold" });
+    expect(progressSteps(pages).at(-1)).toEqual({
+      key: "conclusion",
+      label: "Conclusion",
+      title: "Conclusion",
+      state: "done",
+      result: "hold",
+    });
     expect(progressSummary(pages).done).toBe(progressSummary(pagesFor()).done + 1);
     // The module records a warning (a module status has no hold): the suggestion and submit read that.
     expect(report.modules.find((entry) => entry.key === "conclusion")?.result.status).toBe("warn");
@@ -137,6 +144,33 @@ describe("captureSections", () => {
     const missing = sectionsFor({ ...data, custom: { site_notes: { weather: "Dry" } } });
     expect(findSection(missing, "site_notes")).toMatchObject({ status: "not_done", progress: "in_progress", errors: 1 });
   });
+
+  it("names each section by its short name too, whatever its title says (lib/templates/short-titles.ts)", () => {
+    const optional: CustomModule = { ...SITE_NOTES, key: "yard_notes", title: "Yard Notes (Optional)", after: "weight" };
+    const dispensing: CustomModule = {
+      ...SITE_NOTES,
+      key: "safedon_dispensing_notes",
+      title: "Glove Dispensing Inspection: Onsite Notes",
+      after: "weight",
+    };
+    const template = makeTestTemplate(TEST_REGISTRY, ["glove_info", "order_lots", "packing_config", "weight"], {
+      customModules: [SITE_NOTES, optional, dispensing],
+    });
+    const named = (sections: readonly CaptureSection[]) => sections.map((section) => [section.key, section.title, section.shortTitle]);
+    expect(named(sectionsFor(filledData(), OFF, template))).toEqual([
+      ["header", "Manufacturer Information", "Manufacturer"],
+      ["glove_info", "Glove Information", "Glove Information"],
+      ["site_notes", "Site notes", "Site notes"],
+      ["order_lots", "Order", "Order"],
+      // Switched off, it keeps one for its row and its notice.
+      ["packing_config", "Packing configuration", "Packing Configuration"],
+      ["weight", "Weight (g)", "Weight"],
+      // A custom module: listed, else its own title without a trailing note in brackets.
+      ["yard_notes", "Yard Notes (Optional)", "Yard Notes"],
+      ["safedon_dispensing_notes", "Glove Dispensing Inspection: Onsite Notes", "Dispensing Notes"],
+      ["conclusion", "Conclusion", "Conclusion"],
+    ]);
+  });
 });
 
 describe("pages", () => {
@@ -153,7 +187,7 @@ describe("pages", () => {
       ["conclusion"],
     ]);
     const order = findPage(pages, "order_lots");
-    expect(order).toMatchObject({ kind: "included", key: "order_lots", title: titleOf(sections, "order_lots") });
+    expect(order).toMatchObject({ kind: "included", key: "order_lots", title: titleOf(sections, "order_lots"), shortTitle: "Order" });
     // Each module keeps its own result and title on its frame.
     expect(order?.kind === "included" && order.sections.map((section) => [section.key, section.title, section.status])).toEqual([
       ["order_lots", titleOf(sections, "order_lots"), "info"],
@@ -163,11 +197,13 @@ describe("pages", () => {
     expect(steps.map((step) => step.key)).not.toContain("packing_config");
     expect(steps.find((step) => step.key === "order_lots")).toEqual({
       key: "order_lots",
-      label: titleOf(sections, "order_lots"),
+      label: "Order",
+      title: titleOf(sections, "order_lots"),
       state: "in_progress",
       result: "not_done",
     });
-    expect(steps.map((step) => step.label)).not.toContain(titleOf(sections, "packing_config"));
+    expect(steps.map((step) => step.label)).not.toContain("Packing Configuration");
+    expect(steps.map((step) => step.title)).not.toContain(titleOf(sections, "packing_config"));
   });
 
   it("opens the order's page for packing configuration (?module=, issue links, a landing)", () => {
@@ -242,8 +278,8 @@ describe("pages", () => {
     const withInfo = makeTestTemplate(TEST_REGISTRY, ["glove_info", "order_lots"], { customModules: [gloveType] });
     const pages = pagesFor(filledData(), {}, withInfo);
     expect(pages.map((page) => pageSectionKeys(page))).toEqual([["header"], ["glove_type", "glove_info"], ["order_lots"], ["conclusion"]]);
-    // The page is Glove Information's.
-    expect(pages[1].key).toBe("glove_info");
+    // The page is Glove Information's, named as it is, though Glove Type leads it.
+    expect(pages[1]).toMatchObject({ key: "glove_info", title: "Glove Information", shortTitle: "Glove Information" });
     const withoutInfo = makeTestTemplate(TEST_REGISTRY, ["order_lots"], { customModules: [gloveType] });
     expect(pagesFor(filledData(), {}, withoutInfo).map((page) => pageSectionKeys(page))[0]).toEqual(["header", "glove_type"]);
   });
@@ -268,6 +304,7 @@ describe("pages", () => {
       kind: "module",
       key: "order_lots",
       title: "Order",
+      shortTitle: "Order",
       status,
       summary: "",
       progress,
@@ -322,7 +359,10 @@ describe("navigation helpers", () => {
     const pages = pagesFor(filledData(), OFF);
     const steps = progressSteps(pages);
     expect(steps.map((step) => step.key)).not.toContain("packing_config");
-    expect(steps[0]).toEqual({ key: "header", label: "Manufacturer Information", state: "done", result: "info" });
+    // Named by its short name, its full title for the hover.
+    expect(steps[0]).toEqual({ key: "header", label: "Manufacturer", title: "Manufacturer Information", state: "done", result: "info" });
+    // A switched-off page has no step, but a short name of its own.
+    expect(findPage(pages, "packing_config")).toMatchObject({ kind: "excluded", shortTitle: "Packing Configuration" });
     expect(progressSummary(pages)).toEqual({ done: 3, total: 7 });
     // With packing on the order's page there are as many steps, the order's done only once packing is.
     expect(progressSummary(pagesFor())).toEqual({ done: 2, total: 7 });

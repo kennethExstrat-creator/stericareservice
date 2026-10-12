@@ -537,7 +537,8 @@ describe("switchModuleOff", () => {
       IDLE,
       form({ inspectionId: INSPECTION, moduleKey: "weight", reason: " Not in this order. " }),
     );
-    expect(result).toMatchObject({ status: "success", message: "Weight (g) is switched off for this inspection." });
+    // Named by its short name, as the screen's menus name it (the template's "Weight (g)").
+    expect(result).toMatchObject({ status: "success", message: "Weight is switched off for this inspection." });
     const override = result.status === "success" ? result.overrides.weight : undefined;
     expect(override).toMatchObject({ reason: "Not in this order.", by: ADMIN });
     expect(Number.isNaN(Date.parse(override?.at ?? ""))).toBe(false);
@@ -598,7 +599,7 @@ describe("switchModuleOn", () => {
       isUpdate(query) ? { data: [{ id: INSPECTION }], error: null } : { data: row({ module_overrides: off }), error: null },
     );
     const result = await switchModuleOn(IDLE, form({ inspectionId: INSPECTION, moduleKey: "weight" }));
-    expect(result).toEqual({ status: "success", message: "Weight (g) is switched back on.", overrides: {} });
+    expect(result).toEqual({ status: "success", message: "Weight is switched back on.", overrides: {} });
     expect(updatePayload(client.queries.find(isUpdate))).toMatchObject({ module_overrides: {} });
     expect(client.rpcCalls[0][1]).toMatchObject({
       changes: { module: "weight", include: true, previousReason: "Not in this order." },
@@ -609,7 +610,7 @@ describe("switchModuleOn", () => {
     useClient(() => ({ data: row(), error: null }));
     await expect(switchModuleOn(IDLE, form({ inspectionId: INSPECTION, moduleKey: "weight" }))).resolves.toEqual({
       status: "error",
-      message: "Weight (g) is not switched off for this inspection.",
+      message: "Weight is not switched off for this inspection.",
     });
   });
 });

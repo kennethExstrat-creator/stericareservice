@@ -60,7 +60,10 @@ order's tab (`lib/inspections/capture/sections.ts` `SHOWN_WITH`). Scope by the m
 `[data-slot="section-frame"]` alone, which matches both frames there and fails Playwright's strict mode:
 
 - a module's frame: `[data-section-key="packing_config"]` (its title is the frame's `h2`);
-- the tab of the page a module is on: `[role="tab"][data-sections~="packing_config"]`;
+- a page's tab: `[role="tab"][data-section="order_lots"]`; the tab of the page a module is on:
+  `[role="tab"][data-sections~="packing_config"]`;
+- a step's row in the desktop sidebar: `[data-step="order_lots"]` (a switched-off row:
+  `[data-slot="section-list"] [data-section="packing_config"]`);
 - a number field: `[data-issue-path='["glovesPerCase"]'] input` inside the frame;
 - still loading, and moving what is below once it arrives: a form, `[data-slot="body-skeleton"]`, and a
   module's photos, `[data-slot="photos-loading"]`. The screen waits for both to go before it brings a
@@ -68,6 +71,12 @@ order's tab (`lib/inspections/capture/sections.ts` `SHOWN_WITH`). Scope by the m
 
 The template's titles and labels are the clients' words and can change wording or case: match them
 with a case-insensitive pattern, or read them from the page or the fixture, rather than typing them out.
+
+Rows, tabs, the progress bar's name, Previous / Next, Pending and the switch toasts name a step by its
+short name ("Weight", "Watertight Test": docs/DESIGN.md, Step Names). Rows, tabs, the progress bar's
+name and Previous / Next carry the full title in their `title` attribute (Pending rows and toasts do
+not); a frame's `h2` keeps the template's title. Find a step by its key, as above, rather than by its
+name.
 
 The app words them in Title Case (docs/DESIGN.md): the module defaults and the seed templates
 (`lib/templates/definitions`) do, so a fixture resolved from them reads "Glove Colour" and "Packing

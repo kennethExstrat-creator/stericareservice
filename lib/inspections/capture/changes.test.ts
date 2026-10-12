@@ -20,6 +20,17 @@ describe("changedEntryProblems", () => {
     expect(check(emptyData(), next)[0].message).toMatch(/^indicativeWeight: /);
   });
 
+  it("names the section by its short name, as the screen's menus do (docs/DESIGN.md, Step Names)", () => {
+    // The template's "Manufacturer Information".
+    const next = { modules: { header: { poNo: 42, productName: null, client: null } }, custom: {} };
+    expect(check(emptyData(), next)).toEqual([expect.objectContaining({ key: "header", title: "Manufacturer" })]);
+    expect(describeProblems(check(emptyData(), next))).toMatch(/^Manufacturer: poNo: /);
+    // A custom module by its own title, without a trailing note in brackets.
+    const noted = { ...template, customModules: template.customModules.map((custom) => ({ ...custom, title: `${custom.title} (Optional)` })) };
+    const wrong = changedEntryProblems(emptyData(), { modules: {}, custom: { site_notes: { sealIntact: "yes" } } }, noted, TEST_REGISTRY);
+    expect(wrong).toEqual([expect.objectContaining({ key: "site_notes", title: "Site notes" })]);
+  });
+
   it("refuses a key the module does not have (strict schemas)", () => {
     const next = { modules: { glove_info: { colour: "Blue", colur: "Blue" } }, custom: {} };
     expect(check(emptyData(), next)).toHaveLength(1);

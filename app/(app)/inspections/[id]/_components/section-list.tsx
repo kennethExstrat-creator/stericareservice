@@ -12,7 +12,9 @@
 // first, open whenever the page in view is one of its steps, and as the
 // inspector last left it otherwise (use-step-group.ts). The sections an
 // admin switched off for this inspection follow in their own group, marked
-// off.
+// off. Every row names its step by its short name, its full title on hover
+// (Kenneth, 12 October 2026: "this menu is crowded, simplify the section
+// name"; docs/DESIGN.md, Step Names).
 import { CircleOffIcon } from "lucide-react";
 import { ProgressTracker, type ProgressGroup } from "@/components/qc";
 import { pageStatus, progressSteps, type CapturePage, type IncludedPage } from "@/lib/inspections/capture/sections";
@@ -109,7 +111,7 @@ export function SectionList({ pages, activeKey, onSelect, viewerId, className }:
                     />
                     <CircleOffIcon aria-hidden className="size-4 shrink-0 text-slate-500" />
                     <span className="line-clamp-2 min-w-0 flex-1 text-left leading-snug [overflow-wrap:anywhere]">
-                      {page.title}
+                      {page.shortTitle}
                     </span>
                     <span className="sr-only">, switched off for this inspection</span>
                   </button>

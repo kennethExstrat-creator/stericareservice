@@ -116,13 +116,39 @@ const SECTIONS = [
   "Conclusion",
 ];
 /**
- * The capture screen's pages, a tab or a sidebar row each: the sections,
- * packing configuration on the order's page (lib/inspections/capture/sections.ts
- * SHOWN_WITH), below the order.
+ * The capture screen's pages, a tab or a sidebar row each, in order: Source
+ * Documents, then the sections, Glove Type on Glove Information's page and
+ * packing configuration below the order (lib/inspections/capture/sections.ts
+ * CUSTOM_SHOWN_WITH and SHOWN_WITH). Each tab and row names its step by its
+ * short name, with the template's words on hover (docs/DESIGN.md, Step
+ * Names): a module keeps its short name whatever heading the admin gave it.
  */
-const PAGES = SECTIONS.filter((title) => title !== "Packing Configuration");
-/** Headings of the modules switched off: on no screen of the inspection. */
-const SWITCHED_OFF = ["Force at Break in Newton (Refer to Attached Where Applicable)", "Glove Packing Check"];
+const PAGES: readonly { key: string; name: string; title: string }[] = [
+  { key: "source_documents", name: "Source Documents", title: "Source Documents" },
+  { key: "header", name: "Manufacturer", title: "Manufacturer Information" },
+  { key: "glove_info", name: "Glove Information", title: "Glove Information" },
+  { key: "order_lots", name: "Order", title: "Order" },
+  { key: "sampling_plan", name: "Sampling Plan", title: "Sampling Plan" },
+  { key: "carton_sampling", name: "Carton Numbers", title: "Finished Goods Sampling Information (Carton Number)" },
+  { key: "dimensions", name: "Dimension", title: "Dimension" },
+  { key: "weight", name: "Weight", title: "Weight (g) - Average of 13 Gloves per Size" },
+  { key: "visual", name: "Visual Inspection", title: WORDS.visualTitle },
+  { key: "watertight", name: "Watertight Test", title: "Freedom From Holes by Watertight Test" },
+  { key: "labeling", name: "Labeling", title: "Packaging Labeling Inspection" },
+  { key: WORDS.customKey, name: WORDS.customTitle, title: WORDS.customTitle },
+  { key: "documents", name: "Documents", title: WORDS.documentsTitle },
+  { key: "conclusion", name: "Conclusion", title: "Conclusion" },
+];
+
+/** A page of PAGES by its key. */
+function pageOf(key: string): { key: string; name: string; title: string } {
+  const found = PAGES.find((entry) => entry.key === key);
+  if (!found) throw new Error(`No page ${key}.`);
+  return found;
+}
+
+/** The modules switched off, by their short names: on no screen of the inspection. */
+const SWITCHED_OFF = ["Force at Break", "Packing Check"];
 
 test.describe.configure({ mode: "serial" });
 
@@ -270,12 +296,13 @@ async function showSidebarSteps(page: Page): Promise<void> {
   if (await group.isVisible()) await press(group);
 }
 
-async function openSection(page: Page, title: string): Promise<Locator> {
-  const name = new RegExp(`^${escapeRegExp(title)}`);
+/** Opens a page by its key (its tab or row names it by its short name); its frame's heading reads the template's title. */
+async function openSection(page: Page, key: string): Promise<Locator> {
+  const { title } = pageOf(key);
   if (isDesktop()) await showSidebarSteps(page);
   const target = isDesktop()
-    ? page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name })
-    : page.getByRole("tab", { name });
+    ? page.getByRole("navigation", { name: "Sections" }).locator(`[data-step="${key}"]`)
+    : page.locator(`[role="tab"][data-section="${key}"]`);
   await press(target);
   await expect(page.getByRole("heading", { level: 2, name: title, exact: true })).toBeVisible();
   return page.locator('[data-slot="section-frame"]');
@@ -587,18 +614,21 @@ test("an admin builds a template from a base without code changes, and an inspec
     inspectionId = page.url().split("/").at(-1)!;
   });
 
-  await test.step("the capture screen shows exactly the modules switched on, in order, in the template's words", async () => {
+  await test.step("the capture screen shows exactly the modules switched on, in order, by their short names, in the template's words on hover", async () => {
     await expect(page.getByRole("heading", { level: 2, name: "Manufacturer Information" })).toBeVisible(ACTION);
-    await expect(captureSections(page)).toHaveText(PAGES.map((title) => new RegExp(`^${escapeRegExp(title)}`)));
+    await expect(captureSections(page)).toHaveText(PAGES.map(({ name }) => new RegExp(`^${escapeRegExp(name)}`)));
+    expect(await captureSections(page).evaluateAll((all) => all.map((element) => element.getAttribute("title")))).toEqual(
+      PAGES.map(({ title }) => title),
+    );
     const nav = isDesktop() ? page.getByRole("navigation", { name: "Sections" }) : page.getByRole("tablist", { name: "Sections" });
-    for (const title of SWITCHED_OFF) await expect(nav).not.toContainText(title, { ignoreCase: true });
+    for (const name of SWITCHED_OFF) await expect(nav).not.toContainText(name, { ignoreCase: true });
     // The sidebar's Switched Off group, in any case (CSS sets it in capitals).
     await expect(nav).not.toContainText(/Switched off/i);
     await expectNoPageScroll(page);
     await shot(page, "12-capture");
 
     // Glove Information in the client's words, without the field the settings switched off.
-    const gloveInfo = await openSection(page, "Glove Information");
+    const gloveInfo = await openSection(page, "glove_info");
     await expect(gloveInfo.getByText(WORDS.colourLabel, { exact: true })).toBeVisible();
     await expect(gloveInfo.getByText(/^Glove Colour$/i)).toHaveCount(0);
     await expect(gloveInfo.getByText(/^Glove Length$/i)).toHaveCount(0);
@@ -606,17 +636,17 @@ test("an admin builds a template from a base without code changes, and an inspec
     await view(page, "13-capture-glove-information");
 
     // The order's page holds packing configuration below the order: two frames, each with its title.
-    const order = await openSection(page, "Order");
+    const order = await openSection(page, "order_lots");
     await expect(order).toHaveCount(2);
     await expect(page.locator('[data-section-key="order_lots"]').getByRole("heading", { level: 2 })).toHaveText("Order");
     await expect(page.locator('[data-section-key="packing_config"]').getByRole("heading", { level: 2 })).toHaveText("Packing Configuration");
     await view(page, "13-capture-order");
 
-    await openSection(page, WORDS.visualTitle);
-    const custom = await openSection(page, WORDS.customTitle);
+    await openSection(page, "visual");
+    const custom = await openSection(page, WORDS.customKey);
     await expect(custom.getByRole("textbox", { name: WORDS.fieldLabel })).toBeVisible();
     await view(page, "14-capture-custom");
-    await openSection(page, WORDS.documentsTitle);
+    await openSection(page, "documents");
     await expectNoPageScroll(page);
     await view(page, "15-capture-documents");
 

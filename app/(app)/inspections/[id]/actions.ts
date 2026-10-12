@@ -26,9 +26,11 @@ import { serverWriter, submitInspectionRow } from "@/lib/inspections/writes";
 import { FAILURE_MESSAGES, saveInspectionData, type SaveOutcome } from "@/lib/offline";
 import { contentHash } from "@/lib/offline/stable-json";
 import type { InspectionStatus } from "@/lib/schemas/common";
+import type { ModuleKey } from "@/lib/schemas/module-result";
 import type { ModuleOverrides, ResolvedTemplate } from "@/lib/schemas/template";
 import { createClient } from "@/lib/supabase/server";
 import type { Json } from "@/lib/supabase/database.types";
+import { shortTitleFor } from "@/lib/templates";
 import type { ValidationIssue } from "@/lib/validation";
 import type { InspectionData } from "@/modules/_framework";
 
@@ -438,8 +440,10 @@ function shownTemplate(row: CaptureInspection): ResolvedTemplate {
   });
 }
 
-function titleOf(template: ResolvedTemplate, key: string): string {
-  return template.modules.find((entry) => entry.key === key)?.title ?? key;
+/** A module's short name, as the screen's menus name it (docs/DESIGN.md, Step Names): the switch toasts. */
+function titleOf(template: ResolvedTemplate, key: ModuleKey): string {
+  const entry = template.modules.find((candidate) => candidate.key === key);
+  return entry ? shortTitleFor(entry.key, entry.title) : key;
 }
 
 function readOnlyMessage(row: Pick<CaptureInspection, "status">): string {

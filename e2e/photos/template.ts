@@ -6,7 +6,7 @@
 
 export const PHOTOS_TEMPLATE_CODE = "E2E_PHOTOS";
 
-/** Module titles as the gallery shows them. */
+/** Module titles as the template words them. */
 export const TITLES = {
   header: "Preshipment Inspection",
   order_lots: "Order Quantity & Lot Numbers",
@@ -22,6 +22,22 @@ export const TITLES = {
 export const THIN_SPOT_LABEL = "Thin spot";
 
 type ModuleKey = keyof typeof TITLES;
+
+/**
+ * The same modules by their short names, as the gallery, the tag picker and
+ * the photo viewer name them (docs/DESIGN.md, Step Names; lib/templates/short-titles.ts).
+ */
+export const NAMES: Readonly<Record<ModuleKey, string>> = {
+  header: "Manufacturer",
+  order_lots: "Order",
+  dimensions: "Dimension",
+  force_at_break: "Force at Break",
+  watertight: "Watertight Test",
+  visual: "Visual Inspection",
+  dispensing_packing: "Packing Check",
+  labeling: "Labeling",
+  conclusion: "Conclusion",
+};
 
 function entry(key: ModuleKey, labels: Record<string, string> = {}, include = true) {
   return { key, include, title: TITLES[key], labels, config: {} };

@@ -1,5 +1,6 @@
 import { expect, test, type BrowserContext, type Locator, type Page, type Route } from "@playwright/test";
 import type { Json } from "../../lib/supabase/database.types";
+import { customShortTitle, shortTitleFor } from "../../lib/templates/short-titles";
 import { drawImage, holdUploads, labReportPdf } from "../photos/support";
 import { createTestAdminClient } from "../support/admin";
 import { expectNoPageScroll } from "../support/layout";
@@ -160,13 +161,15 @@ async function showSidebarSteps(page: Page) {
   if (await group.isVisible()) await press(group);
 }
 
-/** Opens a section from the tab bar (iPad) or the sidebar (desktop). */
-async function openSection(page: Page, title: string) {
-  const name = new RegExp(`^${escapeRegExp(title)}`);
+/**
+ * Opens a page from the tab bar (iPad) or the sidebar (desktop) by its key: both name it by its short name
+ * (docs/DESIGN.md, Step Names), so `title` is what its frame's heading reads, the template's title.
+ */
+async function openSection(page: Page, key: string, title: string) {
   if (isDesktop()) await showSidebarSteps(page);
   const target = isDesktop()
-    ? page.getByRole("navigation", { name: "Sections" }).getByRole("button", { name })
-    : page.getByRole("tab", { name });
+    ? page.getByRole("navigation", { name: "Sections" }).locator(`[data-step="${key}"]`)
+    : page.locator(`[role="tab"][data-section="${key}"]`);
   await press(target);
   await expect(page.getByRole("heading", { level: 2, name: title, exact: true })).toBeVisible();
 }
@@ -286,7 +289,7 @@ test("the inspector opens the inspection and moves between sections", async ({ p
   }
   await shot(page, "open");
 
-  await openSection(page, "Glove Information");
+  await openSection(page, "glove_info", "Glove Information");
   await expect(page).toHaveURL(/module=glove_info/);
   await expectStickyOffsets(page);
   // Every section carries the photo slot (BUILD_SPEC 8.1): the iPad's two buttons, a drop zone on a desktop.
@@ -300,8 +303,8 @@ test("the inspector opens the inspection and moves between sections", async ({ p
   }
   // With the add controls shown, the count in the heading row is the empty state (no "No photos yet." line).
   await expect(slot.getByText("0 photos")).toBeVisible();
-  await openSection(page, "Site notes");
-  await openSection(page, WEIGHT);
+  await openSection(page, "e2e_site_notes", "Site notes");
+  await openSection(page, "weight", WEIGHT);
   await expect(page.getByText("This section arrives in a later build.")).toHaveCount(0);
   await expectNoPageScroll(page);
   await shot(page, "weight-section");
@@ -357,7 +360,7 @@ test("typing into glove information saves, and the value is there after a reload
   await expect(page.getByLabel("Indicative Weight (Size M)")).toHaveValue("3.5");
 
   // A custom section of the template saves the same way.
-  await openSection(page, "Site notes");
+  await openSection(page, "e2e_site_notes", "Site notes");
   await page.getByLabel("Weather at the site").fill("Dry, 31 °C");
   await expect
     .poll(async () => (await storedData(fixture.inspectionId)).data, { timeout: 15_000 })
@@ -370,7 +373,7 @@ test("a field mapped to the glove colour keeps fast typing and an edit mid-word"
   const hydration = watchConsole(page);
   await signInAs(context, baseURL!, "inspector");
   await page.goto(`/inspections/${fixture.inspectionId}`);
-  await openSection(page, "Site notes");
+  await openSection(page, "e2e_site_notes", "Site notes");
 
   const mapped = page.getByLabel("Colour for the report");
   await expect(mapped).toBeEditable();
@@ -386,7 +389,7 @@ test("a field mapped to the glove colour keeps fast typing and an edit mid-word"
     .toMatchObject({ modules: { glove_info: { colour: "Midnight-x blue" } } });
 
   // It is the glove information's own colour.
-  await openSection(page, "Glove Information");
+  await openSection(page, "glove_info", "Glove Information");
   await expect(page.getByLabel("Glove Colour")).toHaveValue("Midnight-x blue");
   expect(hydration()).toEqual([]);
 });
@@ -394,7 +397,7 @@ test("a field mapped to the glove colour keeps fast typing and an edit mid-word"
 test("a custom grid takes numbers in bordered cells, like the text cells beside them", async ({ page, context, baseURL }) => {
   await signInAs(context, baseURL!, "inspector");
   await page.goto(`/inspections/${fixture.inspectionId}`);
-  await openSection(page, "Box checks");
+  await openSection(page, "e2e_box_checks", "Box checks");
 
   const weight = page.getByLabel("Box weight, Box 1");
   const note = page.getByLabel("Box note, Box 1");
@@ -877,15 +880,15 @@ test("tensile counts its lab report once attached and not once it is deleted, an
   }
   const taggedL = page.locator('[data-slot="next-tags"]').filter({ hasText: "Size L" });
   await expect(taggedL).toBeVisible();
-  await openSection(page, WEIGHT);
+  await openSection(page, "weight", WEIGHT);
   await expectNextPhotoSize(page, await shownSize(page));
   await shot(page, "weight-after-tensile-l");
   // A custom section with no sizes at all.
-  await openSection(page, "Site notes");
+  await openSection(page, "e2e_site_notes", "Site notes");
   await expectNextPhotoSize(page, null);
   await shot(page, "site-notes-after-tensile-l");
-  await openSection(page, "Glove Information");
-  await openSection(page, TENSILE);
+  await openSection(page, "glove_info", "Glove Information");
+  await openSection(page, "tensile", TENSILE);
   if (!isDesktop()) await expect(page.getByRole("tab", { name: /^Size L\b/ })).toHaveAttribute("aria-selected", "true");
   // Back on size L, which tensile shows and reports: its photos are tagged with it again.
   await expect(taggedL).toBeVisible();
@@ -1045,14 +1048,15 @@ test("the order's page shows packing configuration below the order, and packing 
     await expect(frame.getByRole("textbox", { name: /^Inspector Comment/ })).toHaveCount(1);
     await expect(frame.locator('[data-slot="module-photos"]')).toHaveCount(1);
   }
-  // Each has a name of its own: two comment fields and two photo regions on one page are told apart.
-  const orderTitle = (await titleOf(page, "order_lots").innerText()).trim();
-  const packingTitle = (await titleOf(page, "packing_config").innerText()).trim();
+  // Each has a name of its own, read out with its short name (docs/DESIGN.md, Step Names): two comment fields and
+  // two photo regions on one page are told apart.
+  const orderName = shortTitleFor("order_lots", (await titleOf(page, "order_lots").innerText()).trim());
+  const packingName = shortTitleFor("packing_config", (await titleOf(page, "packing_config").innerText()).trim());
   const named = (words: string, title: string) => new RegExp(`^${escapeRegExp(words)}\\s*, ${escapeRegExp(title)}$`);
-  await expect(order.getByRole("textbox", { name: named("Inspector Comment", orderTitle) })).toBeVisible();
-  await expect(packing.getByRole("textbox", { name: named("Inspector Comment", packingTitle) })).toBeVisible();
-  await expect(order.getByRole("region", { name: named("Photos", orderTitle) })).toBeVisible();
-  await expect(packing.getByRole("region", { name: named("Photos", packingTitle) })).toBeVisible();
+  await expect(order.getByRole("textbox", { name: named("Inspector Comment", orderName) })).toBeVisible();
+  await expect(packing.getByRole("textbox", { name: named("Inspector Comment", packingName) })).toBeVisible();
+  await expect(order.getByRole("region", { name: named("Photos", orderName) })).toBeVisible();
+  await expect(packing.getByRole("region", { name: named("Photos", packingName) })).toBeVisible();
 
   // No page of its own: eight steps (header, glove information, site notes, the order's page, box checks, weight, tensile, conclusion).
   if (isDesktop()) {
@@ -1091,12 +1095,14 @@ test("the order's page shows packing configuration below the order, and packing 
   await expectNoPageScroll(page);
   await shot(page, "order-page");
 
-  // Previous and Next go by page: from the order's, Next is the custom section after it; Previous comes back to the order.
+  // Previous and Next go by page, named by its short name: from the order's, Next is the custom section after it;
+  // Previous comes back to the order.
   const nav = page.getByRole("navigation", { name: "Previous and next section" });
-  await press(nav.getByRole("button", { name: `Next: ${customTitle("e2e_box_checks")}`, exact: true }));
+  const boxChecks = customShortTitle({ key: "e2e_box_checks", title: customTitle("e2e_box_checks") });
+  await press(nav.getByRole("button", { name: `Next: ${boxChecks}`, exact: true }));
   await expect(titleOf(page, "e2e_box_checks")).toBeFocused();
   await expect(page).toHaveURL(/module=e2e_box_checks/);
-  await press(nav.getByRole("button", { name: `Previous: ${orderTitle}`, exact: true }));
+  await press(nav.getByRole("button", { name: `Previous: ${orderName}`, exact: true }));
   await expect(titleOf(page, "order_lots")).toBeFocused();
   await expect(titleOf(page, "packing_config")).toBeVisible();
   await expect(page).toHaveURL(/module=order_lots/);
@@ -1340,7 +1346,7 @@ test("submit waits for a photo still on this device, then submits and opens the 
   await signInAs(context, baseURL!, "inspector");
   await page.goto(`/inspections/${fixture.inspectionId}?module=e2e_site_notes`);
   await press(page.getByRole("radiogroup", { name: "Container seal intact" }).getByRole("radio", { name: "Yes" }));
-  await openSection(page, "Conclusion");
+  await openSection(page, "conclusion", "Conclusion");
   await press(page.getByRole("radiogroup", { name: "Conclusion" }).getByRole("radio", { name: /PASSED/ }));
   await page.getByRole("textbox", { name: "Remark" }).fill("Ready to ship (e2e)");
   await expect(savePill(page)).toHaveAttribute("data-state", "saved", { timeout: 15_000 });

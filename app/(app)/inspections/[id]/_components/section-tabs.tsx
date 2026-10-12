@@ -4,8 +4,9 @@
 // iPad, modules show as a top tab bar). One tab per page
 // (lib/inspections/capture/sections.ts capturePages) with its result chip:
 // a section, or a module with the modules shown on its page (packing
-// configuration on the order's tab), named by the first. Then the sections
-// an admin switched off for this inspection, marked off. The bar scrolls
+// configuration on the order's tab), named by the first's short name, its
+// full title on hover (docs/DESIGN.md, Step Names). Then the sections an
+// admin switched off for this inspection, marked off. The bar scrolls
 // sideways; the page never does. WAI-ARIA tabs with automatic activation:
 // arrow keys, Home and End move between tabs and open the page.
 import { useEffect, useRef, type KeyboardEvent } from "react";
@@ -101,6 +102,7 @@ export function SectionTabs({ pages, activeKey, onSelect, panelId, idPrefix, cla
               aria-selected={selected}
               aria-controls={selected ? panelId : undefined}
               tabIndex={selected ? 0 : -1}
+              title={page.title}
               data-section={page.key}
               // Every section on the page, so a module's tab is found by its key ([data-sections~=packing_config]).
               data-sections={pageSectionKeys(page).join(" ")}
@@ -117,7 +119,7 @@ export function SectionTabs({ pages, activeKey, onSelect, panelId, idPrefix, cla
               )}
             >
               {excluded && <CircleOffIcon aria-hidden className="size-4 shrink-0 text-slate-500" />}
-              <span className="max-w-56 truncate">{page.title}</span>
+              <span className="max-w-56 truncate">{page.shortTitle}</span>
               {page.kind === "documents" ? (
                 <ResultChip status={page.status} label={page.status === "pass" ? "Steri-AI Verified" : "Not read yet"} />
               ) : isStepPage(page) ? (

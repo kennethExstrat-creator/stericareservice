@@ -40,6 +40,7 @@ export {
   initialSize,
   includedModules,
   moduleTitle,
+  moduleShortTitle,
   inspectionRowValues,
   readableData,
   type AqlCheck,

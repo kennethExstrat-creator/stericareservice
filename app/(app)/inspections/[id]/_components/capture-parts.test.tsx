@@ -45,20 +45,21 @@ const tagsWith = (html: string, attribute: string): string[] =>
 const PACKING_TITLE = "Packing Configuration";
 
 const SECTIONS: CaptureSection[] = [
-  { kind: "module", key: "header", title: "Manufacturer Information", status: "info", summary: "", progress: "done", stub: false, errors: 0, warnings: 0 },
-  { kind: "module", key: "glove_info", title: "Glove Information", status: "not_done", summary: "", progress: "in_progress", stub: false, errors: 0, warnings: 1 },
-  { kind: "excluded", key: "packing_config", title: PACKING_TITLE, override: { reason: "Not ordered.", by: TEST_ADMIN_ID, at: "2026-10-06T08:00:00.000Z" } },
-  { kind: "module", key: "conclusion", title: "Conclusion", status: "not_done", summary: "", progress: "not_started", stub: false, errors: 1, warnings: 0 },
+  { kind: "module", key: "header", title: "Manufacturer Information", shortTitle: "Manufacturer", status: "info", summary: "", progress: "done", stub: false, errors: 0, warnings: 0 },
+  { kind: "module", key: "glove_info", title: "Glove Information", shortTitle: "Glove Information", status: "not_done", summary: "", progress: "in_progress", stub: false, errors: 0, warnings: 1 },
+  { kind: "excluded", key: "packing_config", title: PACKING_TITLE, shortTitle: PACKING_TITLE, override: { reason: "Not ordered.", by: TEST_ADMIN_ID, at: "2026-10-06T08:00:00.000Z" } },
+  { kind: "module", key: "conclusion", title: "Conclusion", shortTitle: "Conclusion", status: "not_done", summary: "", progress: "not_started", stub: false, errors: 1, warnings: 0 },
 ];
 
 /** The order filled in and packing configuration not adding up: one page, the order's, each module with its result. */
 const ORDER_PAGE: CaptureSection[] = [
-  { kind: "module", key: "header", title: "Manufacturer Information", status: "info", summary: "", progress: "done", stub: false, errors: 0, warnings: 0 },
-  { kind: "module", key: "order_lots", title: "Order", status: "info", summary: "", progress: "done", stub: false, errors: 0, warnings: 0 },
+  { kind: "module", key: "header", title: "Manufacturer Information", shortTitle: "Manufacturer", status: "info", summary: "", progress: "done", stub: false, errors: 0, warnings: 0 },
+  { kind: "module", key: "order_lots", title: "Order", shortTitle: "Order", status: "info", summary: "", progress: "done", stub: false, errors: 0, warnings: 0 },
   {
     kind: "module",
     key: "packing_config",
     title: PACKING_TITLE,
+    shortTitle: PACKING_TITLE,
     status: "warn",
     summary: "",
     progress: "done",
@@ -67,7 +68,7 @@ const ORDER_PAGE: CaptureSection[] = [
     errors: 0,
     warnings: 1,
   },
-  { kind: "module", key: "conclusion", title: "Conclusion", status: "not_done", summary: "", progress: "not_started", stub: false, errors: 1, warnings: 0 },
+  { kind: "module", key: "conclusion", title: "Conclusion", shortTitle: "Conclusion", status: "not_done", summary: "", progress: "not_started", stub: false, errors: 1, warnings: 0 },
 ];
 
 describe("SectionTabs", () => {
@@ -97,6 +98,17 @@ describe("SectionTabs", () => {
     const order = tagsWith(html, 'role="tab"').map((tab) => /data-section="([a-z_]+)"/.exec(tab)?.[1]);
     expect(order).toEqual(["header", "glove_info", "conclusion", "packing_config"]);
     expect(html).toContain(", switched off for this inspection");
+  });
+
+  it("names each tab by its short name, with its full title on hover (docs/DESIGN.md, Step Names)", () => {
+    const header = tagsWith(html, 'role="tab"').find((tab) => tab.includes('data-section="header"')) ?? "";
+    expect(header).toContain('title="Manufacturer Information"');
+    expect(html).toMatch(/data-section="header"[^>]*>(?:(?!<\/button>).)*>Manufacturer<\/span>/);
+    expect(html).not.toContain(">Manufacturer Information<");
+    // A switched-off tab too.
+    expect(tagsWith(html, 'role="tab"').find((tab) => tab.includes('data-section="packing_config"'))).toContain(
+      `title="${PACKING_TITLE}"`,
+    );
   });
 
   it("gives the order's page one tab, named by the order, with the worst result of the two and both keys", () => {
@@ -133,7 +145,7 @@ describe("TaskItem (the Pending panel)", () => {
     <TaskItem
       task={{
         key: "weight",
-        title: "Weight (g)",
+        title: "Weight",
         linkable: true,
         needed: false,
         status: "6 sizes not done",
@@ -163,8 +175,8 @@ describe("TaskItem (the Pending panel)", () => {
 
   it("is a button named with its section, status and sizes, showing the title over one short line", () => {
     expect(weight).toMatch(/^<button type="button"/);
-    expect(weight).toContain('aria-label="Weight (g): 6 sizes not done: XS, S, M, L, XL and XXL, and 1 more."');
-    expect(text(weight)).toBe("Weight (g)6 sizes not doneXSSMLXL+1· 1 more");
+    expect(weight).toContain('aria-label="Weight: 6 sizes not done: XS, S, M, L, XL and XXL, and 1 more."');
+    expect(text(weight)).toBe("Weight6 sizes not doneXSSMLXL+1· 1 more");
     // One line: the status line never wraps, and long text is cut rather than pushed to a second line.
     expect(weight).toMatch(/data-slot="task-status"[^>]*class="[^"]*\bwhitespace-nowrap\b[^"]*\boverflow-hidden\b|data-slot="task-status"[^>]*class="[^"]*\boverflow-hidden\b[^"]*\bwhitespace-nowrap\b/);
     expect(weight).not.toContain("data-needed");
@@ -456,9 +468,10 @@ describe("SectionErrorBoundary (a section's form that did not show)", () => {
 
 describe("SectionList (the desktop sidebar)", () => {
   const long: CaptureSection[] = [
-    { kind: "module", key: "dispensing_safedon", title: "Glove Dispensing Inspection", status: "not_done", summary: "", progress: "not_started", stub: false, errors: 0, warnings: 0 },
-    { kind: "custom", key: "onsite", title: "Glove Dispensing Inspection: onsite notes", status: "not_done", summary: "", progress: "not_started", custom: { key: "onsite", title: "Glove Dispensing Inspection: onsite notes", after: "dispensing_safedon", layout: "fields", fields: [] }, errors: 0, warnings: 0 },
-    { kind: "excluded", key: "labeling", title: "Packaging Labeling Inspection", override: { reason: "Not ordered.", by: TEST_ADMIN_ID, at: "2026-10-06T08:00:00.000Z" } },
+    { kind: "module", key: "dispensing_safedon", title: "Glove Dispensing Inspection", shortTitle: "Dispensing", status: "not_done", summary: "", progress: "not_started", stub: false, errors: 0, warnings: 0 },
+    // A custom step's own title, as long as it is (no short name listed for it).
+    { kind: "custom", key: "onsite", title: "Glove Dispensing Inspection: onsite notes", shortTitle: "Glove Dispensing Inspection: onsite notes", status: "not_done", summary: "", progress: "not_started", custom: { key: "onsite", title: "Glove Dispensing Inspection: onsite notes", after: "dispensing_safedon", layout: "fields", fields: [] }, errors: 0, warnings: 0 },
+    { kind: "excluded", key: "labeling", title: "Packaging Labeling Inspection", shortTitle: "Labeling", override: { reason: "Not ordered.", by: TEST_ADMIN_ID, at: "2026-10-06T08:00:00.000Z" } },
   ];
   const html = renderToStaticMarkup(<SectionList pages={capturePages(long)} activeKey="onsite" onSelect={noop} />);
   /** The rows' titles, the Inspection Steps header (no title) left out. */
@@ -486,9 +499,22 @@ describe("SectionList (the desktop sidebar)", () => {
     expect(html).not.toMatch(/\btruncate\b/);
   });
 
+  it("names each row by its short name, a switched-off row too, with the full title on hover (docs/DESIGN.md, Step Names)", () => {
+    expect(html).toMatch(/title="Glove Dispensing Inspection"[^>]*>(?:(?!<\/button>).)*class="line-clamp-2[^"]*">Dispensing</);
+    expect(html).toMatch(/title="Packaging Labeling Inspection"[^>]*>(?:(?!<\/button>).)*class="line-clamp-2[^"]*">Labeling</);
+    expect(html).not.toContain(">Glove Dispensing Inspection<");
+    expect(html).not.toContain(">Packaging Labeling Inspection<");
+  });
+
+  it("marks each step's row with its key, for specs (data-step); a switched-off row keeps data-section", () => {
+    expect(tagsWith(html, "data-step=").map((row) => /data-step="([a-z_]+)"/.exec(row)?.[1])).toEqual(["dispensing_safedon", "onsite"]);
+    expect(tagsWith(html, 'data-section="labeling"')).toHaveLength(1);
+  });
+
   it("lists the order's page once, under the order's title, with the worst result of the two", () => {
     const order = renderToStaticMarkup(<SectionList pages={capturePages(ORDER_PAGE)} activeKey="order_lots" onSelect={noop} />);
     expect(rowTitles(order)).toEqual(["Manufacturer Information", "Order", "Conclusion"]);
+    expect(order).toMatch(/title="Manufacturer Information"[^>]*>(?:(?!<\/button>).)*>Manufacturer<\/span>/);
     expect(order).toMatch(/title="Order"(?:(?!<\/button>).)*data-status="warn"/);
     expect(order).not.toContain(PACKING_TITLE);
   });
@@ -498,6 +524,7 @@ describe("SectionList (the desktop sidebar)", () => {
       kind: "documents",
       key: SOURCE_DOCUMENTS_KEY,
       title: SOURCE_DOCUMENTS_TITLE,
+      shortTitle: SOURCE_DOCUMENTS_TITLE,
       status: "pass",
       progress: "done",
     };

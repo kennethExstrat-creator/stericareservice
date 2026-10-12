@@ -571,6 +571,38 @@ describe("ProgressTracker", () => {
     expect(html).toContain(", Not started");
   });
 
+  describe("a step named by a short label, with its full title (docs/DESIGN.md, Step Names)", () => {
+    const named = [
+      { key: "header", label: "Manufacturer", title: "Manufacturer Information", state: "done" as const },
+      { key: "dimensions", label: "Dimension", state: "in_progress" as const },
+    ];
+    /** The opening tag that carries `attribute`. */
+    const tag = (html: string, attribute: string) => new RegExp(`<[^>]*${attribute}[^>]*>`).exec(html)?.[0] ?? "";
+
+    it("shows the label on a list row and the title on hover; without a title, the label on hover; each row carries its key", () => {
+      for (const onStepSelect of [noop, undefined]) {
+        const html = renderToStaticMarkup(
+          <ProgressTracker variant="list" steps={named} activeKey="header" onStepSelect={onStepSelect} />,
+        );
+        expect(tag(html, 'data-step="header"')).toContain('title="Manufacturer Information"');
+        expect(html).toMatch(/class="line-clamp-2[^"]*">Manufacturer</);
+        expect(html).not.toContain(">Manufacturer Information<");
+        expect(tag(html, 'data-step="dimensions"')).toContain('title="Dimension"');
+      }
+    });
+
+    it("shows the label as the bar's name with the title on hover; the bar's segments carry no key", () => {
+      const html = renderToStaticMarkup(<ProgressTracker steps={named} activeKey="header" onStepSelect={noop} />);
+      expect(html).toMatch(/<span class="truncate [^"]*" title="Manufacturer Information">Manufacturer<\/span>/);
+      expect(html).toContain("Manufacturer: Done");
+      expect(html).not.toContain("data-step");
+      // A step without a title: its label on hover.
+      expect(renderToStaticMarkup(<ProgressTracker steps={named} activeKey="dimensions" />)).toMatch(
+        /title="Dimension">Dimension<\/span>/,
+      );
+    });
+  });
+
   describe("a group in the list", () => {
     const listed = [
       { key: "documents", label: "Source Documents", state: "done" as const, result: "pass" as const },
