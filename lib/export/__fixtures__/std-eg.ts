@@ -335,6 +335,8 @@ function conclusionData(remark: string | null): ConclusionData {
   return {
     finalResult: conclusion.printedResult === "PASSED" ? "pass" : "fail",
     remark,
+    // Not on the paper report.
+    inspectionSummary: null,
     date: picked(conclusion.date),
     signature: conclusion.signed ? { width: 600, height: 200, strokes: [[40, 150, 120, 60, 200, 140, 300, 70]] } : null,
   };

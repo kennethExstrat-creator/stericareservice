@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createDataUpdater } from "@/components/qc/data-updater";
-import { isoDateOf, withDate, withFinalResult, withRemark, withSignature } from "./edit";
+import { richTextExample } from "@/lib/rich-text/__fixtures__/example";
+import { isoDateOf, withDate, withFinalResult, withInspectionSummary, withRemark, withSignature } from "./edit";
 import { ConclusionDataSchema, emptyConclusion, type ConclusionData } from "./schema";
 import { addStroke, MAX_STROKES, type Signature, type SignatureChange } from "./signature";
 
@@ -42,9 +43,11 @@ describe("conclusion edits", () => {
     updater.update((current) => withFinalResult(current, "pass", "2025-04-13"));
     fromPad((signature) => addStroke(signature, [80, 120, 140, 100]));
     updater.update((current) => withRemark(current, "Released."));
+    updater.update((current) => withInspectionSummary(current, richTextExample()));
     expect(changes.at(-1)).toEqual({
       finalResult: "pass",
       remark: "Released.",
+      inspectionSummary: richTextExample(),
       date: "2025-04-12",
       signature: { width: 600, height: 200, strokes: [[10, 150, 60, 60], [80, 120, 140, 100]] },
     });
@@ -53,6 +56,13 @@ describe("conclusion edits", () => {
   it("take the remark as typed, blank as none", () => {
     expect(withRemark(emptyConclusion(), "Released.\nCartons resealed.").remark).toBe("Released.\nCartons resealed.");
     expect(withRemark(withRemark(emptyConclusion(), "x"), "  ").remark).toBeNull();
+  });
+
+  it("take the summary as the editor hands it over, and clear it with null", () => {
+    const written = withInspectionSummary(emptyConclusion(), richTextExample());
+    expect(written).toEqual({ ...emptyConclusion(), inspectionSummary: richTextExample() });
+    expect(ConclusionDataSchema.parse(written)).toEqual(written);
+    expect(withInspectionSummary(written, null)).toEqual(emptyConclusion());
   });
 
   it("take dates from the picker only", () => {

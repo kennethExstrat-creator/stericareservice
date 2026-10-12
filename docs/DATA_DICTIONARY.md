@@ -499,13 +499,14 @@ Report module. Captures: Per size, per level (inner unit, carton): boxes inspect
 
 ### `conclusion`: Conclusion
 
-Report module, always on. Captures: Suggested result, final result, remark, inspector, date and the signature drawn on the iPad. Result: The final result as chosen; not_done until it is chosen. Rules (6.2): 2, 3, 11.
+Report module, always on. Captures: Suggested result, final result, remark, inspection summary (formatted text), inspector, date and the signature drawn on the iPad. Result: The final result as chosen; not_done until it is chosen. Rules (6.2): 2, 3, 11.
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
 | `suggestedResult` | Suggested Result |  | select |  | inspection | **computed** | 2 | From the included modules' results (BUILD_SPEC 6.1). Not on the reports. Values: pass, fail, hold. Column `inspections.suggested_result`. |
 | `finalResult` | Conclusion |  | select |  | inspection | entered |  | Values: pass, fail, hold. Column `inspections.result`. The reports print PASSED or FAILED; the app adds hold. |
 | `remark` | Remark |  | textarea |  | inspection | entered |  | Column `inspections.remarks`. |
+| `inspectionSummary` | Inspection Summary |  | rich_text |  | inspection | entered |  | Kenneth, 12 October 2026: the inspector's summary with formatting (bold, italic, underline, strikethrough, size, colour, highlight, lists, alignment), lib/schemas/rich-text.ts. Not on the paper forms; the export adds HTML and plain text. |
 | `inspector` | Inspected By |  | reference |  | inspection | system | 11 | Column `inspections.inspector_id`. The same person as header.inspector, shown beside the signature (SAFEDON_EG prints it here). |
 | `date` | Date |  | date |  | inspection | entered | 3 | Prefilled from today, when the conclusion is signed. The report date: BUILD_SPEC 6.1 lists it under header, both reports print it once, here. |
 | `signature` | Signature |  | signature |  | inspection | entered |  | Drawn on the iPad (BUILD_SPEC 6.1; bucket signatures). BUILD_SPEC 13 asks whether clients accept it. |

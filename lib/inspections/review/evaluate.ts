@@ -3,15 +3,17 @@
 // admin's per-inspection overrides applied (BUILD_SPEC 4.4, 6.2). The same
 // calls the capture screen and the export make (docs/MODULES.md section 13),
 // so the three agree. Pure: the page loads the row, this computes.
-import { inspectorDecision as decide, type InspectorDecision } from "@/lib/export/conclusion";
+import { inspectorDecision as decide, inspectionSummaryOf, type InspectorDecision } from "@/lib/export/conclusion";
 import { inspectionMeta } from "@/lib/export/evaluate";
 import type { EntityRef } from "@/lib/schemas/common";
+import type { RichTextDoc } from "@/lib/schemas/rich-text";
 import { ResolvedTemplateSchema, type ResolvedTemplate } from "@/lib/schemas/template";
 import { applyModuleOverrides, parseModuleOverrides } from "@/lib/templates";
 import { validateInspection, type ValidationIssue, type ValidationReport } from "@/lib/validation";
 import {
   buildInspectionView,
   InspectionDataSchema,
+  labelFor,
   type InspectionContext,
   type InspectionData,
   type InspectionFileRef,
@@ -132,6 +134,18 @@ export type { InspectorDecision };
 export function inspectorDecision(row: InspectorDecision, evaluation: ReviewEvaluation): InspectorDecision {
   const saved = evaluation.ok ? evaluation.report.modules.find((entry) => entry.key === "conclusion")?.data : undefined;
   return decide(row, saved);
+}
+
+/**
+ * The inspector's inspection summary (`conclusion.inspectionSummary`) with
+ * its label in the template's words; null when the results cannot be worked
+ * out or the conclusion is switched off. `doc` is null when none is written.
+ */
+export function inspectionSummary(evaluation: ReviewEvaluation): { label: string; doc: RichTextDoc | null } | null {
+  if (!evaluation.ok) return null;
+  const conclusion = evaluation.report.modules.find((entry) => entry.key === "conclusion");
+  if (!conclusion) return null;
+  return { label: labelFor(conclusion.labels, "inspectionSummary"), doc: inspectionSummaryOf(conclusion.data) };
 }
 
 /** `{ modules, custom }`; a missing namespace is empty, anything else that is not an object is unreadable. */

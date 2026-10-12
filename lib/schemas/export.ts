@@ -153,6 +153,24 @@ export const ExportFileSchema = z.object({
 });
 export type ExportFile = z.infer<typeof ExportFileSchema>;
 
+/**
+ * Formatted text written in the app (the conclusion's inspection summary),
+ * as the report prints it and as plain text. The document itself, lossless,
+ * stays in the module's data (`modules[].data`).
+ */
+export const ExportRichTextSchema = z.object({
+  /**
+   * An HTML fragment with only p, br, ul, ol, li, span, mark, strong, em, u
+   * and s; its only attributes are `style` (font-size, color,
+   * background-color and text-align, from the app's fixed palette) and
+   * `start` on a numbered list. Text is escaped.
+   */
+  html: z.string().min(1),
+  /** Paragraphs split by a blank line, list items as "• text" or "1. text", no formatting. */
+  text: z.string(),
+});
+export type ExportRichText = z.infer<typeof ExportRichTextSchema>;
+
 export const ExportConclusionSchema = z.object({
   /** Computed by the app from the module results. */
   suggestedResult: InspectionResultSchema.nullable(),
@@ -161,6 +179,11 @@ export const ExportConclusionSchema = z.object({
   remark: z.string().nullable(),
   inspector: EntityRefSchema.nullable(),
   date: IsoDateSchema.nullable(),
+  /**
+   * The inspector's summary with formatting; null when none is written.
+   * Optional, so documents written before it existed still validate.
+   */
+  inspectionSummary: ExportRichTextSchema.nullable().optional(),
 });
 export type ExportConclusion = z.infer<typeof ExportConclusionSchema>;
 

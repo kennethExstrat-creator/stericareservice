@@ -32,7 +32,7 @@ const SIGNED = addStroke(
   encodeStroke([{ x: 160, y: 120 }, { x: 260, y: 110 }]),
 );
 
-const FILLED: ConclusionData = { finalResult: "pass", remark: null, date: "2025-04-12", signature: SIGNED };
+const FILLED: ConclusionData = { finalResult: "pass", remark: null, inspectionSummary: null, date: "2025-04-12", signature: SIGNED };
 
 function results(statuses: Readonly<Partial<Record<ModuleKey, ModuleStatus>>>): Results {
   return Object.fromEntries(Object.entries(statuses).map(([key, status]) => [key, { status, summary: "" }]));
@@ -63,6 +63,8 @@ function conclusionOf(example: ExampleReport): ConclusionData {
   return {
     finalResult: conclusion.printedResult === "PASSED" ? "pass" : "fail",
     remark: conclusion.remark,
+    // Not on the paper forms.
+    inspectionSummary: null,
     date: conclusion.date.iso,
     signature: conclusion.signed ? SIGNED : null,
   };

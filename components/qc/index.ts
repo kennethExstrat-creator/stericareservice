@@ -65,6 +65,9 @@ export {
   type RequirementOutcome,
 } from "./requirement-list";
 export { DateField } from "./date-field";
+// Formatted text read-only (lib/schemas/rich-text.ts). Its editor, RichTextEditor, is imported by its path
+// (@/components/qc/rich-text-editor) so Tiptap stays in the chunk of the Capture that uses it.
+export { RichTextView } from "./rich-text-view";
 export { AttachmentStatus, type AttachmentState } from "./attachment-status";
 export { ModuleSection } from "./module-section";
 export { Figure } from "./figure";

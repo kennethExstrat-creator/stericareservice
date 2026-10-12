@@ -13,7 +13,8 @@ import { sectionOrder } from "@/lib/templates";
 import { exportIssuesOf } from "@/lib/validation";
 import { readModuleEntry, type ModuleEvaluation } from "@/modules/_framework";
 import { z } from "zod";
-import { inspectorDecision } from "./conclusion";
+import { richTextHtml, richTextPlain } from "@/lib/rich-text";
+import { inspectionSummaryOf, inspectorDecision } from "./conclusion";
 import type { EvaluatedInspection } from "./evaluate";
 import type { FileRecord, InspectionRecord, PhotoRecord } from "./record";
 
@@ -178,18 +179,21 @@ function moduleData(evaluated: EvaluatedInspection, evaluation: ModuleEvaluation
  * the conclusion module, the row's copies standing in where it holds none
  * (inspectorDecision, the same rule as the review). The date is the
  * conclusion's own (the report date, DATA_DICTIONARY decision 1), or null
- * until it is recorded.
+ * until it is recorded. The inspection summary goes as HTML for the report
+ * and as plain text (lib/rich-text), or null when none is written.
  */
 export function conclusionOf(record: InspectionRecord, evaluated: EvaluatedInspection): ExportConclusion {
   const saved = evaluated.report.modules.find((evaluation) => evaluation.key === "conclusion");
   const data = saved && isRecord(saved.data) ? saved.data : {};
   const decision = inspectorDecision({ result: record.result, remarks: record.remarks }, data);
+  const summary = inspectionSummaryOf(data);
   return {
     suggestedResult: evaluated.report.suggested.result,
     finalResult: decision.result,
     remark: decision.remarks,
     inspector: evaluated.inspector,
     date: IsoDateSchema.safeParse(data.date).success ? (data.date as string) : null,
+    inspectionSummary: summary ? { html: richTextHtml(summary), text: richTextPlain(summary) } : null,
   };
 }
 

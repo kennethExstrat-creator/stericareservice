@@ -1,6 +1,6 @@
 "use client";
 
-// The conclusion on the capture screen, in two blocks with no boxes:
+// The conclusion on the capture screen, in three blocks with no boxes:
 // - Decision: the inspector's final result, one grey track of the template's
 //   words (PASSED, FAILED, HOLD; docs/DESIGN.md) where the chosen one is the
 //   only solid colour on the card; under it, on one muted line, the suggested
@@ -10,16 +10,25 @@
 //   Show All (view state, never saved). Then the remark, with a note under it
 //   when the final result differs from the suggestion, asking why while the
 //   remark is blank (amber edge).
+// - Summary: the inspection summary, a paragraph with formatting
+//   (RichTextEditor; Kenneth, 12 October 2026), optional: submit never waits
+//   for it, and the differs note still asks for the remark. It goes into the
+//   report, so it has room to be read (Kenneth, the same day): the card's
+//   whole width at every width, under a hairline, its label a heading whose
+//   row is a button tall (room for a Steri-AI Summary button at its right
+//   end), and the editor's tall writing area under it.
 // - Sign-off: who inspected and the date (both automatic; the date can be
-//   changed with the picker), and the signature drawn on the pad.
+//   changed with the picker), and the signature drawn on the pad, under a
+//   hairline.
 // The layout follows the card's body, not the window (a container query on
-// the root): narrower than 896 px, one column the card's full width, a
-// hairline above the sign-off; from 896 px (a wide desktop window, the iPads
-// in landscape), the two blocks side by side, the step whole on a 13-inch
-// iPad. No width cap leaves the card half empty (Kenneth, 13 October 2026).
-// The DOM order, so Tab and reading order, is the same in both. Every edit
-// goes through useDataUpdater (docs/CAPTURE_KIT.md), built from the latest
-// data. The pad lives here too: module folders keep React in Capture.tsx
+// the root): narrower than 896 px, one column the card's full width; from
+// 896 px (a wide desktop window, the iPads in landscape), the remark beside
+// the choice and the suggestion, and who and when beside the signature; the
+// summary takes the whole width between them either way. No width cap
+// leaves the card half empty (Kenneth, 12 October 2026). The DOM order, so
+// Tab and reading order, is the same in both. Every edit goes through
+// useDataUpdater (docs/CAPTURE_KIT.md), built from the latest data. The pad
+// lives here too: module folders keep React in Capture.tsx
 // (modules/_framework/architecture.test.ts).
 import { useId, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { EraserIcon, Redo2Icon, Undo2Icon } from "lucide-react";
@@ -32,10 +41,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DateField, findIssue, issuePathProps, StatusIcon, StatusPill, useDataUpdater, useIssueFocus } from "@/components/qc";
+// By its path, never the kit's index: the editor (Tiptap) stays in this Capture's chunk.
+import { RichTextEditor } from "@/components/qc/rich-text-editor";
 import { fieldIssues, labelFor, moduleTitle, type CaptureProps } from "@/modules/_framework";
 import type { ConclusionComputed, ConclusionConfig, ConclusionData } from ".";
 import { conclusionReasons, resultWord } from "./calc";
-import { isoDateOf, withDate, withFinalResult, withRemark, withSignature } from "./edit";
+import { isoDateOf, withDate, withFinalResult, withInspectionSummary, withRemark, withSignature } from "./edit";
 import {
   addStroke,
   boxOf,
@@ -111,6 +122,7 @@ export default function Capture({
     reasons: `${baseId}-reasons`,
     remark: `${baseId}-remark`,
     differs: `${baseId}-differs`,
+    summary: `${baseId}-summary`,
     inspector: `${baseId}-inspector`,
     date: `${baseId}-date`,
   };
@@ -150,10 +162,10 @@ export default function Capture({
 
   return (
     <div ref={root} className="relative min-w-0 @container" onFocusCapture={() => onFocusChange?.({})}>
-      <div className="grid gap-6 @4xl:grid-cols-2 @4xl:gap-x-10">
-        {/* Decision: the choice, the suggestion under it, the remark. */}
-        <div className="min-w-0 space-y-6">
-          <div className="space-y-2">
+      <div className="grid gap-6">
+        {/* Decision: the choice and the suggestion under it, then the remark; the remark beside them from 896 px. */}
+        <div className="grid min-w-0 gap-6 @4xl:grid-cols-2 @4xl:gap-x-10">
+          <div className="min-w-0 space-y-2">
             <span
               id={ids.final}
               className={cn("block text-sm font-medium text-foreground touch:text-base", labelHidden && "sr-only")}
@@ -216,7 +228,7 @@ export default function Capture({
             </section>
           </div>
 
-          <div className="space-y-1.5">
+          <div className="min-w-0 space-y-1.5">
             <Label htmlFor={ids.remark} className="leading-snug touch:text-base">
               {labelFor(labels, "remark")}
             </Label>
@@ -242,9 +254,26 @@ export default function Capture({
           </div>
         </div>
 
-        {/* Sign-off: who and when, then the signature. A hairline above it in one column. */}
-        <div className="min-w-0 space-y-6 border-t border-border pt-6 @4xl:border-t-0 @4xl:pt-0">
-          <div className="grid gap-4 sm:grid-cols-2">
+        {/* Summary: the card's whole width at every width, under a hairline, headed by its label. */}
+        <div role="group" aria-labelledby={ids.summary} className="min-w-0 space-y-2 border-t border-border pt-6">
+          {/* A button tall, so a button at its right end (Steri-AI Summary, to come) moves nothing. */}
+          <div data-slot="summary-heading" className="flex min-h-8 flex-wrap items-center justify-between gap-x-4 gap-y-2 touch:min-h-11">
+            <h3 id={ids.summary} className="min-w-0 text-base font-semibold text-foreground touch:text-lg">
+              {labelFor(labels, "inspectionSummary")}
+            </h3>
+          </div>
+          <RichTextEditor
+            value={data.inspectionSummary}
+            readOnly={readOnly}
+            labelledBy={ids.summary}
+            issuePath={["inspectionSummary"]}
+            onChange={(doc) => update((current) => withInspectionSummary(current, doc))}
+          />
+        </div>
+
+        {/* Sign-off: who and when, then the signature, under a hairline; side by side from 896 px. */}
+        <div className="min-w-0 space-y-6 border-t border-border pt-6 @4xl:grid @4xl:grid-cols-2 @4xl:gap-x-10 @4xl:space-y-0">
+          <div className="grid content-start gap-4 sm:grid-cols-2 @4xl:grid-cols-1">
             <div className="min-w-0 space-y-1.5">
               <Label htmlFor={ids.inspector} className="leading-snug touch:text-base">
                 {labelFor(labels, "inspector")}

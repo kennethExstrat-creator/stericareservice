@@ -2,13 +2,15 @@
 // the inspector decided and why, and how many problems the checks found.
 // The suggestion never changes the final result (BUILD_SPEC 6.1 conclusion).
 // Its pill says the result (Passed, Failed, On Hold) and the lines under it
-// say why, as the submit confirmation does: nothing for a clean pass.
+// say why, as the submit confirmation does: nothing for a clean pass. Under
+// them, the inspector's inspection summary with its formatting (RichTextView:
+// React elements from the validated document, no editor on this page).
 import type { ReactNode } from "react";
 import { CircleXIcon, InfoIcon, TriangleAlertIcon } from "lucide-react";
-import { StatusPill } from "@/components/qc";
+import { RichTextView, StatusPill } from "@/components/qc";
 import { Button } from "@/components/ui/button";
 import { suggestionReasons } from "@/lib/inspections/capture/suggestion";
-import type { ReviewEvaluation } from "@/lib/inspections/review/evaluate";
+import { inspectionSummary, type ReviewEvaluation } from "@/lib/inspections/review/evaluate";
 import { plural, RESULT_LABEL } from "@/lib/inspections/review/format";
 import type { ReviewInspection } from "@/lib/inspections/review/load";
 import { cn } from "@/lib/utils";
@@ -45,6 +47,7 @@ export function Verdict({ inspection, evaluation }: { inspection: ReviewInspecti
   const differs = final !== null && suggested !== null && final !== suggested.result;
   const savedDiffers =
     suggested !== null && inspection.savedSuggestion !== null && inspection.savedSuggestion !== suggested.result;
+  const summary = inspectionSummary(evaluation);
 
   return (
     <ReviewSection id="result" title="Result">
@@ -94,6 +97,16 @@ export function Verdict({ inspection, evaluation }: { inspection: ReviewInspecti
         <Card title="Checks" className="md:col-span-2 xl:col-span-1">
           {evaluation.ok ? <Checks evaluation={evaluation} /> : <Note tone="warn">{evaluation.message}</Note>}
         </Card>
+
+        {summary && (
+          <Card title={summary.label} className="md:col-span-2 xl:col-span-3">
+            {summary.doc ? (
+              <RichTextView doc={summary.doc} className="text-base text-foreground fine:text-sm [overflow-wrap:anywhere]" />
+            ) : (
+              <p className="text-base text-muted-foreground fine:text-sm">No summary</p>
+            )}
+          </Card>
+        )}
       </div>
     </ReviewSection>
   );

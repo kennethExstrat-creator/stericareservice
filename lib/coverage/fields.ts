@@ -1691,7 +1691,8 @@ const conclusion = defineModule({
   kind: "report",
   alwaysOn: true,
   title: "Conclusion",
-  captures: "Suggested result, final result, remark, inspector, date and the signature drawn on the iPad.",
+  captures:
+    "Suggested result, final result, remark, inspection summary (formatted text), inspector, date and the signature drawn on the iPad.",
   result: "The final result as chosen; not_done until it is chosen.",
   rules: [2, 3, 11],
   data: [
@@ -1717,6 +1718,15 @@ const conclusion = defineModule({
       notes: "The reports print PASSED or FAILED; the app adds hold.",
     },
     { key: "remark", label: "Remark", type: "textarea", per: [], entry: "entered", column: "inspections.remarks" },
+    {
+      key: "inspectionSummary",
+      label: "Inspection Summary",
+      type: "rich_text",
+      per: [],
+      entry: "entered",
+      notes:
+        "Kenneth, 12 October 2026: the inspector's summary with formatting (bold, italic, underline, strikethrough, size, colour, highlight, lists, alignment), lib/schemas/rich-text.ts. Not on the paper forms; the export adds HTML and plain text.",
+    },
     {
       key: "inspector",
       label: "Inspected By",

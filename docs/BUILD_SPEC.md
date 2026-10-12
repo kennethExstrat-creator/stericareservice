@@ -41,6 +41,7 @@ Match the stack of Kenneth's other projects:
 - Supabase: Postgres, Auth, Storage, Row Level Security
 - `@supabase/ssr`, `@supabase/supabase-js`, `zod` 4
 - Vitest for tests
+- Tiptap 3 (MIT, on ProseMirror): the editor of the conclusion's inspection summary, formatted text (12 October 2026)
 - Supabase CLI layout: `supabase/config.toml`, `supabase/migrations/`, `supabase/seed.sql`
 - Hosting: Vercel (later)
 
@@ -267,7 +268,7 @@ Each module lives in `modules/<key>/` with `schema.ts` (data), `config.ts` (conf
 | `dispensing_packing` | Per size, per box: box no. (picked from carton list), layering %, dispensing %, stickiness code | min layering (default 70%), min dispensing (default 80%), stickiness codes with pass/fail (A, B, B1, C pass; D fail), boxes per size | averages against minimums; any failing code fails | STD_EG, EG onsite |
 | `dispensing_safedon` | Per size, per box: counts for 6 defects; per box defects / gloves and rate; size total and % | defect list and hints, gloves per pack, max rate (default 5%), boxes per size | size rate against max | SAFEDON_EG, Safedon onsite |
 | `labeling` | Per size, per level (inner unit, carton): n inspected, defects per check | levels on/off; checks on/off (lot no., mfg date, expiry date, artwork, carton no.); n per level (default 3 inner, 1 carton) | any defect fails (Accept 0 / Reject 1) | both reports |
-| `conclusion` (always on) | Suggested result (computed from module results), final result (pass, fail, hold), remark, inspector, date, signature drawn on the iPad | none | final result | both reports |
+| `conclusion` (always on) | Suggested result (computed from module results), final result (pass, fail, hold), remark, inspection summary (formatted text), inspector, date, signature drawn on the iPad | none | final result | both reports |
 
 **Optional modules: not in the current reports.** Build after the report modules.
 
@@ -293,7 +294,7 @@ Learned from checking the two example reports (`docs/examples/expected-results.m
 8. The sample size sets the code letter and limits (section 7). A plan that does not match the sample size cannot be saved.
 9. Measured weight more than the threshold away from the indicative weight raises a warning.
 10. Client, product code and PO are entered once in `header` and reused everywhere, including the export.
-11. The inspector is always recorded. Section and result labels come from the template and cannot be edited on the capture screen. A count in a title follows the inspection: weight's names the gloves weighed (Kenneth, 12 October 2026: "its not right to hardcode to 13").
+11. The inspector is always recorded. Section and result labels come from the template and cannot be edited on the capture screen. A count in a title follows the inspection: weight's names the gloves weighed (Kenneth, 12 October 2026: "its not right to hardcode to 13"). The capture screen's menus, Pending and messages name a step by its short name (docs/DESIGN.md, Step Names); its card, the review and the export keep the template's title.
 
 Errors block submit and list each problem with a link. Warnings are allowed but go into the export.
 
@@ -335,7 +336,7 @@ Devices:
 
 - **iPad** (Safari, current iPadOS, portrait and landscape): primary capture device. Touch targets at least 44 px. Works with or without a keyboard.
 - **Desktop** (Chrome, Safari, Edge at 1280 px and wider): review, approval, admin, photo upload, and finishing entry. Keyboard navigation through grids (Tab, Enter, arrow keys).
-- Layout: on iPad, modules show as a top tab bar with the grid full width. On desktop, modules show in a left sidebar with wider grids and photos alongside. Packing configuration shows on the order's tab (and sidebar row), right below the order, whose total gloves it works out (Kenneth, 8 October 2026); each keeps its own frame, result, comment and photos.
+- Layout: on iPad, modules show as a top tab bar with the grid full width. On desktop, modules show in a left sidebar with wider grids and photos alongside. Packing configuration shows on the order's tab (and sidebar row), right below the order, whose total gloves it works out (Kenneth, 8 October 2026); each keeps its own frame, result, comment and photos. Tabs and sidebar rows show each step's short name.
 - Web app manifest so the app can be added to the iPad home screen and opens full screen.
 - Test every screen at iPad portrait (820 x 1180), iPad landscape (1180 x 820) and desktop (1440 x 900).
 
@@ -377,7 +378,7 @@ Speed:
   - `excludedModules`: modules switched off for this inspection, with reason
   - `custom`: every custom module with its labels and values
   - `photos` and `files`: signed URLs (24 h) with module, target, caption and the "include in report" flag
-  - `conclusion`: suggested result, final result, remark
+  - `conclusion`: suggested result, final result, remark, inspection summary (HTML and plain text)
 - Owner or admin only.
 - Admin button "Send to AI Report" on submitted or approved inspections: a server action POSTs the export to `AI_REPORT_WEBHOOK_URL` and stores the returned URL in `report_url`. If the variable is not set, show "AI Not Connected" and offer a JSON download.
 - The target layout for the AI report is the 4-page preshipment report in `docs/examples/`, its labels in the template's wording as the export carries them (Title Case, rule 4.2.3). This app does not render reports.
@@ -386,7 +387,7 @@ Speed:
 
 An AI reviews each submitted inspection on top of the inspector's results and comments, and the admin decides.
 
-- **Input:** the export from 9.1: every module's data, results and warnings, the inspector's comment per module, the remark and the photos.
+- **Input:** the export from 9.1: every module's data, results and warnings, the inspector's comment per module, the remark, the inspection summary and the photos.
 - **Output** (validated by `AiReviewSchema`): suggested result (pass, fail, hold), confidence, summary, findings (each with module, size, severity, message and the evidence it points to: values, boxes, photos) and questions for the inspector.
 - **Never automatic.** The AI never changes a result. The review screen shows three columns: the system's computed results, the inspector's result and comments, and the AI's opinion. The admin records agree, disagree (with a note) or fixed for each finding.
 - **Trigger:** on submit (template setting) or by an admin button. A server action POSTs the export to `AI_REVIEW_WEBHOOK_URL` and stores the response in `ai_reviews`. A new review is kept for each version of the inspection.

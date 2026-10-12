@@ -163,8 +163,9 @@ describe("field definitions", () => {
   it("computes totals, averages, medians, rates, code letters, limits and results, never types them (rule 6.2.2)", () => {
     const computedName =
       /^total|^(average|median|statistic|codeLetter|accept|reject|result|ratePct)$|Average$|Result$|RatePct$|Summary$|Check$/;
-    // The inspector's own decision, next to the computed suggestion (BUILD_SPEC 6.1 conclusion).
-    const decisions = new Set(["conclusion.finalResult"]);
+    // Entered by the inspector although the name looks computed: the final result (the decision next to the
+    // computed suggestion, BUILD_SPEC 6.1 conclusion) and the inspection summary.
+    const decisions = new Set(["conclusion.finalResult", "conclusion.inspectionSummary"]);
     const matched: string[] = [];
     for (const { module, field } of fields) {
       const name = `${module}.${field.key}`;

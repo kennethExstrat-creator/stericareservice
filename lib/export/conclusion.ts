@@ -1,4 +1,5 @@
 import { InspectionResultSchema, type InspectionResult } from "@/lib/schemas/common";
+import { RichTextDocSchema, type RichTextDoc } from "@/lib/schemas/rich-text";
 
 /** The inspector's final result and remark. */
 export type InspectorDecision = { result: InspectionResult | null; remarks: string | null };
@@ -23,6 +24,17 @@ export function inspectorDecision(row: InspectorDecision, conclusionData: unknow
     result: result.success ? result.data : (row.result ?? null),
     remarks: textOrNull(saved.remark) ?? textOrNull(row.remarks),
   };
+}
+
+/**
+ * The inspector's inspection summary (`conclusion.inspectionSummary`, the
+ * conclusion's data as the evaluation parsed it), or null when there is
+ * none or it does not read. The review and the export take it this way.
+ */
+export function inspectionSummaryOf(conclusionData: unknown): RichTextDoc | null {
+  const saved = isRecord(conclusionData) ? conclusionData.inspectionSummary : null;
+  const parsed = RichTextDocSchema.safeParse(saved);
+  return parsed.success ? parsed.data : null;
 }
 
 function textOrNull(value: unknown): string | null {

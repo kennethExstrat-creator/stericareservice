@@ -9,6 +9,7 @@ import { MODULE_REGISTRY } from "@/modules/registry";
 import { evaluateInspection, type InspectionContext, type ModuleEvaluation } from "@/modules/_framework";
 import { makeTestContext, makeTestTemplate, TEST_INSPECTOR } from "@/modules/_framework/testing";
 import { SAFEDON_EG_EXAMPLE } from "@/tests/fixtures/examples";
+import { richTextExample } from "@/lib/rich-text/__fixtures__/example";
 import Capture, { SignaturePad } from "./Capture";
 import type { ConclusionComputed } from "./calc";
 import { CONCLUSION_DEFAULT_CONFIG, CONCLUSION_LABELS } from "./config";
@@ -280,15 +281,63 @@ describe("conclusion capture", () => {
   it("marks the fields for the links in the issue list", () => {
     const paths = tagsWith(render({}), "data-issue-path").map((tag) => /data-issue-path="([^"]+)"/.exec(tag)?.[1]);
     expect(paths).toEqual(
-      ['["finalResult"]', '["remark"]', '["date"]', '["signature"]'].map((path) => path.replaceAll('"', "&quot;")),
+      ['["finalResult"]', '["remark"]', '["inspectionSummary"]', '["date"]', '["signature"]'].map((path) =>
+        path.replaceAll('"', "&quot;"),
+      ),
     );
   });
 
+  it("puts the inspection summary after the remark and before the sign-off, so Tab reads in order", () => {
+    const html = render({});
+    const at = (marker: string) => {
+      const index = html.indexOf(marker);
+      expect(index, marker).toBeGreaterThanOrEqual(0);
+      return index;
+    };
+    const remark = at("<textarea");
+    const summary = at('aria-label="Formatting"');
+    const inspectedBy = at(">Inspected By</label>");
+    expect(remark).toBeLessThan(summary);
+    expect(summary).toBeLessThan(inspectedBy);
+    // Three rows, none beside another: the decision (the remark beside the choice from 896 px), the summary
+    // across the whole card under a hairline, then the sign-off under a hairline (side by side from 896 px).
+    expect(html).toMatch(/^<div class="relative min-w-0 @container"><div class="grid gap-6"><div class="grid min-w-0 gap-6 @4xl:grid-cols-2 @4xl:gap-x-10">/);
+    expect(html).toMatch(/<div role="group" aria-labelledby="[^"]+" class="min-w-0 space-y-2 border-t border-border pt-6">/);
+    expect(html).toMatch(/<div class="min-w-0 space-y-6 border-t border-border pt-6 @4xl:grid @4xl:grid-cols-2 @4xl:gap-x-10 @4xl:space-y-0">[\s\S]*Inspected By/);
+  });
+
+  it("heads the summary with the template's words, a group around its toolbar and text", () => {
+    const named = (html: string) => {
+      const id = /<div role="group" aria-labelledby="([^"]+)" class="[^"]*border-t/.exec(html)?.[1];
+      return new RegExp(`<h3 id="${id}"[^>]*>([^<]*)</h3>`).exec(html)?.[1];
+    };
+    expect(named(render({}))).toBe("Inspection Summary");
+    expect(named(render({}, { labels: { ...CONCLUSION_LABELS, inspectionSummary: "Inspector's Summary" } }))).toBe("Inspector&#x27;s Summary");
+  });
+
+  it("keeps the summary's heading row a button tall, with room at its right end", () => {
+    const row = /<div data-slot="summary-heading" class="([^"]*)"><h3 [^>]*>Inspection Summary<\/h3><\/div>/.exec(render({}))?.[1].split(" ");
+    expect(row).toEqual(expect.arrayContaining(["flex", "min-h-8", "touch:min-h-11", "items-center", "justify-between"]));
+  });
+
+  it("shows the saved summary formatted, in a white frame with its toolbar", () => {
+    const html = render({ inspectionSummary: richTextExample() });
+    expect(html).toContain('<p class="text-center"><strong>Shipment </strong>');
+    expect(html).toMatch(/<div role="toolbar"[^>]*aria-label="Formatting"/);
+    expect(html).toContain('data-slot="rich-text-editor"');
+  });
+
   it("is read-only for an approved inspection", () => {
-    const html = render({ finalResult: "pass", date: "2025-04-12", remark: "Released.", signature: SIGNED }, { readOnly: true });
+    const html = render(
+      { finalResult: "pass", date: "2025-04-12", remark: "Released.", inspectionSummary: richTextExample(), signature: SIGNED },
+      { readOnly: true },
+    );
     expect(radios(html).every((radio) => radio.disabled)).toBe(true);
     expect(radios(html).find((radio) => radio.checked)?.value).toBe("pass");
     expect(html).toMatch(/<textarea[^>]*readonly=""/i);
+    // The summary: the grey read-only box with the formatted text, no toolbar, nothing editable.
+    expect(html).not.toContain('role="toolbar"');
+    expect(html).toMatch(/<div role="textbox" aria-readonly="true"[^>]*class="[^"]*bg-muted[^"]*"[^>]*><div[^>]*><p class="text-center"><strong>Shipment /);
     expect(html).toMatch(/<input[^>]*type="date"[^>]*readonly=""/i);
     for (const control of ["Undo", "Redo", "Clear"]) expect(html).not.toContain(`</svg>${control}</button>`);
     expect(html).toContain("Signed by Inspector A.");

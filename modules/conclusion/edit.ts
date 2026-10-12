@@ -5,6 +5,7 @@
 // today when the result is chosen or the signature drawn, and stays as set
 // after that.
 import type { InspectionResult } from "@/lib/schemas";
+import type { RichTextDoc } from "@/lib/schemas/rich-text";
 import { DateCellSchema } from "@/modules/_framework";
 import type { ConclusionData } from "./schema";
 import type { Signature } from "./signature";
@@ -31,6 +32,11 @@ export function withSignature(data: ConclusionData, signature: Signature | null,
 /** Text as typed; blank is no remark. */
 export function withRemark(data: ConclusionData, remark: string): ConclusionData {
   return { ...data, remark: remark.trim() === "" ? null : remark };
+}
+
+/** The summary as the editor hands it over: already canonical, blank as null (lib/rich-text toRichTextDoc). */
+export function withInspectionSummary(data: ConclusionData, inspectionSummary: RichTextDoc | null): ConclusionData {
+  return { ...data, inspectionSummary };
 }
 
 /** A value from the date picker; blank clears it, anything that is not a date is ignored. */

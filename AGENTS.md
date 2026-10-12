@@ -17,8 +17,10 @@ QC inspection app for SteriCare glove inspectors: iPad for capture, desktop for 
 - Next.js 16.3 App Router, React 19.2, TypeScript 5, Tailwind CSS 4, shadcn/ui (Radix base, `vega` style), npm.
 - Supabase: Postgres, Auth, Storage, RLS via `@supabase/ssr` + `@supabase/supabase-js`. zod 4. Vitest 5.
 - Approved additions: `@anthropic-ai/sdk` (AI second opinion on Claude), `@electric-sql/pglite`
-  (runs migrations and RLS tests in-process; this machine has no Docker), `server-only`, and the
-  shadcn runtime deps (`radix-ui`, `cn`, `class-variance-authority`, `lucide-react`, `sonner`, `tw-animate-css`).
+  (runs migrations and RLS tests in-process; this machine has no Docker), `server-only`, the
+  shadcn runtime deps (`radix-ui`, `cn`, `class-variance-authority`, `lucide-react`, `sonner`, `tw-animate-css`),
+  and the Inspection Summary's editor, nine `@tiptap` packages pinned exactly (`core`, `pm`, `react`, `starter-kit`,
+  `extension-list`, `extension-text-style`, `extension-highlight`, `extension-text-align`, `extensions`).
 
 ## Next.js 16 rules
 - Read `node_modules/next/dist/docs/` before writing routing, auth, proxy or server action code.

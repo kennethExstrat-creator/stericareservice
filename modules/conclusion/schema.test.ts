@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { defaultConfig, defaultLabels, labelOverrides, moduleConfig, TEMPLATES, type TemplateCode } from "@/lib/coverage";
+import { dataKeys, defaultConfig, defaultLabels, labelOverrides, moduleConfig, TEMPLATES, type TemplateCode } from "@/lib/coverage";
+import { richTextExample } from "@/lib/rich-text/__fixtures__/example";
 import { SAFEDON_EG_EXAMPLE, STD_EG_EXAMPLE } from "@/tests/fixtures/examples";
 import { CONCLUSION_DEFAULT_CONFIG, CONCLUSION_LABELS, ConclusionConfigSchema } from "./config";
 import { ConclusionDataSchema, emptyConclusion } from "./schema";
@@ -10,13 +11,34 @@ const SIGNATURE = { width: 600, height: 200, strokes: [[10, 150, 40, 60, 80, 140
 
 describe("conclusion data", () => {
   it("starts empty and accepts a draft with anything missing", () => {
-    expect(emptyConclusion()).toEqual({ finalResult: null, remark: null, date: null, signature: null });
+    expect(emptyConclusion()).toEqual({ finalResult: null, remark: null, inspectionSummary: null, date: null, signature: null });
     expect(ConclusionDataSchema.parse({ finalResult: "hold" })).toEqual({ ...emptyConclusion(), finalResult: "hold" });
   });
 
-  it("holds a whole conclusion: result, remark, date and the drawn strokes", () => {
-    const filled = { finalResult: "pass", remark: "Shipment released.", date: "2025-04-12", signature: SIGNATURE };
+  it("holds a whole conclusion: result, remark, summary, date and the drawn strokes", () => {
+    const filled = {
+      finalResult: "pass",
+      remark: "Shipment released.",
+      inspectionSummary: richTextExample(),
+      date: "2025-04-12",
+      signature: SIGNATURE,
+    };
     expect(ConclusionDataSchema.parse(filled)).toEqual(filled);
+  });
+
+  it("reads a conclusion saved before the summary existed, with none", () => {
+    const saved = { finalResult: "pass", remark: "Shipment released.", date: "2025-04-12", signature: SIGNATURE };
+    expect(ConclusionDataSchema.parse(saved)).toEqual({ ...saved, inspectionSummary: null });
+  });
+
+  it("keeps the summary as the formatted document, never HTML", () => {
+    for (const inspectionSummary of ["<p><b>Released</b></p>", "Released", { type: "doc", content: [] }]) {
+      expect(ConclusionDataSchema.safeParse({ inspectionSummary }).success, JSON.stringify(inspectionSummary)).toBe(false);
+    }
+  });
+
+  it("has the dictionary's entered fields, in its order", () => {
+    expect(Object.keys(ConclusionDataSchema.shape)).toEqual(dataKeys("conclusion", "entered"));
   });
 
   it("takes pass, fail or hold only, never the printed word", () => {

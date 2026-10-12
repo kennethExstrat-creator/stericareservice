@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ExportSchema, type InspectionExport } from "@/lib/schemas/export";
-import { TEST_REGISTRY } from "@/modules/_framework/__fixtures__/test-registry";
+import { registryWith, TEST_REGISTRY } from "@/modules/_framework/__fixtures__/test-registry";
+import { definition as conclusionModule } from "@/modules/conclusion";
+import { RICH_TEXT_EXAMPLE_HTML, RICH_TEXT_EXAMPLE_TEXT, richTextExample } from "@/lib/rich-text/__fixtures__/example";
 import { createFakeSupabase, type FakeSupabaseOptions } from "./__fixtures__/fake-supabase";
 import {
   IDS,
@@ -229,7 +231,19 @@ describe("buildInspectionExport", () => {
       remark: "Weight below the indicative value; waiting for the spec sheet.",
       inspector: { id: IDS.inspector, name: "Inspector A" },
       date: null,
+      inspectionSummary: null,
     });
+  });
+
+  it("gives the inspection summary as HTML and plain text, and keeps the document in the module's data", async () => {
+    const data = makeInspectionData();
+    data.modules.conclusion = { ...data.modules.conclusion, inspectionSummary: richTextExample() } as typeof data.modules.conclusion;
+    const fake = setup({ tables: { ...makeTables(), inspections: [makeInspectionRow({ data })] } });
+    // The real conclusion module, which holds the summary.
+    const doc = await exportOf(fake, { registry: registryWith({ conclusion: conclusionModule }) });
+    expect(doc.conclusion.inspectionSummary).toEqual({ html: RICH_TEXT_EXAMPLE_HTML, text: RICH_TEXT_EXAMPLE_TEXT });
+    expect(moduleOf(doc, "conclusion").data.inspectionSummary).toEqual(richTextExample());
+    expect(ExportSchema.parse(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
   });
 
   it("takes the final result from the conclusion module when the row's copy differs", async () => {

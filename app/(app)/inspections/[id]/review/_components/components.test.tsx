@@ -4,6 +4,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { stdEgInspectionData, stdEgTemplate } from "@/lib/export/__fixtures__/std-eg";
+import { richTextExample } from "@/lib/rich-text/__fixtures__/example";
 import {
   evaluated,
   INSPECTION_ID,
@@ -268,6 +269,29 @@ describe("Verdict", () => {
     const html = text(renderToStaticMarkup(<Verdict inspection={reviewInspection()} evaluation={evaluated({ data: null })} />));
     expect(html).toContain("Not available: the results could not be worked out.");
     expect(html).toContain("saved data could not be read");
+    expect(html).not.toContain("Summary");
+  });
+
+  /** The STD_EG example on the real modules, the conclusion's summary as given. */
+  function withSummary(inspectionSummary: unknown) {
+    const data = stdEgInspectionData();
+    const modules = { ...data.modules, conclusion: { ...(data.modules.conclusion as Record<string, unknown>), inspectionSummary } };
+    return evaluateStoredInspection(storedInspection({ resolved: stdEgTemplate(), data: { ...data, modules } }), MODULE_REGISTRY);
+  }
+
+  it("shows the inspector's summary with its formatting under the results, without an editor", () => {
+    const html = renderToStaticMarkup(<Verdict inspection={reviewInspection()} evaluation={withSummary(richTextExample())} />);
+    expect(text(html)).toContain("Inspection Summary Shipment released Two cartons re-taped");
+    expect(html).toContain('<p class="text-center"><strong>Shipment </strong><span class="text-[1.25em] text-[#166534]">');
+    expect(html).toMatch(/<div class="[^"]*md:col-span-2 xl:col-span-3[^"]*"><h3[^>]*>Inspection Summary<\/h3>/);
+    expect(html).not.toContain("contenteditable");
+    expect(html).not.toContain("style=");
+  });
+
+  it("says when there is no summary", () => {
+    expect(text(renderToStaticMarkup(<Verdict inspection={reviewInspection()} evaluation={withSummary(null)} />))).toContain(
+      "Inspection Summary No summary",
+    );
   });
 });
 

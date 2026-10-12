@@ -22,6 +22,9 @@ export const definition = defineModule<ConclusionData, ConclusionConfig, Conclus
   defaultConfig: CONCLUSION_DEFAULT_CONFIG,
   dependsOn: "all",
   requiredForSubmit: true,
+  // No canonical path for inspectionSummary: canonical paths treat text and
+  // textarea as one, so a plain-text custom field mapped there would write a
+  // raw string into the formatted document.
   canonicalPaths: [
     { path: "remark", label: CONCLUSION_LABELS.remark, type: "textarea" },
     { path: "date", label: CONCLUSION_LABELS.date, type: "date" },

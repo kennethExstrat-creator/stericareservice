@@ -13,6 +13,7 @@ export const CONCLUSION_LABELS = {
   suggestedResult: "Suggested Result",
   finalResult: "Conclusion",
   remark: "Remark",
+  inspectionSummary: "Inspection Summary",
   inspector: "Inspected By",
   date: "Date",
   signature: "Signature",
