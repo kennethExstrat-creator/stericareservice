@@ -3,6 +3,7 @@
 import { unstable_rethrow } from "next/navigation";
 import { sortMedia } from "@/lib/ai/media-sorter";
 import { loadAiEnv } from "@/lib/ai/settings";
+import { recordAiUsageLater } from "@/lib/ai/usage";
 import { authorizeAction } from "@/lib/auth/session";
 import {
   isMediaVideoKey,
@@ -107,6 +108,8 @@ export async function sortMediaWithAi(inspectionId: string, items: SortMediaItem
     const outcome = await sortMedia(
       sortable.map(({ kind, mediaType, preview }) => ({ kind, mediaType, base64: preview })),
       await loadAiEnv(),
+      // Its cost (Steri-AI Cost), recorded after the response: one batch, the previews sent.
+      recordAiUsageLater({ feature: "media_sort", inspectionId: id, actorId: auth.user.id, itemCount: sortable.length }),
     );
     if (!outcome.ok) return { ok: false, error: outcome.message };
 

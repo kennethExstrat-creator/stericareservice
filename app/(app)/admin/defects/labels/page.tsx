@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { buildLabelMaps, defectsCounts, loadDefectsData } from "@/lib/admin/defects";
+import { loadGlossaryState } from "@/lib/ai/settings";
 import { requireAdmin } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { MODULE_REGISTRY } from "@/modules/registry";
@@ -21,12 +22,16 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function LabelMappingPage({ searchParams }: PageProps<"/admin/defects/labels">) {
   await requireAdmin();
   const supabase = await createClient();
-  const [data, params] = await Promise.all([loadDefectsData(supabase, MODULE_REGISTRY), searchParams]);
+  const [data, glossary, params] = await Promise.all([
+    loadDefectsData(supabase, MODULE_REGISTRY),
+    loadGlossaryState(),
+    searchParams,
+  ]);
   const maps = buildLabelMaps(data.templates, data.codes);
 
   return (
     <div className="flex flex-col gap-6">
-      <DefectsHeader current="labels" counts={defectsCounts(data, maps)} />
+      <DefectsHeader current="labels" counts={defectsCounts(data, glossary.entries, maps)} />
       <p className="max-w-3xl text-base text-muted-foreground">
         Each template&rsquo;s defect labels, in its own wording, and the code each one counts as. A visual defect&rsquo;s
         class is its severity in that template. The version shown is the active one, or the newest if none is active.

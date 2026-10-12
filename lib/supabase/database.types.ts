@@ -130,6 +130,9 @@ export type Database = {
           document_model: string | null
           glossary: Json | null
           id: boolean
+          prices: Json | null
+          review_effort: string | null
+          review_max_photos: number | null
           review_model: string | null
           updated_at: string
           updated_by: string | null
@@ -141,6 +144,9 @@ export type Database = {
           document_model?: string | null
           glossary?: Json | null
           id?: boolean
+          prices?: Json | null
+          review_effort?: string | null
+          review_max_photos?: number | null
           review_model?: string | null
           updated_at?: string
           updated_by?: string | null
@@ -152,6 +158,9 @@ export type Database = {
           document_model?: string | null
           glossary?: Json | null
           id?: boolean
+          prices?: Json | null
+          review_effort?: string | null
+          review_max_photos?: number | null
           review_model?: string | null
           updated_at?: string
           updated_by?: string | null
@@ -162,6 +171,81 @@ export type Database = {
             columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_usage: {
+        Row: {
+          actor_id: string | null
+          cache_read_tokens: number
+          cache_write_1h_tokens: number
+          cache_write_5m_tokens: number
+          cost_usd: number | null
+          created_at: string
+          duration_ms: number
+          error_type: string | null
+          feature: string
+          id: string
+          input_tokens: number
+          inspection_id: string | null
+          item_count: number
+          model: string
+          outcome: string
+          output_tokens: number
+          updated_at: string
+        }
+        Insert: {
+          actor_id?: string | null
+          cache_read_tokens?: number
+          cache_write_1h_tokens?: number
+          cache_write_5m_tokens?: number
+          cost_usd?: number | null
+          created_at?: string
+          duration_ms: number
+          error_type?: string | null
+          feature: string
+          id?: string
+          input_tokens?: number
+          inspection_id?: string | null
+          item_count?: number
+          model: string
+          outcome: string
+          output_tokens?: number
+          updated_at?: string
+        }
+        Update: {
+          actor_id?: string | null
+          cache_read_tokens?: number
+          cache_write_1h_tokens?: number
+          cache_write_5m_tokens?: number
+          cost_usd?: number | null
+          created_at?: string
+          duration_ms?: number
+          error_type?: string | null
+          feature?: string
+          id?: string
+          input_tokens?: number
+          inspection_id?: string | null
+          item_count?: number
+          model?: string
+          outcome?: string
+          output_tokens?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_usage_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_usage_inspection_id_fkey"
+            columns: ["inspection_id"]
+            isOneToOne: false
+            referencedRelation: "inspections"
             referencedColumns: ["id"]
           },
         ]
@@ -681,6 +765,48 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      ai_usage_by_inspection: {
+        Args: { max_rows?: number; since?: string }
+        Returns: {
+          calls: number
+          cost_usd: number
+          documents: number
+          inspection_count: number
+          inspection_date: string
+          inspection_id: string
+          media_items: number
+          po_no: string
+          ref_no: string
+          reviews: number
+          status: Database["public"]["Enums"]["inspection_status"]
+        }[]
+      }
+      ai_usage_summary: {
+        Args: { since?: string }
+        Returns: {
+          cache_read_tokens: number
+          cache_write_tokens: number
+          calls: number
+          cost_usd: number
+          failed: number
+          feature: string
+          input_tokens: number
+          model: string
+          output_tokens: number
+          units: number
+          unlinked_cost_usd: number
+          unpriced: number
+        }[]
+      }
+      ai_usage_trend: {
+        Args: { bucket?: string; since?: string }
+        Returns: {
+          bucket_start: string
+          calls: number
+          cost_usd: number
+          feature: string
+        }[]
+      }
       can_edit_inspection: { Args: { inspection_id: string }; Returns: boolean }
       can_read_inspection: { Args: { inspection_id: string }; Returns: boolean }
       create_inspection: {

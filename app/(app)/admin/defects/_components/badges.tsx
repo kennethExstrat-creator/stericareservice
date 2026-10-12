@@ -71,6 +71,37 @@ export function CodeProblemBadge({ state }: { state: "unknown" | "inactive" }) {
   );
 }
 
+/** Whether an inspector has confirmed what a shortform means; Steri-AI is told an unconfirmed one is a guess. */
+export function ShortformStatusBadge({ confirmed }: { confirmed: boolean }) {
+  return confirmed ? (
+    <Badge
+      slot="shortform-status"
+      icon={CircleCheckIcon}
+      label="Confirmed"
+      className="border-brand-200 bg-brand-50 text-brand-700"
+    />
+  ) : (
+    <Badge
+      slot="shortform-status"
+      icon={CircleDashedIcon}
+      label="Not Confirmed"
+      className="border-dashed border-slate-400 bg-card text-slate-700"
+    />
+  );
+}
+
+/** A defect shortform with no code yet: Steri-AI records it as a new label for an admin to map. */
+export function NoCodeBadge() {
+  return (
+    <Badge
+      slot="no-code"
+      icon={FlagIcon}
+      label="No Code Yet"
+      className="border-dashed border-warn-border bg-warn-tint text-warn"
+    />
+  );
+}
+
 /** A one-off label waiting for a code: the capture screen's dashed amber edge and flag. */
 export function UnmappedBadge({ label = "Unmapped" }: { label?: string }) {
   return (

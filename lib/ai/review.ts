@@ -6,6 +6,7 @@ import { reviewWithClaude, type ClaudeClientFactory } from "./providers/claude";
 import { mockReview } from "./providers/mock";
 import { AI_REVIEW_NOT_CONNECTED } from "./status";
 import type { AiReviewOutcome, AiReviewProvider, AiReviewSuccess } from "./types";
+import type { OnAiCall } from "./usage";
 import { handoffFailureReason, postWebhook } from "./webhook";
 
 /* ------------------------------------------------------------------ *
@@ -28,6 +29,8 @@ export interface RequestAiReviewOptions {
   fetch?: typeof fetch;
   /** Claude client; defaults to the Anthropic SDK. */
   createClaudeClient?: ClaudeClientFactory;
+  /** Hears of a Claude review's call, for its cost (lib/ai/usage.ts). The webhook and the mock make no Claude call. */
+  onCall?: OnAiCall;
 }
 
 /** Never throws: every failure comes back as { ok: false, reason, message }. */
@@ -80,6 +83,7 @@ async function runProvider(
         createClient: options.createClaudeClient,
         timeoutMs: options.timeoutMs,
         signal: options.signal,
+        onCall: options.onCall,
       });
   }
 }

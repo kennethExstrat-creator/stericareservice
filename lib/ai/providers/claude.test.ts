@@ -467,6 +467,48 @@ describe("reviewWithClaude: outcomes", () => {
   });
 });
 
+// Steri-AI Cost (lib/ai/usage.ts): one report per review, of what Anthropic billed.
+describe("reviewWithClaude: reporting the call", () => {
+  it("reports a refused answer with each billed attempt, a fallback model's included", async () => {
+    const onCall = vi.fn();
+    const refused = message({
+      stop_reason: "refusal",
+      usage: {
+        input_tokens: 21_000,
+        output_tokens: 40,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 2_900,
+        iterations: [
+          { type: "message", model: "claude-opus-5-5", input_tokens: 21_000, output_tokens: 300, cache_read_input_tokens: 2_900, cache_creation_input_tokens: 0, cache_creation: null },
+          { type: "fallback_message", model: "claude-opus-4-8", input_tokens: 21_000, output_tokens: 40, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, cache_creation: null },
+        ],
+      },
+    });
+    expect(await review(fakeClient(refused), { onCall })).toMatchObject({ ok: false, reason: "refused" });
+    expect(onCall).toHaveBeenCalledOnce();
+    expect(onCall.mock.calls[0][0]).toMatchObject({
+      outcome: "refused",
+      attempts: [
+        { model: "claude-opus-5-5", input: 21_000, output: 300, cacheRead: 2_900 },
+        { model: "claude-opus-4-8", input: 21_000, output: 40, cacheRead: 0 },
+      ],
+    });
+  });
+
+  it("reports only what was billed: the answer after the resend without photos, the final error after the retries", async () => {
+    const onCall = vi.fn();
+    await review(fakeClient(apiError(Anthropic.BadRequestError, 400, "Could not fetch image"), message()), { onCall });
+    expect(onCall.mock.calls).toEqual([[expect.objectContaining({ outcome: "ok", attempts: [expect.objectContaining({ input: 21_000 })] })]]);
+
+    onCall.mockClear();
+    const offline = () => {
+      throw new Anthropic.APIConnectionError({ message: "getaddrinfo ENOTFOUND" });
+    };
+    await review(fakeClient(offline, offline, offline), { onCall });
+    expect(onCall.mock.calls).toEqual([[expect.objectContaining({ outcome: "failed", errorType: "connection", model: "claude-opus-5-5", attempts: [] })]]);
+  });
+});
+
 describe("retryDelayMs", () => {
   const headers = (values: Record<string, string>) => new Headers(values);
 

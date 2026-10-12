@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   addPhoto,
   addReview,
+  addUsage,
   assignLead,
   createInspection,
   createLead,
@@ -276,6 +277,18 @@ describe("RLS: lead inspector", { timeout: 30_000 }, () => {
       const ids = await asUser(db, userId, (tx) => column<string>(tx, "select id from public.inspections"));
       expect(ids, userId).not.toContain(own.id);
     }
+  });
+
+  // Migration 20261013120000: what Steri-AI costs is for admins only, a lead's team's spend included.
+  it("reads no Steri-AI usage, not their team's nor their own", async () => {
+    await addUsage(db, { inspection_id: draft.id, actor_id: people.inspector });
+    await addUsage(db, { inspection_id: own.id, actor_id: lead });
+    const seen = await asUser(db, lead, async (tx) => ({
+      rows: await visibleRows(tx, "ai_usage"),
+      summary: (await tx.query("select * from public.ai_usage_summary()")).rows.length,
+      inspections: (await tx.query("select * from public.ai_usage_by_inspection()")).rows.length,
+    }));
+    expect(seen).toEqual({ rows: 0, summary: 0, inspections: 0 });
   });
 
   it("leaves admins reading and changing everything, as before", async () => {

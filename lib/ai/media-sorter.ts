@@ -10,6 +10,7 @@ import { MEDIA_CATEGORIES, type MediaCategoryKey } from "@/lib/inspections/sourc
 import { ClaudeModelIdSchema, DEFAULT_DOCUMENT_MODEL } from "@/lib/schemas/ai-settings";
 import type { AiEnv } from "./config";
 import { createMessage, fail, type ReadFailure } from "./document-reader";
+import type { OnAiCall } from "./usage";
 
 /*
  * Auto-Sort on Source Documents' Media (docs/AI.md, "Auto-Sort (Media)"):
@@ -122,8 +123,12 @@ function sortContent(previews: readonly SortPreview[]): BetaContentBlockParam[] 
   return blocks;
 }
 
-/** Asks Claude for each preview's category. Never throws: a failure comes back in words for the inspector. */
-export async function sortMedia(previews: readonly SortPreview[], env: AiEnv): Promise<MediaSortOutcome> {
+/**
+ * Asks Claude for each preview's category. Never throws: a failure comes back
+ * in words for the inspector. `onCall` hears of the Claude call, billed or
+ * failed, for its cost (lib/ai/usage.ts): one per batch.
+ */
+export async function sortMedia(previews: readonly SortPreview[], env: AiEnv, onCall?: OnAiCall): Promise<MediaSortOutcome> {
   const apiKey = env.ANTHROPIC_API_KEY?.trim();
   if (!apiKey) {
     return fail(
@@ -147,7 +152,7 @@ export async function sortMedia(previews: readonly SortPreview[], env: AiEnv): P
 
   try {
     const client = new Anthropic({ apiKey, maxRetries: 1, timeout: TIMEOUT_MS });
-    const message = await createMessage(client, params);
+    const message = await createMessage(client, params, onCall);
     if (message.stop_reason === "refusal") return fail("error", "Steri-AI declined to sort these. Move them by hand.");
     if (message.stop_reason === "max_tokens") return fail("error", "Steri-AI's answer was cut off. Sort fewer at a time.");
     const text = message.content.filter((block) => block.type === "text").at(-1)?.text ?? "";

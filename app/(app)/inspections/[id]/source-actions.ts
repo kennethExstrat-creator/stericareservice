@@ -4,6 +4,7 @@ import { unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 import { attachTargets, readSourceDocument, type SourceModule } from "@/lib/ai/source-reader";
 import { loadAiEnv, loadGlossary } from "@/lib/ai/settings";
+import { recordAiUsageLater } from "@/lib/ai/usage";
 import { authorizeAction } from "@/lib/auth/session";
 import {
   linkSourceFile,
@@ -181,6 +182,8 @@ export async function readSourceFile(inspectionId: string, fileId: string): Prom
         attachTargets: attachTargets(template.data.modules.filter((entry) => allowed.has(entry.key))),
       },
       await loadAiEnv(),
+      // Its cost (Steri-AI Cost), recorded after the response, for this inspection and the caller.
+      recordAiUsageLater({ feature: "source_document_read", inspectionId: row.id, actorId: user.id, itemCount: 1 }),
     );
     if (!outcome.ok) {
       // Not connected or set up wrongly is no fault of the file: it is read again once the AI is.

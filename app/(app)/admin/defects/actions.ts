@@ -1,9 +1,10 @@
 "use server";
 
-import { refresh } from "next/cache";
+import { refresh, revalidatePath } from "next/cache";
 import {
   ActiveTargetSchema,
   CodeTargetSchema,
+  DEFECTS_PATH,
   DefectCodeDetailsSchema,
   EditTargetSchema,
   MAP_FIELDS,
@@ -27,6 +28,7 @@ import {
   readDefectCode,
   readForm,
   readResolvedTemplate,
+  shortformsByCode,
   succeeded,
   templatesMentioning,
   warned,
@@ -39,6 +41,15 @@ import {
   type MapField,
   type MappingChange,
 } from "@/lib/admin/defects";
+import {
+  SHORTFORM_MESSAGES,
+  applyShortformChange,
+  notActiveCode,
+  readOriginal,
+  readShortformForm,
+  type ShortformResult,
+} from "@/lib/admin/shortforms";
+import { loadGlossaryState, saveGlossary, type GlossaryState } from "@/lib/ai/settings";
 import { authorizeAction } from "@/lib/auth/session";
 import type { InspectionStatus } from "@/lib/schemas/common";
 import type { Json } from "@/lib/supabase/database.types";
@@ -51,7 +62,8 @@ import { MODULE_REGISTRY } from "@/modules/registry";
  * validates its input with zod and re-reads what it needs. Writes go through
  * the admin's own client, so Row Level Security and the database guards
  * check them again (an approved inspection stays read-only whatever the
- * page sent).
+ * page sent). Shortforms are the exception: ai_settings is the service
+ * role's alone, so lib/ai/settings.ts saves them once the admin is checked.
  */
 
 /** A refused edit answers with the code as it is now (`latest`), so a second save replaces it, as the message offers. */
@@ -177,9 +189,10 @@ export async function setDefectCodeActive(_previous: ActionResult, formData: For
 }
 
 /**
- * Deletes a code nothing uses: no template version mentions it and no
- * inspection counts it. The page offers it only for codes no template
- * mentions; inspections are checked here, at the moment it counts.
+ * Deletes a code nothing uses: no template version mentions it, no shortform
+ * links it and no inspection counts it. The page offers it only for codes no
+ * template or shortform uses; inspections are checked here, at the moment it
+ * counts.
  */
 export async function deleteDefectCode(_previous: ActionResult, formData: FormData): Promise<ActionResult> {
   return guarded("deleteDefectCode", async (): Promise<ActionResult> => {
@@ -196,7 +209,13 @@ export async function deleteDefectCode(_previous: ActionResult, formData: FormDa
       refresh();
       return succeeded(`Code ${code} was already deleted.`);
     }
-    const blocker = deleteBlocker({ inTemplates: templatesMentioning(await loadTemplates(supabase), code) });
+    const [templates, glossary] = await Promise.all([loadTemplates(supabase), loadGlossaryState()]);
+    // Unread, the starting list stands in for the saved one: never delete a code a saved shortform may link.
+    if (glossary.storage === "unavailable") throw new Error("Could not read the shortforms");
+    const blocker = deleteBlocker({
+      inTemplates: templatesMentioning(templates, code),
+      shortforms: shortformsByCode(glossary.entries).get(code) ?? [],
+    });
     if (blocker) {
       refresh();
       return failed(blocker);
@@ -427,5 +446,79 @@ export async function mapDefectLabel(_previous: MapLabelResult, formData: FormDa
       return warned(`${message} Its audit trail could not record the change.`);
     }
     return succeeded(message);
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * Shortforms
+ * ------------------------------------------------------------------ */
+
+/** Why the shortforms cannot be saved now, or null when they can. */
+function notSavable(state: GlossaryState): string | null {
+  if (state.storage === "no_secret_key") return SHORTFORM_MESSAGES.noSecretKey;
+  if (state.storage === "unavailable") return SHORTFORM_MESSAGES.unavailable;
+  return null;
+}
+
+/**
+ * Adds a shortform (`original` empty) or saves one (`original`: the entry as
+ * the panel opened it). A code it newly links must be an active defect code,
+ * read with the admin's own client; one it linked already may stay while
+ * inactive. The list is saved whole (ai_settings.glossary, with who saved it
+ * and when), so the change is applied to the list as it is now, and refused
+ * when the entry changed since the panel opened it. Steri-AI reads the list
+ * with every document, so it applies from the next one.
+ */
+export async function saveShortform(_previous: ShortformResult, formData: FormData): Promise<ShortformResult> {
+  return guarded("saveShortform", async (): Promise<ShortformResult> => {
+    const auth = await authorizeAction("admin");
+    if (!auth.ok) return failed(auth.error);
+
+    const form = readShortformForm(formData);
+    if (!form.ok) return form.result;
+    const { original, next } = form;
+
+    const added = next.codes.filter((code) => !original?.codes.includes(code));
+    if (added.length > 0) {
+      const supabase = await createClient();
+      const { data, error } = await supabase.from("defect_codes").select("code, active").in("code", added);
+      if (error) throw new Error(`Could not read the defect codes: ${error.message}`);
+      const active = new Set((data ?? []).filter((row) => row.active).map((row) => row.code));
+      const refused = added.find((code) => !active.has(code));
+      if (refused) return failed(MESSAGES.checkFields, { codes: notActiveCode(refused) });
+    }
+
+    const state = await loadGlossaryState();
+    const blocked = notSavable(state);
+    if (blocked) return failed(blocked);
+    const change = applyShortformChange(state.entries, { original, next });
+    if (!change.ok) return change.result;
+    const saved = await saveGlossary(change.entries, auth.user.id);
+    if (!saved.ok) return failed(saved.message);
+    revalidatePath(DEFECTS_PATH, "layout");
+    return succeeded(original ? `“${next.short}” saved.` : `“${next.short}” added.`);
+  });
+}
+
+/** Deletes a shortform, as the panel opened it (`original`): refused when it changed since. */
+export async function deleteShortform(_previous: ShortformResult, formData: FormData): Promise<ShortformResult> {
+  return guarded("deleteShortform", async (): Promise<ShortformResult> => {
+    const auth = await authorizeAction("admin");
+    if (!auth.ok) return failed(auth.error);
+
+    const original = readOriginal(formData);
+    if (!original) return failed(MESSAGES.stale);
+
+    const state = await loadGlossaryState();
+    const blocked = notSavable(state);
+    if (blocked) return failed(blocked);
+    const change = applyShortformChange(state.entries, { original, next: null });
+    if (!change.ok) return change.result;
+    if (change.changed) {
+      const saved = await saveGlossary(change.entries, auth.user.id);
+      if (!saved.ok) return failed(saved.message);
+    }
+    revalidatePath(DEFECTS_PATH, "layout");
+    return succeeded(change.changed ? `“${original.short}” deleted.` : `“${original.short}” was already deleted.`);
   });
 }

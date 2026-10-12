@@ -3,6 +3,7 @@
 import { unstable_rethrow } from "next/navigation";
 import { readOrderDocument } from "@/lib/ai/document-reader";
 import { loadAiEnv, loadGlossary } from "@/lib/ai/settings";
+import { recordAiUsageLater } from "@/lib/ai/usage";
 import { authorizeAction } from "@/lib/auth/session";
 import { evaluateCapture } from "@/lib/inspections/capture/evaluate";
 import { mirroredColumns } from "@/lib/inspections/capture/mirror";
@@ -332,6 +333,8 @@ export async function readDocument(formData: FormData): Promise<DocumentReadResu
       { mediaType, base64: bytes.toString("base64"), name: file.name },
       { ...lists, glossary: await loadGlossary() },
       await loadAiEnv(),
+      // Its cost (Steri-AI Cost), recorded after the response: no inspection exists before Create.
+      recordAiUsageLater({ feature: "new_inspection_read", inspectionId: null, actorId: auth.user.id, itemCount: 1 }),
     );
     if (!outcome.ok) return { status: "error", message: outcome.message };
     return { status: "read", fileName: file.name, ...checkReading(outcome.reading, lists, file.name) };

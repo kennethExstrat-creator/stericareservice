@@ -5,8 +5,10 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 vi.mock("@/lib/ai/settings", () => ({ loadAiEnv: vi.fn() }));
 vi.mock("@/lib/ai/media-sorter", () => ({ sortMedia: vi.fn() }));
+vi.mock("@/lib/ai/usage", () => ({ recordAiUsageLater: vi.fn() }));
 
 import { sortMedia } from "@/lib/ai/media-sorter";
+import { recordAiUsageLater } from "@/lib/ai/usage";
 import { authorizeAction } from "@/lib/auth/session";
 import { MEDIA_MESSAGES } from "@/lib/inspections/media-moves";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -169,6 +171,8 @@ describe("sortMediaWithAi", () => {
       ),
     );
     vi.mocked(sortMedia).mockResolvedValue({ ok: true, categories: ["media_samples", null, "media_proof"], model: "claude-opus-5-5" });
+    const recorder = vi.fn();
+    vi.mocked(recordAiUsageLater).mockReturnValue(recorder);
 
     const result = await sortMediaWithAi(INSPECTION, [item("photo", PHOTO), item("photo", PHOTO_2, PNG), item("video", VIDEO), item("photo", ELSEWHERE)]);
 
@@ -187,6 +191,9 @@ describe("sortMediaWithAi", () => {
       { kind: "photo", mediaType: "image/png", base64: PNG },
       { kind: "video", mediaType: "image/jpeg", base64: JPEG },
     ]);
+    // The batch's cost (Steri-AI Cost): this inspection, the caller, the three previews sent.
+    expect(recordAiUsageLater).toHaveBeenCalledWith({ feature: "media_sort", inspectionId: INSPECTION, actorId: "inspector-id", itemCount: 3 });
+    expect(vi.mocked(sortMedia).mock.calls[0][2]).toBe(recorder);
     expect(writes().map((query) => [query.table, arg(query, "update")])).toEqual([
       ["inspection_photos", [{ module_key: "media_samples", target: null }]],
       ["inspection_files", [{ module_key: "media_proof" }]],

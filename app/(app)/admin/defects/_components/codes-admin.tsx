@@ -9,10 +9,17 @@ import { CodesTable } from "./codes-table";
 import { DefectsHeader } from "./defects-header";
 import { EmptyState, NoMatches } from "./list-parts";
 import { ListSearch, useQuery } from "./list-search";
-import { usePanel } from "./panel";
+import { usePanel, type PanelTarget } from "./panel";
 
 function textOf(row: DefectCodeItem): string {
-  return searchText(row.code, row.name, row.description, row.usedBy.join(" "), row.active ? "active" : "inactive");
+  return searchText(
+    row.code,
+    row.name,
+    row.description,
+    row.usedBy.join(" "),
+    row.shortforms.join(" "),
+    row.active ? "active" : "inactive",
+  );
 }
 
 function countText(shown: number, total: number, inactive: number): string {
@@ -36,7 +43,7 @@ export function DefectCodesAdmin({
 }) {
   // Where the keyboard goes when a panel closes and what opened it has gone.
   const addButton = useRef<HTMLButtonElement>(null);
-  const panel = usePanel(addButton, prefill ? { mode: "create", prefill } : null);
+  const panel = usePanel<PanelTarget>(addButton, prefill ? { mode: "create", prefill } : null);
   const { query, setQuery } = useQuery(initialQuery);
   const indexed = useMemo(() => codes.map((row) => ({ row, text: textOf(row) })), [codes]);
   const results = useMemo(

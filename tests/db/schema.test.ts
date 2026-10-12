@@ -27,7 +27,7 @@ describe("schema guards", { timeout: 30_000 }, () => {
     expect(unprotected).toEqual([]);
   });
 
-  it("has the eleven tables of BUILD_SPEC 5, and the AI settings", async () => {
+  it("has the eleven tables of BUILD_SPEC 5, the AI settings and the AI usage", async () => {
     const tables = await asOwner(db, (tx) =>
       column<string>(
         tx,
@@ -39,6 +39,7 @@ describe("schema guards", { timeout: 30_000 }, () => {
       "ai_review_actions",
       "ai_reviews",
       "ai_settings",
+      "ai_usage",
       "audit_log",
       "clients",
       "defect_codes",
@@ -139,6 +140,7 @@ describe("schema guards", { timeout: 30_000 }, () => {
     "20261007190000_inspector_writes_through_the_app.sql",
     "20261007193000_admins_delete_drafts_only.sql",
     "20261008140000_profile_uid.sql",
+    "20261013120000_ai_usage.sql",
   ])("applies %s again without changing the schema", async (name) => {
     const before = await schemaSnapshot(db);
     const migration = (await readMigrations()).find((file) => file.name === name);

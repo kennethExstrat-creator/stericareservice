@@ -4,6 +4,7 @@ import {
   addFile,
   addPhoto,
   addReview,
+  addUsage,
   createInspection,
   createPeople,
   createTemplate,
@@ -64,6 +65,22 @@ describe("RLS: inspector", { timeout: 30_000 }, () => {
 
   it("never sees the admin's decisions on AI findings", async () => {
     expect(await asUser(db, people.inspector, (tx) => visibleRows(tx, "ai_review_actions"))).toBe(0);
+  });
+
+  // Migration 20261013120000: what Steri-AI costs is for admins only.
+  it("reads no Steri-AI usage, not even their own inspection's, and adds none", async () => {
+    await addUsage(db, { inspection_id: own.id, actor_id: people.inspector });
+    expect(await asUser(db, people.inspector, (tx) => visibleRows(tx, "ai_usage"))).toBe(0);
+    const error = await pgError(
+      asUser(db, people.inspector, (tx) =>
+        tx.query(
+          `insert into public.ai_usage (feature, model, duration_ms, outcome, inspection_id, actor_id)
+           values ('source_document_read', 'claude-opus-5-5', 10, 'ok', $1, $2)`,
+          [own.id, people.inspector],
+        ),
+      ),
+    );
+    expect(error).toMatchObject({ code: "42501", message: "permission denied for table ai_usage" });
   });
 
   it("reads the reference tables", async () => {

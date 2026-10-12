@@ -9,6 +9,7 @@ import { checklist, DOCUMENT_FILE_KIND, DOCUMENTS_LABELS, DocumentsConfigSchema 
 import type { AiEnv } from "./config";
 import { createMessage, describeReadError, fail, type ReadFailure } from "./document-reader";
 import { glossaryText, LAB_REPORT_GUIDE, PAPER_FORM_GUIDE } from "./reading-guide";
+import type { OnAiCall } from "./usage";
 
 /*
  * Reads one Source Document of an inspection (docs/AI.md, "Source
@@ -44,7 +45,7 @@ export type SourceReadInput = {
   unit: "pcs" | "pairs";
   /** The included modules' data as entered so far, by module key. */
   current: Record<string, unknown>;
-  /** The shortforms inspectors write (Admin > AI Settings). */
+  /** The shortforms inspectors write (Admin > Defects > Shortforms), each defect with the library codes it counts under. */
   glossary: readonly GlossaryEntry[];
   /** Where a document itself can be filed in this inspection (`attachTargets`). */
   attachTargets: readonly AttachTarget[];
@@ -176,7 +177,8 @@ export function parseSourceAnswer(
   return { summary, proposals, mappings, attachTo: AttachToSchema.parse(json.attachTo) };
 }
 
-export async function readSourceDocument(input: SourceReadInput, env: AiEnv): Promise<SourceReadOutcome> {
+/** `onCall` hears of the Claude call, billed or failed, for its cost (lib/ai/usage.ts). */
+export async function readSourceDocument(input: SourceReadInput, env: AiEnv, onCall?: OnAiCall): Promise<SourceReadOutcome> {
   const apiKey = env.ANTHROPIC_API_KEY?.trim();
   if (!apiKey) {
     return fail("not_connected", "Steri-AI is not connected yet. An admin can add the Anthropic API key under Admin > Steri-AI Settings.");
@@ -185,7 +187,7 @@ export async function readSourceDocument(input: SourceReadInput, env: AiEnv): Pr
   if (!model.success) return fail("misconfigured", "The model for reading documents is not a Claude model. Check Admin > Steri-AI Settings.");
 
   const { file } = input;
-  const template = `${JSON.stringify({ sizes: input.sizes, unit: input.unit, modules: input.modules })}\n\nThe SteriCare defect library (code: name):\n${input.defectLibrary.map((entry) => `- ${entry.code}: ${entry.name}`).join("\n")}\n\n${glossaryText(input.glossary)}`;
+  const template = `${JSON.stringify({ sizes: input.sizes, unit: input.unit, modules: input.modules })}\n\nThe SteriCare defect library (code: name):\n${input.defectLibrary.map((entry) => `- ${entry.code}: ${entry.name}`).join("\n")}\n\n${glossaryText(input.glossary, input.defectLibrary)}`;
   const params: MessageCreateParamsNonStreaming = {
     model: model.data,
     max_tokens: MAX_TOKENS,
@@ -216,7 +218,7 @@ export async function readSourceDocument(input: SourceReadInput, env: AiEnv): Pr
 
   try {
     const client = new Anthropic({ apiKey, maxRetries: 1, timeout: TIMEOUT_MS });
-    const message = await createMessage(client, params);
+    const message = await createMessage(client, params, onCall);
     if (message.stop_reason === "refusal") return fail("error", "Steri-AI declined to read this document.");
     if (message.stop_reason === "max_tokens") {
       return fail("error", "The document holds too much to read in one go. Upload it in parts, a few pages at a time.");

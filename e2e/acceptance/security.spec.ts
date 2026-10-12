@@ -102,6 +102,11 @@ test.beforeAll(async ({ baseURL }, testInfo) => {
     { path: "/admin/defects", session: admin },
     { path: "/admin/defects/labels", session: admin },
     { path: "/admin/defects/unmapped", session: admin },
+    { path: "/admin/defects/shortforms", session: admin },
+    // Steri-AI Settings: each view renders (and so loads the actions of) its own client part.
+    { path: "/admin/ai", session: admin },
+    { path: "/admin/ai?view=inspection", session: admin },
+    { path: "/admin/ai?view=cost", session: admin },
     { path: "/admin/templates", session: admin },
     { path: `/admin/templates/${fx.templateId}`, session: admin },
     { path: `/admin/templates/${fx.templateId}/edit`, session: admin },
@@ -151,6 +156,10 @@ function protectedPages(): string[] {
     "/admin/defects",
     "/admin/defects/labels",
     "/admin/defects/unmapped",
+    "/admin/defects/shortforms",
+    "/admin/ai",
+    "/admin/ai?view=inspection",
+    "/admin/ai?view=cost",
     "/admin/templates",
     `/admin/templates/${fx.templateId}`,
     `/admin/templates/${fx.templateId}/edit`,
@@ -166,6 +175,10 @@ const ADMIN_PAGES = () => [
   "/admin/defects",
   "/admin/defects/labels",
   "/admin/defects/unmapped",
+  "/admin/defects/shortforms",
+  "/admin/ai",
+  "/admin/ai?view=inspection",
+  "/admin/ai?view=cost",
   "/admin/templates",
   `/admin/templates/${fx.templateId}`,
   `/admin/templates/${fx.templateId}/edit`,
@@ -394,6 +407,17 @@ function actionCases(): ActionCase[] {
     { name: "setDefectCodeActive", kind: "admin", path: "/admin/defects", args: [{ status: "idle" }, form({ code: "zz_security_probe", active: "false" })] },
     { name: "deleteDefectCode", kind: "admin", path: "/admin/defects", args: [{ status: "idle" }, form({ code: "zz_security_probe" })] },
     { name: "mapDefectLabel", kind: "admin", path: "/admin/defects/unmapped", args: [{ status: "idle" }, form({ label: "probe", moduleKey: "visual", code: "zz_security_probe" })] },
+    // The shortforms list is live: an empty shortform could never be saved, and the one to delete was never in it.
+    { name: "saveShortform", kind: "admin", path: "/admin/defects/shortforms", args: [{ status: "idle" }, form({ original: "", short: "", kind: "term", meaning: "", confirmed: "false" })] },
+    { name: "deleteShortform", kind: "admin", path: "/admin/defects/shortforms", args: [{ status: "idle" }, form({ original: JSON.stringify({ short: "ZZ_SECURITY_PROBE", meaning: "Security probe", confirmed: false, kind: "term", codes: [] }) })] },
+    // Admin: Steri-AI Settings. Input the actions refuse anyway (a blank key, a key that is not one, blank
+    // settings, an empty price list), so Anthropic is never called; the key removal has no argument: a missing
+    // check would remove the live key, which is what this probe must catch.
+    { name: "saveApiKeyAction", kind: "admin", path: "/admin/ai", args: [{ status: "idle" }, form({ apiKey: "" })] },
+    { name: "removeAiKeyAction", kind: "admin", path: "/admin/ai", args: [] },
+    { name: "testAiConnectionAction", kind: "admin", path: "/admin/ai", args: [form({ apiKey: "not-a-key" })] },
+    { name: "saveInspectionSettingsAction", kind: "admin", path: "/admin/ai", args: [{ status: "idle" }, form({ documentModel: "", reviewModel: "", reviewEffort: "", reviewMaxPhotos: "" })] },
+    { name: "saveAiPricesAction", kind: "admin", path: "/admin/ai", args: [{ checkedOn: "", models: [], myrPerUsd: null, myrRateOn: null }] },
     // Admin: templates (never the fixture's own id where a missing check could change it).
     { name: "createTemplate", kind: "admin", path: "/admin/templates", args: [{ status: "idle" }, form({ code: "", productType: "examination" })] },
     { name: "activateVersion", kind: "admin", path: version, args: [{ status: "idle" }, form({ templateId: R, seen: "x" })] },
@@ -995,6 +1019,7 @@ test("hostile query strings come back escaped and never break a page", async ({ 
     [`/admin/manufacturers?q=${q}`, admin],
     [`/admin/defects?q=${q}&code=${q}&name=${q}`, admin],
     [`/admin/defects/labels?q=${q}`, admin],
+    [`/admin/defects/shortforms?q=${q}`, admin],
   ];
   for (const [path, session] of probes) {
     const answer = await probe(baseURL!, path, { session });

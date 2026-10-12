@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from "node:util";
+import { DEFAULT_GLOSSARY } from "../../lib/schemas/ai-settings";
 import type { Json } from "../../lib/supabase/database.types";
 import { createTestAdminClient, deleteTestInspection } from "../support/admin";
 import { TEST_ACCOUNTS } from "../support/session";
@@ -320,4 +322,43 @@ export async function storedCode(code: string) {
     .maybeSingle();
   if (error) fail(`reading code ${code}`, error);
   return data;
+}
+
+/* ------------------------------------------------------------------ *
+ * Shortforms (ai_settings.glossary: one live list, not a fixture row)
+ * ------------------------------------------------------------------ */
+
+/** The throwaway shortform the specs add. The list is live, so it is removed afterwards whatever happened. */
+export const TEMP_SHORTFORM = "ZZE2E";
+
+const isTemp = (entry: Json) =>
+  typeof entry === "object" && entry !== null && !Array.isArray(entry) && typeof entry.short === "string" && entry.short.toUpperCase() === TEMP_SHORTFORM;
+
+async function storedGlossary(admin: AdminClient): Promise<Json[] | null> {
+  const { data, error } = await admin.from("ai_settings").select("glossary").eq("id", true).maybeSingle();
+  if (error) fail("reading the shortforms", error);
+  return Array.isArray(data?.glossary) ? data.glossary : null;
+}
+
+/** The throwaway shortform as saved, or null. */
+export async function storedShortform(): Promise<Json | null> {
+  return (await storedGlossary(createTestAdminClient()))?.find(isTemp) ?? null;
+}
+
+/**
+ * Takes the throwaway shortform out of the saved list, leaving every other
+ * entry as it is. A list that is then just the starting list goes back to
+ * null, which means the starting list: on a project that never saved one,
+ * the spec's first save wrote the whole starting list, and a copy left there
+ * would stop later changes to DEFAULT_GLOSSARY from reaching it.
+ */
+export async function removeTempShortform(): Promise<void> {
+  const admin = createTestAdminClient();
+  const list = await storedGlossary(admin);
+  if (!list) return;
+  const rest = list.filter((entry) => !isTemp(entry));
+  const glossary = isDeepStrictEqual(rest, DEFAULT_GLOSSARY) ? null : rest;
+  if (glossary !== null && rest.length === list.length) return;
+  const { error } = await admin.from("ai_settings").update({ glossary }).eq("id", true);
+  if (error) fail("removing the throwaway shortform", error);
 }

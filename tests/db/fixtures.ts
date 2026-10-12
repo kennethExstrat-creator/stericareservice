@@ -7,11 +7,13 @@ export type TableName = keyof Database["public"]["Tables"];
 // A Record, so the compiler flags a table added to the schema but not here.
 // false: no signed-in user may read the table at all (ai_settings: the service
 // role only), so the per-role read checks leave it out; rls-admin.test.ts
-// checks that even an admin is refused.
+// checks that even an admin is refused. ai_usage is readable by admins only:
+// everyone else reads no rows.
 const tableSet: Record<TableName, boolean> = {
   ai_review_actions: true,
   ai_reviews: true,
   ai_settings: false,
+  ai_usage: true,
   audit_log: true,
   clients: true,
   defect_codes: true,
@@ -327,4 +329,37 @@ export async function addPhoto(db: Db, inspectionId: string, createdBy: string):
     );
   });
   return path;
+}
+
+/** An ai_usage row's columns, and when the call was made. */
+export type UsageValues = Partial<Omit<TablesInsert<"ai_usage">, "created_at" | "updated_at">> & { createdAt?: string };
+
+/**
+ * One Claude call's cost record (migration 20261013120000; the app writes it
+ * with the secret key, lib/ai/usage.ts), inserted as the owner: a document
+ * read on Claude Opus 5.5 unless told otherwise. With `createdAt` the call is
+ * dated then, with set_updated_at switched off for the insert (it stamps now()
+ * otherwise, whoever inserts).
+ */
+export async function addUsage(db: Db, values: UsageValues = {}): Promise<string> {
+  const { createdAt, ...columns } = values;
+  const row: TablesInsert<"ai_usage"> = {
+    feature: "source_document_read",
+    model: "claude-opus-5-5",
+    duration_ms: 1_000,
+    outcome: "ok",
+    ...columns,
+    ...(createdAt ? { created_at: createdAt, updated_at: createdAt } : {}),
+  };
+  const names = Object.keys(row);
+  const placeholders = names.map((_, index) => `$${index + 1}`).join(", ");
+  return asOwner(db, async (tx) => {
+    if (createdAt) await tx.exec("alter table public.ai_usage disable trigger set_updated_at");
+    const result = await tx.query<{ id: string }>(
+      `insert into public.ai_usage (${names.join(", ")}) values (${placeholders}) returning id`,
+      Object.values(row),
+    );
+    if (createdAt) await tx.exec("alter table public.ai_usage enable trigger set_updated_at");
+    return result.rows[0].id;
+  });
 }

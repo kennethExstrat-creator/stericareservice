@@ -4,13 +4,21 @@ vi.mock("next/server", () => ({ after: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn(), isAdminClientConfigured: vi.fn(() => false) }));
 // The settings saved in Admin > AI Settings are not under test here: the variables apply.
 vi.mock("@/lib/ai/settings", () => ({ loadAiEnv: async (env = process.env) => env }));
+// The reviewer as it is, unless a test makes it report a Claude call; the cost record is checked, not written.
+vi.mock("@/lib/ai", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/ai")>();
+  return { ...actual, requestAiReview: vi.fn(actual.requestAiReview) };
+});
+vi.mock("@/lib/ai/usage", () => ({ recordAiUsage: vi.fn() }));
 vi.mock("@/modules/registry", async () => {
   const { TEST_REGISTRY } = await import("@/modules/_framework/__fixtures__/test-registry");
   return { MODULE_REGISTRY: TEST_REGISTRY, getModuleDefinition: (key: keyof typeof TEST_REGISTRY) => TEST_REGISTRY[key] };
 });
 
 import { after } from "next/server";
+import { requestAiReview } from "@/lib/ai";
 import { mockReview } from "@/lib/ai/providers/mock";
+import { recordAiUsage, type AiCall } from "@/lib/ai/usage";
 import { createFakeSupabase, type FakeSupabase } from "@/lib/export/__fixtures__/fake-supabase";
 import { IDS, makeInspectionRow, makeObjects, makeTables, UPDATED_AT } from "@/lib/export/__fixtures__/inspection";
 import { loadInspectionRecord } from "@/lib/export/record";
@@ -347,6 +355,21 @@ describe("completeAiReview", () => {
     expect(outcome).toBe("not_stored");
     expect(reviews(db)[0].status).toBe("failed");
   });
+
+  // Steri-AI Cost: a refused review was billed too, and it is recorded in the name of who asked.
+  it("records what the Claude call cost, for the admin who asked", async () => {
+    const db = fake();
+    const started = await startAiReview({ client: db.client, inspectionId: IDS.inspection, trigger: "admin", viewer: ADMIN, now: () => NOW });
+    expect(started.ok).toBe(true);
+    const call: AiCall = { model: "claude-opus-5-5", outcome: "refused", errorType: null, durationMs: 5, attempts: [], inferenceGeo: null, serviceTier: null };
+    vi.mocked(requestAiReview).mockImplementationOnce(async (_doc, options) => {
+      options?.onCall?.(call);
+      return { ok: false, reason: "refused", message: "Claude declined to review this inspection.", provider: "claude" };
+    });
+    await runScheduled();
+    expect(reviews(db)[0].status).toBe("failed");
+    expect(recordAiUsage).toHaveBeenCalledWith({ feature: "second_opinion", inspectionId: IDS.inspection, actorId: IDS.admin, itemCount: 1 }, call);
+  });
 });
 
 describe("scheduleAiReviewOnSubmit", () => {
@@ -368,11 +391,18 @@ describe("scheduleAiReviewOnSubmit", () => {
     const db = fake();
     vi.mocked(isAdminClientConfigured).mockReturnValue(true);
     vi.mocked(createAdminClient).mockReturnValue(db.client as ReturnType<typeof createAdminClient>);
-    const started = await scheduleAiReviewOnSubmit(IDS.inspection);
+    const started = await scheduleAiReviewOnSubmit(IDS.inspection, IDS.inspector);
     expect(started.ok).toBe(true);
     expect(db.rpcCalls[0]).toMatchObject({ args: { action: "ai_review.requested", changes: { trigger: "submit" } } });
+    const call: AiCall = { model: "claude-opus-5-5", outcome: "ok", errorType: null, durationMs: 5, attempts: [], inferenceGeo: null, serviceTier: null };
+    vi.mocked(requestAiReview).mockImplementationOnce(async (doc, options) => {
+      options?.onCall?.(call);
+      return { ok: true, review: mockReview(doc), provider: "claude", model: "claude-opus-5-5" };
+    });
     await runScheduled();
     expect(reviews(db)[0].status).toBe("done");
+    // The review's cost is the submitting user's.
+    expect(recordAiUsage).toHaveBeenCalledWith({ feature: "second_opinion", inspectionId: IDS.inspection, actorId: IDS.inspector, itemCount: 1 }, call);
   });
 });
 

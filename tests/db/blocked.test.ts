@@ -5,6 +5,7 @@ import {
   addFile,
   addPhoto,
   addReview,
+  addUsage,
   createInspection,
   createLead,
   createPeople,
@@ -46,6 +47,7 @@ describe("deactivated users, new accounts and anon", { timeout: 30_000 }, () => 
     await addPhoto(db, inspection.id, people.inspector);
     await addFile(db, inspection.id, people.inspector);
     await addReview(db, inspection.id, people.admin);
+    await addUsage(db, { inspection_id: inspection.id, actor_id: people.inspector });
     await asUser(db, people.inspector, (tx) =>
       tx.query(
         "insert into storage.objects (bucket_id, name, owner_id) values ('signatures', $1 || '/signature.png', $1)",

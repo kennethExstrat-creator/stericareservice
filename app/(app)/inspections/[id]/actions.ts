@@ -225,7 +225,7 @@ export async function submitInspection(input: unknown): Promise<SubmitResult> {
           message: "This inspection changed while it was being submitted. Reload the page, then submit again.",
         };
       }
-      if (row.template.aiReviewOnSubmit) await startReviewOnSubmit(row.id);
+      if (row.template.aiReviewOnSubmit) await startReviewOnSubmit(row.id, auth.user.id);
     }
   } catch (error) {
     unstable_rethrow(error);
@@ -245,10 +245,11 @@ const AI_START_WAIT_MS = 3_000;
  * holds it up for AI_START_WAIT_MS at most: started by then, the review shows
  * it pending; otherwise it starts in the background all the same (after()
  * keeps the request alive for it). Nothing happens when no reviewer is
- * connected.
+ * connected. The review's cost is recorded in the name of the user who
+ * submitted.
  */
-async function startReviewOnSubmit(inspectionId: string): Promise<void> {
-  const started = scheduleAiReviewOnSubmit(inspectionId).then(
+async function startReviewOnSubmit(inspectionId: string, actorId: string): Promise<void> {
+  const started = scheduleAiReviewOnSubmit(inspectionId, actorId).then(
     (result) => {
       if (!result.ok && result.reason !== "not_connected" && result.reason !== "pending") {
         console.error(`[capture] the AI second opinion did not start on submit: ${result.message}`);

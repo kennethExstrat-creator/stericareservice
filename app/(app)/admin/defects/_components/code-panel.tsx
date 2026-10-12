@@ -368,9 +368,10 @@ function ConfirmDeactivate({
  * ------------------------------------------------------------------ */
 
 /**
- * The end of the edit panel. A code that a template version mentions cannot
- * be deleted, and the panel says why instead of offering a button that can
- * only fail; the action also checks that no inspection counts it.
+ * The end of the edit panel. A code that a template version mentions, or a
+ * shortform links, cannot be deleted, and the panel says why instead of
+ * offering a button that can only fail; the action also checks that no
+ * inspection counts it.
  */
 function DeleteSection({ item, onDeleted }: { item: DefectCodeItem; onDeleted: () => void }) {
   const titleId = useId();
@@ -385,7 +386,7 @@ function DeleteSection({ item, onDeleted }: { item: DefectCodeItem; onDeleted: (
         <InfoIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
         <span>
           {blocker ??
-            "No template mentions it. It can be deleted unless an inspection has counted it; then deactivate it instead."}
+            "No template or shortform uses it. It can be deleted unless an inspection has counted it; then deactivate it instead."}
         </span>
       </p>
       <div>

@@ -5,6 +5,7 @@ import {
   addFile,
   addPhoto,
   addReview,
+  addUsage,
   createInspection,
   createPeople,
   createTemplate,
@@ -88,6 +89,7 @@ describe("RLS: admin", { timeout: 30_000 }, () => {
     await addPhoto(db, second.id, people.otherInspector);
     await addFile(db, second.id, people.otherInspector);
     await addReview(db, second.id, people.admin);
+    await addUsage(db, { feature: "second_opinion", inspection_id: second.id, actor_id: people.admin, cost_usd: 0.1606 });
   }, 120_000);
 
   afterAll(async () => {
@@ -115,6 +117,22 @@ describe("RLS: admin", { timeout: 30_000 }, () => {
 
   it("is refused the AI settings, which only the service role reads", async () => {
     await expect(asUser(db, people.admin, (tx) => visibleRows(tx, "ai_settings"))).rejects.toThrow(/permission denied/);
+  });
+
+  // Migration 20261013120000: the Steri-AI Cost view reads the usage; only the app adds to it.
+  it("reads the Steri-AI usage, and adds, changes or removes none of it", async () => {
+    const seen = await asUser(db, people.admin, (tx) =>
+      tx.query<{ feature: string; inspection_id: string }>("select feature, inspection_id from public.ai_usage"),
+    );
+    expect(seen.rows).toEqual([{ feature: "second_opinion", inspection_id: second.id }]);
+    for (const sql of [
+      "insert into public.ai_usage (feature, model, duration_ms, outcome) values ('media_sort', 'claude-opus-5-5', 10, 'ok')",
+      "update public.ai_usage set cost_usd = 0",
+      "delete from public.ai_usage",
+    ]) {
+      const error = await pgError(asUser(db, people.admin, (tx) => tx.query(sql)));
+      expect(error, sql).toMatchObject({ code: "42501", message: "permission denied for table ai_usage" });
+    }
   });
 
   it("manages reference data", async () => {

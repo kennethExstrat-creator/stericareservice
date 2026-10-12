@@ -95,7 +95,7 @@ export function AdminScreenLinks() {
           href: ADMIN_DEFECTS_PATH,
           icon: TagsIcon,
           title: "Defect Codes",
-          description: "One code per defect, and the labels each template maps to it.",
+          description: "Codes, label mapping and inspectors' shortforms.",
         },
         {
           href: UNMAPPED_LABELS_HREF,
@@ -113,7 +113,7 @@ export function AdminScreenLinks() {
           href: ADMIN_AI_PATH,
           icon: SparklesIcon,
           title: "Steri-AI Settings",
-          description: "The Anthropic API key and the Claude models the app uses.",
+          description: "The API key, the models and what Steri-AI costs.",
         },
       ]}
       className="md:grid-cols-2 xl:grid-cols-3"

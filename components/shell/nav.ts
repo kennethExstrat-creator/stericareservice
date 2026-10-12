@@ -75,7 +75,7 @@ export const ADMIN_CLIENTS_PATH = "/admin/clients";
 export const ADMIN_DEFECTS_PATH = "/admin/defects";
 /** TEMPLATES_PATH in lib/admin/templates.ts: the list, with each version and its editor below. */
 export const ADMIN_TEMPLATES_PATH = "/admin/templates";
-/** The Anthropic API key and the Claude models (docs/AI.md, "AI Settings"). */
+/** Steri-AI Settings: General (the API key), Inspection Settings and Steri-AI Cost, by ?view= (docs/AI.md, "AI Settings"). */
 export const ADMIN_AI_PATH = "/admin/ai";
 
 export const NAV: readonly NavSection[] = [

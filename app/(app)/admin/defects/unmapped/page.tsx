@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { defectsCounts, loadDefectsData } from "@/lib/admin/defects";
+import { loadGlossaryState } from "@/lib/ai/settings";
 import { requireAdmin } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { MODULE_REGISTRY } from "@/modules/registry";
@@ -25,7 +26,7 @@ const byName = new Intl.Collator("en-GB", { sensitivity: "base", numeric: true }
 export default async function UnmappedLabelsPage() {
   await requireAdmin();
   const supabase = await createClient();
-  const data = await loadDefectsData(supabase, MODULE_REGISTRY);
+  const [data, glossary] = await Promise.all([loadDefectsData(supabase, MODULE_REGISTRY), loadGlossaryState()]);
   const codes: CodeOption[] = data.codes
     .filter((code) => code.active)
     .map((code) => ({ code: code.code, name: code.name }))
@@ -33,7 +34,7 @@ export default async function UnmappedLabelsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <DefectsHeader current="unmapped" counts={defectsCounts(data)} />
+      <DefectsHeader current="unmapped" counts={defectsCounts(data, glossary.entries)} />
       <p className="max-w-3xl text-base text-muted-foreground">
         Defects inspectors recorded in their own words because the template&rsquo;s list did not have them. Map each
         to a code so it counts with that code from then on. Labels on a submitted inspection can be mapped; drafts and

@@ -48,6 +48,8 @@ export type TemplateStatus = Database["public"]["Enums"]["template_status"];
 export const DEFECTS_PATH = "/admin/defects";
 export const LABEL_MAPPING_PATH = "/admin/defects/labels";
 export const UNMAPPED_PATH = "/admin/defects/unmapped";
+/** What inspectors write on paper, each defect linked to its codes (lib/admin/shortforms.ts). */
+export const SHORTFORMS_PATH = "/admin/defects/shortforms";
 export const TEMPLATES_PATH = "/admin/templates";
 
 /** The template editor for one version (BUILD_SPEC 10): /admin/templates/<version id>/edit. */
@@ -659,6 +661,8 @@ export type DefectCodeItem = {
   usedBy: string[];
   /** Every template version that mentions it, current or not ("STD_EG v1"). Such a code is never deleted. */
   inTemplates: string[];
+  /** The shortforms that count under it, e.g. ["BF"]. Such a code is never deleted either. */
+  shortforms: string[];
 };
 
 /** Active first, then inactive; each by code. */
@@ -666,9 +670,28 @@ function byActiveThenCode(a: DefectCodeRow, b: DefectCodeRow): number {
   return Number(b.active) - Number(a.active) || a.code.localeCompare(b.code);
 }
 
-/** The codes with what uses them. */
-export function buildCodeItems(codes: readonly DefectCodeRow[], templates: readonly TemplateRecord[]): DefectCodeItem[] {
+/** A shortform as the code list reads it: what is written, and the codes it counts under (lib/schemas/ai-settings.ts). */
+export type LinkedShortform = { short: string; codes: readonly string[] };
+
+const byShortform = new Intl.Collator("en-GB", { sensitivity: "base", numeric: true });
+
+/** The shortforms that count under each code, in shortform order: IB under both bead_defective and bead_poor. */
+export function shortformsByCode(entries: readonly LinkedShortform[]): Map<string, string[]> {
+  const byCode = new Map<string, string[]>();
+  for (const entry of [...entries].sort((a, b) => byShortform.compare(a.short, b.short))) {
+    for (const code of entry.codes) byCode.set(code, [...(byCode.get(code) ?? []), entry.short]);
+  }
+  return byCode;
+}
+
+/** The codes with what uses them: templates, and the shortforms linked to them (`glossary`). */
+export function buildCodeItems(
+  codes: readonly DefectCodeRow[],
+  templates: readonly TemplateRecord[],
+  glossary: readonly LinkedShortform[] = [],
+): DefectCodeItem[] {
   const current = currentVersions(templates);
+  const linked = shortformsByCode(glossary);
   return [...codes].sort(byActiveThenCode).map((row) => ({
     code: row.code,
     name: row.name,
@@ -679,6 +702,7 @@ export function buildCodeItems(codes: readonly DefectCodeRow[], templates: reado
       .filter((template) => template.labels?.labels.some((label) => label.code === row.code))
       .map((template) => template.code),
     inTemplates: templatesMentioning(templates, row.code),
+    shortforms: linked.get(row.code) ?? [],
   }));
 }
 
@@ -690,11 +714,22 @@ export function templatesMentioning(templates: readonly TemplateRecord[], code: 
     .map(templateVersionLabel);
 }
 
-/** Why a code cannot be deleted, or null when no template mentions it. */
-export function deleteBlocker(item: Pick<DefectCodeItem, "inTemplates">): string | null {
-  if (item.inTemplates.length === 0) return null;
-  const verb = item.inTemplates.length === 1 ? "uses" : "use";
-  return `${listOf(item.inTemplates)} ${verb} it, so it cannot be deleted. Deactivate it instead.`;
+/** Why a code cannot be deleted, or null when no template mentions it and no shortform links it. */
+export function deleteBlocker(item: Pick<DefectCodeItem, "inTemplates" | "shortforms">): string | null {
+  const { inTemplates, shortforms } = item;
+  const one = shortforms.length === 1;
+  if (inTemplates.length === 0) {
+    if (shortforms.length === 0) return null;
+    return `The ${one ? "shortform" : "shortforms"} ${listOf(shortforms)} ${one ? "uses" : "use"} it, so it cannot be deleted. Change ${one ? "it" : "them"} on Shortforms first, or deactivate the code.`;
+  }
+  if (shortforms.length === 0) {
+    return `${listOf(inTemplates)} ${inTemplates.length === 1 ? "uses" : "use"} it, so it cannot be deleted. Deactivate it instead.`;
+  }
+  // "STD_EG v1 and the shortform BF use it"; a long list of versions is cut short before the shortforms, never after.
+  const versions =
+    inTemplates.length <= 4 ? inTemplates : [...inTemplates.slice(0, 3), `${inTemplates.length - 3} more template versions`];
+  const users = [...versions, `the ${one ? "shortform" : "shortforms"} ${listOf(shortforms)}`];
+  return `${listOf(users)} use it, so it cannot be deleted. Deactivate it instead.`;
 }
 
 /* ------------------------------------------------------------------ *
@@ -1584,12 +1619,18 @@ export async function loadDefectsData(supabase: DatabaseClient, registry: Module
 }
 
 /** The counts the tab row shows. */
-export type DefectsCounts = { codes: number; attention: number; unmapped: number };
+export type DefectsCounts = { codes: number; attention: number; unmapped: number; shortforms: number };
 
-export function defectsCounts(data: DefectsData, maps: readonly TemplateLabelMap[] = buildLabelMaps(data.templates, data.codes)): DefectsCounts {
+/** `glossary`: the shortforms (loadGlossaryState in lib/ai/settings.ts, which the server reads after its admin check). */
+export function defectsCounts(
+  data: DefectsData,
+  glossary: readonly unknown[],
+  maps: readonly TemplateLabelMap[] = buildLabelMaps(data.templates, data.codes),
+): DefectsCounts {
   return {
     codes: data.codes.length,
     attention: maps.reduce((total, map) => total + map.attention, 0),
     unmapped: countUnmapped(data.inspections),
+    shortforms: glossary.length,
   };
 }

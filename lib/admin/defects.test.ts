@@ -463,8 +463,14 @@ describe("the code list", () => {
     record("SAFEDON_EG", 1, "active", resolvedOf("SAFEDON_EG")),
   ];
 
-  it("names the templates whose current version maps a label to each code", () => {
-    const items = buildCodeItems([code("stain"), code("lump_big"), code("torn_cuff"), code("zz_old", false)], templates);
+  it("names the templates whose current version maps a label to each code, and the shortforms linked to it", () => {
+    const glossary = [
+      { short: "Stain", codes: ["stain", "dirt_small"] },
+      { short: "L", codes: ["lump_big", "lump_small"] },
+      { short: "DT", codes: ["dirt_small", "stain"] },
+      { short: "WTT", codes: [] },
+    ];
+    const items = buildCodeItems([code("stain"), code("lump_big"), code("torn_cuff"), code("zz_old", false)], templates, glossary);
     expect(items.map((item) => item.code)).toEqual(["lump_big", "stain", "torn_cuff", "zz_old"]);
     const byCode = new Map(items.map((item) => [item.code, item]));
     // STD_EG v2 lists nothing: only SAFEDON_EG uses stain now, but STD_EG v1 still mentions it.
@@ -472,15 +478,34 @@ describe("the code list", () => {
     expect(byCode.get("lump_big")).toMatchObject({ usedBy: [], inTemplates: ["STD_EG v1"] });
     expect(byCode.get("torn_cuff")).toMatchObject({ usedBy: [], inTemplates: [] });
     expect(byCode.get("stain")?.updatedAt).toBe("2026-10-06T01:02:03.123456+00:00");
+    // In shortform order, whichever case of the meaning the code is.
+    expect(byCode.get("stain")?.shortforms).toEqual(["DT", "Stain"]);
+    expect(byCode.get("lump_big")?.shortforms).toEqual(["L"]);
+    expect(byCode.get("torn_cuff")?.shortforms).toEqual([]);
+    // Without the shortforms, none.
+    expect(buildCodeItems([code("stain")], templates)[0].shortforms).toEqual([]);
   });
 
-  it("never deletes a code a template version mentions", () => {
-    expect(deleteBlocker({ inTemplates: [] })).toBeNull();
-    expect(deleteBlocker({ inTemplates: ["STD_EG v1"] })).toBe(
+  it("never deletes a code a template version mentions or a shortform links", () => {
+    expect(deleteBlocker({ inTemplates: [], shortforms: [] })).toBeNull();
+    expect(deleteBlocker({ inTemplates: ["STD_EG v1"], shortforms: [] })).toBe(
       "STD_EG v1 uses it, so it cannot be deleted. Deactivate it instead.",
     );
-    expect(deleteBlocker({ inTemplates: ["SAFEDON_EG v1", "STD_EG v1"] })).toBe(
+    expect(deleteBlocker({ inTemplates: ["SAFEDON_EG v1", "STD_EG v1"], shortforms: [] })).toBe(
       "SAFEDON_EG v1 and STD_EG v1 use it, so it cannot be deleted. Deactivate it instead.",
+    );
+    expect(deleteBlocker({ inTemplates: [], shortforms: ["BF"] })).toBe(
+      "The shortform BF uses it, so it cannot be deleted. Change it on Shortforms first, or deactivate the code.",
+    );
+    expect(deleteBlocker({ inTemplates: [], shortforms: ["BF", "FS"] })).toBe(
+      "The shortforms BF and FS use it, so it cannot be deleted. Change them on Shortforms first, or deactivate the code.",
+    );
+    expect(deleteBlocker({ inTemplates: ["STD_EG v1"], shortforms: ["BF"] })).toBe(
+      "STD_EG v1 and the shortform BF use it, so it cannot be deleted. Deactivate it instead.",
+    );
+    // Many versions: the shortforms are still named.
+    expect(deleteBlocker({ inTemplates: ["A v1", "B v1", "C v1", "D v1", "E v1", "F v1"], shortforms: ["BF", "FS"] })).toBe(
+      "A v1, B v1, C v1, 3 more template versions and the shortforms BF and FS use it, so it cannot be deleted. Deactivate it instead.",
     );
   });
 
@@ -1490,7 +1515,10 @@ describe("helpers", () => {
     ];
     expect(countUnmapped(inspections)).toBe(3);
     expect(
-      defectsCounts({ codes: [code("stain")], templates: [record("X", 1, "active", { modules: [] })], inspections }),
-    ).toEqual({ codes: 1, attention: 0, unmapped: 3 });
+      defectsCounts({ codes: [code("stain")], templates: [record("X", 1, "active", { modules: [] })], inspections }, [
+        { short: "BF" },
+        { short: "WTT" },
+      ]),
+    ).toEqual({ codes: 1, attention: 0, unmapped: 3, shortforms: 2 });
   });
 });

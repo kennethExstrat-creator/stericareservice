@@ -1,7 +1,7 @@
 // How SteriCare's inspectors fill in their paper inspection form (docs/AI.md,
 // "The paper form"): pen and paper on the factory floor, then photographed or
 // scanned and uploaded. Told to the AI with every document it reads, with the
-// shortforms an admin keeps in Admin > AI Settings. Source Documents also
+// shortforms an admin keeps in Admin > Defects > Shortforms. Source Documents also
 // tell it how a laboratory test report is read (LAB_REPORT_GUIDE): its
 // results go into tensile and force at break, and the report itself is
 // linked to those steps (docs/AI.md, "Source Documents").
@@ -30,11 +30,40 @@ export const LAB_REPORT_GUIDE = `How to read a laboratory test report (tensile s
 - Force at break ("force_at_break"): per size, each glove's force at break in N, in the report's order, as that size's "values". Never a median, average or minimum in their place.
 - Each result goes under the size the report names, as the size values given; a report for one size fills only that size. Leave out sizes this inspection does not offer.`;
 
-/** The shortforms as the AI reads them; unconfirmed ones are marked as guesses. */
-export function glossaryText(glossary: readonly GlossaryEntry[]): string {
-  if (glossary.length === 0) return "";
-  const lines = glossary.map(
-    (entry) => `- ${entry.short}: ${entry.meaning}${entry.confirmed ? "" : " (a guess, not confirmed by an inspector yet)"}`,
-  );
-  return `Shortforms some inspectors write (examples, not a standard):\n${lines.join("\n")}`;
+const GUESS = " A guess, not confirmed by an inspector yet.";
+
+/** A meaning as one sentence on one line (the panel's box takes line breaks): a full stop only when it has none. */
+function sentence(text: string): string {
+  const line = text.replace(/\s+/g, " ").trim();
+  return /[.!?]$/.test(line) ? line : `${line}.`;
+}
+
+/**
+ * The shortforms as Steri-AI reads them: the defects with the library codes
+ * each counts under, then the other words inspectors write. `library`
+ * names the codes (the active defect codes); a code it lacks is given
+ * without a name. Unconfirmed meanings are marked as guesses.
+ */
+export function glossaryText(glossary: readonly GlossaryEntry[], library?: readonly { code: string; name: string }[]): string {
+  const names = new Map(library?.map((entry) => [entry.code, entry.name]));
+  const named = (code: string) => (names.has(code) ? `${code} (${names.get(code)})` : code);
+  const line = (entry: GlossaryEntry, codes = "") =>
+    `- ${entry.short}: ${sentence(entry.meaning)}${codes}${entry.confirmed ? "" : GUESS}`;
+
+  const defects = glossary
+    .filter((entry) => entry.kind === "defect")
+    .map((entry) => {
+      if (entry.codes.length === 0) return line(entry, " No code yet.");
+      return line(entry, ` ${entry.codes.length === 1 ? "Code" : "Codes"}: ${entry.codes.map(named).join(", ")}.`);
+    });
+  const terms = glossary.filter((entry) => entry.kind === "term").map((entry) => line(entry));
+
+  const blocks: string[] = [];
+  if (defects.length > 0) {
+    blocks.push(
+      `Shortforms some inspectors write (examples, not a standard). A defect's codes are SteriCare defect library codes: count it under that code when the template lists it, else put it under "unmapped" with the code's library name.\n${defects.join("\n")}`,
+    );
+  }
+  if (terms.length > 0) blocks.push(`Other words inspectors write (not defects):\n${terms.join("\n")}`);
+  return blocks.join("\n\n");
 }

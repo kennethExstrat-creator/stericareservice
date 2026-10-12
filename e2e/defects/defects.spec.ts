@@ -10,18 +10,21 @@ import {
   mappingEvents,
   NOT_A_CODE,
   ORDER,
+  removeTempShortform,
   storedCode,
+  storedShortform,
+  TEMP_SHORTFORM,
   TEMPLATE_CODE,
   type DefectsFixture,
 } from "./fixtures";
 
 /**
- * /admin/defects (BUILD_SPEC 4.2 rule 4, 10): the codes, label mapping and
- * one-off labels, against the live project at the three sizes in
- * playwright.config.ts. Screenshots go to screenshots/defects/.
+ * /admin/defects (BUILD_SPEC 4.2 rule 4, 10): the codes, label mapping,
+ * one-off labels and shortforms, against the live project at the three
+ * sizes in playwright.config.ts. Screenshots go to screenshots/defects/.
  */
 
-const TABS = ["/admin/defects", "/admin/defects/labels", "/admin/defects/unmapped"] as const;
+const TABS = ["/admin/defects", "/admin/defects/labels", "/admin/defects/unmapped", "/admin/defects/shortforms"] as const;
 
 /**
  * Every save is a Server Action that also re-renders the page with fresh
@@ -105,7 +108,7 @@ test("an inspector gets a 404 for every defects tab, and nothing names them", as
     await expect(page.getByText(/page not found|could not be found/i).first()).toBeVisible();
     await expect(page.getByRole("heading", { name: "Defects", level: 1 })).toHaveCount(0);
     const html = (await response?.text()) ?? "";
-    for (const title of ["Defect Codes", "Label Mapping", "Unmapped Labels"]) {
+    for (const title of ["Defect Codes", "Label Mapping", "Unmapped Labels", "Shortforms"]) {
       expect(html, `${path} names "${title}"`).not.toContain(`${title} · SteriCare QC`);
     }
   }
@@ -124,6 +127,8 @@ test.describe("as an admin", () => {
 
   test.afterAll(async () => {
     await fixture?.cleanup();
+    // The shortforms list is live, not a fixture row: whatever happened, the throwaway one goes.
+    await removeTempShortform();
   });
 
   test.beforeEach(async ({ context, baseURL }) => {
@@ -457,6 +462,87 @@ test.describe("as an admin", () => {
       expect.objectContaining({ label: LABELS.thumbTip, code: "hole_finger", count: 1, kind: "other", new_code: false }),
     ]);
     expect(events.every((event) => event.actor_id !== null)).toBe(true);
+    expect(hydration()).toEqual([]);
+  });
+
+  test("adds a shortform with a code, shows it on the code, and deletes it", async ({ page }) => {
+    const hydration = watchConsole(page);
+    await removeTempShortform();
+    const response = await page.goto("/admin/defects/shortforms");
+    expect(response?.status()).toBe(200);
+    await expect(page).toHaveTitle("Shortforms · SteriCare QC");
+    await expect(page.getByRole("link", { name: /^Shortforms/ })).toHaveAttribute("aria-current", "page");
+    await expect(page.locator('section[data-section="Defects"]')).toBeVisible();
+    await expectNoPageScroll(page);
+    await expectTouchTarget(page.getByRole("button", { name: "Add Shortform" }));
+    await shot(page, "shortforms");
+
+    // Add: a defect, its code picked from the library (searched by code or name), never typed.
+    await press(page.getByRole("button", { name: "Add Shortform" }));
+    const panel = page.getByRole("dialog", { name: "Add Shortform" });
+    await expect(panel).toBeVisible();
+    expect(await chromeNames(panel, "radio")).toEqual([
+      { name: "Defect", description: "Counted under a defect code." },
+      { name: "Other Term", description: "A test, product or factory word." },
+    ]);
+    await panel.getByLabel("Shortform", { exact: true }).fill(TEMP_SHORTFORM);
+    await panel.getByLabel("Meaning", { exact: true }).fill("E2E shortform (temporary): watertight hole between the fingers");
+    await expect(panel.getByText("No code yet: Steri-AI records it as a new label for you to map.")).toBeVisible();
+    await press(panel.getByRole("button", { name: "Choose a code" }));
+    // Suggested from its words.
+    await expect(panel.getByRole("group", { name: "Suggested" }).getByRole("option").first()).toContainText("hole_crotch");
+    await panel.getByRole("combobox", { name: "Search codes" }).fill("between fingers");
+    await expectTouchTarget(panel.getByRole("option", { name: /hole_crotch/ }));
+    await shot(page, "shortform-picker", { scroll: false });
+    await press(panel.getByRole("option", { name: /hole_crotch/ }));
+    await expect(panel.locator('[data-chosen-codes] li[data-code="hole_crotch"]')).toBeVisible();
+    await expect(panel.getByRole("button", { name: "Add Another Code" })).toBeFocused();
+    await shot(page, "shortform-add", { scroll: false });
+    await press(panel.getByRole("button", { name: "Add Shortform" }));
+    await expect(toast(page, `“${TEMP_SHORTFORM}” added.`)).toBeVisible();
+    await expect(panel).toBeHidden();
+    const row = page.locator(`section[data-section="Defects"] tr[data-short="${TEMP_SHORTFORM}"]`);
+    await expect(row).toContainText("hole_crotch");
+    await expect(row).toContainText("Confirmed");
+    expect(await storedShortform()).toEqual({
+      short: TEMP_SHORTFORM,
+      meaning: "E2E shortform (temporary): watertight hole between the fingers",
+      confirmed: true,
+      kind: "defect",
+      codes: ["hole_crotch"],
+    });
+
+    // A shortform already in the list is refused next to its field.
+    await press(page.getByRole("button", { name: "Add Shortform" }));
+    await panel.getByLabel("Shortform", { exact: true }).fill(TEMP_SHORTFORM.toLowerCase());
+    await press(panel.getByRole("radio", { name: /Other Term/ }));
+    await panel.getByLabel("Meaning", { exact: true }).fill("Twice");
+    await press(panel.getByRole("button", { name: "Add Shortform" }));
+    await expect(panel.getByText(`“${TEMP_SHORTFORM.toLowerCase()}” is already in the list.`)).toBeVisible();
+    await press(panel.getByRole("button", { name: "Cancel" }));
+
+    // The Codes tab lists it under the code, and the code cannot be deleted while it is linked.
+    await press(page.getByRole("link", { name: /^Codes/ }));
+    const code = page.locator('tbody tr[data-code="hole_crotch"]');
+    await expect(code).toContainText(TEMP_SHORTFORM);
+    await press(code.getByRole("button", { name: "Edit hole_crotch" }));
+    const codePanel = page.getByRole("dialog", { name: "Edit Defect Code" });
+    await expect(codePanel.getByText(new RegExp(`shortforms? .*${TEMP_SHORTFORM}.* use it, so it cannot be deleted`))).toBeVisible();
+    await press(codePanel.getByRole("button", { name: "Close", exact: true }).first());
+
+    // Delete it again, with a confirmation.
+    await press(page.getByRole("link", { name: /^Shortforms/ }));
+    await press(row.getByRole("button", { name: `Edit ${TEMP_SHORTFORM}` }));
+    const edit = page.getByRole("dialog", { name: "Edit Shortform" });
+    await expect(edit.getByLabel("Shortform", { exact: true })).toHaveValue(TEMP_SHORTFORM);
+    await press(edit.getByRole("button", { name: "Delete Shortform" }));
+    const confirm = page.getByRole("alertdialog", { name: `Delete “${TEMP_SHORTFORM}”?` });
+    await press(confirm.getByRole("button", { name: "Delete", exact: true }));
+    await expect(toast(page, `“${TEMP_SHORTFORM}” deleted.`)).toBeVisible();
+    await expect(row).toHaveCount(0);
+    // Its row went with the Edit button, so the keyboard goes to Add Shortform.
+    await expect(page.getByRole("button", { name: "Add Shortform" })).toBeFocused();
+    expect(await storedShortform()).toBeNull();
     expect(hydration()).toEqual([]);
   });
 });

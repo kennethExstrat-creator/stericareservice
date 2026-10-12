@@ -4,15 +4,16 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { FlagIcon, TriangleAlertIcon, type LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/qc";
-import { DEFECTS_PATH, LABEL_MAPPING_PATH, UNMAPPED_PATH, type DefectsCounts } from "@/lib/admin/defects";
+import { DEFECTS_PATH, LABEL_MAPPING_PATH, SHORTFORMS_PATH, UNMAPPED_PATH, type DefectsCounts } from "@/lib/admin/defects";
 import { cn } from "@/lib/utils";
 
-export type DefectsTab = "codes" | "labels" | "unmapped";
+export type DefectsTab = "codes" | "labels" | "unmapped" | "shortforms";
 
 const TABS: readonly { key: DefectsTab; label: string; href: string }[] = [
   { key: "codes", label: "Codes", href: DEFECTS_PATH },
   { key: "labels", label: "Label Mapping", href: LABEL_MAPPING_PATH },
   { key: "unmapped", label: "Unmapped Labels", href: UNMAPPED_PATH },
+  { key: "shortforms", label: "Shortforms", href: SHORTFORMS_PATH },
 ];
 
 // Underlined like the iPad top bar's tabs, so they never read as the admin
@@ -27,9 +28,9 @@ const TAB = cn(
 const COUNT = "inline-flex h-5 min-w-5 items-center justify-center gap-1 rounded-full border px-1.5 text-xs font-semibold tabular-nums";
 
 /**
- * A tab's number: neutral for the code count; amber with an icon, and only
- * when above 0, for what waits for an admin. The icon and number are for the
- * eye; screen readers hear the words.
+ * A tab's number: neutral for the codes and shortforms; amber with an icon,
+ * and only when above 0, for what waits for an admin. The icon and number
+ * are for the eye; screen readers hear the words.
  */
 function TabCount({ value, spoken, warn }: { value: number; spoken: string; warn?: LucideIcon }) {
   if (warn && value === 0) return null;
@@ -65,6 +66,13 @@ function countOf(key: DefectsTab, counts: DefectsCounts) {
       );
     case "unmapped":
       return <TabCount value={counts.unmapped} warn={FlagIcon} spoken={`${counts.unmapped} waiting for a code`} />;
+    case "shortforms":
+      return (
+        <TabCount
+          value={counts.shortforms}
+          spoken={`${counts.shortforms} ${counts.shortforms === 1 ? "shortform" : "shortforms"}`}
+        />
+      );
   }
 }
 

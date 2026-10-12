@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("next/cache", () => ({ refresh: vi.fn() }));
+vi.mock("next/cache", () => ({ refresh: vi.fn(), revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth/session", () => ({ authorizeAction: vi.fn() }));
+// The shortforms live in ai_settings, which only the service role reads (lib/ai/settings.ts).
+vi.mock("@/lib/ai/settings", () => ({ loadGlossaryState: vi.fn(), saveGlossary: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 // A stand-in order module that orders each size with a quantity, as order_lots does (its own tests
 // cover that rule): the mapping follows the ordered sizes, whatever the order module's schemas.
@@ -21,11 +23,21 @@ vi.mock("@/modules/registry", async (importOriginal) => {
   return { ...actual, MODULE_REGISTRY: { ...actual.MODULE_REGISTRY, order_lots: orderLots } };
 });
 
-import { refresh } from "next/cache";
+import { refresh, revalidatePath } from "next/cache";
 import { MESSAGES, type ActionResult } from "@/lib/admin/defects";
+import { SHORTFORM_MESSAGES } from "@/lib/admin/shortforms";
+import { loadGlossaryState, saveGlossary, type GlossaryState } from "@/lib/ai/settings";
 import { authorizeAction } from "@/lib/auth/session";
+import type { GlossaryEntry } from "@/lib/schemas/ai-settings";
 import { createClient } from "@/lib/supabase/server";
-import { deleteDefectCode, mapDefectLabel, saveDefectCode, setDefectCodeActive } from "./actions";
+import {
+  deleteDefectCode,
+  deleteShortform,
+  mapDefectLabel,
+  saveDefectCode,
+  saveShortform,
+  setDefectCodeActive,
+} from "./actions";
 
 const ADMIN = "7c2d4e1a-0b3f-4a5c-9d8e-1f2a3b4c5d6e";
 const INSPECTION = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
@@ -99,6 +111,19 @@ const codeRow = (code: string, extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 
+const defect = (short: string, codes: string[], meaning = `${short} meaning`): GlossaryEntry => ({
+  short,
+  meaning,
+  confirmed: true,
+  kind: "defect",
+  codes,
+});
+const term = (short: string): GlossaryEntry => ({ short, meaning: `${short} meaning`, confirmed: true, kind: "term", codes: [] });
+
+function useGlossary(entries: GlossaryEntry[], storage: GlossaryState["storage"] = "ready") {
+  vi.mocked(loadGlossaryState).mockResolvedValue({ entries, legacy: false, storage });
+}
+
 beforeEach(() => {
   vi.mocked(authorizeAction).mockResolvedValue({
     ok: true,
@@ -106,6 +131,8 @@ beforeEach(() => {
   });
   vi.spyOn(console, "error").mockImplementation(() => {});
   useClient(() => OK_EMPTY);
+  useGlossary([]);
+  vi.mocked(saveGlossary).mockResolvedValue({ ok: true });
 });
 
 afterEach(() => {
@@ -126,13 +153,31 @@ describe("every action", () => {
     ["mapDefectLabel", () => mapDefectLabel(IDLE, form({ inspectionId: INSPECTION, target, mode: "existing", code: "stain" }))],
   ];
 
-  it.each(calls)("%s refuses anyone who is not an active admin, before reading anything", async (_name, run) => {
+  const shortformCalls: Array<[string, () => Promise<ActionResult<string, unknown>>]> = [
+    [
+      "saveShortform",
+      () => saveShortform(IDLE, form({ original: "", short: "BF", kind: "defect", codes: "hole_crotch", meaning: "Between Finger", confirmed: "true" })),
+    ],
+    ["deleteShortform", () => deleteShortform(IDLE, form({ original: JSON.stringify(defect("BF", ["hole_crotch"])) }))],
+  ];
+
+  it.each([...calls, ...shortformCalls])("%s refuses anyone who is not an active admin, before reading anything", async (_name, run) => {
     vi.mocked(authorizeAction).mockResolvedValue({ ok: false, error: "You do not have permission to do that." });
 
     expect(await run()).toEqual({ status: "error", message: "You do not have permission to do that." });
     expect(authorizeAction).toHaveBeenCalledWith("admin");
     expect(createClient).not.toHaveBeenCalled();
+    expect(loadGlossaryState).not.toHaveBeenCalled();
+    expect(saveGlossary).not.toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it.each(shortformCalls)("%s turns an unexpected failure into a message instead of an error page", async (_name, run) => {
+    useClient(() => ({ data: [{ code: "hole_crotch", active: true }], error: null }));
+    vi.mocked(loadGlossaryState).mockRejectedValue(new Error("connection reset"));
+    expect(await run()).toEqual({ status: "error", message: MESSAGES.unexpected });
+    expect(saveGlossary).not.toHaveBeenCalled();
   });
 
   it.each(calls)("%s turns an unexpected failure into a message instead of an error page", async (_name, run) => {
@@ -345,6 +390,30 @@ describe("deleteDefectCode", () => {
     // Only the parts of the data that count codes are read.
     const read = fake.queries.find((query) => query.table === "inspections");
     expect(String(arg(read, "select"))).toContain("visual:data->modules->visual");
+  });
+
+  it("never deletes a code a shortform links, and names the shortforms", async () => {
+    useClient(respond());
+    useGlossary([defect("TC", ["torn_cuff"]), defect("BF", ["hole_crotch"])]);
+    expect(await remove()).toEqual({
+      status: "error",
+      message: "The shortform TC uses it, so it cannot be deleted. Change it on Shortforms first, or deactivate the code.",
+    });
+    expect(fake.queries.some((query) => isWrite(query, "delete"))).toBe(false);
+
+    useClient(respond({ templates: [templateRow({ modules: [{ config: { defects: [{ code: "torn_cuff" }] } }] })] }));
+    useGlossary([defect("TC", ["torn_cuff"]), defect("CT", ["stain", "torn_cuff"])]);
+    expect(await remove()).toEqual({
+      status: "error",
+      message: "STD_EG v2 and the shortforms CT and TC use it, so it cannot be deleted. Deactivate it instead.",
+    });
+  });
+
+  it("deletes nothing while the shortforms cannot be read: the starting list would stand in for the saved one", async () => {
+    useClient(respond());
+    useGlossary([], "unavailable");
+    expect(await remove()).toEqual({ status: "error", message: MESSAGES.unexpected });
+    expect(fake.queries.some((query) => isWrite(query, "delete"))).toBe(false);
   });
 
   it("answers calmly when the code is already gone, or nothing was deleted", async () => {
@@ -716,5 +785,156 @@ describe("mapDefectLabel", () => {
     await map();
     const read = fake.queries.find((query) => query.table === "inspections" && isRead(query));
     expect(eqs(read)).toEqual({ id: INSPECTION });
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * Shortforms
+ * ------------------------------------------------------------------ */
+
+describe("saveShortform", () => {
+  const LIST = [defect("BF", ["hole_crotch"]), defect("IB", ["bead_defective", "bead_poor"]), term("WTT")];
+  const save = (fields: Record<string, string>, codes: string[] = []) => {
+    const data = form({ original: "", short: "", kind: "defect", meaning: "", confirmed: "true", ...fields });
+    for (const code of codes) data.append("codes", code);
+    return saveShortform(IDLE, data);
+  };
+  /** The library as the admin's client reads it. */
+  const library =
+    (...rows: Array<{ code: string; active: boolean }>): Responder =>
+    (query) =>
+      query.table === "defect_codes" ? { data: rows, error: null } : OK_EMPTY;
+
+  it("adds a shortform, its new codes checked as the admin, and saves the whole list in the admin's name", async () => {
+    useGlossary(LIST);
+    useClient(library({ code: "hole_finger", active: true }));
+
+    const result = await save({ short: " FT ", meaning: "Finger Tip: watertight hole at a fingertip" }, ["hole_finger"]);
+
+    expect(result).toEqual({ status: "success", message: "“FT” added." });
+    const read = fake.queries.find((query) => query.table === "defect_codes");
+    expect(arg(read, "select")).toBe("code, active");
+    expect(read?.calls.find(([name]) => name === "in")?.[1]).toEqual(["code", ["hole_finger"]]);
+    expect(saveGlossary).toHaveBeenCalledWith(
+      [...LIST, { short: "FT", meaning: "Finger Tip: watertight hole at a fingertip", confirmed: true, kind: "defect", codes: ["hole_finger"] }],
+      ADMIN,
+    );
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/defects", "layout");
+  });
+
+  it("saves an edit in its place, against the entry as the panel opened it", async () => {
+    useGlossary(LIST);
+    const result = await save(
+      { original: JSON.stringify(LIST[1]), short: "IB", meaning: "Improper Beading", confirmed: "false" },
+      ["bead_defective", "bead_poor"],
+    );
+    expect(result).toEqual({ status: "success", message: "“IB” saved." });
+    // No new code: nothing to check in the library.
+    expect(createClient).not.toHaveBeenCalled();
+    expect(saveGlossary).toHaveBeenCalledWith(
+      [LIST[0], { ...LIST[1], meaning: "Improper Beading", confirmed: false }, LIST[2]],
+      ADMIN,
+    );
+  });
+
+  it("links only an active defect code; one it linked already may stay while inactive", async () => {
+    useGlossary(LIST);
+    useClient(library({ code: "old_stain", active: false }));
+    expect(await save({ short: "OS", meaning: "Oil stain" }, ["old_stain"])).toEqual({
+      status: "error",
+      message: MESSAGES.checkFields,
+      fieldErrors: { codes: "“old_stain” is not an active defect code." },
+    });
+    useClient(library());
+    expect(await save({ short: "OS", meaning: "Oil stain" }, ["hole_x"])).toMatchObject({
+      fieldErrors: { codes: "“hole_x” is not an active defect code." },
+    });
+    expect(saveGlossary).not.toHaveBeenCalled();
+
+    const linked = defect("OS", ["old_stain"], "Oil stain");
+    useGlossary([...LIST, linked]);
+    expect(await save({ original: JSON.stringify(linked), short: "OS", meaning: "Oil stain, kept" }, ["old_stain"])).toEqual({
+      status: "success",
+      message: "“OS” saved.",
+    });
+  });
+
+  it("refuses a shortform already in the list, and a change to an entry someone changed meanwhile", async () => {
+    useGlossary(LIST);
+    expect(await save({ short: "wtt", kind: "term", meaning: "Watertight test" })).toEqual({
+      status: "error",
+      message: MESSAGES.checkFields,
+      fieldErrors: { short: "“wtt” is already in the list." },
+    });
+    const opened = { ...LIST[0], meaning: "As the panel opened it" };
+    expect(await save({ original: JSON.stringify(opened), short: "BF", meaning: "Between Finger" }, ["hole_crotch"])).toEqual({
+      status: "error",
+      message: SHORTFORM_MESSAGES.conflict,
+    });
+    expect(saveGlossary).not.toHaveBeenCalled();
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("saves nothing that could not be read back: never a 201st shortform", async () => {
+    useGlossary(Array.from({ length: 200 }, (_, index) => term(`T${index}`)));
+    expect(await save({ short: "ONE_MORE", kind: "term", meaning: "One more" })).toEqual({
+      status: "error",
+      message: "Keep the list to 200 shortforms.",
+    });
+    expect(saveGlossary).not.toHaveBeenCalled();
+  });
+
+  it("names each field that is wrong, before reading anything", async () => {
+    expect(await save({ short: " ", meaning: "" })).toEqual({
+      status: "error",
+      message: MESSAGES.checkFields,
+      fieldErrors: { short: "Enter the shortform.", meaning: "Enter what it means." },
+    });
+    expect(await save({ short: "X", meaning: "X" }, ["a", "b", "c", "d"])).toMatchObject({ fieldErrors: { codes: "Choose up to 3 codes." } });
+    expect(await save({ short: "X", kind: "other", meaning: "X" })).toEqual({ status: "error", message: MESSAGES.stale });
+    expect(createClient).not.toHaveBeenCalled();
+    expect(loadGlossaryState).not.toHaveBeenCalled();
+  });
+
+  it("says when the shortforms cannot be saved, or the save failed", async () => {
+    useGlossary(LIST, "no_secret_key");
+    expect(await save({ short: "WTT2", kind: "term", meaning: "Again" })).toEqual({ status: "error", message: SHORTFORM_MESSAGES.noSecretKey });
+    useGlossary(LIST, "unavailable");
+    expect(await save({ short: "WTT2", kind: "term", meaning: "Again" })).toEqual({ status: "error", message: SHORTFORM_MESSAGES.unavailable });
+    expect(saveGlossary).not.toHaveBeenCalled();
+
+    useGlossary(LIST);
+    vi.mocked(saveGlossary).mockResolvedValue({ ok: false, message: "The settings could not be saved. Try again." });
+    expect(await save({ short: "WTT2", kind: "term", meaning: "Again" })).toEqual({
+      status: "error",
+      message: "The settings could not be saved. Try again.",
+    });
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("deleteShortform", () => {
+  const LIST = [defect("BF", ["hole_crotch"]), term("WTT")];
+  const remove = (entry: unknown) => deleteShortform(IDLE, form({ original: typeof entry === "string" ? entry : JSON.stringify(entry) }));
+
+  it("deletes the shortform and saves the rest", async () => {
+    useGlossary(LIST);
+    expect(await remove(LIST[0])).toEqual({ status: "success", message: "“BF” deleted." });
+    expect(saveGlossary).toHaveBeenCalledWith([LIST[1]], ADMIN);
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/defects", "layout");
+  });
+
+  it("answers calmly when it is already gone, and refuses when it changed meanwhile", async () => {
+    useGlossary(LIST);
+    expect(await remove(term("PF"))).toEqual({ status: "success", message: "“PF” was already deleted." });
+    expect(saveGlossary).not.toHaveBeenCalled();
+    expect(await remove({ ...LIST[0], confirmed: false })).toEqual({ status: "error", message: SHORTFORM_MESSAGES.conflict });
+    expect(saveGlossary).not.toHaveBeenCalled();
+  });
+
+  it("calls a form without the shortform it opened out of date", async () => {
+    expect(await remove("")).toEqual({ status: "error", message: MESSAGES.stale });
+    expect(await remove("{broken")).toEqual({ status: "error", message: MESSAGES.stale });
+    expect(loadGlossaryState).not.toHaveBeenCalled();
   });
 });

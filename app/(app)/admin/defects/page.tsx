@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { addPrefill, buildCodeItems, defectsCounts, loadDefectsData } from "@/lib/admin/defects";
+import { loadGlossaryState } from "@/lib/ai/settings";
 import { requireAdmin } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { MODULE_REGISTRY } from "@/modules/registry";
@@ -17,9 +18,11 @@ export async function generateMetadata(): Promise<Metadata> {
 
 /**
  * /admin/defects (BUILD_SPEC 4.2 rule 4, 5 and 10): the canonical defect
- * codes. Add, edit, deactivate; delete only a code nothing uses. Severity is
- * not here: it belongs to each template. The other tabs are label mapping
- * (labels/) and the one-off labels inspectors added (unmapped/).
+ * codes, each with the templates and shortforms that use it. Add, edit,
+ * deactivate; delete only a code nothing uses. Severity is not here: it
+ * belongs to each template. The other tabs are label mapping (labels/), the
+ * one-off labels inspectors added (unmapped/) and what inspectors write on
+ * paper (shortforms/).
  *
  * Inspectors get a 404 from requireAdmin(); a layout is not a security
  * boundary, so the page checks for itself, and RLS lets only admins write.
@@ -28,13 +31,17 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function DefectCodesPage({ searchParams }: PageProps<"/admin/defects">) {
   await requireAdmin();
   const supabase = await createClient();
-  const [data, params] = await Promise.all([loadDefectsData(supabase, MODULE_REGISTRY), searchParams]);
+  const [data, glossary, params] = await Promise.all([
+    loadDefectsData(supabase, MODULE_REGISTRY),
+    loadGlossaryState(),
+    searchParams,
+  ]);
   const query = typeof params.q === "string" ? params.q : "";
 
   return (
     <DefectCodesAdmin
-      codes={buildCodeItems(data.codes, data.templates)}
-      counts={defectsCounts(data)}
+      codes={buildCodeItems(data.codes, data.templates, glossary.entries)}
+      counts={defectsCounts(data, glossary.entries)}
       initialQuery={query}
       prefill={addPrefill(params)}
     />

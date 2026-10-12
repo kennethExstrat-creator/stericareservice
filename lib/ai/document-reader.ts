@@ -2,6 +2,7 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import type {
   BetaContentBlockParam,
+  BetaMessage,
   MessageCreateParamsNonStreaming,
 } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import { z } from "zod";
@@ -11,6 +12,7 @@ import { DocumentReadingSchema, type DocumentMediaType, type DocumentReading } f
 import type { AiEnv } from "./config";
 import { toStructuredOutputSchema } from "./providers/claude-format";
 import { glossaryText, PAPER_FORM_GUIDE } from "./reading-guide";
+import { callFromError, callFromMessage, reportAiCall, type OnAiCall } from "./usage";
 
 /*
  * Reads an order document (a PO, packing list, inspection request: no set
@@ -25,7 +27,7 @@ export type DocumentFile = { mediaType: DocumentMediaType; base64: string; name:
 export type ReadingContext = {
   clients: readonly { id: string; name: string }[];
   manufacturers: readonly { id: string; name: string }[];
-  /** The shortforms inspectors write (Admin > AI Settings): "TG32" may name a manufacturer. */
+  /** The shortforms inspectors write (Admin > Defects > Shortforms): "TG32" may name a manufacturer. */
   glossary?: readonly GlossaryEntry[];
 };
 
@@ -79,10 +81,12 @@ export const fail = (reason: ReadFailure["reason"], message: string): ReadFailur
   message,
 });
 
+/** `onCall` hears of the Claude call, billed or failed, for its cost (lib/ai/usage.ts). */
 export async function readOrderDocument(
   file: DocumentFile,
   context: ReadingContext,
   env: AiEnv,
+  onCall?: OnAiCall,
 ): Promise<ReadDocumentOutcome> {
   const apiKey = env.ANTHROPIC_API_KEY?.trim();
   if (!apiKey) {
@@ -102,7 +106,7 @@ export async function readOrderDocument(
   };
 
   try {
-    const message = await createMessage(client, params);
+    const message = await createMessage(client, params, onCall);
     if (message.stop_reason === "refusal") return fail("error", "Steri-AI declined to read this document.");
     if (message.stop_reason === "max_tokens") {
       return fail("error", "The document is too long to read in one go. Upload just the pages with the order details.");
@@ -122,8 +126,31 @@ export async function readOrderDocument(
   }
 }
 
-/** One request; a model without the effort setting is asked once more without it. */
-export async function createMessage(client: Anthropic, params: MessageCreateParamsNonStreaming) {
+/**
+ * One request; a model without the effort setting is asked once more without
+ * it. `onCall` hears of the call once, for its cost (lib/ai/usage.ts): every
+ * answer, whatever its stop reason (a refused or cut-off answer is billed
+ * too), or the error once nothing came back. The effort retry's first 400 is
+ * not billed and not reported. A problem in onCall never reaches the reader.
+ */
+export async function createMessage(
+  client: Anthropic,
+  params: MessageCreateParamsNonStreaming,
+  onCall?: OnAiCall,
+): Promise<BetaMessage> {
+  const startedAt = Date.now();
+  let message: BetaMessage;
+  try {
+    message = await sendMessage(client, params);
+  } catch (error) {
+    reportAiCall(onCall, () => callFromError(error, params.model, startedAt));
+    throw error;
+  }
+  reportAiCall(onCall, () => callFromMessage(message, startedAt));
+  return message;
+}
+
+async function sendMessage(client: Anthropic, params: MessageCreateParamsNonStreaming): Promise<BetaMessage> {
   try {
     return await client.beta.messages.create(params);
   } catch (error) {

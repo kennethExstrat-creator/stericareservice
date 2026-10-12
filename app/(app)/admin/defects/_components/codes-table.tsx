@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { listOf, oneLine, type DefectCodeItem } from "@/lib/admin/defects";
 import { cn } from "@/lib/utils";
 import { CodeStatusBadge } from "./badges";
-import { ListCard } from "./list-parts";
+import { ListCard, NoValue } from "./list-parts";
 
 // Compact rows with a mouse (docs/DESIGN.md, Density): about 36 px around the
 // 32 px Edit button. Touch keeps 44 px controls and more room.
@@ -30,9 +30,10 @@ function UsedBy({ templates }: { templates: readonly string[] }) {
 
 /**
  * The codes, one line each on desktop (1280 px and wider): code, name,
- * description, the templates that use it, status. On iPad the description
- * folds under the name, and in portrait the templates too, so rows keep
- * their 44 px controls without scrolling sideways.
+ * description, the templates that use it, the shortforms that count under
+ * it, status. On iPad the description folds under the name, and in portrait
+ * the templates and shortforms too, so rows keep their 44 px controls
+ * without scrolling sideways.
  */
 export function CodesTable({
   rows,
@@ -61,6 +62,9 @@ export function CodesTable({
             </TableHead>
             <TableHead scope="col" className={cn(HEAD, "hidden w-48 lg:table-cell")}>
               Used In
+            </TableHead>
+            <TableHead scope="col" className={cn(HEAD, "hidden w-32 lg:table-cell")}>
+              Shortforms
             </TableHead>
             <TableHead scope="col" className={cn(HEAD, "w-28 touch:w-32")}>
               Status
@@ -104,6 +108,11 @@ export function CodesTable({
                 {row.usedBy.length > 0 && (
                   <span className="mt-0.5 block text-sm text-muted-foreground lg:hidden">Used in {listOf(row.usedBy)}</span>
                 )}
+                {row.shortforms.length > 0 && (
+                  <span className="mt-0.5 block text-sm text-muted-foreground [overflow-wrap:anywhere] lg:hidden">
+                    Shortforms: {row.shortforms.join(", ")}
+                  </span>
+                )}
               </TableCell>
               <TableCell className={cn(CELL, "hidden xl:table-cell")}>
                 {row.description ? (
@@ -116,6 +125,13 @@ export function CodesTable({
               </TableCell>
               <TableCell className={cn(CELL, "hidden lg:table-cell")}>
                 <UsedBy templates={row.usedBy} />
+              </TableCell>
+              <TableCell className={cn(CELL, "hidden whitespace-normal lg:table-cell")}>
+                {row.shortforms.length > 0 ? (
+                  <span className="block [overflow-wrap:anywhere]">{row.shortforms.join(", ")}</span>
+                ) : (
+                  <NoValue spoken="No shortforms" />
+                )}
               </TableCell>
               <TableCell className={CELL}>
                 <CodeStatusBadge active={row.active} />

@@ -8,6 +8,7 @@ import type {
 import type { InspectionExport } from "@/lib/schemas";
 import type { ClaudeSettings } from "../config";
 import type { AiReviewFailure, AiReviewOutcome, AiUsage } from "../types";
+import { callFromError, callFromMessage, reportAiCall, type OnAiCall } from "../usage";
 import { parseAiReviewText } from "./claude-format";
 import { buildReviewRequest, CLAUDE_MAX_TOKENS, selectReviewPhotos, type ClaudeReviewParams } from "./claude-request";
 
@@ -36,12 +37,18 @@ export const CLAUDE_MAX_RETRIES = 2;
 /** Longest wait for a retry. A longer retry-after is reported instead of waited out. */
 export const CLAUDE_MAX_RETRY_WAIT_MS = 60_000;
 
-/** The part of the final (streamed) beta message this provider reads. */
+/**
+ * The part of the final (streamed) beta message this provider reads. The
+ * usage's cache split, per-attempt iterations (a fallback model's attempt
+ * included), inference region and service tier price the review
+ * (lib/ai/usage.ts); they are optional, so a test's fake message fits.
+ */
 export interface ClaudeReviewMessage {
   model: string;
   stop_reason: BetaStopReason | null;
   stop_details: Pick<BetaRefusalStopDetails, "category" | "explanation"> | null;
-  usage: Pick<BetaUsage, "input_tokens" | "output_tokens" | "cache_creation_input_tokens" | "cache_read_input_tokens">;
+  usage: Pick<BetaUsage, "input_tokens" | "output_tokens" | "cache_creation_input_tokens" | "cache_read_input_tokens"> &
+    Partial<Pick<BetaUsage, "cache_creation" | "iterations" | "inference_geo" | "service_tier">>;
   content: ReadonlyArray<{ type: string; text?: string }>;
 }
 
@@ -76,6 +83,13 @@ export interface ClaudeReviewOptions {
   signal?: AbortSignal;
   /** Waits before a retry. Tests pass a fake. */
   wait?: (ms: number, signal: AbortSignal) => Promise<void>;
+  /**
+   * Hears of the review's Claude call once, for its cost (lib/ai/usage.ts):
+   * the final message whatever its stop reason, or the final error once the
+   * retries are spent. Retries before the stream opened and a 400 sent again
+   * without photos were not billed, so they are not reported.
+   */
+  onCall?: OnAiCall;
 }
 
 interface Deadline {
@@ -112,8 +126,8 @@ export async function reviewWithClaude(
   };
 
   const photos = selectReviewPhotos(doc.photos, settings.maxPhotos);
+  let message: ClaudeReviewMessage;
   try {
-    let message: ClaudeReviewMessage;
     try {
       message = await send(buildReviewRequest(doc, settings, photos));
     } catch (error) {
@@ -122,10 +136,12 @@ export async function reviewWithClaude(
       if (!(error instanceof Anthropic.BadRequestError) || photos.length === 0) throw error;
       message = await send(buildReviewRequest(doc, settings, []));
     }
-    return toOutcome(message, maxTokens);
   } catch (error) {
+    reportAiCall(options.onCall, () => callFromError(error, settings.model, deadline.startedAt));
     return describeError(error, deadline, options.signal);
   }
+  reportAiCall(options.onCall, () => callFromMessage(message, deadline.startedAt));
+  return toOutcome(message, maxTokens);
 }
 
 /**

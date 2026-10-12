@@ -404,7 +404,8 @@ describe("submitInspection", () => {
       isUpdate(query) ? { data: [{ id: INSPECTION }], error: null } : { data: row({ data: COMPLETE, template: asking }), error: null },
     );
     await expect(submit()).rejects.toThrow(`REDIRECT /inspections/${INSPECTION}/review`);
-    expect(scheduleAiReviewOnSubmit).toHaveBeenCalledWith(INSPECTION);
+    // As the user who submitted, so the review's cost is theirs.
+    expect(scheduleAiReviewOnSubmit).toHaveBeenCalledWith(INSPECTION, INSPECTOR);
     // The request stays alive for a review still starting when the review opens.
     expect(after).toHaveBeenCalledTimes(1);
 

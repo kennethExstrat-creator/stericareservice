@@ -20,7 +20,10 @@ type TextFieldProps = {
   multiline?: boolean;
   /** A code: monospace, no capitals or corrections from the keyboard. */
   code?: boolean;
-  autoCapitalize?: "words" | "sentences" | "none";
+  /** "characters" for a shortform as inspectors write it ("BF"). */
+  autoCapitalize?: "characters" | "words" | "sentences" | "none";
+  /** False for what is no word, such as a shortform. */
+  spellCheck?: boolean;
 };
 
 /**
@@ -41,6 +44,7 @@ export function TextField({
   multiline = false,
   code = false,
   autoCapitalize = "sentences",
+  spellCheck,
 }: TextFieldProps) {
   const descriptionId = description ? `${id}-description` : undefined;
   const errorId = error ? `${id}-error` : undefined;
@@ -66,8 +70,8 @@ export function TextField({
         <Input
           className={cn(code && "font-mono")}
           autoCapitalize={code ? "none" : autoCapitalize}
-          autoCorrect={code ? "off" : undefined}
-          spellCheck={code ? false : undefined}
+          autoCorrect={code || spellCheck === false ? "off" : undefined}
+          spellCheck={code ? false : spellCheck}
           {...shared}
         />
       )}

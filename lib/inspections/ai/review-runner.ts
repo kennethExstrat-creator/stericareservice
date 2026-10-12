@@ -2,6 +2,7 @@ import "server-only";
 import { after } from "next/server";
 import { getAiStatus, requestAiReview, reviewNotConnectedMessage, type AiReviewOutcome } from "@/lib/ai";
 import { loadAiEnv } from "@/lib/ai/settings";
+import { recordAiUsage, type AiCall } from "@/lib/ai/usage";
 import {
   canExportInspection,
   evaluateRecord,
@@ -60,11 +61,17 @@ export type StartAiReviewInput = {
   trigger: AiReviewTrigger;
   /** The admin asking; left out for the submit trigger, which runs as the service role. */
   viewer?: ExportViewer;
+  /**
+   * Who the review is for, so its cost names them (ai_usage.actor_id): the
+   * admin who asked (the viewer, by default), or the user who submitted.
+   */
+  requestedBy?: string | null;
   now?: () => number;
 };
 
 export async function startAiReview(input: StartAiReviewInput): Promise<StartAiReviewResult> {
   const { client, inspectionId, trigger, viewer } = input;
+  const actorId = input.requestedBy ?? viewer?.id ?? null;
   const now = input.now?.() ?? Date.now();
 
   // The key and model saved in Admin > AI Settings lie over the variables.
@@ -136,7 +143,7 @@ export async function startAiReview(input: StartAiReviewInput): Promise<StartAiR
 
   const exportDoc = built.export;
   const fallbackWriter = client;
-  after(() => completeAiReview({ reviewId, inspectionId: record.id, exportDoc, writer: backgroundWriter(fallbackWriter) }));
+  after(() => completeAiReview({ reviewId, inspectionId: record.id, exportDoc, writer: backgroundWriter(fallbackWriter), actorId }));
   return { ok: true, reviewId, inspectionUpdatedAt: record.updatedAt };
 }
 
@@ -146,21 +153,36 @@ export type CompleteAiReviewInput = {
   exportDoc: InspectionExport;
   /** Stores the outcome. */
   writer: ExportClient;
+  /** Who the review is for: its cost is recorded in their name (null: nobody known). */
+  actorId?: string | null;
   /** For tests: the reviewer call. */
   review?: (doc: InspectionExport) => Promise<AiReviewOutcome>;
 };
 
 /** Asks the reviewer and stores its answer on the pending row. Never throws. */
 export async function completeAiReview(input: CompleteAiReviewInput): Promise<"done" | "failed" | "not_stored"> {
-  const { reviewId, inspectionId, exportDoc, writer } = input;
+  const calls: AiCall[] = [];
   let outcome: AiReviewOutcome;
   try {
-    outcome = input.review ? await input.review(exportDoc) : await requestAiReview(exportDoc, { env: await loadAiEnv() });
+    outcome = input.review
+      ? await input.review(input.exportDoc)
+      : await requestAiReview(input.exportDoc, { env: await loadAiEnv(), onCall: (call) => calls.push(call) });
   } catch (error) {
     console.error("[ai review] the reviewer threw", error);
     outcome = { ok: false, reason: "error", message: "Unexpected error while requesting Steri-AI's review." };
   }
+  const stored = await storeOutcome(input, outcome);
+  // What the Claude call cost, refused, cut off or failed included (Steri-AI Cost), once the outcome is
+  // stored, so the review never waits for it. This runs in after() already; recordAiUsage never throws.
+  for (const call of calls) {
+    await recordAiUsage({ feature: "second_opinion", inspectionId: input.inspectionId, actorId: input.actorId ?? null, itemCount: 1 }, call);
+  }
+  return stored;
+}
 
+/** Stores the reviewer's answer on the pending row, with its audit event. Never throws. */
+async function storeOutcome(input: CompleteAiReviewInput, outcome: AiReviewOutcome): Promise<"done" | "failed" | "not_stored"> {
+  const { reviewId, inspectionId, writer } = input;
   const update: TablesUpdate<"ai_reviews"> = outcome.ok
     ? {
         status: "done",
@@ -211,10 +233,11 @@ export async function completeAiReview(input: CompleteAiReviewInput): Promise<"d
  * The second opinion on submit, when the template asks for it (BUILD_SPEC
  * 9.2 "Trigger"). Inspectors cannot write ai_reviews, so this runs as the
  * service role (docs/DATABASE.md, "Notes for app code"). Call it from the
- * submit action after the status change; it never throws and does nothing
+ * submit action after the status change, with the user who submitted (the
+ * review's cost is recorded in their name); it never throws and does nothing
  * when no reviewer is connected.
  */
-export async function scheduleAiReviewOnSubmit(inspectionId: string): Promise<StartAiReviewResult> {
+export async function scheduleAiReviewOnSubmit(inspectionId: string, actorId: string | null = null): Promise<StartAiReviewResult> {
   if (!getAiStatus(await loadAiEnv()).review.connected) {
     return { ok: false, reason: "not_connected", message: "Steri-AI second opinion not connected." };
   }
@@ -222,7 +245,7 @@ export async function scheduleAiReviewOnSubmit(inspectionId: string): Promise<St
     return { ok: false, reason: "database_error", message: "The server needs SUPABASE_SECRET_KEY to start a review on submit." };
   }
   try {
-    return await startAiReview({ client: createAdminClient(), inspectionId, trigger: "submit" });
+    return await startAiReview({ client: createAdminClient(), inspectionId, trigger: "submit", requestedBy: actorId });
   } catch (error) {
     console.error("[ai review] starting the review on submit threw", error);
     return { ok: false, reason: "database_error", message: "The second opinion could not be started." };
