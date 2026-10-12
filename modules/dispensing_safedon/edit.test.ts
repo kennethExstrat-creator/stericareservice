@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { boxesOf, columnsShown, setSafedonBoxNo, setSafedonCount, withoutTrailingBlanks } from "./edit";
+import {
+  activeAfterRemoval,
+  boxDefects,
+  boxesOf,
+  boxPageOf,
+  canRemoveBox,
+  columnsShown,
+  removeSafedonBox,
+  setSafedonBoxNo,
+  setSafedonCount,
+  withoutTrailingBlanks,
+} from "./edit";
 import { DispensingSafedonDataSchema, emptySafedonBox, type DispensingSafedonData } from "./schema";
 
 describe("dispensing_safedon editing", () => {
@@ -35,5 +46,75 @@ describe("dispensing_safedon editing", () => {
       emptySafedonBox(),
       { boxNo: 3, counts: {} },
     ]);
+  });
+
+  it("deletes a box: the ones after it move up, blanks left at the end go, other sizes stay", () => {
+    const data: DispensingSafedonData = {
+      sizes: {
+        XS: {
+          boxes: [
+            { boxNo: 3, counts: { sticky: 1 } },
+            { boxNo: 12, counts: {} },
+            emptySafedonBox(),
+            { boxNo: 59, counts: { stuck: 2 } },
+          ],
+        },
+        XL: { boxes: [{ boxNo: 1, counts: {} }] },
+      },
+    };
+    const middle = removeSafedonBox(data, "XS", 1);
+    expect(middle.sizes.XS.boxes).toEqual([{ boxNo: 3, counts: { sticky: 1 } }, emptySafedonBox(), { boxNo: 59, counts: { stuck: 2 } }]);
+    expect(middle.sizes.XL).toBe(data.sizes.XL);
+    expect(data.sizes.XS.boxes).toHaveLength(4);
+    // The last box: the blank one before it is dropped with it.
+    expect(removeSafedonBox(data, "XS", 3).sizes.XS.boxes).toEqual([
+      { boxNo: 3, counts: { sticky: 1 } },
+      { boxNo: 12, counts: {} },
+    ]);
+    // Past the saved boxes (a row added and never filled in) nothing changes: the same object, so nothing is saved.
+    expect(removeSafedonBox(data, "XS", 4)).toBe(data);
+    expect(removeSafedonBox(data, "M", 0)).toBe(data);
+    expect(DispensingSafedonDataSchema.parse(middle)).toEqual(middle);
+  });
+
+  it("offers Delete on rows holding something and rows past the plan, never on the plan's blank rows", () => {
+    // 13 planned: a box number, a count without one, a blank saved before box 59; rows 5 to 13
+    // are the plan's blanks; row 14 was added with Add Box.
+    const boxes = [{ boxNo: 3, counts: {} }, { boxNo: null, counts: { stuck: 1 } }, emptySafedonBox(), { boxNo: 59, counts: {} }];
+    expect(canRemoveBox(0, boxes, 13)).toBe(true);
+    expect(canRemoveBox(1, boxes, 13)).toBe(true);
+    expect(canRemoveBox(2, boxes, 13)).toBe(false);
+    expect(canRemoveBox(3, boxes, 13)).toBe(true);
+    expect(canRemoveBox(4, boxes, 13)).toBe(false);
+    expect(canRemoveBox(12, boxes, 13)).toBe(false);
+    expect(canRemoveBox(13, boxes, 13)).toBe(true);
+    // Past the plan, a blank saved between boxes goes too.
+    expect(canRemoveBox(2, boxes, 2)).toBe(true);
+  });
+
+  it("keeps the chosen box chosen once another is deleted", () => {
+    // Below the deleted one: one place up. Above it, or the deleted one itself: the same place.
+    expect(activeAfterRemoval(5, 2, 13)).toBe(4);
+    expect(activeAfterRemoval(1, 2, 13)).toBe(1);
+    expect(activeAfterRemoval(2, 2, 13)).toBe(2);
+    // The last row deleted while chosen: the row above it.
+    expect(activeAfterRemoval(13, 13, 13)).toBe(12);
+    expect(activeAfterRemoval(0, 0, 0)).toBe(0);
+  });
+
+  it("pages the box list 15 rows at a time", () => {
+    expect(boxPageOf(0)).toBe(0);
+    expect(boxPageOf(14)).toBe(0);
+    expect(boxPageOf(15)).toBe(1);
+    expect(boxPageOf(29)).toBe(1);
+    expect(boxPageOf(30)).toBe(2);
+    expect(boxPageOf(-1)).toBe(0);
+  });
+
+  it("totals a box's defects over the template's codes only, as calc does", () => {
+    const box = { boxNo: 3, counts: { no_cuff: 2, sticky: 1, torn_pack: 4 } };
+    expect(boxDefects(box, ["no_cuff", "finger_out", "sticky"])).toBe(3);
+    expect(boxDefects(box, Object.keys(box.counts))).toBe(7);
+    expect(boxDefects(emptySafedonBox(), ["no_cuff"])).toBe(0);
   });
 });

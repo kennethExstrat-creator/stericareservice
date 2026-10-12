@@ -95,4 +95,17 @@ describe("dispensing_safedon capture writes", () => {
       { boxNo: 59, counts: { faulty_cuff: 2 } },
     ]);
   });
+
+  it("shows the box list's first page of 15, while the counts keep every box", () => {
+    const changes: DispensingSafedonData[] = [];
+    const boxes = Array.from({ length: 20 }, (_, index) => ({ boxNo: [3, 12, 59][index % 3], counts: {} }));
+    const { table, pickers } = renderScreen({ sizes: { XS: { boxes } } }, (next) => changes.push(next));
+    expect(pickers.map((picker) => picker.label)).toEqual(Array.from({ length: 15 }, (_, index) => `Box #, Column ${index + 1}`));
+    expect(table.columns).toHaveLength(20);
+
+    // A pick on the page writes its own column.
+    pickers[14].onValueChange(12);
+    expect(changes.at(-1)?.sizes.XS.boxes[14]).toEqual({ boxNo: 12, counts: {} });
+    expect(changes.at(-1)?.sizes.XS.boxes).toHaveLength(20);
+  });
 });
