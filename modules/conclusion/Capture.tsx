@@ -13,9 +13,10 @@
 // - Sign-off: who inspected and the date (both automatic; the date can be
 //   changed with the picker), and the signature drawn on the pad.
 // The layout follows the card's body, not the window (a container query on
-// the root): narrower than 1024 px, one column at most 768 px wide, every
-// edge aligned, a hairline above the sign-off; from 1024 px (the iPads in
-// landscape), the two blocks side by side, the step whole on a 13-inch iPad.
+// the root): narrower than 896 px, one column the card's full width, a
+// hairline above the sign-off; from 896 px (a wide desktop window, the iPads
+// in landscape), the two blocks side by side, the step whole on a 13-inch
+// iPad. No width cap leaves the card half empty (Kenneth, 13 October 2026).
 // The DOM order, so Tab and reading order, is the same in both. Every edit
 // goes through useDataUpdater (docs/CAPTURE_KIT.md), built from the latest
 // data. The pad lives here too: module folders keep React in Capture.tsx
@@ -149,7 +150,7 @@ export default function Capture({
 
   return (
     <div ref={root} className="relative min-w-0 @container" onFocusCapture={() => onFocusChange?.({})}>
-      <div className="grid max-w-3xl gap-6 @5xl:max-w-none @5xl:grid-cols-2 @5xl:gap-x-10">
+      <div className="grid gap-6 @4xl:grid-cols-2 @4xl:gap-x-10">
         {/* Decision: the choice, the suggestion under it, the remark. */}
         <div className="min-w-0 space-y-6">
           <div className="space-y-2">
@@ -242,7 +243,7 @@ export default function Capture({
         </div>
 
         {/* Sign-off: who and when, then the signature. A hairline above it in one column. */}
-        <div className="min-w-0 space-y-6 border-t border-border pt-6 @5xl:border-t-0 @5xl:pt-0">
+        <div className="min-w-0 space-y-6 border-t border-border pt-6 @4xl:border-t-0 @4xl:pt-0">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="min-w-0 space-y-1.5">
               <Label htmlFor={ids.inspector} className="leading-snug touch:text-base">
