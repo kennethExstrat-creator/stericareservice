@@ -11,7 +11,7 @@ import { safedonEgData, stdEgData, stdSgData } from "./example-data";
  * Rows for the UX audit (e2e/README.md), one set per Playwright project:
  *
  *   inspector@test.local: a STD_EG draft holding the example report as entered
- *     (its two submit errors kept), a SAFEDON_EG draft holding its example, a
+ *     (its submit error kept), a SAFEDON_EG draft holding its example, a
  *     STD_SG draft with two sizes ordered, and a submitted SAFEDON_EG
  *     inspection, finished, for the review.
  *   A throwaway lead inspector (e2e-fux-<p>-*@test.local) leading two

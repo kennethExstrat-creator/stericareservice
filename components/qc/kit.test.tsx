@@ -5,6 +5,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { AttachmentStatus } from "./attachment-status";
+import { BoxNumberField } from "./box-number-field";
 import { BoxPicker } from "./box-picker";
 import { ColumnSwitcher } from "./column-switcher";
 import { CounterTable, type CounterColumn, type CounterRow } from "./counter-table";
@@ -180,6 +181,20 @@ describe("HandToggle", () => {
     const html = renderToStaticMarkup(<HandToggle value="R" onValueChange={noop} showLabel label="Hand" />);
     expect(html).toMatch(/<span id="[^"]+"[^>]*>Hand<\/span>/);
     expect(html).toContain("aria-labelledby=");
+  });
+});
+
+describe("BoxNumberField", () => {
+  it("is a whole number from 1 on the numeric keypad, a carton number or not (BUILD_SPEC 6.2 rule 7)", () => {
+    const html = renderToStaticMarkup(
+      <BoxNumberField id="box" variant="cell" group="boxNo" label="Box #, Item 12" value={2336} onValueChange={noop} />,
+    );
+    expect(html).toContain('aria-label="Box #, Item 12"');
+    expect(html).toContain('inputMode="numeric"');
+    expect(html).toContain('value="2336"');
+    expect(html).toContain('data-enter-group="boxNo"');
+    expect(html).not.toContain('aria-invalid="true"');
+    expect(html).not.toContain("carton list");
   });
 });
 

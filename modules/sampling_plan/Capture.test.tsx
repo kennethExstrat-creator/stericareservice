@@ -82,6 +82,17 @@ describe("sampling_plan Capture", () => {
     expect(html).toContain("Sampling Quantity");
   });
 
+  it("offers # Gloves for Weight after # Gloves for FAB where the template shows it (STD_EG), and nowhere else", () => {
+    const weighs = { ...LEVEL_I, columns: { ...LEVEL_I.columns, glovesWeight: true } };
+    const html = render(props(STD_EG_EXAMPLE, weighs));
+    expect(html).toContain('aria-label="# Gloves for Weight, Size M"');
+    expect(html.indexOf("# Gloves for FAB")).toBeLessThan(html.indexOf("# Gloves for Weight"));
+    expect(html.indexOf("# Gloves for Weight")).toBeLessThan(html.indexOf("# Inner Box for Packaging"));
+    // The example's 13 gloves weighed, as the report's weight heading names them.
+    expect(tagsWith(html, `id="sampling-plan-M-glovesWeight"`)[0]).toContain('value="13"');
+    expect(render(props(STD_EG_EXAMPLE))).not.toContain("# Gloves for Weight");
+  });
+
   it("shows the order, the lot in gloves and the level's plan beside the counts, computed not typed (6.2 rule 2)", () => {
     const html = render(props(SAFEDON_EG_EXAMPLE));
     for (const text of ["Order Qty (Case)", "Lot Size (Gloves)", "Inspection Level", "Code Letter", "Sample Size by Plan"]) {

@@ -4,14 +4,12 @@
 // once it has a box number (onsite/SAFEDON_EG.md, mapping to the core). Not
 // done until the planned boxes are tested (6.2 rule 5): the sampling plan's
 // inner units for dispensing, else the template's boxes per size. A box
-// number that is not in the size's carton list is an error that blocks
-// submit (rule 7) but leaves the rate, and so the result, alone.
+// number is the inspector's own and is never checked against the carton list
+// (rule 7). Messages name a box by its No. in the box list.
 import { codeLetterForSampleSize } from "@/lib/aql";
 import type { PerSizeResult } from "@/lib/schemas/module-result";
 import { formatDecimal, roundTo } from "@/lib/stats";
 import {
-  cartonsFor,
-  errorIssue,
   labelFor,
   perSizeResults,
   resultFromSizes,
@@ -31,7 +29,6 @@ import {
   fillPlaceholders,
   formatSizeRate,
   joinWithAmpersand,
-  plainLabel,
   ratePercent,
   RATE_DECIMALS,
 } from "./text";
@@ -133,10 +130,8 @@ type SizeOutcome = { result: PerSizeResult; computed: SafedonSizeComputed; issue
 
 function evaluateSize(size: string, boxes: readonly SafedonBox[], { config, labels, context }: SizeInput): SizeOutcome {
   const issues: CalcIssue[] = [];
-  const cartons = cartonsFor(context, size);
   const codes = config.defects.map((defect) => defect.code);
   const listed = new Set(codes);
-  const box = plainLabel(labelFor(labels, "boxNo"));
   const shownSize = sizeLabel(context, size);
 
   const defectCounts: Record<string, number> = Object.fromEntries(codes.map((code) => [code, 0]));
@@ -147,7 +142,8 @@ function evaluateSize(size: string, boxes: readonly SafedonBox[], { config, labe
   let untested: number | null = null;
 
   for (const [index, entry] of boxes.entries()) {
-    const column = index + 1;
+    // The box's No. in the box list: boxes[0] is No. 1.
+    const number = index + 1;
     const defects = codes.reduce((sum, code) => sum + countOf(entry, code), 0);
     rows.push({ boxNo: entry.boxNo, boxDefects: defects, boxRatePct: (defects * 100) / config.glovesPerPack });
 
@@ -156,7 +152,7 @@ function evaluateSize(size: string, boxes: readonly SafedonBox[], { config, labe
       issues.push(
         warningIssue(
           "defect_not_in_template",
-          `${count} "${code}" counted in column ${column} for size ${shownSize} is not a defect of this template and is left out of the total.`,
+          `${count} "${code}" counted in No. ${number} for size ${shownSize} is not a defect of this template and is left out of the total.`,
           { size, path: ["sizes", size, "boxes", index, "counts", code] },
         ),
       );
@@ -164,22 +160,13 @@ function evaluateSize(size: string, boxes: readonly SafedonBox[], { config, labe
     if (isBlankSafedonBox(entry)) continue;
 
     if (entry.boxNo === null) {
-      if (defects > 0) untested ??= column;
+      if (defects > 0) untested ??= number;
       continue;
     }
     tested += 1;
     total += defects;
     if (defects > 0) failed += 1;
     for (const code of codes) defectCounts[code] += countOf(entry, code);
-    if (cartons.length > 0 && !cartons.includes(entry.boxNo)) {
-      issues.push(
-        errorIssue(
-          "box_not_in_carton_list",
-          `${box} ${entry.boxNo} (column ${column}) is not in the size ${shownSize} carton list.`,
-          { size, path: ["sizes", size, "boxes", index, "boxNo"] },
-        ),
-      );
-    }
   }
 
   const planned = plannedBoxes(context, config, size);
@@ -201,7 +188,7 @@ function evaluateSize(size: string, boxes: readonly SafedonBox[], { config, labe
     const summary =
       planned === 0
         ? "No boxes are planned for this size."
-        : `${tested} of ${planned} boxes tested${untested === null ? "" : `; ${labelFor(labels, "boxNo")} missing in column ${untested}, which has defects counted`}.`;
+        : `${tested} of ${planned} boxes tested${untested === null ? "" : `; ${labelFor(labels, "boxNo")} missing in No. ${untested}, which has defects counted`}.`;
     return { result: { status: "not_done", summary }, computed: { ...known, result: "not_done" }, issues };
   }
 

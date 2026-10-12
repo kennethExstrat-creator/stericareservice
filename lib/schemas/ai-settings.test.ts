@@ -71,7 +71,9 @@ describe("GlossarySchema", () => {
     const byShort = new Map(DEFAULT_GLOSSARY.map((item) => [item.short, item]));
     expect(byShort.get("BF")).toMatchObject({ kind: "defect", codes: ["hole_crotch"], confirmed: true });
     expect(byShort.get("IB")?.codes).toEqual(["bead_defective", "bead_poor"]);
-    expect(byShort.get("SKV")?.codes).toEqual([]);
+    // Codes of their own since 12 October 2026 (Kenneth: "yes").
+    expect(byShort.get("SKV")?.codes).toEqual(["skin_visual"]);
+    expect(byShort.get("FM")?.codes).toEqual(["flow_mark"]);
     expect(byShort.get("FS")).toMatchObject({ codes: ["hole_finger"], confirmed: false });
     expect(DEFAULT_GLOSSARY.filter((item) => item.kind === "term").map((item) => item.short)).toEqual([
       "TG32",

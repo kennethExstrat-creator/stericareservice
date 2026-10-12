@@ -98,8 +98,9 @@ function readingsWithMedian(value: number, n = 13): number[] {
 }
 
 /**
- * The STD_EG example as entered: the report's duplicate carton and stray box
- * kept (two submit errors), or `corrected` as tests/acceptance does.
+ * The STD_EG example as entered: the report's duplicate carton kept (a submit
+ * error; box 2336 is none, BUILD_SPEC 6.2 rule 7), or `corrected` as
+ * tests/acceptance does.
  */
 export function stdEgData({
   finished = false,
@@ -123,10 +124,9 @@ export function stdEgData({
     })),
   }));
   if (corrected) {
-    const { duplicateCarton, strayBox } = STD_EG_EXPECTED.corrections;
+    const { duplicateCarton } = STD_EG_EXPECTED.corrections;
     const index = (duplicateCarton.cell.row - 1) * 10 + (duplicateCarton.cell.column - 1);
     cartons.sizes[duplicateCarton.size].cartonNumbers[index] = duplicateCarton.to;
-    boxes[strayBox.size].boxes[strayBox.item - 1].boxNo = strayBox.to;
   }
   const visual = visualData(report);
   if (unmapped) {

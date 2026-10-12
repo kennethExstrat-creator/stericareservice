@@ -34,6 +34,8 @@ export { SizeTabs, SizeStatusStrip, type ResultLike, type SizeResults } from "./
 export { SizeBlock, SideBySideText, useSizeTabsLayout, type SizeTabsLayout } from "./size-block";
 export { HandToggle, handsOf, HAND_NAME, type HandView } from "./hand-toggle";
 export { BoxPicker } from "./box-picker";
+// A box number as the inspector types it (dispensing, labelling): not a carton number (BUILD_SPEC 6.2 rule 7).
+export { BoxNumberField, type BoxNumberFieldProps } from "./box-number-field";
 export {
   CounterTable,
   type CounterColumn,

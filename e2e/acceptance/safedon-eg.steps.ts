@@ -15,8 +15,8 @@ import { createTestAdminClient, deleteTestInspection } from "../support/admin";
 /**
  * The SAFEDON_EG example report (tests/fixtures/examples, anonymised) typed
  * into the capture screen the way an inspector does on the iPad: numbers on
- * the keypad, counts by tapping steppers, box numbers picked from the carton
- * list, dates from pickers, the lab report attached. Each step checks what
+ * the keypad (box numbers too: the inspector's own, not carton numbers),
+ * counts by tapping steppers, dates from pickers, the lab report attached. Each step checks what
  * the screen shows for the rows of the expected results it can see, and
  * that the autosave stored exactly what was typed. Used by
  * safedon-eg.spec.ts; screenshots go to screenshots/acceptance/.
@@ -532,9 +532,9 @@ export async function enterVisual(page: Page): Promise<void> {
 const SAFEDON_LABEL = Object.fromEntries(REPORT.dispensingSafedon.rows.map((row) => [row.code, row.label]));
 
 /**
- * Glove dispensing: per size, each box column's number picked from the
- * carton list, then its defects tapped in; on the iPad one box shows at a
- * time.
+ * Glove dispensing: per size, each box's number typed on the numeric keypad
+ * (the inspector's own number, not a carton number: BUILD_SPEC 6.2 rule 7),
+ * then its defects tapped in; on the iPad one box shows at a time.
  */
 export async function enterDispensing(page: Page): Promise<void> {
   await openSection(page, "dispensing_safedon");
@@ -543,13 +543,11 @@ export async function enterDispensing(page: Page): Promise<void> {
     await showSize(page, size);
     const entry = REPORT.dispensingSafedon.perSize[size]!;
     for (const [index, boxNo] of entry.boxes.entries()) {
-      const picker = section.getByRole("combobox", { name: `Box #, Column ${index + 1}`, exact: true });
-      await press(picker);
-      const popup = page.getByRole("dialog", { name: `Box #, Column ${index + 1}: carton list for size ${size}`, exact: true });
-      const list = popup.getByRole("listbox", { name: `Cartons for size ${size}`, exact: true });
-      await press(list.getByRole("option", { name: new RegExp(`^${boxNo}\\b`) }));
-      await expect(popup).toHaveCount(0);
-      await expect(picker).toHaveText(new RegExp(`^${boxNo}\\b`));
+      const field = section.getByRole("textbox", { name: `Box #, No. ${index + 1}`, exact: true });
+      await press(field);
+      await page.keyboard.type(String(boxNo));
+      await page.keyboard.press("Enter");
+      await expect(field).toHaveValue(String(boxNo));
       for (const code of SAFEDON_DEFECTS) {
         const count = entry.counts[code][index];
         for (let tap = 0; tap < count; tap++) {

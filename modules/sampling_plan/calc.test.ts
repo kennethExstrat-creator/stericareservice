@@ -25,6 +25,11 @@ import { definition } from "./index";
 import { emptySamplingPlan, emptySamplingSize, type SamplingPlanData, type SamplingSize } from "./schema";
 
 const LEVEL_I: SamplingPlanConfig = { ...SAMPLING_PLAN_DEFAULT_CONFIG, inspectionLevel: "I" };
+/** STD_EG's columns: # Gloves for Weight on. */
+const WEIGHT_ROW: SamplingPlanConfig = {
+  ...SAMPLING_PLAN_DEFAULT_CONFIG,
+  columns: { ...SAMPLING_PLAN_DEFAULT_CONFIG.columns, glovesWeight: true },
+};
 
 /** STD_EG size M as printed: 50 cases, 500 gloves for watertight and visual. */
 const ROW_M: SamplingSize = {
@@ -158,6 +163,17 @@ describe("sampling_plan", () => {
     );
     const some = calcSamplingPlan(input({ XS: ROW_M, M: { ...ROW_M, gloves: null } }, SAMPLING_PLAN_DEFAULT_CONFIG, context));
     expect(some.result.summary).toBe("Size S, L: Not started. Size M: Missing: Gloves.");
+  });
+
+  it("asks for the gloves for weight where the template shows the row (STD_EG), as for every other count", () => {
+    const missing = calcSamplingPlan(input({ M: ROW_M }, WEIGHT_ROW));
+    expect(missing.result.perSize?.M).toEqual({ status: "not_done", summary: "Missing: # Gloves for Weight." });
+    const done = calcSamplingPlan(input({ M: { ...ROW_M, glovesWeight: 13 } }, WEIGHT_ROW));
+    expect(done.result.status).toBe("info");
+    expect(done.computed.totals).toMatchObject({ glovesDimensions: 13, glovesPhysical: 13, glovesWeight: 13 });
+    // Off (the default, SAFEDON_EG, STD_SG): never asked, never totalled.
+    expect(calcSamplingPlan(input({ M: ROW_M })).result.status).toBe("info");
+    expect(calcSamplingPlan(input({ M: ROW_M })).computed.totals).not.toHaveProperty("glovesWeight");
   });
 
   it("asks only for the columns the template shows: the surgical pouches, or no gloves column (STD_SG)", () => {
@@ -390,6 +406,7 @@ describe("sampling_plan", () => {
           watertightVisual: 500,
           dimensions: 13,
           physical: 13,
+          weight: null,
           packagingDispensing: 13,
           pouches: null,
           pouchesDyeLeak: null,
@@ -401,6 +418,15 @@ describe("sampling_plan", () => {
     // A column the template switches off passes nothing, even when a value is saved.
     const off = { ...SAMPLING_PLAN_DEFAULT_CONFIG, columns: { ...SAMPLING_PLAN_DEFAULT_CONFIG.columns, glovesPhysical: false } };
     expect(samplingValues({ ...ROW_M, pouches: 4 }, off)).toMatchObject({ physical: null, pouches: null, dimensions: 13 });
+  });
+
+  it("passes the gloves for weight forward as weight's own count, only where the template shows the row", () => {
+    const row = { ...ROW_M, glovesWeight: 12 };
+    expect(samplingValues(row, WEIGHT_ROW)).toMatchObject({ dimensions: 13, physical: 13, weight: 12 });
+    // Off by default (SAFEDON_EG weighs one value per size, STD_SG weighs nothing): weight weighs its template's n.
+    expect(samplingValues(row, SAMPLING_PLAN_DEFAULT_CONFIG)).toMatchObject({ dimensions: 13, weight: null });
+    // Never the dimension's count in its place.
+    expect(samplingValues(ROW_M, WEIGHT_ROW)).toMatchObject({ dimensions: 13, weight: null });
   });
 });
 
@@ -503,6 +529,8 @@ describe("sampling_plan with the example reports (docs/examples/expected-results
         watertightVisual: 500,
         dimensions: 13,
         physical: 13,
+        // The report names its 13 gloves weighed in the weight heading, not in its Sampling Plan (glovesWeighed).
+        weight: 13,
         packagingDispensing: 13,
         pouches: null,
         pouchesDyeLeak: null,

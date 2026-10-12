@@ -82,46 +82,36 @@ describe("expected results", () => {
     }
   });
 
-  it("STD_EG: the two carton errors point at the fixture's duplicate and stray box", () => {
+  it("STD_EG: the one error points at the fixture's duplicate carton; box 2336, in no carton list, is none", () => {
     const grid = STD_EG_EXAMPLE.cartons.M!;
     const boxes = STD_EG_EXAMPLE.dispensingPacking.perSize.M!.boxes.map((box) => box.box);
-    const [duplicate, stray] = STD_EG_EXPECTED.errors;
+    const [duplicate] = STD_EG_EXPECTED.errors;
+    expect(STD_EG_EXPECTED.errors).toHaveLength(1);
     expect(duplicate).toMatchObject({ module: "carton_sampling", size: "M", code: "carton_duplicate" });
     expect(duplicate.message).toContain(String(STD_EG_EXPECTED.cartonList.duplicate.carton));
-    expect(stray).toMatchObject({ module: "dispensing_packing", size: "M", code: "box_not_in_carton_list" });
-    expect(stray.message).toContain(String(STD_EG_EXPECTED.dispensingBox.box));
+    // Box numbers are not carton numbers (BUILD_SPEC 6.2 rule 7): the box stays as typed.
     expect(boxes[STD_EG_EXPECTED.dispensingBox.item - 1]).toBe(STD_EG_EXPECTED.dispensingBox.box);
     expect(cartonList(grid)).not.toContain(STD_EG_EXPECTED.dispensingBox.box);
+    expect(STD_EG_EXPECTED.dispensingBox.validation).toBe("none");
     expect(STD_EG_EXPECTED.warnings.map((warning) => warning.code)).toEqual(["weight_deviation"]);
   });
 
-  it("STD_EG: the duplicate fails carton_sampling; the stray box blocks submit but leaves dispensing_packing passing", () => {
+  it("STD_EG: the duplicate fails carton_sampling; dispensing_packing passes", () => {
     // BUILD_SPEC 6.1: carton_sampling fails on validation errors, while
     // dispensing_packing is judged on its averages and stickiness codes.
-    // 6.2 rule 7 makes the stray box a validation error, not a result.
     expect(STD_EG_EXPECTED.cartonList.status).toBe("fail");
-    expect(STD_EG_EXPECTED.dispensingBox.validation).toBe("error");
     expect(STD_EG_EXPECTED.dispensing.M!.status).toBe("pass");
-    expect(STD_EG_EXPECTED.errors.map(({ level, module, size }) => [level, module, size])).toEqual([
-      ["error", "carton_sampling", "M"],
-      ["error", "dispensing_packing", "M"],
-    ]);
+    expect(STD_EG_EXPECTED.errors.map(({ level, module, size }) => [level, module, size])).toEqual([["error", "carton_sampling", "M"]]);
   });
 
-  it("STD_EG: the corrections clear both errors", () => {
-    const { duplicateCarton, strayBox } = STD_EG_EXPECTED.corrections;
+  it("STD_EG: the correction clears the error", () => {
+    const { duplicateCarton } = STD_EG_EXPECTED.corrections;
     const rows = STD_EG_EXAMPLE.cartons.M!.rows.map((row) => [...row]);
     expect(rows[duplicateCarton.cell.row - 1][duplicateCarton.cell.column - 1]).toBe(duplicateCarton.from);
     rows[duplicateCarton.cell.row - 1][duplicateCarton.cell.column - 1] = duplicateCarton.to;
     const list = rows.flat();
     expect(new Set(list).size).toBe(STD_EG_EXAMPLE.sampling.M!.cases);
     expect(list.every((carton) => carton >= 1 && carton <= STD_EG_EXAMPLE.order.lines.M!.qtyCases)).toBe(true);
-
-    const boxes = STD_EG_EXAMPLE.dispensingPacking.perSize.M!.boxes.map((box) => box.box);
-    expect(boxes[strayBox.item - 1]).toBe(strayBox.from);
-    boxes[strayBox.item - 1] = strayBox.to;
-    expect(new Set(boxes).size).toBe(boxes.length);
-    expect(boxes.every((box) => list.includes(box))).toBe(true);
   });
 
   it("STD_EG: the product code is the one in the report header", () => {

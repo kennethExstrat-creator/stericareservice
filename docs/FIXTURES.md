@@ -78,14 +78,15 @@ the glove texture and length text, the row labels and the report's results.
 **Carton and box numbers** are identifiers too. Each distinct number became a placeholder:
 
 - Equality and membership are kept. The carton entered twice is one placeholder twice; a box
-  taken from the carton list has that carton's placeholder; the stray box is not in the list.
+  number equal to a listed carton number has that carton's placeholder; the STD_EG box 2336
+  equals none. The app does not link the two (BUILD_SPEC 6.2 rule 7: box numbers are not carton
+  numbers).
 - Within a size the order is kept: a rising list still rises, and the SAFEDON_EG size S carton
   that broke the rising run still does.
 - Every placeholder lies between 1 and its size's order quantity, so the range rule (6.2 rule 6)
   behaves as it would on the original. No placeholder is used in two sizes, and none equals an
   original carton number of the same report.
-- The STD_EG stray box (2336) is one digit off the listed carton it was likely meant to be
-  (2236), as the original box was.
+- The STD_EG box 2336 is one digit off the listed carton 2236, as the original box was.
 - The placeholders were drawn at random under these rules, and the mapping is not in the repo.
   Grid positions and box rows are unchanged, so the mapping can be rebuilt from the PDF by
   position.
@@ -167,7 +168,6 @@ entered them.
 | Where | The report | The app | Fixture |
 |---|---|---|---|
 | Carton list, size M | Carton 525 twice (row 2 column 10, row 3 column 1 on the report; No. 20 and No. 21 in the app): 50 entries, 49 unique | Error, submit blocked | `cartons.M.rows` |
-| Packing check item 12 | Box 2336, not in the carton list, accepted | Error, submit blocked | `dispensingPacking.perSize.M.boxes` |
 | Watertight | Limit 10 / 11; title says code letter K, L & M | n 500 is code N: 14 / 15 | `watertight.perSize.M.printedLimit` |
 | Visual major | Limit 14 / 15 | 21 / 22 | `visual.major.perSize.M.printedLimit` |
 | Visual minor | 21 / 22 | 21 / 22 by the arrow from code N up to M | `visual.minor.perSize.M.printedLimit` |
@@ -177,6 +177,10 @@ entered them.
 | Inspector | Not recorded anywhere | Recorded automatically | no `inspectedBy` |
 | Product code | One code in the file name, another in the report | One value, entered once | `header.productCodeElsewhere` |
 | Result labels | Critical result "Visual Minor"; carton result "Inner Box" | Labelled correctly | `printedResultLabel` |
+
+Box 2336 (packing check item 12, `dispensingPacking.perSize.M.boxes`) is in no carton list. The
+report accepted it, and so does the app: box numbers are the inspector's own, not carton numbers
+(BUILD_SPEC 6.2 rule 7; Kenneth, 12 October 2026). Until then the app called it an error.
 
 **SAFEDON_EG**
 

@@ -3,7 +3,7 @@
 // is a record (info). The size the indicative weight is given for (glove_info,
 // through the context) is compared with it, and a deviation beyond the
 // threshold is a warning (BUILD_SPEC 6.2 rule 9). The gloves weighed are the
-// sampling plan's gloves for dimension, else the template's n (glovesFor);
+// sampling plan's gloves for weight, else the template's n (glovesFor);
 // not done until every glove counted is weighed (rule 5). A weight of 0 g or
 // less is an error that blocks submit; it still counts, as MeasurementGrid's
 // live average counts it, so the screen never shows two answers for one size.
@@ -30,7 +30,7 @@ import type { WeightData } from "./schema";
 type BySize<T> = { [size: string]: T };
 
 export type WeightComputed = {
-  /** Gloves weighed per ordered size (glovesFor): the sampling plan's gloves for dimension, else the template's n. */
+  /** Gloves weighed per ordered size (glovesFor): the sampling plan's gloves for weight, else the template's n. */
   n: BySize<number>;
   /** Values counted per size: those entered among the first n. */
   count: BySize<number>;
@@ -56,13 +56,14 @@ export type WeightComputed = {
 export type GlovesSource = "sampling" | "template";
 
 /**
- * Gloves to weigh for a size. The gloves measured are the gloves weighed:
- * STD_EG prints the weight beside the 13-glove dimension table, SAFEDON_EG
- * inside it. So a size weighs the sampling plan's gloves for dimension when
- * the plan holds a count (BUILD_SPEC 8: numbers flow forward), else the
- * template's n, as dimensions measures them (rowsFor). n 1 is one value per
- * size (SAFEDON_EG) whatever the plan says. Capped at MAX_N, so a mistyped
- * plan cannot stall the screen.
+ * Gloves to weigh for a size: weight's own count, never another test's
+ * (Kenneth, 12 October 2026: "each metrics and measurement should have their
+ * own number of glove count"). The sampling plan's gloves for weight when it
+ * holds a count (BUILD_SPEC 8: numbers flow forward), else the template's n
+ * (13 on STD_EG, its report's "average of 13 gloves per size"), as
+ * dimensions measures its own gloves (rowsFor). n 1 is one value per size
+ * (SAFEDON_EG) whatever the plan says. Capped at MAX_N, so a mistyped plan
+ * cannot stall the screen.
  */
 export function glovesFor(
   context: InspectionContext,
@@ -70,7 +71,7 @@ export function glovesFor(
   config: Pick<WeightConfig, "n">,
 ): { n: number; source: GlovesSource } {
   if (config.n === 1) return { n: 1, source: "template" };
-  const planned = samplingFor(context, size).dimensions;
+  const planned = samplingFor(context, size).weight;
   if (planned === null || !Number.isInteger(planned) || planned < 0) return { n: config.n, source: "template" };
   return { n: Math.min(planned, MAX_N), source: "sampling" };
 }
@@ -144,7 +145,7 @@ export function calcWeight({
     computed.shown[size] = shown;
     computed.spec[size] = spec ?? null;
 
-    // A plan of 0 gloves has nothing to weigh: not done, as dimensions says (shown stays null).
+    // A plan of 0 gloves for weight has nothing to weigh: not done, as dimensions says of its own (shown stays null).
     const outcome: SizeOutcome = { size, n, count: counted.length, shown, spec, deviation: null, status: "not_done" };
     if (n > 0 && counted.length === n && shown !== null) {
       const judged = spec ? checkSpec(shown, spec) : "na";
@@ -216,11 +217,11 @@ function valueIssues(
   return issues;
 }
 
-/** "the sampling plan has 12 gloves for dimension" or "the template weighs 13 gloves per size". */
+/** "the sampling plan has 12 gloves for weight" or "the template weighs 13 gloves per size". */
 function weighedText(n: number, source: GlovesSource): string {
   const gloves = `${n} ${n === 1 ? "glove" : "gloves"}`;
   if (source === "template") return `the template weighs ${gloves} per size`;
-  return n === 0 ? "the sampling plan has no gloves for dimension" : `the sampling plan has ${gloves} for dimension`;
+  return n === 0 ? "the sampling plan has no gloves for weight" : `the sampling plan has ${gloves} for weight`;
 }
 
 /** "17.1% below the indicative 3.5 g". */
@@ -241,7 +242,7 @@ function averageText(outcome: SizeOutcome, config: WeightConfig, labels: Labels,
 
 /** "Average 2.90 g; 17.1% below the indicative 3.5 g." or "Weight (g): 3 of 12 gloves." */
 function sizeSummary(outcome: SizeOutcome, config: WeightConfig, labels: Labels, context: InspectionContext): string {
-  if (outcome.n === 0) return "The sampling plan has no gloves for dimension.";
+  if (outcome.n === 0) return "The sampling plan has no gloves for weight.";
   if (outcome.status === "not_done") return `${labelFor(labels, "values")}: ${outcome.count} of ${outcome.n} gloves.`;
   const indicative = indicativeFor(context, outcome.size);
   const deviation =

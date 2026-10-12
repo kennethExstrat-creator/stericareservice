@@ -90,7 +90,7 @@ describe("RLS: inspector", { timeout: 30_000 }, () => {
       defect_codes: await visibleRows(tx, "defect_codes"),
       templates: await visibleRows(tx, "templates"),
     }));
-    expect(counts).toEqual({ manufacturers: 2, clients: 1, defect_codes: 32, templates: 1 });
+    expect(counts).toEqual({ manufacturers: 2, clients: 1, defect_codes: 34, templates: 1 });
   });
 
   it.each([

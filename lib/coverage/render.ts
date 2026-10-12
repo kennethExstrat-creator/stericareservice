@@ -362,12 +362,17 @@ function renderDefects(): string {
   const lines: string[] = [];
   for (const template of ["STD_EG", "SAFEDON_EG"] as const) {
     lines.push(
-      `${code(template)} visual defects, in report order:`,
+      `${code(template)} visual defects, in report order, then the ones only the onsite forms have:`,
       "",
       table(
         ["Class", "Label", "Code", "Printed"],
         DEFECT_CLASSES.flatMap((cls) =>
-          VISUAL_DEFECTS[template][cls].map((defect) => [cls, cell(defect.label), code(defect.code), cell(defect.printed)]),
+          VISUAL_DEFECTS[template][cls].map((defect) => [
+            cls,
+            cell(defect.label),
+            code(defect.code),
+            cell(defect.written === undefined ? defect.printed : `not printed: written ${defect.written} on the onsite forms`),
+          ]),
         ),
       ),
       "",

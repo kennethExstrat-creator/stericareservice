@@ -109,7 +109,7 @@ column.
 | 4 | Sizes not in order_lots appear in no module. | `order_lots`, `sampling_plan`, `carton_sampling`, `dimensions`, `weight`, `force_at_break`, `tensile`, `watertight`, `visual`, `dispensing_packing`, `dispensing_safedon`, `labeling`, `dye_leak` |
 | 5 | A module with missing data shows Not Done, never Passed. | `dimensions`, `weight`, `force_at_break`, `tensile`, `watertight`, `visual`, `dispensing_packing`, `dispensing_safedon`, `labeling`, `dye_leak`, `documents` |
 | 6 | Carton numbers are unique per size, from 1 to the order quantity, as many as the sampled cases. | `sampling_plan`, `carton_sampling` |
-| 7 | Box numbers in dispensing_packing, dispensing_safedon and labeling are picked from the size's carton list. | `dispensing_packing`, `dispensing_safedon`, `labeling` |
+| 7 | Box numbers in dispensing_packing, dispensing_safedon and labeling are typed by the inspector: not carton numbers, never checked against the carton list. | `dispensing_packing`, `dispensing_safedon`, `labeling` |
 | 8 | The sample size sets the code letter and limits; a plan that does not match the sample size cannot be saved. | `sampling_plan`, `watertight`, `visual` |
 | 9 | Measured weight more than the threshold away from the indicative weight raises a warning. | `glove_info`, `weight` |
 | 10 | Client, product code and PO are entered once in header and reused everywhere, the export included. | `header` |
@@ -207,7 +207,7 @@ Report module. Captures: Gloves per inner unit, inner units per case, gloves per
 
 ### `sampling_plan`: Sampling Plan
 
-Report module. Captures: Per size: sampled cases, inner units and gloves; gloves for watertight and visual, for dimensions and for the physical test; inner units for packaging and dispensing; pouches and dye leak pouches (surgical). Result: warn when a size's watertight and visual sample is below the AQL plan of config inspectionLevel; info otherwise. Rules (6.2): 1, 2, 4, 6, 8.
+Report module. Captures: Per size: sampled cases, inner units and gloves; gloves for watertight and visual, for dimensions, for the physical test and for weight; inner units for packaging and dispensing; pouches and dye leak pouches (surgical). Result: warn when a size's watertight and visual sample is below the AQL plan of config inspectionLevel; info otherwise. Rules (6.2): 1, 2, 4, 6, 8.
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
@@ -215,8 +215,9 @@ Report module. Captures: Per size: sampled cases, inner units and gloves; gloves
 | `innerUnits` | Inner Box | SAFEDON_EG: Inner Pack | integer |  | size | entered | 1 | Counts inner units. |
 | `gloves` | Gloves |  | integer | pcs | size | entered | 1 |  |
 | `glovesWatertightVisual` | # Gloves for Watertight & Visual | STD_SG: # Gloves | integer | pcs | size | entered | 1, 8 | Flows forward as n in watertight and visual (BUILD_SPEC 8). SG prints it under 'Sampling Quantity (WTT & Visual)'. |
-| `glovesDimensions` | # Gloves for Dimension | STD_SG: # Gloves Dimension | integer | pcs | size | entered | 1 | Flows forward as the dimension rows and the gloves weighed. |
+| `glovesDimensions` | # Gloves for Dimension | STD_SG: # Gloves Dimension | integer | pcs | size | entered | 1 | Flows forward as the dimension rows. |
 | `glovesPhysical` | # Gloves for FAB | SAFEDON_EG: # Gloves for Tensile<br>STD_SG: # Gloves (FAB) | integer | pcs | size | entered | 1 | Gloves for the physical test: force at break (EN 455) or tensile (ASTM D6319). |
+| `glovesWeight` | # Gloves for Weight |  | integer | pcs | size | entered | 1 | Flows forward as the gloves weighed (weight), its own count (Kenneth, 12 October 2026: each measurement has its own glove count); empty, weight weighs config n. No form prints it: STD_EG's report names it in the weight heading ('average of 13 gloves per size'). Off where weight weighs one value per size (SAFEDON_EG) or is not included (STD_SG). |
 | `innerUnitsDispensing` | # Inner Box for Packaging & Dispensing Inspection | SAFEDON_EG: # Inner Packs for Packaging & Dispensing Inspection | integer |  | size | entered | 1 | Counts inner units. Printed 'packaing' [sic]. Flows forward as the box rows of dispensing_packing or dispensing_safedon. |
 | `pouches` | Pouches |  | integer |  | size | entered | 1 | Counts pouches. Surgical: sampled pouches (SG onsite). |
 | `pouchesDyeLeak` | # Pouches (Dye Leak Test) |  | integer |  | size | entered | 1 | Counts pouches. Surgical: flows forward as dye_leak.pouchesTested. |
@@ -228,7 +229,7 @@ Report module. Captures: Per size: sampled cases, inner units and gloves; gloves
 
 | Config key | Type | Default | Meaning |
 |---|---|---|---|
-| `columns` | Record&lt;SamplingColumn, boolean> | `{"cases":true,"innerUnits":true,"gloves":true,"glovesWatertightVisual":true,"glovesDimensions":true,"glovesPhysical":true,"innerUnitsDispensing":true,"pouches":false,"pouchesDyeLeak":false}` | Columns on or off (BUILD_SPEC: columns on/off). The surgical pouch columns are off by default. |
+| `columns` | Record&lt;SamplingColumn, boolean> | `{"cases":true,"innerUnits":true,"gloves":true,"glovesWatertightVisual":true,"glovesDimensions":true,"glovesPhysical":true,"glovesWeight":false,"innerUnitsDispensing":true,"pouches":false,"pouchesDyeLeak":false}` | Columns on or off (BUILD_SPEC: columns on/off). The surgical pouch columns and glovesWeight are off by default; a template version saved before glovesWeight existed reads it as off. |
 | `inspectionLevel` | "S-1" \| "S-2" \| "S-3" \| "S-4" \| "I" \| "II" \| "III" \| null | `null` | ISO 2859-1 level used to suggest n per size from the lot size and flag a sample below the plan. null: samples are entered directly with no plan check. |
 
 | Caption key | Label (STD_EG) | Other wording | Meaning |
@@ -243,7 +244,7 @@ Report module. Captures: Per size: the sampled carton numbers. Result: fail on a
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `cartonNumbers` | (Carton #) |  | integer_list |  | size | entered | 1, 6 | Unique per size, each from 1 to order_lots.qtyCases, as many as sampling_plan.cases (rule 6). The report grid holds 50 (10 columns × 5 rows); the app takes as many as were sampled. Box pickers in dispensing and labeling read this list (rule 7). |
+| `cartonNumbers` | (Carton #) |  | integer_list |  | size | entered | 1, 6 | Unique per size, each from 1 to order_lots.qtyCases, as many as sampling_plan.cases (rule 6). The report grid holds 50 (10 columns × 5 rows); the app takes as many as were sampled. Box numbers in dispensing and labeling are not carton numbers and never read this list (rule 7). |
 | `samplingQuantity` | Sampling Quantity |  | integer |  | size | **computed** | 2, 6 | Count of cartonNumbers; must equal sampling_plan.cases. Counts cartons. |
 
 No config.
@@ -284,18 +285,18 @@ Report module. Captures: Per size, per glove (default 13): the measures on, from
 
 ### `weight`: Weight (g) - Average of 13 Gloves per Size
 
-Report module. Captures: Per size: the gloves weighed (one value, or one per glove of the sampling plan's dimension sample: config n until the plan gives one) and their average, compared with the indicative weight. Result: Per size: pass or fail against a spec when one is set; warn when the size of the indicative weight deviates by more than the threshold; info otherwise. not_done until every glove weighed has its value, and when the sampling plan has no gloves for dimension. Rules (6.2): 1, 2, 4, 5, 9. Title in other templates: SAFEDON_EG: Weight (g).
+Report module. Captures: Per size: the gloves weighed (one value, or one per glove of the sampling plan's gloves for weight: config n until the plan gives one) and their average, compared with the indicative weight. Result: Per size: pass or fail against a spec when one is set; warn when the size of the indicative weight deviates by more than the threshold; info otherwise. not_done until every glove weighed has its value, and when the sampling plan has no gloves for weight. Rules (6.2): 1, 2, 4, 5, 9. Title in other templates: SAFEDON_EG: Weight (g).
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `values` | Weight (g) |  | decimal_list | g | size | entered | 1 | One value per glove weighed: the sampling plan's gloves for dimension (sampling_plan.glovesDimensions), else config n (13 on STD_EG), weighed one by one; or one value per size when config n is 1 (SAFEDON_EG, printed as a merged column of the dimension table). |
+| `values` | Weight (g) |  | decimal_list | g | size | entered | 1 | One value per glove weighed: the sampling plan's gloves for weight (sampling_plan.glovesWeight), else config n (13 on STD_EG), weighed one by one; or one value per size when config n is 1 (SAFEDON_EG, printed as a merged column of the dimension table). |
 | `average` | Average |  | decimal | g | size | **computed** | 2 | Mean of values (the value itself when n is 1), shown at config decimals. |
 | `deviationPct` | Deviation From Indicative Weight |  | decimal | % | size | **computed** | 2, 9 | (average − glove_info.indicativeWeight) / glove_info.indicativeWeight × 100, for the size in glove_info config indicativeWeightSize only. |
 | `result` | Remark | SAFEDON_EG: A / Rej. | select |  | size | **computed** | 2, 5, 9 | Against the size's row of config specs when there is one; warn when \|deviationPct\| > config warnThresholdPct; info otherwise. Values: pass, fail, warn, info, not_done. |
 
 | Config key | Type | Default | Meaning |
 |---|---|---|---|
-| `n` | number | `13` | Gloves weighed per size when sampling_plan.glovesDimensions gives no number, one by one; 1 weighs one value per size, whatever the plan says. |
+| `n` | number | `13` | Gloves weighed per size when sampling_plan.glovesWeight gives no number, one by one; 1 weighs one value per size, whatever the plan says. |
 | `specs` | { size: string; spec: Spec }[] | `[]` | Optional spec per size (BUILD_SPEC: optional spec), one row per size; a list, so a child template replaces it whole. A size with no row has no spec row and its result is info. |
 | `warnThresholdPct` | number | `10` | Deviation from the indicative weight, in %, above which the module warns (rule 9). |
 | `decimals` | number | `2` | Decimals the average is shown with (both reports print 2). |
@@ -303,7 +304,7 @@ Report module. Captures: Per size: the gloves weighed (one value, or one per glo
 | Caption key | Label (STD_EG) | Other wording | Meaning |
 |---|---|---|---|
 | `info` | Info | SAFEDON_EG: A | Word printed for a result with no spec. |
-| `rowNo` | No. |  | Caption of the glove row number column (13 gloves weighed one by one). |
+| `rowNo` | No. |  | Caption of the glove row number column (the gloves weighed one by one). |
 | `specRow` | Spec. |  | Caption of the spec row (config specs, printed as lib/stats formatSpec). |
 | `pass` | Passed | SAFEDON_EG: A | Word for pass in the result row of a size with a spec. |
 | `fail` | Failed | SAFEDON_EG: Rej. | Word for fail in the result row of a size with a spec. |
@@ -314,14 +315,14 @@ Report module. Captures: Per size, per glove (default 13): force at break (N), i
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `values` | Force at Break (N) |  | decimal_list | N | size | entered | 1 | config n readings per size, from the lab report. The report prints only their median. |
+| `values` | Force at Break (N) |  | decimal_list | N | size | entered | 1 | One reading per glove of the sampling plan's gloves for the physical test (sampling_plan.glovesPhysical), else config n, from the lab report. The report prints only their median. |
 | `labReport` | Lab Report |  | file |  | inspection | entered |  | 'Refer to attached where applicable': inspection_files, kind lab_report, module force_at_break. Tag a size when the lab issues one report per size. |
 | `median` | Median |  | decimal | N | size | **computed** | 2 | Median of values, shown at config decimals. |
 | `result` | Passed / Failed |  | select |  | size | **computed** | 2, 5 | median ≥ config specMin. Values: pass, fail, not_done. |
 
 | Config key | Type | Default | Meaning |
 |---|---|---|---|
-| `n` | number | `13` | Readings per size. |
+| `n` | number | `13` | Readings per size when sampling_plan.glovesPhysical gives no number. |
 | `specMin` | number (N) | `6` | Minimum median force at break, every size. |
 | `standardLabel` | string \| null | `null` | Standard printed with the spec, e.g. 'Spec. (EN 455)'. STD_EG prints none. |
 | `decimals` | number | `3` | Decimals the median is shown with (STD_EG prints 3). |
@@ -412,11 +413,11 @@ Report module. Captures: Per size (R and L when handSplit), per class: gloves in
 
 ### `dispensing_packing`: Glove Packing Check
 
-Report module. Captures: Per size, per box (picked from the carton list): layering %, dispensing %, stickiness code, note. Result: Per size: layering and dispensing averages against the minimums; any box with a failing stickiness code fails. not_done until the size's boxes are entered. Rules (6.2): 1, 2, 4, 5, 7.
+Report module. Captures: Per size, per box (its box number typed): layering %, dispensing %, stickiness code, note. Result: Per size: layering and dispensing averages against the minimums; any box with a failing stickiness code fails. not_done until the size's boxes are entered. Rules (6.2): 1, 2, 4, 5, 7.
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `boxNo` | Box # |  | integer |  | size › box | entered | 7 | Picked from carton_sampling.cartonNumbers of the size (rule 7). |
+| `boxNo` | Box # |  | integer |  | size › box | entered | 7 | Typed on the numeric keypad: the box's own number, not a carton number, never checked against the carton list (rule 7; Kenneth, 12 October 2026). |
 | `layeringPct` | Layering % |  | decimal | % | size › box | entered | 1 |  |
 | `dispensingPct` | Dispensing % |  | decimal | % | size › box | entered | 1 |  |
 | `stickiness` | Stickiness \*\* |  | select |  | size › box | entered |  | One of config stickinessCodes. |
@@ -444,11 +445,11 @@ Report module. Captures: Per size, per box (picked from the carton list): layeri
 
 ### `dispensing_safedon`: Glove Dispensing Inspection
 
-Report module. Captures: Per size, per box (picked from the carton list): counts of the six Safedon dispensing defects. Per box defects, gloves and rate; per size total and rate. Result: Per size: the defect rate against config maxRatePct. not_done until the size's boxes are entered. Rules (6.2): 1, 2, 4, 5, 7.
+Report module. Captures: Per size, per box (its box number typed): counts of the six Safedon dispensing defects. Per box defects, gloves and rate; per size total and rate. Result: Per size: the defect rate against config maxRatePct. not_done until the size's boxes are entered. Rules (6.2): 1, 2, 4, 5, 7.
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `boxNo` | Box # |  | integer |  | size › box | entered | 7 | Picked from carton_sampling.cartonNumbers of the size (rule 7). The report's box numbers are page 1 carton numbers. |
+| `boxNo` | Box # |  | integer |  | size › box | entered | 7 | Typed on the numeric keypad: the box's own number, not a carton number, never checked against the carton list (rule 7; Kenneth, 12 October 2026). Messages name a box by its No. in the box list. |
 | `counts` | Safedon Packing Defects |  | count_map |  | size › box | entered | 1 | Map keyed by defect code from config defects. |
 | `codeLetter` | Sampling Code Letter |  | select |  | size | **computed** | 2 | From the number of boxes tested (BUILD_SPEC 7), for the heading. Values: A, B, C, D, E, F, G, H, J, K, L, M, N, P, Q, R. |
 | `boxDefects` | Defects / Gloves per Pack |  | integer |  | size › box | **computed** | 2 | Sum of the box's counts. Printed as &lt;defects>/&lt;glovesPerPack> (Total, line 1). |
@@ -475,12 +476,12 @@ Report module. Captures: Per size, per box (picked from the carton list): counts
 
 ### `labeling`: Packaging Labeling Inspection
 
-Report module. Captures: Per size, per level (inner unit, carton): boxes inspected, picked from the carton list, and defects per check. Result: Per size and level: any defect fails (Accept 0 / Reject 1). not_done until inspected is entered. Rules (6.2): 1, 2, 4, 5, 7.
+Report module. Captures: Per size, per level (inner unit, carton): boxes inspected, their box numbers typed, and defects per check. Result: Per size and level: any defect fails (Accept 0 / Reject 1). not_done until inspected is entered. Rules (6.2): 1, 2, 4, 5, 7.
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
 | `inspected` | No. of Sampled Boxes Inspected |  | integer |  | size › level | entered | 1 | Counts boxes. Prefilled from config levels[level].n. |
-| `boxNos` | Box # |  | integer_list |  | size › level | entered | 7 | **Beyond BUILD_SPEC 6.1:** Rule 6.2.7 picks labelling boxes from the size's carton list; the reports print only how many were inspected. |
+| `boxNos` | Box # |  | integer_list |  | size › level | entered | 7 | **Beyond BUILD_SPEC 6.1:** The box numbers of the boxes inspected, typed: not carton numbers, never checked against the carton list (rule 6.2.7); the reports print only how many were inspected. |
 | `defects` | Defects |  | count_map |  | size › level | entered | 1 | Map keyed by labelling check code from config levels[level].checks. |
 | `accept` | Accept | inner: Accept (SAFEDON_EG: Acc. =)<br>carton: Accept (SAFEDON_EG: Acc. =) | integer |  | size › level | **computed** | 2 | Always 0 (BUILD_SPEC 7: labelling is Accept 0 / Reject 1). |
 | `reject` | Reject | inner: Reject (SAFEDON_EG: Rej. =)<br>carton: Reject (SAFEDON_EG: Rej. =) | integer |  | size › level | **computed** | 2 | Always 1. |
@@ -631,7 +632,7 @@ Note: Not on any current form: the website's QC scope. Loading-stage photos are 
 | 8 | `force_at_break` | Force at Break in Newton (Refer to Attached Where Applicable) | 13 readings per size; median ≥ 6 N; 3 decimals; standard label none |
 | 9 | `weight` | Weight (g) - Average of 13 Gloves per Size | 13 values per size; spec none (info); warn beyond 10%; 2 decimals |
 | 10 | `watertight` | Freedom From Holes by Watertight Test | AQL 1.5; hand split off; locations: Between Fingers (Crotch) (hole_crotch), Palm (hole_palm), Finger (hole_finger), Cuff (hole_cuff), Other : (hole_other) |
-| 11 | `visual` | Visual Inspection | hand split off; critical AQL 0.0, 2 defects; major AQL 2.5, 9 defects; minor AQL 4.0, 6 defects |
+| 11 | `visual` | Visual Inspection | hand split off; critical AQL 0.0, 2 defects; major AQL 2.5, 11 defects; minor AQL 4.0, 6 defects |
 | 12 | `dispensing_packing` | Glove Packing Check | layering ≥ 70%, dispensing ≥ 80%; 13 boxes per size (XL 5); stickiness A pass, B pass, B1 pass, C pass, D fail |
 | 13 | `labeling` | Packaging Labeling Inspection | inner: 3 boxes, checks lot_no, mfg_date, artwork; carton: 1 box, checks lot_no, mfg_date, artwork, carton_no |
 | 14 | `conclusion` | Conclusion | none |
@@ -652,7 +653,7 @@ To confirm:
 - `sampling_plan.inspectionLevel`: Level I: the example's samples match it. BUILD_SPEC 13 asks for the inspection level per client.
 - `dimensions.specs`: The example report's specs. BUILD_SPEC 13: spec limits per product.
 - `dimensions.decimals`: As printed: 0 for length and width, 2 for thickness. lib/stats judges the shown (rounded) value: confirm.
-- `visual.classes`: The example report's lists and severities. BUILD_SPEC 13: final defect lists and severities per client.
+- `visual.classes`: The example report's lists and severities, then Skin Visual and Flow Mark (major), which only the onsite forms have (Kenneth, 12 October 2026). BUILD_SPEC 13: final defect lists and severities per client.
 - `dispensing_packing.boxesPerSize`: 13 per size and 5 in the XL block, as printed. The sampling plan's inner box count sets the rows when entered.
 - `force_at_break.n`: The report prints only the median; the 13 readings come from the lab report (rule 6.2.2 computes the median).
 
@@ -674,13 +675,13 @@ To confirm:
 | 2 | `glove_info` | Glove Information | fields off: none; indicative weight for size M |
 | 3 | `order_lots` | Order | packing site on |
 | 4 | `packing_config` | Packing Configuration | inner unit plastic_pack; packing mode text on |
-| 5 | `sampling_plan` | Sampling Plan | columns off: pouches, pouchesDyeLeak; inspection level I |
+| 5 | `sampling_plan` | Sampling Plan | columns off: glovesWeight, pouches, pouchesDyeLeak; inspection level I |
 | 6 | `carton_sampling` | Finished Goods Sampling Information (Carton Number) | none |
 | 7 | `dimensions` | Dimension | average of 13 gloves; measures length, width, fingerThickness, palmThickness; decimals length 0, width 0, fingerThickness 2, palmThickness 2; specs for XS, S, M, L, below |
 | 8 | `tensile` | Physical Properties Average (Refer to Attached Lab. Reports) | tensile ≥ 14 MPa; elongation ≥ 500%; Spec. (ASTM D6319); decimals 2 and 0 |
 | 9 | `weight` | Weight (g) | 1 value per size; spec per size, below; warn beyond 10%; 2 decimals |
 | 10 | `watertight` | Freedom From Holes by Watertight Test | AQL 1.5; hand split off; locations: Between Fingers (hole_crotch), Palm (hole_palm), Cuff (hole_cuff), Finger (hole_finger), Glove Burst (glove_burst), Other : (hole_other) |
-| 11 | `visual` | Visual Inspection | hand split off; critical AQL 0.0, 2 defects; major AQL 2.5, 8 defects; minor AQL 4.0, 5 defects |
+| 11 | `visual` | Visual Inspection | hand split off; critical AQL 0.0, 2 defects; major AQL 2.5, 10 defects; minor AQL 4.0, 5 defects |
 | 12 | `dispensing_safedon` | Glove Dispensing Inspection | rate ≤ 5% per size; 125 gloves per pack; 13 boxes per size; defects no_cuff, finger_out, multiple_out, stuck, sticky, faulty_cuff |
 | 13 | `labeling` | Packaging Labeling Inspection | inner: 3 boxes, checks lot_no, mfg_date, expiry_date, artwork; carton: 1 box, checks lot_no, mfg_date, expiry_date, artwork, carton_no |
 | 14 | `conclusion` | Conclusion | none |
@@ -702,6 +703,7 @@ Differences from `STD_EG`: its seed writes only these config values (`seedConfig
 - `header` config: `fields.client`, `fields.factoryGloveCode`, `mfgExpiryPrecision`.
 - `order_lots` config: `fields.packingSite`.
 - `packing_config` config: `innerUnit`.
+- `sampling_plan` config: `columns.glovesWeight`.
 - `dimensions` config: `measures`, `statistic`, `specs`.
 - `weight` config: `n`, `specs`.
 - `watertight` config: `locations`.
@@ -724,7 +726,7 @@ To confirm:
 - `dimensions.specs`: The example's specs, XS to L: no XL row is printed, so XL is not judged. BUILD_SPEC 13: spec limits per product.
 - `weight.specs`: NA as printed for XS to L; XL has no row (not printed).
 - `header.mfgExpiryPrecision`: The report prints month and year only: confirm month precision.
-- `visual.classes`: BUILD_SPEC 13: final defect lists and severities per client.
+- `visual.classes`: The report's lists, then Skin Visual and Flow Mark (major), which only the onsite forms have (Kenneth, 12 October 2026). BUILD_SPEC 13: final defect lists and severities per client.
 - `dispensing_safedon.glovesPerPack`: 125, the same number as packing_config glovesPerInner (125 per plastic pack): confirm which one the rate uses if they differ.
 
 ### `STD_SG`: Standard sterile surgical gloves
@@ -744,9 +746,9 @@ To confirm:
 | 1 | `header` | Purchase Order / Shipment Information | fields off: factoryAddress, client, factoryGloveCode; mfg / expiry dates: day |
 | 2 | `order_lots` | PO Info | packing site off |
 | 3 | `packing_config` | Packing Mode | inner unit pouch; packing mode text on |
-| 4 | `sampling_plan` | Sampling Plan | columns off: gloves, innerUnitsDispensing; inspection level none (to confirm) |
+| 4 | `sampling_plan` | Sampling Plan | columns off: gloves, glovesWeight, innerUnitsDispensing; inspection level none (to confirm) |
 | 5 | `watertight` | Watertight Inspection | AQL 1.5; hand split on; locations: Between Fingers (Crotch) (hole_crotch), Palm (hole_palm), Finger (hole_finger), Cuff (hole_cuff), Other : (hole_other) |
-| 6 | `visual` | Visual Inspection | hand split on; critical AQL 0.0, 2 defects; major AQL 2.5, 9 defects; minor AQL 4.0, 6 defects |
+| 6 | `visual` | Visual Inspection | hand split on; critical AQL 0.0, 2 defects; major AQL 2.5, 11 defects; minor AQL 4.0, 6 defects |
 | 7 | `dimensions` | Dimension | median of 13 gloves; measures length, width, fingerThickness, palmThickness, cuffThickness; decimals length 0, width 0, fingerThickness 2, palmThickness 2, cuffThickness 2; specs none |
 | 8 | `dye_leak` | Dye Leak Test | pouches per size: from the sampling plan |
 | 9 | `conclusion` | Conclusion | none |
@@ -785,7 +787,7 @@ To confirm:
 
 <!-- generated:defects -->
 
-`STD_EG` visual defects, in report order:
+`STD_EG` visual defects, in report order, then the ones only the onsite forms have:
 
 | Class | Label | Code | Printed |
 |---|---|---|---|
@@ -800,6 +802,8 @@ To confirm:
 | major | Residue Material / Foreign Matter | `foreign_matter` |  |
 | major | Defective Bead | `bead_defective` |  |
 | major | Big Lumps (>2mm) | `lump_big` |  |
+| major | Skin Visual | `skin_visual` | not printed: written SKV on the onsite forms |
+| major | Flow Mark | `flow_mark` | not printed: written FM on the onsite forms |
 | minor | Small Dirt / Stain | `dirt_small` |  |
 | minor | Sticky Pleats (&lt; 5mm) | `sticky_pleats` |  |
 | minor | Lumps (&lt;2mm) | `lump_small` |  |
@@ -807,7 +811,7 @@ To confirm:
 | minor | Rolled Bead | `bead_rolled` |  |
 | minor | Defective Beads | `bead_defective` |  |
 
-`SAFEDON_EG` visual defects, in report order:
+`SAFEDON_EG` visual defects, in report order, then the ones only the onsite forms have:
 
 | Class | Label | Code | Printed |
 |---|---|---|---|
@@ -821,6 +825,8 @@ To confirm:
 | major | Stain | `stain` |  |
 | major | Powder Mark | `powder_mark` |  |
 | major | Bead Blister | `bead_blister` |  |
+| major | Skin Visual | `skin_visual` | not printed: written SKV on the onsite forms |
+| major | Flow Mark | `flow_mark` | not printed: written FM on the onsite forms |
 | minor | Small Dirt / Stain | `dirt_small` |  |
 | minor | Sticky Pleats (&lt; 5mm) | `sticky_pleats` |  |
 | minor | Lumps (&lt;2mm) | `lump_small` |  |
@@ -844,6 +850,8 @@ Severity per template, by code (a code in two classes of one template is a delib
 | `foreign_matter` | major: Residue Material / Foreign Matter |  |
 | `bead_defective` | major: Defective Bead<br>minor: Defective Beads |  |
 | `lump_big` | major: Big Lumps (>2mm) |  |
+| `skin_visual` | major: Skin Visual | major: Skin Visual |
+| `flow_mark` | major: Flow Mark | major: Flow Mark |
 | `dirt_small` | minor: Small Dirt / Stain | minor: Small Dirt / Stain |
 | `sticky_pleats` | minor: Sticky Pleats (&lt; 5mm) | minor: Sticky Pleats (&lt; 5mm) |
 | `lump_small` | minor: Lumps (&lt;2mm) | minor: Lumps (&lt;2mm) |
@@ -895,8 +903,8 @@ Where the sources or BUILD_SPEC leave a choice, the dictionary takes one. Each i
    `glove_type` (field `gloveType`, after `header`) in all three templates.
 3. **Fields beyond BUILD_SPEC 6.1**, each because a source has it: `packing_config.packingMode`
    (onsite "Packing Mode"), `dispensing_packing.note` (EG onsite "Others:"),
-   `watertight.otherDescription` (the reports' "Other :"), `labeling.boxNos` (rule 6.2.7 picks
-   labelling boxes from the carton list; the reports print only how many).
+   `watertight.otherDescription` (the reports' "Other :"), `labeling.boxNos` (the box numbers of
+   the boxes inspected, typed: not carton numbers, rule 6.2.7; the reports print only how many).
 4. **Report first** (rule 4.2.1). The EG onsite form's stickiness (onsite/EG.md suggests none,
    slight, severe) uses the report's codes A, B, B1, C, D. The Safedon onsite sheet's free-text
    "Specification / Requirement" and "Conclusion" are kept as written, per size, in the custom
@@ -1077,7 +1085,7 @@ module field; `template` a template property; `layout` is drawn by the AI report
 | Page 2 > Force At Break in Newton | Median | Median | computed | `force_at_break.median`<br>`force_at_break.values`<br>config `force_at_break.n` | Only the median is printed; the app keeps the n readings and computes it (rule 2). |
 | Page 2 > Force At Break in Newton | Spec. | Spec. | fixed | caption `force_at_break.specRow`<br>config `force_at_break.specMin` | ≥ 6 N (left blank for XS). |
 | Page 2 > Force At Break in Newton | Passed / Failed | Passed / Failed | computed | `force_at_break.result` |  |
-| Page 2 > Weight (g) - average of 13 gloves per size | Weight (g) - average of 13 gloves per size | Weight (g) - Average of 13 Gloves per Size | heading | title `weight`<br>config `weight.n` | The app fills in the count of gloves weighed (the sampling plan's gloves for dimension, else config n), so the heading names the gloves really weighed. |
+| Page 2 > Weight (g) - average of 13 gloves per size | Weight (g) - average of 13 gloves per size | Weight (g) - Average of 13 Gloves per Size | heading | title `weight`<br>config `weight.n` | The app fills in the count of gloves weighed (the sampling plan's # Gloves for Weight, else config n), so the heading names the gloves really weighed. |
 | Page 2 > Weight (g) - average of 13 gloves per size | Size |  | size | template `sizes` |  |
 | Page 2 > Weight (g) - average of 13 gloves per size | Average | Average | computed | `weight.average`<br>`weight.values`<br>config `weight.decimals` | The 13 weighings are not printed; the app keeps them and computes the average. |
 | Page 2 > Weight (g) - average of 13 gloves per size | Remark | Remark | computed | `weight.result`<br>caption `weight.info`<br>config `weight.specs` | Printed 'Info': no weight spec. |
@@ -1135,7 +1143,7 @@ module field; `template` a template property; `layout` is drawn by the AI report
 | Page 4 > Glove Packing Check | Glove Packing Check (Sampling code letter D & E) : min. 70% layering & 80% dispensing | Glove Packing Check (Sampling Code Letter {codeLetters}) : Min. {minLayeringPct}% Layering & {minDispensingPct}% Dispensing | heading | caption `dispensing_packing.heading`<br>title `dispensing_packing`<br>`dispensing_packing.codeLetter`<br>config `dispensing_packing.minLayeringPct`<br>config `dispensing_packing.minDispensingPct` |  |
 | Page 4 > Glove Packing Check | &lt;size> |  | size | template `sizes` | One block per size, headed by the size. |
 | Page 4 > Glove Packing Check | Item | Item | fixed | caption `dispensing_packing.itemColumn`<br>config `dispensing_packing.boxesPerSize` | Rows 1 to 13 (1 to 5 in the XL block). |
-| Page 4 > Glove Packing Check | Box # | Box # | number | `dispensing_packing.boxNo` | Carton numbers (rule 7). |
+| Page 4 > Glove Packing Check | Box # | Box # | number | `dispensing_packing.boxNo` | Typed: the box's own number, not a carton number (rule 7). |
 | Page 4 > Glove Packing Check | Layering % | Layering % | number | `dispensing_packing.layeringPct` |  |
 | Page 4 > Glove Packing Check | Dispensing % | Dispensing % | number | `dispensing_packing.dispensingPct` |  |
 | Page 4 > Glove Packing Check | Stickiness \*\* | Stickiness \*\* | select | `dispensing_packing.stickiness` |  |
@@ -1238,7 +1246,7 @@ module field; `template` a template property; `layout` is drawn by the AI report
 | Page 2 > Physical Properties > Elongation at break | Passed / Failed | Passed / Failed | computed | `tensile.elongationResult` |  |
 | Page 3 > Glove Dispensing Inspection | Glove Dispensing Inspection (Sampling code letter C & D) | Glove Dispensing Inspection (Sampling Code Letter {codeLetters}) | heading | caption `dispensing_safedon.heading`<br>title `dispensing_safedon`<br>`dispensing_safedon.codeLetter` |  |
 | Page 3 > Glove Dispensing Inspection | Size |  | size | template `sizes` | Two sizes share a block row, the 13 box columns split between them; the app shows one block per size. |
-| Page 3 > Glove Dispensing Inspection | Box # | Box # | number | `dispensing_safedon.boxNo`<br>config `dispensing_safedon.boxesPerSize` | Carton numbers from page 1 (rule 7). |
+| Page 3 > Glove Dispensing Inspection | Box # | Box # | number | `dispensing_safedon.boxNo`<br>config `dispensing_safedon.boxesPerSize` | Typed: the box's own number, not a carton number (rule 7). |
 | Page 3 > Glove Dispensing Inspection | Safedon Packing Defects | Safedon Packing Defects | label | `dispensing_safedon.counts`<br>config `dispensing_safedon.defects` |  |
 | Page 3 > Glove Dispensing Inspection | No cuff | No Cuff | number | `dispensing_safedon.counts[no_cuff]` | A count per box. |
 | Page 3 > Glove Dispensing Inspection | Cuff should ideallly be at least 2 cm out | Cuff should ideally be at least 2 cm out | fixed | config `dispensing_safedon.defects[no_cuff]` | Definition of 'No cuff', printed beside the row; the app shows its own wording as the hint. |
@@ -1375,7 +1383,7 @@ module field; `template` a template property; `layout` is drawn by the AI report
 | 6. Dispensing Result | Dispensing Result | Glove Packing Check | heading | title `dispensing_packing` |  |
 | 6. Dispensing Result | Size |  | size | template `sizes` | A size per row; the app shows one block per size. |
 | 6. Dispensing Result | No. | Item | computed | caption `dispensing_packing.itemColumn`<br>config `dispensing_packing.boxesPerSize` | Running row number, automatic. 51 blank rows, one per box tested. |
-| 6. Dispensing Result | Box Number | Box # | text | `dispensing_packing.boxNo` | Picked from the carton list (rule 7). |
+| 6. Dispensing Result | Box Number | Box # | text | `dispensing_packing.boxNo` | Typed: the box's own number, not a carton number (rule 7). |
 | 6. Dispensing Result | Layering (%) | Layering % | number | `dispensing_packing.layeringPct` |  |
 | 6. Dispensing Result | Dispensing (%) | Dispensing % | number | `dispensing_packing.dispensingPct` |  |
 | 6. Dispensing Result | Stickiness | Stickiness \*\* | text | `dispensing_packing.stickiness`<br>config `dispensing_packing.stickinessCodes` | onsite/EG.md suggests none / slight / severe plus a note; the report's codes A, B, B1, C, D apply (report first, rule 4.2.1). |

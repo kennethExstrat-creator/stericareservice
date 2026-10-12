@@ -2,11 +2,11 @@
 
 // The Weight body. With one value per size (SAFEDON_EG) every ordered size is
 // a row of one table, so Enter runs down the sizes and the whole module fits
-// on one screen. With several gloves per size (the gloves for dimension, 13
-// on STD_EG: glovesFor) each size is a MeasurementGrid in size tabs, its
-// footer the live average. Under each, the
-// size of the indicative weight shows its deviation and the warning beyond
-// the threshold (BUILD_SPEC 6.2 rule 9). Every write goes through
+// on one screen. With several gloves per size (the sampling plan's gloves for
+// weight, else 13 on STD_EG: glovesFor) each size is a MeasurementGrid in
+// size tabs, its footer the live average. Under each, the size of the
+// indicative weight shows its deviation and the warning beyond the
+// threshold (BUILD_SPEC 6.2 rule 9). Every write goes through
 // useDataUpdater, so a column pasted down the sizes, or two commits in one
 // event, all land. Issue links focus the value, or the message for what has
 // no cell (the deviation, values past n, which can be removed from their
@@ -253,7 +253,7 @@ function SizeGrid({
   readOnly,
   onFocusChange,
 }: Props & { size: string; root: RefObject<HTMLDivElement | null>; update: Update }) {
-  // The gloves weighed: the sampling plan's for dimension, else the template's n.
+  // The gloves weighed: the sampling plan's for weight, else the template's n.
   const { n } = glovesFor(context, size, config);
   const status = evaluation?.result.perSize?.[size]?.status;
   const label = labelFor(labels, "values");
@@ -309,7 +309,7 @@ function SizeGrid({
           }}
           readOnly={readOnly}
           cellIssuePath={({ row }) => ["sizes", size, "values", row]}
-          // One column of weights, the gloves for dimension (13 on STD_EG): in groups side by side
+          // One column of weights, the gloves for weight (13 on STD_EG): in groups side by side
           // across the width, 1 to 5, 6 to 10, 11 to 13.
           flow
         />

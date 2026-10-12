@@ -35,7 +35,7 @@ export const VALIDATION_RULES: Readonly<Record<RuleNumber, string>> = {
   4: "Sizes not in order_lots appear in no module.",
   5: "A module with missing data shows Not Done, never Passed.",
   6: "Carton numbers are unique per size, from 1 to the order quantity, as many as the sampled cases.",
-  7: "Box numbers in dispensing_packing, dispensing_safedon and labeling are picked from the size's carton list.",
+  7: "Box numbers in dispensing_packing, dispensing_safedon and labeling are typed by the inspector: not carton numbers, never checked against the carton list.",
   8: "The sample size sets the code letter and limits; a plan that does not match the sample size cannot be saved.",
   9: "Measured weight more than the threshold away from the indicative weight raises a warning.",
   10: "Client, product code and PO are entered once in header and reused everywhere, the export included.",
@@ -424,7 +424,7 @@ const samplingPlan = defineModule({
   alwaysOn: false,
   title: "Sampling Plan",
   captures:
-    "Per size: sampled cases, inner units and gloves; gloves for watertight and visual, for dimensions and for the physical test; inner units for packaging and dispensing; pouches and dye leak pouches (surgical).",
+    "Per size: sampled cases, inner units and gloves; gloves for watertight and visual, for dimensions, for the physical test and for weight; inner units for packaging and dispensing; pouches and dye leak pouches (surgical).",
   result: "warn when a size's watertight and visual sample is below the AQL plan of config inspectionLevel; info otherwise.",
   rules: [1, 2, 4, 6, 8],
   data: [
@@ -469,7 +469,7 @@ const samplingPlan = defineModule({
       per: ["size"],
       entry: "entered",
       rules: [1],
-      notes: "Flows forward as the dimension rows and the gloves weighed.",
+      notes: "Flows forward as the dimension rows.",
     },
     {
       key: "glovesPhysical",
@@ -481,6 +481,17 @@ const samplingPlan = defineModule({
       entry: "entered",
       rules: [1],
       notes: "Gloves for the physical test: force at break (EN 455) or tensile (ASTM D6319).",
+    },
+    {
+      key: "glovesWeight",
+      label: "# Gloves for Weight",
+      type: "integer",
+      unit: "pcs",
+      per: ["size"],
+      entry: "entered",
+      rules: [1],
+      notes:
+        "Flows forward as the gloves weighed (weight), its own count (Kenneth, 12 October 2026: each measurement has its own glove count); empty, weight weighs config n. No form prints it: STD_EG's report names it in the weight heading ('average of 13 gloves per size'). Off where weight weighs one value per size (SAFEDON_EG) or is not included (STD_SG).",
     },
     {
       key: "innerUnitsDispensing",
@@ -570,8 +581,9 @@ const samplingPlan = defineModule({
     {
       key: "columns",
       type: "Record<SamplingColumn, boolean>",
-      default: { ...allOn(SAMPLING_COLUMNS), pouches: false, pouchesDyeLeak: false },
-      meaning: "Columns on or off (BUILD_SPEC: columns on/off). The surgical pouch columns are off by default.",
+      default: { ...allOn(SAMPLING_COLUMNS), glovesWeight: false, pouches: false, pouchesDyeLeak: false },
+      meaning:
+        "Columns on or off (BUILD_SPEC: columns on/off). The surgical pouch columns and glovesWeight are off by default; a template version saved before glovesWeight existed reads it as off.",
     },
     {
       key: "inspectionLevel",
@@ -615,7 +627,7 @@ const cartonSampling = defineModule({
       entry: "entered",
       rules: [1, 6],
       notes:
-        "Unique per size, each from 1 to order_lots.qtyCases, as many as sampling_plan.cases (rule 6). The report grid holds 50 (10 columns × 5 rows); the app takes as many as were sampled. Box pickers in dispensing and labeling read this list (rule 7).",
+        "Unique per size, each from 1 to order_lots.qtyCases, as many as sampling_plan.cases (rule 6). The report grid holds 50 (10 columns × 5 rows); the app takes as many as were sampled. Box numbers in dispensing and labeling are not carton numbers and never read this list (rule 7).",
     },
     {
       key: "samplingQuantity",
@@ -747,9 +759,9 @@ const weight = defineModule({
   title: "Weight (g) - Average of 13 Gloves per Size",
   titles: { SAFEDON_EG: "Weight (g)" },
   captures:
-    "Per size: the gloves weighed (one value, or one per glove of the sampling plan's dimension sample: config n until the plan gives one) and their average, compared with the indicative weight.",
+    "Per size: the gloves weighed (one value, or one per glove of the sampling plan's gloves for weight: config n until the plan gives one) and their average, compared with the indicative weight.",
   result:
-    "Per size: pass or fail against a spec when one is set; warn when the size of the indicative weight deviates by more than the threshold; info otherwise. not_done until every glove weighed has its value, and when the sampling plan has no gloves for dimension.",
+    "Per size: pass or fail against a spec when one is set; warn when the size of the indicative weight deviates by more than the threshold; info otherwise. not_done until every glove weighed has its value, and when the sampling plan has no gloves for weight.",
   rules: [1, 2, 4, 5, 9],
   data: [
     {
@@ -761,7 +773,7 @@ const weight = defineModule({
       entry: "entered",
       rules: [1],
       notes:
-        "One value per glove weighed: the sampling plan's gloves for dimension (sampling_plan.glovesDimensions), else config n (13 on STD_EG), weighed one by one; or one value per size when config n is 1 (SAFEDON_EG, printed as a merged column of the dimension table).",
+        "One value per glove weighed: the sampling plan's gloves for weight (sampling_plan.glovesWeight), else config n (13 on STD_EG), weighed one by one; or one value per size when config n is 1 (SAFEDON_EG, printed as a merged column of the dimension table).",
     },
     {
       key: "average",
@@ -803,7 +815,7 @@ const weight = defineModule({
       type: "number",
       default: 13,
       meaning:
-        "Gloves weighed per size when sampling_plan.glovesDimensions gives no number, one by one; 1 weighs one value per size, whatever the plan says.",
+        "Gloves weighed per size when sampling_plan.glovesWeight gives no number, one by one; 1 weighs one value per size, whatever the plan says.",
     },
     {
       key: "specs",
@@ -822,7 +834,7 @@ const weight = defineModule({
   ],
   labels: [
     { key: "info", label: "Info", labels: { SAFEDON_EG: "A" }, meaning: "Word printed for a result with no spec." },
-    { key: "rowNo", label: "No.", meaning: "Caption of the glove row number column (13 gloves weighed one by one)." },
+    { key: "rowNo", label: "No.", meaning: "Caption of the glove row number column (the gloves weighed one by one)." },
     { key: "specRow", label: "Spec.", meaning: "Caption of the spec row (config specs, printed as lib/stats formatSpec)." },
     {
       key: "pass",
@@ -856,7 +868,8 @@ const forceAtBreak = defineModule({
       per: ["size"],
       entry: "entered",
       rules: [1],
-      notes: "config n readings per size, from the lab report. The report prints only their median.",
+      notes:
+        "One reading per glove of the sampling plan's gloves for the physical test (sampling_plan.glovesPhysical), else config n, from the lab report. The report prints only their median.",
     },
     {
       key: "labReport",
@@ -889,7 +902,7 @@ const forceAtBreak = defineModule({
     },
   ],
   config: [
-    { key: "n", type: "number", default: 13, meaning: "Readings per size." },
+    { key: "n", type: "number", default: 13, meaning: "Readings per size when sampling_plan.glovesPhysical gives no number." },
     { key: "specMin", type: "number (N)", default: 6, meaning: "Minimum median force at break, every size." },
     {
       key: "standardLabel",
@@ -1275,7 +1288,7 @@ const dispensingPacking = defineModule({
   kind: "report",
   alwaysOn: false,
   title: "Glove Packing Check",
-  captures: "Per size, per box (picked from the carton list): layering %, dispensing %, stickiness code, note.",
+  captures: "Per size, per box (its box number typed): layering %, dispensing %, stickiness code, note.",
   result:
     "Per size: layering and dispensing averages against the minimums; any box with a failing stickiness code fails. not_done until the size's boxes are entered.",
   rules: [1, 2, 4, 5, 7],
@@ -1287,7 +1300,7 @@ const dispensingPacking = defineModule({
       per: ["size", "box"],
       entry: "entered",
       rules: [7],
-      notes: "Picked from carton_sampling.cartonNumbers of the size (rule 7).",
+      notes: "Typed on the numeric keypad: the box's own number, not a carton number, never checked against the carton list (rule 7; Kenneth, 12 October 2026).",
     },
     {
       key: "layeringPct",
@@ -1428,7 +1441,7 @@ const dispensingSafedon = defineModule({
   alwaysOn: false,
   title: "Glove Dispensing Inspection",
   captures:
-    "Per size, per box (picked from the carton list): counts of the six Safedon dispensing defects. Per box defects, gloves and rate; per size total and rate.",
+    "Per size, per box (its box number typed): counts of the six Safedon dispensing defects. Per box defects, gloves and rate; per size total and rate.",
   result: "Per size: the defect rate against config maxRatePct. not_done until the size's boxes are entered.",
   rules: [1, 2, 4, 5, 7],
   data: [
@@ -1439,7 +1452,7 @@ const dispensingSafedon = defineModule({
       per: ["size", "box"],
       entry: "entered",
       rules: [7],
-      notes: "Picked from carton_sampling.cartonNumbers of the size (rule 7). The report's box numbers are page 1 carton numbers.",
+      notes: "Typed on the numeric keypad: the box's own number, not a carton number, never checked against the carton list (rule 7; Kenneth, 12 October 2026). Messages name a box by its No. in the box list.",
     },
     {
       key: "counts",
@@ -1579,7 +1592,7 @@ const labeling = defineModule({
   alwaysOn: false,
   title: "Packaging Labeling Inspection",
   groups: ["inner", "carton"],
-  captures: "Per size, per level (inner unit, carton): boxes inspected, picked from the carton list, and defects per check.",
+  captures: "Per size, per level (inner unit, carton): boxes inspected, their box numbers typed, and defects per check.",
   result: "Per size and level: any defect fails (Accept 0 / Reject 1). not_done until inspected is entered.",
   rules: [1, 2, 4, 5, 7],
   data: [
@@ -1600,7 +1613,7 @@ const labeling = defineModule({
       per: ["size", "level"],
       entry: "entered",
       rules: [7],
-      addition: "Rule 6.2.7 picks labelling boxes from the size's carton list; the reports print only how many were inspected.",
+      addition: "The box numbers of the boxes inspected, typed: not carton numbers, never checked against the carton list (rule 6.2.7); the reports print only how many were inspected.",
     },
     {
       key: "defects",

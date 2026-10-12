@@ -1,8 +1,9 @@
 // Result (BUILD_SPEC 6.1 carton_sampling): "fail" on any error of 6.2 rule 6
 // (a carton entered twice, a carton outside 1 to the order quantity, more
 // carton numbers than cases sampled); "pass" when a size lists exactly the
-// cases sampled, all valid; "not done" until then (6.2 rule 5). The list
-// flows forward to the box pickers of dispensing and labelling (rule 7).
+// cases sampled, all valid; "not done" until then (6.2 rule 5). Box numbers
+// in dispensing and labelling are not carton numbers (rule 7): nothing there
+// reads this list.
 import { formatCount } from "@/lib/aql";
 import type { PerSizeResult } from "@/lib/schemas";
 import {

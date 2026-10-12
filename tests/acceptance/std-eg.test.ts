@@ -80,19 +80,15 @@ describe("STD_EG example as a whole inspection (expected results B)", () => {
     expect(corrected.report.errors.filter((issue) => issue.moduleKey === "carton_sampling")).toEqual([]);
   });
 
-  it("Dispensing box not in the carton list: a validation error, while the packing check itself passes", () => {
-    const { size, item, box, likelyIntended, validation } = EXPECTED.dispensingBox;
-    const error = original.report.issues.find((issue) => issue.code === "box_not_in_carton_list");
-    expect(error).toMatchObject({ level: validation, moduleKey: "dispensing_packing", size });
-    expect(error?.path).toEqual(["sizes", size, "boxes", item - 1, "boxNo"]);
-    expect(error?.message).toBe(EXPECTED.errors.find((issue) => issue.code === "box_not_in_carton_list")?.message);
-    expect(error?.message).toContain(String(box));
-    // The stray box blocks submit but leaves the result to the averages and codes (docs/FIXTURES.md).
-    expect(original.module("dispensing_packing").result.status).toBe(EXPECTED.dispensing[size]?.status);
-    // The likely intended carton is in the list: picking it clears the error.
-    expect(original.context.cartons[size]).toContain(likelyIntended);
+  it("Dispensing box 2336, in no carton list: taken as typed, no issue, the packing check passes (6.2 rule 7)", () => {
+    const { size, item, box, validation } = EXPECTED.dispensingBox;
+    expect(validation).toBe("none");
+    // Box numbers are the inspector's own, not carton numbers (Kenneth, 12 October 2026).
     expect(original.context.cartons[size]).not.toContain(box);
-    expect(corrected.report.issues.filter((issue) => issue.code === "box_not_in_carton_list")).toEqual([]);
+    const packing = original.module("dispensing_packing");
+    expect((packing.data as { sizes: Record<string, { boxes: { boxNo: number | null }[] }> }).sizes[size].boxes[item - 1].boxNo).toBe(box);
+    expect(original.report.issues.filter((issue) => issue.moduleKey === "dispensing_packing")).toEqual([]);
+    expect(packing.result.status).toBe(EXPECTED.dispensing[size]?.status);
   });
 
   it("Watertight M: n 500 is code N, limit 14 / 15, 1 hole (finger), pass", () => {
@@ -268,7 +264,7 @@ describe("STD_EG example as a whole inspection (expected results B)", () => {
     expect(original.report.issues.filter((issue) => issue.moduleKey === "sampling_plan")).toEqual([]);
   });
 
-  it("finds exactly the two errors of the expected results, which block submit", () => {
+  it("finds exactly the error of the expected results, which blocks submit", () => {
     expect(original.report.errors.map((issue) => [issue.moduleKey, issue.code, issue.size])).toEqual(
       EXPECTED.errors.map((issue) => [issue.module, issue.code, issue.size]),
     );
@@ -296,7 +292,7 @@ describe("STD_EG example as a whole inspection (expected results B)", () => {
     expect(corrected.report.modules.filter((entry) => entry.result.status === "not_done")).toEqual([]);
   });
 
-  it("drops a module switched off for this inspection from validation: its error goes with it", () => {
+  it("drops a module switched off for this inspection from validation and the report", () => {
     const template = applyModuleOverrides(seedTemplate("STD_EG"), {
       dispensing_packing: { reason: "Dispensing check done at the warehouse", by: "00000000-0000-4000-8000-000000000102", at: "2026-10-07T08:00:00.000Z" },
     });
@@ -309,21 +305,31 @@ describe("STD_EG example as a whole inspection (expected results B)", () => {
   });
 });
 
-describe("a count in a title follows the inspection: 12 gloves for dimension (Kenneth, 12 October 2026)", () => {
-  // The corrected example with the sampling plan's # Gloves for Dimension at 12 for size M, and 11 gloves weighed.
+describe("a count in a title follows the inspection: 12 gloves for weight (Kenneth, 12 October 2026)", () => {
+  // The corrected example with the sampling plan's # Gloves for Weight at 12 for size M, and 11 gloves weighed.
+  // Weight has its own count, never the dimension's: "each metrics and measurement should have their own number of glove count".
   const STORED = "Weight (g) - Average of 13 Gloves per Size";
   const SHOWN = "Weight (g) - Average of 12 Gloves per Size";
   const fixed = stdEgData({ corrected: true });
   const plan = fixed.modules.sampling_plan as SamplingPlanData;
-  const data = {
+  const withPlanM = (row: Partial<SamplingPlanData["sizes"][string]>) => ({
     ...fixed,
     modules: {
       ...fixed.modules,
-      sampling_plan: { ...plan, sizes: { ...plan.sizes, M: { ...plan.sizes.M!, glovesDimensions: 12 } } },
+      sampling_plan: { ...plan, sizes: { ...plan.sizes, M: { ...plan.sizes.M!, ...row } } },
       weight: { sizes: { M: { values: Array.from({ length: 11 }, () => REPORT.weight.M!.averageG) } } },
     },
-  };
+  });
+  const data = withPlanM({ glovesWeight: 12 });
   const twelve = evaluate(seedTemplate("STD_EG"), data, inspectionMeta(REPORT));
+
+  it("keeps weight at its own 13 when only the gloves for dimension are 12", () => {
+    const dimensionOnly = evaluate(seedTemplate("STD_EG"), withPlanM({ glovesDimensions: 12 }), inspectionMeta(REPORT));
+    const weight = dimensionOnly.module("weight");
+    expect(weight.title).toBe(STORED);
+    expect(computedAt(weight, "n")).toEqual({ M: 13 });
+    expect(computedAt(dimensionOnly.module("dimensions"), "rows")).toEqual({ M: 12 });
+  });
 
   it("weighs the plan's 12 gloves and names weight by them, its section too; the seed's wording stays 13", () => {
     expect(seedTemplate("STD_EG").modules.find((entry) => entry.key === "weight")?.title).toBe(STORED);

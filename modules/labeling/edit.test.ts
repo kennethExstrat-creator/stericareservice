@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { batchDataChanges, createDataUpdater } from "@/components/qc/data-updater";
-import { boxPickers, boxSlots, levelEntry, withAddedBox, withBox, withDefectCount, withInspected, withLevel } from "./edit";
+import { boxFields, boxSlots, levelEntry, withAddedBox, withBox, withDefectCount, withInspected, withLevel } from "./edit";
 import { emptyLabeling, emptyLabelingSize, LabelingDataSchema, type LabelingData } from "./schema";
 
 const KEPT: LabelingData = {
@@ -21,9 +21,9 @@ describe("labeling edits", () => {
     expect(levelEntry(withInspected(emptyLabeling(), "M", "inner", -1), "M", "inner").inspected).toBe(0);
   });
 
-  it("keep box picks past a lower count, so a slip of the stepper loses nothing", () => {
-    const picked = withBox(withBox(withInspected(emptyLabeling(), "M", "inner", 3), "M", "inner", 0, 13), "M", "inner", 1, 299);
-    expect(levelEntry(withInspected(picked, "M", "inner", 1), "M", "inner").boxNos).toEqual([13, 299]);
+  it("keep box numbers past a lower count, so a slip of the stepper loses nothing", () => {
+    const entered = withBox(withBox(withInspected(emptyLabeling(), "M", "inner", 3), "M", "inner", 0, 13), "M", "inner", 1, 299);
+    expect(levelEntry(withInspected(entered, "M", "inner", 1), "M", "inner").boxNos).toEqual([13, 299]);
   });
 
   it("count defects per check", () => {
@@ -47,7 +47,7 @@ describe("labeling edits", () => {
     expect(levelEntry(data, "M", "inner").boxNos).toEqual([1039, 337]);
   });
 
-  it("append a box after the boxes already picked", () => {
+  it("append a box after the boxes already entered", () => {
     let data = withAddedBox(emptyLabeling(), "M", "carton", 337);
     data = withAddedBox(data, "M", "carton", 13);
     expect(levelEntry(data, "M", "carton").boxNos).toEqual([337, 13]);
@@ -84,29 +84,29 @@ describe("labeling edits", () => {
     expect(levelEntry(changes[0], "M", "inner").defects).toEqual({ lot_no: 1, artwork: 2 });
   });
 
-  it("offer one box picker per box inspected, the plan until the count is recorded", () => {
+  it("offer one box number field per box inspected, the plan until the count is recorded", () => {
     expect(boxSlots(emptyLabelingSize().inner, 3)).toBe(3);
     expect(boxSlots({ ...emptyLabelingSize().inner, inspected: 5 }, 3)).toBe(5);
     expect(boxSlots({ ...emptyLabelingSize().inner, inspected: 0 }, 3)).toBe(0);
   });
 
-  it("keep each box picker in its place, so the one just used stays on screen", () => {
-    const pickers = (data: LabelingData, readOnly = false) => boxPickers(levelEntry(data, "M", "inner"), 3, readOnly);
+  it("keep each box number field in its place, so the one just typed in stays on screen", () => {
+    const fields = (data: LabelingData, readOnly = false) => boxFields(levelEntry(data, "M", "inner"), 3, readOnly);
     let data = withInspected(emptyLabeling(), "M", "inner", 3);
-    expect(pickers(data)).toEqual([null]);
-    // A box picked in the empty picker lands in that picker's place; the next empty one follows it.
+    expect(fields(data)).toEqual([null]);
+    // A box typed in the empty field lands in that field's place; the next empty one follows it.
     data = withAddedBox(data, "M", "inner", 13);
-    expect(pickers(data)).toEqual([13, null]);
+    expect(fields(data)).toEqual([13, null]);
     data = withAddedBox(data, "M", "inner", 299);
     data = withAddedBox(data, "M", "inner", 337);
-    expect(pickers(data)).toEqual([13, 299, 337]);
-    // A cleared picker keeps its place: the boxes after it move up, and the empty picker comes back last.
+    expect(fields(data)).toEqual([13, 299, 337]);
+    // A deleted box keeps its place: the boxes after it move up, and the empty field comes back last.
     data = withBox(data, "M", "inner", 1, null);
-    expect(pickers(data)).toEqual([13, 337, null]);
+    expect(fields(data)).toEqual([13, 337, null]);
     data = withBox(data, "M", "inner", 1, null);
-    expect(pickers(data)).toEqual([13, null]);
-    // The planned n until the count is recorded; no empty picker while read-only.
-    expect(boxPickers(emptyLabelingSize().inner, 1, false)).toEqual([null]);
-    expect(pickers(data, true)).toEqual([13]);
+    expect(fields(data)).toEqual([13, null]);
+    // The planned n until the count is recorded; no empty field while read-only.
+    expect(boxFields(emptyLabelingSize().inner, 1, false)).toEqual([null]);
+    expect(fields(data, true)).toEqual([13]);
   });
 });

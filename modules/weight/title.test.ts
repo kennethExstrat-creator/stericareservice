@@ -9,16 +9,16 @@ const STD_EG = templateConfig("STD_EG");
 /** STD_EG version 1's wording, still on older drafts. */
 const V1_TITLE = "Weight (g) - average of 13 gloves per size";
 
-/** Sizes ordered with the sampling plan's gloves for dimension (null: the cell is empty). */
-function planned(dimensions: Record<string, number | null>) {
+/** Sizes ordered with the sampling plan's gloves for weight (null: the cell is empty). */
+function planned(weights: Record<string, number | null>) {
   const sampling: Record<string, SamplingValues> = Object.fromEntries(
-    Object.entries(dimensions).map(([size, count]) => [size, makeSampling({ dimensions: count })]),
+    Object.entries(weights).map(([size, count]) => [size, makeSampling({ weight: count })]),
   );
-  return makeTestContext({ sizes: Object.keys(dimensions), sampling });
+  return makeTestContext({ sizes: Object.keys(weights), sampling });
 }
 
 describe("weightTitle: the title names the gloves this inspection weighs", () => {
-  it("says 12 when every ordered size weighs the plan's 12 gloves for dimension", () => {
+  it("says 12 when every ordered size weighs the plan's 12 gloves for weight", () => {
     expect(weightTitle({ title: WEIGHT_TITLE, config: STD_EG, context: planned({ M: 12 }) })).toBe(
       "Weight (g) - Average of 12 Gloves per Size",
     );
@@ -58,13 +58,18 @@ describe("weightTitle: the title names the gloves this inspection weighs", () =>
     );
   });
 
-  it("leaves out a size with no gloves for dimension beside the others; 0 only when every size has none", () => {
+  it("leaves out a size with no gloves for weight beside the others; 0 only when every size has none", () => {
     expect(weightTitle({ title: WEIGHT_TITLE, config: STD_EG, context: planned({ S: 0, M: 12 }) })).toBe(
       "Weight (g) - Average of 12 Gloves per Size",
     );
     expect(weightTitle({ title: WEIGHT_TITLE, config: STD_EG, context: planned({ M: 0 }) })).toBe(
       "Weight (g) - Average of 0 Gloves per Size",
     );
+  });
+
+  it("never takes another test's count: 12 gloves for dimension leave weight at the template's 13", () => {
+    const context = makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ dimensions: 12, physical: 10 }) } });
+    expect(weightTitle({ title: WEIGHT_TITLE, config: STD_EG, context })).toBe(WEIGHT_TITLE);
   });
 
   it("leaves a title without a count as it is (SAFEDON_EG)", () => {

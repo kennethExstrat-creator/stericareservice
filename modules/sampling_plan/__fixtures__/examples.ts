@@ -23,7 +23,17 @@ function filled<T>(perSize: Readonly<Partial<Record<(typeof REPORT_SIZES)[number
   });
 }
 
-/** The Sampling Plan table, column by column. */
+/**
+ * The gloves weighed one by one, which the report names in its weight
+ * heading, not in its Sampling Plan (STD_EG: "average of 13 gloves per
+ * size"); null where it weighs one value per size (SAFEDON_EG has no row).
+ */
+export function glovesWeighed(example: ExampleReport, size: string): number | null {
+  const gloves = example.weight[size as (typeof REPORT_SIZES)[number]]?.gloves ?? null;
+  return gloves !== null && gloves > 1 ? gloves : null;
+}
+
+/** The Sampling Plan table, column by column, with the gloves weighed (glovesWeighed). */
 export function samplingPlanData(example: ExampleReport): SamplingPlanData {
   return {
     sizes: Object.fromEntries(
@@ -36,6 +46,7 @@ export function samplingPlanData(example: ExampleReport): SamplingPlanData {
           glovesWatertightVisual: row.watertightVisualGloves,
           glovesDimensions: row.dimensionGloves,
           glovesPhysical: row.physicalTestGloves,
+          glovesWeight: glovesWeighed(example, size),
           innerUnitsDispensing: row.dispensingInners,
           pouches: null,
           pouchesDyeLeak: null,

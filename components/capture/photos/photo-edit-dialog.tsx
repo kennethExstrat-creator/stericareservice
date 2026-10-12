@@ -437,7 +437,9 @@ function EditForm({
 
         {records.has("box") && (
           <Field data-invalid={errors.box ? true : undefined}>
-            <FieldLabel htmlFor={`${id}-box`}>Box (Carton Number)</FieldLabel>
+            {/* Carton sampling tags a carton as its box; dispensing and labelling tag a box number, which is
+                no carton number (BUILD_SPEC 6.2 rule 7; Kenneth, 12 October 2026). */}
+            <FieldLabel htmlFor={`${id}-box`}>{moduleKey === "carton_sampling" ? "Box (Carton Number)" : "Box Number"}</FieldLabel>
             <Input
               id={`${id}-box`}
               name="box"

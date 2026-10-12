@@ -7,7 +7,7 @@
 import type { ComponentProps } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import type { BoxPicker, PercentField } from "@/components/qc";
+import type { BoxNumberField, PercentField } from "@/components/qc";
 import { batchDataChanges } from "@/components/qc/data-updater";
 import { makeSampling, makeTestContext } from "@/modules/_framework/testing";
 import Capture from "./Capture";
@@ -16,7 +16,7 @@ import { emptyPackingBox, type DispensingPackingData } from "./schema";
 
 const kit = vi.hoisted(() => ({
   percent: [] as ComponentProps<typeof PercentField>[],
-  pickers: [] as ComponentProps<typeof BoxPicker>[],
+  boxNumbers: [] as ComponentProps<typeof BoxNumberField>[],
 }));
 
 vi.mock("@/components/qc", async (importOriginal) => ({
@@ -25,8 +25,8 @@ vi.mock("@/components/qc", async (importOriginal) => ({
     kit.percent.push(props);
     return null;
   },
-  BoxPicker: (props: ComponentProps<typeof BoxPicker>) => {
-    kit.pickers.push(props);
+  BoxNumberField: (props: ComponentProps<typeof BoxNumberField>) => {
+    kit.boxNumbers.push(props);
     return null;
   },
 }));
@@ -40,7 +40,7 @@ const CONTEXT = makeTestContext({
 /** Renders the screen on `data` once, as the capture screen would, and returns the cells' callbacks. */
 function renderScreen(data: DispensingPackingData, onChange: (next: DispensingPackingData) => void) {
   kit.percent.length = 0;
-  kit.pickers.length = 0;
+  kit.boxNumbers.length = 0;
   renderToStaticMarkup(
     <Capture
       data={data}
@@ -58,7 +58,7 @@ function renderScreen(data: DispensingPackingData, onChange: (next: DispensingPa
   return {
     layering: kit.percent.filter((field) => field.group === "layeringPct"),
     dispensing: kit.percent.filter((field) => field.group === "dispensingPct"),
-    pickers: [...kit.pickers],
+    boxNumbers: [...kit.boxNumbers],
   };
 }
 
@@ -78,11 +78,22 @@ describe("dispensing_packing capture writes", () => {
     expect(saved.sizes.M).toBeUndefined();
   });
 
+  it("hands a pasted column of box numbers to onChange once, each typed as it is, a carton number or not", () => {
+    const changes: DispensingPackingData[] = [];
+    const { boxNumbers } = renderScreen({ sizes: {} }, (next) => changes.push(next));
+    expect(boxNumbers.map((field) => field.group)).toEqual(Array.from({ length: 5 }, () => "boxNo"));
+
+    batchDataChanges(() => [313, 2336, 11, 7, 999].forEach((value, row) => boxNumbers[row].onValueChange(value)));
+
+    expect(changes).toHaveLength(1);
+    expect(changes[0].sizes.M.boxes.map((box) => box.boxNo)).toEqual([313, 2336, 11, 7, 999]);
+  });
+
   it("keeps both of two changes made before the screen renders again", () => {
     const changes: DispensingPackingData[] = [];
-    const { pickers, dispensing } = renderScreen({ sizes: {} }, (next) => changes.push(next));
+    const { boxNumbers, dispensing } = renderScreen({ sizes: {} }, (next) => changes.push(next));
 
-    pickers[0].onValueChange(12);
+    boxNumbers[0].onValueChange(12);
     dispensing[0].onValueChange(91);
 
     expect(changes).toHaveLength(2);

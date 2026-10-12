@@ -68,7 +68,7 @@ describe("buildInspectionContext: numbers flow forward", () => {
     expect(samplingFor(context, "L")).toMatchObject({ cases: null });
   });
 
-  it("offers each size's sampled cartons once, for box pickers (6.2 rule 7)", () => {
+  it("offers each size's sampled cartons once", () => {
     expect(cartonsFor(build(), "M")).toEqual([32, 578, 1186]);
     expect(cartonsFor(build(), "L")).toEqual([]);
   });

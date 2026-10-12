@@ -31,12 +31,18 @@ const FILLED_M = {
   glovesWatertightVisual: 500,
   glovesDimensions: 13,
   glovesPhysical: 13,
+  glovesWeight: 13,
   innerUnitsDispensing: 13,
   pouches: null,
   pouchesDyeLeak: null,
 };
 
 describe("sampling_plan data", () => {
+  it("reads a size saved before # Gloves for Weight existed as empty there, everything else kept", () => {
+    const saved = Object.fromEntries(Object.entries(FILLED_M).filter(([column]) => column !== "glovesWeight"));
+    expect(SamplingPlanDataSchema.parse({ sizes: { M: saved } }).sizes.M).toEqual({ ...FILLED_M, glovesWeight: null });
+  });
+
   it("starts empty and accepts a draft with anything missing, per size", () => {
     expect(emptySamplingPlan()).toEqual({ sizes: {} });
     expect(emptySamplingSize()).toEqual(Object.fromEntries(SAMPLING_COLUMNS.map((column) => [column, null])));
@@ -101,12 +107,28 @@ describe("sampling_plan config", () => {
         glovesWatertightVisual: true,
         glovesDimensions: true,
         glovesPhysical: true,
+        glovesWeight: false,
         innerUnitsDispensing: true,
         pouches: false,
         pouchesDyeLeak: false,
       },
       inspectionLevel: null,
     });
+  });
+
+  it("shows # Gloves for Weight where weight weighs glove by glove: STD_EG on, SAFEDON_EG (one value per size) and STD_SG (no weight) off", () => {
+    expect(TEMPLATE_CODES.map((code) => [code, config(code).columns.glovesWeight])).toEqual([
+      ["STD_EG", true],
+      ["SAFEDON_EG", false],
+      ["STD_SG", false],
+    ]);
+  });
+
+  it("reads a template version saved before # Gloves for Weight existed as without the row, every other column kept", () => {
+    const columns = Object.fromEntries(Object.entries(config("STD_EG").columns).filter(([column]) => column !== "glovesWeight"));
+    const before = SamplingPlanConfigSchema.parse({ columns, inspectionLevel: "I" });
+    expect(before.columns).toEqual({ ...columns, glovesWeight: false });
+    expect(columnGroups(before).tests).not.toContain("glovesWeight");
   });
 
   it.each(TEMPLATE_CODES)("accepts %s's config, as written and merged down its extends chain", (code) => {
@@ -157,8 +179,14 @@ describe("sampling_plan config", () => {
   it("groups the columns as the forms print them: EG's Sampling Quantity, SG's with the watertight and visual gloves", () => {
     expect(columnGroups(config("STD_EG"))).toEqual({
       quantity: ["cases", "innerUnits", "gloves"],
-      tests: ["glovesWatertightVisual", "glovesDimensions", "glovesPhysical", "innerUnitsDispensing"],
+      tests: ["glovesWatertightVisual", "glovesDimensions", "glovesPhysical", "glovesWeight", "innerUnitsDispensing"],
     });
+    expect(columnGroups(config("SAFEDON_EG")).tests).toEqual([
+      "glovesWatertightVisual",
+      "glovesDimensions",
+      "glovesPhysical",
+      "innerUnitsDispensing",
+    ]);
     expect(columnGroups(config("STD_SG"))).toEqual({
       quantity: ["cases", "innerUnits", "pouches", "glovesWatertightVisual"],
       tests: ["glovesDimensions", "glovesPhysical", "pouchesDyeLeak"],

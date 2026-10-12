@@ -290,7 +290,7 @@ describe("summariseIssues", () => {
       summariseIssues([ISSUE({ code, message })], CONTEXT).status;
     expect(status("final_result_differs")).toBe("Explain the result under Remark");
     expect(status("size_not_ordered")).toBe("Data for a size not ordered");
-    expect(status("box_not_in_carton_list")).toBe("Box not in the carton list");
+    expect(status("box_duplicate")).toBe("Box entered twice");
     expect(status("lot_number_duplicate")).toBe("Lot number entered twice");
     expect(status("dye_leak_below_plan")).toBe("Sample below plan");
     expect(status("lab_report_missing")).toBe("Lab report not attached");

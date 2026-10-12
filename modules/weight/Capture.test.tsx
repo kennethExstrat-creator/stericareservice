@@ -136,8 +136,8 @@ describe("weight capture, 13 gloves per size (STD_EG)", () => {
     expect(note).toContain(`data-issue-path="${JSON.stringify(["sizes", "M", "values"]).replaceAll('"', "&quot;")}"`);
   });
 
-  it("weighs the sampling plan's 12 gloves for dimension: 12 rows, the 13th weight offered for removal", () => {
-    const context = exampleContext(STD_EG_EXAMPLE, { sampling: { M: makeSampling({ dimensions: 12 }) } });
+  it("weighs the sampling plan's 12 gloves for weight: 12 rows, the 13th weight offered for removal", () => {
+    const context = exampleContext(STD_EG_EXAMPLE, { sampling: { M: makeSampling({ weight: 12 }) } });
     const planned = render("STD_EG", data, context);
     expect(planned).toContain(">Average of 12 gloves<");
     expect(tags(planned, 'data-slot="numeric-cell"')).toHaveLength(12);
@@ -146,8 +146,16 @@ describe("weight capture, 13 gloves per size (STD_EG)", () => {
       "No. 5 to 8",
       "No. 9 to 12",
     ]);
-    expect(planned).toContain("Size M: values for No. 13 are not counted; the sampling plan has 12 gloves for dimension.");
+    expect(planned).toContain("Size M: values for No. 13 are not counted; the sampling plan has 12 gloves for weight.");
     expect(planned).toContain(">Remove the Values That Are Not Counted</button>");
+  });
+
+  it("keeps its own 13 rows when the sampling plan has 12 gloves for dimension", () => {
+    const context = exampleContext(STD_EG_EXAMPLE, { sampling: { M: makeSampling({ dimensions: 12 }) } });
+    const own = render("STD_EG", data, context);
+    expect(own).toContain(">Average of 13 gloves<");
+    expect(tags(own, 'data-slot="numeric-cell"')).toHaveLength(13);
+    expect(own).not.toContain("are not counted");
   });
 });
 

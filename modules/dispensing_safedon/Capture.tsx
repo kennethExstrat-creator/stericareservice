@@ -3,25 +3,31 @@
 // Glove Dispensing Inspection capture (BUILD_SPEC 6.1, 8 "Speed"): one size
 // at a time (swipe on iPad, arrow keys on desktop). The size's boxes are a
 // list, one row per box column of the sheet, 15 rows a page (Kenneth, 12
-// October 2026): its No., its box number picked from the size's carton list
-// (6.2 rule 7), its defects over the gloves of the pack, and Delete. Defects
-// are counted by tapping, never typed. On iPad the counts show one box at a
-// time: the row chosen (tap it or open its box list), stepped through with
-// Previous and Next; from 1280 px every box sits side by side, as on the
-// sheet. The per box "1/125" and rate, the size total "3 / 625 (0.48%)" and
-// its result against the maximum come from calc as you tap (rule 2). A box
-// that is not in the carton list, and any other problem calc finds in a box,
-// is listed under the box list with a link to it: the picker itself only
-// turns red. Every write goes through useDataUpdater, starting from the
-// latest data, so taps faster than the screen renders all count
+// October 2026): its No., its box number typed on the numeric keypad (6.2
+// rule 7: the inspector's own number, not a carton number), its defects over
+// the gloves of the pack, and Delete. Enter goes down the box numbers, the box
+// just typed staying the one counted, and a pasted column fills down them.
+// Defects are counted by tapping, never typed.
+// On iPad the counts show one box at a time: the row chosen (tap it or its
+// box number), stepped through with Previous and Next; from 1280 px every box
+// sits side by side, as on the sheet. The per box "1/125" and rate, the size
+// total "3 / 625 (0.48%)" and its result against the maximum come from calc
+// as you tap (rule 2). A box number the field refuses, and any problem calc
+// finds in a box, is listed under the box list with a link to it: the cell
+// itself only turns red. Every write goes through useDataUpdater, starting
+// from the latest data, so taps faster than the screen renders all count
 // (docs/CAPTURE_KIT.md).
-import { useEffect, useId, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
+import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { flushSync } from "react-dom";
 import { ChevronLeftIcon, ChevronRightIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import {
-  BoxPicker,
+  BoxNumberField,
   ColumnSwitcher,
   CounterTable,
+  EnterGroup,
+  EntryProblems,
   Figure,
+  findIssue,
   issuePathProps,
   ModuleSection,
   RequirementList,
@@ -29,7 +35,10 @@ import {
   StatusIcon,
   useDataUpdater,
   useIssueFocus,
+  useRefusedEntryStore,
   type DataChange,
+  type EntryProblem,
+  type InvalidEntry,
   type IssuePath,
 } from "@/components/qc";
 import {
@@ -45,7 +54,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { formatRatio, formatRatioDecimal, formatSize } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { cartonsFor, initialSize, labelFor, type CaptureProps, type ValidationIssue } from "@/modules/_framework";
+import { initialSize, labelFor, type CaptureProps, type ValidationIssue } from "@/modules/_framework";
 import { sizeOnTabs, useReportShownSize } from "@/modules/_framework/shown-size";
 import type { DispensingSafedonComputed, DispensingSafedonConfig, DispensingSafedonData } from ".";
 import { plannedBoxes, safedonHeading } from "./calc";
@@ -93,6 +102,8 @@ export default function Capture({
   const [requested, setRequested] = useState<Record<string, number>>({});
   // The page of each size's box list, from 0: kept here, so an issue link can open the one its box is on.
   const [pages, setPages] = useState<Record<string, number>>({});
+  // Box numbers the cells refused ("2 42"), by `size:index`, listed under the box list with a link.
+  const [rejected, setRejected] = useState<Record<string, EntryProblem>>({});
   // The issue link being followed, the screen's or one under the box list.
   const [linked, setLinked] = useState<IssuePath | null>(null);
 
@@ -128,6 +139,14 @@ export default function Capture({
     onFocusChange?.({ size: next });
   };
 
+  const onRejected = (key: string, problem: EntryProblem | null) =>
+    setRejected((current) => {
+      const next = { ...current };
+      if (problem) next[key] = problem;
+      else delete next[key];
+      return next;
+    });
+
   return (
     <div ref={root} className="min-w-0 space-y-4">
       <p className="text-sm text-muted-foreground touch:text-base">
@@ -154,6 +173,8 @@ export default function Capture({
             onPage={(page) => setPages((current) => ({ ...current, [shown]: page }))}
             // A new array for every click, so the same link twice still works.
             onIssue={(path) => follow([...path])}
+            rejected={Object.values(rejected)}
+            onRejected={onRejected}
           />
         )}
       </SizeTabs>
@@ -174,6 +195,9 @@ type PanelProps = {
   onPage: (page: number) => void;
   /** Follows a link under the box list: its box's page turns before the focus moves. */
   onIssue: (path: IssuePath) => void;
+  /** Box numbers the cells refused, every size's (keys `size:index`). */
+  rejected: readonly EntryProblem[];
+  onRejected: (key: string, problem: EntryProblem | null) => void;
 };
 
 /** A box with defects counted, waiting for its Delete to be confirmed. */
@@ -196,6 +220,8 @@ function SafedonSizePanel({
   page,
   onPage,
   onIssue,
+  rejected,
+  onRejected,
 }: PanelProps) {
   const { data, config, title, labels, context, evaluation, readOnly, onFocusChange } = props;
   const uid = useId();
@@ -204,19 +230,14 @@ function SafedonSizePanel({
   const columns = columnsShown(planned, boxes.length, requested);
   // The column counted on iPad: the one asked for, within the columns shown.
   const counted = Math.min(Math.max(active, 0), Math.max(columns - 1, 0));
-  const cartons = cartonsFor(context, size);
-  const used = boxes.map((box) => box.boxNo);
   const codes = config.defects.map((defect) => defect.code);
   // A module whose config or data is broken comes back with no computed values.
   const computed = evaluation?.computed.sizes?.[size];
   const result = evaluation?.result.perSize?.[size];
   const sizeName = formatSize(size, { sizes: context.templateSizes, prefix: true });
-  // Inside the picker's sentences: "Box 2336 is not in the carton list for size M."
-  const pickerSize = `size ${formatSize(size, { sizes: context.templateSizes })}`;
   const boxLabel = labelFor(labels, "boxNo");
-  // calc's problems in this size's boxes, such as a box missing from the carton list (6.2 rule 7).
+  // calc's problems in this size's boxes, such as a count under a defect the template does not list.
   const issues = boxIssues(evaluation?.issues ?? [], size);
-  const panel = useRef<HTMLDivElement>(null);
   const addButton = useRef<HTMLButtonElement>(null);
   const indices = Array.from({ length: columns }, (_, index) => index);
   // The list's page, the last one when rows have gone since it was turned.
@@ -225,6 +246,30 @@ function SafedonSizePanel({
   const first = shownPage * BOXES_PER_PAGE;
   const rows = indices.slice(first, first + BOXES_PER_PAGE);
   const boxNoAt = (index: number) => boxes[index]?.boxNo ?? null;
+  const boxFieldId = (index: number) => `${uid}-box-${index}`;
+  // Enter walking down the box numbers moves the focus, never the box counted: the box just typed
+  // stays chosen, so its defects are tapped into its own column. Set for the frame of the key press.
+  const walking = useRef(false);
+  const onListKeyDownCapture = (event: KeyboardEvent) => {
+    if (event.key !== "Enter") return;
+    walking.current = true;
+    requestAnimationFrame(() => {
+      walking.current = false;
+    });
+  };
+  // A refused box number is listed while its cell stays empty, in list order.
+  const problems = rejected
+    .filter((problem) => {
+      const [owner, index] = problem.key.split(":");
+      return owner === size && boxNoAt(Number(index)) === null;
+    })
+    .sort((a, b) => Number(a.key.split(":")[1]) - Number(b.key.split(":")[1]));
+  const reject = (index: number, entry: InvalidEntry | null) => {
+    const key = `${size}:${index}`;
+    onRejected(key, entry ? { key, label: `${boxLabel}, No. ${index + 1}`, entry, inputId: boxFieldId(index) } : null);
+  };
+  // The screen's refused entries, by issue path: a Delete moves the boxes below it up, so theirs go.
+  const refusedStore = useRefusedEntryStore();
   // A column without a box number yet shows its place in brackets, never a number that reads as a box.
   const columnLabel = (index: number) => {
     const boxNo = boxNoAt(index);
@@ -252,7 +297,6 @@ function SafedonSizePanel({
   const [confirming, setConfirming] = useState(false);
   // A row deleted from the keyboard, until the list without it is on screen.
   const refocus = useRef<number | null>(null);
-  const opening = useRef(0);
 
   const removeId = (index: number) => `${uid}-remove-${index}`;
   /** The focus after a deletion: the Delete now in the same row, else the one above, else Add Box. */
@@ -266,7 +310,6 @@ function SafedonSizePanel({
     refocus.current = null;
     focusAfterRemoval(index);
   });
-  useEffect(() => () => cancelAnimationFrame(opening.current), []);
 
   /**
    * Deletes box column `index`: the boxes below move up and renumber, and
@@ -279,6 +322,10 @@ function SafedonSizePanel({
     // The box at that place once the column is gone tags new photos: never a box deleted.
     const moved = index < boxes.length && after >= index ? 1 : 0;
     const boxNo = boxes[after + moved]?.boxNo ?? null;
+    for (let row = index; row < columns; row += 1) {
+      refusedStore?.set(["sizes", size, "boxes", row, "boxNo"], null);
+      reject(row, null);
+    }
     update((current) => removeSafedonBox(current, size, index));
     onRequest(columns - 1);
     onActive(after);
@@ -302,36 +349,23 @@ function SafedonSizePanel({
   };
 
   /**
-   * Opens the new row's box list once the row is on screen: a click on its
-   * picker, which opens the list and reports the box. On touch the list takes
-   * the focus rather than the search, so no keyboard comes up.
+   * Adds a row and puts the focus in its box number, ready to type. The row is
+   * rendered within the press (flushSync), so the focus moves inside it and
+   * the iPad's keypad comes up.
    */
-  const openPicker = (index: number) => {
-    cancelAnimationFrame(opening.current);
-    let tries = 0;
-    const attempt = () => {
-      const trigger = document.getElementById(`${uid}-box-${index}`);
-      if (trigger && panel.current?.contains(trigger)) {
-        trigger.click();
-        return;
-      }
-      tries += 1;
-      if (tries < 30) opening.current = requestAnimationFrame(attempt);
-    };
-    opening.current = requestAnimationFrame(attempt);
-  };
-
   const addBox = () => {
     const index = columns;
-    onRequest(columns + 1);
-    onActive(index);
-    onPage(boxPageOf(index));
+    flushSync(() => {
+      onRequest(columns + 1);
+      onActive(index);
+      onPage(boxPageOf(index));
+    });
+    document.getElementById(boxFieldId(index))?.focus();
     announce(`No. ${index + 1} added.`);
-    openPicker(index);
   };
 
   return (
-    <div ref={panel} className="min-w-0 space-y-5">
+    <div className="min-w-0 space-y-5">
       {planned === 0 && (
         <p className="rounded-lg border border-dashed border-not-done-border bg-not-done-tint px-4 py-3 text-sm text-not-done touch:text-base">
           {result?.summary}
@@ -340,7 +374,8 @@ function SafedonSizePanel({
 
       <ModuleSection title={boxLabel}>
         {columns > 0 && (
-          <div className="overflow-hidden rounded-lg bg-card ring-1 ring-border">
+          // An EnterGroup: Enter walks down the box numbers, a pasted column fills down them.
+          <EnterGroup onKeyDownCapture={onListKeyDownCapture} className="overflow-hidden rounded-lg bg-card ring-1 ring-border">
             <table className="w-full text-sm tabular-nums touch:text-base">
               <caption className="sr-only">{`${boxLabel}, ${sizeName}`}</caption>
               <thead className="bg-muted/60 text-muted-foreground">
@@ -348,8 +383,8 @@ function SafedonSizePanel({
                   <th scope="col" className={cn(HEAD, "w-16")}>
                     No.
                   </th>
-                  {/* 10 px in, where the picker's box number starts (its cell has no padding of its own). */}
-                  <th scope="col" className={cn(HEAD, "w-48 px-2.5 touch:w-60")}>
+                  {/* Right-aligned, 10 px in, as the typed box number is (its cell has no padding of its own). */}
+                  <th scope="col" className={cn(HEAD, "w-36 px-2.5 text-right touch:w-40")}>
                     {boxLabel}
                   </th>
                   {/* Beside the box number, not across the card from it (Kenneth, 12 October 2026: no empty gaps). */}
@@ -374,8 +409,8 @@ function SafedonSizePanel({
                       {...issuePathProps(["sizes", size, "boxes", index])}
                       // Colours only, never a size: a row chosen as the finger lands moves nothing under it.
                       data-active={index === counted || undefined}
-                      // On click, never on pointerdown: a scroll or a swipe never chooses. A click in the
-                      // box list (a portal) reaches the row through React: only the row's own count.
+                      // On click, never on pointerdown: a scroll or a swipe never chooses. Only a click
+                      // inside the row itself counts, never one React bubbles up from a portal.
                       onClick={(event) => {
                         if (event.currentTarget.contains(event.target as Node)) select(index);
                       }}
@@ -383,7 +418,7 @@ function SafedonSizePanel({
                     >
                       <td className="px-2 py-0.5 group-last/row:pb-1 group-data-active/row:shadow-[inset_3px_0_0_var(--color-brand-500)]">
                         {/* Chooses its row through the row's click. Out of the Tab order: the keyboard
-                            chooses a row by focusing its picker; an issue link lands here. Outset focus
+                            chooses a row by focusing its box number; an issue link lands here. Outset focus
                             ring, as SizeTabs' filled tab: the pressed button is brand-500, where an inset
                             brand-500 ring would vanish. The cell's 8 px side padding holds it inside the
                             frame, and the last row's 4 px below it: the frame clips (its round corners). */}
@@ -398,20 +433,22 @@ function SafedonSizePanel({
                         </button>
                       </td>
                       <td className="p-0">
-                        <BoxPicker
-                          id={`${uid}-box-${index}`}
+                        <BoxNumberField
+                          id={boxFieldId(index)}
                           variant="cell"
-                          label={`${boxLabel}, Column ${index + 1}`}
-                          sizeLabel={pickerSize}
+                          group="boxNo"
+                          label={`${boxLabel}, No. ${index + 1}`}
                           value={boxNoAt(index)}
-                          cartons={cartons}
-                          used={used}
                           onValueChange={(boxNo) => {
                             update((current) => setSafedonBoxNo(current, size, index, boxNo));
                             onActive(index);
                             onFocusChange?.({ size, ...(boxNo === null ? {} : { box: boxNo }) });
                           }}
-                          onFocus={() => select(index)}
+                          onInvalidChange={(entry) => reject(index, entry)}
+                          error={findIssue(issues, ["sizes", size, "boxes", index, "boxNo"])?.message}
+                          onFocus={() => {
+                            if (!walking.current) select(index);
+                          }}
                           issuePath={["sizes", size, "boxes", index, "boxNo"]}
                           readOnly={readOnly}
                         />
@@ -449,7 +486,7 @@ function SafedonSizePanel({
                 })}
               </tbody>
             </table>
-          </div>
+          </EnterGroup>
         )}
         {(!readOnly || pageCount > 1) && (
           <div className="relative flex flex-wrap items-center justify-between gap-2">
@@ -524,6 +561,7 @@ function SafedonSizePanel({
             )}
           </div>
         )}
+        <EntryProblems problems={problems} />
         <IssueLinks issues={issues} onIssue={onIssue} />
       </ModuleSection>
 
@@ -659,11 +697,10 @@ function boxIssues(issues: readonly ValidationIssue[], size: string): Validation
 
 /**
  * calc's problems in the boxes, each with a link to its box (BUILD_SPEC 6.2),
- * listed as the carton list and labelling list their own: a picker only
- * turns red, and its message is read to screen readers alone. The size's
- * Passed or Failed stays calc's: a box missing from the carton list blocks
- * submit, it does not change the rate. A link turns the box list to its
- * box's page and chooses the box before the focus moves.
+ * listed as the carton list and labelling list their own: a cell only turns
+ * red, and its message is read to screen readers alone. The size's Passed or
+ * Failed stays calc's. A link turns the box list to its box's page and
+ * chooses the box before the focus moves.
  */
 function IssueLinks({ issues, onIssue }: { issues: readonly ValidationIssue[]; onIssue: (path: IssuePath) => void }) {
   if (issues.length === 0) return null;

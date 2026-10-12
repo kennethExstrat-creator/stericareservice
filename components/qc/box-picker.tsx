@@ -1,8 +1,9 @@
 "use client";
 
-// A box number picked from the size's carton list (BUILD_SPEC 6.2 rule 7:
-// box numbers in dispensing and labelling are picked, never typed freely).
-// The trigger opens the size's sampled cartons in ascending order with a
+// A number picked from the size's carton list. No module uses it since 12
+// October 2026: box numbers in dispensing and labelling are no carton
+// numbers and are typed (BoxNumberField, BUILD_SPEC 6.2 rule 7). Kept in the
+// kit unused. The trigger opens the size's sampled cartons in ascending order with a
 // search box: on desktop type the digits and press Enter, on iPad tap a box
 // (the search box is not focused, so the keyboard stays down). Boxes picked
 // in other rows are marked but stay selectable, since one carton can supply

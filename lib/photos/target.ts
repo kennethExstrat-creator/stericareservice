@@ -33,7 +33,7 @@ export const PhotoTargetSchema = z.strictObject({
   hand: HandSchema.optional(),
   /** A defect code ("thin_spot"), or the label of a one-off defect not mapped yet. */
   defect: z.string().trim().min(1).max(120).optional(),
-  /** Carton (box) number, from that size's carton list. */
+  /** The number in focus: a carton's in carton sampling, a box's in dispensing and labelling (not a carton number, 6.2 rule 7). */
   box: z.number().int().positive().optional(),
   /** The packaging level in labelling: the inner unit or the carton. */
   level: PackagingLevelSchema.optional(),
@@ -113,7 +113,7 @@ export interface CaptureFocus {
 /**
  * The focus worth recording in each module: what an inspector can have
  * selected there. The size tab stays selected across modules, and a box
- * picked in dispensing should not follow the inspector into dimensions.
+ * entered in dispensing should not follow the inspector into dimensions.
  */
 export const MODULE_TARGET_KEYS: Readonly<Record<ModuleKey, readonly TargetKey[]>> = {
   header: [],

@@ -216,7 +216,7 @@ describe("carton_sampling", () => {
     ]);
   });
 
-  it("passes the entered numbers forward for the box pickers (6.2 rule 7)", () => {
+  it("passes the entered numbers forward into the context", () => {
     expect(contributeCartonSampling({ data: { sizes: { M: { cartonNumbers: [32, null, 578] } } }, config: {} })).toEqual({
       cartons: { M: [32, 578] },
     });
@@ -266,7 +266,7 @@ describe("carton_sampling with the example reports (docs/examples/expected-resul
       summary: "Size M: 50 carton numbers, unique and between 1 and 2,900.",
     });
     expect(all.issues.filter((issue) => issue.level === "error" && issue.moduleKey !== "conclusion")).toEqual([]);
-    // The box pickers offer the 50 cartons; the stray dispensing box is not among them (6.2 rule 7).
+    // The context holds the 50 cartons. The dispensing box 2336 is none of them, and needs not be (6.2 rule 7).
     expect(context.cartons.M).toHaveLength(50);
     expect(context.cartons.M).not.toContain(STD_EG_EXPECTED.dispensingBox.box);
     expect(context.cartons.M).toContain(STD_EG_EXPECTED.dispensingBox.likelyIntended);

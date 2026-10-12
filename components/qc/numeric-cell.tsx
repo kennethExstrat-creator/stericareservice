@@ -51,6 +51,8 @@ type NumericCellProps = Omit<
   unit?: string;
   /** Show the stored value with at least this many decimals (0.1 as 0.10); never rounds. */
   decimals?: number;
+  /** The on-screen keypad: decimal (the default), or numeric for whole numbers such as a box number. */
+  inputMode?: "decimal" | "numeric";
   /** Called with pasted text that holds several values; return true if handled. */
   onPasteText?: (text: string) => boolean;
 };
@@ -66,6 +68,7 @@ export function NumericCell({
   variant = "field",
   unit,
   decimals,
+  inputMode = "decimal",
   onPasteText,
   className,
   id,
@@ -164,7 +167,7 @@ export function NumericCell({
       {...props}
       id={inputId}
       type="text"
-      inputMode="decimal"
+      inputMode={inputMode}
       autoComplete="off"
       spellCheck={false}
       readOnly={readOnly}

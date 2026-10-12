@@ -1,18 +1,18 @@
 // Glove Dispensing Inspection (BUILD_SPEC 6.1 dispensing_safedon): per
-// ordered size, one entry per box dispensed, its box number picked from the
-// size's carton list (6.2 rule 7), with a count per Safedon dispensing
-// defect. Counts are tapped, never typed (BUILD_SPEC 8): a defect not counted
-// yet is absent and counts as 0, as the kit's CounterTable reads it. Totals,
-// rates and results are computed (rule 2), never stored here.
+// ordered size, one entry per box dispensed, its box number as the inspector
+// types it (6.2 rule 7: not a carton number), with a count per Safedon
+// dispensing defect. Counts are tapped, never typed (BUILD_SPEC 8): a defect
+// not counted yet is absent and counts as 0, as the kit's CounterTable reads
+// it. Totals, rates and results are computed (rule 2), never stored here.
 import { z } from "zod";
-import { CartonNumberCellSchema, CountCellSchema, perSizeData } from "@/modules/_framework";
+import { BoxNumberCellSchema, CountCellSchema, perSizeData } from "@/modules/_framework";
 
 /** A defect code (defect_codes.code): no_cuff, finger_out. */
 export const DEFECT_CODE_PATTERN = /^[a-z][a-z0-9_]*$/;
 
 export const SafedonBoxSchema = z.strictObject({
-  /** A carton number from the size's carton list (rule 7), not an index into it. */
-  boxNo: CartonNumberCellSchema,
+  /** The box's own number, typed (rule 7): a box picked from the carton list before 12 October 2026 reads as it was. */
+  boxNo: BoxNumberCellSchema,
   /** Defects counted in this box by defect code (config.defects); a code not counted yet is absent. */
   counts: z.record(z.string().regex(DEFECT_CODE_PATTERN), CountCellSchema).default({}),
 });

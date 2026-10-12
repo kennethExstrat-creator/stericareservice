@@ -283,6 +283,11 @@ function visualClasses(template: TemplateCode): Readonly<Record<DefectClass, Cla
   ) as Record<DefectClass, ClassConfig>;
 }
 
+/**
+ * STD_EG's columns. # Gloves for Weight is the app's own row (no form prints
+ * it): weight weighs 13 gloves one by one, its own count (Kenneth, 12
+ * October 2026), so the plan says how many.
+ */
 const STD_EG_SAMPLING_COLUMNS: Readonly<Record<SamplingColumn, boolean>> = {
   cases: true,
   innerUnits: true,
@@ -290,6 +295,7 @@ const STD_EG_SAMPLING_COLUMNS: Readonly<Record<SamplingColumn, boolean>> = {
   glovesWatertightVisual: true,
   glovesDimensions: true,
   glovesPhysical: true,
+  glovesWeight: true,
   innerUnitsDispensing: true,
   pouches: false,
   pouchesDyeLeak: false,
@@ -425,7 +431,7 @@ const STD_EG: TemplateSpec = {
     },
     {
       path: "visual.classes",
-      note: "The example report's lists and severities. BUILD_SPEC 13: final defect lists and severities per client.",
+      note: "The example report's lists and severities, then Skin Visual and Flow Mark (major), which only the onsite forms have (Kenneth, 12 October 2026). BUILD_SPEC 13: final defect lists and severities per client.",
     },
     {
       path: "dispensing_packing.boxesPerSize",
@@ -481,7 +487,11 @@ const SAFEDON_EG: TemplateSpec = {
     { key: "glove_info", config: stdEgConfig("glove_info") },
     { key: "order_lots", config: { fields: { packingSite: true } } },
     { key: "packing_config", config: { innerUnit: "plastic_pack", fields: { packingMode: true } } },
-    { key: "sampling_plan", config: stdEgConfig("sampling_plan") },
+    // One weight value per size (weight n 1): no gloves for weight to plan.
+    {
+      key: "sampling_plan",
+      config: { ...stdEgConfig("sampling_plan"), columns: { ...STD_EG_SAMPLING_COLUMNS, glovesWeight: false } },
+    },
     { key: "carton_sampling", config: {} },
     {
       key: "dimensions",
@@ -552,7 +562,10 @@ const SAFEDON_EG: TemplateSpec = {
     },
     { path: "weight.specs", note: "NA as printed for XS to L; XL has no row (not printed)." },
     { path: "header.mfgExpiryPrecision", note: "The report prints month and year only: confirm month precision." },
-    { path: "visual.classes", note: "BUILD_SPEC 13: final defect lists and severities per client." },
+    {
+      path: "visual.classes",
+      note: "The report's lists, then Skin Visual and Flow Mark (major), which only the onsite forms have (Kenneth, 12 October 2026). BUILD_SPEC 13: final defect lists and severities per client.",
+    },
     {
       path: "dispensing_safedon.glovesPerPack",
       note: "125, the same number as packing_config glovesPerInner (125 per plastic pack): confirm which one the rate uses if they differ.",
@@ -593,6 +606,8 @@ const STD_SG: TemplateSpec = {
           glovesWatertightVisual: true,
           glovesDimensions: true,
           glovesPhysical: true,
+          // No weight module.
+          glovesWeight: false,
           innerUnitsDispensing: false,
           pouches: true,
           pouchesDyeLeak: true,

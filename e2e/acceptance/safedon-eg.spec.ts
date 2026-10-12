@@ -537,7 +537,7 @@ test("Glove dispensing: rates per box from the counts (XS 0.008 and 0.016), tota
     await expect(requirement).toContainText("Passed");
     await expect(requirement).toContainText(`Boxes Tested: ${expected.boxes.length} / ${expected.boxes.length}`, { ignoreCase: true });
   }
-  await expectTouchTarget(section.getByRole("combobox", { name: "Box #, Column 1", exact: true }));
+  await expectTouchTarget(section.getByRole("textbox", { name: "Box #, No. 1", exact: true }));
   await expectStoredModule(admin, inspectionId!, "dispensing_safedon", EXPECTED_DATA.dispensing_safedon);
 });
 

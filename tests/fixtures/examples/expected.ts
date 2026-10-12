@@ -477,14 +477,16 @@ export type StdEgExpected = {
     /** The row ("Item") of the packing check, 1 to 13. */
     readonly item: number;
     readonly box: number;
-    /** The listed carton one digit away, as the original box was from its carton. */
+    /** The listed carton one digit away, which the first check of the report took it for. */
     readonly likelyIntended: number;
     /**
-     * A validation error that blocks submit (BUILD_SPEC 6.2 rule 7; `errors`),
-     * not a module result: the `dispensing_packing` result for the size is
-     * `dispensing.M.status`, from the averages and stickiness codes (6.1).
+     * No validation issue: a box number is the inspector's own and is never
+     * checked against the carton list (BUILD_SPEC 6.2 rule 7; Kenneth, 12
+     * October 2026: "the box number has nothing to do with carton number").
+     * The `dispensing_packing` result for the size is `dispensing.M.status`,
+     * from the averages and stickiness codes (6.1).
      */
-    readonly validation: "error";
+    readonly validation: "none";
   };
   readonly watertight: PerSize<ExpectedWatertight>;
   readonly visual: Readonly<Record<VisualClass, PerSize<ExpectedVisual>>>;
@@ -532,18 +534,11 @@ export type StdEgExpected = {
   readonly rejectedInputs: readonly RejectedInput[];
   readonly errors: readonly ExpectedIssue[];
   readonly warnings: readonly ExpectedIssue[];
-  /** Fixes that clear the two errors, so an acceptance test can reach "pass". */
+  /** The fix that clears the error, so an acceptance test can reach "pass". */
   readonly corrections: {
     readonly duplicateCarton: {
       readonly size: ReportSize;
       readonly cell: GridCell;
-      readonly from: number;
-      readonly to: number;
-      readonly note: string;
-    };
-    readonly strayBox: {
-      readonly size: ReportSize;
-      readonly item: number;
       readonly from: number;
       readonly to: number;
       readonly note: string;
@@ -578,7 +573,7 @@ export const STD_EG_EXPECTED = deepFreeze<StdEgExpected>({
     item: 12,
     box: 2336,
     likelyIntended: 2236,
-    validation: "error",
+    validation: "none",
     originalReport: "accepted (likely 2236)",
   },
 
@@ -728,13 +723,6 @@ export const STD_EG_EXPECTED = deepFreeze<StdEgExpected>({
       code: "carton_duplicate",
       message: "Carton 525 is entered twice (No. 20, No. 21).",
     },
-    {
-      level: "error",
-      module: "dispensing_packing",
-      size: "M",
-      code: "box_not_in_carton_list",
-      message: "Box 2336 (item 12) is not in the size M carton list.",
-    },
   ],
 
   warnings: [
@@ -754,13 +742,6 @@ export const STD_EG_EXPECTED = deepFreeze<StdEgExpected>({
       from: 525,
       to: 830,
       note: "The report does not say which entry is wrong: the second becomes an unused number in range.",
-    },
-    strayBox: {
-      size: "M",
-      item: 12,
-      from: 2336,
-      to: 2236,
-      note: "The listed carton one digit away: the likely intended box.",
     },
   },
 });

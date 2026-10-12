@@ -67,7 +67,10 @@ describe("visual config", () => {
     expect(config.classes.major).toMatchObject({ include: true, aql: null });
     expect(config.classes.minor).toMatchObject({ include: true, aql: null });
     expect(config.classes.critical.defects.map((defect) => defect.code)).toEqual(["embedded_insect", "embedded_metal"]);
-    expect(config.classes.major.defects).toHaveLength(9);
+    expect(config.classes.major.defects).toHaveLength(11);
+    expect(config.classes.major.defects.slice(-2).map((defect) => defect.code)).toEqual(["skin_visual", "flow_mark"]);
+    const stdEg = moduleConfig("STD_EG", "visual");
+    for (const cls of ["critical", "major", "minor"] as const) expect(config.classes[cls].defects, cls).toEqual(stdEg?.classes[cls].defects);
     expect(config.classes.minor.defects).toContainEqual({ code: "bead_defective", label: "Defective Beads" });
   });
 

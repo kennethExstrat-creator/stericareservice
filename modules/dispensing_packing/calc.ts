@@ -3,14 +3,12 @@
 // minimums; any box with a failing stickiness code fails the size. Not done
 // until every planned box row is complete (6.2 rule 5): the rows come from
 // the sampling plan's inner units for dispensing, else the template's boxes
-// per size. A box number that is not in the size's carton list is an error
-// that blocks submit (rule 7) but leaves the result alone: the averages and
-// codes decide it (docs/FIXTURES.md, the STD_EG stray box).
+// per size. A box number is the inspector's own and is never checked against
+// the carton list (rule 7): the STD_EG box 2336 stands as typed.
 import { codeLetterForSampleSize } from "@/lib/aql";
 import type { PerSizeResult } from "@/lib/schemas/module-result";
 import { formatDecimal, mean, roundTo } from "@/lib/stats";
 import {
-  cartonsFor,
   errorIssue,
   labelFor,
   perSizeResults,
@@ -119,10 +117,8 @@ type SizeOutcome = { result: PerSizeResult; computed: PackingSizeComputed; issue
 
 function evaluateSize(size: string, boxes: readonly PackingBox[], { config, labels, context }: SizeInput): SizeOutcome {
   const issues: CalcIssue[] = [];
-  const cartons = cartonsFor(context, size);
   const codes = new Map(config.stickinessCodes.map((entry, rank) => [entry.code, { entry, rank }]));
   const words = {
-    box: plainLabel(labelFor(labels, "boxNo")),
     item: inSentence(labelFor(labels, "itemColumn")),
     layering: plainLabel(labelFor(labels, "layeringPct")),
     dispensing: plainLabel(labelFor(labels, "dispensingPct")),
@@ -144,18 +140,7 @@ function evaluateSize(size: string, boxes: readonly PackingBox[], { config, labe
     const item = `${words.item} ${index + 1}`;
     const at = (field: keyof PackingBox) => ({ size, path: ["sizes", size, "boxes", index, field] });
 
-    if (box.boxNo !== null) {
-      tested += 1;
-      if (cartons.length > 0 && !cartons.includes(box.boxNo)) {
-        issues.push(
-          errorIssue(
-            "box_not_in_carton_list",
-            `${words.box} ${box.boxNo} (${item}) is not in the size ${words.size} carton list.`,
-            at("boxNo"),
-          ),
-        );
-      }
-    }
+    if (box.boxNo !== null) tested += 1;
 
     const percent = (value: number | null, field: "layeringPct" | "dispensingPct", word: string): number | null => {
       if (value === null || (value >= 0 && value <= 100)) return value;

@@ -8,6 +8,7 @@ import {
   type InspectionContext,
 } from "@/modules/_framework";
 import { checkModuleContract, makeSampling, makeTestContext, makeTestTemplate } from "@/modules/_framework/testing";
+import { SAMPLING_PLAN_DEFAULT_CONFIG } from "@/modules/sampling_plan/config";
 import { SAFEDON_EG_EXAMPLE, STD_EG_EXAMPLE, STD_EG_EXPECTED } from "@/tests/fixtures/examples";
 import { exampleContext, templateConfig, templateLabels, weightData } from "./__fixtures__/examples";
 import { calcWeight, deviationPct } from "./calc";
@@ -19,6 +20,19 @@ const STD_EG = templateConfig("STD_EG");
 const SAFEDON_EG = templateConfig("SAFEDON_EG");
 const ONE_VALUE: WeightConfig = { ...STD_EG, n: 1 };
 const INDICATIVE_M = { grams: 3.5, size: "M" };
+
+/** The sampling plan's config with # Gloves for Weight switched on or off. */
+function withWeightRow(on: boolean) {
+  return { ...SAMPLING_PLAN_DEFAULT_CONFIG, columns: { ...SAMPLING_PLAN_DEFAULT_CONFIG.columns, glovesWeight: on } };
+}
+
+/** The sampling plan's config as a template version saved before # Gloves for Weight existed stores it. */
+function withoutWeightRow() {
+  const columns = Object.fromEntries(
+    Object.entries(SAMPLING_PLAN_DEFAULT_CONFIG.columns).filter(([column]) => column !== "glovesWeight"),
+  );
+  return { ...SAMPLING_PLAN_DEFAULT_CONFIG, columns };
+}
 
 function sizeM(values: (number | null)[]): WeightData {
   return { sizes: { M: { values } } };
@@ -172,9 +186,8 @@ describe("weight", () => {
     });
   });
 
-  describe("the gloves weighed: the sampling plan's gloves for dimension (BUILD_SPEC 8)", () => {
-    const planned = (dimensions: number | null) =>
-      makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ dimensions }) } });
+  describe("the gloves weighed: the sampling plan's gloves for weight, weight's own count (BUILD_SPEC 8)", () => {
+    const planned = (weight: number | null) => makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ weight }) } });
     const weights = (count: number) => sizeM(Array.from({ length: count }, () => 2.9));
 
     it("weighs the plan's 12 gloves: 12 weights complete the size", () => {
@@ -193,7 +206,7 @@ describe("weight", () => {
         {
           level: "warning",
           code: "weight_beyond_n",
-          message: "Size M: values for No. 13 are not counted; the sampling plan has 12 gloves for dimension.",
+          message: "Size M: values for No. 13 are not counted; the sampling plan has 12 gloves for weight.",
           size: "M",
           path: ["sizes", "M", "values", 12],
         },
@@ -206,17 +219,51 @@ describe("weight", () => {
       expect(output.result.perSize?.M?.summary).toBe("Weight (g): 11 of 12 gloves.");
     });
 
-    it("is not done when the plan has no gloves for dimension", () => {
+    it("is not done when the plan has no gloves for weight", () => {
       const output = calcWeight(input(weights(13), STD_EG, planned(0)));
       expect(output.computed.n).toEqual({ M: 0 });
-      expect(output.result.perSize?.M).toEqual({ status: "not_done", summary: "The sampling plan has no gloves for dimension." });
+      expect(output.result.perSize?.M).toEqual({ status: "not_done", summary: "The sampling plan has no gloves for weight." });
       expect(output.issues.map((issue) => issue.message)).toEqual([
-        "Size M: values for No. 1 to 13 are not counted; the sampling plan has no gloves for dimension.",
+        "Size M: values for No. 1 to 13 are not counted; the sampling plan has no gloves for weight.",
       ]);
     });
 
-    it("weighs the template's n while the plan gives no number for dimension", () => {
+    it("weighs the template's n while the plan gives no number for weight", () => {
       expect(calcWeight(input(weights(13), STD_EG, planned(null))).computed.n).toEqual({ M: 13 });
+    });
+
+    // Kenneth, 12 October 2026: "each metrics and measurement should have their own number of glove count".
+    it("never takes another test's count: 12 gloves for dimension and 10 for force at break leave weight at 13", () => {
+      const others = makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ dimensions: 12, physical: 10 }) } });
+      const output = calcWeight(input(weights(13), STD_EG, others));
+      expect(output.computed.n).toEqual({ M: 13 });
+      expect(output.result.status).toBe("info");
+      expect(output.issues).toEqual([]);
+    });
+
+    it("reads the gloves for weight from the sampling plan's row, through the context (switched off: the template's n)", () => {
+      const template = makeTestTemplate(MODULE_REGISTRY, [
+        "order_lots",
+        { key: "sampling_plan", config: withWeightRow(true) },
+        { key: "weight", config: STD_EG },
+      ]);
+      const data = (glovesWeight: number | null) => ({
+        modules: {
+          order_lots: { sizes: { M: { qtyCases: 100, lotNumbers: ["LOT-A01"] } } },
+          sampling_plan: { sizes: { M: { glovesDimensions: 13, glovesWeight } } },
+        },
+        custom: {},
+      });
+      const weighs = (built: InspectionContext) => calcWeight(input(weights(12), STD_EG, built)).computed.n;
+      expect(weighs(buildInspectionContext({ template, data: data(12) }, MODULE_REGISTRY))).toEqual({ M: 12 });
+      expect(weighs(buildInspectionContext({ template, data: data(null) }, MODULE_REGISTRY))).toEqual({ M: 13 });
+      // A template version saved before the row existed: no glovesWeight switch, read as off.
+      const before = makeTestTemplate(MODULE_REGISTRY, [
+        "order_lots",
+        { key: "sampling_plan", config: withoutWeightRow() },
+        { key: "weight", config: STD_EG },
+      ]);
+      expect(weighs(buildInspectionContext({ template: before, data: data(12) }, MODULE_REGISTRY))).toEqual({ M: 13 });
     });
 
     it("keeps one value per size (n 1) whatever the plan says", () => {

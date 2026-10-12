@@ -2,12 +2,11 @@
 // Reject 1 (BUILD_SPEC 7: labelling, whatever the number inspected), so any
 // defect fails. A level is not done until the boxes inspected are recorded
 // (6.2 rule 5); fewer than the template plans is a warning, and so is a level
-// failed on a defect before the count is recorded. Box numbers are optional,
-// but a box must come from the size's carton list (6.2 rule 7).
+// failed on a defect before the count is recorded. Box numbers are optional
+// and the inspector's own, never checked against the carton list (6.2 rule 7).
 import { decide, labelingPlan } from "@/lib/aql";
 import type { ModuleStatus } from "@/lib/schemas";
 import {
-  cartonsFor,
   errorIssue,
   labelFor,
   perSizeResults,
@@ -207,32 +206,22 @@ function levelIssues(
     issues.push(
       errorIssue(
         "boxes_exceed_inspected",
-        `${where}: ${countOf(boxNos.length, "box is", "boxes are")} picked but ${inspected} inspected.`,
+        `${where}: ${countOf(boxNos.length, "box is", "boxes are")} entered but ${inspected} inspected.`,
         { size, path: [...at, "boxNos"] },
       ),
     );
   }
 
-  const cartons = cartonsFor(context, size);
-  const seen = new Set<number>();
-  boxNos.forEach((box, index) => {
-    const path = [...at, "boxNos", index];
-    // With no carton list yet, a box number is taken as entered (docs/MODULES.md 7).
-    if (cartons.length > 0 && !cartons.includes(box)) {
-      issues.push(
-        errorIssue(
-          "box_not_in_carton_list",
-          `Box ${box} (${levelLabel(labels, level)}) is not in the size ${sizeLabel(context, size)} carton list.`,
-          { size, path },
-        ),
-      );
-    }
-    // Inner boxes may come from one carton; the carton level inspects each carton once.
-    if (level === "carton" && seen.has(box)) {
-      issues.push(errorIssue("box_duplicate", `${where}: carton ${box} is picked twice.`, { size, path }));
-    }
-    seen.add(box);
-  });
+  // The carton level inspects each box once: a number entered twice there is an error. Inner boxes are taken as typed.
+  if (level === "carton") {
+    const seen = new Set<number>();
+    boxNos.forEach((box, index) => {
+      if (seen.has(box)) {
+        issues.push(errorIssue("box_duplicate", `${where}: box ${box} is entered twice.`, { size, path: [...at, "boxNos", index] }));
+      }
+      seen.add(box);
+    });
+  }
 
   if (inspected !== null) {
     for (const check of levelConfig.checks) {

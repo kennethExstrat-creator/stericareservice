@@ -113,7 +113,7 @@ const FIXTURE_HEADER = {
 const FIXTURE_LOT = "E2E-LOT-M-0001";
 
 /**
- * The STD_EG example's data with the fixture's story: the carton errors
+ * The STD_EG example's data with the fixture's story: the carton error
  * fixed, the lab report kept by force at break, comments on glove
  * information and visual, labelling not entered, and the inspector's final
  * result hold with no remark.

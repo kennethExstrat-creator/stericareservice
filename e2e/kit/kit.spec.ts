@@ -6,8 +6,8 @@ import { createKitFixture, CUSTOM_GRID, SAFEDON_BOXES, type KitFixture } from ".
  * The capture kit's browser-only behaviour on real module screens
  * (docs/CAPTURE_KIT.md), at the three sizes in playwright.config.ts: what a
  * paste leaves out, said on screen (across a table's foot, never in a
- * cell); the box list reporting its box as it
- * opens; Safedon's box switcher at its ends; the focus after a one-off row
+ * cell); a box number field reporting its box
+ * as it takes the focus; Safedon's box switcher at its ends; the focus after a one-off row
  * comes off; the tag lines of documents and loading; and a read-only grid
  * refusing pastes and typing while its keys still move. The rules behind
  * them have unit tests in components/qc. One temporary template and
@@ -250,7 +250,7 @@ test("a pasted row longer than a custom grid lists what did not fit across the t
   await expect(first).toBeFocused();
 });
 
-test("the box list reports its box as it opens, so photos are tagged with it though nothing took the focus", async ({
+test("a box number field reports its box as it takes the focus, so photos are tagged with it", async ({
   page,
   context,
   baseURL,
@@ -263,15 +263,14 @@ test("the box list reports its box as it opens, so photos are tagged with it tho
   await expect(nextTags(frame)).toContainText("Dispenser Box");
   await expect(nextTags(frame)).not.toContainText("Box 253");
 
-  // Safari never focuses a tapped button: open the list the same way, with a click that moves no focus.
-  const picker = frame.getByRole("combobox", { name: "Box # 1, Carton Box, Size M" });
-  await picker.evaluate((element) => (element as HTMLElement).click());
-  await expect(page.getByRole("dialog", { name: /carton list for size M/ })).toBeVisible();
-  await expect(picker).not.toBeFocused();
+  // Typed, not picked (BUILD_SPEC 6.2 rule 7): a tapped input takes the focus, on the iPad too.
+  const field = frame.getByRole("textbox", { name: "Box # 1, Carton Box, Size M" });
+  await press(field);
+  await expect(field).toBeFocused();
+  await expect(field).toHaveAttribute("inputmode", "numeric");
   // The labelling level comes last in the tag line, in the template's words.
   await expect(nextTags(frame)).toHaveText("New photos are tagged Size M · Box 253 · Carton Box.");
-  await shot(page, "box-list-open", picker);
-  await page.keyboard.press("Escape");
+  await shot(page, "box-number-focused", field);
 });
 
 test("Safedon's box switcher holds at either end and keeps the focus", async ({ page, context, baseURL }) => {

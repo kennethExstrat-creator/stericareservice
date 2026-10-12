@@ -177,7 +177,6 @@ const PHRASES: readonly (readonly [RegExp, string])[] = [
   [/^final_result_differs$/, "Explain the result under Remark"],
   [/^size_not_ordered$/, "Data for a size not ordered"],
   [/^order_size_not_in_template$/, "Size not in this template"],
-  [/^box_not_in_carton_list$/, "Box not in the carton list"],
   [/^carton_duplicate$/, "Carton entered twice"],
   [/^box_duplicate$/, "Box entered twice"],
   [/^lot_number_duplicate$/, "Lot number entered twice"],

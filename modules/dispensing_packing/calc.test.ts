@@ -103,27 +103,13 @@ describe("dispensing_packing", () => {
       });
     });
 
-    it("rejects box 2336, which is not in the size M carton list: an error that blocks submit, the result stays pass (6.2 rule 7)", () => {
-      const output = calcDispensingPacking(input(stdEgData(), stdEgContext()));
-      const message = STD_EG_EXPECTED.errors.find((issue) => issue.module === "dispensing_packing")!;
-      expect(output.issues).toEqual([
-        {
-          level: "error",
-          code: message.code,
-          message: message.message,
-          size: stray.size,
-          path: ["sizes", "M", "boxes", stray.item - 1, "boxNo"],
-        },
-      ]);
-      expect(output.result.status).toBe("pass");
-    });
-
-    it("clears the error once the box is corrected to the listed carton", () => {
-      const { item, from, to } = STD_EG_EXPECTED.corrections.strayBox;
+    it("takes box 2336 as typed, though no carton has that number: no error, the size passes (6.2 rule 7)", () => {
       const data = stdEgData();
-      expect(data.sizes.M.boxes[item - 1].boxNo).toBe(from);
-      data.sizes.M.boxes[item - 1].boxNo = to;
+      expect(data.sizes.M.boxes[stray.item - 1].boxNo).toBe(stray.box);
+      expect(stdEgContext().cartons.M).not.toContain(stray.box);
       const output = calcDispensingPacking(input(data, stdEgContext()));
+      expect(stray.validation).toBe("none");
+      expect(STD_EG_EXPECTED.errors.filter((issue) => issue.module === "dispensing_packing")).toEqual([]);
       expect(output.issues).toEqual([]);
       expect(output.result.status).toBe("pass");
     });
@@ -329,19 +315,17 @@ describe("dispensing_packing", () => {
       expect(output.result.perSize?.M.status).toBe("not_done");
     });
 
-    it("takes any box number while the size has no carton list yet, and checks it once there is one", () => {
+    it("never checks a box number against the carton list, with or without one", () => {
       const rows = boxes(13, {}, 900);
       expect(calcDispensingPacking(input({ sizes: { M: { boxes: rows } } }, M_ONLY)).issues).toEqual([]);
       const listed = makeTestContext({ sizes: ["M"], cartons: { M: [900, 901, 902, 903, 904, 905, 906, 907, 908, 909, 910, 911] } });
       const output = calcDispensingPacking(input({ sizes: { M: { boxes: rows } } }, listed));
-      expect(output.issues.map((issue) => [issue.code, issue.path])).toEqual([
-        ["box_not_in_carton_list", ["sizes", "M", "boxes", 12, "boxNo"]],
-      ]);
+      expect(output.issues).toEqual([]);
+      expect(output.result.perSize?.M.status).toBe("pass");
     });
 
-    it("allows one carton picked for two boxes: a carton holds many inner boxes", () => {
-      const listed = makeTestContext({ sizes: ["M"], cartons: { M: [5] } });
-      const output = calcDispensingPacking(input({ sizes: { M: { boxes: boxes(13, { boxNo: 5 }) } } }, listed));
+    it("takes the same box number in two rows as typed", () => {
+      const output = calcDispensingPacking(input({ sizes: { M: { boxes: boxes(13, { boxNo: 5 }) } } }, M_ONLY));
       expect(output.issues).toEqual([]);
       expect(output.result.perSize?.M.status).toBe("pass");
     });
@@ -356,11 +340,12 @@ describe("dispensing_packing", () => {
       stickiness: "Stickiness",
       heading: "Dispensing Result ({codeLetters})",
     };
-    const rows = boxes(13);
-    rows[1] = { ...rows[1], boxNo: 99 };
-    const context = makeTestContext({ sizes: ["M"], cartons: { M: Array.from({ length: 13 }, (_, index) => index + 1) } });
-    const output = calcDispensingPacking(input({ sizes: { M: { boxes: rows } } }, context, DISPENSING_PACKING_DEFAULT_CONFIG, labels));
-    expect(output.issues[0].message).toBe("Box Number 99 (no. 2) is not in the size M carton list.");
+    const output = calcDispensingPacking(input({ sizes: { M: { boxes: boxes(13) } } }, M_ONLY, DISPENSING_PACKING_DEFAULT_CONFIG, labels));
+    const wrong = boxes(13);
+    wrong[1] = { ...wrong[1], layeringPct: 880 };
+    expect(calcDispensingPacking(input({ sizes: { M: { boxes: wrong } } }, M_ONLY, DISPENSING_PACKING_DEFAULT_CONFIG, labels)).issues[0].message).toBe(
+      "Layering (%) 880% (no. 2) for size M is not between 0 and 100%.",
+    );
     expect(output.result.perSize?.M.summary).toBe(
       "Layering (%) 88.0% (min. 70%), Dispensing 90.0% (min. 80%), Stickiness A: Passed.",
     );
@@ -373,19 +358,16 @@ describe("dispensing_packing", () => {
     const evaluate = (data: Record<string, unknown>, context: InspectionContext) =>
       evaluateInspection({ template, data: { modules: { dispensing_packing: data }, custom: {} }, context }, MODULE_REGISTRY);
 
-    it("drops sizes not in the order with a warning, keeps their data, and lists the stray box as an error", () => {
-      const data = { ...stdEgData(), comment: "Box 12 likely 2236." } as Record<string, unknown>;
+    it("drops sizes not in the order with a warning, keeps their data, and takes box 2336 as typed", () => {
+      const data = { ...stdEgData(), comment: "Item 12 is box 2336." } as Record<string, unknown>;
       (data.sizes as Record<string, unknown>).XL = { boxes: boxes(5) };
       const evaluation = evaluate(data, stdEgContext());
       const own = evaluation.modules.find((entry) => entry.key === "dispensing_packing")!;
       expect(own.result).toMatchObject({ status: "pass", perSize: { M: { status: "pass" } } });
       expect(Object.keys(own.result.perSize ?? {})).toEqual(["M"]);
-      expect(own.comment).toBe("Box 12 likely 2236.");
-      expect(own.issues.map(({ level, code, size }) => [level, code, size])).toEqual([
-        ["warning", "size_not_ordered", "XL"],
-        ["error", "box_not_in_carton_list", "M"],
-      ]);
-      expect(evaluation.issues.filter((issue) => issue.moduleKey === "dispensing_packing" && issue.level === "error")).toHaveLength(1);
+      expect(own.comment).toBe("Item 12 is box 2336.");
+      expect(own.issues.map(({ level, code, size }) => [level, code, size])).toEqual([["warning", "size_not_ordered", "XL"]]);
+      expect(evaluation.issues.filter((issue) => issue.moduleKey === "dispensing_packing" && issue.level === "error")).toEqual([]);
     });
 
     it("rejects text in a numeric cell as invalid data (6.2 rule 1)", () => {

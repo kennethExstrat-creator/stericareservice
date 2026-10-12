@@ -5,7 +5,7 @@ import { z } from "zod";
 import { DecimalCellSchema, perSizeData } from "@/modules/_framework";
 
 export const WeightSizeSchema = z.strictObject({
-  /** Grams, glove 1 first: the size's n values (glovesFor: the gloves for dimension, 13 on STD_EG; 1 on SAFEDON_EG). */
+  /** Grams, glove 1 first: the size's n values (glovesFor: the sampling plan's gloves for weight, else 13 on STD_EG; 1 on SAFEDON_EG). */
   values: z.array(DecimalCellSchema).default([]),
 });
 export type WeightSize = z.infer<typeof WeightSizeSchema>;

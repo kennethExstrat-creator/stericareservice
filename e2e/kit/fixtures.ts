@@ -9,7 +9,7 @@ import { TEST_ACCOUNTS } from "../support/session";
  * Temporary rows for the kit specs (e2e/README.md): one draft template,
  * resolved against the real modules, with the modules whose screens use the
  * kit's browser-only parts (measurement grids, one that keeps a paste's
- * overflow, quantity cells, box pickers, Safedon's box switcher, one-off
+ * overflow, quantity cells, box number fields, Safedon's box switcher, one-off
  * defect rows, the documents and loading tag lines), a custom grid (number
  * fields in table cells), and one inspection of the test inspector's.
  * Everything is deleted
@@ -69,7 +69,7 @@ export function kitDefinition(): TemplateDefinition {
   };
 }
 
-/** Sizes S and M ordered; one carton picked for size M's carton labelling. */
+/** Sizes S and M ordered; box 253 typed for size M's carton labelling. */
 export const KIT_DATA = {
   order_lots: { sizes: { S: { qtyCases: 100 }, M: { qtyCases: 200 } } },
   labeling: { sizes: { M: { carton: { inspected: 1, boxNos: [253] } } } },

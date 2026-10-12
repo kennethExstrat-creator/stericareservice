@@ -5,7 +5,7 @@
 export const MEASURES = ["length", "width", "fingerThickness", "palmThickness", "cuffThickness"] as const;
 export type Measure = (typeof MEASURES)[number];
 
-/** Columns of the sampling plan, in report order; the last two are surgical (SG onsite). */
+/** Columns of the sampling plan, in report order; the last two are surgical (SG onsite). glovesWeight is the app's own (no form prints it). */
 export const SAMPLING_COLUMNS = [
   "cases",
   "innerUnits",
@@ -13,6 +13,7 @@ export const SAMPLING_COLUMNS = [
   "glovesWatertightVisual",
   "glovesDimensions",
   "glovesPhysical",
+  "glovesWeight",
   "innerUnitsDispensing",
   "pouches",
   "pouchesDyeLeak",

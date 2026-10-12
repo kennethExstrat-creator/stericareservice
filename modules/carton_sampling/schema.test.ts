@@ -11,7 +11,7 @@ describe("carton_sampling data", () => {
     expect(CartonSamplingDataSchema.parse({ sizes: { M: {} } })).toEqual({ sizes: { M: { cartonNumbers: [] } } });
     const saved = CartonSamplingDataSchema.parse({ sizes: { M: { cartonNumbers: [2834, null, 299] } } });
     expect(saved.sizes.M.cartonNumbers).toEqual([2834, null, 299]);
-    // The blanks are no cartons: the list, calc and the box pickers see the numbers only.
+    // The blanks are no cartons: the list, calc and the context see the numbers only.
     expect(enteredCartons(saved.sizes.M)).toEqual([2834, 299]);
     expect(enteredCartons(undefined)).toEqual([]);
   });

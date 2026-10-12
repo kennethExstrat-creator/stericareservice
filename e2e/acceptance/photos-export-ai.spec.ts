@@ -123,10 +123,8 @@ const PLAN: readonly {
     module: "dispensing_packing",
     input: "library",
     files: [{ name: "dispenser-box-13.jpg", width: 2400, height: 1800, label: "Box 13" }],
-    focus: async (frame, page) => {
-      await frame.getByRole("combobox", { name: "Box #, Item 1", exact: true }).tap();
-      await page.keyboard.press("Escape");
-    },
+    // The box number field: typed, a tapped input takes the focus (BUILD_SPEC 6.2 rule 7).
+    focus: (frame) => frame.getByRole("textbox", { name: "Box #, Item 1", exact: true }).tap(),
     tags: "Size M · Box 13",
     target: "size:M/box:13",
   },
@@ -134,10 +132,7 @@ const PLAN: readonly {
     module: "labeling",
     input: "camera",
     files: [{ name: "carton-label-1324.jpg", width: 1024, height: 768, label: "Carton" }],
-    focus: async (frame, page) => {
-      await frame.getByRole("combobox", { name: "Box # 1, Carton Box, Size M", exact: true }).tap();
-      await page.keyboard.press("Escape");
-    },
+    focus: (frame) => frame.getByRole("textbox", { name: "Box # 1, Carton Box, Size M", exact: true }).tap(),
     tags: "Size M · Box 1324 · Carton Box",
     target: "size:M/box:1324/level:carton",
   },

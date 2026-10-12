@@ -121,6 +121,8 @@ export {
   DecimalCellSchema,
   CountCellSchema,
   CartonNumberCellSchema,
+  BoxNumberSchema,
+  BoxNumberCellSchema,
   TextCellSchema,
   DateCellSchema,
   YesNoCellSchema,

@@ -1,5 +1,5 @@
 // Weight (BUILD_SPEC 6.1): per ordered size, the gloves weighed (the
-// sampling plan's gloves for dimension, else the template's n) and their
+// sampling plan's gloves for weight, else the template's n) and their
 // average, judged against an optional spec and compared with the indicative
 // weight from glove_info (6.2 rule 9). Its title names the gloves weighed.
 import { defineModule } from "@/modules/_framework";

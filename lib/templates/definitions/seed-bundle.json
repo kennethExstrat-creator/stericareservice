@@ -101,6 +101,7 @@
                 "glovesWatertightVisual": true,
                 "glovesDimensions": true,
                 "glovesPhysical": true,
+                "glovesWeight": true,
                 "innerUnitsDispensing": true,
                 "pouches": false,
                 "pouchesDyeLeak": false
@@ -364,6 +365,14 @@
                     {
                       "code": "lump_big",
                       "label": "Big Lumps (>2mm)"
+                    },
+                    {
+                      "code": "skin_visual",
+                      "label": "Skin Visual"
+                    },
+                    {
+                      "code": "flow_mark",
+                      "label": "Flow Mark"
                     }
                   ]
                 },
@@ -642,6 +651,7 @@
               "glovesWatertightVisual": "# Gloves for Watertight & Visual",
               "glovesDimensions": "# Gloves for Dimension",
               "glovesPhysical": "# Gloves for FAB",
+              "glovesWeight": "# Gloves for Weight",
               "innerUnitsDispensing": "# Inner Box for Packaging & Dispensing Inspection",
               "pouches": "Pouches",
               "pouchesDyeLeak": "# Pouches (Dye Leak Test)",
@@ -662,6 +672,7 @@
                 "glovesWatertightVisual": true,
                 "glovesDimensions": true,
                 "glovesPhysical": true,
+                "glovesWeight": true,
                 "innerUnitsDispensing": true,
                 "pouches": false,
                 "pouchesDyeLeak": false
@@ -1004,6 +1015,14 @@
                     {
                       "code": "lump_big",
                       "label": "Big Lumps (>2mm)"
+                    },
+                    {
+                      "code": "skin_visual",
+                      "label": "Skin Visual"
+                    },
+                    {
+                      "code": "flow_mark",
+                      "label": "Flow Mark"
                     }
                   ]
                 },
@@ -1174,6 +1193,7 @@
               "suggestedResult": "Suggested Result",
               "finalResult": "Conclusion",
               "remark": "Remark",
+              "inspectionSummary": "Inspection Summary",
               "inspector": "Inspected By",
               "date": "Date",
               "signature": "Signature",
@@ -1264,6 +1284,11 @@
               "innerUnits": "Inner Pack",
               "glovesPhysical": "# Gloves for Tensile",
               "innerUnitsDispensing": "# Inner Packs for Packaging & Dispensing Inspection"
+            },
+            "config": {
+              "columns": {
+                "glovesWeight": false
+              }
             }
           },
           {
@@ -1521,6 +1546,14 @@
                     {
                       "code": "bead_blister",
                       "label": "Bead Blister"
+                    },
+                    {
+                      "code": "skin_visual",
+                      "label": "Skin Visual"
+                    },
+                    {
+                      "code": "flow_mark",
+                      "label": "Flow Mark"
                     }
                   ]
                 },
@@ -1834,6 +1867,7 @@
               "glovesWatertightVisual": "# Gloves for Watertight & Visual",
               "glovesDimensions": "# Gloves for Dimension",
               "glovesPhysical": "# Gloves for Tensile",
+              "glovesWeight": "# Gloves for Weight",
               "innerUnitsDispensing": "# Inner Packs for Packaging & Dispensing Inspection",
               "pouches": "Pouches",
               "pouchesDyeLeak": "# Pouches (Dye Leak Test)",
@@ -1854,6 +1888,7 @@
                 "glovesWatertightVisual": true,
                 "glovesDimensions": true,
                 "glovesPhysical": true,
+                "glovesWeight": false,
                 "innerUnitsDispensing": true,
                 "pouches": false,
                 "pouchesDyeLeak": false
@@ -2225,6 +2260,14 @@
                     {
                       "code": "bead_blister",
                       "label": "Bead Blister"
+                    },
+                    {
+                      "code": "skin_visual",
+                      "label": "Skin Visual"
+                    },
+                    {
+                      "code": "flow_mark",
+                      "label": "Flow Mark"
                     }
                   ]
                 },
@@ -2459,6 +2502,7 @@
               "suggestedResult": "Suggested Result",
               "finalResult": "Conclusion",
               "remark": "Remark",
+              "inspectionSummary": "Inspection Summary",
               "inspector": "Inspected By",
               "date": "Date",
               "signature": "Signature",
@@ -2612,6 +2656,7 @@
                 "glovesWatertightVisual": true,
                 "glovesDimensions": true,
                 "glovesPhysical": true,
+                "glovesWeight": false,
                 "innerUnitsDispensing": false,
                 "pouches": true,
                 "pouchesDyeLeak": true
@@ -2724,6 +2769,14 @@
                     {
                       "code": "lump_big",
                       "label": "Big Lumps (>2mm)"
+                    },
+                    {
+                      "code": "skin_visual",
+                      "label": "Skin Visual"
+                    },
+                    {
+                      "code": "flow_mark",
+                      "label": "Flow Mark"
                     }
                   ]
                 },
@@ -2945,6 +2998,7 @@
               "glovesWatertightVisual": "# Gloves",
               "glovesDimensions": "# Gloves Dimension",
               "glovesPhysical": "# Gloves (FAB)",
+              "glovesWeight": "# Gloves for Weight",
               "innerUnitsDispensing": "# Inner Box for Packaging & Dispensing Inspection",
               "pouches": "Pouches",
               "pouchesDyeLeak": "# Pouches (Dye Leak Test)",
@@ -2965,6 +3019,7 @@
                 "glovesWatertightVisual": true,
                 "glovesDimensions": true,
                 "glovesPhysical": true,
+                "glovesWeight": false,
                 "innerUnitsDispensing": false,
                 "pouches": true,
                 "pouchesDyeLeak": true
@@ -3103,6 +3158,14 @@
                     {
                       "code": "lump_big",
                       "label": "Big Lumps (>2mm)"
+                    },
+                    {
+                      "code": "skin_visual",
+                      "label": "Skin Visual"
+                    },
+                    {
+                      "code": "flow_mark",
+                      "label": "Flow Mark"
                     }
                   ]
                 },
@@ -3202,6 +3265,7 @@
               "suggestedResult": "Suggested Result",
               "finalResult": "Conclusion",
               "remark": "Remark",
+              "inspectionSummary": "Inspection Summary",
               "inspector": "Inspected By",
               "date": "Date",
               "signature": "Signature",

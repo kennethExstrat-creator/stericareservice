@@ -1,6 +1,6 @@
 // What the labelling body reports as in focus, so a photo taken now is tagged
 // with the size, the packaging level and the check or box (BUILD_SPEC 8.1),
-// and the size it opens on. CounterTable and BoxPicker are replaced by
+// and the size it opens on. CounterTable and BoxNumberField are replaced by
 // stand-ins that keep their props, so the test calls their focus handlers as
 // the kit does; SizeTabs is the kit's own.
 import { renderToStaticMarkup } from "react-dom/server";
@@ -13,9 +13,9 @@ import { LABELING_DEFAULT_CONFIG, LABELING_LABELS } from "./config";
 import type { LabelingData } from "./schema";
 
 type TableProps = { caption: string; onCellFocus?: (cell: CounterCell) => void };
-type PickerProps = { label: string; onFocus?: () => void };
+type FieldProps = { label: string; onFocus?: () => void };
 
-const kit = vi.hoisted(() => ({ tables: [] as TableProps[], pickers: [] as PickerProps[] }));
+const kit = vi.hoisted(() => ({ tables: [] as TableProps[], fields: [] as FieldProps[] }));
 
 vi.mock("@/components/qc", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/components/qc")>()),
@@ -23,8 +23,8 @@ vi.mock("@/components/qc", async (importOriginal) => ({
     kit.tables.push(props);
     return null;
   },
-  BoxPicker: (props: PickerProps) => {
-    kit.pickers.push(props);
+  BoxNumberField: (props: FieldProps) => {
+    kit.fields.push(props);
     return null;
   },
 }));
@@ -40,7 +40,7 @@ const DATA: LabelingData = {
 /** Renders the body once and returns the stand-ins' props, the markup and every focus it reported. */
 function render(focus?: CaptureFocus) {
   kit.tables.length = 0;
-  kit.pickers.length = 0;
+  kit.fields.length = 0;
   const reported: CaptureFocus[] = [];
   const html = renderToStaticMarkup(
     <Capture
@@ -57,7 +57,7 @@ function render(focus?: CaptureFocus) {
       onFocusChange={(next) => reported.push(next)}
     />,
   );
-  return { html, tables: [...kit.tables], pickers: [...kit.pickers], reported };
+  return { html, tables: [...kit.tables], fields: [...kit.fields], reported };
 }
 
 const selectedTab = (html: string) =>
@@ -76,11 +76,11 @@ describe("labeling capture: focus", () => {
     ]);
   });
 
-  it("reports the level, and the box once one is picked, from the box pickers", () => {
-    const { pickers, reported } = render();
-    const picked = pickers.find((picker) => picker.label === "Box # 1, Dispenser Box, Size M");
-    const next = pickers.find((picker) => picker.label === "Box # 2, Dispenser Box, Size M");
-    picked?.onFocus?.();
+  it("reports the level, and the box once one is typed, from the box number fields", () => {
+    const { fields, reported } = render();
+    const entered = fields.find((field) => field.label === "Box # 1, Dispenser Box, Size M");
+    const next = fields.find((field) => field.label === "Box # 2, Dispenser Box, Size M");
+    entered?.onFocus?.();
     next?.onFocus?.();
     expect(reported).toEqual([
       { size: "M", level: "inner", box: 13 },

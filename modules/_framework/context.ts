@@ -89,7 +89,13 @@ export type PackingValues = {
   glovesPerCase: number | null;
 };
 
-/** The sampling plan for one size: n for the modules that follow (BUILD_SPEC 6.1 sampling_plan). */
+/**
+ * The sampling plan for one size: n for the modules that follow (BUILD_SPEC
+ * 6.1 sampling_plan). Each test reads its own count, never another's
+ * (Kenneth, 12 October 2026: "each metrics and measurement should have their
+ * own number of glove count"); watertight and visual share one because the
+ * forms print one ("# Gloves for Watertight & Visual").
+ */
 export type SamplingValues = {
   cases: number | null;
   innerUnits: number | null;
@@ -98,6 +104,8 @@ export type SamplingValues = {
   dimensions: number | null;
   /** Force at break or tensile. */
   physical: number | null;
+  /** Gloves weighed ("# Gloves for Weight"); null on a template without the row, so weight weighs its own n. */
+  weight: number | null;
   packagingDispensing: number | null;
   /** Surgical gloves: sampled pouches (the SG form's 'Pouches' under Sampling Quantity). */
   pouches: number | null;
@@ -157,7 +165,7 @@ export type InspectionContext = {
   };
   packing: PackingValues;
   sampling: Readonly<Record<string, SamplingValues>>;
-  /** Sampled carton numbers per size, unique, in entry order: what box pickers offer (6.2 rule 7). */
+  /** Sampled carton numbers per size, unique, in entry order. Box numbers are no carton numbers and never read them (6.2 rule 7). */
   cartons: Readonly<Record<string, readonly number[]>>;
   indicativeWeight: IndicativeWeight | null;
   /**
@@ -240,6 +248,7 @@ export const EMPTY_SAMPLING: Readonly<SamplingValues> = {
   watertightVisual: null,
   dimensions: null,
   physical: null,
+  weight: null,
   packagingDispensing: null,
   pouches: null,
   pouchesDyeLeak: null,

@@ -2,18 +2,20 @@
 
 // Packaging labelling on the capture screen: a tab per ordered size, the
 // levels the template inspects side by side from 1280 px. Per level: the
-// boxes inspected (one tap records the planned n, then a stepper), the
-// cartons they came from (optional, picked from the size's carton list), and
-// a counter per check with the live total and the Accept 0 / Reject 1 chip.
-// Every edit goes through useDataUpdater (docs/CAPTURE_KIT.md), built from
-// the latest data, so edits in one event never undo each other.
-import { useLayoutEffect, useRef, useState } from "react";
-import { CheckIcon } from "lucide-react";
+// boxes inspected (one tap records the planned n, then a stepper), their box
+// numbers (optional, typed on the numeric keypad: the inspector's own
+// numbers, not carton numbers, 6.2 rule 7), and a counter per check with the
+// live total and the Accept 0 / Reject 1 chip. Every edit goes through
+// useDataUpdater (docs/CAPTURE_KIT.md), built from the latest data, so edits
+// in one event never undo each other.
+import { useLayoutEffect, useRef, useState, type MouseEvent } from "react";
+import { CheckIcon, Trash2Icon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
-  BoxPicker,
+  BoxNumberField,
   CounterTable,
+  EntryProblems,
   findIssue,
   issuePathProps,
   ModuleSection,
@@ -21,16 +23,18 @@ import {
   Stepper,
   useDataUpdater,
   useIssueFocus,
+  useRefusedEntryStore,
   type DataChange,
+  type EntryProblem,
 } from "@/components/qc";
 import { STATUS_LABEL } from "@/lib/design/status";
 import { formatSize } from "@/lib/format";
-import { cartonsFor, initialSize, labelFor, type CaptureProps, type Labels } from "@/modules/_framework";
+import { initialSize, labelFor, type CaptureProps, type Labels } from "@/modules/_framework";
 import { sizeOnTabs, useReportShownSize } from "@/modules/_framework/shown-size";
 import type { LabelingComputed, LabelingConfig, LabelingData } from ".";
 import { checkLabel, includedLevels, levelFieldLabel, levelLabel } from "./calc";
 import type { LabelingCheck, LabelingLevel } from "./config";
-import { boxPickers, levelEntry, withAddedBox, withBox, withDefectCount, withInspected } from "./edit";
+import { boxFields, levelEntry, withAddedBox, withBox, withDefectCount, withInspected } from "./edit";
 
 type Props = CaptureProps<LabelingData, LabelingConfig, LabelingComputed>;
 
@@ -43,6 +47,9 @@ type LevelPanelProps = Omit<Props, "onChange" | "focusPath"> & {
 
 /** Most boxes the stepper counts to. */
 const MAX_INSPECTED = 999;
+
+/** A press that leaves the focus where it is, as the carton list's Delete. */
+const keepFocus = (event: MouseEvent) => event.preventDefault();
 
 export default function Capture({ onChange, focusPath, ...props }: Props) {
   const { data, config, context, evaluation, onFocusChange } = props;
@@ -111,26 +118,44 @@ function LevelPanel({
   const entry = levelEntry(data, size, level);
   const computed = evaluation?.computed.sizes?.[size]?.[level];
   const name = levelLabel(labels, level);
-  // The box list's sentences say "for size M"; the names say "Size M", as the other modules' do.
-  const sizeText = `size ${formatSize(size, { sizes: context.templateSizes })}`;
   const where = `${name}, ${formatSize(size, { sizes: context.templateSizes, prefix: true })}`;
   const path = ["sizes", size, level];
   const issues = evaluation?.issues ?? [];
   const inspectedIssue = findIssue(issues, [...path, "inspected"]);
-  // Every box problem, a box missing from the carton list included, is listed under the pickers.
+  // Every box problem calc finds (a box entered twice, more boxes than inspected) is listed under the fields.
   const boxIssues = issues.filter(
     (issue) =>
       issue.path.length >= 4 &&
       path.every((segment, index) => issue.path[index] === segment) &&
       issue.path[3] === "boxNos",
   );
-  const cartons = cartonsFor(context, size);
-  const pickers = boxPickers(entry, levelConfig.n, readOnly);
+  const fields = boxFields(entry, levelConfig.n, readOnly);
   const boxLabel = labelFor(labels, "boxNos");
   const inspectedLabel = labelFor(labels, "inspected");
   const countRow = useRef<HTMLDivElement>(null);
   // The size whose Record button had keyboard focus: the stepper that replaces the button takes it over.
   const focusStepper = useRef<string | null>(null);
+  const fieldId = (index: number) => `labeling-${level}-${size}-box-${index}`;
+  // The screen's refused entries, by issue path: a Delete moves the boxes after it, so their entries go.
+  const refusedStore = useRefusedEntryStore();
+  // A box number field to focus once the list has rendered: the next empty one after Enter, or the
+  // field in a deleted box's place.
+  const focusField = useRef<{ size: string; index: number } | null>(null);
+  // Box numbers the fields refused, by `size:index`, listed under the fields with a link. A refusal in a
+  // field that holds a box leaves the box as it was, listed until that field is typed in again.
+  const [refused, setRefused] = useState<Readonly<Record<string, EntryProblem>>>({});
+  const problems = Object.values(refused)
+    .filter((problem) => problem.key.startsWith(`${size}:`))
+    .sort((a, b) => Number(a.key.split(":")[1]) - Number(b.key.split(":")[1]));
+  const setRefusal = (index: number, problem: Omit<EntryProblem, "key"> | null) =>
+    setRefused((current) => {
+      const key = `${size}:${index}`;
+      if (problem === null && !(key in current)) return current;
+      const next = { ...current };
+      if (problem) next[key] = { ...problem, key };
+      else delete next[key];
+      return next;
+    });
 
   useLayoutEffect(() => {
     const pending = focusStepper.current;
@@ -143,6 +168,32 @@ function LevelPanel({
     focusStepper.current = null;
     countRow.current?.querySelector<HTMLElement>('[role="spinbutton"]')?.focus();
   });
+
+  useLayoutEffect(() => {
+    const pending = focusField.current;
+    if (pending === null || pending.size !== size) return;
+    const field = document.getElementById(fieldId(pending.index));
+    if (!field) return;
+    focusField.current = null;
+    field.focus();
+  });
+
+  /** Asks for a field's focus after the next render; given up a frame later if that field never comes. */
+  const focusAfterRender = (index: number) => {
+    focusField.current = { size, index };
+    requestAnimationFrame(() => {
+      if (focusField.current?.size === size && focusField.current.index === index) focusField.current = null;
+    });
+  };
+
+  /** Deletes a box: the boxes after it move up a place. A Delete with the keyboard focus hands it to the field now there. */
+  const removeBox = (index: number, button: HTMLButtonElement) => {
+    if (button.ownerDocument.activeElement === button) focusAfterRender(index);
+    // The refused entries were by place, which has moved: they go.
+    setRefused((current) => Object.fromEntries(Object.entries(current).filter(([key]) => !key.startsWith(`${size}:`))));
+    for (let at = index; at < fields.length; at += 1) refusedStore?.set([...path, "boxNos", at], null);
+    update((current) => withBox(current, size, level, index, null));
+  };
 
   return (
     // @container: the count row measures the frame its counter table does.
@@ -194,32 +245,73 @@ function LevelPanel({
         )}
       </div>
 
-      {pickers.length > 0 && (
+      {fields.length > 0 && (
         <div className="space-y-1.5" {...issuePathProps([...path, "boxNos"])}>
           <span className="block text-sm font-medium text-foreground touch:text-base">{boxLabel}</span>
           <div className="flex flex-wrap items-start gap-2">
-            {pickers.map((box, index) => (
-              <BoxPicker
-                // By position, so the picker a box was picked in or cleared from stays and gets the focus back.
-                key={index}
-                // Its own error text would wrap in this narrow column: the problems are listed
-                // full width below, and the text stays for screen readers.
-                className="relative w-32 space-y-0 [&>p]:sr-only"
-                value={box}
-                cartons={cartons}
-                used={entry.boxNos}
-                label={`${boxLabel} ${index + 1}, ${where}`}
-                sizeLabel={sizeText}
-                onValueChange={(next) => {
-                  if (box !== null) update((current) => withBox(current, size, level, index, next));
-                  else if (next !== null) update((current) => withAddedBox(current, size, level, next));
+            {fields.map((box, index) => (
+              <div
+                // By size and place: the field a box was typed in stays, with the focus, and a refused
+                // entry never shows in another size's field.
+                key={`${size}:${index}`}
+                className="flex items-center gap-0.5"
+                onKeyDown={(event) => {
+                  // Enter in the empty field: the next empty field, once the box is in, takes the focus.
+                  if (box === null && event.key === "Enter" && !event.shiftKey) focusAfterRender(index + 1);
                 }}
-                onFocus={() => onFocusChange?.(box === null ? { size, level } : { size, level, box })}
-                issuePath={box === null ? undefined : [...path, "boxNos", index]}
-                readOnly={readOnly}
-              />
+                // Typing in a box's field again lets go of the reason listed for its last refusal: the box
+                // never changed, so retyping it (or anything valid) leaves nothing to list. The empty
+                // field's refusal is the field's own text, and goes with it.
+                onInput={() => {
+                  if (box !== null) setRefusal(index, null);
+                }}
+              >
+                <BoxNumberField
+                  id={fieldId(index)}
+                  hideLabel
+                  // Its own message would wrap in this narrow field: refused entries are listed full
+                  // width below, and the text stays for screen readers.
+                  className="w-28 space-y-0 [&_p]:sr-only touch:w-32"
+                  group={`${level}-boxNos`}
+                  label={`${boxLabel} ${index + 1}, ${where}`}
+                  value={box}
+                  onValueChange={(next) => {
+                    if (box === null) {
+                      if (next !== null) update((current) => withAddedBox(current, size, level, next));
+                      return;
+                    }
+                    // Cleared or refused, a box stays as it was: Delete takes it off.
+                    if (next === null) return;
+                    setRefusal(index, null);
+                    update((current) => withBox(current, size, level, index, next));
+                  }}
+                  onInvalidChange={(invalid) => {
+                    if (invalid) setRefusal(index, { label: `${boxLabel} ${index + 1}`, entry: invalid, inputId: fieldId(index) });
+                    // A box's own refusal stays listed until its field is typed in again; the empty field's goes with its text.
+                    else if (box === null) setRefusal(index, null);
+                  }}
+                  onFocus={() => onFocusChange?.(box === null ? { size, level } : { size, level, box })}
+                  issuePath={[...path, "boxNos", index]}
+                  readOnly={readOnly}
+                />
+                {box !== null && !readOnly && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    title="Delete"
+                    aria-label={`Delete Box ${box}, ${where}`}
+                    onMouseDown={keepFocus}
+                    onClick={(event) => removeBox(index, event.currentTarget)}
+                    className="text-destructive hover:bg-fail-tint hover:text-destructive"
+                  >
+                    <Trash2Icon aria-hidden />
+                  </Button>
+                )}
+              </div>
             ))}
           </div>
+          <EntryProblems problems={problems} />
           {boxIssues.map((issue) => (
             <p
               key={`${issue.code}:${issue.path.join("/")}`}

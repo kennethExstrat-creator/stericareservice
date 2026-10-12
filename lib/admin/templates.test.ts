@@ -943,6 +943,19 @@ describe("coverage checklist", () => {
     }
   });
 
+  it("keeps every field with # Gloves for Weight switched off: the app's own row, no form prints it (12 October 2026)", () => {
+    const checklist = coverageChecklist(
+      stdEgWith("sampling_plan", (entry) => {
+        const config = structuredClone(entry.config ?? {});
+        (config.columns as Record<string, boolean>).glovesWeight = false;
+        entry.config = config;
+      }),
+    );
+    // The report's "Weight (g) - average of 13 gloves per size" stays kept by weight's title and n.
+    expect(missingRows(checklist).map((row) => row.label)).toEqual([]);
+    expect(checklist.blocking).toBe(false);
+  });
+
   it("needs the custom modules the inventory names, and the form's sizes", () => {
     // STD_SG keeps Glove Type in a custom module (EG and Safedon hold it in Glove Information).
     const sg = seedDefinition("STD_SG");

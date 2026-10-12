@@ -123,47 +123,35 @@ describe("dispensing_packing capture", () => {
     expect(html).not.toContain(">Layering %</th>");
   });
 
-  it("marks every value for issue links, and flags the box that is not in the carton list", () => {
+  it("marks every value for issue links, and takes the box numbers as typed, on the numeric keypad", () => {
     const html = render();
     expect(html).toContain('data-issue-path="[&quot;sizes&quot;,&quot;M&quot;,&quot;boxes&quot;,11,&quot;boxNo&quot;]"');
     expect(html).toContain('data-issue-path="[&quot;sizes&quot;,&quot;M&quot;,&quot;boxes&quot;,0,&quot;layeringPct&quot;]"');
-    const stray = /<button[^>]*aria-label="Box #, Item 12"[^>]*>/.exec(html)?.[0];
-    expect(stray).toContain('aria-invalid="true"');
-    const listed = /<button[^>]*aria-label="Box #, Item 13"[^>]*>/.exec(html)?.[0];
-    expect(listed).not.toContain('aria-invalid="true"');
-    // The picker names the size as the tabs and calc do.
-    expect(html).toContain("Box 2336 is not in the carton list for size M.");
-    const medium = render({ context: { ...CONTEXT, templateSizes: [{ value: "M", label: "Medium" }] } });
-    expect(medium).toContain("Box 2336 is not in the carton list for size Medium.");
-  });
-
-  it("lists the box that is not in the carton list under the table, with a link to its cell, and keeps calc's Passed", () => {
-    const html = render();
-    // The STD_EG stray box: its cell turns red and its own message is for screen readers only,
-    // so calc's message is listed where it can be seen (6.2 rule 7).
-    const list = /<ul[^>]*data-slot="box-issues"[^>]*>[\s\S]*?<\/ul>/.exec(html)?.[0] ?? "";
-    expect(list).toContain("Box 2336 (item 12) is not in the size M carton list.");
-    expect(count(list, "<button")).toBe(1);
-    expect(list).toContain('type="button"');
-    expect(list).toContain("text-fail");
-    // A 44 px target on the iPad.
-    expect(list).toContain("touch:min-h-11");
-    // Below the table, as the refused entries are.
-    expect(html.indexOf('data-slot="box-issues"')).toBeGreaterThan(html.indexOf("</table>"));
-    // The check itself still passes: the stray box blocks submit, it does not fail the size (docs/FIXTURES.md).
+    const field = (item: number) => new RegExp(`<input[^>]*aria-label="Box #, Item ${item}"[^>]*>`).exec(html)?.[0] ?? "";
+    expect(field(1)).toContain('inputMode="numeric"');
+    // The STD_EG box 2336 is in no carton list, and that is no problem: box numbers are not carton numbers (6.2 rule 7).
+    expect(field(12)).toContain('value="2336"');
+    expect(field(12)).not.toContain('aria-invalid="true"');
+    expect(html).not.toContain("carton list");
+    expect(html).not.toContain('data-slot="box-issues"');
     expect(count(html, 'data-outcome="pass"')).toBe(3);
-    // Nothing to list once every box is in the carton list.
-    const listed = stdEgData().sizes.M.boxes.map((box) => (box.boxNo === 2336 ? { ...box, boxNo: 13 } : box));
-    expect(render({ data: { sizes: { M: { boxes: listed } } } })).not.toContain('data-slot="box-issues"');
   });
 
-  it("lists every problem calc finds in a row of the size on screen, and only those", () => {
-    const boxes = stdEgData().sizes.M.boxes.map((box, index) => (index === 2 ? { ...box, stickiness: "Z" } : box));
+  it("lists every problem calc finds in a row of the size on screen, in row order, with a link to its cell", () => {
+    const boxes = stdEgData().sizes.M.boxes.map((box, index) =>
+      index === 2 ? { ...box, stickiness: "Z" } : index === 9 ? { ...box, layeringPct: 880 } : box,
+    );
     const html = render({ data: { sizes: { M: { boxes } } } });
     const list = /<ul[^>]*data-slot="box-issues"[^>]*>[\s\S]*?<\/ul>/.exec(html)?.[0] ?? "";
     expect(count(list, "<li")).toBe(2);
     expect(list).toContain("Stickiness &quot;Z&quot; (item 3) for size M is not one of this template&#x27;s codes");
-    expect(list.indexOf("(item 3)")).toBeLessThan(list.indexOf("(item 12)"));
+    expect(list).toContain("Layering 880% (item 10) for size M is not between 0 and 100%.");
+    expect(list.indexOf("(item 3)")).toBeLessThan(list.indexOf("(item 10)"));
+    expect(count(list, "<button")).toBe(2);
+    expect(list).toContain("text-fail");
+    // A 44 px target on the iPad, below the table, as the refused entries are.
+    expect(list).toContain("touch:min-h-11");
+    expect(html.indexOf('data-slot="box-issues"')).toBeGreaterThan(html.indexOf("</table>"));
   });
 
   it("titles the stickiness legend one level under the section's heading, as the photos are", () => {
@@ -226,7 +214,9 @@ describe("dispensing_packing capture", () => {
     expect(html).not.toContain("Add Box");
     expect(html).not.toContain("<select");
     expect(html).not.toContain('role="combobox"');
-    expect(html).toContain("2336");
+    // The box numbers as read-only fields: still reached by the keyboard and issue links, never typed in.
+    expect(/<input[^>]*aria-label="Box #, Item 12"[^>]*>/.exec(html)?.[0]).toContain('value="2336"');
+    expect(/<input[^>]*aria-label="Box #, Item 12"[^>]*>/.exec(html)?.[0]).toContain("readOnly");
     expect(render()).toContain("Add Box");
   });
 });

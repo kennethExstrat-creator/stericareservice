@@ -186,7 +186,7 @@ export const DEFAULT_GLOSSARY: readonly GlossaryEntry[] = [
     codes: ["thin_body_area", "thin_crotch_area"],
   },
   { short: "TS", meaning: "Thin Spot on the glove body", confirmed: true, kind: "defect", codes: ["thin_spot"] },
-  { short: "SKV", meaning: "Skin Visual: a visual defect of the glove skin", confirmed: true, kind: "defect", codes: [] },
+  { short: "SKV", meaning: "Skin Visual: a visual defect of the glove skin", confirmed: true, kind: "defect", codes: ["skin_visual"] },
   {
     short: "L",
     meaning: "Lump: Big Lumps (>2mm) when major, Lumps (<2mm) when minor",
@@ -194,7 +194,7 @@ export const DEFAULT_GLOSSARY: readonly GlossaryEntry[] = [
     kind: "defect",
     codes: ["lump_big", "lump_small"],
   },
-  { short: "FM", meaning: "Flow Mark", confirmed: true, kind: "defect", codes: [] },
+  { short: "FM", meaning: "Flow Mark", confirmed: true, kind: "defect", codes: ["flow_mark"] },
   {
     short: "FS",
     meaning: "Seen on a watertight row: probably SF (Side Finger) written the other way round",

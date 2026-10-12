@@ -18,6 +18,12 @@ export const SamplingSizeSchema = z.strictObject({
   glovesDimensions: CountCellSchema,
   /** Gloves for the physical test: force at break (EN 455) or tensile (ASTM D6319). */
   glovesPhysical: CountCellSchema,
+  /**
+   * The gloves weighed: weight's own count, never the dimension's (Kenneth,
+   * 12 October 2026). Saved before the row existed, it reads as empty, so
+   * weight weighs the template's n.
+   */
+  glovesWeight: CountCellSchema,
   /** Inner units for the packaging and dispensing check: its box rows. */
   innerUnitsDispensing: CountCellSchema,
   /** Surgical: pouches sampled. */

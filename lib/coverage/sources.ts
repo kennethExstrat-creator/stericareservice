@@ -282,9 +282,11 @@ const REPORT_STD_EG: SourceField[] = [
     {
       label: "Weight (g) - average of 13 gloves per size",
       input: "heading",
+      // Not sampling_plan.glovesWeight: the title and n keep the heading whether that row is on or off
+      // (the app's own row, which no form prints), so a version without it still covers the heading.
       targets: [l("weight", "title"), c("weight", "n")],
       notes:
-        "The app fills in the count of gloves weighed (the sampling plan's gloves for dimension, else config n), so the heading names the gloves really weighed.",
+        "The app fills in the count of gloves weighed (the sampling plan's # Gloves for Weight, else config n), so the heading names the gloves really weighed.",
     },
     { label: "Size", input: "size", targets: [tpl("sizes")] },
     {
@@ -412,7 +414,7 @@ const REPORT_STD_EG: SourceField[] = [
       targets: [l("dispensing_packing", "itemColumn"), c("dispensing_packing", "boxesPerSize")],
       notes: "Rows 1 to 13 (1 to 5 in the XL block).",
     },
-    { label: "Box #", input: "number", targets: [f("dispensing_packing", "boxNo")], notes: "Carton numbers (rule 7)." },
+    { label: "Box #", input: "number", targets: [f("dispensing_packing", "boxNo")], notes: "Typed: the box's own number, not a carton number (rule 7)." },
     { label: "Layering %", input: "number", targets: [f("dispensing_packing", "layeringPct")] },
     { label: "Dispensing %", input: "number", targets: [f("dispensing_packing", "dispensingPct")] },
     { label: "Stickiness **", input: "select", targets: [f("dispensing_packing", "stickiness")] },
@@ -763,7 +765,7 @@ const REPORT_SAFEDON_EG: SourceField[] = [
       label: "Box #",
       input: "number",
       targets: [f("dispensing_safedon", "boxNo"), c("dispensing_safedon", "boxesPerSize")],
-      notes: "Carton numbers from page 1 (rule 7).",
+      notes: "Typed: the box's own number, not a carton number (rule 7).",
     },
     {
       label: "Safedon Packing Defects",
@@ -1066,7 +1068,7 @@ const ONSITE_EG: SourceField[] = [
       targets: [l("dispensing_packing", "itemColumn"), c("dispensing_packing", "boxesPerSize")],
       notes: "Running row number, automatic. 51 blank rows, one per box tested.",
     },
-    { label: "Box Number", input: "text", targets: [f("dispensing_packing", "boxNo")], notes: "Picked from the carton list (rule 7)." },
+    { label: "Box Number", input: "text", targets: [f("dispensing_packing", "boxNo")], notes: "Typed: the box's own number, not a carton number (rule 7)." },
     { label: "Layering (%)", input: "number", targets: [f("dispensing_packing", "layeringPct")] },
     { label: "Dispensing (%)", input: "number", targets: [f("dispensing_packing", "dispensingPct")] },
     {

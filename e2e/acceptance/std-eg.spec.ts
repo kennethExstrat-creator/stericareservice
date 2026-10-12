@@ -20,15 +20,15 @@ import { signIn, TEST_ACCOUNTS } from "../support/session";
  * docs/FIXTURES.md says: 13 force readings whose median is the printed
  * 6.537 N, and 13 weights of the printed 2.90 g average.
  *
- * The Glove Packing Check is typed before the carton list: with no list yet
- * its box numbers are typed and not checked, which is how the report's stray
- * box 2336 gets in. Once the cartons are entered, the app must flag the
- * carton entered twice and the box missing from the list as errors that
- * block submit (the two errors the original report missed), warn about the
- * weight, and suggest FAILED. The corrections in the expected data (the
- * second 525 becomes 830, the stray box becomes 2236, picked from the list)
- * clear both errors, the suggestion becomes PASSED, and the inspection is
- * submitted. The review page, the saved row and the export are checked too.
+ * The Glove Packing Check is typed from the paper, its box numbers on the
+ * numeric keypad: they are the inspector's own, not carton numbers, so box
+ * 2336, in no carton list, stands as typed (BUILD_SPEC 6.2 rule 7; Kenneth,
+ * 12 October 2026). Once the cartons are entered, the app must flag the
+ * carton entered twice as an error that blocks submit (the error the
+ * original report missed), warn about the weight, and suggest FAILED. The
+ * correction in the expected data (the second 525 becomes 830) clears the
+ * error, the suggestion becomes PASSED, and the inspection is submitted.
+ * The review page, the saved row and the export are checked too.
  * Along the way the tab is reloaded straight after the 50th carton (nothing
  * typed may be lost), and the conclusion is signed with a finger, as the
  * report is.
@@ -139,17 +139,15 @@ const EXPECT_DISPENSING = must(EXPECTED.dispensing.M, "expected dispensing M");
 const EXPECT_LABELING = must(EXPECTED.labeling.M, "expected labelling M");
 const EXPECT_SAMPLING = must(EXPECTED.sampling.M, "expected sampling M");
 const CARTON_ERROR = must(EXPECTED.errors.find((issue) => issue.module === "carton_sampling"), "carton error");
-const BOX_ERROR = must(EXPECTED.errors.find((issue) => issue.module === "dispensing_packing"), "box error");
 const WEIGHT_WARNING = must(EXPECTED.warnings.find((issue) => issue.module === "weight"), "weight warning");
-const { duplicateCarton: FIX_CARTON, strayBox: FIX_BOX } = EXPECTED.corrections;
+const { duplicateCarton: FIX_CARTON } = EXPECTED.corrections;
 
 /**
- * The Pending panel's rows for the two errors and the warning: one row per section, its short
+ * The Pending panel's rows for the error and the warning: one row per section, its short
  * name over a few words and the size, named in full for screen readers.
  */
 const PENDING_ROW = {
   cartons: `${NAME.cartons}: Carton entered twice: M. Needed before you submit.`,
-  box: `${NAME.packingCheck}: Box not in the carton list: M. Needed before you submit.`,
   weight: `${NAME.weight}: Weight differs from indicative: M.`,
 } as const;
 
@@ -496,10 +494,13 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await check(totals, EXPECTED.totals.check).toContainText(`Total # Gloves${grouped(EXPECTED.totals.gloves)}`, ANY_CASE);
   });
 
-  await test.step("Sampling Plan: the seven counts in one run, Enter moving on; level I gives code N, 500", async () => {
+  await test.step("Sampling Plan: the counts in one run, Enter moving on; level I gives code N, 500", async () => {
     // Next from the order's page, packing configuration and all.
     const frame = await next(page, "sampling");
     await expectOnlySizeM(page, SECTION.sampling);
+    // # Gloves for Weight, the app's own row after # Gloves for FAB (12 October 2026), on a STD_EG version that has it:
+    // the 13 gloves weighed that the report names in its weight heading.
+    const weighs = (await frame.getByRole("textbox", { name: named("# Gloves for Weight, Size M") }).count()) > 0;
     await frame.getByRole("textbox", { name: "Case, Size M", exact: true }).tap();
     for (const value of [
       SAMPLING.cases,
@@ -508,6 +509,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
       SAMPLING.watertightVisualGloves,
       SAMPLING.dimensionGloves,
       SAMPLING.physicalTestGloves,
+      ...(weighs ? [WEIGHT.gloves] : []),
       SAMPLING.dispensingInners,
     ]) {
       await page.keyboard.type(String(value));
@@ -547,21 +549,17 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await shot(page, "04-order");
   });
 
-  await test.step("Glove Packing Check, typed from the paper before the carton list: box numbers not checked yet", async () => {
+  await test.step("Glove Packing Check, typed from the paper: box numbers on the numeric keypad, Enter going down", async () => {
     const frame = await openTab(page, "packingCheck");
     await expectOnlySizeM(page, SECTION.packingCheck);
+    // The box numbers are the inspector's own, not carton numbers (BUILD_SPEC 6.2 rule 7): typed, never picked.
+    const firstBox = frame.getByRole("textbox", { name: "Box #, Item 1", exact: true });
+    await firstBox.tap();
+    await check(firstBox).toHaveAttribute("inputmode", "numeric");
     for (const [index, box] of PACKING_BOXES.entries()) {
-      await frame.getByRole("combobox", { name: `Box #, Item ${index + 1}`, exact: true }).tap();
-      const typed = page.getByRole("textbox", { name: "Box number" });
-      await expect(typed).toBeFocused();
-      if (index === 0) {
-        await check(page.getByRole("dialog", { name: /^Box #, Item 1: carton list for size M/ })).toContainText(
-          "No carton list for size M yet. Type the box number; it is not checked until the cartons are entered.",
-        );
-      }
+      await expect(frame.getByRole("textbox", { name: `Box #, Item ${index + 1}`, exact: true })).toBeFocused();
       await page.keyboard.type(String(box.box));
       await page.keyboard.press("Enter");
-      await expect(typed).toHaveCount(0);
     }
     // Layering and dispensing % pasted as columns; stickiness picked per box.
     const layering = frame.getByRole("textbox", { name: "Layering %, Item 1", exact: true });
@@ -574,7 +572,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
       await frame.getByRole("combobox", { name: `Stickiness **, Item ${index + 1}`, exact: true }).selectOption(box.stickiness);
     }
     for (const [index, box] of PACKING_BOXES.entries()) {
-      await check(frame.getByRole("combobox", { name: `Box #, Item ${index + 1}`, exact: true })).toHaveText(String(box.box));
+      await check(frame.getByRole("textbox", { name: `Box #, Item ${index + 1}`, exact: true })).toHaveValue(String(box.box));
     }
     const results = frame.getByRole("table", { name: "Glove Packing Check, Size M" }).last();
     const dispensingCheck = EXPECT_DISPENSING;
@@ -783,20 +781,17 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await shot(page, "11-visual-major", frame.getByRole("region", { name: "Major Defects (AQL 2.5)" }));
   });
 
-  await test.step("Glove Packing Check once the cartons are in: box 2336 is not in the carton list", async () => {
+  await test.step("Glove Packing Check once the cartons are in: box 2336, in no carton list, stands as typed", async () => {
     const frame = await next(page, "packingCheck");
     const { dispensingBox } = EXPECTED;
-    const stray = frame.getByRole("combobox", { name: `Box #, Item ${dispensingBox.item}`, exact: true });
-    await check(stray, dispensingBox.check).toHaveText(String(dispensingBox.box));
-    await check(stray, dispensingBox.check).toHaveAttribute("aria-invalid", "true");
-    await check(stray, dispensingBox.check).toHaveAccessibleDescription(
-      `Box ${dispensingBox.box} is not in the carton list for size M. Pick the box from the list.`,
-    );
-    // The other twelve boxes are in the list.
-    await check(frame.locator('[role="combobox"][aria-invalid="true"]'), "only the stray box is marked").toHaveCount(1);
-    // The packing check's own result stands on its averages and codes (docs/FIXTURES.md).
+    const box = frame.getByRole("textbox", { name: `Box #, Item ${dispensingBox.item}`, exact: true });
+    await check(box, dispensingBox.check).toHaveValue(String(dispensingBox.box));
+    await check(box, dispensingBox.check).not.toHaveAttribute("aria-invalid", "true");
+    // Box numbers are not carton numbers (BUILD_SPEC 6.2 rule 7): nothing is marked, nothing listed.
+    await check(frame.locator('[aria-invalid="true"]'), "no box marked").toHaveCount(0);
+    await check(frame.locator('[data-slot="box-issues"]'), "nothing listed under the table").toHaveCount(0);
     await check(sectionStatus(page, SECTION.packingCheck), EXPECT_DISPENSING.check).toHaveAttribute("data-status", EXPECT_DISPENSING.status);
-    await shot(page, "12-packing-check-stray-box", stray);
+    await shot(page, "12-packing-check-box-2336", box);
   });
 
   await test.step("Labelling: 3 dispenser boxes and 1 carton recorded in a tap each, no defects", async () => {
@@ -860,42 +855,43 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await shot(page, "14-conclusion-failed");
   });
 
-  await test.step("Pending: exactly the two errors are needed before submit; the weight warning is listed", async () => {
+  await test.step("Pending: exactly the carton error is needed before submit; the weight warning is listed", async () => {
     await page.getByRole("button", { name: /^Pending/ }).tap();
     const sheet = page.getByRole("dialog", { name: "Pending" });
     await expect(sheet).toBeVisible();
     // One short row per section, named in full for screen readers; the section, the review and
     // the export keep each message in full (checked there).
     const needed = sheet.locator('[data-slot="needed-tasks"] [data-task]');
-    await check(needed, "two errors block submit, one section each").toHaveCount(EXPECTED.errors.length);
+    await check(needed, "one error blocks submit").toHaveCount(EXPECTED.errors.length);
     await check(sheet.getByRole("button", { name: named(PENDING_ROW.cartons) })).toBeVisible();
-    await check(sheet.getByRole("button", { name: named(PENDING_ROW.box) })).toBeVisible();
     await check(sheet.getByRole("button", { name: named(PENDING_ROW.weight) })).toBeVisible();
+    // Box 2336 is no error: the packing check has no row.
+    await check(sheet.getByRole("button", { name: new RegExp(`^${NAME.packingCheck}:`, "i") })).toHaveCount(0);
     await shot(page, "15-pending-errors");
     await sheet.getByRole("button", { name: "Close" }).tap();
     await expect(sheet).toBeHidden();
   });
 
-  await test.step("Review page while the errors stand: suggested FAILED, 2 errors, each under its module", async () => {
+  await test.step("Review page while the error stands: suggested FAILED, 1 error, under its module", async () => {
     await page.goto(`/inspections/${id}/review`);
     await expect(page.getByRole("heading", { level: 1, name: /^INS-\d{4}-\d+$/ })).toBeVisible();
     const result = page.getByRole("region", { name: "Result", exact: true });
     await check(result).toContainText(/Suggested by the App\s*Failed/);
-    await check(result).toContainText("2 errors");
+    await check(result).toContainText("1 error");
     await check(page.locator('li[data-module="carton_sampling"]')).toHaveAttribute("data-status", "fail");
     await check(page.locator('li[data-module="carton_sampling"] [data-issue][data-level="error"]')).toContainText(CARTON_ERROR.message);
-    await check(page.locator('li[data-module="dispensing_packing"] [data-issue][data-level="error"]')).toContainText(BOX_ERROR.message);
+    await check(page.locator('li[data-module="dispensing_packing"] [data-issue][data-level="error"]'), "box 2336 is no error").toHaveCount(0);
     await shot(page, "16-review-with-errors", result);
   });
 
-  await test.step("Submit is blocked until the errors are fixed, and each error links to its cell", async () => {
+  await test.step("Submit is blocked until the error is fixed, and the error links to its cell", async () => {
     await page.goto(`/inspections/${id}?module=conclusion`);
     await sectionReady(page, SECTION.conclusion);
     await waitSaved(page);
     await page.getByRole("button", { name: "Submit", exact: true }).tap();
     const sheet = page.getByRole("dialog", { name: "Before You Submit" });
     await expect(sheet, EXPECTED.cartonList.check).toBeVisible();
-    await check(sheet.getByRole("alert")).toHaveText("2 items are needed before you can submit.");
+    await check(sheet.getByRole("alert")).toHaveText("1 item is needed before you can submit.");
     await shot(page, "17-submit-blocked");
     expect((await storedRow(id)).status, "still a draft").toBe("draft");
     await sheet.getByRole("button", { name: named(PENDING_ROW.cartons) }).tap();
@@ -911,49 +907,6 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await check(sectionSummary(page, SECTION.cartons)).toContainText(`Size M: ${EXPECTED.cartonList.entries} carton numbers, unique and between 1 and ${grouped(ORDER.qtyCases)}.`);
     await check(frame.locator(".text-fail"), "no carton error left").toHaveCount(0);
     await shot(page, "18-cartons-corrected");
-  });
-
-  await test.step("A box list opened right after an issue link stays open", async () => {
-    // goToIssue (capture-screen.tsx) gives the section title focus 0.7 s after an issue link when
-    // nothing in the section took it. It once took focus from a box list opened within that time
-    // (a portal outside the section), and the list closed; it now stands down once the inspector
-    // presses or types.
-    await page.getByRole("button", { name: /^Pending/ }).tap();
-    const sheet = page.getByRole("dialog", { name: "Pending" });
-    await expect(sheet).toBeVisible();
-    await sheet.getByRole("button", { name: named(PENDING_ROW.box) }).tap();
-    await sectionReady(page, SECTION.packingCheck);
-    const { dispensingBox } = EXPECTED;
-    await frameOf(page, SECTION.packingCheck).getByRole("combobox", { name: `Box #, Item ${dispensingBox.item}`, exact: true }).tap();
-    const list = page.getByRole("dialog", { name: new RegExp(`^Box #, Item ${dispensingBox.item}: carton list for size M`) });
-    await expect(list).toBeVisible();
-    await page.waitForTimeout(1_000);
-    await check(list, "the box list stays open past the link's 0.7 s").toBeVisible();
-    await page.keyboard.press("Escape");
-    await expect(list).toBeHidden();
-  });
-
-  await test.step("Correction 2: box 2336 cannot be picked from the list; 2236 is, and the error goes", async () => {
-    const frame = await openTab(page, "packingCheck");
-    const { dispensingBox } = EXPECTED;
-    await frame.getByRole("combobox", { name: `Box #, Item ${dispensingBox.item}`, exact: true }).tap();
-    const list = page.getByRole("dialog", { name: new RegExp(`^Box #, Item ${dispensingBox.item}: carton list for size M`) });
-    await expect(list).toBeVisible();
-    await check(list).toContainText(`Box ${dispensingBox.box} is not in the carton list for size M. Pick the box from the list.`);
-    await check(list.getByRole("option"), "the 50 sampled cartons").toHaveCount(EXPECTED.cartonList.entries);
-    const find = list.getByRole("combobox", { name: "Find a box" });
-    await find.tap();
-    await page.keyboard.type(String(dispensingBox.box));
-    await check(list.getByText(`No box in the list matches “${dispensingBox.box}”.`), "the stray box is not offered").toBeVisible();
-    await shot(page, "19-box-not-in-list", list);
-    await find.fill("");
-    await list.getByRole("option", { name: String(FIX_BOX.to), exact: true }).tap();
-    await expect(list).toBeHidden();
-    const box = frame.getByRole("combobox", { name: `Box #, Item ${dispensingBox.item}`, exact: true });
-    await check(box).toHaveText(String(FIX_BOX.to));
-    await check(box).not.toHaveAttribute("aria-invalid", "true");
-    await check(frame.locator('[role="combobox"][aria-invalid="true"]'), "no box outside the list").toHaveCount(0);
-    await check(sectionStatus(page, SECTION.packingCheck), EXPECT_DISPENSING.check).toHaveAttribute("data-status", EXPECT_DISPENSING.status);
   });
 
   await test.step("Conclusion once corrected: the app suggests PASSED, with the weight warning", async () => {
@@ -1088,15 +1041,8 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     check(modules.carton_sampling?.sizes?.M?.cartonNumbers, "carton list as corrected").toEqual(CARTONS_CORRECTED);
     check(
       modules.dispensing_packing?.sizes?.M?.boxes?.map(({ boxNo, layeringPct, dispensingPct, stickiness }) => [boxNo, layeringPct, dispensingPct, stickiness]),
-      "packing check rows, the stray box corrected",
-    ).toEqual(
-      PACKING_BOXES.map((box, index) => [
-        index === FIX_BOX.item - 1 ? FIX_BOX.to : box.box,
-        box.layeringPct,
-        box.dispensingPct,
-        box.stickiness,
-      ]),
-    );
+      "packing check rows as typed, box 2336 included",
+    ).toEqual(PACKING_BOXES.map((box) => [box.box, box.layeringPct, box.dispensingPct, box.stickiness]));
     check(
       (modules.dimensions?.sizes?.M?.gloves ?? []).map((glove) =>
         ["length", "width", "fingerThickness", "palmThickness", "cuffThickness"].map((key) => glove[key] ?? null),

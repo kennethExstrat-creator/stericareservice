@@ -29,8 +29,8 @@ function seedLabels(code: string): string[] {
 const TYPOS = [/\bEmbeded\b/, /\bThin batch\b/, /\bsickiness\b/, /\bideallly\b/, /\bould\b/];
 
 describe("seed.sql", () => {
-  it("parses the 32 defect codes of BUILD_SPEC 11", () => {
-    expect(SEED.size).toBe(32);
+  it("parses the 34 defect codes of BUILD_SPEC 11", () => {
+    expect(SEED.size).toBe(34);
   });
 
   it("holds every defect code a template uses, and every seeded code is used", () => {
@@ -61,7 +61,7 @@ describe("visual defect lists", () => {
   });
 
   // The report's words in Title Case (Kenneth, 8 October 2026); sources.ts keeps them as printed.
-  it("keeps the report order and words of STD_EG", () => {
+  it("keeps the report order and words of STD_EG, then the onsite forms' majors", () => {
     const labels = (cls: (typeof DEFECT_CLASSES)[number]) => VISUAL_DEFECTS.STD_EG[cls].map((defect) => defect.label);
     expect(labels("critical")).toEqual(["Embedded Insects", "Embedded Metal Debris"]);
     expect(labels("major")).toEqual([
@@ -74,6 +74,8 @@ describe("visual defect lists", () => {
       "Residue Material / Foreign Matter",
       "Defective Bead",
       "Big Lumps (>2mm)",
+      "Skin Visual",
+      "Flow Mark",
     ]);
     expect(labels("minor")).toEqual([
       "Small Dirt / Stain",
@@ -85,7 +87,7 @@ describe("visual defect lists", () => {
     ]);
   });
 
-  it("keeps the report order and words of SAFEDON_EG", () => {
+  it("keeps the report order and words of SAFEDON_EG, then the onsite forms' majors", () => {
     const labels = (cls: (typeof DEFECT_CLASSES)[number]) => VISUAL_DEFECTS.SAFEDON_EG[cls].map((defect) => defect.label);
     expect(labels("critical")).toEqual(["Embedded Insects", "Embedded Metal Debris"]);
     expect(labels("major")).toEqual([
@@ -97,6 +99,8 @@ describe("visual defect lists", () => {
       "Stain",
       "Powder Mark",
       "Bead Blister",
+      "Skin Visual",
+      "Flow Mark",
     ]);
     expect(labels("minor")).toEqual([
       "Small Dirt / Stain",
@@ -113,6 +117,19 @@ describe("visual defect lists", () => {
     expect(find("major")?.label).toBe("Defective Bead");
     expect(find("minor")?.label).toBe("Defective Beads");
     expect(find("critical")).toBeUndefined();
+  });
+
+  // Kenneth, 12 October 2026: "yes" to codes for what inspectors write SKV and FM.
+  it("lists Skin Visual and Flow Mark last in Major in every template, and in no other class", () => {
+    for (const template of TEMPLATE_CODES) {
+      const { critical, major, minor } = VISUAL_DEFECTS[template];
+      expect(major.slice(-2), template).toEqual([
+        { code: "skin_visual", label: "Skin Visual", written: "SKV" },
+        { code: "flow_mark", label: "Flow Mark", written: "FM" },
+      ]);
+      expect(major.slice(0, -2).some((defect) => defect.written !== undefined), template).toBe(false);
+      for (const defect of [...critical, ...minor]) expect(["skin_visual", "flow_mark"], template).not.toContain(defect.code);
+    }
   });
 
   it("counts 'Oil Stain' and 'Stain' together under one code", () => {

@@ -133,7 +133,7 @@ describe("dispensing_safedon", () => {
       expect(output.computed.sizes.M.defectCounts.sticky).toBe(11);
     });
 
-    it("raises no error and no warning: every box is in its size's carton list", () => {
+    it("raises no error and no warning", () => {
       expect(SAFEDON_EG_EXPECTED.errors).toEqual([]);
       expect(output.issues).toEqual([]);
     });
@@ -174,7 +174,7 @@ describe("dispensing_safedon", () => {
       const output = calcDispensingSafedon(input({ sizes: { XS: { boxes: [...rows, ...boxes(1, {}, 9)] } } }, FIVE));
       expect(output.result.perSize?.XS).toEqual({
         status: "not_done",
-        summary: "5 of 5 boxes tested; Box # missing in column 2, which has defects counted.",
+        summary: "5 of 5 boxes tested; Box # missing in No. 2, which has defects counted.",
       });
       expect(output.computed.sizes.XS).toMatchObject({ boxesTested: 5, totalDefects: 0 });
       expect(output.computed.sizes.XS.boxes[1]).toEqual({ boxNo: null, boxDefects: 2, boxRatePct: 1.6 });
@@ -268,26 +268,15 @@ describe("dispensing_safedon", () => {
   });
 
   describe("wrong data", () => {
-    it("rejects a box that is not in the size's carton list: an error with a link; the rate stands (6.2 rule 7)", () => {
+    it("takes any box number as typed, in the size's carton list or not: box numbers are not carton numbers (6.2 rule 7)", () => {
       const listed = makeTestContext({
         sizes: ["XS"],
         sampling: { XS: makeSampling({ packagingDispensing: 5 }) },
         cartons: { XS: [1, 2, 3, 4, 6] },
       });
       const output = calcDispensingSafedon(input({ sizes: { XS: { boxes: boxes(5) } } }, listed));
-      expect(output.issues).toEqual([
-        {
-          level: "error",
-          code: "box_not_in_carton_list",
-          message: "Box 5 (column 5) is not in the size XS carton list.",
-          size: "XS",
-          path: ["sizes", "XS", "boxes", 4, "boxNo"],
-        },
-      ]);
+      expect(output.issues).toEqual([]);
       expect(output.result.perSize?.XS.status).toBe("pass");
-    });
-
-    it("takes any box number while the size has no carton list yet", () => {
       expect(calcDispensingSafedon(input({ sizes: { XS: { boxes: boxes(5, {}, 700) } } }, FIVE)).issues).toEqual([]);
     });
 
@@ -299,7 +288,7 @@ describe("dispensing_safedon", () => {
         {
           level: "warning",
           code: "defect_not_in_template",
-          message: '2 "torn_pack" counted in column 3 for size XS is not a defect of this template and is left out of the total.',
+          message: '2 "torn_pack" counted in No. 3 for size XS is not a defect of this template and is left out of the total.',
           size: "XS",
           path: ["sizes", "XS", "boxes", 2, "counts", "torn_pack"],
         },
@@ -330,11 +319,7 @@ describe("dispensing_safedon", () => {
     const rows = boxes(5);
     rows[0] = { boxNo: null, counts: { sticky: 1 } };
     const output = calcDispensingSafedon(input({ sizes: { XS: { boxes: rows } } }, FIVE, DISPENSING_SAFEDON_DEFAULT_CONFIG, labels));
-    expect(output.result.perSize?.XS.summary).toBe("4 of 5 boxes tested; Pack No. missing in column 1, which has defects counted.");
-    const listed = makeTestContext({ ...FIVE, cartons: { XS: [1] } });
-    expect(calcDispensingSafedon(input({ sizes: { XS: { boxes: boxes(2) } } }, listed, DISPENSING_SAFEDON_DEFAULT_CONFIG, labels)).issues[0].message).toBe(
-      "Pack No. 2 (column 2) is not in the size XS carton list.",
-    );
+    expect(output.result.perSize?.XS.summary).toBe("4 of 5 boxes tested; Pack No. missing in No. 1, which has defects counted.");
     expect(safedonHeading(labels, ["C", "D", "E"])).toBe("Dispensing (C, D & E)");
   });
 

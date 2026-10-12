@@ -80,6 +80,12 @@ values
     'Visual. Report label: "Poor beading" (STD_EG).'),
   ('bead_rolled', 'Rolled bead',
     'Visual. Report label: "Rolled bead" (STD_EG).'),
+  -- Printed on neither report: inspectors write them on the onsite forms (SKV,
+  -- FM), and they have codes of their own (Kenneth, 12 October 2026).
+  ('skin_visual', 'Skin visual defect',
+    'Visual. Label: "Skin Visual" (STD_EG, SAFEDON_EG, major): a visual defect of the glove skin, written SKV on the onsite forms. Not printed on the reports.'),
+  ('flow_mark', 'Flow mark',
+    'Visual. Label: "Flow Mark" (STD_EG, SAFEDON_EG, major), written FM on the onsite forms. Not printed on the reports.'),
 
   -- Safedon dispensing check (SAFEDON_EG report and Safedon EG onsite form).
   ('no_cuff', 'No cuff',

@@ -1,7 +1,7 @@
 // Defaults a template can override: the heading, the labels (STD_EG's
 // wording; SAFEDON_EG titles it "Weight (g)" and prints "A") and the config
 // (BUILD_SPEC 6.1: gloves weighed per size until the sampling plan gives its
-// gloves for dimension, an optional spec, the warning threshold for the
+// gloves for weight, an optional spec, the warning threshold for the
 // indicative weight, decimals).
 import { z } from "zod";
 import { CanonicalSizeSchema } from "@/lib/sizes";
@@ -39,7 +39,7 @@ export const WeightConfigSchema = z.strictObject({
     .int()
     .min(1)
     .max(MAX_N)
-    .describe("Gloves weighed per size when the sampling plan gives no number for dimension; 1 weighs one value per size"),
+    .describe("Gloves weighed per size when the sampling plan gives no number for weight; 1 weighs one value per size"),
   // A list, so a child template replaces every row at once (lib/templates/merge.ts).
   specs: z
     .array(WeightSpecRowSchema)
@@ -67,7 +67,7 @@ export const WeightConfigSchema = z.strictObject({
 });
 export type WeightConfig = z.infer<typeof WeightConfigSchema>;
 
-/** STD_EG's: 13 gloves weighed one by one (until the sampling plan says otherwise), no spec, a warning beyond 10%, 2 decimals. */
+/** STD_EG's: 13 gloves weighed one by one (until the sampling plan's gloves for weight say otherwise), no spec, a warning beyond 10%, 2 decimals. */
 export const WEIGHT_DEFAULT_CONFIG: WeightConfig = {
   n: 13,
   specs: [],

@@ -86,9 +86,9 @@ export function removeSafedonBox(data: DispensingSafedonData, size: string, inde
 /**
  * Whether row `index` of the box list offers Delete: a row holding a box
  * number or a count, or any row past the plan (added with Add Box). The
- * plan's own blank rows do not, saved blank or not (a box picked in row 7
- * first saves rows 1 to 6 blank), since the list never shows fewer rows
- * than the plan.
+ * plan's own blank rows do not, saved blank or not (a box number typed in
+ * row 7 first saves rows 1 to 6 blank), since the list never shows fewer
+ * rows than the plan.
  */
 export function canRemoveBox(index: number, boxes: readonly SafedonBox[], planned: number): boolean {
   if (index >= planned) return true;

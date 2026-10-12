@@ -6,7 +6,12 @@ import type { SamplingValues } from "@/modules/_framework";
 
 export const SAMPLING_PLAN_TITLE = "Sampling Plan";
 
-/** Columns of the sampling plan, in report order; the last two are surgical (SG onsite form). */
+/**
+ * Columns of the sampling plan, in report order; the last two are surgical
+ * (SG onsite form). The forms print no gloves for weight: that row is the
+ * app's, beside the other tests' counts, in step order (dimension, force at
+ * break, weight).
+ */
 export const SAMPLING_COLUMNS = [
   "cases",
   "innerUnits",
@@ -14,6 +19,7 @@ export const SAMPLING_COLUMNS = [
   "glovesWatertightVisual",
   "glovesDimensions",
   "glovesPhysical",
+  "glovesWeight",
   "innerUnitsDispensing",
   "pouches",
   "pouchesDyeLeak",
@@ -28,6 +34,7 @@ export const SAMPLING_CONTEXT_KEYS = {
   glovesWatertightVisual: "watertightVisual",
   glovesDimensions: "dimensions",
   glovesPhysical: "physical",
+  glovesWeight: "weight",
   innerUnitsDispensing: "packagingDispensing",
   pouches: "pouches",
   pouchesDyeLeak: "pouchesDyeLeak",
@@ -40,6 +47,7 @@ export const SAMPLING_PLAN_LABELS = {
   glovesWatertightVisual: "# Gloves for Watertight & Visual",
   glovesDimensions: "# Gloves for Dimension",
   glovesPhysical: "# Gloves for FAB",
+  glovesWeight: "# Gloves for Weight",
   innerUnitsDispensing: "# Inner Box for Packaging & Dispensing Inspection",
   pouches: "Pouches",
   pouchesDyeLeak: "# Pouches (Dye Leak Test)",
@@ -63,11 +71,17 @@ export const SamplingPlanConfigSchema = z.strictObject({
       glovesWatertightVisual: z.boolean(),
       glovesDimensions: z.boolean(),
       glovesPhysical: z.boolean(),
+      // Added 12 October 2026: a template version saved before it (frozen once used) reads it as off,
+      // so its inspections keep their rows and weight weighs the template's n.
+      glovesWeight: z
+        .boolean()
+        .default(false)
+        .describe("On where weight weighs glove by glove; off where it weighs one value per size or is not included."),
       innerUnitsDispensing: z.boolean(),
       pouches: z.boolean(),
       pouchesDyeLeak: z.boolean(),
     })
-    .describe("Columns shown on this template. The surgical pouch columns are off by default."),
+    .describe("Columns shown on this template. The surgical pouch columns and # Gloves for Weight are off by default."),
   inspectionLevel: InspectionLevelSchema.nullable().describe(
     "ISO 2859-1 inspection level. With a level, the plan for each size's lot (cases ordered x gloves per case) is computed and a watertight and visual sample below it is flagged. None: samples are entered directly with no plan check.",
   ),
@@ -82,6 +96,7 @@ export const SAMPLING_PLAN_DEFAULT_CONFIG: SamplingPlanConfig = {
     glovesWatertightVisual: true,
     glovesDimensions: true,
     glovesPhysical: true,
+    glovesWeight: false,
     innerUnitsDispensing: true,
     pouches: false,
     pouchesDyeLeak: false,

@@ -53,10 +53,10 @@ export function stdEgTemplate(): ResolvedTemplate {
 
 export type StdEgDataOptions = {
   /**
-   * The expected results' corrections (STD_EG_EXPECTED.corrections): the
-   * duplicate carton and the stray dispensing box, as an inspector fixes
-   * them before submitting. Default true; false keeps the report's mistakes,
-   * which the modules turn into errors.
+   * The expected results' correction (STD_EG_EXPECTED.corrections): the
+   * duplicate carton, as an inspector fixes it before submitting. Default
+   * true; false keeps the report's mistake, which carton sampling turns into
+   * an error.
    */
   corrected?: boolean;
   /** inspection_files id of the force-at-break lab report, kept in the module's data. Null: none attached. */
@@ -82,7 +82,7 @@ export function stdEgInspectionData(options: StdEgDataOptions = {}): InspectionD
     weight: weightData(),
     watertight: watertightData(),
     visual: visualData(),
-    dispensing_packing: dispensingPackingData(corrected),
+    dispensing_packing: dispensingPackingData(),
     labeling: labelingData(),
     conclusion: conclusionData(remark),
   };
@@ -167,6 +167,8 @@ function samplingPlanData(): SamplingPlanData {
           glovesWatertightVisual: row.watertightVisualGloves,
           glovesDimensions: row.dimensionGloves,
           glovesPhysical: row.physicalTestGloves,
+          // Named in the report's weight heading ("average of 13 gloves per size"), not in its Sampling Plan.
+          glovesWeight: EXAMPLE.weight[size as keyof typeof EXAMPLE.weight]?.gloves ?? null,
           innerUnitsDispensing: row.dispensingInners,
           pouches: null,
           pouchesDyeLeak: null,
@@ -288,16 +290,15 @@ function visualData(): VisualData {
   };
 }
 
-/** The packing check per box; corrected, the stray box becomes the listed carton the expected results name. */
-function dispensingPackingData(corrected: boolean): DispensingPackingData {
-  const fix = STD_EG_EXPECTED.corrections.strayBox;
+/** The packing check per box, the box numbers as typed: box 2336 is in no carton list, and needs not be (6.2 rule 7). */
+function dispensingPackingData(): DispensingPackingData {
   return {
     sizes: Object.fromEntries(
       Object.entries(EXAMPLE.dispensingPacking.perSize).map(([size, entry]) => [
         size,
         {
-          boxes: entry.boxes.map((box, index) => ({
-            boxNo: corrected && size === fix.size && index === fix.item - 1 ? fix.to : box.box,
+          boxes: entry.boxes.map((box) => ({
+            boxNo: box.box,
             layeringPct: box.layeringPct,
             dispensingPct: box.dispensingPct,
             stickiness: box.stickiness,
@@ -309,7 +310,7 @@ function dispensingPackingData(corrected: boolean): DispensingPackingData {
   };
 }
 
-/** The boxes the labels were read on: picked from the size's carton list (6.2 rule 7). */
+/** The boxes the labels were read on, by their box numbers as typed (6.2 rule 7). */
 export const LABELING_BOXES = { inner: [686, 1515, 2597], carton: [1324] } as const;
 
 function labelingData(): LabelingData {

@@ -104,6 +104,9 @@ export const VISUAL_DEFAULT_CONFIG: VisualConfig = {
         { code: "foreign_matter", label: "Residue Material / Foreign Matter" },
         { code: "bead_defective", label: "Defective Bead" },
         { code: "lump_big", label: "Big Lumps (>2mm)" },
+        // Only the onsite forms have these two (SKV, FM): codes of their own since 12 October 2026.
+        { code: "skin_visual", label: "Skin Visual" },
+        { code: "flow_mark", label: "Flow Mark" },
       ],
     },
     minor: {

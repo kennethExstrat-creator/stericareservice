@@ -365,45 +365,28 @@ describe("labeling", () => {
     });
   });
 
-  describe("box numbers, picked from the size's carton list (6.2 rule 7)", () => {
+  describe("box numbers, the inspector's own: never checked against the carton list (6.2 rule 7)", () => {
     const context = makeTestContext({ sizes: ["M"], cartons: { M: [13, 299, 337, 2236] } });
 
-    it("accepts boxes from the carton list; inner boxes may share a carton", () => {
-      const data = sizeM({ inner: level({ inspected: 3, boxNos: [13, 13, 299] }), carton: level({ inspected: 1, boxNos: [337] }) });
+    it("takes boxes as typed, in the carton list or not; inner boxes may share a number", () => {
+      const data = sizeM({ inner: level({ inspected: 3, boxNos: [13, 13, 2336] }), carton: level({ inspected: 1, boxNos: [9001] }) });
       const output = calcLabeling(input(data, { context }));
       expect(output.result.status).toBe("pass");
       expect(output.issues).toEqual([]);
+      expect(calcLabeling(input(data)).issues).toEqual([]);
     });
 
     it("needs no box numbers: the reports print only how many were inspected", () => {
       expect(calcLabeling(input(sizeM(), { context })).issues).toEqual([]);
     });
 
-    it("rejects a box that is not in the size's carton list, with a link to it", () => {
-      const data = sizeM({ inner: level({ inspected: 3, boxNos: [13, 2336] }) });
-      expect(calcLabeling(input(data, { context })).issues).toEqual([
-        {
-          level: "error",
-          code: "box_not_in_carton_list",
-          message: "Box 2336 (Dispenser Box) is not in the size M carton list.",
-          size: "M",
-          path: ["sizes", "M", "inner", "boxNos", 1],
-        },
-      ]);
-    });
-
-    it("takes a box as entered while the size has no carton list", () => {
-      const data = sizeM({ inner: level({ inspected: 3, boxNos: [2336] }) });
-      expect(calcLabeling(input(data)).issues).toEqual([]);
-    });
-
-    it("rejects a carton picked twice at the carton level", () => {
+    it("rejects a box entered twice at the carton level", () => {
       const data = sizeM({ carton: level({ inspected: 2, boxNos: [337, 337] }) });
       expect(calcLabeling(input(data, { context, config: withCarton({ n: 2 }) })).issues).toEqual([
         {
           level: "error",
           code: "box_duplicate",
-          message: "Carton Box, size M: carton 337 is picked twice.",
+          message: "Carton Box, size M: box 337 is entered twice.",
           size: "M",
           path: ["sizes", "M", "carton", "boxNos", 1],
         },
@@ -416,7 +399,7 @@ describe("labeling", () => {
         {
           level: "error",
           code: "boxes_exceed_inspected",
-          message: "Carton Box, size M: 2 boxes are picked but 1 inspected.",
+          message: "Carton Box, size M: 2 boxes are entered but 1 inspected.",
           size: "M",
           path: ["sizes", "M", "carton", "boxNos"],
         },
@@ -450,10 +433,8 @@ describe("labeling", () => {
       expect(output.result.summary).toBe(
         "No defects in size Medium. Fewer boxes inspected than planned: size Medium Inner Boxes/Packs 2 of 3.",
       );
-      expect(output.issues.map((issue) => issue.message)).toEqual([
-        "Inner Boxes/Packs, size Medium: 2 boxes inspected; the plan is 3.",
-        "Box 14 (Inner Boxes/Packs) is not in the size Medium carton list.",
-      ]);
+      // Box 14 is not in the carton list, and that is no problem: box numbers are not carton numbers.
+      expect(output.issues.map((issue) => issue.message)).toEqual(["Inner Boxes/Packs, size Medium: 2 boxes inspected; the plan is 3."]);
     });
 
     it("lets a template reword a check by its code, per level or for both", () => {
@@ -484,7 +465,8 @@ describe("labeling", () => {
     const data = {
       modules: {
         labeling: {
-          sizes: { M: { inner: { inspected: 3, boxNos: [99] }, carton: { inspected: 1, defects: { expiry_date: 1 } } } },
+          // Box 99 is in no carton list, and that is no problem; box 7 twice at the carton level is.
+          sizes: { M: { inner: { inspected: 3, boxNos: [99] }, carton: { inspected: 2, boxNos: [7, 7], defects: { expiry_date: 1 } } } },
           comment: "Expiry date smudged on one carton.",
         },
       },
@@ -503,8 +485,8 @@ describe("labeling", () => {
       expect.objectContaining({
         moduleKey: "labeling",
         level: "error",
-        code: "box_not_in_carton_list",
-        path: ["sizes", "M", "inner", "boxNos", 0],
+        code: "box_duplicate",
+        path: ["sizes", "M", "carton", "boxNos", 1],
       }),
     ]);
     expect(evaluation.suggested.result).toBe("fail");

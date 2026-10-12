@@ -141,7 +141,26 @@ describe("PhotoEditDialog", () => {
     const level = draw({ moduleKey: "labeling", target: "size:M/level:inner" });
     // The levels in the module's words, after the app's own "Not Recorded".
     expect(choices(level)).toEqual(["Not Recorded", "Dispenser Box", "Carton Box"]);
-    expect(level).toContain(">Box (Carton Number)</label>");
+    // A labelling or dispensing box number is no carton number (BUILD_SPEC 6.2 rule 7; Kenneth, 12 October 2026).
+    expect(level).toContain(">Box Number</label>");
+    expect(level).not.toContain("Carton Number");
+    // Carton sampling's box is the carton itself.
+    const cartons = renderToStaticMarkup(
+      <PhotoEditDialog
+        inspectionId={INSPECTION}
+        photo={{ ...photo, moduleKey: "carton_sampling", target: "size:M/box:525" }}
+        options={{
+          ...options,
+          modules: [
+            ...options.modules,
+            { key: "carton_sampling", title: "Finished Goods Sampling", shortTitle: "Carton Numbers", targetKeys: ["size", "box"], handSplit: false, included: true },
+          ],
+        }}
+        alt="Carton Numbers · Size M"
+        onClose={() => {}}
+      />,
+    );
+    expect(cartons).toContain(">Box (Carton Number)</label>");
   });
 
   it("names loading's stage picker in the loading module's words, as lib/coverage lists them", () => {

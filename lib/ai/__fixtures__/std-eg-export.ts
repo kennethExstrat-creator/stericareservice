@@ -13,7 +13,7 @@ import { ExportSchema, type InspectionExport } from "@/lib/schemas";
  * signed links. A module whose data, computed values or results change
  * changes this export, and the tests that read it notice.
  *
- * State: submitted after the carton errors were fixed, with the weight
+ * State: submitted after the carton error was fixed, with the weight
  * warning (2.9 g against 3.5 g indicative, 17.1% below) still in the
  * export; the force-at-break lab report attached; five photos, one a
  * flagged HEIC original.

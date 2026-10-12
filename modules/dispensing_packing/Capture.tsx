@@ -2,12 +2,12 @@
 
 // Glove Packing Check capture (BUILD_SPEC 6.1, 8 "Speed"): one size at a time
 // (swipe on iPad, arrow keys on desktop), one row per dispenser box. The box
-// number is picked from the size's carton list (6.2 rule 7); layering and
-// dispensing % are typed on the numeric keypad, Enter going down the column
-// and a pasted column filling down it; the stickiness code is picked from the
-// template's codes. Averages and Passed / Failed come from calc as you type,
-// read-only (rule 2). Wording comes from the template (rule 11). A box that
-// is not in the carton list, and any other problem calc finds in a row, is
+// number (6.2 rule 7: the inspector's own number, not a carton number), the
+// layering and the dispensing % are typed on the numeric keypad, Enter going
+// down the column and a pasted column filling down it; the stickiness code is
+// picked from the template's codes. Averages and Passed / Failed come from
+// calc as you type, read-only (rule 2). Wording comes from the template (rule
+// 11). An entry a cell refuses, and any problem calc finds in a row, is
 // listed under the table with a link to its cell: the cell itself only turns
 // red. Every write goes through useDataUpdater, starting from the latest
 // data: a pasted column reaches the screen as one change with every value
@@ -15,7 +15,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
 import { ChevronDownIcon, PlusIcon } from "lucide-react";
 import {
-  BoxPicker,
+  BoxNumberField,
   EnterGroup,
   EntryProblems,
   findIssue,
@@ -36,7 +36,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { formatSize, formatSpec } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { cartonsFor, initialSize, labelFor, type CaptureProps, type Labels, type ValidationIssue } from "@/modules/_framework";
+import { initialSize, labelFor, type CaptureProps, type Labels, type ValidationIssue } from "@/modules/_framework";
 import { sizeOnTabs, useReportShownSize } from "@/modules/_framework/shown-size";
 import type { DispensingPackingComputed, DispensingPackingConfig, DispensingPackingData } from ".";
 import { AVERAGE_DECIMALS, packingHeading, plannedBoxes } from "./calc";
@@ -48,6 +48,8 @@ import { plainLabel } from "./text";
 type Props = CaptureProps<DispensingPackingData, DispensingPackingConfig, DispensingPackingComputed>;
 type Update = (change: DataChange<DispensingPackingData>) => void;
 type PercentKey = "layeringPct" | "dispensingPct";
+/** The typed cells of a row: the box number and the two percentages. */
+type TypedKey = "boxNo" | PercentKey;
 
 // A heading on one line, padded as its cells' contents are (px-2.5), so it lines up with them.
 const HEAD =
@@ -143,18 +145,14 @@ function PackingSizePanel({ size, props, update, requested, onRequest, rejected,
   const boxes = boxesOf(data, size);
   const planned = plannedBoxes(context, config, size);
   const rows = rowsShown(planned, boxes.length, requested);
-  const cartons = cartonsFor(context, size);
-  const used = boxes.map((box) => box.boxNo);
   // A module whose config or data is broken comes back with no computed values.
   const computed = evaluation?.computed.sizes?.[size];
   const result = evaluation?.result.perSize?.[size];
   const sizeName = formatSize(size, { sizes: context.templateSizes, prefix: true });
-  // Inside the picker's sentences: "Box 2336 is not in the carton list for size M."
-  const pickerSize = `size ${formatSize(size, { sizes: context.templateSizes })}`;
   const issues = evaluation?.issues ?? [];
-  // calc's problems in this size's rows, such as a box missing from the carton list (6.2 rule 7).
+  // calc's problems in this size's rows, such as a stickiness code the template does not have.
   const rowIssues = boxIssues(issues, size);
-  const keyOf = (field: PercentKey, index: number) => `${size}:${field}:${index}`;
+  const keyOf = (field: TypedKey, index: number) => `${size}:${field}:${index}`;
   const panel = useRef<HTMLDivElement>(null);
   const head = useRef<HTMLTableSectionElement>(null);
   const headHeight = useHeadHeight(head);
@@ -163,7 +161,7 @@ function PackingSizePanel({ size, props, update, requested, onRequest, rejected,
   const problems = rejected.filter((problem) => {
     const [owner, field, index] = problem.key.split(":");
     const box = boxes[Number(index)];
-    return owner === size && ((field === "layeringPct" ? box?.layeringPct : box?.dispensingPct) ?? null) === null;
+    return owner === size && (box?.[field as TypedKey] ?? null) === null;
   });
 
   return (
@@ -200,7 +198,8 @@ function PackingSizePanel({ size, props, update, requested, onRequest, rejected,
               <th scope="col" className={cn(HEAD, "text-center")}>
                 {labelFor(labels, "itemColumn")}
               </th>
-              <th scope="col" className={cn(HEAD, "border-l")}>
+              {/* Right-aligned, as the typed box number below it and the percentages beside it. */}
+              <th scope="col" className={cn(HEAD, "border-l text-right")}>
                 {labelFor(labels, "boxNo")}
               </th>
               <th scope="col" className={cn(HEAD, "border-l text-right")}>
@@ -224,12 +223,9 @@ function PackingSizePanel({ size, props, update, requested, onRequest, rejected,
                 size={size}
                 index={index}
                 box={boxes[index] ?? emptyPackingBox()}
-                cartons={cartons}
-                used={used}
                 labels={labels}
                 config={config}
                 issues={issues}
-                pickerSize={pickerSize}
                 readOnly={readOnly}
                 onPatch={(patch) => update((current) => updatePackingBox(current, size, index, patch))}
                 onFocusBox={(box) => onFocusChange?.({ size, ...(box === null ? {} : { box }) })}
@@ -308,36 +304,19 @@ type RowProps = {
   size: string;
   index: number;
   box: PackingBox;
-  cartons: readonly number[];
-  used: readonly (number | null)[];
   labels: Labels;
   config: DispensingPackingConfig;
   issues: readonly ValidationIssue[];
-  pickerSize: string;
   readOnly: boolean;
   onPatch: (patch: Partial<PackingBox>) => void;
   onFocusBox: (box: number | null) => void;
-  onRejected: (field: PercentKey, entry: InvalidEntry | null, problem: Pick<EntryProblem, "label" | "inputId">) => void;
+  onRejected: (field: TypedKey, entry: InvalidEntry | null, problem: Pick<EntryProblem, "label" | "inputId">) => void;
 };
 
-function PackingRow({
-  size,
-  index,
-  box,
-  cartons,
-  used,
-  labels,
-  config,
-  issues,
-  pickerSize,
-  readOnly,
-  onPatch,
-  onFocusBox,
-  onRejected,
-}: RowProps) {
+function PackingRow({ size, index, box, labels, config, issues, readOnly, onPatch, onFocusBox, onRejected }: RowProps) {
   const item = `${labelFor(labels, "itemColumn")} ${index + 1}`;
   const path = (field: keyof PackingBox) => ["sizes", size, "boxes", index, field];
-  const inputId = (field: PercentKey) => `dispensing-packing-${size}-${field}-${index}`;
+  const inputId = (field: TypedKey) => `dispensing-packing-${size}-${field}-${index}`;
   const focus = () => onFocusBox(box.boxNo);
   const percent = (field: PercentKey) => (
     <PercentField
@@ -366,17 +345,20 @@ function PackingRow({
         {index + 1}
       </th>
       <td className={CELL}>
-        <BoxPicker
+        <BoxNumberField
           variant="cell"
+          group="boxNo"
+          id={inputId("boxNo")}
           label={`${labelFor(labels, "boxNo")}, ${item}`}
-          sizeLabel={pickerSize}
           value={box.boxNo}
-          cartons={cartons}
-          used={used}
           onValueChange={(boxNo) => {
             onPatch({ boxNo });
             onFocusBox(boxNo);
           }}
+          onInvalidChange={(entry) =>
+            onRejected("boxNo", entry, { label: `${item}, ${labelFor(labels, "boxNo")}`, inputId: inputId("boxNo") })
+          }
+          error={findIssue(issues, path("boxNo"))?.message}
           issuePath={path("boxNo")}
           onFocus={focus}
           readOnly={readOnly}
@@ -423,8 +405,8 @@ type StickinessCellProps = {
 
 /**
  * One of the template's codes, from a native select: the iPad's own picker,
- * typeahead on desktop. It reads as a picker, as the box cell beside it does:
- * a chevron, and "Pick" while empty ("—" is the screen's mark for no value).
+ * typeahead on desktop. It reads as a picker: a chevron, and "Pick" while
+ * empty ("—" is the screen's mark for no value).
  */
 function StickinessCell({ value, config, label, error, issuePath, readOnly, onFocus, onValueChange }: StickinessCellProps) {
   const code = config.stickinessCodes.find((entry) => entry.code === value);
@@ -455,7 +437,7 @@ function StickinessCell({ value, config, label, error, issuePath, readOnly, onFo
         data-empty={value === null || undefined}
         data-fail={failing || undefined}
         className={cn(
-          // pr-8 keeps the code clear of the chevron, which sits where the box picker's does.
+          // pr-8 keeps the code clear of the chevron.
           "block h-8 w-full cursor-pointer appearance-none rounded-none bg-transparent pr-8 pl-2.5 font-semibold outline-none focus-ring-inset touch:h-11",
           "hover:bg-accent data-empty:font-normal data-empty:text-muted-foreground",
           "data-fail:bg-fail-tint data-fail:text-fail aria-invalid:bg-fail-tint aria-invalid:text-fail",
@@ -562,10 +544,9 @@ function boxIssues(issues: readonly ValidationIssue[], size: string): Validation
 
 /**
  * calc's problems in the rows, each with a link to its cell (BUILD_SPEC 6.2),
- * listed as the carton grid lists its own: a cell only turns red, and its
+ * listed as the carton list lists its own: a cell only turns red, and its
  * message is read to screen readers alone. The Passed or Failed of the size
- * stays calc's: a box missing from the carton list blocks submit, it does
- * not fail the check (docs/FIXTURES.md).
+ * stays calc's.
  */
 function IssueLinks({ issues, root }: { issues: readonly ValidationIssue[]; root: RefObject<HTMLElement | null> }) {
   if (issues.length === 0) return null;

@@ -197,11 +197,11 @@ export function readingsWithMedian(value: number, n = 13): number[] {
  * ------------------------------------------------------------------ */
 
 export type StdEgOptions = {
-  /** Apply STD_EG_EXPECTED.corrections: the duplicate carton and the stray box. */
+  /** Apply STD_EG_EXPECTED.corrections: the duplicate carton. */
   corrected?: boolean;
 };
 
-/** The STD_EG example as saved inspection data, as entered (the report's two errors kept) or corrected. */
+/** The STD_EG example as saved inspection data, as entered (the report's error kept) or corrected. */
 export function stdEgData({ corrected = false }: StdEgOptions = {}): InspectionData {
   const report: StdEgExample = STD_EG_EXAMPLE;
   const cartons = cartonSamplingData(report);
@@ -216,14 +216,11 @@ export function stdEgData({ corrected = false }: StdEgOptions = {}): InspectionD
     })),
   }));
   if (corrected) {
-    const { duplicateCarton, strayBox } = STD_EG_EXPECTED.corrections;
+    const { duplicateCarton } = STD_EG_EXPECTED.corrections;
     const index = (duplicateCarton.cell.row - 1) * 10 + (duplicateCarton.cell.column - 1);
     const list = cartons.sizes[duplicateCarton.size].cartonNumbers;
     if (list[index] !== duplicateCarton.from) throw new Error("The duplicate carton is not where the fixture says.");
     list[index] = duplicateCarton.to;
-    const box = boxes[strayBox.size].boxes[strayBox.item - 1];
-    if (box.boxNo !== strayBox.from) throw new Error("The stray box is not where the fixture says.");
-    box.boxNo = strayBox.to;
   }
   return {
     modules: {

@@ -154,9 +154,9 @@ describe("loadInspectionMedia", () => {
     });
   });
 
-  it("names the modules as the inspection shows them: weight by the sampling plan's gloves for dimension", async () => {
+  it("names the modules as the inspection shows them: weight by the sampling plan's gloves for weight", async () => {
     const order = { sizes: { M: { qtyCases: 100, lotNumbers: ["LOT-1"] } } };
-    const plan = { sizes: { M: { glovesDimensions: 12 } } };
+    const plan = { sizes: { M: { glovesWeight: 12 } } };
     tables.inspections = {
       data: {
         ...(tables.inspections.data as object),

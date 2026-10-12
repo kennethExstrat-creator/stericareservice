@@ -30,6 +30,8 @@ const SECTION_11_CODES = [
   "bead_small_defect",
   "bead_poor",
   "bead_rolled",
+  "skin_visual",
+  "flow_mark",
   "no_cuff",
   "finger_out",
   "multiple_out",

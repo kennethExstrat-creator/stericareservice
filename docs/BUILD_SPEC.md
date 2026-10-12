@@ -257,15 +257,15 @@ Each module lives in `modules/<key>/` with `schema.ts` (data), `config.ts` (conf
 | `glove_info` | Surface texture, indicative weight (size M, g), colour, length | fields on/off | info | both reports |
 | `order_lots` | Per size: qty (cases), lot numbers, packing site. Totals: cartons and gloves (from `packing_config`) | sizes, packing site on/off | info | both reports |
 | `packing_config` | Gloves per inner unit, inner units per case, gloves per case; inner unit name (inner box, plastic pack, dispenser box, pouch) | unit names | warn if gloves per case ≠ inner x per case | both reports |
-| `sampling_plan` | Per size: sampled cases, inner units, gloves; gloves for watertight and visual; gloves for dimensions; gloves for physical test; inner units for packaging and dispensing; pouches (surgical) | columns on/off, inspection level | warn when below the AQL plan (section 7) | both reports, onsite |
+| `sampling_plan` | Per size: sampled cases, inner units, gloves; gloves for watertight and visual; gloves for dimensions; gloves for physical test; gloves for weight (the app's own row, where weight weighs glove by glove); inner units for packaging and dispensing; pouches (surgical). Each test its own count (Kenneth, 12 October 2026: "each metrics and measurement should have their own number of glove count") | columns on/off, inspection level | warn when below the AQL plan (section 7) | both reports, onsite |
 | `carton_sampling` | Per size: sampled carton numbers | none | fail on validation errors (6.2) | both reports |
 | `dimensions` | Per size, per glove (default 13): chosen measures from length, width, finger, palm and cuff thickness | measures on/off; statistic `average` or `median`; spec per size per measure (min, max, nominal ± tolerance, or NA); decimals | pass/fail per measure on the statistic; fail if any fails | both reports |
-| `weight` | Per size: gloves weighed (one value, or one per glove of the sampling plan's dimension sample; template n, default 13, until the plan gives one), values, average; compared with indicative weight | n; optional spec; warn threshold (default 10%) | pass/fail if spec set; warn on deviation | both reports |
-| `force_at_break` | Per size, per glove (default 13): force (N); median; lab report file | n, spec minimum (default 6 N), standard label | pass/fail per size | STD_EG |
+| `weight` | Per size: gloves weighed (one value, or one per glove of the sampling plan's gloves for weight; template n, default 13, until the plan gives one), values, average; compared with indicative weight | n; optional spec; warn threshold (default 10%) | pass/fail if spec set; warn on deviation | both reports |
+| `force_at_break` | Per size, per glove of the sampling plan's gloves for FAB (default 13): force (N); median; lab report file | n, spec minimum (default 6 N), standard label | pass/fail per size | STD_EG |
 | `tensile` | Per size: tensile strength average (MPa), elongation at break average (%); lab report file required | specs (default ≥ 14 MPa, ≥ 500%), standard label | pass/fail per size | SAFEDON_EG |
 | `watertight` | Per size (R/L optional): n tested, holes by location | AQL (default 1.5), locations and labels (between fingers/crotch, palm, finger, cuff, glove burst, other), `handSplit` | accept/reject per size from the AQL engine | both reports, onsite |
 | `visual` | Per size (R/L optional), per class: n inspected, defect counts | classes on/off: critical (AQL 0), major (default 2.5), minor (default 4.0); defect list per class with labels; `handSplit` | per class per size; any critical defect fails | both reports, onsite |
-| `dispensing_packing` | Per size, per box: box no. (picked from carton list), layering %, dispensing %, stickiness code | min layering (default 70%), min dispensing (default 80%), stickiness codes with pass/fail (A, B, B1, C pass; D fail), boxes per size | averages against minimums; any failing code fails | STD_EG, EG onsite |
+| `dispensing_packing` | Per size, per box: box no. (typed), layering %, dispensing %, stickiness code | min layering (default 70%), min dispensing (default 80%), stickiness codes with pass/fail (A, B, B1, C pass; D fail), boxes per size | averages against minimums; any failing code fails | STD_EG, EG onsite |
 | `dispensing_safedon` | Per size, per box: counts for 6 defects; per box defects / gloves and rate; size total and % | defect list and hints, gloves per pack, max rate (default 5%), boxes per size | size rate against max | SAFEDON_EG, Safedon onsite |
 | `labeling` | Per size, per level (inner unit, carton): n inspected, defects per check | levels on/off; checks on/off (lot no., mfg date, expiry date, artwork, carton no.); n per level (default 3 inner, 1 carton) | any defect fails (Accept 0 / Reject 1) | both reports |
 | `conclusion` (always on) | Suggested result (computed from module results), final result (pass, fail, hold), remark, inspection summary (formatted text), inspector, date, signature drawn on the iPad | none | final result | both reports |
@@ -290,7 +290,7 @@ Learned from checking the two example reports (`docs/examples/expected-results.m
 4. Sizes not in `order_lots` do not appear in any module.
 5. A module with missing data shows "Not Done", never "Passed".
 6. Carton numbers are unique per size, between 1 and the order quantity, and their count equals the sampled cases.
-7. Box numbers in `dispensing_packing`, `dispensing_safedon` and `labeling` are picked from that size's carton list.
+7. Box numbers in `dispensing_packing`, `dispensing_safedon` and `labeling` are typed by the inspector. A box number is not a carton number: it is never picked from or checked against the carton list (Kenneth, 12 October 2026: "the box number has nothing to do with carton number").
 8. The sample size sets the code letter and limits (section 7). A plan that does not match the sample size cannot be saved.
 9. Measured weight more than the threshold away from the indicative weight raises a warning.
 10. Client, product code and PO are entered once in `header` and reused everywhere, including the export.
@@ -345,7 +345,7 @@ Speed:
 - Counts by tapping: +/- steppers and tap-to-add defect chips. No typing for counts.
 - Measurements use the numeric keypad (`inputmode="decimal"`). Enter moves to the next cell. Pasting a column of values (from a caliper app or spreadsheet) fills down.
 - Size tabs (swipe on iPad, arrow keys on desktop). Sticky size and hand headers.
-- Numbers flow forward: sampling sets n in later modules (weight weighs the gloves for dimension); the carton list feeds box pickers.
+- Numbers flow forward: sampling sets n in later modules, each test its own (weight weighs the gloves for weight, never the gloves for dimension). Box numbers are typed, never taken from the carton list (6.2 rule 7).
 - Live totals and green/red accept chips update as you tap.
 - Autosave on every change (debounced about 800 ms) to Supabase, with a local IndexedDB copy. Status pill: Saved, Saving, or Offline (Will Sync). A dropped signal never loses data.
 - "Start From Previous": prefill header, glove info, packing, specs and AQL from the last inspection for the same client, manufacturer and product.
@@ -418,8 +418,8 @@ Build every seed template field for field from `docs/forms/reports/` first, then
 
 | Template | Scope | Built from | Modules on (in order) |
 |---|---|---|---|
-| `STD_EG` | examination, EN 455 | `reports/STD_EG.md`, `onsite/EG.md` | header (+ client, factory glove code), glove_info, order_lots, packing_config (inner box), sampling_plan, carton_sampling, dimensions (median; length, width, finger, palm, cuff), force_at_break (≥ 6 N), weight (the gloves for dimension, 13 by default), watertight, visual (critical, major, minor), dispensing_packing, labeling (dispenser box: lot, mfg, artwork; carton: + carton no.), conclusion |
-| `SAFEDON_EG` | examination, ASTM D6319, client scoped; extends `STD_EG` | `reports/SAFEDON_EG.md`, `onsite/SAFEDON_EG.md` | as STD_EG, with: header + inspected by and client logo; order_lots + packing site; inner unit "plastic pack"; dimensions average (length, width, finger, palm, no cuff); weight 1 value; tensile instead of force_at_break; watertight + glove burst; dispensing_safedon instead of dispensing_packing (125 per pack, ≤ 5%); labeling + expiry date at both levels |
+| `STD_EG` | examination, EN 455 | `reports/STD_EG.md`, `onsite/EG.md` | header (+ client, factory glove code), glove_info, order_lots, packing_config (inner box), sampling_plan, carton_sampling, dimensions (median; length, width, finger, palm, cuff), force_at_break (≥ 6 N), weight (the sampling plan's gloves for weight, 13 by default), watertight, visual (critical, major, minor), dispensing_packing, labeling (dispenser box: lot, mfg, artwork; carton: + carton no.), conclusion |
+| `SAFEDON_EG` | examination, ASTM D6319, client scoped; extends `STD_EG` | `reports/SAFEDON_EG.md`, `onsite/SAFEDON_EG.md` | as STD_EG, with: header + inspected by and client logo; order_lots + packing site; inner unit "plastic pack"; dimensions average (length, width, finger, palm, no cuff); weight 1 value (no gloves for weight in the sampling plan); tensile instead of force_at_break; watertight + glove burst; dispensing_safedon instead of dispensing_packing (125 per pack, ≤ 5%); labeling + expiry date at both levels |
 | `STD_SG` | surgical | `onsite/SG.md` | header, order_lots, packing_config (pouch), sampling_plan (+ pouches), watertight (handSplit), visual (handSplit), dimensions, dye_leak, conclusion. No filled SG report yet: specs to confirm |
 
 - **Defect codes** (one master list; labels map per template; severity per template):
@@ -442,6 +442,7 @@ Build every seed template field for field from `docs/forms/reports/` first, then
 | `lump_big`, `lump_small` | Big Lumps (>2mm); Lumps (<2mm) |
 | `dirt_small`, `sticky_pleats` | Small dirt / stain; Sticky pleats (< 5mm) |
 | `bead_thin`, `bead_small_defect`, `bead_poor`, `bead_rolled` | Thin bead; Thin bead / small beading defect; Poor beading; Rolled bead |
+| `skin_visual`, `flow_mark` | Not in the reports: Skin Visual; Flow Mark, written SKV and FM on the onsite forms. Major in STD_EG and SAFEDON_EG, after the reports' rows (Kenneth, 12 October 2026) |
 | `no_cuff`, `finger_out`, `multiple_out`, `stuck`, `sticky`, `faulty_cuff` | Safedon dispensing defects |
 
 - **Labelling checks:** `lot_no`, `mfg_date`, `expiry_date`, `artwork`, `carton_no`.

@@ -277,8 +277,9 @@ export const STD_EG_EXAMPLE = deepFreeze<StdEgExample>({
           { box: 1863, layeringPct: 88, dispensingPct: 90, stickiness: "A" },
           { box: 1880, layeringPct: 88, dispensingPct: 90, stickiness: "A" },
           { box: 1913, layeringPct: 88, dispensingPct: 90, stickiness: "A" },
-          // Not in the carton list: the report accepted it. Likely carton 2236
-          // (one digit off), which is listed (BUILD_SPEC 6.2 rule 7).
+          // In no carton list: the report accepted it, and so does the app, as box
+          // numbers are not carton numbers (BUILD_SPEC 6.2 rule 7). One digit off
+          // the listed carton 2236, as the original box was.
           { box: 2336, layeringPct: 88, dispensingPct: 90, stickiness: "A" },
           { box: 2819, layeringPct: 88, dispensingPct: 90, stickiness: "A" },
         ],

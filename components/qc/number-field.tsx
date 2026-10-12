@@ -109,6 +109,8 @@ export type NumberFieldProps = {
   integer?: boolean;
   /** Show at least this many decimals (0.1 as 0.10); never rounds what was entered. */
   decimals?: number;
+  /** The on-screen keypad: decimal (the default), or numeric for whole numbers such as a box number. */
+  inputMode?: "decimal" | "numeric";
   hint?: ReactNode;
   /** A problem calc found with the stored value, e.g. "Below the 70% minimum." */
   error?: string | null;
@@ -153,6 +155,7 @@ export function NumberField({
   minExclusive,
   integer = false,
   decimals,
+  inputMode,
   hint,
   error,
   warning,
@@ -334,6 +337,7 @@ export function NumberField({
       minExclusive={minExclusive}
       unit={variant === "field" ? unit : undefined}
       decimals={decimals}
+      inputMode={inputMode}
       readOnly={readOnly}
       placeholder={placeholder}
       enterKeyHint={inGroup ? "next" : "done"}

@@ -9,6 +9,7 @@ import type { GlossaryEntry } from "@/lib/schemas/ai-settings";
 
 export const PAPER_FORM_GUIDE = `How SteriCare inspectors fill in their paper inspection form:
 - One form per purchase order and lot, usually one size per form. Its parts: "Purchase Order / Shipment Information" (manufacturer, PO with the SO in brackets, product name, lot number, mfg and expiry date, glove type, packing mode); "Inspected by" (initials, date, signature); "PO Info" (glove size, quantity in cases); "Sampling Plan" (cases, inner boxes and gloves sampled; gloves for watertight (WTT) and visual; gloves for dimension; gloves for force at break (FAB); inner boxes for the dispensing test); "Watertight Inspection" and "Visual Inspection" (defects by size, major and minor); then "Dispensing Result" on a page of its own (by size: box number, layering %, dispensing %, stickiness code, others).
+- Each test has its own count in the sampling plan. The form has no gloves for weight: fill the sampling plan's glovesWeight only from a document that states how many gloves were weighed per size, and never copy the gloves for dimension, or any other test's count, into it.
 - Counts are often tally marks: each stroke | is one (|||| is 4). "2+1" means 2 and 1 more: 3. Add them up.
 - "x/500" by a total is x defects found in 500 gloves inspected. When a total disagrees with its rows, trust the rows and say so in the summary.
 - "50x10" in the gloves column is 50 inner boxes of 10 gloves: 500 gloves.
