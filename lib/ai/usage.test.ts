@@ -112,7 +112,8 @@ describe("callFromMessage", () => {
     };
     // 2,000 x $4 + 150 x $20, then 2,100 x $5 + 400 x $0.50 + 800 x $25, per million tokens.
     expect(costOfCall(fallback, priced)).toBe(0.0417);
-    expect(costOfCall(fallback, DEFAULT_AI_PRICES)).toBeNull();
+    // The review's fallback models are priced without the admin adding them (FALLBACK_MODEL_PRICES).
+    expect(costOfCall(fallback, DEFAULT_AI_PRICES)).toBe(0.0417);
   });
 
   it.each([
@@ -278,8 +279,8 @@ describe("recordAiUsage", () => {
   });
 
   it("stores no cost for a model without a price, and records nothing without the secret key", async () => {
-    await recordAiUsage(context, call([opus({ model: "claude-opus-4-8", input: 10 })]));
-    expect(insert.mock.calls[0][0]).toMatchObject({ model: "claude-opus-4-8", cost_usd: null });
+    await recordAiUsage(context, call([opus({ model: "claude-sonnet-4-9", input: 10 })]));
+    expect(insert.mock.calls[0][0]).toMatchObject({ model: "claude-sonnet-4-9", cost_usd: null });
 
     insert.mockClear();
     vi.mocked(isAdminClientConfigured).mockReturnValue(false);

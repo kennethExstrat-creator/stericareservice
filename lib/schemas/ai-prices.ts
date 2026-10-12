@@ -87,6 +87,28 @@ export const DEFAULT_AI_PRICES: AiPriceList = {
   ],
 };
 
+/**
+ * The second opinion's server-side refusal fallbacks (fallbacks: "default"): a turn Opus 5.5 declines
+ * may be served by one of these and is billed at its prices (Anthropic's pricing page, 12 October
+ * 2026). priceFor uses them when the saved list lacks the model, so those calls are priced from the
+ * start: a call recorded unpriced never gets a price later. Not shown in the price list; an admin who
+ * adds the model there overrides them.
+ */
+export const FALLBACK_MODEL_PRICES: readonly ModelPrice[] = [
+  { model: "claude-opus-5", input: 5, output: 25, cacheWrite5m: 6.25, cacheWrite1h: 10, cacheRead: 0.5, longPrompt: null },
+  { model: "claude-opus-4-8", input: 5, output: 25, cacheWrite5m: 6.25, cacheWrite1h: 10, cacheRead: 0.5, longPrompt: null },
+];
+
+/** The entry for a model: its own, else the longest listed id it is a dated snapshot of. */
+function listedEntry(models: readonly ModelPrice[], model: string): ModelPrice | undefined {
+  return (
+    models.find((entry) => entry.model === model) ??
+    models
+      .filter((candidate) => model.startsWith(candidate.model) && SNAPSHOT_SUFFIX.test(model.slice(candidate.model.length)))
+      .sort((a, b) => b.model.length - a.model.length)[0]
+  );
+}
+
 /** usage.inference_geo 'us' bills every token category 1.1x; the Batch API 0.5x (never used today). */
 export const US_INFERENCE_MULTIPLIER = 1.1;
 export const BATCH_MULTIPLIER = 0.5;
@@ -114,12 +136,8 @@ const SNAPSHOT_SUFFIX = /^-\d{8}$/;
  * when the model has no price.
  */
 export function priceFor(list: AiPriceList, model: string, promptTokens: number): TokenRates | null {
-  const exact = list.models.find((entry) => entry.model === model);
-  const entry =
-    exact ??
-    list.models
-      .filter((candidate) => model.startsWith(candidate.model) && SNAPSHOT_SUFFIX.test(model.slice(candidate.model.length)))
-      .sort((a, b) => b.model.length - a.model.length)[0];
+  // The admin's list first; then the review's fallback models, which Anthropic may serve but no admin picks.
+  const entry = listedEntry(list.models, model) ?? listedEntry(FALLBACK_MODEL_PRICES, model);
   if (!entry) return null;
   const rates = entry.longPrompt && promptTokens > entry.longPrompt.aboveTokens ? entry.longPrompt : entry;
   return {

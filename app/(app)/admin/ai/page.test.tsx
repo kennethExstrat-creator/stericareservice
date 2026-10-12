@@ -218,7 +218,7 @@ describe("the views", () => {
   });
 
   it("says which chosen model has no price, linking to the price list", async () => {
-    vi.mocked(readAiSettingsView).mockResolvedValue({ ...VIEW, reviewModel: "claude-opus-4-8" });
+    vi.mocked(readAiSettingsView).mockResolvedValue({ ...VIEW, reviewModel: "claude-sonnet-4-9" });
     const html = await render({ view: "inspection" });
     expect(html.match(/No price for this model yet/g)).toHaveLength(1);
     expect(html).toMatch(/add it under <a [^>]*href="\/admin\/ai\?view=cost#price-list"[^>]*>Steri-AI Cost<\/a>\./);

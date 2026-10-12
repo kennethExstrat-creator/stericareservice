@@ -56,7 +56,11 @@ describe("the price list", () => {
     expect(priceFor(DEFAULT_AI_PRICES, "claude-haiku-5-5", 100_000)?.input).toBe(0.1);
     expect(priceFor(DEFAULT_AI_PRICES, "claude-haiku-5-5", 100_001)).toEqual({ input: 0.5, output: 2.5, cacheWrite5m: 0.625, cacheWrite1h: 1, cacheRead: 0.05 });
     // Another version is not a snapshot: it needs its own price.
-    expect(priceFor({ ...DEFAULT_AI_PRICES, models: [{ ...extra, model: "claude-opus-4" }] }, "claude-opus-4-8", 10)).toBeNull();
-    expect(priceFor(DEFAULT_AI_PRICES, "claude-opus-4-8", 10)).toBeNull();
+    expect(priceFor({ ...DEFAULT_AI_PRICES, models: [{ ...extra, model: "claude-sonnet-4" }] }, "claude-sonnet-4-9", 10)).toBeNull();
+    expect(priceFor(DEFAULT_AI_PRICES, "claude-sonnet-4-9", 10)).toBeNull();
+    // The review's fallback models have built-in prices; a saved entry for one wins.
+    expect(priceFor(DEFAULT_AI_PRICES, "claude-opus-4-8", 10)).toEqual({ input: 5, output: 25, cacheWrite5m: 6.25, cacheWrite1h: 10, cacheRead: 0.5 });
+    expect(priceFor(DEFAULT_AI_PRICES, "claude-opus-5-20260601", 10)?.output).toBe(25);
+    expect(priceFor({ ...DEFAULT_AI_PRICES, models: [...DEFAULT_AI_PRICES.models, { ...extra, model: "claude-opus-5", input: 7 }] }, "claude-opus-5", 10)?.input).toBe(7);
   });
 });
