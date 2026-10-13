@@ -152,6 +152,22 @@ describe("the STD_EG example's export, through the real modules", () => {
     });
   });
 
+  it("sends the report's drawn signature, and none once the report is to be signed by hand after export", async () => {
+    const signed = await exportOf();
+    expect(signed.doc.conclusion.signAfterExport).toBe(false);
+    expect(moduleOf(signed.doc, "conclusion").data.signature).toMatchObject({ width: 600, height: 200 });
+
+    // To Sign After Exported (Kenneth, 13 October 2026): the strokes stay saved, the export leaves them out.
+    const data = stdEgInspectionData({ labReportFileId: STD_EG_IDS.fileLabReport, signAfterExport: true });
+    expect((data.modules.conclusion as { signature: unknown }).signature).not.toBeNull();
+    const record = stdEgRecord({ data });
+    const { doc } = await exportOf(stdEgTables(record), stdEgObjects(record));
+    expect(ExportSchema.safeParse(doc).success).toBe(true);
+    expect(doc.conclusion).toMatchObject({ finalResult: "pass", signAfterExport: true });
+    expect(moduleOf(doc, "conclusion").data).toMatchObject({ signAfterExport: true, signature: null });
+    expect(moduleOf(doc, "conclusion").result.summary).toMatch(/ To be signed after export\.$/);
+  });
+
   it("lists a module switched off for the inspection, with the reason, instead of exporting it", async () => {
     const record = stdEgRecord({
       moduleOverrides: { dimensions: { reason: "Calipers out for calibration.", by: ADMIN.id, at: "2025-04-11T08:00:00+00:00" } },

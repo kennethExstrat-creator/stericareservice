@@ -65,11 +65,17 @@ export type StdEgDataOptions = {
   comments?: Readonly<Record<string, string>>;
   /** The conclusion's remark. Default: none, as on the report. */
   remark?: string | null;
+  /**
+   * The conclusion's To Sign After Exported (Kenneth, 13 October 2026): the
+   * report signed by hand after export, the drawn signature still saved.
+   * Default false, as on the report.
+   */
+  signAfterExport?: boolean;
 };
 
 /** The whole report as saved inspection data (`inspections.data`). */
 export function stdEgInspectionData(options: StdEgDataOptions = {}): InspectionData {
-  const { corrected = true, labReportFileId = null, comments = {}, remark = null } = options;
+  const { corrected = true, labReportFileId = null, comments = {}, remark = null, signAfterExport = false } = options;
   const modules: Record<string, Record<string, unknown>> = {
     header: headerData(),
     glove_info: gloveInfoData(),
@@ -84,7 +90,7 @@ export function stdEgInspectionData(options: StdEgDataOptions = {}): InspectionD
     visual: visualData(),
     dispensing_packing: dispensingPackingData(),
     labeling: labelingData(),
-    conclusion: conclusionData(remark),
+    conclusion: conclusionData(remark, signAfterExport),
   };
   for (const [key, comment] of Object.entries(comments)) {
     modules[key] = { ...(modules[key] ?? {}), comment };
@@ -330,8 +336,12 @@ function labelingData(): LabelingData {
   };
 }
 
-/** The final result as printed, the conclusion's date, and a drawn signature (the report is signed). */
-function conclusionData(remark: string | null): ConclusionData {
+/**
+ * The final result as printed, the conclusion's date, and a drawn signature
+ * (the report is signed), kept when the report is to be signed by hand after
+ * export instead.
+ */
+function conclusionData(remark: string | null, signAfterExport: boolean): ConclusionData {
   const { conclusion } = EXAMPLE;
   return {
     finalResult: conclusion.printedResult === "PASSED" ? "pass" : "fail",
@@ -340,6 +350,7 @@ function conclusionData(remark: string | null): ConclusionData {
     inspectionSummary: null,
     date: picked(conclusion.date),
     signature: conclusion.signed ? { width: 600, height: 200, strokes: [[40, 150, 120, 60, 200, 140, 300, 70]] } : null,
+    signAfterExport,
   };
 }
 

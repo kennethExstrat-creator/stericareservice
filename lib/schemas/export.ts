@@ -184,6 +184,14 @@ export const ExportConclusionSchema = z.object({
    * Optional, so documents written before it existed still validate.
    */
   inspectionSummary: ExportRichTextSchema.nullable().optional(),
+  /**
+   * To Sign After Exported (Kenneth, 13 October 2026): true when the report
+   * is to be signed by hand once printed. The conclusion module's `data`
+   * then carries `signature: null`, so the report leaves the signature line
+   * blank for the pen. Optional, so documents written before it existed
+   * still validate.
+   */
+  signAfterExport: z.boolean().optional(),
 });
 export type ExportConclusion = z.infer<typeof ExportConclusionSchema>;
 

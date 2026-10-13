@@ -10,7 +10,9 @@ import { MODULE_KEYS, type ModuleKey } from "@/lib/schemas";
  * The Record type makes a new module key fail the build until it is
  * described below. Since Kenneth's decisions of 12 October 2026, box
  * numbers are the inspector's own, never carton numbers (BUILD_SPEC 6.2
- * rule 7), and weight weighs the sampling plan's # Gloves for Weight.
+ * rule 7), and weight weighs the sampling plan's # Gloves for Weight. Since
+ * 13 October 2026 a conclusion may be signed by hand after export
+ * (signAfterExport), its signature then null.
  * ------------------------------------------------------------------ */
 
 const MODULE_GUIDE: Record<ModuleKey, string> = {
@@ -44,7 +46,7 @@ const MODULE_GUIDE: Record<ModuleKey, string> = {
   labeling:
     "per size and level (inner unit, carton): boxes inspected, the box numbers the inspector typed if any (the inspector's own, not carton numbers), and defects per check (lot number, manufacturing date, expiry date, artwork, carton number). Any defect fails (accept 0, reject 1).",
   conclusion:
-    "the app's suggested result, the inspector's final result (pass, fail or hold), remark, date and signature. The Inspection Summary is in the export's conclusion block.",
+    "the app's suggested result, the inspector's final result (pass, fail or hold), remark, date and signature; signAfterExport true means the report is signed by hand after export, so no signature is drawn. The Inspection Summary is in the export's conclusion block.",
   dye_leak: "surgical gloves, per size: pouches tested and pouches failed. Any failure fails.",
   documents:
     "certificates and reports, each verified, not verified or not applicable, with reference and expiry. Fails if a required item is not verified; warns if one has expired.",

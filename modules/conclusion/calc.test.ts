@@ -33,7 +33,14 @@ const SIGNED = addStroke(
   encodeStroke([{ x: 160, y: 120 }, { x: 260, y: 110 }]),
 );
 
-const FILLED: ConclusionData = { finalResult: "pass", remark: null, inspectionSummary: null, date: "2025-04-12", signature: SIGNED };
+const FILLED: ConclusionData = {
+  finalResult: "pass",
+  remark: null,
+  inspectionSummary: null,
+  date: "2025-04-12",
+  signature: SIGNED,
+  signAfterExport: false,
+};
 
 function results(statuses: Readonly<Partial<Record<ModuleKey, ModuleStatus>>>): Results {
   return Object.fromEntries(Object.entries(statuses).map(([key, status]) => [key, { status, summary: "" }]));
@@ -68,6 +75,8 @@ function conclusionOf(example: ExampleReport): ConclusionData {
     inspectionSummary: null,
     date: conclusion.date.iso,
     signature: conclusion.signed ? SIGNED : null,
+    // Not on the paper forms: both are signed on the report.
+    signAfterExport: false,
   };
 }
 
@@ -206,6 +215,29 @@ describe("conclusion", () => {
       expect(calcConclusion(input({ ...FILLED, signature: null })).result).toEqual({
         status: "pass",
         summary: "Conclusion: PASSED. Suggested Result: PASSED. Not signed.",
+      });
+    });
+
+    it("says the report is to be signed after export while To Sign After Exported is on, strokes drawn or not", () => {
+      for (const signature of [null, SIGNED]) {
+        expect(calcConclusion(input({ ...FILLED, signature, signAfterExport: true })).result).toEqual({
+          status: "pass",
+          summary: "Conclusion: PASSED. Suggested Result: PASSED. To be signed after export.",
+        });
+      }
+      // Off again: the drawing counts as before.
+      expect(calcConclusion(input(FILLED)).result.summary).toBe("Conclusion: PASSED. Suggested Result: PASSED.");
+    });
+
+    it("keeps every other message with the switch on: not done without the date, the result and the suggestion", () => {
+      // The switch changes only how the report is signed (the screen dates the conclusion as it goes on).
+      expect(calcConclusion(input({ finalResult: "pass", signAfterExport: true })).result).toEqual({
+        status: "not_done",
+        summary: "Missing: Date. Suggested Result: PASSED.",
+      });
+      expect(calcConclusion(input({ ...FILLED, finalResult: "fail", signAfterExport: true }, { moduleResults: results({ visual: "fail" }) })).result).toEqual({
+        status: "fail",
+        summary: "Conclusion: FAILED. Suggested Result: FAILED (failed: Visual). To be signed after export.",
       });
     });
   });

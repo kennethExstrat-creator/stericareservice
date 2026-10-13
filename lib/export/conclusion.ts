@@ -1,4 +1,4 @@
-import { InspectionResultSchema, type InspectionResult } from "@/lib/schemas/common";
+import { InspectionResultSchema, type InspectionResult, type JsonValue } from "@/lib/schemas/common";
 import { RichTextDocSchema, type RichTextDoc } from "@/lib/schemas/rich-text";
 
 /** The inspector's final result and remark. */
@@ -35,6 +35,27 @@ export function inspectionSummaryOf(conclusionData: unknown): RichTextDoc | null
   const saved = isRecord(conclusionData) ? conclusionData.inspectionSummary : null;
   const parsed = RichTextDocSchema.safeParse(saved);
   return parsed.success ? parsed.data : null;
+}
+
+/**
+ * Whether the report is to be signed by hand after it is exported
+ * (`conclusion.signAfterExport`, To Sign After Exported; Kenneth, 13 October
+ * 2026): true only when the conclusion's data says so, so data saved before
+ * the switch existed reads as false.
+ */
+export function signAfterExportOf(conclusionData: unknown): boolean {
+  return isRecord(conclusionData) && conclusionData.signAfterExport === true;
+}
+
+/**
+ * The conclusion's data as the export sends it: while the report is to be
+ * signed by hand after export, without a drawn signature (`signature`
+ * null), so the report leaves its signature line blank for the pen. The
+ * strokes stay in the inspection's data, for when the switch goes off.
+ */
+export function conclusionDataForExport(conclusionData: Record<string, JsonValue>): Record<string, JsonValue> {
+  if (!signAfterExportOf(conclusionData) || conclusionData.signature === null) return conclusionData;
+  return { ...conclusionData, signature: null };
 }
 
 function textOrNull(value: unknown): string | null {

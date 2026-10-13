@@ -14,7 +14,7 @@ import { exportIssuesOf } from "@/lib/validation";
 import { readModuleEntry, type ModuleEvaluation } from "@/modules/_framework";
 import { z } from "zod";
 import { richTextHtml, richTextPlain } from "@/lib/rich-text";
-import { inspectionSummaryOf, inspectorDecision } from "./conclusion";
+import { conclusionDataForExport, inspectionSummaryOf, inspectorDecision, signAfterExportOf } from "./conclusion";
 import type { EvaluatedInspection } from "./evaluate";
 import type { FileRecord, InspectionRecord, PhotoRecord } from "./record";
 
@@ -166,8 +166,15 @@ function exportModule(evaluated: EvaluatedInspection, evaluation: ModuleEvaluati
  * What the inspector entered, ordered sizes only, as calc saw it. Data that
  * fails the module's schema has no parsed form; it goes out as saved
  * (without the comment), next to the invalid_data error, so nothing is lost.
+ * The conclusion's goes without its drawn signature while the report is to
+ * be signed by hand after export (conclusionDataForExport).
  */
 function moduleData(evaluated: EvaluatedInspection, evaluation: ModuleEvaluation): Record<string, JsonValue> {
+  const data = enteredData(evaluated, evaluation);
+  return evaluation.key === "conclusion" ? conclusionDataForExport(data) : data;
+}
+
+function enteredData(evaluated: EvaluatedInspection, evaluation: ModuleEvaluation): Record<string, JsonValue> {
   if (isRecord(evaluation.data)) return jsonObject(evaluation.data);
   const saved = readModuleEntry(evaluated.data, "modules", evaluation.key).value;
   return isRecord(saved) ? jsonObject(saved) : {};
@@ -181,6 +188,9 @@ function moduleData(evaluated: EvaluatedInspection, evaluation: ModuleEvaluation
  * conclusion's own (the report date, DATA_DICTIONARY decision 1), or null
  * until it is recorded. The inspection summary goes as HTML for the report
  * and as plain text (lib/rich-text), or null when none is written.
+ * signAfterExport says whether the report is to be signed by hand after
+ * export (Kenneth, 13 October 2026); the module's data then carries no
+ * drawn signature.
  */
 export function conclusionOf(record: InspectionRecord, evaluated: EvaluatedInspection): ExportConclusion {
   const saved = evaluated.report.modules.find((evaluation) => evaluation.key === "conclusion");
@@ -194,6 +204,7 @@ export function conclusionOf(record: InspectionRecord, evaluated: EvaluatedInspe
     inspector: evaluated.inspector,
     date: IsoDateSchema.safeParse(data.date).success ? (data.date as string) : null,
     inspectionSummary: summary ? { html: richTextHtml(summary), text: richTextPlain(summary) } : null,
+    signAfterExport: signAfterExportOf(data),
   };
 }
 

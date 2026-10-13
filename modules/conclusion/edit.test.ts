@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { createDataUpdater } from "@/components/qc/data-updater";
 import { richTextExample } from "@/lib/rich-text/__fixtures__/example";
-import { isoDateOf, withDate, withFinalResult, withInspectionSummary, withRemark, withSignature } from "./edit";
+import {
+  isoDateOf,
+  withDate,
+  withFinalResult,
+  withInspectionSummary,
+  withRemark,
+  withSignAfterExport,
+  withSignature,
+} from "./edit";
 import { ConclusionDataSchema, emptyConclusion, type ConclusionData } from "./schema";
 import { addStroke, MAX_STROKES, type Signature, type SignatureChange } from "./signature";
 
@@ -31,6 +39,30 @@ describe("conclusion edits", () => {
     expect(withSignature(withFull, addStroke(full, [5, 5]), "2025-02-20")).toBe(withFull);
   });
 
+  it("switch To Sign After Exported on and off, dating the conclusion as signing does", () => {
+    const later = withSignAfterExport(emptyConclusion(), true, "2025-02-19");
+    expect(later).toEqual({ ...emptyConclusion(), signAfterExport: true, date: "2025-02-19" });
+    expect(ConclusionDataSchema.parse(later)).toEqual(later);
+    // A date already set stays; switching off keeps it.
+    const dated = withDate(emptyConclusion(), "2025-02-10");
+    expect(withSignAfterExport(dated, true, "2025-02-19").date).toBe("2025-02-10");
+    expect(withSignAfterExport(later, false, "2025-02-20")).toEqual({ ...later, signAfterExport: false });
+  });
+
+  it("never delete the drawn strokes: switched off, the drawing comes back", () => {
+    const signed = withSignature(emptyConclusion(), SIGNATURE, "2025-02-19");
+    const later = withSignAfterExport(signed, true, "2025-02-20");
+    expect(later.signature).toBe(SIGNATURE);
+    expect(withSignAfterExport(later, false, "2025-02-21")).toEqual(signed);
+  });
+
+  it("leave the data as it is when the switch does not change", () => {
+    const off = emptyConclusion();
+    expect(withSignAfterExport(off, false, "2025-02-19")).toBe(off);
+    const on = withSignAfterExport(off, true, "2025-02-19");
+    expect(withSignAfterExport(on, true, "2025-02-20")).toBe(on);
+  });
+
   it("build on each other through the kit's updater, so edits in one event all survive", () => {
     // As Capture wires them (docs/CAPTURE_KIT.md): update((current) => ...), and the pad's
     // changes applied to the latest signature. Two strokes and a result chosen before the
@@ -44,12 +76,14 @@ describe("conclusion edits", () => {
     fromPad((signature) => addStroke(signature, [80, 120, 140, 100]));
     updater.update((current) => withRemark(current, "Released."));
     updater.update((current) => withInspectionSummary(current, richTextExample()));
+    updater.update((current) => withSignAfterExport(current, true, "2025-04-14"));
     expect(changes.at(-1)).toEqual({
       finalResult: "pass",
       remark: "Released.",
       inspectionSummary: richTextExample(),
       date: "2025-04-12",
       signature: { width: 600, height: 200, strokes: [[10, 150, 60, 60], [80, 120, 140, 100]] },
+      signAfterExport: true,
     });
   });
 

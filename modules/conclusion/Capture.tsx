@@ -26,7 +26,11 @@
 //   under the editor says how it went. It writes text only, never a result.
 // - Sign-off: who inspected and the date (both automatic; the date can be
 //   changed with the picker), and the signature drawn on the pad, under a
-//   hairline.
+//   hairline. Above the pad, the switch To Sign After Exported (Kenneth,
+//   13 October 2026): on, the report is signed by hand once it is exported,
+//   so a quiet dashed box the pad's size says so in place of the pad and its
+//   Undo, Redo and Clear; off, the pad comes back with what was drawn.
+//   Read-only, the switch shows its state and cannot be changed.
 // The layout follows the card's body, not the window (a container query on
 // the root): narrower than 896 px, one column the card's full width; from
 // 896 px (a wide desktop window, the iPads in landscape), the remark beside
@@ -38,7 +42,7 @@
 // lives here too: module folders keep React in Capture.tsx
 // (modules/_framework/architecture.test.ts).
 import { useId, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { EraserIcon, Redo2Icon, Undo2Icon } from "lucide-react";
+import { EraserIcon, Redo2Icon, SignatureIcon, Undo2Icon } from "lucide-react";
 import { RadioGroup as RadioGroupPrimitive } from "radix-ui";
 import { cn } from "@/lib/utils";
 import type { Status } from "@/lib/design/status";
@@ -46,6 +50,7 @@ import type { InspectionResult } from "@/lib/schemas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { DateField, findIssue, issuePathProps, StatusIcon, StatusPill, useDataUpdater, useIssueFocus } from "@/components/qc";
 // By their paths, never the indexes: the editor (Tiptap) stays in this Capture's chunk, and
@@ -61,7 +66,15 @@ import { fieldIssues, labelFor, moduleShortTitle, type CaptureProps } from "@/mo
 import { useSummaryAssist } from "@/modules/_framework/summary-assist";
 import type { ConclusionComputed, ConclusionConfig, ConclusionData } from ".";
 import { conclusionReasons, resultWord } from "./calc";
-import { isoDateOf, withDate, withFinalResult, withInspectionSummary, withRemark, withSignature } from "./edit";
+import {
+  isoDateOf,
+  withDate,
+  withFinalResult,
+  withInspectionSummary,
+  withRemark,
+  withSignAfterExport,
+  withSignature,
+} from "./edit";
 import {
   addStroke,
   boxOf,
@@ -140,6 +153,8 @@ export default function Capture({
     summary: `${baseId}-summary`,
     inspector: `${baseId}-inspector`,
     date: `${baseId}-date`,
+    signLater: `${baseId}-sign-later`,
+    signLaterNote: `${baseId}-sign-later-note`,
   };
 
   // The choice's label says what the card's title says in every seed template
@@ -337,14 +352,43 @@ export default function Capture({
             />
           </div>
 
-          <SignaturePad
-            value={data.signature}
-            onChange={(change) => update((current) => withSignature(current, change(current.signature), today()))}
-            label={labelFor(labels, "signature")}
-            signer={inspector?.name}
-            readOnly={readOnly}
-            {...issuePathProps(["signature"])}
-          />
+          {/* The signature: To Sign After Exported above its heading, then the pad, or the note in its place. */}
+          <div className="min-w-0 space-y-2">
+            <div className="flex min-h-8 items-center gap-3 touch:min-h-11">
+              <Switch
+                id={ids.signLater}
+                checked={data.signAfterExport}
+                onCheckedChange={(on) => update((current) => withSignAfterExport(current, on, today()))}
+                disabled={readOnly}
+                aria-describedby={data.signAfterExport ? ids.signLaterNote : undefined}
+                {...issuePathProps(["signAfterExport"])}
+              />
+              {/* Wrapped, so not the switch's sibling: Label fades beside a disabled peer, and read-only it is still read. */}
+              <span className="min-w-0">
+                <Label htmlFor={ids.signLater} className="leading-snug touch:text-base">
+                  {labelFor(labels, "signAfterExport")}
+                </Label>
+              </span>
+            </div>
+            {data.signAfterExport ? (
+              <SignLaterNote
+                label={labelFor(labels, "signature")}
+                box={boxOf(data.signature)}
+                noteId={ids.signLaterNote}
+                readOnly={readOnly}
+                {...issuePathProps(["signature"])}
+              />
+            ) : (
+              <SignaturePad
+                value={data.signature}
+                onChange={(change) => update((current) => withSignature(current, change(current.signature), today()))}
+                label={labelFor(labels, "signature")}
+                signer={inspector?.name}
+                readOnly={readOnly}
+                {...issuePathProps(["signature"])}
+              />
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -579,6 +623,52 @@ export function SignaturePad({ value, onChange, label, signer, readOnly = false,
       <p className="sr-only" aria-live="polite">
         {announcement}
       </p>
+    </div>
+  );
+}
+
+/** What the note in the pad's place says (To Sign After Exported). */
+const SIGN_LATER_NOTE = "The report will be signed by hand after it is exported.";
+
+type SignLaterNoteProps = {
+  /** The template's wording for the signature, e.g. "Signature". */
+  label: string;
+  /** The pad's box, so the note takes the pad's size. */
+  box: SignatureBox;
+  /** The note's id: it describes the switch. */
+  noteId: string;
+  readOnly?: boolean;
+  /** Marks the note for issue links (useIssueFocus), as the pad is. */
+  "data-issue-path"?: string;
+  className?: string;
+};
+
+/**
+ * In the pad's place while the report is to be signed by hand after it is
+ * exported (To Sign After Exported; Kenneth, 13 October 2026), read-only
+ * too: the pad's heading without Undo, Redo and Clear, over a quiet dashed
+ * box the pad's size that says so. Its heading row is as tall as the pad's,
+ * so switching moves nothing. The strokes stay in the data for when the
+ * switch goes off.
+ */
+export function SignLaterNote({ label, box, noteId, readOnly = false, className, ...rest }: SignLaterNoteProps) {
+  const labelId = `${noteId}-label`;
+  return (
+    <div role="group" aria-labelledby={labelId} data-slot="signature-later" className={cn("relative space-y-2", className)} {...rest}>
+      <div className={cn("flex items-center", !readOnly && "min-h-8 touch:min-h-11")}>
+        <span id={labelId} className="text-sm font-medium text-foreground touch:text-base">
+          {label}
+        </span>
+      </div>
+      <div
+        style={{ aspectRatio: `${box.width} / ${box.height}` }}
+        className="flex w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-slate-400 bg-slate-50 px-6 py-4 text-center"
+      >
+        <SignatureIcon aria-hidden className="size-6 shrink-0 text-slate-500 touch:size-7" />
+        <p id={noteId} className="text-sm text-muted-foreground touch:text-base">
+          {SIGN_LATER_NOTE}
+        </p>
+      </div>
     </div>
   );
 }

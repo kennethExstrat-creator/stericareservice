@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { ModuleKey } from "@/lib/schemas";
 import { MODULE_REGISTRY } from "@/modules/registry";
-import { evaluateInspection, type InspectionContext, type ModuleEvaluation } from "@/modules/_framework";
+import { effectiveLabels, evaluateInspection, type InspectionContext, type ModuleEvaluation } from "@/modules/_framework";
 import { makeTestContext, makeTestTemplate, TEST_INSPECTOR } from "@/modules/_framework/testing";
 import { SAFEDON_EG_EXAMPLE } from "@/tests/fixtures/examples";
 import { richTextExample } from "@/lib/rich-text/__fixtures__/example";
@@ -14,6 +14,7 @@ import { SummaryAssistProvider, type SummaryAssist } from "@/modules/_framework/
 import Capture, { SignaturePad } from "./Capture";
 import type { ConclusionComputed } from "./calc";
 import { CONCLUSION_DEFAULT_CONFIG, CONCLUSION_LABELS } from "./config";
+import { definition } from "./index";
 import { emptyConclusion, type ConclusionData } from "./schema";
 import { addStroke, MAX_STROKES, strokePath } from "./signature";
 
@@ -123,6 +124,25 @@ const buttons = (html: string) =>
     ([tag, text]) =>
       `${text}${/\saria-disabled="true"/.test(tag) ? " (unavailable)" : ""}${/\sdisabled=""/.test(tag) ? " (disabled)" : ""}`,
   );
+
+/** What the note in the pad's place says while To Sign After Exported is on. */
+const NOTE = "The report will be signed by hand after it is exported.";
+
+/** The switch To Sign After Exported: its opening tag. */
+const switchTag = (html: string): string => /<button[^>]*role="switch"[^>]*>/.exec(html)?.[0] ?? "";
+
+/** The text of the label pointing at the control whose opening tag is given. */
+const labelOf = (html: string, tag: string): string | undefined => {
+  const id = /\sid="([^"]+)"/.exec(tag)?.[1];
+  const label = [...html.matchAll(/<label([^>]*)>([^<]*)<\/label>/g)].find(([, attributes]) => attributes.includes(`for="${id}"`));
+  return id === undefined ? undefined : label?.[2];
+};
+
+/** The note in the pad's place, from its opening tag to the end of the markup (the sign-off ends the card). */
+const noteOf = (html: string): string => {
+  const at = html.indexOf('data-slot="signature-later"');
+  return at === -1 ? "" : html.slice(html.lastIndexOf("<div", at));
+};
 
 describe("conclusion capture", () => {
   it("shows the suggested result as every result pill says it, with the modules behind it", () => {
@@ -295,13 +315,102 @@ describe("conclusion capture", () => {
     expect(html).toMatch(/<p id="[^"]+" class="[^"]*\bsr-only\b[^"]*"><span class="sr-only">Signed by Inspector A\.<\/span><\/p>/);
   });
 
+  describe("To Sign After Exported (Kenneth, 13 October 2026)", () => {
+    const SIGNED_CONCLUSION = { finalResult: "pass", date: "2025-04-12", signature: SIGNED } as const;
+
+    it("is a switch above the signature's heading, off at first, with the pad as before", () => {
+      const html = render(SIGNED_CONCLUSION);
+      const tag = switchTag(html);
+      expect(tag).toContain('aria-checked="false"');
+      expect(tag).not.toMatch(/\sdisabled=""/);
+      expect(tag).not.toContain("aria-describedby");
+      // Named by its label, which a tap toggles too.
+      expect(labelOf(html, tag)).toBe("To Sign After Exported");
+      expect(html.indexOf('role="switch"')).toBeLessThan(html.indexOf('data-slot="signature-pad"'));
+      expect(html).not.toContain('data-slot="signature-later"');
+      expect(buttons(html)).toEqual(expect.arrayContaining(["Undo", "Redo (unavailable)", "Clear"]));
+      expect(html).toContain(`d="${strokePath(SIGNED.strokes[0])}"`);
+    });
+
+    it("keeps its label at full strength beside a read-only switch: not the switch's sibling, which Label would fade", () => {
+      // Radix renders a hidden input after the switch until it knows it sits outside a form.
+      for (const readOnly of [false, true]) {
+        expect(render(SIGNED_CONCLUSION, { readOnly })).toMatch(
+          /role="switch"[^>]*><span[^>]*><\/span><\/button>(?:<input[^>]*>)?<span class="min-w-0"><label /,
+        );
+      }
+    });
+
+    it("puts a quiet dashed note the pad's size in place of the pad and its Undo, Redo and Clear", () => {
+      const html = render({ ...SIGNED_CONCLUSION, signAfterExport: true });
+      expect(switchTag(html)).toContain('aria-checked="true"');
+      expect(html).not.toContain('data-slot="signature-pad"');
+      expect(html).not.toContain('role="img"');
+      for (const control of ["Undo", "Redo", "Clear"]) expect(html).not.toContain(`</svg>${control}</button>`);
+      // The strokes stay in the data, undrawn.
+      expect(html).not.toContain(`d="${strokePath(SIGNED.strokes[0])}"`);
+      const note = noteOf(html);
+      expect(note).toMatch(/<div style="aspect-ratio:600 \/ 200" class="[^"]*\bborder-dashed\b[^"]*">/);
+      expect(note).toContain(`>${NOTE}</p>`);
+      // Headed by the template's word for the signature, as the pad is, and as tall as the pad's heading with its buttons.
+      expect(note).toMatch(/^<div role="group" aria-labelledby="([^"]+)" data-slot="signature-later"[^>]*><div class="flex items-center min-h-8 touch:min-h-11"><span id="\1"[^>]*>Signature<\/span>/);
+    });
+
+    it("lets the note describe the switch, so a screen reader hears what it means", () => {
+      const html = render({ ...SIGNED_CONCLUSION, signAfterExport: true });
+      const describedBy = /aria-describedby="([^"]+)"/.exec(switchTag(html))?.[1];
+      expect(describedBy).toBeDefined();
+      expect(html).toContain(`<p id="${describedBy}" class="text-sm text-muted-foreground touch:text-base">${NOTE}</p>`);
+    });
+
+    it("takes the size of an older signature's pad, and the template's words", () => {
+      const older = render({ signature: { width: 800, height: 200, strokes: [[700, 50]] }, signAfterExport: true });
+      expect(noteOf(older)).toContain('style="aspect-ratio:800 / 200"');
+      const worded = render(
+        { signAfterExport: true },
+        { labels: { ...CONCLUSION_LABELS, signAfterExport: "Sign on Paper After Export", signature: "Inspector's Signature" } },
+      );
+      expect(labelOf(worded, switchTag(worded))).toBe("Sign on Paper After Export");
+      expect(noteOf(worded)).toContain(">Inspector&#x27;s Signature</span>");
+    });
+
+    it("falls back to its default label in a template saved before it existed", () => {
+      const saved: Record<string, string> = { ...CONCLUSION_LABELS };
+      delete saved.signAfterExport;
+      const labels = effectiveLabels(definition, { labels: saved });
+      const html = render({}, { labels });
+      expect(labelOf(html, switchTag(html))).toBe("To Sign After Exported");
+    });
+
+    it("shows the same note read-only, the switch on but not to be changed", () => {
+      const html = render({ ...SIGNED_CONCLUSION, signAfterExport: true }, { readOnly: true });
+      const tag = switchTag(html);
+      expect(tag).toContain('aria-checked="true"');
+      expect(tag).toMatch(/\sdisabled=""/);
+      expect(noteOf(html)).toContain(`>${NOTE}</p>`);
+      expect(html).not.toContain('data-slot="signature-pad"');
+      expect(html).not.toContain("Signed by Inspector A.");
+      // No buttons beside the heading read-only, so no room kept for them.
+      expect(noteOf(html)).toMatch(/<div class="flex items-center"><span /);
+    });
+
+    it("shows the switch off read-only beside the signed pad", () => {
+      const html = render(SIGNED_CONCLUSION, { readOnly: true });
+      expect(switchTag(html)).toContain('aria-checked="false"');
+      expect(switchTag(html)).toMatch(/\sdisabled=""/);
+      expect(html).toContain('data-slot="signature-pad"');
+      expect(html).toContain("Signed by Inspector A.");
+      expect(html).not.toContain(NOTE);
+    });
+  });
+
   it("marks the fields for the links in the issue list", () => {
-    const paths = tagsWith(render({}), "data-issue-path").map((tag) => /data-issue-path="([^"]+)"/.exec(tag)?.[1]);
-    expect(paths).toEqual(
-      ['["finalResult"]', '["remark"]', '["inspectionSummary"]', '["date"]', '["signature"]'].map((path) =>
-        path.replaceAll('"', "&quot;"),
-      ),
-    );
+    const expected = ['["finalResult"]', '["remark"]', '["inspectionSummary"]', '["date"]', '["signAfterExport"]', '["signature"]'];
+    // With the switch on, the note in the pad's place carries the signature's path.
+    for (const html of [render({}), render({ signAfterExport: true })]) {
+      const paths = tagsWith(html, "data-issue-path").map((tag) => /data-issue-path="([^"]+)"/.exec(tag)?.[1]);
+      expect(paths).toEqual(expected.map((path) => path.replaceAll('"', "&quot;")));
+    }
   });
 
   it("puts the inspection summary after the remark and before the sign-off, so Tab reads in order", () => {
@@ -386,6 +495,7 @@ describe("conclusion capture", () => {
     expect(html).not.toContain('role="toolbar"');
     expect(html).toMatch(/<div role="textbox" aria-readonly="true"[^>]*class="[^"]*bg-muted[^"]*"[^>]*><div[^>]*><p class="text-center"><strong>Shipment /);
     expect(html).toMatch(/<input[^>]*type="date"[^>]*readonly=""/i);
+    expect(switchTag(html)).toMatch(/\sdisabled=""/);
     for (const control of ["Undo", "Redo", "Clear"]) expect(html).not.toContain(`</svg>${control}</button>`);
     expect(html).toContain("Signed by Inspector A.");
   });

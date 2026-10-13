@@ -232,6 +232,48 @@ describe("buildInspectionExport", () => {
       inspector: { id: IDS.inspector, name: "Inspector A" },
       date: null,
       inspectionSummary: null,
+      // Data saved before To Sign After Exported existed: signed on the pad, as before.
+      signAfterExport: false,
+    });
+  });
+
+  describe("To Sign After Exported (Kenneth, 13 October 2026)", () => {
+    const STROKES = { width: 600, height: 200, strokes: [[40, 150, 120, 60, 200, 140]] };
+
+    /** The export with the real conclusion module, its data as given. */
+    async function exportWithConclusion(conclusion: Record<string, unknown>) {
+      const data = makeInspectionData();
+      data.modules.conclusion = { ...data.modules.conclusion, ...conclusion } as typeof data.modules.conclusion;
+      const fake = setup({ tables: { ...makeTables(), inspections: [makeInspectionRow({ data })] } });
+      return exportOf(fake, { registry: registryWith({ conclusion: conclusionModule }) });
+    }
+
+    it("says so in the conclusion block and sends no drawn signature, so the report leaves the line blank", async () => {
+      const doc = await exportWithConclusion({ signature: STROKES, signAfterExport: true });
+      expect(doc.conclusion.signAfterExport).toBe(true);
+      expect(moduleOf(doc, "conclusion").data).toMatchObject({ signAfterExport: true, signature: null });
+      expect(ExportSchema.parse(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
+    });
+
+    it("sends the drawn signature while it is off", async () => {
+      const doc = await exportWithConclusion({ signature: STROKES, signAfterExport: false });
+      expect(doc.conclusion.signAfterExport).toBe(false);
+      expect(moduleOf(doc, "conclusion").data).toMatchObject({ signAfterExport: false, signature: STROKES });
+    });
+
+    it("reads data saved before it existed as off, the signature as drawn", async () => {
+      const doc = await exportWithConclusion({ signature: STROKES });
+      expect(doc.conclusion.signAfterExport).toBe(false);
+      expect(moduleOf(doc, "conclusion").data).toMatchObject({ signAfterExport: false, signature: STROKES });
+    });
+
+    it("sends no drawn signature from data it cannot read either, while the saved data has the switch on", async () => {
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      // An unknown key: the conclusion's data fails its schema and goes out as saved, beside the error.
+      const doc = await exportWithConclusion({ signature: STROKES, signAfterExport: true, unknownKey: 1 });
+      expect(moduleOf(doc, "conclusion").errors?.map((issue) => issue.code)).toContain("invalid_data");
+      expect(moduleOf(doc, "conclusion").data).toMatchObject({ signAfterExport: true, signature: null, unknownKey: 1 });
+      error.mockRestore();
     });
   });
 

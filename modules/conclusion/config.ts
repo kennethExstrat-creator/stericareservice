@@ -7,7 +7,9 @@ export const CONCLUSION_TITLE = "Conclusion";
 /**
  * Data field keys and captions (docs/DATA_DICTIONARY.md, conclusion). The
  * words for each result are the template's: the reports print PASSED or
- * FAILED; the app adds HOLD.
+ * FAILED; the app adds HOLD. A template saved before a label existed shows
+ * its default here (effectiveLabels), so To Sign After Exported (Kenneth,
+ * 13 October 2026) needed no template published.
  */
 export const CONCLUSION_LABELS = {
   suggestedResult: "Suggested Result",
@@ -17,6 +19,7 @@ export const CONCLUSION_LABELS = {
   inspector: "Inspected By",
   date: "Date",
   signature: "Signature",
+  signAfterExport: "To Sign After Exported",
   pass: "PASSED",
   fail: "FAILED",
   hold: "HOLD",

@@ -500,7 +500,7 @@ Report module. Captures: Per size, per level (inner unit, carton): boxes inspect
 
 ### `conclusion`: Conclusion
 
-Report module, always on. Captures: Suggested result, final result, remark, inspection summary (formatted text), inspector, date and the signature drawn on the iPad. Result: The final result as chosen; not_done until it is chosen. Rules (6.2): 2, 3, 11.
+Report module, always on. Captures: Suggested result, final result, remark, inspection summary (formatted text), inspector, date and the signature drawn on the iPad, or the choice to sign the report by hand after it is exported. Result: The final result as chosen; not_done until it is chosen. Rules (6.2): 2, 3, 11.
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
@@ -511,6 +511,7 @@ Report module, always on. Captures: Suggested result, final result, remark, insp
 | `inspector` | Inspected By |  | reference |  | inspection | system | 11 | Column `inspections.inspector_id`. The same person as header.inspector, shown beside the signature (SAFEDON_EG prints it here). |
 | `date` | Date |  | date |  | inspection | entered | 3 | Prefilled from today, when the conclusion is signed. The report date: BUILD_SPEC 6.1 lists it under header, both reports print it once, here. |
 | `signature` | Signature |  | signature |  | inspection | entered |  | Drawn on the iPad (BUILD_SPEC 6.1; bucket signatures). BUILD_SPEC 13 asks whether clients accept it. |
+| `signAfterExport` | To Sign After Exported |  | yes_no |  | inspection | entered |  | Kenneth, 13 October 2026: the report is signed by hand after it is exported. On, the screen shows a note in place of the pad, the summary says "To be signed after export.", and the export says so in its conclusion block and sends the signature as null; drawn strokes stay in the data. Switching it on dates the conclusion, as signing does. Off by default; not on the paper forms. |
 
 No config.
 

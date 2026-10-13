@@ -2,8 +2,8 @@
 // data from the data they are given, never changing it. Capture applies them
 // to the latest data through useDataUpdater (docs/CAPTURE_KIT.md), so edits
 // made in one event build on each other. The date is automatic: it becomes
-// today when the result is chosen or the signature drawn, and stays as set
-// after that.
+// today when the result is chosen, the signature drawn or To Sign After
+// Exported switched on, and stays as set after that.
 import type { InspectionResult } from "@/lib/schemas";
 import type { RichTextDoc } from "@/lib/schemas/rich-text";
 import { DateCellSchema } from "@/modules/_framework";
@@ -27,6 +27,17 @@ export function withFinalResult(data: ConclusionData, finalResult: InspectionRes
 export function withSignature(data: ConclusionData, signature: Signature | null, today: string): ConclusionData {
   if (signature === data.signature) return data;
   return { ...data, signature, date: signature === null ? data.date : (data.date ?? today) };
+}
+
+/**
+ * To Sign After Exported (Kenneth, 13 October 2026): on, the report is
+ * signed by hand once it is exported. Switching it on dates the conclusion
+ * if nothing has, as signing does. The drawn strokes stay either way, so
+ * switching it off brings the drawing back. The same choice changes nothing.
+ */
+export function withSignAfterExport(data: ConclusionData, on: boolean, today: string): ConclusionData {
+  if (data.signAfterExport === on) return data;
+  return { ...data, signAfterExport: on, date: on ? (data.date ?? today) : data.date };
 }
 
 /** Text as typed; blank is no remark. */

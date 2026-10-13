@@ -155,6 +155,20 @@ describe("ExportSchema", () => {
     expect(issuePaths(doc)).toEqual(expect.arrayContaining(["inspector.id", "photos.0.id"]));
   });
 
+  it("carries To Sign After Exported in the conclusion block, and accepts a document written before it", () => {
+    for (const signAfterExport of [true, false]) {
+      const doc = makeStdEgExport();
+      doc.conclusion.signAfterExport = signAfterExport;
+      expect(ExportSchema.parse(JSON.parse(JSON.stringify(doc))).conclusion.signAfterExport).toBe(signAfterExport);
+    }
+    const older = makeStdEgExport();
+    delete older.conclusion.signAfterExport;
+    expect(parse(older).success).toBe(true);
+    const wrong = makeStdEgExport();
+    Object.assign(wrong.conclusion, { signAfterExport: "yes" });
+    expect(issuePaths(wrong)).toContain("conclusion.signAfterExport");
+  });
+
   it("accepts open results on a draft", () => {
     const doc = makeStdEgExport();
     doc.status = "draft";
@@ -282,6 +296,14 @@ describe("the STD_EG export of the real modules", () => {
     ]);
     expect(doc.modules.flatMap((module) => module.errors ?? [])).toEqual([]);
     expect(doc.conclusion).toMatchObject({ suggestedResult: "pass", finalResult: "pass", remark: null, date: "2025-04-12" });
+  });
+
+  it("is signed on the pad, as the report was: the drawn strokes in the conclusion's data", () => {
+    expect(doc.conclusion.signAfterExport).toBe(false);
+    expect(moduleOf(doc, "conclusion").data).toMatchObject({
+      signAfterExport: false,
+      signature: { width: 600, height: 200, strokes: [expect.any(Array)] },
+    });
   });
 
   it("carries the header's entered values as data, and the inspection row's in computed", () => {

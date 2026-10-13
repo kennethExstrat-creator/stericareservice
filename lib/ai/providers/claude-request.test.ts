@@ -35,6 +35,21 @@ describe("toModelView", () => {
     expect(json).not.toContain('"bulletList"');
   });
 
+  it("passes on To Sign After Exported as the export states it, the signature then null (Kenneth, 13 October 2026)", () => {
+    const doc = makeStdEgExport();
+    expect(toModelView(doc).conclusion.signAfterExport).toBe(false);
+    const later: InspectionExport = {
+      ...doc,
+      modules: doc.modules.map((module) =>
+        module.key === "conclusion" ? { ...module, data: { ...module.data, signature: null, signAfterExport: true } } : module,
+      ),
+      conclusion: { ...doc.conclusion, signAfterExport: true },
+    };
+    const view = toModelView(later);
+    expect(view.conclusion.signAfterExport).toBe(true);
+    expect(view.modules.find((module) => module.key === "conclusion")?.data).toMatchObject({ signature: null, signAfterExport: true });
+  });
+
   it("sends null while no summary is written, and leaves the other modules as they are", () => {
     const doc = makeStdEgExport();
     const view = toModelView(doc);

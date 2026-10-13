@@ -6,11 +6,14 @@
 // submit, so that blocks it, and the blocking issue links to what is
 // missing. A final result that differs from the suggestion is a warning for
 // the reviewer, never an error: the inspector decides. It points at the
-// remark, where the reason goes, so its link lands there. Other modules are
-// named by their titles in the template's wording (context.modules): the
-// summary and the warning reach the review and the export. The section's
-// own line of reasons (conclusionReasons) names them as Capture.tsx asks,
-// by their short names (docs/DESIGN.md, Step Names).
+// remark, where the reason goes, so its link lands there. The summary ends
+// with "Not signed." while nothing is drawn, or with "To be signed after
+// export." while the report is to be signed by hand (To Sign After
+// Exported; Kenneth, 13 October 2026). Other modules are named by their
+// titles in the template's wording (context.modules): the summary and the
+// warning reach the review and the export. The section's own line of
+// reasons (conclusionReasons) names them as Capture.tsx asks, by their
+// short names (docs/DESIGN.md, Step Names).
 import type { InspectionResult, ModuleKey, ModuleResult, ModuleStatus } from "@/lib/schemas";
 import {
   labelFor,
@@ -101,7 +104,8 @@ export function calcConclusion({
     };
   }
 
-  const signed = data.signature === null ? " Not signed." : "";
+  // To Sign After Exported (Kenneth, 13 October 2026): the report is signed by hand later, whatever the pad holds.
+  const signed = data.signAfterExport ? " To be signed after export." : data.signature === null ? " Not signed." : "";
   return {
     result: {
       status: STATUS_OF_RESULT[final],

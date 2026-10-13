@@ -11,24 +11,48 @@ const SIGNATURE = { width: 600, height: 200, strokes: [[10, 150, 40, 60, 80, 140
 
 describe("conclusion data", () => {
   it("starts empty and accepts a draft with anything missing", () => {
-    expect(emptyConclusion()).toEqual({ finalResult: null, remark: null, inspectionSummary: null, date: null, signature: null });
+    expect(emptyConclusion()).toEqual({
+      finalResult: null,
+      remark: null,
+      inspectionSummary: null,
+      date: null,
+      signature: null,
+      signAfterExport: false,
+    });
     expect(ConclusionDataSchema.parse({ finalResult: "hold" })).toEqual({ ...emptyConclusion(), finalResult: "hold" });
   });
 
-  it("holds a whole conclusion: result, remark, summary, date and the drawn strokes", () => {
+  it("holds a whole conclusion: result, remark, summary, date, the drawn strokes and To Sign After Exported", () => {
     const filled = {
       finalResult: "pass",
       remark: "Shipment released.",
       inspectionSummary: richTextExample(),
       date: "2025-04-12",
       signature: SIGNATURE,
+      signAfterExport: false,
     };
     expect(ConclusionDataSchema.parse(filled)).toEqual(filled);
+    // Strokes drawn before the switch went on stay beside it.
+    expect(ConclusionDataSchema.parse({ ...filled, signAfterExport: true })).toEqual({ ...filled, signAfterExport: true });
   });
 
   it("reads a conclusion saved before the summary existed, with none", () => {
     const saved = { finalResult: "pass", remark: "Shipment released.", date: "2025-04-12", signature: SIGNATURE };
-    expect(ConclusionDataSchema.parse(saved)).toEqual({ ...saved, inspectionSummary: null });
+    expect(ConclusionDataSchema.parse(saved)).toEqual({ ...saved, inspectionSummary: null, signAfterExport: false });
+  });
+
+  it("reads a conclusion saved before To Sign After Exported existed as off, its signature kept", () => {
+    const saved = { finalResult: "pass", remark: null, inspectionSummary: null, date: "2025-04-12", signature: SIGNATURE };
+    expect(ConclusionDataSchema.parse(saved)).toEqual({ ...saved, signAfterExport: false });
+  });
+
+  it("takes To Sign After Exported as true or false only", () => {
+    for (const signAfterExport of [true, false]) {
+      expect(ConclusionDataSchema.parse({ signAfterExport }).signAfterExport).toBe(signAfterExport);
+    }
+    for (const signAfterExport of ["true", "yes", 1, null]) {
+      expect(ConclusionDataSchema.safeParse({ signAfterExport }).success, String(signAfterExport)).toBe(false);
+    }
   });
 
   it("keeps the summary as the formatted document, never HTML", () => {

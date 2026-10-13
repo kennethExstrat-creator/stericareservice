@@ -1705,7 +1705,7 @@ const conclusion = defineModule({
   alwaysOn: true,
   title: "Conclusion",
   captures:
-    "Suggested result, final result, remark, inspection summary (formatted text), inspector, date and the signature drawn on the iPad.",
+    "Suggested result, final result, remark, inspection summary (formatted text), inspector, date and the signature drawn on the iPad, or the choice to sign the report by hand after it is exported.",
   result: "The final result as chosen; not_done until it is chosen.",
   rules: [2, 3, 11],
   data: [
@@ -1767,6 +1767,15 @@ const conclusion = defineModule({
       per: [],
       entry: "entered",
       notes: "Drawn on the iPad (BUILD_SPEC 6.1; bucket signatures). BUILD_SPEC 13 asks whether clients accept it.",
+    },
+    {
+      key: "signAfterExport",
+      label: "To Sign After Exported",
+      type: "yes_no",
+      per: [],
+      entry: "entered",
+      notes:
+        "Kenneth, 13 October 2026: the report is signed by hand after it is exported. On, the screen shows a note in place of the pad, the summary says \"To be signed after export.\", and the export says so in its conclusion block and sends the signature as null; drawn strokes stay in the data. Switching it on dates the conclusion, as signing does. Off by default; not on the paper forms.",
     },
   ],
   config: [],

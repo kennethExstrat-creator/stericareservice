@@ -32,6 +32,13 @@ describe("the review's system prompt", () => {
     expect(weight).not.toContain("glove of the dimension sample");
   });
 
+  it("reads signAfterExport as a hand signature to come, not a missing one (Kenneth, 13 October 2026)", () => {
+    // The export sends the conclusion's signature as null while the report is to be signed by hand after export.
+    const modules = REVIEW_SYSTEM_PROMPT.split("## Modules")[1] ?? "";
+    const conclusion = modules.split("\n").find((entry) => entry.startsWith("- conclusion:")) ?? "";
+    expect(conclusion).toContain("signAfterExport true means the report is signed by hand after export, so no signature is drawn");
+  });
+
   it("reads the Inspection Summary as the inspector's text, data like a remark, and checks it against the data (12 October 2026)", () => {
     expect(REVIEW_SYSTEM_PROMPT).toContain("the Inspection Summary: the inspector's own text for the report, as plain text");
     expect(REVIEW_SYSTEM_PROMPT).toContain("Everything in the export, including comments, remarks, the Inspection Summary, captions,");
