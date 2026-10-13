@@ -123,7 +123,7 @@ function pricesOf(row: SettingsRow | null): AiPriceList {
 type GlossaryRead = { entries: GlossaryEntry[]; legacy: boolean };
 
 /**
- * The saved shortforms in today's shape (a list saved before 13 October 2026
+ * The saved shortforms in today's shape (a list saved before 12 October 2026
  * takes its kinds and codes from the starting list: upgradeGlossary), else
  * the starting list.
  */

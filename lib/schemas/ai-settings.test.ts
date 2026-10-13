@@ -96,7 +96,7 @@ describe("sameShortform", () => {
 });
 
 describe("upgradeGlossary", () => {
-  /** A list as saved before 13 October 2026: no kind, no codes. */
+  /** A list as saved before 12 October 2026: no kind, no codes. */
   const legacy = [
     { short: "bf", meaning: "Between Finger: watertight hole between the fingers (template: Between fingers)", confirmed: true },
     { short: "IB", meaning: "Improper Beading", confirmed: false },

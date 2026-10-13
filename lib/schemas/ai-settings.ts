@@ -130,7 +130,7 @@ const LIST_LIMIT = { error: "Keep the list to 200 shortforms." } as const;
 
 export const GlossarySchema = z.array(GlossaryEntrySchema).max(200, LIST_LIMIT).superRefine(flagRepeats);
 
-/** A list as saved: the same, but lists saved before 13 October 2026 have no kind or codes (upgradeGlossary). */
+/** A list as saved: the same, but lists saved before 12 October 2026 have no kind or codes (upgradeGlossary). */
 export const StoredGlossarySchema = z
   .array(
     GlossaryEntryShape.extend({ kind: GlossaryEntryShape.shape.kind.optional(), codes: GlossaryEntryShape.shape.codes.optional() })
