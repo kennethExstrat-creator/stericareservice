@@ -1,21 +1,27 @@
 // Steri-AI Settings' address: which view shows (?view=) and the cost view's
 // filters (?period=, ?currency=), so a reload, a bookmark or Back opens the
-// same view. Anything unknown falls back to the default, and the address
-// leaves defaults out. Pure: the page reads it, the view frame writes it.
+// same view. Anything unknown falls back to the default. The address leaves
+// the default period out but always names the currency, so a link shows what
+// its sender saw; one without it (a link from elsewhere) opens on the
+// viewer's remembered currency, else ringgit (view-frame.tsx,
+// cost-currency.ts). Pure: the page reads it, the view frame writes it.
 
-import { COST_PERIODS, DEFAULT_COST_PERIOD, type CostCurrency, type CostPeriod } from "@/lib/schemas/ai-usage";
+import {
+  COST_CURRENCIES,
+  COST_PERIODS,
+  DEFAULT_COST_CURRENCY,
+  DEFAULT_COST_PERIOD,
+  type CostCurrency,
+  type CostPeriod,
+} from "@/lib/schemas/ai-usage";
 
-export { DEFAULT_COST_PERIOD, type CostCurrency, type CostPeriod };
+export { DEFAULT_COST_CURRENCY, DEFAULT_COST_PERIOD, type CostCurrency, type CostPeriod };
 
 /** ADMIN_AI_PATH in components/shell/nav.ts (server only, so not imported here). */
 const AI_PATH = "/admin/ai";
 
 export const AI_VIEWS = ["general", "inspection", "cost"] as const;
 export type AiView = (typeof AI_VIEWS)[number];
-
-/** The currency the cost view shows amounts in: US dollars, as Anthropic bills, or ringgit (once the price list has a rate). */
-const COST_CURRENCIES: readonly CostCurrency[] = ["usd", "myr"];
-export const DEFAULT_COST_CURRENCY: CostCurrency = "usd";
 
 export type CostFilters = { period: CostPeriod; currency: CostCurrency };
 
@@ -39,13 +45,13 @@ export function parseAiViewState(params: SearchParams): AiViewState {
   };
 }
 
-/** The address of a view: /admin/ai for General; only the cost view carries filters. */
+/** The address of a view: /admin/ai for General; only the cost view carries filters, its currency always. */
 export function aiViewHref(state: AiViewState): string {
   if (state.view === "general") return AI_PATH;
   const query = new URLSearchParams({ view: state.view });
   if (state.view === "cost") {
     if (state.period !== DEFAULT_COST_PERIOD) query.set("period", state.period);
-    if (state.currency !== DEFAULT_COST_CURRENCY) query.set("currency", state.currency);
+    query.set("currency", state.currency);
   }
   return `${AI_PATH}?${query}`;
 }

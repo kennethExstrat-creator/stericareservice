@@ -3,12 +3,13 @@
 // A pill switch (Kenneth, 11 October 2026): a soft capsule with the chosen
 // side a white pill on it, as Source Documents' Files / Media switch
 // (app/(app)/inspections/_components/source-tabs.tsx, which has the same
-// classes). One side is always chosen.
+// classes). One side is always chosen. An icon is optional: Steri-AI Cost's
+// RM | USD switch has none.
 import type { LucideIcon } from "lucide-react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 
-export type PillOption<T extends string> = { value: T; label: string; icon: LucideIcon };
+export type PillOption<T extends string> = { value: T; label: string; icon?: LucideIcon };
 
 /** One side of the switch: 44 px on a touchscreen. */
 const PILL =
@@ -46,7 +47,7 @@ export function PillSwitch<T extends string>({
     >
       {options.map(({ value: option, label: text, icon: Icon }) => (
         <ToggleGroupItem key={option} value={option} className={PILL}>
-          <Icon aria-hidden />
+          {Icon && <Icon aria-hidden />}
           {text}
         </ToggleGroupItem>
       ))}

@@ -2,7 +2,8 @@
 // view the address names (?view=, unknown → General), and each view's cards
 // (Inspection Settings with the Inspection Summary card and Try It's list).
 // Steri-AI Cost loads its own data (an async server component), so it is
-// rendered with prerender, which waits for it.
+// rendered with prerender, which waits for it: ringgit by default at Bank
+// Negara Malaysia's rate (a stand-in here), or the admin's own, or dollars.
 import { renderToStaticMarkup } from "react-dom/server";
 import { prerender } from "react-dom/static";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -16,6 +17,10 @@ vi.mock("@/lib/inspections/ai/summary-runner", () => ({ loadSummaryPreviewTarget
 vi.mock("@/lib/ai/cost-report", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/ai/cost-report")>()),
   loadAiCostReport: vi.fn(),
+}));
+vi.mock("@/lib/ai/myr-rate", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/ai/myr-rate")>()),
+  latestBnmRate: vi.fn(),
 }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn(async () => ({})) }));
 vi.mock("@/lib/supabase/admin", () => ({ isAdminClientConfigured: () => true }));
@@ -33,6 +38,7 @@ vi.mock("next/navigation", async (importOriginal) => ({
 }));
 
 import { buildAiCostReport, loadAiCostReport } from "@/lib/ai/cost-report";
+import { latestBnmRate } from "@/lib/ai/myr-rate";
 import { loadAiPrices, readAiSettingsView, readSummarySettingsView, type SummarySettingsView } from "@/lib/ai/settings";
 import { requireAdmin } from "@/lib/auth/session";
 import { loadSummaryPreviewTargets } from "@/lib/inspections/ai/summary-runner";
@@ -124,11 +130,24 @@ const REPORT = buildAiCostReport({
   ],
 });
 
-const MYR_PRICES = { ...DEFAULT_AI_PRICES, myrPerUsd: 4.72, myrRateOn: "2026-10-01" };
+/** Bank Negara Malaysia's latest noon rate, as the month route had it on 13 October 2026. */
+const BNM_RATE = { myrPerUsd: 4.0823, on: "2026-10-12", source: "bnm" as const };
 
-/** The words on the pill the switch has chosen. */
-function chosenView(html: string): string | undefined {
-  return html.match(/<button[^>]*aria-checked="true"[^>]*>[\s\S]*?<\/button>/)?.[0].replace(/<[^>]+>/g, "");
+/** The admin's own rate ("Use My Own Rate"). */
+const OWN_RATE_PRICES = { ...DEFAULT_AI_PRICES, myrPerUsd: 4.15, myrRateOn: "2026-10-01" };
+
+/** Text as React writes it: an apostrophe is &#x27;. */
+const escaped = (text: string) => text.replaceAll("'", "&#x27;");
+
+/** The words of the rate line under the note. */
+function rateLine(html: string): string | undefined {
+  return html.match(/<p data-testid="cost-rate">[\s\S]*?<\/p>/)?.[0].replace(/<span class="sr-only">[^<]*<\/span>/g, "").replace(/<[^>]+>/g, "");
+}
+
+/** The words on the pill a switch has chosen: the view switch's, else the switch named `label`. */
+function chosenView(html: string, label?: string): string | undefined {
+  const scope = label ? html.slice(html.indexOf(`aria-label="${label}"`)) : html;
+  return scope.match(/<button[^>]*aria-checked="true"[^>]*>[\s\S]*?<\/button>/)?.[0].replace(/<[^>]+>/g, "");
 }
 
 beforeEach(() => {
@@ -139,6 +158,7 @@ beforeEach(() => {
   vi.mocked(readSummarySettingsView).mockResolvedValue(SUMMARY);
   vi.mocked(loadSummaryPreviewTargets).mockResolvedValue([TARGET]);
   vi.mocked(loadAiCostReport).mockResolvedValue({ ok: true, report: REPORT });
+  vi.mocked(latestBnmRate).mockResolvedValue(BNM_RATE);
 });
 
 describe("the role check", () => {
@@ -156,6 +176,7 @@ describe("the role check", () => {
     expect(readSummarySettingsView).not.toHaveBeenCalled();
     expect(loadSummaryPreviewTargets).not.toHaveBeenCalled();
     expect(loadAiCostReport).not.toHaveBeenCalled();
+    expect(latestBnmRate).not.toHaveBeenCalled();
   });
 
   it("reads the settings only after the check", async () => {
@@ -171,19 +192,19 @@ describe("the address", () => {
     [{ view: "inspection" }, { view: "inspection" }],
     [{ view: "Settings" }, { view: "general" }],
     [{ view: ["inspection", "cost"] }, { view: "inspection" }],
-    [{ view: "cost" }, { view: "cost", period: "30", currency: "usd" }],
-    [{ view: "cost", period: "7", currency: "myr" }, { view: "cost", period: "7", currency: "myr" }],
-    [{ view: "cost", period: "365", currency: "eur" }, { view: "cost", period: "30", currency: "usd" }],
+    [{ view: "cost" }, { view: "cost", period: "30", currency: "myr" }],
+    [{ view: "cost", period: "7", currency: "usd" }, { view: "cost", period: "7", currency: "usd" }],
+    [{ view: "cost", period: "365", currency: "eur" }, { view: "cost", period: "30", currency: "myr" }],
     [{ view: "inspection", period: "7" }, { view: "inspection" }],
   ])("reads %o as %o", (params, state) => {
     expect(parseAiViewState(params)).toEqual(state);
   });
 
-  it("writes each view's address, leaving the defaults out", () => {
+  it("writes each view's address, leaving the default period out and naming the currency, so a link shows the same", () => {
     expect(aiViewHref({ view: "general" })).toBe("/admin/ai");
     expect(aiViewHref({ view: "inspection" })).toBe("/admin/ai?view=inspection");
-    expect(aiViewHref({ view: "cost", period: "30", currency: "usd" })).toBe("/admin/ai?view=cost");
-    expect(aiViewHref({ view: "cost", period: "all", currency: "myr" })).toBe("/admin/ai?view=cost&period=all&currency=myr");
+    expect(aiViewHref({ view: "cost", period: "30", currency: "myr" })).toBe("/admin/ai?view=cost&currency=myr");
+    expect(aiViewHref({ view: "cost", period: "all", currency: "usd" })).toBe("/admin/ai?view=cost&period=all&currency=usd");
   });
 });
 
@@ -253,6 +274,8 @@ describe("the views", () => {
     expect(html).toContain("INS-2026-0001 · Draft · PASSED");
     expect(html).toContain("Settings last saved 12 October 2026, 14:05 by Test Admin.");
     expect(html).toContain("Save Summary Settings");
+    // What a try costs, in ringgit at Steri-AI Cost's rate until the admin chooses dollars there.
+    expect(html).toContain("Each try is one Steri-AI call, about RM 0.08 to RM 0.20, counted in Steri-AI Cost.");
     // Try It lists inspections through the admin's own client.
     expect(vi.mocked(loadSummaryPreviewTargets).mock.calls[0]?.[0]).toEqual({});
   });
@@ -298,8 +321,7 @@ describe("the views", () => {
     expect(html.match(/type="submit" disabled=""/g)).toHaveLength(2);
   });
 
-  it("shows Steri-AI Cost with the address's filters, reading none of the settings", async () => {
-    vi.mocked(loadAiPrices).mockResolvedValue(MYR_PRICES);
+  it("shows Steri-AI Cost with the address's filters in ringgit at Bank Negara Malaysia's rate, reading none of the settings", async () => {
     const html = await renderAll({ view: "cost", period: "90", currency: "myr" });
     expect(chosenView(html)).toBe("Steri-AI Cost");
     expect(html).toMatch(/data-testid="ai-cost" data-period="90" data-currency="myr"/);
@@ -309,25 +331,64 @@ describe("the views", () => {
     for (const part of ["cost-filters", "cost-kpis", "cost-trend", "cost-by-job", "cost-by-model", "cost-by-inspection", "price-list"]) {
       expect(html).toContain(`data-testid="${part}"`);
     }
-    expect(html).toContain('aria-label="Currency"');
-    expect(html).toContain("RM 0.76"); // 0.1606 USD at 4.72
-    expect(html).toContain("Estimated from token use; Anthropic&#x27;s bill is final. Counted since 1 Oct 2026.");
+    // The switch, RM first and chosen.
+    expect(html).toMatch(/aria-label="Currency"[^>]*>(?:(?!<\/div>)[\s\S])*>RM<\/button>(?:(?!<\/div>)[\s\S])*>USD<\/button>/);
+    expect(chosenView(html, "Currency")).toBe("RM");
+    expect(html).toContain("RM 0.66"); // 0.1606 USD at 4.0823
+    expect(html).not.toContain("$0.16");
+    expect(html).toContain(
+      escaped("Estimated from token use; Anthropic's bill, in US dollars, is final. Ringgit figures move with the rate. Counted since 1 Oct 2026."),
+    );
+    expect(rateLine(html)).toBe("Converted at RM 4.0823 per US$1 · 12 Oct 2026 · Source: Bank Negara Malaysia");
+    expect(html).toMatch(/<a href="https:\/\/www\.bnm\.gov\.my\/terms-of-use-bnm-datasets" target="_blank" rel="noopener noreferrer"/);
+    expect(html).not.toContain('data-testid="cost-rate-built-in"');
+    // The price list stays in dollars, as Anthropic lists them, each price's ringgit beside it.
+    expect(html).toContain('$4.00 <span class="text-muted-foreground">(RM 16.33)</span>');
+    expect(html).toContain("USD per million tokens, as Anthropic lists them.");
   });
 
-  it("shows dollars while the price list has no MYR rate, whatever the address says", async () => {
-    const html = await renderAll({ view: "cost", period: "90", currency: "myr" });
+  it("opens on ringgit when the address names no currency", async () => {
+    const html = await renderAll({ view: "cost" });
+    expect(html).toMatch(/data-testid="ai-cost" data-period="30" data-currency="myr"/);
+    expect(html).toContain("RM 0.66");
+  });
+
+  it("shows dollars when the address says so: no rate line, the price list in dollars alone", async () => {
+    const html = await renderAll({ view: "cost", period: "90", currency: "usd" });
     expect(html).toMatch(/data-testid="ai-cost" data-period="90" data-currency="usd"/);
-    expect(html).not.toContain('aria-label="Currency"');
+    expect(chosenView(html, "Currency")).toBe("USD");
     expect(html).toContain("$0.16");
     expect(html).not.toContain("RM ");
+    expect(html).toContain(escaped("Estimated from token use; Anthropic's bill is final. Counted since 1 Oct 2026."));
+    expect(html).not.toContain('data-testid="cost-rate"');
   });
 
-  it("says when nothing is recorded yet, the price list still below", async () => {
+  it("converts at the admin's own rate when the price list has one", async () => {
+    vi.mocked(loadAiPrices).mockResolvedValue(OWN_RATE_PRICES);
+    const html = await renderAll({ view: "cost", period: "90", currency: "myr" });
+    expect(html).toContain("RM 0.67"); // 0.1606 USD at 4.15
+    expect(rateLine(html)).toBe("Converted at RM 4.15 per US$1 · 1 Oct 2026 · set in the price list");
+    expect(html).toMatch(/<a href="#price-list"[^>]*>set in the price list<\/a>/);
+    expect(html).toContain("Checked 12 Oct 2026. Own rate: RM 4.15 per US$1 (1 Oct 2026).");
+  });
+
+  it("converts at the built-in rate while Bank Negara Malaysia has not been read, and says so", async () => {
+    vi.mocked(latestBnmRate).mockResolvedValue(null);
+    const html = await renderAll({ view: "cost", period: "90", currency: "myr" });
+    expect(rateLine(html)).toBe("Converted at RM 4.086 per US$1 · 13 Oct 2026 · Source: Bank Negara Malaysia");
+    expect(html).toContain(
+      '<p data-testid="cost-rate-built-in">Bank Negara Malaysia could not be reached: this is the rate built into the app.</p>',
+    );
+    expect(html).toContain("RM 0.66"); // 0.1606 USD at 4.086
+  });
+
+  it("says when nothing is recorded yet, the price list still below in dollars alone", async () => {
     vi.mocked(loadAiCostReport).mockResolvedValue({ ok: true, report: { ...REPORT, trackingSince: null } });
     const html = await renderAll({ view: "cost" });
     expect(html).toContain("No Steri-AI Costs Yet");
     expect(html).not.toContain('data-testid="cost-kpis"');
     expect(html).toContain('data-testid="price-list"');
+    expect(html).not.toContain("(RM ");
   });
 
   it("says when the costs could not be loaded", async () => {

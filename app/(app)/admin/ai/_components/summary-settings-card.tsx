@@ -153,12 +153,15 @@ export function SummarySettingsCard({
   view,
   targets,
   prices,
+  myrPerUsd,
 }: {
   view: SummarySettingsView;
   /** Try It's inspections (loadSummaryPreviewTargets). */
   targets: SummaryPreviewTarget[];
   /** The price list, to say when the chosen model has no price. */
   prices: AiPriceList;
+  /** Steri-AI Cost's rate (lib/ai/myr-rate.ts), for what a try costs in ringgit. */
+  myrPerUsd: number;
 }) {
   const id = useId();
   const [model, setModel] = useState(view.model);
@@ -301,7 +304,15 @@ export function SummarySettingsCard({
         </div>
 
         <div className="border-t border-border pt-5">
-          <SummaryTryIt targets={targets} model={model} style={style} settings={current} saved={current !== null && current === saved} disabled={disabled} />
+          <SummaryTryIt
+            targets={targets}
+            model={model}
+            style={style}
+            settings={current}
+            saved={current !== null && current === saved}
+            myrPerUsd={myrPerUsd}
+            disabled={disabled}
+          />
         </div>
 
         {outcome && <ResultAlert ok={outcome.ok} message={outcome.message} role="status" data-testid="summary-outcome" />}

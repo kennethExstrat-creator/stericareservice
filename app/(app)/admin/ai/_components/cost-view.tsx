@@ -3,18 +3,22 @@
 // every Claude call the app records (ai_usage), priced with the list in force
 // when the call was made. Top to bottom: the filter row, three headline
 // numbers, cost per day, cost by job and by model, the costliest
-// inspections, and the price list. The view loads only its own data, with
-// the admin's own client: Row Level Security gives anyone else no rows.
+// inspections, and the price list. Every amount is in the currency the
+// address names (?currency=, ringgit by default; the RM | USD switch sets
+// it): costs are kept in US dollars and converted at the rate in use
+// (lib/ai/myr-rate.ts). The view loads only its own data, with the admin's
+// own client: Row Level Security gives anyone else no rows.
 import { CoinsIcon, TriangleAlertIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { loadAiCostReport, parseCostCurrency, type CostReportResult } from "@/lib/ai/cost-report";
+import { loadAiCostReport, type CostReportResult } from "@/lib/ai/cost-report";
+import { latestBnmRate, pickMyrRate } from "@/lib/ai/myr-rate";
 import { loadAiPrices } from "@/lib/ai/settings";
 import { requireAdmin } from "@/lib/auth/session";
 import { todayInMalaysia } from "@/lib/inspections/create";
 import { formatInspectionDate } from "@/lib/inspections/format";
 import type { AiPriceList } from "@/lib/schemas/ai-prices";
-import type { AiCostReport, CostCurrency, CostPeriod } from "@/lib/schemas/ai-usage";
+import type { AiCostReport, CostCurrency, CostPeriod, MyrRate } from "@/lib/schemas/ai-usage";
 import { isAdminClientConfigured } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { CostByJob, CostByModel } from "./cost-breakdown";
@@ -22,7 +26,7 @@ import { CostFilters } from "./cost-filters";
 import { CostByInspection } from "./cost-inspections";
 import { CostTiles } from "./cost-tiles";
 import { CostTrendChart, type TrendBar } from "./cost-trend-chart";
-import type { Money } from "./money";
+import { USD, type Money } from "./money";
 import { PriceList } from "./price-list";
 import { PriceNotes, PriceTable } from "./price-table";
 
@@ -75,11 +79,13 @@ async function loadReport(period: CostPeriod): Promise<CostReportResult> {
 export async function CostView({ period, currency }: { period: CostPeriod; currency: CostCurrency }) {
   // The page has checked already; the check is cached for the request.
   await requireAdmin();
-  const [prices, result] = await Promise.all([loadAiPrices(), loadReport(period)]);
+  // BNM's rate never throws; Next's cache answers, and BNM is asked about once a day (lib/ai/myr-rate.ts).
+  const [prices, result, bnmRate] = await Promise.all([loadAiPrices(), loadReport(period), latestBnmRate()]);
   return (
     <CostViewBody
       period={period}
-      currency={parseCostCurrency(currency, prices)}
+      currency={currency}
+      rate={pickMyrRate(prices, bnmRate)}
       result={result}
       prices={prices}
       canSave={isAdminClientConfigured()}
@@ -114,16 +120,22 @@ function NothingYet() {
   );
 }
 
-function Dashboard({ report, period, money, prices }: { report: AiCostReport; period: CostPeriod; money: Money; prices: AiPriceList }) {
-  if (report.trackingSince === null) return <NothingYet />;
+function Dashboard({
+  report,
+  period,
+  money,
+  rate,
+  prices,
+}: {
+  report: AiCostReport;
+  period: CostPeriod;
+  money: Money;
+  rate: MyrRate;
+  prices: AiPriceList;
+}) {
   return (
     <>
-      <CostFilters
-        period={period}
-        currency={money.currency}
-        hasMyrRate={prices.myrPerUsd !== null}
-        countedSince={countedSince(report)}
-      />
+      <CostFilters period={period} currency={money.currency} rate={rate} countedSince={countedSince(report)} />
       <CostTiles totals={report.totals} money={money} />
       <CostTrendChart key={`${period}:${money.currency}`} bucket={report.trend.bucket} bars={trendBars(report.trend)} money={money} />
       <div className="grid gap-6 lg:grid-cols-2">
@@ -139,28 +151,41 @@ function Dashboard({ report, period, money, prices }: { report: AiCostReport; pe
 function CostViewBody({
   period,
   currency,
+  rate,
   result,
   prices,
   canSave,
 }: {
   period: CostPeriod;
-  /** USD, or MYR once the price list has a rate (parseCostCurrency). */
+  /** The address's currency: ringgit unless it says US dollars. */
   currency: CostCurrency;
+  /** The rate ringgit is worked out at (pickMyrRate). */
+  rate: MyrRate;
   result: CostReportResult;
   prices: AiPriceList;
   /** The server has SUPABASE_SECRET_KEY: calls are recorded and the prices can be saved. */
   canSave: boolean;
 }) {
-  const money: Money = { currency, myrPerUsd: prices.myrPerUsd };
+  const money: Money = { currency, myrPerUsd: rate.myrPerUsd };
+  // Ringgit shows only with the switch and the line naming its rate: before the first call, and when
+  // the costs could not be loaded, the price list stays in dollars alone.
+  const dashboard = result.ok && result.report.trackingSince !== null ? result.report : null;
   return (
     <div data-testid="ai-cost" data-period={period} data-currency={currency} className="flex min-w-0 flex-col gap-6">
       {!canSave && <ErrorAlert>The server needs SUPABASE_SECRET_KEY to record Steri-AI&apos;s costs.</ErrorAlert>}
-      {result.ok ? (
-        <Dashboard report={result.report} period={period} money={money} prices={prices} />
+      {dashboard ? (
+        <Dashboard report={dashboard} period={period} money={money} rate={rate} prices={prices} />
+      ) : result.ok ? (
+        <NothingYet />
       ) : (
         <ErrorAlert>{result.message}</ErrorAlert>
       )}
-      <PriceList prices={prices} canEdit={canSave} table={<PriceTable prices={prices} />} notes={<PriceNotes prices={prices} />} />
+      <PriceList
+        prices={prices}
+        canEdit={canSave}
+        table={<PriceTable prices={prices} money={dashboard ? money : USD} />}
+        notes={<PriceNotes prices={prices} />}
+      />
     </div>
   );
 }

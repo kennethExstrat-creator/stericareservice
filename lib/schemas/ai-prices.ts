@@ -37,7 +37,11 @@ export const AiPriceListSchema = z
     /** The day an admin last checked the prices against Anthropic's pricing page. */
     checkedOn: IsoDateSchema,
     models: z.array(ModelPriceSchema).min(1).max(30),
-    /** Ringgit per US dollar, to show costs in MYR; null shows USD only. */
+    /**
+     * The admin's own rate, RM per US$1, and its date ("Use My Own Rate"):
+     * Steri-AI Cost converts at it instead of Bank Negara Malaysia's daily
+     * rate (lib/ai/myr-rate.ts). Null: BNM's.
+     */
     myrPerUsd: z.number().positive().max(100).nullable(),
     myrRateOn: IsoDateSchema.nullable(),
   })
@@ -50,7 +54,7 @@ export const AiPriceListSchema = z
       seen.add(entry.model);
     });
     if (list.myrPerUsd !== null && list.myrRateOn === null) {
-      context.addIssue({ code: "custom", path: ["myrRateOn"], message: "Enter the date of the MYR rate." });
+      context.addIssue({ code: "custom", path: ["myrRateOn"], message: "Enter the date of your rate." });
     }
   });
 export type AiPriceList = z.infer<typeof AiPriceListSchema>;

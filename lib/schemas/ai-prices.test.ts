@@ -23,13 +23,13 @@ describe("the price list", () => {
     expect(DEFAULT_AI_PRICES.models.map((entry) => entry.model)).toEqual(CLAUDE_MODELS.map((entry) => entry.id));
   });
 
-  it("refuses a model listed twice, a MYR rate without its date and prices out of range", () => {
+  it("refuses a model listed twice, the admin's own rate without its date and prices out of range", () => {
     const opus = DEFAULT_AI_PRICES.models[0];
     expect(issues({ ...DEFAULT_AI_PRICES, models: [...DEFAULT_AI_PRICES.models, opus] })).toEqual([
       { path: ["models", 3, "model"], message: '"claude-opus-5-5" is in the list twice.' },
     ]);
-    expect(issues({ ...DEFAULT_AI_PRICES, myrPerUsd: 4.72 })).toEqual([{ path: ["myrRateOn"], message: "Enter the date of the MYR rate." }]);
-    expect(issues({ ...DEFAULT_AI_PRICES, myrPerUsd: 4.72, myrRateOn: "2026-10-01" })).toEqual([]);
+    expect(issues({ ...DEFAULT_AI_PRICES, myrPerUsd: 4.15 })).toEqual([{ path: ["myrRateOn"], message: "Enter the date of your rate." }]);
+    expect(issues({ ...DEFAULT_AI_PRICES, myrPerUsd: 4.15, myrRateOn: "2026-10-01" })).toEqual([]);
     expect(issues({ ...DEFAULT_AI_PRICES, models: [{ ...opus, input: -1, output: 1001 }] })).toEqual([
       { path: ["models", 0, "input"], message: "A price cannot be below 0." },
       { path: ["models", 0, "output"], message: "Check this price: over 1,000 USD per million tokens." },

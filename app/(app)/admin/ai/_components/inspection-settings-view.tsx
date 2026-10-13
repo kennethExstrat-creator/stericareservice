@@ -61,6 +61,7 @@ export function InspectionSettingsView({
   prices,
   summary,
   targets,
+  myrPerUsd,
 }: {
   view: AiSettingsView;
   prices: AiPriceList;
@@ -68,6 +69,8 @@ export function InspectionSettingsView({
   summary: SummarySettingsView;
   /** The inspections Try It can run on (loadSummaryPreviewTargets). */
   targets: SummaryPreviewTarget[];
+  /** Steri-AI Cost's rate, RM per US$1, for what a try costs in ringgit. */
+  myrPerUsd: number;
 }) {
   const id = useId();
   const [documentModel, setDocumentModel] = useState(view.documentModel);
@@ -215,7 +218,7 @@ export function InspectionSettingsView({
           </Button>
         </div>
       </form>
-      <SummarySettingsCard view={summary} targets={targets} prices={prices} />
+      <SummarySettingsCard view={summary} targets={targets} prices={prices} myrPerUsd={myrPerUsd} />
     </div>
   );
 }

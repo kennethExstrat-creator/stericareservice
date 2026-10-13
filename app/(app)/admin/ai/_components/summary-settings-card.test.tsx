@@ -37,7 +37,7 @@ const TARGETS: SummaryPreviewTarget[] = [
 ];
 
 function draw(view: Partial<SummarySettingsView> = {}, targets = TARGETS): string {
-  return renderToStaticMarkup(<SummarySettingsCard view={{ ...VIEW, ...view }} targets={targets} prices={DEFAULT_AI_PRICES} />);
+  return renderToStaticMarkup(<SummarySettingsCard view={{ ...VIEW, ...view }} targets={targets} prices={DEFAULT_AI_PRICES} myrPerUsd={4.086} />);
 }
 
 function drawMore(style: Partial<SummaryStyle> = {}, errors: Record<string, string> = {}): string {

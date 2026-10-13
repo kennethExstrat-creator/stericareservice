@@ -1,13 +1,15 @@
 "use client";
 
 // Steri-AI Cost's Price List card: what each Claude model costs per million
-// tokens (USD, as Anthropic lists them), the price every new call is
-// recorded with. The server renders the list as it stands (price-table.tsx);
-// Edit Prices swaps it in place for a form of every price, the day the list
-// was checked and an optional MYR rate. The form is read with the price
-// list's own schema first (price-form.ts), then saved by an admin-only
-// Server Action that checks it again. A change prices new calls only:
-// recorded calls keep their cost.
+// tokens (USD, as Anthropic lists and bills them), the price every new call
+// is recorded with. The server renders the list as it stands
+// (price-table.tsx); Edit Prices swaps it in place for a form of every
+// price, the day the list was checked and, optionally, the admin's own
+// ringgit rate with its date, used instead of Bank Negara Malaysia's ("Use
+// My Own Rate", lib/ai/myr-rate.ts). The form is read with the price list's
+// own schema first (price-form.ts), then saved by an admin-only Server
+// Action that checks it again. A change prices new calls only: recorded
+// calls keep their cost.
 import { PencilIcon, PlusIcon, RotateCcwIcon, SaveIcon } from "lucide-react";
 import {
   startTransition,
@@ -56,6 +58,7 @@ const GRID = "lg:grid-cols-[minmax(16rem,2fr)_repeat(5,minmax(0,1fr))]";
 function TextField({
   id,
   label,
+  hint,
   error,
   className,
   labelClassName,
@@ -64,11 +67,14 @@ function TextField({
 }: {
   id: string;
   label: string;
+  /** A sentence under the field. */
+  hint?: string;
   error?: string;
   className?: string;
   labelClassName?: string;
   inputRef?: Ref<HTMLInputElement>;
 } & Omit<ComponentProps<typeof Input>, "id" | "ref">) {
+  const describedBy = [hint && `${id}-hint`, error && `${id}-error`].filter(Boolean).join(" ");
   return (
     <div className={cn("relative flex min-w-0 flex-col gap-1.5", className)}>
       <Label htmlFor={id} className={labelClassName}>
@@ -80,9 +86,14 @@ function TextField({
         autoComplete="off"
         spellCheck={false}
         aria-invalid={error ? true : undefined}
-        aria-describedby={error ? `${id}-error` : undefined}
+        aria-describedby={describedBy || undefined}
         {...input}
       />
+      {hint && (
+        <p id={`${id}-hint`} className="text-sm text-muted-foreground">
+          {hint}
+        </p>
+      )}
       {error && (
         <p id={`${id}-error`} className="text-sm text-destructive">
           {error}
@@ -275,7 +286,8 @@ export function PriceForm({
         />
         <TextField
           id={`${id}-myr`}
-          label="MYR per USD (Optional)"
+          label="Use My Own Rate (RM per US$1)"
+          hint="Leave blank to use Bank Negara Malaysia's daily rate."
           inputMode="decimal"
           value={draft.myrPerUsd}
           onChange={(event) => {
@@ -343,7 +355,7 @@ export function PriceList({
   canEdit: boolean;
   /** The list as it stands (price-table.tsx), rendered by the server. */
   table: ReactNode;
-  /** When it was checked, and the MYR rate. */
+  /** When it was checked, and the admin's own rate when set. */
   notes: ReactNode;
 }) {
   const titleId = useId();

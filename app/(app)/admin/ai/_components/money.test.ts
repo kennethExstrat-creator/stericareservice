@@ -1,9 +1,10 @@
-// Steri-AI Cost's amounts: dollars or ringgit, totals to the cent, per-unit
-// averages and prices to the figures that matter.
+// Steri-AI Cost's amounts: ringgit or dollars, totals to the sen or cent,
+// per-unit averages and prices to the figures that matter.
 import { describe, expect, it } from "vitest";
 import { countOf, formatAxisValue, formatCost, formatMyrRate, inCurrency, USD, type Money } from "./money";
 
-const MYR: Money = { currency: "myr", myrPerUsd: 4.72 };
+/** Bank Negara Malaysia's noon rate on 13 October 2026. */
+const MYR: Money = { currency: "myr", myrPerUsd: 4.086 };
 
 describe("totals", () => {
   it("are dollars to the cent, grouped as en-US", () => {
@@ -18,16 +19,17 @@ describe("totals", () => {
     expect(formatCost(0.01, USD)).toBe("$0.01");
   });
 
-  it("are ringgit at the price list's rate", () => {
-    expect(inCurrency(10, MYR)).toBeCloseTo(47.2);
-    expect(formatCost(1234.56, MYR)).toBe("RM 5,827.12");
+  it("are ringgit at the rate in use: RM, a space, the amount", () => {
+    expect(inCurrency(10, MYR)).toBeCloseTo(40.86);
+    expect(formatCost(1234.56, MYR)).toBe("RM 5,044.41");
+    expect(formatCost(0.022, MYR)).toBe("RM 0.09");
     expect(formatCost(0.001, MYR)).toBe("< RM 0.01");
     expect(formatCost(0, MYR)).toBe("RM 0.00");
   });
 
-  it("stay dollars without a rate, and in dollars when dollars are chosen", () => {
+  it("are dollars when dollars are chosen, and without a rate", () => {
+    expect(formatCost(1, { currency: "usd", myrPerUsd: 4.086 })).toBe("$1.00");
     expect(formatCost(1, { currency: "myr", myrPerUsd: null })).toBe("$1.00");
-    expect(formatCost(1, { currency: "usd", myrPerUsd: 4.72 })).toBe("$1.00");
   });
 });
 
@@ -44,8 +46,10 @@ describe("units", () => {
   });
 
   it("convert first, then choose the decimals", () => {
-    // 0.0048 USD is 0.022656 MYR.
-    expect(formatCost(0.0048, MYR, "unit")).toBe("RM 0.023");
+    // 0.003 USD is 0.012258 MYR: up to 3 decimals, as from 0.01.
+    expect(formatCost(0.003, MYR, "unit")).toBe("RM 0.012");
+    expect(formatCost(0.125, MYR, "unit")).toBe("RM 0.511");
+    expect(formatCost(0.00002, MYR, "unit")).toBe("< RM 0.0001");
   });
 });
 
@@ -56,9 +60,10 @@ describe("the rest", () => {
     expect(formatAxisValue(10, MYR, 0)).toBe("RM 10");
   });
 
-  it("writes the MYR rate and counts", () => {
-    expect(formatMyrRate(4.72)).toBe("RM 4.72");
-    expect(formatMyrRate(4.7215)).toBe("RM 4.7215");
+  it("writes the rate and counts", () => {
+    expect(formatMyrRate(4.086)).toBe("RM 4.086");
+    expect(formatMyrRate(4.0823)).toBe("RM 4.0823");
+    expect(formatMyrRate(4.1)).toBe("RM 4.10");
     expect(countOf(1, "call", "calls")).toBe("1 call");
     expect(countOf(1284, "photo or video", "photos and videos")).toBe("1,284 photos and videos");
     expect(countOf(0, "review", "reviews")).toBe("0 reviews");

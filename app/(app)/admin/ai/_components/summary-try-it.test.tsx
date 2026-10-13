@@ -1,6 +1,7 @@
 // Try It on the Inspection Summary card: the row as it draws, with and
-// without an inspection to try it on, and a sample as Steri-AI answers it
-// (the draft read-only, its length, notes and figures) or why there is none.
+// without an inspection to try it on, what a try costs in the admin's
+// currency, and a sample as Steri-AI answers it (the draft read-only, its
+// length, notes and figures) or why there is none.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { SummaryPreviewTarget } from "@/lib/inspections/ai/summary-runner";
@@ -8,7 +9,8 @@ import { DEFAULT_SUMMARY_STYLE, SUMMARY_MESSAGES, type SummaryPreviewResult } fr
 
 vi.mock("../summary-actions", () => ({ previewSummaryAction: vi.fn(), saveSummarySettingsAction: vi.fn() }));
 
-import { modelName, sampleSettingsLine, SummarySample, SummaryTryIt, TRY_IT_COST } from "./summary-try-it";
+import { USD } from "./money";
+import { modelName, sampleSettingsLine, SummarySample, SummaryTryIt, tryItCost } from "./summary-try-it";
 
 const TARGETS: SummaryPreviewTarget[] = [
   { id: "00000000-0000-4000-8000-000000000001", refNo: "INS-2026-0001", status: "draft", result: "pass", label: "INS-2026-0001 · Draft · PASSED" },
@@ -39,7 +41,15 @@ const SAMPLE: SummaryPreviewResult = {
 
 function drawRow(targets: SummaryPreviewTarget[], disabled = false): string {
   return renderToStaticMarkup(
-    <SummaryTryIt targets={targets} model="claude-sonnet-5-5" style={DEFAULT_SUMMARY_STYLE} settings="{}" saved disabled={disabled} />,
+    <SummaryTryIt
+      targets={targets}
+      model="claude-sonnet-5-5"
+      style={DEFAULT_SUMMARY_STYLE}
+      settings="{}"
+      saved
+      myrPerUsd={4.086}
+      disabled={disabled}
+    />,
   );
 }
 
@@ -49,11 +59,13 @@ const escaped = (text: string) => text.replaceAll("'", "&#x27;");
 const tryItButton = (html: string) => html.match(/<button[^>]*>(?:(?!<\/button>).)*Try It<\/button>/)?.[0];
 
 describe("the row", () => {
-  it("offers the most recent inspection first, with what a try costs", () => {
+  it("offers the most recent inspection first, with what a try costs, in ringgit until the admin chooses dollars", () => {
     const html = drawRow(TARGETS);
     expect(html).toContain(">Try It On</label>");
     expect(html).toContain("INS-2026-0001 · Draft · PASSED");
-    expect(html).toContain(TRY_IT_COST);
+    // 0.02 and 0.05 USD at RM 4.086; the server and hydration know no remembered choice.
+    expect(html).toContain("Each try is one Steri-AI call, about RM 0.08 to RM 0.20, counted in Steri-AI Cost.");
+    expect(tryItCost(USD)).toBe("Each try is one Steri-AI call, about $0.02 to $0.05, counted in Steri-AI Cost.");
     expect(tryItButton(html)).not.toContain('disabled=""');
     expect(html).not.toContain('data-testid="summary-sample"');
   });

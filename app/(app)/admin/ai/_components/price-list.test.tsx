@@ -39,20 +39,20 @@ describe("editing", () => {
     expect(parseDraft(DEFAULTS)).toEqual({ ok: true, list: DEFAULT_AI_PRICES });
   });
 
-  it("changes a price, a long-prompt price and the MYR rate", () => {
+  it("changes a price, a long-prompt price and the admin's own rate", () => {
     let draft = setRate(DEFAULTS, "claude-opus-5-5", "input", "4.5");
     draft = setRate(draft, "claude-haiku-5-5", "output", "3", true);
-    draft = { ...draft, myrPerUsd: "4,72", myrRateOn: "2026-10-01", checkedOn: "2026-10-13" };
+    draft = { ...draft, myrPerUsd: "4,15", myrRateOn: "2026-10-01", checkedOn: "2026-10-13" };
     const result = parseDraft(draft);
     if (!result.ok) throw new Error(result.message);
     expect(result.list.models[0].input).toBe(4.5);
     expect(result.list.models[2].longPrompt?.output).toBe(3);
     // A decimal comma, as an iPad keyboard may type it.
-    expect(result.list.myrPerUsd).toBe(4.72);
+    expect(result.list.myrPerUsd).toBe(4.15);
     expect(result.list).toMatchObject({ myrRateOn: "2026-10-01", checkedOn: "2026-10-13" });
   });
 
-  it("drops the rate's date with the rate", () => {
+  it("drops the rate's date with the rate: Bank Negara Malaysia's rate again", () => {
     const result = parseDraft({ ...DEFAULTS, myrPerUsd: " ", myrRateOn: "2026-10-01" });
     expect(result.ok && result.list).toMatchObject({ myrPerUsd: null, myrRateOn: null });
   });
@@ -85,7 +85,7 @@ describe("models", () => {
     expect(draw(DEFAULTS)).not.toContain(">Remove</button>");
   });
 
-  it("refills the 12 October prices, keeping the MYR rate", () => {
+  it("refills the 12 October prices, keeping the admin's own rate", () => {
     let draft = addModel(setRate(DEFAULTS, "claude-opus-5-5", "input", "9"), "added-1");
     draft = { ...draft, checkedOn: "2026-11-02", myrPerUsd: "4.7", myrRateOn: "2026-11-01" };
     const again = withDefaultPrices(draft);
@@ -119,26 +119,42 @@ describe("a refused list", () => {
   });
 
   it("asks for a model id, the rate's date, and a rate it can read", () => {
-    const result = parseDraft({ ...priced(addModel(DEFAULTS, "added-1"), "added-1", ALL_RATES), myrPerUsd: "4.72", myrRateOn: "" });
+    const result = parseDraft({ ...priced(addModel(DEFAULTS, "added-1"), "added-1", ALL_RATES), myrPerUsd: "4.15", myrRateOn: "" });
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.errors["models.3.model"]).toBe("Enter a Claude model id, for example claude-opus-5-5.");
-    const rate = parseDraft({ ...DEFAULTS, myrPerUsd: "4.72", myrRateOn: "" });
-    expect(!rate.ok && rate.errors).toEqual({ myrRateOn: "Enter the date of the MYR rate." });
+    const rate = parseDraft({ ...DEFAULTS, myrPerUsd: "4.15", myrRateOn: "" });
+    expect(!rate.ok && rate.errors).toEqual({ myrRateOn: "Enter the date of your rate." });
     const unreadable = parseDraft({ ...DEFAULTS, myrPerUsd: "abc", myrRateOn: "2026-10-01", checkedOn: "" });
-    expect(!unreadable.ok && unreadable.errors).toEqual({ checkedOn: "Enter a date.", myrPerUsd: "Enter the rate, such as 4.72." });
+    expect(!unreadable.ok && unreadable.errors).toEqual({
+      checkedOn: "Enter a date.",
+      myrPerUsd: "Enter a rate from 1 to 20, such as 4.09, or leave it blank.",
+    });
+  });
+
+  it("refuses a rate no real rate is, a typo the schema would keep", () => {
+    for (const typed of ["40.86", "0.2447", "100"]) {
+      const result = parseDraft({ ...DEFAULTS, myrPerUsd: typed, myrRateOn: "2026-10-13" });
+      expect(result).toEqual({
+        ok: false,
+        message: "Check the highlighted prices.",
+        errors: { myrPerUsd: "Enter a rate from 1 to 20, such as 4.09, or leave it blank." },
+      });
+    }
+    expect(parseDraft({ ...DEFAULTS, myrPerUsd: "20", myrRateOn: "2026-10-13" }).ok).toBe(true);
   });
 });
 
 describe("the card", () => {
-  it("draws a decimal field for every price, the long prompts' included, and the list's dates", () => {
+  it("draws a decimal field for every price, the long prompts' included, the admin's own rate and the list's dates", () => {
     const html = draw(DEFAULTS);
-    // 3 models x 5 prices, Claude Haiku 5.5's long prompts x 5, and the MYR rate.
+    // 3 models x 5 prices, Claude Haiku 5.5's long prompts x 5, and the admin's own rate.
     expect(html.match(/inputMode="decimal"/gi)).toHaveLength(21);
     expect(html).toContain("Prompts Over 100K Tokens");
-    for (const label of ["Checked On", "MYR per USD (Optional)", "Rate Date", "Add Model", "Use Default Prices", "Cancel", "Save Prices"]) {
+    for (const label of ["Checked On", "Use My Own Rate (RM per US$1)", "Rate Date", "Add Model", "Use Default Prices", "Cancel", "Save Prices"]) {
       expect(html).toContain(label);
     }
+    expect(html).toMatch(/aria-describedby="([^"]+-myr-hint)"[^>]*>(?:(?!<\/div>).)*<p id="\1"[^>]*>Leave blank to use Bank Negara Malaysia&#x27;s daily rate\.<\/p>/);
     expect(html.match(/type="date"/g)).toHaveLength(2);
     expect(html).toContain('value="2026-10-12"');
   });

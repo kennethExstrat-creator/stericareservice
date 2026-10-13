@@ -86,7 +86,7 @@ export function removeModel(draft: PriceDraft, key: string): PriceDraft {
   return { ...draft, models: draft.models.filter((entry) => entry.own || entry.key !== key) };
 }
 
-/** The 12 October list (DEFAULT_AI_PRICES) again, and the day it was checked; the MYR rate stays as typed. */
+/** The 12 October list (DEFAULT_AI_PRICES) again, and the day it was checked; the admin's own rate stays as typed. */
 export function withDefaultPrices(draft: PriceDraft): PriceDraft {
   const defaults = toDraft(DEFAULT_AI_PRICES);
   return { ...draft, checkedOn: defaults.checkedOn, models: defaults.models };
@@ -136,9 +136,21 @@ export function priceListMessage(issues: readonly Issue[]): string {
   return twice?.message ?? CHECK_PRICES;
 }
 
+/**
+ * RM per US$1 the admin's own rate may be, as lib/ai/myr-rate.ts takes Bank
+ * Negara Malaysia's. The schema keeps up to 100 so a saved list always reads;
+ * the form refuses a typo (40.86 for 4.086) that would show every cost ten
+ * times over.
+ */
+const OWN_RATE_MIN = 1;
+const OWN_RATE_MAX = 20;
+const OWN_RATE_MESSAGE = "Enter a rate from 1 to 20, such as 4.09, or leave it blank.";
+
 /** The draft as a price list, or what to fix: the message and each refused field's own words. */
 export function parseDraft(draft: PriceDraft): DraftResult {
   const myrPerUsd = draft.myrPerUsd.trim() === "" ? null : toNumber(draft.myrPerUsd);
+  const errors: Record<string, string> = {};
+  if (myrPerUsd !== null && !(myrPerUsd >= OWN_RATE_MIN && myrPerUsd <= OWN_RATE_MAX)) errors.myrPerUsd = OWN_RATE_MESSAGE;
   const parsed = AiPriceListSchema.safeParse({
     checkedOn: draft.checkedOn,
     myrPerUsd,
@@ -150,8 +162,9 @@ export function parseDraft(draft: PriceDraft): DraftResult {
       longPrompt: entry.longPrompt ? { aboveTokens: entry.longPrompt.aboveTokens, ...rateNumbers(entry.longPrompt.rates) } : null,
     })),
   });
-  if (parsed.success) return { ok: true, list: parsed.data };
-  const errors: Record<string, string> = {};
+  if (parsed.success) {
+    return errors.myrPerUsd ? { ok: false, message: CHECK_PRICES, errors } : { ok: true, list: parsed.data };
+  }
   for (const issue of parsed.error.issues) {
     const field = issue.path.join(".");
     errors[field] ??= fieldMessage(field, issue);
@@ -161,7 +174,7 @@ export function parseDraft(draft: PriceDraft): DraftResult {
 
 /** The schema's own words, except where they are zod's ("Invalid input: expected number, received NaN"). */
 function fieldMessage(field: string, issue: Issue): string {
-  if (field === "myrPerUsd") return "Enter the rate, such as 4.72.";
+  if (field === "myrPerUsd") return OWN_RATE_MESSAGE;
   if ((field === "checkedOn" || field === "myrRateOn") && issue.code !== "custom") return "Enter a date.";
   return issue.message;
 }

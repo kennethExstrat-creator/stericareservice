@@ -1,7 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { todayInMalaysia } from "@/lib/inspections/create";
-import type { AiPriceList } from "@/lib/schemas/ai-prices";
 import { CLAUDE_MODELS } from "@/lib/schemas/ai-settings";
 import {
   AI_USAGE_FEATURES,
@@ -9,7 +8,6 @@ import {
   DEFAULT_COST_PERIOD,
   type AiCostReport,
   type AiUsageFeature,
-  type CostCurrency,
   type CostPeriod,
   type CostTrendPoint,
   type JobCost,
@@ -51,11 +49,6 @@ function first(value: string | string[] | undefined): string | undefined {
 export function parseCostPeriod(value: string | string[] | undefined): CostPeriod {
   const raw = first(value);
   return COST_PERIODS.find((period) => period === raw) ?? DEFAULT_COST_PERIOD;
-}
-
-/** ?currency= as the cost view reads it: MYR only once the price list has a rate, else USD. */
-export function parseCostCurrency(value: string | string[] | undefined, prices: AiPriceList): CostCurrency {
-  return first(value) === "myr" && prices.myrPerUsd !== null ? "myr" : "usd";
 }
 
 /** "2026-10-13" plus n days (n may be negative). */

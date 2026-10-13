@@ -43,7 +43,22 @@ export const COST_PERIOD_LABEL: Readonly<Record<CostPeriod, string>> = {
   all: "All Time",
 };
 
-export type CostCurrency = "usd" | "myr";
+/**
+ * The cost view's currencies, as its switch shows them: ringgit first, the
+ * default (Kenneth, 13 October 2026), and US dollars, as Anthropic bills.
+ * Costs are stored in dollars; ringgit is worked out on screen.
+ */
+export const COST_CURRENCIES = ["myr", "usd"] as const;
+export type CostCurrency = (typeof COST_CURRENCIES)[number];
+export const DEFAULT_COST_CURRENCY: CostCurrency = "myr";
+
+/**
+ * The rate ringgit is worked out at: RM per US$1, the day it is for, and
+ * where it came from: Bank Negara Malaysia's as read from it ("bnm"), BNM's
+ * rate built into the app while BNM cannot be reached ("built_in"), or the
+ * admin's own in the price list. lib/ai/myr-rate.ts picks it.
+ */
+export type MyrRate = { myrPerUsd: number; on: string; source: "bnm" | "built_in" | "price_list" };
 
 export type CostTotals = {
   /** Priced calls. */

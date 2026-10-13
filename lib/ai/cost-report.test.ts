@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { DEFAULT_AI_PRICES } from "@/lib/schemas/ai-prices";
 import type { Database } from "@/lib/supabase/database.types";
-import { buildAiCostReport, costPeriodStart, loadAiCostReport, parseCostCurrency, parseCostPeriod } from "./cost-report";
+import { buildAiCostReport, costPeriodStart, loadAiCostReport, parseCostPeriod } from "./cost-report";
 
 type Functions = Database["public"]["Functions"];
 type SummaryRow = Functions["ai_usage_summary"]["Returns"][number];
@@ -64,14 +63,11 @@ const INSPECTIONS: InspectionRow[] = [
 ];
 
 describe("the cost view's address", () => {
-  it("reads the period and the currency, defaults for anything else", () => {
+  it("reads the period, the default for anything else", () => {
     expect(parseCostPeriod("90")).toBe("90");
     expect(parseCostPeriod(["all", "7"])).toBe("all");
     expect(parseCostPeriod("365")).toBe("30");
     expect(parseCostPeriod(undefined)).toBe("30");
-    expect(parseCostCurrency("myr", DEFAULT_AI_PRICES)).toBe("usd");
-    expect(parseCostCurrency("myr", { ...DEFAULT_AI_PRICES, myrPerUsd: 4.72, myrRateOn: "2026-10-01" })).toBe("myr");
-    expect(parseCostCurrency("eur", { ...DEFAULT_AI_PRICES, myrPerUsd: 4.72, myrRateOn: "2026-10-01" })).toBe("usd");
   });
 
   it("starts a period at Malaysia midnight, today included", () => {

@@ -5,12 +5,14 @@
 // switch pushes it, so Back returns to the previous view, and the cost view's
 // filters replace it in place (useCostFilters). The pill moves at once; the
 // old view stays, dimmed, until the new one has arrived: no skeleton, nothing
-// jumps.
+// jumps. The cost view opens on the currency the viewer last chose on this
+// device (cost-currency.ts), also from an address that names none.
 import { ClipboardCheckIcon, CoinsIcon, SlidersHorizontalIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { createContext, use, useCallback, useOptimistic, useTransition, type ReactNode } from "react";
+import { createContext, use, useCallback, useEffect, useEffectEvent, useOptimistic, useTransition, type ReactNode } from "react";
 import { PillSwitch, type PillOption } from "@/components/ui/pill-switch";
 import { cn } from "@/lib/utils";
+import { CostCurrencyViewer, readRememberedCurrency } from "./cost-currency";
 import {
   aiViewHref,
   DEFAULT_COST_CURRENCY,
@@ -39,16 +41,18 @@ export function useCostFilters(): (filters: CostFilters) => void {
   return change;
 }
 
-export function ViewFrame({ state, children }: { state: AiViewState; children: ReactNode }) {
+export function ViewFrame({ state, viewerId, children }: { state: AiViewState; viewerId: string; children: ReactNode }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [view, setView] = useOptimistic(state.view);
 
   function show(next: AiView) {
     if (next === view) return;
-    // Another view drops the cost filters; the cost view opens on its defaults.
+    // Another view drops the cost filters; the cost view opens on the default period and the viewer's currency.
     const target: AiViewState =
-      next === "cost" ? { view: next, period: DEFAULT_COST_PERIOD, currency: DEFAULT_COST_CURRENCY } : { view: next };
+      next === "cost"
+        ? { view: next, period: DEFAULT_COST_PERIOD, currency: readRememberedCurrency(viewerId) ?? DEFAULT_COST_CURRENCY }
+        : { view: next };
     startTransition(() => {
       setView(next);
       router.push(aiViewHref(target), { scroll: false });
@@ -62,14 +66,28 @@ export function ViewFrame({ state, children }: { state: AiViewState; children: R
     [router],
   );
 
+  // An address from elsewhere that names no currency (a bookmark, the price list link) shows ringgit
+  // first; the viewer's own choice replaces it, dimmed meanwhile. One the address names stays.
+  const showRememberedCurrency = useEffectEvent(() => {
+    if (state.view !== "cost" || new URLSearchParams(window.location.search).has("currency")) return;
+    const remembered = readRememberedCurrency(viewerId);
+    if (remembered !== null && remembered !== state.currency) changeCostFilters({ period: state.period, currency: remembered });
+  });
+  const onCostView = state.view === "cost";
+  useEffect(() => {
+    if (onCostView) showRememberedCurrency();
+  }, [onCostView]);
+
   return (
-    <CostFiltersContext value={changeCostFilters}>
-      <div className="flex min-w-0 flex-col gap-6">
-        <PillSwitch value={view} options={VIEWS} onValueChange={show} label="View" data-testid="ai-view-switch" />
-        <div aria-busy={pending || undefined} className={cn("min-w-0 transition-opacity", pending && "opacity-60")}>
-          {children}
+    <CostCurrencyViewer value={viewerId}>
+      <CostFiltersContext value={changeCostFilters}>
+        <div className="flex min-w-0 flex-col gap-6">
+          <PillSwitch value={view} options={VIEWS} onValueChange={show} label="View" data-testid="ai-view-switch" />
+          <div aria-busy={pending || undefined} className={cn("min-w-0 transition-opacity", pending && "opacity-60")}>
+            {children}
+          </div>
         </div>
-      </div>
-    </CostFiltersContext>
+      </CostFiltersContext>
+    </CostCurrencyViewer>
   );
 }

@@ -7,7 +7,9 @@
 // so no audit row; the call counts in Steri-AI Cost as an Inspection Summary,
 // in the admin's name. The sample shows what the inspector would see: the
 // draft as the field shows it read-only, its length, Steri-AI's notes and the
-// figures it could not find in the inspection.
+// figures it could not find in the inspection. What a try costs is said in
+// the currency the admin last chose in Steri-AI Cost (cost-currency.ts),
+// ringgit until they choose US dollars.
 import { SparklesIcon, TriangleAlertIcon } from "lucide-react";
 import { useId, useState, useTransition } from "react";
 // The button's own spacing, so the sample reads as the field will (no React, no app code).
@@ -22,9 +24,17 @@ import { CLAUDE_MODELS } from "@/lib/schemas/ai-settings";
 import type { SummaryLanguage, SummaryPreviewResult, SummaryStyle } from "@/lib/schemas/summary-style";
 import { previewSummaryAction } from "../summary-actions";
 import { ResultAlert, UNREACHABLE } from "./alerts";
+import { useRememberedCurrency } from "./cost-currency";
+import { formatCost, type Money } from "./money";
+import { DEFAULT_COST_CURRENCY } from "./view-state";
 
-/** What a try costs, said before the click (the prompt lab's first drafts cost 0.017 to 0.042 USD). */
-export const TRY_IT_COST = "Each try is one Steri-AI call, about 0.02 to 0.05 USD, counted in Steri-AI Cost.";
+/**
+ * What a try costs, said before the click: about 0.02 to 0.05 USD (the prompt
+ * lab's first drafts cost 0.017 to 0.042), "about RM 0.08 to RM 0.20" at 4.086.
+ */
+export function tryItCost(money: Money): string {
+  return `Each try is one Steri-AI call, about ${formatCost(0.02, money)} to ${formatCost(0.05, money)}, counted in Steri-AI Cost.`;
+}
 
 /** No key yet: the admin is on the page that takes one, so say where rather than "ask an admin". */
 const NOT_CONNECTED = "Steri-AI is not connected yet. Add the Anthropic API key under General, then try again.";
@@ -55,6 +65,7 @@ export function SummaryTryIt({
   style,
   settings,
   saved,
+  myrPerUsd,
   disabled,
 }: {
   /** The admin's 10 most recently updated inspections with a conclusion (loadSummaryPreviewTargets). */
@@ -65,9 +76,12 @@ export function SummaryTryIt({
   settings: string | null;
   /** The card's settings are the saved ones. */
   saved: boolean;
+  /** Steri-AI Cost's rate, RM per US$1 (lib/ai/myr-rate.ts). */
+  myrPerUsd: number;
   disabled?: boolean;
 }) {
   const id = useId();
+  const money: Money = { currency: useRememberedCurrency() ?? DEFAULT_COST_CURRENCY, myrPerUsd };
   const [targetId, setTargetId] = useState(targets[0]?.id ?? "");
   const [sample, setSample] = useState<Sample | null>(null);
   const [trying, startTrying] = useTransition();
@@ -122,7 +136,7 @@ export function SummaryTryIt({
           </Button>
         </div>
         <p id={`${id}-hint`} className="text-sm text-muted-foreground touch:text-base">
-          {none ? "Try It needs an inspection with a conclusion: there is none yet." : TRY_IT_COST}
+          {none ? "Try It needs an inspection with a conclusion: there is none yet." : tryItCost(money)}
         </p>
       </div>
       {sample && (

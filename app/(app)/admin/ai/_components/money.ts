@@ -1,7 +1,8 @@
-// Steri-AI Cost's amounts (docs/AI.md, "Steri-AI Cost"): US dollars, as
-// Anthropic bills, or ringgit at the price list's rate. Totals to the cent;
-// per-unit averages and prices to their first figures that matter. Client-safe:
-// the server components and the chart both use it.
+// Steri-AI Cost's amounts (docs/AI.md, "Steri-AI Cost"): ringgit at the rate
+// in use (lib/ai/myr-rate.ts), "RM 0.09", or US dollars, as Anthropic bills,
+// "$0.02". Costs are kept in dollars and converted here, on screen. Totals to
+// the sen or cent; per-unit averages and prices to their first figures that
+// matter. Client-safe: the server components, the chart and Try It use it.
 import type { CostCurrency } from "@/lib/schemas/ai-usage";
 
 /** The currency the view shows, and ringgit per dollar (null: dollars only). */
@@ -60,7 +61,7 @@ export function formatAxisValue(value: number, money: Money, places: number): st
   return `${sign(money)}${decimals(value, places, places)}`;
 }
 
-/** The price list's rate: "RM 4.72". */
+/** A rate, RM per US$1, to its 4 decimals at most: "RM 4.086". */
 export function formatMyrRate(myrPerUsd: number): string {
   return `RM ${decimals(myrPerUsd, 2, 4)}`;
 }
