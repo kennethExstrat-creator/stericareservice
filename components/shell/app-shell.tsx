@@ -3,8 +3,10 @@
 // Below 1280 px (iPad portrait 820, landscape 1180): a sticky top bar with
 // the logo, one tab per section and the user menu. From 1280 px (xl): a left
 // sidebar with the logo, the same nav as a list, and the user at the foot.
-// Content sits on the mist ground, at most 1280 px wide (the website's
-// container).
+// Content sits on the mist ground and fills the width, with fixed padding
+// at its sides whatever the screen size (Kenneth, 13 October 2026): 24 px
+// with the top bar, 40 px beside the sidebar. No width cap, so a wide screen
+// gives the tables more room instead of wider margins.
 //
 // The app runs full screen from the iPad home screen (viewport-fit=cover), so
 // the bars pad themselves out of the status bar and home indicator areas.
@@ -53,7 +55,7 @@ export function AppShell({ user, nav, children }: AppShellProps) {
             "md:pt-8 xl:pt-10 xl:pr-[max(2.5rem,env(safe-area-inset-right))] xl:pl-10",
           )}
         >
-          <div className="mx-auto w-full max-w-7xl">{children}</div>
+          <div className="w-full min-w-0">{children}</div>
         </main>
       </div>
     </div>
