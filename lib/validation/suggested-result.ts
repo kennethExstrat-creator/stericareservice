@@ -61,11 +61,13 @@ export function suggestResult(modules: readonly SuggestionInput[]): SuggestedRes
 
 /**
  * Why the suggestion is what it is, a line per reason: "Failed: …", "Not
- * done: …", "Warnings: …", each naming the sections by `titleOf` (their
- * titles in the template's wording), or "No module has a result yet." when
- * nothing was tested. None for a clean pass: the result beside them says it.
- * The Conclusion section, the submit confirmation, the review and the summary
- * above all say it this way.
+ * done: …", "Warnings: …", each naming the sections by `titleOf`, or "No
+ * module has a result yet." when nothing was tested. None for a clean pass:
+ * the result beside them says it. The Conclusion section, the submit
+ * confirmation, the review and the summary above all say it this way: the
+ * review and the summary name the sections by their titles in the template's
+ * wording, the Conclusion section and the submit confirmation by their short
+ * names (docs/DESIGN.md, Step Names).
  */
 export function suggestionReasons(
   suggested: Pick<SuggestedResult, "result" | "failed" | "notDone" | "warned">,

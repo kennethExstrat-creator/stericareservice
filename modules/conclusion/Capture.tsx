@@ -7,7 +7,9 @@
 //   result (computed from every module, read-only), its pill saying Passed,
 //   Failed or On Hold as every result pill does, and why: a reason with one
 //   section names it, one with two or more counts them, their names behind
-//   Show All (view state, never saved). Then the remark, with a note under it
+//   Show All (view state, never saved), each section by its short name, as
+//   the menus and the submit dialog name it ("Failed: Carton Numbers.";
+//   docs/DESIGN.md, Step Names). Then the remark, with a note under it
 //   when the final result differs from the suggestion, asking why while the
 //   remark is blank (amber edge).
 // - Summary: the inspection summary, a paragraph with formatting
@@ -55,7 +57,7 @@ import {
   SteriAiSummaryStatus,
   useSteriAiSummary,
 } from "@/components/ai/steri-ai-summary";
-import { fieldIssues, labelFor, moduleTitle, type CaptureProps } from "@/modules/_framework";
+import { fieldIssues, labelFor, moduleShortTitle, type CaptureProps } from "@/modules/_framework";
 import { useSummaryAssist } from "@/modules/_framework/summary-assist";
 import type { ConclusionComputed, ConclusionConfig, ConclusionData } from ".";
 import { conclusionReasons, resultWord } from "./calc";
@@ -145,14 +147,16 @@ export default function Capture({
   const finalLabel = labelFor(labels, "finalResult");
   const labelHidden = finalLabel.trim().toLowerCase() === title.trim().toLowerCase();
 
-  // Why, the other modules by their titles in the template's wording (6.2
-  // rule 11): one section named, two or more counted, their names under Show
-  // All. None until the suggestion is calculated, none for a clean pass.
+  // Why, the other modules by their short names, as the sidebar and the submit
+  // dialog name them: one section named, two or more counted, their names
+  // under Show All. calc's summary and warning, the review and the export keep
+  // the template's wording (6.2 rule 11). None until the suggestion is
+  // calculated, none for a clean pass.
   const reasons =
     computed && suggested
       ? conclusionReasons(
           { result: suggested, failed: computed.failed, notDone: computed.notDone, warned: computed.warned },
-          (key) => moduleTitle(context, key),
+          (key) => moduleShortTitle(context, key),
         )
       : [];
   const counted = reasons.filter((reason) => reason.counted);

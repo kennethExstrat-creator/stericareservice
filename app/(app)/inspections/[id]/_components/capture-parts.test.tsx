@@ -381,16 +381,11 @@ describe("SubmitSummary (the submit confirmation)", () => {
     expect(html).not.toMatch(/>Pass\.?</);
   });
 
-  it("says why under the pill, a line each, as the Conclusion section words it", () => {
+  it("says why under the pill, a line each, as the Conclusion section words it (submitReasons: short names)", () => {
     const html = renderToStaticMarkup(
-      <SubmitSummary
-        suggested={{ result: "pass", reasons: ["Warnings: Weight (g) - average of 13 gloves per size."] }}
-        warningCount={1}
-      />,
+      <SubmitSummary suggested={{ result: "pass", reasons: ["Warnings: Weight."] }} warningCount={1} />,
     );
-    expect(text(html)).toBe(
-      "Suggested Result Passed Why Warnings: Weight (g) - average of 13 gloves per size. Warnings 1 warning goes into the report.",
-    );
+    expect(text(html)).toBe("Suggested Result Passed Why Warnings: Weight. Warnings 1 warning goes into the report.");
     expect(text(renderToStaticMarkup(<SubmitSummary suggested={{ result: "hold", reasons: ["Not done: Visual Inspection."] }} warningCount={0} />))).toBe(
       "Suggested Result On Hold Why Not done: Visual Inspection.",
     );

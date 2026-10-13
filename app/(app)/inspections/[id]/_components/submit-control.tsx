@@ -54,7 +54,7 @@ type SubmitControlProps = {
   /** Errors on screen: the button opens the issues panel instead of submitting. */
   errorCount: number;
   warningCount: number;
-  /** The suggested result, and why (suggestionReasons): no reasons for a clean pass. */
+  /** The suggested result, and why (submitReasons, the sections by their short names): no reasons for a clean pass. */
   suggested: { result: InspectionResult; reasons: readonly string[] };
   /** Waits for uploads and saves; resolves with the hash of the data that was saved. */
   prepare: () => Promise<SubmitPreparation>;

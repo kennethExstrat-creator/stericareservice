@@ -828,8 +828,9 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     const suggested = frame.getByRole("region", { name: "Suggested Result" });
     // Failed on the pill, as on every result pill; the template's PASSED stays with the choice and the note under the Remark.
     await check(suggested.locator('[data-slot="status-pill"]'), EXPECTED.conclusion.check).toHaveText("Failed");
-    await check(suggested).toContainText(`Failed: ${SECTION.cartons}.`, ANY_CASE);
-    await check(suggested).toContainText(`Warnings: ${SECTION.weight}.`, ANY_CASE);
+    // Why, the sections by their short names (docs/DESIGN.md, Step Names); calc's summary keeps the titles.
+    await check(suggested).toContainText(`Failed: ${NAME.cartons}.`);
+    await check(suggested).toContainText(`Warnings: ${NAME.weight}.`);
     await check(frame.getByText("PASSED differs from the suggestion. Explain why.")).toBeVisible();
     await check(frame.getByRole("textbox", { name: named("Inspected By") }), EXPECTED.inspector.check).toHaveValue(inspectorName);
     // The report is signed: the inspector signs on the pad with a finger (touch events, as on the iPad).
@@ -913,7 +914,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     const frame = await openTab(page, "conclusion");
     const suggested = frame.getByRole("region", { name: "Suggested Result" });
     await check(suggested.locator('[data-slot="status-pill"]'), EXPECTED.conclusion.check).toHaveText("Passed");
-    await check(suggested).toContainText(`Warnings: ${SECTION.weight}.`, ANY_CASE);
+    await check(suggested).toContainText(`Warnings: ${NAME.weight}.`);
     await check(suggested).not.toContainText("Failed:");
     await check(frame.getByText(/differs from the suggestion/)).toHaveCount(0);
     await check(sectionStatus(page, SECTION.conclusion)).toHaveAttribute("data-status", "pass");
@@ -947,6 +948,8 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     const dialog = page.getByRole("alertdialog", { name: /^Submit INS-\d{4}-\d+ for Review\?$/ });
     await expect(dialog).toBeVisible();
     await check(dialog).toContainText(/Suggested Result\s*Pass/);
+    // Why, as the Conclusion section says it: the weight warning by its short name (docs/DESIGN.md, Step Names).
+    await check(dialog.locator('[data-slot="suggested-reasons"]')).toHaveText(`Warnings: ${NAME.weight}.`);
     await check(dialog).toContainText(`1 warning goes into the report.`);
     await shot(page, "22-submit");
     await dialog.getByRole("button", { name: "Submit for Review" }).tap();

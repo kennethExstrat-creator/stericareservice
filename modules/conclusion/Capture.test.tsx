@@ -144,7 +144,7 @@ describe("conclusion capture", () => {
     expect(suggestedBox(nothing).match(/No module has a result yet\./g)).toHaveLength(1);
   });
 
-  it("names the modules behind the suggestion by the template's titles", () => {
+  it("names the modules behind the suggestion by their short names, as the menus do, whatever the template's titles", () => {
     const context = makeTestContext({
       sizes: ["M"],
       modules: [
@@ -152,7 +152,10 @@ describe("conclusion capture", () => {
         { key: "conclusion", title: "Conclusion" },
       ],
     });
-    expect(render({}, { defects: 1, context })).toContain("Failed: Packaging Labeling Inspection.");
+    const html = render({}, { defects: 1, context });
+    expect(suggestedBox(html)).toContain("<p class=\"min-w-0\">Failed: Labeling.</p>");
+    // The title stays with calc's summary, the review and the export (docs/DESIGN.md, Step Names).
+    expect(html).not.toContain("Packaging Labeling Inspection");
   });
 
   it("names a reason's one section on the line, with nothing to open", () => {
@@ -171,8 +174,8 @@ describe("conclusion capture", () => {
     expect(button).toContain('aria-expanded="false"');
     const controls = /aria-controls="([^"]+)"/.exec(button)?.[1];
     expect(controls).toBeDefined();
-    // Word for word as the submit dialog and the review say it, once.
-    expect(box).toMatch(new RegExp(`<ul id="${controls}" hidden=""[^>]*><li>Not done: Labeling, Visual\\.</li></ul>`));
+    // Word for word as the submit dialog says it, by their short names, once.
+    expect(box).toMatch(new RegExp(`<ul id="${controls}" hidden=""[^>]*><li>Not done: Labeling, Visual Inspection\\.</li></ul>`));
     expect(box.match(/Labeling/g)).toHaveLength(1);
   });
 

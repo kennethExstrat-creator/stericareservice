@@ -118,7 +118,7 @@ import {
   type CapturePage,
   type CaptureSection,
 } from "@/lib/inspections/capture/sections";
-import { suggestionReasons } from "@/lib/inspections/capture/suggestion";
+import { submitReasons } from "@/lib/inspections/capture/suggestion";
 import { summaryBasisHash } from "@/lib/inspections/capture/summary-basis";
 import type { StartResult } from "@/lib/offline";
 import { contentHash } from "@/lib/offline/stable-json";
@@ -532,12 +532,10 @@ export function CaptureScreen({
   );
   // The Pending panel's rows, one per section, and their counts: the button, the panel and submit count the same.
   const tasks = useMemo(() => pendingTasks(groups, sections, report.modules), [groups, sections, report.modules]);
-  // The submit confirmation's suggestion: the result, and why in the Conclusion section's words (none for a clean pass).
+  // The submit confirmation's suggestion: the result, and why in the Conclusion section's words, the sections
+  // by their short names (none for a clean pass).
   const suggested = useMemo(
-    () => ({
-      result: report.suggested.result,
-      reasons: suggestionReasons(report.suggested, (key) => sections.find((section) => section.key === key)?.title ?? key),
-    }),
+    () => ({ result: report.suggested.result, reasons: submitReasons(report.suggested, sections) }),
     [report.suggested, sections],
   );
   const pending = useMemo(() => pendingCounts(tasks), [tasks]);

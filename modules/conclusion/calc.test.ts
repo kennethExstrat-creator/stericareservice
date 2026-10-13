@@ -5,6 +5,7 @@ import { MODULE_REGISTRY } from "@/modules/registry";
 import {
   buildInspectionContext,
   evaluateInspection,
+  moduleShortTitle,
   suggestionReasons,
   worstStatus,
   type CalcInput,
@@ -441,9 +442,33 @@ describe("conclusionReasons (the Conclusion section's line under its suggestion)
     expect(reasons.map((reason) => reason.counted)).toEqual([true, false, true]);
   });
 
-  it("keeps every full line word for word as suggestionReasons, which the submit dialog and the review show", () => {
+  it("keeps every full line word for word as suggestionReasons given the same names, as the submit dialog shows them", () => {
     expect(conclusionReasons(MIXED, titleOf).map((reason) => reason.full)).toEqual(suggestionReasons(MIXED, titleOf));
     expect(conclusionReasons(MIXED, titleOf)[2].full).toBe("Warnings: Sampling Plan, Freedom From Holes: Watertight Test, Dimension.");
+  });
+
+  it("names sections by their short names as the Conclusion section asks, while calc's own messages keep the titles", () => {
+    const context = makeTestContext({
+      modules: [
+        { key: "carton_sampling", title: "Finished Goods Sampling Information (Carton Number)" },
+        { key: "weight", title: "Weight (g) - Average of 12 Gloves per Size" },
+        { key: "visual", title: "Visual Inspection" },
+        { key: "conclusion", title: "Conclusion" },
+      ],
+    });
+    const short = (key: ModuleKey) => moduleShortTitle(context, key);
+    const failed = conclusionReasons({ result: "fail", failed: ["carton_sampling"], notDone: [], warned: ["weight"] }, short);
+    expect(failed.map((reason) => reason.brief)).toEqual(["Failed: Carton Numbers.", "Warnings: Weight."]);
+    const several = conclusionReasons({ result: "hold", failed: [], notDone: ["weight", "visual"], warned: [] }, short);
+    expect(several.map((reason) => reason.full)).toEqual(["Not done: Weight, Visual Inspection."]);
+    // calc's summary and warning reach the review and the export: the template's wording.
+    const output = calcConclusion(
+      input({ ...FILLED, finalResult: "pass" }, { context, moduleResults: results({ carton_sampling: "fail", weight: "warn" }) }),
+    );
+    expect(output.result.summary).toBe("Conclusion: PASSED. Suggested Result: FAILED (failed: Finished Goods Sampling Information (Carton Number)).");
+    expect(output.issues[0].message).toBe(
+      "Conclusion PASSED differs from the suggestion, FAILED (failed: Finished Goods Sampling Information (Carton Number)). Explain why under Remark.",
+    );
   });
 
   it("gives nothing for a clean pass, and never counts that nothing has a result yet", () => {

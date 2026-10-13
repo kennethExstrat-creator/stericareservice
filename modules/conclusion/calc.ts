@@ -7,7 +7,10 @@
 // missing. A final result that differs from the suggestion is a warning for
 // the reviewer, never an error: the inspector decides. It points at the
 // remark, where the reason goes, so its link lands there. Other modules are
-// named by their titles in the template's wording (context.modules).
+// named by their titles in the template's wording (context.modules): the
+// summary and the warning reach the review and the export. The section's
+// own line of reasons (conclusionReasons) names them as Capture.tsx asks,
+// by their short names (docs/DESIGN.md, Step Names).
 import type { InspectionResult, ModuleKey, ModuleResult, ModuleStatus } from "@/lib/schemas";
 import {
   labelFor,
@@ -116,8 +119,8 @@ export function resultWord(labels: Labels, result: InspectionResult): string {
 
 /**
  * One reason for the suggestion (suggestionReasons): `full` names every
- * section, as the submit confirmation and the review say it; `brief` is what
- * the Conclusion section shows on its one line: the same when the reason has
+ * section, as the submit confirmation says it; `brief` is what the
+ * Conclusion section shows on its one line: the same when the reason has
  * one section, else counted ("Not done: 9 sections."), `counted` true, with
  * `full` behind Show All.
  */
@@ -128,6 +131,9 @@ export type ConclusionReason = { full: string; brief: string; counted: boolean }
  * suggestionReasons' lines, word for word, with a brief form that counts
  * the sections of a reason that has two or more. "No module has a result
  * yet." names none, so it is never counted; a clean pass has no reasons.
+ * `titleOf` names a section: the Conclusion section passes its short name
+ * (`moduleShortTitle`), as the submit confirmation and the menus name it;
+ * calc's own messages, the review and the export keep its title.
  */
 export function conclusionReasons(
   suggested: Pick<SuggestedResult, "result" | "failed" | "notDone" | "warned">,

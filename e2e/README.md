@@ -72,8 +72,9 @@ order's tab (`lib/inspections/capture/sections.ts` `SHOWN_WITH`). Scope by the m
 The template's titles and labels are the clients' words and can change wording or case: match them
 with a case-insensitive pattern, or read them from the page or the fixture, rather than typing them out.
 
-Rows, tabs, the progress bar's name, Previous / Next, Pending and the switch toasts name a step by its
-short name ("Weight", "Watertight Test": docs/DESIGN.md, Step Names). Rows, tabs, the progress bar's
+Rows, tabs, the progress bar's name, Previous / Next, Pending, the switch toasts and the reasons under
+the suggested result (the Conclusion's and the submit dialog's) name a step by its short name
+("Weight", "Watertight Test": docs/DESIGN.md, Step Names). Rows, tabs, the progress bar's
 name and Previous / Next carry the full title in their `title` attribute (Pending rows and toasts do
 not); a frame's `h2` keeps the template's title. Find a step by its key, as above, rather than by its
 name.
