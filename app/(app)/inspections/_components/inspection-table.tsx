@@ -1,6 +1,7 @@
 // The list itself: one line per inspection (Kenneth: one neat row each, and
-// scroll sideways for more columns). Compact 36 px rows with a mouse, 44 px
-// rows and 16 px text on touch (docs/DESIGN.md). Every column from
+// scroll sideways for more columns). 44 px rows and 14 px text with a mouse
+// (Kenneth, 13 October 2026: a little taller, the same type size), rows as
+// tall as the 44 px buttons and 16 px text on touch (docs/DESIGN.md). Every column from
 // lib/inspections/columns.ts shows at every size, each value in its own
 // column and on one line. When the row is wider than the card, the card
 // scrolls sideways (table-scroller.tsx) with the Ref pinned on the left and
@@ -209,7 +210,9 @@ export function InspectionTable({
               className="group/row border-b-0 hover:bg-slate-50 [&:last-child>*]:border-b-0"
             >
               {columns.map((column) => {
-                const className = cn("border-b border-border py-1.5 align-middle touch:py-2.5", pad);
+                // 10 px above and below on every device: the 24 px pills make a 44 px row with a mouse.
+                // touch:py-2.5 overrides TableCell's own touch:py-3.
+                const className = cn("border-b border-border py-2.5 align-middle touch:py-2.5", pad);
                 switch (column.key) {
                   case "ref":
                     return (
@@ -222,9 +225,9 @@ export function InspectionTable({
                       </TableHead>
                     );
                   case "actions":
-                    // With a mouse the 32 px buttons keep the row at 36 px.
+                    // With a mouse the 32 px buttons sit in the 44 px row.
                     return (
-                      <TableCell key={column.key} className={cn(className, "fine:py-0.5", PINNED_RIGHT, PINNED_BODY)}>
+                      <TableCell key={column.key} className={cn(className, "fine:py-1.5", PINNED_RIGHT, PINNED_BODY)}>
                         <RowActionsCell row={row} index={index} next={rows[index + 1]} viewer={viewer} />
                       </TableCell>
                     );

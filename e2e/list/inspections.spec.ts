@@ -169,14 +169,15 @@ async function expectNamesWhole(entries: [row: Locator, name: string][]) {
 
 /**
  * One line per row (Kenneth: one neat row each): every row as tall as the
- * line and its buttons, 36 px with a mouse and 65 px on touch (the 44 px
- * buttons and their padding), so a wrapped value (a second 24 px line)
- * would show; and no cell's text runs onto a second line.
+ * line and its buttons, 44 px with a mouse (13 October 2026: a little
+ * taller) and 65 px on touch (the 44 px buttons and their padding), so a
+ * wrapped value (a second line) would show; and no cell's text runs onto a
+ * second line.
  */
 async function expectOneLineRows(page: Page) {
   const heights = await page.locator("tbody tr").evaluateAll((rows) => rows.map((tr) => tr.getBoundingClientRect().height));
   expect(heights.length).toBeGreaterThan(0);
-  expect(Math.max(...heights), "the tallest row").toBeLessThanOrEqual(isTouch() ? 65 : 37);
+  expect(Math.max(...heights), "the tallest row").toBeLessThanOrEqual(isTouch() ? 65 : 45);
   const wrapped = await page.locator("tbody tr").evaluateAll((rows) =>
     rows.flatMap((tr) =>
       [...tr.children].flatMap((cell) => {
