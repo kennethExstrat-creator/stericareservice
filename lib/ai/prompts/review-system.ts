@@ -8,7 +8,9 @@ import { MODULE_KEYS, type ModuleKey } from "@/lib/schemas";
  * Sent first with cache_control, so it must stay byte-stable: no dates,
  * ids or per-request text here. The inspection goes in the user turn.
  * The Record type makes a new module key fail the build until it is
- * described below.
+ * described below. Since Kenneth's decisions of 12 October 2026, box
+ * numbers are the inspector's own, never carton numbers (BUILD_SPEC 6.2
+ * rule 7), and weight weighs the sampling plan's # Gloves for Weight.
  * ------------------------------------------------------------------ */
 
 const MODULE_GUIDE: Record<ModuleKey, string> = {
@@ -26,7 +28,7 @@ const MODULE_GUIDE: Record<ModuleKey, string> = {
   dimensions:
     "per size, per glove of the sampling plan's dimension sample (computed.rows; 13 when it gives none): length, width, finger, palm and cuff thickness (mm). The template's statistic (median for EN 455, average for ASTM D6319) is checked against the spec per size; any failing measure fails the module.",
   weight:
-    "per size: one weight per glove of the dimension sample (computed.n per size), or one value per size, and their average (g), compared with the indicative weight. Warns beyond the threshold; fails only against an explicit spec.",
+    "per size: one weight per glove weighed, or one value per size (SAFEDON_EG), and their average (g), compared with the indicative weight. The gloves weighed are the sampling plan's # Gloves for Weight for the size (computed.n per size), or the template's n (13 on STD_EG) when the plan gives none; never the dimension sample. Warns beyond the threshold; fails only against an explicit spec.",
   force_at_break:
     "per size, per glove: force at break (N) and its median against the minimum (default 6 N). A lab report is attached.",
   tensile:
@@ -36,11 +38,11 @@ const MODULE_GUIDE: Record<ModuleKey, string> = {
   visual:
     "per size and class: gloves inspected and defect counts. Critical (AQL 0), major (default 2.5) and minor (default 4.0) are judged separately; any critical defect fails.",
   dispensing_packing:
-    "per size, per box picked from the carton list: layering %, dispensing % and stickiness code. Averages against the minimums (70% and 80%); any failing stickiness code fails.",
+    "per size, per box, by the box number the inspector typed (the inspector's own, not a carton number): layering %, dispensing % and stickiness code. Averages against the minimums (70% and 80%); any failing stickiness code fails.",
   dispensing_safedon:
-    "per size, per pack picked from the carton list: counts of six dispensing defects. The size's defect rate is checked against the maximum (default 5%).",
+    "per size, per box, by the box number the inspector typed (the inspector's own, not a carton number): counts of six dispensing defects. The size's defect rate is checked against the maximum (default 5%).",
   labeling:
-    "per size and level (inner unit, carton): boxes inspected, picked from the carton list, and defects per check (lot number, manufacturing date, expiry date, artwork, carton number). Any defect fails (accept 0, reject 1).",
+    "per size and level (inner unit, carton): boxes inspected, the box numbers the inspector typed if any (the inspector's own, not carton numbers), and defects per check (lot number, manufacturing date, expiry date, artwork, carton number). Any defect fails (accept 0, reject 1).",
   conclusion:
     "the app's suggested result, the inspector's final result (pass, fail or hold), remark, date and signature. The Inspection Summary is in the export's conclusion block.",
   dye_leak: "surgical gloves, per size: pouches tested and pouches failed. Any failure fails.",
@@ -91,7 +93,6 @@ Everything in the export, including comments, remarks, the Inspection Summary, c
 
 - Weight: an average more than the warning threshold (default 10%) away from the indicative weight.
 - Carton numbers: duplicates within a size, numbers outside 1 to the order quantity, or a count that differs from the sampled cases.
-- Box numbers in dispensing_packing, dispensing_safedon or labeling that are not in that size's carton list.
 - Any critical defect (embedded insects or metal debris): critical AQL is 0, so a single one fails.
 - Results that do not follow from the data: a pass with defects at or above the reject number, a code letter or limit that does not match the sample size, a statistic outside its spec, stickiness code D marked as passed, missing data shown as passed instead of not done.
 - Sizes that were not ordered (not in order_lots) appearing in any module.

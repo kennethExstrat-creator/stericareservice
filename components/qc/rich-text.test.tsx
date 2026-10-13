@@ -15,7 +15,14 @@ import {
   toRichTextDoc,
 } from "@/lib/rich-text";
 import { richTextExample, richTextParagraph } from "@/lib/rich-text/__fixtures__/example";
-import { RICH_TEXT_COLOURS, RICH_TEXT_HIGHLIGHTS, RICH_TEXT_MAX_CHARACTERS, RICH_TEXT_SIZES } from "@/lib/schemas/rich-text";
+import {
+  RICH_TEXT_COLOURS,
+  RICH_TEXT_HIGHLIGHTS,
+  RICH_TEXT_MAX_CHARACTERS,
+  RICH_TEXT_SIZES,
+  type RichTextDoc,
+  type RichTextParagraph,
+} from "@/lib/schemas/rich-text";
 import {
   RICH_TEXT_COLOUR_CLASS,
   RICH_TEXT_COLOUR_SWATCH,
@@ -120,6 +127,25 @@ describe("RichTextView", () => {
   it("keeps its relaxed line height whatever text size the caller sets", () => {
     expect(renderToStaticMarkup(<RichTextView doc={null} className="text-base fine:text-sm" />)).toContain("leading-relaxed");
   });
+
+  it("spaces paragraphs and lists 0.75em apart and list items 0.25em by the box's own rules, nothing above or below", () => {
+    // Top margins on every block and item but the first, and no other margin.
+    const margins = RICH_TEXT_CONTENT_CLASS.split(" ").filter((rule) => /(^|:)(m[trblxy]?|space-[xy])-/.test(rule));
+    expect(margins).toEqual(["*:not-first:mt-[0.75em]", "[&_li]:not-first:mt-[0.25em]"]);
+    // None on the elements: the editor's come from ProseMirror (its items hold a paragraph), so only the box's rules space both alike.
+    const line = (text: string): RichTextParagraph => ({ type: "paragraph", content: [{ type: "text", text }] });
+    const doc: RichTextDoc = {
+      type: "doc",
+      content: [
+        line("First"),
+        line("Second"),
+        { type: "bulletList", content: [{ type: "listItem", content: [line("One")] }, { type: "listItem", content: [line("Two")] }] },
+      ],
+    };
+    expect(renderToStaticMarkup(<RichTextView doc={doc} />)).toBe(
+      `<div class="${CONTENT}"><p>First</p><p>Second</p><ul><li>One</li><li>Two</li></ul></div>`,
+    );
+  });
 });
 
 /** Each button's name, in order, with its state. */
@@ -195,6 +221,8 @@ describe("RichTextEditor", () => {
     expect(area).toMatch(/text-base .*leading-relaxed/);
     expect(area).not.toContain("fine:text-sm");
     for (const rule of ["min-h-65", "landscape:min-h-80", "px-4", "py-3", "touch:px-5", "touch:py-4"]) expect(area.split(" ")).toContain(rule);
+    // The content rules, so the editor's paragraphs and lists are spaced as RichTextView's.
+    expect(area.split(" ")).toEqual(expect.arrayContaining(CONTENT.split(" ")));
     // The toolbar sticks under the screen's bars.
     expect(html).toContain("sticky top-[var(--capture-sticky-top,0px)]");
   });

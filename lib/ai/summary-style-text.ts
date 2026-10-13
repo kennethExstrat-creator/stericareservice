@@ -4,13 +4,18 @@
 // <writing_style>. It goes after the cached system prompt and inspection,
 // so Shorter, Longer, Write Again or another style within 5 minutes reads
 // both from the cache. The prompt lab's v4 renderer, with the house wording
-// picked by the final result's own sentence. Pure.
+// picked by the final result's own sentence. From the reviewers' real calls
+// (Kenneth, 12 October 2026): the length's maximum is stated as binding,
+// and Polish My Text gets only what reshapes the inspector's text (its own
+// length, the parts' order, voice, tone, terms, bold, dates, language),
+// never what would cut or add a sentence. Pure.
 import type { InspectionResult } from "@/lib/schemas/common";
 import {
   paragraphTarget,
   SUMMARY_LENGTHS,
   summaryLengthRange,
   type SummaryLanguage,
+  type SummaryMode,
   type SummaryOverviewKey,
   type SummarySectionKey,
   type SummaryStyle,
@@ -117,7 +122,7 @@ export function escapeTags(text: string): string {
 }
 
 /** "a, b and c". */
-function listOf(items: readonly string[]): string {
+export function listOf(items: readonly string[]): string {
   return items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
 }
 
@@ -143,17 +148,29 @@ export function houseWordingOf(style: Pick<SummaryStyle, "verdictSentences" | "c
   return { verdict: verdict || null, closing: closing || null };
 }
 
+/** "words" or "Chinese characters": what a length is counted in (summaryLengthRange). */
+export function lengthUnitText(unit: "words" | "characters"): string {
+  return unit === "characters" ? "Chinese characters" : "words";
+}
+
 /**
  * The style as instructions, inside <writing_style>. Plain text, no data
  * from the inspection. `houseWording` is what the server will add after
  * the text (houseWordingOf for a written summary; what a polished one ends
  * with), so Steri-AI writes no Next Step or closing of its own beside it.
+ * `mode` "polish" keeps the inspector's sentences: no length range to cut
+ * them to, no parts, numbers or sizes to add or drop, only the parts' order.
  */
 export function renderWritingStyle(
   style: SummaryStyle,
-  { finalResult, houseWording = houseWordingOf(style, finalResult) }: { finalResult: InspectionResult | null; houseWording?: HouseWording },
+  {
+    finalResult,
+    houseWording = houseWordingOf(style, finalResult),
+    mode = "write",
+  }: { finalResult: InspectionResult | null; houseWording?: HouseWording; mode?: SummaryMode },
 ): string {
   const range = summaryLengthRange(style.length, style.language);
+  const unit = lengthUnitText(range.unit);
   const label = SUMMARY_LENGTHS.find((length) => length.value === style.length)?.shortLabel ?? "Standard";
   // SteriCare's verdict sentence stands in for the Next Step, so the parts never ask for one beside it.
   const covered = (section: SummaryStyle["sections"][number]) => section.on && !(houseWording.verdict && section.key === "next_step");
@@ -168,19 +185,31 @@ export function renderWritingStyle(
     return `${index + 1}. ${PART_NAMES[section.key]}: ${text}`;
   });
 
+  // Polish: the inspector's text decides what is covered and how long it is (Kenneth, 12 October 2026).
+  const content =
+    mode === "polish"
+      ? [
+          "Length: the draft's own. Never leave out a sentence to shorten it.",
+          `Format: ${formatText(style)}`,
+          `Order: put the draft's sentences in this order of parts, where they fit: ${listOf(on.map((section) => PART_NAMES[section.key]))}. Add no part the draft does not cover.`,
+        ]
+      : [
+          `Length: ${range.lo} to ${range.hi} ${unit} (${label}), never more than ${range.hi}. Count them before you answer. When the parts do not fit, shorten the later parts first, then leave them out.`,
+          `Format: ${formatText(style)}`,
+          `Cover these parts, in this order, which is also their priority. Never leave out the result${issuesOn ? " or the issues" : ""}. A part with nothing to say is left out.`,
+          ...parts,
+          ...(off.length > 0 ? [`Leave out: ${listOf(off.map((section) => PART_NAMES[section.key]))}.`] : []),
+          style.mentionSuggestion
+            ? "Suggested result: when the conclusion differs from the suggested result, say so in one sentence right after the result, with what lies behind it."
+            : "Suggested result: do not mention it.",
+          `Numbers: ${NUMBERS_TEXT[style.numbers]}`,
+          `Grouping: ${style.grouping === "test" ? "by test, sizes within each test." : "by size, tests within each size."} Sizes: ${
+            style.sizes === "every" ? "name every size." : "name sizes only where their results differ; otherwise say it once for all sizes."
+          }`,
+        ];
+
   const lines = [
-    `Length: ${range.lo} to ${range.hi} ${range.unit === "characters" ? "Chinese characters" : "words"} (${label}). Count them. When the parts do not fit, shorten the later parts first, then leave them out.`,
-    `Format: ${formatText(style)}`,
-    `Cover these parts, in this order, which is also their priority. Never leave out the result${issuesOn ? " or the issues" : ""}. A part with nothing to say is left out.`,
-    ...parts,
-    ...(off.length > 0 ? [`Leave out: ${listOf(off.map((section) => PART_NAMES[section.key]))}.`] : []),
-    style.mentionSuggestion
-      ? "Suggested result: when the conclusion differs from the suggested result, say so in one sentence right after the result, with what lies behind it."
-      : "Suggested result: do not mention it.",
-    `Numbers: ${NUMBERS_TEXT[style.numbers]}`,
-    `Grouping: ${style.grouping === "test" ? "by test, sizes within each test." : "by size, tests within each size."} Sizes: ${
-      style.sizes === "every" ? "name every size." : "name sizes only where their results differ; otherwise say it once for all sizes."
-    }`,
+    ...content,
     `Point of view: ${VOICE_TEXT[style.pointOfView]}`,
     `Tone: ${TONE_TEXT[style.tone]}`,
     `Terminology: ${TERMS_TEXT[style.terminology]}`,

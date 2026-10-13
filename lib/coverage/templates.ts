@@ -197,11 +197,13 @@ type DictionaryDefaults<M extends ModuleKey> = {
 
 /**
  * Compile-time check: every module's defaults in fields.ts are a complete
- * config of its type, so a module's defaultConfig is exactly them and parses
- * with its config schema. An incomplete default turns the entry into `false`.
+ * config as the module reads it (`ReadConfigValues`: every sampling column,
+ * glovesWeight included, though a template may leave that one out), so a
+ * module's defaultConfig is exactly them and parses with its config schema.
+ * An incomplete default turns the entry into `false`.
  */
 export const DEFAULTS_FIT_CONFIG_TYPES: {
-  readonly [M in ModuleKey]: DictionaryDefaults<M> extends ModuleConfigValues[M] ? true : false;
+  readonly [M in ModuleKey]: DictionaryDefaults<M> extends ReadConfigValues[M] ? true : false;
 } = {
   header: true,
   glove_info: true,
@@ -225,10 +227,10 @@ export const DEFAULTS_FIT_CONFIG_TYPES: {
 };
 
 /** A module's default config: the defaults of fields.ts (checked by DEFAULTS_FIT_CONFIG_TYPES). */
-export function defaultConfig<M extends ModuleKey>(module: M): ModuleConfigValues[M] {
+export function defaultConfig<M extends ModuleKey>(module: M): ReadConfigValues[M] {
   return Object.fromEntries(
     moduleSpec(module).config.map((field) => [field.key, field.default]),
-  ) as unknown as ModuleConfigValues[M];
+  ) as unknown as ReadConfigValues[M];
 }
 
 /* ------------------------------------------------------------------ *

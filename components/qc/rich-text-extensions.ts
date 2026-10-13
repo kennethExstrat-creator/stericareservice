@@ -314,9 +314,9 @@ export const RICH_TEXT_EXTENSIONS = [
  * ------------------------------------------------------------------ */
 
 /**
- * Replace: in place of the whole text. Below: after the text, with a blank
- * line between (paragraphs have no margins here), taking over the empty
- * paragraphs that end it; into an empty field it is the same as replace.
+ * Replace: in place of the whole text. Below: after the text (the field
+ * spaces its paragraphs itself), taking over the empty paragraphs that end
+ * it; into an empty field it is the same as replace.
  */
 export type RichTextInsertMode = "replace" | "below";
 
@@ -442,11 +442,10 @@ export function insertRichTextDocument(editor: Editor, doc: RichTextDoc | null, 
   const { state } = editor;
   const before = toRichTextDoc(state.doc.toJSON());
   const from = mode === "below" ? endOfText(state.doc) : 0;
-  const blankLine = from > 0;
   // As CharacterCount counts: text plus 1 per line break.
   const room: Room = {
     characters: RICH_TEXT_MAX_CHARACTERS - state.doc.textBetween(0, from, undefined, " ").length,
-    paragraphs: RICH_TEXT_MAX_PARAGRAPHS - paragraphCount(state.doc.cut(0, from)) - (blankLine ? 1 : 0),
+    paragraphs: RICH_TEXT_MAX_PARAGRAPHS - paragraphCount(state.doc.cut(0, from)),
   };
   const fitted = fitBlocks(toRichTextDoc(doc)?.content ?? [], room);
   if (mode === "below" && toRichTextDoc({ type: "doc", content: fitted.blocks }) === null) return { applied: false };
@@ -454,7 +453,6 @@ export function insertRichTextDocument(editor: Editor, doc: RichTextDoc | null, 
 
   const { schema } = state;
   const nodes = fitted.blocks.map((block) => schema.nodeFromJSON(block));
-  if (blankLine) nodes.unshift(schema.nodes.paragraph.create());
   if (nodes.length === 0) nodes.push(schema.nodes.paragraph.create());
   const tr = state.tr.replaceWith(from, state.doc.content.size, Fragment.from(nodes));
   if (JSON.stringify(toRichTextDoc(tr.doc.toJSON())) === JSON.stringify(before)) {

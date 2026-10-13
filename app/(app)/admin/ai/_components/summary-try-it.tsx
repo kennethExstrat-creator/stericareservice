@@ -11,7 +11,6 @@
 import { SparklesIcon, TriangleAlertIcon } from "lucide-react";
 import { useId, useState, useTransition } from "react";
 // The button's own spacing, so the sample reads as the field will (no React, no app code).
-import { spacedDraft } from "@/components/ai/steri-ai-summary-state";
 // By its path: the components/qc index would bring every capture primitive along.
 import { RichTextView } from "@/components/qc/rich-text-view";
 import { Button } from "@/components/ui/button";
@@ -171,7 +170,7 @@ export function SummarySample({
       {/* The field's read-only box (RichTextEditor read-only), without its writing area's height; the
           draft spaced as the button puts it in (a blank line between its blocks). */}
       <div className="rounded-md border border-input bg-muted px-4 py-3 touch:px-5 touch:py-4">
-        <RichTextView doc={spacedDraft(result.doc)} className="text-base text-foreground [overflow-wrap:anywhere]" />
+        <RichTextView doc={result.doc} className="text-base text-foreground [overflow-wrap:anywhere]" />
       </div>
       {result.notes.length > 0 && (
         <div className="grid gap-1 text-sm text-foreground touch:text-base">

@@ -8,14 +8,28 @@ import type {
 import { ClaudeModelIdSchema } from "@/lib/schemas/ai-settings";
 import type { InspectionResult } from "@/lib/schemas/common";
 import { RichTextDocSchema, type RichTextDoc } from "@/lib/schemas/rich-text";
-import { countSummaryWords, DEFAULT_SUMMARY_MODEL, SUMMARY_MESSAGES, type SummaryMode, type SummaryStyle } from "@/lib/schemas/summary-style";
+import {
+  countSummaryWords,
+  DEFAULT_SUMMARY_MODEL,
+  SUMMARY_MESSAGES,
+  summaryLengthRange,
+  type SummaryMode,
+  type SummaryStyle,
+} from "@/lib/schemas/summary-style";
 import type { AiEnv } from "./config";
 import { createMessage } from "./document-reader";
 import { SUMMARY_SYSTEM_PROMPT } from "./prompts/summary-system";
 import { SERVER_SIDE_FALLBACK_BETA } from "./providers/claude-request";
-import { hardCheckProblems, unknownFigures } from "./summary-checks";
-import { answerToDoc, appendHouseWording, parseSummaryAnswer, SUMMARY_OUTPUT_SCHEMA, summaryPlainText } from "./summary-doc";
-import { escapeTags, renderWritingStyle, type HouseWording } from "./summary-style-text";
+import { hardCheckProblems, lengthNote, overLength, practicalNotes, tooLongProblem, unknownFigures } from "./summary-checks";
+import {
+  answerToDoc,
+  appendHouseWording,
+  parseSummaryAnswer,
+  SUMMARY_ANSWER_LIMITS,
+  SUMMARY_OUTPUT_SCHEMA,
+  summaryPlainText,
+} from "./summary-doc";
+import { escapeTags, lengthUnitText, renderWritingStyle, type HouseWording } from "./summary-style-text";
 import type { SummaryView } from "./summary-view";
 import type { OnAiCall } from "./usage";
 
@@ -25,9 +39,11 @@ import type { OnAiCall } from "./usage";
  * or draft, and the ask, to the Inspection Summary's own model at low
  * effort. The answer is flat blocks of strings with **bold**, made into
  * the field's document, checked and validated here; a draft that fails a
- * hard check is asked for once more. Never throws: a failure comes back in
- * words for the inspector. Text only: nothing here reads or writes a
- * result, and nothing is stored.
+ * hard check is asked for once more. One far over its length is asked for
+ * once more too, but kept with a note when the second answer still runs
+ * long or fails (Kenneth, 12 October 2026). Never throws: a failure comes
+ * back in words for the inspector. Text only: nothing here reads or writes
+ * a result, and nothing is stored.
  *
  * Request layout, in cache order (the 5.5 models cache from 512 tokens):
  *   system  SUMMARY_SYSTEM_PROMPT               cache_control (the same for every summary)
@@ -99,18 +115,24 @@ function inspectionBlock(view: SummaryView): string {
   return `<inspection>\n${JSON.stringify(view).replaceAll("<", "\\u003c")}\n</inspection>`;
 }
 
+/** The ask, last before a retry's problem: Write with the length's maximum, Polish keeping every sentence of the inspector's (12 October 2026). */
 function ask(input: WriteSummaryInput): string {
   const { refNo } = input.view;
-  return input.mode === "polish"
-    ? `Polish the inspector's draft above for inspection ${refNo} in the writing style above. Keep every fact, figure and judgement it states and add none, even when the inspection data has more. Where the draft disagrees with the inspection data, keep the inspector's words and say so in notes.`
-    : `Write the Inspection Summary for inspection ${refNo} in the writing style above.`;
+  if (input.mode === "polish") {
+    return `Polish the inspector's draft above for inspection ${refNo} in the writing style above. Keep every sentence of the draft and every fact, figure and judgement it states, including what the inspection data does not record: those are the inspector's own statements. Keep the inspector's words where they are clear; you may reorder and complete sentences, correct the grammar and use the report's terms. Leave out nothing and add nothing, even when the inspection data has more. Where the draft disagrees with the inspection data, keep the inspector's words and say so in notes only.`;
+  }
+  const { hi, unit } = summaryLengthRange(input.style.length, input.style.language);
+  return `Write the Inspection Summary for inspection ${refNo} in the writing style above, in ${hi} ${lengthUnitText(unit)} at most.`;
 }
 
 /** The request for one summary. No thinking, temperature, top_p or prefill: Opus 5.5 always thinks and refuses the rest. */
 export function buildSummaryRequest(input: WriteSummaryInput, model: string): MessageCreateParamsNonStreaming {
   const content: BetaTextBlockParam[] = [
     { type: "text", text: inspectionBlock(input.view), cache_control: { type: "ephemeral" } },
-    { type: "text", text: renderWritingStyle(input.style, { finalResult: input.finalResult, houseWording: input.houseWording }) },
+    {
+      type: "text",
+      text: renderWritingStyle(input.style, { finalResult: input.finalResult, houseWording: input.houseWording, mode: input.mode }),
+    },
   ];
   if (input.mode === "polish" && input.draft) {
     content.push({ type: "text", text: `<inspector_draft>\n${escapeTags(input.draft)}\n</inspector_draft>` });
@@ -143,12 +165,32 @@ export function withRetryLine(params: MessageCreateParamsNonStreaming, problem: 
   };
 }
 
+type Written = Extract<SummaryOutcome, { ok: true }>;
+
 type Reading =
-  | { kind: "done"; outcome: Extract<SummaryOutcome, { ok: true }> }
+  | { kind: "done"; outcome: Written }
+  /** Passes every check but its length (overLength): asked for once more, kept with a note if that fails. */
+  | { kind: "long"; outcome: Written; problem: string }
   | { kind: "stopped"; failure: SummaryFailure }
   | { kind: "retry"; problem: string };
 
-/** One answer: stopped (declined or cut off, never retried), a problem to retry, or the checked draft. */
+/**
+ * Steri-AI's notes as shown under the field: one in the first person, about
+ * "the data" or about the inspection being a draft dropped (12 October 2026).
+ */
+function notesOf(notes: readonly string[]): string[] {
+  const kept = practicalNotes(notes);
+  if (kept.length < notes.length) console.warn(`[steri-ai summary] dropped ${notes.length - kept.length} unwanted note(s)`);
+  return kept;
+}
+
+/** A draft kept although it runs long: the length note last, within the notes' limit. */
+function withLengthNote(outcome: Written, style: SummaryStyle): Written {
+  const notes = [...outcome.notes.slice(0, SUMMARY_ANSWER_LIMITS.notes - 1), lengthNote(style)];
+  return { ...outcome, notes };
+}
+
+/** One answer: stopped (declined or cut off, never retried), a problem to retry, too long, or the checked draft. */
 function readAnswer(message: BetaMessage, input: WriteSummaryInput, attempts: number): Reading {
   if (message.stop_reason === "refusal") return { kind: "stopped", failure: fail("error", SUMMARY_MESSAGES.declined) };
   if (message.stop_reason === "max_tokens" || message.stop_reason === "model_context_window_exceeded") {
@@ -162,6 +204,8 @@ function readAnswer(message: BetaMessage, input: WriteSummaryInput, attempts: nu
   const { doc, repairs } = answerToDoc(read.answer, { words, emphasis: input.style.emphasis, colourResult: input.style.colourResult });
   if (repairs.length > 0) console.warn("[steri-ai summary] repaired the answer:", [...new Set(repairs)].join("; "));
   const full = appendHouseWording(doc, input.houseWording);
+  // Steri-AI's own text, never the house wording, against the length (Write only: a polish keeps the inspector's length).
+  const long = input.mode === "write" ? overLength(summaryPlainText(doc), input.style) : null;
   const problems = hardCheckProblems({
     answer: read.answer,
     doc,
@@ -171,27 +215,26 @@ function readAnswer(message: BetaMessage, input: WriteSummaryInput, attempts: nu
     words,
     language: input.style.language,
     mentionSuggestion: input.style.mentionSuggestion,
+    draft: input.draft,
   });
-  if (problems.length > 0) return { kind: "retry", problem: problems.join("; ") };
+  if (problems.length > 0) return { kind: "retry", problem: [...problems, ...(long ? [tooLongProblem(long)] : [])].join("; ") };
   // Only a document the field itself accepts leaves the server.
   const valid = RichTextDocSchema.safeParse(full);
   if (!valid.success) return { kind: "retry", problem: "could not be made into the summary's format" };
 
   const plain = summaryPlainText(valid.data);
   const sources = [JSON.stringify(input.view), input.note, input.draft ?? "", input.houseWording.verdict ?? "", input.houseWording.closing ?? ""];
-  return {
-    kind: "done",
-    outcome: {
-      ok: true,
-      doc: valid.data,
-      text: plain,
-      notes: read.answer.notes,
-      figures: unknownFigures(plain, sources),
-      words: countSummaryWords(plain, input.style.language),
-      model: message.model,
-      attempts,
-    },
+  const outcome: Written = {
+    ok: true,
+    doc: valid.data,
+    text: plain,
+    notes: notesOf(read.answer.notes),
+    figures: unknownFigures(plain, sources),
+    words: countSummaryWords(plain, input.style.language),
+    model: message.model,
+    attempts,
   };
+  return long ? { kind: "long", outcome, problem: tooLongProblem(long) } : { kind: "done", outcome };
 }
 
 /**
@@ -207,21 +250,35 @@ export async function writeSummary(input: WriteSummaryInput, env: AiEnv, callbac
   if (!model.success) return fail("misconfigured", SUMMARY_MESSAGES.modelNotClaude);
 
   const params = buildSummaryRequest(input, model.data);
+  let client: Anthropic;
+  let first: Reading;
   try {
-    const client = new Anthropic({ apiKey, maxRetries: 1, timeout: SUMMARY_TIMEOUT_MS });
-    const first = readAnswer(await createMessage(client, params, callbacks.onCall), input, 1);
-    if (first.kind === "done") return first.outcome;
-    if (first.kind === "stopped") return first.failure;
-
-    console.warn(`[steri-ai summary] asking once more: the answer ${first.problem}`);
-    const second = readAnswer(await createMessage(client, withRetryLine(params, first.problem), callbacks.onRetryCall), input, 2);
-    if (second.kind === "done") return second.outcome;
-    if (second.kind === "stopped") return second.failure;
-    console.warn(`[steri-ai summary] the second answer failed its checks too: it ${second.problem}`);
-    return fail("error", SUMMARY_MESSAGES.checksFailed);
+    client = new Anthropic({ apiKey, maxRetries: 1, timeout: SUMMARY_TIMEOUT_MS });
+    first = readAnswer(await createMessage(client, params, callbacks.onCall), input, 1);
   } catch (error) {
     return describeSummaryError(error);
   }
+  if (first.kind === "done") return first.outcome;
+  if (first.kind === "stopped") return first.failure;
+
+  console.warn(`[steri-ai summary] asking once more: the answer ${first.problem}`);
+  let second: Reading;
+  try {
+    second = readAnswer(await createMessage(client, withRetryLine(params, first.problem), callbacks.onRetryCall), input, 2);
+  } catch (error) {
+    // Only the first answer's length failed: it stands, with its note.
+    return first.kind === "long" ? withLengthNote(first.outcome, input.style) : describeSummaryError(error);
+  }
+  if (second.kind === "done") return second.outcome;
+  // Still long the second time: kept, with a note (Kenneth, 12 October 2026).
+  if (second.kind === "long") return withLengthNote(second.outcome, input.style);
+  if (first.kind === "long") {
+    console.warn("[steri-ai summary] the second answer failed: keeping the first, which only ran long");
+    return withLengthNote(first.outcome, input.style);
+  }
+  if (second.kind === "stopped") return second.failure;
+  console.warn(`[steri-ai summary] the second answer failed its checks too: it ${second.problem}`);
+  return fail("error", SUMMARY_MESSAGES.checksFailed);
 }
 
 /** A failed request in words an inspector can act on (as describeSortError, for the summary). */

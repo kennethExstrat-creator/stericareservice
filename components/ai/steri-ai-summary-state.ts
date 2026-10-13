@@ -23,7 +23,7 @@ import type { RichTextEditorHandle, RichTextInsertMode, RichTextInsertResult } f
 import { formatCount } from "@/lib/format";
 import { summaryTextHash } from "@/lib/inspections/capture/summary-basis";
 import { richTextPlain } from "@/lib/rich-text";
-import { RICH_TEXT_MAX_CHARACTERS, richTextLength, type RichTextBlock, type RichTextDoc } from "@/lib/schemas/rich-text";
+import { RICH_TEXT_MAX_CHARACTERS, richTextLength, type RichTextDoc } from "@/lib/schemas/rich-text";
 import {
   stepLength,
   SUMMARY_MESSAGES,
@@ -330,25 +330,6 @@ export function figuresLine(figures: readonly string[]): string {
  * Where a draft goes
  * ------------------------------------------------------------------ */
 
-const isBlankLine = (block: RichTextBlock) => block.type === "paragraph" && block.content === undefined;
-
-/**
- * The draft's blocks with an empty paragraph between each two, as an
- * inspector types them: the field's paragraphs and lists have no margins of
- * their own (components/qc/rich-text-classes.ts), so the draft's paragraphs
- * would otherwise run together, in the editor, its read-only box and the
- * review. Blocks already apart stay as they are, so a spaced draft comes out
- * the same. The plain text, and so the mark and the word count, is unchanged.
- */
-export function spacedDraft(doc: RichTextDoc): RichTextDoc {
-  const content: RichTextBlock[] = [];
-  for (const block of doc.content) {
-    const previous = content[content.length - 1];
-    if (previous && !isBlankLine(previous) && !isBlankLine(block)) content.push({ type: "paragraph" });
-    content.push(block);
-  }
-  return content.length === doc.content.length ? doc : { ...doc, content };
-}
 
 /**
  * Straight in (replace) for Polish My Text, into an empty field, and over
@@ -526,8 +507,8 @@ export async function performSummaryRun(io: SummaryRunIO, id: number, options: S
     io.dispatch({ type: "failed", id, message: result.message });
     return;
   }
-  // Spaced once, so Replace Your Summary? shows what goes in.
-  const draft = { ...result, doc: spacedDraft(result.doc) };
+  // As written: the field spaces its paragraphs and lists itself (rich-text-classes.ts, 13 October 2026).
+  const draft = result;
   const { value, mark } = io.field();
   if (placementFor(draft.mode, value, mark) === "ask") {
     io.dispatch({ type: "asked", id, draft });

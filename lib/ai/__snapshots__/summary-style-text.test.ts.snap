@@ -1,8 +1,22 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`renderWritingStyle > for Polish My Text (Kenneth, 12 October 2026: it keeps every sentence of the inspector's text) > writes the default 1`] = `
+"<writing_style>
+Length: the draft's own. Never leave out a sentence to shorten it.
+Format: Paragraphs: prose in 2 paragraphs; no lists.
+Order: put the draft's sentences in this order of parts, where they fit: Result, Remark, Issues, Order Overview, Sampling Plan, Test Results, Defects Found, Inspector Comments and Next Step. Add no part the draft does not cover.
+Point of view: third person, active voice, with the test or the inspection as the subject (for example "The watertight test found <n> holes in <n> gloves.").
+Tone: Professional: clear, factual and courteous business English; no contractions.
+Terminology: the report's own section titles and defect names.
+Bold: bold the conclusion word, and the title of each section that failed, passed with a warning or was not done, at its first mention.
+Dates: day, month in words, year (for example 1 January 2026).
+Language: English with British spelling; section titles, defect names and the conclusion words stay as the report prints them.
+</writing_style>"
+`;
+
 exports[`renderWritingStyle > writes Brief and Formal 1`] = `
 "<writing_style>
-Length: 60 to 100 words (Brief). Count them. When the parts do not fit, shorten the later parts first, then leave them out.
+Length: 60 to 100 words (Brief), never more than 100. Count them before you answer. When the parts do not fit, shorten the later parts first, then leave them out.
 Format: Paragraphs: prose in 1 paragraph; no lists.
 Cover these parts, in this order, which is also their priority. Never leave out the result or the issues. A part with nothing to say is left out.
 1. Result: the conclusion, in the template's word.
@@ -29,7 +43,7 @@ Language: English with British spelling; section titles, defect names and the co
 
 exports[`renderWritingStyle > writes Bullet Points 1`] = `
 "<writing_style>
-Length: 113 to 188 words (Standard). Count them. When the parts do not fit, shorten the later parts first, then leave them out.
+Length: 113 to 188 words (Standard), never more than 188. Count them before you answer. When the parts do not fit, shorten the later parts first, then leave them out.
 Format: Bullet Points: one bullet list, one point per bullet, the conclusion first; no paragraphs.
 Cover these parts, in this order, which is also their priority. Never leave out the result or the issues. A part with nothing to say is left out.
 1. Result: the conclusion, in the template's word.
@@ -56,7 +70,7 @@ Language: English with British spelling; section titles, defect names and the co
 
 exports[`renderWritingStyle > writes Chinese (Simplified) 1`] = `
 "<writing_style>
-Length: 226 to 376 Chinese characters (Standard). Count them. When the parts do not fit, shorten the later parts first, then leave them out.
+Length: 226 to 376 Chinese characters (Standard), never more than 376. Count them before you answer. When the parts do not fit, shorten the later parts first, then leave them out.
 Format: Paragraphs: prose in 2 paragraphs; no lists.
 Cover these parts, in this order, which is also their priority. Never leave out the result or the issues. A part with nothing to say is left out.
 1. Result: the conclusion, in the template's word.
@@ -83,7 +97,7 @@ Language: Simplified Chinese; section titles, defect names and the conclusion wo
 
 exports[`renderWritingStyle > writes Detailed, Headed Sections 1`] = `
 "<writing_style>
-Length: 225 to 375 words (Detailed). Count them. When the parts do not fit, shorten the later parts first, then leave them out.
+Length: 225 to 375 words (Detailed), never more than 375. Count them before you answer. When the parts do not fit, shorten the later parts first, then leave them out.
 Format: Headed Sections: one paragraph per part, each opening with a short label in bold followed by a colon, then sentences. Labels are the report's words in Title Case, one to four words, never the names of the parts listed here: for example "Conclusion:", "Open Points:", "Order:", "Sampling Plan:". Test Results gets one paragraph for each section with a result, labelled with its short title (for example "Watertight Test:", "Glove Packing Check:"), in report order. No lists.
 Cover these parts, in this order, which is also their priority. Never leave out the result or the issues. A part with nothing to say is left out.
 1. Result: the conclusion, in the template's word.
@@ -111,7 +125,7 @@ The report adds SteriCare's own closing sentence after your text: write no closi
 
 exports[`renderWritingStyle > writes Standard, Paragraph and Findings List 1`] = `
 "<writing_style>
-Length: 113 to 188 words (Standard). Count them. When the parts do not fit, shorten the later parts first, then leave them out.
+Length: 113 to 188 words (Standard), never more than 188. Count them before you answer. When the parts do not fit, shorten the later parts first, then leave them out.
 Format: Paragraph and Findings List: 2 paragraphs of prose with the conclusion and the overview, then one bullet list with one finding per bullet (a section or an issue, with its figures).
 Cover these parts, in this order, which is also their priority. Never leave out the result or the issues. A part with nothing to say is left out.
 1. Result: the conclusion, in the template's word.
@@ -138,7 +152,7 @@ Language: English with British spelling; section titles, defect names and the co
 
 exports[`renderWritingStyle > writes the default 1`] = `
 "<writing_style>
-Length: 113 to 188 words (Standard). Count them. When the parts do not fit, shorten the later parts first, then leave them out.
+Length: 113 to 188 words (Standard), never more than 188. Count them before you answer. When the parts do not fit, shorten the later parts first, then leave them out.
 Format: Paragraphs: prose in 2 paragraphs; no lists.
 Cover these parts, in this order, which is also their priority. Never leave out the result or the issues. A part with nothing to say is left out.
 1. Result: the conclusion, in the template's word.
@@ -165,7 +179,7 @@ Language: English with British spelling; section titles, defect names and the co
 
 exports[`renderWritingStyle > writes the suggestion switch on 1`] = `
 "<writing_style>
-Length: 113 to 188 words (Standard). Count them. When the parts do not fit, shorten the later parts first, then leave them out.
+Length: 113 to 188 words (Standard), never more than 188. Count them before you answer. When the parts do not fit, shorten the later parts first, then leave them out.
 Format: Paragraphs: prose in 2 paragraphs; no lists.
 Cover these parts, in this order, which is also their priority. Never leave out the result or the issues. A part with nothing to say is left out.
 1. Result: the conclusion, in the template's word.

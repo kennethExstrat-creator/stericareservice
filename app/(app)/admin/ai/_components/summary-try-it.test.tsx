@@ -83,7 +83,7 @@ describe("the sample", () => {
     expect(html).toContain("Written with the settings above, not saved yet.");
   });
 
-  it("spaces the draft's paragraphs as the field gets them, a blank line between each two", () => {
+  it("shows the draft's paragraphs as the field gets them (the field spaces them itself)", () => {
     const paragraph = (text: string) => ({ type: "paragraph" as const, content: [{ type: "text" as const, text }] });
     const html = renderToStaticMarkup(
       <SummarySample
@@ -93,7 +93,7 @@ describe("the sample", () => {
         settingsLine=""
       />,
     );
-    expect(html).toContain("<p>The inspection concluded PASSED.</p><p><br/></p><p>Size M was inspected.</p>");
+    expect(html).toContain("<p>The inspection concluded PASSED.</p><p>Size M was inspected.</p>");
   });
 
   it("counts Chinese in characters and leaves out what is empty", () => {

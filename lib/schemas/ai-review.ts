@@ -100,8 +100,10 @@ function flagDuplicateIds(
  * so those must exist in the export the review is about: a review that
  * cites evidence the inspection does not have is rejected, not repaired.
  * Sizes and box numbers are not checked. Naming a size that was not
- * ordered, a box missing from the carton list, or a size seen only in a
- * comment or a photo is part of the reviewer's job.
+ * ordered, or a size seen only in a comment or a photo, is part of the
+ * reviewer's job. Box numbers are the inspector's own, never carton
+ * numbers, so nothing compares them with the carton list (BUILD_SPEC 6.2
+ * rule 7; Kenneth, 12 October 2026).
  * ------------------------------------------------------------------ */
 
 export interface ReviewReferenceIssue {

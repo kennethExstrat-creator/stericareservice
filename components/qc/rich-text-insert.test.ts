@@ -102,23 +102,23 @@ describe("insertRichTextDocument", () => {
     expect(plain(editor)).toBe("Mine");
   });
 
-  it("goes below the text after a blank line, taking over the empty paragraphs that end it", () => {
+  it("goes below the text, taking over the empty paragraphs that end it", () => {
     const { editor } = open(doc(line("Mine."), BLANK, BLANK));
     const result = insertRichTextDocument(editor, draft(), "below");
-    expect(result).toEqual({ applied: true, cut: false, before: doc(line("Mine.")), after: doc(line("Mine."), BLANK, ...draft().content) });
-    expect(stored(editor)).toEqual(doc(line("Mine."), BLANK, ...draft().content));
+    expect(result).toEqual({ applied: true, cut: false, before: doc(line("Mine.")), after: doc(line("Mine."), ...draft().content) });
+    expect(stored(editor)).toEqual(doc(line("Mine."), ...draft().content));
     editor.commands.undo();
     expect(stored(editor)).toEqual(doc(line("Mine.")));
   });
 
-  it("goes below a list after a blank line too, and typing after it stays a step of its own", () => {
+  it("goes below a list too, and typing after it stays a step of its own", () => {
     const list = doc({ type: "bulletList", content: [{ type: "listItem", content: [line("One")] }] });
     const { editor } = open(list);
     insertRichTextDocument(editor, richTextParagraph("Draft."), "below");
-    expect(stored(editor)).toEqual(doc(...list.content, BLANK, line("Draft.")));
+    expect(stored(editor)).toEqual(doc(...list.content, line("Draft.")));
     type(editor, " Checked.");
     editor.commands.undo();
-    expect(stored(editor)).toEqual(doc(...list.content, BLANK, line("Draft.")));
+    expect(stored(editor)).toEqual(doc(...list.content, line("Draft.")));
     editor.commands.undo();
     expect(stored(editor)).toEqual(list);
   });
@@ -139,7 +139,7 @@ describe("insertRichTextDocument", () => {
     const mine = "a".repeat(RICH_TEXT_MAX_CHARACTERS - 10);
     const { editor } = open(richTextParagraph(mine));
     expect(insertRichTextDocument(editor, doc(line("0123456789ABCDEFGHIJ"), line("Next.")), "below")).toMatchObject({ applied: true, cut: true });
-    expect(stored(editor)).toEqual(doc(line(mine), BLANK, line("0123456789")));
+    expect(stored(editor)).toEqual(doc(line(mine), line("0123456789")));
     expect(editor.storage.characterCount.characters()).toBe(RICH_TEXT_MAX_CHARACTERS);
     // Exactly the room left: nothing is cut.
     const exact = open(richTextParagraph(mine)).editor;
@@ -166,11 +166,11 @@ describe("insertRichTextDocument", () => {
     expect(lines.storage.characterCount.characters()).toBe(RICH_TEXT_MAX_CHARACTERS);
   });
 
-  it("keeps the 500 paragraphs: what goes below past them is cut, the blank line counted", () => {
+  it("keeps the 500 paragraphs: what goes below past them is cut", () => {
     const { editor } = open(doc(...Array.from({ length: RICH_TEXT_MAX_PARAGRAPHS - 2 }, () => line("p"))));
     expect(insertRichTextDocument(editor, doc(line("one"), line("two"), line("three")), "below")).toMatchObject({ applied: true, cut: true });
     expect(paragraphCount(editor.state.doc)).toBe(RICH_TEXT_MAX_PARAGRAPHS);
-    expect(stored(editor)?.content.at(-1)).toEqual(line("one"));
+    expect(stored(editor)?.content.at(-1)).toEqual(line("two"));
   });
 
   it("never cuts a replacement that fits the field, and cuts the end of one that does not", () => {

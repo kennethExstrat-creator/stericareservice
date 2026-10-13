@@ -2,7 +2,7 @@
 // house style and the inspector's choices as instructions.
 import { describe, expect, it } from "vitest";
 import { DEFAULT_SUMMARY_STYLE, SummaryStyleSchema, type SummaryStyleInput } from "@/lib/schemas/summary-style";
-import { escapeTags, houseWordingOf, renderWritingStyle } from "./summary-style-text";
+import { escapeTags, houseWordingOf, renderWritingStyle, type HouseWording } from "./summary-style-text";
 
 const styled = (input: SummaryStyleInput) => SummaryStyleSchema.parse(input);
 const render = (input: SummaryStyleInput, finalResult: "pass" | "fail" | "hold" | null = "pass") =>
@@ -68,11 +68,49 @@ describe("renderWritingStyle", () => {
     expect(text).toContain("Leave out: Issues, Remark, Order Overview, Sampling Plan, Defects Found, Inspector Comments, Sections Switched Off and Next Step.");
   });
 
-  it("aims at the length's range, and counts Chinese in characters", () => {
-    expect(render({ length: "brief" })).toContain("Length: 60 to 100 words (Brief).");
-    expect(render({ length: "standard" })).toContain("Length: 113 to 188 words (Standard).");
-    expect(render({ length: "detailed" })).toContain("Length: 225 to 375 words (Detailed).");
-    expect(render({ length: "brief", language: "zh-Hans" })).toContain("Length: 120 to 200 Chinese characters (Brief).");
+  it("aims at the length's range, its maximum binding, and counts Chinese in characters (12 October 2026)", () => {
+    expect(render({ length: "brief" })).toContain("Length: 60 to 100 words (Brief), never more than 100. Count them before you answer.");
+    expect(render({ length: "standard" })).toContain("Length: 113 to 188 words (Standard), never more than 188.");
+    expect(render({ length: "detailed" })).toContain("Length: 225 to 375 words (Detailed), never more than 375.");
+    expect(render({ length: "brief", language: "zh-Hans" })).toContain("Length: 120 to 200 Chinese characters (Brief), never more than 200.");
+  });
+
+  describe("for Polish My Text (Kenneth, 12 October 2026: it keeps every sentence of the inspector's text)", () => {
+    const polish = (input: SummaryStyleInput, houseWording: HouseWording = { verdict: null, closing: null }) =>
+      renderWritingStyle(styled(input), { finalResult: "pass", houseWording, mode: "polish" });
+
+    it("writes the default", () => {
+      expect(polish({})).toMatchSnapshot();
+    });
+
+    it("gives no length range to cut the text to, nor parts, numbers or sizes to add or drop, only their order", () => {
+      const text = polish({ length: "brief", numbers: "words", mentionSuggestion: true });
+      expect(text).toContain("Length: the draft's own. Never leave out a sentence to shorten it.");
+      expect(text).toContain(
+        "Order: put the draft's sentences in this order of parts, where they fit: Result, Remark, Issues, Order Overview, Sampling Plan, Test Results, Defects Found, Inspector Comments and Next Step. Add no part the draft does not cover.",
+      );
+      for (const absent of ["60 to 100", "Cover these parts", "Leave out:", "Suggested result:", "Numbers:", "Grouping:", "Sizes:", "1. Result:"]) {
+        expect(text, absent).not.toContain(absent);
+      }
+    });
+
+    it("keeps what reshapes the text: format, voice, tone, terms, bold, dates, language, the house wording and SteriCare's instruction", () => {
+      const text = polish(
+        { format: "bullets", pointOfView: "passive", language: "en-US", customInstruction: "Call the manufacturer the supplier." },
+        { verdict: "The goods conform.", closing: null },
+      );
+      expect(text).toContain("Format: Bullet Points: one bullet list, one point per bullet, the conclusion first; no paragraphs.");
+      expect(text).toContain('Point of view: passive voice (for example "<n> holes were found in <n> gloves.").');
+      expect(text).toContain("Tone: Professional:");
+      expect(text).toContain("Terminology: the report's own section titles and defect names.");
+      expect(text).toContain("Bold: bold the conclusion word, and the title of each section");
+      expect(text).toContain("Dates: day, month in words, year");
+      expect(text).toContain("Language: English with American spelling;");
+      expect(text).toContain("The report adds SteriCare's own verdict sentence after your text");
+      expect(text).toContain("SteriCare's own instruction (follow it unless it breaks your rules): Call the manufacturer the supplier.");
+      // The verdict sentence stands in for the Next Step here too.
+      expect(text).toContain("Test Results, Defects Found and Inspector Comments. Add no part the draft does not cover.");
+    });
   });
 
   it("asks for the paragraphs the length or the setting gives", () => {

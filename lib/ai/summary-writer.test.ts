@@ -143,8 +143,10 @@ describe("writeSummary", () => {
       "<inspection>",
       "<writing_style>",
       "<inspector_note>",
-      "Write the Inspection Summary for inspection INS-2025-0001 in the writing style above.",
+      // The length's maximum, binding, last (Kenneth, 12 October 2026).
+      "Write the Inspection Summary for inspection INS-2025-0001 in the writing style above, in 188 words at most.",
     ]);
+    expect(blocks[1].text).toContain("Length: 113 to 188 words (Standard), never more than 188.");
     // The breakpoints: the system prompt and the inspection only, so the style, the note and the ask vary freely.
     expect(blocks.map((block) => block.cache_control ?? null)).toEqual([{ type: "ephemeral" }, null, null, null]);
     expect(JSON.parse(blocks[0].text.slice("<inspection>\n".length, -"\n</inspection>".length))).toEqual(VIEW);
@@ -189,11 +191,52 @@ describe("writeSummary", () => {
     );
     const blocks = userBlocks(sent());
     expect(blocks[2].text).toBe("<inspector_draft>\nInspection **PASSED**, weight low.\n</inspector_draft>");
-    expect(blocks.at(-1)?.text).toMatch(/^Polish the inspector's draft above for inspection INS-2025-0001 in the writing style above\. Keep every fact/);
+    expect(blocks.at(-1)?.text).toMatch(
+      /^Polish the inspector's draft above for inspection INS-2025-0001 in the writing style above\. Keep every sentence of the draft and every fact, figure and judgement it states, including what the inspection data does not record/,
+    );
+    expect(blocks.at(-1)?.text).toContain("say so in notes only.");
     expect(blocks[1].text).toContain("The report adds SteriCare's own verdict sentence after your text");
+    // The polish's own style: the inspector's length and sentences, never a range to cut them to.
+    expect(blocks[1].text).toContain("Length: the draft's own. Never leave out a sentence to shorten it.");
+    expect(blocks[1].text).not.toContain("113 to 188");
     expect(outcome).toMatchObject({ ok: true, text: "The inspection concluded PASSED; weight was below the indicative weight.\n\nThe goods conform." });
   });
 
+  it("asks once more when a polish leaves out a sentence of the inspector's, quoting it (Kenneth, 12 October 2026)", async () => {
+    const draft = "Inspection **PASSED**, weight low. Checked on site.";
+    vi.mocked(createMessage)
+      .mockResolvedValueOnce(
+        message({
+          blocks: [{ type: "paragraph", items: ["The inspection concluded **PASSED**; weight was below the indicative weight."] }],
+          notes: ["I removed one sentence as it is not a recorded fact."],
+        }),
+      )
+      .mockResolvedValueOnce(
+        message({
+          blocks: [{ type: "paragraph", items: ["The inspection concluded **PASSED**; weight was below the indicative weight. It was checked on site."] }],
+          notes: [],
+        }),
+      );
+    const outcome = await writeSummary(input({ mode: "polish", draft }), ENV);
+    expect(userBlocks(sent(1)).at(-1)?.text).toBe(
+      'Your previous answer left out the inspector\'s sentence "Checked on site": a polish keeps every sentence and figure of the draft, in or close to the inspector\'s words. Write the whole answer again, following every rule.',
+    );
+    expect(outcome).toMatchObject({
+      ok: true,
+      attempts: 2,
+      text: "The inspection concluded PASSED; weight was below the indicative weight. It was checked on site.",
+    });
+  });
+
+  it("drops a note in the first person, about the data or about the inspection being a draft (Kenneth, 12 October 2026)", async () => {
+    vi.mocked(createMessage).mockResolvedValue(
+      message({
+        ...GOOD,
+        notes: ["I kept the weight figures as recorded.", "Add the reason under Remark.", "The inspection is still a draft, so results may change."],
+      }),
+    );
+    expect(await writeSummary(input(), ENV)).toMatchObject({ ok: true, notes: ["Add the reason under Remark."] });
+  });
   it("asks once more when a hard check fails, the problem after the breakpoint, and the retry is reported apart", async () => {
     vi.mocked(createMessage)
       .mockResolvedValueOnce(message({ blocks: [{ type: "paragraph", items: ["The inspection of PC-A01, 2,900 cartons, concluded"] }], notes: [] }))
@@ -261,6 +304,58 @@ describe("writeSummary", () => {
   it("puts a request that failed in Steri-AI's words", async () => {
     vi.mocked(createMessage).mockRejectedValue(new Anthropic.RateLimitError(429, undefined, "rate limited", new Headers()));
     expect(await writeSummary(input(), ENV)).toEqual({ ok: false, reason: "error", message: "Steri-AI is busy. Wait a minute and try again." });
+  });
+});
+
+describe("writeSummary: the length, binding (Kenneth, 12 October 2026: a Standard draft ran to 249 words against 113 to 188)", () => {
+  /** 246 words of Steri-AI's own text, over Standard's 188 plus 15% (216). */
+  const sentences = (count: number) => "Every carton was intact. ".repeat(count).trim();
+  const LONG = {
+    blocks: [
+      { type: "paragraph", items: [`The inspection of PC-A01 concluded **PASSED**. ${sentences(30)}`] },
+      { type: "paragraph", items: [sentences(30)] },
+    ],
+    notes: ["Add the reason under Remark.", "Record the weight of size M.", "Check the lot number."],
+  };
+  const RETRY_LINE =
+    "Your previous answer was too long by 58 words (246; 188 at most): shorten the later parts first, then leave them out. Write the whole answer again, following every rule.";
+  const NOTE = "Shorten the summary to 188 words at most (Standard).";
+
+  it("asks once more, by how much, and takes the shorter answer", async () => {
+    vi.mocked(createMessage).mockResolvedValueOnce(message(LONG)).mockResolvedValueOnce(message(GOOD));
+    const outcome = await writeSummary(input(), ENV);
+    expect(userBlocks(sent(1)).at(-1)?.text).toBe(RETRY_LINE);
+    expect(outcome).toMatchObject({ ok: true, attempts: 2, words: 30, notes: ["Weight is 17% below the indicative weight."] });
+  });
+
+  it("keeps a second answer that still runs long, with a note, the notes kept to three", async () => {
+    vi.mocked(createMessage).mockResolvedValue(message(LONG));
+    const outcome = await writeSummary(input(), ENV);
+    expect(createMessage).toHaveBeenCalledTimes(2);
+    expect(outcome).toMatchObject({ ok: true, attempts: 2, words: 246, notes: ["Add the reason under Remark.", "Record the weight of size M.", NOTE] });
+  });
+
+  it("keeps the first answer, with the note, when the second fails its checks or never comes", async () => {
+    vi.mocked(createMessage).mockResolvedValueOnce(message(LONG)).mockResolvedValueOnce(message("not json"));
+    expect(await writeSummary(input(), ENV)).toMatchObject({ ok: true, attempts: 1, words: 246, notes: expect.arrayContaining([NOTE]) });
+    vi.mocked(createMessage)
+      .mockResolvedValueOnce(message(LONG))
+      .mockRejectedValueOnce(new Anthropic.APIConnectionError({ message: "offline" }));
+    expect(await writeSummary(input(), ENV)).toMatchObject({ ok: true, attempts: 1, words: 246 });
+  });
+
+  it("counts Steri-AI's own text, not the house wording, and never the inspector's length when polishing", async () => {
+    // 208 words of Steri-AI's and a 14-word closing sentence: within 216 for the check, though the field holds 222.
+    const within = { blocks: [{ type: "paragraph", items: [`The inspection concluded **PASSED**. ${sentences(51)}`] }], notes: [] };
+    vi.mocked(createMessage).mockResolvedValue(message(within));
+    const closing = "This summary reflects the goods sampled at the time and place of inspection only.";
+    expect(await writeSummary(input({ houseWording: { verdict: null, closing } }), ENV)).toMatchObject({ ok: true, attempts: 1, words: 222 });
+
+    vi.mocked(createMessage).mockClear();
+    vi.mocked(createMessage).mockResolvedValue(message(LONG));
+    const draft = `The inspection of PC-A01 concluded **PASSED**. ${sentences(30)}\n\n${sentences(30)}`;
+    expect(await writeSummary(input({ mode: "polish", draft }), ENV)).toMatchObject({ ok: true, attempts: 1, words: 246 });
+    expect(createMessage).toHaveBeenCalledTimes(1);
   });
 });
 

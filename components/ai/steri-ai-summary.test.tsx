@@ -31,7 +31,6 @@ import {
   performSummaryRun,
   placementFor,
   regenerateOptions,
-  spacedDraft,
   requestOptions,
   shownChoices,
   storedChoices,
@@ -325,34 +324,14 @@ describe("where a draft goes", () => {
     expect(placementFor("polish", doc("My own words."), null)).toBe("replace");
   });
 
-  it("puts a blank line between the draft's blocks, as an inspector types them, and leaves a spaced draft as it is", () => {
-    const list: RichTextDoc["content"][number] = {
-      type: "bulletList",
-      content: [{ type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Weight passed with a warning." }] }] }],
-    };
-    const twoAndList: RichTextDoc = { type: "doc", content: [...doc("First.", "Second.").content, list] };
-    const spaced = spacedDraft(twoAndList);
-    expect(spaced.content.map((block) => (block.type === "paragraph" && !block.content ? "blank" : block.type))).toEqual([
-      "paragraph",
-      "blank",
-      "paragraph",
-      "blank",
-      "bulletList",
-    ]);
-    expect(spacedDraft(spaced)).toBe(spaced);
-    expect(spacedDraft(DRAFT_DOC)).toBe(DRAFT_DOC);
-    // The words are the same: the mark and the count do not move.
-    expect(richTextPlain(spaced)).toBe(richTextPlain(twoAndList));
-  });
-
-  it("asks with the spaced draft and puts the spaced draft in", async () => {
+  it("asks with the draft as written and puts it in as written (the field spaces its paragraphs)", async () => {
     const two = doc("The inspection concluded PASSED.", "Weight passed with a warning.");
     const screen = fakeScreen({ answer: Promise.resolve(draft({ doc: two })) });
     await performSummaryRun(screen.io, 1, { mode: "write" });
-    expect(screen.inserts[0].doc).toEqual(spacedDraft(two));
+    expect(screen.inserts[0].doc).toEqual(two);
     const asking = fakeScreen({ value: doc("My own words."), answer: Promise.resolve(draft({ doc: two })) });
     await performSummaryRun(asking.io, 1, { mode: "write" });
-    expect(asking.state().asking?.draft.doc).toEqual(spacedDraft(two));
+    expect(asking.state().asking?.draft.doc).toEqual(two);
   });
 
   it("refuses Add Below past the field's 5,000 characters", () => {

@@ -48,8 +48,14 @@ export const RICH_TEXT_ALIGN_CLASS: Readonly<Record<RichTextAlign, string>> = {
  * The text area's own rules: lines wrap as typed, relaxed line height (a
  * summary is read, and a highlight or a larger size keeps clear of the next
  * line), list markers back (the CSS reset removes them), a highlight keeps
- * the text's colour. Paragraphs and lists have no margins, so Enter behaves
- * like a new line in a text box.
+ * the text's colour. Paragraphs and lists sit 0.75em apart and list items
+ * 0.25em, nothing above the first or below the last (Kenneth, 12 October
+ * 2026: the summary goes into the report and must read easily). Top margins
+ * on the blocks and the items, never their paragraphs (the editor's items
+ * hold one, the view's do not), so the editor, the read-only box and the
+ * review space them alike; margins only, so the caret and selection behave
+ * as before. A blank line typed between two paragraphs is a paragraph too,
+ * and adds its line to the gap.
  */
 export const RICH_TEXT_CONTENT_CLASS =
-  "whitespace-pre-wrap break-words leading-relaxed [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-6 [&_ol]:pl-6 [&_mark]:text-inherit";
+  "whitespace-pre-wrap break-words leading-relaxed *:not-first:mt-[0.75em] [&_li]:not-first:mt-[0.25em] [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-6 [&_ol]:pl-6 [&_mark]:text-inherit";
