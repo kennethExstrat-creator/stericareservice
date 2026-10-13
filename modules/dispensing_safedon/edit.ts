@@ -7,8 +7,8 @@
 import { MAX_BOXES_PER_SIZE } from "./config";
 import { countOf, emptySafedonBox, isBlankSafedonBox, type DispensingSafedonData, type SafedonBox } from "./schema";
 
-/** Rows on one page of a size's box list, as the carton numbers (Kenneth, 12 October 2026). */
-export const BOXES_PER_PAGE = 15;
+/** Rows on one page of a size's box list: 10, as the carton numbers' (Kenneth, 13 October 2026; 15 from 12 October). */
+export const BOXES_PER_PAGE = 10;
 
 /** The page of the box list that shows box column `index`, from 0. */
 export function boxPageOf(index: number): number {

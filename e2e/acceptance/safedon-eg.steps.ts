@@ -405,7 +405,10 @@ export async function enterSampling(page: Page): Promise<void> {
   }
 }
 
-/** Finished goods sampling: per size the carton numbers into the grid, 10 to a row, as printed. */
+/**
+ * Finished goods sampling: per size the carton numbers into the table's rows, in the order printed,
+ * each stored with Enter, which turns the page after a page's 10th row (Kenneth, 13 October 2026).
+ */
 export async function enterCartons(page: Page): Promise<void> {
   await openSection(page, "carton_sampling");
   for (const size of SIZES) {

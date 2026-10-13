@@ -10,10 +10,14 @@ export const MAX_CARTONS_PER_SIZE = 2000;
 
 export const CartonSizeSchema = z.strictObject({
   /**
-   * In the order entered. The capture screen stores them without gaps; a list
-   * saved from the earlier 10 x 5 grid may hold blanks (null) between its
-   * numbers, which are no cartons and still read. Duplicates are kept so that
-   * calc can point at them (6.2 rule 6).
+   * By row of the capture screen's table (Kenneth, 13 October 2026): index i
+   * is row i + 1, the No. calc's messages name; a row left empty is null and
+   * the empty rows at the end are not stored. Nothing moves up to close a
+   * gap. A list saved before then, in the order entered without gaps, fills
+   * rows 1 to n; one saved from the earlier 10 x 5 grid keeps its blanks in
+   * their rows. Blanks are no cartons. The screen refuses a number another
+   * row holds, but a list saved before may repeat one: duplicates are kept,
+   * so that calc can point at them (6.2 rule 6).
    */
   cartonNumbers: z.array(CartonNumberCellSchema).max(MAX_CARTONS_PER_SIZE).default([]),
 });
@@ -26,7 +30,7 @@ export function emptyCartonSampling(): CartonSamplingData {
   return CartonSamplingDataSchema.parse({});
 }
 
-/** The carton numbers entered, blanks left out, in the order stored. */
+/** The carton numbers entered, empty rows left out, in row order. */
 export function enteredCartons(row: CartonSize | undefined): number[] {
   return (row?.cartonNumbers ?? []).filter((carton): carton is number => carton !== null);
 }

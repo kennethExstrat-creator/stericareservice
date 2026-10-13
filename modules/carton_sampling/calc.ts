@@ -87,7 +87,7 @@ function checkSize(
     const path = index === undefined ? ["sizes", size, "cartonNumbers"] : ["sizes", size, "cartonNumbers", index];
     problems.push({ issue: errorIssue(code, `Size ${name}: ${brief}.`, { size, path }), brief });
   };
-  // In grid order, so the issue list reads like the grid.
+  // In row order, so the issue list reads like the table.
   cells.forEach((carton, index) => {
     if (carton === null) return;
     if (orderQty !== null && carton > orderQty) {

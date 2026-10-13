@@ -2,12 +2,12 @@
 
 // Glove Dispensing Inspection capture (BUILD_SPEC 6.1, 8 "Speed"): one size
 // at a time (swipe on iPad, arrow keys on desktop). The size's boxes are a
-// list, one row per box column of the sheet, 15 rows a page (Kenneth, 12
-// October 2026): its No., its box number typed on the numeric keypad (6.2
-// rule 7: the inspector's own number, not a carton number), its defects over
-// the gloves of the pack, and Delete. Enter goes down the box numbers, the box
-// just typed staying the one counted, and a pasted column fills down them.
-// Defects are counted by tapping, never typed.
+// list, one row per box column of the sheet (Kenneth, 12 October 2026), 10
+// rows a page as the carton numbers' (13 October): its No., its box number
+// typed on the numeric keypad (6.2 rule 7: the inspector's own number, not a
+// carton number), its defects over the gloves of the pack, and Delete. Enter
+// goes down the box numbers, the box just typed staying the one counted, and
+// a pasted column fills down them. Defects are counted by tapping, never typed.
 // On iPad the counts show one box at a time: the row chosen (tap it or its
 // box number), stepped through with Previous and Next; from 1280 px every box
 // sits side by side, as on the sheet. The per box "1/125" and rate, the size

@@ -323,8 +323,10 @@ test("Finished goods sampling: every size's carton list is complete, unique and 
     const cases = REPORT.sampling[size]!.cases;
     await expect(section.getByText(`Sampling Quantity ${cases} / ${cases}`)).toBeVisible();
   }
-  // Size S keeps the carton that broke the rising run: unique and in range, so accepted.
+  // Size S keeps the carton that broke the rising run: unique and in range, so accepted. Its table
+  // was left on page 2 (rows 11 to 20); row 7 is on page 1.
   await showSize(page, "S");
+  await press(section.getByRole("button", { name: "Page 1", exact: true }));
   await expect(page.locator("#carton-sampling-S-6")).toHaveValue("81");
   await expect(page.locator("#carton-sampling-S-6")).not.toHaveAttribute("aria-invalid", "true");
   await shot(page, "05-cartons-s", { parts: 2 });

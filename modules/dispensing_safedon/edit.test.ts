@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { CARTONS_PER_PAGE } from "@/modules/carton_sampling/edit";
 import {
   activeAfterRemoval,
   boxDefects,
+  BOXES_PER_PAGE,
   boxesOf,
   boxPageOf,
   canRemoveBox,
@@ -102,12 +104,13 @@ describe("dispensing_safedon editing", () => {
     expect(activeAfterRemoval(0, 0, 0)).toBe(0);
   });
 
-  it("pages the box list 15 rows at a time", () => {
+  it("pages the box list 10 rows at a time, as the carton numbers", () => {
+    expect(BOXES_PER_PAGE).toBe(CARTONS_PER_PAGE);
     expect(boxPageOf(0)).toBe(0);
-    expect(boxPageOf(14)).toBe(0);
-    expect(boxPageOf(15)).toBe(1);
-    expect(boxPageOf(29)).toBe(1);
-    expect(boxPageOf(30)).toBe(2);
+    expect(boxPageOf(9)).toBe(0);
+    expect(boxPageOf(10)).toBe(1);
+    expect(boxPageOf(19)).toBe(1);
+    expect(boxPageOf(20)).toBe(2);
     expect(boxPageOf(-1)).toBe(0);
   });
 

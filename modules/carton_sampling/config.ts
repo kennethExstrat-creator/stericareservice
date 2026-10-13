@@ -8,14 +8,14 @@ export const CARTON_SAMPLING_TITLE = "Finished Goods Sampling Information (Carto
 export const CARTON_SAMPLING_LABELS = {
   cartonNumbers: "(Carton #)",
   samplingQuantity: "Sampling Quantity",
-  /** Caption of each size's list; the screen fills in {size}. */
+  /** Caption of each size's table; the screen fills in {size}. */
   sizeCaption: "{size} (Carton #)",
 } as const satisfies Readonly<Record<string, string>>;
 
 /**
  * The report's grid: 10 carton numbers to a row (5 rows print 50). The
- * capture screen lists them; calc's issue messages name each number by its
- * row and column on the report.
+ * capture screen has a table instead, one carton a row, and calc's issue
+ * messages name a carton by its row's No. there.
  */
 export const GRID_COLUMNS = 10;
 

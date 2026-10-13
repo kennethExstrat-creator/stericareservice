@@ -164,13 +164,13 @@ describe("dispensing_safedon capture", () => {
     expect(cells(rows[6])[2]).toBe("0/125");
   });
 
-  it("pages the list at 15 rows, while the counts keep every box", () => {
+  it("pages the list at 10 rows, as the carton numbers, while the counts keep every box", () => {
     const listed = cartonList(SAFEDON_EG_EXAMPLE.cartons.XS!);
     const boxes = Array.from({ length: 20 }, (_, index) => ({ boxNo: listed[index % listed.length], counts: {} }));
     const html = render({ data: { sizes: { ...safedonData().sizes, XS: { boxes } } } });
-    expect(listRows(html)).toHaveLength(15);
+    expect(listRows(html)).toHaveLength(10);
     const nav = /<nav[^>]*aria-label="Box #, Size XS: pages"[^>]*>[\s\S]*?<\/nav>/.exec(html)?.[0] ?? "";
-    expect(nav).toContain("1–15 of 20");
+    expect(nav).toContain("1–10 of 20");
     const page = (number: number) => new RegExp(`<button[^>]*aria-label="Page ${number}"[^>]*>`).exec(nav)?.[0] ?? "";
     expect(page(1)).toContain('aria-current="page"');
     expect(page(2)).not.toBe("");
