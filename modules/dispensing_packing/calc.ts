@@ -3,12 +3,15 @@
 // minimums; any box with a failing stickiness code fails the size. Not done
 // until every planned box row is complete (6.2 rule 5): the rows come from
 // the sampling plan's inner units for dispensing, else the template's boxes
-// per size. A box number is the inspector's own and is never checked against
-// the carton list (rule 7): the STD_EG box 2336 stands as typed.
+// per size. A box/carton number the size's sampled list does not hold is a
+// warning on its cell, never a block and never the result (rule 7; Kenneth,
+// 13 October 2026): the STD_EG box 2336 is stored as typed and warned about.
+// With no sampled list for the size yet, nothing is checked.
 import { codeLetterForSampleSize } from "@/lib/aql";
 import type { PerSizeResult } from "@/lib/schemas/module-result";
 import { formatDecimal, mean, roundTo } from "@/lib/stats";
 import {
+  boxNotSampledIssue,
   errorIssue,
   labelFor,
   perSizeResults,
@@ -34,7 +37,7 @@ export type CheckResult = "pass" | "fail" | "not_done";
 export type PackingSizeComputed = {
   /** Box rows planned: the sampling plan's inner units for dispensing, else config.boxesPerSize. */
   boxesExpected: number;
-  /** Rows with a box number. */
+  /** Rows with a box/carton number. */
   boxesTested: number;
   /** Rows with every value entered and valid. */
   boxesComplete: number;
@@ -140,7 +143,11 @@ function evaluateSize(size: string, boxes: readonly PackingBox[], { config, labe
     const item = `${words.item} ${index + 1}`;
     const at = (field: keyof PackingBox) => ({ size, path: ["sizes", size, "boxes", index, field] });
 
-    if (box.boxNo !== null) tested += 1;
+    if (box.boxNo !== null) {
+      tested += 1;
+      const unsampled = boxNotSampledIssue(context, size, box.boxNo, ["sizes", size, "boxes", index, "boxNo"]);
+      if (unsampled) issues.push(unsampled);
+    }
 
     const percent = (value: number | null, field: "layeringPct" | "dispensingPct", word: string): number | null => {
       if (value === null || (value >= 0 && value <= 100)) return value;

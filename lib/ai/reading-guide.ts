@@ -4,11 +4,14 @@
 // shortforms an admin keeps in Admin > Defects > Shortforms. Source Documents also
 // tell it how a laboratory test report is read (LAB_REPORT_GUIDE): its
 // results go into tensile and force at break, and the report itself is
-// linked to those steps (docs/AI.md, "Source Documents").
+// linked to those steps (docs/AI.md, "Source Documents"). Box # and carton #
+// are one number, a box/carton number (Kenneth, 13 October 2026): the guide
+// says so, and says to copy one as written, sampled or not.
 import type { GlossaryEntry } from "@/lib/schemas/ai-settings";
 
 export const PAPER_FORM_GUIDE = `How SteriCare inspectors fill in their paper inspection form:
-- One form per purchase order and lot, usually one size per form. Its parts: "Purchase Order / Shipment Information" (manufacturer, PO with the SO in brackets, product name, lot number, mfg and expiry date, glove type, packing mode); "Inspected by" (initials, date, signature); "PO Info" (glove size, quantity in cases); "Sampling Plan" (cases, inner boxes and gloves sampled; gloves for watertight (WTT) and visual; gloves for dimension; gloves for force at break (FAB); inner boxes for the dispensing test); "Watertight Inspection" and "Visual Inspection" (defects by size, major and minor); then "Dispensing Result" on a page of its own (by size: box number, layering %, dispensing %, stickiness code, others).
+- One form per purchase order and lot, usually one size per form. Its parts: "Purchase Order / Shipment Information" (manufacturer, PO with the SO in brackets, product name, lot number, mfg and expiry date, glove type, packing mode); "Inspected by" (initials, date, signature); "PO Info" (glove size, quantity in cases); "Sampling Plan" (cases, inner boxes and gloves sampled; gloves for watertight (WTT) and visual; gloves for dimension; gloves for force at break (FAB); inner boxes for the dispensing test); "Watertight Inspection" and "Visual Inspection" (defects by size, major and minor); then "Dispensing Result" on a page of its own (by size: box/carton number, layering %, dispensing %, stickiness code, others).
+- A box number and a carton number are the same number, a box/carton number: the boxes of the dispensing and labelling tests are the size's sampled cartons (the Finished Goods Sampling Information). Copy each box/carton number as written, even one that is not among the sampled ones: never change it to a sampled number; the app warns about it.
 - Each test has its own count in the sampling plan. The form has no gloves for weight: fill the sampling plan's glovesWeight only from a document that states how many gloves were weighed per size, and never copy the gloves for dimension, or any other test's count, into it.
 - Counts are often tally marks: each stroke | is one (|||| is 4). "2+1" means 2 and 1 more: 3. Add them up.
 - "x/500" by a total is x defects found in 500 gloves inspected. When a total disagrees with its rows, trust the rows and say so in the summary.

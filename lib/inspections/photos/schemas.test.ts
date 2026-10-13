@@ -82,7 +82,7 @@ describe("parsePhotoTagForm", () => {
       fieldErrors: {
         moduleKey: "Choose a category or module from the list.",
         hand: "Choose the right or the left hand.",
-        box: "Enter the box number in digits.",
+        box: "Enter the box/carton number in digits.",
         caption: `Keep the caption under ${CAPTION_MAX_LENGTH} characters.`,
       },
     });
@@ -91,7 +91,7 @@ describe("parsePhotoTagForm", () => {
   it("refuses box 0 and an id that is not a photo's", () => {
     expect(parsePhotoTagForm(form({ photoId: PHOTO, moduleKey: "labeling", box: "0" }))).toEqual({
       ok: false,
-      fieldErrors: { box: "Box numbers start at 1." },
+      fieldErrors: { box: "Box/carton numbers start at 1." },
     });
     expect(parsePhotoTagForm(form({ photoId: "../../etc", moduleKey: "visual" }))).toEqual({
       ok: false,

@@ -173,7 +173,7 @@ describe("ModuleResults on the STD_EG example", () => {
   it.each([
     ["module-watertight", "1 / 500 (Finger 1), Defect Limit 14 / 15: Passed"],
     ["module-dispensing_packing", "Layering 88.3% (min. 70%), Dispensing 90.3% (min. 80%), Stickiness A: Passed"],
-    ["module-carton_sampling", "50 carton numbers, unique and between 1 and 2,900"],
+    ["module-carton_sampling", "50 box/carton numbers, unique and between 1 and 2,900"],
   ])("says %s's result for size M once, on the size's line", (id, sentence) => {
     const found = text(row(html, id));
     expect(count(found, sentence)).toBe(1);

@@ -480,13 +480,13 @@ export type StdEgExpected = {
     /** The listed carton one digit away, which the first check of the report took it for. */
     readonly likelyIntended: number;
     /**
-     * No validation issue: a box number is the inspector's own and is never
-     * checked against the carton list (BUILD_SPEC 6.2 rule 7; Kenneth, 12
-     * October 2026: "the box number has nothing to do with carton number").
-     * The `dispensing_packing` result for the size is `dispensing.M.status`,
-     * from the averages and stickiness codes (6.1).
+     * A warning: box # and carton # are one number, and 2336 is not among
+     * size M's sampled box/carton numbers (BUILD_SPEC 6.2 rule 7; Kenneth, 13
+     * October 2026, reversing 12 October). It is stored as typed and never
+     * blocks submit; the `dispensing_packing` result for the size is
+     * `dispensing.M.status`, from the averages and stickiness codes (6.1).
      */
-    readonly validation: "none";
+    readonly validation: "warning";
   };
   readonly watertight: PerSize<ExpectedWatertight>;
   readonly visual: Readonly<Record<VisualClass, PerSize<ExpectedVisual>>>;
@@ -573,7 +573,7 @@ export const STD_EG_EXPECTED = deepFreeze<StdEgExpected>({
     item: 12,
     box: 2336,
     likelyIntended: 2236,
-    validation: "none",
+    validation: "warning",
     originalReport: "accepted (likely 2236)",
   },
 
@@ -721,7 +721,7 @@ export const STD_EG_EXPECTED = deepFreeze<StdEgExpected>({
       module: "carton_sampling",
       size: "M",
       code: "carton_duplicate",
-      message: "Carton 525 is entered twice (No. 20, No. 21).",
+      message: "Box/Carton #525 is entered twice (No. 20, No. 21).",
     },
   ],
 
@@ -732,6 +732,13 @@ export const STD_EG_EXPECTED = deepFreeze<StdEgExpected>({
       size: "M",
       code: "weight_deviation",
       message: "Average weight 2.9 g is 17.1% below the indicative 3.5 g (threshold 10%).",
+    },
+    {
+      level: "warning",
+      module: "dispensing_packing",
+      size: "M",
+      code: "box_not_in_carton_list",
+      message: "Box/Carton #2336 is not in M's sampled box/carton numbers.",
     },
   ],
 

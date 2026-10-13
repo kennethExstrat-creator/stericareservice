@@ -529,7 +529,7 @@ export function defectChoices(moduleKey: string | null, current: string, options
 /**
  * The tags a tile shows (components/qc PhotoTags). `item` carries the words
  * for the packaging level and the list entry, which the kit's tag line puts
- * last: "Labeling · Size M · Lot no. · Box 253 · Carton Box".
+ * last: "Labeling · Size M · Lot no. · Box/Carton #253 · Carton Box".
  */
 export interface DisplayTags {
   module: string;

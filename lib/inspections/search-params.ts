@@ -15,7 +15,7 @@ export const MAX_SEARCH_LENGTH = 100;
 const MAX_PAGE = 100_000;
 
 export type InspectionListFilters = {
-  /** Ref, PO, lot or carton number (listSearchFilter in lib/inspections/query.ts). */
+  /** Ref, PO, lot or box/carton number (listSearchFilter in lib/inspections/query.ts). */
   q?: string;
   status?: InspectionStatus;
   /** Client id. */

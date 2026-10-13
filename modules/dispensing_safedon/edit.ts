@@ -44,7 +44,7 @@ function updateBox(
   return { ...data, sizes: { ...data.sizes, [size]: { ...data.sizes[size], boxes: withoutTrailingBlanks(boxes) } } };
 }
 
-/** New data with the box number of column `index` set (null clears it). */
+/** New data with the box/carton number of column `index` set (null clears it). */
 export function setSafedonBoxNo(
   data: DispensingSafedonData,
   size: string,
@@ -84,11 +84,11 @@ export function removeSafedonBox(data: DispensingSafedonData, size: string, inde
 }
 
 /**
- * Whether row `index` of the box list offers Delete: a row holding a box
- * number or a count, or any row past the plan (added with Add Box). The
- * plan's own blank rows do not, saved blank or not (a box number typed in
- * row 7 first saves rows 1 to 6 blank), since the list never shows fewer
- * rows than the plan.
+ * Whether row `index` of the box list offers Delete: a row holding a
+ * box/carton number or a count, or any row past the plan (added with Add
+ * Box). The plan's own blank rows do not, saved blank or not (a box/carton
+ * number typed in row 7 first saves rows 1 to 6 blank), since the list
+ * never shows fewer rows than the plan.
  */
 export function canRemoveBox(index: number, boxes: readonly SafedonBox[], planned: number): boolean {
   if (index >= planned) return true;

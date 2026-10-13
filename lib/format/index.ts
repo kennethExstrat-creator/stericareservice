@@ -1,6 +1,7 @@
 // Display text for the capture kit (docs/CAPTURE_KIT.md): pure, locale-free
 // helpers for numbers, specs, rates, AQL limits, size labels and captions.
 export { fillCaption, formatCodeLetters, plainLabel } from "./caption";
+export { BOX_CARTON_LABEL, BOX_CARTON_NUMBERS, boxCartonNumber, countBoxCartonNumbers } from "./box-carton";
 export {
   formatNumber,
   formatCount,

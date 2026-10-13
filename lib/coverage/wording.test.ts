@@ -104,6 +104,25 @@ describe("sameWording: the form's words, the rule's capitals", () => {
   });
 
   it.each([
+    ["Box #", "Box/Carton #"],
+    ["(Carton #)", "(Box/Carton #)"],
+    ["Finished Goods Sampling Information (carton number)", "Finished Goods Sampling Information (Box/Carton #)"],
+    ["No carton number printed", "No Box/Carton # Printed"],
+    ["No carton number", "No Box/Carton #"],
+    ["Box Number", "Box/Carton #"],
+  ])("reads %j as %j: the box or carton number is Box/Carton # (Kenneth, 13 October 2026)", (printed, label) => {
+    expect(sameWording(printed, label)).toBe(true);
+  });
+
+  it.each([
+    ["Carton Box", "Box/Carton # Box"],
+    ["Total # carton", "Total # Box/Carton #"],
+    ["No. of sampled boxes inspected", "No. of Sampled Box/Carton # Inspected"],
+  ])("keeps %j apart from %j: a carton or a box that is no number stays as printed", (printed, label) => {
+    expect(sameWording(printed, label)).toBe(false);
+  });
+
+  it.each([
     ["Total # carton", "Total # Cartons"],
     ["Packing configuration", "Packing Config"],
     ["PO / SO Number", "Po / So Number"],

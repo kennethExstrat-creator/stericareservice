@@ -36,7 +36,7 @@ describe("NoMatches", () => {
     );
     expect(html).toContain("No Inspections Match");
     expect(html).toContain("Nothing matches “E2E-LOT-A”, status Draft, client Client A.");
-    expect(html).toContain("Search matches part of a ref or PO number, or a whole lot or carton number.");
+    expect(html).toContain("Search matches part of a ref or PO number, or a whole lot or box/carton number.");
     expect(html).toMatch(/<a[^>]*href="\/inspections"[^>]*>Clear Filters/);
   });
 

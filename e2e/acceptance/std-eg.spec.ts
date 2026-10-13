@@ -20,14 +20,16 @@ import { signIn, TEST_ACCOUNTS } from "../support/session";
  * docs/FIXTURES.md says: 13 force readings whose median is the printed
  * 6.537 N, and 13 weights of the printed 2.90 g average.
  *
- * The Glove Packing Check is typed from the paper, its box numbers on the
- * numeric keypad: they are the inspector's own, not carton numbers, so box
- * 2336, in no carton list, stands as typed (BUILD_SPEC 6.2 rule 7; Kenneth,
- * 12 October 2026). Once the cartons are entered, the app must flag the
- * carton entered twice as an error that blocks submit (the error the
- * original report missed), warn about the weight, and suggest FAILED. The
- * correction in the expected data (the second 525 becomes 830) clears the
- * error, the suggestion becomes PASSED, and the inspection is submitted.
+ * The Glove Packing Check is typed from the paper, its box/carton numbers on
+ * the numeric keypad, before the carton list is in (so nothing is suggested
+ * or checked yet). Box # and carton # are one number (BUILD_SPEC 6.2 rule 7;
+ * Kenneth, 13 October 2026): once the cartons are entered, box 2336, in no
+ * carton list, is a warning linked to its cell, never an error. The app must
+ * also flag the carton entered twice as an error that blocks submit (the
+ * error the original report missed), warn about the weight, and suggest
+ * FAILED. The correction in the expected data (the second 525 becomes 830)
+ * clears the error, the suggestion becomes PASSED with its two warnings, and
+ * the inspection is submitted.
  * The review page, the saved row and the export are checked too.
  * Along the way the tab is reloaded straight after the 50th carton (nothing
  * typed may be lost), and the conclusion is signed with a finger, as the
@@ -52,6 +54,9 @@ const LEFTOVER = "screenshots/acceptance/std-eg-inspection.json";
  * lib/templates/definitions). The live STD_EG may still word them in the
  * report's case until it is seeded again, so titles and labels are matched
  * whatever their case (named, ignoreCase); the wording itself is checked.
+ * The box/carton wording (13 October 2026: "Finished Goods Sampling
+ * Information (Box/Carton #)", "Box/Carton #") needs STD_EG seeded from the
+ * current bundle (npm run seed:templates).
  */
 const SECTION = {
   header: "Manufacturer Information",
@@ -60,7 +65,7 @@ const SECTION = {
   order: "Order",
   packing: "Packing Configuration",
   sampling: "Sampling Plan",
-  cartons: "Finished Goods Sampling Information (Carton Number)",
+  cartons: "Finished Goods Sampling Information (Box/Carton #)",
   dimensions: "Dimension",
   force: "Force at Break in Newton (Refer to Attached Where Applicable)",
   weight: "Weight (g) - Average of 13 Gloves per Size",
@@ -84,7 +89,7 @@ const NAME: Readonly<Record<Step, string>> = {
   order: "Order",
   packing: "Packing Configuration",
   sampling: "Sampling Plan",
-  cartons: "Carton Numbers",
+  cartons: "Box/Carton Numbers",
   dimensions: "Dimension",
   force: "Force at Break",
   weight: "Weight",
@@ -140,16 +145,38 @@ const EXPECT_LABELING = must(EXPECTED.labeling.M, "expected labelling M");
 const EXPECT_SAMPLING = must(EXPECTED.sampling.M, "expected sampling M");
 const CARTON_ERROR = must(EXPECTED.errors.find((issue) => issue.module === "carton_sampling"), "carton error");
 const WEIGHT_WARNING = must(EXPECTED.warnings.find((issue) => issue.module === "weight"), "weight warning");
+/** Box 2336, not among size M's sampled box/carton numbers: a warning (BUILD_SPEC 6.2 rule 7). */
+const BOX_WARNING = must(EXPECTED.warnings.find((issue) => issue.module === "dispensing_packing"), "box warning");
 const { duplicateCarton: FIX_CARTON } = EXPECTED.corrections;
 
 /**
- * The Pending panel's rows for the error and the warning: one row per section, its short
+ * The Pending panel's rows for the error and the warnings: one row per section, its short
  * name over a few words and the size, named in full for screen readers.
  */
 const PENDING_ROW = {
-  cartons: `${NAME.cartons}: Carton entered twice: M. Needed before you submit.`,
+  cartons: `${NAME.cartons}: Box/Carton # entered twice: M. Needed before you submit.`,
   weight: `${NAME.weight}: Weight differs from indicative: M.`,
+  packingCheck: `${NAME.packingCheck}: Box/Carton # not sampled: M.`,
 } as const;
+
+/** The carton table's caption for size M, in the seed template's words: its rows are "M (Box/Carton #), No. 1" and on. */
+const CARTON_CAPTION = "M (Box/Carton #)";
+
+/** The No. of a carton at a cell of the report's 10-column grid: row 2 column 10 is No. 20. */
+const cartonNo = (cell: { row: number; column: number }) => (cell.row - 1) * 10 + cell.column;
+
+/**
+ * Row `no` (from 1) of size M's carton table, the page holding it turned to first: the table
+ * shows 10 rows a page, and only that page's rows are on screen (Kenneth, 13 October 2026).
+ */
+async function cartonRow(frame: Locator, no: number): Promise<Locator> {
+  const pages = frame.getByRole("navigation", { name: `${CARTON_CAPTION}: pages` });
+  if ((await pages.count()) > 0) {
+    const button = pages.getByRole("button", { name: `Page ${Math.ceil(no / 10)}`, exact: true });
+    if ((await button.getAttribute("aria-current")) !== "page") await button.tap();
+  }
+  return frame.getByRole("textbox", { name: `${CARTON_CAPTION}, No. ${no}`, exact: true });
+}
 
 /** The carton numbers as entered, row by row, the duplicate kept. */
 const CARTONS_ENTERED = CARTON_ROWS.flat();
@@ -549,15 +576,15 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await shot(page, "04-order");
   });
 
-  await test.step("Glove Packing Check, typed from the paper: box numbers on the numeric keypad, Enter going down", async () => {
+  await test.step("Glove Packing Check, typed from the paper: box/carton numbers on the numeric keypad, Enter going down", async () => {
     const frame = await openTab(page, "packingCheck");
     await expectOnlySizeM(page, SECTION.packingCheck);
-    // The box numbers are the inspector's own, not carton numbers (BUILD_SPEC 6.2 rule 7): typed, never picked.
-    const firstBox = frame.getByRole("textbox", { name: "Box #, Item 1", exact: true });
+    // Typed (BUILD_SPEC 6.2 rule 7). The carton list is not in yet, so nothing is suggested: a plain text box.
+    const firstBox = frame.getByRole("textbox", { name: "Box/Carton #, Item 1", exact: true });
     await firstBox.tap();
     await check(firstBox).toHaveAttribute("inputmode", "numeric");
     for (const [index, box] of PACKING_BOXES.entries()) {
-      await expect(frame.getByRole("textbox", { name: `Box #, Item ${index + 1}`, exact: true })).toBeFocused();
+      await expect(frame.getByRole("textbox", { name: `Box/Carton #, Item ${index + 1}`, exact: true })).toBeFocused();
       await page.keyboard.type(String(box.box));
       await page.keyboard.press("Enter");
     }
@@ -572,7 +599,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
       await frame.getByRole("combobox", { name: `Stickiness **, Item ${index + 1}`, exact: true }).selectOption(box.stickiness);
     }
     for (const [index, box] of PACKING_BOXES.entries()) {
-      await check(frame.getByRole("textbox", { name: `Box #, Item ${index + 1}`, exact: true })).toHaveValue(String(box.box));
+      await check(frame.getByRole("textbox", { name: `Box/Carton #, Item ${index + 1}`, exact: true })).toHaveValue(String(box.box));
     }
     const results = frame.getByRole("table", { name: "Glove Packing Check, Size M" }).last();
     const dispensingCheck = EXPECT_DISPENSING;
@@ -592,11 +619,12 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await shot(page, "05-packing-check-typed", results);
   });
 
-  await test.step("Carton list: 50 cartons typed cell by cell, Enter moving along, then a reload; 525 twice is an error", async () => {
+  await test.step("Carton list: 50 cartons typed row by row, Enter moving along, then a reload; 525 twice is an error", async () => {
     const frame = await openTab(page, "cartons");
     await expectOnlySizeM(page, SECTION.cartons);
     await check(frame.getByText("Sampling Quantity 0 / 50")).toBeVisible();
-    await frame.getByRole("textbox", { name: "M (Carton #), row 1 column 1", exact: true }).tap();
+    // A table of rows to fill in, 10 a page: Enter moves to the next row and turns the page after a page's last row.
+    await (await cartonRow(frame, 1)).tap();
     for (const carton of CARTONS_ENTERED) {
       await page.keyboard.type(String(carton));
       await page.keyboard.press("Enter");
@@ -606,21 +634,14 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await page.reload();
     await sectionReady(page, SECTION.cartons);
     const { cartonList } = EXPECTED;
-    for (const [index, cells] of CARTON_ROWS.entries()) {
-      for (const [column, carton] of cells.entries()) {
-        await check(frame.getByRole("textbox", { name: `M (Carton #), row ${index + 1} column ${column + 1}`, exact: true })).toHaveValue(
-          String(carton),
-        );
-      }
+    for (const [index, carton] of CARTONS_ENTERED.entries()) {
+      await check(await cartonRow(frame, index + 1)).toHaveValue(String(carton));
     }
     await check(frame.getByText(`Sampling Quantity ${cartonList.entries} / ${SAMPLING.cases}`), "50 entries").toBeVisible();
     const message = `Size M: ${CARTON_ERROR.message}`;
-    // Both cells of the carton entered twice are marked, each described by the error.
+    // Both rows of the carton entered twice (No. 20 and No. 21) are marked, each described by the error.
     for (const cell of cartonList.duplicate.cells) {
-      await check(
-        frame.getByRole("textbox", { name: `M (Carton #), row ${cell.row} column ${cell.column}`, exact: true }),
-        `${cartonList.check}: row ${cell.row} column ${cell.column} marked`,
-      ).toHaveAccessibleDescription(message);
+      await check(await cartonRow(frame, cartonNo(cell)), `${cartonList.check}: No. ${cartonNo(cell)} marked`).toHaveAccessibleDescription(message);
     }
     await check(frame.getByRole("button", { name: message }), `${cartonList.check}: the error under the grid`).toBeVisible();
     await check(sectionStatus(page, SECTION.cartons), cartonList.check).toHaveAttribute("data-status", cartonList.status);
@@ -781,16 +802,21 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await shot(page, "11-visual-major", frame.getByRole("region", { name: "Major Defects (AQL 2.5)" }));
   });
 
-  await test.step("Glove Packing Check once the cartons are in: box 2336, in no carton list, stands as typed", async () => {
+  await test.step("Glove Packing Check once the cartons are in: box 2336, not sampled for size M, is a warning linked to its cell", async () => {
     const frame = await next(page, "packingCheck");
     const { dispensingBox } = EXPECTED;
-    const box = frame.getByRole("textbox", { name: `Box #, Item ${dispensingBox.item}`, exact: true });
+    // Size M has its carton list now: each box/carton number suggests it (a combobox), as typed (BUILD_SPEC 6.2 rule 7).
+    const box = frame.getByRole("combobox", { name: `Box/Carton #, Item ${dispensingBox.item}`, exact: true });
     await check(box, dispensingBox.check).toHaveValue(String(dispensingBox.box));
     await check(box, dispensingBox.check).not.toHaveAttribute("aria-invalid", "true");
-    // Box numbers are not carton numbers (BUILD_SPEC 6.2 rule 7): nothing is marked, nothing listed.
-    await check(frame.locator('[aria-invalid="true"]'), "no box marked").toHaveCount(0);
-    await check(frame.locator('[data-slot="box-issues"]'), "nothing listed under the table").toHaveCount(0);
+    // A warning, never an error: nothing marked red, the warning listed under the table, the check still passed.
+    await check(frame.locator('[aria-invalid="true"]'), "no box marked as an error").toHaveCount(0);
+    const warning = frame.locator('[data-slot="box-issues"]').getByRole("button", { name: BOX_WARNING.message });
+    await check(warning, dispensingBox.check).toBeVisible();
     await check(sectionStatus(page, SECTION.packingCheck), EXPECT_DISPENSING.check).toHaveAttribute("data-status", EXPECT_DISPENSING.status);
+    // Its link lands on the box.
+    await warning.tap();
+    await check(box, "the warning links to its box").toBeFocused();
     await shot(page, "12-packing-check-box-2336", box);
   });
 
@@ -866,8 +892,8 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await check(needed, "one error blocks submit").toHaveCount(EXPECTED.errors.length);
     await check(sheet.getByRole("button", { name: named(PENDING_ROW.cartons) })).toBeVisible();
     await check(sheet.getByRole("button", { name: named(PENDING_ROW.weight) })).toBeVisible();
-    // Box 2336 is no error: the packing check has no row.
-    await check(sheet.getByRole("button", { name: new RegExp(`^${NAME.packingCheck}:`, "i") })).toHaveCount(0);
+    // Box 2336 is a warning: the packing check has a row, never needed before submit.
+    await check(sheet.getByRole("button", { name: named(PENDING_ROW.packingCheck) })).toBeVisible();
     await shot(page, "15-pending-errors");
     await sheet.getByRole("button", { name: "Close" }).tap();
     await expect(sheet).toBeHidden();
@@ -882,6 +908,9 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await check(page.locator('li[data-module="carton_sampling"]')).toHaveAttribute("data-status", "fail");
     await check(page.locator('li[data-module="carton_sampling"] [data-issue][data-level="error"]')).toContainText(CARTON_ERROR.message);
     await check(page.locator('li[data-module="dispensing_packing"] [data-issue][data-level="error"]'), "box 2336 is no error").toHaveCount(0);
+    await check(page.locator('li[data-module="dispensing_packing"] [data-issue][data-level="warning"]'), "box 2336 is a warning").toContainText(
+      BOX_WARNING.message,
+    );
     await shot(page, "16-review-with-errors", result);
   });
 
@@ -897,15 +926,18 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     expect((await storedRow(id)).status, "still a draft").toBe("draft");
     await sheet.getByRole("button", { name: named(PENDING_ROW.cartons) }).tap();
     await sectionReady(page, SECTION.cartons);
-    const second = page.getByRole("textbox", { name: `M (Carton #), row ${FIX_CARTON.cell.row} column ${FIX_CARTON.cell.column}`, exact: true });
+    // The link opens the page holding the row (No. 21, page 3) and lands on it.
+    const second = page.getByRole("textbox", { name: `${CARTON_CAPTION}, No. ${cartonNo(FIX_CARTON.cell)}`, exact: true });
     await check(second, "the link lands on the second 525").toBeFocused();
   });
 
   await test.step("Correction 1: the second 525 becomes 830; the carton list passes", async () => {
     const frame = frameOf(page, SECTION.cartons);
-    await typeNumber(page, frame.getByRole("textbox", { name: `M (Carton #), row ${FIX_CARTON.cell.row} column ${FIX_CARTON.cell.column}`, exact: true }), FIX_CARTON.to);
+    await typeNumber(page, await cartonRow(frame, cartonNo(FIX_CARTON.cell)), FIX_CARTON.to);
     await check(sectionStatus(page, SECTION.cartons), "carton list once corrected").toHaveAttribute("data-status", "pass");
-    await check(sectionSummary(page, SECTION.cartons)).toContainText(`Size M: ${EXPECTED.cartonList.entries} carton numbers, unique and between 1 and ${grouped(ORDER.qtyCases)}.`);
+    await check(sectionSummary(page, SECTION.cartons)).toContainText(
+      `Size M: ${EXPECTED.cartonList.entries} box/carton numbers, unique and between 1 and ${grouped(ORDER.qtyCases)}.`,
+    );
     await check(frame.locator(".text-fail"), "no carton error left").toHaveCount(0);
     await shot(page, "18-cartons-corrected");
   });
@@ -936,21 +968,23 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await pending.tap();
     const sheet = page.getByRole("dialog", { name: "Pending" });
     await check(sheet.locator('[data-slot="needed-tasks"]'), "nothing needed before submit").toHaveCount(0);
-    await check(sheet.locator("[data-task]"), "only the weight warning").toHaveCount(EXPECTED.warnings.length);
+    await check(sheet.locator("[data-task]"), "only the warnings: weight and box 2336").toHaveCount(EXPECTED.warnings.length);
     await check(sheet.getByRole("button", { name: named(PENDING_ROW.weight) })).toBeVisible();
+    await check(sheet.getByRole("button", { name: named(PENDING_ROW.packingCheck) })).toBeVisible();
     await shot(page, "21-pending-warning-only");
     await sheet.getByRole("button", { name: "Close" }).tap();
     await expect(sheet).toBeHidden();
   });
 
-  await test.step("Submit: suggested Pass with one warning for the report; it lands on the review", async () => {
+  await test.step("Submit: suggested Pass with two warnings for the report; it lands on the review", async () => {
     await page.getByRole("button", { name: "Submit", exact: true }).tap();
     const dialog = page.getByRole("alertdialog", { name: /^Submit INS-\d{4}-\d+ for Review\?$/ });
     await expect(dialog).toBeVisible();
     await check(dialog).toContainText(/Suggested Result\s*Pass/);
-    // Why, as the Conclusion section says it: the weight warning by its short name (docs/DESIGN.md, Step Names).
+    // Why, as the Conclusion section says it: the weight's warn result by its short name (docs/DESIGN.md, Step
+    // Names); box 2336's warning never changes the packing check's result, so it is no reason.
     await check(dialog.locator('[data-slot="suggested-reasons"]')).toHaveText(`Warnings: ${NAME.weight}.`);
-    await check(dialog).toContainText(`1 warning goes into the report.`);
+    await check(dialog).toContainText(`${EXPECTED.warnings.length} warnings go into the report.`);
     await shot(page, "22-submit");
     await dialog.getByRole("button", { name: "Submit for Review" }).tap();
     await expect(page).toHaveURL(new RegExp(`/inspections/${id}/review$`), { timeout: 60_000 });
@@ -962,7 +996,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await check(result, EXPECTED.conclusion.check).toContainText(/Suggested by the App\s*Passed/);
     await check(result).toContainText(/Final Result \(Inspector\)\s*Passed/);
     await check(result).toContainText("No errors");
-    await check(result).toContainText("1 warning");
+    await check(result).toContainText(`${EXPECTED.warnings.length} warnings`);
     await check(result).toContainText("Every module is done");
     const facts = page.locator("dl").filter({ hasText: "Inspector" }).first();
     await check(facts, EXPECTED.inspector.check).toContainText(new RegExp(`Inspector\\s*${escapeRegExp(inspectorName)}`));
@@ -1018,7 +1052,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await check(sizeLine("labeling"), EXPECT_LABELING.check).toContainText(
       `Dispenser Box: ${EXPECT_LABELING.inner.defects} defects in ${EXPECT_LABELING.inner.n}; Carton Box: ${EXPECT_LABELING.carton.defects} defects in ${EXPECT_LABELING.carton.n}.`,
     );
-    await check(sizeLine("carton_sampling")).toContainText(`${EXPECTED.cartonList.entries} carton numbers, unique and between 1 and ${grouped(ORDER.qtyCases)}.`);
+    await check(sizeLine("carton_sampling")).toContainText(`${EXPECTED.cartonList.entries} box/carton numbers, unique and between 1 and ${grouped(ORDER.qtyCases)}.`);
     // Sizes not ordered (XS, S, L, XL): no tables, no results.
     const sizes = await page.locator("#modules li[data-size]").evaluateAll((items) => items.map((item) => item.getAttribute("data-size")));
     check(new Set(sizes), EXPECTED.unorderedSizes.check).toEqual(new Set([SIZE]));
@@ -1073,6 +1107,8 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     check(JSON.stringify(exported), "the file-name code never enters").not.toContain(must(REPORT.header.productCodeElsewhere, "other code").code);
     const weight = exported.modules.find((entry) => entry.key === "weight");
     check(weight?.warnings.map((warning) => warning.message), "the weight warning goes into the export").toEqual([WEIGHT_WARNING.message]);
+    const packing = exported.modules.find((entry) => entry.key === "dispensing_packing");
+    check(packing?.warnings.map((warning) => warning.message), "box 2336's warning goes into the export").toEqual([BOX_WARNING.message]);
     check(exported.modules.flatMap((entry) => entry.errors), "no errors in the export").toEqual([]);
   });
 

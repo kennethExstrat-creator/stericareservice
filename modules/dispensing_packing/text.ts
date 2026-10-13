@@ -1,10 +1,10 @@
 // Wording for summaries, messages and the heading. Labels are column
 // headings in the template's wording ("Layering %", "Stickiness **",
-// "Box #"); inside a sentence the app uses their words without the unit or
-// the footnote marks.
+// "Box/Carton #"); inside a sentence the app uses their words without the
+// unit or the footnote marks.
 import { CODE_LETTERS } from "@/lib/aql";
 
-/** "Layering %" is "Layering", "Stickiness **" is "Stickiness", "Box #" is "Box", "Others:" is "Others". */
+/** "Layering %" is "Layering", "Stickiness **" is "Stickiness", "Box/Carton #" is "Box/Carton", "Others:" is "Others". */
 export function plainLabel(label: string): string {
   const plain = label.replace(/^[\s*#]+/, "").replace(/[\s%#*:]+$/, "");
   return plain === "" ? label.trim() : plain;

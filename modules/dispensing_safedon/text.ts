@@ -1,6 +1,6 @@
 // Wording for summaries, messages and the heading. Labels are headings in the
-// template's wording ("Box #"); inside a sentence the app uses their words
-// without the footnote marks. Rates are printed the way the report prints
+// template's wording ("Box/Carton #"); inside a sentence the app uses their
+// words without the footnote marks. Rates are printed the way the report prints
 // them: "3 / 625 (0.48%)".
 import { CODE_LETTERS, formatCount } from "@/lib/aql";
 import { roundTo } from "@/lib/stats";
@@ -8,7 +8,7 @@ import { roundTo } from "@/lib/stats";
 /** Rates are shown, and so judged, at two decimals at most: 0.48%, 1.1%, 0%. */
 export const RATE_DECIMALS = 2;
 
-/** "Box #" is "Box", "Others:" is "Others". */
+/** "Box/Carton #" is "Box/Carton", "Others:" is "Others". */
 export function plainLabel(label: string): string {
   const plain = label.replace(/^[\s*#]+/, "").replace(/[\s%#*:]+$/, "");
   return plain === "" ? label.trim() : plain;

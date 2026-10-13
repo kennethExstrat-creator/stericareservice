@@ -99,8 +99,8 @@ function readingsWithMedian(value: number, n = 13): number[] {
 
 /**
  * The STD_EG example as entered: the report's duplicate carton kept (a submit
- * error; box 2336 is none, BUILD_SPEC 6.2 rule 7), or `corrected` as
- * tests/acceptance does.
+ * error; box 2336, not sampled for size M, is a warning, BUILD_SPEC 6.2 rule
+ * 7), or `corrected` as tests/acceptance does.
  */
 export function stdEgData({
   finished = false,

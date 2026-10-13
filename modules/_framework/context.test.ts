@@ -171,7 +171,7 @@ describe("buildInspectionContext: numbers flow forward", () => {
     ]);
     const context = build(exampleData(), template);
     expect(moduleShortTitle(context, "header")).toBe("Manufacturer");
-    expect(moduleShortTitle(context, "carton_sampling")).toBe("Carton Numbers");
+    expect(moduleShortTitle(context, "carton_sampling")).toBe("Box/Carton Numbers");
     // A template's own words stay (STD_SG).
     expect(moduleShortTitle(context, "order_lots")).toBe("PO Info");
     // A module the context does not list: its own short name, never its key.

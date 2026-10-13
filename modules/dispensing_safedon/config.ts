@@ -1,5 +1,6 @@
 // Defaults a template can override: the heading, the labels (the SAFEDON_EG
-// report's wording) and the config (BUILD_SPEC 6.1: the defect list with the
+// report's wording, with "Box/Carton #" for its "Box #": Kenneth, 13 October
+// 2026, box # and carton # are one number) and the config (BUILD_SPEC 6.1: the defect list with the
 // hints shown in the app, gloves per pack, maximum rate, boxes per size).
 // docs/DATA_DICTIONARY.md has the keys.
 import { z } from "zod";
@@ -14,7 +15,7 @@ export const DISPENSING_SAFEDON_TITLE = "Glove Dispensing Inspection";
  * row label and hint are in config.defects.
  */
 export const DISPENSING_SAFEDON_LABELS: Readonly<Record<string, string>> = {
-  boxNo: "Box #",
+  boxNo: "Box/Carton #",
   counts: "Safedon Packing Defects",
   codeLetter: "Sampling Code Letter",
   boxDefects: "Defects / Gloves per Pack",

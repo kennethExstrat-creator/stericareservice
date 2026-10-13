@@ -128,7 +128,7 @@ describe("buildAiPanelModel: reviews", () => {
       defectNames: new Map([["hole_cuff", "Hole in cuff"]]),
     }).current?.findings[0].evidence.photos[0];
     // Labelling is not in this template: the module's own name, and the level in plain words, as the gallery has them.
-    expect(named?.tags).toBe("Packaging Labeling Inspection · Size M · Hole in cuff · Box 1324 · Carton");
+    expect(named?.tags).toBe("Packaging Labeling Inspection · Size M · Hole in cuff · Box/Carton #1324 · Carton");
     // Without the name, the code as tagged.
     const unnamed = model({ record: { ...record, photos }, reviews: [cite([IDS.photoVisual])] }).current?.findings[0];
     expect(unnamed?.evidence.photos[0].tags).toContain("· hole_cuff ·");

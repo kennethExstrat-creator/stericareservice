@@ -12,22 +12,26 @@ export const DecimalCellSchema = z.number().nullable().default(null);
 /** A count: a whole number from 0, null until entered (never a date, rule 6.2.3). */
 export const CountCellSchema = z.number().int().min(0).nullable().default(null);
 
-/** A carton number: a whole number from 1. */
+/** A carton number (a box/carton number in carton_sampling): a whole number from 1. */
 export const CartonNumberCellSchema = z.number().int().min(1).nullable().default(null);
 
 /**
- * A box number in dispensing and labelling: the inspector's own entry, a
- * whole number from 1. Not a carton number, and never checked against the
- * carton list (rule 6.2.7; Kenneth, 12 October 2026). The description goes
- * into the JSON Schema Steri-AI reads source documents with.
+ * A box/carton number in dispensing and labelling: a whole number from 1,
+ * one of the size's sampled carton numbers (rule 6.2.7; Kenneth, 13 October
+ * 2026: box # and carton # are one number). One the size's list does not
+ * hold is stored as typed and calc warns about it, so the schema takes any
+ * whole number from 1. The description goes into the JSON Schema Steri-AI
+ * reads source documents with.
  */
 export const BoxNumberSchema = z
   .number()
   .int()
   .min(1)
-  .describe("The box number as the inspector writes it: the box's own number, not a carton number.");
+  .describe(
+    "The box/carton number as the inspector writes it: the same number as the size's sampled carton numbers (Finished Goods Sampling Information).",
+  );
 
-/** A box number, null until entered. */
+/** A box/carton number, null until entered. */
 export const BoxNumberCellSchema = BoxNumberSchema.nullable().default(null);
 
 export const TextCellSchema = z.string().max(2000).nullable().default(null);

@@ -12,16 +12,22 @@ describe("the review's system prompt", () => {
     expect(photos).toContain("never give one as a finding's or a question's module");
   });
 
-  it("reads box numbers as the inspector's own, never checked against the carton list (Kenneth, 12 October 2026)", () => {
+  it("reads box/carton numbers as the size's sampled carton numbers, an unlisted one a warning (Kenneth, 13 October 2026)", () => {
     const line = (key: string) => REVIEW_SYSTEM_PROMPT.split("\n").find((entry) => entry.startsWith(`- ${key}:`)) ?? "";
     for (const key of ["dispensing_packing", "dispensing_safedon", "labeling"]) {
-      expect(line(key), key).toMatch(/box numbers? the inspector typed/);
-      expect(line(key), key).toMatch(/not (a )?carton numbers?/);
+      expect(line(key), key).toContain("box/carton number");
+      expect(line(key), key).toContain("the size's sampled box/carton numbers");
+      expect(line(key), key).toContain("one the size's list does not hold is a warning box_not_in_carton_list");
     }
-    expect(REVIEW_SYSTEM_PROMPT).not.toContain("picked from the carton list");
-    expect(REVIEW_SYSTEM_PROMPT).not.toMatch(/not in that size's carton list|boxes not in the carton list/);
-    // Carton numbers are still checked, in carton_sampling.
-    expect(REVIEW_SYSTEM_PROMPT).toContain("- Carton numbers: duplicates within a size, numbers outside 1 to the order quantity");
+    expect(line("carton_sampling")).toContain("the sampled box/carton numbers");
+    const check = REVIEW_SYSTEM_PROMPT.split("\n").find((entry) => entry.startsWith("- Box/carton numbers:")) ?? "";
+    // Still checked in carton_sampling; in dispensing and labelling an unlisted one is a warning, never an error.
+    expect(check).toContain("in carton_sampling, duplicates within a size, numbers outside 1 to the order quantity");
+    expect(check).toContain("one the size's list does not hold is the app's warning (box_not_in_carton_list), never an error");
+    expect(check).toContain("The same number in several dispensing rows is no problem");
+    // The 12 October wording is gone: box numbers are no longer "the inspector's own".
+    expect(REVIEW_SYSTEM_PROMPT).not.toMatch(/the inspector's own, not|not (a )?carton numbers?/);
+    expect(REVIEW_SYSTEM_PROMPT).not.toContain("carton or box numbers");
   });
 
   it("weighs the sampling plan's # Gloves for Weight, never the dimension sample (Kenneth, 12 October 2026)", () => {

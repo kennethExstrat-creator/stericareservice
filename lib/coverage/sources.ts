@@ -216,13 +216,13 @@ const REPORT_STD_EG: SourceField[] = [
       input: "number",
       targets: [f("carton_sampling", "cartonNumbers"), l("carton_sampling", "sizeCaption")],
       notes:
-        "One grid per size, XS to XL: 10 columns × 5 rows, up to 50 carton numbers. Printed after the size ('M (Carton #)'; 'XS (carton #)' in lower case).",
+        "One grid per size, XS to XL: 10 columns × 5 rows, up to 50 carton numbers. Printed after the size ('M (Carton #)'; 'XS (carton #)' in lower case). The app says Box/Carton # (Kenneth, 13 October 2026: box # and carton # are one number).",
     },
     {
       label: "Sampling Quantity",
       input: "number",
       targets: [f("carton_sampling", "samplingQuantity")],
-      notes: "The app counts the carton numbers; the count must equal the sampled cases (rule 6).",
+      notes: "The app counts the box/carton numbers; the count must equal the sampled cases (rule 6).",
     },
   ]),
   ...section(STD, "Page 2 > Dimension - Size <size>", [
@@ -414,7 +414,12 @@ const REPORT_STD_EG: SourceField[] = [
       targets: [l("dispensing_packing", "itemColumn"), c("dispensing_packing", "boxesPerSize")],
       notes: "Rows 1 to 13 (1 to 5 in the XL block).",
     },
-    { label: "Box #", input: "number", targets: [f("dispensing_packing", "boxNo")], notes: "Typed: the box's own number, not a carton number (rule 7)." },
+    {
+      label: "Box #",
+      input: "number",
+      targets: [f("dispensing_packing", "boxNo")],
+      notes: "Box/Carton # in the app: one of the size's sampled carton numbers, typed with them suggested; one not sampled is a warning (rule 7).",
+    },
     { label: "Layering %", input: "number", targets: [f("dispensing_packing", "layeringPct")] },
     { label: "Dispensing %", input: "number", targets: [f("dispensing_packing", "dispensingPct")] },
     { label: "Stickiness **", input: "select", targets: [f("dispensing_packing", "stickiness")] },
@@ -680,7 +685,7 @@ const REPORT_SAFEDON_EG: SourceField[] = [
       label: "Sampling Quantity",
       input: "number",
       targets: [f("carton_sampling", "samplingQuantity")],
-      notes: "The app counts the carton numbers (rule 6).",
+      notes: "The app counts the box/carton numbers (rule 6).",
     },
   ]),
   ...section(SAF, "Page 2 > Dimension - Size <size>", [
@@ -765,7 +770,7 @@ const REPORT_SAFEDON_EG: SourceField[] = [
       label: "Box #",
       input: "number",
       targets: [f("dispensing_safedon", "boxNo"), c("dispensing_safedon", "boxesPerSize")],
-      notes: "Typed: the box's own number, not a carton number (rule 7).",
+      notes: "Box/Carton # in the app: one of the size's sampled carton numbers, typed with them suggested; one not sampled is a warning (rule 7).",
     },
     {
       label: "Safedon Packing Defects",
@@ -1068,7 +1073,12 @@ const ONSITE_EG: SourceField[] = [
       targets: [l("dispensing_packing", "itemColumn"), c("dispensing_packing", "boxesPerSize")],
       notes: "Running row number, automatic. 51 blank rows, one per box tested.",
     },
-    { label: "Box Number", input: "text", targets: [f("dispensing_packing", "boxNo")], notes: "Typed: the box's own number, not a carton number (rule 7)." },
+    {
+      label: "Box Number",
+      input: "text",
+      targets: [f("dispensing_packing", "boxNo")],
+      notes: "Box/Carton # in the app: one of the size's sampled carton numbers, typed with them suggested; one not sampled is a warning (rule 7).",
+    },
     { label: "Layering (%)", input: "number", targets: [f("dispensing_packing", "layeringPct")] },
     { label: "Dispensing (%)", input: "number", targets: [f("dispensing_packing", "dispensingPct")] },
     {
@@ -1198,7 +1208,7 @@ const ONSITE_SAFEDON_EG: SourceField[] = [
       label: "Box #",
       input: "number",
       targets: [f("dispensing_safedon", "boxNo"), c("dispensing_safedon", "boxesPerSize")],
-      notes: "13 box columns, the box number written at the top of each; the app allows more.",
+      notes: "13 box columns, the box number written at the top of each (Box/Carton # in the app, rule 7); the app allows more.",
     },
     {
       label: "Safedon Packing Defects",

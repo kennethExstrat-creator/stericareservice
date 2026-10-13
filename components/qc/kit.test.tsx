@@ -6,7 +6,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { AttachmentStatus } from "./attachment-status";
 import { BoxNumberField } from "./box-number-field";
-import { BoxPicker } from "./box-picker";
 import { ColumnSwitcher } from "./column-switcher";
 import { CounterTable, type CounterColumn, type CounterRow } from "./counter-table";
 import { DateField } from "./date-field";
@@ -185,66 +184,64 @@ describe("HandToggle", () => {
 });
 
 describe("BoxNumberField", () => {
-  it("is a whole number from 1 on the numeric keypad, a carton number or not (BUILD_SPEC 6.2 rule 7)", () => {
+  const cartons = [1003, 1001, 1012, 1002];
+
+  it("is a whole number from 1 on the numeric keypad, in a group (BUILD_SPEC 6.2 rule 7)", () => {
     const html = renderToStaticMarkup(
-      <BoxNumberField id="box" variant="cell" group="boxNo" label="Box #, Item 12" value={2336} onValueChange={noop} />,
+      <BoxNumberField id="box" variant="cell" group="boxNo" label="Box/Carton #, Item 12" value={2336} onValueChange={noop} />,
     );
-    expect(html).toContain('aria-label="Box #, Item 12"');
+    expect(html).toContain('aria-label="Box/Carton #, Item 12"');
     expect(html).toContain('inputMode="numeric"');
     expect(html).toContain('value="2336"');
     expect(html).toContain('data-enter-group="boxNo"');
     expect(html).not.toContain('aria-invalid="true"');
-    expect(html).not.toContain("carton list");
   });
-});
 
-describe("BoxPicker", () => {
-  const cartons = [13, 299, 337, 2236];
-
-  it("is a combobox named by its label, showing the box", () => {
+  it("is a plain number field while the size has no sampled box/carton numbers", () => {
     const html = renderToStaticMarkup(
-      <BoxPicker label="Box #, item 3" value={337} cartons={cartons} onValueChange={noop} />,
+      <BoxNumberField id="box" variant="cell" label="Box/Carton #, Item 1" value={null} cartons={[]} onValueChange={noop} />,
     );
-    const trigger = tagsWith(html, 'role="combobox"')[0];
-    expect(trigger).toContain('aria-label="Box #, item 3"');
-    expect(trigger).toContain('aria-expanded="false"');
-    expect(trigger).not.toContain('aria-invalid="');
-    expect(html).toContain(">337<");
+    expect(html).not.toContain('role="combobox"');
+    expect(html).not.toContain("aria-expanded");
   });
 
-  it("asks for a box while none is picked", () => {
-    const html = renderToStaticMarkup(<BoxPicker label="Box #" value={null} cartons={cartons} onValueChange={noop} />);
-    expect(html).toContain(">Pick box<");
-  });
-
-  it("flags a stored box that is not in the carton list", () => {
+  it("is a combobox for the size's sampled numbers, its list closed until digits are typed", () => {
     const html = renderToStaticMarkup(
-      <BoxPicker label="Box #, item 12" sizeLabel="size M" value={2336} cartons={cartons} onValueChange={noop} />,
+      <BoxNumberField id="box" variant="cell" label="Box/Carton #, Item 1" value={1003} cartons={cartons} onValueChange={noop} />,
     );
-    expect(tagsWith(html, 'role="combobox"')[0]).toContain('aria-invalid="true"');
-    expect(html).toContain("Box 2336 is not in the carton list for size M. Pick the box from the list.");
+    const input = tagsWith(html, 'role="combobox"')[0];
+    expect(input).toContain('aria-label="Box/Carton #, Item 1"');
+    expect(input).toContain('aria-autocomplete="list"');
+    expect(input).toContain('aria-expanded="false"');
+    // aria-controls names the list only while it is rendered.
+    expect(input).not.toContain("aria-controls");
+    expect(input).toContain('inputMode="numeric"');
+    expect(html).not.toContain('role="listbox"');
   });
 
-  it("does not flag a typed box while the size has no carton list", () => {
-    const html = renderToStaticMarkup(<BoxPicker label="Box #" value={2336} cartons={[]} onValueChange={noop} />);
-    expect(tagsWith(html, 'role="combobox"')[0]).not.toContain('aria-invalid="');
-    expect(html).not.toContain("is not in the carton list");
-  });
-
-  it("keeps the error for screen readers in a table cell", () => {
+  it("shows calc's warning about a number not sampled in amber, never as an error", () => {
     const html = renderToStaticMarkup(
-      <BoxPicker variant="cell" label="Box #" value={2336} cartons={cartons} onValueChange={noop} />,
+      <BoxNumberField
+        id="box"
+        variant="cell"
+        label="Box/Carton #, Item 12"
+        value={2336}
+        cartons={cartons}
+        warning="Box/Carton #2336 is not in M's sampled box/carton numbers."
+        onValueChange={noop}
+      />,
     );
-    expect(html).toMatch(/<span id="[^"]+" class="sr-only">Box 2336 is not in the carton list/);
+    expect(html).toContain("bg-warn-tint");
+    expect(html).toMatch(/<span id="[^"]+" class="sr-only">Box\/Carton #2336 is not in M&#x27;s sampled box\/carton numbers\.<\/span>/);
+    expect(html).not.toContain('aria-invalid="true"');
   });
 
-  it("is plain text read-only", () => {
+  it("offers nothing read-only", () => {
     const html = renderToStaticMarkup(
-      <BoxPicker readOnly label="Box #" value={2336} cartons={cartons} onValueChange={noop} issuePath={["sizes", "M", "boxes", 11]} />,
+      <BoxNumberField id="box" variant="cell" readOnly label="Box/Carton #, Item 1" value={1003} cartons={cartons} onValueChange={noop} />,
     );
-    expect(html).not.toContain("<button");
-    expect(html).toContain("data-invalid");
-    expect(html).toContain('data-issue-path="[&quot;sizes&quot;,&quot;M&quot;,&quot;boxes&quot;,11]"');
+    expect(html).not.toContain('role="combobox"');
+    expect(html).toContain("readOnly");
   });
 });
 

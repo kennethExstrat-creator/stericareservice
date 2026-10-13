@@ -60,8 +60,8 @@ describe("carton_sampling", () => {
     expect(calcCartonSampling(input({ M: VALID }))).toEqual({
       result: {
         status: "pass",
-        summary: "Size M: 5 carton numbers, unique and between 1 and 2,900.",
-        perSize: { M: { status: "pass", summary: "5 carton numbers, unique and between 1 and 2,900." } },
+        summary: "Size M: 5 box/carton numbers, unique and between 1 and 2,900.",
+        perSize: { M: { status: "pass", summary: "5 box/carton numbers, unique and between 1 and 2,900." } },
       },
       computed: { sizes: { M: { samplingQuantity: 5, unique: 5, sampledCases: 5, orderQty: 2900 } } },
       issues: [],
@@ -72,21 +72,21 @@ describe("carton_sampling", () => {
 
   it("is not done while the list is short, and blank cells are not cartons (6.2 rule 5)", () => {
     const short = calcCartonSampling(input({ M: [32, null, 578] }));
-    expect(short.result).toMatchObject({ status: "not_done", perSize: { M: { status: "not_done", summary: "2 of 5 carton numbers." } } });
+    expect(short.result).toMatchObject({ status: "not_done", perSize: { M: { status: "not_done", summary: "2 of 5 box/carton numbers." } } });
     expect(short.computed.sizes.M).toEqual({ samplingQuantity: 2, unique: 2, sampledCases: 5, orderQty: 2900 });
     expect(short.issues).toEqual([]);
     expect(calcCartonSampling(input({ M: [32, null, 578, null, 1186, 2389, 2865, null] })).result.status).toBe("pass");
-    expect(calcCartonSampling(input({})).result.perSize?.M).toEqual({ status: "not_done", summary: "0 of 5 carton numbers." });
+    expect(calcCartonSampling(input({})).result.perSize?.M).toEqual({ status: "not_done", summary: "0 of 5 box/carton numbers." });
   });
 
   it("waits for the sampled cases and the order quantity: without them the list cannot be checked", () => {
     const noPlan = calcCartonSampling(input({ M: VALID }, contextM({ sampling: {} })));
     expect(noPlan.result.perSize?.M).toEqual({
       status: "not_done",
-      summary: "Waiting for the sampled cases; 5 carton numbers entered.",
+      summary: "Waiting for the sampled cases; 5 box/carton numbers entered.",
     });
     const noOrder = calcCartonSampling(input({ M: VALID }, contextM({ order: {}, sampling: {} })));
-    expect(noOrder.result.perSize?.M?.summary).toBe("Waiting for the order quantity and the sampled cases; 5 carton numbers entered.");
+    expect(noOrder.result.perSize?.M?.summary).toBe("Waiting for the order quantity and the sampled cases; 5 box/carton numbers entered.");
     const none = calcCartonSampling(input({ M: [] }, contextM({ sampling: { M: makeSampling({ cases: 0 }) } })));
     expect(none.result.perSize?.M).toEqual({ status: "not_done", summary: "No cases sampled." });
   });
@@ -95,14 +95,14 @@ describe("carton_sampling", () => {
     const output = calcCartonSampling(input({ M: [32, 578, 578, 1186, 2389] }));
     expect(output.result).toEqual({
       status: "fail",
-      summary: "Size M: Carton 578 is entered twice (No. 2, No. 3).",
-      perSize: { M: { status: "fail", summary: "Carton 578 is entered twice (No. 2, No. 3)." } },
+      summary: "Size M: Box/Carton #578 is entered twice (No. 2, No. 3).",
+      perSize: { M: { status: "fail", summary: "Box/Carton #578 is entered twice (No. 2, No. 3)." } },
     });
     expect(output.issues).toEqual([
       {
         level: "error",
         code: "carton_duplicate",
-        message: "Size M: Carton 578 is entered twice (No. 2, No. 3).",
+        message: "Size M: Box/Carton #578 is entered twice (No. 2, No. 3).",
         size: "M",
         path: ["sizes", "M", "cartonNumbers", 2],
       },
@@ -110,26 +110,26 @@ describe("carton_sampling", () => {
     expect(output.computed.sizes.M).toMatchObject({ samplingQuantity: 5, unique: 4 });
     const thrice = calcCartonSampling(input({ M: [578, 32, 578, 1186, 578] }));
     expect(thrice.issues.map((issue) => issue.message)).toEqual([
-      "Size M: Carton 578 is entered 3 times (No. 1, No. 3, No. 5).",
+      "Size M: Box/Carton #578 is entered 3 times (No. 1, No. 3, No. 5).",
     ]);
   });
 
   it("fails on a carton above the order quantity, in grid order, with a link to its cell", () => {
     const output = calcCartonSampling(input({ M: [32, 2901, 578, 1186, 9999] }));
     expect(output.result.status).toBe("fail");
-    expect(output.result.perSize?.M?.summary).toBe("Carton 2901 is not between 1 and 2,900, the order quantity (No. 2); 1 more.");
+    expect(output.result.perSize?.M?.summary).toBe("Box/Carton #2901 is not between 1 and 2,900, the order quantity (No. 2); 1 more.");
     expect(output.issues).toEqual([
       {
         level: "error",
         code: "carton_out_of_range",
-        message: "Size M: Carton 2901 is not between 1 and 2,900, the order quantity (No. 2).",
+        message: "Size M: Box/Carton #2901 is not between 1 and 2,900, the order quantity (No. 2).",
         size: "M",
         path: ["sizes", "M", "cartonNumbers", 1],
       },
       {
         level: "error",
         code: "carton_out_of_range",
-        message: "Size M: Carton 9999 is not between 1 and 2,900, the order quantity (No. 5).",
+        message: "Size M: Box/Carton #9999 is not between 1 and 2,900, the order quantity (No. 5).",
         size: "M",
         path: ["sizes", "M", "cartonNumbers", 4],
       },
@@ -143,7 +143,7 @@ describe("carton_sampling", () => {
       {
         level: "error",
         code: "carton_count_above_cases",
-        message: "Size M: 6 carton numbers, but the sampling plan has 5 cases.",
+        message: "Size M: 6 box/carton numbers, but the sampling plan has 5 cases.",
         size: "M",
         path: ["sizes", "M", "cartonNumbers"],
       },
@@ -154,10 +154,10 @@ describe("carton_sampling", () => {
     ]);
     const one = contextM({ sampling: { M: makeSampling({ cases: 1 }) } });
     expect(calcCartonSampling(input({ M: [32, 578] }, one)).issues.map((issue) => issue.message)).toEqual([
-      "Size M: 2 carton numbers, but the sampling plan has 1 case.",
+      "Size M: 2 box/carton numbers, but the sampling plan has 1 case.",
     ]);
     expect(calcCartonSampling(input({ M: [32] }, one)).result.summary).toBe(
-      "Size M: 1 carton number, unique and between 1 and 2,900.",
+      "Size M: 1 box/carton number, unique and between 1 and 2,900.",
     );
   });
 
@@ -170,15 +170,15 @@ describe("carton_sampling", () => {
     const output = calcCartonSampling(input({ XS: [1, 1], S: [51, 88], M: [51, 600] }, context));
     expect(output.result).toEqual({
       status: "fail",
-      summary: "Size M: Carton 600 is not between 1 and 560, the order quantity (No. 2).",
+      summary: "Size M: Box/Carton #600 is not between 1 and 560, the order quantity (No. 2).",
       perSize: {
-        S: { status: "pass", summary: "2 carton numbers, unique and between 1 and 850." },
-        M: { status: "fail", summary: "Carton 600 is not between 1 and 560, the order quantity (No. 2)." },
+        S: { status: "pass", summary: "2 box/carton numbers, unique and between 1 and 850." },
+        M: { status: "fail", summary: "Box/Carton #600 is not between 1 and 560, the order quantity (No. 2)." },
       },
     });
     expect(Object.keys(output.computed.sizes)).toEqual(["S", "M"]);
     const fixed = calcCartonSampling(input({ S: [51, 88], M: [51, 60] }, context));
-    expect(fixed.result.summary).toBe("Carton numbers complete, unique and within the order quantity for size S (2), M (2).");
+    expect(fixed.result.summary).toBe("Box/carton numbers complete, unique and within the order quantity for size S (2), M (2).");
   });
 
   it("names the sizes that share a summary together, so an empty grid sums up in one short line", () => {
@@ -190,7 +190,7 @@ describe("carton_sampling", () => {
     };
     const waiting = makeTestContext({ sizes: ["XS", "S", "M", "L"], order, sampling: {} });
     expect(calcCartonSampling(input({}, waiting)).result.summary).toBe(
-      "Size XS, S, M, L: Waiting for the sampled cases; 0 carton numbers entered.",
+      "Size XS, S, M, L: Waiting for the sampled cases; 0 box/carton numbers entered.",
     );
     const sampling = {
       XS: makeSampling({ cases: 5 }),
@@ -200,7 +200,7 @@ describe("carton_sampling", () => {
     };
     const planned = makeTestContext({ sizes: ["XS", "S", "M", "L"], order, sampling });
     expect(calcCartonSampling(input({}, planned)).result.summary).toBe(
-      "Size XS, L: 0 of 5 carton numbers. Size S: 0 of 20 carton numbers. Size M: 0 of 15 carton numbers.",
+      "Size XS, L: 0 of 5 box/carton numbers. Size S: 0 of 20 box/carton numbers. Size M: 0 of 15 box/carton numbers.",
     );
   });
 
@@ -263,10 +263,10 @@ describe("carton_sampling with the example reports (docs/examples/expected-resul
     const { context, evaluation, all } = evaluate(STD_EG_EXAMPLE, data);
     expect(evaluation.result).toMatchObject({
       status: "pass",
-      summary: "Size M: 50 carton numbers, unique and between 1 and 2,900.",
+      summary: "Size M: 50 box/carton numbers, unique and between 1 and 2,900.",
     });
     expect(all.issues.filter((issue) => issue.level === "error" && issue.moduleKey !== "conclusion")).toEqual([]);
-    // The context holds the 50 cartons. The dispensing box 2336 is none of them, and needs not be (6.2 rule 7).
+    // The context holds the 50 cartons. The dispensing box 2336 is none of them: dispensing warns about it (6.2 rule 7).
     expect(context.cartons.M).toHaveLength(50);
     expect(context.cartons.M).not.toContain(STD_EG_EXPECTED.dispensingBox.box);
     expect(context.cartons.M).toContain(STD_EG_EXPECTED.dispensingBox.likelyIntended);
@@ -289,12 +289,12 @@ describe("carton_sampling with the example reports (docs/examples/expected-resul
     const { context, evaluation, all } = evaluate(SAFEDON_EG_EXAMPLE);
     expect(evaluation.result).toEqual({
       status: "pass",
-      summary: "Carton numbers complete, unique and within the order quantity for size XS (5), S (20), M (15), L (5).",
+      summary: "Box/carton numbers complete, unique and within the order quantity for size XS (5), S (20), M (15), L (5).",
       perSize: {
-        XS: { status: "pass", summary: "5 carton numbers, unique and between 1 and 60." },
-        S: { status: "pass", summary: "20 carton numbers, unique and between 1 and 850." },
-        M: { status: "pass", summary: "15 carton numbers, unique and between 1 and 560." },
-        L: { status: "pass", summary: "5 carton numbers, unique and between 1 and 60." },
+        XS: { status: "pass", summary: "5 box/carton numbers, unique and between 1 and 60." },
+        S: { status: "pass", summary: "20 box/carton numbers, unique and between 1 and 850." },
+        M: { status: "pass", summary: "15 box/carton numbers, unique and between 1 and 560." },
+        L: { status: "pass", summary: "5 box/carton numbers, unique and between 1 and 60." },
       },
     });
     expect(all.issues.filter((issue) => issue.moduleKey === "carton_sampling")).toEqual([]);

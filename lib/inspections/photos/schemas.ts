@@ -54,9 +54,9 @@ export const PhotoTagFormSchema = z.object({
     z
       .string()
       .trim()
-      .regex(/^\d{1,7}$/, { error: "Enter the box number in digits." })
+      .regex(/^\d{1,7}$/, { error: "Enter the box/carton number in digits." })
       .transform(Number)
-      .pipe(z.number().int().min(1, { error: "Box numbers start at 1." }))
+      .pipe(z.number().int().min(1, { error: "Box/carton numbers start at 1." }))
       .optional(),
   ),
   level: z.preprocess(

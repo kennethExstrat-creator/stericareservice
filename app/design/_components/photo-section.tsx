@@ -32,8 +32,8 @@ const PHOTOS: DemoPhoto[] = [
   {
     id: "queued",
     src: "/design/photo-carton.svg",
-    alt: "Carton 253",
-    tags: { module: "Carton Sampling", size: "M", box: "253" },
+    alt: "Box/Carton #253",
+    tags: { module: "Box/Carton Numbers", size: "M", box: "253" },
     state: "pending",
     progress: 0,
     includeInReport: false,
@@ -44,7 +44,7 @@ const PHOTOS: DemoPhoto[] = [
     src: "/design/photo-defect.svg",
     alt: "Thin spot on the glove body",
     tags: { module: "Visual", size: "M", defect: "Thin Spot on Glove Body", box: "253" },
-    caption: "Thin spot near the palm, second glove from box 253",
+    caption: "Thin spot near the palm, second glove from Box/Carton #253",
     state: "uploaded",
     includeInReport: true,
     selected: false,
@@ -61,7 +61,7 @@ const PHOTOS: DemoPhoto[] = [
   {
     id: "stopped",
     src: "/design/photo-carton.svg",
-    alt: "Carton 253 label, upload stopped",
+    alt: "Box/Carton #253 label, upload stopped",
     tags: { module: "Labelling", size: "M", box: "253", level: "Carton Box" },
     caption: "Refused by the server: the photo card says why and what to do",
     state: "failed",

@@ -1,17 +1,19 @@
 "use client";
 
 // Glove Packing Check capture (BUILD_SPEC 6.1, 8 "Speed"): one size at a time
-// (swipe on iPad, arrow keys on desktop), one row per dispenser box. The box
-// number (6.2 rule 7: the inspector's own number, not a carton number), the
-// layering and the dispensing % are typed on the numeric keypad, Enter going
-// down the column and a pasted column filling down it; the stickiness code is
-// picked from the template's codes. Averages and Passed / Failed come from
-// calc as you type, read-only (rule 2). Wording comes from the template (rule
-// 11). An entry a cell refuses, and any problem calc finds in a row, is
-// listed under the table with a link to its cell: the cell itself only turns
-// red. Every write goes through useDataUpdater, starting from the latest
-// data: a pasted column reaches the screen as one change with every value
-// (docs/CAPTURE_KIT.md).
+// (swipe on iPad, arrow keys on desktop), one row per dispenser box. The
+// box/carton number, the layering and the dispensing % are typed on the
+// numeric keypad, Enter going down the column and a pasted column filling
+// down it; the box/carton number suggests the size's sampled box/carton
+// numbers as it is typed (6.2 rule 7; Kenneth, 13 October 2026), those in
+// other rows marked. The stickiness code is picked from the template's codes.
+// Averages and Passed / Failed come from calc as you type, read-only (rule
+// 2). Wording comes from the template (rule 11). An entry a cell refuses, and
+// any problem calc finds in a row (a box/carton number not sampled for the
+// size is a warning), is listed under the table with a link to its cell: the
+// cell itself only turns red or amber. Every write goes through
+// useDataUpdater, starting from the latest data: a pasted column reaches the
+// screen as one change with every value (docs/CAPTURE_KIT.md).
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
 import { ChevronDownIcon, PlusIcon } from "lucide-react";
 import {
@@ -36,7 +38,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { formatSize, formatSpec } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { initialSize, labelFor, type CaptureProps, type Labels, type ValidationIssue } from "@/modules/_framework";
+import {
+  cartonsFor,
+  initialSize,
+  labelFor,
+  type CaptureProps,
+  type Labels,
+  type ValidationIssue,
+} from "@/modules/_framework";
 import { sizeOnTabs, useReportShownSize } from "@/modules/_framework/shown-size";
 import type { DispensingPackingComputed, DispensingPackingConfig, DispensingPackingData } from ".";
 import { AVERAGE_DECIMALS, packingHeading, plannedBoxes } from "./calc";
@@ -48,7 +57,7 @@ import { plainLabel } from "./text";
 type Props = CaptureProps<DispensingPackingData, DispensingPackingConfig, DispensingPackingComputed>;
 type Update = (change: DataChange<DispensingPackingData>) => void;
 type PercentKey = "layeringPct" | "dispensingPct";
-/** The typed cells of a row: the box number and the two percentages. */
+/** The typed cells of a row: the box/carton number and the two percentages. */
 type TypedKey = "boxNo" | PercentKey;
 
 // A heading on one line, padded as its cells' contents are (px-2.5), so it lines up with them.
@@ -153,6 +162,9 @@ function PackingSizePanel({ size, props, update, requested, onRequest, rejected,
   // calc's problems in this size's rows, such as a stickiness code the template does not have.
   const rowIssues = boxIssues(issues, size);
   const keyOf = (field: TypedKey, index: number) => `${size}:${field}:${index}`;
+  // The size's sampled box/carton numbers, suggested in each row, and every row's number, marked where used.
+  const cartons = cartonsFor(context, size);
+  const used = boxes.map((box) => box.boxNo);
   const panel = useRef<HTMLDivElement>(null);
   const head = useRef<HTMLTableSectionElement>(null);
   const headHeight = useHeadHeight(head);
@@ -198,7 +210,7 @@ function PackingSizePanel({ size, props, update, requested, onRequest, rejected,
               <th scope="col" className={cn(HEAD, "text-center")}>
                 {labelFor(labels, "itemColumn")}
               </th>
-              {/* Right-aligned, as the typed box number below it and the percentages beside it. */}
+              {/* Right-aligned, as the typed box/carton number below it and the percentages beside it. */}
               <th scope="col" className={cn(HEAD, "border-l text-right")}>
                 {labelFor(labels, "boxNo")}
               </th>
@@ -223,6 +235,8 @@ function PackingSizePanel({ size, props, update, requested, onRequest, rejected,
                 size={size}
                 index={index}
                 box={boxes[index] ?? emptyPackingBox()}
+                cartons={cartons}
+                used={used}
                 labels={labels}
                 config={config}
                 issues={issues}
@@ -304,6 +318,10 @@ type RowProps = {
   size: string;
   index: number;
   box: PackingBox;
+  /** The size's sampled box/carton numbers: the box/carton number's suggestions. */
+  cartons: readonly number[];
+  /** Every row's box/carton number in the size. */
+  used: readonly (number | null)[];
   labels: Labels;
   config: DispensingPackingConfig;
   issues: readonly ValidationIssue[];
@@ -313,9 +331,24 @@ type RowProps = {
   onRejected: (field: TypedKey, entry: InvalidEntry | null, problem: Pick<EntryProblem, "label" | "inputId">) => void;
 };
 
-function PackingRow({ size, index, box, labels, config, issues, readOnly, onPatch, onFocusBox, onRejected }: RowProps) {
+function PackingRow({
+  size,
+  index,
+  box,
+  cartons,
+  used,
+  labels,
+  config,
+  issues,
+  readOnly,
+  onPatch,
+  onFocusBox,
+  onRejected,
+}: RowProps) {
   const item = `${labelFor(labels, "itemColumn")} ${index + 1}`;
   const path = (field: keyof PackingBox) => ["sizes", size, "boxes", index, field];
+  // A box/carton number not sampled for the size is a warning (amber), anything else about it an error.
+  const boxIssue = findIssue(issues, path("boxNo"));
   const inputId = (field: TypedKey) => `dispensing-packing-${size}-${field}-${index}`;
   const focus = () => onFocusBox(box.boxNo);
   const percent = (field: PercentKey) => (
@@ -351,6 +384,8 @@ function PackingRow({ size, index, box, labels, config, issues, readOnly, onPatc
           id={inputId("boxNo")}
           label={`${labelFor(labels, "boxNo")}, ${item}`}
           value={box.boxNo}
+          cartons={cartons}
+          used={used}
           onValueChange={(boxNo) => {
             onPatch({ boxNo });
             onFocusBox(boxNo);
@@ -358,7 +393,8 @@ function PackingRow({ size, index, box, labels, config, issues, readOnly, onPatc
           onInvalidChange={(entry) =>
             onRejected("boxNo", entry, { label: `${item}, ${labelFor(labels, "boxNo")}`, inputId: inputId("boxNo") })
           }
-          error={findIssue(issues, path("boxNo"))?.message}
+          error={boxIssue?.level === "error" ? boxIssue.message : null}
+          warning={boxIssue?.level === "warning" ? boxIssue.message : null}
           issuePath={path("boxNo")}
           onFocus={focus}
           readOnly={readOnly}
@@ -544,7 +580,8 @@ function boxIssues(issues: readonly ValidationIssue[], size: string): Validation
 
 /**
  * calc's problems in the rows, each with a link to its cell (BUILD_SPEC 6.2),
- * listed as the carton list lists its own: a cell only turns red, and its
+ * listed as the carton list lists its own: a cell only turns red (an error) or
+ * amber (a warning, such as a box/carton number not sampled for the size), and its
  * message is read to screen readers alone. The Passed or Failed of the size
  * stays calc's.
  */

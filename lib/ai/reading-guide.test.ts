@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { GlossaryEntry } from "@/lib/schemas/ai-settings";
-import { glossaryText } from "./reading-guide";
+import { glossaryText, PAPER_FORM_GUIDE } from "./reading-guide";
 
 const defect = (short: string, meaning: string, codes: string[], confirmed = true): GlossaryEntry => ({
   short,
@@ -27,6 +27,16 @@ const GLOSSARY = [
   term("WTT", "Watertight test"),
   term("TG32", "A manufacturer's factory code as written", false),
 ];
+
+describe("the paper form guide", () => {
+  it("reads a box number and a carton number as one box/carton number, copied as written (Kenneth, 13 October 2026)", () => {
+    const line = PAPER_FORM_GUIDE.split("\n").find((entry) => entry.startsWith("- A box number and a carton number")) ?? "";
+    expect(line).toContain("are the same number, a box/carton number");
+    expect(line).toContain("the size's sampled cartons (the Finished Goods Sampling Information)");
+    expect(line).toContain("Copy each box/carton number as written, even one that is not among the sampled ones");
+    expect(PAPER_FORM_GUIDE).toContain("(by size: box/carton number, layering %, dispensing %, stickiness code, others)");
+  });
+});
 
 describe("glossaryText", () => {
   it("lists each defect with its codes and their library names, then the other words", () => {

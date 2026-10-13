@@ -204,7 +204,7 @@ size:M/defect:lot_no/box:253/level:carton
 item:doorsClosed
 ```
 
-Keys always in the order size, hand, defect, box, level, item (level and item came later, so the targets of older photos read the same), `key:value` joined by `/`, values percent-encoded (a one-off defect label can hold `/` or `:`). Size is a normalised size, hand `R` or `L`, defect a defect code or an unmapped label, box a positive carton number, level labelling's `inner` or `carton`, item the key of an entry of the module's own list (a document, a loading stage). An empty target is `null`. `buildTarget` and `parseTarget` round-trip; `parseTarget` reads keys in any order and reports what is wrong. Tiles and the viewer show level and item in the template's words.
+Keys always in the order size, hand, defect, box, level, item (level and item came later, so the targets of older photos read the same), `key:value` joined by `/`, values percent-encoded (a one-off defect label can hold `/` or `:`). Size is a normalised size, hand `R` or `L`, defect a defect code or an unmapped label, box a positive box/carton number, level labelling's `inner` or `carton`, item the key of an entry of the module's own list (a document, a loading stage). An empty target is `null`. `buildTarget` and `parseTarget` round-trip; `parseTarget` reads keys in any order and reports what is wrong. Tiles and the viewer show level and item in the template's words.
 
 ### Files
 

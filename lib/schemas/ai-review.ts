@@ -41,7 +41,7 @@ export const AiFindingSchema = z.object({
   message: z.string().min(1).describe("What is wrong or notable and what the admin should check."),
   evidence: z.object({
     values: z.array(AiEvidenceValueSchema).describe("The recorded or computed values the finding rests on."),
-    boxes: z.array(z.string()).describe("Carton or box numbers involved, as written in the export."),
+    boxes: z.array(z.string()).describe("Box/carton numbers involved, as written in the export."),
     photos: z.array(z.string()).describe("Ids of photos in the export that show the issue."),
   }),
 });
@@ -99,11 +99,11 @@ function flagDuplicateIds(
  * The review panel links findings and questions to modules and photos,
  * so those must exist in the export the review is about: a review that
  * cites evidence the inspection does not have is rejected, not repaired.
- * Sizes and box numbers are not checked. Naming a size that was not
+ * Sizes and box/carton numbers are not checked. Naming a size that was not
  * ordered, or a size seen only in a comment or a photo, is part of the
- * reviewer's job. Box numbers are the inspector's own, never carton
- * numbers, so nothing compares them with the carton list (BUILD_SPEC 6.2
- * rule 7; Kenneth, 12 October 2026).
+ * reviewer's job, and so is citing a box/carton number the size's sampled
+ * list does not hold: the module's calc already warns about one
+ * (box_not_in_carton_list; BUILD_SPEC 6.2 rule 7; Kenneth, 13 October 2026).
  * ------------------------------------------------------------------ */
 
 export interface ReviewReferenceIssue {

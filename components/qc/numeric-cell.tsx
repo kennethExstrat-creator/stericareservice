@@ -7,8 +7,13 @@
 // rules are pure functions in numeric-entry.ts. A field announces a rejected
 // entry itself; in a grid, MeasurementGrid announces it with the cell's name.
 // Read-only, the input stays focusable (issue links, keyboard review) and
-// quietly refuses typing and pastes.
+// quietly refuses typing and pastes. A value handed to the cell from outside
+// (FILL_EVENT: a pasted column filling down, a suggestion picked) replaces
+// the text being typed, so leaving the cell never commits that text over it.
 import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
   useId,
   useRef,
   useState,
@@ -19,6 +24,7 @@ import {
   type MouseEvent,
 } from "react";
 import { cn } from "@/lib/utils";
+import { FILL_EVENT } from "./field-navigation";
 import {
   commitChange,
   entryKeyAction,
@@ -51,10 +57,16 @@ type NumericCellProps = Omit<
   unit?: string;
   /** Show the stored value with at least this many decimals (0.1 as 0.10); never rounds. */
   decimals?: number;
-  /** The on-screen keypad: decimal (the default), or numeric for whole numbers such as a box number. */
+  /** The on-screen keypad: decimal (the default), or numeric for whole numbers such as a box/carton number. */
   inputMode?: "decimal" | "numeric";
   /** Called with pasted text that holds several values; return true if handled. */
   onPasteText?: (text: string) => boolean;
+  /**
+   * The text being typed, as it changes, and null when the edit ends
+   * (committed, Escape, a paste, a value handed in): what BoxNumberField
+   * filters its suggestions by.
+   */
+  onDraftChange?: (draft: string | null) => void;
 };
 
 export function NumericCell({
@@ -70,8 +82,10 @@ export function NumericCell({
   decimals,
   inputMode = "decimal",
   onPasteText,
+  onDraftChange,
   className,
   id,
+  ref,
   onBlur,
   onFocus,
   onKeyDown,
@@ -99,9 +113,32 @@ export function NumericCell({
   const [draft, setDraft] = useState<string | null>(null);
   const draftRef = useRef<string | null>(null);
   const updateDraft = (next: string | null) => {
+    const changed = draftRef.current !== next;
     draftRef.current = next;
     setDraft(next);
+    if (changed) onDraftChange?.(next);
   };
+
+  // The input, for the fill listener below, and for whoever passed a ref (NumberField finds its run by it).
+  const ownInput = useRef<HTMLInputElement | null>(null);
+  const setInput = useCallback(
+    (node: HTMLInputElement | null) => {
+      ownInput.current = node;
+      if (typeof ref === "function") ref(node);
+      else if (ref) ref.current = node;
+    },
+    [ref],
+  );
+  // A value handed in from outside (FILL_EVENT) replaces the edit in progress, at once: an Enter in
+  // the same key press then has nothing left to commit over it.
+  const dropDraft = useEffectEvent(() => updateDraft(null));
+  useEffect(() => {
+    const element = ownInput.current;
+    if (!element) return;
+    const listener = () => dropDraft();
+    element.addEventListener(FILL_EVENT, listener);
+    return () => element.removeEventListener(FILL_EVENT, listener);
+  }, []);
 
   const [announcement, announce] = useAnnouncement();
 
@@ -165,6 +202,7 @@ export function NumericCell({
   const input = (
     <input
       {...props}
+      ref={setInput}
       id={inputId}
       type="text"
       inputMode={inputMode}

@@ -8,7 +8,7 @@
 //   Failed or On Hold as every result pill does, and why: a reason with one
 //   section names it, one with two or more counts them, their names behind
 //   Show All (view state, never saved), each section by its short name, as
-//   the menus and the submit dialog name it ("Failed: Carton Numbers.";
+//   the menus and the submit dialog name it ("Failed: Box/Carton Numbers.";
 //   docs/DESIGN.md, Step Names). Then the remark, with a note under it
 //   when the final result differs from the suggestion, asking why while the
 //   remark is blank (amber edge).

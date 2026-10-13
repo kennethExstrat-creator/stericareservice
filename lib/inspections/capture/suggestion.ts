@@ -3,7 +3,7 @@
 // Failed, On Hold, as every result pill does), and these lines say why,
 // worded as the Conclusion section words them one screen before: "Failed:
 // …", "Not done: …", "Warnings: …", each with the sections by their short
-// names, as the sidebar and Pending name them ("Failed: Carton Numbers.
+// names, as the sidebar and Pending name them ("Failed: Box/Carton Numbers.
 // Warnings: Weight."; docs/DESIGN.md, Step Names). A clean pass has nothing
 // to add, so nothing repeats the pill. The words are the suggestion's own
 // (lib/validation/suggested-result.ts): the review and the suggestion's

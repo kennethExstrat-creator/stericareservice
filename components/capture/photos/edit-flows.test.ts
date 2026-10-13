@@ -59,7 +59,7 @@ beforeEach(() => {
 describe("savePhotoEdit", () => {
   it("checks the fields first: a field error asks neither the device nor the server", async () => {
     const result = await savePhotoEdit(INSPECTION, { id: PHOTO, queued: true }, IDLE_PHOTO_ACTION, retagForm({ box: "abc" }));
-    expect(result).toEqual({ status: "error", message: PHOTO_MESSAGES.checkFields, fieldErrors: { box: "Enter the box number in digits." } });
+    expect(result).toEqual({ status: "error", message: PHOTO_MESSAGES.checkFields, fieldErrors: { box: "Enter the box/carton number in digits." } });
     expect(fakes.queue.retag).not.toHaveBeenCalled();
     expect(updatePhotoTags).not.toHaveBeenCalled();
   });

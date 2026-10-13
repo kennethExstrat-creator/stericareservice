@@ -127,7 +127,7 @@ export type CustomLayout = (typeof CUSTOM_LAYOUTS)[number];
 export const CustomGridSchema = z.strictObject({
   /** One grid per ordered size. */
   repeatPer: z.literal("size").optional(),
-  /** The repeated column, e.g. 13 "Box #" columns the inspector can add to. */
+  /** The repeated column, e.g. 13 "Box/Carton #" columns the inspector can add to. */
   columns: z.strictObject({
     label: z.string().trim().min(1),
     default: z.number().int().min(1).max(500),

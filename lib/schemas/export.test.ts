@@ -273,7 +273,7 @@ describe("the STD_EG export of the real modules", () => {
     expect(gloveInfo?.data).toMatchObject({ gloveType: "Nitrile, powder free" });
   });
 
-  it("reproduces expected results B: every module passes or informs, weight warns", () => {
+  it("reproduces expected results B: every module passes or informs, weight warns, and box 2336 is a warning", () => {
     const statuses = Object.fromEntries(doc.modules.map((module) => [module.key, module.result.status]));
     expect(statuses).toEqual({
       header: "info",
@@ -291,9 +291,12 @@ describe("the STD_EG export of the real modules", () => {
       labeling: "pass",
       conclusion: "pass",
     });
+    // Box 2336 is not among size M's sampled box/carton numbers: a warning in the export, never an error (Kenneth, 13 October 2026).
     expect(doc.modules.flatMap((module) => module.warnings.map((warning) => [module.key, warning.code, warning.size]))).toEqual([
       ["weight", "weight_deviation", "M"],
+      ["dispensing_packing", "box_not_in_carton_list", "M"],
     ]);
+    expect(moduleOf(doc, "dispensing_packing").warnings[0].message).toBe("Box/Carton #2336 is not in M's sampled box/carton numbers.");
     expect(doc.modules.flatMap((module) => module.errors ?? [])).toEqual([]);
     expect(doc.conclusion).toMatchObject({ suggestedResult: "pass", finalResult: "pass", remark: null, date: "2025-04-12" });
   });

@@ -6,7 +6,7 @@ import { z } from "zod";
 import { CountCellSchema, perSizeData } from "@/modules/_framework";
 
 export const SamplingSizeSchema = z.strictObject({
-  /** Cases sampled. carton_sampling lists exactly this many carton numbers (6.2 rule 6). */
+  /** Cases sampled. carton_sampling lists exactly this many box/carton numbers (6.2 rule 6). */
   cases: CountCellSchema,
   /** Inner units sampled: inner boxes, plastic packs, dispenser boxes or pouches (packing_config's inner unit). */
   innerUnits: CountCellSchema,

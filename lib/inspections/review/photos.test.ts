@@ -39,7 +39,7 @@ describe("describePhoto", () => {
     // The template labels size M "Medium".
     expect(describePhoto(photo(), wording)).toEqual({
       id: photo().id,
-      alt: "Photo: Visual Inspection (AQL), Size Medium, right hand, Thin spot on glove body, Box 253",
+      alt: "Photo: Visual Inspection (AQL), Size Medium, right hand, Thin spot on glove body, Box/Carton #253",
       tags: { module: "Visual Inspection (AQL)", size: "Medium", hand: "R", defect: "Thin spot on glove body", box: "253" },
       caption: null,
       flagged: false,
@@ -50,13 +50,13 @@ describe("describePhoto", () => {
   it("leads the text alternative with the caption", () => {
     expect(describePhoto(photo({ caption: "  Thin spot near the cuff " }), wording)).toMatchObject({
       caption: "Thin spot near the cuff",
-      alt: "Thin spot near the cuff (Visual Inspection (AQL), Size Medium, right hand, Thin spot on glove body, Box 253)",
+      alt: "Thin spot near the cuff (Visual Inspection (AQL), Size Medium, right hand, Thin spot on glove body, Box/Carton #253)",
     });
   });
 
   it("names a size the template does not label by its value, and a hand without a size", () => {
     expect(describePhoto(photo({ target: "size:7.0/box:12" }), wording)).toMatchObject({
-      alt: "Photo: Visual Inspection (AQL), Size 7.0, Box 12",
+      alt: "Photo: Visual Inspection (AQL), Size 7.0, Box/Carton #12",
       tags: { size: "7.0", box: "12" },
     });
     expect(describePhoto(photo({ target: "hand:L" }), wording)).toMatchObject({
@@ -108,9 +108,9 @@ describe("describePhoto: packaging levels and list entries, as the gallery words
     expect(labeling).toBeTruthy();
     const carton = describePhoto(photo({ module_key: "labeling", target: "size:M/box:1324/level:carton" }), wording);
     expect(carton.tags).toEqual({ module: labeling, size: "M", box: "1324", level: "Carton Box" });
-    expect(carton.alt).toBe(`Photo: ${labeling}, Size M, Box 1324, Carton Box`);
+    expect(carton.alt).toBe(`Photo: ${labeling}, Size M, Box/Carton #1324, Carton Box`);
     // The tile's tag line, as the gallery's: level last.
-    expect(tagLine(carton.tags)).toBe(`${labeling} · Size M · Box 1324 · Carton Box`);
+    expect(tagLine(carton.tags)).toBe(`${labeling} · Size M · Box/Carton #1324 · Carton Box`);
     expect(describePhoto(photo({ module_key: "labeling", target: "size:M/box:686/level:inner" }), wording).tags.level).toBe(
       "Dispenser Box",
     );

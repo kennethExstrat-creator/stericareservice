@@ -12,10 +12,12 @@
 // every edit returns data the schema keeps.
 //
 // A row refuses what calc could only report: a number another row of the
-// size holds (6.2 rule 6, unique per size) and text that is no carton number
-// (6.2 rule 1). A number above the order quantity is stored: calc fails it,
-// and its row turns red with a link (6.2 rule 6).
-import { formatCount } from "@/lib/format";
+// size holds (6.2 rule 6, unique per size) and text that is no box/carton
+// number (6.2 rule 1). A number above the order quantity is stored: calc
+// fails it, and its row turns red with a link (6.2 rule 6). Messages say
+// "Box/Carton #1003" for one number and "box/carton numbers" for several
+// (Kenneth, 13 October 2026: box # and carton # are one number).
+import { boxCartonNumber, countBoxCartonNumbers, formatCount } from "@/lib/format";
 import { MAX_CARTONS_PER_SIZE, type CartonSamplingData } from "./schema";
 
 /** Rows on one page of a size's carton table (Kenneth, 13 October 2026). */
@@ -72,7 +74,7 @@ export function splitCartonText(text: string): string[] {
   return text.split(/[\s,;]+/).filter((part) => part !== "");
 }
 
-/** One carton number: digits only, a whole number from 1 ("0525" is 525). Null for anything else. */
+/** One box/carton number: digits only, a whole number from 1 ("0525" is 525). Null for anything else. */
 export function readCartonNumber(raw: string): number | null {
   const text = raw.trim();
   if (!/^\d+$/.test(text)) return null;
@@ -83,7 +85,7 @@ export function readCartonNumber(raw: string): number | null {
 export type TypedCarton =
   /** Nothing but spaces or separators: the row is emptied. */
   | { readonly kind: "empty" }
-  /** One carton number, for setCartonRow to check against the other rows. */
+  /** One box/carton number, for setCartonRow to check against the other rows. */
   | { readonly kind: "carton"; readonly carton: number }
   | { readonly kind: "refused"; readonly refusal: CartonRefusal };
 
@@ -101,7 +103,7 @@ export function readTypedCarton(text: string): TypedCarton {
   return carton === null ? { kind: "refused", refusal: { reason: "not_a_carton", raw: parts[0] } } : { kind: "carton", carton };
 }
 
-/** The entries of a paste that holds several carton numbers, to fill rows with; null for one or none, pasted as typed text. */
+/** The entries of a paste that holds several box/carton numbers, to fill rows with; null for one or none, pasted as typed text. */
 export function pastedCartons(text: string): string[] | null {
   const parts = splitCartonText(text);
   return parts.length > 1 ? parts : null;
@@ -166,7 +168,7 @@ export type PastedCartons = {
  * rows below, one a row, in the order pasted, over what those rows held, as
  * a spreadsheet takes a pasted column; past the rows shown the table grows,
  * up to what a size holds. Left out, each with its reason: text that is no
- * carton number, a number the paste gives twice, a number a row the paste
+ * box/carton number, a number the paste gives twice, a number a row the paste
  * does not fill holds already (6.2 rule 6), and numbers past what a size
  * holds. The rows filled are the rows the kept numbers take, so a number
  * left out leaves no gap. Nothing filled, or every row filled with the
@@ -239,13 +241,13 @@ export function pasteCartons(data: CartonSamplingData, size: string, start: numb
 export function refusalMessage(refusal: CartonRefusal): string {
   switch (refusal.reason) {
     case "listed":
-      return `Carton ${refusal.carton} is already in row ${refusal.index + 1}.`;
+      return `${boxCartonNumber(refusal.carton)} is already in row ${refusal.index + 1}.`;
     case "not_a_carton":
-      return `“${refusal.raw}” is not a carton number: whole numbers from 1 only.`;
+      return `“${refusal.raw}” is not a box/carton number: whole numbers from 1 only.`;
     case "several":
-      return `“${refusal.raw}” is more than one number. Type one carton number per row, or paste the list.`;
+      return `“${refusal.raw}” is more than one number. Type one box/carton number per row, or paste the list.`;
     case "full":
-      return `Carton ${refusal.carton} is not added: a size holds at most ${formatCount(MAX_CARTONS_PER_SIZE)} carton numbers.`;
+      return `${boxCartonNumber(refusal.carton)} is not added: a size holds at most ${countBoxCartonNumbers(MAX_CARTONS_PER_SIZE)}.`;
   }
 }
 
@@ -255,17 +257,17 @@ const SHOWN_ENTRIES = 5;
 /**
  * The one line a pasted list leaves under the table: the rows it filled,
  * then what was left out and why, each named once ("Left out: 525 (already
- * in row 20), “abc” (not a carton number).").
+ * in row 20), “abc” (not a box/carton number).").
  */
 export function pasteMessage({ placed, replaced, refused }: Pick<PastedCartons, "placed" | "replaced" | "refused">): string {
   const parts: string[] = [];
-  if (placed.length === 0) parts.push("No carton numbers pasted.");
+  if (placed.length === 0) parts.push("No box/carton numbers pasted.");
   else {
     const first = placed[0].index + 1;
     const last = placed[placed.length - 1].index + 1;
     const rows = first === last ? `row ${first}` : `rows ${first} to ${last}`;
     const over = replaced > 0 ? `, replacing ${counted(replaced, "number")}` : "";
-    parts.push(`Pasted ${counted(placed.length, "carton number")} into ${rows}${over}.`);
+    parts.push(`Pasted ${countBoxCartonNumbers(placed.length)} into ${rows}${over}.`);
   }
   const leftOut = [...new Set(refused.map(leftOutEntry))];
   if (leftOut.length > 0) parts.push(`Left out: ${some(leftOut)}.`);
@@ -300,7 +302,7 @@ function leftOutEntry(refusal: CartonRefusal): string {
     case "listed":
       return `${refusal.carton} (already in row ${refusal.index + 1})`;
     case "not_a_carton":
-      return `“${refusal.raw}” (not a carton number)`;
+      return `“${refusal.raw}” (not a box/carton number)`;
     case "several":
       return `“${refusal.raw}” (more than one number)`;
     case "full":
@@ -308,7 +310,7 @@ function leftOutEntry(refusal: CartonRefusal): string {
   }
 }
 
-/** "1 carton number", "8 carton numbers". */
+/** "1 number", "8 numbers". */
 function counted(count: number, noun: string): string {
   return `${formatCount(count)} ${count === 1 ? noun : `${noun}s`}`;
 }

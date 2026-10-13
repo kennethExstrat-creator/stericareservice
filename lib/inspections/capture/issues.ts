@@ -177,8 +177,9 @@ const PHRASES: readonly (readonly [RegExp, string])[] = [
   [/^final_result_differs$/, "Explain the result under Remark"],
   [/^size_not_ordered$/, "Data for a size not ordered"],
   [/^order_size_not_in_template$/, "Size not in this template"],
-  [/^carton_duplicate$/, "Carton entered twice"],
-  [/^box_duplicate$/, "Box entered twice"],
+  // Box # and carton # are one number (Kenneth, 13 October 2026): "Box/Carton #" in every phrase.
+  [/^(carton_duplicate|box_duplicate)$/, "Box/Carton # entered twice"],
+  [/^box_not_in_carton_list$/, "Box/Carton # not sampled"],
   [/^lot_number_duplicate$/, "Lot number entered twice"],
   [/^(order_size_duplicate|size_duplicate)$/, "Size entered twice"],
   [/_duplicate$/, "Entered twice"],

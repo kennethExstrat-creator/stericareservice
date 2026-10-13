@@ -5,7 +5,7 @@
 // finding cites the same way. Pure; the loaders sign the URLs and look up
 // defect names.
 import type { PhotoTags } from "@/components/qc/photo-tags";
-import { formatHand, formatSize, type SizeOption } from "@/lib/format";
+import { boxCartonNumber, formatHand, formatSize, type SizeOption } from "@/lib/format";
 import { EMPTY_TAG_OPTIONS, itemName, levelName, tagOptionsFromTemplate, UNTAGGED_TITLE } from "@/lib/inspections/photos/view";
 import { mediaCategory } from "@/lib/inspections/source-documents";
 import { parseTarget, type PhotoTarget } from "@/lib/photos/target";
@@ -121,7 +121,7 @@ export function unlabelledDefects(
 
 /**
  * A photo's tags in the template's wording, for its tile's tag line:
- * "Packaging Labeling Inspection · Size M · Box 1324 · Carton Box". The size
+ * "Packaging Labeling Inspection · Size M · Box/Carton #1324 · Carton Box". The size
  * by the template's name for it ("Medium"); the hand as R or L, which the
  * tag line spells out.
  */
@@ -158,7 +158,7 @@ export function describePhoto(
   const where = target.size
     ? [formatSize(target.size, { sizes: wording.sizes, prefix: true }), hand].filter(Boolean).join(", ")
     : hand;
-  const description = [tags.module, where, tags.defect, tags.box && `Box ${tags.box}`, tags.level, tags.item]
+  const description = [tags.module, where, tags.defect, tags.box && boxCartonNumber(tags.box), tags.level, tags.item]
     .filter(Boolean)
     .join(", ");
   const caption = row.caption?.trim() ? row.caption.trim() : null;

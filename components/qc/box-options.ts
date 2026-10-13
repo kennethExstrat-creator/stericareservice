@@ -1,29 +1,17 @@
-// The list behind BoxPicker, kept pure so it can be tested: which carton
-// numbers to offer, which are already picked elsewhere, and which one Enter
-// picks.
+// The suggestions behind BoxNumberField, kept pure so they can be tested:
+// which of the size's sampled box/carton numbers to offer for the digits
+// typed, which other rows already hold, when the list shows and where the
+// arrows move the choice (BUILD_SPEC 6.2 rule 7; Kenneth, 13 October 2026:
+// box # and carton # are one number, "yes link again").
 
-/**
- * What a request to open or close the box list does. Read-only, nothing: the
- * box shows as text. Opening also reports the box in focus for photo tags,
- * because Safari never focuses a tapped button, so on iPad the opening is
- * the only focus there is to report.
- */
-export function boxListChange(next: boolean, readOnly: boolean): { open: boolean; reportFocus: boolean } | null {
-  return readOnly ? null : { open: next, reportFocus: next };
+/** The digits of what was typed: " 2 2" is "22". */
+export function typedDigits(text: string | null | undefined): string {
+  return (text ?? "").replace(/\D/g, "");
 }
 
-/**
- * The box list's heading: "Cartons", or "Cartons · Size M" for the picker's
- * `sizeLabel` ("size M", worded for its sentences), Title Case as a heading is.
- */
-export function boxListHeading(sizeLabel?: string): string {
-  const size = sizeLabel?.trim() ?? "";
-  return size === "" ? "Cartons" : `Cartons · ${size.charAt(0).toUpperCase()}${size.slice(1)}`;
-}
-
-/** The size's carton numbers to offer: unique whole numbers from 1, ascending, filtered by the digits typed. */
+/** The size's sampled numbers to offer: unique whole numbers from 1, ascending, those holding the digits typed. */
 export function boxOptions(cartons: readonly number[], query = ""): number[] {
-  const digits = query.replace(/\D/g, "");
+  const digits = typedDigits(query);
   const unique = [...new Set(cartons.filter((carton) => Number.isInteger(carton) && carton > 0))].sort(
     (a, b) => a - b,
   );
@@ -31,8 +19,8 @@ export function boxOptions(cartons: readonly number[], query = ""): number[] {
 }
 
 /**
- * How many other rows picked each box. `used` holds every row's pick in the
- * size, this row included, so one occurrence of `value` is this row's own.
+ * How many other rows hold each number. `used` holds every row's number in
+ * the list, this row's included, so one occurrence of `value` is this row's own.
  */
 export function pickedElsewhere(
   used: readonly (number | null | undefined)[],
@@ -50,43 +38,44 @@ export function pickedElsewhere(
   return counts;
 }
 
-/** The option Enter picks: the box typed exactly, else the first one left. */
-export function bestOption(options: readonly number[], query: string): number | null {
-  const digits = query.replace(/\D/g, "");
-  if (digits !== "" && options.includes(Number(digits))) return Number(digits);
-  return options[0] ?? null;
+/**
+ * Whether the suggestions show: only where the number can change, while the
+ * size has sampled numbers holding the digits typed (as you type), or once
+ * the arrow key opened the list without typing. Text with no digits, or none
+ * the list holds, shows nothing: typing never waits for the list.
+ */
+export function showsSuggestions({
+  readOnly,
+  typed,
+  browsing,
+  options,
+}: {
+  readOnly: boolean;
+  /** The text typed since the field took the focus; null while nothing is typed. */
+  typed: string | null;
+  /** The list was opened with the arrow key. */
+  browsing: boolean;
+  /** How many suggestions there are for what is typed. */
+  options: number;
+}): boolean {
+  if (readOnly || options === 0) return false;
+  return browsing || typedDigits(typed) !== "";
 }
 
 /**
- * A stored box that is not in the size's carton list (BUILD_SPEC 6.2 rule 7).
- * Without a list (carton sampling off or not filled in yet) nothing can be
- * checked, so nothing is flagged (docs/MODULES.md, the inspection context).
+ * Where the arrows move the chosen suggestion, from `index` (-1: none yet)
+ * among `count`: Down to the next, Up to the one before, both wrapping round,
+ * as a list combobox does (WAI-ARIA APG); Page Up and Page Down to the first
+ * and the last (Home and End stay the caret's). Null for any other key, which
+ * the field keeps for itself.
  */
-export function isUnlisted(value: number | null, cartons: readonly number[]): value is number {
-  return value !== null && cartons.length > 0 && !cartons.includes(value);
-}
-
-/** A box number typed while there is no carton list: a whole number from 1, else null. */
-export function readBoxNumber(raw: string): number | null {
-  const text = raw.trim();
-  if (!/^\d{1,9}$/.test(text)) return null;
-  const value = Number(text);
-  return value >= 1 ? value : null;
-}
-
-/** Moves the active option in a grid of `columns`: arrows by one or by a row; null for other keys. */
-export function moveInGrid(key: string, index: number, count: number, columns: number): number | null {
+export function moveSuggestion(key: string, index: number, count: number): number | null {
   if (count === 0) return null;
-  const clamp = (next: number) => Math.min(count - 1, Math.max(0, next));
   switch (key) {
-    case "ArrowRight":
-      return clamp(index + 1);
-    case "ArrowLeft":
-      return clamp(index - 1);
     case "ArrowDown":
-      return index < 0 ? 0 : clamp(index + columns);
+      return index < 0 || index >= count - 1 ? 0 : index + 1;
     case "ArrowUp":
-      return clamp(index - columns);
+      return index <= 0 ? count - 1 : index - 1;
     case "PageDown":
       return count - 1;
     case "PageUp":
@@ -94,4 +83,17 @@ export function moveInGrid(key: string, index: number, count: number, columns: n
     default:
       return null;
   }
+}
+
+/**
+ * What a suggestion says about the other rows holding it: "Used" (and how
+ * often, "Used ×2"), with the words a screen reader hears; null when no other
+ * row holds it. Still offered: one carton can supply several inner boxes.
+ */
+export function usedNote(others: number): { shown: string; spoken: string } | null {
+  if (others <= 0) return null;
+  return {
+    shown: others === 1 ? "Used" : `Used ×${others}`,
+    spoken: others === 1 ? "in another row" : `in ${others} other rows`,
+  };
 }

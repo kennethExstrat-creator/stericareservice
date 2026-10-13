@@ -33,7 +33,7 @@ export const PhotoTargetSchema = z.strictObject({
   hand: HandSchema.optional(),
   /** A defect code ("thin_spot"), or the label of a one-off defect not mapped yet. */
   defect: z.string().trim().min(1).max(120).optional(),
-  /** The number in focus: a carton's in carton sampling, a box's in dispensing and labelling (not a carton number, 6.2 rule 7). */
+  /** The box/carton number in focus: one number in carton sampling, dispensing and labelling (6.2 rule 7). */
   box: z.number().int().positive().optional(),
   /** The packaging level in labelling: the inner unit or the carton. */
   level: PackagingLevelSchema.optional(),

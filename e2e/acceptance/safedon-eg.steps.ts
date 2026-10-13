@@ -15,7 +15,7 @@ import { createTestAdminClient, deleteTestInspection } from "../support/admin";
 /**
  * The SAFEDON_EG example report (tests/fixtures/examples, anonymised) typed
  * into the capture screen the way an inspector does on the iPad: numbers on
- * the keypad (box numbers too: the inspector's own, not carton numbers),
+ * the keypad (box/carton numbers too, the size's sampled ones suggested),
  * counts by tapping steppers, dates from pickers, the lab report attached. Each step checks what
  * the screen shows for the rows of the expected results it can see, and
  * that the autosave stored exactly what was typed. Used by
@@ -406,7 +406,7 @@ export async function enterSampling(page: Page): Promise<void> {
 }
 
 /**
- * Finished goods sampling: per size the carton numbers into the table's rows, in the order printed,
+ * Finished goods sampling: per size the box/carton numbers into the table's rows, in the order printed,
  * each stored with Enter, which turns the page after a page's 10th row (Kenneth, 13 October 2026).
  */
 export async function enterCartons(page: Page): Promise<void> {
@@ -535,9 +535,11 @@ export async function enterVisual(page: Page): Promise<void> {
 const SAFEDON_LABEL = Object.fromEntries(REPORT.dispensingSafedon.rows.map((row) => [row.code, row.label]));
 
 /**
- * Glove dispensing: per size, each box's number typed on the numeric keypad
- * (the inspector's own number, not a carton number: BUILD_SPEC 6.2 rule 7),
- * then its defects tapped in; on the iPad one box shows at a time.
+ * Glove dispensing: per size, each box's box/carton number typed on the
+ * numeric keypad (one of the size's sampled carton numbers, suggested as it
+ * is typed: BUILD_SPEC 6.2 rule 7; Kenneth, 13 October 2026), then its
+ * defects tapped in; on the iPad one box shows at a time. Enter with no
+ * suggestion chosen stores what was typed.
  */
 export async function enterDispensing(page: Page): Promise<void> {
   await openSection(page, "dispensing_safedon");
@@ -546,7 +548,8 @@ export async function enterDispensing(page: Page): Promise<void> {
     await showSize(page, size);
     const entry = REPORT.dispensingSafedon.perSize[size]!;
     for (const [index, boxNo] of entry.boxes.entries()) {
-      const field = section.getByRole("textbox", { name: `Box #, No. ${index + 1}`, exact: true });
+      // By its name: a combobox while the size has sampled numbers to suggest, else a text box.
+      const field = section.getByLabel(`Box/Carton #, No. ${index + 1}`, { exact: true });
       await press(field);
       await page.keyboard.type(String(boxNo));
       await page.keyboard.press("Enter");
@@ -554,10 +557,10 @@ export async function enterDispensing(page: Page): Promise<void> {
       for (const code of SAFEDON_DEFECTS) {
         const count = entry.counts[code][index];
         for (let tap = 0; tap < count; tap++) {
-          await press(section.getByRole("button", { name: named(`Increase ${SAFEDON_LABEL[code]}, Box ${boxNo}`) }));
+          await press(section.getByRole("button", { name: named(`Increase ${SAFEDON_LABEL[code]}, Box/Carton #${boxNo}`) }));
         }
         if (count > 0) {
-          await expect(section.getByRole("spinbutton", { name: named(`${SAFEDON_LABEL[code]}, Box ${boxNo}`) })).toHaveAttribute(
+          await expect(section.getByRole("spinbutton", { name: named(`${SAFEDON_LABEL[code]}, Box/Carton #${boxNo}`) })).toHaveAttribute(
             "aria-valuenow",
             String(count),
           );

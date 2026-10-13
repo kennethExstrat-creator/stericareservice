@@ -1,5 +1,7 @@
 // Defaults a template can override: the heading, the labels (the STD_EG
-// report's wording, plus the EG onsite form's "Others:") and the config
+// report's wording, plus the EG onsite form's "Others:", and "Box/Carton #"
+// for its "Box #": Kenneth, 13 October 2026, box # and carton # are one
+// number) and the config
 // (BUILD_SPEC 6.1: minimum layering and dispensing, stickiness codes with
 // pass or fail, boxes per size). docs/DATA_DICTIONARY.md has the keys.
 import { z } from "zod";
@@ -14,7 +16,7 @@ export const DISPENSING_PACKING_TITLE = "Glove Packing Check";
  * {minDispensingPct}.
  */
 export const DISPENSING_PACKING_LABELS: Readonly<Record<string, string>> = {
-  boxNo: "Box #",
+  boxNo: "Box/Carton #",
   layeringPct: "Layering %",
   dispensingPct: "Dispensing %",
   stickiness: "Stickiness **",

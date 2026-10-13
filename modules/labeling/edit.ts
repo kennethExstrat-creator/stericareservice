@@ -22,9 +22,9 @@ export function withLevel(
 }
 
 /**
- * Boxes inspected. Box numbers past the new count stay saved, so a slip of
- * the stepper loses nothing; calc flags them until the count and the box
- * numbers agree.
+ * Boxes inspected. Box/carton numbers past the new count stay saved, so a
+ * slip of the stepper loses nothing; calc flags them until the count and
+ * the box/carton numbers agree.
  */
 export function withInspected(data: LabelingData, size: string, level: LabelingLevel, inspected: number): LabelingData {
   return withLevel(data, size, level, { inspected: Math.max(0, Math.floor(inspected)) });
@@ -61,14 +61,14 @@ export function withAddedBox(data: LabelingData, size: string, level: LabelingLe
   return withBox(data, size, level, levelEntry(data, size, level).boxNos.length, box);
 }
 
-/** Box number fields to show: one per box inspected (the planned n until it is recorded). */
+/** Box/carton number fields to show: one per box inspected (the planned n until it is recorded). */
 export function boxSlots(entry: LabelingLevelData, planned: number): number {
   return entry.inspected ?? planned;
 }
 
 /**
- * The box number fields on screen, by position: each box entered, then one
- * empty field (null) for the next box while fewer are entered than
+ * The box/carton number fields on screen, by position: each box entered,
+ * then one empty field (null) for the next box while fewer are entered than
  * boxSlots. Kept by position, the field a box was just typed in stays on
  * screen with the focus, and the next empty one follows it.
  */

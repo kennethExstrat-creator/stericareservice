@@ -135,7 +135,7 @@ describe("AiReviewPanelView for an admin", () => {
     expect(content).toMatch(/Major Finding F1 · Size M/);
     expect(content).toContain("Average weight, size M 2.9 g");
     expect(content).toMatch(/Critical Finding F2/);
-    expect(content).toContain("Box: 578");
+    expect(content).toContain("Box/Carton #: 578");
     expect(content).toContain("Photo no longer in this inspection");
     expect(content).toContain("Original file (HEIC)");
     const html = render();

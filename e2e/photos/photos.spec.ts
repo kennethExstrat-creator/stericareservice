@@ -209,12 +209,12 @@ test("the inspector adds photos and a lab report, then retags, captions, views a
     // A refused save keeps what was typed, and focus goes to the field to fix.
     await chooseOption(page, dialog.getByRole("combobox", { name: "Module" }), NAMES.dispensing_packing);
     const caption = dialog.getByRole("textbox", { name: "Caption" });
-    // A packing check box: its own number, no carton number (BUILD_SPEC 6.2 rule 7).
-    const box = dialog.getByRole("textbox", { name: "Box Number" });
+    // A packing check box: its box/carton number, one number in every module (BUILD_SPEC 6.2 rule 7).
+    const box = dialog.getByRole("textbox", { name: "Box/Carton #" });
     await caption.fill("Typed caption that must survive");
     await box.fill("abc");
     await press(dialog.getByRole("button", { name: "Save" }));
-    await expect(dialog.getByText("Enter the box number in digits.")).toBeVisible();
+    await expect(dialog.getByText("Enter the box/carton number in digits.")).toBeVisible();
     await expect(caption).toHaveValue("Typed caption that must survive");
     await expect(box).toHaveValue("abc");
     await expect(box).toBeFocused();

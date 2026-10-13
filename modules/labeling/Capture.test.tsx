@@ -100,7 +100,7 @@ describe("labeling capture", () => {
       "Inner Boxes/Packs",
       "Carton Boxes",
       "Wrong / No Expiry Date",
-      "No Carton Number",
+      "No Box/Carton #",
       "Limit : Accept / Reject",
       "Disposition - Inner Box (Passed / Failed)",
       "Disposition - Carton Box (Passed / Failed)",
@@ -157,7 +157,7 @@ describe("labeling capture", () => {
     expect(results).toEqual(["not_done", "not_done"]);
   });
 
-  it("takes the box numbers typed on the numeric keypad, a field per box and an empty one for the next, never checked against the carton list", () => {
+  it("takes the box/carton numbers typed on the numeric keypad with the size's sampled numbers suggested, a field per box and an empty one for the next", () => {
     const html = render(RECORDED);
     const fields = tagsWith(html, 'data-slot="numeric-cell"');
     expect(fields.map((field) => /id="([^"]+)"/.exec(field)?.[1])).toEqual([
@@ -168,25 +168,48 @@ describe("labeling capture", () => {
     ]);
     expect(fields.map((field) => /value="([^"]*)"/.exec(field)?.[1])).toEqual(["13", "2336", "", ""]);
     for (const field of fields) expect(field).toContain('inputMode="numeric"');
-    for (const label of ["Box # 1, Dispenser Box, Size M", "Box # 2, Dispenser Box, Size M", "Box # 3, Dispenser Box, Size M", "Box # 1, Carton Box, Size M"]) {
+    // Size M has a sampled list (13, 299, 337 here): each field suggests it (6.2 rule 7; Kenneth, 13 October 2026).
+    for (const field of fields) expect(field).toContain('role="combobox"');
+    // Named by the field's No., never a number that reads as a box/carton number.
+    for (const label of [
+      "Box/Carton #, No. 1, Dispenser Box, Size M",
+      "Box/Carton #, No. 2, Dispenser Box, Size M",
+      "Box/Carton #, No. 3, Dispenser Box, Size M",
+      "Box/Carton #, No. 1, Carton Box, Size M",
+    ]) {
       expect(html).toContain(`>${label}</label>`);
     }
-    // Box 2336 is in no carton list (13, 299, 337 here), and that is no problem: box numbers are not carton numbers.
+    // Box 2336 is not in size M's list: stored as typed, amber, and a warning linked below; never an error.
     expect(fields.some((field) => field.includes('aria-invalid="true"'))).toBe(false);
-    expect(html).not.toContain("carton list");
+    expect(fields[1]).toContain("border-warn-solid");
+    const list = /<ul[^>]*data-slot="box-issues"[^>]*>[\s\S]*?<\/ul>/.exec(html)?.[0] ?? "";
+    expect(list).toContain("Box/Carton #2336 is not in M&#x27;s sampled box/carton numbers.");
+    expect(list).toContain("text-warn");
+    expect(list.match(/<button/g)).toHaveLength(1);
+    expect(list).toContain("touch:min-h-11");
     // Each box entered has its Delete, 44 px on the iPad; the empty field has none.
-    const deletes = tagsWith(html, 'aria-label="Delete Box ');
+    const deletes = tagsWith(html, 'aria-label="Delete Box/Carton #');
     expect(deletes.map((button) => /aria-label="([^"]+)"/.exec(button)?.[1])).toEqual([
-      "Delete Box 13, Dispenser Box, Size M",
-      "Delete Box 2336, Dispenser Box, Size M",
+      "Delete Box/Carton #13, Dispenser Box, Size M",
+      "Delete Box/Carton #2336, Dispenser Box, Size M",
     ]);
     expect(deletes[0]).toContain("touch:size-11");
   });
 
-  it("lists calc's box problems under the fields: a box entered twice at the carton level", () => {
+  it("suggests nothing and warns about nothing while the size has no sampled list", () => {
+    const html = render(RECORDED, { context: makeTestContext({ sizes: ["M", "L"] }) });
+    const fields = tagsWith(html, 'data-slot="numeric-cell"');
+    expect(fields.some((field) => field.includes('role="combobox"'))).toBe(false);
+    expect(html).not.toContain('data-slot="box-issues"');
+  });
+
+  it("lists calc's box problems under the fields as links: a box/carton number entered twice at the carton level", () => {
     const config = { levels: { ...LABELING_DEFAULT_CONFIG.levels, carton: { ...LABELING_DEFAULT_CONFIG.levels.carton, n: 2 } } };
     const twice: LabelingData = { sizes: { M: { ...RECORDED.sizes.M, carton: { inspected: 2, boxNos: [337, 337], defects: {} } } } };
-    expect(render(twice, { config })).toMatch(/<p class="[^"]*text-fail[^"]*">Carton Box, size M: box 337 is entered twice\.<\/p>/);
+    const html = render(twice, { config });
+    expect(html).toMatch(
+      /<button type="button" class="[^"]*text-fail[^"]*">.*?<span>Carton Box, size M: Box\/Carton #337 is entered twice\.<\/span><\/button>/,
+    );
   });
 
   it("asks for the boxes inspected where the count is, when a defect fails the level first", () => {
@@ -220,7 +243,7 @@ describe("labeling capture", () => {
     const html = render(RECORDED, { readOnly: true });
     expect(html).not.toContain('role="spinbutton"');
     expect(html).not.toContain('role="combobox"');
-    expect(html).not.toContain("Delete Box");
+    expect(html).not.toContain("Delete Box/Carton");
     expect(html).not.toContain("Record ");
     expect(html).not.toContain("Increase ");
     expect(html).toContain('role="tab"');

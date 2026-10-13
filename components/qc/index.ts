@@ -33,8 +33,7 @@ export { useMediaQuery, WIDE_QUERY, COARSE_QUERY } from "./use-media-query";
 export { SizeTabs, SizeStatusStrip, type ResultLike, type SizeResults } from "./size-tabs";
 export { SizeBlock, SideBySideText, useSizeTabsLayout, type SizeTabsLayout } from "./size-block";
 export { HandToggle, handsOf, HAND_NAME, type HandView } from "./hand-toggle";
-export { BoxPicker } from "./box-picker";
-// A box number as the inspector types it (dispensing, labelling): not a carton number (BUILD_SPEC 6.2 rule 7).
+// A box/carton number, typed, with the size's sampled box/carton numbers as suggestions (BUILD_SPEC 6.2 rule 7).
 export { BoxNumberField, type BoxNumberFieldProps } from "./box-number-field";
 export {
   CounterTable,
@@ -51,6 +50,7 @@ export {
   EnterGroup,
   EntryProblems,
   type EntryProblem,
+  type NumberFieldInputProps,
   type NumberFieldProps,
 } from "./number-field";
 // What a paste left out, on screen: NumberField, EnterGroup and MeasurementGrid show it themselves.

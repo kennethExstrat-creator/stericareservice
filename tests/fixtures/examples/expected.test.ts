@@ -82,18 +82,22 @@ describe("expected results", () => {
     }
   });
 
-  it("STD_EG: the one error points at the fixture's duplicate carton; box 2336, in no carton list, is none", () => {
+  it("STD_EG: the one error points at the fixture's duplicate carton; box 2336, in no carton list, is a warning", () => {
     const grid = STD_EG_EXAMPLE.cartons.M!;
     const boxes = STD_EG_EXAMPLE.dispensingPacking.perSize.M!.boxes.map((box) => box.box);
     const [duplicate] = STD_EG_EXPECTED.errors;
     expect(STD_EG_EXPECTED.errors).toHaveLength(1);
     expect(duplicate).toMatchObject({ module: "carton_sampling", size: "M", code: "carton_duplicate" });
     expect(duplicate.message).toContain(String(STD_EG_EXPECTED.cartonList.duplicate.carton));
-    // Box numbers are not carton numbers (BUILD_SPEC 6.2 rule 7): the box stays as typed.
+    // Box # and carton # are one number (BUILD_SPEC 6.2 rule 7; Kenneth, 13 October 2026): the box stays as
+    // typed, and is a warning, never an error, since size M's carton list does not hold it.
     expect(boxes[STD_EG_EXPECTED.dispensingBox.item - 1]).toBe(STD_EG_EXPECTED.dispensingBox.box);
     expect(cartonList(grid)).not.toContain(STD_EG_EXPECTED.dispensingBox.box);
-    expect(STD_EG_EXPECTED.dispensingBox.validation).toBe("none");
-    expect(STD_EG_EXPECTED.warnings.map((warning) => warning.code)).toEqual(["weight_deviation"]);
+    expect(cartonList(grid)).toContain(STD_EG_EXPECTED.dispensingBox.likelyIntended);
+    expect(STD_EG_EXPECTED.dispensingBox.validation).toBe("warning");
+    expect(STD_EG_EXPECTED.warnings.map((warning) => warning.code)).toEqual(["weight_deviation", "box_not_in_carton_list"]);
+    expect(STD_EG_EXPECTED.warnings[1]).toMatchObject({ module: "dispensing_packing", size: "M" });
+    expect(STD_EG_EXPECTED.warnings[1].message).toContain(String(STD_EG_EXPECTED.dispensingBox.box));
   });
 
   it("STD_EG: the duplicate fails carton_sampling; dispensing_packing passes", () => {

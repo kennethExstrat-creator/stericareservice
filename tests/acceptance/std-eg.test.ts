@@ -80,15 +80,27 @@ describe("STD_EG example as a whole inspection (expected results B)", () => {
     expect(corrected.report.errors.filter((issue) => issue.moduleKey === "carton_sampling")).toEqual([]);
   });
 
-  it("Dispensing box 2336, in no carton list: taken as typed, no issue, the packing check passes (6.2 rule 7)", () => {
+  it("Dispensing box 2336, in no carton list: stored as typed, a warning linked to its cell, the packing check passes (6.2 rule 7)", () => {
     const { size, item, box, validation } = EXPECTED.dispensingBox;
-    expect(validation).toBe("none");
-    // Box numbers are the inspector's own, not carton numbers (Kenneth, 12 October 2026).
+    expect(validation).toBe("warning");
+    // Box # and carton # are one number (Kenneth, 13 October 2026): 2336 is not among size M's sampled ones.
     expect(original.context.cartons[size]).not.toContain(box);
     const packing = original.module("dispensing_packing");
     expect((packing.data as { sizes: Record<string, { boxes: { boxNo: number | null }[] }> }).sizes[size].boxes[item - 1].boxNo).toBe(box);
-    expect(original.report.issues.filter((issue) => issue.moduleKey === "dispensing_packing")).toEqual([]);
+    const expected = EXPECTED.warnings.find((issue) => issue.module === "dispensing_packing");
+    expect(original.report.issues.filter((issue) => issue.moduleKey === "dispensing_packing")).toEqual([
+      {
+        moduleKey: "dispensing_packing",
+        level: "warning",
+        code: expected?.code,
+        message: expected?.message,
+        size,
+        path: ["sizes", size, "boxes", item - 1, "boxNo"],
+      },
+    ]);
+    // A warning never blocks submit nor decides the result.
     expect(packing.result.status).toBe(EXPECTED.dispensing[size]?.status);
+    expect(corrected.report.errors.filter((issue) => issue.moduleKey === "dispensing_packing")).toEqual([]);
   });
 
   it("Watertight M: n 500 is code N, limit 14 / 15, 1 hole (finger), pass", () => {
@@ -269,9 +281,10 @@ describe("STD_EG example as a whole inspection (expected results B)", () => {
       EXPECTED.errors.map((issue) => [issue.module, issue.code, issue.size]),
     );
     expect(original.report.canSubmit).toBe(false);
-    // The weight warning, and the inspector's PASSED against a suggestion of fail.
+    // The weight warning, box 2336 not sampled for size M, and the inspector's PASSED against a suggestion of fail.
     expect(original.report.warnings.map((issue) => [issue.moduleKey, issue.code])).toEqual([
       ["weight", "weight_deviation"],
+      ["dispensing_packing", "box_not_in_carton_list"],
       ["conclusion", "final_result_differs"],
     ]);
   });

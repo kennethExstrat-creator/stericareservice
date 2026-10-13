@@ -40,7 +40,7 @@ describe("carton_sampling config", () => {
     expect(CARTON_SAMPLING_DEFAULT_CONFIG).toEqual(defaultConfig("carton_sampling"));
     expect(CartonSamplingConfigSchema.parse(CARTON_SAMPLING_DEFAULT_CONFIG)).toEqual({});
     expect(CartonSamplingConfigSchema.safeParse({ gridColumns: 10 }).success).toBe(false);
-    expect(CARTON_SAMPLING_TITLE).toBe("Finished Goods Sampling Information (Carton Number)");
+    expect(CARTON_SAMPLING_TITLE).toBe("Finished Goods Sampling Information (Box/Carton #)");
     expect(CARTON_SAMPLING_LABELS).toEqual(defaultLabels("carton_sampling"));
   });
 

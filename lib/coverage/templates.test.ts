@@ -345,7 +345,7 @@ describe("what the reports fix", () => {
       "lot_no: Wrong / No Lot Number",
       "mfg_date: Wrong / No Mfg. Date",
       "artwork: Wrong Artwork Print",
-      "carton_no: No Carton Number Printed",
+      "carton_no: No Box/Carton # Printed",
     ]);
     expect(checks("SAFEDON_EG", "inner")).toEqual([
       "lot_no: Wrong / No Lot Number",
@@ -358,7 +358,7 @@ describe("what the reports fix", () => {
       "mfg_date: Wrong / No Mfg. Date",
       "expiry_date: Wrong / No Expiry Date",
       "artwork: Wrong Artwork Print",
-      "carton_no: No Carton Number",
+      "carton_no: No Box/Carton #",
     ]);
   });
 

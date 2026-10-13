@@ -90,8 +90,8 @@ describe("dispensing_packing capture", () => {
 
   it("has one row per planned box with the template's column wording, and the heading filled in", () => {
     const html = render();
-    expect(count(html, 'aria-label="Box #, Item ')).toBe(13);
-    for (const heading of ["Item", "Box #", "Layering %", "Dispensing %", "Stickiness **", "Others:"]) {
+    expect(count(html, 'aria-label="Box/Carton #, Item ')).toBe(13);
+    for (const heading of ["Item", "Box/Carton #", "Layering %", "Dispensing %", "Stickiness **", "Others:"]) {
       expect(html).toContain(`>${heading}</th>`);
     }
     expect(html).toContain("Glove Packing Check (Sampling Code Letter E) : Min. 70% Layering &amp; 80% Dispensing");
@@ -123,18 +123,34 @@ describe("dispensing_packing capture", () => {
     expect(html).not.toContain(">Layering %</th>");
   });
 
-  it("marks every value for issue links, and takes the box numbers as typed, on the numeric keypad", () => {
+  it("marks every value for issue links, types the box/carton numbers on the numeric keypad with the size's sampled numbers suggested", () => {
     const html = render();
     expect(html).toContain('data-issue-path="[&quot;sizes&quot;,&quot;M&quot;,&quot;boxes&quot;,11,&quot;boxNo&quot;]"');
     expect(html).toContain('data-issue-path="[&quot;sizes&quot;,&quot;M&quot;,&quot;boxes&quot;,0,&quot;layeringPct&quot;]"');
-    const field = (item: number) => new RegExp(`<input[^>]*aria-label="Box #, Item ${item}"[^>]*>`).exec(html)?.[0] ?? "";
+    const field = (item: number) => new RegExp(`<input[^>]*aria-label="Box/Carton #, Item ${item}"[^>]*>`).exec(html)?.[0] ?? "";
     expect(field(1)).toContain('inputMode="numeric"');
-    // The STD_EG box 2336 is in no carton list, and that is no problem: box numbers are not carton numbers (6.2 rule 7).
+    // Size M has a sampled list (BUILD_SPEC 6.2 rule 7; Kenneth, 13 October 2026): each field suggests its numbers.
+    expect(field(1)).toContain('role="combobox"');
+    expect(field(1)).toContain('aria-autocomplete="list"');
+    // The STD_EG box 2336 is in no carton list: stored as typed, amber, never an error, and the size passes.
     expect(field(12)).toContain('value="2336"');
     expect(field(12)).not.toContain('aria-invalid="true"');
-    expect(html).not.toContain("carton list");
-    expect(html).not.toContain('data-slot="box-issues"');
+    expect(field(12)).toContain("bg-warn-tint");
+    const list = /<ul[^>]*data-slot="box-issues"[^>]*>[\s\S]*?<\/ul>/.exec(html)?.[0] ?? "";
+    expect(count(list, "<li")).toBe(1);
+    expect(list).toContain("Box/Carton #2336 is not in M&#x27;s sampled box/carton numbers.");
+    expect(list).toContain("text-warn");
+    expect(list).not.toContain("text-fail");
     expect(count(html, 'data-outcome="pass"')).toBe(3);
+  });
+
+  it("is a plain number field while the size has no sampled list, and warns about nothing", () => {
+    const html = render({ context: makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ packagingDispensing: 13 }) } }) });
+    const field = /<input[^>]*aria-label="Box\/Carton #, Item 12"[^>]*>/.exec(html)?.[0] ?? "";
+    expect(field).toContain('value="2336"');
+    expect(field).not.toContain('role="combobox"');
+    expect(field).not.toContain("bg-warn-tint");
+    expect(html).not.toContain('data-slot="box-issues"');
   });
 
   it("lists every problem calc finds in a row of the size on screen, in row order, with a link to its cell", () => {
@@ -143,12 +159,15 @@ describe("dispensing_packing capture", () => {
     );
     const html = render({ data: { sizes: { M: { boxes } } } });
     const list = /<ul[^>]*data-slot="box-issues"[^>]*>[\s\S]*?<\/ul>/.exec(html)?.[0] ?? "";
-    expect(count(list, "<li")).toBe(2);
+    // Two errors and item 12's warning (box 2336, not sampled for size M), in row order.
+    expect(count(list, "<li")).toBe(3);
     expect(list).toContain("Stickiness &quot;Z&quot; (item 3) for size M is not one of this template&#x27;s codes");
     expect(list).toContain("Layering 880% (item 10) for size M is not between 0 and 100%.");
     expect(list.indexOf("(item 3)")).toBeLessThan(list.indexOf("(item 10)"));
-    expect(count(list, "<button")).toBe(2);
+    expect(list.indexOf("(item 10)")).toBeLessThan(list.indexOf("Box/Carton #2336"));
+    expect(count(list, "<button")).toBe(3);
     expect(list).toContain("text-fail");
+    expect(list).toContain("text-warn");
     // A 44 px target on the iPad, below the table, as the refused entries are.
     expect(list).toContain("touch:min-h-11");
     expect(html.indexOf('data-slot="box-issues"')).toBeGreaterThan(html.indexOf("</table>"));
@@ -215,8 +234,8 @@ describe("dispensing_packing capture", () => {
     expect(html).not.toContain("<select");
     expect(html).not.toContain('role="combobox"');
     // The box numbers as read-only fields: still reached by the keyboard and issue links, never typed in.
-    expect(/<input[^>]*aria-label="Box #, Item 12"[^>]*>/.exec(html)?.[0]).toContain('value="2336"');
-    expect(/<input[^>]*aria-label="Box #, Item 12"[^>]*>/.exec(html)?.[0]).toContain("readOnly");
+    expect(/<input[^>]*aria-label="Box\/Carton #, Item 12"[^>]*>/.exec(html)?.[0]).toContain('value="2336"');
+    expect(/<input[^>]*aria-label="Box\/Carton #, Item 12"[^>]*>/.exec(html)?.[0]).toContain("readOnly");
     expect(render()).toContain("Add Box");
   });
 });

@@ -208,7 +208,7 @@ describe("SaveStatus", () => {
 
 describe("tagLine", () => {
   it("names what was in focus when the photo was taken", () => {
-    expect(tagLine({ module: "Dimensions", size: "M", box: "253" })).toBe("Dimensions · Size M · Box 253");
+    expect(tagLine({ module: "Dimensions", size: "M", box: "253" })).toBe("Dimensions · Size M · Box/Carton #253");
     expect(tagLine({ module: "Watertight", size: "7.0", hand: "L", defect: "Palm" })).toBe(
       "Watertight · Size 7.0 · Left Hand · Palm",
     );
@@ -220,7 +220,7 @@ describe("tagLine", () => {
 
   it("names labelling's packaging level after the box, in the template's words", () => {
     expect(tagLine({ module: "Labelling", size: "M", defect: "Wrong / No lot number", box: "253", level: "Carton Box" })).toBe(
-      "Labelling · Size M · Wrong / No lot number · Box 253 · Carton Box",
+      "Labelling · Size M · Wrong / No lot number · Box/Carton #253 · Carton Box",
     );
     expect(tagLine({ module: "Labelling", size: "S", level: "Inner Boxes/Packs" })).toBe("Labelling · Size S · Inner Boxes/Packs");
     // Level then item, the order the capture screen's tag line has them.
@@ -505,7 +505,7 @@ describe("PhotoTile", () => {
     expect(html).toContain('role="progressbar"');
     expect(html).toContain('aria-valuenow="40"');
     expect(html).toContain("Uploading 40%");
-    expect(html).toContain("Dimensions · Size M · Box 253");
+    expect(html).toContain("Dimensions · Size M · Box/Carton #253");
   });
 
   it("explains a flagged file without a preview", () => {

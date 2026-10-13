@@ -14,9 +14,10 @@ import { ExportSchema, type InspectionExport } from "@/lib/schemas";
  * changes this export, and the tests that read it notice.
  *
  * State: submitted after the carton error was fixed, with the weight
- * warning (2.9 g against 3.5 g indicative, 17.1% below) still in the
- * export; the force-at-break lab report attached; five photos, one a
- * flagged HEIC original.
+ * warning (2.9 g against 3.5 g indicative, 17.1% below) and box 2336's
+ * (not among size M's sampled box/carton numbers) still in the export; the
+ * force-at-break lab report attached; five photos, one a flagged HEIC
+ * original.
  * ------------------------------------------------------------------ */
 
 export const FIXTURE_IDS = STD_EG_IDS;

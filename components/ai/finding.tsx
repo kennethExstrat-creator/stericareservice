@@ -1,6 +1,7 @@
 // One AI finding with the evidence it points to (values, boxes, photos) and,
 // for admins, the decision control. One AI question for the inspector.
 import { CircleHelpIcon, FileImageIcon, ImageOffIcon } from "lucide-react";
+import { BOX_CARTON_LABEL } from "@/lib/format/box-carton";
 import { evidenceValueLayout } from "@/lib/inspections/ai/format";
 import type { FindingModel, PhotoEvidenceModel, QuestionModel } from "@/lib/inspections/ai/types";
 import { cn } from "@/lib/utils";
@@ -81,7 +82,8 @@ export function FindingCard({
           )}
           {evidence.boxes.length > 0 && (
             <p className="text-sm text-foreground">
-              <span className="text-muted-foreground">{evidence.boxes.length === 1 ? "Box" : "Boxes"}: </span>
+              {/* Box # and carton # are one number (Kenneth, 13 October 2026): one label, however many. */}
+              <span className="text-muted-foreground">{BOX_CARTON_LABEL}: </span>
               <span className="tabular-nums">{evidence.boxes.join(", ")}</span>
             </p>
           )}

@@ -2,11 +2,17 @@
 // Reject 1 (BUILD_SPEC 7: labelling, whatever the number inspected), so any
 // defect fails. A level is not done until the boxes inspected are recorded
 // (6.2 rule 5); fewer than the template plans is a warning, and so is a level
-// failed on a defect before the count is recorded. Box numbers are optional
-// and the inspector's own, never checked against the carton list (6.2 rule 7).
+// failed on a defect before the count is recorded. Box/carton numbers are
+// optional; one the size's sampled list does not hold is a warning on its
+// field, never a block (6.2 rule 7; Kenneth, 13 October 2026), and with no
+// sampled list for the size yet nothing is checked. Inner boxes may share a
+// number (one carton supplies several); the carton level inspects each
+// carton once, so a number entered twice there is an error.
 import { decide, labelingPlan } from "@/lib/aql";
+import { boxCartonNumber, countBoxCartonNumbers } from "@/lib/format/box-carton";
 import type { ModuleStatus } from "@/lib/schemas";
 import {
+  boxNotSampledIssue,
   errorIssue,
   labelFor,
   perSizeResults,
@@ -206,18 +212,29 @@ function levelIssues(
     issues.push(
       errorIssue(
         "boxes_exceed_inspected",
-        `${where}: ${countOf(boxNos.length, "box is", "boxes are")} entered but ${inspected} inspected.`,
+        `${where}: ${countBoxCartonNumbers(boxNos.length)} ${boxNos.length === 1 ? "is" : "are"} entered but ${countOf(inspected, "box", "boxes")} inspected.`,
         { size, path: [...at, "boxNos"] },
       ),
     );
   }
 
-  // The carton level inspects each box once: a number entered twice there is an error. Inner boxes are taken as typed.
+  // Each number against the size's sampled list: one it does not hold is a warning on its field.
+  boxNos.forEach((box, index) => {
+    const unsampled = boxNotSampledIssue(context, size, box, [...at, "boxNos", index]);
+    if (unsampled) issues.push(unsampled);
+  });
+
+  // The carton level inspects each carton once: a number entered twice there is an error. Inner boxes may share one.
   if (level === "carton") {
     const seen = new Set<number>();
     boxNos.forEach((box, index) => {
       if (seen.has(box)) {
-        issues.push(errorIssue("box_duplicate", `${where}: box ${box} is entered twice.`, { size, path: [...at, "boxNos", index] }));
+        issues.push(
+          errorIssue("box_duplicate", `${where}: ${boxCartonNumber(box)} is entered twice.`, {
+            size,
+            path: [...at, "boxNos", index],
+          }),
+        );
       }
       seen.add(box);
     });

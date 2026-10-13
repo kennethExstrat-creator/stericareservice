@@ -93,7 +93,7 @@ const PLAN: readonly {
   module: PhotoModule;
   input: "camera" | "library";
   files: readonly { name: string; width: number; height: number; label: string }[];
-  /** What the module is shown to have in focus first: a field tapped, a box list opened. */
+  /** What the module is shown to have in focus first: a field tapped. */
   focus: (frame: Locator, page: Page) => Promise<void>;
   /** The tag line under the photo, the module aside (the gallery's section names it). */
   tags: string;
@@ -123,17 +123,18 @@ const PLAN: readonly {
     module: "dispensing_packing",
     input: "library",
     files: [{ name: "dispenser-box-13.jpg", width: 2400, height: 1800, label: "Box 13" }],
-    // The box number field: typed, a tapped input takes the focus (BUILD_SPEC 6.2 rule 7).
-    focus: (frame) => frame.getByRole("textbox", { name: "Box #, Item 1", exact: true }).tap(),
-    tags: "Size M · Box 13",
+    // The box/carton number field: typed, a tapped input takes the focus (BUILD_SPEC 6.2 rule 7). By its name:
+    // a text box, or a combobox once the size has sampled box/carton numbers to suggest.
+    focus: (frame) => frame.getByLabel("Box/Carton #, Item 1", { exact: true }).tap(),
+    tags: "Size M · Box/Carton #13",
     target: "size:M/box:13",
   },
   {
     module: "labeling",
     input: "camera",
     files: [{ name: "carton-label-1324.jpg", width: 1024, height: 768, label: "Carton" }],
-    focus: (frame) => frame.getByRole("textbox", { name: "Box # 1, Carton Box, Size M", exact: true }).tap(),
-    tags: "Size M · Box 1324 · Carton Box",
+    focus: (frame) => frame.getByLabel("Box/Carton #, No. 1, Carton Box, Size M", { exact: true }).tap(),
+    tags: "Size M · Box/Carton #1324 · Carton Box",
     target: "size:M/box:1324/level:carton",
   },
 ];

@@ -79,7 +79,7 @@ describe("dispensing_safedon capture writes", () => {
     const changes: DispensingSafedonData[] = [];
     const { table, fields } = renderScreen({ sizes: {} }, (next) => changes.push(next));
     expect(fields).toHaveLength(3);
-    // Typed: any whole number, a carton number or not (12 is in no carton list here).
+    // Typed: any whole number from 1; one not in the size's sampled list (12 here) is calc's warning, never refused.
     expect(fields.map((field) => field.group)).toEqual(["boxNo", "boxNo", "boxNo"]);
 
     fields[1].onValueChange(12);
@@ -102,8 +102,11 @@ describe("dispensing_safedon capture writes", () => {
     const changes: DispensingSafedonData[] = [];
     const boxes = Array.from({ length: 20 }, (_, index) => ({ boxNo: [3, 12, 59][index % 3], counts: {} }));
     const { table, fields } = renderScreen({ sizes: { XS: { boxes } } }, (next) => changes.push(next));
-    expect(fields.map((field) => field.label)).toEqual(Array.from({ length: 10 }, (_, index) => `Box #, No. ${index + 1}`));
+    expect(fields.map((field) => field.label)).toEqual(Array.from({ length: 10 }, (_, index) => `Box/Carton #, No. ${index + 1}`));
     expect(table.columns).toHaveLength(20);
+    // Each field suggests the size's sampled numbers and knows every box's, the other pages' included, to mark them used.
+    expect(fields[0].cartons).toEqual([3, 5, 7]);
+    expect(fields[0].used).toEqual(boxes.map((box) => box.boxNo));
 
     // A box number typed on the page writes its own column.
     fields[9].onValueChange(12);

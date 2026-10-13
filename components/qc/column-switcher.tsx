@@ -1,8 +1,9 @@
 "use client";
 
 // Previous and Next for a CounterTable that shows one column at a time on the
-// iPad layout (its activeColumn), such as Safedon's boxes on an iPad: "Box
-// 253 · 2 / 5" between the two buttons, said again when it changes. On the
+// iPad layout (its activeColumn), such as Safedon's boxes on an iPad:
+// "Box/Carton #253 · 2 / 5" between the two buttons, said again when it
+// changes. On the
 // desktop layout (`xl`: 1280 px and wider with a mouse or trackpad), where
 // every column shows side by side, it hides. At either end its button stays
 // focusable (aria-disabled) and greys out, so keyboard focus is never dropped.
@@ -17,7 +18,7 @@ type ColumnSwitcherProps = {
   /** The column on screen, 0 first. */
   index: number;
   onIndexChange: (index: number) => void;
-  /** What the column on screen is called, e.g. "Box 253" or "Box (2)". */
+  /** What the column on screen is called, e.g. "Box/Carton #253" or "Box/Carton # (2)". */
   current: string;
   /** The buttons' accessible names. */
   previousLabel?: string;

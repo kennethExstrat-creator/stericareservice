@@ -112,7 +112,7 @@
           {
             "key": "carton_sampling",
             "include": true,
-            "title": "Finished Goods Sampling Information (Carton Number)"
+            "title": "Finished Goods Sampling Information (Box/Carton #)"
           },
           {
             "key": "dimensions",
@@ -493,7 +493,7 @@
                     },
                     {
                       "code": "carton_no",
-                      "label": "No Carton Number Printed"
+                      "label": "No Box/Carton # Printed"
                     }
                   ]
                 }
@@ -683,11 +683,11 @@
           {
             "key": "carton_sampling",
             "include": true,
-            "title": "Finished Goods Sampling Information (Carton Number)",
+            "title": "Finished Goods Sampling Information (Box/Carton #)",
             "labels": {
-              "cartonNumbers": "(Carton #)",
+              "cartonNumbers": "(Box/Carton #)",
               "samplingQuantity": "Sampling Quantity",
-              "sizeCaption": "{size} (Carton #)"
+              "sizeCaption": "{size} (Box/Carton #)"
             },
             "config": {}
           },
@@ -1064,7 +1064,7 @@
             "include": true,
             "title": "Glove Packing Check",
             "labels": {
-              "boxNo": "Box #",
+              "boxNo": "Box/Carton #",
               "layeringPct": "Layering %",
               "dispensingPct": "Dispensing %",
               "stickiness": "Stickiness **",
@@ -1124,7 +1124,7 @@
             "title": "Packaging Labeling Inspection",
             "labels": {
               "inspected": "No. of Sampled Boxes Inspected",
-              "boxNos": "Box #",
+              "boxNos": "Box/Carton #",
               "defects": "Defects",
               "accept": "Accept",
               "innerAccept": "Accept",
@@ -1178,7 +1178,7 @@
                     },
                     {
                       "code": "carton_no",
-                      "label": "No Carton Number Printed"
+                      "label": "No Box/Carton # Printed"
                     }
                   ]
                 }
@@ -1197,6 +1197,7 @@
               "inspector": "Inspected By",
               "date": "Date",
               "signature": "Signature",
+              "signAfterExport": "To Sign After Exported",
               "pass": "PASSED",
               "fail": "FAILED",
               "hold": "HOLD"
@@ -1686,7 +1687,7 @@
                     },
                     {
                       "code": "carton_no",
-                      "label": "No Carton Number"
+                      "label": "No Box/Carton #"
                     }
                   ]
                 }
@@ -1899,11 +1900,11 @@
           {
             "key": "carton_sampling",
             "include": true,
-            "title": "Finished Goods Sampling Information (Carton Number)",
+            "title": "Finished Goods Sampling Information (Box/Carton #)",
             "labels": {
-              "cartonNumbers": "(Carton #)",
+              "cartonNumbers": "(Box/Carton #)",
               "samplingQuantity": "Sampling Quantity",
-              "sizeCaption": "{size} (Carton #)"
+              "sizeCaption": "{size} (Box/Carton #)"
             },
             "config": {}
           },
@@ -2305,7 +2306,7 @@
             "include": true,
             "title": "Glove Dispensing Inspection",
             "labels": {
-              "boxNo": "Box #",
+              "boxNo": "Box/Carton #",
               "counts": "Safedon Packing Defects",
               "codeLetter": "Sampling Code Letter",
               "boxDefects": "Defects / Gloves per Pack",
@@ -2365,7 +2366,7 @@
             "include": false,
             "title": "Glove Packing Check",
             "labels": {
-              "boxNo": "Box #",
+              "boxNo": "Box/Carton #",
               "layeringPct": "Layering %",
               "dispensingPct": "Dispensing %",
               "stickiness": "Stickiness **",
@@ -2425,7 +2426,7 @@
             "title": "Packaging Labeling Inspection",
             "labels": {
               "inspected": "No. of Sampled Boxes Inspected",
-              "boxNos": "Box #",
+              "boxNos": "Box/Carton #",
               "defects": "Defects",
               "accept": "Accept",
               "innerAccept": "Acc. =",
@@ -2487,7 +2488,7 @@
                     },
                     {
                       "code": "carton_no",
-                      "label": "No Carton Number"
+                      "label": "No Box/Carton #"
                     }
                   ]
                 }
@@ -2506,6 +2507,7 @@
               "inspector": "Inspected By",
               "date": "Date",
               "signature": "Signature",
+              "signAfterExport": "To Sign After Exported",
               "pass": "PASSED",
               "fail": "FAILED",
               "hold": "HOLD"
@@ -3252,6 +3254,7 @@
               "inspector": "Inspected By",
               "date": "Date",
               "signature": "Signature",
+              "signAfterExport": "To Sign After Exported",
               "pass": "PASSED",
               "fail": "FAILED",
               "hold": "HOLD"

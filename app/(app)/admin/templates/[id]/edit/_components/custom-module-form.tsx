@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { BOX_CARTON_LABEL } from "@/lib/format/box-carton";
 import { FieldTypeSchema, UnitSchema, type FieldType } from "@/lib/schemas/common";
 import type { ModuleKey } from "@/lib/schemas/module-result";
 import type { CustomModule, Field } from "@/lib/schemas/template";
@@ -123,7 +124,8 @@ export function CustomModuleForm({
           aria-describedby={describedBy(idOf(["layout"]), messagesAt(["layout"]))}
           onValueChange={(layout) => {
             const next: Record<string, unknown> = { ...custom, layout };
-            if (layout === "grid" && !custom.grid) next.grid = { columns: { label: "Box #", default: 13, addable: true } };
+            // A new grid's columns are boxes until the admin names them (Box/Carton #: Kenneth, 13 October 2026).
+            if (layout === "grid" && !custom.grid) next.grid = { columns: { label: BOX_CARTON_LABEL, default: 13, addable: true } };
             if (layout !== "grid") delete next.grid;
             // Tables and grids hold many values: none of their fields can show a module's one.
             if (layout !== "fields") next.fields = custom.fields.map((field) => without(field, "mapsTo"));
@@ -158,7 +160,7 @@ export function CustomModuleForm({
             <TextField
               id={idOf(["grid", "columns", "label"])}
               label={CUSTOM_GRID_LABELS.label}
-              hint="Numbered on screen: Box # 1, Box # 2…"
+              hint={`Numbered on screen: ${BOX_CARTON_LABEL} 1, ${BOX_CARTON_LABEL} 2…`}
               value={custom.grid.columns.label}
               readOnly={readOnly}
               problems={messagesAt(["grid", "columns", "label"])}

@@ -17,7 +17,8 @@ export const MODULE_SHORT_TITLES: Readonly<Record<ModuleKey, string>> = {
   order_lots: "Order",
   packing_config: "Packing Configuration",
   sampling_plan: "Sampling Plan",
-  carton_sampling: "Carton Numbers",
+  // Box # and carton # are one number (Kenneth, 13 October 2026): "Box/Carton #" for one, and its list's name.
+  carton_sampling: "Box/Carton Numbers",
   dimensions: "Dimension",
   force_at_break: "Force at Break",
   tensile: "Physical Properties",

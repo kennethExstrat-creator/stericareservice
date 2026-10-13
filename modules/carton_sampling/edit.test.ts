@@ -275,37 +275,37 @@ describe("carton table: a pasted list", () => {
 
 describe("carton table messages", () => {
   it("says in a short sentence why a row refused an entry", () => {
-    expect(refusalMessage({ reason: "listed", raw: "42", carton: 42, index: 6 })).toBe("Carton 42 is already in row 7.");
-    expect(refusalMessage({ reason: "not_a_carton", raw: "52.5" })).toBe("“52.5” is not a carton number: whole numbers from 1 only.");
+    expect(refusalMessage({ reason: "listed", raw: "42", carton: 42, index: 6 })).toBe("Box/Carton #42 is already in row 7.");
+    expect(refusalMessage({ reason: "not_a_carton", raw: "52.5" })).toBe("“52.5” is not a box/carton number: whole numbers from 1 only.");
     expect(refusalMessage({ reason: "several", raw: "2 42" })).toBe(
-      "“2 42” is more than one number. Type one carton number per row, or paste the list.",
+      "“2 42” is more than one number. Type one box/carton number per row, or paste the list.",
     );
     expect(refusalMessage({ reason: "full", raw: "5001", carton: 5001 })).toBe(
-      "Carton 5001 is not added: a size holds at most 2,000 carton numbers.",
+      "Box/Carton #5001 is not added: a size holds at most 2,000 box/carton numbers.",
     );
   });
 
   it("sums up a paste in one line: the rows it filled, then what was left out and why", () => {
     const all = pasteCartons(SAVED, "M", 3, ["2389", "2865", "3001"]);
-    expect(pasteMessage(all)).toBe("Pasted 3 carton numbers into rows 4 to 6.");
+    expect(pasteMessage(all)).toBe("Pasted 3 box/carton numbers into rows 4 to 6.");
     expect(pasteMessage(pasteCartons(SAVED, "M", 3, ["2389", "abc"]))).toBe(
-      "Pasted 1 carton number into row 4. Left out: “abc” (not a carton number).",
+      "Pasted 1 box/carton number into row 4. Left out: “abc” (not a box/carton number).",
     );
     const some = pasteCartons(SAVED, "M", 3, ["32", "578", "abc", "2389", "x1", "2389"]);
     expect(pasteMessage(some)).toBe(
-      "Pasted 1 carton number into row 4. Left out: 32 (already in row 1), 578 (already in row 2), “abc” (not a carton number), “x1” (not a carton number), 2389 (already in row 4).",
+      "Pasted 1 box/carton number into row 4. Left out: 32 (already in row 1), 578 (already in row 2), “abc” (not a box/carton number), “x1” (not a box/carton number), 2389 (already in row 4).",
     );
     // Pasted over numbers: said so.
     expect(pasteMessage(pasteCartons(SAVED, "M", 1, ["900", "901"]))).toBe(
-      "Pasted 2 carton numbers into rows 2 to 3, replacing 2 numbers.",
+      "Pasted 2 box/carton numbers into rows 2 to 3, replacing 2 numbers.",
     );
     // Nothing filled; the same entry twice is named once; more than five are counted.
     expect(pasteMessage(pasteCartons(SAVED, "M", 3, ["32", "32", "578"]))).toBe(
-      "No carton numbers pasted. Left out: 32 (already in row 1), 578 (already in row 2).",
+      "No box/carton numbers pasted. Left out: 32 (already in row 1), 578 (already in row 2).",
     );
     const many = pasteCartons(SAVED, "M", 3, ["a", "b", "c", "d", "e", "f", "g"]);
     expect(pasteMessage(many)).toBe(
-      "No carton numbers pasted. Left out: “a” (not a carton number), “b” (not a carton number), “c” (not a carton number), “d” (not a carton number), “e” (not a carton number) and 2 more.",
+      "No box/carton numbers pasted. Left out: “a” (not a box/carton number), “b” (not a box/carton number), “c” (not a box/carton number), “d” (not a box/carton number), “e” (not a box/carton number) and 2 more.",
     );
   });
 });

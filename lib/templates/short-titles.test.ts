@@ -58,7 +58,9 @@ describe("shortTitleFor", () => {
   it("gives a module its own short name whatever heading an admin types", () => {
     expect(shortTitleFor("header", "Manufacturer Information")).toBe("Manufacturer");
     expect(shortTitleFor("header", "Factory Details")).toBe("Manufacturer");
-    expect(shortTitleFor("carton_sampling", "Finished Goods Sampling Information (Carton Number)")).toBe("Carton Numbers");
+    expect(shortTitleFor("carton_sampling", "Finished Goods Sampling Information (Box/Carton #)")).toBe("Box/Carton Numbers");
+    // A template version saved before 13 October 2026 keeps its title; the step's name is the same.
+    expect(shortTitleFor("carton_sampling", "Finished Goods Sampling Information (Carton Number)")).toBe("Box/Carton Numbers");
     expect(shortTitleFor("force_at_break", "Force at Break in Newton (Refer to Attached Where Applicable)")).toBe(
       "Force at Break",
     );

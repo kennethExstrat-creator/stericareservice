@@ -18,6 +18,8 @@
 // of refused entries (refused-entries.ts): it comes back with the field after
 // a size or section switch or a reload, and the module hears of it again
 // through onInvalidChange, so its own list of problems has it too.
+// BoxNumberField builds its suggestions on it: `onDraftChange` hands over the
+// text being typed and `inputProps` names the input a combobox.
 import {
   createContext,
   useContext,
@@ -92,6 +94,15 @@ export function EnterGroup({ className, children, ...props }: ComponentProps<"di
   );
 }
 
+/** What a field built on NumberField may add to its input: BoxNumberField makes it a combobox (WAI-ARIA APG). */
+export type NumberFieldInputProps = {
+  role?: "combobox";
+  "aria-autocomplete"?: "list";
+  "aria-expanded"?: boolean;
+  "aria-controls"?: string;
+  "aria-activedescendant"?: string;
+};
+
 export type NumberFieldProps = {
   /** In the template's wording. Plain text gives a cell its accessible name directly. */
   label: ReactNode;
@@ -109,7 +120,7 @@ export type NumberFieldProps = {
   integer?: boolean;
   /** Show at least this many decimals (0.1 as 0.10); never rounds what was entered. */
   decimals?: number;
-  /** The on-screen keypad: decimal (the default), or numeric for whole numbers such as a box number. */
+  /** The on-screen keypad: decimal (the default), or numeric for whole numbers such as a box/carton number. */
   inputMode?: "decimal" | "numeric";
   hint?: ReactNode;
   /** A problem calc found with the stored value, e.g. "Below the 70% minimum." */
@@ -138,6 +149,10 @@ export type NumberFieldProps = {
    * cells can list its problems with EntryProblems, as MeasurementGrid does.
    */
   onInvalidChange?: (entry: InvalidEntry | null) => void;
+  /** The text being typed, as it changes; null when the edit ends (NumericCell's onDraftChange). */
+  onDraftChange?: (draft: string | null) => void;
+  /** Attributes for the input itself, such as a combobox's. */
+  inputProps?: NumberFieldInputProps;
   id?: string;
   className?: string;
 };
@@ -166,6 +181,8 @@ export function NumberField({
   issuePath,
   onFocus,
   onInvalidChange,
+  onDraftChange,
+  inputProps,
   id,
   className,
 }: NumberFieldProps) {
@@ -325,6 +342,7 @@ export function NumberField({
 
   const cell = (
     <NumericCell
+      {...inputProps}
       ref={input}
       id={inputId}
       variant={variant}
@@ -345,6 +363,7 @@ export function NumberField({
       aria-describedby={describedBy || undefined}
       onKeyDown={onKeyDown}
       onPasteText={readOnly ? undefined : onPasteText}
+      onDraftChange={onDraftChange}
       onFocus={onFocus}
       // ENTER_FIELD_ATTRIBUTE and ENTER_GROUP_ATTRIBUTE: how groupFields finds the run.
       data-enter-field=""

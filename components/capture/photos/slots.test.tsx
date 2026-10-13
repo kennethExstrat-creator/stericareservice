@@ -175,7 +175,7 @@ describe("nextTagLine", () => {
     expect(nextTagLine("visual", { size: "M", hand: "L", defect: "thin_spot", box: 4 }, options)).toBe(
       "Size M · Left Hand · Thin spot",
     );
-    expect(nextTagLine("labeling", { size: "M", hand: "L", box: 4 }, options)).toBe("Size M · Box 4");
+    expect(nextTagLine("labeling", { size: "M", hand: "L", box: 4 }, options)).toBe("Size M · Box/Carton #4");
   });
 
   it("is empty without focus, for modules that record none, and for the untagged slot", () => {
@@ -190,7 +190,7 @@ describe("nextTagLine", () => {
   });
 
   it("says labelling's packaging level in the module's words", () => {
-    expect(nextTagLine("labeling", { size: "M", box: 4, level: "carton" }, options)).toBe("Size M · Box 4 · Carton Box");
+    expect(nextTagLine("labeling", { size: "M", box: 4, level: "carton" }, options)).toBe("Size M · Box/Carton #4 · Carton Box");
   });
 });
 

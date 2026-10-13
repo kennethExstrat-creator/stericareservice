@@ -37,7 +37,7 @@ const UNDEFINED_COLUMN = "42703";
 /** The migration that adds carton_numbers and lot_numbers_upper, which the full search needs. */
 export const SEARCH_COLUMNS_MIGRATION = "20261007191137_inspection_search_columns.sql";
 
-/** A carton number as it may be typed: a whole number, nine digits at most (a Postgres integer). */
+/** A box/carton number as it may be typed: a whole number, nine digits at most (a Postgres integer). */
 const CARTON_NUMBER = /^\d{1,9}$/;
 
 /**
@@ -161,7 +161,7 @@ async function listPage(
     if (searchColumns && filters.q && error.code === UNDEFINED_COLUMN) {
       // A project without the migration yet: search as before it, and say so.
       console.warn(
-        `Inspections list: searching without carton numbers and lots in any case until ${SEARCH_COLUMNS_MIGRATION} is applied`,
+        `Inspections list: searching without box/carton numbers and lots in any case until ${SEARCH_COLUMNS_MIGRATION} is applied`,
         { code: error.code, message: error.message },
       );
       return listPage(supabase, filters, reader, false);

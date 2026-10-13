@@ -1,19 +1,20 @@
 "use client";
 
-// The carton numbers (BUILD_SPEC 6.1 carton_sampling, 8 "Speed"; Kenneth, 13
-// October 2026: "just give a 10 row table by default to fill in, and do
-// pagination, not adding 1 by 1"): per ordered size, a table of rows to fill
-// in like a spreadsheet, 10 rows a page. It has a row for each case the
-// sampling plan samples for the size, at least 10, more when more rows are
-// saved, and 10 more with each press of Add 10 Rows (the rare carton past the
-// plan). Each row is a field on the numeric keypad: Enter or leaving the row
-// stores its number, and Enter moves on to the next row, turning the page
-// after a page's last row. A list pasted into a row fills it and the rows
-// below. Text that is no carton number is refused at its row and kept there
-// to correct (the screen's refused entries); a number another row of the size
-// holds is refused at the row and not saved (edit.ts). A number above the
-// order quantity is stored and turns its row red, with calc's problem below
-// the table and a link to its row (6.2 rule 6). A row's clear button empties
+// The box/carton numbers (BUILD_SPEC 6.1 carton_sampling, 8 "Speed"; Kenneth,
+// 13 October 2026: "just give a 10 row table by default to fill in, and do
+// pagination, not adding 1 by 1"; box # and carton # are one number, worded
+// "Box/Carton #"): per ordered size, a table of rows to fill in like a
+// spreadsheet, 10 rows a page. It has a row for each case the sampling plan
+// samples for the size, at least 10, more when more rows are saved, and 10
+// more with each press of Add 10 Rows (the rare carton past the plan). Each
+// row is a field on the numeric keypad: Enter or leaving the row stores its
+// number, and Enter moves on to the next row, turning the page after a page's
+// last row. A list pasted into a row fills it and the rows below. Text that
+// is no box/carton number is refused at its row and kept there to correct
+// (the screen's refused entries); a number another row of the size holds is
+// refused at the row and not saved (edit.ts). A number above the order
+// quantity is stored and turns its row red, with calc's problem below the
+// table and a link to its row (6.2 rule 6). A row's clear button empties
 // that row only: the data keeps each number in its row, so the rows below
 // keep their place. Read-only, the table shows rows 1 to the last one filled.
 import {
@@ -44,7 +45,7 @@ import {
   type RefusedEntryStore,
 } from "@/components/qc";
 import { Button } from "@/components/ui/button";
-import { formatCount, formatSize } from "@/lib/format";
+import { BOX_CARTON_LABEL, boxCartonNumber, formatCount, formatSize } from "@/lib/format";
 import type { PerSizeResult } from "@/lib/schemas";
 import { cn } from "@/lib/utils";
 import {
@@ -193,7 +194,7 @@ export default function Capture({
 
 type TableProps = {
   size: string;
-  /** The size's caption in the template's words: "M (Carton #)". */
+  /** The size's caption in the template's words: "M (Box/Carton #)". */
   caption: string;
   /** The template's "Sampling Quantity". */
   samplingLabel: string;
@@ -418,7 +419,7 @@ function CartonTable({
                 </th>
                 {/* Lined up with the numbers: 10 px in, as the row's field has its text; 12 px read-only. */}
                 <th scope="col" className={cn("py-2 font-medium", readOnly ? "px-3" : "px-2.5")}>
-                  Carton Number
+                  {BOX_CARTON_LABEL}
                 </th>
                 {!readOnly && (
                   <th scope="col" className="w-14 px-2 py-2">
@@ -490,7 +491,7 @@ function CartonTable({
           )}
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground touch:text-base">No carton numbers entered.</p>
+        <p className="text-sm text-muted-foreground touch:text-base">No box/carton numbers entered.</p>
       )}
       {!readOnly && planned !== null && total > planned && (
         <span id={beyondId} className="sr-only">
@@ -566,7 +567,7 @@ function CartonTable({
 
       {!readOnly && count === 0 && (
         <p className="text-sm text-muted-foreground touch:text-base">
-          Type each carton number in its row; Enter moves to the next. Paste a list into a row to fill the rows below.
+          Type each box/carton number in its row; Enter moves to the next. Paste a list into a row to fill the rows below.
         </p>
       )}
 
@@ -609,10 +610,10 @@ type RowProps = {
   size: string;
   /** The row's place, from 0: row `index + 1`, its place in the stored list. */
   index: number;
-  /** The carton number the row holds; null while it is empty. */
+  /** The box/carton number the row holds; null while it is empty. */
   value: number | null;
   inputId: string;
-  /** "M (Carton #), No. 5": the field's name, and its refused text's in the Pending panel. */
+  /** "M (Box/Carton #), No. 5": the field's name, and its refused text's in the Pending panel. */
   name: string;
   /** calc's message about the number the row holds. */
   problem: string | undefined;
@@ -670,7 +671,7 @@ function CartonRow({
     setNoticeValue(value);
     if (notice) setNotice(null);
   }
-  // Text that is no carton number: kept in the screen's store, so it outlives the row (another
+  // Text that is no box/carton number: kept in the screen's store, so it outlives the row (another
   // page, size or section, a reload), else the row's own.
   const [ownKept, setOwnKept] = useState<InvalidEntry | null>(null);
   const stored = store ? (store.get(path) ?? null) : ownKept;
@@ -776,7 +777,7 @@ function CartonRow({
   };
 
   const display = draft ?? kept?.raw ?? (value === null ? "" : String(value));
-  // Refused text's reason shows until what is typed over it is a carton number, as a number field's.
+  // Refused text's reason shows until what is typed over it is a box/carton number, as a number field's.
   const keptError = kept !== null && (draft === null || readTypedCarton(draft).kind !== "carton") ? kept.error : null;
   const refused = keptError !== null || (notice !== null && draft === notice.raw);
   // calc's problem is about the number the row holds: that number turns red, under a refusal's reason.
@@ -841,7 +842,7 @@ function CartonRow({
             size="icon-sm"
             data-clear=""
             title="Clear"
-            aria-label={value !== null ? `Clear Carton ${value}` : `Clear No. ${index + 1}`}
+            aria-label={value !== null ? `Clear ${boxCartonNumber(value)}` : `Clear No. ${index + 1}`}
             aria-describedby={message ? messageId : undefined}
             onMouseDown={keepFocus}
             onClick={clearRow}
@@ -856,7 +857,7 @@ function CartonRow({
 }
 
 /**
- * A row read-only: its No. and its carton number, a dash for a row left
+ * A row read-only: its No. and its box/carton number, a dash for a row left
  * empty. It takes an issue link's focus itself (tabindex -1; the screen
  * opens its page first).
  */

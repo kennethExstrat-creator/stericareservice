@@ -81,7 +81,7 @@ export interface CaptureFocus {
   readonly hand?: Hand;
   /** Defect code, or a check code in labelling. */
   readonly defect?: string;
-  /** Carton or box number. */
+  /** A box/carton number: the carton in carton sampling, the box in dispensing and labelling (one number, 6.2 rule 7). */
   readonly box?: number;
   /** Packaging level in labelling: the inner unit (dispenser box, plastic pack) or the carton. */
   readonly level?: PackagingLevel;

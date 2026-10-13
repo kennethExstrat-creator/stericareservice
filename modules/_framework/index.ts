@@ -72,6 +72,8 @@ export {
   type InspectionFileRef,
 } from "./files";
 export { salvageData, type SalvagedData } from "./salvage";
+// A box/carton number the size's sampled list does not hold: a warning (BUILD_SPEC 6.2 rule 7).
+export { BOX_NOT_SAMPLED, boxNotSampledIssue } from "./box-cartons";
 export { buildInspectionView, fillGloveCount, withShownTitles, type InspectionView } from "./titles";
 export {
   COMMENT_KEY,

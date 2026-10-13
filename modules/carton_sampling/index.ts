@@ -1,6 +1,7 @@
-// Finished Goods Sampling Information (BUILD_SPEC 6.1): the sampled carton
-// numbers per size. Source of `cartons` in the context. Box numbers in
-// dispensing and labelling are not carton numbers (6.2 rule 7).
+// Finished Goods Sampling Information (BUILD_SPEC 6.1): the sampled
+// box/carton numbers per size. Source of `cartons` in the context: the
+// suggestions of the box/carton numbers in dispensing and labelling, and
+// what calc there checks them against (6.2 rule 7; Kenneth, 13 October 2026).
 import { defineModule } from "@/modules/_framework";
 import { calcCartonSampling, contributeCartonSampling, type CartonSamplingComputed } from "./calc";
 import {

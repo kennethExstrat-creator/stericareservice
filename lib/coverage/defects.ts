@@ -247,7 +247,7 @@ export const LABELLING_CHECK_LISTS: Readonly<
       { code: "lot_no", label: "Wrong / No Lot Number" },
       { code: "mfg_date", label: "Wrong / No Mfg. Date" },
       { code: "artwork", label: "Wrong Artwork Print" },
-      { code: "carton_no", label: "No Carton Number Printed" },
+      { code: "carton_no", label: "No Box/Carton # Printed" },
     ],
   },
   SAFEDON_EG: {
@@ -262,7 +262,7 @@ export const LABELLING_CHECK_LISTS: Readonly<
       { code: "mfg_date", label: "Wrong / No Mfg. Date" },
       { code: "expiry_date", label: "Wrong / No Expiry Date" },
       { code: "artwork", label: "Wrong Artwork Print" },
-      { code: "carton_no", label: "No Carton Number" },
+      { code: "carton_no", label: "No Box/Carton #" },
     ],
   },
 };

@@ -3,9 +3,12 @@
 // (docs/DESIGN.md, Capitalisation); the forms' wording stays in sources.ts,
 // verbatim. A label the app shows is the form's words with the rule's
 // capitals: `sameWording` checks that, so the coverage tests still prove
-// every printed label reaches the template. `targetLabel` and `appWording`
-// say what the app shows for a target and a source field (the coverage
-// matrix's App wording column).
+// every printed label reaches the template. One more change is allowed:
+// whatever a form calls the box or carton number ("Box #", "(Carton #)",
+// "carton number", "Box Number"), the app says "Box/Carton #" (Kenneth, 13
+// October 2026: box # and carton # are one number). `targetLabel` and
+// `appWording` say what the app shows for a target and a source field (the
+// coverage matrix's App wording column).
 import { UNITS } from "@/lib/design/capitalisation";
 import { SAFEDON_DISPENSING_DEFECTS } from "./defects";
 import { captionLabel, fieldLabel } from "./fields";
@@ -22,6 +25,14 @@ import {
 } from "./types";
 
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** A form's words for the box or carton number, and the app's own ("Box/Carton #"). */
+const BOX_CARTON_NUMBER = /\b(?:box\/carton|box|carton)\s*(?:#|numbers?\b|no\.)/gi;
+
+/** The box or carton number in one wording, whatever the form called it: "No carton number" is "No box/carton #". */
+function oneBoxCartonWording(text: string): string {
+  return text.replace(BOX_CARTON_NUMBER, "box/carton #");
+}
 
 const isUnit = (word: string) => [...UNITS].some((unit) => unit.toLowerCase() === word.toLowerCase());
 
@@ -44,13 +55,15 @@ function withoutCapitals(text: string): string {
  * True when `label` (the app's) is `printed` (a form's, [sic] fixed) with
  * only the first letters of its words in another case: "Total # carton" is
  * "Total # Carton", "Force At Break" is "Force at Break". Any other change
- * is a different label ("Total # Cartons", "Po / So Number", "Weight (G)").
- * A `{name}` in the label stands for whatever the form printed there:
- * "Sampling Code Letter {codeLetters}" is "Sampling code letter K, L & M".
+ * is a different label ("Total # Cartons", "Po / So Number", "Weight (G)"),
+ * except the box or carton number, which the app words "Box/Carton #": "Box
+ * #" is "Box/Carton #", "No carton number printed" is "No Box/Carton #
+ * Printed". A `{name}` in the label stands for whatever the form printed
+ * there: "Sampling Code Letter {codeLetters}" is "Sampling code letter K, L & M".
  */
 export function sameWording(printed: string, label: string): boolean {
-  const text = withoutCapitals(printed);
-  const wording = withoutCapitals(label);
+  const text = withoutCapitals(oneBoxCartonWording(printed));
+  const wording = withoutCapitals(oneBoxCartonWording(label));
   if (!/\{\w+\}/.test(wording)) return text === wording;
   const pattern = wording.split(/\{\w+\}/).map(escapeRegExp).join(".+?");
   return new RegExp(`^${pattern}$`).test(text);

@@ -490,7 +490,7 @@ describe("conclusionReasons (the Conclusion section's line under its suggestion)
     });
     const short = (key: ModuleKey) => moduleShortTitle(context, key);
     const failed = conclusionReasons({ result: "fail", failed: ["carton_sampling"], notDone: [], warned: ["weight"] }, short);
-    expect(failed.map((reason) => reason.brief)).toEqual(["Failed: Carton Numbers.", "Warnings: Weight."]);
+    expect(failed.map((reason) => reason.brief)).toEqual(["Failed: Box/Carton Numbers.", "Warnings: Weight."]);
     const several = conclusionReasons({ result: "hold", failed: [], notDone: ["weight", "visual"], warned: [] }, short);
     expect(several.map((reason) => reason.full)).toEqual(["Not done: Weight, Visual Inspection."]);
     // calc's summary and warning reach the review and the export: the template's wording.

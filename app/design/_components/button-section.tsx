@@ -82,7 +82,7 @@ export function ButtonSection() {
             <Button variant="outline" onClick={() => toast.warning("Weight is 12% above the indicative weight")}>
               Warning
             </Button>
-            <Button variant="outline" onClick={() => toast.error("Carton 253 is listed twice for size M")}>
+            <Button variant="outline" onClick={() => toast.error("Box/Carton #253 is listed twice for size M")}>
               Error
             </Button>
             <Button variant="outline" onClick={() => toast.info("Steri-AI second opinion not connected")}>

@@ -2,6 +2,9 @@
 // wording; SAFEDON_EG renames the levels and the limit caption) and the
 // config (BUILD_SPEC 6.1: levels on/off, checks on/off, n per level). The
 // checks carry their own wording, per level, as the dictionary keeps them.
+// The number is "Box/Carton #" wherever it is named, the carton_no check
+// included (Kenneth, 13 October 2026: box # and carton # are one number);
+// "carton" alone is the packaging level.
 import { z } from "zod";
 
 export const LABELING_TITLE = "Packaging Labeling Inspection";
@@ -26,7 +29,7 @@ export const MAX_PLANNED_BOXES = 50;
  */
 export const LABELING_LABELS = {
   inspected: "No. of Sampled Boxes Inspected",
-  boxNos: "Box #",
+  boxNos: "Box/Carton #",
   defects: "Defects",
   accept: "Accept",
   // Each level's words in its limit row, read before the shared ones (SAFEDON_EG: "Acc. =", "Rej. =").
@@ -86,7 +89,7 @@ export type LabelingConfig = z.infer<typeof LabelingConfigSchema>;
 
 const check = (code: LabelingCheck, label: string): LabelingCheckItem => ({ code, label });
 
-/** STD_EG: 3 dispenser boxes (lot, mfg, artwork) and 1 carton (plus the carton number). */
+/** STD_EG: 3 dispenser boxes (lot, mfg, artwork) and 1 carton (plus the box/carton number printed). */
 export const LABELING_DEFAULT_CONFIG: LabelingConfig = {
   levels: {
     inner: {
@@ -105,7 +108,7 @@ export const LABELING_DEFAULT_CONFIG: LabelingConfig = {
         check("lot_no", "Wrong / No Lot Number"),
         check("mfg_date", "Wrong / No Mfg. Date"),
         check("artwork", "Wrong Artwork Print"),
-        check("carton_no", "No Carton Number Printed"),
+        check("carton_no", "No Box/Carton # Printed"),
       ],
     },
   },

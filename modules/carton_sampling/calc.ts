@@ -1,10 +1,13 @@
 // Result (BUILD_SPEC 6.1 carton_sampling): "fail" on any error of 6.2 rule 6
 // (a carton entered twice, a carton outside 1 to the order quantity, more
-// carton numbers than cases sampled); "pass" when a size lists exactly the
-// cases sampled, all valid; "not done" until then (6.2 rule 5). Box numbers
-// in dispensing and labelling are not carton numbers (rule 7): nothing there
-// reads this list.
+// box/carton numbers than cases sampled); "pass" when a size lists exactly
+// the cases sampled, all valid; "not done" until then (6.2 rule 5). The list
+// flows forward: dispensing and labelling suggest its numbers and warn about
+// a box/carton number it does not hold (rule 7; Kenneth, 13 October 2026).
+// Messages say "Box/Carton #578" for one number and "box/carton numbers" for
+// several (docs/DESIGN.md, Capitalisation).
 import { formatCount } from "@/lib/aql";
+import { boxCartonNumber, countBoxCartonNumbers } from "@/lib/format/box-carton";
 import type { PerSizeResult } from "@/lib/schemas";
 import {
   errorIssue,
@@ -24,13 +27,13 @@ import type { CartonSamplingConfig } from "./config";
 import { enteredCartons, type CartonSamplingData } from "./schema";
 
 export type CartonSizeComputed = {
-  /** Carton numbers entered, a duplicate counted each time: must equal the cases sampled. */
+  /** Box/carton numbers entered, a duplicate counted each time: must equal the cases sampled. */
   samplingQuantity: number;
-  /** Distinct carton numbers entered. */
+  /** Distinct box/carton numbers entered. */
   unique: number;
   /** Cases sampled (sampling_plan); null until entered. */
   sampledCases: number | null;
-  /** Cases ordered (order_lots), the highest carton number; null until entered. */
+  /** Cases ordered (order_lots), the highest box/carton number; null until entered. */
   orderQty: number | null;
 };
 
@@ -93,20 +96,20 @@ function checkSize(
     if (orderQty !== null && carton > orderQty) {
       report(
         "carton_out_of_range",
-        `Carton ${carton} is not between 1 and ${formatCount(orderQty)}, the order quantity (${cartonEntry(index)})`,
+        `${boxCartonNumber(carton)} is not between 1 and ${formatCount(orderQty)}, the order quantity (${cartonEntry(index)})`,
         index,
       );
     }
     const at = positions.get(carton) ?? [];
     if (at.length > 1 && at[1] === index) {
       const times = at.length === 2 ? "twice" : `${at.length} times`;
-      report("carton_duplicate", `Carton ${carton} is entered ${times} (${at.map(cartonEntry).join(", ")})`, index);
+      report("carton_duplicate", `${boxCartonNumber(carton)} is entered ${times} (${at.map(cartonEntry).join(", ")})`, index);
     }
   });
   if (sampledCases !== null && count > sampledCases) {
     report(
       "carton_count_above_cases",
-      `${counted(count, "carton number")}, but the sampling plan has ${counted(sampledCases, "case")}`,
+      `${countBoxCartonNumbers(count)}, but the sampling plan has ${counted(sampledCases, "case")}`,
     );
   }
 
@@ -125,20 +128,20 @@ function sizeResult(problems: readonly Problem[], computed: CartonSizeComputed):
     sampledCases === null ? "the sampled cases" : null,
   ].filter((missing): missing is string => missing !== null);
   if (waiting.length > 0) {
-    const entered = counted(count, "carton number");
+    const entered = countBoxCartonNumbers(count);
     return { status: "not_done", summary: `Waiting for ${waiting.join(" and ")}; ${entered} entered.` };
   }
   if (sampledCases === 0) return { status: "not_done", summary: "No cases sampled." };
   if (sampledCases !== null && count < sampledCases) {
-    return { status: "not_done", summary: `${formatCount(count)} of ${counted(sampledCases, "carton number")}.` };
+    return { status: "not_done", summary: `${formatCount(count)} of ${countBoxCartonNumbers(sampledCases)}.` };
   }
   return {
     status: "pass",
-    summary: `${counted(count, "carton number")}, unique and between 1 and ${formatCount(orderQty ?? 0)}.`,
+    summary: `${countBoxCartonNumbers(count)}, unique and between 1 and ${formatCount(orderQty ?? 0)}.`,
   };
 }
 
-/** "1 case", "50 carton numbers". */
+/** "1 case", "3 cases". */
 function counted(count: number, noun: string): string {
   return `${formatCount(count)} ${count === 1 ? noun : `${noun}s`}`;
 }
@@ -153,7 +156,7 @@ function summarise(
   const worst = worstStatus(sizes.map((size) => perSize[size].status));
   if (worst === "pass" && sizes.length > 1) {
     const counts = sizes.map((size) => `${sizeLabel(context, size)} (${formatCount(computed[size].samplingQuantity)})`);
-    return `Carton numbers complete, unique and within the order quantity for size ${counts.join(", ")}.`;
+    return `Box/carton numbers complete, unique and within the order quantity for size ${counts.join(", ")}.`;
   }
   return bySummary(sizes.filter((size) => perSize[size].status === worst), perSize, context);
 }

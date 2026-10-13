@@ -98,13 +98,13 @@ describe("carton_sampling Capture", () => {
     const list = cartonList(STD_EG_EXAMPLE.cartons.M!);
     expect(html).toContain("<table");
     expect(html).toMatch(/<th[^>]*>No\.<\/th>/);
-    expect(html).toMatch(/<th[^>]*>Carton Number<\/th>/);
+    expect(html).toMatch(/<th[^>]*>Box\/Carton #<\/th>/);
     expect(html).toContain('<span class="sr-only">Clear</span>');
     // Page 1: rows 1 to 10, each holding its number, named by its No.
     const page = fields(html);
     expect(page).toHaveLength(10);
     expect(values(html)).toEqual(list.slice(0, 10).map(String));
-    expect(page[0]).toContain('aria-label="M (Carton #), No. 1"');
+    expect(page[0]).toContain('aria-label="M (Box/Carton #), No. 1"');
     expect(page[0]).toContain('id="carton-sampling-M-0"');
     for (const field of page) {
       expect(field).toContain('inputMode="numeric"');
@@ -118,7 +118,7 @@ describe("carton_sampling Capture", () => {
     // A clear button on each row holding a number, 44 px on touch.
     const buttons = clearButtons(html);
     expect(buttons).toHaveLength(10);
-    expect(buttons[0]).toContain(`aria-label="Clear Carton ${list[0]}"`);
+    expect(buttons[0]).toContain(`aria-label="Clear Box/Carton #${list[0]}"`);
     expect(buttons[0]).toContain('title="Clear"');
     expect(classesOf(buttons[0])).toContain("touch:size-11");
     // The pages below: 1–10 of 50, five pages, the first one shown.
@@ -131,7 +131,7 @@ describe("carton_sampling Capture", () => {
     expect(countLine(html)).toContain('tabindex="-1"');
     expect(countLine(html)).toMatch(/^<p /);
     // Nothing to explain once numbers are in.
-    expect(html).not.toContain("Type each carton number in its row");
+    expect(html).not.toContain("Type each box/carton number in its row");
   });
 
   it("offers the plan's rows empty to fill in, with one line saying how; 10 rows while the plan has no cases", () => {
@@ -141,7 +141,7 @@ describe("carton_sampling Capture", () => {
     expect(empty).toContain("1–10 of 50");
     expect(pageButtons(empty)).toHaveLength(5);
     expect(empty).toContain(
-      "Type each carton number in its row; Enter moves to the next. Paste a list into a row to fill the rows below.",
+      "Type each box/carton number in its row; Enter moves to the next. Paste a list into a row to fill the rows below.",
     );
     expect(empty).toMatch(/Sampling Quantity <span[^>]*>.*0.* \/ .*50/);
     // No plan yet: 10 rows on one page, and the count stands alone.
@@ -173,9 +173,9 @@ describe("carton_sampling Capture", () => {
     );
     expect(values(grid)).toEqual(["32", "", "578", "", "", "1186", "", "", "", ""]);
     expect(clearButtons(grid).map((tag) => attributeOf(tag, "aria-label"))).toEqual([
-      "Clear Carton 32",
-      "Clear Carton 578",
-      "Clear Carton 1186",
+      "Clear Box/Carton #32",
+      "Clear Box/Carton #578",
+      "Clear Box/Carton #1186",
     ]);
     expect(fields(grid)[5]).toContain(pathAttribute(["sizes", "M", "cartonNumbers", 5]));
     expect(grid).toMatch(/Sampling Quantity <span[^>]*>.*3.* \/ .*50/);
@@ -184,7 +184,7 @@ describe("carton_sampling Capture", () => {
   it("marks both rows of a carton entered twice red, with calc's message under each and a link below", () => {
     const twice = exampleData(STD_EG_EXAMPLE, { carton_sampling: { sizes: { M: { cartonNumbers: [32, 578, 32] } } } });
     const html = render(props(STD_EG_EXAMPLE, twice));
-    const message = "Size M: Carton 32 is entered twice (No. 1, No. 3).";
+    const message = "Size M: Box/Carton #32 is entered twice (No. 1, No. 3).";
     const red = redRows(html);
     expect(red).toHaveLength(2);
     expect(red[0]).toContain(pathAttribute(["sizes", "M", "cartonNumbers", 0]));
@@ -210,7 +210,7 @@ describe("carton_sampling Capture", () => {
     expect(red).toHaveLength(1);
     expect(red[0]).toContain('value="9999"');
     expect(red[0]).toContain(pathAttribute(["sizes", "M", "cartonNumbers", 1]));
-    expect(html).toContain("Size M: Carton 9999 is not between 1 and 2,900, the order quantity (No. 2).");
+    expect(html).toContain("Size M: Box/Carton #9999 is not between 1 and 2,900, the order quantity (No. 2).");
   });
 
   it("counts the rows filled against the plan's cases: 50 of 63, not done; a longer saved list shows every row", () => {
@@ -219,7 +219,7 @@ describe("carton_sampling Capture", () => {
       carton_sampling: { sizes: { M: { cartonNumbers: range(1, 51) } } },
     });
     const input = props(STD_EG_EXAMPLE, more);
-    expect(input.evaluation.result.perSize?.M).toEqual({ status: "not_done", summary: "50 of 63 carton numbers." });
+    expect(input.evaluation.result.perSize?.M).toEqual({ status: "not_done", summary: "50 of 63 box/carton numbers." });
     const html = render(input);
     expect(values(html)).toEqual(range(1, 11).map(String));
     expect(html).toContain("1–10 of 63");
@@ -236,7 +236,7 @@ describe("carton_sampling Capture", () => {
     ]);
     const long = render(longer);
     expect(long).toContain("1–10 of 63");
-    expect(long).toContain("Size M: 63 carton numbers, but the sampling plan has 50 cases.");
+    expect(long).toContain("Size M: 63 box/carton numbers, but the sampling plan has 50 cases.");
     expect(countLine(long)).toContain("Sampling Quantity");
   });
 
@@ -244,7 +244,7 @@ describe("carton_sampling Capture", () => {
     const html = render(props(SAFEDON_EG_EXAMPLE));
     expect(tagsWith(html, 'role="tab"').map((tab) => /data-size="([^"]+)"/.exec(tab)?.[1])).toEqual(["XS", "S", "M", "L"]);
     // Tabs: the first size's panel only.
-    expect(html).toContain("XS (Carton #)");
+    expect(html).toContain("XS (Box/Carton #)");
     expect(fields(html)[0]).toContain('id="carton-sampling-XS-0"');
     expect(html).not.toContain('id="carton-sampling-S-0"');
   });
@@ -264,7 +264,7 @@ describe("carton_sampling Capture", () => {
     expect(fields(html)[0]).toContain('aria-label="Carton # M, No. 1"');
     expect(html).toContain('aria-label="Carton # M: pages"');
     expect(html).toContain("Qty sampled");
-    expect(html).not.toContain("M (Carton #)");
+    expect(html).not.toContain("M (Box/Carton #)");
   });
 
   it("brings back text a row refused, with its reason, after a page, size or section switch or a reload (the screen's store)", () => {
@@ -289,10 +289,10 @@ describe("carton_sampling Capture", () => {
     expect(row).toContain('value="52.5"');
     expect(row).toContain('aria-invalid="true"');
     expect(row).toContain('aria-describedby="carton-sampling-M-2-message"');
-    expect(html).toContain("“52.5” is not a carton number: whole numbers from 1 only.");
+    expect(html).toContain("“52.5” is not a box/carton number: whole numbers from 1 only.");
     expect(redRows(html)).toHaveLength(1);
     // Its clear button lets it go.
-    expect(clearButtons(html).map((tag) => attributeOf(tag, "aria-label"))).toEqual(["Clear Carton 32", "Clear Carton 578", "Clear No. 3"]);
+    expect(clearButtons(html).map((tag) => attributeOf(tag, "aria-label"))).toEqual(["Clear Box/Carton #32", "Clear Box/Carton #578", "Clear No. 3"]);
     // Row 1 holds a number: that wins.
     expect(fields(html)[0]).toContain('value="32"');
     expect(fields(html)[0]).not.toContain('aria-invalid="true"');
@@ -326,9 +326,9 @@ describe("carton_sampling Capture", () => {
       ...props(STD_EG_EXAMPLE, exampleData(STD_EG_EXAMPLE, { carton_sampling: { sizes: {} } })),
       readOnly: true,
     });
-    expect(empty).toContain("No carton numbers entered.");
+    expect(empty).toContain("No box/carton numbers entered.");
     expect(empty).not.toContain("<table");
-    expect(empty).not.toContain("Type each carton number");
+    expect(empty).not.toContain("Type each box/carton number");
   });
 
   it("counts rows to the last one filled: empty rows saved at the end of a list are not rows", () => {
@@ -442,13 +442,13 @@ describe("carton_sampling Capture writes (useDataUpdater, docs/CAPTURE_KIT.md)",
     const after = props(SAFEDON_EG_EXAMPLE, exampleData(SAFEDON_EG_EXAMPLE, { carton_sampling: data() }));
     expect(after.evaluation.result.perSize?.XS).toEqual({
       status: "fail",
-      summary: "8 carton numbers, but the sampling plan has 5 cases.",
+      summary: "8 box/carton numbers, but the sampling plan has 5 cases.",
     });
     expect(after.evaluation.issues.map(({ code, size, path }) => [code, size, path])).toEqual([
       ["carton_count_above_cases", "XS", ["sizes", "XS", "cartonNumbers"]],
     ]);
     const html = render(after);
-    expect(html).toContain("Size XS: 8 carton numbers, but the sampling plan has 5 cases.");
+    expect(html).toContain("Size XS: 8 box/carton numbers, but the sampling plan has 5 cases.");
     expect(html).toMatch(/Sampling Quantity <span[^>]*>.*8.* \/ .*5/);
     expect(values(html)).toEqual([...pasted.map(String), "", ""]);
     expect(countLine(html, "XS")).toContain("Sampling Quantity");

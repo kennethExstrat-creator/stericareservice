@@ -200,7 +200,7 @@ describe("pendingTasks on real inspections (the seed templates, empty to full)",
       tasks.filter(({ entry }) => !entry.name.startsWith("STD_SG")).map(({ task }) => [task.key, task.title] as const),
     );
     expect(egTitles.get("weight")).toBe(MODULE_SHORT_TITLES.weight);
-    expect(egTitles.get("carton_sampling")).toBe("Carton Numbers");
+    expect(egTitles.get("carton_sampling")).toBe("Box/Carton Numbers");
     expect(egTitles.get("tensile")).toBe("Physical Properties");
     expect(egTitles.get("watertight")).toBe("Watertight Test");
   });
@@ -225,7 +225,9 @@ describe("pendingTasks on real inspections (the seed templates, empty to full)",
     expect(find("SAFEDON_EG full without size XS", "watertight")).toMatchObject({ status: "1 size not done", sizes: ["XS"] });
     expect(find("SAFEDON_EG full, no lab report", "tensile")).toMatchObject({ status: "Lab report not attached" });
     expect(find("SAFEDON_EG empty", "weight")).toMatchObject({ status: "No sizes ordered yet" });
-    expect(find("STD_EG as entered", "carton_sampling")).toMatchObject({ needed: true, status: "Carton entered twice", sizes: ["M"] });
+    expect(find("STD_EG as entered", "carton_sampling")).toMatchObject({ needed: true, status: "Box/Carton # entered twice", sizes: ["M"] });
+    // Box 2336, not among size M's sampled box/carton numbers: a warning, so a task that is not needed (Kenneth, 13 October 2026).
+    expect(find("STD_EG as entered", "dispensing_packing")).toMatchObject({ needed: false, status: "Box/Carton # not sampled", sizes: ["M"] });
     expect(find("test template empty", "site_notes")).toMatchObject({ needed: true });
   });
 
@@ -280,8 +282,12 @@ describe("summariseIssues", () => {
 
   it("puts what submit needs first, and counts the other kinds as more", () => {
     const below = (size: string) => ISSUE({ code: "sample_below_plan", size, message: `Size ${size}: 80 gloves sampled; needs 200 (lot 120,000 gloves, code L).` });
-    const duplicate = ISSUE({ level: "error", code: "carton_duplicate", size: "M", message: "Size M: Carton 12 is entered twice." });
-    expect(summariseIssues([below("XS"), below("S"), duplicate], CONTEXT)).toEqual({ status: "Carton entered twice", sizes: ["M"], more: 1 });
+    const duplicate = ISSUE({ level: "error", code: "carton_duplicate", size: "M", message: "Size M: Box/Carton #12 is entered twice." });
+    expect(summariseIssues([below("XS"), below("S"), duplicate], CONTEXT)).toEqual({
+      status: "Box/Carton # entered twice",
+      sizes: ["M"],
+      more: 1,
+    });
     expect(summariseIssues([below("XS"), below("S")], CONTEXT)).toEqual({ status: "Sample below plan", sizes: ["XS", "S"], more: 0 });
   });
 
@@ -290,7 +296,10 @@ describe("summariseIssues", () => {
       summariseIssues([ISSUE({ code, message })], CONTEXT).status;
     expect(status("final_result_differs")).toBe("Explain the result under Remark");
     expect(status("size_not_ordered")).toBe("Data for a size not ordered");
-    expect(status("box_duplicate")).toBe("Box entered twice");
+    expect(status("box_duplicate")).toBe("Box/Carton # entered twice");
+    expect(status("carton_duplicate")).toBe("Box/Carton # entered twice");
+    // A box/carton number the size's sampled list does not hold (Kenneth, 13 October 2026).
+    expect(status("box_not_in_carton_list")).toBe("Box/Carton # not sampled");
     expect(status("lot_number_duplicate")).toBe("Lot number entered twice");
     expect(status("dye_leak_below_plan")).toBe("Sample below plan");
     expect(status("lab_report_missing")).toBe("Lab report not attached");

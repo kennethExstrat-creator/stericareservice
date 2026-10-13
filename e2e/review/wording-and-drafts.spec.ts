@@ -67,7 +67,7 @@ test("each module's result says a sentence once, and the inspector's HOLD reads 
   for (const [key, sentence] of [
     ["watertight", "1 / 500 (Finger 1), Defect Limit 14 / 15: Passed"],
     ["dispensing_packing", "Layering 88.3% (min. 70%), Dispensing 90.3% (min. 80%), Stickiness A: Passed"],
-    ["carton_sampling", "50 carton numbers, unique and between 1 and 2,900"],
+    ["carton_sampling", "50 box/carton numbers, unique and between 1 and 2,900"],
     ["sampling_plan", "inspection level I needs 500 (code N)"],
   ] as const) {
     const row = moduleRow(page, key);
@@ -104,9 +104,9 @@ test("a labelling photo of the carton says so on the report photos", async ({ pa
   await page.goto(reviewPath(fixture.inspectionId));
   const [cartonPhoto] = fixture.extraPhotoIds;
   const tile = page.getByRole("region", { name: "Report Photos" }).locator(`li[data-photo="${cartonPhoto}"]`);
-  await expect(tile).toContainText("Size M · Box 1324 · Carton Box");
+  await expect(tile).toContainText("Size M · Box/Carton #1324 · Carton Box");
   // Named by what it shows, then where it opens.
-  await expect(tile.getByRole("link")).toHaveAttribute("aria-label", /Size M · Box 1324 · Carton Box \(opens full size in a new tab\)$/);
+  await expect(tile.getByRole("link")).toHaveAttribute("aria-label", /Size M · Box\/Carton #1324 · Carton Box \(opens full size in a new tab\)$/);
   await tile.scrollIntoViewIfNeeded();
   await viewShot(page, "wording-report-photos");
 });
@@ -127,8 +127,8 @@ test("the AI second opinion words its evidence: photos in the template's words, 
   const [cartonPhoto] = fixture.extraPhotoIds;
   const labeling = comparison.locator("section[data-section$='-labeling']");
   const evidence = labeling.locator(`a[href*="${cartonPhoto}"]`);
-  await expect(evidence).toHaveAttribute("aria-label", /· Size M · Box 1324 · Carton Box \(opens in a new tab\)$/);
-  await expect(evidence.locator("[title]")).toHaveAttribute("title", /· Size M · Box 1324 · Carton Box$/);
+  await expect(evidence).toHaveAttribute("aria-label", /· Size M · Box\/Carton #1324 · Carton Box \(opens in a new tab\)$/);
+  await expect(evidence.locator("[title]")).toHaveAttribute("title", /· Size M · Box\/Carton #1324 · Carton Box$/);
 
   // Weight has a warning: its result sits beside its label, the quoted warning on its own line, left aligned.
   const weight = comparison.locator("section[data-section$='-weight'] article[data-finding]");

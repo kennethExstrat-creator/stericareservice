@@ -155,7 +155,7 @@ export function conclusionReasons(
 
 /**
  * The modules that make the suggestion what it is, e.g. " (failed: Finished
- * Goods Sampling Information (carton number))". `withWarnings` adds the
+ * Goods Sampling Information (Box/Carton #))". `withWarnings` adds the
  * warned modules to a pass. `name` gives a module's name: its title from the
  * context (moduleTitle); the key in words when left out.
  */

@@ -78,10 +78,12 @@ describe("dispensing_packing capture writes", () => {
     expect(saved.sizes.M).toBeUndefined();
   });
 
-  it("hands a pasted column of box numbers to onChange once, each typed as it is, a carton number or not", () => {
+  it("hands a pasted column of box/carton numbers to onChange once, each as typed, sampled for the size or not", () => {
     const changes: DispensingPackingData[] = [];
     const { boxNumbers } = renderScreen({ sizes: {} }, (next) => changes.push(next));
     expect(boxNumbers.map((field) => field.group)).toEqual(Array.from({ length: 5 }, () => "boxNo"));
+    // Every field suggests the size's sampled numbers (BUILD_SPEC 6.2 rule 7; Kenneth, 13 October 2026).
+    expect(boxNumbers.map((field) => field.cartons)).toEqual(Array.from({ length: 5 }, () => [11, 12, 13, 14, 15]));
 
     batchDataChanges(() => [313, 2336, 11, 7, 999].forEach((value, row) => boxNumbers[row].onValueChange(value)));
 

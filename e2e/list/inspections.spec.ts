@@ -568,7 +568,7 @@ test.describe("with inspections", () => {
     // Part of a lot number is not a match: lots are matched whole.
     await page.goto("/inspections?q=E2E-LOT-A");
     await expect(page.getByRole("heading", { name: "No Inspections Match" })).toBeVisible();
-    await expect(page.getByText("Search matches part of a ref or PO number, or a whole lot or carton number.")).toBeVisible();
+    await expect(page.getByText("Search matches part of a ref or PO number, or a whole lot or box/carton number.")).toBeVisible();
     await shot(page, "no-matches");
 
     await press(page.getByRole("link", { name: "Clear Filters" }));

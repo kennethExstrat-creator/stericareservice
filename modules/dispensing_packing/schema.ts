@@ -1,9 +1,10 @@
 // Glove Packing Check (BUILD_SPEC 6.1 dispensing_packing): per ordered size,
-// one row per dispenser box, its box number as the inspector types it (6.2
-// rule 7: not a carton number), with layering %, dispensing % and a
-// stickiness code. Every value may be missing while the inspection is a
-// draft. Averages, code letters and results are computed (rule 2), never
-// stored here.
+// one row per dispenser box, its box/carton number (6.2 rule 7; Kenneth, 13
+// October 2026: one of the size's sampled carton numbers, typed or picked
+// from the suggestions), with layering %, dispensing % and a stickiness
+// code. Every value may be missing while the inspection is a draft.
+// Averages, code letters and results are computed (rule 2), never stored
+// here.
 import { z } from "zod";
 import { BoxNumberCellSchema, DecimalCellSchema, perSizeData, TextCellSchema } from "@/modules/_framework";
 
@@ -11,7 +12,7 @@ import { BoxNumberCellSchema, DecimalCellSchema, perSizeData, TextCellSchema } f
 export const STICKINESS_CODE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$/;
 
 export const PackingBoxSchema = z.strictObject({
-  /** The box's own number, typed (rule 7): a box picked from the carton list before 12 October 2026 reads as it was. */
+  /** The box/carton number (rule 7), as typed: one the size's sampled list does not hold is calc's warning. */
   boxNo: BoxNumberCellSchema,
   /** %, 0 to 100 (88, not 0.88). */
   layeringPct: DecimalCellSchema,

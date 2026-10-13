@@ -1,20 +1,11 @@
 // The pure rules behind the capture kit: keys, swipes, totals and
 // decisions, the spoken summary, where the focus goes when a row comes off,
-// size and column fallbacks, the column switcher's steps, box lists and
-// opening them, paste plans and the one-change paste, issue paths. Markup is
-// covered by kit.test.tsx; pointer, key and paste handling were checked in a
-// browser.
+// size and column fallbacks, the column switcher's steps, a box/carton
+// number's suggestions, paste plans and the one-change paste, issue paths.
+// Markup is covered by kit.test.tsx; pointer, key and paste handling were
+// checked in a browser.
 import { describe, expect, it } from "vitest";
-import {
-  bestOption,
-  boxListChange,
-  boxListHeading,
-  boxOptions,
-  isUnlisted,
-  moveInGrid,
-  pickedElsewhere,
-  readBoxNumber,
-} from "./box-options";
+import { boxOptions, moveSuggestion, pickedElsewhere, showsSuggestions, typedDigits, usedNote } from "./box-options";
 import {
   columnStatus,
   columnTotal,
@@ -183,7 +174,9 @@ describe("counter model", () => {
     expect(counterAnnouncement({ count: 3, column: "Size XS", total: 8, verdict: "Reject" })).toBe(
       "3. Size XS: total 8, Reject.",
     );
-    expect(counterAnnouncement({ count: 0, column: "Box 253", total: 2, verdict: null })).toBe("0. Box 253: total 2.");
+    expect(counterAnnouncement({ count: 0, column: "Box/Carton #253", total: 2, verdict: null })).toBe(
+      "0. Box/Carton #253: total 2.",
+    );
   });
 
   it("takes the verdict it says from the props after the tap, the same as the chip", () => {
@@ -269,14 +262,14 @@ describe("ColumnSwitcher's steps", () => {
   });
 });
 
-describe("box options", () => {
+describe("box/carton number suggestions (BUILD_SPEC 6.2 rule 7; Kenneth, 13 October 2026)", () => {
   const cartons = [2834, 686, 299, 13, 1324, 1913, 2236, 686];
 
-  it("offers each carton once, ascending", () => {
+  it("offers each sampled number once, ascending", () => {
     expect(boxOptions(cartons)).toEqual([13, 299, 686, 1324, 1913, 2236, 2834]);
   });
 
-  it("drops numbers that cannot be cartons", () => {
+  it("drops numbers that cannot be box/carton numbers", () => {
     expect(boxOptions([0, -3, 2.5, 12])).toEqual([12]);
   });
 
@@ -284,15 +277,11 @@ describe("box options", () => {
     expect(boxOptions(cartons, "13")).toEqual([13, 1324, 1913]);
     expect(boxOptions(cartons, " 2 2")).toEqual([2236]);
     expect(boxOptions(cartons, "999")).toEqual([]);
+    expect(typedDigits(" 2 2")).toBe("22");
+    expect(typedDigits(null)).toBe("");
   });
 
-  it("picks the exact box first, else the first match", () => {
-    expect(bestOption(boxOptions(cartons, "13"), "13")).toBe(13);
-    expect(bestOption(boxOptions(cartons, "132"), "132")).toBe(1324);
-    expect(bestOption([], "5")).toBeNull();
-  });
-
-  it("counts picks in other rows, leaving this row's own out", () => {
+  it("counts the numbers other rows hold, leaving this row's own out", () => {
     const used = [13, 299, 299, null, 13, 686];
     const elsewhere = pickedElsewhere(used, 13);
     expect(elsewhere.get(13)).toBe(1);
@@ -301,48 +290,40 @@ describe("box options", () => {
     expect(pickedElsewhere(used, null).get(13)).toBe(2);
   });
 
-  it("flags a stored box that is not in the carton list", () => {
-    expect(isUnlisted(2336, cartons)).toBe(true);
-    expect(isUnlisted(2236, cartons)).toBe(false);
-    expect(isUnlisted(null, cartons)).toBe(false);
+  it("marks a number other rows hold, and offers it still", () => {
+    expect(usedNote(0)).toBeNull();
+    expect(usedNote(1)).toEqual({ shown: "Used", spoken: "in another row" });
+    expect(usedNote(3)).toEqual({ shown: "Used ×3", spoken: "in 3 other rows" });
   });
 
-  it("checks nothing while there is no carton list", () => {
-    expect(isUnlisted(2336, [])).toBe(false);
+  it("shows the list as digits are typed, while the size has numbers holding them", () => {
+    expect(showsSuggestions({ readOnly: false, typed: "13", browsing: false, options: 3 })).toBe(true);
+    // Nothing typed, nothing matching, text with no digits or a read-only field: no list, typing goes on.
+    expect(showsSuggestions({ readOnly: false, typed: null, browsing: false, options: 7 })).toBe(false);
+    expect(showsSuggestions({ readOnly: false, typed: "", browsing: false, options: 7 })).toBe(false);
+    expect(showsSuggestions({ readOnly: false, typed: "999", browsing: false, options: 0 })).toBe(false);
+    expect(showsSuggestions({ readOnly: false, typed: "abc", browsing: false, options: 7 })).toBe(false);
+    expect(showsSuggestions({ readOnly: true, typed: "13", browsing: false, options: 3 })).toBe(false);
   });
 
-  it("reads a typed box number as a whole number from 1", () => {
-    expect(readBoxNumber(" 253 ")).toBe(253);
-    expect(readBoxNumber("0")).toBeNull();
-    expect(readBoxNumber("25.3")).toBeNull();
-    expect(readBoxNumber("2 53")).toBeNull();
-    expect(readBoxNumber("")).toBeNull();
-    expect(readBoxNumber("abc")).toBeNull();
+  it("shows every number once the down arrow opens the list with nothing typed", () => {
+    expect(showsSuggestions({ readOnly: false, typed: null, browsing: true, options: 7 })).toBe(true);
+    // No sampled list for the size: nothing to show, whatever is pressed.
+    expect(showsSuggestions({ readOnly: false, typed: null, browsing: true, options: 0 })).toBe(false);
   });
 
-  it("heads the list in Title Case, the size worded for sentences or not", () => {
-    expect(boxListHeading("size M")).toBe("Cartons · Size M");
-    expect(boxListHeading("size Medium")).toBe("Cartons · Size Medium");
-    expect(boxListHeading("Size 7.0")).toBe("Cartons · Size 7.0");
-    expect(boxListHeading()).toBe("Cartons");
-    expect(boxListHeading(" ")).toBe("Cartons");
-  });
-
-  it("opens the list only where the box can change, reporting the box in focus as it opens", () => {
-    expect(boxListChange(true, false)).toEqual({ open: true, reportFocus: true });
-    expect(boxListChange(false, false)).toEqual({ open: false, reportFocus: false });
-    expect(boxListChange(true, true)).toBeNull();
-  });
-
-  it("moves through the grid by one or by a row", () => {
-    expect(moveInGrid("ArrowRight", 0, 12, 5)).toBe(1);
-    expect(moveInGrid("ArrowDown", 1, 12, 5)).toBe(6);
-    expect(moveInGrid("ArrowDown", 9, 12, 5)).toBe(11);
-    expect(moveInGrid("ArrowUp", 2, 12, 5)).toBe(0);
-    expect(moveInGrid("ArrowDown", -1, 12, 5)).toBe(0);
-    expect(moveInGrid("PageDown", 0, 12, 5)).toBe(11);
-    expect(moveInGrid("Enter", 0, 12, 5)).toBeNull();
-    expect(moveInGrid("ArrowRight", 0, 0, 5)).toBeNull();
+  it("moves the choice with the arrows, wrapping round, and leaves other keys to the field", () => {
+    expect(moveSuggestion("ArrowDown", -1, 5)).toBe(0);
+    expect(moveSuggestion("ArrowDown", 0, 5)).toBe(1);
+    expect(moveSuggestion("ArrowDown", 4, 5)).toBe(0);
+    expect(moveSuggestion("ArrowUp", -1, 5)).toBe(4);
+    expect(moveSuggestion("ArrowUp", 0, 5)).toBe(4);
+    expect(moveSuggestion("ArrowUp", 3, 5)).toBe(2);
+    expect(moveSuggestion("PageDown", 0, 5)).toBe(4);
+    expect(moveSuggestion("PageUp", 3, 5)).toBe(0);
+    expect(moveSuggestion("Enter", 0, 5)).toBeNull();
+    expect(moveSuggestion("Home", 2, 5)).toBeNull();
+    expect(moveSuggestion("ArrowDown", -1, 0)).toBeNull();
   });
 });
 
@@ -588,10 +569,10 @@ describe("issue paths", () => {
   it("finds the issue at a field, errors first", () => {
     const issues = [
       { level: "warning", path: ["sizes", "M", "weight"], message: "More than 10% from the indicative weight." },
-      { level: "error", path: ["sizes", "M", "boxes", 11, "box"], message: "Box 2336 is not in the carton list." },
-      { level: "warning", path: ["sizes", "M", "boxes", 11, "box"], message: "Box used twice." },
+      { level: "warning", path: ["sizes", "M", "boxes", 11, "box"], message: "Box/Carton #2336 is not in M's sampled box/carton numbers." },
+      { level: "error", path: ["sizes", "M", "boxes", 11, "box"], message: "Box/Carton #2336 is entered twice." },
     ];
-    expect(findIssue(issues, ["sizes", "M", "boxes", 11, "box"])?.message).toBe("Box 2336 is not in the carton list.");
+    expect(findIssue(issues, ["sizes", "M", "boxes", 11, "box"])?.message).toBe("Box/Carton #2336 is entered twice.");
     expect(findIssue(issues, ["sizes", "M", "weight"])?.level).toBe("warning");
     expect(findIssue(issues, ["sizes", "S", "weight"])).toBeUndefined();
     expect(findIssue(null, ["sizes"])).toBeUndefined();

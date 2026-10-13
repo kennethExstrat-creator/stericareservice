@@ -78,8 +78,8 @@ describe("labeling capture: focus", () => {
 
   it("reports the level, and the box once one is typed, from the box number fields", () => {
     const { fields, reported } = render();
-    const entered = fields.find((field) => field.label === "Box # 1, Dispenser Box, Size M");
-    const next = fields.find((field) => field.label === "Box # 2, Dispenser Box, Size M");
+    const entered = fields.find((field) => field.label === "Box/Carton #, No. 1, Dispenser Box, Size M");
+    const next = fields.find((field) => field.label === "Box/Carton #, No. 2, Dispenser Box, Size M");
     entered?.onFocus?.();
     next?.onFocus?.();
     expect(reported).toEqual([

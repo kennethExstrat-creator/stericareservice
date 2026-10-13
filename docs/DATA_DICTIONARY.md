@@ -18,7 +18,7 @@ UPDATE_DATA_DICTIONARY=1 npx vitest run lib/coverage/doc.test.ts
 | `lib/coverage/templates.ts` | Per template: modules on and their order, sizes, unit, report title, every module's config values, custom modules, what is still to confirm. `defaultConfig(module)` is a module's default config; `seedConfig(code, module)` the config a seed writes (whole for a root template, the diff for a child); `seedModuleConfigs(code)` gives BUILD_SPEC 4.3 `ModuleConfig` values; `fieldShown` says whether a template shows a field | Template seeds `STD_EG`, `SAFEDON_EG`, `STD_SG` |
 | `lib/coverage/defects.ts` | Defect labels per template and class in report order, mapped to the codes of `supabase/seed.sql`; hole locations; the Safedon dispensing defects; stickiness codes; labelling checks per level | Template seeds, defect mapping screen |
 | `lib/coverage/sources.ts` | Every field of every source document, verbatim, with stable ids and where it goes | Coverage checklist (rule 4.2.10) |
-| `lib/coverage/wording.ts` | The forms' wording against the app's (decision 17): `sameWording` (a template label is the printed one, `[sic]` fixed, its capitals aside), `targetLabel` (what a template shows for a target) and `appWording` (the coverage matrix's App wording) | The coverage tests; the coverage matrix |
+| `lib/coverage/wording.ts` | The forms' wording against the app's (decision 17): `sameWording` (a template label is the printed one, `[sic]` fixed, its capitals aside and the box or carton number worded Box/Carton #), `targetLabel` (what a template shows for a target) and `appWording` (the coverage matrix's App wording) | The coverage tests; the coverage matrix |
 | `lib/coverage/merge.ts` | How module config merges down an extends chain, as the framework's `lib/templates/merge.ts` does it, with `configDiff` | The tests; template seeds |
 | `lib/coverage/keys.ts` | Closed key lists: measures, sampling columns, header fields, labelling levels and checks, inner units, inspection levels, code letters | All of the above |
 
@@ -27,7 +27,8 @@ template shows; that every cell someone fills in on a source lands on an entered
 field; that no module has duplicate keys; that every module key is a `ModuleKey`; that every defect
 code is in `seed.sql` (and every seeded code is used); that each template's module order is BUILD_SPEC
 11's; that `[sic]` labels are corrected; that every label printed on the reports and on the SG
-form is the label the template shows, the same words in Title Case (`sameWording`); and that every
+form is the label the template shows, the same words in Title Case, the box or carton number worded
+Box/Carton # (`sameWording`); and that every
 label in `lib/coverage` is in Title Case (`lowerCaseWords`). They also resolve every template from the module defaults down
 its extends chain, merged as the framework merges, and check the result is the template's config;
 and they check every label key fits the framework's `ModuleConfig.labels`. Config keys and the
@@ -108,8 +109,8 @@ column.
 | 3 | Counts never turn into dates; dates use date pickers. | `header`, `conclusion`, `documents` |
 | 4 | Sizes not in order_lots appear in no module. | `order_lots`, `sampling_plan`, `carton_sampling`, `dimensions`, `weight`, `force_at_break`, `tensile`, `watertight`, `visual`, `dispensing_packing`, `dispensing_safedon`, `labeling`, `dye_leak` |
 | 5 | A module with missing data shows Not Done, never Passed. | `dimensions`, `weight`, `force_at_break`, `tensile`, `watertight`, `visual`, `dispensing_packing`, `dispensing_safedon`, `labeling`, `dye_leak`, `documents` |
-| 6 | Carton numbers are unique per size, from 1 to the order quantity, as many as the sampled cases. | `sampling_plan`, `carton_sampling` |
-| 7 | Box numbers in dispensing_packing, dispensing_safedon and labeling are typed by the inspector: not carton numbers, never checked against the carton list. | `dispensing_packing`, `dispensing_safedon`, `labeling` |
+| 6 | Box/carton numbers are unique per size, from 1 to the order quantity, as many as the sampled cases. | `sampling_plan`, `carton_sampling` |
+| 7 | Box/carton numbers in dispensing_packing, dispensing_safedon and labeling are the size's sampled ones: typed, with those suggested; one the size's list does not hold is a warning, never a block. | `dispensing_packing`, `dispensing_safedon`, `labeling` |
 | 8 | The sample size sets the code letter and limits; a plan that does not match the sample size cannot be saved. | `sampling_plan`, `watertight`, `visual` |
 | 9 | Measured weight more than the threshold away from the indicative weight raises a warning. | `glove_info`, `weight` |
 | 10 | Client, product code and PO are entered once in header and reused everywhere, the export included. | `header` |
@@ -211,7 +212,7 @@ Report module. Captures: Per size: sampled cases, inner units and gloves; gloves
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `cases` | Case |  | integer |  | size | entered | 1, 6 | Counts cases. carton_sampling must list exactly this many carton numbers (rule 6). |
+| `cases` | Case |  | integer |  | size | entered | 1, 6 | Counts cases. carton_sampling must list exactly this many box/carton numbers (rule 6). |
 | `innerUnits` | Inner Box | SAFEDON_EG: Inner Pack | integer |  | size | entered | 1 | Counts inner units. |
 | `gloves` | Gloves |  | integer | pcs | size | entered | 1 |  |
 | `glovesWatertightVisual` | # Gloves for Watertight & Visual | STD_SG: # Gloves | integer | pcs | size | entered | 1, 8 | Flows forward as n in watertight and visual (BUILD_SPEC 8). SG prints it under 'Sampling Quantity (WTT & Visual)'. |
@@ -238,20 +239,20 @@ Report module. Captures: Per size: sampled cases, inner units and gloves; gloves
 | `orderQty` | Order Qty (Case) | STD_SG: Qty (Case) | Caption of the column that shows order_lots.qtyCases again. |
 | `gloveSize` | Glove Size |  | Caption of the size column on the capture screen. |
 
-### `carton_sampling`: Finished Goods Sampling Information (Carton Number)
+### `carton_sampling`: Finished Goods Sampling Information (Box/Carton #)
 
-Report module. Captures: Per size: the sampled carton numbers. Result: fail on a validation error (rule 6); pass when every ordered size has its full, valid list; not_done before. Rules (6.2): 1, 2, 4, 6.
+Report module. Captures: Per size: the sampled box/carton numbers. Result: fail on a validation error (rule 6); pass when every ordered size has its full, valid list; not_done before. Rules (6.2): 1, 2, 4, 6.
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `cartonNumbers` | (Carton #) |  | integer_list |  | size | entered | 1, 6 | Unique per size, each from 1 to order_lots.qtyCases, as many as sampling_plan.cases (rule 6). The report grid holds 50 (10 columns × 5 rows); the app takes as many as were sampled. Box numbers in dispensing and labeling are not carton numbers and never read this list (rule 7). |
+| `cartonNumbers` | (Box/Carton #) |  | integer_list |  | size | entered | 1, 6 | Unique per size, each from 1 to order_lots.qtyCases, as many as sampling_plan.cases (rule 6). The report grid holds 50 (10 columns × 5 rows); the app takes as many as were sampled. Dispensing and labeling suggest this list's numbers for their box/carton numbers and warn about one it does not hold (rule 7). |
 | `samplingQuantity` | Sampling Quantity |  | integer |  | size | **computed** | 2, 6 | Count of cartonNumbers; must equal sampling_plan.cases. Counts cartons. |
 
 No config.
 
 | Caption key | Label (STD_EG) | Other wording | Meaning |
 |---|---|---|---|
-| `sizeCaption` | {size} (Carton #) |  | Caption of each size's grid. |
+| `sizeCaption` | {size} (Box/Carton #) |  | Caption of each size's grid. |
 
 ### `dimensions`: Dimension
 
@@ -413,11 +414,11 @@ Report module. Captures: Per size (R and L when handSplit), per class: gloves in
 
 ### `dispensing_packing`: Glove Packing Check
 
-Report module. Captures: Per size, per box (its box number typed): layering %, dispensing %, stickiness code, note. Result: Per size: layering and dispensing averages against the minimums; any box with a failing stickiness code fails. not_done until the size's boxes are entered. Rules (6.2): 1, 2, 4, 5, 7.
+Report module. Captures: Per size, per box (its box/carton number typed): layering %, dispensing %, stickiness code, note. Result: Per size: layering and dispensing averages against the minimums; any box with a failing stickiness code fails. not_done until the size's boxes are entered. Rules (6.2): 1, 2, 4, 5, 7.
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `boxNo` | Box # |  | integer |  | size › box | entered | 7 | Typed on the numeric keypad: the box's own number, not a carton number, never checked against the carton list (rule 7; Kenneth, 12 October 2026). |
+| `boxNo` | Box/Carton # |  | integer |  | size › box | entered | 7 | Typed on the numeric keypad, the size's sampled box/carton numbers (carton_sampling) suggested as it is typed; one the size's list does not hold is a warning, never a block (rule 7; Kenneth, 13 October 2026). |
 | `layeringPct` | Layering % |  | decimal | % | size › box | entered | 1 |  |
 | `dispensingPct` | Dispensing % |  | decimal | % | size › box | entered | 1 |  |
 | `stickiness` | Stickiness \*\* |  | select |  | size › box | entered |  | One of config stickinessCodes. |
@@ -445,16 +446,16 @@ Report module. Captures: Per size, per box (its box number typed): layering %, d
 
 ### `dispensing_safedon`: Glove Dispensing Inspection
 
-Report module. Captures: Per size, per box (its box number typed): counts of the six Safedon dispensing defects. Per box defects, gloves and rate; per size total and rate. Result: Per size: the defect rate against config maxRatePct. not_done until the size's boxes are entered. Rules (6.2): 1, 2, 4, 5, 7.
+Report module. Captures: Per size, per box (its box/carton number typed): counts of the six Safedon dispensing defects. Per box defects, gloves and rate; per size total and rate. Result: Per size: the defect rate against config maxRatePct. not_done until the size's boxes are entered. Rules (6.2): 1, 2, 4, 5, 7.
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `boxNo` | Box # |  | integer |  | size › box | entered | 7 | Typed on the numeric keypad: the box's own number, not a carton number, never checked against the carton list (rule 7; Kenneth, 12 October 2026). Messages name a box by its No. in the box list. |
+| `boxNo` | Box/Carton # |  | integer |  | size › box | entered | 7 | Typed on the numeric keypad, the size's sampled box/carton numbers (carton_sampling) suggested as it is typed; one the size's list does not hold is a warning, never a block (rule 7; Kenneth, 13 October 2026). Messages name a box by its No. in the box list. |
 | `counts` | Safedon Packing Defects |  | count_map |  | size › box | entered | 1 | Map keyed by defect code from config defects. |
 | `codeLetter` | Sampling Code Letter |  | select |  | size | **computed** | 2 | From the number of boxes tested (BUILD_SPEC 7), for the heading. Values: A, B, C, D, E, F, G, H, J, K, L, M, N, P, Q, R. |
 | `boxDefects` | Defects / Gloves per Pack |  | integer |  | size › box | **computed** | 2 | Sum of the box's counts. Printed as &lt;defects>/&lt;glovesPerPack> (Total, line 1). |
 | `boxRatePct` | Defect Rate |  | decimal | % | size › box | **computed** | 2 | boxDefects / config glovesPerPack × 100 (Total, line 2: the report prints it as a percentage with one decimal, e.g. 0.8%). |
-| `boxesTested` | Boxes Tested |  | integer |  | size | **computed** | 2 | Boxes with a box number (onsite/SAFEDON_EG.md, mapping to the core). Counts boxes. |
+| `boxesTested` | Boxes Tested |  | integer |  | size | **computed** | 2 | Boxes with a box/carton number (onsite/SAFEDON_EG.md, mapping to the core). Counts boxes. |
 | `boxesFailed` | Boxes Failed |  | integer |  | size | **computed** | 2 | Boxes with any count above zero. Counts boxes. |
 | `totalDefects` | Total |  | integer |  | size | **computed** | 2 | Sum of the size's box counts (Total, line 3: &lt;defects> / &lt;gloves> (&lt;rate> %)). |
 | `glovesInspected` | Gloves Inspected |  | integer | pcs | size | **computed** | 2 | boxesTested × config glovesPerPack. |
@@ -476,12 +477,12 @@ Report module. Captures: Per size, per box (its box number typed): counts of the
 
 ### `labeling`: Packaging Labeling Inspection
 
-Report module. Captures: Per size, per level (inner unit, carton): boxes inspected, their box numbers typed, and defects per check. Result: Per size and level: any defect fails (Accept 0 / Reject 1). not_done until inspected is entered. Rules (6.2): 1, 2, 4, 5, 7.
+Report module. Captures: Per size, per level (inner unit, carton): boxes inspected, their box/carton numbers typed, and defects per check. Result: Per size and level: any defect fails (Accept 0 / Reject 1). not_done until inspected is entered. Rules (6.2): 1, 2, 4, 5, 7.
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
 | `inspected` | No. of Sampled Boxes Inspected |  | integer |  | size › level | entered | 1 | Counts boxes. Prefilled from config levels[level].n. |
-| `boxNos` | Box # |  | integer_list |  | size › level | entered | 7 | **Beyond BUILD_SPEC 6.1:** The box numbers of the boxes inspected, typed: not carton numbers, never checked against the carton list (rule 6.2.7); the reports print only how many were inspected. |
+| `boxNos` | Box/Carton # |  | integer_list |  | size › level | entered | 7 | **Beyond BUILD_SPEC 6.1:** The box/carton numbers of the boxes inspected, typed with the size's sampled box/carton numbers suggested; one the size's list does not hold is a warning (rule 6.2.7; Kenneth, 13 October 2026). The reports print only how many were inspected. |
 | `defects` | Defects |  | count_map |  | size › level | entered | 1 | Map keyed by labelling check code from config levels[level].checks. |
 | `accept` | Accept | inner: Accept (SAFEDON_EG: Acc. =)<br>carton: Accept (SAFEDON_EG: Acc. =) | integer |  | size › level | **computed** | 2 | Always 0 (BUILD_SPEC 7: labelling is Accept 0 / Reject 1). |
 | `reject` | Reject | inner: Reject (SAFEDON_EG: Rej. =)<br>carton: Reject (SAFEDON_EG: Rej. =) | integer |  | size › level | **computed** | 2 | Always 1. |
@@ -628,7 +629,7 @@ Note: Not on any current form: the website's QC scope. Loading-stage photos are 
 | 3 | `order_lots` | Order | packing site off |
 | 4 | `packing_config` | Packing Configuration | inner unit inner_box; packing mode text on |
 | 5 | `sampling_plan` | Sampling Plan | columns off: pouches, pouchesDyeLeak; inspection level I |
-| 6 | `carton_sampling` | Finished Goods Sampling Information (Carton Number) | none |
+| 6 | `carton_sampling` | Finished Goods Sampling Information (Box/Carton #) | none |
 | 7 | `dimensions` | Dimension | median of 13 gloves; measures length, width, fingerThickness, palmThickness, cuffThickness; decimals length 0, width 0, fingerThickness 2, palmThickness 2, cuffThickness 2; specs for XS, S, M, L, XL, below |
 | 8 | `force_at_break` | Force at Break in Newton (Refer to Attached Where Applicable) | 13 readings per size; median ≥ 6 N; 3 decimals; standard label none |
 | 9 | `weight` | Weight (g) - Average of 13 Gloves per Size | 13 values per size; spec none (info); warn beyond 10%; 2 decimals |
@@ -677,7 +678,7 @@ To confirm:
 | 3 | `order_lots` | Order | packing site on |
 | 4 | `packing_config` | Packing Configuration | inner unit plastic_pack; packing mode text on |
 | 5 | `sampling_plan` | Sampling Plan | columns off: glovesWeight, pouches, pouchesDyeLeak; inspection level I |
-| 6 | `carton_sampling` | Finished Goods Sampling Information (Carton Number) | none |
+| 6 | `carton_sampling` | Finished Goods Sampling Information (Box/Carton #) | none |
 | 7 | `dimensions` | Dimension | average of 13 gloves; measures length, width, fingerThickness, palmThickness; decimals length 0, width 0, fingerThickness 2, palmThickness 2; specs for XS, S, M, L, below |
 | 8 | `tensile` | Physical Properties Average (Refer to Attached Lab. Reports) | tensile ≥ 14 MPa; elongation ≥ 500%; Spec. (ASTM D6319); decimals 2 and 0 |
 | 9 | `weight` | Weight (g) | 1 value per size; spec per size, below; warn beyond 10%; 2 decimals |
@@ -904,8 +905,9 @@ Where the sources or BUILD_SPEC leave a choice, the dictionary takes one. Each i
    `glove_type` (field `gloveType`, after `header`) in all three templates.
 3. **Fields beyond BUILD_SPEC 6.1**, each because a source has it: `packing_config.packingMode`
    (onsite "Packing Mode"), `dispensing_packing.note` (EG onsite "Others:"),
-   `watertight.otherDescription` (the reports' "Other :"), `labeling.boxNos` (the box numbers of
-   the boxes inspected, typed: not carton numbers, rule 6.2.7; the reports print only how many).
+   `watertight.otherDescription` (the reports' "Other :"), `labeling.boxNos` (the box/carton
+   numbers of the boxes inspected, typed with the size's sampled ones suggested, one not sampled a
+   warning, rule 6.2.7; the reports print only how many).
 4. **Report first** (rule 4.2.1). The EG onsite form's stickiness (onsite/EG.md suggests none,
    slight, severe) uses the report's codes A, B, B1, C, D. The Safedon onsite sheet's free-text
    "Specification / Requirement" and "Conclusion" are kept as written, per size, in the custom
@@ -962,7 +964,13 @@ Where the sources or BUILD_SPEC leave a choice, the dictionary takes one. Each i
     "No." and codes stay. Sentences stay sentences: the stickiness legend, the Safedon definitions
     and every hint. The conclusion words keep the reports' capitals (PASSED, FAILED, HOLD). The
     tests still prove every printed label reaches its template: `sameWording` compares the
-    printed label, `[sic]` fixed, with the template's, the first letters of its words aside.
+    printed label, `[sic]` fixed, with the template's, the first letters of its words aside. Box
+    and carton numbers are one number (Kenneth, 13 October 2026: "all regarding to box and carton
+    use Box/Carton #"): every label naming it says Box/Carton # where the forms print "Box #",
+    "(Carton #)", "carton number" or "Box Number" (the module title "Finished Goods Sampling
+    Information (Box/Carton #)", the dispensing and labelling columns, labelling's "No Box/Carton #
+    Printed"), and `sameWording` reads the forms' words for it as Box/Carton #. "Carton" alone, the
+    packaging level ("Carton Box"), stays as printed.
 
 ## Open questions
 
@@ -1016,7 +1024,8 @@ Values that wait on Kenneth. BUILD_SPEC 13 first.
 
 Every field of every source document, in document order: the label as printed (verbatim, typos
 included), the app's wording beside it (what the template shows for the field, in Title Case with
-`[sic]` typos fixed, decision 17: `appWording`), what the cell holds and where it goes. A field the
+`[sic]` typos fixed and Box/Carton # for the box or carton number, decision 17: `appWording`), what
+the cell holds and where it goes. A field the
 template splits shows each part's label ("Manufacturing Date; Expiry Date"); a Safedon definition
 shows the hint the app shows in its place. `field[group][key]` picks a class
 or level and a code; `config`, `caption` and `title` are template values; `custom` is a custom
@@ -1067,9 +1076,9 @@ module field; `template` a template property; `layout` is drawn by the AI report
 | Page 1 > Sampling Plan | # gloves for dimension | # Gloves for Dimension | number | `sampling_plan.glovesDimensions` |  |
 | Page 1 > Sampling Plan | # gloves for FAB | # Gloves for FAB | number | `sampling_plan.glovesPhysical` |  |
 | Page 1 > Sampling Plan | # inner box for packaing & dispensing inspection | # Inner Box for Packaging & Dispensing Inspection | number | `sampling_plan.innerUnitsDispensing` |  |
-| Page 1 > Finished Goods Sampling Information (carton number) | Finished Goods Sampling Information (carton number) | Finished Goods Sampling Information (Carton Number) | heading | title `carton_sampling` |  |
-| Page 1 > Finished Goods Sampling Information (carton number) | (Carton #) | (Carton #) | number | `carton_sampling.cartonNumbers`<br>caption `carton_sampling.sizeCaption` | One grid per size, XS to XL: 10 columns × 5 rows, up to 50 carton numbers. Printed after the size ('M (Carton #)'; 'XS (carton #)' in lower case). |
-| Page 1 > Finished Goods Sampling Information (carton number) | Sampling Quantity | Sampling Quantity | number | `carton_sampling.samplingQuantity` | The app counts the carton numbers; the count must equal the sampled cases (rule 6). |
+| Page 1 > Finished Goods Sampling Information (carton number) | Finished Goods Sampling Information (carton number) | Finished Goods Sampling Information (Box/Carton #) | heading | title `carton_sampling` |  |
+| Page 1 > Finished Goods Sampling Information (carton number) | (Carton #) | (Box/Carton #) | number | `carton_sampling.cartonNumbers`<br>caption `carton_sampling.sizeCaption` | One grid per size, XS to XL: 10 columns × 5 rows, up to 50 carton numbers. Printed after the size ('M (Carton #)'; 'XS (carton #)' in lower case). The app says Box/Carton # (Kenneth, 13 October 2026: box # and carton # are one number). |
+| Page 1 > Finished Goods Sampling Information (carton number) | Sampling Quantity | Sampling Quantity | number | `carton_sampling.samplingQuantity` | The app counts the box/carton numbers; the count must equal the sampled cases (rule 6). |
 | Page 2 > Dimension - Size &lt;size> | Dimension - Size &lt;size> | Dimension - Size {size} | heading | caption `dimensions.sizeHeading`<br>title `dimensions` | One table per size, XS to XL. |
 | Page 2 > Dimension - Size &lt;size> | No. | No. | fixed | caption `dimensions.rowNo`<br>config `dimensions.rows` | Rows 1 to 13. |
 | Page 2 > Dimension - Size &lt;size> | Length | Length | number | `dimensions.length` |  |
@@ -1144,7 +1153,7 @@ module field; `template` a template property; `layout` is drawn by the AI report
 | Page 4 > Glove Packing Check | Glove Packing Check (Sampling code letter D & E) : min. 70% layering & 80% dispensing | Glove Packing Check (Sampling Code Letter {codeLetters}) : Min. {minLayeringPct}% Layering & {minDispensingPct}% Dispensing | heading | caption `dispensing_packing.heading`<br>title `dispensing_packing`<br>`dispensing_packing.codeLetter`<br>config `dispensing_packing.minLayeringPct`<br>config `dispensing_packing.minDispensingPct` |  |
 | Page 4 > Glove Packing Check | &lt;size> |  | size | template `sizes` | One block per size, headed by the size. |
 | Page 4 > Glove Packing Check | Item | Item | fixed | caption `dispensing_packing.itemColumn`<br>config `dispensing_packing.boxesPerSize` | Rows 1 to 13 (1 to 5 in the XL block). |
-| Page 4 > Glove Packing Check | Box # | Box # | number | `dispensing_packing.boxNo` | Typed: the box's own number, not a carton number (rule 7). |
+| Page 4 > Glove Packing Check | Box # | Box/Carton # | number | `dispensing_packing.boxNo` | Box/Carton # in the app: one of the size's sampled carton numbers, typed with them suggested; one not sampled is a warning (rule 7). |
 | Page 4 > Glove Packing Check | Layering % | Layering % | number | `dispensing_packing.layeringPct` |  |
 | Page 4 > Glove Packing Check | Dispensing % | Dispensing % | number | `dispensing_packing.dispensingPct` |  |
 | Page 4 > Glove Packing Check | Stickiness \*\* | Stickiness \*\* | select | `dispensing_packing.stickiness` |  |
@@ -1171,7 +1180,7 @@ module field; `template` a template property; `layout` is drawn by the AI report
 | Page 4 > Packaging Labeling Inspection > Carton Box | Wrong / No lot number | Wrong / No Lot Number | number | `labeling.defects[carton][lot_no]` |  |
 | Page 4 > Packaging Labeling Inspection > Carton Box | Wrong / No mfg. date | Wrong / No Mfg. Date | number | `labeling.defects[carton][mfg_date]` |  |
 | Page 4 > Packaging Labeling Inspection > Carton Box | Wrong artwork print | Wrong Artwork Print | number | `labeling.defects[carton][artwork]` |  |
-| Page 4 > Packaging Labeling Inspection > Carton Box | No carton number printed | No Carton Number Printed | number | `labeling.defects[carton][carton_no]` |  |
+| Page 4 > Packaging Labeling Inspection > Carton Box | No carton number printed | No Box/Carton # Printed | number | `labeling.defects[carton][carton_no]` |  |
 | Page 4 > Packaging Labeling Inspection > Carton Box | Total number of defects found | Total Number of Defects Found | computed | `labeling.total[carton]` |  |
 | Page 4 > Packaging Labeling Inspection > Carton Box | Disposition - Inner Box (Passed / Failed) | Disposition - Carton Box (Passed / Failed) | computed | `labeling.result[carton]` | Mislabelled on the report: the carton line reads Inner Box. |
 | Page 4 > Conclusion | Conclusion | Conclusion | select | `conclusion.finalResult`<br>caption `conclusion.pass`<br>caption `conclusion.fail` | PASSED / FAILED. |
@@ -1223,9 +1232,9 @@ module field; `template` a template property; `layout` is drawn by the AI report
 | Page 1 > Sampling Plan | # gloves for dimension | # Gloves for Dimension | number | `sampling_plan.glovesDimensions` |  |
 | Page 1 > Sampling Plan | # gloves for Tensile | # Gloves for Tensile | number | `sampling_plan.glovesPhysical` |  |
 | Page 1 > Sampling Plan | # inner packs for packaing & dispensing inspection | # Inner Packs for Packaging & Dispensing Inspection | number | `sampling_plan.innerUnitsDispensing` |  |
-| Page 1 > Finished Goods Sampling Information (carton number) | Finished Goods Sampling Information (carton number) | Finished Goods Sampling Information (Carton Number) | heading | title `carton_sampling` |  |
-| Page 1 > Finished Goods Sampling Information (carton number) | (Carton #) | (Carton #) | number | `carton_sampling.cartonNumbers`<br>caption `carton_sampling.sizeCaption` | Same grid as STD_EG: 10 columns × 5 rows per size. |
-| Page 1 > Finished Goods Sampling Information (carton number) | Sampling Quantity | Sampling Quantity | number | `carton_sampling.samplingQuantity` | The app counts the carton numbers (rule 6). |
+| Page 1 > Finished Goods Sampling Information (carton number) | Finished Goods Sampling Information (carton number) | Finished Goods Sampling Information (Box/Carton #) | heading | title `carton_sampling` |  |
+| Page 1 > Finished Goods Sampling Information (carton number) | (Carton #) | (Box/Carton #) | number | `carton_sampling.cartonNumbers`<br>caption `carton_sampling.sizeCaption` | Same grid as STD_EG: 10 columns × 5 rows per size. |
+| Page 1 > Finished Goods Sampling Information (carton number) | Sampling Quantity | Sampling Quantity | number | `carton_sampling.samplingQuantity` | The app counts the box/carton numbers (rule 6). |
 | Page 2 > Dimension - Size &lt;size> | Dimension - Size &lt;size> | Dimension - Size {size} | heading | caption `dimensions.sizeHeading`<br>title `dimensions` | One table per ordered size. |
 | Page 2 > Dimension - Size &lt;size> | No. | No. | fixed | caption `dimensions.rowNo`<br>config `dimensions.rows` | Rows 1 to 13. |
 | Page 2 > Dimension - Size &lt;size> | Length | Length | number | `dimensions.length` |  |
@@ -1247,7 +1256,7 @@ module field; `template` a template property; `layout` is drawn by the AI report
 | Page 2 > Physical Properties > Elongation at break | Passed / Failed | Passed / Failed | computed | `tensile.elongationResult` |  |
 | Page 3 > Glove Dispensing Inspection | Glove Dispensing Inspection (Sampling code letter C & D) | Glove Dispensing Inspection (Sampling Code Letter {codeLetters}) | heading | caption `dispensing_safedon.heading`<br>title `dispensing_safedon`<br>`dispensing_safedon.codeLetter` |  |
 | Page 3 > Glove Dispensing Inspection | Size |  | size | template `sizes` | Two sizes share a block row, the 13 box columns split between them; the app shows one block per size. |
-| Page 3 > Glove Dispensing Inspection | Box # | Box # | number | `dispensing_safedon.boxNo`<br>config `dispensing_safedon.boxesPerSize` | Typed: the box's own number, not a carton number (rule 7). |
+| Page 3 > Glove Dispensing Inspection | Box # | Box/Carton # | number | `dispensing_safedon.boxNo`<br>config `dispensing_safedon.boxesPerSize` | Box/Carton # in the app: one of the size's sampled carton numbers, typed with them suggested; one not sampled is a warning (rule 7). |
 | Page 3 > Glove Dispensing Inspection | Safedon Packing Defects | Safedon Packing Defects | label | `dispensing_safedon.counts`<br>config `dispensing_safedon.defects` |  |
 | Page 3 > Glove Dispensing Inspection | No cuff | No Cuff | number | `dispensing_safedon.counts[no_cuff]` | A count per box. |
 | Page 3 > Glove Dispensing Inspection | Cuff should ideallly be at least 2 cm out | Cuff should ideally be at least 2 cm out | fixed | config `dispensing_safedon.defects[no_cuff]` | Definition of 'No cuff', printed beside the row; the app shows its own wording as the hint. |
@@ -1333,7 +1342,7 @@ module field; `template` a template property; `layout` is drawn by the AI report
 | Page 4 > Packaging Labeling Inspection > Carton Boxes | Wrong / No mfg. date | Wrong / No Mfg. Date | number | `labeling.defects[carton][mfg_date]` |  |
 | Page 4 > Packaging Labeling Inspection > Carton Boxes | Wrong / No expiry date | Wrong / No Expiry Date | number | `labeling.defects[carton][expiry_date]` |  |
 | Page 4 > Packaging Labeling Inspection > Carton Boxes | Wrong artwork print | Wrong Artwork Print | number | `labeling.defects[carton][artwork]` |  |
-| Page 4 > Packaging Labeling Inspection > Carton Boxes | No carton number | No Carton Number | number | `labeling.defects[carton][carton_no]` |  |
+| Page 4 > Packaging Labeling Inspection > Carton Boxes | No carton number | No Box/Carton # | number | `labeling.defects[carton][carton_no]` |  |
 | Page 4 > Packaging Labeling Inspection > Carton Boxes | Total number of defects found | Total Number of Defects Found | computed | `labeling.total[carton]` |  |
 | Page 4 > Packaging Labeling Inspection > Carton Boxes | Disposition - Carton Box (Passed / Failed) | Disposition - Carton Box (Passed / Failed) | computed | `labeling.result[carton]` |  |
 | Page 4 > Conclusion | Conclusion | Conclusion | select | `conclusion.finalResult`<br>caption `conclusion.pass`<br>caption `conclusion.fail` | PASSED / FAILED. |
@@ -1384,7 +1393,7 @@ module field; `template` a template property; `layout` is drawn by the AI report
 | 6. Dispensing Result | Dispensing Result | Glove Packing Check | heading | title `dispensing_packing` |  |
 | 6. Dispensing Result | Size |  | size | template `sizes` | A size per row; the app shows one block per size. |
 | 6. Dispensing Result | No. | Item | computed | caption `dispensing_packing.itemColumn`<br>config `dispensing_packing.boxesPerSize` | Running row number, automatic. 51 blank rows, one per box tested. |
-| 6. Dispensing Result | Box Number | Box # | text | `dispensing_packing.boxNo` | Typed: the box's own number, not a carton number (rule 7). |
+| 6. Dispensing Result | Box Number | Box/Carton # | text | `dispensing_packing.boxNo` | Box/Carton # in the app: one of the size's sampled carton numbers, typed with them suggested; one not sampled is a warning (rule 7). |
 | 6. Dispensing Result | Layering (%) | Layering % | number | `dispensing_packing.layeringPct` |  |
 | 6. Dispensing Result | Dispensing (%) | Dispensing % | number | `dispensing_packing.dispensingPct` |  |
 | 6. Dispensing Result | Stickiness | Stickiness \*\* | text | `dispensing_packing.stickiness`<br>config `dispensing_packing.stickinessCodes` | onsite/EG.md suggests none / slight / severe plus a note; the report's codes A, B, B1, C, D apply (report first, rule 4.2.1). |
@@ -1478,7 +1487,7 @@ module field; `template` a template property; `layout` is drawn by the AI report
 | 5. Visual Inspection | Total Minor | Total Number of "Minor Defects" Found | computed | `visual.total[minor]` |  |
 | 6. Glove Dispensing Inspection | Glove Dispensing Inspection | Glove Dispensing Inspection | heading | title `dispensing_safedon` |  |
 | 6. Glove Dispensing Inspection | Size |  | text | template `sizes` | One per block; 3 identical blocks on the page. |
-| 6. Glove Dispensing Inspection | Box # | Box # | number | `dispensing_safedon.boxNo`<br>config `dispensing_safedon.boxesPerSize` | 13 box columns, the box number written at the top of each; the app allows more. |
+| 6. Glove Dispensing Inspection | Box # | Box/Carton # | number | `dispensing_safedon.boxNo`<br>config `dispensing_safedon.boxesPerSize` | 13 box columns, the box number written at the top of each (Box/Carton # in the app, rule 7); the app allows more. |
 | 6. Glove Dispensing Inspection | Safedon Packing Defects | Safedon Packing Defects | label | `dispensing_safedon.counts`<br>config `dispensing_safedon.defects` |  |
 | 6. Glove Dispensing Inspection | No cuff | No Cuff | number | `dispensing_safedon.counts[no_cuff]` | A count per box. |
 | 6. Glove Dispensing Inspection | Cuff should ideallly be at least 2 cm out | Cuff should ideally be at least 2 cm out | fixed | config `dispensing_safedon.defects[no_cuff]` | Definition of 'No cuff', printed beside the row; the app shows its own wording as the hint. |

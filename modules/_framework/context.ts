@@ -165,7 +165,11 @@ export type InspectionContext = {
   };
   packing: PackingValues;
   sampling: Readonly<Record<string, SamplingValues>>;
-  /** Sampled carton numbers per size, unique, in entry order. Box numbers are no carton numbers and never read them (6.2 rule 7). */
+  /**
+   * Sampled box/carton numbers per size, unique, in entry order: the
+   * suggestions of the box/carton fields in dispensing and labelling, and
+   * what boxNotSampledIssue checks them against (6.2 rule 7).
+   */
   cartons: Readonly<Record<string, readonly number[]>>;
   indicativeWeight: IndicativeWeight | null;
   /**

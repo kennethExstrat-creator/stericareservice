@@ -6,7 +6,7 @@ import { createKitFixture, CUSTOM_GRID, SAFEDON_BOXES, type KitFixture } from ".
  * The capture kit's browser-only behaviour on real module screens
  * (docs/CAPTURE_KIT.md), at the three sizes in playwright.config.ts: what a
  * paste leaves out, said on screen (across a table's foot, never in a
- * cell); a box number field reporting its box
+ * cell); a box/carton number field reporting its box
  * as it takes the focus; Safedon's box switcher at its ends; the focus after a one-off row
  * comes off; the tag lines of documents and loading; and a read-only grid
  * refusing pastes and typing while its keys still move. The rules behind
@@ -250,7 +250,7 @@ test("a pasted row longer than a custom grid lists what did not fit across the t
   await expect(first).toBeFocused();
 });
 
-test("a box number field reports its box as it takes the focus, so photos are tagged with it", async ({
+test("a box/carton number field reports its box as it takes the focus, so photos are tagged with it", async ({
   page,
   context,
   baseURL,
@@ -261,15 +261,16 @@ test("a box number field reports its box as it takes the focus, so photos are ta
   // Something else in focus first: a dispenser box check.
   await frame.getByRole("spinbutton", { name: /Dispenser Box, Size M$/ }).first().focus();
   await expect(nextTags(frame)).toContainText("Dispenser Box");
-  await expect(nextTags(frame)).not.toContainText("Box 253");
+  await expect(nextTags(frame)).not.toContainText("Box/Carton #253");
 
-  // Typed, not picked (BUILD_SPEC 6.2 rule 7): a tapped input takes the focus, on the iPad too.
-  const field = frame.getByRole("textbox", { name: "Box # 1, Carton Box, Size M" });
+  // Typed (BUILD_SPEC 6.2 rule 7): a tapped input takes the focus, on the iPad too. The kit's inspection
+  // has no carton list, so the field is a plain text box with no suggestions.
+  const field = frame.getByRole("textbox", { name: "Box/Carton #, No. 1, Carton Box, Size M" });
   await press(field);
   await expect(field).toBeFocused();
   await expect(field).toHaveAttribute("inputmode", "numeric");
   // The labelling level comes last in the tag line, in the template's words.
-  await expect(nextTags(frame)).toHaveText("New photos are tagged Size M · Box 253 · Carton Box.");
+  await expect(nextTags(frame)).toHaveText("New photos are tagged Size M · Box/Carton #253 · Carton Box.");
   await shot(page, "box-number-focused", field);
 });
 

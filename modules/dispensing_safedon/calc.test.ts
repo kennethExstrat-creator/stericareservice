@@ -174,7 +174,7 @@ describe("dispensing_safedon", () => {
       const output = calcDispensingSafedon(input({ sizes: { XS: { boxes: [...rows, ...boxes(1, {}, 9)] } } }, FIVE));
       expect(output.result.perSize?.XS).toEqual({
         status: "not_done",
-        summary: "5 of 5 boxes tested; Box # missing in No. 2, which has defects counted.",
+        summary: "5 of 5 boxes tested; Box/Carton # missing in No. 2, which has defects counted.",
       });
       expect(output.computed.sizes.XS).toMatchObject({ boxesTested: 5, totalDefects: 0 });
       expect(output.computed.sizes.XS.boxes[1]).toEqual({ boxNo: null, boxDefects: 2, boxRatePct: 1.6 });
@@ -268,16 +268,35 @@ describe("dispensing_safedon", () => {
   });
 
   describe("wrong data", () => {
-    it("takes any box number as typed, in the size's carton list or not: box numbers are not carton numbers (6.2 rule 7)", () => {
+    it("warns about a box/carton number the size's sampled list does not hold, never blocking the rate (6.2 rule 7)", () => {
+      // Kenneth, 13 October 2026: box # and carton # are one number. Boxes 1 to 5; the size sampled 1, 2, 3, 4 and 6.
       const listed = makeTestContext({
         sizes: ["XS"],
         sampling: { XS: makeSampling({ packagingDispensing: 5 }) },
         cartons: { XS: [1, 2, 3, 4, 6] },
       });
       const output = calcDispensingSafedon(input({ sizes: { XS: { boxes: boxes(5) } } }, listed));
-      expect(output.issues).toEqual([]);
+      expect(output.issues).toEqual([
+        {
+          level: "warning",
+          code: "box_not_in_carton_list",
+          message: "Box/Carton #5 is not in XS's sampled box/carton numbers.",
+          size: "XS",
+          path: ["sizes", "XS", "boxes", 4, "boxNo"],
+        },
+      ]);
       expect(output.result.perSize?.XS.status).toBe("pass");
+    });
+
+    it("checks nothing while the size has no sampled list, and takes a number in several boxes without a word", () => {
       expect(calcDispensingSafedon(input({ sizes: { XS: { boxes: boxes(5, {}, 700) } } }, FIVE)).issues).toEqual([]);
+      const listed = makeTestContext({
+        sizes: ["XS"],
+        sampling: { XS: makeSampling({ packagingDispensing: 5 }) },
+        cartons: { XS: [7] },
+      });
+      const same = boxes(5).map((box) => ({ ...box, boxNo: 7 }));
+      expect(calcDispensingSafedon(input({ sizes: { XS: { boxes: same } } }, listed)).issues).toEqual([]);
     });
 
     it("warns about a count under a defect the template does not list, and leaves it out", () => {

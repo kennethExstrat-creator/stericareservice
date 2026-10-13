@@ -43,6 +43,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { readTextDraft, useTabDraft, writeTextDraft } from "@/lib/drafts/tab-draft";
+import { BOX_CARTON_LABEL } from "@/lib/format/box-carton";
 import { IDLE_PHOTO_ACTION, type PhotoActionState } from "@/lib/inspections/photos/messages";
 import { CAPTION_MAX_LENGTH } from "@/lib/inspections/photos/schemas";
 import {
@@ -437,9 +438,9 @@ function EditForm({
 
         {records.has("box") && (
           <Field data-invalid={errors.box ? true : undefined}>
-            {/* Carton sampling tags a carton as its box; dispensing and labelling tag a box number, which is
-                no carton number (BUILD_SPEC 6.2 rule 7; Kenneth, 12 October 2026). */}
-            <FieldLabel htmlFor={`${id}-box`}>{moduleKey === "carton_sampling" ? "Box (Carton Number)" : "Box Number"}</FieldLabel>
+            {/* One number in every module: carton sampling's carton is dispensing's and labelling's box
+                (BUILD_SPEC 6.2 rule 7; Kenneth, 13 October 2026: box # and carton # are one number). */}
+            <FieldLabel htmlFor={`${id}-box`}>{BOX_CARTON_LABEL}</FieldLabel>
             <Input
               id={`${id}-box`}
               name="box"

@@ -296,7 +296,7 @@ function visualData(): VisualData {
   };
 }
 
-/** The packing check per box, the box numbers as typed: box 2336 is in no carton list, and needs not be (6.2 rule 7). */
+/** The packing check per box, the box/carton numbers as typed: box 2336 is in no carton list, a warning (6.2 rule 7). */
 function dispensingPackingData(): DispensingPackingData {
   return {
     sizes: Object.fromEntries(
@@ -316,7 +316,7 @@ function dispensingPackingData(): DispensingPackingData {
   };
 }
 
-/** The boxes the labels were read on, by their box numbers as typed (6.2 rule 7). */
+/** The boxes the labels were read on, by their box/carton numbers as typed, each one sampled for size M (6.2 rule 7). */
 export const LABELING_BOXES = { inner: [686, 1515, 2597], carton: [1324] } as const;
 
 function labelingData(): LabelingData {

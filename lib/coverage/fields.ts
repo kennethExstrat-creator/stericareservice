@@ -34,8 +34,8 @@ export const VALIDATION_RULES: Readonly<Record<RuleNumber, string>> = {
   3: "Counts never turn into dates; dates use date pickers.",
   4: "Sizes not in order_lots appear in no module.",
   5: "A module with missing data shows Not Done, never Passed.",
-  6: "Carton numbers are unique per size, from 1 to the order quantity, as many as the sampled cases.",
-  7: "Box numbers in dispensing_packing, dispensing_safedon and labeling are typed by the inspector: not carton numbers, never checked against the carton list.",
+  6: "Box/carton numbers are unique per size, from 1 to the order quantity, as many as the sampled cases.",
+  7: "Box/carton numbers in dispensing_packing, dispensing_safedon and labeling are the size's sampled ones: typed, with those suggested; one the size's list does not hold is a warning, never a block.",
   8: "The sample size sets the code letter and limits; a plan that does not match the sample size cannot be saved.",
   9: "Measured weight more than the threshold away from the indicative weight raises a warning.",
   10: "Client, product code and PO are entered once in header and reused everywhere, the export included.",
@@ -436,7 +436,7 @@ const samplingPlan = defineModule({
       per: ["size"],
       entry: "entered",
       rules: [1, 6],
-      notes: "carton_sampling must list exactly this many carton numbers (rule 6).",
+      notes: "carton_sampling must list exactly this many box/carton numbers (rule 6).",
     },
     {
       key: "innerUnits",
@@ -614,20 +614,20 @@ const cartonSampling = defineModule({
   key: "carton_sampling",
   kind: "report",
   alwaysOn: false,
-  title: "Finished Goods Sampling Information (Carton Number)",
-  captures: "Per size: the sampled carton numbers.",
+  title: "Finished Goods Sampling Information (Box/Carton #)",
+  captures: "Per size: the sampled box/carton numbers.",
   result: "fail on a validation error (rule 6); pass when every ordered size has its full, valid list; not_done before.",
   rules: [1, 2, 4, 6],
   data: [
     {
       key: "cartonNumbers",
-      label: "(Carton #)",
+      label: "(Box/Carton #)",
       type: "integer_list",
       per: ["size"],
       entry: "entered",
       rules: [1, 6],
       notes:
-        "Unique per size, each from 1 to order_lots.qtyCases, as many as sampling_plan.cases (rule 6). The report grid holds 50 (10 columns × 5 rows); the app takes as many as were sampled. Box numbers in dispensing and labeling are not carton numbers and never read this list (rule 7).",
+        "Unique per size, each from 1 to order_lots.qtyCases, as many as sampling_plan.cases (rule 6). The report grid holds 50 (10 columns × 5 rows); the app takes as many as were sampled. Dispensing and labeling suggest this list's numbers for their box/carton numbers and warn about one it does not hold (rule 7).",
     },
     {
       key: "samplingQuantity",
@@ -641,7 +641,7 @@ const cartonSampling = defineModule({
     },
   ],
   config: [],
-  labels: [{ key: "sizeCaption", label: "{size} (Carton #)", meaning: "Caption of each size's grid." }],
+  labels: [{ key: "sizeCaption", label: "{size} (Box/Carton #)", meaning: "Caption of each size's grid." }],
 });
 
 const dimensions = defineModule({
@@ -1288,19 +1288,19 @@ const dispensingPacking = defineModule({
   kind: "report",
   alwaysOn: false,
   title: "Glove Packing Check",
-  captures: "Per size, per box (its box number typed): layering %, dispensing %, stickiness code, note.",
+  captures: "Per size, per box (its box/carton number typed): layering %, dispensing %, stickiness code, note.",
   result:
     "Per size: layering and dispensing averages against the minimums; any box with a failing stickiness code fails. not_done until the size's boxes are entered.",
   rules: [1, 2, 4, 5, 7],
   data: [
     {
       key: "boxNo",
-      label: "Box #",
+      label: "Box/Carton #",
       type: "integer",
       per: ["size", "box"],
       entry: "entered",
       rules: [7],
-      notes: "Typed on the numeric keypad: the box's own number, not a carton number, never checked against the carton list (rule 7; Kenneth, 12 October 2026).",
+      notes: "Typed on the numeric keypad, the size's sampled box/carton numbers (carton_sampling) suggested as it is typed; one the size's list does not hold is a warning, never a block (rule 7; Kenneth, 13 October 2026).",
     },
     {
       key: "layeringPct",
@@ -1441,18 +1441,18 @@ const dispensingSafedon = defineModule({
   alwaysOn: false,
   title: "Glove Dispensing Inspection",
   captures:
-    "Per size, per box (its box number typed): counts of the six Safedon dispensing defects. Per box defects, gloves and rate; per size total and rate.",
+    "Per size, per box (its box/carton number typed): counts of the six Safedon dispensing defects. Per box defects, gloves and rate; per size total and rate.",
   result: "Per size: the defect rate against config maxRatePct. not_done until the size's boxes are entered.",
   rules: [1, 2, 4, 5, 7],
   data: [
     {
       key: "boxNo",
-      label: "Box #",
+      label: "Box/Carton #",
       type: "integer",
       per: ["size", "box"],
       entry: "entered",
       rules: [7],
-      notes: "Typed on the numeric keypad: the box's own number, not a carton number, never checked against the carton list (rule 7; Kenneth, 12 October 2026). Messages name a box by its No. in the box list.",
+      notes: "Typed on the numeric keypad, the size's sampled box/carton numbers (carton_sampling) suggested as it is typed; one the size's list does not hold is a warning, never a block (rule 7; Kenneth, 13 October 2026). Messages name a box by its No. in the box list.",
     },
     {
       key: "counts",
@@ -1500,7 +1500,7 @@ const dispensingSafedon = defineModule({
       countOf: "boxes",
       per: ["size"],
       entry: "computed",
-      formula: "Boxes with a box number (onsite/SAFEDON_EG.md, mapping to the core).",
+      formula: "Boxes with a box/carton number (onsite/SAFEDON_EG.md, mapping to the core).",
       rules: [2],
     },
     {
@@ -1592,7 +1592,7 @@ const labeling = defineModule({
   alwaysOn: false,
   title: "Packaging Labeling Inspection",
   groups: ["inner", "carton"],
-  captures: "Per size, per level (inner unit, carton): boxes inspected, their box numbers typed, and defects per check.",
+  captures: "Per size, per level (inner unit, carton): boxes inspected, their box/carton numbers typed, and defects per check.",
   result: "Per size and level: any defect fails (Accept 0 / Reject 1). not_done until inspected is entered.",
   rules: [1, 2, 4, 5, 7],
   data: [
@@ -1608,12 +1608,12 @@ const labeling = defineModule({
     },
     {
       key: "boxNos",
-      label: "Box #",
+      label: "Box/Carton #",
       type: "integer_list",
       per: ["size", "level"],
       entry: "entered",
       rules: [7],
-      addition: "The box numbers of the boxes inspected, typed: not carton numbers, never checked against the carton list (rule 6.2.7); the reports print only how many were inspected.",
+      addition: "The box/carton numbers of the boxes inspected, typed with the size's sampled box/carton numbers suggested; one the size's list does not hold is a warning (rule 6.2.7; Kenneth, 13 October 2026). The reports print only how many were inspected.",
     },
     {
       key: "defects",

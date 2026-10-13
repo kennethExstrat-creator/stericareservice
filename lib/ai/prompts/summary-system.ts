@@ -56,7 +56,7 @@ Wording
 - Write abbreviations and shortforms in full.
 - Write in the language the writing style names. Section titles, defect names and the conclusion words stay as the report prints them.
 - Never mention the software, the app, Steri-AI, AI, JSON, field names, internal codes, statuses written as code (not_done), photo ids, links or email addresses. Never say that the text was generated.
-- Leave out record-keeping points that do not describe the goods, such as defect labels still to be mapped or duplicate carton numbers. If the inspector must act on one, put it in notes.
+- Leave out record-keeping points that do not describe the goods, such as defect labels still to be mapped or duplicate box/carton numbers. If the inspector must act on one, put it in notes.
 - No title, greeting or sign-off: the report has its own. No emoji, decorative symbols or markup beyond the bold described under Your answer.
 
 Polishing

@@ -143,6 +143,7 @@ import type { CaptureServerState } from "../actions";
 import { draftInspectionSummary } from "../summary-actions";
 import { CaptureHeader, type CaptureHeading } from "./capture-header";
 import { captureNotices, CaptureNotices } from "./capture-notices";
+import { clickLeavesField } from "./click-leaves-field";
 import { ConflictDialog } from "./conflict-dialog";
 import { IssuesSheet } from "./issues-sheet";
 import { leaveAnswer } from "./leave-answer";
@@ -454,16 +455,16 @@ export function CaptureScreen({
   // The same for every click outside the open page, before the click does
   // its work: a link that leaves the screen (the shell's menu too), Submit,
   // Issues. Inside the page a click is the forms' own business, unless it
-  // follows a link.
+  // follows a link, and so is a click in the popup the field controls, such
+  // as a box/carton number's suggestions (click-leaves-field.ts).
   useEffect(() => {
     const onClick = (event: MouseEvent) => {
       const panel = document.getElementById(panelId);
       const field = document.activeElement;
-      if (!panel || !(field instanceof HTMLElement) || !panel.contains(field)) return;
-      const target = event.target;
-      const inside = target instanceof Node && panel.contains(target);
+      if (!panel || !(field instanceof HTMLElement)) return;
+      const target = event.target instanceof Node ? event.target : null;
       const followsLink = target instanceof Element && target.closest("a[href]") !== null;
-      if (inside && !followsLink) return;
+      if (!clickLeavesField({ panel, field, target, followsLink, byId: (id) => document.getElementById(id) })) return;
       field.blur();
     };
     document.addEventListener("click", onClick, true);
@@ -562,8 +563,8 @@ export function CaptureScreen({
 
   // When the inspector last pressed or typed anything. An issue link's
   // fallback below never takes focus from what they did after the link, such
-  // as a box list opened on the cell it found (a portal outside the panel,
-  // which would close).
+  // as a box/carton number's suggestions opened under the field it found (a
+  // portal outside the panel, which would close).
   const lastInputAt = useRef(0);
   useEffect(() => {
     const note = () => {

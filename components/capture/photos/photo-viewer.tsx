@@ -16,7 +16,7 @@ export interface ViewerPhoto {
   alt: string;
   /** The full photo, else its preview. Null: nothing a browser can show (an unconverted HEIC). Falls back to "No preview" if it does not load. */
   src: string | null;
-  /** "Dimensions · Size M · Box 253". */
+  /** "Packing Check · Size M · Box/Carton #253". */
   tagLine: string;
   caption: string | null;
   takenAt: string | null;

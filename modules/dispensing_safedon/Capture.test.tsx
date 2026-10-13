@@ -100,7 +100,7 @@ const count = (html: string, text: string) => html.split(text).length - 1;
 const listTable = (html: string) => /<table[\s\S]*?<\/table>/.exec(html)?.[0] ?? "";
 /** The box list's rows, each marked with its box's path. */
 const listRows = (html: string) => Array.from(listTable(html).matchAll(/<tr data-issue-path[\s\S]*?<\/tr>/g), (match) => match[0]);
-/** A row's cells: No., Box #, Defects / Gloves per Pack, Delete. */
+/** A row's cells: No., Box/Carton #, Defects / Gloves per Pack, Delete. */
 const cells = (row: string) => Array.from(row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g), (match) => match[1]);
 /** The counts' table. */
 const counterTable = (html: string) => /<div[^>]*data-slot="counter-table"[^>]*>[\s\S]*?<\/table>/.exec(html)?.[0] ?? "";
@@ -117,21 +117,22 @@ describe("dispensing_safedon capture", () => {
     expect(html).toContain(heading.replace("&", "&amp;"));
   });
 
-  it("lists the boxes as a table, a row per planned box, holding the box numbers as typed", () => {
+  it("lists the boxes as a table, a row per planned box, holding the box/carton numbers as typed", () => {
     const html = render();
     const list = listTable(html);
     // The list comes first; named as the grid of boxes it replaces was.
     expect(html.indexOf(list)).toBeLessThan(html.indexOf('data-slot="counter-table"'));
-    expect(list).toContain('<caption class="sr-only">Box #, Size XS</caption>');
+    expect(list).toContain('<caption class="sr-only">Box/Carton #, Size XS</caption>');
     const headers = Array.from(list.matchAll(/<th[^>]*scope="col"[^>]*>([\s\S]*?)<\/th>/g), (match) => match[1]);
-    expect(headers).toEqual(["No.", "Box #", "Defects / Gloves per Pack", '<span class="sr-only">Delete</span>']);
+    expect(headers).toEqual(["No.", "Box/Carton #", "Defects / Gloves per Pack", '<span class="sr-only">Delete</span>']);
     const rows = listRows(html);
     expect(rows).toHaveLength(5);
-    // Typed on the numeric keypad, one field a row, named by the row's No.
-    const fields = Array.from(list.matchAll(/<input[^>]*aria-label="Box #, No. \d+"[^>]*>/g), (match) => match[0]);
+    // Typed on the numeric keypad, one field a row, named by the row's No., the size's sampled numbers suggested.
+    const fields = Array.from(list.matchAll(/<input[^>]*aria-label="Box\/Carton #, No. \d+"[^>]*>/g), (match) => match[0]);
     expect(fields).toHaveLength(5);
     expect(fields.map((field) => /value="([^"]*)"/.exec(field)?.[1])).toEqual(EXAMPLE.perSize.XS!.boxes.map(String));
     for (const field of fields) expect(field).toContain('inputMode="numeric"');
+    for (const field of fields) expect(field).toContain('role="combobox"');
     expect(list).toContain('data-issue-path="[&quot;sizes&quot;,&quot;XS&quot;,&quot;boxes&quot;,4,&quot;boxNo&quot;]"');
     // Each box as a whole too, on its row, for links to a box without a cell of their own.
     rows.forEach((row, index) =>
@@ -145,7 +146,7 @@ describe("dispensing_safedon capture", () => {
 
   it("offers Delete on a box holding something, never on the plan's blank rows", () => {
     const html = render();
-    expect(html).toContain('aria-label="Delete Box 33"');
+    expect(html).toContain('aria-label="Delete Box/Carton #33"');
     expect(count(listTable(html), "data-remove")).toBe(5);
     const data = safedonData();
     // Three of the five planned boxes, two of the plan's blanks (saved, as box 12 comes after them),
@@ -155,9 +156,9 @@ describe("dispensing_safedon capture", () => {
     const rows = listRows(partial);
     expect(rows).toHaveLength(7);
     expect(rows.map((row) => row.includes("data-remove"))).toEqual([true, true, true, false, false, true, true]);
-    // A row without a box number is named by its No.
+    // A row without a box/carton number is named by its No.
     expect(rows[5]).toContain('aria-label="Delete No. 6"');
-    expect(rows[6]).toContain('aria-label="Delete Box 12"');
+    expect(rows[6]).toContain('aria-label="Delete Box/Carton #12"');
     // A blank row has no figure yet: a dash, read as No value. A box typed with no taps has 0.
     expect(cells(rows[3])[2]).toContain("—");
     expect(cells(rows[3])[2]).toContain("No value");
@@ -169,7 +170,7 @@ describe("dispensing_safedon capture", () => {
     const boxes = Array.from({ length: 20 }, (_, index) => ({ boxNo: listed[index % listed.length], counts: {} }));
     const html = render({ data: { sizes: { ...safedonData().sizes, XS: { boxes } } } });
     expect(listRows(html)).toHaveLength(10);
-    const nav = /<nav[^>]*aria-label="Box #, Size XS: pages"[^>]*>[\s\S]*?<\/nav>/.exec(html)?.[0] ?? "";
+    const nav = /<nav[^>]*aria-label="Box\/Carton #, Size XS: pages"[^>]*>[\s\S]*?<\/nav>/.exec(html)?.[0] ?? "";
     expect(nav).toContain("1–10 of 20");
     const page = (number: number) => new RegExp(`<button[^>]*aria-label="Page ${number}"[^>]*>`).exec(nav)?.[0] ?? "";
     expect(page(1)).toContain('aria-current="page"');
@@ -179,7 +180,7 @@ describe("dispensing_safedon capture", () => {
     // The counts show all 20 boxes: one column each.
     expect(count(counterTable(html), 'aria-label="Increase No Cuff, ')).toBe(20);
     // Five boxes fit one page: no page buttons.
-    expect(render()).toContain("<caption class=\"sr-only\">Box #, Size XS</caption>");
+    expect(render()).toContain("<caption class=\"sr-only\">Box/Carton #, Size XS</caption>");
     expect(render()).not.toContain(": pages");
   });
 
@@ -192,21 +193,25 @@ describe("dispensing_safedon capture", () => {
     const html = render({ data: { sizes: {} }, context });
     expect(html).toContain("No boxes are planned for this size.");
     expect(html).toContain("Add Box");
-    expect(html).not.toContain("<caption class=\"sr-only\">Box #, Size XS</caption>");
-    expect(html).not.toContain('aria-label="Box #, No.');
+    expect(html).not.toContain("<caption class=\"sr-only\">Box/Carton #, Size XS</caption>");
+    expect(html).not.toContain('aria-label="Box/Carton #, No.');
     expect(render({ data: { sizes: {} }, context, readOnly: true })).not.toContain("Add Box");
   });
 
-  it("takes a box number that is no carton number as typed, and says nothing about the carton list (6.2 rule 7)", () => {
+  it("stores a box/carton number the size did not sample as typed, amber, with calc's warning linked below (6.2 rule 7)", () => {
     const data = safedonData();
     const stray = Math.max(...cartonList(SAFEDON_EG_EXAMPLE.cartons.XS!)) + 1;
     const boxes = data.sizes.XS.boxes.map((box, index) => (index === 1 ? { ...box, boxNo: stray } : box));
     const html = render({ data: { sizes: { ...data.sizes, XS: { boxes } } } });
-    const field = (number: number) => new RegExp(`<input[^>]*aria-label="Box #, No. ${number}"[^>]*>`).exec(html)?.[0] ?? "";
+    const field = (number: number) => new RegExp(`<input[^>]*aria-label="Box/Carton #, No. ${number}"[^>]*>`).exec(html)?.[0] ?? "";
     expect(field(2)).toContain(`value="${stray}"`);
     expect(field(2)).not.toContain('aria-invalid="true"');
-    expect(html).not.toContain("carton list");
-    expect(html).not.toContain('data-slot="box-issues"');
+    expect(field(2)).toContain("bg-warn-tint");
+    const list = /<ul[^>]*data-slot="box-issues"[^>]*>[\s\S]*?<\/ul>/.exec(html)?.[0] ?? "";
+    expect(list).toContain(`Box/Carton #${stray} is not in XS&#x27;s sampled box/carton numbers.`);
+    expect(list).toContain("text-warn");
+    expect(count(list, "<button")).toBe(1);
+    // A warning never decides the size's result.
     expect(html).toContain('data-outcome="pass"');
   });
 
@@ -221,7 +226,7 @@ describe("dispensing_safedon capture", () => {
     expect(count(list, "<button")).toBe(1);
     expect(list).toContain("touch:min-h-11");
     // Under the table and Add Box, above the counts.
-    expect(html.indexOf('data-slot="box-issues"')).toBeGreaterThan(html.indexOf('aria-label="Box #, No. 5"'));
+    expect(html.indexOf('data-slot="box-issues"')).toBeGreaterThan(html.indexOf('aria-label="Box/Carton #, No. 5"'));
     expect(html.indexOf('data-slot="box-issues"')).toBeGreaterThan(html.indexOf("Add Box"));
     expect(html.indexOf('data-slot="box-issues"')).toBeLessThan(html.indexOf('data-slot="counter-table"'));
     expect(render()).not.toContain('data-slot="box-issues"');
@@ -245,7 +250,7 @@ describe("dispensing_safedon capture", () => {
     expect(column(1)).toContain('aria-pressed="true"');
     expect(column(2)).toContain('aria-pressed="false"');
     expect(column(1)).toContain("aria-pressed:bg-primary");
-    // Out of the Tab order: the keyboard chooses a row by its box number; an issue link lands here.
+    // Out of the Tab order: the keyboard chooses a row by its box/carton number; an issue link lands here.
     expect(column(1)).toContain('tabindex="-1"');
     // Outset, as SizeTabs' filled tab: an inset brand-500 ring would vanish on the brand-500
     // fill. The No. cell's 8 px side padding holds the ring inside the list's frame.
@@ -265,7 +270,7 @@ describe("dispensing_safedon capture", () => {
       expect(html).toContain(defect.label);
       expect(html).toContain(defect.hint);
     }
-    expect(html).toContain('aria-label="Increase No Cuff, Box 33"');
+    expect(html).toContain('aria-label="Increase No Cuff, Box/Carton #33"');
     expect(html).toContain(
       'data-issue-path="[&quot;sizes&quot;,&quot;XS&quot;,&quot;boxes&quot;,4,&quot;counts&quot;,&quot;no_cuff&quot;]"',
     );
@@ -316,8 +321,8 @@ describe("dispensing_safedon capture", () => {
     const html = render({ readOnly: true });
     expect(html).not.toContain("Add Box");
     expect(html).not.toContain('role="spinbutton"');
-    // The box numbers as read-only fields: still reached by the keyboard and issue links, never typed in.
-    expect(/<input[^>]*aria-label="Box #, No. 1"[^>]*>/.exec(html)?.[0]).toContain("readOnly");
+    // The box/carton numbers as read-only fields: still reached by the keyboard and issue links, never typed in.
+    expect(/<input[^>]*aria-label="Box\/Carton #, No. 1"[^>]*>/.exec(html)?.[0]).toContain("readOnly");
     // No Delete: its heading and buttons go; the last column stays as an empty spacer, so the
     // defects figure still sits beside the box number.
     expect(html).not.toContain('<span class="sr-only">Delete</span>');

@@ -1,15 +1,18 @@
 // Result per ordered size (BUILD_SPEC 6.1 dispensing_safedon): the size's
 // defect rate, every defect of every box tested over the gloves dispensed,
 // against the template's maximum (a rate equal to it passes). A box is tested
-// once it has a box number (onsite/SAFEDON_EG.md, mapping to the core). Not
+// once it has a box/carton number (onsite/SAFEDON_EG.md, mapping to the core). Not
 // done until the planned boxes are tested (6.2 rule 5): the sampling plan's
-// inner units for dispensing, else the template's boxes per size. A box
-// number is the inspector's own and is never checked against the carton list
-// (rule 7). Messages name a box by its No. in the box list.
+// inner units for dispensing, else the template's boxes per size. A
+// box/carton number the size's sampled list does not hold is a warning on its
+// field, never a block and never the rate (rule 7; Kenneth, 13 October 2026);
+// with no sampled list for the size yet, nothing is checked. Messages name a
+// box by its No. in the box list.
 import { codeLetterForSampleSize } from "@/lib/aql";
 import type { PerSizeResult } from "@/lib/schemas/module-result";
 import { formatDecimal, roundTo } from "@/lib/stats";
 import {
+  boxNotSampledIssue,
   labelFor,
   perSizeResults,
   resultFromSizes,
@@ -47,7 +50,7 @@ export type SafedonBoxComputed = {
 export type SafedonSizeComputed = {
   /** Box columns planned: the sampling plan's inner units for dispensing, else config.boxesPerSize. */
   boxesExpected: number;
-  /** Boxes with a box number. */
+  /** Boxes with a box/carton number. */
   boxesTested: number;
   /** Boxes tested with any defect. */
   boxesFailed: number;
@@ -167,6 +170,8 @@ function evaluateSize(size: string, boxes: readonly SafedonBox[], { config, labe
     total += defects;
     if (defects > 0) failed += 1;
     for (const code of codes) defectCounts[code] += countOf(entry, code);
+    const unsampled = boxNotSampledIssue(context, size, entry.boxNo, ["sizes", size, "boxes", index, "boxNo"]);
+    if (unsampled) issues.push(unsampled);
   }
 
   const planned = plannedBoxes(context, config, size);

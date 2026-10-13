@@ -103,14 +103,23 @@ describe("dispensing_packing", () => {
       });
     });
 
-    it("takes box 2336 as typed, though no carton has that number: no error, the size passes (6.2 rule 7)", () => {
+    it("stores box 2336 as typed and warns, since size M's carton list does not hold it; the size still passes (6.2 rule 7)", () => {
       const data = stdEgData();
       expect(data.sizes.M.boxes[stray.item - 1].boxNo).toBe(stray.box);
       expect(stdEgContext().cartons.M).not.toContain(stray.box);
       const output = calcDispensingPacking(input(data, stdEgContext()));
-      expect(stray.validation).toBe("none");
+      expect(stray.validation).toBe("warning");
       expect(STD_EG_EXPECTED.errors.filter((issue) => issue.module === "dispensing_packing")).toEqual([]);
-      expect(output.issues).toEqual([]);
+      const [warning] = STD_EG_EXPECTED.warnings.filter((issue) => issue.module === "dispensing_packing");
+      expect(output.issues).toEqual([
+        {
+          level: "warning",
+          code: warning.code,
+          message: warning.message,
+          size: "M",
+          path: ["sizes", "M", "boxes", stray.item - 1, "boxNo"],
+        },
+      ]);
       expect(output.result.status).toBe("pass");
     });
 
@@ -315,17 +324,37 @@ describe("dispensing_packing", () => {
       expect(output.result.perSize?.M.status).toBe("not_done");
     });
 
-    it("never checks a box number against the carton list, with or without one", () => {
+    it("warns about a box/carton number the size's sampled list does not hold, and never blocks or fails (6.2 rule 7)", () => {
+      // Boxes 900 to 912; the size sampled 900 to 911 (Kenneth, 13 October 2026: box # and carton # are one number).
       const rows = boxes(13, {}, 900);
-      expect(calcDispensingPacking(input({ sizes: { M: { boxes: rows } } }, M_ONLY)).issues).toEqual([]);
       const listed = makeTestContext({ sizes: ["M"], cartons: { M: [900, 901, 902, 903, 904, 905, 906, 907, 908, 909, 910, 911] } });
       const output = calcDispensingPacking(input({ sizes: { M: { boxes: rows } } }, listed));
-      expect(output.issues).toEqual([]);
+      expect(output.issues).toEqual([
+        {
+          level: "warning",
+          code: "box_not_in_carton_list",
+          message: "Box/Carton #912 is not in M's sampled box/carton numbers.",
+          size: "M",
+          path: ["sizes", "M", "boxes", 12, "boxNo"],
+        },
+      ]);
       expect(output.result.perSize?.M.status).toBe("pass");
     });
 
-    it("takes the same box number in two rows as typed", () => {
-      const output = calcDispensingPacking(input({ sizes: { M: { boxes: boxes(13, { boxNo: 5 }) } } }, M_ONLY));
+    it("checks nothing while the size has no sampled list (carton sampling off or not filled in)", () => {
+      const output = calcDispensingPacking(input({ sizes: { M: { boxes: boxes(13, {}, 900) } } }, M_ONLY));
+      expect(output.issues).toEqual([]);
+      expect(output.result.perSize?.M.status).toBe("pass");
+      // Another size's list is not this size's.
+      const other = makeTestContext({ sizes: ["S", "M"], cartons: { S: [900] } });
+      expect(calcDispensingPacking(input({ sizes: { M: { boxes: boxes(13, {}, 900) } } }, other)).issues).toEqual([]);
+    });
+
+    it("takes the same box/carton number in several rows without a word: one carton supplies several inner boxes", () => {
+      const rows = boxes(13, { boxNo: 5 });
+      expect(calcDispensingPacking(input({ sizes: { M: { boxes: rows } } }, M_ONLY)).issues).toEqual([]);
+      const listed = makeTestContext({ sizes: ["M"], cartons: { M: [5, 6] } });
+      const output = calcDispensingPacking(input({ sizes: { M: { boxes: rows } } }, listed));
       expect(output.issues).toEqual([]);
       expect(output.result.perSize?.M.status).toBe("pass");
     });
@@ -358,7 +387,7 @@ describe("dispensing_packing", () => {
     const evaluate = (data: Record<string, unknown>, context: InspectionContext) =>
       evaluateInspection({ template, data: { modules: { dispensing_packing: data }, custom: {} }, context }, MODULE_REGISTRY);
 
-    it("drops sizes not in the order with a warning, keeps their data, and takes box 2336 as typed", () => {
+    it("drops sizes not in the order with a warning, keeps their data, and warns about box 2336, never an error", () => {
       const data = { ...stdEgData(), comment: "Item 12 is box 2336." } as Record<string, unknown>;
       (data.sizes as Record<string, unknown>).XL = { boxes: boxes(5) };
       const evaluation = evaluate(data, stdEgContext());
@@ -366,7 +395,10 @@ describe("dispensing_packing", () => {
       expect(own.result).toMatchObject({ status: "pass", perSize: { M: { status: "pass" } } });
       expect(Object.keys(own.result.perSize ?? {})).toEqual(["M"]);
       expect(own.comment).toBe("Item 12 is box 2336.");
-      expect(own.issues.map(({ level, code, size }) => [level, code, size])).toEqual([["warning", "size_not_ordered", "XL"]]);
+      expect(own.issues.map(({ level, code, size }) => [level, code, size])).toEqual([
+        ["warning", "size_not_ordered", "XL"],
+        ["warning", "box_not_in_carton_list", "M"],
+      ]);
       expect(evaluation.issues.filter((issue) => issue.moduleKey === "dispensing_packing" && issue.level === "error")).toEqual([]);
     });
 

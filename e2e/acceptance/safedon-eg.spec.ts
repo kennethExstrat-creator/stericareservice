@@ -526,7 +526,7 @@ test("Glove dispensing: rates per box from the counts (XS 0.008 and 0.016), tota
     // Each box in turn: its defects over the 125 gloves of the pack, and the rate as the report writes it.
     for (const [index, box] of expected.boxes.entries()) {
       await press(section.getByRole("button", { name: `Count Column ${index + 1}`, exact: true }));
-      await expect(section.getByText(`Box # ${box.box} · ${index + 1} / ${expected.boxes.length}`)).toBeVisible();
+      await expect(section.getByText(`Box/Carton #${box.box} · ${index + 1} / ${expected.boxes.length}`)).toBeVisible();
       await expect(row(section, `Total ${box.defects}`)).toBeVisible();
       await expect(row(section, `Defects / Gloves per Pack ${box.defects}/125`)).toBeVisible();
       await expect(row(section, `Defect Rate ${box.rate.toFixed(3)}`)).toBeVisible();
@@ -539,7 +539,8 @@ test("Glove dispensing: rates per box from the counts (XS 0.008 and 0.016), tota
     await expect(requirement).toContainText("Passed");
     await expect(requirement).toContainText(`Boxes Tested: ${expected.boxes.length} / ${expected.boxes.length}`, { ignoreCase: true });
   }
-  await expectTouchTarget(section.getByRole("textbox", { name: "Box #, No. 1", exact: true }));
+  // A combobox once the size's cartons are in, suggesting them (BUILD_SPEC 6.2 rule 7): found by its name.
+  await expectTouchTarget(section.getByLabel("Box/Carton #, No. 1", { exact: true }));
   await expectStoredModule(admin, inspectionId!, "dispensing_safedon", EXPECTED_DATA.dispensing_safedon);
 });
 
@@ -596,7 +597,7 @@ test("nothing typed is lost on a reload, and only the sampling warnings are pend
   await openSection(page, "dispensing_safedon");
   await showSize(page, "XS");
   await press(frame(page, "dispensing_safedon").getByRole("button", { name: "Count Column 5", exact: true }));
-  await expect(frame(page, "dispensing_safedon").getByRole("spinbutton", { name: named("No Cuff, Box 33") })).toHaveAttribute("aria-valuenow", "2");
+  await expect(frame(page, "dispensing_safedon").getByRole("spinbutton", { name: named("No Cuff, Box/Carton #33") })).toHaveAttribute("aria-valuenow", "2");
 
   // Every section of the report has its result; the two onsite-form extras stay empty. A tab names
   // its page's result: packing configuration has no tab of its own (the order's tab holds it).

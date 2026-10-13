@@ -22,7 +22,7 @@ export function formatCodeLetters(letters: Iterable<string | null | undefined>, 
 
 /**
  * A column heading's words for a sentence: "Layering %" is "Layering",
- * "Stickiness **" is "Stickiness", "Box #" is "Box", "Others:" is "Others".
+ * "Stickiness **" is "Stickiness", "Box/Carton #" is "Box/Carton", "Others:" is "Others".
  * A heading that is only marks stays as it is.
  */
 export function plainLabel(label: string): string {

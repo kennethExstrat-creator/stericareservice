@@ -987,7 +987,7 @@ test("the list finds an inspection by a carton number it sampled (S1; BUILD_SPEC
   try {
     for (const carton of ["7311", "7312"]) {
       await desk.page.goto(`/inspections?q=${carton}`);
-      await expect(desk.page.getByPlaceholder("Ref, PO, lot or carton")).toHaveValue(carton);
+      await expect(desk.page.getByPlaceholder("Ref, PO, lot or box/carton #")).toHaveValue(carton);
       await expect(desk.page.locator(`tbody tr[data-ref="${draft.refNo}"]`), `carton ${carton}`).toBeVisible();
     }
     await desk.page.screenshot({ path: `${SHOTS}/s1-carton-search.png` });

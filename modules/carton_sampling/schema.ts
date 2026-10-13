@@ -30,7 +30,7 @@ export function emptyCartonSampling(): CartonSamplingData {
   return CartonSamplingDataSchema.parse({});
 }
 
-/** The carton numbers entered, empty rows left out, in row order. */
+/** The box/carton numbers entered, empty rows left out, in row order. */
 export function enteredCartons(row: CartonSize | undefined): number[] {
   return (row?.cartonNumbers ?? []).filter((carton): carton is number => carton !== null);
 }
