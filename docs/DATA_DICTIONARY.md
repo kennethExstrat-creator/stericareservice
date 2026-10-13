@@ -748,7 +748,7 @@ To confirm:
 | 3 | `packing_config` | Packing Mode | inner unit pouch; packing mode text on |
 | 4 | `sampling_plan` | Sampling Plan | columns off: gloves, glovesWeight, innerUnitsDispensing; inspection level none (to confirm) |
 | 5 | `watertight` | Watertight Inspection | AQL 1.5; hand split on; locations: Between Fingers (Crotch) (hole_crotch), Palm (hole_palm), Finger (hole_finger), Cuff (hole_cuff), Other : (hole_other) |
-| 6 | `visual` | Visual Inspection | hand split on; critical AQL 0.0, 2 defects; major AQL 2.5, 11 defects; minor AQL 4.0, 6 defects |
+| 6 | `visual` | Visual Inspection | hand split on; critical AQL 0.0, 2 defects; major AQL 2.5, 9 defects; minor AQL 4.0, 6 defects |
 | 7 | `dimensions` | Dimension | median of 13 gloves; measures length, width, fingerThickness, palmThickness, cuffThickness; decimals length 0, width 0, fingerThickness 2, palmThickness 2, cuffThickness 2; specs none |
 | 8 | `dye_leak` | Dye Leak Test | pouches per size: from the sampling plan |
 | 9 | `conclusion` | Conclusion | none |
@@ -773,7 +773,7 @@ To confirm:
 - `sampling_plan.inspectionLevel`: Not on the form.
 - `watertight.locations`: The form has 7 blank rows: STD_EG's locations until confirmed. AQL 1.5 is the default.
 - `watertight.handSplit`: R and L per size as on the form; tested and the limits per size (the sampling plan has one '# gloves' per size).
-- `visual.classes`: Blank rows on the form: STD_EG's lists and the default AQLs until confirmed. The form has no critical class; it is on as in both reports.
+- `visual.classes`: Blank rows on the form: the STD_EG report's lists and the default AQLs until confirmed, without Skin Visual and Flow Mark (Kenneth's yes of 12 October 2026 covered STD_EG and SAFEDON_EG). The form has no critical class; it is on as in both reports.
 - `dimensions.measures`: Planned only on the form ('# Gloves dimension'): STD_EG's five measures until confirmed.
 - `dimensions.statistic`: Median (EN 455 style) until confirmed.
 - `dimensions.specs`: None yet, so nothing is judged: no SG spec (BUILD_SPEC 13).
@@ -833,7 +833,7 @@ To confirm:
 | minor | Thin Bead | `bead_thin` |  |
 | minor | Thin Bead / Small Beading Defect | `bead_small_defect` |  |
 
-`STD_SG` uses STD_EG's lists until confirmed: the SG form has blank rows.
+`STD_SG` uses the STD_EG report's lists until confirmed, without Skin Visual and Flow Mark (Kenneth's yes of 12 October 2026 covered STD_EG and SAFEDON_EG): the SG form has blank rows.
 
 Severity per template, by code (a code in two classes of one template is a deliberate split):
 

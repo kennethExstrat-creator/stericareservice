@@ -9,7 +9,7 @@ import { moduleSpec, moduleTitle, VALIDATION_RULES } from "./fields";
 import { DEFECT_CLASSES, MEASURES } from "./keys";
 import { diffPaths } from "./merge";
 import { SOURCE_DOCUMENTS, sourceFields } from "./sources";
-import { labelOverrides, seedConfig, TEMPLATES, type TemplateModule, type TemplateSpec } from "./templates";
+import { labelOverrides, samplingColumnSwitches, seedConfig, TEMPLATES, type TemplateModule, type TemplateSpec } from "./templates";
 import {
   isConfigTarget,
   isCustomTarget,
@@ -178,7 +178,7 @@ function configSummary(module: TemplateModule): string {
     case "packing_config":
       return `inner unit ${module.config.innerUnit}; packing mode text ${module.config.fields.packingMode ? "on" : "off"}`;
     case "sampling_plan":
-      return `columns off: ${onOff(module.config.columns, false).join(", ") || "none"}; inspection level ${module.config.inspectionLevel ?? "none (to confirm)"}`;
+      return `columns off: ${onOff(samplingColumnSwitches(module.config.columns), false).join(", ") || "none"}; inspection level ${module.config.inspectionLevel ?? "none (to confirm)"}`;
     case "dimensions": {
       const decimals = module.config.measures.map((measure) => `${measure} ${module.config.decimals[measure]}`).join(", ");
       return `${module.config.statistic} of ${module.config.rows} gloves; measures ${module.config.measures.join(", ")}; decimals ${decimals}; specs ${module.config.specs.length ? `for ${module.config.specs.map((row) => row.size).join(", ")}, below` : "none"}`;
@@ -379,7 +379,7 @@ function renderDefects(): string {
     );
   }
   lines.push(
-    "`STD_SG` uses STD_EG's lists until confirmed: the SG form has blank rows.",
+    "`STD_SG` uses the STD_EG report's lists until confirmed, without Skin Visual and Flow Mark (Kenneth's yes of 12 October 2026 covered STD_EG and SAFEDON_EG): the SG form has blank rows.",
     "",
     "Severity per template, by code (a code in two classes of one template is a deliberate split):",
     "",

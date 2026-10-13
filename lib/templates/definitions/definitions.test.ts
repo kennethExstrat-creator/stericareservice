@@ -10,6 +10,7 @@ import {
   templateModuleKeys,
   TEMPLATE_CODES,
   TEMPLATES,
+  writtenConfig,
   type TemplateCode,
 } from "@/lib/coverage";
 import { ResolvedTemplateSchema, TemplateDefinitionSchema, type ResolvedTemplate } from "@/lib/schemas/template";
@@ -160,8 +161,22 @@ describe("STD_EG and STD_SG are root templates", () => {
     for (const entry of definition.modules) {
       expect(entry.include, entry.key).toBe(true);
       expect(entry.title, entry.key).toBe(moduleTitle(seed.code, entry.key));
-      expect(entry.config ?? {}, entry.key).toEqual(moduleConfig(seed.code, entry.key));
+      expect(entry.config ?? {}, entry.key).toEqual(writtenConfig(seed.code, entry.key));
     }
+  });
+
+  // Kenneth, 12 October 2026: Skin Visual and Flow Mark for STD_EG and SAFEDON_EG only; STD_SG stays version 2.
+  it("keeps STD_SG's definition as its live version 2 has it: no # Gloves for Weight switch, no Skin Visual or Flow Mark", () => {
+    const configOf = (key: string) => STD_SG_SEED.definition().modules.find((entry) => entry.key === key)?.config;
+    expect(configOf("sampling_plan")?.columns).not.toHaveProperty("glovesWeight");
+    const visual = configOf("visual") as { classes: Record<string, { defects: { code: string }[] }> };
+    const codes = Object.values(visual.classes).flatMap((cls) => cls.defects.map((defect) => defect.code));
+    expect(codes).not.toContain("skin_visual");
+    expect(codes).not.toContain("flow_mark");
+    // The module reads the missing switch as off, so STD_SG plans no gloves for weight.
+    const sampling = included(resolved("STD_SG")).find((entry) => entry.key === "sampling_plan");
+    expect(sampling?.config).toMatchObject({ columns: { glovesWeight: false } });
+    expect(moduleConfig("STD_SG", "sampling_plan")?.columns.glovesWeight).toBe(false);
   });
 
   it("STD_SG has no report title until a filled SG report exists: the resolver uses its name", () => {

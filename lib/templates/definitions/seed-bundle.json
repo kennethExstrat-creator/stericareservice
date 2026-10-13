@@ -2656,7 +2656,6 @@
                 "glovesWatertightVisual": true,
                 "glovesDimensions": true,
                 "glovesPhysical": true,
-                "glovesWeight": false,
                 "innerUnitsDispensing": false,
                 "pouches": true,
                 "pouchesDyeLeak": true
@@ -2769,14 +2768,6 @@
                     {
                       "code": "lump_big",
                       "label": "Big Lumps (>2mm)"
-                    },
-                    {
-                      "code": "skin_visual",
-                      "label": "Skin Visual"
-                    },
-                    {
-                      "code": "flow_mark",
-                      "label": "Flow Mark"
                     }
                   ]
                 },
@@ -3158,14 +3149,6 @@
                     {
                       "code": "lump_big",
                       "label": "Big Lumps (>2mm)"
-                    },
-                    {
-                      "code": "skin_visual",
-                      "label": "Skin Visual"
-                    },
-                    {
-                      "code": "flow_mark",
-                      "label": "Flow Mark"
                     }
                   ]
                 },

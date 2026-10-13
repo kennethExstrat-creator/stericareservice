@@ -39,6 +39,7 @@ import {
   GLOVE_INFO_FIELDS,
   HEADER_FIELDS,
   MEASURES,
+  SAMPLING_COLUMNS,
   type DefectClass,
   type DocumentItem,
   type GloveInfoField,
@@ -70,6 +71,23 @@ export type LevelConfig = {
   readonly checks: readonly LabellingCheckLabel[];
 };
 
+/**
+ * The sampling plan's column switches as a template writes them.
+ * glovesWeight may be left out: the module's schema reads a missing switch
+ * as off, as in a template version saved before the row existed. STD_SG
+ * leaves it out, so its definition stays the one its live version 2 has
+ * (Kenneth, 12 October 2026).
+ */
+export type SamplingColumns = Readonly<Record<Exclude<SamplingColumn, "glovesWeight">, boolean>> & {
+  readonly glovesWeight?: boolean;
+};
+
+/** Every column's switch in report order, as the module reads them: a glovesWeight left out is off. */
+export function samplingColumnSwitches(columns: SamplingColumns): Readonly<Record<SamplingColumn, boolean>> {
+  const switches = SAMPLING_COLUMNS.map((column) => [column, columns[column] ?? false] as const);
+  return Object.fromEntries(switches) as Record<SamplingColumn, boolean>;
+}
+
 export type ModuleConfigValues = {
   readonly header: {
     readonly fields: Readonly<Record<HeaderField, boolean>>;
@@ -82,7 +100,7 @@ export type ModuleConfigValues = {
   readonly order_lots: { readonly fields: { readonly packingSite: boolean } };
   readonly packing_config: { readonly innerUnit: InnerUnit; readonly fields: { readonly packingMode: boolean } };
   readonly sampling_plan: {
-    readonly columns: Readonly<Record<SamplingColumn, boolean>>;
+    readonly columns: SamplingColumns;
     readonly inspectionLevel: InspectionLevel | null;
   };
   readonly carton_sampling: EmptyConfig;
@@ -132,6 +150,13 @@ export type ModuleConfigValues = {
     readonly items: readonly { readonly key: DocumentItem; readonly include: boolean; readonly required: boolean }[];
   };
   readonly loading: { readonly fields: Readonly<Record<LoadingField, boolean>> };
+};
+
+/** A module's config as the module reads it (`moduleConfig`): every sampling column switched on or off. */
+export type ReadConfigValues = {
+  readonly [M in ModuleKey]: M extends "sampling_plan"
+    ? Omit<ModuleConfigValues[M], "columns"> & { readonly columns: Readonly<Record<SamplingColumn, boolean>> }
+    : ModuleConfigValues[M];
 };
 
 type KeysMatch<A, B> = [Exclude<A, B>, Exclude<B, A>] extends [never, never] ? true : false;
@@ -599,6 +624,7 @@ const STD_SG: TemplateSpec = {
     {
       key: "sampling_plan",
       config: {
+        // No glovesWeight (no weight module): read as off, and the definition stays version 2's.
         columns: {
           cases: true,
           innerUnits: true,
@@ -606,8 +632,6 @@ const STD_SG: TemplateSpec = {
           glovesWatertightVisual: true,
           glovesDimensions: true,
           glovesPhysical: true,
-          // No weight module.
-          glovesWeight: false,
           innerUnitsDispensing: false,
           pouches: true,
           pouchesDyeLeak: true,
@@ -649,7 +673,7 @@ const STD_SG: TemplateSpec = {
     },
     {
       path: "visual.classes",
-      note: "Blank rows on the form: STD_EG's lists and the default AQLs until confirmed. The form has no critical class; it is on as in both reports.",
+      note: "Blank rows on the form: the STD_EG report's lists and the default AQLs until confirmed, without Skin Visual and Flow Mark (Kenneth's yes of 12 October 2026 covered STD_EG and SAFEDON_EG). The form has no critical class; it is on as in both reports.",
     },
     { path: "dimensions.measures", note: "Planned only on the form ('# Gloves dimension'): STD_EG's five measures until confirmed." },
     { path: "dimensions.statistic", note: "Median (EN 455 style) until confirmed." },
@@ -673,9 +697,25 @@ export function templateModuleKeys(template: TemplateCode): ModuleKey[] {
   return TEMPLATES[template].modules.map((module) => module.key);
 }
 
-export function moduleConfig<M extends ModuleKey>(template: TemplateCode, key: M): ModuleConfigValues[M] | undefined {
+/**
+ * A module's config as the template spec writes it, whole: a sampling plan's
+ * glovesWeight may be left out (`SamplingColumns`). `seedConfig` writes it,
+ * or for a child only what differs from its base.
+ */
+export function writtenConfig<M extends ModuleKey>(template: TemplateCode, key: M): ModuleConfigValues[M] | undefined {
   const found = TEMPLATES[template].modules.find((module) => module.key === key);
   return found?.config as ModuleConfigValues[M] | undefined;
+}
+
+/**
+ * A module's config as the module reads it: what the template writes, with
+ * a sampling plan's glovesWeight left out read as off (`SamplingColumns`).
+ */
+export function moduleConfig<M extends ModuleKey>(template: TemplateCode, key: M): ReadConfigValues[M] | undefined {
+  const written = writtenConfig(template, key);
+  if (written === undefined || key !== "sampling_plan") return written as ReadConfigValues[M] | undefined;
+  const sampling = written as ModuleConfigValues["sampling_plan"];
+  return { ...sampling, columns: samplingColumnSwitches(sampling.columns) } as ReadConfigValues[M];
 }
 
 /** The template a source document seeds (BUILD_SPEC 11, "Built from"). */
@@ -769,10 +809,10 @@ export function labelOverrides(template: TemplateCode, module: ModuleKey): Recor
  * which the framework merges over the base's config.
  */
 export function seedConfig(template: TemplateCode, key: ModuleKey): ConfigObject | undefined {
-  const own = moduleConfig(template, key) as ConfigObject | undefined;
+  const own = writtenConfig(template, key) as ConfigObject | undefined;
   if (own === undefined) return undefined;
   const parent = TEMPLATES[template].extends;
-  const base = parent === null ? undefined : (moduleConfig(parent, key) as ConfigObject | undefined);
+  const base = parent === null ? undefined : (writtenConfig(parent, key) as ConfigObject | undefined);
   return base === undefined ? own : configDiff(base, own);
 }
 

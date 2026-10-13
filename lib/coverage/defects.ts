@@ -37,14 +37,16 @@ const CRITICAL: readonly DefectLabel[] = [
 /**
  * Major defects neither report prints: inspectors write them in the onsite
  * forms' blank Major rows, and they have codes of their own (Kenneth, 12
- * October 2026: "yes"). After the report's rows, in the forms' order.
+ * October 2026: "yes", for STD_EG and SAFEDON_EG). After the report's rows,
+ * in the forms' order.
  */
 const ONSITE_MAJOR: readonly DefectLabel[] = [
   { code: "skin_visual", label: "Skin Visual", written: "SKV" },
   { code: "flow_mark", label: "Flow Mark", written: "FM" },
 ];
 
-const STD_EG_VISUAL: Readonly<Record<DefectClass, readonly DefectLabel[]>> = {
+/** The STD_EG report's lists, in report order: what STD_SG takes until its own are confirmed. */
+const STD_EG_REPORT_VISUAL: Readonly<Record<DefectClass, readonly DefectLabel[]>> = {
   critical: CRITICAL,
   major: [
     { code: "thin_crotch_area", label: "Thin Area Between Fingers (Crotch)" },
@@ -56,7 +58,6 @@ const STD_EG_VISUAL: Readonly<Record<DefectClass, readonly DefectLabel[]>> = {
     { code: "foreign_matter", label: "Residue Material / Foreign Matter" },
     { code: "bead_defective", label: "Defective Bead" },
     { code: "lump_big", label: "Big Lumps (>2mm)" },
-    ...ONSITE_MAJOR,
   ],
   minor: [
     { code: "dirt_small", label: "Small Dirt / Stain" },
@@ -66,6 +67,11 @@ const STD_EG_VISUAL: Readonly<Record<DefectClass, readonly DefectLabel[]>> = {
     { code: "bead_rolled", label: "Rolled Bead" },
     { code: "bead_defective", label: "Defective Beads" },
   ],
+};
+
+const STD_EG_VISUAL: Readonly<Record<DefectClass, readonly DefectLabel[]>> = {
+  ...STD_EG_REPORT_VISUAL,
+  major: [...STD_EG_REPORT_VISUAL.major, ...ONSITE_MAJOR],
 };
 
 const SAFEDON_EG_VISUAL: Readonly<Record<DefectClass, readonly DefectLabel[]>> = {
@@ -91,15 +97,17 @@ const SAFEDON_EG_VISUAL: Readonly<Record<DefectClass, readonly DefectLabel[]>> =
 };
 
 /**
- * Per template and class, in report order, then ONSITE_MAJOR. STD_SG has no
- * list: the SG onsite form has blank rows for handwritten defects and no
- * critical class. Its lists are STD_EG's until confirmed (templates.ts lists
- * it to confirm), ONSITE_MAJOR included.
+ * Per template and class, in report order; STD_EG and SAFEDON_EG then add
+ * ONSITE_MAJOR. STD_SG has no list: the SG onsite form has blank rows for
+ * handwritten defects and no critical class. Its lists are the STD_EG
+ * report's until confirmed (templates.ts lists it to confirm), without
+ * ONSITE_MAJOR: Kenneth's "yes" of 12 October 2026 covered STD_EG and
+ * SAFEDON_EG only, so STD_SG keeps the definition of its live version 2.
  */
 export const VISUAL_DEFECTS: Readonly<Record<TemplateCode, Readonly<Record<DefectClass, readonly DefectLabel[]>>>> = {
   STD_EG: STD_EG_VISUAL,
   SAFEDON_EG: SAFEDON_EG_VISUAL,
-  STD_SG: STD_EG_VISUAL,
+  STD_SG: STD_EG_REPORT_VISUAL,
 };
 
 /* ------------------------------------------------------------------ *

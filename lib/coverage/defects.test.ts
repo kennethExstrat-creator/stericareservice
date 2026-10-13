@@ -119,9 +119,9 @@ describe("visual defect lists", () => {
     expect(find("critical")).toBeUndefined();
   });
 
-  // Kenneth, 12 October 2026: "yes" to codes for what inspectors write SKV and FM.
-  it("lists Skin Visual and Flow Mark last in Major in every template, and in no other class", () => {
-    for (const template of TEMPLATE_CODES) {
+  // Kenneth, 12 October 2026: "yes" to codes for what inspectors write SKV and FM, on STD_EG and SAFEDON_EG.
+  it("lists Skin Visual and Flow Mark last in Major in STD_EG and SAFEDON_EG, and in no other class", () => {
+    for (const template of ["STD_EG", "SAFEDON_EG"] as const) {
       const { critical, major, minor } = VISUAL_DEFECTS[template];
       expect(major.slice(-2), template).toEqual([
         { code: "skin_visual", label: "Skin Visual", written: "SKV" },
@@ -130,6 +130,15 @@ describe("visual defect lists", () => {
       expect(major.slice(0, -2).some((defect) => defect.written !== undefined), template).toBe(false);
       for (const defect of [...critical, ...minor]) expect(["skin_visual", "flow_mark"], template).not.toContain(defect.code);
     }
+  });
+
+  it("gives STD_SG the STD_EG report's lists, without Skin Visual and Flow Mark: its live version 2 stays as published", () => {
+    for (const cls of DEFECT_CLASSES) {
+      const report = VISUAL_DEFECTS.STD_EG[cls].filter((defect) => defect.written === undefined);
+      expect(VISUAL_DEFECTS.STD_SG[cls], cls).toEqual(report);
+    }
+    expect(VISUAL_DEFECTS.STD_SG.major.map((defect) => defect.code)).not.toContain("skin_visual");
+    expect(VISUAL_DEFECTS.STD_SG.major).toHaveLength(9);
   });
 
   it("counts 'Oil Stain' and 'Stain' together under one code", () => {
