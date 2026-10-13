@@ -42,6 +42,7 @@ import { latestBnmRate } from "@/lib/ai/myr-rate";
 import { loadAiPrices, readAiSettingsView, readSummarySettingsView, type SummarySettingsView } from "@/lib/ai/settings";
 import { requireAdmin } from "@/lib/auth/session";
 import { loadSummaryPreviewTargets } from "@/lib/inspections/ai/summary-runner";
+import { costNoteDetails } from "./_components/cost-filters";
 import { aiViewHref, parseAiViewState } from "./_components/view-state";
 import AiSettingsPage, { generateMetadata } from "./page";
 
@@ -135,9 +136,6 @@ const BNM_RATE = { myrPerUsd: 4.0823, on: "2026-10-12", source: "bnm" as const }
 
 /** The admin's own rate ("Use My Own Rate"). */
 const OWN_RATE_PRICES = { ...DEFAULT_AI_PRICES, myrPerUsd: 4.15, myrRateOn: "2026-10-01" };
-
-/** Text as React writes it: an apostrophe is &#x27;. */
-const escaped = (text: string) => text.replaceAll("'", "&#x27;");
 
 /** The words of the rate line under the note. */
 function rateLine(html: string): string | undefined {
@@ -336,10 +334,10 @@ describe("the views", () => {
     expect(chosenView(html, "Currency")).toBe("RM");
     expect(html).toContain("RM 0.66"); // 0.1606 USD at 4.0823
     expect(html).not.toContain("$0.16");
-    expect(html).toContain(
-      escaped("Estimated from token use; Anthropic's bill, in US dollars, is final. Ringgit figures move with the rate. Counted since 1 Oct 2026."),
-    );
-    expect(rateLine(html)).toBe("Converted at RM 4.0823 per US$1 · 12 Oct 2026 · Source: Bank Negara Malaysia");
+    // One short line; what the figures are sits behind the "i" (costNoteDetails, below).
+    expect(html).toContain('data-testid="cost-note-info"');
+    expect(html).not.toContain("Estimated from token use");
+    expect(rateLine(html)).toBe("US$1 = RM 4.0823 · 12 Oct 2026 · Source: Bank Negara Malaysia");
     expect(html).toMatch(/<a href="https:\/\/www\.bnm\.gov\.my\/terms-of-use-bnm-datasets" target="_blank" rel="noopener noreferrer"/);
     expect(html).not.toContain('data-testid="cost-rate-built-in"');
     // The price list stays in dollars, as Anthropic lists them, each price's ringgit beside it.
@@ -359,7 +357,8 @@ describe("the views", () => {
     expect(chosenView(html, "Currency")).toBe("USD");
     expect(html).toContain("$0.16");
     expect(html).not.toContain("RM ");
-    expect(html).toContain(escaped("Estimated from token use; Anthropic's bill is final. Counted since 1 Oct 2026."));
+    expect(html).toContain("Estimated from token use</p>");
+    expect(html).toContain('data-testid="cost-note-info"');
     expect(html).not.toContain('data-testid="cost-rate"');
   });
 
@@ -367,7 +366,7 @@ describe("the views", () => {
     vi.mocked(loadAiPrices).mockResolvedValue(OWN_RATE_PRICES);
     const html = await renderAll({ view: "cost", period: "90", currency: "myr" });
     expect(html).toContain("RM 0.67"); // 0.1606 USD at 4.15
-    expect(rateLine(html)).toBe("Converted at RM 4.15 per US$1 · 1 Oct 2026 · set in the price list");
+    expect(rateLine(html)).toBe("US$1 = RM 4.15 · 1 Oct 2026 · set in the price list");
     expect(html).toMatch(/<a href="#price-list"[^>]*>set in the price list<\/a>/);
     expect(html).toContain("Checked 12 Oct 2026. Own rate: RM 4.15 per US$1 (1 Oct 2026).");
   });
@@ -375,10 +374,8 @@ describe("the views", () => {
   it("converts at the built-in rate while Bank Negara Malaysia has not been read, and says so", async () => {
     vi.mocked(latestBnmRate).mockResolvedValue(null);
     const html = await renderAll({ view: "cost", period: "90", currency: "myr" });
-    expect(rateLine(html)).toBe("Converted at RM 4.086 per US$1 · 13 Oct 2026 · Source: Bank Negara Malaysia");
-    expect(html).toContain(
-      '<p data-testid="cost-rate-built-in">Bank Negara Malaysia could not be reached: this is the rate built into the app.</p>',
-    );
+    expect(rateLine(html)).toBe("US$1 = RM 4.086 · 13 Oct 2026 · built-in rate · Source: Bank Negara Malaysia");
+    expect(html).toContain('<span data-testid="cost-rate-built-in">built-in rate · </span>');
     expect(html).toContain("RM 0.66"); // 0.1606 USD at 4.086
   });
 
@@ -396,5 +393,27 @@ describe("the views", () => {
     const html = await renderAll({ view: "cost" });
     expect(html).toContain("The costs could not be loaded. Reload the page to try again.");
     expect(html).toContain('data-testid="price-list"');
+  });
+});
+
+describe("what the cost figures are, behind the note's i", () => {
+  const bnm = { myrPerUsd: 4.0823, on: "2026-10-12", source: "bnm" } as const;
+
+  it("in ringgit: the estimate, the bill in dollars, the rate, and when counting started", () => {
+    expect(costNoteDetails("myr", "1 Oct 2026", bnm)).toEqual([
+      "Estimated from token use. Anthropic's bill, in US dollars, is final.",
+      "Ringgit figures move with the exchange rate.",
+      "Counted since 1 Oct 2026.",
+    ]);
+  });
+
+  it("in dollars: the estimate alone, with no word on the rate", () => {
+    expect(costNoteDetails("usd", null, bnm)).toEqual(["Estimated from token use. Anthropic's bill, in US dollars, is final."]);
+  });
+
+  it("says when Bank Negara Malaysia could not be reached", () => {
+    expect(costNoteDetails("myr", null, { myrPerUsd: 4.086, on: "2026-10-13", source: "built_in" })).toContain(
+      "Bank Negara Malaysia could not be reached, so this is the rate built into the app.",
+    );
   });
 });
