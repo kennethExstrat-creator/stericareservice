@@ -1,7 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { fileLinkTarget } from "@/lib/inspections/source-documents";
 import { DOCUMENTS_DEFAULT_CONFIG } from "@/modules/documents/config";
-import { attachTargets, attachToText, parseSourceAnswer } from "./source-reader";
+import { PAPER_FORM_GUIDE } from "./reading-guide";
+import { attachTargets, attachToText, parseSourceAnswer, SOURCE_READER_SYSTEM_PROMPT } from "./source-reader";
+
+describe("the reading's system prompt", () => {
+  it("puts a box/carton number into its test and into Box/Carton Numbers, as the paper form guide says (Kenneth, 14 October 2026)", () => {
+    const lines = SOURCE_READER_SYSTEM_PROMPT.split("\n");
+    const at = lines.findIndex((line) => line.startsWith("- A box/carton number goes into"));
+    expect(lines[at]).toBe(
+      "- A box/carton number goes into its own test's field and also into carton_sampling's list for its size (the paper form guide below).",
+    );
+    // One of the rules, after the per-size one, and before the rule that leaves out what the current data holds.
+    expect(at).toBe(lines.findIndex((line) => line.startsWith("- Per-size data goes under that size")) + 1);
+    expect(at).toBeLessThan(lines.findIndex((line) => line.startsWith("- Leave out fields that already hold a value in the current data")));
+    expect(SOURCE_READER_SYSTEM_PROMPT).toContain(PAPER_FORM_GUIDE);
+    expect(SOURCE_READER_SYSTEM_PROMPT).toContain("- So each box/carton number a document gives for a size's boxes");
+  });
+});
 
 describe("parseSourceAnswer", () => {
   const answer = (extra: Record<string, unknown>) =>

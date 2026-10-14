@@ -113,6 +113,65 @@ describe("applyProposals", () => {
   });
 });
 
+describe("applyProposals on Box/Carton Numbers (Kenneth, 14 October 2026)", () => {
+  // Placeholders (docs/FIXTURES.md): the 13 boxes of a size's dispensing test, in the form's order.
+  const TESTED = [41, 233, 360, 512, 707, 919, 1108, 1350, 1622, 1905, 2187, 2401, 2856];
+  const included = new Set(["carton_sampling", "dispensing_packing"]);
+  const cartons = (data: { modules: Readonly<Record<string, unknown>> }) => data.modules.carton_sampling;
+
+  it("fills a size's empty list with the numbers read, rows 1 to 13 in the document's order, beside the dispensing step", () => {
+    const boxes = TESTED.map((boxNo) => ({ boxNo, layeringPct: 88, dispensingPct: 90, stickiness: "A" }));
+    const proposals = { carton_sampling: { sizes: { S: { cartonNumbers: TESTED } } }, dispensing_packing: { sizes: { S: { boxes } } } };
+    const result = applyProposals({ modules: {}, custom: {} }, proposals, MODULE_REGISTRY, included);
+    expect(cartons(result.data)).toEqual({ sizes: { S: { cartonNumbers: TESTED } } });
+    const dispensing = result.data.modules.dispensing_packing as { sizes: { S: { boxes: { boxNo: number }[] } } };
+    expect(dispensing.sizes.S.boxes.map((box) => box.boxNo)).toEqual(TESTED);
+    expect(result.modules).toEqual(["carton_sampling", "dispensing_packing"]);
+    // 13 box/carton numbers, and 4 values in each of the 13 boxes.
+    expect(result.filled).toBe(13 + 13 * 4);
+
+    // A size the table shows with no number in it yet is empty too.
+    const shown = { modules: { carton_sampling: { sizes: { S: { cartonNumbers: [] } } } }, custom: {} };
+    expect(cartons(applyProposals(shown, { carton_sampling: proposals.carton_sampling }, MODULE_REGISTRY, included).data)).toEqual({
+      sizes: { S: { cartonNumbers: TESTED } },
+    });
+  });
+
+  it("leaves a list that holds any number alone, gaps and all, and still fills another size's empty list", () => {
+    // Typed into row 3 only: laid in gap by gap, the 1st and 2nd numbers read would land in rows 1 and 2.
+    const data = { modules: { carton_sampling: { sizes: { S: { cartonNumbers: [null, null, 1500] }, M: { cartonNumbers: [] } } } }, custom: {} };
+    const onlyS = applyProposals(data, { carton_sampling: { sizes: { S: { cartonNumbers: TESTED } } } }, MODULE_REGISTRY, included);
+    expect(onlyS).toEqual({ data, filled: 0, modules: [] });
+    expect(onlyS.data).toBe(data);
+
+    const both = applyProposals(
+      data,
+      { carton_sampling: { sizes: { S: { cartonNumbers: TESTED }, M: { cartonNumbers: [3001, 3420] } } } },
+      MODULE_REGISTRY,
+      included,
+    );
+    expect(cartons(both.data)).toEqual({ sizes: { S: { cartonNumbers: [null, null, 1500] }, M: { cartonNumbers: [3001, 3420] } } });
+    expect(both.filled).toBe(2);
+  });
+
+  it("keeps a repeated number out, as the table's paste does (pasteCartons), with whatever is no box/carton number, leaving no gap", () => {
+    const proposal = { sizes: { S: { cartonNumbers: [41, 233, 41, "360", null, 0, 52.5, -7, 512, 233] } } };
+    const result = applyProposals({ modules: {}, custom: {} }, { carton_sampling: proposal }, MODULE_REGISTRY, included);
+    expect(cartons(result.data)).toEqual({ sizes: { S: { cartonNumbers: [41, 233, 512] } } });
+    expect(result.filled).toBe(3);
+    // Nothing that is a box/carton number: nothing filled.
+    expect(applyProposals({ modules: {}, custom: {} }, { carton_sampling: { sizes: { S: { cartonNumbers: ["41", null] } } } }, MODULE_REGISTRY, included))
+      .toMatchObject({ filled: 0, modules: [] });
+  });
+
+  it("takes at most the 2,000 numbers a size holds, the first ones read, as the table's paste does", () => {
+    const read = Array.from({ length: 2001 }, (_, index) => index + 1);
+    const result = applyProposals({ modules: {}, custom: {} }, { carton_sampling: { sizes: { S: { cartonNumbers: read } } } }, MODULE_REGISTRY, included);
+    expect((cartons(result.data) as { sizes: { S: { cartonNumbers: number[] } } }).sizes.S.cartonNumbers).toEqual(read.slice(0, 2000));
+    expect(result.filled).toBe(2000);
+  });
+});
+
 describe("linkSourceFile", () => {
   const FILE = "00000000-0000-4000-8000-000000000501";
   const KEPT = "00000000-0000-4000-8000-000000000502";

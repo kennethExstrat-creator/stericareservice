@@ -36,6 +36,22 @@ describe("the paper form guide", () => {
     expect(line).toContain("Copy each box/carton number as written, even one that is not among the sampled ones");
     expect(PAPER_FORM_GUIDE).toContain("(by size: box/carton number, layering %, dispensing %, stickiness code, others)");
   });
+
+  it("puts each box/carton number a document gives into the size's sampled cartons too, while that list is empty (Kenneth, 14 October 2026)", () => {
+    const lines = PAPER_FORM_GUIDE.split("\n");
+    const at = lines.findIndex((entry) => entry.startsWith("- So each box/carton number a document gives for a size's boxes"));
+    // Straight after the line that makes a box number and a carton number one number.
+    expect(at).toBe(lines.findIndex((entry) => entry.startsWith("- A box number and a carton number")) + 1);
+    const line = lines[at];
+    expect(line).toContain("(a dispensing or packing result, the labelling boxes, a list of the sampled cartons, a carton's label)");
+    expect(line).toContain("also goes into carton_sampling's cartonNumbers for that size, besides its own test's field");
+    expect(line).toContain(
+      "in the order the document lists them, each number once (the list never repeats a number, though a test may use one carton twice), as written.",
+    );
+    expect(line).toContain("Only while that size's list is empty in the current data.");
+    expect(line).toContain("Never pad the list to the cases sampled, never add a number the documents do not state");
+    expect(line).toContain("leave out a packing list's carton numbering (the shipment's cartons, not the sample)");
+  });
 });
 
 describe("glossaryText", () => {

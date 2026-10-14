@@ -66,7 +66,12 @@ export type SourceReadOutcome =
 const TIMEOUT_MS = 300_000;
 const MAX_TOKENS = 16_000;
 
-const SYSTEM_PROMPT = `You read the source documents of a glove quality-control inspection for SteriCare and fill in the inspection's fields from them.
+/**
+ * Byte-stable. Since 14 October 2026 a box/carton number goes into its test
+ * and also into carton_sampling's list for its size (PAPER_FORM_GUIDE says
+ * how), which the capture screen fills only while the list is empty.
+ */
+export const SOURCE_READER_SYSTEM_PROMPT = `You read the source documents of a glove quality-control inspection for SteriCare and fill in the inspection's fields from them.
 
 The documents have no set layout: the inspector's handwritten inspection form, purchase orders, packing lists, lab reports, photos of labels, cartons and notes. Read every page, tables and handwriting included.
 
@@ -81,6 +86,7 @@ Rules:
 - Only values the document clearly states. Never guess, estimate or calculate; leave out anything you cannot read with confidence. A wrong value is worse than an empty one.
 - Follow each module's schema exactly: its field names and types (numbers as numbers, never as text), dates as YYYY-MM-DD, sizes as the size values given.
 - Per-size data goes under that size, as the schema shows. Lists of readings keep the document's order.
+- A box/carton number goes into its own test's field and also into carton_sampling's list for its size (the paper form guide below).
 - Leave out fields that already hold a value in the current data, and never answer for the conclusion.
 - Never write a file field (labReport, a documents item's file): the app fills it from "attachTo".
 - Do not work out totals, averages, statistics, results or pass/fail: the app calculates them.
@@ -191,7 +197,7 @@ export async function readSourceDocument(input: SourceReadInput, env: AiEnv, onC
   const params: MessageCreateParamsNonStreaming = {
     model: model.data,
     max_tokens: MAX_TOKENS,
-    system: SYSTEM_PROMPT,
+    system: SOURCE_READER_SYSTEM_PROMPT,
     messages: [
       {
         role: "user",

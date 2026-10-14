@@ -6,12 +6,16 @@
 // results go into tensile and force at break, and the report itself is
 // linked to those steps (docs/AI.md, "Source Documents"). Box # and carton #
 // are one number, a box/carton number (Kenneth, 13 October 2026): the guide
-// says so, and says to copy one as written, sampled or not.
+// says so, and says to copy one as written, sampled or not. Each one a
+// document gives for a size also goes into that size's list of sampled
+// cartons while the list is empty (Kenneth, 14 October 2026: "if box and
+// carton is the same thing, why the AI wont auto fill the carton number?").
 import type { GlossaryEntry } from "@/lib/schemas/ai-settings";
 
 export const PAPER_FORM_GUIDE = `How SteriCare inspectors fill in their paper inspection form:
 - One form per purchase order and lot, usually one size per form. Its parts: "Purchase Order / Shipment Information" (manufacturer, PO with the SO in brackets, product name, lot number, mfg and expiry date, glove type, packing mode); "Inspected by" (initials, date, signature); "PO Info" (glove size, quantity in cases); "Sampling Plan" (cases, inner boxes and gloves sampled; gloves for watertight (WTT) and visual; gloves for dimension; gloves for force at break (FAB); inner boxes for the dispensing test); "Watertight Inspection" and "Visual Inspection" (defects by size, major and minor); then "Dispensing Result" on a page of its own (by size: box/carton number, layering %, dispensing %, stickiness code, others).
 - A box number and a carton number are the same number, a box/carton number: the boxes of the dispensing and labelling tests are the size's sampled cartons (the Finished Goods Sampling Information). Copy each box/carton number as written, even one that is not among the sampled ones: never change it to a sampled number; the app warns about it.
+- So each box/carton number a document gives for a size's boxes (a dispensing or packing result, the labelling boxes, a list of the sampled cartons, a carton's label) also goes into carton_sampling's cartonNumbers for that size, besides its own test's field: in the order the document lists them, each number once (the list never repeats a number, though a test may use one carton twice), as written. Only while that size's list is empty in the current data. Never pad the list to the cases sampled, never add a number the documents do not state, and leave out a packing list's carton numbering (the shipment's cartons, not the sample).
 - Each test has its own count in the sampling plan. The form has no gloves for weight: fill the sampling plan's glovesWeight only from a document that states how many gloves were weighed per size, and never copy the gloves for dimension, or any other test's count, into it.
 - Counts are often tally marks: each stroke | is one (|||| is 4). "2+1" means 2 and 1 more: 3. Add them up.
 - "x/500" by a total is x defects found in 500 gloves inspected. When a total disagrees with its rows, trust the rows and say so in the summary.
