@@ -198,7 +198,7 @@ Contract, guardrails, costs and data handling: [docs/AI.md](docs/AI.md).
 
 | Command | What it does |
 |---|---|
-| `npm run dev` | Dev server (heap capped at 2 GB, so it restarts itself before passing about 1.6 GB; Turbopack evicts its cache after each save) |
+| `npm run dev` | Dev server (heap capped at 2 GB, so it restarts itself before passing about 1.6 GB) |
 | `npm run build` / `npm start` | Production build / serve it |
 | `npm run check` | Typecheck, lint and all tests |
 | `npm test` | Vitest (unit, AI layer, RLS tests on PGlite) |

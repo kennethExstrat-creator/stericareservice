@@ -19,10 +19,10 @@ const nextConfig: NextConfig = {
   logging: {
     serverFunctions: false,
   },
+  // No turbopackMemoryEviction "full": on 14 October 2026 it crashed the dev
+  // server ("Restore of All for task ... failed"), so Turbopack keeps its
+  // default eviction; the heap cap above does the work.
   experimental: {
-    // Turbopack drops its in-memory cache each time it saves it to disk
-    // (.next/dev/cache), instead of keeping it all for the session.
-    turbopackMemoryEviction: "full",
     serverActions: {
       // New Inspection's Source Documents send each file to be read (up to
       // 4 MB, DOCUMENT_MAX_BYTES) to a Server Action, and Auto-Sort its
