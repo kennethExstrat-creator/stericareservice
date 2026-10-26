@@ -8,6 +8,11 @@
 // label is the template's (rule 11). Every change goes through
 // useDataUpdater, built from the latest data, so a pasted column keeps every
 // size's quantity.
+//
+// Each size has a switch at its left (Kenneth, 26 October 2026: "for the
+// toggle of on and off, give it to the size too"): switched off, the row stays
+// on screen, greyed, its fields take no typing, and the size is not ordered
+// for this inspection whatever its line holds, which is kept.
 import {
   useEffect,
   useEffectEvent,
@@ -32,6 +37,7 @@ import {
   type InvalidEntry,
 } from "@/components/qc";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { formatSize } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { labelFor, type CaptureFocus, type CaptureProps, type Labels } from "@/modules/_framework";
@@ -46,9 +52,10 @@ import {
   setLine,
   splitLots,
   tidySite,
+  withSizeOff,
   type AddedLots,
 } from "./edit";
-import { LOT_NUMBER_MAX_LENGTH, TEXT_MAX_LENGTH, type OrderLotsData } from "./schema";
+import { LOT_NUMBER_MAX_LENGTH, switchedOffSizes, TEXT_MAX_LENGTH, type OrderLotsData } from "./schema";
 
 const HEAD_CELL = "border-b border-border bg-slate-50 px-2.5 py-2 text-left align-bottom font-semibold";
 const ROW_HEAD = "border-r border-b border-border px-3 text-left font-semibold tabular-nums";
@@ -83,6 +90,7 @@ export default function Capture({
   const issues = evaluation?.issues ?? [];
   const sizeName = (size: string) => formatSize(size, { sizes: context.templateSizes, prefix: true });
   const qtyId = (size: string) => `${id}-qty-${size}`;
+  const sizesOff = switchedOffSizes(data);
 
   const reject = (size: string, entry: InvalidEntry | null) =>
     setRejected((current) => {
@@ -122,6 +130,7 @@ export default function Capture({
         <table className="w-full table-fixed border-separate border-spacing-0 text-sm touch:text-base">
           <caption className="sr-only">{title}</caption>
           <colgroup>
+            <col className="w-12 touch:w-16" />
             <col className="w-16" />
             <col className="w-28 touch:w-32" />
             <col />
@@ -130,6 +139,9 @@ export default function Capture({
           </colgroup>
           <thead>
             <tr>
+              <th scope="col" className={HEAD_CELL}>
+                <span className="sr-only">Ordered</span>
+              </th>
               <th scope="col" className={HEAD_CELL}>
                 {labelFor(labels, "size")}
               </th>
@@ -152,22 +164,42 @@ export default function Capture({
           <tbody>
             {sizes.map((size) => {
               const line = lineFor(data, size);
-              const ordered = line.qtyCases !== null && line.qtyCases > 0;
+              const off = sizesOff.has(size);
+              const ordered = !off && line.qtyCases !== null && line.qtyCases > 0;
+              // Switched off: greyed, and its fields take no typing.
+              const offCell = off && "bg-slate-50 opacity-50";
               return (
                 <tr
                   key={size}
+                  data-size-off={off || undefined}
                   className="group/row"
                   onFocus={enterRow(size)}
                   onBlur={leaveRow}
                   {...issuePathProps(dataPath(size))}
                 >
+                  <td className={cn(CELL, "px-2 text-center", off && "bg-slate-50")}>
+                    <Switch
+                      size="sm"
+                      checked={!off}
+                      onCheckedChange={(on) => update((current) => withSizeOff(current, size, !on))}
+                      disabled={readOnly}
+                      aria-label={`${sizeName(size)} ordered`}
+                    />
+                  </td>
                   <th
                     scope="row"
-                    className={cn(ROW_HEAD, ordered ? "bg-card text-foreground" : "bg-card text-muted-foreground")}
+                    className={cn(
+                      ROW_HEAD,
+                      off
+                        ? "bg-slate-50 text-muted-foreground line-through decoration-slate-400"
+                        : ordered
+                          ? "bg-card text-foreground"
+                          : "bg-card text-muted-foreground",
+                    )}
                   >
                     {formatSize(size, { sizes: context.templateSizes })}
                   </th>
-                  <td className={CELL}>
+                  <td className={cn(CELL, offCell)}>
                     <NumberField
                       variant="cell"
                       group="qty"
@@ -180,16 +212,16 @@ export default function Capture({
                       onInvalidChange={(entry) => reject(size, entry)}
                       error={findIssue(issues, dataPath(size, "qtyCases"))?.message}
                       issuePath={dataPath(size, "qtyCases")}
-                      readOnly={readOnly}
+                      readOnly={readOnly || off}
                     />
                   </td>
-                  <td className={CELL}>
+                  <td className={cn(CELL, offCell)}>
                     <LotNumbers
                       lots={line.lotNumbers}
                       label={labelFor(labels, "lotNumbers")}
                       sizeName={sizeName(size)}
                       issuePath={dataPath(size, "lotNumbers")}
-                      readOnly={readOnly}
+                      readOnly={readOnly || off}
                       onAdd={(lots) => {
                         // update runs the change at once, so what it left out is known on return.
                         let leftOut: LeftOut = { skipped: [], tooLong: [] };
@@ -204,18 +236,18 @@ export default function Capture({
                     />
                   </td>
                   {showSite && (
-                    <td className={CELL}>
+                    <td className={cn(CELL, offCell)}>
                       <TextCell
                         label={`${labelFor(labels, "packingSite")}, ${sizeName(size)}`}
                         value={line.packingSite}
                         onValueChange={(packingSite) => update((current) => setLine(current, size, { packingSite }))}
                         onLeave={() => update((current) => tidySite(current, size))}
                         issuePath={dataPath(size, "packingSite")}
-                        readOnly={readOnly}
+                        readOnly={readOnly || off}
                       />
                     </td>
                   )}
-                  <td className={cn(CELL, "bg-slate-50 px-2.5 text-right")}>
+                  <td className={cn(CELL, "bg-slate-50 px-2.5 text-right", off && "opacity-50")}>
                     {ordered ? <Figure value={computed?.lotSizeGloves[size]} grouping /> : null}
                   </td>
                 </tr>

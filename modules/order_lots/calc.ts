@@ -4,7 +4,9 @@
 // are the only sizes any module shows (rule 4): this module gives them to the
 // context. Totals are computed, never typed (rule 2): cartons from the
 // quantities, gloves with the gloves per case that packing_config puts in the
-// context.
+// context. A size switched off on screen is not ordered whatever its line holds
+// (Kenneth, 26 October 2026): it is left out of all of this, and of the
+// context, so no other step shows it.
 import { formatCount } from "@/lib/aql";
 import { normaliseSize, orderSizes, SIZE_HINT } from "@/lib/sizes";
 import {
@@ -23,7 +25,7 @@ import {
 } from "@/modules/_framework";
 import type { PerSizeResult } from "@/lib/schemas";
 import type { OrderLotsConfig } from "./config";
-import type { OrderLine, OrderLotsData } from "./schema";
+import { switchedOffSizes, type OrderLine, type OrderLotsData } from "./schema";
 
 export type OrderLotsComputed = {
   /** Per ordered size: cases x gloves per case, the lot size the AQL plan starts from. Null until the packing is known. */
@@ -99,9 +101,11 @@ export function calcOrderLots({
   context,
 }: CalcInput<OrderLotsData, OrderLotsConfig>): CalcOutput<OrderLotsComputed> {
   const { rows, invalid, duplicates } = readOrder(data, context.templateSizes);
-  const issues = [...keyIssues(invalid, duplicates), ...rows.flatMap((row) => rowIssues(row, data, context, labels))];
+  // The sizes switched on: a size switched off is not ordered, nothing in it is asked for or checked.
+  const counted = withoutSwitchedOff(rows, data);
+  const issues = [...keyIssues(invalid, duplicates), ...counted.flatMap((row) => rowIssues(row, data, context, labels))];
 
-  const ordered = rows.filter(isOrdered);
+  const ordered = counted.filter(isOrdered);
   const perCase = context.packing.glovesPerCase;
   const totalCartons = ordered.length === 0 ? null : ordered.reduce((sum, row) => sum + row.qtyCases, 0);
   const computed: OrderLotsComputed = {
@@ -113,7 +117,7 @@ export function calcOrderLots({
     ordered.map((row) => [row.size, rowResult(row, config, labels)]),
   );
 
-  const missing = missingValues(rows, config, labels, context);
+  const missing = missingValues(counted, config, labels, context);
   if (missing.length > 0) {
     return { result: { ...notDone(sentence(`Missing: ${missing.join("; ")}`)), perSize }, computed, issues };
   }
@@ -128,15 +132,21 @@ export function calcOrderLots({
   return { result: { status: "info", summary, perSize }, computed, issues };
 }
 
-/** The ordered sizes, with their quantities and lots, for every other module (6.2 rule 4). */
+/** The ordered sizes, with their quantities and lots, for every other module (6.2 rule 4); none switched off. */
 export function contributeOrderLots({ data }: ContributeInput<OrderLotsData, OrderLotsConfig>): ContextContribution {
-  const ordered = readOrder(data).rows.filter(isOrdered);
+  const ordered = withoutSwitchedOff(readOrder(data).rows, data).filter(isOrdered);
   return {
     sizes: ordered.map((row) => row.size),
     order: Object.fromEntries(
       ordered.map((row) => [row.size, { qtyCases: row.qtyCases, lotNumbers: [...new Set(row.lotNumbers)] }]),
     ),
   };
+}
+
+/** The rows of the sizes switched on (Kenneth, 26 October 2026). */
+function withoutSwitchedOff(rows: readonly OrderRow[], data: OrderLotsData): OrderRow[] {
+  const off = switchedOffSizes(data);
+  return rows.filter((row) => !off.has(row.size));
 }
 
 function toRow(key: string, size: string, line: OrderLine): OrderRow {

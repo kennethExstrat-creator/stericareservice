@@ -9,7 +9,14 @@
 // would leave the order unreadable, and every size with it.
 import { normaliseSize } from "@/lib/sizes";
 import { readOrder } from "./calc";
-import { emptyOrderLine, LOT_NUMBER_MAX_LENGTH, TEXT_MAX_LENGTH, type OrderLine, type OrderLotsData } from "./schema";
+import {
+  emptyOrderLine,
+  LOT_NUMBER_MAX_LENGTH,
+  switchedOffSizes,
+  TEXT_MAX_LENGTH,
+  type OrderLine,
+  type OrderLotsData,
+} from "./schema";
 
 /** The saved line a size shows: under its canonical key, else under another spelling of it. */
 export function lineFor(data: OrderLotsData, size: string): OrderLine {
@@ -90,6 +97,17 @@ export function removeLot(data: OrderLotsData, size: string, index: number, lot:
   const at = lots[index] === lot ? index : lots.indexOf(lot);
   if (at === -1) return data;
   return setLine(data, size, { lotNumbers: lots.filter((_, position) => position !== at) });
+}
+
+/**
+ * `data` with one size switched off or on for this inspection (Kenneth, 26
+ * October 2026); `data` itself when nothing changes. The size's line is kept
+ * either way, so switching it on again brings the size back as it was.
+ */
+export function withSizeOff(data: OrderLotsData, size: string, off: boolean): OrderLotsData {
+  const current = switchedOffSizes(data);
+  if (current.has(size) === off) return data;
+  return { ...data, sizesOff: off ? [...current, size] : [...current].filter((entry) => entry !== size) };
 }
 
 /** Removes a line saved under a key the table does not show: not a size, a second spelling, or a size the template lacks. */

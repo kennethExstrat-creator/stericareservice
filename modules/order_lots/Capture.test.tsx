@@ -160,6 +160,29 @@ describe("order_lots capture", () => {
     expect(html).toContain("LOT-B03");
   });
 
+  it("puts a switch at the left of each size; off, the row is greyed, takes no typing and the size is not ordered (Kenneth, 26 October 2026)", () => {
+    const html = render(SAFEDON_EG_EXAMPLE);
+    const switches = tagsWith(html, 'role="switch"');
+    expect(switches.map((tag) => /aria-label="([^"]+)"/.exec(tag)?.[1])).toEqual(
+      ["XS", "S", "M", "L", "XL"].map((size) => `Size ${size} ordered`),
+    );
+    for (const tag of switches) expect(tag).toContain('aria-checked="true"');
+
+    // Size M switched off: still a row, greyed, read-only, and no longer ordered.
+    const base = orderData(SAFEDON_EG_EXAMPLE.order);
+    const data: OrderLotsData = { ...base, sizesOff: ["M"] };
+    const off = props(SAFEDON_EG_EXAMPLE, { data });
+    expect(off.context.sizes).toEqual(["XS", "S", "L"]);
+    const offHtml = renderToStaticMarkup(<Capture {...off} />);
+    expect(tagsWith(offHtml, 'role="switch"').find((tag) => tag.includes("Size M ordered"))).toContain('aria-checked="false"');
+    expect(tagsWith(offHtml, 'data-size-off="true"')).toHaveLength(1);
+    expect(tagsWith(offHtml, 'data-enter-group="qty"').find((cell) => cell.includes("Size M"))).toContain('readOnly=""');
+    expect(offHtml).not.toContain("Lot Number, Size M: add");
+    expect(offHtml).toContain("Lot Number, Size S: add");
+    // Read-only: every switch is disabled.
+    for (const tag of tagsWith(render(SAFEDON_EG_EXAMPLE, { readOnly: true }), 'role="switch"')) expect(tag).toContain("disabled");
+  });
+
   it("lists lines saved under keys the table does not show, so they can be removed", () => {
     const data: OrderLotsData = {
       sizes: { ...orderData(STD_EG_EXAMPLE.order).sizes, m: { qtyCases: 5, lotNumbers: [], packingSite: null } },
