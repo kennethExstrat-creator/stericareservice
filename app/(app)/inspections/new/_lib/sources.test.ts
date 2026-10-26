@@ -28,18 +28,19 @@ const held = (key: string, state: ReadState): HeldDocument => ({ key, file: new 
 describe("a document read on the form", () => {
   it("fills only the fields nothing is chosen or typed in yet", () => {
     const { form } = read("PO.pdf", {});
-    expect(formFill(NO_CHOICES, form, [])).toEqual({
+    expect(formFill(NO_CHOICES, form)).toEqual({
       clientId: CLIENT,
       manufacturerId: MANUFACTURER,
       productType: "examination",
       productName: "Nitrile Blue",
-      nameFromPrevious: false,
     });
     // "No Client" is a choice, and a typed name stays.
-    expect(formFill({ ...NO_CHOICES, clientId: "none", productName: "Typed" }, form, [])).toEqual({
+    expect(formFill({ ...NO_CHOICES, clientId: "none", productName: "Typed" }, form)).toEqual({
       manufacturerId: MANUFACTURER,
       productType: "examination",
     });
+    // Spaces alone are no name yet.
+    expect(formFill({ ...NO_CHOICES, productName: "  " }, form)).toMatchObject({ productName: "Nitrile Blue" });
   });
 
   it("goes in with Create merged with the others read: the first answer wins, field by field and size by size", () => {

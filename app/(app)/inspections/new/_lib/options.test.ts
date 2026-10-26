@@ -1,12 +1,13 @@
 // What /inspections/new reads, through the signed-in user's client: the
-// pickers' lists, the templates the user may start from and the products of
-// earlier inspections, and the wording the form's parts share.
+// pickers' lists and the templates the user may start from, no earlier
+// inspections; and the wording the form's parts share.
 import { describe, expect, it } from "vitest";
 import { buildSeedBundle, SEED_TEMPLATES } from "@/lib/templates/definitions";
+import { FORCE_AT_BREAK_TITLE } from "@/modules/force_at_break/config";
 import { MODULE_REGISTRY } from "@/modules/registry";
-import { COPIED_MODULE_KEYS } from "@/lib/inspections/create";
-import { loadNewInspectionOptions, PREVIOUS_SCAN_LIMIT, PREVIOUS_SELECT, toTemplateOption } from "./options";
-import { overrideOptionLabel, specsNote, templateInSentence, templateLabel } from "./text";
+import { TENSILE_TITLE } from "@/modules/tensile/config";
+import { loadNewInspectionOptions, toTemplateOption } from "./options";
+import { overrideOptionLabel, templateInSentence, templateLabel } from "./text";
 
 const bundle = new Map(buildSeedBundle(SEED_TEMPLATES, MODULE_REGISTRY).templates.map((entry) => [entry.code, entry]));
 
@@ -45,8 +46,8 @@ describe("a template as the form shows it", () => {
     // Modules and custom modules in screen order: Glove Type is part of Glove Information (11 October 2026).
     expect(option.sections.slice(0, 3)).toEqual(["Manufacturer Information", "Glove Information", "Order"]);
     expect(option.sections).toHaveLength(14);
-    expect(option.titles.header).toBe("Manufacturer Information");
-    expect(Object.keys(option.titles)).not.toContain("tensile");
+    expect(option.sections).toContain(FORCE_AT_BREAK_TITLE);
+    expect(option.sections).not.toContain(TENSILE_TITLE);
     expect(option.fieldsOff).toEqual({});
   });
 
@@ -56,14 +57,14 @@ describe("a template as the form shows it", () => {
 
   it("leaves out the modules a child switches off", () => {
     const option = toTemplateOption(templateRow("SAFEDON_EG"))!;
-    expect(Object.keys(option.titles)).toContain("tensile");
-    expect(Object.keys(option.titles)).not.toContain("force_at_break");
+    expect(option.sections).toContain(TENSILE_TITLE);
+    expect(option.sections).not.toContain(FORCE_AT_BREAK_TITLE);
     expect(option.unit).toBe("pcs");
   });
 
   it("keeps a template whose resolution does not read, marked not ready", () => {
     const option = toTemplateOption(templateRow("STD_SG", { resolved: { code: "STD_SG" } }))!;
-    expect(option).toMatchObject({ code: "STD_SG", ready: false, name: "STD_SG", sizes: [], sections: [], titles: {}, fieldsOff: {} });
+    expect(option).toMatchObject({ code: "STD_SG", ready: false, name: "STD_SG", sizes: [], sections: [], fieldsOff: {} });
   });
 
   it("drops a retired version", () => {
@@ -107,48 +108,27 @@ const MANUFACTURERS: Answer = {
   ],
   error: null,
 };
-const PREVIOUS_ROW = {
-  id: "i1",
-  ref_no: "INS-2026-0001",
-  inspection_date: "2026-09-01",
-  status: "submitted",
-  created_at: "2026-09-01T02:00:00Z",
-  client_id: "c1",
-  manufacturer_id: "m1",
-  product_name: "Nitrile blue",
-  template: { code: "STD_EG", version: 1, product_type: "examination" },
-  header: { poNo: "PO-1", productName: "Nitrile blue", comment: "Checked." },
-  glove_info: null,
-  packing_config: { glovesPerInner: 100, packingMode: "" },
-};
-
 describe("loading the page's lists", () => {
-  it("reads clients, manufacturers, the active templates and the user's earlier inspections", async () => {
+  it("reads clients, manufacturers and the active templates, and no earlier inspections", async () => {
     const { client, queries } = fakeClient({
       clients: CLIENTS,
       manufacturers: MANUFACTURERS,
       templates: { data: [templateRow("STD_EG")], error: null },
-      inspections: { data: [PREVIOUS_ROW, { ...PREVIOUS_ROW, id: "i0", inspection_date: "2026-08-01" }], error: null },
     });
     const options = await loadNewInspectionOptions(client, "inspector");
-    expect(options?.clients).toEqual([{ id: "c1", label: "Polyco Healthline" }]);
-    expect(options?.manufacturers).toEqual([
-      { id: "m1", label: "Hartalega NGC" },
-      { id: "m2", label: "Terang Nusa Sdn. Bhd. · TG Factory 40" },
-    ]);
-    expect(options?.templates.map((template) => template.code)).toEqual(["STD_EG"]);
-    // The latest inspection of each product, and what it holds to copy.
-    expect(options?.previous.map((product) => product.refNo)).toEqual(["INS-2026-0001"]);
-    expect(options?.previous[0].copies).toEqual({ header: ["productName"], packing_config: ["glovesPerInner"] });
+    expect(options).toEqual({
+      clients: [{ id: "c1", label: "Polyco Healthline" }],
+      manufacturers: [
+        { id: "m1", label: "Hartalega NGC" },
+        { id: "m2", label: "Terang Nusa Sdn. Bhd. · TG Factory 40" },
+      ],
+      templates: [expect.objectContaining({ code: "STD_EG" })],
+    });
 
     const templates = queries.find((query) => query.table === "templates")!;
     expect(templates.calls).toContainEqual(["eq", ["status", "active"]]);
-    const inspections = queries.find((query) => query.table === "inspections")!;
-    expect(inspections.calls).toContainEqual(["limit", [PREVIOUS_SCAN_LIMIT]]);
-    // Only the modules a copy takes, never the whole data.
-    expect(inspections.calls[0]).toEqual(["select", [PREVIOUS_SELECT]]);
-    for (const key of COPIED_MODULE_KEYS) expect(PREVIOUS_SELECT).toContain(`${key}:data->modules->${key}`);
-    expect(PREVIOUS_SELECT).not.toMatch(/(^|, )data(,|$)/);
+    // Start From Previous is gone (Kenneth, 26 October 2026): nothing reads the inspections.
+    expect(queries.map((query) => query.table).sort()).toEqual(["clients", "manufacturers", "templates"]);
   });
 
   it("offers an admin the drafts as well, never a retired version", async () => {
@@ -163,7 +143,7 @@ describe("loading the page's lists", () => {
     expect(queries.find((query) => query.table === "templates")!.calls).toContainEqual(["neq", ["status", "retired"]]);
   });
 
-  it.each(["clients", "manufacturers", "templates", "inspections"])(
+  it.each(["clients", "manufacturers", "templates"])(
     "gives nothing when the %s cannot be read",
     async (table) => {
       const { client } = fakeClient({ [table]: { data: null, error: { code: "PGRST000", message: "down" } } });
@@ -181,8 +161,6 @@ describe("loading the page's lists", () => {
 });
 
 describe("the wording the form's parts share", () => {
-  const product = { templateCode: "STD_EG", templateVersion: 2 };
-
   it("names a template version in Title Case as a label, and in lower case within a sentence", () => {
     expect(templateLabel({ code: "STD_EG", version: 3 })).toBe("STD_EG Version 3");
     expect(templateInSentence({ code: "STD_EG", version: 3 })).toBe("STD_EG version 3");
@@ -196,18 +174,6 @@ describe("the wording the form's parts share", () => {
     );
     expect(overrideOptionLabel({ code: "STD_EG", version: 4, status: "draft", ready: false })).toBe(
       "STD_EG Version 4 · Draft · Cannot Be Used Yet",
-    );
-  });
-
-  it("says whether specs and AQL are last time's", () => {
-    expect(specsNote(product, { code: "STD_EG", version: 2 })).toBe(
-      "Same template as last time (STD_EG version 2): its specs and AQL carry over.",
-    );
-    expect(specsNote(product, { code: "STD_EG", version: 3 })).toBe(
-      "Last time used version 2. This inspection uses version 3, with its specs and AQL.",
-    );
-    expect(specsNote(product, { code: "SAFEDON_EG", version: 1 })).toBe(
-      "Last time used STD_EG version 2. This inspection uses SAFEDON_EG version 1: specs and AQL come from it.",
     );
   });
 });

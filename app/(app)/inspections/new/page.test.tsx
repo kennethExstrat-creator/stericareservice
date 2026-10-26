@@ -28,7 +28,6 @@ const OPTIONS: NewInspectionOptions = {
   clients: [{ id: "20000000-0000-4000-8000-000000000001", label: "Polyco Healthline" }],
   manufacturers: [{ id: "10000000-0000-4000-8000-000000000001", label: "Hartalega NGC" }],
   templates: [],
-  previous: [],
 };
 
 async function render(): Promise<string> {
@@ -69,10 +68,11 @@ describe("/inspections/new", () => {
     expect(metadata).toEqual({ title: "New Inspection" });
   });
 
-  it("shows the form: Source Documents first, then the template and the picks", async () => {
+  it("shows the form: Source Documents first with the template under it, then the picks; no Start From Previous", async () => {
     const html = await render();
     // Where a new inspection starts (Kenneth, 26 October 2026): above the picks, across the page.
-    expect(html.indexOf('data-testid="source-documents"')).toBeLessThan(html.indexOf("What You Are Inspecting"));
+    expect(html.indexOf('data-testid="source-documents"')).toBeLessThan(html.indexOf('data-testid="template-panel"'));
+    expect(html.indexOf('data-testid="template-panel"')).toBeLessThan(html.indexOf("What You Are Inspecting"));
     expect(html).toContain('data-slot="read-drop" data-roomy="true"');
     expect(html).toContain("Start Here");
     expect(html).toContain("<h1");
@@ -85,8 +85,10 @@ describe("/inspections/new", () => {
     expect(html).toContain(PRODUCT_TYPE_LABEL.examination);
     expect(html).toContain(PRODUCT_TYPE_LABEL.surgical);
     expect(html).toContain('Product Name <span class="font-normal text-muted-foreground">(Optional)</span>');
-    // No Start From Previous (Kenneth, 26 October 2026: "remove this").
+    // Start From Previous is gone (Kenneth, 26 October 2026): no card, and no earlier inspection posted with Create.
     expect(html).not.toContain("Start From Previous");
+    expect(html).not.toContain('data-testid="previous-picker"');
+    expect(html).not.toContain('name="previousId"');
     // Source Documents as on the capture screen: its title and the Files / Media switch.
     expect(html).toContain('data-testid="source-documents"');
     expect(html).toContain(">Source Documents</h2>");
@@ -97,7 +99,6 @@ describe("/inspections/new", () => {
     expect(html).toContain("The template follows from the client, manufacturer and product type.");
     // Cards have their title and no line under it (Kenneth, 12 October 2026).
     expect(html).not.toContain("as on the order, and the type of glove");
-    expect(html).not.toContain("Copies the product's details");
     expect(html).toContain("Create Inspection");
     // Inspectors never post a template of their own choosing.
     expect(html).not.toContain('name="templateId"');
@@ -122,8 +123,6 @@ describe("/inspections/new", () => {
       manufacturerId: OPTIONS.manufacturers[0].id,
       productType: "examination",
       productName: "Typed before a reload",
-      previous: "",
-      nameFromPrevious: false,
       templateId: "",
     };
     const sessionStorage = { getItem: vi.fn(() => JSON.stringify(draft)), setItem: vi.fn(), removeItem: vi.fn() };

@@ -2,11 +2,15 @@
 
 // /inspections/new (BUILD_SPEC 4.4, 8, 10): pick the client, manufacturer and
 // product type; the template follows live from lib/templates' rule (an admin
-// can choose another); optionally start from the last inspection of the same
-// product. Create checks the form here first, then the Server Action decides
-// everything again and answers the new inspection's id; the form then hands
-// the Source Documents it holds to the upload queue and Auto-Sort for it, and
-// opens it on Source Documents, where the uploads and the sort carry on.
+// can choose another). Create checks the form here first, then the Server
+// Action decides everything again and answers the new inspection's id; the
+// form then hands the Source Documents it holds to the upload queue and
+// Auto-Sort for it, and opens it on Source Documents, where the uploads and
+// the sort carry on.
+//
+// Start From Previous is gone (Kenneth, 26 October 2026): the product name is
+// what was typed or what Steri-AI filled in, and the form posts no previousId,
+// so the Server Action copies nothing from an earlier inspection.
 //
 // Source Documents (source-documents-panel.tsx, use-held-sources.ts): the
 // capture screen's first step, here so every file can come in at once. They
@@ -29,7 +33,7 @@
 // the message saying why.
 //
 // Every change is kept in the tab as it happens (../_lib/draft.ts), so a
-// reload or a tab the iPad dropped brings the choices and the typed name
+// reload or a tab the iPad dropped brings the choices and the product name
 // back. Create and Cancel remove them. The files held are not kept: leaving
 // the page drops them.
 import { ClipboardListIcon, OctagonXIcon, PlusIcon } from "lucide-react";
@@ -60,9 +64,7 @@ import {
   headerHidesProductName,
   NewInspectionInputSchema,
   NO_CLIENT,
-  previousFor,
   PRODUCT_NAME_MAX,
-  productNameField,
   PRODUCT_TYPE_LABEL,
   readNewInspectionForm,
   type NewInspectionField,
@@ -83,7 +85,7 @@ import {
 } from "../_lib/draft";
 import { formFill, type DocumentRead } from "../_lib/sources";
 import { templateInSentence } from "../_lib/text";
-import type { Option, PreviousProduct, TemplateOption } from "../_lib/types";
+import type { Option, TemplateOption } from "../_lib/types";
 import { ChoiceCard } from "./choice-card";
 import { Panel } from "./panel";
 import { SourceDocumentsPanel, type SummaryLine } from "./source-documents-panel";
@@ -100,7 +102,10 @@ const UNREACHABLE = "Could not reach the server. Check the connection, then try 
 const NO_PRODUCT_NAME = "None with this template";
 
 /** Where focus goes when a field needs attention, in reading order. */
-const FIELD_ORDER = ["clientId", "manufacturerId", "productType", "productName", "previousId", "templateId"] as const;
+const FIELD_ORDER = ["clientId", "manufacturerId", "productType", "productName", "templateId"] as const;
+
+/** A field with a control on the form; an error for any other goes to the message. */
+type FocusField = (typeof FIELD_ORDER)[number];
 
 const PRODUCT_TYPE_HINT: Readonly<Record<ProductType, string>> = {
   examination: "Disposable examination gloves, counted in pieces.",
@@ -108,7 +113,7 @@ const PRODUCT_TYPE_HINT: Readonly<Record<ProductType, string>> = {
 };
 
 /** The control that takes focus for a field's error (ids are set below and in the panels). */
-function focusTargetId(id: string, field: NewInspectionField): string {
+function focusTargetId(id: string, field: FocusField): string {
   switch (field) {
     case "clientId":
       return `${id}-client`;
@@ -118,8 +123,6 @@ function focusTargetId(id: string, field: NewInspectionField): string {
       return `${id}-type-${ProductTypeSchema.options[0]}`;
     case "productName":
       return `${id}-product`;
-    case "previousId":
-      return `${id}-previous-blank`;
     case "templateId":
       return `${id}-template`;
   }
@@ -135,7 +138,6 @@ type NewInspectionFormProps = {
   clients: readonly Option[];
   manufacturers: readonly Option[];
   templates: readonly TemplateOption[];
-  previous: readonly PreviousProduct[];
 };
 
 /**
@@ -167,18 +169,14 @@ type ChoicesFormProps = NewInspectionFormProps & {
   initial: NewInspectionChoices;
 };
 
-function ChoicesForm({ userId, storageKey, initial, role, clients, manufacturers, templates, previous }: ChoicesFormProps) {
+function ChoicesForm({ userId, storageKey, initial, role, clients, manufacturers, templates }: ChoicesFormProps) {
   const id = useId();
   const router = useRouter();
   const [choices, setChoices] = useState(initial);
   /** The choices as last changed, ahead of the next render: two changes in one go both count. */
   const latest = useRef(initial);
-  const { clientId, manufacturerId, productType, templateId } = choices;
-  /** The product name as the user typed it. */
-  const typedName = choices.productName;
-  const previousId = choices.previous;
-  /** The earlier inspection whose product name fills the field, until the user edits it. */
-  const nameFrom = choices.nameFromPrevious ? choices.previous : null;
+  // The product name is what the user typed, or what Steri-AI filled in.
+  const { clientId, manufacturerId, productType, productName, templateId } = choices;
   const [errors, setErrors] = useState<FieldErrors>({});
   const [message, setMessage] = useState<string | null>(null);
   /** What Steri-AI filled in above, as it filled it: the card names what still stands. */
@@ -193,9 +191,6 @@ function ChoicesForm({ userId, storageKey, initial, role, clients, manufacturers
     client !== undefined && manufacturerId !== "" && productType !== null
       ? { clientId: client, manufacturerId, productType }
       : null;
-  const products = picks ? previousFor(previous, picks) : [];
-  const fromPrevious = products.find((product) => product.inspectionId === previousId) ?? null;
-  const productName = productNameField(typedName, nameFrom, fromPrevious);
   const overrideId =
     role === "admin" && templates.some((template) => template.id === templateId && template.productType === productType)
       ? templateId
@@ -280,7 +275,7 @@ function ChoicesForm({ userId, storageKey, initial, role, clients, manufacturers
 
   /** A document read fills the pickers and the product name where nothing is chosen or typed yet: the first answer wins. */
   function applyRead(read: DocumentRead) {
-    const change = formFill(latest.current, read.form, previous);
+    const change = formFill(latest.current, read.form);
     if (Object.keys(change).length === 0) return;
     update(change);
     setMessage(null);
@@ -497,7 +492,7 @@ function ChoicesForm({ userId, storageKey, initial, role, clients, manufacturers
                   placeholder={nameOff ? NO_PRODUCT_NAME : undefined}
                   className={nameOff ? "disabled:bg-muted disabled:opacity-100 disabled:shadow-none" : undefined}
                   onChange={(event) => {
-                    update({ productName: event.target.value, nameFromPrevious: false });
+                    update({ productName: event.target.value });
                     changed("productName");
                   }}
                   maxLength={PRODUCT_NAME_MAX}

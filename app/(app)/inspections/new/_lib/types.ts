@@ -1,7 +1,7 @@
 // What the server hands the new-inspection form: small, display-ready
 // summaries, never whole template rows (the resolved templates stay on the
 // server, where the Server Action reads them again).
-import type { PreviousCopies, PreviousProduct } from "@/lib/inspections/create";
+import type { PreviousCopies } from "@/lib/inspections/create";
 import type { ProductType, Standard } from "@/lib/schemas/common";
 import type { TemplateCandidate, TemplateStatus } from "@/lib/templates/select";
 
@@ -18,9 +18,11 @@ export type TemplateOption = TemplateCandidate & {
   sizes: string[];
   /** Titles of the sections an inspector fills in, in order: included modules and custom modules. */
   sections: string[];
-  /** The included modules' titles by module key, in the template's wording. */
-  titles: Record<string, string>;
-  /** The fields it switches off in the modules "start from previous" copies. */
+  /**
+   * The fields it switches off in the header, glove information and packing
+   * configuration (copiedFieldsOff): the form reads from it whether the header
+   * records a product name (headerHidesProductName).
+   */
   fieldsOff: PreviousCopies;
 };
 
@@ -28,12 +30,7 @@ export type NewInspectionOptions = {
   clients: Option[];
   manufacturers: Option[];
   templates: TemplateOption[];
-  /** The latest inspection of each product the user can see, newest first. */
-  previous: PreviousProduct[];
 };
-
-/** "Start from previous" offers at most this many products, newest first. */
-export const PREVIOUS_SHOWN = 12;
 
 export const STANDARD_LABEL: Readonly<Record<Standard, string>> = {
   EN455: "EN 455",
@@ -43,4 +40,4 @@ export const STANDARD_LABEL: Readonly<Record<Standard, string>> = {
   custom: "Standard to Be Confirmed",
 };
 
-export type { PreviousProduct, ProductType };
+export type { ProductType };

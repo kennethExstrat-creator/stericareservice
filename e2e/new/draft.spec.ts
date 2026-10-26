@@ -5,15 +5,16 @@ import { sessionCookies, TEST_ACCOUNTS } from "../support/session";
 /**
  * /inspections/new keeps what was chosen and typed across a reload (UX-04,
  * app/(app)/inspections/new/_lib/draft.ts): the client, manufacturer and
- * product type, the product name as typed, the earlier inspection to start
- * from and an admin's template, per user in the tab's sessionStorage, until
- * the form is cancelled or the inspection created.
+ * product type, the product name as typed and an admin's template, per user
+ * in the tab's sessionStorage, until the form is cancelled or the inspection
+ * created. Start From Previous is gone (Kenneth, 26 October 2026): the draft
+ * names no earlier inspection.
  *
- * As the admin, who sees every earlier inspection and can choose the
- * template: one sign-in per size, on the iPad in portrait and on the
- * desktop. The spec only reads the database, to find picks with an earlier
- * inspection to start from, and never presses Create: that would draw a
- * number from the live sequence. Screenshots go to screenshots/new-draft/.
+ * As the admin, who can choose the template: one sign-in per size, on the
+ * iPad in portrait and on the desktop. The spec only reads the database, to
+ * find picks an earlier inspection was made with, and never presses Create:
+ * that would draw a number from the live sequence. Screenshots go to
+ * screenshots/new-draft/.
  */
 
 // The dev server compiles on first use and the Mac runs several at once: allow for it.
@@ -25,7 +26,7 @@ const TYPED = "E2E draft: typed before the reload";
 
 type SessionCookie = Awaited<ReturnType<typeof sessionCookies>>[number];
 
-/** What to choose, as the pickers show it, and the earlier inspection to start from (null: none to be had). */
+/** What to choose, as the pickers show it, and the earlier inspection the picks come from (null: none to be had). */
 type Order = { client: string; manufacturer: string; productType: "examination" | "surgical"; previousId: string | null };
 
 let cookies: SessionCookie[] = [];
@@ -48,12 +49,11 @@ function temporary(name: string | null | undefined): boolean {
 }
 
 /**
- * The admin's id, and picks with an earlier inspection to start from: the
- * newest inspection for its client, manufacturer and product type (so it
- * heads the list) and not another spec's, which would leave the list again.
- * A named product first: its name fills the field over the one typed, the
- * case a reload must keep apart. Without any, the first client and
- * manufacturer, with nothing to start from. Reads only.
+ * The admin's id, and picks an earlier inspection was made with: the newest
+ * inspection for its client, manufacturer and product type, and not another
+ * spec's, whose rows go again. The preference for a named, submitted one
+ * dates from Start From Previous (gone: Kenneth, 26 October 2026) and does
+ * no harm. Without any, the first client and manufacturer. Reads only.
  */
 async function findOrder(): Promise<{ adminId: string; order: Order }> {
   const admin = createTestAdminClient();
@@ -177,8 +177,6 @@ test("a reload brings back every choice and the typed name; Cancel drops them", 
   const productType = page
     .getByRole("group", { name: "Product Type" })
     .getByRole("radio", { name: order.productType === "examination" ? /^Examination Gloves/ : /^Surgical Gloves/ });
-  const previous = page.getByTestId("previous-picker");
-  const startBlank = previous.getByRole("radio", { name: /^Start Blank/ });
   const templatePicker = page.getByRole("combobox", { name: "Use Another Template" });
   const reason = page.getByTestId("choice-reason");
 
@@ -188,15 +186,8 @@ test("a reload brings back every choice and the typed name; Cancel drops them", 
   await choose(page, "Manufacturer", order.manufacturer);
   await press(productType);
   await expect(productType).toBeChecked();
-
-  // Start from the earlier inspection: a named one fills in its name.
-  const earlier = previous.locator(`[role="radio"][value="${order.previousId}"]`);
-  if (order.previousId) {
-    await press(earlier);
-    await expect(earlier).toBeChecked();
-  } else {
-    test.info().annotations.push({ type: "note", description: "No earlier inspection to start from in the database." });
-  }
+  // Start From Previous is gone (Kenneth, 26 October 2026).
+  await expect(page.getByTestId("previous-picker")).toHaveCount(0);
 
   // The admin's own choice of template, past the automatic one (not another spec's, which would go again).
   await press(templatePicker);
@@ -215,31 +206,21 @@ test("a reload brings back every choice and the typed name; Cancel drops them", 
     v: 1,
     productType: order.productType,
     productName: TYPED,
-    previous: order.previousId ?? "",
   });
+  expect(stored).not.toHaveProperty("previous");
+  expect(stored).not.toHaveProperty("nameFromPrevious");
 
   await page.reload();
   await hydrated(page);
   await expect(page.getByRole("combobox", { name: "Client" })).toHaveText(order.client);
   await expect(page.getByRole("combobox", { name: "Manufacturer" })).toHaveText(order.manufacturer);
   await expect(productType).toBeChecked();
-  if (order.previousId) await expect(earlier).toBeChecked();
   await expect(productName).toHaveValue(shownName);
   await expect(templatePicker).toHaveText(template);
   await expect(reason).toHaveText("Chosen by an Admin");
   // Coming back changed nothing in the draft: no picker reported itself cleared on the way.
   expect((await drafts(page))[key]).toEqual(stored);
   await shot(page, "restored");
-
-  // What was typed under the earlier inspection's name comes back with Start Blank, and stays so.
-  if (order.previousId) {
-    await press(startBlank);
-    await expect(productName).toHaveValue(TYPED);
-    await page.reload();
-    await hydrated(page);
-    await expect(startBlank).toBeChecked();
-    await expect(productName).toHaveValue(TYPED);
-  }
 
   // Cancel drops the draft: the form opens empty again. The list may compile on first use.
   await press(page.getByRole("link", { name: "Cancel", exact: true }));

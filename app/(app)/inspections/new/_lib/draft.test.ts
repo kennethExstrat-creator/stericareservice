@@ -3,7 +3,7 @@
 // as the page still offers its choices, and dropped once Create has made the
 // inspection. The form itself, reloaded, runs in e2e/new/draft.spec.ts.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { NO_CLIENT, type PreviousProduct } from "@/lib/inspections/create";
+import { NO_CLIENT } from "@/lib/inspections/create";
 import {
   draftKey,
   foundDraftStore,
@@ -17,7 +17,7 @@ import {
   type NewInspectionChoices,
   type OfferedChoices,
 } from "./draft";
-import { PREVIOUS_SHOWN, type TemplateOption } from "./types";
+import type { TemplateOption } from "./types";
 
 /** sessionStorage in memory, optionally refusing writes as a full or blocked one does. */
 function memoryStorage(options: { refuseWrites?: boolean } = {}): DraftStorage & { items: Map<string, string> } {
@@ -49,23 +49,6 @@ const MANUFACTURER = "10000000-0000-4000-8000-000000000001";
 const OTHER_MANUFACTURER = "10000000-0000-4000-8000-000000000002";
 const KEY = draftKey("user-1");
 
-function product(index: number, extra: Partial<PreviousProduct> = {}): PreviousProduct {
-  return {
-    inspectionId: `30000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
-    refNo: `INS-2026-${String(index).padStart(4, "0")}`,
-    inspectionDate: "2026-09-01",
-    status: "submitted",
-    clientId: CLIENT,
-    manufacturerId: MANUFACTURER,
-    productType: "examination",
-    productName: `Nitrile ${index}`,
-    templateCode: "STD_EG",
-    templateVersion: 1,
-    copies: {},
-    ...extra,
-  };
-}
-
 function template(index: number, extra: Partial<TemplateOption> = {}): TemplateOption {
   return {
     id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
@@ -81,14 +64,11 @@ function template(index: number, extra: Partial<TemplateOption> = {}): TemplateO
     unit: "pcs",
     sizes: ["M"],
     sections: [],
-    titles: {},
     fieldsOff: {},
     ...extra,
   };
 }
 
-const NAMED = product(1);
-const UNNAMED = product(2, { productName: null });
 const EXAMINATION = template(1);
 const SURGICAL = template(2, { productType: "surgical" });
 const NOT_READY = template(3, { ready: false });
@@ -101,17 +81,14 @@ const OFFERED: OfferedChoices = {
     { id: OTHER_MANUFACTURER, label: "Other manufacturer" },
   ],
   templates: [EXAMINATION, SURGICAL, NOT_READY],
-  previous: [NAMED, UNNAMED],
 };
 
-/** Everything chosen: the client at the manufacturer, examination gloves, started from the named product. */
+/** Everything chosen: the client at the manufacturer, examination gloves, a typed name and an admin's template. */
 const DRAFT: NewInspectionChoices = {
   clientId: CLIENT,
   manufacturerId: MANUFACTURER,
   productType: "examination",
-  productName: "Typed before the earlier product was picked",
-  previous: NAMED.inspectionId,
-  nameFromPrevious: true,
+  productName: "Typed before the reload",
   templateId: EXAMINATION.id,
 };
 
@@ -137,11 +114,28 @@ describe("the new inspection's draft", () => {
     expect(readDraft(storage, KEY)).toBeNull();
   });
 
-  it("reads a draft without the start-from-previous name or an admin's template as neither", () => {
+  it("reads a draft without an admin's template as none", () => {
     const storage = memoryStorage();
-    const { clientId, manufacturerId, productType, productName, previous } = DRAFT;
-    storage.items.set(KEY, JSON.stringify({ v: 1, clientId, manufacturerId, productType, productName, previous }));
-    expect(readDraft(storage, KEY)).toEqual({ ...DRAFT, nameFromPrevious: false, templateId: "" });
+    const { clientId, manufacturerId, productType, productName } = DRAFT;
+    storage.items.set(KEY, JSON.stringify({ v: 1, clientId, manufacturerId, productType, productName }));
+    expect(readDraft(storage, KEY)).toEqual({ ...DRAFT, templateId: "" });
+  });
+
+  it("reads a draft kept with Start From Previous as its other choices, and writes it back without the earlier inspection", () => {
+    // Kept before Start From Previous went (Kenneth, 26 October 2026): it names the earlier inspection.
+    const storage = memoryStorage();
+    const earlier = "30000000-0000-4000-8000-000000000001";
+    storage.items.set(KEY, JSON.stringify({ v: 1, ...DRAFT, previous: earlier, nameFromPrevious: true }));
+    const found = readDraft(storage, KEY);
+    expect(found).toStrictEqual(DRAFT);
+    expect(restoreChoices(found!, OFFERED)).toStrictEqual(DRAFT);
+    // Older still: no admin's template, and no name from the earlier inspection.
+    const { clientId, manufacturerId, productType, productName } = DRAFT;
+    storage.items.set(KEY, JSON.stringify({ v: 1, clientId, manufacturerId, productType, productName, previous: earlier }));
+    expect(readDraft(storage, KEY)).toStrictEqual({ ...DRAFT, templateId: "" });
+    // The next change keeps the draft without them.
+    expect(writeDraft(storage, KEY, { ...found!, productName: "Edited after the reload" })).toBe(true);
+    expect(JSON.parse(storage.items.get(KEY)!)).toStrictEqual({ v: 1, ...DRAFT, productName: "Edited after the reload" });
   });
 
   it("never throws: unreadable drafts read as none, and refused writes say so", () => {
@@ -193,54 +187,23 @@ describe("the new inspection's draft", () => {
 describe("a draft brought back", () => {
   it("keeps every choice the page still offers, the typed name with it", () => {
     expect(restoreChoices(DRAFT, OFFERED)).toEqual(DRAFT);
-    const noClient = { ...DRAFT, clientId: NO_CLIENT, previous: "", nameFromPrevious: false };
+    const noClient = { ...DRAFT, clientId: NO_CLIENT };
     expect(restoreChoices(noClient, { ...OFFERED, clients: [] })).toEqual(noClient);
+    const otherManufacturer = { ...DRAFT, manufacturerId: OTHER_MANUFACTURER };
+    expect(restoreChoices(otherManufacturer, OFFERED)).toEqual(otherManufacturer);
     expect(restoreChoices(NO_CHOICES, OFFERED)).toEqual(NO_CHOICES);
   });
 
-  it("leaves out a client or manufacturer the page no longer offers, and the earlier inspection with it", () => {
+  it("leaves out a client or manufacturer the page no longer offers", () => {
     expect(restoreChoices({ ...DRAFT, clientId: OTHER_CLIENT }, OFFERED)).toMatchObject({
       clientId: "",
       manufacturerId: MANUFACTURER,
-      previous: "",
-      nameFromPrevious: false,
       productName: DRAFT.productName,
     });
     expect(restoreChoices(DRAFT, { ...OFFERED, manufacturers: [] })).toMatchObject({
       clientId: CLIENT,
       manufacturerId: "",
-      previous: "",
-      nameFromPrevious: false,
-    });
-  });
-
-  it("starts from an earlier inspection only while the picker lists it for these picks", () => {
-    // Gone from the list (deleted, or no longer visible).
-    expect(restoreChoices(DRAFT, { ...OFFERED, previous: [UNNAMED] })).toMatchObject({ previous: "", nameFromPrevious: false });
-    // Listed for another manufacturer than the one chosen.
-    expect(restoreChoices({ ...DRAFT, manufacturerId: OTHER_MANUFACTURER }, OFFERED)).toMatchObject({
-      manufacturerId: OTHER_MANUFACTURER,
-      previous: "",
-    });
-    // No product type chosen: nothing is listed yet.
-    expect(restoreChoices({ ...DRAFT, productType: null }, OFFERED)).toMatchObject({ previous: "", templateId: "" });
-    // Newer products pushed it past the most recent the picker lists: it would be copied unseen.
-    const newer = Array.from({ length: PREVIOUS_SHOWN }, (_, index) => product(100 + index));
-    expect(restoreChoices(DRAFT, { ...OFFERED, previous: [...newer, NAMED] })).toMatchObject({ previous: "" });
-    expect(restoreChoices(DRAFT, { ...OFFERED, previous: [...newer.slice(1), NAMED] })).toMatchObject({
-      previous: NAMED.inspectionId,
-    });
-  });
-
-  it("fills the product name from an earlier inspection only when it has one", () => {
-    expect(restoreChoices({ ...DRAFT, previous: UNNAMED.inspectionId }, OFFERED)).toMatchObject({
-      previous: UNNAMED.inspectionId,
-      nameFromPrevious: false,
-    });
-    // Edited after the pick: the typed name stays.
-    expect(restoreChoices({ ...DRAFT, nameFromPrevious: false }, OFFERED)).toMatchObject({
-      previous: NAMED.inspectionId,
-      nameFromPrevious: false,
+      productName: DRAFT.productName,
     });
   });
 
@@ -252,5 +215,7 @@ describe("a draft brought back", () => {
     });
     expect(restoreChoices({ ...DRAFT, templateId: NOT_READY.id }, OFFERED)).toMatchObject({ templateId: "" });
     expect(restoreChoices(DRAFT, { ...OFFERED, templates: [SURGICAL] })).toMatchObject({ templateId: "" });
+    // No product type chosen: no template is for it yet.
+    expect(restoreChoices({ ...DRAFT, productType: null }, OFFERED)).toMatchObject({ productType: null, templateId: "" });
   });
 });

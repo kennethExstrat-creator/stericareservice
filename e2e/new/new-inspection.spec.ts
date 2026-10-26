@@ -10,7 +10,6 @@ import {
   inspectionsOfFixture,
   LEVEL_TEMPLATES,
   POLYCO,
-  PREVIOUS,
   seedTemplatesLive,
   standardTemplates,
   type NewFixture,
@@ -21,9 +20,9 @@ import { expectNoPageScroll } from "../support/layout";
  * /inspections/new (BUILD_SPEC 4.4, 8 and 10) against the live project, at
  * the three sizes in playwright.config.ts. Screenshots go to
  * screenshots/newseed/. Every inspection drawn from the live ref sequence
- * counts, so the two specs that create one run on one size each: a blank
- * start on the iPad in portrait (the capture device), start from previous on
- * the desktop.
+ * counts, so the spec that creates one runs on one size: a blank start on the
+ * iPad in portrait (the capture device). Start From Previous is gone
+ * (Kenneth, 26 October 2026).
  */
 
 const INSPECTION_URL = /\/inspections\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -93,11 +92,7 @@ async function choose(page: Page, label: string, option: string | RegExp) {
   await expect(page.getByRole("combobox", { name: label })).toHaveText(option);
 }
 
-/**
- * A product type's card, found in its own group and by the start of its name: once the
- * picks are made, Start From Previous lists the earlier inspection, whose product name
- * ("E2E Nitrile examination gloves, blue") holds "examination gloves" too.
- */
+/** A product type's card, found in its own group and by the start of its name. */
 function productTypeCard(page: Page, type: "examination" | "surgical") {
   return page
     .getByRole("group", { name: "Product Type", exact: true })
@@ -165,7 +160,8 @@ test("the most specific template wins: client and manufacturer, client, manufact
 
   await expect(page.getByRole("heading", { level: 1, name: "New Inspection" })).toBeVisible();
   await expect(templatePanel(page)).toContainText("The template follows from the client, manufacturer and product type.");
-  await expect(page.getByTestId("previous-picker")).toContainText("Choose the client, manufacturer and product type first.");
+  // Start From Previous is gone (Kenneth, 26 October 2026).
+  await expect(page.getByTestId("previous-picker")).toHaveCount(0);
   await expectNoPageScroll(page);
   await shot(page, "empty");
 
@@ -176,8 +172,6 @@ test("the most specific template wins: client and manufacturer, client, manufact
   await expect(chosen).toContainText(FIXTURE_TEMPLATE_NAME);
   await expect(chosen).toContainText(`${FIXTURE_TEMPLATE_CODE} Version 1 · EN 455`);
   await expect(chosen).toContainText("XS, S, M, L, XL (pieces)");
-  await expect(page.getByRole("radio", { name: new RegExp(PREVIOUS.productName) })).toBeVisible();
-  await expect(page.getByRole("radio", { name: "Start Blank" })).toBeChecked();
   await expectNoPageScroll(page);
   await shot(page, "template");
 
@@ -191,7 +185,6 @@ test("the most specific template wins: client and manufacturer, client, manufact
   // first. Its header has no product name, so the form takes none.
   await choose(page, "Manufacturer", fixture.manufacturerA.label);
   await expectTemplate(page, LEVEL_TEMPLATES.client.code, `For ${fixture.clientName}`);
-  await expect(page.getByTestId("no-previous")).toBeVisible();
   const productName = page.getByRole("textbox", { name: /Product Name/ });
   await expect(productName).toBeDisabled();
   await expect(productName).toHaveAttribute("placeholder", "None with this template");
@@ -226,30 +219,14 @@ test("the most specific template wins: client and manufacturer, client, manufact
   await expectNoPageScroll(page);
   await shot(page, "standard");
 
-  // Back with the client at Hartalega, start from the earlier inspection: its product name
-  // comes along, and goes again with Start Blank, giving back what was typed.
+  // Back with the client at Hartalega, where the fixture has an earlier inspection: the
+  // product name stays as typed, since nothing starts from an earlier inspection any more.
   await choose(page, "Client", fixture.clientName);
   await choose(page, "Manufacturer", HARTALEGA.label);
   await expectTemplate(page, FIXTURE_TEMPLATE_CODE, `For ${fixture.clientName} at ${HARTALEGA.label}`);
   await productName.fill("E2E typed name");
-  await press(page.getByRole("radio", { name: new RegExp(PREVIOUS.productName) }));
-  await expect(productName).toHaveValue(PREVIOUS.productName);
-  await press(page.getByRole("radio", { name: "Start Blank" }));
   await expect(productName).toHaveValue("E2E typed name");
-  await expect(page.getByTestId("copy-summary")).toHaveCount(0);
-  await press(page.getByRole("radio", { name: new RegExp(PREVIOUS.productName) }));
-  const summary = page.getByTestId("copy-summary");
-  await expect(summary).toContainText(`Copied From ${fixture.previousRef}`);
-  await expect(summary).toContainText(
-    "Manufacturer Information: factory address, product name, product code and factory glove code",
-  );
-  await expect(summary).toContainText("Glove Information: every field");
-  await expect(summary).toContainText("Packing Configuration: every field");
-  await expect(summary).toContainText("Never copied: PO number, dates, lots, sampling, test results, comments and photos.");
-  await expect(summary).toContainText(`Same template as last time (${FIXTURE_TEMPLATE_CODE} version 1): its specs and AQL carry over.`);
-  await expect(productName).toHaveValue(PREVIOUS.productName);
   await expectNoPageScroll(page);
-  await shot(page, "previous");
 
   if (isTouch()) {
     for (const control of [
@@ -316,7 +293,7 @@ test("a failed Create keeps every choice and says why", async ({ page, context, 
   await signIn(context, baseURL!, TEST_ACCOUNTS.inspector);
   await page.goto("/inspections/new");
   await pickFixtureOrder(page);
-  await press(page.getByRole("radio", { name: new RegExp(PREVIOUS.productName) }));
+  await page.getByRole("textbox", { name: /Product Name/ }).fill("E2E kept name");
   await expect(page.getByTestId("chosen-template")).toHaveAttribute("data-code", FIXTURE_TEMPLATE_CODE);
 
   await dropCreateRequests(page);
@@ -329,8 +306,7 @@ test("a failed Create keeps every choice and says why", async ({ page, context, 
   await expect(page.getByRole("combobox", { name: "Client" })).toHaveText(fixture.clientName);
   await expect(page.getByRole("combobox", { name: "Manufacturer" })).toHaveText(HARTALEGA.label);
   await expect(productTypeCard(page, "examination")).toBeChecked();
-  await expect(page.getByRole("radio", { name: new RegExp(PREVIOUS.productName) })).toBeChecked();
-  await expect(page.getByRole("textbox", { name: /Product Name/ })).toHaveValue(PREVIOUS.productName);
+  await expect(page.getByRole("textbox", { name: /Product Name/ })).toHaveValue("E2E kept name");
   await expect(page.getByTestId("chosen-template")).toHaveAttribute("data-code", FIXTURE_TEMPLATE_CODE);
   await expect(page.getByRole("button", { name: "Create Inspection" })).toBeEnabled();
   await expectNoPageScroll(page);
@@ -386,54 +362,6 @@ test("the inspector creates an inspection from the manufacturer's template and l
   await shot(page, "created");
 });
 
-test("start from previous copies the product's details and nothing else", async ({ page, context, baseURL }) => {
-  test.skip(test.info().project.name !== "desktop", "Creates an inspection: one size only (e2e/README.md).");
-  await signIn(context, baseURL!, TEST_ACCOUNTS.inspector);
-  await page.goto("/inspections/new");
-  await pickFixtureOrder(page);
-  await press(page.getByRole("radio", { name: new RegExp(PREVIOUS.productName) }));
-  await press(page.getByRole("button", { name: "Create Inspection" }));
-
-  await expect(page).toHaveURL(INSPECTION_URL, { timeout: 90_000 });
-  const id = page.url().split("/").at(-1)!;
-  const [created] = (await inspectionsOfFixture(fixture.templateId)).filter((row) => row.id === id);
-  // The earlier inspection's PO and lots stay with it.
-  expect(created).toMatchObject({ product_name: PREVIOUS.productName, po_no: null, lot_numbers: [], result: null, remarks: null });
-  const data = created.data as { modules: Record<string, unknown>; custom: Record<string, unknown> };
-  expect(Object.keys(data.modules).sort()).toEqual([...STD_EG_MODULES].sort());
-  // The address typed last time wins over the manufacturer's.
-  expectOnly(data.modules.header, {
-    factoryAddress: PREVIOUS.header.factoryAddress,
-    productName: PREVIOUS.header.productName,
-    productCode: PREVIOUS.header.productCode,
-    factoryGloveCode: PREVIOUS.header.factoryGloveCode,
-    inspectionDate: todayInMalaysia(),
-  });
-  expectOnly(data.modules.glove_info, PREVIOUS.gloveInfo);
-  expectOnly(data.modules.packing_config, PREVIOUS.packing);
-  const text = JSON.stringify(data);
-  for (const never of [
-    PREVIOUS.header.poNo,
-    PREVIOUS.header.mfgDate,
-    PREVIOUS.header.expiryDate,
-    PREVIOUS.header.inspectionDate,
-    PREVIOUS.header.comment,
-    PREVIOUS.order.sizes.M.lotNumbers[0],
-    "578",
-    PREVIOUS.conclusion.remark,
-    "never copied",
-  ]) {
-    expect(text, never).not.toContain(never);
-  }
-  expect(data.custom).toEqual({});
-  const audit = await auditOf(id);
-  expect(audit.map((row) => row.action).sort()).toEqual(["created", "started_from_previous"]);
-  expect(audit.find((row) => row.action === "started_from_previous")?.changes).toEqual({
-    from: { id: fixture.previousId, ref_no: fixture.previousRef },
-    copied: ["header", "glove_info", "packing_config"],
-  });
-});
-
 test("an admin can choose another template", async ({ page, context, baseURL }) => {
   test.skip(test.info().project.name === "ipad-landscape", "The admin's view once on each layout.");
   await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
@@ -447,8 +375,6 @@ test("an admin can choose another template", async ({ page, context, baseURL }) 
   await expect(option).toBeVisible();
   await press(option);
   await expect(page.getByTestId("choice-reason")).toHaveText("Chosen by an Admin");
-  // Admins see every inspector's earlier inspections.
-  await expect(page.getByRole("radio", { name: new RegExp(PREVIOUS.productName) })).toBeVisible();
   await expectNoPageScroll(page);
   await shot(page, "admin");
 

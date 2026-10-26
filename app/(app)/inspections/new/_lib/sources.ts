@@ -6,7 +6,6 @@
 // and a reading fills only what is still empty (the first answer wins). The
 // header values and order lines of every document read go in with Create.
 // Pure, so the rules are unit-tested without a browser.
-import { NO_CLIENT, previousFor, productNameField, type PreviousProduct } from "@/lib/inspections/create";
 import { mediaKind } from "@/lib/inspections/source-documents";
 import { FILE_SIZE_LIMIT } from "@/lib/photos/paths";
 import {
@@ -76,29 +75,13 @@ export function nextToRead(documents: readonly HeldDocument[], needsValues: bool
   return documents.find((document) => document.state.step === "waiting") ?? null;
 }
 
-/** The product name as the form shows it: an earlier inspection's, while it fills the field, else as typed. */
-export function shownProductName(choices: NewInspectionChoices, previous: readonly PreviousProduct[]): string {
-  const { clientId, manufacturerId, productType } = choices;
-  if (clientId === "" || manufacturerId === "" || productType === null) return choices.productName;
-  const picks = { clientId: clientId === NO_CLIENT ? null : clientId, manufacturerId, productType };
-  const picked = previousFor(previous, picks).find((product) => product.inspectionId === choices.previous) ?? null;
-  return productNameField(choices.productName, choices.nameFromPrevious ? choices.previous : null, picked);
-}
-
 /** The form's fields a reading fills: only those with nothing chosen or typed yet. */
-export function formFill(
-  choices: NewInspectionChoices,
-  form: DocumentFormFields,
-  previous: readonly PreviousProduct[],
-): Partial<NewInspectionChoices> {
+export function formFill(choices: NewInspectionChoices, form: DocumentFormFields): Partial<NewInspectionChoices> {
   const change: Partial<NewInspectionChoices> = {};
   if (form.clientId && choices.clientId === "") change.clientId = form.clientId;
   if (form.manufacturerId && choices.manufacturerId === "") change.manufacturerId = form.manufacturerId;
   if (form.productType && choices.productType === null) change.productType = form.productType;
-  if (form.productName && shownProductName(choices, previous).trim() === "") {
-    change.productName = form.productName;
-    change.nameFromPrevious = false;
-  }
+  if (form.productName && choices.productName.trim() === "") change.productName = form.productName;
   return change;
 }
 

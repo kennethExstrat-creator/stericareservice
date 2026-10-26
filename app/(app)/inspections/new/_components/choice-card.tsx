@@ -13,7 +13,6 @@ export function ChoiceCard({
   value,
   title,
   description,
-  muted = false,
   invalid = false,
   ref,
 }: {
@@ -21,8 +20,6 @@ export function ChoiceCard({
   value: string;
   title: ReactNode;
   description?: ReactNode;
-  /** A stand-in title, such as "Product Name Not Entered". */
-  muted?: boolean;
   /** The group needs a choice: red edges, as a field with an error. */
   invalid?: boolean;
   ref?: Ref<HTMLButtonElement>;
@@ -40,9 +37,7 @@ export function ChoiceCard({
     >
       <RadioGroupItem ref={ref} id={id} value={value} className="mt-0.5 touch:mt-0" />
       <span className="flex min-w-0 flex-col gap-1">
-        <span className={cn("font-medium break-words", muted ? "text-muted-foreground italic" : "text-foreground")}>
-          {title}
-        </span>
+        <span className="font-medium break-words text-foreground">{title}</span>
         {description && <span className="text-sm text-muted-foreground">{description}</span>}
       </span>
     </label>

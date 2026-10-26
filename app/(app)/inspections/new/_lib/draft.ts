@@ -1,23 +1,27 @@
 // What the new-inspection form holds before Create: the client, manufacturer
-// and product type, the product name as typed, the earlier inspection to
-// start from and an admin's choice of template. It is kept in the tab's
-// sessionStorage on every change, so a reload, a pull to refresh or a tab
-// the iPad dropped and loaded again loses nothing, and removed once the
-// inspection is created or the form is cancelled. Per user: another account
-// signed in on the same tab never sees it. The Source Documents held on the
-// form are not part of it: files cannot be kept there, and leaving the page
-// drops them.
+// and product type, the product name as typed or filled in, and an admin's
+// choice of template. It is kept in the tab's sessionStorage on every change,
+// so a reload, a pull to refresh or a tab the iPad dropped and loaded again
+// loses nothing, and removed once the inspection is created or the form is
+// cancelled. Per user: another account signed in on the same tab never sees
+// it. The Source Documents held on the form are not part of it: files cannot
+// be kept there, and leaving the page drops them.
 //
 // The server and hydration see no draft; the first render after hydration
 // brings it back (useSyncExternalStore), so nothing differs between server
-// and browser. Whatever the page no longer offers (a client deleted since, an
-// earlier inspection that left the list) is left out. The draft is a
+// and browser. Whatever the page no longer offers (a client deleted since, a
+// template an admin can no longer choose) is left out. The draft is a
 // convenience, never the record: storage can be blocked (private browsing),
 // full or wiped, and every access here is allowed to fail.
+//
+// Start From Previous is gone (Kenneth, 26 October 2026). A draft kept before
+// then still holds its earlier inspection (previous, nameFromPrevious): a zod
+// object drops the keys it does not list, so that draft reads as the rest of
+// its choices, the product name as typed, and is written without them.
 import { z } from "zod";
-import { NO_CLIENT, previousFor } from "@/lib/inspections/create";
+import { NO_CLIENT } from "@/lib/inspections/create";
 import { ProductTypeSchema, type ProductType } from "@/lib/schemas/common";
-import { PREVIOUS_SHOWN, type Option, type PreviousProduct, type TemplateOption } from "./types";
+import type { Option, TemplateOption } from "./types";
 
 const PREFIX = "stericare:new-inspection:";
 
@@ -32,12 +36,8 @@ export type NewInspectionChoices = {
   clientId: string;
   manufacturerId: string;
   productType: ProductType | null;
-  /** The product name as the user typed it. */
+  /** The product name as the user typed it, or as Steri-AI filled it in. */
   productName: string;
-  /** The earlier inspection to start from; "" starts blank. */
-  previous: string;
-  /** The earlier inspection's product name fills the field, until the user edits it. */
-  nameFromPrevious: boolean;
   /** An admin's choice of template; "" leaves it to the rule. */
   templateId: string;
 };
@@ -47,19 +47,16 @@ export const NO_CHOICES: NewInspectionChoices = {
   manufacturerId: "",
   productType: null,
   productName: "",
-  previous: "",
-  nameFromPrevious: false,
   templateId: "",
 };
 
+/** A draft as the tab keeps it. Any other key is dropped, such as an older draft's previous and nameFromPrevious. */
 const DraftSchema = z.object({
   v: z.literal(1),
   clientId: z.string(),
   manufacturerId: z.string(),
   productType: ProductTypeSchema.nullable(),
   productName: z.string(),
-  previous: z.string(),
-  nameFromPrevious: z.boolean().default(false),
   templateId: z.string().default(""),
 });
 
@@ -82,8 +79,8 @@ export function readDraft(storage: DraftStorage | null, key: string): NewInspect
     if (raw === null) return null;
     const parsed = DraftSchema.safeParse(JSON.parse(raw));
     if (!parsed.success) return null;
-    const { clientId, manufacturerId, productType, productName, previous, nameFromPrevious, templateId } = parsed.data;
-    return { clientId, manufacturerId, productType, productName, previous, nameFromPrevious, templateId };
+    const { clientId, manufacturerId, productType, productName, templateId } = parsed.data;
+    return { clientId, manufacturerId, productType, productName, templateId };
   } catch {
     return null;
   }
@@ -114,15 +111,12 @@ export type OfferedChoices = {
   clients: readonly Option[];
   manufacturers: readonly Option[];
   templates: readonly TemplateOption[];
-  /** The latest inspection of each product the user can see. */
-  previous: readonly PreviousProduct[];
 };
 
 /**
  * A draft's choices as far as the page still offers them; anything else is
- * not chosen. The earlier inspection must still be listed for the client,
- * manufacturer and product type (the picker lists the most recent few), and
- * an admin's template must still be one they can choose for the product type.
+ * not chosen. An admin's template must still be one they can choose for the
+ * product type.
  */
 export function restoreChoices(draft: NewInspectionChoices, offered: OfferedChoices): NewInspectionChoices {
   const clientId =
@@ -131,12 +125,6 @@ export function restoreChoices(draft: NewInspectionChoices, offered: OfferedChoi
     ? draft.manufacturerId
     : "";
   const { productType } = draft;
-  const client = clientId === "" ? undefined : clientId === NO_CLIENT ? null : clientId;
-  const listed =
-    client !== undefined && manufacturerId !== "" && productType !== null
-      ? previousFor(offered.previous, { clientId: client, manufacturerId, productType }).slice(0, PREVIOUS_SHOWN)
-      : [];
-  const product = listed.find((entry) => entry.inspectionId === draft.previous) ?? null;
   const templateId =
     offered.role === "admin" &&
     offered.templates.some(
@@ -144,15 +132,7 @@ export function restoreChoices(draft: NewInspectionChoices, offered: OfferedChoi
     )
       ? draft.templateId
       : "";
-  return {
-    clientId,
-    manufacturerId,
-    productType,
-    productName: draft.productName,
-    previous: product?.inspectionId ?? "",
-    nameFromPrevious: draft.nameFromPrevious && product !== null && product.productName !== null,
-    templateId,
-  };
+  return { clientId, manufacturerId, productType, productName: draft.productName, templateId };
 }
 
 /**

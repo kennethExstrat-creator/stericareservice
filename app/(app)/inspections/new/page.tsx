@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 /**
  * Starting an inspection (BUILD_SPEC 10): any signed-in inspector or admin.
  * Everything is read through the user's own client, so Row Level Security
- * decides what the pickers and "start from previous" offer.
+ * decides what the pickers offer.
  */
 export default async function NewInspectionPage() {
   const user = await requireUser();
@@ -37,7 +37,6 @@ export default async function NewInspectionPage() {
           clients={options.clients}
           manufacturers={options.manufacturers}
           templates={options.templates}
-          previous={options.previous}
         />
       ) : (
         <LoadFailed />
