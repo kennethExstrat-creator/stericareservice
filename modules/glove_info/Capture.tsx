@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import { fieldIssues, labelFor, type CaptureProps } from "@/modules/_framework";
 import { variantName, weightLabel, type GloveInfoComputed } from "./calc";
 import { GLOVE_COLOURS, listedColour } from "./colours";
@@ -257,15 +258,18 @@ function ColourField({
         <SelectContent>
           {options.map((colour) => (
             <SelectItem key={colour.name} value={colour.name}>
+              {/* The dot before the name (Kenneth, 26 October 2026); a name with no colour keeps the dot's space, so
+                  the names line up. */}
+              <span
+                aria-hidden
+                data-slot="colour-dot"
+                className={cn(
+                  "inline-block size-3 shrink-0 rounded-full",
+                  colour.swatch === null ? "invisible" : "ring-1 ring-slate-900/20",
+                )}
+                style={colour.swatch === null ? undefined : { backgroundColor: colour.swatch }}
+              />
               {colour.name}
-              {colour.swatch !== null && (
-                <span
-                  aria-hidden
-                  data-slot="colour-dot"
-                  className="inline-block size-3 shrink-0 rounded-full ring-1 ring-slate-900/20"
-                  style={{ backgroundColor: colour.swatch }}
-                />
-              )}
             </SelectItem>
           ))}
         </SelectContent>
