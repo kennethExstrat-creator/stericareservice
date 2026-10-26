@@ -330,7 +330,12 @@ export default function Capture({
             <div key="result" style={at(row, column)} className={cn(CELL, VALUE_CELL, edge(row))}>
               {result && (
                 <>
-                  <StatusPill size="sm" status={result.status} />
+                  {/* Complete with nothing to pass or fail: the tick, "Done", as the step's own (Kenneth, 26 October 2026). */}
+                  <StatusPill
+                    size="sm"
+                    status={result.status === "info" ? "pass" : result.status}
+                    label={result.status === "info" ? "Done" : undefined}
+                  />
                   {/* The size's few words ("Not started."): the issues under the grid say the rest. */}
                   {result.summary && <span className="sr-only">{result.summary}</span>}
                 </>
