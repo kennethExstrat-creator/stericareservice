@@ -170,7 +170,8 @@ describe("buildInspectionContext: numbers flow forward", () => {
       "carton_sampling",
     ]);
     const context = build(exampleData(), template);
-    expect(moduleShortTitle(context, "header")).toBe("Manufacturer");
+    // The header is General Information on every screen (Kenneth, 26 October 2026).
+    expect(moduleShortTitle(context, "header")).toBe("General Information");
     expect(moduleShortTitle(context, "carton_sampling")).toBe("Box/Carton Numbers");
     // A template's own words stay (STD_SG).
     expect(moduleShortTitle(context, "order_lots")).toBe("PO Info");

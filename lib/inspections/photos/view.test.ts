@@ -234,7 +234,8 @@ describe("tag options from the template", () => {
 
   it("keeps each module's title and gives it its short name, a custom module its own title (docs/DESIGN.md, Step Names)", () => {
     expect(options.modules.map(({ key, title, shortTitle }) => [key, title, shortTitle])).toEqual([
-      ["header", "Preshipment Inspection", "Manufacturer"],
+      // The template's "Preshipment Inspection": General Information on screen (Kenneth, 26 October 2026).
+      ["header", "General Information", "General Information"],
       ["dimensions", "Dimensions", "Dimension"],
       ["pallet_check", "Pallet check", "Pallet check"],
       ["watertight", "Watertight Test", "Watertight Test"],

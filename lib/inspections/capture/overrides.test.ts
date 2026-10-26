@@ -13,9 +13,9 @@ describe("switchOffProblem", () => {
   });
 
   it("explains why a module stays on, naming it by its short name (docs/DESIGN.md, Step Names)", () => {
-    // The template's "Manufacturer Information".
+    // The template's "Manufacturer Information", General Information on screen.
     expect(switchOffProblem(template, {}, "header")).toBe(
-      "Manufacturer is always on. Its fields are switched on and off in the template.",
+      "General Information is always on. Its fields are switched on and off in the template.",
     );
     expect(switchOffProblem(template, {}, "conclusion")).toMatch(/^Conclusion is always on/);
     expect(switchOffProblem(template, {}, "order_lots")).toBe(

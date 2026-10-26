@@ -335,8 +335,8 @@ describe("the panel's words", () => {
       return new Map(pendingTasks(groupIssues(issues, sections), sections, report.modules).map((task) => [task.key, task.title]));
     };
     const empty = titles({});
-    // The test registry's titles: "Manufacturer Information", "Weight (g)", "Packing configuration".
-    expect(empty.get("header")).toBe("Manufacturer");
+    // The test registry's titles: "Manufacturer Information" (General Information on screen), "Weight (g)", "Packing configuration".
+    expect(empty.get("header")).toBe("General Information");
     expect(empty.get("weight")).toBe("Weight");
     expect(empty.get("packing_config")).toBe("Packing Configuration");
     expect(empty.get("conclusion")).toBe("Conclusion");

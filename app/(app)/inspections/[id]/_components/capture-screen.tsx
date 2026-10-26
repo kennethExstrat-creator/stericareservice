@@ -10,9 +10,12 @@
 // Next go by page; ?module=, issue links and the switches name a section,
 // and open its page with that section's title in view. A module's file slot
 // links a file uploaded on Source Documents, and opens that page while it
-// has none (section-body.tsx). The conclusion's Steri-AI Summary asks the
-// screen for a draft (summaryAssist): what is waiting is saved first, as for
-// submit, and the draft comes back as text for the editor, never as data.
+// has none (section-body.tsx). General Information (the header) is on
+// Source Documents' page, in a column left of the files, with no page of
+// its own (ActivePage; Kenneth, 26 October 2026). The conclusion's Steri-AI
+// Summary asks the screen for a draft (summaryAssist): what is waiting is
+// saved first, as for submit, and the draft comes back as text for the
+// editor, never as data.
 //
 // Layout: below 1280 px (the iPad) a section tab bar sticks under the shell's
 // top bar with the save pill, and the form runs full width; from 1280 px a
@@ -116,6 +119,7 @@ import {
   neighbours,
   pageSectionKeys,
   progressSteps,
+  withSourceDocuments,
   type CapturePage,
   type CaptureSection,
 } from "@/lib/inspections/capture/sections";
@@ -153,7 +157,7 @@ import { SaveIndicator } from "./save-indicator";
 import { CustomBody, ModuleBody, preloadCaptures } from "./section-body";
 import { PagePanel, SectionFrame } from "./section-frame";
 import { SourceDocumentsPage } from "./source-documents-page";
-import { useSourceDocuments } from "./use-source-documents";
+import { useSourceDocuments, type SourceDocuments } from "./use-source-documents";
 import { SectionList } from "./section-list";
 import { SectionTabs, tabId } from "./section-tabs";
 import { SubmitControl, type SubmitBlocked, type SubmitPreparation } from "./submit-control";
@@ -387,23 +391,28 @@ export function CaptureScreen({
       return result.filled;
     },
   });
-  // What a tab, a sidebar row, a progress step and Previous or Next open: Source Documents first, then the order,
-  // the sampling plan and the box/carton numbers (LEAD_PAGE_KEYS), then each other section, or a module with those
-  // shown on its page.
+  // What a tab, a sidebar row, a progress step and Previous or Next open: Source Documents first, with General
+  // Information beside the files (withSourceDocuments), then the order, the sampling plan and the box/carton numbers
+  // (LEAD_PAGE_KEYS), then each other section, or a module with those shown on its page.
   const pages = useMemo(
-    (): CapturePage[] => [
-      {
-        kind: "documents",
-        key: SOURCE_DOCUMENTS_KEY,
-        title: SOURCE_DOCUMENTS_TITLE,
-        shortTitle: SOURCE_DOCUMENTS_TITLE,
-        status: sourceDocuments.status,
-        progress: sourceDocuments.progress,
-      },
-      ...leadPagesFirst(capturePages(sections)),
-    ],
+    (): CapturePage[] =>
+      withSourceDocuments(
+        {
+          key: SOURCE_DOCUMENTS_KEY,
+          title: SOURCE_DOCUMENTS_TITLE,
+          shortTitle: SOURCE_DOCUMENTS_TITLE,
+          status: sourceDocuments.status,
+          progress: sourceDocuments.progress,
+        },
+        leadPagesFirst(capturePages(sections)),
+      ),
     [sections, sourceDocuments.status, sourceDocuments.progress],
   );
+  // For selectSection, which keeps the same identity while the pages change with every edit.
+  const pagesRef = useRef(pages);
+  useEffect(() => {
+    pagesRef.current = pages;
+  }, [pages]);
 
   // The section asked for (?module=, an issue link, a switch) or the page chosen: the screen shows the page it is on.
   // Without one, Source Documents, the first step.
@@ -508,8 +517,9 @@ export function CaptureScreen({
       setFocusRequest(null);
       syncUrl(key);
       requestAnimationFrame(() => {
-        // A page's key is its first section's.
-        const title = titleFor(key);
+        // A page's key is its first section's; on Source Documents' page General Information comes first.
+        const page = findPage(pagesRef.current, key);
+        const title = titleFor(page?.kind === "documents" ? pageSectionKeys(page)[0] : key);
         if (!title) return;
         if (title.getBoundingClientRect().top < stickyTopOf(rootRef.current)) scrollToTitle(title, rootRef.current);
         if (focusHeading) title.focus({ preventScroll: true });
@@ -894,7 +904,9 @@ export function CaptureScreen({
   const { previous, next } = activePage ? neighbours(pages, activePage.key) : { previous: null, next: null };
   // The refused entries of each section on the open page, for its fields (null where this screen keeps none).
   const refusedOwners =
-    activePage?.kind === "included" ? activePage.sections.map((section) => `${section.kind}:${section.key}`).join(" ") : "";
+    activePage && activePage.kind !== "excluded"
+      ? activePage.sections.map((section) => `${section.kind}:${section.key}`).join(" ")
+      : "";
   const refusedStores = useMemo(() => {
     const stores = new Map<string, RefusedEntryStore | null>();
     for (const owner of refusedOwners.split(" ").filter(Boolean)) {
@@ -1023,23 +1035,14 @@ export function CaptureScreen({
             label="Progress"
           />
 
-          {activePage?.kind === "documents" ? (
-            <SourceDocumentsPage
-              key={activePage.key}
-              panelId={panelId}
-              tabLabelledBy={wide ? undefined : tabId(idPrefix, activePage.key)}
-              titleRef={titleRef}
-              inspectionId={inspectionId}
-              readOnly={readOnly}
-              documents={sourceDocuments}
-            />
-          ) : activePage && (
+          {activePage && (
             <ActivePage
               key={activePage.key}
               page={activePage}
               panelId={panelId}
               titleRef={titleRef}
               tabLabelledBy={wide ? undefined : tabId(idPrefix, activePage.key)}
+              documents={sourceDocuments}
               template={template}
               effective={evaluation.template}
               overrides={overrides}
@@ -1163,12 +1166,14 @@ type SharedSectionProps = {
 };
 
 type ActivePageProps = SharedSectionProps & {
-  page: Exclude<CapturePage, { kind: "documents" }>;
+  page: CapturePage;
   panelId: string;
   /** The callback ref of each section's title, by section key: the screen focuses titles. */
   titleRef: (sectionKey: string) => Ref<HTMLHeadingElement>;
   /** Below 1280 px: the id of the page's tab, which names the panel (WAI-ARIA tabs). */
   tabLabelledBy?: string;
+  /** Source Documents' files and what Steri-AI made of them, for that page. */
+  documents: SourceDocuments;
   /** A data path to focus, or only to reveal, in one section of the page: an issue link, a landing. */
   focusRequest: FocusRequest | null;
   /** Where each section's number fields keep what they refused, by section key; null to keep their own. */
@@ -1190,40 +1195,71 @@ type ActivePageProps = SharedSectionProps & {
  * it still shows: the field being typed in keeps its focus and its
  * half-typed value, and the form what it holds. A section switched off
  * where it is open keeps its frame too, as its switched-off panel.
+ *
+ * Source Documents' page: General Information (the header, with any module
+ * shown on its page) in a column on the left, the files on the right as the
+ * main, wider column (Kenneth, 26 October 2026: "move this to left beside
+ * the source document column, with document column as the main column").
+ * From 1024 px side by side, 2 to 3; below, General Information first. Its
+ * frames are a page of several sections'; without them, the files' frame is
+ * the panel itself.
  */
 function ActivePage({
   page,
   panelId,
   titleRef,
   tabLabelledBy,
+  documents,
   focusRequest,
   refusedStores,
   onUnreadableRemoved,
   onOverridesChange,
   ...shared
 }: ActivePageProps) {
-  const sections: readonly CaptureSection[] = page.kind === "included" ? page.sections : [page.section];
-  const several = sections.length > 1;
+  const sections: readonly CaptureSection[] = page.kind === "excluded" ? [page.section] : page.sections;
+  const several = sections.length > 1 || (page.kind === "documents" && sections.length > 0);
+  const parts = sections.map((section) => (
+    <SectionPart
+      key={section.key}
+      {...shared}
+      section={section}
+      // A page of one section is that section's frame; on a page of several, each frame has an id of its own.
+      frameId={several ? `${panelId}-${section.key}` : panelId}
+      tabLabelledBy={several ? undefined : tabLabelledBy}
+      // On a page of several, each section's comment, photos, Switch Off and its form's own buttons are read out with its
+      // short name (docs/DESIGN.md, Step Names).
+      nameContext={several ? section.shortTitle : undefined}
+      headingRef={titleRef(section.key)}
+      focusPath={focusRequest?.sectionKey === section.key ? focusRequest.path : null}
+      refusedEntries={refusedStores.get(section.key) ?? null}
+      onUnreadableRemoved={() => onUnreadableRemoved(section.key)}
+      onOverridesChange={(next) => onOverridesChange(next, section.key)}
+    />
+  ));
+  if (page.kind === "documents") {
+    const files = (id: string, labelledBy?: string) => (
+      <SourceDocumentsPage
+        id={id}
+        tabLabelledBy={labelledBy}
+        titleRef={titleRef}
+        inspectionId={shared.inspectionId}
+        readOnly={shared.readOnly}
+        documents={documents}
+      />
+    );
+    if (!several) return files(panelId, tabLabelledBy);
+    return (
+      <PagePanel id={panelId} tabLabelledBy={tabLabelledBy}>
+        <div data-slot="documents-columns" className="grid items-start gap-4 lg:grid-cols-[minmax(18rem,2fr)_minmax(0,3fr)]">
+          <div className="flex min-w-0 flex-col gap-4">{parts}</div>
+          {files(`${panelId}-${SOURCE_DOCUMENTS_KEY}`)}
+        </div>
+      </PagePanel>
+    );
+  }
   return (
     <PagePanel id={panelId} tabLabelledBy={tabLabelledBy} single={!several}>
-      {sections.map((section) => (
-        <SectionPart
-          key={section.key}
-          {...shared}
-          section={section}
-          // A page of one section is that section's frame; on a page of several, each frame has an id of its own.
-          frameId={several ? `${panelId}-${section.key}` : panelId}
-          tabLabelledBy={several ? undefined : tabLabelledBy}
-          // On a page of several, each section's comment, photos, Switch Off and its form's own buttons are read out with its
-          // short name (docs/DESIGN.md, Step Names).
-          nameContext={several ? section.shortTitle : undefined}
-          headingRef={titleRef(section.key)}
-          focusPath={focusRequest?.sectionKey === section.key ? focusRequest.path : null}
-          refusedEntries={refusedStores.get(section.key) ?? null}
-          onUnreadableRemoved={() => onUnreadableRemoved(section.key)}
-          onOverridesChange={(next) => onOverridesChange(next, section.key)}
-        />
-      ))}
+      {parts}
     </PagePanel>
   );
 }

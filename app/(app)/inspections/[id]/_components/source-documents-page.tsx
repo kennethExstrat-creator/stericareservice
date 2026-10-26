@@ -9,7 +9,9 @@
 // can read them. Media holds the visit's photos and videos, in categories
 // (source-media.tsx). The card has its title and the Files / Media switch,
 // no line under the title (Kenneth, 12 October 2026). New Inspection's
-// Source Documents card hands its files over to this page on Create.
+// Source Documents card hands its files over to this page on Create. On the
+// page it is the main column, General Information on its left
+// (capture-screen.tsx ActivePage; Kenneth, 26 October 2026).
 import { RotateCcwIcon } from "lucide-react";
 import { useState, type Ref } from "react";
 import { FileSlot } from "@/components/capture/files";
@@ -24,7 +26,9 @@ import { SourceMedia } from "./source-media";
 import type { SourceDocuments } from "./use-source-documents";
 
 type SourceDocumentsPageProps = {
-  panelId: string;
+  /** The frame's id: the panel's while the files are the page's only section, else its own. */
+  id: string;
+  /** Below 1280 px, while the files are the page's only section: the id of its tab, which names the frame. */
   tabLabelledBy?: string;
   /** The callback ref of each page's title, by key: the screen focuses titles. */
   titleRef: (key: string) => Ref<HTMLHeadingElement>;
@@ -38,11 +42,11 @@ function readable(files: File[]): Promise<File[]> {
   return Promise.all(files.map(readableFile));
 }
 
-export function SourceDocumentsPage({ panelId, tabLabelledBy, titleRef, inspectionId, readOnly, documents }: SourceDocumentsPageProps) {
+export function SourceDocumentsPage({ id, tabLabelledBy, titleRef, inspectionId, readOnly, documents }: SourceDocumentsPageProps) {
   const [tab, setTab] = useState<SourceTab>("files");
   return (
     <SectionFrame
-      id={panelId}
+      id={id}
       sectionKey={SOURCE_DOCUMENTS_KEY}
       tabLabelledBy={tabLabelledBy}
       title={SOURCE_DOCUMENTS_TITLE}

@@ -5,9 +5,10 @@
 // (docs/DESIGN.md, Step Names), and builds the new `module_overrides` value.
 // The module's data stays saved while it is off, so it returns when the
 // module is switched back on.
+import { screenShortTitle } from "@/lib/design/screen-names";
 import { ALWAYS_ON_MODULE_KEYS, type ModuleKey } from "@/lib/schemas/module-result";
 import type { ModuleOverride, ModuleOverrides, ResolvedTemplate } from "@/lib/schemas/template";
-import { moduleOverrideProblem, shortTitleFor } from "@/lib/templates";
+import { moduleOverrideProblem } from "@/lib/templates";
 
 const NEEDED_BY_OTHERS: Partial<Record<ModuleKey, string>> = {
   order_lots: "it gives the ordered sizes every per-size section shows",
@@ -22,7 +23,7 @@ const NEEDED_BY_OTHERS: Partial<Record<ModuleKey, string>> = {
  */
 export function switchOffProblem(template: ResolvedTemplate, overrides: ModuleOverrides, key: ModuleKey): string | null {
   const resolved = template.modules.find((entry) => entry.key === key);
-  const title = resolved ? shortTitleFor(key, resolved.title) : key;
+  const title = resolved ? screenShortTitle(key, resolved.title) : key;
   if (overrides[key]) return `${title} is already switched off for this inspection.`;
   const problem = moduleOverrideProblem(template, key);
   if (problem === null) return null;
@@ -41,7 +42,7 @@ export function switchOffProblem(template: ResolvedTemplate, overrides: ModuleOv
 export function switchOnProblem(template: ResolvedTemplate, overrides: ModuleOverrides, key: ModuleKey): string | null {
   if (overrides[key]) return null;
   const resolved = template.modules.find((entry) => entry.key === key);
-  const title = resolved ? shortTitleFor(key, resolved.title) : key;
+  const title = resolved ? screenShortTitle(key, resolved.title) : key;
   return `${title} is not switched off for this inspection.`;
 }
 

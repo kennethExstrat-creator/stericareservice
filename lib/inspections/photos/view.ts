@@ -4,9 +4,11 @@
 // Source Documents' Media categories (lib/inspections/source-documents.ts)
 // are tags too, named by their titles wherever a tag is named; a module is
 // named by its short name, as the capture screen's menus name it
-// (lib/templates/short-titles.ts; docs/DESIGN.md, Step Names). Pure, and
-// free of server-only imports: the gallery renders it on the server and the
-// capture screen's photo slot on the iPad.
+// (lib/templates/short-titles.ts; docs/DESIGN.md, Step Names), the header
+// as General Information (lib/design/screen-names.ts). Pure, and free of
+// server-only imports: the gallery renders it on the server and the capture
+// screen's photo slot on the iPad.
+import { screenShortTitle, screenTitle } from "@/lib/design/screen-names";
 import { isMediaCategoryKey, MEDIA_CATEGORIES, mediaCategory } from "@/lib/inspections/source-documents";
 import type { InspectionFileKind } from "@/lib/photos/files";
 import { MODULE_TARGET_KEYS, parseTarget, type PhotoTarget, type TargetKey } from "@/lib/photos/target";
@@ -16,7 +18,7 @@ import { ResolvedTemplateSchema, type ResolvedModule } from "@/lib/schemas/templ
 import type { Tables } from "@/lib/supabase/database.types";
 import { applyModuleOverrides, parseModuleOverrides } from "@/lib/templates/overrides";
 import { templateSections } from "@/lib/templates/sections";
-import { customShortTitle, shortTitleFor } from "@/lib/templates/short-titles";
+import { customShortTitle } from "@/lib/templates/short-titles";
 import { humanize } from "@/lib/zod-form/labels";
 // The default wording of the three lists a photo's level or item comes from: config files only, no module code.
 import { DOCUMENT_ITEMS, DOCUMENTS_LABELS } from "@/modules/documents/config";
@@ -294,8 +296,8 @@ export function tagOptionsFromTemplate(
     if (section.kind === "module") {
       modules.push({
         key: section.key,
-        title: section.module.title,
-        shortTitle: shortTitleFor(section.key, section.module.title),
+        title: screenTitle(section.key, section.module.title),
+        shortTitle: screenShortTitle(section.key, section.module.title),
         targetKeys: targetKeysFor(section.key),
         handSplit: section.module.config.handSplit === true,
         included: true,
@@ -317,8 +319,8 @@ export function tagOptionsFromTemplate(
     if (entry.include) continue;
     modules.push({
       key: entry.key,
-      title: entry.title,
-      shortTitle: shortTitleFor(entry.key, entry.title),
+      title: screenTitle(entry.key, entry.title),
+      shortTitle: screenShortTitle(entry.key, entry.title),
       targetKeys: targetKeysFor(entry.key),
       handSplit: entry.config.handSplit === true,
       included: false,

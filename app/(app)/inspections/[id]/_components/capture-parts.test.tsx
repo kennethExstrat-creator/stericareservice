@@ -13,7 +13,13 @@ vi.mock("../actions", () => ({
 
 import { SITE_NOTES, SIZE_TABLE, TEST_ADMIN_ID } from "@/lib/inspections/capture/__fixtures__/capture";
 import { captureAccess } from "@/lib/inspections/capture/access";
-import { capturePages, leadPagesFirst, type CapturePage, type CaptureSection } from "@/lib/inspections/capture/sections";
+import {
+  capturePages,
+  leadPagesFirst,
+  withSourceDocuments,
+  type CapturePage,
+  type CaptureSection,
+} from "@/lib/inspections/capture/sections";
 import { SOURCE_DOCUMENTS_KEY, SOURCE_DOCUMENTS_TITLE } from "@/lib/inspections/source-documents";
 import type { ValidationIssue } from "@/lib/validation";
 import { TEST_REGISTRY } from "@/modules/_framework/__fixtures__/test-registry";
@@ -44,8 +50,26 @@ const tagsWith = (html: string, attribute: string): string[] =>
 /** The packing module's title in the fixtures below. */
 const PACKING_TITLE = "Packing Configuration";
 
+/**
+ * A step whose title and short name differ ("Dimensions", "Dimension"). Not
+ * the header: General Information is on Source Documents' page, with no tab
+ * or row of its own (Kenneth, 26 October 2026).
+ */
+const DIMENSIONS: CaptureSection = {
+  kind: "module",
+  key: "dimensions",
+  title: "Dimensions",
+  shortTitle: "Dimension",
+  status: "info",
+  summary: "",
+  progress: "done",
+  stub: false,
+  errors: 0,
+  warnings: 0,
+};
+
 const SECTIONS: CaptureSection[] = [
-  { kind: "module", key: "header", title: "Manufacturer Information", shortTitle: "Manufacturer", status: "info", summary: "", progress: "done", stub: false, errors: 0, warnings: 0 },
+  DIMENSIONS,
   { kind: "module", key: "glove_info", title: "Glove Information", shortTitle: "Glove Information", status: "not_done", summary: "", progress: "in_progress", stub: false, errors: 0, warnings: 1 },
   { kind: "excluded", key: "packing_config", title: PACKING_TITLE, shortTitle: PACKING_TITLE, override: { reason: "Not ordered.", by: TEST_ADMIN_ID, at: "2026-10-06T08:00:00.000Z" } },
   { kind: "module", key: "conclusion", title: "Conclusion", shortTitle: "Conclusion", status: "not_done", summary: "", progress: "not_started", stub: false, errors: 1, warnings: 0 },
@@ -53,7 +77,7 @@ const SECTIONS: CaptureSection[] = [
 
 /** The order filled in and packing configuration not adding up: one page, the order's, each module with its result. */
 const ORDER_PAGE: CaptureSection[] = [
-  { kind: "module", key: "header", title: "Manufacturer Information", shortTitle: "Manufacturer", status: "info", summary: "", progress: "done", stub: false, errors: 0, warnings: 0 },
+  DIMENSIONS,
   { kind: "module", key: "order_lots", title: "Order", shortTitle: "Order", status: "info", summary: "", progress: "done", stub: false, errors: 0, warnings: 0 },
   {
     kind: "module",
@@ -96,15 +120,15 @@ describe("SectionTabs", () => {
       "not_done",
     ]);
     const order = tagsWith(html, 'role="tab"').map((tab) => /data-section="([a-z_]+)"/.exec(tab)?.[1]);
-    expect(order).toEqual(["header", "glove_info", "conclusion", "packing_config"]);
+    expect(order).toEqual(["dimensions", "glove_info", "conclusion", "packing_config"]);
     expect(html).toContain(", switched off for this inspection");
   });
 
   it("names each tab by its short name, with its full title on hover (docs/DESIGN.md, Step Names)", () => {
-    const header = tagsWith(html, 'role="tab"').find((tab) => tab.includes('data-section="header"')) ?? "";
-    expect(header).toContain('title="Manufacturer Information"');
-    expect(html).toMatch(/data-section="header"[^>]*>(?:(?!<\/button>).)*>Manufacturer<\/span>/);
-    expect(html).not.toContain(">Manufacturer Information<");
+    const dimensions = tagsWith(html, 'role="tab"').find((tab) => tab.includes('data-section="dimensions"')) ?? "";
+    expect(dimensions).toContain('title="Dimensions"');
+    expect(html).toMatch(/data-section="dimensions"[^>]*>(?:(?!<\/button>).)*>Dimension<\/span>/);
+    expect(html).not.toContain(">Dimensions<");
     // A switched-off tab too.
     expect(tagsWith(html, 'role="tab"').find((tab) => tab.includes('data-section="packing_config"'))).toContain(
       `title="${PACKING_TITLE}"`,
@@ -117,7 +141,7 @@ describe("SectionTabs", () => {
     );
     const tabs = tagsWith(order, 'role="tab"');
     expect(tabs.map((tab) => /data-sections="([a-z_ ]+)"/.exec(tab)?.[1])).toEqual([
-      "header",
+      "dimensions",
       "order_lots packing_config",
       "conclusion",
     ]);
@@ -508,22 +532,27 @@ describe("SectionList (the desktop sidebar)", () => {
 
   it("lists the order's page once, under the order's title, with the worst result of the two", () => {
     const order = renderToStaticMarkup(<SectionList pages={capturePages(ORDER_PAGE)} activeKey="order_lots" onSelect={noop} />);
-    expect(rowTitles(order)).toEqual(["Manufacturer Information", "Order", "Conclusion"]);
-    expect(order).toMatch(/title="Manufacturer Information"[^>]*>(?:(?!<\/button>).)*>Manufacturer<\/span>/);
+    expect(rowTitles(order)).toEqual(["Dimensions", "Order", "Conclusion"]);
+    expect(order).toMatch(/title="Dimensions"[^>]*>(?:(?!<\/button>).)*>Dimension<\/span>/);
     expect(order).toMatch(/title="Order"(?:(?!<\/button>).)*data-status="warn"/);
     expect(order).not.toContain(PACKING_TITLE);
   });
 
   describe("Inspection Steps: the steps between the lead pages and the Conclusion, in a group that collapses", () => {
-    const documents: CapturePage = {
-      kind: "documents",
-      key: SOURCE_DOCUMENTS_KEY,
-      title: SOURCE_DOCUMENTS_TITLE,
-      shortTitle: SOURCE_DOCUMENTS_TITLE,
-      status: "pass",
+    // General Information is on Source Documents' page, no row of its own (Kenneth, 26 October 2026).
+    const header: CaptureSection = {
+      kind: "module",
+      key: "header",
+      title: "General Information",
+      shortTitle: "General Information",
+      status: "info",
+      summary: "",
       progress: "done",
+      stub: false,
+      errors: 0,
+      warnings: 0,
     };
-    // Glove Information besides Manufacturer Information: the order is a lead page now, and one step makes no group.
+    // Glove Information besides Dimensions: the order is a lead page now, and one step makes no group.
     const glove: CaptureSection = {
       kind: "module",
       key: "glove_info",
@@ -536,7 +565,10 @@ describe("SectionList (the desktop sidebar)", () => {
       errors: 0,
       warnings: 1,
     };
-    const pages = [documents, ...leadPagesFirst(capturePages([ORDER_PAGE[0], glove, ...ORDER_PAGE.slice(1)]))];
+    const pages: CapturePage[] = withSourceDocuments(
+      { key: SOURCE_DOCUMENTS_KEY, title: SOURCE_DOCUMENTS_TITLE, shortTitle: SOURCE_DOCUMENTS_TITLE, status: "pass", progress: "done" },
+      leadPagesFirst(capturePages([header, ORDER_PAGE[0], glove, ...ORDER_PAGE.slice(1)])),
+    );
     const list = (activeKey: string) =>
       renderToStaticMarkup(<SectionList pages={pages} activeKey={activeKey} onSelect={noop} viewerId={TEST_ADMIN_ID} />);
     /** The group's header and the list of its steps it controls. */
@@ -553,13 +585,15 @@ describe("SectionList (the desktop sidebar)", () => {
         const { header, steps, button } = group(markup);
         expect(header).toContain('aria-expanded="false"');
         expect(steps).toMatch(/^<ol [^>]*hidden=""/);
-        expect(steps).toContain('title="Manufacturer Information"');
+        expect(steps).toContain('title="Dimensions"');
         expect(steps).toContain('title="Glove Information"');
         // The order comes straight after Source Documents, outside the group (Kenneth, 26 October 2026).
         expect(steps).not.toContain('title="Order"');
         expect(steps).not.toContain(SOURCE_DOCUMENTS_TITLE);
         expect(steps).not.toContain('title="Conclusion"');
-        expect(rowTitles(markup)).toEqual([SOURCE_DOCUMENTS_TITLE, "Order", "Manufacturer Information", "Glove Information", "Conclusion"]);
+        // General Information has no row: it is on Source Documents' page.
+        expect(rowTitles(markup)).toEqual([SOURCE_DOCUMENTS_TITLE, "Order", "Dimensions", "Glove Information", "Conclusion"]);
+        expect(markup).not.toContain('data-step="header"');
         // Its title, how many of its steps are done and the worst of their results (the glove information's warning).
         expect(button).toContain(`>${STEP_GROUP_LABEL}<`);
         expect(button).toContain("2 of 2 done");
@@ -577,15 +611,15 @@ describe("SectionList (the desktop sidebar)", () => {
     it("follows the open page: a step of it opening opens it, Source Documents or the Conclusion leave it as it is", () => {
       const collapsed = initialStepGroup(SOURCE_DOCUMENTS_KEY, false);
       expect(collapsed.open).toBe(false);
-      // Next from Source Documents (or an issue link, the iPad's swipe) lands on a step: it opens.
-      const landed = followStepGroup(collapsed, "header", true, null);
+      // Next from the last lead page (or an issue link, the iPad's swipe) lands on a step: it opens.
+      const landed = followStepGroup(collapsed, "dimensions", true, null);
       expect(landed.open).toBe(true);
       // On to the Conclusion: nothing moves under the pointer.
       expect(followStepGroup(landed, "conclusion", false, null).open).toBe(true);
       // Collapsed by choice on a step, then the next step: it opens again on it.
-      expect(followStepGroup({ ...landed, open: false }, "order_lots", true, null).open).toBe(true);
+      expect(followStepGroup({ ...landed, open: false }, "glove_info", true, null).open).toBe(true);
       // Nothing changed: the same state.
-      expect(followStepGroup(landed, "header", true, null)).toBe(landed);
+      expect(followStepGroup(landed, "dimensions", true, null)).toBe(landed);
     });
 
     it("starts from the viewer's last choice, kept per user, unless the page in view is one of its steps", () => {

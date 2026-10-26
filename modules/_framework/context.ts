@@ -17,12 +17,12 @@
 // included modules with their titles, and its files when the caller knows
 // them (the file channel, files.ts).
 import type { z } from "zod";
+import { screenShortTitle } from "@/lib/design/screen-names";
 import type { EntityRef, ProductType, Standard } from "@/lib/schemas/common";
 import type { ModuleKey } from "@/lib/schemas/module-result";
 import type { ResolvedSize, ResolvedTemplate, TemplateUnit } from "@/lib/schemas/template";
 import { normaliseSize, orderSizes } from "@/lib/sizes";
 import type { TablesUpdate } from "@/lib/supabase/database.types";
-import { shortTitleFor } from "@/lib/templates/short-titles";
 import type { CaptureFocus, ModuleRegistry } from "./contract";
 import { readModuleEntry, type InspectionData, type ModuleEntry } from "./data";
 import type { InspectionFileRef } from "./files";
@@ -514,11 +514,12 @@ export function moduleTitle(context: Pick<InspectionContext, "modules">, key: Mo
 
 /**
  * A module's short name, as the capture screen's menus and messages name a
- * step ("Weight"; lib/templates/short-titles.ts), whatever its title says.
- * Calcs, validation messages, the review and the export keep `moduleTitle`.
+ * step ("Weight"; lib/templates/short-titles.ts), whatever its title says;
+ * the header is General Information (lib/design/screen-names.ts). Calcs,
+ * validation messages, the review and the export keep `moduleTitle`.
  */
 export function moduleShortTitle(context: Pick<InspectionContext, "modules">, key: ModuleKey): string {
-  return shortTitleFor(key, moduleTitle(context, key));
+  return screenShortTitle(key, moduleTitle(context, key));
 }
 
 /**

@@ -4,9 +4,10 @@
 // 8: on desktop, modules show in a left sidebar). The included pages
 // (lib/inspections/capture/sections.ts capturePages: packing configuration
 // on the order's) are the ProgressTracker's list, each with its progress and
-// result chip. Source Documents, first, then the order, the sampling plan and
-// the box/carton numbers (LEAD_PAGE_KEYS: Kenneth, 26 October 2026), and the
-// Conclusion, last, always show; the other steps sit in one group, Inspection Steps, whose
+// result chip. Source Documents, first (General Information on its page, no
+// row of its own), then the order, the sampling plan and the box/carton
+// numbers (LEAD_PAGE_KEYS: Kenneth, 26 October 2026), and the Conclusion,
+// last, always show; the other steps sit in one group, Inspection Steps, whose
 // header reads how many are done and the worst of their results, and which
 // collapses (Kenneth, 12 October 2026: "make these section collapsable,
 // leaving source document and conclusion visible by default"). Collapsed at

@@ -1,4 +1,6 @@
-// Manufacturer Information: always on (BUILD_SPEC 4.1); its rows switch on and off.
+// The header, General Information on screen (lib/design/screen-names.ts),
+// beside the files on Source Documents' page: always on (BUILD_SPEC 4.1); its
+// rows switch on and off.
 import { defineModule } from "@/modules/_framework";
 import { calcHeader, contributeHeader, type HeaderComputed } from "./calc";
 import { HEADER_DEFAULT_CONFIG, HEADER_LABELS, HEADER_TITLE, HeaderConfigSchema, type HeaderConfig } from "./config";

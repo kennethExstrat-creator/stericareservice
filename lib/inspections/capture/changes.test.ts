@@ -21,10 +21,10 @@ describe("changedEntryProblems", () => {
   });
 
   it("names the section by its short name, as the screen's menus do (docs/DESIGN.md, Step Names)", () => {
-    // The template's "Manufacturer Information".
+    // The template's "Manufacturer Information": General Information on every screen (Kenneth, 26 October 2026).
     const next = { modules: { header: { poNo: 42, productName: null, client: null } }, custom: {} };
-    expect(check(emptyData(), next)).toEqual([expect.objectContaining({ key: "header", title: "Manufacturer" })]);
-    expect(describeProblems(check(emptyData(), next))).toMatch(/^Manufacturer: poNo: /);
+    expect(check(emptyData(), next)).toEqual([expect.objectContaining({ key: "header", title: "General Information" })]);
+    expect(describeProblems(check(emptyData(), next))).toMatch(/^General Information: poNo: /);
     // A custom module by its own title, without a trailing note in brackets.
     const noted = { ...template, customModules: template.customModules.map((custom) => ({ ...custom, title: `${custom.title} (Optional)` })) };
     const wrong = changedEntryProblems(emptyData(), { modules: {}, custom: { site_notes: { sealIntact: "yes" } } }, noted, TEST_REGISTRY);

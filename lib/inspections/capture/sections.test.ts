@@ -27,6 +27,7 @@ import {
   progressSteps,
   progressSummary,
   SHOWN_WITH,
+  withSourceDocuments,
   type CapturePage,
   type CaptureSection,
   type IncludedSection,
@@ -160,7 +161,8 @@ describe("captureSections", () => {
     });
     const named = (sections: readonly CaptureSection[]) => sections.map((section) => [section.key, section.title, section.shortTitle]);
     expect(named(sectionsFor(filledData(), OFF, template))).toEqual([
-      ["header", "Manufacturer Information", "Manufacturer"],
+      // The template's "Manufacturer Information": General Information on screen, heading and short name alike (Kenneth, 26 October 2026).
+      ["header", "General Information", "General Information"],
       ["glove_info", "Glove Information", "Glove Information"],
       ["site_notes", "Site notes", "Site notes"],
       ["order_lots", "Order", "Order"],
@@ -362,7 +364,8 @@ describe("navigation helpers", () => {
     const steps = progressSteps(pages);
     expect(steps.map((step) => step.key)).not.toContain("packing_config");
     // Named by its short name, its full title for the hover.
-    expect(steps[0]).toEqual({ key: "header", label: "Manufacturer", title: "Manufacturer Information", state: "done", result: "info" });
+    expect(steps[0]).toEqual({ key: "header", label: "General Information", title: "General Information", state: "done", result: "info" });
+    expect(steps[1]).toMatchObject({ key: "glove_info", label: "Glove Information", title: "Glove Information" });
     // A switched-off page has no step, but a short name of its own.
     expect(findPage(pages, "packing_config")).toMatchObject({ kind: "excluded", shortTitle: "Packing Configuration" });
     expect(progressSummary(pages)).toEqual({ done: 3, total: 7 });
@@ -407,5 +410,52 @@ describe("leadPagesFirst", () => {
     expect(leadPagesFirst(pages).map((entry) => entry.key)).toEqual(["order_lots", "header", "carton_sampling", "conclusion"]);
     const surgical = [page("header"), page("visual"), page("conclusion")];
     expect(leadPagesFirst(surgical)).toEqual(surgical);
+  });
+});
+
+describe("withSourceDocuments: General Information beside the files (Kenneth, 26 October 2026)", () => {
+  const files = (status: "pass" | "not_done", progress: "done" | "in_progress" | "not_started") => ({
+    key: "source_documents",
+    title: "Source Documents",
+    shortTitle: "Source Documents",
+    status,
+    progress,
+  });
+
+  it("puts the header's page on Source Documents' page: no step of its own, General Information before the files", () => {
+    const pages = withSourceDocuments(files("pass", "done"), leadPagesFirst(pagesFor()));
+    const documents = pages[0];
+    expect(documents.kind).toBe("documents");
+    expect(pageSectionKeys(documents)).toEqual(["header", "source_documents"]);
+    expect(pages.map((entry) => entry.key)).not.toContain("header");
+    expect(progressSteps(pages).map((step) => step.key)).toEqual([
+      "source_documents",
+      "order_lots",
+      "glove_info",
+      "site_notes",
+      "weight",
+      "size_checks",
+      "conclusion",
+    ]);
+    // ?module=header, an issue link or a landing in it opens Source Documents' page.
+    expect(findPage(pages, "header")?.key).toBe("source_documents");
+    expect(neighbours(pages, "header")).toMatchObject({ previous: null, next: { key: "order_lots" } });
+    // One included page fewer in the count.
+    expect(progressSummary(pages)).toEqual({ done: 1, total: 6 });
+  });
+
+  it("takes the worse of the two results and their progress together, as a page of two sections does", () => {
+    // The files all verified, the header filled in: Info and done, so the page passes, done.
+    expect(withSourceDocuments(files("pass", "done"), pagesFor())[0]).toMatchObject({ status: "pass", progress: "done" });
+    // No file yet: the page is not done, in progress since the header is.
+    expect(withSourceDocuments(files("not_done", "not_started"), pagesFor())[0]).toMatchObject({ status: "not_done", progress: "in_progress" });
+    // Nothing entered anywhere: not started.
+    expect(withSourceDocuments(files("not_done", "not_started"), pagesFor(emptyData()))[0]).toMatchObject({ progress: "not_started" });
+  });
+
+  it("leaves the files alone where there is no header page", () => {
+    const pages = withSourceDocuments(files("not_done", "in_progress"), pagesFor().filter((entry) => entry.key !== "header"));
+    expect(pages[0]).toEqual({ ...files("not_done", "in_progress"), kind: "documents", sections: [] });
+    expect(pageSectionKeys(pages[0])).toEqual(["source_documents"]);
   });
 });

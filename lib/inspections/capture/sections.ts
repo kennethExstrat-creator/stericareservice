@@ -13,18 +13,23 @@
 // order. Each module keeps its own frame, result, comment, photos and
 // Pending row; the page takes its host's title, the worst of their results
 // and their progress together. Screen order is template order with a guest
-// moved up to its host; the review and the export keep template order.
+// moved up to its host, the lead pages first (LEAD_PAGE_KEYS); the review
+// and the export keep template order. General Information (the header) has
+// no page of its own: it sits beside the files on Source Documents' page
+// (withSourceDocuments; Kenneth, 26 October 2026).
 //
 // Names: every section and page carries its title, the template's wording
 // (with a count filled in, shownTitle), for its card heading, and its short
 // name (lib/templates/short-titles.ts), for the tabs, the sidebar, the
 // progress bar, Previous / Next, Pending and the messages that name it
-// (docs/DESIGN.md, Step Names).
+// (docs/DESIGN.md, Step Names). The header is General Information in both
+// (lib/design/screen-names.ts).
+import { screenShortTitle, screenTitle } from "@/lib/design/screen-names";
 import type { Status } from "@/lib/design/status";
 import { shownStatus } from "@/lib/inspections/review/results";
 import type { ModuleKey } from "@/lib/schemas/module-result";
 import type { CustomModule, ModuleOverride, ResolvedModule, ResolvedTemplate } from "@/lib/schemas/template";
-import { customShortTitle, shortTitleFor } from "@/lib/templates/short-titles";
+import { customShortTitle } from "@/lib/templates/short-titles";
 import { STATUS_SEVERITY, type ValidationReport } from "@/lib/validation";
 import { readModuleEntry, type InspectionData } from "@/modules/_framework";
 
@@ -159,8 +164,8 @@ export function captureSections(
         sections.push({
           kind: "excluded",
           key: entry.key,
-          title: entry.title,
-          shortTitle: shortTitleFor(entry.key, entry.title),
+          title: screenTitle(entry.key, entry.title),
+          shortTitle: screenShortTitle(entry.key, entry.title),
           override: entry.override,
         });
       }
@@ -212,10 +217,21 @@ export type CapturePage =
   | { kind: "excluded"; key: ModuleKey; title: string; shortTitle: string; section: ExcludedSection }
   /**
    * Source Documents, before every module: the files the inspection starts
-   * from, which the AI reads to fill the pages after it (docs/AI.md). Its
-   * result is "pass" once every file is AI Verified.
+   * from, which the AI reads to fill the pages after it (docs/AI.md), with
+   * General Information beside them (`sections`: the header and any module
+   * shown on its page; withSourceDocuments). Its result is the worst of the
+   * files' ("pass" once every file is AI Verified) and those sections', its
+   * progress theirs together.
    */
-  | { kind: "documents"; key: string; title: string; shortTitle: string; status: Status; progress: SectionProgress };
+  | {
+      kind: "documents";
+      key: string;
+      title: string;
+      shortTitle: string;
+      sections: readonly IncludedSection[];
+      status: Status;
+      progress: SectionProgress;
+    };
 
 export type IncludedPage = Extract<CapturePage, { kind: "included" }>;
 export type DocumentsPage = Extract<CapturePage, { kind: "documents" }>;
@@ -285,6 +301,50 @@ export function leadPagesFirst(pages: readonly CapturePage[]): CapturePage[] {
   return [...lead, ...pages.filter((page) => !lead.includes(page))];
 }
 
+/**
+ * The module shown beside the files on Source Documents' page, never a page
+ * of its own (Kenneth, 26 October 2026: "move this to left beside the source
+ * document column ... and then remove the manufacturer step"): the header,
+ * General Information on screen.
+ */
+export const BESIDE_SOURCE_DOCUMENTS: ModuleKey = "header";
+
+/**
+ * Source Documents' page first, then the pages after it: the page the header
+ * would have (with any module shown on it, STD_SG's Glove Type) joins
+ * Source Documents' page, its result and progress joining the files'. With
+ * no such page (the header switched off, or left out by the template): the
+ * files alone, the other pages as they were.
+ */
+export function withSourceDocuments(
+  files: Omit<DocumentsPage, "kind" | "sections">,
+  pages: readonly CapturePage[],
+): CapturePage[] {
+  const beside = pages.find((page): page is IncludedPage => page.kind === "included" && page.key === BESIDE_SOURCE_DOCUMENTS);
+  const documents: DocumentsPage = beside
+    ? {
+        ...files,
+        kind: "documents",
+        sections: beside.sections,
+        status: worse(files.status, beside.status),
+        progress: together(files.progress, beside.progress),
+      }
+    : { ...files, kind: "documents", sections: [] };
+  return [documents, ...pages.filter((page) => page !== beside)];
+}
+
+/** The worse of two results, as a page's sections combine (pageStatus). */
+function worse(a: Status, b: Status): Status {
+  return pageSeverity(b) > pageSeverity(a) ? b : a;
+}
+
+/** Two progresses together, as a page's sections combine (pageProgress). */
+function together(a: SectionProgress, b: SectionProgress): SectionProgress {
+  if (a === "done" && b === "done") return "done";
+  if (a === "not_started" && b === "not_started") return "not_started";
+  return "in_progress";
+}
+
 export function isIncludedPage(page: CapturePage): page is IncludedPage {
   return page.kind === "included";
 }
@@ -295,9 +355,15 @@ export function findPage(pages: readonly CapturePage[], key: string | null): Cap
   return pages.find((page) => page.key === key) ?? pages.find((page) => pageSectionKeys(page).includes(key));
 }
 
-/** The keys of the sections on a page, in screen order (a leading guest before the page's own). */
+/**
+ * The keys of the sections on a page, in screen order (a leading guest before
+ * the page's own; on Source Documents' page, General Information before the
+ * files).
+ */
 export function pageSectionKeys(page: CapturePage): string[] {
-  return page.kind === "included" ? page.sections.map((section) => section.key) : [page.key];
+  if (page.kind === "included") return page.sections.map((section) => section.key);
+  if (page.kind === "documents") return [...page.sections.map((section) => section.key), page.key];
+  return [page.key];
 }
 
 /** Worst first, as module results combine (lib/validation STATUS_SEVERITY), with On Hold between a warning and not done. */
@@ -398,8 +464,8 @@ function moduleSection(
   return {
     kind: "module",
     key: entry.key,
-    title: entry.title,
-    shortTitle: shortTitleFor(entry.key, entry.title),
+    title: screenTitle(entry.key, entry.title),
+    shortTitle: screenShortTitle(entry.key, entry.title),
     status,
     summary: evaluation?.result.summary ?? "",
     progress: progressOf(status, evaluation?.hasData ?? false),

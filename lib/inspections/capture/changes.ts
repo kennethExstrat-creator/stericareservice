@@ -9,10 +9,11 @@
 // A module's schema describes a draft (docs/MODULES.md 5): missing values are
 // fine; text in a numeric cell, a mistyped key or a date that is not a date
 // are not.
+import { screenShortTitle } from "@/lib/design/screen-names";
 import { contentHash } from "@/lib/offline/stable-json";
 import { isModuleKey } from "@/lib/schemas/module-result";
 import type { ResolvedTemplate } from "@/lib/schemas/template";
-import { customShortTitle, shortTitleFor } from "@/lib/templates";
+import { customShortTitle } from "@/lib/templates";
 import { customValuesSchema } from "@/lib/validation";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import {
@@ -86,7 +87,7 @@ function entryProblems(
     const resolved = isModuleKey(key) ? template.modules.find((entry) => entry.key === key) : undefined;
     if (!resolved || !isModuleKey(key)) return [problem(key, "is not a section of this inspection's template.")];
     const parsed = parseModuleData(registry[key], readModuleEntry(data, "modules", key));
-    const title = shortTitleFor(key, resolved.title);
+    const title = screenShortTitle(key, resolved.title);
     return [
       ...(commentProblem ? [problem(title, commentProblem)] : []),
       ...(parsed.success ? [] : [problem(title, describeZodIssue(parsed.error.issues[0]))]),

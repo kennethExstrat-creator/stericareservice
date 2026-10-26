@@ -8,6 +8,7 @@
 // to add, so nothing repeats the pill. The words are the suggestion's own
 // (lib/validation/suggested-result.ts): the review and the suggestion's
 // summary say the same with the sections in the template's wording.
+import { screenShortTitle } from "@/lib/design/screen-names";
 import { MODULE_SHORT_TITLES } from "@/lib/templates/short-titles";
 import { suggestionReasons, type SuggestedResult } from "@/lib/validation/suggested-result";
 import type { CaptureSection } from "./sections";
@@ -25,6 +26,6 @@ export function submitReasons(
 ): string[] {
   return suggestionReasons(
     suggested,
-    (key) => sections.find((section) => section.key === key)?.shortTitle ?? MODULE_SHORT_TITLES[key],
+    (key) => sections.find((section) => section.key === key)?.shortTitle ?? screenShortTitle(key, MODULE_SHORT_TITLES[key]),
   );
 }

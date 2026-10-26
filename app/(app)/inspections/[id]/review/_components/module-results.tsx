@@ -5,13 +5,15 @@
 // not-done warning is not repeated under it. Nor is a sentence twice: a
 // summary that only strings the per-size lines together stays out, and the
 // conclusion's HOLD reads "On Hold", as the final result does
-// (lib/inspections/review/results.ts).
+// (lib/inspections/review/results.ts). The header is General Information, as
+// on the capture screen (lib/design/screen-names.ts).
 //
 // Desktop (from 1024 px): one row per module in three columns under a
 // header row. iPad portrait: each module stacks, and the comment is labelled.
 import type { ReactNode } from "react";
 import { CircleXIcon, TriangleAlertIcon } from "lucide-react";
 import { StatusPill } from "@/components/qc";
+import { screenTitle } from "@/lib/design/screen-names";
 import { formatNumber, formatSize } from "@/lib/format";
 import { formatInspectionDate } from "@/lib/inspections/format";
 import { isListedIssue, type ReviewEvaluation } from "@/lib/inspections/review/evaluate";
@@ -144,18 +146,19 @@ function ModuleRow({ entry, issues, context }: { entry: ModuleEvaluation; issues
   const sizes = sizeResults(entry, context);
   // Without the sentences the per-size lines below repeat.
   const summary = moduleSummary(entry, context);
+  const title = screenTitle(entry.key, entry.title);
   return (
     <Row
       id={`module-${entry.key}`}
       dataAttributes={{ "data-module": entry.key, "data-status": status }}
-      heading={entry.title}
+      heading={title}
       badge={<StatusPill status={status} size="sm" />}
       comment={entry.comment}
       result={
         <>
           {summary && <p className={cn("text-foreground", TEXT)}>{summary}</p>}
           {sizes.length > 0 && (
-            <ul aria-label={`${entry.title}: result per size`} className="grid gap-1.5">
+            <ul aria-label={`${title}: result per size`} className="grid gap-1.5">
               {sizes.map((own) => (
                 <li key={own.size} data-size={own.size} className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   {/* Spaces between the parts for screen readers; the gap spaces them on screen. */}
@@ -168,7 +171,7 @@ function ModuleRow({ entry, issues, context }: { entry: ModuleEvaluation; issues
               ))}
             </ul>
           )}
-          {issues.length > 0 && <IssueList title={entry.title} issues={issues} />}
+          {issues.length > 0 && <IssueList title={title} issues={issues} />}
         </>
       }
     />

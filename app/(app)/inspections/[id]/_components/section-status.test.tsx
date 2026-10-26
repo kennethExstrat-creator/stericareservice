@@ -7,7 +7,15 @@ import { describe, expect, it } from "vitest";
 import { ProgressTracker } from "@/components/qc";
 import { filledData, TEST_META, TEST_REGISTRY, testTemplate } from "@/lib/inspections/capture/__fixtures__/capture";
 import { evaluateCapture } from "@/lib/inspections/capture/evaluate";
-import { capturePages, captureSections, findSection, isIncluded, progressSteps } from "@/lib/inspections/capture/sections";
+import {
+  capturePages,
+  captureSections,
+  findSection,
+  isIncluded,
+  progressSteps,
+  withSourceDocuments,
+} from "@/lib/inspections/capture/sections";
+import { SOURCE_DOCUMENTS_KEY, SOURCE_DOCUMENTS_TITLE } from "@/lib/inspections/source-documents";
 import { SectionFrame } from "./section-frame";
 import { SectionList } from "./section-list";
 import { SectionTabs } from "./section-tabs";
@@ -78,16 +86,23 @@ describe("the conclusion's HOLD on the capture screen", () => {
 });
 
 describe("step names on the capture screen (docs/DESIGN.md, Step Names)", () => {
-  // The test registry's titles: "Manufacturer Information", "Packing configuration" (on the order's page), "Weight (g)".
+  // The test registry's titles: "Manufacturer Information" (General Information on screen), "Packing configuration"
+  // (on the order's page), "Weight (g)".
   const filled = filledData();
   const { template, report } = evaluateCapture({ template: testTemplate(), overrides: {}, data: filled, meta: TEST_META }, TEST_REGISTRY);
-  const pages = capturePages(captureSections(template, report, filled));
+  // As the screen has them: General Information on Source Documents' page, no step of its own (Kenneth, 26 October 2026).
+  const pages = withSourceDocuments(
+    { key: SOURCE_DOCUMENTS_KEY, title: SOURCE_DOCUMENTS_TITLE, shortTitle: SOURCE_DOCUMENTS_TITLE, status: "not_done", progress: "not_started" },
+    capturePages(captureSections(template, report, filled)),
+  );
 
   it("names each tab by its short name, with the template's title on hover", () => {
     const html = renderToStaticMarkup(<SectionTabs pages={pages} activeKey="weight" onSelect={noop} panelId="panel" idPrefix="cap" />);
-    const header = element(html, "button", 'data-section="header"');
-    expect(header).toContain('title="Manufacturer Information"');
-    expect(header).toContain(">Manufacturer</span>");
+    expect(html).not.toContain('data-section="header"');
+    // Source Documents' tab holds General Information too, and words its chip as the page's result.
+    const documents = element(html, "button", `data-section="${SOURCE_DOCUMENTS_KEY}"`);
+    expect(documents).toContain(`data-sections="header ${SOURCE_DOCUMENTS_KEY}"`);
+    expect(documents).not.toContain("Not read yet");
     const weight = element(html, "button", 'data-section="weight"');
     expect(weight).toContain('title="Weight (g)"');
     expect(weight).toContain(">Weight</span>");
@@ -95,15 +110,17 @@ describe("step names on the capture screen (docs/DESIGN.md, Step Names)", () => 
 
   it("names each sidebar row by its short name, with the template's title on hover and its key for specs", () => {
     const html = renderToStaticMarkup(<SectionList pages={pages} activeKey="weight" onSelect={noop} />);
-    const header = element(html, "button", 'data-step="header"');
-    expect(header).toContain('title="Manufacturer Information"');
-    expect(header).toContain(">Manufacturer</span>");
-    expect(element(html, "button", 'data-step="weight"')).toContain(">Weight</span>");
+    expect(html).not.toContain('data-step="header"');
+    expect(element(html, "button", `data-step="${SOURCE_DOCUMENTS_KEY}"`)).toContain(`>${SOURCE_DOCUMENTS_TITLE}</span>`);
+    const weight = element(html, "button", 'data-step="weight"');
+    expect(weight).toContain('title="Weight (g)"');
+    expect(weight).toContain(">Weight</span>");
   });
 
   it("names the step in view above the progress bar by its short name, with its title on hover", () => {
     const html = renderToStaticMarkup(<ProgressTracker steps={progressSteps(pages)} activeKey="weight" />);
     expect(html).toMatch(/title="Weight \(g\)">Weight<\/span>/);
-    expect(html).toContain("Manufacturer: Done");
+    expect(html).not.toContain("Manufacturer");
+    expect(html).not.toContain("General Information");
   });
 });

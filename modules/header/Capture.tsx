@@ -1,11 +1,14 @@
 "use client";
 
-// Manufacturer Information. The manufacturer, the client and the inspector
-// are the inspection's and show read-only (6.2 rules 10 and 11); the rest is
-// typed once here and reused everywhere. Dates come from pickers (rule 3):
-// a calendar, or month and year where the template prints only those.
-// Enter moves to the next field. Every label is the template's (rule 11).
-// Every change goes through useDataUpdater, built from the latest data.
+// The header, General Information on screen. The manufacturer, the client
+// and the inspector are the inspection's and show read-only (6.2 rules 10
+// and 11); the rest is typed once here and reused everywhere. Dates come
+// from pickers (rule 3): a calendar, or month and year where the template
+// prints only those. Enter moves to the next field. Every label is the
+// template's (rule 11). Every change goes through useDataUpdater, built from
+// the latest data. Its rows follow its own width, not the window's: it sits
+// in the narrow column left of Source Documents' files from 1024 px, full
+// width below (Kenneth, 26 October 2026).
 import { useId, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
 import { DateField, findIssue, issuePathProps, StatusIcon, useDataUpdater, useIssueFocus } from "@/components/qc";
 import { Input } from "@/components/ui/input";
@@ -59,7 +62,7 @@ export default function Capture({
   const pickDate = (field: HeaderDateField, value: string | null) => update((current) => setDate(current, field, value));
 
   const textField = (field: HeaderTextField, { multiline = false, wide = false } = {}) => (
-    <div key={field} className={cn("min-w-0 space-y-1.5", wide && "md:col-span-2")} {...issuePathProps([field])}>
+    <div key={field} className={cn("min-w-0 space-y-1.5", wide && "@xl:col-span-2")} {...issuePathProps([field])}>
       <Label htmlFor={`${id}-${field}`} className="leading-snug touch:text-base">
         {labelFor(labels, field)}
       </Label>
@@ -143,10 +146,11 @@ export default function Capture({
   };
 
   return (
-    <div ref={root} className="relative space-y-5" onFocus={clearFocus} data-header-scope="">
+    // A size container: three facts, two fields and three dates a row once the form is wide enough for them.
+    <div ref={root} className="@container relative space-y-5" onFocus={clearFocus} data-header-scope="">
       {facts.length > 0 && (
         <section aria-label="From the inspection" className="space-y-1.5">
-          <dl className="grid gap-x-6 gap-y-3 rounded-lg border border-border bg-muted px-4 py-3 sm:grid-cols-3">
+          <dl className="grid gap-x-6 gap-y-3 rounded-lg border border-border bg-muted px-4 py-3 @lg:grid-cols-3">
             {facts.map((field) => (
               <div key={field} className="min-w-0">
                 <dt className="text-sm text-muted-foreground touch:text-base">{labelFor(labels, field)}</dt>
@@ -158,7 +162,7 @@ export default function Capture({
         </section>
       )}
 
-      <div className="grid gap-x-6 gap-y-5 md:grid-cols-2">
+      <div className="grid gap-x-6 gap-y-5 @xl:grid-cols-2">
         {shown("factoryAddress") && textField("factoryAddress", { multiline: true, wide: true })}
         {shown("poNo") && textField("poNo")}
         {shown("productCode") && textField("productCode")}
@@ -166,7 +170,7 @@ export default function Capture({
         {shown("factoryGloveCode") && textField("factoryGloveCode")}
       </div>
 
-      {dates.length > 0 && <div className="grid gap-x-6 gap-y-5 sm:grid-cols-3">{dates.map(dateField)}</div>}
+      {dates.length > 0 && <div className="grid gap-x-6 gap-y-5 @lg:grid-cols-3">{dates.map(dateField)}</div>}
     </div>
   );
 }
