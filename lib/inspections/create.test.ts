@@ -191,7 +191,7 @@ describe("choosing the template (BUILD_SPEC 4.4)", () => {
   it("says when no template applies", () => {
     expect(chooseTemplate(candidates.slice(0, 2), { ...picks, productType: "surgical" }, "inspector")).toEqual({
       ok: false,
-      message: "No active template for surgical gloves. An admin needs to activate one.",
+      message: "No active template for surgical gloves yet.",
     });
     // SAFEDON_EG, scoped to its client, is no standard template.
     expect(chooseTemplate(candidates.slice(1, 2), picks, "inspector")).toMatchObject({ ok: false });

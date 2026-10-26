@@ -185,7 +185,8 @@ function ChoicesForm({ userId, storageKey, initial, role, clients, manufacturers
   /** Hands the Source Documents held to the new inspection (use-held-sources.ts). */
   const handOver = useRef<HeldSources["handOver"] | null>(null);
 
-  // The picks the template rule needs. The client is a deliberate choice: "" is not chosen yet.
+  // The three picks the form needs; the client is a deliberate choice: "" is not chosen yet. The template follows
+  // from the product type alone: every client uses the one standard flow (Kenneth, 26 October 2026).
   const client = clientId === "" ? undefined : clientId === NO_CLIENT ? null : clientId;
   const picks =
     client !== undefined && manufacturerId !== "" && productType !== null
@@ -195,7 +196,7 @@ function ChoicesForm({ userId, storageKey, initial, role, clients, manufacturers
     role === "admin" && templates.some((template) => template.id === templateId && template.productType === productType)
       ? templateId
       : "";
-  const choice = picks ? chooseTemplate(templates, { ...picks, templateId: overrideId || undefined }, role) : null;
+  const choice = productType !== null ? chooseTemplate(templates, { productType, templateId: overrideId || undefined }, role) : null;
   const chosen = choice?.ok ? (templates.find((template) => template.id === choice.template.id) ?? null) : null;
   // The row keeps the header's product name (BUILD_SPEC 6.2 rule 10): a template whose
   // header has none keeps no name, so the field says so instead of taking one.
@@ -339,13 +340,8 @@ function ChoicesForm({ userId, storageKey, initial, role, clients, manufacturers
             <TemplatePanel
               id={id}
               role={role}
-              picks={[
-                { label: "Client", done: client !== undefined },
-                { label: "Manufacturer", done: manufacturerId !== "" },
-                { label: "Product Type", done: productType !== null },
-              ]}
+              picks={[{ label: "Product Type", done: productType !== null }]}
               productType={productType}
-              names={names}
               choice={choice}
               chosen={chosen}
               overrides={templates}
@@ -398,7 +394,7 @@ function ChoicesForm({ userId, storageKey, initial, role, clients, manufacturers
                   {errors.clientId ? (
                     <FieldError id={`${id}-client-error`}>{errors.clientId}</FieldError>
                   ) : (
-                    <FieldDescription id={`${id}-client-hint`}>A client&apos;s own template wins over the standard one.</FieldDescription>
+                    <FieldDescription id={`${id}-client-hint`}>The company you inspect for. Its name goes into the header.</FieldDescription>
                   )}
                 </Field>
 

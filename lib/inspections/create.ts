@@ -125,7 +125,7 @@ export function chooseTemplate(
       ? { ok: false, message: selection.message, field: "templateId" }
       : {
           ok: false,
-          message: `No active template for ${PRODUCT_TYPE_LABEL[input.productType].toLowerCase()}. An admin needs to activate one.`,
+          message: `No active template for ${PRODUCT_TYPE_LABEL[input.productType].toLowerCase()} yet.`,
         };
   }
   if (selection.template.productType !== input.productType) {

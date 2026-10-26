@@ -26,11 +26,6 @@ type TemplatePanelProps = {
   role: "inspector" | "admin";
   picks: readonly PickState[];
   productType: ProductType | null;
-  /**
-   * Not shown since 26 October 2026: client and manufacturer no longer choose
-   * the template. Optional, so the form can stop passing it.
-   */
-  names?: { client: string | null; manufacturer: string | null };
   choice: TemplateChoice | null;
   chosen: TemplateOption | null;
   /** Admin only: the templates they may choose instead. */
@@ -182,7 +177,7 @@ function NoTemplate({ message, role }: { message: string; role: "inspector" | "a
       <TriangleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
       <div className="flex flex-col gap-1">
         <p className="font-semibold">{message}</p>
-        {role === "admin" && <p>Choose a template below, or activate one first.</p>}
+        {role === "admin" && <p>Choose a template below.</p>}
       </div>
     </div>
   );

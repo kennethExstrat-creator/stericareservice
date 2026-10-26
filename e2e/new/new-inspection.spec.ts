@@ -28,7 +28,7 @@ import { expectNoPageScroll } from "../support/layout";
 const INSPECTION_URL = /\/inspections\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 /** STD_EG's modules, which the fixture template copies (BUILD_SPEC 11). */
 const STD_EG_MODULES = includedModules("STD_EG");
-const NO_TEMPLATE = "No active template for examination gloves fits these choices. An admin needs to activate one.";
+const NO_TEMPLATE = "No active template for examination gloves yet.";
 
 // The dev server compiles on first use and the Mac runs several at once: allow for it.
 test.describe.configure({ timeout: 120_000 });

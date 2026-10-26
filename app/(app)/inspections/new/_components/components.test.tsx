@@ -72,7 +72,6 @@ function panel(props: {
       role={role}
       picks={props.picks ?? ALL_PICKED}
       productType={productType}
-      names={{ client: "Polyco Healthline", manufacturer: "Hartalega NGC" }}
       choice={choice}
       chosen={chosen}
       overrides={props.templates}
@@ -119,10 +118,10 @@ describe("the template panel", () => {
   it("says when no active template fits, and tells an admin what to do", () => {
     const inspector = panel({ templates: [option("STD_EG")], productType: "surgical" });
     expect(inspector).toContain('data-testid="no-template"');
-    expect(inspector).toContain("No active template for surgical gloves. An admin needs to activate one.");
+    expect(inspector).toContain("No active template for surgical gloves yet.");
     expect(inspector).not.toContain("Choose a template below");
     const admin = panel({ role: "admin", templates: [option("STD_EG")], productType: "surgical" });
-    expect(admin).toContain("Choose a template below, or activate one first.");
+    expect(admin).toContain("Choose a template below.");
     expect(admin).toContain("Use Another Template");
   });
 

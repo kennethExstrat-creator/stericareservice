@@ -311,7 +311,7 @@ describe("the template (BUILD_SPEC 4.4)", () => {
     use(world({ templates: [row(T.STD_EG, "STD_EG")] }));
     expect(await submit(order({ productType: "surgical" }))).toEqual({
       status: "error",
-      message: "No active template for surgical gloves. An admin needs to activate one.",
+      message: "No active template for surgical gloves yet.",
     });
     expect(inserted()).toBeUndefined();
   });

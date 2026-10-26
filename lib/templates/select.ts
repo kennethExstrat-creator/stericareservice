@@ -110,7 +110,7 @@ export function selectTemplate(
     return {
       ok: false,
       reason: "none",
-      message: `No active template for ${criteria.productType} gloves. An admin needs to activate one.`,
+      message: `No active template for ${criteria.productType} gloves yet.`,
     };
   }
   const ties = ranked.slice(1).map((entry) => entry.template);
