@@ -325,7 +325,7 @@ describe("seeding a base and a child", () => {
     expect((safedon?.resolved as { bases: unknown }).bases).toEqual([{ code: "STD_EG", version: 2 }]);
     // The replaced versions are retired, never edited.
     expect(rows.find((row) => row.code === "STD_EG" && row.version === 1)?.definition).toMatchObject({
-      name: "Standard examination gloves (ASTM D6319)",
+      name: "Standard examination gloves (EN 455)",
     });
   });
 
@@ -424,7 +424,8 @@ describe("retiring SAFEDON_EG", () => {
 
   it("plans the live change in one run: a new STD_EG version, the old one and SAFEDON_EG retired", async () => {
     const { db } = fakeDatabase();
-    await seedTemplates(db, renamed("Standard examination gloves (EN 455)"), RUN);
+    // An older wording of the standard, as live had before a new version.
+    await seedTemplates(db, renamed("Standard examination gloves (EN 455), as published before"), RUN);
     const report = await seedTemplates(db, bundle(), { ...DRY_RUN, replace: true });
     expect(report.outcomes.map((outcome) => describeOutcome(outcome, true))).toEqual([
       "STD_EG       version 2  to add, active, version 1 to retire",

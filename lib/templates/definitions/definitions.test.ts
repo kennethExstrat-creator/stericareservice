@@ -35,7 +35,6 @@ import {
   SAFEDON_EG_CLIENT,
   SAFEDON_EG_SEED,
   SEED_TEMPLATES,
-  STD_EG_IDENTITY,
   STD_EG_REPORT_SEED,
   STD_EG_SEED,
   STD_SG_SEED,
@@ -79,13 +78,9 @@ function reportStdEg(): ResolvedTemplate {
   return resolveTemplateOrThrow(STD_EG_REPORT_SEED.definition(), { getBase: lookupFrom([]), registry: MODULE_REGISTRY });
 }
 
-/** What a seed holds of a module: its flow's config, with the header rows its identity sets (STD_EG's client row). */
+/** What a seed holds of a module: its flow's config (every seed runs its own flow again since 26 October 2026). */
 function expectedConfig(seed: SeedTemplate, key: ModuleKey) {
-  const config = moduleConfig(seed.flow, key) as Record<string, unknown> | undefined;
-  if (seed === STD_EG_SEED && key === "header" && config) {
-    return { ...config, fields: { ...(config.fields as object), ...STD_EG_IDENTITY.headerFields } };
-  }
-  return config;
+  return moduleConfig(seed.flow, key) as Record<string, unknown> | undefined;
 }
 
 describe("the seed templates (BUILD_SPEC 11)", () => {
@@ -100,9 +95,9 @@ describe("the seed templates (BUILD_SPEC 11)", () => {
     }
   });
 
-  it("run their own flows, except STD_EG, which runs SAFEDON_EG's (Kenneth, 26 October 2026)", () => {
+  it("run their own flows: STD_EG its own again, the one INS-2026-2435 uses (Kenneth, 26 October 2026)", () => {
     expect(SEED_TEMPLATES.map((seed) => [seed.code, seed.flow])).toEqual([
-      ["STD_EG", "SAFEDON_EG"],
+      ["STD_EG", "STD_EG"],
       ["SAFEDON_EG", "SAFEDON_EG"],
       ["STD_SG", "STD_SG"],
     ]);
@@ -160,16 +155,6 @@ describe.each(SEED_TEMPLATES.map((seed) => [seed.code, seed.flow, seed] as const
       expect(template.scope.productType).toBe(spec.scope.productType);
       expect(template.scope.manufacturerId).toBeUndefined();
       expect(template.sourceFile).toBeNull();
-      if (seed === STD_EG_SEED) {
-        expect(template.name).toBe(STD_EG_IDENTITY.name);
-        expect(template.scope.standard).toBe(STD_EG_IDENTITY.standard);
-        expect(template.scope.clientId).toBeUndefined();
-        expect(template.report).toEqual({
-          title: STD_EG_IDENTITY.report.titleLines.join(REPORT_TITLE_SEPARATOR),
-          showClientLogo: false,
-        });
-        return;
-      }
       expect(template.name).toBe(spec.name);
       expect(template.scope.standard).toBe(spec.scope.standard);
       expect(template.scope.clientId).toBe(spec.scope.clientScoped ? CLIENT_ID : undefined);
@@ -239,53 +224,22 @@ describe("STD_EG and STD_SG are root templates", () => {
 });
 
 // Kenneth, 26 October 2026: "all the inspection flow will be standardized", with the flow INS-2026-2210 uses.
-describe("STD_EG runs SAFEDON_EG's flow as the standard template for every client", () => {
+describe("STD_EG runs its own flow, the one standard flow for every client (Kenneth, 26 October 2026)", () => {
   const standard = resolved("STD_EG");
-  const safedon = resolved("SAFEDON_EG");
 
-  it("has SAFEDON_EG's modules, titles, wording and config, the header's client row aside", () => {
-    const shape = (template: ResolvedTemplate) =>
-      included(template).map(({ key, title, labels, config }) => ({ key, title, labels, config }));
-    const header = (template: ResolvedTemplate) => included(template).find((entry) => entry.key === "header")!;
-    const withoutClientRow = (template: ResolvedTemplate) =>
-      shape(template).map((entry) =>
-        entry.key === "header"
-          ? { ...entry, config: { ...entry.config, fields: { ...(entry.config.fields as object), client: null } } }
-          : entry,
-      );
-    expect(withoutClientRow(standard)).toEqual(withoutClientRow(safedon));
-    // No logo names the client, so the header does; no factory glove code, as in SAFEDON_EG's flow.
-    expect(header(standard).config).toMatchObject({ fields: { client: true, factoryGloveCode: false }, mfgExpiryPrecision: "month" });
-    expect(header(safedon).config).toMatchObject({ fields: { client: false } });
-    expect(standard.customModules).toEqual(safedon.customModules);
-    expect(standard.sizes).toEqual(safedon.sizes);
-    expect(standard.unit).toBe("pcs");
-  });
-
-  it("keeps everything that flow has: the dispensing check with its box table, tensile, glove burst and the expiry date", () => {
+  it("is the STD_EG report's flow, as INS-2026-2435 has it: EN 455, force at break, the glove packing check", () => {
+    expect(STD_EG_SEED.definition()).toEqual(definitionFromCoverage("STD_EG"));
     const keys = included(standard).map((entry) => entry.key);
-    expect(keys).toEqual(expect.arrayContaining(["dispensing_safedon", "tensile", "weight", "watertight", "labeling"]));
-    expect(keys).not.toContain("force_at_break");
-    expect(keys).not.toContain("dispensing_packing");
-    expect(standard.customModules.map((custom) => custom.key)).toEqual(["safedon_dispensing_notes"]);
-    for (const key of ["dispensing_safedon", "watertight", "labeling", "dimensions", "weight"] as const) {
-      expect(included(standard).find((entry) => entry.key === key)?.config, key).toMatchObject(
-        moduleConfig("SAFEDON_EG", key) as Record<string, unknown>,
-      );
-    }
+    expect(keys).toEqual(templateModuleKeys("STD_EG"));
+    expect(keys).toEqual(expect.arrayContaining(["force_at_break", "dispensing_packing", "weight", "watertight", "labeling"]));
+    expect(keys).not.toContain("tensile");
+    expect(keys).not.toContain("dispensing_safedon");
+    expect(STD_EG_SEED.definition().scope).toMatchObject({ productType: "examination" });
+    expect(STD_EG_SEED.definition().scope.clientId).toBeUndefined();
   });
 
-  it("is a standard template: no client, ASTM D6319, the STD_EG report's title and no client logo", () => {
-    expect(STD_EG_SEED.definition().scope).toEqual({ productType: "examination", standard: "ASTM_D6319" });
-    expect(standard.name).toBe("Standard examination gloves (ASTM D6319)");
-    expect(standard.report).toEqual({
-      title: "Preshipment Inspection: Nitrile Disposable Examination Gloves",
-      showClientLogo: false,
-    });
-  });
-
-  it("leaves the STD_EG report's flow to its versions 1 to 4 (STD_EG_REPORT_SEED), not seeded", () => {
-    expect(STD_EG_REPORT_SEED.definition()).toEqual(definitionFromCoverage("STD_EG"));
+  it("is what its versions 1 to 4 ran (STD_EG_REPORT_SEED, not seeded)", () => {
+    expect(STD_EG_REPORT_SEED.definition()).toEqual(STD_EG_SEED.definition());
     expect(SEED_TEMPLATES).not.toContain(STD_EG_REPORT_SEED);
     expect(included(reportStdEg()).map((entry) => entry.key)).toEqual(templateModuleKeys("STD_EG"));
   });
@@ -412,8 +366,8 @@ describe("the seeds' step names (docs/DESIGN.md, Step Names)", () => {
     "Conclusion",
   ];
 
-  it("names STD_EG's steps as SAFEDON_EG's, with Physical Properties, Dispensing and Dispensing Notes", () => {
-    expect(shortNames("STD_EG")).toEqual(SAFEDON_FLOW);
+  it("names STD_EG's steps as its own flow's, and SAFEDON_EG's as its own", () => {
+    expect(shortNames("STD_EG")).toEqual(namesOf(reportStdEg()));
     expect(shortNames("SAFEDON_EG")).toEqual(SAFEDON_FLOW);
   });
 

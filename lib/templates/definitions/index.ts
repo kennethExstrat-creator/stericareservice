@@ -11,7 +11,7 @@ import type { SeedTemplate } from "./types";
 
 export { definitionFromCoverage, definitionWithFlow, REPORT_TITLE_SEPARATOR, type FlowIdentity } from "./from-coverage";
 export { SAFEDON_EG_CLIENT, SAFEDON_EG_SEED } from "./safedon-eg";
-export { STD_EG_IDENTITY, STD_EG_REPORT_SEED, STD_EG_SEED } from "./std-eg";
+export { STD_EG_REPORT_SEED, STD_EG_SEED } from "./std-eg";
 export { STD_SG_SEED } from "./std-sg";
 export {
   buildSeedBundle,

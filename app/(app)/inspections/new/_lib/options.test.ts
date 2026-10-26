@@ -35,22 +35,21 @@ describe("a template as the form shows it", () => {
       version: 1,
       status: "active",
       productType: "examination",
-      standard: "ASTM_D6319",
+      standard: "EN455",
       clientId: null,
       manufacturerId: null,
-      name: "Standard examination gloves (ASTM D6319)",
+      name: "Standard examination gloves (EN 455)",
       ready: true,
       unit: "pcs",
       sizes: ["XS", "S", "M", "L", "XL"],
     });
-    // SAFEDON_EG's flow since 26 October 2026: modules and custom modules in screen order, the onsite
-    // dispensing notes included; Glove Type is part of Glove Information (11 October 2026).
+    // Its own flow, the one standard flow (Kenneth, 26 October 2026): modules in screen order; Glove Type is part of
+    // Glove Information (11 October 2026).
     expect(option.sections.slice(0, 3)).toEqual(["Manufacturer Information", "Glove Information", "Order"]);
-    expect(option.sections).toHaveLength(15);
-    expect(option.sections).toContain(TENSILE_TITLE);
-    expect(option.sections).not.toContain(FORCE_AT_BREAK_TITLE);
-    // The client row is on (no logo names the client); no factory glove code, as in SAFEDON_EG's flow.
-    expect(option.fieldsOff).toEqual({ header: ["factoryGloveCode"] });
+    expect(option.sections).toHaveLength(14);
+    expect(option.sections).toContain(FORCE_AT_BREAK_TITLE);
+    expect(option.sections).not.toContain(TENSILE_TITLE);
+    expect(option.fieldsOff).toEqual({});
   });
 
   it("says which copied fields it switches off", () => {

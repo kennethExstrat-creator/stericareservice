@@ -392,8 +392,8 @@ describe("start from previous: what is copied", () => {
     });
     expect(copiedFieldsOff(STD_EG)).toEqual({});
     expect([...(copiedFieldsOff(STD_SG).header ?? [])].sort()).toEqual(["client", "factoryAddress", "factoryGloveCode"]);
-    // The standard examination template runs SAFEDON_EG's flow, which has no factory glove code.
-    expect(copiedFieldsOff(seeds.get("STD_EG")!)).toEqual({ header: ["factoryGloveCode"] });
+    // The standard examination template runs its own flow again (Kenneth, 26 October 2026): every copied field on.
+    expect(copiedFieldsOff(seeds.get("STD_EG")!)).toEqual({});
 
     expect(plannedCopy(copies, option(STD_EG)).map(({ key, fields }) => `${key}: ${copiedInWords(key, fields)}`)).toEqual([
       "header: factory address, product name, product code and factory glove code",
