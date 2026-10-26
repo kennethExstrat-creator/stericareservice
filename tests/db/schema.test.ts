@@ -145,6 +145,7 @@ describe("schema guards", { timeout: 30_000 }, () => {
     "20261013120000_ai_usage.sql",
     "20261013130000_steri_ai_summary.sql",
     "20261026120000_source_reading_proposals.sql",
+    "20261026130000_save_inspection_with_events.sql",
   ])("applies %s again without changing the schema", async (name) => {
     const before = await schemaSnapshot(db);
     const migration = (await readMigrations()).find((file) => file.name === name);
@@ -171,7 +172,7 @@ describe("schema guards", { timeout: 30_000 }, () => {
               has_function_privilege('service_role', p.oid, 'execute') as service_role
          from pg_proc p
         where p.pronamespace = 'public'::regnamespace
-          and p.proname in ('create_inspection', 'save_inspection', 'submit_inspection')
+          and p.proname in ('create_inspection', 'save_inspection', 'save_inspection_with_events', 'submit_inspection')
         order by 1`,
     );
     expect(result.rows).toEqual([
@@ -183,6 +184,12 @@ describe("schema guards", { timeout: 30_000 }, () => {
       },
       {
         fn: "save_inspection(uuid,uuid,timestamp with time zone,jsonb,jsonb)",
+        anon: false,
+        authenticated: false,
+        service_role: true,
+      },
+      {
+        fn: "save_inspection_with_events(uuid,uuid,timestamp with time zone,jsonb,jsonb,jsonb)",
         anon: false,
         authenticated: false,
         service_role: true,

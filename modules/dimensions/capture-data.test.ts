@@ -199,8 +199,8 @@ describe("dimensions capture data", () => {
       results: {},
       hasData: true,
     });
-    // Length has no spec here: recorded, not judged.
-    expect(measureSummary(computed, "M", "length")).toEqual({ statistic: 245, outcome: "na", count: 9 });
+    // Length has no spec here and 9 of 13 readings: not done; complete, it would be Passed (Kenneth, 26 October 2026).
+    expect(measureSummary(computed, "M", "length")).toEqual({ statistic: 245, outcome: "not_done", count: 9 });
     expect(measureSummary(computed, "M", "width")).toEqual({ statistic: 95, outcome: "pass", count: 13 });
     // A size calc did not evaluate, or no evaluation at all: the grid summarises its cells.
     expect(measureSummary(computed, "S", "length")).toBeUndefined();

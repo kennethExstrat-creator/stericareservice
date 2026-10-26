@@ -22,7 +22,17 @@ import {
   DimensionsConfigSchema,
   MEASURES,
 } from "./config";
-import { DimensionsDataSchema, emptyDimensions, emptyGlove } from "./schema";
+import {
+  DimensionsDataSchema,
+  emptyDimensions,
+  emptyGlove,
+  manualResultChanges,
+  sameSpec,
+  specOverrideChanges,
+  specOverrideOf,
+  withManualResult,
+  withSpecOverride,
+} from "./schema";
 
 const GLOVE = { length: 245, width: 95, fingerThickness: 0.09, palmThickness: 0.05, cuffThickness: 0.04 };
 
@@ -168,5 +178,87 @@ describe("dimensions wording", () => {
       pass: "A",
       fail: "Rej.",
     });
+  });
+});
+
+describe("dimensions: P/F set by hand in the data (Kenneth, 26 October 2026)", () => {
+  it("keeps a result with its comment, and refuses one without a comment or with an unknown measure", () => {
+    const parse = (manualResults: unknown) => DimensionsDataSchema.safeParse({ sizes: { M: { gloves: [], manualResults } } }).success;
+    expect(parse({ width: { result: "pass", comment: "Measured again." } })).toBe(true);
+    expect(parse({ width: { result: "pass", comment: "  " } })).toBe(false);
+    expect(parse({ weight: { result: "pass", comment: "No." } })).toBe(false);
+    expect(parse({ width: { result: "na", comment: "No." } })).toBe(false);
+    // Saved before the field existed: no P/F set by hand.
+    expect(DimensionsDataSchema.parse({ sizes: { M: { gloves: [] } } }).sizes.M.manualResults).toBeUndefined();
+  });
+
+  it("sets, changes and gives back a P/F, and lists what changed between two versions", () => {
+    const empty = emptyDimensions();
+    const set = withManualResult(empty, "M", "width", { result: "fail", comment: "Torn cuff." });
+    expect(set.sizes.M.manualResults).toEqual({ width: { result: "fail", comment: "Torn cuff." } });
+    expect(withManualResult(set, "M", "width", { result: "fail", comment: "Torn cuff." })).toBe(set);
+    const changed = withManualResult(set, "M", "width", { result: "pass", comment: "Measured again." });
+    const back = withManualResult(changed, "M", "width", null);
+    expect(back.sizes.M.manualResults).toBeUndefined();
+
+    expect(manualResultChanges(empty, set)).toEqual([{ size: "M", measure: "width", from: null, to: { result: "fail", comment: "Torn cuff." } }]);
+    expect(manualResultChanges(set, changed)).toEqual([
+      { size: "M", measure: "width", from: { result: "fail", comment: "Torn cuff." }, to: { result: "pass", comment: "Measured again." } },
+    ]);
+    expect(manualResultChanges(changed, back)).toEqual([{ size: "M", measure: "width", from: { result: "pass", comment: "Measured again." }, to: null }]);
+    expect(manualResultChanges(set, set)).toEqual([]);
+    expect(manualResultChanges(null, null)).toEqual([]);
+  });
+});
+
+describe("dimensions: a spec set for the inspection in the data (Kenneth, 26 October 2026)", () => {
+  it("keeps every kind of spec the template takes, NA included, and refuses anything else", () => {
+    const parse = (specOverrides: unknown) => DimensionsDataSchema.safeParse({ sizes: { M: { gloves: [], specOverrides } } }).success;
+    expect(parse({ length: { kind: "min", min: 240 } })).toBe(true);
+    expect(parse({ width: { kind: "tolerance", nominal: 80, tolerance: 10 } })).toBe(true);
+    expect(parse({ width: { kind: "range", min: 70, max: 90 } })).toBe(true);
+    expect(parse({ cuffThickness: { kind: "max", max: 0.2 } })).toBe(true);
+    expect(parse({ fingerThickness: { kind: "na" } })).toBe(true);
+    expect(parse({ width: { kind: "range", min: 90, max: 70 } })).toBe(false);
+    expect(parse({ width: { kind: "tolerance", nominal: 80, tolerance: -1 } })).toBe(false);
+    expect(parse({ weight: { kind: "na" } })).toBe(false);
+    expect(parse({ width: "≥ 240" })).toBe(false);
+    expect(DimensionsDataSchema.parse({ sizes: { M: { gloves: [] } } }).sizes.M.specOverrides).toBeUndefined();
+  });
+
+  it("sets, changes and gives back a spec, and lists what changed between two versions", () => {
+    const empty = emptyDimensions();
+    const na = withSpecOverride(empty, "M", "fingerThickness", { kind: "na" });
+    expect(specOverrideOf(na, "M", "fingerThickness")).toEqual({ kind: "na" });
+    expect(withSpecOverride(na, "M", "fingerThickness", { kind: "na" })).toBe(na);
+    const strict = withSpecOverride(na, "M", "fingerThickness", { kind: "tolerance", nominal: 0.18, tolerance: 0.04 });
+    const back = withSpecOverride(strict, "M", "fingerThickness", null);
+    expect(back.sizes.M.specOverrides).toBeUndefined();
+    expect(specOverrideOf(back, "M", "fingerThickness")).toBeNull();
+
+    expect(specOverrideChanges(empty, na)).toEqual([{ size: "M", measure: "fingerThickness", from: null, to: { kind: "na" } }]);
+    expect(specOverrideChanges(na, strict)).toEqual([
+      { size: "M", measure: "fingerThickness", from: { kind: "na" }, to: { kind: "tolerance", nominal: 0.18, tolerance: 0.04 } },
+    ]);
+    expect(specOverrideChanges(strict, back)).toEqual([
+      { size: "M", measure: "fingerThickness", from: { kind: "tolerance", nominal: 0.18, tolerance: 0.04 }, to: null },
+    ]);
+    expect(specOverrideChanges(na, na)).toEqual([]);
+  });
+
+  it("tells Steri-AI the field and the spec's shapes in the JSON Schema it reads, and that a P/F never comes from a document", () => {
+    const schema = JSON.stringify(z.toJSONSchema(DimensionsDataSchema, { io: "input", unrepresentable: "any" }));
+    expect(schema).toContain('"specOverrides"');
+    expect(schema).toContain("as the form's Spec row for the size gives it");
+    expect(schema).toContain("NA is {kind: na}");
+    expect(schema).toContain("Never set from a document.");
+  });
+
+  it("tells the same spec apart from another, whatever order its figures were saved in", () => {
+    expect(sameSpec({ kind: "tolerance", nominal: 80, tolerance: 10 }, { kind: "tolerance", nominal: 80, tolerance: 10 })).toBe(true);
+    expect(sameSpec({ kind: "range", min: 70, max: 90 }, { kind: "range", max: 90, min: 70 } as never)).toBe(true);
+    expect(sameSpec({ kind: "min", min: 240 }, { kind: "min", min: 230 })).toBe(false);
+    expect(sameSpec(null, undefined)).toBe(true);
+    expect(sameSpec({ kind: "na" }, null)).toBe(false);
   });
 });

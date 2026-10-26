@@ -14,8 +14,10 @@ vi.mock("../actions", () => ({
 import { SITE_NOTES, SIZE_TABLE, TEST_ADMIN_ID } from "@/lib/inspections/capture/__fixtures__/capture";
 import { captureAccess } from "@/lib/inspections/capture/access";
 import {
+  AUDIT_LOG_KEY,
   capturePages,
   leadPagesFirst,
+  withAuditLog,
   withSourceDocuments,
   type CapturePage,
   type CaptureSection,
@@ -123,6 +125,27 @@ describe("SectionTabs", () => {
     const order = tagsWith(html, 'role="tab"').map((tab) => /data-section="([a-z_]+)"/.exec(tab)?.[1]);
     expect(order).toEqual(["dimensions", "glove_info", "conclusion", "packing_config"]);
     expect(html).toContain(", switched off for this inspection");
+  });
+
+  it("puts the Audit Log after the Conclusion, before the switched-off sections, with no result chip (Kenneth, 26 October 2026)", () => {
+    const markup = renderToStaticMarkup(
+      <SectionTabs pages={withAuditLog(capturePages(SECTIONS))} activeKey={AUDIT_LOG_KEY} onSelect={noop} panelId="panel" idPrefix="cap" />,
+    );
+    const tabs = tagsWith(markup, 'role="tab"');
+    expect(tabs.map((tab) => /data-section="([a-z_]+)"/.exec(tab)?.[1])).toEqual([
+      "dimensions",
+      "glove_info",
+      "conclusion",
+      AUDIT_LOG_KEY,
+      "packing_config",
+    ]);
+    const audit = tabs[3];
+    expect(audit).toContain('aria-selected="true"');
+    expect(audit).toContain('title="Audit Log"');
+    expect(audit).not.toContain("data-excluded");
+    // The three steps' chips only: the Audit Log has no result.
+    expect(tagsWith(markup, 'data-slot="result-chip"')).toHaveLength(3);
+    expect(markup).toMatch(/data-section="audit_log"(?:(?!<\/button>).)*>Audit Log<\/span><\/button>/);
   });
 
   it("names each tab by its short name, with its full title on hover (docs/DESIGN.md, Step Names)", () => {
@@ -529,6 +552,20 @@ describe("SectionList (the desktop sidebar)", () => {
   it("marks each step's row with its key, for specs (data-step); a switched-off row keeps data-section", () => {
     expect(tagsWith(html, "data-step=").map((row) => /data-step="([a-z_]+)"/.exec(row)?.[1])).toEqual(["dispensing_safedon", "onsite"]);
     expect(tagsWith(html, 'data-section="labeling"')).toHaveLength(1);
+  });
+
+  it("lists the Audit Log under the Conclusion, a row with no progress or result, before the switched-off rows (Kenneth, 26 October 2026)", () => {
+    const markup = renderToStaticMarkup(<SectionList pages={withAuditLog(capturePages(long))} activeKey={AUDIT_LOG_KEY} onSelect={noop} />);
+    expect(rowTitles(markup)).toEqual([
+      "Glove Dispensing Inspection",
+      "Glove Dispensing Inspection: onsite notes",
+      "Audit Log",
+      "Packaging Labeling Inspection",
+    ]);
+    // Not a step: no data-step, no result chip, and the progress count leaves it out.
+    expect(markup).not.toContain('data-step="audit_log"');
+    expect(markup).toMatch(/<li aria-current="page"><button type="button" data-section="audit_log" title="Audit Log"/);
+    expect(markup).not.toMatch(/data-section="audit_log"(?:(?!<\/button>).)*data-slot="result-chip"/);
   });
 
   it("lists the order's page once, under the order's title, with the worst result of the two", () => {

@@ -111,6 +111,7 @@ import { canBeSwitchedOff } from "@/lib/inspections/capture/overrides";
 import { refusedTaskIssues } from "@/lib/inspections/capture/refused";
 import type { ReopenNote } from "@/lib/inspections/capture/reopen";
 import {
+  AUDIT_LOG_KEY,
   capturePages,
   captureSections,
   findPage,
@@ -122,6 +123,7 @@ import {
   progressSteps,
   sideBySideSections,
   stepIcon,
+  withAuditLog,
   withSourceDocuments,
   type CapturePage,
   type CaptureSection,
@@ -149,6 +151,7 @@ import type { SummaryAssist } from "@/modules/_framework/summary-assist";
 import { applyProposals, SOURCE_DOCUMENTS_KEY, SOURCE_DOCUMENTS_TITLE } from "@/lib/inspections/source-documents";
 import type { CaptureServerState } from "../actions";
 import { draftInspectionSummary } from "../summary-actions";
+import { AuditLogPage } from "./audit-log-page";
 import { CaptureHeader, type CaptureHeading } from "./capture-header";
 import { captureNotices, CaptureNotices } from "./capture-notices";
 import { clickLeavesField } from "./click-leaves-field";
@@ -396,18 +399,21 @@ export function CaptureScreen({
   });
   // What a tab, a sidebar row, a progress step and Previous or Next open: Source Documents first, with General
   // Information beside the files (withSourceDocuments), then the order, the sampling plan and the box/carton numbers
-  // (LEAD_PAGE_KEYS), then each other section, or a module with those shown on its page.
+  // (LEAD_PAGE_KEYS), then each other section, or a module with those shown on its page, and the Audit Log last
+  // (withAuditLog), which is no step.
   const pages = useMemo(
     (): CapturePage[] =>
-      withSourceDocuments(
-        {
-          key: SOURCE_DOCUMENTS_KEY,
-          title: SOURCE_DOCUMENTS_TITLE,
-          shortTitle: SOURCE_DOCUMENTS_TITLE,
-          status: sourceDocuments.status,
-          progress: sourceDocuments.progress,
-        },
-        leadPagesFirst(capturePages(sections)),
+      withAuditLog(
+        withSourceDocuments(
+          {
+            key: SOURCE_DOCUMENTS_KEY,
+            title: SOURCE_DOCUMENTS_TITLE,
+            shortTitle: SOURCE_DOCUMENTS_TITLE,
+            status: sourceDocuments.status,
+            progress: sourceDocuments.progress,
+          },
+          leadPagesFirst(capturePages(sections)),
+        ),
       ),
     [sections, sourceDocuments.status, sourceDocuments.progress],
   );
@@ -420,7 +426,11 @@ export function CaptureScreen({
   // The section asked for (?module=, an issue link, a switch) or the page chosen: the screen shows the page it is on.
   // Without one, Source Documents, the first step.
   const [activeKey, setActiveKey] = useState(() =>
-    initialSection === null || initialSection === SOURCE_DOCUMENTS_KEY ? SOURCE_DOCUMENTS_KEY : initialSectionKey(sections, initialSection),
+    initialSection === null || initialSection === SOURCE_DOCUMENTS_KEY
+      ? SOURCE_DOCUMENTS_KEY
+      : initialSection === AUDIT_LOG_KEY
+        ? AUDIT_LOG_KEY
+        : initialSectionKey(sections, initialSection),
   );
   const activePage: CapturePage | undefined = findPage(pages, activeKey) ?? pages.find(isIncludedPage) ?? pages[0];
   const activeSectionKeys = activePage ? pageSectionKeys(activePage) : [];
@@ -907,7 +917,7 @@ export function CaptureScreen({
   const { previous, next } = activePage ? neighbours(pages, activePage.key) : { previous: null, next: null };
   // The refused entries of each section on the open page, for its fields (null where this screen keeps none).
   const refusedOwners =
-    activePage && activePage.kind !== "excluded"
+    activePage && (activePage.kind === "included" || activePage.kind === "documents")
       ? activePage.sections.map((section) => `${section.kind}:${section.key}`).join(" ")
       : "";
   const refusedStores = useMemo(() => {
@@ -1079,6 +1089,7 @@ export function CaptureScreen({
                 landing.record();
               }}
               onOverridesChange={onSwitched}
+              saveFirst={() => autosave.flush({ timeoutMs: LEAVE_FLUSH_MS })}
             />
           )}
 
@@ -1185,6 +1196,8 @@ type ActivePageProps = SharedSectionProps & {
   onUnreadableRemoved: (sectionKey: string) => void;
   /** A section was switched off or back on here. */
   onOverridesChange: (overrides: ModuleOverrides, sectionKey: string) => void;
+  /** Saves what is waiting: the Audit Log reads after it, so the last change is in the list. */
+  saveFirst: () => Promise<unknown>;
 };
 
 /**
@@ -1223,8 +1236,21 @@ function ActivePage({
   refusedStores,
   onUnreadableRemoved,
   onOverridesChange,
+  saveFirst,
   ...shared
 }: ActivePageProps) {
+  // The Audit Log: the inspection's audit rows, read-only, no section of its own.
+  if (page.kind === "audit") {
+    return (
+      <AuditLogPage
+        id={panelId}
+        tabLabelledBy={tabLabelledBy}
+        titleRef={titleRef}
+        inspectionId={shared.inspectionId}
+        saveFirst={saveFirst}
+      />
+    );
+  }
   const sections: readonly CaptureSection[] = page.kind === "excluded" ? [page.section] : page.sections;
   const several = sections.length > 1 || (page.kind === "documents" && sections.length > 0);
   const part = (section: CaptureSection) => (

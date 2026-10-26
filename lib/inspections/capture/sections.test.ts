@@ -13,11 +13,14 @@ import {
 } from "./__fixtures__/capture";
 import { evaluateCapture } from "./evaluate";
 import {
+  AUDIT_LOG_KEY,
   capturePages,
   captureSections,
   findPage,
   findSection,
   initialSectionKey,
+  isOpenPage,
+  isStepPage,
   leadPagesFirst,
   neighbours,
   pageProgress,
@@ -29,6 +32,7 @@ import {
   SHOWN_WITH,
   sideBySideSections,
   stepIcon,
+  withAuditLog,
   withSourceDocuments,
   type CapturePage,
   type CaptureSection,
@@ -491,5 +495,28 @@ describe("withSourceDocuments: General Information beside the files (Kenneth, 26
     const pages = withSourceDocuments(files("not_done", "in_progress"), pagesFor().filter((entry) => entry.key !== "header"));
     expect(pages[0]).toEqual({ ...files("not_done", "in_progress"), kind: "documents", sections: [] });
     expect(pageSectionKeys(pages[0])).toEqual(["source_documents"]);
+  });
+});
+
+describe("withAuditLog: the Audit Log under the Conclusion (Kenneth, 26 October 2026)", () => {
+  it("puts the Audit Log last, a page with no step, result, progress or count", () => {
+    const pages = withAuditLog(pagesFor(filledData(), OFF));
+    const audit = pages.at(-1)!;
+    expect(audit).toEqual({ kind: "audit", key: AUDIT_LOG_KEY, title: "Audit Log", shortTitle: "Audit Log" });
+    expect(isStepPage(audit)).toBe(false);
+    expect(isOpenPage(audit)).toBe(true);
+    expect(progressSteps(pages).map((step) => step.key)).not.toContain(AUDIT_LOG_KEY);
+    expect(progressSummary(pages)).toEqual(progressSummary(pagesFor(filledData(), OFF)));
+    // ?module=audit_log opens it.
+    expect(findPage(pages, AUDIT_LOG_KEY)).toBe(audit);
+    expect(pageSectionKeys(audit)).toEqual([AUDIT_LOG_KEY]);
+  });
+
+  it("is where Next goes from the Conclusion, and Previous goes back to the Conclusion", () => {
+    const pages = withAuditLog(pagesFor(filledData(), OFF));
+    expect(neighbours(pages, "conclusion").next).toMatchObject({ kind: "audit", key: AUDIT_LOG_KEY, shortTitle: "Audit Log" });
+    expect(neighbours(pages, AUDIT_LOG_KEY)).toMatchObject({ previous: { key: "conclusion" }, next: null });
+    // A switched-off page is still stepped over.
+    expect(neighbours(pages, "site_notes").next?.key).toBe("weight");
   });
 });

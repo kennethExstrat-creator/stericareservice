@@ -54,6 +54,16 @@ describe("the paper form guide", () => {
     expect(line).toContain("Never pad the list to the cases sampled, never add a number the documents do not state");
     expect(line).toContain("leave out a packing list's carton numbering (the shipment's cartons, not the sample)");
   });
+
+  it("reads a dimension table's Spec row into the inspection's specs, NA included, never a P/F (Kenneth, 26 October 2026)", () => {
+    const line = PAPER_FORM_GUIDE.split("\n").find((entry) => entry.startsWith("- A dimension table prints a \"Spec.\" row")) ?? "";
+    expect(line).toContain("such as ≥240, ≤80, 80±10, 230-250 or NA (no spec)");
+    expect(line).toContain("Put it into dimensions' specOverrides for that size and column");
+    expect(line).toContain('(NA is {"kind": "na"})');
+    expect(line).toContain("only where it differs from that size's spec in the module settings and the current data has none");
+    expect(line).toContain("never from the readings or a result");
+    expect(line).toContain("Never write dimensions' manualResults");
+  });
 });
 
 describe("glossaryText", () => {

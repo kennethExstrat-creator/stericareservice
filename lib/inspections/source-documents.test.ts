@@ -191,6 +191,39 @@ describe("applyProposals on Box/Carton Numbers (Kenneth, 14 October 2026)", () =
   });
 });
 
+describe("applyProposals on Dimension's specs (Kenneth, 26 October 2026)", () => {
+  const included = new Set(["dimensions"]);
+  const sizeS = (data: { modules: Readonly<Record<string, unknown>> }) =>
+    (data.modules.dimensions as { sizes: Record<string, Record<string, unknown>> }).sizes.S;
+  const STRICT = { kind: "tolerance", nominal: 0.18, tolerance: 0.04 };
+
+  it("takes the specs a Spec row gives, NA included, beside the readings", () => {
+    const proposal = {
+      sizes: { S: { gloves: [{ length: 245 }], specOverrides: { length: { kind: "min", min: 230 }, fingerThickness: { kind: "na" } } } },
+    };
+    const result = applyProposals({ modules: {}, custom: {} }, { dimensions: proposal }, MODULE_REGISTRY, included);
+    expect(sizeS(result.data).specOverrides).toEqual({ length: { kind: "min", min: 230 }, fingerThickness: { kind: "na" } });
+    expect((sizeS(result.data).gloves as { length: number }[])[0].length).toBe(245);
+    expect(result.modules).toEqual(["dimensions"]);
+  });
+
+  it("leaves a spec already set for the size and column whole, and still fills the readings and the other columns", () => {
+    const data = { modules: { dimensions: { sizes: { S: { gloves: [], specOverrides: { fingerThickness: STRICT } } } } }, custom: {} };
+    const proposal = {
+      sizes: { S: { gloves: [{ width: 86 }], specOverrides: { fingerThickness: { kind: "na" }, palmThickness: { kind: "na" } } } },
+    };
+    const result = applyProposals(data, { dimensions: proposal }, MODULE_REGISTRY, included);
+    expect(sizeS(result.data).specOverrides).toEqual({ fingerThickness: STRICT, palmThickness: { kind: "na" } });
+    expect((sizeS(result.data).gloves as { width: number }[])[0].width).toBe(86);
+  });
+
+  it("never takes a P/F set by hand from a reading", () => {
+    const proposal = { sizes: { S: { manualResults: { width: { result: "pass", comment: "As the form says." } } } } };
+    const result = applyProposals({ modules: {}, custom: {} }, { dimensions: proposal }, MODULE_REGISTRY, included);
+    expect(result).toMatchObject({ filled: 0, modules: [] });
+  });
+});
+
 describe("linkSourceFile", () => {
   const FILE = "00000000-0000-4000-8000-000000000501";
   const KEPT = "00000000-0000-4000-8000-000000000502";

@@ -197,6 +197,72 @@ describe("saveInspectionData", () => {
       ).toEqual({ ok: true, updatedAt: V2 });
       expect(chains[0].slice(0, 2)).toEqual(["from inspections", `update ${JSON.stringify({ data })}`]);
     });
+
+    /** A secret-key client that answers each function its own way and records the calls. */
+    function scriptedAdmin(answers: Readonly<Record<string, Answer>>) {
+      const calls: [string, unknown][] = [];
+      const admin = {
+        rpc(name: string, args: unknown) {
+          calls.push([name, args]);
+          const builder = {
+            abortSignal: () => builder,
+            then: (resolve: (value: Answer) => unknown, reject: (reason: unknown) => unknown) =>
+              Promise.resolve(answers[name]).then(resolve, reject),
+          };
+          return builder;
+        },
+      };
+      return { admin: admin as unknown as SupabaseClient<Database>, calls };
+    }
+    const EVENT = {
+      action: "pass_fail_changed",
+      changes: { module: "dimensions", size: "M", column: "width", from: null, to: "fail", comment: "Torn cuffs." },
+    };
+
+    it("writes a save's audit rows in its own transaction, through save_inspection_with_events() (Kenneth, 26 October 2026)", async () => {
+      const { admin, calls } = scriptedAdmin({ save_inspection_with_events: { data: V2, error: null, status: 200 } });
+      const { client, chains } = fakeClient();
+      expect(
+        await saveInspectionData(
+          client,
+          { inspectionId: ID, data, baseUpdatedAt: V1 },
+          { writer: { admin, actorId: "user-1" }, events: [EVENT] },
+        ),
+      ).toEqual({ ok: true, updatedAt: V2 });
+      expect(calls).toEqual([
+        [
+          "save_inspection_with_events",
+          { inspection_id: ID, actor_id: "user-1", base_updated_at: V1, data, mirrored_columns: {}, events: [EVENT] },
+        ],
+      ]);
+      expect(chains).toEqual([]);
+    });
+
+    it("saves as before and records the rows right after, in the user's name, before migration 20261026130000", async () => {
+      const missing = { code: "PGRST202", message: "Could not find the function public.save_inspection_with_events" };
+      const { admin, calls } = scriptedAdmin({
+        save_inspection_with_events: { data: null, error: missing, status: 404 },
+        save_inspection: { data: V2, error: null, status: 200 },
+        log_inspection_event: { data: 7, error: null, status: 200 },
+      });
+      const { client } = fakeClient();
+      expect(
+        await saveInspectionData(
+          client,
+          { inspectionId: ID, data, baseUpdatedAt: V1 },
+          { writer: { admin, actorId: "user-1" }, events: [EVENT] },
+        ),
+      ).toEqual({ ok: true, updatedAt: V2 });
+      expect(calls.map(([name]) => name)).toEqual(["save_inspection_with_events", "save_inspection", "log_inspection_event"]);
+      expect(calls[2][1]).toEqual({ inspection_id: ID, action: "pass_fail_changed", changes: { ...EVENT.changes, by: "user-1" } });
+    });
+
+    it("keeps calling save_inspection() for a save with no audit rows", async () => {
+      const { admin, calls } = scriptedAdmin({ save_inspection: { data: V2, error: null, status: 200 } });
+      const { client } = fakeClient();
+      await saveInspectionData(client, { inspectionId: ID, data, baseUpdatedAt: V1 }, { writer: { admin, actorId: "user-1" }, events: [] });
+      expect(calls.map(([name]) => name)).toEqual(["save_inspection"]);
+    });
   });
 
   it("serves as the autosave transport", async () => {

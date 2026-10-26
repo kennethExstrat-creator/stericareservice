@@ -244,11 +244,37 @@ function cartonSamplingFill(
 }
 
 /**
+ * Dimension as a reading proposes it (Kenneth, 26 October 2026): a spec read
+ * from the form's Spec row goes in whole, and only for a size and column
+ * that has none set for the inspection yet. Laid in field by field, as
+ * fillEmpty lays records, a spec's figures would mix with another kind's
+ * and spoil the size's fill. A P/F set by hand is the inspector's alone:
+ * never taken from a reading.
+ */
+function dimensionsProposal(current: Record<string, unknown>, proposal: Record<string, unknown>): Record<string, unknown> {
+  if (!isRecord(proposal.sizes)) return proposal;
+  const held = isRecord(current.sizes) ? current.sizes : {};
+  const sizes: Record<string, unknown> = {};
+  for (const [size, entry] of Object.entries(proposal.sizes)) {
+    if (!isRecord(entry)) continue;
+    const rest = Object.fromEntries(Object.entries(entry).filter(([field]) => field !== "manualResults" && field !== "specOverrides"));
+    const row = held[size];
+    const set = isRecord(row) && isRecord(row.specOverrides) ? row.specOverrides : {};
+    const specs = isRecord(entry.specOverrides)
+      ? Object.fromEntries(Object.entries(entry.specOverrides).filter(([measure, spec]) => !(measure in set) && isRecord(spec)))
+      : {};
+    sizes[size] = Object.keys(specs).length > 0 ? { ...rest, specOverrides: specs } : rest;
+  }
+  return { ...proposal, sizes };
+}
+
+/**
  * The inspection's data with a reading's proposals filled in: only modules
  * the template includes (never the conclusion), only fields still empty,
  * only values each module's schema accepts. `filled` counts the values.
  * Box/Carton Numbers take a size's list whole, into an empty list or over
- * one it completes (cartonSamplingFill).
+ * one it completes (cartonSamplingFill); Dimension's specs go in whole, and
+ * never its P/F (dimensionsProposal).
  */
 export function applyProposals(
   data: InspectionData,
@@ -265,7 +291,8 @@ export function applyProposals(
     const entry = readModuleEntry(next, "modules", key);
     const current = isRecord(entry.value) && entry.hasData ? entry.value : (definition.emptyData() as Record<string, unknown>);
     const carton = key === "carton_sampling" ? cartonSamplingFill(definition.dataSchema as Schema, current, proposal) : null;
-    const value = carton ? carton.value : fillModule(definition.dataSchema as Schema, current, proposal);
+    const proposed = key === "dimensions" ? dimensionsProposal(current, proposal) : proposal;
+    const value = carton ? carton.value : fillModule(definition.dataSchema as Schema, current, proposed);
     const count = carton ? carton.added : countFilled(current, value);
     if (count === 0) continue;
     next = writeModuleData(next, "modules", key, value);

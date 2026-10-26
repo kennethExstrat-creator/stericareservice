@@ -35,6 +35,14 @@ export interface SaveInspectionOptions<T> {
    * to an update with `client`.
    */
   writer?: { admin: SupabaseClient<Database>; actorId: string } | null;
+  /**
+   * Audit rows written with the data, in the same transaction, through
+   * public.save_inspection_with_events() (migration 20261026130000): a
+   * Dimension P/F set by hand. Worked out by the server action; needs a
+   * `writer`. On a project that has not run the migration the data is saved
+   * as before and the rows are recorded right after it.
+   */
+  events?: readonly { action: string; changes: Json }[];
 }
 
 const EDITABLE: ReadonlySet<string> = new Set(["draft", "reopened"]);
@@ -57,14 +65,31 @@ export async function saveInspectionData<T>(
   const columns = options.columns?.(data);
   let written: Written | null = null;
   if (options.writer) {
-    const call = options.writer.admin.rpc("save_inspection", {
+    const { admin, actorId } = options.writer;
+    const events = options.events ?? [];
+    const args = {
       inspection_id: inspectionId,
-      actor_id: options.writer.actorId,
+      actor_id: actorId,
       base_updated_at: baseUpdatedAt,
       data: data as NonNullable<Json>,
       mirrored_columns: (columns ?? {}) as Json,
-    });
-    const saved = await (signal ? call.abortSignal(signal) : call);
+    };
+    const plainSave = async () => {
+      const call = admin.rpc("save_inspection", args);
+      return await (signal ? call.abortSignal(signal) : call);
+    };
+    let saved: Awaited<ReturnType<typeof plainSave>>;
+    if (events.length > 0) {
+      const call = admin.rpc("save_inspection_with_events", { ...args, events: events as unknown as Json });
+      saved = await (signal ? call.abortSignal(signal) : call);
+      // A project that has not run migration 20261026130000: the data as before, then its rows on their own.
+      if (saved.error?.code === "PGRST202") {
+        saved = await plainSave();
+        if (!saved.error && saved.data) await recordEventsApart(admin, inspectionId, actorId, events);
+      }
+    } else {
+      saved = await plainSave();
+    }
     if (saved.error?.code !== "PGRST202") {
       written = { error: saved.error, status: saved.status, updatedAt: saved.data ?? null };
     }
@@ -94,6 +119,28 @@ export async function saveInspectionData<T>(
     return { ok: false, reason: "forbidden", message: FAILURE_MESSAGES.forbidden };
   }
   return { ok: false, reason: "conflict", server: { data: current.data.data as T, updatedAt: current.data.updated_at } };
+}
+
+/**
+ * Audit rows recorded after their save, where the database cannot take them
+ * with it yet: in the user's name in `changes.by`, since a row the service
+ * role writes has no actor.
+ */
+async function recordEventsApart(
+  admin: SupabaseClient<Database>,
+  inspectionId: string,
+  actorId: string,
+  events: readonly { action: string; changes: Json }[],
+): Promise<void> {
+  for (const event of events) {
+    const changes = typeof event.changes === "object" && event.changes !== null && !Array.isArray(event.changes) ? event.changes : {};
+    const { error } = await admin.rpc("log_inspection_event", {
+      inspection_id: inspectionId,
+      action: event.action,
+      changes: { ...changes, by: actorId },
+    });
+    if (error) console.error(`[autosave] could not record ${event.action}`, error.code, error.message);
+  }
 }
 
 /**

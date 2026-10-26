@@ -17,7 +17,10 @@
 // moved up to its host, the lead pages first (LEAD_PAGE_KEYS); the review
 // and the export keep template order. General Information (the header) has
 // no page of its own: it sits beside the files on Source Documents' page
-// (withSourceDocuments; Kenneth, 26 October 2026).
+// (withSourceDocuments; Kenneth, 26 October 2026). The Audit Log comes last,
+// after the Conclusion (withAuditLog; Kenneth, 26 October 2026): a page for
+// the sidebar, the tabs and Previous / Next, never a step, with no progress,
+// result or Pending row.
 //
 // Names: every section and page carries its title, the template's wording
 // (with a count filled in, shownTitle), for its card heading, and its short
@@ -285,15 +288,37 @@ export type CapturePage =
       sections: readonly IncludedSection[];
       status: Status;
       progress: SectionProgress;
-    };
+    }
+  /** The Audit Log, last (withAuditLog): the inspection's audit rows, read-only. No sections, result or progress. */
+  | { kind: "audit"; key: string; title: string; shortTitle: string };
 
 export type IncludedPage = Extract<CapturePage, { kind: "included" }>;
 export type DocumentsPage = Extract<CapturePage, { kind: "documents" }>;
-/** A page the steps, the tabs and Previous / Next go to: every page but a switched-off one. */
+export type AuditPage = Extract<CapturePage, { kind: "audit" }>;
+/** A page the progress steps stand for: Source Documents and the included pages. */
 export type StepPage = IncludedPage | DocumentsPage;
+/** A page the tabs and Previous / Next go to: the steps and the Audit Log, not a switched-off page. */
+export type OpenPage = StepPage | AuditPage;
 
 export function isStepPage(page: CapturePage): page is StepPage {
+  return page.kind === "included" || page.kind === "documents";
+}
+
+export function isOpenPage(page: CapturePage): page is OpenPage {
   return page.kind !== "excluded";
+}
+
+/**
+ * The Audit Log page (Kenneth, 26 October 2026: "The audit log should be kept
+ * in a special page, 'Audit Log', place under conclusion page"): its key for
+ * ?module= and the tabs, and its name, in Title Case.
+ */
+export const AUDIT_LOG_KEY = "audit_log";
+export const AUDIT_LOG_TITLE = "Audit Log";
+
+/** The pages with the Audit Log last: after the Conclusion and every other page. */
+export function withAuditLog(pages: readonly CapturePage[]): CapturePage[] {
+  return [...pages, { kind: "audit", key: AUDIT_LOG_KEY, title: AUDIT_LOG_TITLE, shortTitle: AUDIT_LOG_TITLE }];
 }
 
 /**
@@ -444,22 +469,23 @@ export function pageProgress(sections: readonly IncludedSection[]): SectionProgr
 }
 
 /**
- * The included pages before and after the page holding `key`, in screen
- * order, for the Previous and Next buttons. Switched-off pages are stepped
- * over; from one of them, the buttons go to the included pages around it.
+ * The pages before and after the page holding `key`, in screen order, for
+ * the Previous and Next buttons: the steps and the Audit Log, so Next on the
+ * Conclusion opens the Audit Log. Switched-off pages are stepped over; from
+ * one of them, the buttons go to the pages around it.
  */
 export function neighbours(
   pages: readonly CapturePage[],
   key: string,
-): { previous: StepPage | null; next: StepPage | null } {
+): { previous: OpenPage | null; next: OpenPage | null } {
   const index = pages.findIndex((page) => pageSectionKeys(page).includes(key));
   if (index === -1) return { previous: null, next: pages.find(isStepPage) ?? null };
-  let previous: StepPage | null = null;
+  let previous: OpenPage | null = null;
   for (let before = index - 1; before >= 0 && previous === null; before -= 1) {
     const page = pages[before];
-    if (isStepPage(page)) previous = page;
+    if (isOpenPage(page)) previous = page;
   }
-  const next = pages.slice(index + 1).find(isStepPage) ?? null;
+  const next = pages.slice(index + 1).find(isOpenPage) ?? null;
   return { previous, next };
 }
 

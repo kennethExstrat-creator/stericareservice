@@ -660,3 +660,95 @@ describe("log_inspection_event() for an inspector", { timeout: 30_000 }, () => {
     expect(byService[0]).toBeGreaterThan(0);
   });
 });
+
+/**
+ * Migration 20261026130000 (Kenneth, 26 October 2026): a save with audit rows,
+ * a Dimension P/F set by hand or a spec changed for the inspection, writes the
+ * data and the rows in one transaction, or neither.
+ */
+describe("save_inspection_with_events()", { timeout: 30_000 }, () => {
+  let db: Db;
+  let people: People;
+  let templateId: string;
+
+  beforeAll(async () => {
+    db = await createTestDb();
+    people = await createPeople(db);
+    templateId = await createTemplate(db);
+  }, 120_000);
+
+  afterAll(async () => {
+    await db?.close();
+  });
+
+  const draftOf = (owner: string) => createInspection(db, owner, templateId, { client_id: POLYCO, manufacturer_id: HARTALEGA });
+  const CHANGE = { module: "dimensions", size: "M", column: "width", from: null, to: "fail", calculated: "pass", comment: "Torn cuffs." };
+  const SPEC = { module: "dimensions", size: "M", column: "fingerThickness", from: { kind: "tolerance", nominal: 0.18, tolerance: 0.04 }, to: { kind: "na" } };
+  const save = (actorId: string, inspectionId: string, baseUpdatedAt: string, events: unknown, data: unknown = SAVED_DATA) =>
+    asService(db, (tx) =>
+      column<string | null>(
+        tx,
+        `select public.save_inspection_with_events(
+           inspection_id => $1, actor_id => $2, base_updated_at => $3, data => $4, mirrored_columns => '{}', events => $5)`,
+        [inspectionId, actorId, baseUpdatedAt, JSON.stringify(data), JSON.stringify(events)],
+      ),
+    );
+
+  it("saves the data and writes each event as an audit row in the actor's name, in order", async () => {
+    const draft = await draftOf(people.inspector);
+    const second = { ...CHANGE, column: "length", to: "pass" };
+    const saved = await save(people.inspector, draft.id, draft.updated_at, [
+      { action: "spec_changed", changes: SPEC },
+      { action: "pass_fail_changed", changes: CHANGE },
+      { action: "pass_fail_changed", changes: second },
+    ]);
+    expect(saved[0]).not.toBeNull();
+    expect((await readInspection(db, draft.id))?.data).toEqual(SAVED_DATA);
+    expect(await auditTrail(db, draft.id)).toEqual([
+      expect.objectContaining({ action: "created" }),
+      { action: "spec_changed", actor_id: people.inspector, changes: SPEC },
+      { action: "pass_fail_changed", actor_id: people.inspector, changes: CHANGE },
+      { action: "pass_fail_changed", actor_id: people.inspector, changes: second },
+    ]);
+  });
+
+  it("writes neither the data nor the rows once another save moved the version on", async () => {
+    const draft = await draftOf(people.inspector);
+    expect(await saveInspection(db, people.inspector, draft.id, { columns: { po_no: "PO-DEVICE-1" } })).not.toBeNull();
+    const stale = await save(people.inspector, draft.id, draft.updated_at, [{ action: "pass_fail_changed", changes: CHANGE }]);
+    expect(stale[0]).toBeNull();
+    expect((await readInspection(db, draft.id))?.data).toEqual(EMPTY_DATA);
+    expect((await auditTrail(db, draft.id)).map((row) => row.action)).toEqual(["created"]);
+  });
+
+  it("refuses any other event, or events that are no list, and then writes nothing", async () => {
+    const draft = await draftOf(people.inspector);
+    for (const events of [
+      [{ action: "status_changed", changes: {} }],
+      [{ action: "spec_changed", changes: SPEC }, { action: "approved", changes: {} }],
+      [{ action: "pass_fail_changed" }],
+      [{ action: "spec_changed", changes: "NA" }],
+      { action: "pass_fail_changed" },
+    ]) {
+      expect(await pgError(save(people.inspector, draft.id, draft.updated_at, events))).toMatchObject({ code: "22023" });
+    }
+    expect((await readInspection(db, draft.id))?.data).toEqual(EMPTY_DATA);
+    expect((await auditTrail(db, draft.id)).map((row) => row.action)).toEqual(["created"]);
+  });
+
+  it("is for the secret key only: signed-in sessions and anon cannot call it", async () => {
+    const draft = await draftOf(people.inspector);
+    const call = (tx: Tx) =>
+      tx.query("select public.save_inspection_with_events($1, $2, $3, $4, '{}', $5)", [
+        draft.id,
+        people.inspector,
+        draft.updated_at,
+        JSON.stringify(SAVED_DATA),
+        JSON.stringify([{ action: "pass_fail_changed", changes: CHANGE }]),
+      ]);
+    for (const attempt of [() => asUser(db, people.inspector, call), () => asUser(db, people.admin, call), () => asAnon(db, call)]) {
+      expect(await pgError(attempt())).toMatchObject({ code: "42501", message: "permission denied for function save_inspection_with_events" });
+    }
+    expect((await auditTrail(db, draft.id)).map((row) => row.action)).toEqual(["created"]);
+  });
+});

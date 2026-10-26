@@ -875,6 +875,17 @@ export type Database = {
         }
         Returns: string
       }
+      save_inspection_with_events: {
+        Args: {
+          actor_id: string
+          base_updated_at: string
+          data: Json
+          events?: Json
+          inspection_id: string
+          mirrored_columns?: Json
+        }
+        Returns: string
+      }
       storage_folder_uuid: { Args: { object_name: string }; Returns: string }
       storage_inspection_id: { Args: { object_name: string }; Returns: string }
       submit_inspection: {

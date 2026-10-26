@@ -10,6 +10,7 @@ import { evaluateCapture, storedTemplateWithShownTitles } from "@/lib/inspection
 import { blockedSubmitMessage, neededSectionCount } from "@/lib/inspections/capture/issues";
 import { loadCaptureInspection, type CaptureInspection } from "@/lib/inspections/capture/load";
 import { mirroredColumns } from "@/lib/inspections/capture/mirror";
+import { dimensionEvents } from "@/lib/inspections/capture/dimension-events";
 import {
   switchOffProblem,
   switchOnProblem,
@@ -122,9 +123,18 @@ export async function saveCaptureData(input: unknown): Promise<CaptureSaveOutcom
       data: request.data,
       meta: row.meta,
     });
+    // A Dimension spec set for the inspection or P/F set by hand, changed or given back since the stored data:
+    // audit rows written with the data, in the same transaction (Kenneth, 26 October 2026). From the server's
+    // own read, never from the browser.
+    const events = dimensionEvents(
+      row.data,
+      request.data,
+      evaluation.report.modules.find((module) => module.key === "dimensions"),
+    );
     const outcome = await saveInspectionData(supabase, request, {
       columns: () => mirroredColumns(evaluation),
       writer: serverWriter(auth.user.id),
+      events,
     });
     // Written on the version just read: its status and overrides are the row's. A missed
     // compare-and-set answers a later read, which they may not match: none then.

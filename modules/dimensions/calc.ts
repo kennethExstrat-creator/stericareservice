@@ -4,7 +4,12 @@
 // with the printed figure. A size fails when a measure fails, passes when
 // every judged measure passes, and is not done until every glove has every
 // reading (BUILD_SPEC 6.2 rule 5). A measure whose spec is NA, or missing,
-// is recorded but not judged. A reading of 0 mm or less is an error that
+// is Passed once its readings are complete, as the client's report has it
+// (Kenneth, 26 October 2026). A spec set for this inspection, by hand or
+// read from the form's Spec row, takes the place of the template's. A P/F
+// set by hand, with the inspector's comment, takes the place of the
+// readings' verdict; where they differ, a warning keeps it in view. A
+// reading of 0 mm or less is an error that
 // blocks submit; it still counts, as MeasurementGrid's footer counts it, so
 // the screen never shows two verdicts for one column.
 import type { ModuleStatus } from "@/lib/schemas";
@@ -33,12 +38,15 @@ import {
   type Labels,
 } from "@/modules/_framework";
 import { MAX_ROWS, type DimensionsConfig, type Measure } from "./config";
-import type { DimensionGlove, DimensionsData } from "./schema";
+import { manualResultOf, specOverrideOf, type DimensionGlove, type DimensionsData, type ManualResult } from "./schema";
 
 type BySize<T> = { [size: string]: T };
 type ByMeasure<T> = { [measure: string]: T };
 
-/** pass or fail on the printed statistic, na without a spec to judge by, not_done while readings are missing. */
+/**
+ * pass or fail on the printed statistic (pass with no spec to judge by), or
+ * as set by hand; not_done while readings are missing.
+ */
 export type MeasureOutcome = ColumnOutcome;
 
 export type DimensionsComputed = {
@@ -56,9 +64,16 @@ export type DimensionsComputed = {
   statistic: BySize<ByMeasure<number | null>>;
   /** The statistic at the template's decimals: what the report prints and what is judged. */
   shown: BySize<ByMeasure<number | null>>;
-  /** The spec each measure is judged against; null when the template has none for it. */
+  /** The spec each measure is judged against: the one set for this inspection, else the template's; null when neither has one. */
   spec: BySize<ByMeasure<Spec | null>>;
+  /** The template's spec for each measure, whatever was set for this inspection; null when it has none. */
+  templateSpec: BySize<ByMeasure<Spec | null>>;
+  /** The verdict shown and judged: the P/F set by hand where there is one, else the readings'. */
   measureResult: BySize<ByMeasure<MeasureOutcome>>;
+  /** The readings' own verdict, whatever was set by hand. */
+  calculated: BySize<ByMeasure<MeasureOutcome>>;
+  /** The P/F set by hand, with its comment; only the measures that have one. */
+  manual: BySize<ByMeasure<ManualResult>>;
 };
 
 /** Where a size's number of gloves comes from. */
@@ -84,6 +99,16 @@ export function specFor(config: Pick<DimensionsConfig, "specs">, size: string, m
   return config.specs.find((row) => row.size === size)?.specs[measure];
 }
 
+/** The spec a size's measure is judged against: the one set for this inspection, else the template's. */
+export function effectiveSpecFor(
+  config: Pick<DimensionsConfig, "specs">,
+  data: DimensionsData | null,
+  size: string,
+  measure: Measure,
+): Spec | undefined {
+  return specOverrideOf(data, size, measure) ?? specFor(config, size, measure);
+}
+
 type MeasureSummary = {
   measure: Measure;
   count: number;
@@ -91,8 +116,16 @@ type MeasureSummary = {
   shown: number | null;
   spec: Spec | undefined;
   outcome: MeasureOutcome;
+  /** The P/F set by hand, when there is one. */
+  manual: ManualResult | null;
   status: ModuleStatus;
 };
+
+/** The readings' verdict: with no spec to judge by, Passed once the column is complete. */
+export function readingsVerdict(outcome: ColumnOutcome, complete: boolean, statistic: number | null): MeasureOutcome {
+  if (outcome !== "na") return outcome;
+  return complete && statistic !== null ? "pass" : "not_done";
+}
 
 export function calcDimensions({
   data,
@@ -110,7 +143,10 @@ export function calcDimensions({
     statistic: {},
     shown: {},
     spec: {},
+    templateSpec: {},
     measureResult: {},
+    calculated: {},
+    manual: {},
   };
   const failures = new Map<string, MeasureSummary[]>();
 
@@ -125,23 +161,34 @@ export function calcDimensions({
 
     const measures = config.measures.map((measure): MeasureSummary => {
       const column = Array.from({ length: rows }, (_, index) => gloves[index]?.[measure] ?? null);
-      const spec = specFor(config, size, measure);
+      const spec = effectiveSpecFor(config, data, size, measure);
       const decimals = config.decimals[measure];
       const summary = summarizeColumn(column, rows, config.statistic, spec, decimals);
       const shown = summary.statistic === null ? null : roundTo(summary.statistic, decimals);
+      const calculated = readingsVerdict(summary.outcome, summary.complete, summary.statistic);
+      const manual = manualResultOf(data, size, measure);
+      const outcome: MeasureOutcome = manual?.result ?? calculated;
       (computed.count[size] ??= {})[measure] = summary.count;
       (computed.statistic[size] ??= {})[measure] = summary.statistic;
       (computed.shown[size] ??= {})[measure] = shown;
       (computed.spec[size] ??= {})[measure] = spec ?? null;
-      (computed.measureResult[size] ??= {})[measure] = summary.outcome;
+      (computed.templateSpec[size] ??= {})[measure] = specFor(config, size, measure) ?? null;
+      (computed.measureResult[size] ??= {})[measure] = outcome;
+      (computed.calculated[size] ??= {})[measure] = calculated;
+      computed.manual[size] ??= {};
+      if (manual) computed.manual[size][measure] = manual;
+      if (manual && summary.complete && manual.result !== calculated) {
+        issues.push(manualIssue(size, measure, manual, calculated, labels, context));
+      }
       return {
         measure,
         count: summary.count,
         complete: summary.complete,
         shown,
         spec,
-        outcome: summary.outcome,
-        status: measureStatus(summary.complete, summary.outcome),
+        outcome,
+        manual,
+        status: measureStatus(summary.complete, outcome),
       };
     });
 
@@ -166,12 +213,38 @@ function measureStatus(complete: boolean, outcome: MeasureOutcome): ModuleStatus
   return outcome === "na" ? "info" : outcome;
 }
 
-/** "Width 106 (95 ± 10)": the printed statistic and its spec; with `verdict`, "Width 106 Failed (95 ± 10)". */
+/**
+ * "Width 106 (95 ± 10)": the printed statistic and its spec; with `verdict`,
+ * "Width 106 Failed (95 ± 10)", or "Width 106 Passed by the inspector (95 ± 10)"
+ * for a P/F set by hand.
+ */
 function printed(entry: MeasureSummary, config: DimensionsConfig, labels: Labels, verdict: boolean): string {
   const value = `${labelFor(labels, entry.measure)} ${formatDecimal(entry.shown, config.decimals[entry.measure])}`;
   const spec = entry.spec ? formatSpec(entry.spec) : "no spec";
   const judged = entry.outcome === "pass" || entry.outcome === "fail";
-  return verdict && judged ? `${value} ${labelFor(labels, entry.outcome)} (${spec})` : `${value} (${spec})`;
+  if (!verdict || !judged) return `${value} (${spec})`;
+  return `${value} ${labelFor(labels, entry.outcome)}${entry.manual ? " by the inspector" : ""} (${spec})`;
+}
+
+/**
+ * A P/F set by hand that the readings do not give: a warning, so the review
+ * sees it (Kenneth, 26 October 2026: "due to special action by inspector").
+ */
+function manualIssue(
+  size: string,
+  measure: Measure,
+  manual: ManualResult,
+  calculated: MeasureOutcome,
+  labels: Labels,
+  context: InspectionContext,
+): CalcIssue {
+  const word = (outcome: MeasureOutcome) =>
+    outcome === "pass" || outcome === "fail" ? labelFor(labels, outcome) : outcome === "na" ? "NA" : "not done";
+  return warningIssue(
+    "pass_fail_changed",
+    `Size ${sizeLabel(context, size)}, ${labelFor(labels, measure)}: ${word(manual.result)} set by the inspector; the readings give ${word(calculated)}. Comment: ${manual.comment}`,
+    { size, path: ["sizes", size, "manualResults", measure] },
+  );
 }
 
 function readingIssues(

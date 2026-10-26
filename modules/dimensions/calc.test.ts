@@ -70,8 +70,14 @@ describe("dimensions", () => {
       expect(output.computed.rows).toEqual({ M: 13 });
     });
 
-    it("passes length (≥ 240) and width (95 ± 10) and judges no thickness: NA, not the report's Passed", () => {
-      expect(output.computed.measureResult.M).toEqual(byMeasure(expected.perMeasure));
+    it("passes length (≥ 240) and width (95 ± 10), and the thicknesses with no spec: Passed, as the report prints them", () => {
+      // No spec means Passed once the readings are complete (Kenneth, 26 October 2026).
+      expect(output.computed.measureResult.M).toEqual({
+        ...byMeasure(expected.perMeasure),
+        fingerThickness: "pass",
+        palmThickness: "pass",
+        cuffThickness: "pass",
+      });
       expect(output.computed.spec.M).toEqual({
         ...byMeasure(expected.spec),
         fingerThickness: { kind: "na" },
@@ -85,7 +91,7 @@ describe("dimensions", () => {
           M: {
             status: "pass",
             summary:
-              "Median: Length 245 Passed (≥ 240), Width 95 Passed (95 ± 10), Finger Thickness 0.09 (NA), Palm Thickness 0.05 (NA), Cuff Thickness 0.04 (NA).",
+              "Median: Length 245 Passed (≥ 240), Width 95 Passed (95 ± 10), Finger Thickness 0.09 Passed (NA), Palm Thickness 0.05 Passed (NA), Cuff Thickness 0.04 Passed (NA).",
           },
         },
       });
@@ -192,9 +198,10 @@ describe("dimensions", () => {
       const output = calcDimensions(input(sizeM(lastCuffMissing)));
       expect(output.result.status).toBe("not_done");
       expect(output.result.perSize?.M?.summary).toBe(
-        "Median: Length 245 Passed (≥ 240), Width 95 Passed (95 ± 10), Finger Thickness 0.09 (NA), Palm Thickness 0.05 (NA). Missing readings: Cuff Thickness 12 of 13.",
+        "Median: Length 245 Passed (≥ 240), Width 95 Passed (95 ± 10), Finger Thickness 0.09 Passed (NA), Palm Thickness 0.05 Passed (NA). Missing readings: Cuff Thickness 12 of 13.",
       );
-      expect(output.computed.measureResult.M.cuffThickness).toBe("na");
+      // No spec, readings short: not done, never Passed.
+      expect(output.computed.measureResult.M.cuffThickness).toBe("not_done");
     });
 
     it("is not done for every size that has no readings, beside sizes that pass", () => {
@@ -296,34 +303,32 @@ describe("dimensions", () => {
       expect(output.result.perSize?.M?.summary).toContain("Glove width 106 F (95 ± 10)");
     });
 
-    it("records a size without a spec row without judging it", () => {
+    it("passes a size without a spec row once its readings are complete (Kenneth, 26 October 2026)", () => {
       const context = makeTestContext({ sizes: ["7.0"] });
       const output = calcDimensions(input({ sizes: { "7.0": { gloves: gloves(13) } } }, templateConfig("STD_SG"), context));
       expect(output.computed.measureResult["7.0"]).toEqual({
-        length: "na",
-        width: "na",
-        fingerThickness: "na",
-        palmThickness: "na",
-        cuffThickness: "na",
+        length: "pass",
+        width: "pass",
+        fingerThickness: "pass",
+        palmThickness: "pass",
+        cuffThickness: "pass",
       });
       expect(output.computed.spec["7.0"].length).toBeNull();
-      expect(output.result.status).toBe("info");
-      expect(output.result.summary).toBe("Recorded without a spec to judge by for size 7.0.");
+      expect(output.result.status).toBe("pass");
+      expect(output.result.summary).toBe("Median within spec for size 7.0.");
       expect(output.result.perSize?.["7.0"]?.summary).toBe(
-        "Median: Length 245 (no spec), Width 95 (no spec), Finger Thickness 0.09 (no spec), Palm Thickness 0.05 (no spec), Cuff Thickness 0.04 (no spec).",
+        "Median: Length 245 Passed (no spec), Width 95 Passed (no spec), Finger Thickness 0.09 Passed (no spec), Palm Thickness 0.05 Passed (no spec), Cuff Thickness 0.04 Passed (no spec).",
       );
     });
 
-    it("passes the sizes with a spec and records the size without one (SAFEDON_EG has no XL row)", () => {
+    it("passes the sizes with a spec, and the size without one too (SAFEDON_EG has no XL row)", () => {
       const context = makeTestContext({ sizes: ["M", "XL"] });
       const glove = { length: 242, width: 97, fingerThickness: 0.17, palmThickness: 0.11 };
       const data = { sizes: { M: { gloves: gloves(13, glove) }, XL: { gloves: gloves(13, glove) } } };
       const output = calcDimensions(input(data, SAFEDON_EG, context, templateLabels("SAFEDON_EG")));
-      expect(output.result.perSize).toMatchObject({ M: { status: "pass" }, XL: { status: "info" } });
+      expect(output.result.perSize).toMatchObject({ M: { status: "pass" }, XL: { status: "pass" } });
       expect(output.result.status).toBe("pass");
-      expect(output.result.summary).toBe(
-        "Average within spec for size M. Recorded without a spec to judge by for size XL.",
-      );
+      expect(output.result.summary).toBe("Average within spec for size M, XL.");
     });
   });
 
@@ -494,6 +499,83 @@ describe("dimensions", () => {
   it("starts from the module defaults when a template says nothing", () => {
     expect(definition.defaultConfig).toBe(DIMENSIONS_DEFAULT_CONFIG);
     const output = calcDimensions(input(sizeM(gloves(13)), DIMENSIONS_DEFAULT_CONFIG));
-    expect(output.result.status).toBe("info");
+    // No specs by default: every complete column is Passed (Kenneth, 26 October 2026).
+    expect(output.result.status).toBe("pass");
+  });
+});
+
+describe("dimensions: a P/F set by hand (Kenneth, 26 October 2026)", () => {
+  const outOfSpec = (manual?: DimensionsData["sizes"][string]["manualResults"]): DimensionsData => ({
+    sizes: { M: { gloves: gloves(13, { ...STD_GLOVE, width: 106 }), ...(manual ? { manualResults: manual } : {}) } },
+  });
+
+  it("takes the place of the readings' verdict: Passed on a width out of spec, with a warning naming the comment", () => {
+    const output = calcDimensions(input(outOfSpec({ width: { result: "pass", comment: "Measured again at the lab: 104." } }), STD_EG));
+    expect(output.computed.calculated.M.width).toBe("fail");
+    expect(output.computed.measureResult.M.width).toBe("pass");
+    expect(output.computed.manual.M).toEqual({ width: { result: "pass", comment: "Measured again at the lab: 104." } });
+    expect(output.result.perSize?.M?.status).toBe("pass");
+    expect(output.result.perSize?.M?.summary).toContain("Width 106 Passed by the inspector (95 ± 10)");
+    expect(output.issues).toEqual([
+      expect.objectContaining({
+        level: "warning",
+        code: "pass_fail_changed",
+        message: "Size M, Width: Passed set by the inspector; the readings give Failed. Comment: Measured again at the lab: 104.",
+        path: ["sizes", "M", "manualResults", "width"],
+      }),
+    ]);
+  });
+
+  it("fails the size when set to Failed, though the readings pass", () => {
+    const data = sizeM(gloves(13));
+    data.sizes.M.manualResults = { palmThickness: { result: "fail", comment: "Holes at the palm." } };
+    const output = calcDimensions(input(data, STD_EG));
+    expect(output.computed.calculated.M.palmThickness).toBe("pass");
+    expect(output.computed.measureResult.M.palmThickness).toBe("fail");
+    expect(output.result.status).toBe("fail");
+  });
+
+  it("gives no warning when it agrees with the readings, and leaves a size short of readings not done", () => {
+    const agree = calcDimensions(input(outOfSpec({ width: { result: "fail", comment: "Confirmed." } }), STD_EG));
+    expect(agree.issues).toEqual([]);
+    const short = sizeM(gloves(12));
+    short.sizes.M.manualResults = { length: { result: "pass", comment: "Twelve gloves only." } };
+    const output = calcDimensions(input(short, STD_EG));
+    expect(output.result.perSize?.M?.status).toBe("not_done");
+    expect(output.issues.filter((issue) => issue.code === "pass_fail_changed")).toEqual([]);
+  });
+});
+
+describe("dimensions: a spec set for the inspection (Kenneth, 26 October 2026)", () => {
+  // STD_EG v5 forms print SAFEDON_EG's specs: Spec ≥ 230 / 86 ± 4 / 0.18 ± 0.04 / 0.14 ± 0.04.
+  const withSpecs = (specOverrides: DimensionsData["sizes"][string]["specOverrides"]): DimensionsData => ({
+    sizes: { M: { gloves: gloves(13), specOverrides } },
+  });
+
+  it("judges by it in place of the template's, and keeps the template's beside it", () => {
+    const output = calcDimensions(input(withSpecs({ width: { kind: "tolerance", nominal: 86, tolerance: 4 } }), STD_EG));
+    expect(output.computed.spec.M.width).toEqual({ kind: "tolerance", nominal: 86, tolerance: 4 });
+    expect(output.computed.templateSpec.M.width).toEqual({ kind: "tolerance", nominal: 95, tolerance: 10 });
+    expect(output.computed.measureResult.M.width).toBe("fail");
+    expect(output.result.status).toBe("fail");
+    expect(output.result.summary).toContain("Out of spec: size M Width 95 (86 ± 4).");
+  });
+
+  it("fails a thickness the form gives a spec for, and passes it again once set to NA", () => {
+    const strict = calcDimensions(input(withSpecs({ fingerThickness: { kind: "tolerance", nominal: 0.18, tolerance: 0.04 } }), STD_EG));
+    expect(strict.computed.measureResult.M.fingerThickness).toBe("fail");
+    const none = calcDimensions(input(withSpecs({ fingerThickness: { kind: "na" } }), STD_EG));
+    expect(none.computed.spec.M.fingerThickness).toEqual({ kind: "na" });
+    expect(none.computed.measureResult.M.fingerThickness).toBe("pass");
+    expect(none.result.perSize?.M?.summary).toContain("Finger Thickness 0.09 Passed (NA)");
+  });
+
+  it("still gives way to a P/F set by hand", () => {
+    const data = withSpecs({ width: { kind: "tolerance", nominal: 86, tolerance: 4 } });
+    data.sizes.M = { ...data.sizes.M, manualResults: { width: { result: "pass", comment: "The PO's width is 95 ± 10." } } };
+    const output = calcDimensions(input(data, STD_EG));
+    expect(output.computed.calculated.M.width).toBe("fail");
+    expect(output.computed.measureResult.M.width).toBe("pass");
+    expect(output.result.status).toBe("pass");
   });
 });

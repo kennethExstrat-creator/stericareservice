@@ -155,4 +155,47 @@ describe("dimensions capture", () => {
   it("says that no size is ordered yet", () => {
     expect(render("STD_EG", emptyDimensions(), makeTestContext())).toContain("No sizes ordered yet.");
   });
+
+  it("offers Change a P/F for each measure, and lists a P/F set by hand with its comment (Kenneth, 26 October 2026)", () => {
+    const context = exampleContext(STD_EG_EXAMPLE);
+    const plain = render("STD_EG", stdEg, context);
+    expect(plain).toContain("Change a P/F:");
+    for (const name of ["Length", "Width", "Finger Thickness", "Palm Thickness", "Cuff Thickness"]) {
+      expect(plain).toContain(`${name}<span class="sr-only">, Size M</span>`);
+    }
+    // Width set to Failed by hand, though the readings pass: marked on its button and listed with the comment.
+    const data: DimensionsData = {
+      sizes: { ...stdEg.sizes, M: { ...stdEg.sizes.M, manualResults: { width: { result: "fail", comment: "Torn cuffs on 3 gloves." } } } },
+    };
+    const html = render("STD_EG", data, context);
+    expect(html).toContain("By Inspector");
+    expect(html).toContain("set by the inspector; the readings give Passed. Comment: Torn cuffs on 3 gloves.");
+    // Read-only: the list stays, the buttons go.
+    const readOnly = render("STD_EG", data, context, { readOnly: true });
+    expect(readOnly).not.toContain("Change a P/F:");
+    expect(readOnly).toContain("Comment: Torn cuffs on 3 gloves.");
+    expect(render("STD_EG", stdEg, context, { readOnly: true })).not.toContain('data-slot="manual-results"');
+  });
+
+  it("offers Change a Spec for each measure, and judges and lists a spec set for the inspection beside the template's (Kenneth, 26 October 2026)", () => {
+    const context = exampleContext(STD_EG_EXAMPLE);
+    const plain = render("STD_EG", stdEg, context);
+    expect(plain).toContain("Change a Spec:");
+    expect(plain).not.toContain("Changed</span>");
+    // The form prints SAFEDON_EG's width for size M: 86 ± 4, where the template has 95 ± 10.
+    const data: DimensionsData = {
+      sizes: { ...stdEg.sizes, M: { ...stdEg.sizes.M, specOverrides: { width: { kind: "tolerance", nominal: 86, tolerance: 4 } } } },
+    };
+    const html = render("STD_EG", data, context);
+    expect(html).toContain("Changed</span>");
+    expect(html).toContain("for this inspection. Template: 95 ± 10.");
+    // The grid's Spec row prints it, and its footer judges by it: a median of 95 fails 86 ± 4.
+    expect(html).toContain("86 ± 4");
+    expect(html).toContain("Failed");
+    // Read-only: the list stays, the buttons go.
+    const readOnly = render("STD_EG", data, context, { readOnly: true });
+    expect(readOnly).not.toContain("Change a Spec:");
+    expect(readOnly).toContain("Template: 95 ± 10.");
+    expect(render("STD_EG", stdEg, context, { readOnly: true })).not.toContain('data-slot="spec-overrides"');
+  });
 });

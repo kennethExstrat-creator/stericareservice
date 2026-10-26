@@ -151,15 +151,15 @@ describe("STD_EG example as a whole inspection (expected results B)", () => {
     expect(computedAt(visual, "heading")).toBe("Visual Inspection (Single Sampling Code Letter N)");
   });
 
-  it("Dimension medians M: 245, 95, 0.09, 0.05, 0.04; length and width pass, thickness has no spec (NA)", () => {
+  it("Dimension medians M: 245, 95, 0.09, 0.05, 0.04; length and width pass, and thickness with no spec (NA) passes too", () => {
     const dimensions = corrected.module("dimensions");
     for (const [size, expected] of Object.entries(EXPECTED.dimensions)) {
       for (const [measure, median] of Object.entries(expected.median)) {
         const key = FIXTURE_MEASURE[measure as keyof typeof FIXTURE_MEASURE];
         expect(computedAt(dimensions, "statistic", size, key), `${size} ${measure}`).toBe(median);
-        expect(computedAt(dimensions, "measureResult", size, key), `${size} ${measure}`).toBe(
-          expected.perMeasure[measure as keyof typeof expected.perMeasure],
-        );
+        // No spec means Passed once the readings are complete, as the report prints it (Kenneth, 26 October 2026).
+        const verdict = expected.perMeasure[measure as keyof typeof expected.perMeasure];
+        expect(computedAt(dimensions, "measureResult", size, key), `${size} ${measure}`).toBe(verdict === "na" ? "pass" : verdict);
       }
       for (const [measure, spec] of Object.entries(expected.spec)) {
         const key = FIXTURE_MEASURE[measure as keyof typeof FIXTURE_MEASURE];

@@ -10,6 +10,15 @@
 // the cell; readings past the planned gloves, which have no row, can be
 // removed from their warning. Read-only, the readings stay focusable. Photos
 // are tagged with the size in view.
+//
+// Under each size's grid (Kenneth, 26 October 2026), Change a Spec: a
+// measure's spec for this inspection, as the form's Spec row gives it (NA
+// included), in place of the template's; and Change a P/F: a measure's P/F
+// set by hand, with a comment. The save records both in the audit log; the
+// grid then judges and shows them, and the lists under the buttons say what
+// was changed. (The grid's own Spec and P/F cells are the shared kit's and
+// take no control yet.)
+import { PencilIcon } from "lucide-react";
 import { useId, useRef, useState, type RefObject } from "react";
 import {
   focusIssuePath,
@@ -24,10 +33,24 @@ import {
   type Measure as GridMeasure,
 } from "@/components/qc";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Textarea } from "@/components/ui/textarea";
+import { formatSpec, type Spec } from "@/lib/stats";
 import { cn } from "@/lib/utils";
 import { initialSize, labelFor, sizeLabel, type CaptureProps, type Labels, type ValidationIssue } from "@/modules/_framework";
 import { sizeOnTabs, useReportShownSize } from "@/modules/_framework/shown-size";
-import { rowsFor, specFor, type DimensionsComputed } from "./calc";
+import { effectiveSpecFor, rowsFor, specFor, type DimensionsComputed, type MeasureOutcome } from "./calc";
 import {
   cellPath,
   gridColumns,
@@ -37,8 +60,17 @@ import {
   withoutGlovesPast,
   withReadings,
 } from "./capture-data";
-import type { DimensionsConfig } from "./config";
-import type { DimensionsData } from "./schema";
+import type { DimensionsConfig, Measure } from "./config";
+import { fieldsOf, figuresOf, SPEC_KINDS, specFromFigures, type SpecFigures } from "./spec-entry";
+import {
+  MANUAL_COMMENT_MAX,
+  sameSpec,
+  specOverrideOf,
+  withManualResult,
+  withSpecOverride,
+  type DimensionsData,
+  type ManualResult,
+} from "./schema";
 
 type Props = CaptureProps<DimensionsData, DimensionsConfig, DimensionsComputed>;
 
@@ -111,7 +143,8 @@ function SizeGrid({
     label: labelFor(labels, measure),
     unit: "mm",
     decimals: config.decimals[measure],
-    spec: specFor(config, size, measure),
+    // The spec set for this inspection, else the template's: what calc judges by.
+    spec: effectiveSpecFor(config, data, size, measure),
     // calc refuses a reading of 0 mm or less: so does the cell.
     min: 0,
     minExclusive: true,
@@ -146,12 +179,436 @@ function SizeGrid({
           cellIssuePath={(cell) => cellPath(size, cell)}
         />
       </div>
+      <SpecOverrides
+        sizeName={sizeLabel(context, size)}
+        measures={config.measures}
+        labels={labels}
+        template={(measure) => specFor(config, size, measure) ?? null}
+        overrides={Object.fromEntries(config.measures.map((measure) => [measure, specOverrideOf(data, size, measure)]))}
+        readOnly={readOnly}
+        onChange={(measure, spec) => update((current) => withSpecOverride(current, size, measure, spec))}
+      />
+      <ManualResults
+        size={size}
+        sizeName={sizeLabel(context, size)}
+        measures={config.measures}
+        labels={labels}
+        calculated={computed?.calculated?.[size] ?? {}}
+        manual={computed?.manual?.[size] ?? {}}
+        readOnly={readOnly}
+        onChange={(measure, manual) => update((current) => withManualResult(current, size, measure, manual))}
+      />
       <IssueLinks
         issues={issues}
         root={root}
         onRemoveUncounted={readOnly ? undefined : () => update((current) => withoutGlovesPast(current, size, rows))}
       />
     </ModuleSection>
+  );
+}
+
+/** "Passed", "Failed" in the template's words (SAFEDON_EG: "A", "Rej."); "not done" while readings are missing. */
+function verdictWord(outcome: MeasureOutcome | undefined, labels: Labels): string {
+  if (outcome === "pass" || outcome === "fail") return labelFor(labels, outcome);
+  return outcome === "na" ? "NA" : "not done";
+}
+
+/** "≥ 240", "NA"; "no spec" where there is none. */
+function specWords(spec: Spec | null | undefined): string {
+  return spec ? formatSpec(spec) : "no spec";
+}
+
+/**
+ * Change a Spec: a button per measure, each opening the dialog that sets the
+ * measure's spec for this inspection, and the list of the specs changed, each
+ * beside the template's. Read-only, only the list.
+ */
+function SpecOverrides({
+  sizeName,
+  measures,
+  labels,
+  template,
+  overrides,
+  readOnly,
+  onChange,
+}: {
+  sizeName: string;
+  measures: readonly Measure[];
+  labels: Labels;
+  template: (measure: Measure) => Spec | null;
+  overrides: Readonly<Partial<Record<string, Spec | null>>>;
+  readOnly: boolean;
+  onChange: (measure: Measure, spec: Spec | null) => void;
+}) {
+  const [editing, setEditing] = useState<Measure | null>(null);
+  const changed = measures.filter((measure) => overrides[measure]);
+  if (readOnly && changed.length === 0) return null;
+  return (
+    <div data-slot="spec-overrides" className="space-y-2">
+      {!readOnly && (
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm font-medium text-muted-foreground touch:text-base">Change a Spec:</p>
+          {measures.map((measure) => (
+            <Button
+              key={measure}
+              type="button"
+              variant="outline"
+              size="sm"
+              className="touch:text-base"
+              onClick={() => setEditing(measure)}
+            >
+              <PencilIcon aria-hidden />
+              {labelFor(labels, measure)}
+              {overrides[measure] && (
+                <span className="rounded-full border border-border bg-muted px-1.5 text-xs font-semibold text-foreground">
+                  Changed
+                </span>
+              )}
+              <span className="sr-only">, Size {sizeName}</span>
+            </Button>
+          ))}
+        </div>
+      )}
+      {changed.length > 0 && (
+        <ul className="space-y-1.5" aria-label="Specs changed for this inspection">
+          {changed.map((measure) => (
+            <li key={measure} className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-foreground touch:text-base">
+              <span className="font-semibold">
+                {labelFor(labels, measure)}: {specWords(overrides[measure])}
+              </span>{" "}
+              for this inspection. Template: {specWords(template(measure))}.
+            </li>
+          ))}
+        </ul>
+      )}
+      {editing && (
+        <ChangeSpecDialog
+          key={editing}
+          measureName={labelFor(labels, editing)}
+          sizeName={sizeName}
+          template={template(editing)}
+          current={overrides[editing] ?? null}
+          onClose={() => setEditing(null)}
+          onSave={(next) => {
+            // The template's own spec changes nothing for this inspection.
+            onChange(editing, next && sameSpec(next, template(editing)) ? null : next);
+            setEditing(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * A spec for this inspection in any kind the template takes, NA included;
+ * Use Template Spec gives the measure back to the template's.
+ */
+function ChangeSpecDialog({
+  measureName,
+  sizeName,
+  template,
+  current,
+  onClose,
+  onSave,
+}: {
+  measureName: string;
+  sizeName: string;
+  template: Spec | null;
+  current: Spec | null;
+  onClose: () => void;
+  onSave: (spec: Spec | null) => void;
+}) {
+  const ids = useId();
+  const start = current ?? template;
+  const [kind, setKind] = useState<Spec["kind"]>(start?.kind ?? "min");
+  const [figures, setFigures] = useState<SpecFigures>(() => figuresOf(start));
+  const [error, setError] = useState<string | null>(null);
+  const fields = fieldsOf(kind);
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <form
+          className="grid gap-5"
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault();
+            const made = specFromFigures(kind, figures);
+            if ("error" in made) setError(made.error);
+            else onSave(made.spec);
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>Change the Spec</DialogTitle>
+            <DialogDescription>
+              {measureName}, Size {sizeName}. Template: {specWords(template)}. The spec is changed for this inspection
+              only, and the change is recorded in the Audit Log.
+            </DialogDescription>
+          </DialogHeader>
+          <RadioGroup
+            value={kind}
+            onValueChange={(value) => {
+              const next = SPEC_KINDS.find((entry) => entry.kind === value);
+              if (next) setKind(next.kind);
+              setError(null);
+            }}
+            aria-label="Kind of spec"
+            className="grid gap-2 sm:grid-cols-2"
+          >
+            {SPEC_KINDS.map((entry) => (
+              <Label
+                key={entry.kind}
+                htmlFor={`${ids}-${entry.kind}`}
+                className="flex min-h-11 items-center gap-3 rounded-lg border border-border px-3 has-data-[state=checked]:border-primary has-data-[state=checked]:bg-accent"
+              >
+                <RadioGroupItem id={`${ids}-${entry.kind}`} value={entry.kind} />
+                {entry.label}
+              </Label>
+            ))}
+          </RadioGroup>
+          {fields.length > 0 ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {fields.map((name, index) => {
+                const key = index === 0 ? "first" : "second";
+                return (
+                  <div key={name} className="grid gap-1.5">
+                    <Label htmlFor={`${ids}-${key}`}>{name} (mm)</Label>
+                    <Input
+                      id={`${ids}-${key}`}
+                      inputMode="decimal"
+                      autoComplete="off"
+                      value={figures[key]}
+                      aria-invalid={error !== null || undefined}
+                      aria-describedby={error ? `${ids}-error` : undefined}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setFigures((before) => ({ ...before, [key]: value }));
+                        setError(null);
+                      }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground touch:text-base">
+              No spec to judge by: the column is Passed once its readings are complete.
+            </p>
+          )}
+          {error && (
+            <p id={`${ids}-error`} role="alert" className="text-sm text-fail touch:text-base">
+              {error}
+            </p>
+          )}
+          <DialogFooter className="gap-2 sm:justify-between">
+            {current ? (
+              <Button type="button" variant="ghost" onClick={() => onSave(null)}>
+                Use Template Spec
+              </Button>
+            ) : (
+              <span aria-hidden />
+            )}
+            <div className="flex flex-wrap justify-end gap-2">
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  Cancel
+                </Button>
+              </DialogClose>
+              <Button type="submit">Save</Button>
+            </div>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Change a P/F: a button per measure, each opening the dialog that sets the
+ * measure's P/F by hand with a comment, and the list of what was set and
+ * why. Read-only, only the list.
+ */
+function ManualResults({
+  size,
+  sizeName,
+  measures,
+  labels,
+  calculated,
+  manual,
+  readOnly,
+  onChange,
+}: {
+  size: string;
+  sizeName: string;
+  measures: readonly Measure[];
+  labels: Labels;
+  calculated: Readonly<Partial<Record<string, MeasureOutcome>>>;
+  manual: Readonly<Partial<Record<string, ManualResult>>>;
+  readOnly: boolean;
+  onChange: (measure: Measure, manual: ManualResult | null) => void;
+}) {
+  const [editing, setEditing] = useState<Measure | null>(null);
+  const set = measures.filter((measure) => manual[measure]);
+  if (readOnly && set.length === 0) return null;
+  return (
+    <div data-slot="manual-results" className="space-y-2">
+      {!readOnly && (
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm font-medium text-muted-foreground touch:text-base">Change a P/F:</p>
+          {measures.map((measure) => (
+            <Button
+              key={measure}
+              type="button"
+              variant="outline"
+              size="sm"
+              className="touch:text-base"
+              onClick={() => setEditing(measure)}
+            >
+              <PencilIcon aria-hidden />
+              {labelFor(labels, measure)}
+              {manual[measure] && (
+                <span className="rounded-full border border-warn-border bg-warn-tint px-1.5 text-xs font-semibold text-warn">
+                  By Inspector
+                </span>
+              )}
+              <span className="sr-only">, Size {sizeName}</span>
+            </Button>
+          ))}
+        </div>
+      )}
+      {set.length > 0 && (
+        <ul className="space-y-1.5" aria-label="P/F set by the inspector">
+          {set.map((measure) => {
+            const entry = manual[measure]!;
+            const differs = entry.result !== calculated[measure];
+            return (
+              <li
+                key={measure}
+                // calc's warning about it links here.
+                {...issueNoticeProps(["sizes", size, "manualResults", measure])}
+                className={cn(
+                  "rounded-md border px-3 py-2 text-sm outline-none focus-ring touch:text-base",
+                  differs ? "border-warn-border bg-warn-tint text-warn" : "border-border bg-muted text-foreground",
+                )}
+              >
+                <span className="font-semibold">
+                  {labelFor(labels, measure)}: {verdictWord(entry.result, labels)}
+                </span>{" "}
+                set by the inspector; the readings give {verdictWord(calculated[measure], labels)}. Comment: {entry.comment}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {editing && (
+        <ChangeResultDialog
+          key={editing}
+          measureName={labelFor(labels, editing)}
+          sizeName={sizeName}
+          labels={labels}
+          calculated={calculated[editing]}
+          current={manual[editing] ?? null}
+          onClose={() => setEditing(null)}
+          onSave={(next) => {
+            onChange(editing, next);
+            setEditing(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Passed or Failed, and why: the comment is required, and the save records both in the audit log. */
+function ChangeResultDialog({
+  measureName,
+  sizeName,
+  labels,
+  calculated,
+  current,
+  onClose,
+  onSave,
+}: {
+  measureName: string;
+  sizeName: string;
+  labels: Labels;
+  calculated: MeasureOutcome | undefined;
+  current: ManualResult | null;
+  onClose: () => void;
+  onSave: (manual: ManualResult | null) => void;
+}) {
+  const ids = useId();
+  const [result, setResult] = useState<ManualResult["result"]>(current?.result ?? (calculated === "pass" ? "fail" : "pass"));
+  const [comment, setComment] = useState(current?.comment ?? "");
+  const ready = comment.trim() !== "";
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <form
+          className="grid gap-5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (ready) onSave({ result, comment: comment.trim() });
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>Change the P/F</DialogTitle>
+            <DialogDescription>
+              {measureName}, Size {sizeName}. The readings give {verdictWord(calculated, labels)}. Your choice and comment are
+              recorded in the Audit Log.
+            </DialogDescription>
+          </DialogHeader>
+          <RadioGroup
+            value={result}
+            onValueChange={(value) => setResult(value === "fail" ? "fail" : "pass")}
+            aria-label="P/F"
+            className="grid gap-2 sm:grid-cols-2"
+          >
+            {(["pass", "fail"] as const).map((choice) => (
+              <Label
+                key={choice}
+                htmlFor={`${ids}-${choice}`}
+                className="flex min-h-11 items-center gap-3 rounded-lg border border-border px-3 has-data-[state=checked]:border-primary has-data-[state=checked]:bg-accent"
+              >
+                <RadioGroupItem id={`${ids}-${choice}`} value={choice} />
+                {labelFor(labels, choice)}
+              </Label>
+            ))}
+          </RadioGroup>
+          <div className="grid gap-1.5">
+            <Label htmlFor={`${ids}-comment`}>Comment</Label>
+            <Textarea
+              id={`${ids}-comment`}
+              value={comment}
+              onChange={(event) => setComment(event.target.value)}
+              maxLength={MANUAL_COMMENT_MAX}
+              required
+              rows={3}
+              placeholder="Why the result is changed"
+            />
+          </div>
+          <DialogFooter className="gap-2 sm:justify-between">
+            {current ? (
+              <Button type="button" variant="ghost" onClick={() => onSave(null)}>
+                Use the Readings&apos; Result
+              </Button>
+            ) : (
+              <span aria-hidden />
+            )}
+            <div className="flex flex-wrap justify-end gap-2">
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  Cancel
+                </Button>
+              </DialogClose>
+              <Button type="submit" disabled={!ready}>
+                Change Result
+              </Button>
+            </div>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
